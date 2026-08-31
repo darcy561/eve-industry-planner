@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/stackservices"
 	"os"
 	"time"
@@ -66,6 +67,12 @@ func (a *app) connectDeps(ctx context.Context) error {
 	a.stopDeps = stopDeps
 	a.g.AddApp(metrics.RegisterAll(clients.Redis, clients.Mongo, clients.NATS.Conn())...)
 	health.Register(health.Deps(clients))
+
+	// Core owns stream lifecycle: a stream this app made but no longer declares
+	// is removed here rather than by hand.
+	if _, err := clients.NATS.ReconcileStreams(ctx); err != nil {
+		logs.WarnCtx(ctx, "stream reconcile failed", "error", err)
+	}
 	return nil
 }
 

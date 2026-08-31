@@ -6,6 +6,8 @@ import (
 	"maps"
 	"sync"
 
+	"eve-industry-planner/shared/logs"
+
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -55,8 +57,11 @@ func (s *Stream) Ensure(ctx context.Context) (jetstream.Stream, error) {
 
 // Consumer creates or updates a durable on the stream, stamping ownership so
 // reconcile can tell this app's durables from anything else on the server.
-// A DeliverPolicy change is applied with ResetConsumer rather than by deleting
-// and recreating, which would discard the durable's ack floor.
+//
+// DeliverPolicy is immutable once a consumer exists — the server rejects an
+// update with "deliver policy can not be updated" — so a change to it is applied
+// by deleting the durable and creating it again. Everything else updates in
+// place.
 func (s *Stream) Consumer(ctx context.Context, cfg jetstream.ConsumerConfig) (jetstream.Consumer, error) {
 	stream, err := s.Ensure(ctx)
 	if err != nil {
@@ -70,8 +75,12 @@ func (s *Stream) Consumer(ctx context.Context, cfg jetstream.ConsumerConfig) (je
 	existing, err := stream.Consumer(ctx, cfg.Durable)
 	if err == nil && existing != nil {
 		if info := existing.CachedInfo(); info != nil && info.Config.DeliverPolicy != cfg.DeliverPolicy {
-			if _, resetErr := stream.ResetConsumer(ctx, cfg.Durable); resetErr != nil {
-				return nil, fmt.Errorf("reset consumer %s: %w", cfg.Durable, resetErr)
+			logs.InfoCtx(ctx, "consumer DeliverPolicy changed, recreating",
+				"consumer", cfg.Durable,
+				"from", info.Config.DeliverPolicy,
+				"to", cfg.DeliverPolicy)
+			if delErr := DeleteConsumer(ctx, stream, cfg.Durable); delErr != nil {
+				return nil, fmt.Errorf("recreate consumer %s: %w", cfg.Durable, delErr)
 			}
 		}
 	}
@@ -101,4 +110,57 @@ func withOwnerMetadata(in map[string]string) map[string]string {
 	maps.Copy(out, in)
 	out[MetadataOwnerKey] = MetadataOwnerValue
 	return out
+}
+
+// StreamReconcileResult summarises a pass over the server's streams.
+type StreamReconcileResult struct {
+	Listed  int
+	Skipped int // streams this app does not own
+	Deleted int
+}
+
+// ReconcileStreams deletes streams this app owns that no longer appear in
+// [Specs]. Retiring a stream is therefore deleting its spec.
+//
+// Only streams carrying the ownership stamp are candidates, so a KV or
+// object-store backing stream, or one an operator made, is never touched.
+// Deleting a stream destroys its messages: the streams here carry live delivery
+// and re-runnable work, never the only copy of anything.
+func (n *NATS) ReconcileStreams(ctx context.Context) (StreamReconcileResult, error) {
+	var result StreamReconcileResult
+	if n == nil || n.js == nil {
+		return result, fmt.Errorf("nats handle is required")
+	}
+
+	declared := make(map[string]struct{}, len(Specs()))
+	for _, spec := range Specs() {
+		declared[spec.Name] = struct{}{}
+	}
+
+	lister := n.js.ListStreams(ctx)
+	var infos []*jetstream.StreamInfo
+	for info := range lister.Info() {
+		infos = append(infos, info)
+	}
+	if err := lister.Err(); err != nil {
+		return result, err
+	}
+	result.Listed = len(infos)
+
+	for _, info := range infos {
+		if info.Config.Metadata[MetadataOwnerKey] != MetadataOwnerValue {
+			result.Skipped++
+			continue
+		}
+		if _, ok := declared[info.Config.Name]; ok {
+			continue
+		}
+		if err := n.js.DeleteStream(ctx, info.Config.Name); err != nil {
+			logs.WarnCtx(ctx, "failed to delete obsolete stream", "stream", info.Config.Name, "error", err)
+			continue
+		}
+		logs.InfoCtx(ctx, "deleted obsolete stream", "stream", info.Config.Name)
+		result.Deleted++
+	}
+	return result, nil
 }

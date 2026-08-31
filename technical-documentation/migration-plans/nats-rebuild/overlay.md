@@ -132,6 +132,13 @@ runs the keep policy the spec carries. Retention and the fan-out crash backstop
 (`DocFanoutInactiveThreshold`) are properties of the spec rather than constants scattered across the
 services that use them.
 
+### Streams are declared, and undeclared ones are removed
+
+`Specs()` is the allowlist. `NATS.ReconcileStreams` deletes streams carrying this app's ownership
+stamp that no longer appear in it, so retiring a stream means deleting its spec. Core runs it at boot,
+since it owns stream lifecycle. Unstamped streams — KV, object-store backing, an operator's own — are
+counted and skipped.
+
 ### Ownership is stamped, and reconcile acts on it
 
 Streams and consumers this app creates carry `eip.owner` metadata, and consumer reconcile now gates
@@ -173,11 +180,57 @@ already used. `task_subscriber.go` drops from 242 lines to 140.
 `EnsureStreams`, `StreamConfig`, the three per-stream ensure wrappers, `GetOrEnsureStream`,
 `GetOrCreateConsumer`, the three keep-policy constructors, and the three stream-subject vars. Stream
 configuration drift is now the server's `CreateOrUpdateStream` / `CreateOrUpdateConsumer`, and a
-`DeliverPolicy` change uses `ResetConsumer` instead of deleting a durable and losing its ack floor.
+`DeliverPolicy` change still deletes and recreates the durable, because the server refuses to update
+that field; `ResetConsumer` resets delivery state rather than policy and does not apply.
 
 ## Stage C — typed tasks and topics
 
-_Not landed._
+_Partially landed: typed task definitions, payload relocation, span attributes, and the requestable
+flag. Async batch publishing, the asynq handler adapter, and typed topics with request/reply are
+still open._
+
+### A task is its payload type
+
+`tasks.Define[T](Definition{…})` binds a task's name, subject, default priority and timeout to the
+payload its subject carries. `RefreshRegionMarketOrders.Publish(ctx, nats, req)` will not compile with
+the wrong struct, where before any value could be published to any subject and the mismatch surfaced
+as a decode failure on the worker.
+
+`Definition` is the non-generic record the registry holds, because the worker resolves priority and
+timeout by name at runtime and a generic type cannot key a map. `Task[T]` embeds it, so a caller that
+needs the record passes `.Definition` — the operator task CLI, which triggers any task by name with
+an operator-supplied payload, is deliberately one of those.
+
+A task carrying no data is `Task[None]`, and publishing `None{}` sends the trigger envelope those
+subjects already used, so the wire is unchanged.
+
+### One package
+
+`shared/tasks` is gone. Definitions, payloads and the transport they depend on live in
+`services/shared/nats`, because a task exists to be published and neither half was ever used without
+the other. Publishing is a method on the handle — `n.Publish`, `n.PublishTask`, `n.PublishEmpty` —
+and a task is a typed helper wrapping it, which is also the shape `Mongo` uses.
+
+Two files that were never task definitions moved out instead: the Redis refresh-lock helper to
+`shared/core/redis`, and asynq queue weights to `shared/queuescale` — shared because the worker sizes
+its queues from them and the capacity controller scales replicas from them, and one service must
+never import another.
+
+### Span attributes come from the payload
+
+A payload declares its own attributes by implementing `SpanAttributes()`. This replaces a switch on
+task-name strings in the transport package that mapped five unrelated tasks onto one request struct
+because they happened to share an `account_id` — correct by coincidence, and wrong for the next task
+added to that list.
+
+The asynq-side span no longer adds payload attributes: recovering the concrete type from a name
+needed a registry of decoders, which was more machinery than the attributes were worth. The publish
+span still carries them.
+
+### One list of requestable tasks
+
+`Requestable` is a field on the definition. The scheduler's `requestableTaskTypes` map of three string
+literals is gone.
 
 ## Stage D — call-site cutover
 

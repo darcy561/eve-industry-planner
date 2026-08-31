@@ -89,7 +89,7 @@ value below is in APIs that were already available and unused.
 | We hand-roll | Client API | Notes |
 |---|---|---|
 | Subject diffing then `UpdateStream`; consumer delete+recreate | `CreateOrUpdateStream` / `CreateOrUpdateConsumer` | Removes most of `jetstream.go` |
-| Delete+recreate a durable on `DeliverPolicy` drift | `ResetConsumer` / `ResetConsumerToSequence` | v1.52.0, server 2.14; keeps the durable and its name |
+| Hand-rolled consumer config drift detection | `CreateOrUpdateConsumer` | `DeliverPolicy` is immutable and still needs delete+recreate — see § Durable cleanup |
 | `context.WithTimeout(ctx, 5s)` per publish | `WithDefaultTimeout` | One setting on the handle |
 | Name-prefix and `NumWaiting==0` guessing about durable ownership | `ConsumerConfig.Metadata` | Server 2.10; reconcile on stamped facts instead of naming conventions |
 | One blanket `MaxAge` per stream | `WithMsgTTL` | Server 2.11; per-definition retention override — see § Retention is a property of the definition |
@@ -251,8 +251,14 @@ boilerplate this project removes.
 **Resolving and reconciling configuration** — `EnsureStreams` comparing subject sets before calling
 `UpdateStream`, `GetOrCreateConsumer` detecting config drift, `GetOrEnsureStream`, and the
 `subjectsAsSetEqual` helper behind them — is replaced wholesale by `CreateOrUpdateStream` and
-`CreateOrUpdateConsumer`, with `ResetConsumer` for the delivery-policy case that currently forces a
-delete and recreate. The server performs the upsert; we stop reimplementing it.
+`CreateOrUpdateConsumer`. The server performs the upsert; we stop reimplementing it.
+
+**DeliverPolicy is the exception, and `ResetConsumer` does not cover it.** The server rejects a
+delivery-policy update outright (`deliver policy can not be updated`, err_code 10012), and
+`ResetConsumer` resets a consumer's delivery *state* to its ack floor — a different thing entirely.
+A delivery-policy change is therefore applied by deleting the durable and creating it again, as it
+always was. A live test holds this: it changes the policy on an existing durable and asserts the new
+value takes effect.
 
 **Removing durables nobody owns** is not the same job and the server does not do it for us. It stays.
 It exists because abandoned per-replica durables are retained indefinitely, hold pending counts, and
@@ -332,18 +338,37 @@ created outside this package (KV or object-store backing streams, or an operator
 alone. Deleting a stream destroys its messages, which is acceptable under the hard-cutover decision
 above and is the reason the stamp check is not optional.
 
-### Payloads live with their task
+### One messaging package
 
-Task request structs move out of `shared/core/nats` and sit beside their task definition. The
-transport package keeps envelope, connection, streams, consumers, retry and subjects.
+Task payloads started in the transport package, moved out to `shared/tasks` beside their definitions,
+and moved back. The move out was wrong, and the reason is worth recording so it is not repeated: a
+task exists in order to be published, so nothing ever imports one side without the other. Splitting
+on the concept — payloads are domain, envelopes are transport — produced two packages that were
+always used together, and an import edge that had to be either accepted or disguised behind an
+interface whose only job was to hide it.
+
+`services/shared/nats` therefore holds the envelope, the connection, streams, consumers, retry, and
+the task catalogue. `PublishTask` is a method on the handle, and each task is a typed helper wrapping
+it. What does **not** belong there, and moved out rather than in:
+
+| Was in `shared/tasks` | Now |
+|---|---|
+| `AcquireRefreshLock` — a Redis lock helper with logging | `shared/core/redis` as `AcquireRefreshLockLogged` |
+| `queue_scale.go` — asynq queue weights and scale-up pressure | `shared/queuescale`, because the worker sizes queues from it and the capacity controller scales from it |
 
 ### Generic at the edges, concrete in the registry
 
-A task definition gains its payload type — `tasks.Define[T](spec)` — so `Publish` and `Handle` are
+A task definition gains its payload type — `DefineTask[T](Definition{…})` — so `Publish` is
 type-checked against the subject. The worker resolves priority and timeout by task-name string at
-runtime, and a generic type cannot go in `map[string]Task`, so the definition embeds a non-generic
-record that the registry holds. This split is deliberate: generic at publish and handle sites,
-concrete wherever lookup is by name.
+runtime, and a generic type cannot go in `map[string]Definition`, so `Task[T]` embeds the
+non-generic record the registry holds. This split is deliberate: generic at publish sites, concrete
+wherever lookup is by name. A task carrying no payload is a `Trigger`, which is a separate type
+rather than a marker payload with a branch in the publish path.
+
+Kept deliberately small: no options type for the single optional priority argument, and no registry
+of payload decoders. The decoder registry existed only so the worker's asynq span could rebuild a
+payload from a name; the publish span still carries payload attributes because it holds the typed
+value, and the asynq-side attributes were dropped as not worth the machinery.
 
 ## Wire compatibility
 
@@ -407,7 +432,7 @@ and no NATS retry logic exists outside the package.
 
 `StreamSpec` values (name, subjects, retention, keep policy) as the source of truth, with a `Stream`
 type owning ensure, consumer creation, filter reconcile and durable hygiene on top of
-`CreateOrUpdateStream` / `CreateOrUpdateConsumer` / `ResetConsumer`. Durable ownership moves from
+`CreateOrUpdateStream` / `CreateOrUpdateConsumer`. Durable ownership moves from
 name prefixes to consumer `Metadata`. One `Consume` with optional bounded concurrency; the worker's
 fetch loop is deleted.
 
@@ -431,6 +456,11 @@ task-name string comes from the definition rather than being retyped at the hand
 type is checked at both ends. Handlers stay in worker packages; `shared/tasks` does not import them.
 A test iterates every definition and asserts a handler is registered, so a task that can be published
 with nothing to run it fails the build rather than a production message.
+
+Core-NATS topics are the remaining half of this stage and run **after Stage E**: retiring the
+scheduler ingress deletes the generic envelope decoder, the `MessageType` interface and its
+type-mismatch check, so topics land on a smaller package rather than being migrated onto machinery
+about to be removed.
 
 Core NATS is covered by the same typed surface, not left raw: publish, subscribe, and **request/reply**
 including the scatter-gather census the capacity controller currently hand-rolls with
@@ -477,6 +507,64 @@ and no gocron duration job or Redis schedule key remains.
 New live SoT at `backend/shared/nats.md` alongside `backend/shared/mongo.md` (there is no NATS live
 topic today), a testing topic, and `backend/shared/contents.md` task-map rows.
 
+## Deferred for review
+
+Publishing goes through a helper per task, so no call site names a subject to send on. Three places
+still read a definition's fields. None is wrong today; each is a judgement worth making deliberately
+rather than by omission.
+
+### The operator CLI dispatches by name
+
+`core/commands/tasks.go` switches on `Name` in five places, and its test in three more, to trigger any
+task an operator names with a payload they supply. That is untypeable by construction — the payload
+is only known at runtime — so it holds definitions rather than helpers.
+
+**To decide:** whether the CLI gets a purpose-built view (name → publish function) so it stops
+reaching into definitions, or whether dispatch-by-name is simply what this command is and definitions
+are the right thing for it to hold.
+
+### Migration commands print what they queued
+
+Four commands — `encrypt_cloud_refresh_tokens_migration.go`, `job_identity_encode.go`,
+`migrate_user_cloud_accounts_to_user_doc.go`, `refresh_token_rotation.go` — read `Subject` and
+`DefaultPriority` for operator-facing output ("Queued 12 tasks on subject X at priority Y"). These are
+not publish arguments; they are the command's report to whoever ran it.
+
+**To decide:** whether a publish helper should return what it published, so the command reports from
+the result instead of re-deriving it. Seven call sites, and the cost is a return value on every helper.
+
+### The worker's interaction with a task wants revisiting
+
+Removing the priority and timeout overrides left the task envelope carrying only `task_type` and
+`data`, which exposes how much of the worker's relationship with a task is resolved by string at
+runtime. Worth looking at as a whole rather than patching piecemeal:
+
+- **`task_type` is carried twice.** The worker derives the asynq task type from the subject's last
+  segment, and the envelope repeats it in `TaskMessage.TaskType`. Two sources for one fact, and
+  nothing checks they agree.
+- **An unregistered task fails silently into defaults.** `GetPriorityQueue` and `GetTaskTimeout` fall
+  back to `Priority3` and 60s when `LookupTask` misses, so a task that never reached the registry
+  runs on the wrong queue with the wrong deadline and says nothing.
+- **Handlers are registered by bare string.** The asynq mux keys on a literal, with no compile-time
+  link to the definition — one task has a hand-written test guarding its key, which is a symptom
+  rather than a fix. This is the adapter still open in Stage C.
+- **The envelope is still double-wrapped.** `Message{Data: TaskMessage{Data: payload}}` means the
+  worker unmarshals the same bytes twice on every task, and now that the inner envelope holds nothing
+  but a duplicated type it is thinner justification than it was.
+
+**To decide:** whether the worker resolves a task from its definition rather than from strings, and
+whether the inner envelope survives that. The last point is the breaking wire change already parked
+under § Wire compatibility, so these belong together.
+
+### Two scheduler locals survive for the downtime defer
+
+`deferTaskPublicationUntilAfterDowntime(ctx, task.Name, task.Subject, publish)` in
+`core/scheduler/esi/systemIndexRefresh.go` and `adjustedPricesRefresh.go` is the only remaining reason
+those files keep a `task :=` local.
+
+**To decide:** whether that helper should take a `Definition` instead of two strings pulled off one.
+Deliberately not changed here — it is an ESI downtime concern, not a messaging one.
+
 ## Stage status
 
 | Stage | Status |
@@ -485,7 +573,7 @@ topic today), a testing topic, and `backend/shared/contents.md` task-map rows.
 | Version pinning (server image, client, embedded test server) | Done |
 | A — handle and errors | Done |
 | B — streams and consumers as specs | Done |
-| C — typed tasks and topics | Not started |
+| C — typed tasks and topics | Partial — typed definitions, payload relocation, span attributes and the requestable flag landed; async batch publish, asynq adapter and typed topics open |
 | D — call-site cutover | Not started |
 | E — scheduled messages | Not started |
 | F — promote | Not started |

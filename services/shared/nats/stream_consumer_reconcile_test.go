@@ -8,7 +8,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-func TestConsumerKeptByPolicy(t *testing.T) {
+func TestConsumerKeepPolicy(t *testing.T) {
 	t.Parallel()
 	doc := DocUpdateStreamSpec().Keep
 	doc.KeepExact = []string{"doc-live-updates-mine", "doc-lock-mine"}
@@ -37,8 +37,8 @@ func TestConsumerKeptByPolicy(t *testing.T) {
 		{"scheduler-old", sched, false},
 	}
 	for _, tc := range cases {
-		if got := ConsumerKeptByPolicy(tc.name, tc.policy); got != tc.want {
-			t.Errorf("ConsumerKeptByPolicy(%q)=%v want %v", tc.name, got, tc.want)
+		if got := consumerKeptByPolicy(tc.name, tc.policy); got != tc.want {
+			t.Errorf("consumerKeptByPolicy(%q)=%v want %v", tc.name, got, tc.want)
 		}
 	}
 }

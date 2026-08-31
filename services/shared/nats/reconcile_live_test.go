@@ -195,8 +195,7 @@ func TestLiveConsumeBoundedConcurrency(t *testing.T) {
 
 	const messages = 12
 	for i := range messages {
-		if err := eipnats.PublishMessage(ctx, fake.NATS, "task.scheduled.concurrencyProbe",
-			eipnats.Message{Type: eipnats.MessageTypeEmpty}); err != nil {
+		if err := fake.NATS.Publish(ctx, "task.scheduled.concurrencyProbe", eipnats.Message{Type: eipnats.MessageTypeEmpty}); err != nil {
 			t.Fatalf("publish %d: %v", i, err)
 		}
 	}
@@ -245,5 +244,52 @@ func TestLiveConsumeBoundedConcurrency(t *testing.T) {
 	}
 	if inFlight != 0 {
 		t.Fatalf("%d handlers still in flight after stop", inFlight)
+	}
+}
+
+// A stream this app owns but no longer declares is deleted; a declared one and a
+// stream nobody stamped both survive.
+func TestLiveReconcileStreamsDeletesUndeclared(t *testing.T) {
+	fake := natsfake.New(t)
+	ctx := context.Background()
+
+	if _, err := fake.NATS.Tasks.Ensure(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	// A stream this app made and then stopped declaring.
+	if _, err := fake.JS().CreateStream(ctx, jetstream.StreamConfig{
+		Name:     "retired-stream",
+		Subjects: []string{"retired.>"},
+		Metadata: map[string]string{eipnats.MetadataOwnerKey: eipnats.MetadataOwnerValue},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A stream from somewhere else entirely.
+	if _, err := fake.JS().CreateStream(ctx, jetstream.StreamConfig{
+		Name:     "KV_somebody_else",
+		Subjects: []string{"$KV.somebody_else.>"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := fake.NATS.ReconcileStreams(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Deleted != 1 {
+		t.Fatalf("deleted %d streams, want 1", result.Deleted)
+	}
+	if result.Skipped != 1 {
+		t.Fatalf("skipped %d unowned streams, want 1", result.Skipped)
+	}
+	if _, err := fake.JS().Stream(ctx, "retired-stream"); err == nil {
+		t.Error("undeclared stream survived")
+	}
+	if _, err := fake.JS().Stream(ctx, "KV_somebody_else"); err != nil {
+		t.Errorf("unowned stream was deleted: %v", err)
+	}
+	if _, err := fake.JS().Stream(ctx, eipnats.WorkerTaskStream); err != nil {
+		t.Errorf("declared stream was deleted: %v", err)
 	}
 }
