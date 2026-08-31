@@ -154,3 +154,48 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 	}
 	return raw
 }
+
+// The seam between the two paths, which each path's own tests cannot see: a
+// rebuild writes the aggregates from every row in one pass, so it must leave no
+// row looking outstanding. One left behind is folded again by the next
+// incremental pass, on top of totals that are already whole.
+func TestARebuildLeavesNoOutstandingWork(t *testing.T) {
+	t.Parallel()
+
+	acc := &accountRows{now: time.Now().UTC()}
+	for _, job := range []models.Job{
+		archivedJob("acct-1", "good-1", 10),
+		archivedJob("acct-1", "broken", 0), // unusable: contributes no row
+		archivedJob("acct-1", "good-2", 5),
+	} {
+		acc.add(job)
+	}
+
+	if len(acc.rows) == 0 {
+		t.Fatal("expected the rebuild to produce rows")
+	}
+	for _, row := range acc.rows {
+		if row.AwaitsContribution() {
+			t.Errorf("row %q would be folded again by the next incremental pass", row.JobID)
+		}
+		if row.AwaitsRemoval() {
+			t.Errorf("row %q would have its figures taken back out", row.JobID)
+		}
+	}
+}
+
+// A row a rebuild skipped writes nothing, so there is nothing to have counted —
+// and nothing for a later pass to count either.
+func TestSkippedJobsProduceNoOutstandingRow(t *testing.T) {
+	t.Parallel()
+
+	acc := &accountRows{now: time.Now().UTC()}
+	acc.add(archivedJob("acct-1", "broken", 0))
+
+	if len(acc.rows) != 0 {
+		t.Fatalf("an unusable job produced %d rows", len(acc.rows))
+	}
+	if acc.skipped != 1 {
+		t.Fatalf("skipped = %d, want 1", acc.skipped)
+	}
+}

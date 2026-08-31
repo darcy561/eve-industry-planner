@@ -61,9 +61,30 @@ type ArchivedJobStats struct {
 	FeeLines              []ArchivedJobFeeLine         `bson:"feeLines" json:"feeLines"`
 	Protected             *FieldProtection             `bson:"protected,omitempty" json:"-"`
 	ProcessedAt           time.Time                    `bson:"processedAt" json:"processedAt"`
-	Revoked               bool                         `bson:"revoked" json:"revoked"`
-	RevokedAt             *time.Time                   `bson:"revokedAt,omitempty" json:"revokedAt,omitempty"`
-	Version               int                          `bson:"version" json:"version"`
+	// ContributedAt records that this row's figures have been added to the
+	// aggregates above it. It is both the guard against adding them twice and the
+	// list of what is still outstanding: the rows without one are the work.
+	ContributedAt *time.Time `bson:"contributedAt,omitempty" json:"-"`
+	Revoked       bool       `bson:"revoked" json:"revoked"`
+	RevokedAt     *time.Time `bson:"revokedAt,omitempty" json:"revokedAt,omitempty"`
+	Version       int        `bson:"version" json:"version"`
+}
+
+// AwaitsContribution reports whether this row's figures are not yet in the
+// aggregates above it.
+//
+// This is the rule LoadUncountedStatsRows selects on. Both say the same thing:
+// a live row with no stamp is outstanding work.
+func (s ArchivedJobStats) AwaitsContribution() bool {
+	return !s.Revoked && s.ContributedAt == nil
+}
+
+// AwaitsRemoval reports whether this row's figures are still counted although its
+// job is no longer archived.
+//
+// This is the rule LoadRevokedContributedRows selects on.
+func (s ArchivedJobStats) AwaitsRemoval() bool {
+	return s.Revoked && s.ContributedAt != nil
 }
 
 // CostParts reads what the job cost from the reduced row. The same six
