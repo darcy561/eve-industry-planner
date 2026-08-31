@@ -1151,6 +1151,40 @@ adding a collection to a group, since delivery is automatic and only the handlin
 **Tests:** the per-unit and per-build adapters against fixed rows; a Go test that the new scalars
 match a full reduction of the same jobs.
 
+##### Open — what the panel compares history against
+
+The panel shows what an item has cost before. What it compares that against is not
+settled, and it ships without a comparison rather than with a wrong one.
+
+`Job.buildCostPerItem()` is not it, though the name reads that way. `materialCost()` sums
+`material.purchasedCost`, which accumulates only as purchases are recorded, so on the planning stage
+the figure is **money already spent on the open job**, not a projection of what it will cost. Used as
+an estimate it produced differences in the tens of thousands of percent, because a large share of archived
+builds recorded no material spend at all — 1,165 of 4,073 totals rows carry `lastCostPerItem` 0, and
+1,900 of 9,530 statistics rows carry `totalMaterialCost` 0.
+
+The figure that does mean "estimate" is the one the Material Prices panel already computes.
+`useMaterialPricingModel` depends only on `state.activeJob` and `actions`, so it is callable from
+anywhere in the stage — but it returns **two** totals and the panel renders both side by side:
+
+| Total | Sourced from |
+|-------|--------------|
+| `totalPriceChildMode` | child job costs — build cost, install and extras |
+| `totalPriceMarketMode` | market prices for the materials |
+
+Neither is "the" estimate; the user reads them against each other. So the choice is a product
+decision about what a build-history comparison means, not a wiring detail, and it belongs with the
+planning stage's own design rather than being guessed here.
+
+Two things also have to be true before any comparison is trustworthy:
+
+- **The archived side must have recorded costs.** A build with no material spend did not cost
+  nothing — it was not tracked. Comparing against one is noise, and roughly a fifth of rows are in
+  that state, so the comparison needs suppressing rather than showing a confident wrong number.
+- **The estimate should be computed once for the stage.** Calling the pricing model from a second
+  panel recomputes it; the figure belongs to the stage, and lifting it is the small piece of the
+  larger planning-stage rework this waits on.
+
 #### J2 — Statistics are applied as a delta
 
 With the array gone, every document the pipeline writes is fixed-size, and a job's contribution can

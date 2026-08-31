@@ -46,6 +46,7 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Understand why archiving a job must not rebuild the whole account | [plan.md](./plan.md) § Stage J |
 | See why the stored snapshot array is being removed | [plan.md](./plan.md) § J1 |
 | Know what the build history panel shows and where each figure comes from | [plan.md](./plan.md) § J1 |
+| Decide what the build history panel compares an item's history against | [plan.md](./plan.md) § Open — what the panel compares history against |
 | Apply a job's statistics as a delta instead of a rebuild | [plan.md](./plan.md) § J2 |
 | Change how often archived-job statistics are recalculated | [plan.md](./plan.md) § J3 |
 | Understand why a long rebuild queue currently makes no progress | [plan.md](./plan.md) § J3 |
