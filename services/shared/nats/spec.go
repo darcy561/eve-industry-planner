@@ -10,8 +10,8 @@ const (
 	// DocUpdateStream is the JetStream stream name for document update notifications
 	DocUpdateStream = "doc-update-stream"
 
-	// ScheduleStream holds deferred work: the schedules themselves and the
-	// subjects they deliver to when they fire.
+	// ScheduleStream holds schedules and the subjects they deliver to when
+	// they fire.
 	ScheduleStream = "schedule-stream"
 )
 
@@ -130,7 +130,7 @@ func DocUpdateStreamSpec() StreamSpec {
 	}
 }
 
-// ScheduleStreamSpec holds deferred work. A schedule lives on
+// ScheduleStreamSpec holds schedules. A schedule lives on
 // `schedule.{id}` and names a delivery subject under `scheduled.` that a
 // consumer watches; both are on this stream because a schedule's target must be.
 //

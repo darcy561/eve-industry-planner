@@ -37,19 +37,61 @@ Composition root opens Mongo via `stackservices`. API handlers use `apideps.Deps
 
 ## Handle surface
 
-Type **`Mongo`**: one driver client, pinned database, named **`Docs`** fields (not methods), plus `Bulk()` for client bulk writes.
+Type **`Mongo`**: one driver client, a pinned database, and every collection bound as a named `Docs`
+field. A caller reaches a collection by name on the handle rather than by string.
 
-| Field | Role |
-|-------|------|
-| `JobDocuments` | Planner job docs (`account_job_documents`) — hot API path |
-| `Jobs` | Distinct jobs collection (`account_jobs`) — **not** the job-docs API |
-| `Users` / `ApplicationSettings` / `Groups` / `ArchivedJobs` / `BuildStats` | Account and archive surfaces (`accounts`, `account_settings`, `account_job_groups`, `account_archived_jobs`, `account_production_totals`) |
-| `TemplateCatalog` / `TemplatePayloads` | Group templates (`account_group_template_catalog`, `account_group_template_payloads`) |
-| `Blueprints` / `CitadelNames` / `WatchlistDeprecated` | Supporting collections (`shared_blueprints`, `shared_citadel_names`, `account_watchlist_deprecated`) |
+| Field | Collection | Holds |
+|-------|------------|-------|
+| `Users` | `accounts` | the account record, keyed by the EVE main character hash |
+| `ApplicationSettings` | `account_settings` | per-account application settings |
+| `JobDocuments` | `account_job_documents` | planner job documents — the hot API path |
+| `Jobs` | `account_jobs` | job records, distinct from the job-documents API above |
+| `Groups` | `account_job_groups` | job groups |
+| `TemplateCatalog` / `TemplatePayloads` | `account_group_template_catalog` / `…_payloads` | group templates, split so a listing does not load every payload |
+| `ArchivedJobs` | `account_archived_jobs` | jobs moved out of the planner |
+| `AccountProductionTotals` | `account_production_totals` | per-account build totals |
+| `WatchlistDeprecated` | `account_watchlist_deprecated` | the watchlist carried over from Firestore |
+| `Blueprints` | `shared_blueprints` | blueprint reference data, rebuilt from the SDE |
+| `CitadelNames` | `shared_citadel_names` | station and structure names users have submitted |
 
-Same-collection reads/writes go through Docs helpers (many already wrap `Retry`). Cross-collection units go through **`writers`** (`RunOrdered` / `RunUnordered` own `Retry`) — do not assemble client `Bulk()` in HTTP handlers.
+`Coll(name)` returns a raw driver collection for a one-off or dynamically named query, and
+`Docs.Collection()` the same for a call site building its own write models. Prefer the named fields.
 
-`Collection()` returns the raw driver collection for call sites that build bulk models or one-off queries; prefer Docs/writers when a helper exists.
+## What a document carries
+
+Every account-scoped document carries a `_meta` subdocument. Knowing its shape is usually the fastest
+way to work out why a document did not reach a client, because the changestream routes on it.
+
+| Field | Meaning |
+|-------|---------|
+| `_meta.accountID` | who owns it — every collection above filters on this |
+| `_meta.corporationRef` / `_meta.allianceRef` | org ownership, for documents that are not account scoped; the changestream routes on these when `accountID` is absent |
+| `_meta.sessionID` / `_meta.clientID` | which session and browser tab made the change, so the writer's own tab can be excluded from the fan-out |
+| `_meta.lastModified` | stamped on every write |
+
+`ApplyMetaSessionClient` stamps the session and client from request inputs. Upserts come in two
+shapes: `UpsertStructWithMeta` writes the metadata from the struct, and `UpsertStructPreservingMeta`
+keeps what is already stored and bumps `lastModified` — the second is what a partial update wants.
+
+Documents also carry a `schemaVersion`, upgraded in batches by a maintenance task rather than on read.
+
+## Reading and writing
+
+Three layers, and which one to use is decided by how many collections a change touches.
+
+| Scope | Use | Retry |
+|-------|-----|-------|
+| One collection | a `Docs` helper on the named field | many wrap `Retry` already; `…Retry` variants where the caller chooses |
+| Several collections, one unit | [`writers`](../../../services/shared/mongo/writers) | `RunOrdered` / `RunUnordered` own it |
+| A one-off or dynamic query | `Coll(name)` / `Docs.Collection()` | the caller's |
+
+**Cross-collection writes do not belong in a handler.** A change spanning collections is assembled as
+a `ClientBulk` — `UpdateOne`, `ReplaceOne`, `DeleteMany` and so on against a `Docs` field, with
+`Upsert()` and `ArrayFilters()` as options — and run through `writers`, which owns the retry. Adding a
+new one means a file under `writers`, not a bulk assembled at the call site.
+
+`RunOrdered` stops at the first failure; `RunUnordered` attempts everything and reports what failed.
+Order matters when a later write depends on an earlier one having landed.
 
 ## Collection naming
 
@@ -90,11 +132,24 @@ module fails the other module's test. Renaming an existing collection additional
 `CollectionRenames` entry so deployed databases move with the code — see
 [deploy.md](../../deployment/deployment-tool/cli/deploy.md) (`eip ensure-mongo`).
 
-## Errors & retry
+## Errors and retry
 
-- Prefer `errors.Is(err, mongodriver.ErrNoDocuments)` (not `==` / `!=`).
-- `IsRetryableMongoError` treats driver network/timeout helpers and `ErrClientDisconnected` as retryable; context cancel and no-documents are not.
-- Background `monitorMongoConnection` Pings for observability only; the driver recovers via SDAM and the pool (the loop does not rebuild the client).
+`Retry` runs an operation with backoff and honours the context, so a cancelled request stops waiting
+rather than sleeping out its attempts.
+
+| Outcome | Retried |
+|---------|---------|
+| Network failure, timeout, `ErrClientDisconnected` | yes — 3 attempts, 100ms → 2s |
+| No documents, nil document | no — an answer, not a failure |
+| Context cancelled | no |
+
+`IsRetryableMongoError` prefers the driver's own `IsNetworkError` and `IsTimeout` helpers, with a
+narrow message fallback for server-selection failures that arrive as text. A "not found" is reported
+with `errors.Is(err, mongodriver.ErrNoDocuments)` — never a `==` comparison, because the driver wraps.
+
+The background `monitorMongoConnection` loop pings for observability only. It does not rebuild the
+client: the driver recovers through server discovery and the connection pool on its own, so a ping
+failing in the log is a symptom to read, not a step in recovery.
 
 ## Readiness
 
@@ -104,3 +159,4 @@ API / worker / websocket / core readiness Pings Mongo where those services decla
 
 - Import alias `eipmongo` for the package; use `mongodriver` when a local variable is already named `mongo`.
 - New multi-collection write units: add a file under `writers`, do not leave ordered pairs assembled in the caller.
+- Collection names are duplicated across a module boundary. This package holds the constants, and the Deployment Tool repeats them as strings because it cannot import `services`. A test on each side pins the two copies together, so renaming a collection in one module fails the other module's test.

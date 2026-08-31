@@ -63,9 +63,57 @@ changed, in one place.
 
 ### Stage C — Downtime deferral becomes a schedule
 
-Replace the in-memory timer with a JetStream schedule keyed by the job's name. Deferred work then
-survives a restart and can be listed and cancelled like anything else. The two locals that exist only
-to feed the current helper go with it.
+**This is also what gives the schedule mechanism its first caller.** The NATS rebuild built schedules
+and shipped them with no producer; this stage is what makes them real.
+
+#### What the deferral does today
+
+`deferTaskPublicationUntilAfterDowntime` in `core/scheduler/esi/downtime.go`: when a cron fires during
+EVE's daily downtime, publication is held until the window ends. It does that with
+
+- a package-level `map[string]time.Time` guarded by a mutex, keyed by task name and subject, recording
+  which windows are already deferred so a second cron tick does not queue a duplicate;
+- a goroutine per deferral holding a `time.Timer` until two seconds after the window closes, which
+  then publishes.
+
+Three consequences, all of them invisible until they matter:
+
+- **A restart loses it.** Core restarting mid-downtime drops every pending publication; the work is
+  not re-deferred, it simply never happens until the next tick.
+- **Nothing can see it.** A deferred publication exists only as a goroutine. No listing, no metric, no
+  log after the initial one.
+- **Nothing can cancel it.** A deferral made in error runs anyway.
+
+#### What it becomes
+
+A schedule, keyed by the cron job's name, firing after the downtime window:
+
+```go
+natsHandle.ScheduleAt(ctx, jobName, downtimeEnd.Add(2*time.Second), nil)
+```
+
+The properties fall out of the mechanism rather than being built:
+
+- **The id is the deduplication.** Scheduling twice under one job name replaces rather than duplicates,
+  so the mutex-guarded map of in-flight deferrals is not needed.
+- **It survives a restart**, because the server holds it.
+- **It can be listed and cancelled** like any other schedule.
+- **The runner already exists** — core consumes `scheduled.>` and runs the job the id names, which is
+  the same handler the cron would have run.
+
+#### What to decide while doing it
+
+- **Two seconds after the window** is the current fudge. Keep it, or make the margin explicit.
+- **The window is computed locally** from `isInEVEDowntime`. A schedule fires from the server's clock,
+  so the two must agree on when the window ends; a badly skewed core would defer to the wrong time.
+- **The helper's signature.** It takes `taskName, subject` today, and both call sites keep a local
+  purely to supply them. Taking the cron job's own name removes both locals and matches what the
+  schedule is keyed by.
+- **Failure when NATS is down.** The current path defers in memory and would still publish; a schedule
+  needs a reachable server. Decide whether a failed deferral publishes immediately or is dropped.
+
+**Done when:** no goroutine holds a deferred publication, a deferral survives a core restart, and
+`ListSchedules` shows what is waiting.
 
 ### Stage D — Decide what gocron is still for
 

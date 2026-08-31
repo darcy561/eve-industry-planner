@@ -60,27 +60,17 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 	ctx := context.Background()
 
 	tasks := deps.NATS.Tasks
-	taskSubjects := tasks.Spec().Subjects[0]
-	if _, err := tasks.Ensure(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ensure task stream: %w", err)
-	}
-
-	if _, err := tasks.Reconcile(ctx); err != nil {
-		logs.WarnCtx(ctx, "worker task stream consumer reconcile failed", "error", err)
-	}
-
 	consumerConfig := jetstream.ConsumerConfig{
 		Durable:       eipnats.ConsumerTaskWorker,
-		FilterSubject: taskSubjects,
+		FilterSubject: tasks.Spec().Subjects[0],
 		DeliverPolicy: jetstream.DeliverLastPolicy,
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       30 * time.Second,
 		MaxDeliver:    5,
 	}
 
-	consumer, err := tasks.Consumer(ctx, consumerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create task consumer: %w", err)
+	if _, err := tasks.Reconcile(ctx, eipnats.ConsumerTaskWorker); err != nil {
+		logs.WarnCtx(ctx, "worker task stream consumer reconcile failed", "error", err)
 	}
 
 	processor := eipnats.Handle(workerNatsTracerName, "nats.enqueue_task",
@@ -88,12 +78,11 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 			return processMessage(ctx, msg, deps.AsynqClient)
 		})
 
-	stop, err := eipnats.Consume(consumer, taskSubjects, processor, eipnats.WithConcurrency(MaxConcurrentEnqueues))
+	stop, err := tasks.Subscribe(ctx, consumerConfig, processor, eipnats.WithConcurrency(MaxConcurrentEnqueues))
 	if err != nil {
-		return nil, fmt.Errorf("failed to start task consume loop: %w", err)
+		return nil, fmt.Errorf("subscribe to task stream: %w", err)
 	}
-
-	logs.DebugCtx(ctx, "subscribed to task stream", "subject", taskSubjects, "consumer", eipnats.ConsumerTaskWorker, "type", "pull")
+	logs.DebugCtx(ctx, "subscribed to task stream", "consumer", eipnats.ConsumerTaskWorker)
 
 	return func(context.Context) { stop() }, nil
 }

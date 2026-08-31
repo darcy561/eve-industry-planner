@@ -180,7 +180,7 @@ collections were cheaper than others, which is the reusable part; the status is 
 
 ## Promotion
 
-**Done.** The convention and the corrected names are in live SoT; this folder keeps the history.
+**Done.** The convention and the corrected names are in live SoT. This folder outlives the promote only because the active archived-jobs-stats plan cites its renames; it goes when that project closes.
 
 ### What was promoted
 

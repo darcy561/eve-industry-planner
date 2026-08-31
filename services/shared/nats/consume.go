@@ -17,6 +17,7 @@ type ConsumeOption func(*consumeOptions)
 
 type consumeOptions struct {
 	concurrency int
+	stopChan    <-chan struct{}
 }
 
 // WithConcurrency bounds how many messages are handled at once. The default is
@@ -28,6 +29,12 @@ func WithConcurrency(n int) ConsumeOption {
 			o.concurrency = n
 		}
 	}
+}
+
+// WithStopChannel stops the loop when the channel closes, for a caller whose
+// lifecycle is a channel rather than a shutdown func.
+func WithStopChannel(stopChan <-chan struct{}) ConsumeOption {
+	return func(o *consumeOptions) { o.stopChan = stopChan }
 }
 
 // Consume delivers a consumer's messages to processor until the returned stop
@@ -73,22 +80,15 @@ func Consume(consumer jetstream.Consumer, subject string, processor MessageProce
 		return nil, err
 	}
 
-	return func() {
+	stop = sync.OnceFunc(func() {
 		cc.Stop()
 		wg.Wait()
-	}, nil
-}
-
-// ConsumeUntil runs [Consume] and stops when stopChan closes.
-func ConsumeUntil(consumer jetstream.Consumer, subject string, processor MessageProcessor, stopChan <-chan struct{}, opts ...ConsumeOption) error {
-	stop, err := Consume(consumer, subject, processor, opts...)
-	if err != nil {
-		logs.ErrorCtx(context.Background(), "failed to start jetstream consume loop", "subject", subject, "error", err)
-		return err
+	})
+	if cfg.stopChan != nil {
+		go func() {
+			<-cfg.stopChan
+			stop()
+		}()
 	}
-	go func() {
-		<-stopChan
-		stop()
-	}()
-	return nil
+	return stop, nil
 }

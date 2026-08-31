@@ -17,7 +17,6 @@ import (
 	eipnats "eve-industry-planner/shared/nats"
 
 	"eve-industry-planner/core/scheduler/contract"
-	"eve-industry-planner/core/scheduler/helpers"
 )
 
 const otelTracerName = "eve-industry-planner/core"
@@ -28,7 +27,6 @@ type TaskScheduler struct {
 	nats        *eipnats.NATS
 	redisClient *redislib.Client
 	handlers    map[string]contract.TaskHandler
-	consumer    jetstream.Consumer
 
 	// Stop channel for message processing loop
 	stopChan chan struct{}
@@ -133,11 +131,23 @@ func (s *TaskScheduler) Start() error {
 
 	// Deferred runs arrive as schedules firing on the schedule stream.
 	if s.nats != nil {
-		consumer, err := helpers.SetupScheduleRunner(s.nats, eipnats.Handle(otelTracerName, "scheduler.run_fired_schedule", s.runFiredSchedule), s.stopChan)
+		if _, err := s.nats.Schedules.Reconcile(context.Background(), eipnats.ConsumerScheduleRunner); err != nil {
+			logs.WarnCtx(context.Background(), "schedule stream consumer reconcile failed", "component", schedulerLogComponent, "error", err)
+		}
+
+		filter := eipnats.SubjectScheduledPrefix + ".>"
+		_, err := s.nats.Schedules.Subscribe(context.Background(), jetstream.ConsumerConfig{
+			Durable:       eipnats.ConsumerScheduleRunner,
+			FilterSubject: filter,
+			DeliverPolicy: jetstream.DeliverAllPolicy,
+			AckPolicy:     jetstream.AckExplicitPolicy,
+			AckWait:       30 * time.Second,
+			MaxDeliver:    5,
+		}, eipnats.Handle(otelTracerName, "scheduler.run_fired_schedule", s.runFiredSchedule),
+			eipnats.WithStopChannel(s.stopChan))
 		if err != nil {
 			return fmt.Errorf("failed to setup schedule runner: %w", err)
 		}
-		s.consumer = consumer
 		logs.DebugCtx(context.Background(), "scheduler started with schedule runner", "component", schedulerLogComponent)
 	} else {
 		logs.DebugCtx(context.Background(), "scheduler started (no nats handle; deferred runs disabled)", "component", schedulerLogComponent)

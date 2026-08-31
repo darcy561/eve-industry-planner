@@ -165,3 +165,22 @@ func (n *NATS) ReconcileStreams(ctx context.Context) (StreamReconcileResult, err
 	}
 	return result, nil
 }
+
+// Subscribe ensures the stream, creates or updates the durable, and starts
+// consuming. Abandoned durables are a separate concern: a caller owning more
+// than one durable on a stream reconciles once for the whole set, so [Reconcile]
+// stays its own call.
+func (s *Stream) Subscribe(ctx context.Context, cfg jetstream.ConsumerConfig, processor MessageProcessor, opts ...ConsumeOption) (stop func(), err error) {
+	if _, err := s.Ensure(ctx); err != nil {
+		return nil, err
+	}
+	consumer, err := s.Consumer(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	filter := cfg.FilterSubject
+	if filter == "" && len(cfg.FilterSubjects) > 0 {
+		filter = cfg.FilterSubjects[0]
+	}
+	return Consume(consumer, filter, processor, opts...)
+}

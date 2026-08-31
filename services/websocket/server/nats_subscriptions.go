@@ -32,52 +32,31 @@ func (s *Server) subscribeToDocUpdates() {
 
 	durable, consumerConfig := natslogic.DocLiveUpdatesConsumerConfig()
 
-	consumer, err := s.Stack.NATS.DocUpdate.Consumer(ctx, consumerConfig)
-	if err != nil {
-		logs.ErrorCtx(ctx, "doc updates: create consumer", "error", err)
+	s.startOutboundDocUpdateShardWorkers()
+
+	processor := eipnats.Handle("eve-industry-planner/websocket/nats", "nats.doc_update",
+		func(ctx context.Context, msg jetstream.Msg) error {
+			subject := msg.Subject()
+			docID, err := collectionScopedDocIDFromDocUpdate(msg.Data(), subject)
+			if err != nil {
+				return eipnats.Terminate("bad subject or payload on %s: %v", subject, err)
+			}
+			// Handing the message to a shard worker is the point it has been
+			// received: the queue is in-process, so nothing is gained by holding
+			// the acknowledgement until delivery.
+			s.enqueueOutboundDocUpdate(ctx, docID, subject, msg)
+			return nil
+		})
+
+	// Intake-only stop: outbound shard workers keep running for flush-before-kick.
+	if _, err := s.Stack.NATS.DocUpdate.Subscribe(ctx, consumerConfig, processor,
+		eipnats.WithStopChannel(s.intakeStopChan)); err != nil {
+		logs.ErrorCtx(ctx, "doc updates: subscribe", "error", err)
 		return
 	}
 
 	// Apply current hosted set immediately (usually inert at boot).
 	s.reconcileDocFanoutFilters(ctx)
-
-	s.startOutboundDocUpdateShardWorkers()
-
-	processor := func(msg jetstream.Msg) {
-		ctx, endSpan := eipnats.BeginConsumerContext(
-			context.Background(),
-			"eve-industry-planner/websocket/nats",
-			"nats.doc_update",
-			msg,
-			nil,
-		)
-		defer endSpan()
-
-		subject := msg.Subject()
-		docID, err := collectionScopedDocIDFromDocUpdate(msg.Data(), subject)
-		if err != nil {
-			eipnats.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", map[string]any{
-				"subject": subject,
-				"reason":  "bad subject or payload",
-				"error":   err.Error(),
-			})
-			eipnats.AcknowledgeMessage(ctx, msg, "bad subject", eipnats.GetDeliveryCount(msg))
-			return
-		}
-
-		s.enqueueOutboundDocUpdate(ctx, docID, subject, msg)
-	}
-
-	stopChan := make(chan struct{})
-	go func() {
-		// Intake-only stop: outbound shard workers keep running for flush-before-kick.
-		<-s.intakeStopChan
-		close(stopChan)
-	}()
-
-	if err := eipnats.ConsumeUntil(consumer, "doc.update", processor, stopChan); err != nil {
-		return
-	}
 
 	logs.DebugCtx(ctx, "subscribed to document updates (JetStream)",
 		"consumer", durable,
