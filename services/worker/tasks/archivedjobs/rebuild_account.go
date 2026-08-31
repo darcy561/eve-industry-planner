@@ -60,15 +60,14 @@ func RebuildAccountStatistics(
 	}
 	now = now.UTC()
 
-	jobs, err := mongo.LoadAccountArchivedJobs(ctx, accountID)
+	acc, err := buildAccountRows(ctx, mongo, accountID, now)
 	if err != nil {
 		return out, fmt.Errorf("load archived jobs: %w", err)
 	}
-	out.ArchivedJobs = len(jobs)
-
-	rows, keepRowIDs, skipped := buildAccountRows(jobs, now)
+	rows, keepRowIDs := acc.rows, acc.keepIDs
+	out.ArchivedJobs = acc.jobCount
 	out.StatsRows = len(rows)
-	out.SkippedJobs = skipped
+	out.SkippedJobs = acc.skipped
 
 	rowItems := make([]eipmongo.StructUpsertItem, 0, len(rows))
 	for _, row := range rows {
@@ -137,27 +136,48 @@ func RebuildAccountStatistics(
 	return out, nil
 }
 
-// buildAccountRows reduces an account's archived jobs to the rows to write, and
-// the row ids the rebuild must not revoke.
+// accountRows accumulates the rows a rebuild writes, and the row ids it must not
+// revoke, one job at a time.
+//
+// Separate from the read so the reduction can be exercised without a database,
+// and so a rebuild holds one job at a time: a row is far smaller than the job it
+// came from, which keeps memory proportional to what is written rather than to
+// the archive read.
+type accountRows struct {
+	now      time.Time
+	rows     []models.ArchivedJobStats
+	keepIDs  []string
+	jobCount int
+	skipped  int
+}
+
+// add reduces one archived job.
 //
 // A job whose snapshot cannot be computed is skipped but its id is still kept:
 // the job is still archived, so revoking its existing row would record it as
 // removed and drop its history from the account's totals. Skipping it leaves the
 // previous row in place, unchanged, until the job is corrected.
-func buildAccountRows(jobs []models.Job, now time.Time) (rows []models.ArchivedJobStats, keepIDs []string, skipped int) {
-	rows = make([]models.ArchivedJobStats, 0, len(jobs))
-	keepIDs = make([]string, 0, len(jobs))
-
-	for _, job := range jobs {
-		snap, err := computeBuildStatSnapshot(job)
-		if err != nil {
-			skipped++
-			keepIDs = append(keepIDs, eipmongo.ArchivedJobStatsDocumentID(job.MetaData.AccountID, job.JobID))
-			continue
-		}
-		row := archivestats.BuildAccountSnapshot(job, snap, now)
-		rows = append(rows, row)
-		keepIDs = append(keepIDs, row.ID)
+func (a *accountRows) add(job models.Job) {
+	a.jobCount++
+	snap, err := computeBuildStatSnapshot(job)
+	if err != nil {
+		a.skipped++
+		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(job.MetaData.AccountID, job.JobID))
+		return
 	}
-	return rows, keepIDs, skipped
+	row := archivestats.BuildAccountSnapshot(job, snap, a.now)
+	a.rows = append(a.rows, row)
+	a.keepIDs = append(a.keepIDs, row.ID)
+}
+
+// buildAccountRows walks an account's archived jobs into the rows to write.
+func buildAccountRows(ctx context.Context, mongo *eipmongo.Mongo, accountID string, now time.Time) (*accountRows, error) {
+	acc := &accountRows{now: now}
+	if err := mongo.EachAccountArchivedJob(ctx, accountID, func(job models.Job) error {
+		acc.add(job)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return acc, nil
 }

@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"eve-industry-planner/shared/models"
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -32,17 +34,21 @@ func TestNewMongoBindsStatisticsCollections(t *testing.T) {
 	}
 }
 
-func TestRebuildQueueRequiresHandleAndAccount(t *testing.T) {
+func TestRebuildQueueRequiresHandleAndOwner(t *testing.T) {
 	t.Parallel()
 	var nilMongo *Mongo
+	owner := models.AccountStatsOwner("acct")
 
-	if err := nilMongo.QueueAccountRebuild(t.Context(), "acct", time.Time{}); err == nil {
+	if err := nilMongo.QueueOwnerRebuild(t.Context(), owner, time.Time{}); err == nil {
 		t.Fatal("expected an error without a mongo handle")
 	}
-	if _, err := nilMongo.ListQueuedAccounts(t.Context()); err == nil {
+	if _, err := nilMongo.ListQueuedOwners(t.Context(), time.Time{}); err == nil {
 		t.Fatal("expected an error without a mongo handle")
 	}
-	if _, err := nilMongo.ClearQueuedAccounts(t.Context(), []QueuedAccount{{AccountID: "acct"}}); err == nil {
+	if _, err := nilMongo.ClearQueuedOwners(t.Context(), []QueuedOwner{{Owner: owner}}); err == nil {
+		t.Fatal("expected an error without a mongo handle")
+	}
+	if _, err := nilMongo.ClearQueuedOwner(t.Context(), QueuedOwner{Owner: owner}); err == nil {
 		t.Fatal("expected an error without a mongo handle")
 	}
 
@@ -50,16 +56,19 @@ func TestRebuildQueueRequiresHandleAndAccount(t *testing.T) {
 	if err := m.QueueAccountRebuild(t.Context(), "", time.Time{}); err == nil {
 		t.Fatal("expected an error for an empty accountID")
 	}
+	if err := m.QueueOwnerRebuild(t.Context(), models.StatsOwner{Kind: "character", ID: "x"}, time.Time{}); err == nil {
+		t.Fatal("expected an error for an owner kind nothing can read back")
+	}
 }
 
-// Clearing nothing must not reach Mongo at all, so a drain that found no work is free.
-func TestClearQueuedAccountsWithNoIDsIsANoop(t *testing.T) {
+// Clearing nothing must not reach Mongo at all, so a pass that found no work is free.
+func TestClearQueuedOwnersWithNoneIsANoop(t *testing.T) {
 	t.Parallel()
 	m := testMongo(t)
 
-	deleted, err := m.ClearQueuedAccounts(t.Context(), nil)
+	deleted, err := m.ClearQueuedOwners(t.Context(), nil)
 	if err != nil {
-		t.Fatalf("ClearQueuedAccounts: %v", err)
+		t.Fatalf("ClearQueuedOwners: %v", err)
 	}
 	if deleted != 0 {
 		t.Fatalf("deleted = %d, want 0", deleted)
@@ -112,13 +121,18 @@ func TestAccountTimelineMonthDocumentIDPadsMonth(t *testing.T) {
 	}
 }
 
-func TestClearQueuedAccountsSkipsBlankIDs(t *testing.T) {
+// An entry naming an owner nothing can address cannot be deleted by key, so it is
+// skipped rather than turned into a delete that matches nothing useful.
+func TestClearQueuedOwnersSkipsUnaddressableOwners(t *testing.T) {
 	t.Parallel()
 	m := testMongo(t)
 
-	deleted, err := m.ClearQueuedAccounts(t.Context(), []QueuedAccount{{AccountID: "", Claim: 3}})
+	deleted, err := m.ClearQueuedOwners(t.Context(), []QueuedOwner{
+		{Owner: models.StatsOwner{Kind: models.StatsOwnerAccount}, Claim: 3},
+		{Owner: models.StatsOwner{Kind: "character", ID: "x"}, Claim: 4},
+	})
 	if err != nil {
-		t.Fatalf("ClearQueuedAccounts: %v", err)
+		t.Fatalf("ClearQueuedOwners: %v", err)
 	}
 	if deleted != 0 {
 		t.Fatalf("deleted = %d, want 0", deleted)
@@ -129,11 +143,11 @@ func TestClearQueuedAccountsSkipsBlankIDs(t *testing.T) {
 // flight is not swallowed by that rebuild's clear. These pin the documents that
 // implement it, without needing a server.
 
-func TestQueueAccountRebuildPreservesQueuedAtAndBumpsClaim(t *testing.T) {
+func TestQueueOwnerRebuildPreservesQueuedAtAndBumpsClaim(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 8, 22, 10, 0, 0, 0, time.UTC)
 
-	update := queueAccountRebuildUpdate(now)
+	update := queueOwnerRebuildUpdate(models.AccountStatsOwner("acct-1"), now)
 
 	// queuedAt is set only on insert, so a re-queue leaves the original wait time
 	// alone rather than making a long-outstanding account look fresh.
@@ -141,7 +155,7 @@ func TestQueueAccountRebuildPreservesQueuedAtAndBumpsClaim(t *testing.T) {
 	if !ok {
 		t.Fatalf("$setOnInsert = %T, want bson.M", update["$setOnInsert"])
 	}
-	if insert["queuedAt"] != now {
+	if insert["queuedAt"] != now.UTC() {
 		t.Fatalf("queuedAt = %v, want %v", insert["queuedAt"], now)
 	}
 	if _, bumped := insert["claim"]; bumped {
@@ -161,31 +175,60 @@ func TestQueueAccountRebuildPreservesQueuedAtAndBumpsClaim(t *testing.T) {
 	}
 }
 
-func TestClearQueuedAccountFilterIsClaimScoped(t *testing.T) {
+func TestClearQueuedOwnerFilterIsClaimScoped(t *testing.T) {
 	t.Parallel()
 
-	filter := clearQueuedAccountFilter(QueuedAccount{AccountID: "acct-1", Claim: 7})
+	filter := clearQueuedOwnerFilter(QueuedOwner{Owner: models.AccountStatsOwner("acct-1"), Claim: 7})
 
-	if filter["_id"] != "acct-1" {
-		t.Fatalf("_id = %v", filter["_id"])
+	if filter["_id"] != "account:acct-1" {
+		t.Fatalf("_id = %v, want the owner key", filter["_id"])
 	}
 	claim, present := filter["claim"]
 	if !present {
-		t.Fatal("filter has no claim — an account re-queued mid-rebuild would be deleted anyway")
+		t.Fatal("filter has no claim — an owner re-queued mid-rebuild would be deleted anyway")
 	}
 	if claim != int64(7) {
 		t.Fatalf("claim = %v, want the claim the rebuild read", claim)
 	}
 }
 
-// A rebuild that read claim 3 must not clear an account now on claim 4.
-func TestClearFilterDoesNotMatchARequeuedAccount(t *testing.T) {
+// A rebuild that read claim 3 must not clear an owner now on claim 4.
+func TestClearFilterDoesNotMatchARequeuedOwner(t *testing.T) {
 	t.Parallel()
 
-	read := clearQueuedAccountFilter(QueuedAccount{AccountID: "acct-1", Claim: 3})
-	requeued := bson.M{"_id": "acct-1", "claim": int64(4)}
+	read := clearQueuedOwnerFilter(QueuedOwner{Owner: models.AccountStatsOwner("acct-1"), Claim: 3})
+	requeued := bson.M{"_id": "account:acct-1", "claim": int64(4)}
 
 	if read["claim"] == requeued["claim"] {
 		t.Fatal("a stale claim must not equal the current one")
+	}
+}
+
+// The debounce reads on queuedAt, which a re-queue does not move, so it bounds
+// the longest an owner waits rather than sliding out under continuous change.
+func TestQueueOwnerRebuildUpdateWritesTheOwnerAlongsideTheKey(t *testing.T) {
+	t.Parallel()
+	owner := models.StatsOwner{Kind: models.StatsOwnerCorporation, ID: "corp_56_JxK"}
+
+	update := queueOwnerRebuildUpdate(owner, time.Date(2026, 8, 22, 10, 0, 0, 0, time.UTC))
+
+	insert, ok := update["$setOnInsert"].(bson.M)
+	if !ok {
+		t.Fatalf("$setOnInsert = %T, want bson.M", update["$setOnInsert"])
+	}
+	if insert["owner"] != owner {
+		t.Fatalf("owner = %v, want it stored beside the key so a reader need not parse ids", insert["owner"])
+	}
+}
+
+func TestQueuedOwnerFilterUsesTheOwnerKey(t *testing.T) {
+	t.Parallel()
+
+	if got := queuedOwnerFilter(models.AccountStatsOwner("acct-1"))["_id"]; got != "account:acct-1" {
+		t.Fatalf("_id = %v, want the owner key", got)
+	}
+	corp := models.StatsOwner{Kind: models.StatsOwnerCorporation, ID: "acct-1"}
+	if got := queuedOwnerFilter(corp)["_id"]; got == "account:acct-1" {
+		t.Fatal("two kinds sharing an id must not collide on one queue entry")
 	}
 }

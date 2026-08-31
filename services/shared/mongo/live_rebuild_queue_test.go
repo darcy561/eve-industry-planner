@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -23,7 +24,7 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
 		defer c()
-		_, _ = coll.DeleteMany(cctx, bson.M{"_id": rebuildQueueScratchAccount})
+		_, _ = coll.DeleteMany(cctx, bson.M{"_id": models.AccountStatsOwner(rebuildQueueScratchAccount).Key()})
 	}
 	clean()
 	t.Cleanup(clean)
@@ -50,7 +51,7 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 		QueuedAt time.Time `bson:"queuedAt"`
 		Claim    int64     `bson:"claim"`
 	}
-	if err := coll.FindOne(ctx, bson.M{"_id": rebuildQueueScratchAccount}).Decode(&stored); err != nil {
+	if err := coll.FindOne(ctx, bson.M{"_id": models.AccountStatsOwner(rebuildQueueScratchAccount).Key()}).Decode(&stored); err != nil {
 		t.Fatalf("read back: %v", err)
 	}
 	if !stored.QueuedAt.Equal(first) {
@@ -61,9 +62,9 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	}
 
 	// A rebuild holding the stale claim must not clear the account.
-	deleted, err := mongo.ClearQueuedAccounts(ctx, []eipmongo.QueuedAccount{{AccountID: rebuildQueueScratchAccount, Claim: 1}})
+	deleted, err := mongo.ClearQueuedOwners(ctx, []eipmongo.QueuedOwner{{Owner: models.AccountStatsOwner(rebuildQueueScratchAccount), Claim: 1}})
 	if err != nil {
-		t.Fatalf("ClearQueuedAccounts (stale): %v", err)
+		t.Fatalf("ClearQueuedOwners (stale): %v", err)
 	}
 	if deleted != 0 {
 		t.Fatalf("stale claim cleared %d accounts; the re-queued request was lost", deleted)
@@ -73,9 +74,9 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	}
 
 	// The current claim clears it.
-	deleted, err = mongo.ClearQueuedAccounts(ctx, []eipmongo.QueuedAccount{{AccountID: rebuildQueueScratchAccount, Claim: 2}})
+	deleted, err = mongo.ClearQueuedOwners(ctx, []eipmongo.QueuedOwner{{Owner: models.AccountStatsOwner(rebuildQueueScratchAccount), Claim: 2}})
 	if err != nil {
-		t.Fatalf("ClearQueuedAccounts (current): %v", err)
+		t.Fatalf("ClearQueuedOwners (current): %v", err)
 	}
 	if deleted != 1 {
 		t.Fatalf("current claim cleared %d accounts, want 1", deleted)
@@ -85,15 +86,15 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	}
 }
 
-func findScratch(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo) []eipmongo.QueuedAccount {
+func findScratch(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo) []eipmongo.QueuedOwner {
 	t.Helper()
-	all, err := mongo.ListQueuedAccounts(ctx)
+	all, err := mongo.ListQueuedOwners(ctx, time.Time{})
 	if err != nil {
 		t.Fatalf("ListQueuedAccounts: %v", err)
 	}
-	var out []eipmongo.QueuedAccount
+	var out []eipmongo.QueuedOwner
 	for _, a := range all {
-		if a.AccountID == rebuildQueueScratchAccount {
+		if a.Owner.ID == rebuildQueueScratchAccount {
 			out = append(out, a)
 		}
 	}

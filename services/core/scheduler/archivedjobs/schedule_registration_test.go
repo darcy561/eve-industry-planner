@@ -45,7 +45,7 @@ func TestScheduleDrainAccountStatsRebuildQueue_RegistersCron(t *testing.T) {
 	if len(s.crons) != 1 {
 		t.Fatalf("expected 1 cron, got %d", len(s.crons))
 	}
-	if s.crons[0].expr != "30 * * * *" || s.crons[0].jobName != "cron.drainAccountStatsRebuildQueue" {
+	if s.crons[0].expr != "*/2 * * * *" || s.crons[0].jobName != "cron.drainAccountStatsRebuildQueue" {
 		t.Fatalf("unexpected cron: %+v", s.crons[0])
 	}
 	if _, ok := s.handlers["cron.drainAccountStatsRebuildQueue"]; !ok {
@@ -53,12 +53,14 @@ func TestScheduleDrainAccountStatsRebuildQueue_RegistersCron(t *testing.T) {
 	}
 }
 
-// The drain runs off the hour so it does not start alongside every other cron
-// that fires on minute 0.
-func TestDrainCronRunsOffTheHour(t *testing.T) {
+// The tick only dispatches, so it runs often: how long an owner waits is the
+// debounce the worker applies, and a tick that fails to publish must cost one
+// interval rather than an hour.
+func TestDispatchCronRunsOftenEnoughToRecoverFromAFailedTick(t *testing.T) {
 	t.Parallel()
-	if strings.HasPrefix(cronDrainAccountStatsRebuildQueueSchedule, "0 ") {
-		t.Fatalf("drain cron fires on minute 0 (%q), alongside the rest of the hourly crons", cronDrainAccountStatsRebuildQueueSchedule)
+	if !strings.HasPrefix(cronDrainAccountStatsRebuildQueueSchedule, "*/") {
+		t.Fatalf("dispatch cron %q runs at a fixed minute; a tick that fails to publish would wait an hour",
+			cronDrainAccountStatsRebuildQueueSchedule)
 	}
 }
 

@@ -63,6 +63,15 @@ var (
 	// rather than fanning out per account: the claim protocol that keeps a mid-rebuild
 	// re-queue from being cleared lives in the drain, and splitting it per account
 	// would move that logic into a path the queue's semantics are not tested against.
+	// RebuildOwnerStatistics recomputes one owner's statistics from its archived
+	// jobs. Bulk work: a definition change dispatches one of these per owner, and
+	// nothing waits on the result.
+	RebuildOwnerStatistics = defineTask(Definition{
+		Name:            "rebuildOwnerStatistics",
+		Subject:         "task.scheduled.rebuildOwnerStatistics",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  15 * time.Minute,
+	})
 	DrainAccountStatsRebuildQueue = defineTask(Definition{
 		Name:            "drainAccountStatsRebuildQueue",
 		Subject:         "task.scheduled.drainAccountStatsRebuildQueue",
@@ -198,9 +207,19 @@ func PublishMigrateUserCloudAccountsToUserDoc(ctx context.Context, n *NATS, acco
 	return publish(ctx, n, MigrateUserCloudAccountsToUserDoc, MigrateUserCloudAccountsToUserDocRequest{AccountID: accountID, DryRun: dryRun})
 }
 
-// PublishDrainAccountStatsRebuildQueue asks the worker to rebuild every account waiting in the queue.
+// PublishDrainAccountStatsRebuildQueue asks the worker to dispatch a rebuild for
+// every owner waiting in the queue.
 func PublishDrainAccountStatsRebuildQueue(ctx context.Context, n *NATS) error {
 	return publish(ctx, n, DrainAccountStatsRebuildQueue, struct{}{})
+}
+
+// PublishRebuildOwnerStatistics asks the worker to rebuild one owner.
+func PublishRebuildOwnerStatistics(ctx context.Context, n *NATS, kind, id string, claim int64) error {
+	return publish(ctx, n, RebuildOwnerStatistics, RebuildOwnerStatisticsRequest{
+		OwnerKind: kind,
+		OwnerID:   id,
+		Claim:     claim,
+	})
 }
 
 // TriggerRefreshSystemIndexes asks the worker to refresh industry system indexes.
