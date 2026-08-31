@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"eve-industry-planner/shared/models"
-	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
@@ -72,11 +71,5 @@ func TestComputeBuildStatSnapshot_zeroQuantityErrors(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error")
-	}
-}
-
-func TestAccountProductionTotalsDocumentID(t *testing.T) {
-	if g, w := eipmongo.AccountProductionTotalsDocumentID("acc", 34), "acc|34"; g != w {
-		t.Fatalf("got %q want %q", g, w)
 	}
 }

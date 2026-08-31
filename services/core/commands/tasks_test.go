@@ -57,10 +57,8 @@ func TestEnabledTaskLookupMatchesTheListedSet(t *testing.T) {
 	}
 }
 
-// A mistyped command name falls through to the trigger path, which used to read
-// it as the task and the next token as a stray argument — so `queueArchivedJobsStatsRebuild -all`
-// reported an "unexpected extra argument -all" and never mentioned the name that
-// was wrong. The typo has to be named, or the operator debugs the flag instead.
+// A mistyped command name reaches the trigger path, which has to name the typo.
+// Blaming the next token instead sends the operator to debug the flag.
 func TestUnknownCommandNamesItselfRatherThanBlamingAFlag(t *testing.T) {
 	t.Parallel()
 

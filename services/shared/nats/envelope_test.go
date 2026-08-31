@@ -8,7 +8,3 @@ func TestParsePlacementStateRequiresContainerID(t *testing.T) {
 		t.Fatal("expected error for missing container_id")
 	}
 }
-
-func TestPlacementStateMessageType(t *testing.T) {
-	t.Parallel()
-}
