@@ -17,11 +17,9 @@ import (
 )
 
 const (
-	cronCloudStoredEsiRefreshName     = "cron.cloudStoredEsiRefreshMaintenance"
-	cronCloudStoredEsiRefreshSchedule = "*/10 * * * *" // every 10 minutes
-	cloudEsiRefreshBookmarkKey        = "scheduler:maintenance:cloud_esi_refresh_user_bookmark"
-	defaultRotateAfterLoginDays       = 25
-	defaultAbandonAfterLoginMonths    = 6
+	cloudEsiRefreshBookmarkKey     = "scheduler:maintenance:cloud_esi_refresh_user_bookmark"
+	defaultRotateAfterLoginDays    = 25
+	defaultAbandonAfterLoginMonths = 6
 	// Fallback when CountDocuments fails or returns zero.
 	maxCloudEsiAccountsFallback = 25
 	maxCloudEsiAccountsAbsolute = 200
@@ -36,22 +34,18 @@ const (
 // refresh tokens. Eligible users: cloud mode, non-empty refreshTokens, last login in [now−6mo, now−25d).
 // Uses dynamic batch sizing, EVE downtime deferral (like industry indexes), downtime publish caps
 // (like market prices), and micro-batch staggering across the cron window.
-func ScheduleCloudStoredEsiRefreshMaintenance(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
+func CloudStoredEsiRefreshMaintenance(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	task := eipnats.CloudStoredEsiRefreshMaintenance
-	sched.RegisterHandler(cronCloudStoredEsiRefreshName, func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		publish := func(pctx context.Context) error {
 			return publishCloudEsiRefreshMaintenanceBatch(pctx, deps, task)
 		}
-		if deferred, err := schedesi.DeferPublicationUntilAfterDowntime(ctx, deps.NATS, cronCloudStoredEsiRefreshName, time.Now()); err != nil || deferred {
+		if deferred, err := schedesi.DeferPublicationUntilAfterDowntime(ctx, deps.NATS, jobName, time.Now()); err != nil || deferred {
 			return err
 		}
 		return publish(ctx)
-	})
-	if err := sched.ScheduleCronJob(cronCloudStoredEsiRefreshSchedule, cronCloudStoredEsiRefreshName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }
 
 func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.Dependencies, task eipnats.Definition) error {

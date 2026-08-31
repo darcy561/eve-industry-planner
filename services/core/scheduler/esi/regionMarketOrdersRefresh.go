@@ -16,8 +16,6 @@ import (
 )
 
 const (
-	cronRegionMarketOrdersRefreshName     = "cron.regionMarketOrdersRefresh"
-	cronRegionMarketOrdersRefreshSchedule = "*/15 * * * *"
 	// estimatedTokensPerRegionRefresh is the market-order token cost of paginating one full
 	// region order book, sized above the busiest region's measured cost so a run is only
 	// published when the budget can absorb it.
@@ -33,17 +31,13 @@ const (
 //
 // Publishing is skipped while ESI is in downtime, or when the token budget cannot absorb a run.
 // Returns a cleanup function and an error if scheduling fails.
-func ScheduleRegionMarketOrdersRefresh(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
+func RegionMarketOrdersRefresh(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	natsHandle := deps.NATS
 	redisClient := deps.Redis
 
-	sched.RegisterHandler(cronRegionMarketOrdersRefreshName, func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data json.RawMessage) error {
 		return runRegionMarketOrdersRefresh(ctx, natsHandle, redisClient)
-	})
-	if err := sched.ScheduleCronJob(cronRegionMarketOrdersRefreshSchedule, cronRegionMarketOrdersRefreshName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }
 
 func runRegionMarketOrdersRefresh(

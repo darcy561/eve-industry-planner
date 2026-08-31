@@ -11,17 +11,12 @@ import (
 
 const schedulerLogComponent = "scheduler"
 
-const (
-	cronCheckSDEUpdatesName     = "cron.checkSDEUpdates"
-	cronCheckSDEUpdatesSchedule = "0 17 * * *" // 17:00 daily (scheduler local time; typically UTC in containers)
-)
-
 // ScheduleCheckSDEUpdates schedules a daily job for Static Data Export update checks.
 // When the cron fires, this handler runs and publishes to the worker task's NATS subject.
-func ScheduleCheckSDEUpdates(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
+func CheckSDEUpdates(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	natsHandle := deps.NATS
 
-	sched.RegisterHandler(cronCheckSDEUpdatesName, func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data json.RawMessage) error {
 		logs.DebugCtx(ctx, "publishing SDE update check trigger", "component", schedulerLogComponent)
 		if err := eipnats.TriggerCheckSDEUpdates(ctx, natsHandle); err != nil {
 			logs.ErrorCtx(ctx, "failed to publish SDE update check trigger", "component", schedulerLogComponent, "error", err)
@@ -29,9 +24,5 @@ func ScheduleCheckSDEUpdates(deps contract.Dependencies, sched contract.Schedule
 		}
 		logs.InfoCtx(ctx, "SDE update check triggered", "component", schedulerLogComponent)
 		return nil
-	})
-	if err := sched.ScheduleCronJob(cronCheckSDEUpdatesSchedule, cronCheckSDEUpdatesName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }

@@ -35,7 +35,12 @@ type TaskScheduler struct {
 // NewTaskScheduler creates a new task scheduler for cron jobs and one-time scheduled tasks
 func NewTaskScheduler(natsHandle *eipnats.NATS, redisClient *redislib.Client) (*TaskScheduler, error) {
 	// Bound how long Shutdown waits for cancelled jobs to exit (default 10s).
-	sched, err := gocron.NewScheduler(gocron.WithStopTimeout(15 * time.Second))
+	// Expressions are read in UTC, so a declared time means the same thing wherever
+	// the container runs and matches the EVE downtime window jobs compare against.
+	sched, err := gocron.NewScheduler(
+		gocron.WithStopTimeout(15*time.Second),
+		gocron.WithLocation(time.UTC),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -49,33 +54,17 @@ func NewTaskScheduler(natsHandle *eipnats.NATS, redisClient *redislib.Client) (*
 	}, nil
 }
 
-// RegisterHandler registers a task handler for a specific task type
-func (s *TaskScheduler) RegisterHandler(taskType string, handler contract.TaskHandler) {
+// registerHandler registers a task handler for a specific task type
+func (s *TaskScheduler) registerHandler(taskType string, handler contract.TaskHandler) {
 	s.handlers[taskType] = handler
 }
 
-// HasScheduledJob checks if there's already a scheduled job for the given task type
-// For static cron jobs, this always returns true after scheduling
-func (s *TaskScheduler) HasScheduledJob(taskType string) bool {
-	jobs := s.scheduler.Jobs()
-	for _, job := range jobs {
-		tags := job.Tags()
-		for _, tag := range tags {
-			if tag == taskType || tag == "cron:"+taskType {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// ScheduleCronJob schedules a recurring cron job for a worker task (taskType = task.Name from shared/tasks).
-// When the cron fires, the handler for that task runs and publishes to NATS; the worker receives and processes it.
-// These cron jobs are not requestable and not persisted.
-func (s *TaskScheduler) ScheduleCronJob(cronExpr string, taskType string) error {
+// scheduleCronJob schedules a declared job under its own name. When the cron fires,
+// that job's handler runs and publishes to NATS; the worker receives and processes it.
+func (s *TaskScheduler) scheduleCronJob(cronExpr string, taskType string) error {
 	handler, exists := s.handlers[taskType]
 	if !exists {
-		return nil // Handler not registered yet, will be registered later
+		return fmt.Errorf("no handler registered for %s", taskType)
 	}
 
 	// First arg must be context.Context so gocron cancels in-flight work on Shutdown

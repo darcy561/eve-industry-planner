@@ -10,16 +10,11 @@ import (
 	"eve-industry-planner/shared/logs"
 )
 
-const (
-	cronAdjustedPricesRefresh  = "cron.adjustedPricesRefresh"
-	cronAdjustedPricesSchedule = "20 * * * *"
-)
-
 // ScheduleAdjustedPricesRefresh sets up a cron job for adjusted prices refresh (hourly).
 // When the cron fires, this handler runs and publishes to the worker task's NATS subject.
-func ScheduleAdjustedPricesRefresh(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
+func AdjustedPricesRefresh(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	natsHandle := deps.NATS
-	sched.RegisterHandler(cronAdjustedPricesRefresh, func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data json.RawMessage) error {
 		publish := func(publishCtx context.Context) error {
 			logs.DebugCtx(publishCtx, "publishing adjusted prices refresh trigger", "component", schedulerLogComponent)
 			if err := eipnats.TriggerRefreshAdjustedPrices(publishCtx, natsHandle); err != nil {
@@ -29,13 +24,9 @@ func ScheduleAdjustedPricesRefresh(deps contract.Dependencies, sched contract.Sc
 			logs.InfoCtx(publishCtx, "adjusted prices refresh triggered", "component", schedulerLogComponent)
 			return nil
 		}
-		if deferred, err := DeferPublicationUntilAfterDowntime(ctx, natsHandle, cronAdjustedPricesRefresh, time.Now()); err != nil || deferred {
+		if deferred, err := DeferPublicationUntilAfterDowntime(ctx, natsHandle, jobName, time.Now()); err != nil || deferred {
 			return err
 		}
 		return publish(ctx)
-	})
-	if err := sched.ScheduleCronJob(cronAdjustedPricesSchedule, cronAdjustedPricesRefresh); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }

@@ -2,12 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 
-	"eve-industry-planner/core/scheduler/archivedjobs"
 	"eve-industry-planner/core/scheduler/contract"
-	"eve-industry-planner/core/scheduler/esi"
-	"eve-industry-planner/core/scheduler/maintenance"
-	"eve-industry-planner/core/scheduler/sde"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
 
@@ -17,32 +14,17 @@ import (
 
 const schedulerLogComponent = "scheduler"
 
-// SchedulerFunc represents a function that sets up a scheduled job.
-// Accepts a Dependencies struct containing all available dependencies and a Scheduler interface.
-// Returns a cleanup function and an error if scheduling fails.
-type SchedulerFunc func(contract.Dependencies, contract.Scheduler) (func(), error)
-
-// JobRegistry manages all scheduled jobs
+// JobRegistry runs the declared jobs under one TaskScheduler.
 type JobRegistry struct {
-	cleanups         []func()
-	schedulers       []SchedulerFunc
 	schedulerHandler *TaskScheduler
 }
 
 // NewJobRegistry creates a new job registry
 func NewJobRegistry() *JobRegistry {
-	return &JobRegistry{
-		cleanups:   []func(){},
-		schedulers: []SchedulerFunc{},
-	}
+	return &JobRegistry{}
 }
 
-// Register adds a scheduler function to the registry
-func (r *JobRegistry) Register(scheduler SchedulerFunc) {
-	r.schedulers = append(r.schedulers, scheduler)
-}
-
-// Start registers all schedulers
+// Start registers every declared job's handler and schedules it.
 func (r *JobRegistry) Start(natsHandle *eipnats.NATS, redisClient *redislib.Client, mongoHandle *eipmongo.Mongo) error {
 	bg := context.Background()
 
@@ -51,7 +33,6 @@ func (r *JobRegistry) Start(natsHandle *eipnats.NATS, redisClient *redislib.Clie
 		return err
 	}
 
-	// Create the task scheduler
 	var err error
 	r.schedulerHandler, err = NewTaskScheduler(natsHandle, redisClient)
 	if err != nil {
@@ -64,30 +45,23 @@ func (r *JobRegistry) Start(natsHandle *eipnats.NATS, redisClient *redislib.Clie
 		Mongo: mongoHandle,
 	}
 
-	// Register handlers and schedule crons (each scheduler func registers its handler and calls ScheduleCronJob)
-	for _, schedulerFunc := range r.schedulers {
-		cleanup, err := schedulerFunc(deps, r.schedulerHandler)
-		if err != nil {
-			logs.ErrorCtx(bg, "failed to register scheduler", "component", schedulerLogComponent, "error", err)
-			// Continue with other schedulers even if one fails
-			continue
+	for _, job := range jobs {
+		r.schedulerHandler.registerHandler(job.Name, job.Build(deps, job.Name))
+		if err := r.schedulerHandler.scheduleCronJob(job.Expr, job.Name); err != nil {
+			return fmt.Errorf("schedule %s: %w", job.Name, err)
 		}
-		r.cleanups = append(r.cleanups, cleanup)
 	}
 
-	// Start the scheduler after all handlers are registered and cron jobs are scheduled
 	if err := r.schedulerHandler.Start(); err != nil {
 		return err
 	}
 
-	logs.DebugCtx(bg, "job registry started", "component", schedulerLogComponent, "schedulers", len(r.cleanups))
+	logs.DebugCtx(bg, "job registry started", "component", schedulerLogComponent, "jobs", len(jobs))
 	return nil
 }
 
-// Stop stops all schedulers and cleans up
+// Stop stops the scheduler.
 func (r *JobRegistry) Stop() {
-	// Note: cleanup functions are now used for startup checks, not cleanup
-	// There's nothing to clean up here since startup checks were already run
 	if r.schedulerHandler != nil {
 		r.schedulerHandler.Stop()
 	}
@@ -100,23 +74,8 @@ func StartService(logComponent string, natsHandle *eipnats.NATS, redisClient *re
 	_ = logComponent // legacy parameter; component is embedded in log lines
 	stop := make(chan struct{})
 
-	// Create job registry to manage all schedulers
 	registry := NewJobRegistry()
 
-	// Register all schedulers
-	registry.Register(esi.ScheduleIndustrySystemsRefresh)
-	registry.Register(esi.ScheduleAdjustedPricesRefresh)
-	registry.Register(esi.ScheduleRegionMarketOrdersRefresh)
-	registry.Register(sde.ScheduleCheckSDEUpdates)
-	registry.Register(archivedjobs.ScheduleDrainAccountStatsRebuildQueue)
-	registry.Register(maintenance.ScheduleSchemaVersionMaintenance)
-	registry.Register(maintenance.ScheduleInactiveAccountPlannerCleanup)
-	registry.Register(maintenance.ScheduleCloudStoredEsiRefreshMaintenance)
-	registry.Register(maintenance.SchedulePruneExpiredAccountSessions)
-	// Add more schedulers here:
-	// registry.Register(market.ScheduleMarketHistoryRefresh)
-
-	// Start all registered schedulers
 	if err := registry.Start(natsHandle, redisClient, mongoHandle); err != nil {
 		logs.ErrorCtx(context.Background(), "failed to start job registry", "component", schedulerLogComponent, "error", err)
 		registry.Stop()

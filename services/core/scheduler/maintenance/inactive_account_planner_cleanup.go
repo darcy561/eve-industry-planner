@@ -15,18 +15,16 @@ import (
 )
 
 const (
-	cronInactiveAccountPlannerCleanupName     = "cron.inactiveAccountPlannerCleanup"
-	cronInactiveAccountPlannerCleanupSchedule = "0 8 * * 1" // Mondays 08:00 (typically UTC in containers)
-	inactiveAccountCleanupBookmarkKey         = "scheduler:maintenance:inactive_account_cleanup_user_bookmark"
-	defaultInactiveLoginStaleYears            = 2
-	maxAccountsPublishedPerCron               = 40
+	inactiveAccountCleanupBookmarkKey = "scheduler:maintenance:inactive_account_cleanup_user_bookmark"
+	defaultInactiveLoginStaleYears    = 2
+	maxAccountsPublishedPerCron       = 40
 )
 
 // ScheduleInactiveAccountPlannerCleanup runs weekly: walks users whose last login is older than
 // the threshold (via Redis bookmark on user _id), and publishes one worker task per account to
 // delete that account's planner jobs and groups.
-func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	sched.RegisterHandler(cronInactiveAccountPlannerCleanupName, func(ctx context.Context, data json.RawMessage) error {
+func InactiveAccountPlannerCleanup(deps contract.Dependencies, jobName string) contract.TaskHandler {
+	return func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		if deps.Mongo == nil {
 			logs.ErrorCtx(ctx, "inactive account planner cleanup: mongo client is nil", "component", schedulerLogComponent)
@@ -98,11 +96,7 @@ func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched con
 			"login_cutoff_utc", cutoff.Format(time.RFC3339),
 		)
 		return nil
-	})
-	if err := sched.ScheduleCronJob(cronInactiveAccountPlannerCleanupSchedule, cronInactiveAccountPlannerCleanupName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }
 
 func inactiveLoginUserFilter(cutoff time.Time, afterID string) bson.M {

@@ -13,11 +13,9 @@ import (
 )
 
 const (
-	schedulerLogComponent                = "scheduler.maintenance"
-	cronSchemaVersionMaintenanceName     = "cron.schemaVersionMaintenance"
-	cronSchemaVersionMaintenanceSchedule = "0 * * * *"
-	schemaMaintenanceRedisKey            = "scheduler:maintenance:schema_version_collection_index"
-	defaultSchemaMaintenanceBatchSize    = 200
+	schedulerLogComponent             = "scheduler.maintenance"
+	schemaMaintenanceRedisKey         = "scheduler:maintenance:schema_version_collection_index"
+	defaultSchemaMaintenanceBatchSize = 200
 )
 
 var schemaMaintenanceCollections = eipmongo.SchemaMaintainedCollections()
@@ -25,8 +23,8 @@ var schemaMaintenanceCollections = eipmongo.SchemaMaintainedCollections()
 // ScheduleSchemaVersionMaintenance schedules a low-frequency maintenance task that
 // upgrades legacy schema versions in small batches. It rotates one collection per run
 // to avoid touching all collections on every tick.
-func ScheduleSchemaVersionMaintenance(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	sched.RegisterHandler(cronSchemaVersionMaintenanceName, func(ctx context.Context, data json.RawMessage) error {
+func SchemaVersionMaintenance(deps contract.Dependencies, jobName string) contract.TaskHandler {
+	return func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		collection, err := nextSchemaMaintenanceCollection(ctx, deps)
 		if err != nil {
@@ -43,11 +41,7 @@ func ScheduleSchemaVersionMaintenance(deps contract.Dependencies, sched contract
 			"batch_size", defaultSchemaMaintenanceBatchSize,
 		)
 		return nil
-	})
-	if err := sched.ScheduleCronJob(cronSchemaVersionMaintenanceSchedule, cronSchemaVersionMaintenanceName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }
 
 func nextSchemaMaintenanceCollection(ctx context.Context, deps contract.Dependencies) (string, error) {
