@@ -3,8 +3,12 @@ package nats
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
 
@@ -21,6 +25,21 @@ const (
 	jetStreamAPITimeout = 5 * time.Second
 )
 
+// clientName is what the server reports for this connection, so a monitoring
+// endpoint names a service and replica rather than an anonymous client. The
+// binary is named for its service, which is why the process supplies it.
+func clientName() string {
+	name := serviceNameFromBinary(os.Args[0])
+	if id := container.ID(); id != "" {
+		return name + "/" + id
+	}
+	return name
+}
+
+func serviceNameFromBinary(path string) string {
+	return strings.TrimSuffix(filepath.Base(path), "-service")
+}
+
 // Connect establishes a connection, retrying while ctx allows.
 func Connect(ctx context.Context) (*natslib.Conn, error) {
 	natsURL, err := config.NATSURL()
@@ -29,6 +48,7 @@ func Connect(ctx context.Context) (*natslib.Conn, error) {
 	}
 
 	opts := []natslib.Option{
+		natslib.Name(clientName()),
 		natslib.ReconnectWait(2 * time.Second),
 		natslib.MaxReconnects(-1),
 		natslib.ReconnectOnFlusherError(),

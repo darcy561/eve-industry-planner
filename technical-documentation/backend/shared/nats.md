@@ -98,9 +98,17 @@ deliberately not part of it: a service owning more than one durable on a stream 
 two on `doc-update-stream` — reconciles once for the whole set after both exist, because reconciling
 for one durable at a time would delete the others.
 
-**`Specs()` is the allowlist.** `ReconcileStreams` deletes streams carrying this app's ownership stamp
-that no longer appear in it, so retiring a stream means deleting its spec. Core runs it at boot.
-Unstamped streams — KV, object-store backing, an operator's own — are never candidates.
+**`Specs()` is the allowlist.** `ReconcileStreams` deletes every stream that does not appear in it, so
+retiring a stream means deleting its spec, and a stream on the server that no spec names is removed on
+the next boot. Core runs it at boot.
+
+The one exception is the prefixes the NATS client reserves — `KV_` for a key-value bucket and `OBJ_`
+for an object store. Those streams are created implicitly on a caller's behalf and hold the only copy
+of their data, so they are skipped. Nothing here uses either today.
+
+Streams and durables also carry an `eip.owner` metadata stamp. It does not gate stream deletion — it
+is there so `/jsz` tells you at a glance which streams this app made, which is how you recognise one
+left behind by an older build.
 
 **`DeliverPolicy` is immutable.** The server rejects an update to it, so a change recreates the
 durable. Everything else updates in place.
@@ -197,9 +205,11 @@ Per-replica fan-out durables are removed in three layers, with no guesswork betw
 | Reconcile | deletes owned durables of a naming generation no longer in the keep policy |
 | Server | `InactiveThreshold` (1h) reaps a durable that stops pulling — the crashed-replica case |
 
-Only durables carrying the ownership stamp are ever deleted. A crashed replica's durable lingers up
-to the threshold rather than being detected by a peer, which is the trade that makes it impossible to
-delete a live replica's durable by mistake.
+Only durables carrying the ownership stamp are ever deleted — unlike streams, where the specs decide.
+A durable is not declared anywhere: replicas name theirs at runtime, so the stamp is what separates
+one of ours from a consumer someone attached by hand to read a stream. A crashed replica's durable
+lingers up to the threshold rather than being detected by a peer, which is the trade that makes it
+impossible to delete a live replica's durable by mistake.
 
 ## Schedules
 
