@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	eipnats "eve-industry-planner/shared/nats"
+	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/shared/logs"
@@ -18,7 +19,6 @@ const (
 // When the cron fires, this handler runs and publishes to the worker task's NATS subject.
 func ScheduleAdjustedPricesRefresh(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
 	natsHandle := deps.NATS
-	task := eipnats.RefreshAdjustedPrices
 	sched.RegisterHandler(cronAdjustedPricesRefresh, func(ctx context.Context, data json.RawMessage) error {
 		publish := func(publishCtx context.Context) error {
 			logs.DebugCtx(publishCtx, "publishing adjusted prices refresh trigger", "component", schedulerLogComponent)
@@ -29,8 +29,8 @@ func ScheduleAdjustedPricesRefresh(deps contract.Dependencies, sched contract.Sc
 			logs.InfoCtx(publishCtx, "adjusted prices refresh triggered", "component", schedulerLogComponent)
 			return nil
 		}
-		if deferTaskPublicationUntilAfterDowntime(ctx, task.Name, task.Subject, publish) {
-			return nil
+		if deferred, err := DeferPublicationUntilAfterDowntime(ctx, natsHandle, cronAdjustedPricesRefresh, time.Now()); err != nil || deferred {
+			return err
 		}
 		return publish(ctx)
 	})

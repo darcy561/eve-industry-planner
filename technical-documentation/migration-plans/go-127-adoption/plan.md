@@ -1,6 +1,6 @@
 # Go 1.27 adoption — plan
 
-**Status:** Phase 1 (docs) — complete; no track work started
+**Status:** Phase 1 (docs) — complete; no track work started here (one Track B target was closed by another project — see Track B)
 **Code in scope:** [`services/`](../../../services/) (all areas), [`testing/`](../../../testing/), [`deployment-tool/`](../../../deployment-tool/)
 **Live SoT (until promote):** [backend/core/core.md](../../backend/core/core.md), [backend/api/contents.md](../../backend/api/contents.md), [technical-rules.md](../../technical-rules.md) § Prefer modern Go
 
@@ -91,9 +91,8 @@ Feasible with no seam, all in-process and channel-driven:
 |--------|-------|
 | [`core/servicemanager/managed_test.go`](../../../services/core/servicemanager/managed_test.go) | Three deadline + `time.Sleep(10ms)` poll loops |
 | [`core/scheduler/cancel_on_shutdown_test.go`](../../../services/core/scheduler/cancel_on_shutdown_test.go) | 3s / 5s / 5s deadlines around gocron shutdown |
-| [`core/scheduler/esi/downtime.go`](../../../services/core/scheduler/esi/downtime.go) | **No test files in the package at all** — the deferral waits until 11:15 UTC, so it has never been coverable |
 
-The downtime work carries a defect to fix with it: the deferring goroutine blocks on `<-timer.C` with no context branch, so it cannot be cancelled on shutdown. That is a live gap against [technical-rules.md](../../technical-rules.md) § Concurrency and cancellation, and it is exactly what a simulated-time test pins down.
+[`core/scheduler/esi/downtime.go`](../../../services/core/scheduler/esi/downtime.go) was a third target here, for an untested deferral that only ran between 11:00 and 11:15 UTC and held a goroutine blocked on `<-timer.C` with no context branch. [cron-scheduler-rewrite](../cron-scheduler-rewrite/overlay.md) Stage C removed the goroutine entirely — the deferral is now a schedule on the schedule stream — and the package has tests that take the instant as a parameter rather than waiting for one. Simulated time has nothing left to pin down there, and the cancellation gap against [technical-rules.md](../../technical-rules.md) § Concurrency and cancellation is closed with it.
 
 Blocked until a seam exists — these drive real leases through miniredis, which serves over loopback TCP and exposes no custom-listener API. Real network I/O never counts as durably blocked, so a bubble deadlocks rather than fails:
 
@@ -103,15 +102,17 @@ Blocked until a seam exists — these drive real leases through miniredis, which
 
 The seam now has a home: every Redis-backed test takes [`testing/redisfake`](../../../testing/redisfake/), which owns construction of the miniredis server and its client. Making those tests bubble-safe means giving that one constructor an in-memory transport (or a fake lease behind [`shared/core/redis/lease`](../../../services/shared/core/redis/lease/)) rather than editing each test. Sized and decided before any of those three are attempted.
 
-Done when: the three unblocked targets run under `testing/synctest`, the downtime cancellation gap is fixed with the test that proves it, and the lease-seam decision is recorded here either as scheduled or as declined.
+Done when: both unblocked targets run under `testing/synctest`, and the lease-seam decision is recorded here either as scheduled or as declined.
 
 ## Track C — `go fix` sweep
 
-`go fix -diff ./...` at the new language version reports **57 files**: `errors.As` → `errors.AsType`, `interface{}` → `any`, `wg.Go`, `slices` / `maps` adoption, `for range n`, `max()`, plus gofmt alignment.
+`go fix -diff ./...` at the new language version reports `errors.As` → `errors.AsType`, `interface{}` → `any`, `wg.Go`, `slices` / `maps` adoption, `for range n`, `max()`, plus gofmt alignment.
 
-By area — `services/` 47: shared 19, core 9, api 9, worker 4, ws-router 2, websocket 2, capacity-controller 2. Separate module `testing/` 10.
+By area, re-counted at this update — **47 files**: `services/` 36 (shared 10, api 9, core 7, worker 4, capacity-controller 2, websocket 2, ws-router 2), separate module `testing/` 8, `deployment-tool/` 3.
 
-Land **per area, scoped to that area**, per [technical-rules.md](../../technical-rules.md) § Prefer modern Go — not as one 54-file commit, and not widened into packages a slice does not otherwise touch. Where an area is already being opened by Track A Phase A3, its `go fix` slice should land first so the JSON change reviews clean.
+The count is a snapshot, not an inventory: it falls on its own as areas are touched under the scoped `go fix` rule, and one core suggestion went out with cron-scheduler-rewrite Stage C. Re-run the command for the area you are about to open rather than working from these numbers.
+
+Land **per area, scoped to that area**, per [technical-rules.md](../../technical-rules.md) § Prefer modern Go — not as one 47-file commit, and not widened into packages a slice does not otherwise touch. Where an area is already being opened by Track A Phase A3, its `go fix` slice should land first so the JSON change reviews clean.
 
 Done when: `go fix -diff` is empty for every area, or a remaining suggestion is recorded here with the reason it was waived.
 

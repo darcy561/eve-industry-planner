@@ -2,7 +2,7 @@ package esi
 
 import (
 	"context"
-	"sync"
+	"fmt"
 	"time"
 
 	"eve-industry-planner/shared/logs"
@@ -13,14 +13,17 @@ const (
 	eveDowntimeStartMinUTC  = 0
 	eveDowntimeEndHourUTC   = 11
 	eveDowntimeEndMinUTC    = 15
+	// downtimeScheduleMargin keeps a deferred run clear of the window's closing edge, so a
+	// schedule firing on the server's clock does not land while ESI is still refusing requests.
+	downtimeScheduleMargin = 2 * time.Second
 )
 
-type downtimeContextKey string
-
-const deferredFromDowntimeContextKey downtimeContextKey = "deferred_from_downtime"
-
-var deferredTaskMu sync.Mutex
-var deferredTaskUntil = make(map[string]time.Time)
+// publicationScheduler defers a run to a later time under an id that identifies it.
+// Scheduling again under one id replaces what was there, so a cron job's name is
+// enough to keep one deferral per job.
+type publicationScheduler interface {
+	ScheduleAt(ctx context.Context, id string, at time.Time, payload []byte) error
+}
 
 // IsInEVEDowntime reports whether now falls in the daily EVE maintenance window (UTC).
 func IsInEVEDowntime(now time.Time) (bool, time.Time) {
@@ -38,92 +41,34 @@ func isInEVEDowntime(now time.Time) (bool, time.Time) {
 	return false, time.Time{}
 }
 
-func withDeferredFromDowntime(ctx context.Context) context.Context {
-	return context.WithValue(ctx, deferredFromDowntimeContextKey, true)
-}
-
-func wasDeferredFromDowntime(ctx context.Context) bool {
-	deferred, ok := ctx.Value(deferredFromDowntimeContextKey).(bool)
-	return ok && deferred
-}
-
-func computeRunsPer4Hours(now time.Time, deferred bool) float64 {
-	const baselineRunsPer4Hours = 48.0
-	const downtimeAwareRunsPer4Hours = 45.0
-	if deferred {
-		return downtimeAwareRunsPer4Hours
-	}
-	if inDowntime, _ := isInEVEDowntime(now); inDowntime {
-		return downtimeAwareRunsPer4Hours
-	}
-	return baselineRunsPer4Hours
-}
-
-// DeferTaskPublicationUntilAfterDowntime skips publication during daily downtime and runs publish after the window.
-func DeferTaskPublicationUntilAfterDowntime(ctx context.Context, taskName string, subject string, publish func(context.Context) error) bool {
-	return deferTaskPublicationUntilAfterDowntime(ctx, taskName, subject, publish)
-}
-
-func deferTaskPublicationUntilAfterDowntime(ctx context.Context, taskName string, subject string, publish func(context.Context) error) bool {
-	now := time.Now()
+// DeferPublicationUntilAfterDowntime schedules jobName to run once the current EVE downtime
+// window has passed, and reports whether it did. Outside the window it reports false and the
+// caller publishes as normal.
+//
+// The schedule delivers to the schedule runner, which runs the handler registered under
+// jobName — the same handler the cron fires — so the deferred run repeats this check and
+// publishes, downtime now being over.
+//
+// A deferral that cannot be scheduled is an error rather than a publication during downtime;
+// the next cron tick retries it.
+func DeferPublicationUntilAfterDowntime(ctx context.Context, sched publicationScheduler, jobName string, now time.Time) (bool, error) {
 	inDowntime, downtimeEnd := isInEVEDowntime(now)
 	if !inDowntime {
-		return false
+		return false, nil
+	}
+	if sched == nil {
+		return false, fmt.Errorf("defer %s until after downtime: scheduler is required", jobName)
 	}
 
-	deferKey := taskName + "|" + subject
-	deferredTaskMu.Lock()
-	existingEnd, exists := deferredTaskUntil[deferKey]
-	if exists && !existingEnd.Before(downtimeEnd) {
-		deferredTaskMu.Unlock()
-		logs.DebugCtx(ctx, "ESI task publication already deferred for current downtime window",
-			"component", schedulerLogComponent,
-			"task", taskName,
-			"subject", subject,
-			"downtime_end_utc", downtimeEnd.Format(time.RFC3339))
-		return true
-	}
-	deferredTaskUntil[deferKey] = downtimeEnd
-	deferredTaskMu.Unlock()
-
-	waitUntil := downtimeEnd.Add(2 * time.Second)
-	waitDuration := time.Until(waitUntil)
-	if waitDuration < 0 {
-		waitDuration = 0
+	runAt := downtimeEnd.Add(downtimeScheduleMargin)
+	if err := sched.ScheduleAt(ctx, jobName, runAt, nil); err != nil {
+		return false, fmt.Errorf("defer %s until after downtime: %w", jobName, err)
 	}
 
-	logs.InfoCtx(ctx, "deferring ESI task publication until after EVE downtime",
+	logs.InfoCtx(ctx, "deferred publication until after EVE downtime",
 		"component", schedulerLogComponent,
-		"task", taskName,
-		"subject", subject,
+		"job", jobName,
 		"downtime_end_utc", downtimeEnd.Format(time.RFC3339),
-		"defer_seconds", int(waitDuration.Seconds()))
-
-	go func(taskName string, subject string, deferKey string, expectedEnd time.Time, waitDuration time.Duration) {
-		timer := time.NewTimer(waitDuration)
-		defer timer.Stop()
-		<-timer.C
-
-		deferredCtx := withDeferredFromDowntime(context.Background())
-		if err := publish(deferredCtx); err != nil {
-			logs.ErrorCtx(deferredCtx, "failed deferred ESI task publication after downtime",
-				"component", schedulerLogComponent,
-				"task", taskName,
-				"subject", subject,
-				"downtime_end_utc", expectedEnd.Format(time.RFC3339),
-				"error", err)
-		} else {
-			logs.InfoCtx(deferredCtx, "deferred ESI task publication completed after downtime",
-				"component", schedulerLogComponent,
-				"task", taskName,
-				"subject", subject,
-				"downtime_end_utc", expectedEnd.Format(time.RFC3339))
-		}
-
-		deferredTaskMu.Lock()
-		delete(deferredTaskUntil, deferKey)
-		deferredTaskMu.Unlock()
-	}(taskName, subject, deferKey, downtimeEnd, waitDuration)
-
-	return true
+		"runs_at_utc", runAt.UTC().Format(time.RFC3339))
+	return true, nil
 }
