@@ -17,11 +17,12 @@ const (
 )
 
 var listPagingRules = helper.PagingRules{
-	Sortable:       ArchivedJobSortable,
-	SortableFields: ArchivedJobSortableFields,
-	DefaultLimit:   defaultListLimit,
-	MaxLimit:       maxListLimit,
-	CodePrefix:     "archived_jobs_list",
+	Sortable:         ArchivedJobSortable,
+	SortableFields:   ArchivedJobSortableFields,
+	DefaultAscending: ArchivedJobDefaultAscending,
+	DefaultLimit:     defaultListLimit,
+	MaxLimit:         maxListLimit,
+	CodePrefix:       "archived_jobs_list",
 }
 
 // resolveListQuery reads the list filters. Either range bound may be given

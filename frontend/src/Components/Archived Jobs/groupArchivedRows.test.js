@@ -77,6 +77,39 @@ describe("groupArchivedRows", () => {
     expect(many[0].label).toBe("Rifter + 2 more");
   });
 
+  // The server returns rows in the order the sort control asked for. Hoisting
+  // blocks above the standalone jobs answers a different question: a job
+  // archived today would sit below a set archived last week.
+  it("leaves the rows in the order they arrived", () => {
+    const blocks = groupArchivedRows([
+      job({ jobID: "newest" }),
+      job({ jobID: "linked-1", relatedSetID: "set-1" }),
+      job({ jobID: "middle" }),
+      job({ jobID: "linked-2", relatedSetID: "set-1" }),
+      job({ jobID: "oldest" }),
+    ]);
+
+    expect(blocks.map((b) => b.id)).toEqual([
+      "newest",
+      "set-1",
+      "middle",
+      "oldest",
+    ]);
+    // A block sits where its first member did, and still collects the rest.
+    expect(blocks[1].jobs.map((j) => j.jobID)).toEqual(["linked-1", "linked-2"]);
+  });
+
+  // A block is named after everything it holds, including members that arrive
+  // after its position is fixed.
+  it("names a block from members found later in the page", () => {
+    const [block] = groupArchivedRows([
+      job({ jobID: "a", name: "Rifter", groupID: "g" }),
+      job({ jobID: "b", name: "Punisher", groupID: "g" }),
+    ]);
+
+    expect(block.label).toBe("Rifter + 1 more");
+  });
+
   it("labels a block with no names rather than showing nothing", () => {
     const blocks = groupArchivedRows([job({ groupID: "g1", name: "" })]);
     expect(blocks[0].label).toBe("Untitled");

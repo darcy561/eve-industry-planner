@@ -84,6 +84,10 @@ type PagingRules struct {
 	SortableFields func() []string
 	DefaultLimit   int
 	MaxLimit       int
+	// DefaultAscending gives the direction a field reads in when the caller names
+	// none. A date wants newest first; a name wants A to Z. Nil means descending
+	// for every field, which suits a view whose measures are all quantities.
+	DefaultAscending func(sort string) bool
 	// CodePrefix namespaces this view's failure classes.
 	CodePrefix string
 }
@@ -106,7 +110,11 @@ func ResolvePaging(r *http.Request, rules PagingRules) (Paging, error) {
 	}
 
 	switch order := strings.TrimSpace(q.Get("order")); order {
-	case "", "desc":
+	case "":
+		if rules.DefaultAscending != nil {
+			out.Ascending = rules.DefaultAscending(out.Sort)
+		}
+	case "desc":
 	case "asc":
 		out.Ascending = true
 	default:
