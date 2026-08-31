@@ -66,7 +66,7 @@ func (a *app) connectDeps(ctx context.Context) error {
 }
 
 func (a *app) prepare(ctx context.Context) error {
-	if err := eipnats.EnsureWorkerTaskStream(a.clients.NATS.JS()); err != nil {
+	if _, err := a.clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return a.fail(err)
 	}
 

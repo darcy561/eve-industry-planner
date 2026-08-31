@@ -12,29 +12,10 @@ const (
 	DocUpdateStream = "doc-update-stream"
 )
 
-// WorkerTaskStreamSubjects are the subject patterns for the worker task stream
-// The stream accepts all subjects starting with "task."
-var WorkerTaskStreamSubjects = []string{
-	"task.>",
-}
-
 // TaskSubjectPrefix is the subject prefix for all worker tasks. The worker subscribes to "task.>"
 // and derives task type from the subject (last segment after the final dot).
 // Task names, subjects, and default priorities are defined in shared/tasks.
 const TaskSubjectPrefix = "task."
-
-// SchedulerStreamSubjects are the subject patterns for the scheduler stream
-// The stream accepts all subjects starting with "scheduler."
-// Consumers filter to specific patterns if needed
-var SchedulerStreamSubjects = []string{
-	"scheduler.>",
-}
-
-// DocUpdateStreamSubjects are the subject patterns bound to doc-update-stream.
-var DocUpdateStreamSubjects = []string{
-	"doc.update.>",
-	"doc.lock.>",
-}
 
 // Subject names (non-task; task subjects are in shared/tasks)
 const (

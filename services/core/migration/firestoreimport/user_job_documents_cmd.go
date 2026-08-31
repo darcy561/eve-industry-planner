@@ -154,7 +154,7 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 		return err
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
-	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
+	if _, err := clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
 	fsc, err := firebaseadmin.GetFirestoreClient(ctx)
@@ -213,7 +213,7 @@ func publishImportUserJobDocumentTaskSingle(ctx context.Context, accountID strin
 		return err
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
-	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
+	if _, err := clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
 	fsc, err := firebaseadmin.GetFirestoreClient(ctx)

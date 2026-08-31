@@ -115,7 +115,65 @@ Owed at promote: a `testing/natsfake` row in the shared harness coverage map.
 
 ## Stage B — streams and consumers as specs
 
-_Not landed._
+_Landed._
+
+### Streams are declared, then bound
+
+`StreamSpec` declares a stream this app owns — name, subjects, retention, and which durables belong
+on it. `Specs()` lists them, and each has a constructor (`TaskStreamSpec`, `SchedulerStreamSpec`,
+`DocUpdateStreamSpec`) so a caller reads the declaration rather than assembling one.
+
+The handle binds them as named fields — `NATS.Tasks`, `NATS.Scheduler`, `NATS.DocUpdate` — the way
+`Mongo` binds collections. Binding touches no server; `Stream.Ensure(ctx)` performs the upsert and
+caches the result, so repeated calls cost one round trip.
+
+`Stream.Consumer(ctx, cfg)` creates or updates a durable, and `Stream.Reconcile(ctx, keepExact…)`
+runs the keep policy the spec carries. Retention and the fan-out crash backstop
+(`DocFanoutInactiveThreshold`) are properties of the spec rather than constants scattered across the
+services that use them.
+
+### Ownership is stamped, and reconcile acts on it
+
+Streams and consumers this app creates carry `eip.owner` metadata, and consumer reconcile now gates
+on it: a durable without the stamp is counted and skipped, never deleted. Deletion is therefore
+limited to durables this app made, so a KV or object-store backing consumer, or an operator's own,
+is safe on a shared stream.
+
+### Abandoned durables are the server's job
+
+The peer sweep no longer guesses. Previously a durable matching a live prefix but showing no waiting
+pulls was deleted as an orphan, which is why the websocket boot path slept five seconds first — long
+enough for peers to have pulls outstanding and not be mistaken for dead. Both are gone.
+
+What remains is three layers with no heuristic between them:
+
+| Layer | Covers |
+|-------|--------|
+| Graceful | A replica deletes its own `doc.update` and `doc.lock` durables on drain and shutdown |
+| Reconcile | Deletes owned durables of a naming generation no longer in the keep policy; stamps `InactiveThreshold` on the rest |
+| Server | `InactiveThreshold` reaps a durable that stops pulling, which is exactly the crashed-replica case the sweep was guessing at |
+
+The cost is latency: a crashed replica's durable now lingers up to `DocFanoutInactiveThreshold`
+(one hour) instead of until the next peer boot. The benefit is that a live replica can no longer be
+mistaken for a dead one. If the lingering proves too slow, the threshold is one constant on the spec.
+
+### One consume loop
+
+`Consume(consumer, subject, processor, opts…)` returns a stop function that waits for in-flight
+handlers rather than abandoning them. `WithConcurrency(n)` bounds how many run at once — one by
+default, which preserves per-consumer ordering. `ConsumeUntil` is the same thing driven by a stop
+channel, which is how the websocket and scheduler call sites are shaped.
+
+The worker's own fetch loop is deleted: its batching, semaphore, idle sleep and the missing
+in-progress heartbeat are all covered by the shared loop at `WithConcurrency(20)`, the concurrency it
+already used. `task_subscriber.go` drops from 242 lines to 140.
+
+### Removed
+
+`EnsureStreams`, `StreamConfig`, the three per-stream ensure wrappers, `GetOrEnsureStream`,
+`GetOrCreateConsumer`, the three keep-policy constructors, and the three stream-subject vars. Stream
+configuration drift is now the server's `CreateOrUpdateStream` / `CreateOrUpdateConsumer`, and a
+`DeliverPolicy` change uses `ResetConsumer` instead of deleting a durable and losing its ack floor.
 
 ## Stage C — typed tasks and topics
 

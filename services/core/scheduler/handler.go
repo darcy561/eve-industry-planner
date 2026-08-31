@@ -396,7 +396,7 @@ func (s *TaskScheduler) Start() error {
 	// Set up JetStream consumer for one-time job requests
 	if s.nats != nil {
 		consumer, err := helpers.SetupScheduleRequestReceiver(
-			s.nats.JS(),
+			s.nats,
 			s.processScheduleRequest,
 			s.stopChan,
 		)

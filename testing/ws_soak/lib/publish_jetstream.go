@@ -20,7 +20,7 @@ func newJetStreamPublisher() (Publisher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("jetstream connect: %w", err)
 	}
-	if err := eipnats.EnsureDocUpdateStream(handle.JS()); err != nil {
+	if _, err := handle.DocUpdate.Ensure(context.Background()); err != nil {
 		handle.Close()
 		return nil, fmt.Errorf("ensure doc-update stream: %w", err)
 	}

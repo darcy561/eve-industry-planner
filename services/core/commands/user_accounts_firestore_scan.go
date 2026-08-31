@@ -86,7 +86,7 @@ func runImportUserAccountsFromFirestoreScan(ctx context.Context, args []string) 
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
+	if _, err := clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
 

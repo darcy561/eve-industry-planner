@@ -11,8 +11,8 @@ func TestDocFanoutConsumerConfigsHaveInactiveThreshold(t *testing.T) {
 	t.Setenv("HOSTNAME", "ws-test-replica")
 
 	_, live := DocLiveUpdatesConsumerConfig()
-	if live.InactiveThreshold != DocFanoutConsumerInactiveThreshold {
-		t.Fatalf("live updates InactiveThreshold=%v want %v", live.InactiveThreshold, DocFanoutConsumerInactiveThreshold)
+	if live.InactiveThreshold != eipnats.DocFanoutInactiveThreshold {
+		t.Fatalf("live updates InactiveThreshold=%v want %v", live.InactiveThreshold, eipnats.DocFanoutInactiveThreshold)
 	}
 	if live.InactiveThreshold != time.Hour {
 		t.Fatalf("expected 1h threshold, got %v", live.InactiveThreshold)
@@ -25,8 +25,8 @@ func TestDocFanoutConsumerConfigsHaveInactiveThreshold(t *testing.T) {
 	}
 
 	_, lock := DocLockConsumerConfig()
-	if lock.InactiveThreshold != DocFanoutConsumerInactiveThreshold {
-		t.Fatalf("lock InactiveThreshold=%v want %v", lock.InactiveThreshold, DocFanoutConsumerInactiveThreshold)
+	if lock.InactiveThreshold != eipnats.DocFanoutInactiveThreshold {
+		t.Fatalf("lock InactiveThreshold=%v want %v", lock.InactiveThreshold, eipnats.DocFanoutInactiveThreshold)
 	}
 	if lock.Durable != "doc-lock-ws-test-replica" {
 		t.Fatalf("unexpected lock durable %q", lock.Durable)

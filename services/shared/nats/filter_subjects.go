@@ -95,3 +95,26 @@ func UpdateConsumerFilterSubjects(ctx context.Context, stream jetstream.Stream, 
 		"consumer", durable, "from", current, "to", desired)
 	return nil
 }
+
+// subjectsAsSetEqual reports whether a and b hold the same subjects, order ignored.
+func subjectsAsSetEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	counts := make(map[string]int, len(a))
+	for _, s := range a {
+		counts[s]++
+	}
+	for _, s := range b {
+		counts[s]--
+		if counts[s] < 0 {
+			return false
+		}
+	}
+	for _, n := range counts {
+		if n != 0 {
+			return false
+		}
+	}
+	return true
+}

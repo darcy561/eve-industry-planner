@@ -44,8 +44,10 @@ func (r *JobRegistry) Register(scheduler SchedulerFunc) {
 
 // Start registers all schedulers
 func (r *JobRegistry) Start(natsHandle *eipnats.NATS, redisClient *redislib.Client, mongoHandle *eipmongo.Mongo) error {
+	bg := context.Background()
+
 	// Ensure required JetStream streams exist before starting schedulers
-	if err := eipnats.EnsureWorkerTaskStream(natsHandle.JS()); err != nil {
+	if _, err := natsHandle.Tasks.Ensure(bg); err != nil {
 		return err
 	}
 
@@ -62,7 +64,6 @@ func (r *JobRegistry) Start(natsHandle *eipnats.NATS, redisClient *redislib.Clie
 		Mongo: mongoHandle,
 	}
 
-	bg := context.Background()
 	// Register handlers and schedule crons (each scheduler func registers its handler and calls ScheduleCronJob)
 	for _, schedulerFunc := range r.schedulers {
 		cleanup, err := schedulerFunc(deps, r.schedulerHandler)

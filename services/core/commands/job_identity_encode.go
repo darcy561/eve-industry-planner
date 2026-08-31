@@ -39,7 +39,7 @@ func runEncodeJobIdentity(ctx context.Context, args []string) error {
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
+	if _, err := clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 

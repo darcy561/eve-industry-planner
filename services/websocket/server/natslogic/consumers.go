@@ -9,13 +9,6 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// DocFanoutConsumerInactiveThreshold is the crash/kill backstop: how long a
-// per-container websocket JetStream durable may sit without pull activity before
-// NATS deletes it. Graceful stop deletes durables explicitly; this covers missed
-// shutdown. Without it, abandoned durables retain forever and inflate Grafana
-// num_pending sums. Peer reconcile (NumWaiting==0) is a second backstop.
-const DocFanoutConsumerInactiveThreshold = time.Hour
-
 // DocLiveUpdatesConsumerConfig is the JetStream consumer for doc.update fan-out.
 // Starts with an inert FilterSubjects set (no firehose); the server widens filters
 // from local HostedTenants via UpdateConsumerFilterSubjects.
@@ -27,7 +20,7 @@ func DocLiveUpdatesConsumerConfig() (durable string, cfg jetstream.ConsumerConfi
 		DeliverPolicy:     jetstream.DeliverNewPolicy,
 		AckPolicy:         jetstream.AckExplicitPolicy,
 		AckWait:           30 * time.Second,
-		InactiveThreshold: DocFanoutConsumerInactiveThreshold,
+		InactiveThreshold: eipnats.DocFanoutInactiveThreshold,
 	}
 }
 
@@ -41,6 +34,6 @@ func DocLockConsumerConfig() (durable string, cfg jetstream.ConsumerConfig) {
 		DeliverPolicy:     jetstream.DeliverLastPolicy,
 		AckPolicy:         jetstream.AckExplicitPolicy,
 		AckWait:           30 * time.Second,
-		InactiveThreshold: DocFanoutConsumerInactiveThreshold,
+		InactiveThreshold: eipnats.DocFanoutInactiveThreshold,
 	}
 }

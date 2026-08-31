@@ -21,19 +21,9 @@ func (s *Server) subscribeToDocUpdates() {
 		logs.WarnCtx(ctx, "JetStream not available, document update subscription disabled")
 		return
 	}
-	if err := eipnats.EnsureDocUpdateStream(s.Stack.NATS.JS()); err != nil {
-		logs.ErrorCtx(ctx, "doc updates: ensure stream", "error", err)
-		return
-	}
-
-	stream, err := eipnats.GetOrEnsureStream(
-		ctx,
-		s.Stack.NATS.JS(),
-		eipnats.EnsureDocUpdateStream,
-		eipnats.DocUpdateStream,
-	)
+	stream, err := s.Stack.NATS.DocUpdate.Ensure(ctx)
 	if err != nil {
-		logs.ErrorCtx(ctx, "doc updates: get stream", "error", err)
+		logs.ErrorCtx(ctx, "doc updates: ensure stream", "error", err)
 		return
 	}
 	s.fanoutFilterMu.Lock()
@@ -42,7 +32,7 @@ func (s *Server) subscribeToDocUpdates() {
 
 	durable, consumerConfig := natslogic.DocLiveUpdatesConsumerConfig()
 
-	consumer, err := eipnats.GetOrCreateConsumer(ctx, stream, consumerConfig)
+	consumer, err := s.Stack.NATS.DocUpdate.Consumer(ctx, consumerConfig)
 	if err != nil {
 		logs.ErrorCtx(ctx, "doc updates: create consumer", "error", err)
 		return
@@ -85,12 +75,9 @@ func (s *Server) subscribeToDocUpdates() {
 		close(stopChan)
 	}()
 
-	eipnats.StartMessageProcessingLoop(
-		consumer,
-		processor,
-		stopChan,
-		"doc.update",
-	)
+	if err := eipnats.ConsumeUntil(consumer, "doc.update", processor, stopChan); err != nil {
+		return
+	}
 
 	logs.DebugCtx(ctx, "subscribed to document updates (JetStream)",
 		"consumer", durable,

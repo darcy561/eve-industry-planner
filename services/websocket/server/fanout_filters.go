@@ -63,12 +63,7 @@ func (s *Server) docFanoutStream(ctx context.Context) (jetstream.Stream, error) 
 	if cached != nil {
 		return cached, nil
 	}
-	stream, err := eipnats.GetOrEnsureStream(
-		ctx,
-		s.Stack.NATS.JS(),
-		eipnats.EnsureDocUpdateStream,
-		eipnats.DocUpdateStream,
-	)
+	stream, err := s.Stack.NATS.DocUpdate.Ensure(ctx)
 	if err != nil {
 		return nil, err
 	}

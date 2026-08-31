@@ -12,13 +12,19 @@ import (
 // pingTimeout applies only when a caller's context carries no deadline.
 const pingTimeout = 5 * time.Second
 
-// NATS is the app messaging handle: one connection and the JetStream context bound to it.
+// NATS is the app messaging handle: one connection, the JetStream context bound
+// to it, and the streams this app owns.
 type NATS struct {
 	conn *natslib.Conn
 	js   jetstream.JetStream
+
+	// Named streams, bound from [Specs]. Binding touches no server.
+	Tasks     *Stream
+	Scheduler *Stream
+	DocUpdate *Stream
 }
 
-// NewNATS binds a connection and its JetStream context.
+// NewNATS binds a connection, its JetStream context, and the declared streams.
 func NewNATS(conn *natslib.Conn, js jetstream.JetStream) (*NATS, error) {
 	if conn == nil {
 		return nil, fmt.Errorf("nats connection is required")
@@ -26,7 +32,13 @@ func NewNATS(conn *natslib.Conn, js jetstream.JetStream) (*NATS, error) {
 	if js == nil {
 		return nil, fmt.Errorf("jetstream context is required")
 	}
-	return &NATS{conn: conn, js: js}, nil
+	return &NATS{
+		conn:      conn,
+		js:        js,
+		Tasks:     newStream(TaskStreamSpec(), js),
+		Scheduler: newStream(SchedulerStreamSpec(), js),
+		DocUpdate: newStream(DocUpdateStreamSpec(), js),
+	}, nil
 }
 
 // Conn returns the raw connection for core-NATS subscribe / request / reply.
