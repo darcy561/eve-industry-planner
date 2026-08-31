@@ -9,7 +9,7 @@ it wants run.
 ## Does not own
 
 - Declaring and publishing a task → [backend/shared/nats.md](../../backend/shared/nats.md) once promoted
-- Recurring cron jobs and deferred runs → [cron-scheduler-rewrite/contents.md](../cron-scheduler-rewrite/contents.md)
+- Recurring cron jobs and deferred runs → [backend/core/scheduler.md](../../backend/core/scheduler.md)
 - Worker concurrency and queue sizing → [backend/worker/contents.md](../../backend/worker/contents.md)
 
 ## Task map

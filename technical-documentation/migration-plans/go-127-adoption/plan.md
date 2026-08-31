@@ -92,7 +92,7 @@ Feasible with no seam, all in-process and channel-driven:
 | [`core/servicemanager/managed_test.go`](../../../services/core/servicemanager/managed_test.go) | Three deadline + `time.Sleep(10ms)` poll loops |
 | [`core/scheduler/cancel_on_shutdown_test.go`](../../../services/core/scheduler/cancel_on_shutdown_test.go) | 3s / 5s / 5s deadlines around gocron shutdown |
 
-[`core/scheduler/esi/downtime.go`](../../../services/core/scheduler/esi/downtime.go) was a third target here, for an untested deferral that only ran between 11:00 and 11:15 UTC and held a goroutine blocked on `<-timer.C` with no context branch. [cron-scheduler-rewrite](../cron-scheduler-rewrite/overlay.md) Stage C removed the goroutine entirely — the deferral is now a schedule on the schedule stream — and the package has tests that take the instant as a parameter rather than waiting for one. Simulated time has nothing left to pin down there, and the cancellation gap against [technical-rules.md](../../technical-rules.md) § Concurrency and cancellation is closed with it.
+[`core/scheduler/esi/downtime.go`](../../../services/core/scheduler/esi/downtime.go) was a third target here, for an untested deferral that only ran between 11:00 and 11:15 UTC and held a goroutine blocked on `<-timer.C` with no context branch. That goroutine is gone: the deferral is a schedule on the schedule stream ([backend/core/scheduler.md](../../backend/core/scheduler.md) § Deferring past EVE downtime), and the package has tests that take the instant as a parameter rather than waiting for one. Simulated time has nothing left to pin down there, and the cancellation gap against [technical-rules.md](../../technical-rules.md) § Concurrency and cancellation is closed with it.
 
 Blocked until a seam exists — these drive real leases through miniredis, which serves over loopback TCP and exposes no custom-listener API. Real network I/O never counts as durably blocked, so a bubble deadlocks rather than fails:
 
@@ -110,7 +110,7 @@ Done when: both unblocked targets run under `testing/synctest`, and the lease-se
 
 By area, re-counted at this update — **47 files**: `services/` 36 (shared 10, api 9, core 7, worker 4, capacity-controller 2, websocket 2, ws-router 2), separate module `testing/` 8, `deployment-tool/` 3.
 
-The count is a snapshot, not an inventory: it falls on its own as areas are touched under the scoped `go fix` rule, and one core suggestion went out with cron-scheduler-rewrite Stage C. Re-run the command for the area you are about to open rather than working from these numbers.
+The count is a snapshot, not an inventory: it falls on its own as areas are touched under the scoped `go fix` rule, and one core suggestion went out when the downtime deferral was rewritten. Re-run the command for the area you are about to open rather than working from these numbers.
 
 Land **per area, scoped to that area**, per [technical-rules.md](../../technical-rules.md) § Prefer modern Go — not as one 47-file commit, and not widened into packages a slice does not otherwise touch. Where an area is already being opened by Track A Phase A3, its `go fix` slice should land first so the JSON change reviews clean.
 
