@@ -22,3 +22,4 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Go 1.27 adoption (json/v2, simulated-time tests, `go fix` sweep) | [go-127-adoption/contents.md](./go-127-adoption/contents.md) |
 | Service library modules (split `shared/` into local `eip/*` modules; build per closure) | [service-library-modules/contents.md](./service-library-modules/contents.md) |
 | NATS rebuild (bus handle, typed messages, stream specs, scheduled messages) | [nats-rebuild/contents.md](./nats-rebuild/contents.md) |
+| Service import boundaries (stop services importing each other) | [service-import-boundaries/contents.md](./service-import-boundaries/contents.md) |
