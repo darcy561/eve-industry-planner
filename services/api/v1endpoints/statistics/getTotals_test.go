@@ -12,7 +12,6 @@ func rowWith(typeID int, chainCost, stockCost, saleCost float64) models.Producti
 	row.Breakdown.RetainedStock.JobCostTotal = stockCost
 	row.Breakdown.StandaloneRecordedSale.JobCostTotal = saleCost
 	row.JobCostTotal = chainCost + stockCost + saleCost
-	row.DataSnapshots = []models.BuildStatSnapshot{{JobID: "job-1"}}
 	return row
 }
 
@@ -43,19 +42,6 @@ func TestFoldTotalsSumsEverySegmentAcrossTypes(t *testing.T) {
 // The per-job snapshots belong to a single type's history and mean nothing once
 // types are summed. Carrying them would also make the summary the largest
 // response on the page rather than the smallest.
-func TestFoldTotalsDropsPerJobSnapshots(t *testing.T) {
-	t.Parallel()
-
-	total := foldTotals([]models.ProductionTotalsRow{rowWith(587, 1, 1, 1)})
-
-	if len(total.DataSnapshots) != 0 {
-		t.Fatalf("dataSnapshots = %v, want none", total.DataSnapshots)
-	}
-	if total.TypeID != 0 {
-		t.Fatalf("typeID = %d, want 0: the row is no longer about one type", total.TypeID)
-	}
-}
-
 // An account with nothing archived gets a zeroed row rather than a nil one, so
 // the view renders empty segments instead of failing to read them.
 func TestFoldTotalsOfNothingIsZeroed(t *testing.T) {
@@ -65,8 +51,5 @@ func TestFoldTotalsOfNothingIsZeroed(t *testing.T) {
 
 	if total.JobCostTotal != 0 || total.Breakdown.ProductionChain.JobCostTotal != 0 {
 		t.Fatalf("expected a zeroed row, got %+v", total)
-	}
-	if total.DataSnapshots == nil {
-		t.Fatal("dataSnapshots should serialise as [] rather than null")
 	}
 }

@@ -111,3 +111,13 @@ func resolveTimelineWindow(r *http.Request, now time.Time) (timelineWindow, erro
 	}
 	return window, nil
 }
+
+// resolveProductionChainScope reads whether an item's chain output is counted.
+//
+// Only a view scoped to one item may ask for it. Summed across item types those
+// costs appear twice — once as the intermediate, once through the parent job
+// that consumed its output — so an unscoped request is read as off rather than
+// refused, the figures being the ones the caller can correctly use.
+func resolveProductionChainScope(r *http.Request, typeID int) bool {
+	return typeID > 0 && helper.BoolParam(r, "includeProductionChain")
+}

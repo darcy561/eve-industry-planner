@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // BuildMeasures is the set of totals every build-scoped aggregate carries. Embed
 // it rather than restating the fields, so a new measure lands in one place.
 type BuildMeasures struct {
@@ -74,7 +76,26 @@ type ProductionTotalsRow struct {
 	TypeID        int    `bson:"typeID" json:"typeID"`
 	BuildMeasures `bson:",inline"`
 	Breakdown     ProductionTotalsBreakdown `bson:"breakdown" json:"breakdown"`
-	DataSnapshots []BuildStatSnapshot       `bson:"dataSnapshots" json:"dataSnapshots"`
+	History       BuildHistoryMarks         `bson:"history" json:"history"`
+}
+
+// BuildHistoryMarks are the reference points a current estimate is read against.
+//
+// Costs are per unit and are build cost — materials, install, invention and
+// extras — so they compare against an estimate of building the item rather than
+// against what it later sold for.
+type BuildHistoryMarks struct {
+	BuildCount   int64     `bson:"buildCount" json:"buildCount"`
+	FirstBuildAt time.Time `bson:"firstBuildAt,omitempty" json:"firstBuildAt"`
+
+	LastCostPerItem float64   `bson:"lastCostPerItem" json:"lastCostPerItem"`
+	LastBuildAt     time.Time `bson:"lastBuildAt,omitempty" json:"lastBuildAt"`
+
+	CheapestCostPerItem float64   `bson:"cheapestCostPerItem" json:"cheapestCostPerItem"`
+	CheapestBuildAt     time.Time `bson:"cheapestBuildAt,omitempty" json:"cheapestBuildAt"`
+
+	DearestCostPerItem float64   `bson:"dearestCostPerItem" json:"dearestCostPerItem"`
+	DearestBuildAt     time.Time `bson:"dearestBuildAt,omitempty" json:"dearestBuildAt"`
 }
 
 // Plus sums src into r. JobType is taken from the first non-zero value.
@@ -84,11 +105,14 @@ func (r ProductionTotalsRow) Plus(src ProductionTotalsRow) ProductionTotalsRow {
 	}
 	r.BuildMeasures = r.BuildMeasures.Plus(src.BuildMeasures)
 	r.Breakdown = r.Breakdown.Plus(src.Breakdown)
+	// Marks describe one item type — "cheapest build" has no meaning once types
+	// are summed — so a folded row carries none rather than the first row's.
+	r.History = BuildHistoryMarks{}
 	return r
 }
 
-// BuildStatSnapshot is one archived job's contribution, stored in the totals
-// document's dataSnapshots array.
+// BuildStatSnapshot is one archived job reduced to the figures its statistics row
+// is built from.
 type BuildStatSnapshot struct {
 	TypeID              int     `json:"typeID" bson:"typeID"`
 	JobID               string  `json:"jobID" bson:"jobID"`

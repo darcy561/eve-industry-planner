@@ -139,6 +139,54 @@ export const COST_COMPONENTS = [
 ];
 
 /**
+ * The components of what it costs to *build*, which is what a current estimate is
+ * compared against. Broker and transaction fees are sale-side and are not part of
+ * that question.
+ *
+ * Filtered from COST_COMPONENTS rather than restated, so a label or an order
+ * change lands in one place.
+ */
+const BUILD_COST_KEYS = new Set([
+  "materialCostTotal",
+  "installCostTotal",
+  "inventionCostTotal",
+  "extrasTotal",
+]);
+
+export const BUILD_COST_COMPONENTS = COST_COMPONENTS.filter(({ key }) =>
+  BUILD_COST_KEYS.has(key),
+);
+
+/**
+ * Build cost per unit produced, per month, with the average price its output
+ * sold for.
+ *
+ * A month that produced nothing carries null rather than zero: no build happened,
+ * which is a different statement from one that cost nothing, and a null leaves a
+ * gap in the chart where a zero would draw a floor.
+ *
+ * @param {Object} data - `GET /statistics/account/timeline`
+ */
+export function toBuildCostPerUnitRows(data) {
+  const months = data?.months ?? [];
+  return months.map((row) => {
+    const produced = Number(row?.quantityProduced ?? 0);
+    const sold = Number(row?.quantitySold ?? 0);
+
+    const entry = {
+      month: monthKey(row),
+      complete: Boolean(row?.complete),
+      quantityProduced: produced,
+      averageSalePrice: sold > 0 ? Number(row?.salesTotal ?? 0) / sold : null,
+    };
+    for (const { key } of BUILD_COST_COMPONENTS) {
+      entry[key] = produced > 0 ? Number(row?.[key] ?? 0) / produced : null;
+    }
+    return entry;
+  });
+}
+
+/**
  * Cost components per month, as stacked bars.
  *
  * @param {Object} data

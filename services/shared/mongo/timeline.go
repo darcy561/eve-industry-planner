@@ -94,6 +94,11 @@ type TimelineQuery struct {
 	// TypeID narrows to one item type when non-zero. Zero reads every type,
 	// which is what the month-total view sums over.
 	TypeID int
+	// IncludeProductionChain reads an item's chain output alongside what it built
+	// in its own right. A view summing spend across item types must leave it off:
+	// those costs are also counted through the parent job that consumed the
+	// output, so including both counts the same build twice.
+	IncludeProductionChain bool
 }
 
 // TimelineMonthRow is one calendar month summed across every item type the
@@ -141,6 +146,9 @@ func timelineRangeFilter(q TimelineQuery) bson.M {
 	filter := bson.M{"accountID": q.AccountID}
 	if q.TypeID != 0 {
 		filter["typeID"] = q.TypeID
+	}
+	if !q.IncludeProductionChain {
+		filter["isProductionChain"] = bson.M{"$ne": true}
 	}
 	return filter
 }

@@ -94,13 +94,6 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []models.ProductionTotalsRow{}
 	}
-	for i := range items {
-		if items[i].DataSnapshots == nil {
-			// Serialised as [] rather than null, matching what the rebuild writes.
-			items[i].DataSnapshots = []models.BuildStatSnapshot{}
-		}
-	}
-
 	w.WriteHeader(http.StatusOK)
 	if err := helper.EncodeJSON(w, totalsResponse{TypeID: typeID, Items: items}); err != nil {
 		metrics.Error("encode_error")
@@ -114,14 +107,12 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// foldTotals sums every row into one. The per-job snapshots are dropped: they
-// belong to a type's own history and mean nothing once types are summed.
+// foldTotals sums every row into one.
 func foldTotals(rows []models.ProductionTotalsRow) models.ProductionTotalsRow {
 	var total models.ProductionTotalsRow
 	for _, row := range rows {
 		total = total.Plus(row)
 	}
-	total.DataSnapshots = []models.BuildStatSnapshot{}
 	total.TypeID = 0
 	return total
 }

@@ -8,9 +8,11 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// BucketKey identifies one monthly bucket: an item type in a calendar month.
+// BucketKey identifies one monthly bucket: an item type in a calendar month,
+// separated by whether its output was consumed by a parent build.
 type BucketKey struct {
-	TypeID int
+	TypeID            int
+	IsProductionChain bool
 	models.CalendarMonth
 }
 
@@ -24,9 +26,13 @@ type BucketKey struct {
 //
 // Revoked rows are skipped: they describe a job that is no longer archived, and
 // they are kept rather than deleted only so a rebuild can tell "removed" from
-// "never seen". Production-chain intermediates are skipped too — their costs and
-// output are already counted through the parent job that consumed them, so
-// including them would count the same build twice.
+// "never seen".
+//
+// Production-chain intermediates get buckets of their own. Their costs are also
+// counted through the parent job that consumed them, so a view summing across
+// item types reads the direct buckets alone; a view scoped to one item reads
+// both, which is the whole history for an item only ever built as an
+// intermediate.
 func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]models.SalesMeasures {
 	buckets := make(map[BucketKey]models.SalesMeasures)
 
@@ -35,12 +41,13 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]mode
 	}
 
 	for _, doc := range docs {
-		if doc.Revoked || doc.IsProductionChain {
+		if doc.Revoked {
 			continue
 		}
+		chain := doc.IsProductionChain
 
 		for _, line := range doc.TransactionLines {
-			add(BucketKey{TypeID: doc.TypeID, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
+			add(BucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
 				TransactionCount:    1,
 				QuantitySold:        line.Quantity,
 				SalesTotal:          line.Amount,
@@ -50,7 +57,7 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]mode
 		}
 
 		for _, line := range doc.FeeLines {
-			add(BucketKey{TypeID: doc.TypeID, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
+			add(BucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
 				BrokersFeeTotal: line.Amount,
 				ProfitLoss:      -line.Amount,
 			})
@@ -59,9 +66,12 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]mode
 		// The two fees are absent: a bucket carries them as its own measures, in
 		// the months they fell, and subtracts them from profit there.
 		cost := doc.CostParts().Build()
-		add(BucketKey{TypeID: doc.TypeID, CalendarMonth: costMonthOf(doc)}, models.SalesMeasures{
+		add(BucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: costMonthOf(doc)}, models.SalesMeasures{
 			JobCostTotal: cost,
 			ProfitLoss:   -cost,
+			// Filed with the cost that paid for it, so cost per unit divides two
+			// figures from the same month.
+			QuantityProduced: doc.TotalProduced,
 			// Components of that cost, carried alongside it. They do not sum to
 			// jobCostTotal: extras are counted per category instead.
 			MaterialCostTotal:   doc.TotalMaterialCost,
@@ -100,17 +110,28 @@ func AccountBuckets(accountID string, docs []models.ArchivedJobStats) []models.A
 		if a.Month != b.Month {
 			return a.Month - b.Month
 		}
-		return a.TypeID - b.TypeID
+		if a.TypeID != b.TypeID {
+			return a.TypeID - b.TypeID
+		}
+		// Direct builds before the chain bucket of the same month and type.
+		if a.IsProductionChain == b.IsProductionChain {
+			return 0
+		}
+		if b.IsProductionChain {
+			return -1
+		}
+		return 1
 	})
 
 	out := make([]models.AccountTimelineMonthBucket, 0, len(keys))
 	for _, key := range keys {
 		out = append(out, models.AccountTimelineMonthBucket{
-			ID:            eipmongo.AccountTimelineMonthDocumentID(accountID, key.TypeID, key.Year, key.Month),
-			AccountID:     accountID,
-			TypeID:        key.TypeID,
-			CalendarMonth: key.CalendarMonth,
-			SalesMeasures: folded[key],
+			ID:                eipmongo.AccountTimelineMonthDocumentID(accountID, key.TypeID, key.Year, key.Month, key.IsProductionChain),
+			AccountID:         accountID,
+			TypeID:            key.TypeID,
+			IsProductionChain: key.IsProductionChain,
+			CalendarMonth:     key.CalendarMonth,
+			SalesMeasures:     folded[key],
 		})
 	}
 	return out

@@ -9,6 +9,8 @@ import {
   toExtrasTotalRows,
   toCostComponentRows,
   toCostComponentTotalRows,
+  toBuildCostPerUnitRows,
+  BUILD_COST_COMPONENTS,
 } from "./chartAdapters";
 
 describe("monthKey", () => {
@@ -312,5 +314,54 @@ describe("cost components", () => {
   test("survives a response with no months or totals", () => {
     expect(toCostComponentRows(undefined)).toEqual([]);
     expect(toCostComponentTotalRows(undefined)).toEqual([]);
+  });
+});
+
+describe("toBuildCostPerUnitRows", () => {
+  it("divides each build component by what the month produced", () => {
+    const rows = toBuildCostPerUnitRows({
+      months: [
+        {
+          year: 2026,
+          month: 3,
+          quantityProduced: 4,
+          quantitySold: 2,
+          salesTotal: 600,
+          materialCostTotal: 800,
+          installCostTotal: 40,
+          inventionCostTotal: 60,
+          extrasTotal: 20,
+        },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      month: "2026-03",
+      quantityProduced: 4,
+      materialCostTotal: 200,
+      installCostTotal: 10,
+      inventionCostTotal: 15,
+      extrasTotal: 5,
+      averageSalePrice: 300,
+    });
+  });
+
+  it("reports null for a month that produced nothing", () => {
+    const [row] = toBuildCostPerUnitRows({
+      months: [{ year: 2026, month: 4, quantityProduced: 0, materialCostTotal: 500 }],
+    });
+
+    expect(row.materialCostTotal).toBeNull();
+    expect(row.averageSalePrice).toBeNull();
+  });
+
+  it("leaves sale-side fees out of the build components", () => {
+    expect(BUILD_COST_COMPONENTS.map((c) => c.key)).toEqual([
+      "materialCostTotal",
+      "installCostTotal",
+      "inventionCostTotal",
+      "extrasTotal",
+    ]);
   });
 });

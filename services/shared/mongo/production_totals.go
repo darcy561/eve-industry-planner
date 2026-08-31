@@ -21,9 +21,14 @@ func AccountProductionTotalsDocumentID(accountID string, typeID int) string {
 	return fmt.Sprintf("%s|%d", accountID, typeID)
 }
 
-// AccountTimelineMonthDocumentID is the _id for account_timeline_months: accountID|typeID|YYYY-MM.
-func AccountTimelineMonthDocumentID(accountID string, typeID, year, month int) string {
-	return fmt.Sprintf("%s|%d|%04d-%02d", accountID, typeID, year, month)
+// AccountTimelineMonthDocumentID is the _id for account_timeline_months:
+// accountID|typeID|YYYY-MM, with a |chain segment on the production-chain bucket.
+func AccountTimelineMonthDocumentID(accountID string, typeID, year, month int, isProductionChain bool) string {
+	id := fmt.Sprintf("%s|%d|%04d-%02d", accountID, typeID, year, month)
+	if isProductionChain {
+		return id + "|chain"
+	}
+	return id
 }
 
 // ArchivedJobStatsDocumentID is the _id for account_archived_job_stats: accountID|jobID.

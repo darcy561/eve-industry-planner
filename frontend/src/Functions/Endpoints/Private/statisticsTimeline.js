@@ -29,7 +29,7 @@ export function isCalendarMonth(value) {
  * @param {{from?: string, to?: string, typeID?: string|number}} [options]
  * @returns {URLSearchParams}
  */
-function rangeParams({ from, to, typeID } = {}) {
+function rangeParams({ from, to, typeID, includeProductionChain } = {}) {
   const params = new URLSearchParams();
   if (from && to) {
     params.set("from", from);
@@ -37,6 +37,11 @@ function rangeParams({ from, to, typeID } = {}) {
   }
   if (typeID != null && typeID !== "") {
     params.set("typeID", String(typeID));
+  }
+  // The server counts chain output only for a request scoped to one item, so
+  // sending it unscoped would return figures the caller did not ask for.
+  if (includeProductionChain && typeID != null && typeID !== "") {
+    params.set("includeProductionChain", "true");
   }
   return params;
 }

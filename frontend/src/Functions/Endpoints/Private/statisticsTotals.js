@@ -37,7 +37,8 @@ function emptyTotals(typeID) {
     jobCostTotal: 0,
     salesTotal: 0,
     profitLoss: 0,
-    dataSnapshots: [],
+    history: { buildCount: 0 },
+    breakdown: {},
   };
 }
 
@@ -54,11 +55,11 @@ function emptyTotals(typeID) {
  * receive is unchanged.
  *
  * @param {string|number} typeID - EVE item type ID
- * @returns {Promise<Object|null>} Stats object (`jobType`, `typeID`, running totals, `dataSnapshots`) or `null` if unauthenticated or request failed
+ * @returns {Promise<Object|null>} Stats object (`jobType`, `typeID`, running totals, `history`, `breakdown`) or `null` if unauthenticated or request failed
  *
  * @example
  * const totals = await getAccountTotalsByTypeID(activeJob.itemID);
- * if (totals?.dataSnapshots?.length) { ... }
+ * if (totals?.history?.buildCount) { ... }
  */
 async function getAccountTotalsByTypeID(typeID) {
   if (typeID == null || typeID === "") {

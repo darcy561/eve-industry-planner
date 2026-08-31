@@ -11,28 +11,18 @@ import (
 // AccountProductionTotals folds an account's per-job rows into one lifetime
 // aggregate per item type.
 //
-// These are the documents the lifetime totals read serves. They were previously
-// produced by a separate worker that walked unprocessed archived jobs and
-// applied `$inc` per job, marking each one processed so it was never counted
-// twice. Deriving them from the same rows the rest of the pipeline uses removes
-// that second producer, and with it the need for a processed flag: a wholesale
-// rebuild recomputes every total from scratch, so running it twice cannot
-// double-count.
-//
-// snapshots supplies the per-job history each row carries, keyed by job id. A
-// job with no snapshot still contributes its totals; the history is additive
-// detail, not the source of the measures.
+// These are the documents the lifetime totals read serves. A wholesale rebuild
+// recomputes every total from the rows, so running it twice cannot double-count.
 func AccountProductionTotals(
 	accountID string,
 	rows []models.ArchivedJobStats,
-	snapshots map[string]models.BuildStatSnapshot,
 ) []models.ProductionTotalsRow {
 	if accountID == "" || len(rows) == 0 {
 		return nil
 	}
 
 	byType := make(map[int]*models.ProductionTotalsRow)
-	history := make(map[int][]models.BuildStatSnapshot)
+	marksRows := make(map[int][]models.ArchivedJobStats)
 
 	for _, row := range rows {
 		if row.Revoked {
@@ -57,33 +47,13 @@ func AccountProductionTotals(
 		measures := JobMeasures(row)
 		total.BuildMeasures = total.BuildMeasures.Plus(measures)
 		addSegment(&total.Breakdown, row, measures)
-
-		if snap, ok := snapshots[row.JobID]; ok {
-			history[row.TypeID] = append(history[row.TypeID], snap)
-		}
+		marksRows[row.TypeID] = append(marksRows[row.TypeID], row)
 	}
 
 	out := make([]models.ProductionTotalsRow, 0, len(byType))
 	for _, typeID := range slices.Sorted(maps.Keys(byType)) {
 		total := byType[typeID]
-		snaps := history[typeID]
-		// Ordered by the moment each job was reduced, so a rebuild produces the
-		// same array every time rather than one that reflects map iteration.
-		slices.SortFunc(snaps, func(a, b models.BuildStatSnapshot) int {
-			if a.ProcessDate != b.ProcessDate {
-				if a.ProcessDate < b.ProcessDate {
-					return -1
-				}
-				return 1
-			}
-			return compareStrings(a.JobID, b.JobID)
-		})
-		if snaps == nil {
-			// Serialised as [] rather than null: the read returns an empty array
-			// for an account with no history, and a rebuilt row must match.
-			snaps = []models.BuildStatSnapshot{}
-		}
-		total.DataSnapshots = snaps
+		total.History = AccountBuildHistory(marksRows[typeID])
 		out = append(out, *total)
 	}
 	return out

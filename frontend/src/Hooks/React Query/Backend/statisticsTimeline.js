@@ -26,11 +26,14 @@ const STATISTICS_STALE_TIME_MS =
  *
  * @param {{from?: string, to?: string, typeID?: string|number}} [options]
  */
-function rangeKeyPart({ from, to, typeID } = {}) {
+function rangeKeyPart({ from, to, typeID, includeProductionChain } = {}) {
   return {
     from: from ?? "default",
     to: to ?? "default",
     typeID: typeID == null || typeID === "" ? "all" : String(typeID),
+    // Part of the key because it changes the figures, so a view counting chain
+    // output is not served a cached response that excluded it.
+    chain: Boolean(includeProductionChain),
   };
 }
 

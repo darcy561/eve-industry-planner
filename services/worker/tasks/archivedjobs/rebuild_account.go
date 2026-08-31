@@ -13,12 +13,12 @@ import (
 // AccountRebuildResult reports what one rebuild produced, for logging and for the
 // drain to summarise a pass.
 type AccountRebuildResult struct {
-	AccountID     string
-	ArchivedJobs  int
-	StatsRows     int
+	AccountID      string
+	ArchivedJobs   int
+	StatsRows      int
 	TimelineMonths int
-	RevokedRows   int64
-	PrunedBuckets int64
+	RevokedRows    int64
+	PrunedBuckets  int64
 	// ProductionTotals counts the lifetime per-item aggregates written.
 	ProductionTotals int
 	// PrunedTotals counts item types the account no longer has any job for.
@@ -66,7 +66,7 @@ func RebuildAccountStatistics(
 	}
 	out.ArchivedJobs = len(jobs)
 
-	rows, keepRowIDs, snapshots, skipped := buildAccountRows(jobs, now)
+	rows, keepRowIDs, skipped := buildAccountRows(jobs, now)
 	out.StatsRows = len(rows)
 	out.SkippedJobs = skipped
 
@@ -99,7 +99,7 @@ func RebuildAccountStatistics(
 	// Lifetime totals per item type, the documents the totals read serves.
 	// Derived from the same rows rather than incremented per job by a second
 	// worker, so a rebuild cannot disagree with the timeline it was built beside.
-	totals := archivestats.AccountProductionTotals(accountID, rows, snapshots)
+	totals := archivestats.AccountProductionTotals(accountID, rows)
 	totalItems := make([]eipmongo.StructUpsertItem, 0, len(totals))
 	keepTotalIDs := make([]string, 0, len(totals))
 	for _, total := range totals {
@@ -144,10 +144,9 @@ func RebuildAccountStatistics(
 // the job is still archived, so revoking its existing row would record it as
 // removed and drop its history from the account's totals. Skipping it leaves the
 // previous row in place, unchanged, until the job is corrected.
-func buildAccountRows(jobs []models.Job, now time.Time) (rows []models.ArchivedJobStats, keepIDs []string, snapshots map[string]models.BuildStatSnapshot, skipped int) {
+func buildAccountRows(jobs []models.Job, now time.Time) (rows []models.ArchivedJobStats, keepIDs []string, skipped int) {
 	rows = make([]models.ArchivedJobStats, 0, len(jobs))
 	keepIDs = make([]string, 0, len(jobs))
-	snapshots = make(map[string]models.BuildStatSnapshot, len(jobs))
 
 	for _, job := range jobs {
 		snap, err := computeBuildStatSnapshot(job)
@@ -159,7 +158,6 @@ func buildAccountRows(jobs []models.Job, now time.Time) (rows []models.ArchivedJ
 		row := archivestats.BuildAccountSnapshot(job, snap, now)
 		rows = append(rows, row)
 		keepIDs = append(keepIDs, row.ID)
-		snapshots[job.JobID] = snap
 	}
-	return rows, keepIDs, snapshots, skipped
+	return rows, keepIDs, skipped
 }

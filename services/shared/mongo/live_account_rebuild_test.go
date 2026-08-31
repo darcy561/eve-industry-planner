@@ -84,8 +84,8 @@ func TestLive_accountRebuild_revokeAndPrune(t *testing.T) {
 	}
 
 	// Pruning keeps the months the rebuild produced and drops the rest.
-	keptBucket := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8)
-	goneBucket := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 7)
+	keptBucket := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8, false)
+	goneBucket := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 7, false)
 	seedBucket(t, ctx, mongo, keptBucket)
 	seedBucket(t, ctx, mongo, goneBucket)
 
@@ -127,7 +127,7 @@ func TestLive_accountRebuild_emptyKeepListClearsTheAccount(t *testing.T) {
 	t.Cleanup(clean)
 
 	rowID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-only")
-	bucketID := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8)
+	bucketID := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8, false)
 	seedStatsRow(t, ctx, mongo, rowID)
 	seedBucket(t, ctx, mongo, bucketID)
 
