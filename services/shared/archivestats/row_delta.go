@@ -1,0 +1,42 @@
+package archivestats
+
+import (
+	"eve-industry-planner/shared/models"
+)
+
+// ContributionOf derives what a row contributes, by folding it exactly as a
+// rebuild folds every row.
+//
+// The folds are called rather than reimplemented: a delta that computed its own
+// arithmetic could disagree with the rebuild that has to be able to reproduce it,
+// and nothing would notice until the two were compared.
+func ContributionOf(row models.ArchivedJobStats) models.StatsDelta {
+	one := []models.ArchivedJobStats{row}
+
+	delta := models.StatsDelta{
+		Buckets: map[models.StatsBucketKey]models.StatsBucketDelta{},
+		Totals:  map[models.StatsTypeKey]models.StatsTypeDelta{},
+	}
+	for key, measures := range AccumulateAccountBuckets(one) {
+		delta.Buckets[key] = models.StatsBucketDelta{Measures: measures, Rows: 1}
+	}
+
+	if row.Revoked {
+		// A revoked row describes a job that is no longer archived; the folds skip
+		// it, and so does this.
+		return delta
+	}
+
+	measures := JobMeasures(row)
+	var sold float64
+	for _, line := range row.TransactionLines {
+		sold += line.Quantity
+	}
+	delta.Totals[models.StatsTypeKey{TypeID: row.TypeID, Segment: JobSegment(row)}] = models.StatsTypeDelta{
+		JobType:   row.JobType,
+		Measures:  measures,
+		SoldQty:   sold,
+		BuildRows: 1,
+	}
+	return delta
+}

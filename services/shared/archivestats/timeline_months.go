@@ -8,14 +8,6 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// BucketKey identifies one monthly bucket: an item type in a calendar month,
-// separated by whether its output was consumed by a parent build.
-type BucketKey struct {
-	TypeID            int
-	IsProductionChain bool
-	models.CalendarMonth
-}
-
 // AccumulateAccountBuckets folds an account's statistics rows into monthly buckets
 // keyed by item type and calendar month.
 //
@@ -33,10 +25,10 @@ type BucketKey struct {
 // item types reads the direct buckets alone; a view scoped to one item reads
 // both, which is the whole history for an item only ever built as an
 // intermediate.
-func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]models.SalesMeasures {
-	buckets := make(map[BucketKey]models.SalesMeasures)
+func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[models.StatsBucketKey]models.SalesMeasures {
+	buckets := make(map[models.StatsBucketKey]models.SalesMeasures)
 
-	add := func(key BucketKey, measures models.SalesMeasures) {
+	add := func(key models.StatsBucketKey, measures models.SalesMeasures) {
 		buckets[key] = buckets[key].Plus(measures)
 	}
 
@@ -47,7 +39,7 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]mode
 		chain := doc.IsProductionChain
 
 		for _, line := range doc.TransactionLines {
-			add(BucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
+			add(models.StatsBucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
 				TransactionCount:    1,
 				QuantitySold:        line.Quantity,
 				SalesTotal:          line.Amount,
@@ -57,7 +49,7 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]mode
 		}
 
 		for _, line := range doc.FeeLines {
-			add(BucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
+			add(models.StatsBucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
 				BrokersFeeTotal: line.Amount,
 				ProfitLoss:      -line.Amount,
 			})
@@ -66,7 +58,7 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]mode
 		// The two fees are absent: a bucket carries them as its own measures, in
 		// the months they fell, and subtracts them from profit there.
 		cost := doc.CostParts().Build()
-		add(BucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: costMonthOf(doc)}, models.SalesMeasures{
+		add(models.StatsBucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: costMonthOf(doc)}, models.SalesMeasures{
 			JobCostTotal: cost,
 			ProfitLoss:   -cost,
 			// Filed with the cost that paid for it, so cost per unit divides two
@@ -103,7 +95,7 @@ func AccountBuckets(accountID string, docs []models.ArchivedJobStats) []models.A
 		return nil
 	}
 
-	keys := slices.SortedFunc(maps.Keys(folded), func(a, b BucketKey) int {
+	keys := slices.SortedFunc(maps.Keys(folded), func(a, b models.StatsBucketKey) int {
 		if a.Year != b.Year {
 			return a.Year - b.Year
 		}

@@ -178,6 +178,11 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		TransactionLines:    transactionLines,
 		FeeLines:            feeLines,
 		ProcessedAt:         now,
+		// A row a rebuild produced is already counted: the same pass writes the
+		// aggregates from it. Leaving it unstamped would offer it to the next
+		// incremental pass as outstanding work and count it a second time, on top
+		// of totals that are already whole.
+		ContributedAt: &now,
 	}
 }
 

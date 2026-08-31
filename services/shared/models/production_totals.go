@@ -27,6 +27,20 @@ func (m BuildMeasures) Plus(src BuildMeasures) BuildMeasures {
 	return m
 }
 
+// Negated returns m with every measure reversed, which is what removing a
+// contribution adds.
+func (m BuildMeasures) Negated() BuildMeasures {
+	m.TotalJobs = -m.TotalJobs
+	m.ItemBuildCount = -m.ItemBuildCount
+	m.BuildCostTotal = -m.BuildCostTotal
+	m.BrokersFeeTotal = -m.BrokersFeeTotal
+	m.TransactionFeeTotal = -m.TransactionFeeTotal
+	m.JobCostTotal = -m.JobCostTotal
+	m.SalesTotal = -m.SalesTotal
+	m.ProfitLoss = -m.ProfitLoss
+	return m
+}
+
 // Segment names, matching the breakdown field each job is credited to. A view
 // labelling a job and the document counting it read the same values from here
 // rather than restating them as literals.
