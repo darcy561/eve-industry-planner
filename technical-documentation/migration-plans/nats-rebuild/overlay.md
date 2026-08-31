@@ -227,10 +227,91 @@ The asynq-side span no longer adds payload attributes: recovering the concrete t
 needed a registry of decoders, which was more machinery than the attributes were worth. The publish
 span still carries them.
 
+### Batches publish without waiting on each ack
+
+`NATS.Batching()` returns a handle that publishes asynchronously; `Wait` collects the acks and is
+where a failure is reported. The publish helpers are unchanged — a batch is the same handle in a
+different mode — so a fan-out loop keeps calling `PublishEncodeJobIdentity` and only its ending
+differs.
+
+The four per-account loops use it: the job-identity encode sweep, the archived-jobs and user-accounts
+Firestore scans, and the user job documents scan. Each publishes thousands of messages and previously
+paid a round trip per message.
+
+Two client defaults are overridden, since both would otherwise bite silently: the async ack timeout
+is set (the client leaves it off, so a lost ack would hang a batch forever), and `Close` waits on
+`PublishAsyncComplete` before draining, because closing first fails everything in flight.
+
+Retry is deliberately not applied to a batched publish. A retry of a publish whose ack has not been
+seen would duplicate the message; a batch reports the failure instead and the caller re-runs the sweep.
+
+### Handlers are registered through their definition
+
+`handle(mux, task, fn)` registers an asynq handler under the name in the task's definition, so the
+one place a task name is written as a string is the definition itself. A test builds the mux and
+asserts every registered task has a handler: a task published with nothing to run it is accepted by
+asynq and then discarded, which is invisible until someone notices the work never happened.
+
+### Topics get the same treatment as tasks
+
+Core NATS — fan-out and request/reply, no persistence, no delivery guarantee — now has a helper pair
+per subject, the same shape the tasks took:
+
+| Subject | Helpers |
+|---------|---------|
+| SDE build changed | `PublishSDEBuildUpdated`, `SubscribeSDEBuildUpdated` |
+| Websocket placement load | `PublishPlacementState`, `SubscribePlacementState` |
+| Health census | `GatherHealth`, `SubscribeHealthPings` |
+| Planned cordon / drain / uncordon | `RequestWSCommand`, `SubscribeWSCommands` |
+
+`GatherHealth` is the one that earned a primitive of its own. The census is a scatter-gather — every
+replica answers, and how many answer is the question — so it needs an inbox and a collection window
+rather than a request/reply. The capacity controller was building that by hand: its own inbox,
+`PublishRequest`, a deadline loop and an envelope decoder. All four now live in one place, and the
+controller asks a question instead.
+
+Subscribers receive decoded payloads. A message that will not decode is dropped with a warning inside
+the helper, so each of the four call sites lost its own unmarshal-and-return-on-error preamble, and
+the websocket placement hook is typed rather than passing a subject and bytes.
+
+No service holds a raw `*nats.Conn` any more. The one remaining `Conn()` is ws-router logging which
+server it connected to.
+
 ### One list of requestable tasks
 
-`Requestable` is a field on the definition. The scheduler's `requestableTaskTypes` map of three string
-literals is gone.
+`Requestable` was a field on the definition; with the deferred-run ingress gone it had no reader, and
+it is removed. The scheduler's `requestableTaskTypes` map of three string literals went with it.
+
+## Files are named for their subject
+
+File names said what shape a thing was rather than what it was about, and pairs distinguished only by
+a plural — `task.go` / `tasks.go`, `topic.go` / `topics.go`, `messages.go` / `message_helpers.go` /
+`message_loop.go` — carried no meaning at all.
+
+| File | Holds |
+|------|-------|
+| `store.go` | the handle |
+| `connect.go` | connecting, and the JetStream context |
+| `publish.go` | publishing, and the producer span |
+| `batch.go` | the batching handle |
+| `retry.go` | retry and its error classification |
+| `envelope.go` | the message envelope and what rides in it |
+| `ack.go` | acknowledgement, negative acknowledgement, heartbeat |
+| `consume.go` | the consume loop |
+| `handler.go` | the handler contract that decides a message's fate |
+| `consumer_context.go` | the context, span and outcome log around one message |
+| `spec.go` | stream, subject and durable names, and the specs built from them |
+| `stream.go` | a bound stream, and stream reconcile |
+| `consumer_reconcile.go` | durable ownership and cleanup |
+| `consumer_filters.go` | filter subjects on a durable |
+| `subjects.go` | building and reading subjects |
+| `tasks.go` | task definitions, the registry, and a publish helper each |
+| `task_requests.go` | task payloads |
+| `topics.go` | core-NATS topics: publish, subscribe, request, reply |
+| `schedule.go` | deferred work |
+
+Test files follow the file they test, so `consumer_filters_live_test.go` sits beside
+`consumer_filters.go` rather than under a name inherited from a package that no longer exists.
 
 ## Stage D — call-site cutover
 

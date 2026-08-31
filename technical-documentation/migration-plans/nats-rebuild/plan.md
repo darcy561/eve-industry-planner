@@ -507,89 +507,26 @@ and no gocron duration job or Redis schedule key remains.
 New live SoT at `backend/shared/nats.md` alongside `backend/shared/mongo.md` (there is no NATS live
 topic today), a testing topic, and `backend/shared/contents.md` task-map rows.
 
-## Deferred for review
+## Follow-ups, and where they went
 
-Publishing goes through a helper per task, so no call site names a subject to send on. Three places
-still read a definition's fields. None is wrong today; each is a judgement worth making deliberately
-rather than by omission.
+Everything this project found but did not fix has a home of its own, so none of it depends on anyone
+reading a closed project folder.
 
-### The operator CLI dispatches by name
+| Finding | Now tracked in |
+|---------|----------------|
+| Cron handler keys are strings; expressions scattered; the downtime deferral holds a timer in memory; the two scheduler locals; what gocron is still for | [cron-scheduler-rewrite/plan.md](../cron-scheduler-rewrite/plan.md) |
+| A task's type is carried twice; an unknown task runs on defaults; the double envelope and the drain it needs; the operator CLI's dispatch-by-name and its printing from definitions | [task-dispatch/plan.md](../task-dispatch/plan.md) |
+| Services importing each other (`core`, `worker`, `websocket` → `api`) | [service-import-boundaries/plan.md](../service-import-boundaries/plan.md) |
+| The document-update publish path, and any change to its ordering | [changestream-tenant-scale/plan.md](../changestream-tenant-scale/plan.md) |
 
-`core/commands/tasks.go` switches on `Name` in five places, and its test in three more, to trigger any
-task an operator names with a payload they supply. That is untypeable by construction — the payload
-is only known at runtime — so it holds definitions rather than helpers.
+Two smaller things are deliberately left where they are rather than tracked:
 
-**To decide:** whether the CLI gets a purpose-built view (name → publish function) so it stops
-reaching into definitions, or whether dispatch-by-name is simply what this command is and definitions
-are the right thing for it to hold.
-
-### Migration commands print what they queued
-
-Four commands — `encrypt_cloud_refresh_tokens_migration.go`, `job_identity_encode.go`,
-`migrate_user_cloud_accounts_to_user_doc.go`, `refresh_token_rotation.go` — read `Subject` and
-`DefaultPriority` for operator-facing output ("Queued 12 tasks on subject X at priority Y"). These are
-not publish arguments; they are the command's report to whoever ran it.
-
-**To decide:** whether a publish helper should return what it published, so the command reports from
-the result instead of re-deriving it. Seven call sites, and the cost is a return value on every helper.
-
-### The worker's interaction with a task wants revisiting
-
-Removing the priority and timeout overrides left the task envelope carrying only `task_type` and
-`data`, which exposes how much of the worker's relationship with a task is resolved by string at
-runtime. Worth looking at as a whole rather than patching piecemeal:
-
-- **`task_type` is carried twice.** The worker derives the asynq task type from the subject's last
-  segment, and the envelope repeats it in `TaskMessage.TaskType`. Two sources for one fact, and
-  nothing checks they agree.
-- **An unregistered task fails silently into defaults.** `GetPriorityQueue` and `GetTaskTimeout` fall
-  back to `Priority3` and 60s when `LookupTask` misses, so a task that never reached the registry
-  runs on the wrong queue with the wrong deadline and says nothing.
-- **Handlers are registered by bare string.** The asynq mux keys on a literal, with no compile-time
-  link to the definition — one task has a hand-written test guarding its key, which is a symptom
-  rather than a fix. This is the adapter still open in Stage C.
-- **The envelope is still double-wrapped.** `Message{Data: TaskMessage{Data: payload}}` means the
-  worker unmarshals the same bytes twice on every task, and now that the inner envelope holds nothing
-  but a duplicated type it is thinner justification than it was.
-
-**To decide:** whether the worker resolves a task from its definition rather than from strings, and
-whether the inner envelope survives that. The last point is the breaking wire change already parked
-under § Wire compatibility, so these belong together.
-
-### The cron scheduler wants a rewrite of its own
-
-Not this project's to do — recorded here because Stage E left it exposed. Core's cron scheduler is the
-last place still resolving work by hand-written string, and the mechanism Stage E built replaces some
-of what it does by hand:
-
-- **Handlers are registered under string keys.** `RegisterHandler("cron.industrySystemsRefresh", …)`
-  with no compile-time link between the name, the schedule and the function. This is exactly the seam
-  that produced a one-time-job path which could never match a handler, and the same shape the task
-  helpers just removed on the publish side.
-- **Cron expressions are scattered.** Ten `cron…Schedule = "…"` constants live beside their
-  registrations across four packages, so no one place says when this service does things.
-- **The downtime deferral holds a goroutine and a timer** for the length of an EVE downtime window.
-  It survives no restart, appears nowhere, and cannot be cancelled — which is precisely what
-  `ScheduleAt` now does properly. The most obvious first caller for schedules.
-- **`Requestable` is gone.** It marked tasks the old ingress would accept a deferred run for; with
-  that path removed it had no reader, and a flag set on three tasks and read by nothing is worse than
-  no flag. Whatever replaces it should express which *cron jobs* may be deferred, if that gate is
-  wanted at all.
-- **gocron is worth re-examining.** Deferred runs no longer need it. Whether recurring schedules
-  should keep it, or move to the server with the primary lease enforced another way, is the actual
-  design question — and the reason this is a rewrite rather than a tidy.
-
-**To decide:** whether this becomes its own migration project. It touches the primary lease, so it is
-not a refactor that can be done casually.
-
-### Two scheduler locals survive for the downtime defer
-
-`deferTaskPublicationUntilAfterDowntime(ctx, task.Name, task.Subject, publish)` in
-`core/scheduler/esi/systemIndexRefresh.go` and `adjustedPricesRefresh.go` is the only remaining reason
-those files keep a `task :=` local.
-
-**To decide:** whether that helper should take a `Definition` instead of two strings pulled off one.
-Deliberately not changed here — it is an ESI downtime concern, not a messaging one.
+- **The websocket fan-out consumers keep their own consumer plumbing.** Converting them needs a fourth
+  message outcome for one call site, or would discard the fan-out outcome reporting. Reasoning is in
+  the overlay under Stage D.
+- **`technical-documentation/testing/harness.md` says nothing in `services/` imports the testing
+  module**, which is not true and has not been true for some time. It is live SoT, so this project did
+  not edit it; correcting it belongs to whoever next touches that doc.
 
 ## Stage status
 
@@ -599,8 +536,8 @@ Deliberately not changed here — it is an ESI downtime concern, not a messaging
 | Version pinning (server image, client, embedded test server) | Done |
 | A — handle and errors | Done |
 | B — streams and consumers as specs | Done |
-| C — typed tasks and topics | Partial — typed definitions, payload relocation, span attributes and the requestable flag landed; async batch publish, asynq adapter and typed topics open |
-| D — call-site cutover | Not started |
+| C — typed tasks and topics | Done |
+| D — call-site cutover | Partial — worker and scheduler consumers landed; the two websocket fan-out consumers deliberately left, see overlay |
 | E — scheduled messages | Done |
 | F — promote | Not started |
 
