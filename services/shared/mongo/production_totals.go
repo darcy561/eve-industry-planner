@@ -36,34 +36,45 @@ func ArchivedJobStatsDocumentID(accountID, jobID string) string {
 	return fmt.Sprintf("%s|%s", accountID, jobID)
 }
 
-// LoadAccountArchivedJobs reads every archived job for an account, which is the
-// input a wholesale statistics rebuild folds.
-func (m *Mongo) LoadAccountArchivedJobs(ctx context.Context, accountID string, opts ...RetryOption) ([]models.Job, error) {
+// EachAccountArchivedJob walks an account's archived jobs, handing each to fn.
+//
+// A rebuild reduces every job to a much smaller row, so it never needs the jobs
+// themselves all at once. Walking the cursor holds one job at a time instead of
+// the whole archive, which is what makes many rebuilds safe to run concurrently.
+//
+// Not retried: a retry would restart the walk and hand fn jobs it has already
+// seen, and only the caller knows whether that is safe.
+func (m *Mongo) EachAccountArchivedJob(ctx context.Context, accountID string, fn func(models.Job) error) error {
 	if m == nil || m.ArchivedJobs == nil {
-		return nil, fmt.Errorf("mongo handle is required")
+		return fmt.Errorf("mongo handle is required")
 	}
 	if accountID == "" {
-		return nil, fmt.Errorf("accountID is required")
+		return fmt.Errorf("accountID is required")
+	}
+	if fn == nil {
+		return fmt.Errorf("a visitor is required")
 	}
 	coll, err := m.ArchivedJobs.requireColl()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var out []models.Job
-	err = Retry(ctx, applyRetryOptions("LoadAccountArchivedJobs", opts), func() error {
-		out = nil
-		cursor, findErr := coll.Find(ctx, ArchivedJobAccountFilter(accountID))
-		if findErr != nil {
-			return findErr
-		}
-		defer cursor.Close(ctx)
-		return cursor.All(ctx, &out)
-	})
+	cursor, err := coll.Find(ctx, ArchivedJobAccountFilter(accountID))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return out, nil
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var job models.Job
+		if decErr := cursor.Decode(&job); decErr != nil {
+			return decErr
+		}
+		if fnErr := fn(job); fnErr != nil {
+			return fnErr
+		}
+	}
+	return cursor.Err()
 }
 
 // LoadAccountArchivedJobStats reads an account's existing statistics rows,

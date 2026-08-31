@@ -1,6 +1,9 @@
 package archivedjobs
 
 import (
+	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
+	"github.com/hibiken/asynq"
 	"slices"
 	"testing"
 	"time"
@@ -22,28 +25,23 @@ func TestRebuildAccountStatisticsRequiresHandleAndAccount(t *testing.T) {
 	}
 }
 
-func TestDrainRequiresAHandle(t *testing.T) {
+func TestDispatchRequiresHandles(t *testing.T) {
 	t.Parallel()
 
-	if _, err := DrainAccountRebuildQueue(t.Context(), nil, time.Now()); err == nil {
+	if _, err := DispatchQueuedRebuilds(t.Context(), nil, nil, time.Now()); err == nil {
 		t.Fatal("expected an error without a mongo handle")
 	}
 }
 
-// A pass that clears fewer accounts than it rebuilt means the difference changed
-// again mid-rebuild and stayed queued. The drain reports that rather than
-// treating the pass as fully drained.
-func TestDrainResultReportsRequeuesSeparatelyFromFailures(t *testing.T) {
+// A dispatch that could not publish for some owners leaves them queued, so the
+// counts have to separate what went out from what did not.
+func TestDispatchResultSeparatesDispatchedFromFailed(t *testing.T) {
 	t.Parallel()
 
-	out := DrainResult{Queued: 5, Rebuilt: 4, Cleared: 3, Failed: 1}
-	out.Requeued = out.Rebuilt - int(out.Cleared)
+	out := DispatchResult{Eligible: 5, Dispatched: 4, Failed: 1}
 
-	if out.Requeued != 1 {
-		t.Fatalf("requeued = %d, want 1", out.Requeued)
-	}
-	if out.Rebuilt+out.Failed != out.Queued {
-		t.Fatalf("every queued account must be rebuilt or failed: %+v", out)
+	if out.Dispatched+out.Failed != out.Eligible {
+		t.Fatalf("every eligible owner is either dispatched or failed: %+v", out)
 	}
 }
 
@@ -66,7 +64,11 @@ func TestSkippedJobsAreStillKeptFromRevocation(t *testing.T) {
 		archivedJob("acct-1", "good-2", 5),
 	}
 
-	rows, keepIDs, skipped := buildAccountRows(jobs, time.Now().UTC())
+	acc := &accountRows{now: time.Now().UTC()}
+	for _, job := range jobs {
+		acc.add(job)
+	}
+	rows, keepIDs, skipped := acc.rows, acc.keepIDs, acc.skipped
 
 	if skipped != 1 {
 		t.Fatalf("skipped = %d, want 1", skipped)
@@ -87,7 +89,8 @@ func TestSkippedJobsAreStillKeptFromRevocation(t *testing.T) {
 func TestNoJobsKeepsNothing(t *testing.T) {
 	t.Parallel()
 
-	rows, keepIDs, skipped := buildAccountRows(nil, time.Now().UTC())
+	acc := &accountRows{now: time.Now().UTC()}
+	rows, keepIDs, skipped := acc.rows, acc.keepIDs, acc.skipped
 	if len(rows) != 0 || len(keepIDs) != 0 || skipped != 0 {
 		t.Fatalf("rows=%d keep=%d skipped=%d, want all zero", len(rows), len(keepIDs), skipped)
 	}
@@ -104,4 +107,50 @@ func TestDrainAccountStatsRebuildQueueTaskRequiresDependencies(t *testing.T) {
 	if err := DrainAccountStatsRebuildQueue(t.Context(), nil, &esitasks.TaskDependencies{}); err == nil {
 		t.Fatal("expected an error without a mongo client")
 	}
+}
+
+// The payload travels inside the task envelope, so a handler reading the raw
+// bytes sees the wrapper rather than its own fields — and an owner decoded as
+// empty fails validation with a message that says nothing about why.
+func TestRebuildOwnerPayloadDecodesThroughTheEnvelope(t *testing.T) {
+	t.Parallel()
+
+	want := eipnats.RebuildOwnerStatisticsRequest{
+		OwnerKind: string(models.StatsOwnerAccount),
+		OwnerID:   "acct-1",
+		Claim:     7,
+	}
+	inner, err := json.Marshal(eipnats.TaskMessage{
+		TaskType: eipnats.RebuildOwnerStatistics.Name,
+		Data:     mustJSON(t, want),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope, err := json.Marshal(struct {
+		TaskType string          `json:"task_type"`
+		Data     json.RawMessage `json:"data"`
+	}{TaskType: eipnats.RebuildOwnerStatistics.Name, Data: inner})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := esitasks.UnmarshalTaskPayload[eipnats.RebuildOwnerStatisticsRequest](
+		asynq.NewTask(eipnats.RebuildOwnerStatistics.Name, envelope),
+	)
+	if err != nil {
+		t.Fatalf("UnmarshalTaskPayload: %v", err)
+	}
+	if got != want {
+		t.Fatalf("decoded %+v, want %+v", got, want)
+	}
+}
+
+func mustJSON(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }

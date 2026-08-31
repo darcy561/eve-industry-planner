@@ -107,6 +107,25 @@ type MigrateUserCloudAccountsToUserDocRequest struct {
 	DryRun    bool   `json:"dry_run,omitempty"`
 }
 
+// RebuildOwnerStatisticsRequest names one owner's statistics to recompute, and
+// the claim its queue entry carried when the work was dispatched.
+//
+// The claim travels with the task so the rebuild clears only an entry unchanged
+// since it was read: an owner changed while the rebuild ran keeps its place and
+// is rebuilt again.
+type RebuildOwnerStatisticsRequest struct {
+	OwnerKind string `json:"owner_kind"`
+	OwnerID   string `json:"owner_id"`
+	Claim     int64  `json:"claim"`
+}
+
+// SpanAttributes records which owner a rebuild covers.
+func (r RebuildOwnerStatisticsRequest) SpanAttributes() []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.String("statistics.owner_kind", r.OwnerKind),
+	}
+}
+
 // SpanAttributes records the region and station a market-orders refresh covers.
 func (r RegionMarketOrdersRequest) SpanAttributes() []attribute.KeyValue {
 	return []attribute.KeyValue{
