@@ -3,7 +3,6 @@ package sdecache
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -13,8 +12,6 @@ import (
 	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-
-	natslib "github.com/nats-io/nats.go"
 )
 
 var (
@@ -67,12 +64,12 @@ func SetReadyForTest(ready bool) {
 
 // StartCacheWarmer loads live SDE into process memory once, then refreshes when the
 // worker publishes SubjectCoreSDEBuildUpdated (plus a slow safety recheck).
-func StartCacheWarmer(ctx context.Context, nc *natslib.Conn) {
+func StartCacheWarmer(ctx context.Context, natsHandle *eipnats.NATS) {
 	warmerOnce.Do(func() {
 		rewarm := make(chan struct{}, 1)
-		if nc != nil {
-			_, err := nc.Subscribe(eipnats.SubjectCoreSDEBuildUpdated, func(msg *natslib.Msg) {
-				signalSDERewarm(ctx, msg.Data, rewarm)
+		if natsHandle != nil {
+			_, err := eipnats.SubscribeSDEBuildUpdated(natsHandle, func(u eipnats.SDECurrentBuildUpdate) {
+				signalSDERewarm(ctx, u, rewarm)
 			})
 			if err != nil {
 				logs.WarnCtx(ctx, "failed to subscribe to SDE build updates; cache will rely on safety recheck",
@@ -85,11 +82,7 @@ func StartCacheWarmer(ctx context.Context, nc *natslib.Conn) {
 	})
 }
 
-func signalSDERewarm(ctx context.Context, data []byte, rewarm chan<- struct{}) {
-	var u eipnats.SDECurrentBuildUpdate
-	if err := json.Unmarshal(data, &u); err != nil {
-		return
-	}
+func signalSDERewarm(ctx context.Context, u eipnats.SDECurrentBuildUpdate, rewarm chan<- struct{}) {
 	logs.InfoCtx(ctx, "SDE build update received; refreshing static data cache",
 		"build_number", u.BuildNumber, "version", u.Version)
 	select {

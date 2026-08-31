@@ -2,15 +2,12 @@ package orchestrationprobes
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-
-	natslib "github.com/nats-io/nats.go"
 )
 
 // StatusFill enriches a HealthStatus after ready/healthy are set (role-specific census fields).
@@ -22,7 +19,7 @@ type StatusFill func(status *eipnats.HealthStatus)
 type BusOptions struct {
 	Role       string
 	InstanceID string
-	Conn       *natslib.Conn
+	NATS       *eipnats.NATS
 	Ready      ReadyCheck
 	Enabled    bool
 	Fill       StatusFill // optional; websocket/worker census without importing those packages here
@@ -34,8 +31,8 @@ func StartBus(ctx context.Context, opts BusOptions) (lifecycle.Runner, error) {
 	if !opts.Enabled {
 		return lifecycle.Func{RunnerName: "orchestrationprobes-bus-disabled", Fn: func(context.Context) {}}, nil
 	}
-	if opts.Conn == nil {
-		return nil, fmt.Errorf("orchestrationprobes: Bus Conn required when Enabled")
+	if opts.NATS == nil {
+		return nil, fmt.Errorf("orchestrationprobes: Bus NATS handle required when Enabled")
 	}
 	if opts.Role == "" {
 		return nil, fmt.Errorf("orchestrationprobes: Bus Role required when Enabled")
@@ -44,11 +41,11 @@ func StartBus(ctx context.Context, opts BusOptions) (lifecycle.Runner, error) {
 		return nil, fmt.Errorf("orchestrationprobes: Bus InstanceID required when Enabled")
 	}
 
-	sub, err := opts.Conn.Subscribe(eipnats.SubjectHealthCommandPing, func(msg *natslib.Msg) {
-		handleHealthPing(opts, msg)
+	stop, err := eipnats.SubscribeHealthPings(opts.NATS, func(ping eipnats.HealthPing) (eipnats.HealthStatus, bool) {
+		return healthStatus(opts, ping)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("orchestrationprobes: subscribe %s: %w", eipnats.SubjectHealthCommandPing, err)
+		return nil, fmt.Errorf("orchestrationprobes: subscribe health pings: %w", err)
 	}
 	logs.InfoCtx(ctx, "orchestration probes NATS health bus enabled",
 		"subject", eipnats.SubjectHealthCommandPing,
@@ -58,18 +55,15 @@ func StartBus(ctx context.Context, opts BusOptions) (lifecycle.Runner, error) {
 
 	return lifecycle.Func{
 		RunnerName: "orchestrationprobes-bus",
-		Fn: func(context.Context) {
-			_ = sub.Unsubscribe()
-		},
+		Fn:         func(context.Context) { stop() },
 	}, nil
 }
 
-func handleHealthPing(opts BusOptions, msg *natslib.Msg) {
-	if msg == nil {
-		return
-	}
-	if role, ok := parseHealthPingRole(msg.Data); ok && role != "" && role != opts.Role {
-		return
+// healthStatus answers the census for this replica. A ping naming another role
+// is not ours to answer.
+func healthStatus(opts BusOptions, ping eipnats.HealthPing) (eipnats.HealthStatus, bool) {
+	if ping.Role != "" && ping.Role != opts.Role {
+		return eipnats.HealthStatus{}, false
 	}
 
 	status := eipnats.HealthStatus{
@@ -95,36 +89,5 @@ func handleHealthPing(opts BusOptions, msg *natslib.Msg) {
 	if opts.Fill != nil {
 		opts.Fill(&status)
 	}
-
-	if err := eipnats.RespondEnvelope(msg, eipnats.MessageTypeHealth, status); err != nil {
-		logs.WarnCtx(context.Background(), "orchestration probes health Respond failed",
-			"error", err,
-			"role", opts.Role,
-			"instance_id", opts.InstanceID,
-		)
-	}
-}
-
-// parseHealthPingRole returns (role, true) when Data carries a HealthPing (raw or Message envelope).
-// Empty data → ("", true) meaning all roles.
-func parseHealthPingRole(data []byte) (string, bool) {
-	if len(data) == 0 {
-		return "", true
-	}
-	var env eipnats.Message
-	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
-		if len(env.Data) == 0 {
-			return "", true
-		}
-		var ping eipnats.HealthPing
-		if err := json.Unmarshal(env.Data, &ping); err != nil {
-			return "", true
-		}
-		return ping.Role, true
-	}
-	var ping eipnats.HealthPing
-	if err := json.Unmarshal(data, &ping); err != nil {
-		return "", true
-	}
-	return ping.Role, true
+	return status, true
 }

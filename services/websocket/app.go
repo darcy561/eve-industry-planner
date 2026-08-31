@@ -133,7 +133,7 @@ func (a *app) startProbes(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "websocket",
 		InstanceID: container.ID(),
-		Conn:       a.clients.NATS.Conn(),
+		NATS:       a.clients.NATS,
 		Ready:      ready,
 		Enabled:    true,
 		Fill: func(st *eipnats.HealthStatus) {
@@ -157,7 +157,7 @@ func (a *app) startProbes(ctx context.Context) error {
 	}
 	a.g.Add(bus)
 
-	cmdBus, err := a.ws.StartWSCommandBus(ctx, a.clients.NATS.Conn())
+	cmdBus, err := a.ws.StartWSCommandBus(ctx, a.clients.NATS)
 	if err != nil {
 		return a.fail(err)
 	}

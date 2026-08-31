@@ -35,7 +35,7 @@ func run() int {
 	}
 
 	log.Printf("ws-router listening on %s (service=%s nats=%s)",
-		a.cfg.ListenAddr, a.cfg.WebsocketService, a.nc.ConnectedUrl())
+		a.cfg.ListenAddr, a.cfg.WebsocketService, a.nats.Conn().ConnectedUrl())
 	lifecycle.WaitForShutdown(ctx, shutdownTimeout, a.cleanups()...)
 	return 0
 }

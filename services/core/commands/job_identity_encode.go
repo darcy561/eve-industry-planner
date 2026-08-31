@@ -42,6 +42,7 @@ func runEncodeJobIdentity(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
+	batch := clients.NATS.Batching()
 	queued := 0
 	for _, collection := range opts.collections {
 		docs := clients.Mongo.Docs(collection)
@@ -60,12 +61,16 @@ func runEncodeJobIdentity(ctx context.Context, args []string) error {
 		}
 
 		for _, accountID := range accounts {
-			if err := eipnats.PublishEncodeJobIdentity(ctx, clients.NATS, accountID, collection, opts.dryRun); err != nil {
+			if err := eipnats.PublishEncodeJobIdentity(ctx, batch, accountID, collection, opts.dryRun); err != nil {
 				return fmt.Errorf("publish encodeJobIdentity for %s/%s: %w", collection, accountID, err)
 			}
 			queued++
 		}
 		fmt.Printf("%s: %d accounts need conversion\n", collection, len(accounts))
+	}
+
+	if err := batch.Wait(ctx); err != nil {
+		return fmt.Errorf("queue encodeJobIdentity tasks: %w", err)
 	}
 
 	fmt.Printf("Queued %d encodeJobIdentity tasks on subject %q (dry_run=%t)\n",

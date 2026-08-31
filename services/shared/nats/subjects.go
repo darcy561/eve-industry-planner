@@ -79,3 +79,29 @@ func CollectionScopedDocID(collection, docID string) string {
 	}
 	return collection + "." + docID
 }
+
+// ExtractIDFromSubject extracts an ID from a NATS subject after a given prefix.
+// Subject format: {prefix}.{id} or {prefix}.{nested.id}
+// Example: ExtractIDFromSubject("doc.update.user.account123", "doc.update") returns "user.account123"
+// Example: ExtractIDFromSubject("doc.subscribe.account123", "doc.subscribe") returns "account123"
+// Returns the extracted ID and an error if the subject format is invalid.
+func ExtractIDFromSubject(subject string, prefix string) (string, error) {
+	// Ensure prefix ends with a dot for proper matching
+	prefixWithDot := prefix
+	if !strings.HasSuffix(prefix, ".") {
+		prefixWithDot = prefix + "."
+	}
+
+	// Check if subject starts with prefix
+	if !strings.HasPrefix(subject, prefixWithDot) {
+		return "", fmt.Errorf("subject does not match prefix: subject=%s, prefix=%s", subject, prefix)
+	}
+
+	// Extract the ID part (everything after prefix.)
+	id := strings.TrimPrefix(subject, prefixWithDot)
+	if id == "" {
+		return "", fmt.Errorf("subject has no ID after prefix: subject=%s, prefix=%s", subject, prefix)
+	}
+
+	return id, nil
+}

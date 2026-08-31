@@ -13,7 +13,6 @@ import (
 	"github.com/hibiken/asynq"
 	swarmtypes "github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/client"
-	natslib "github.com/nats-io/nats.go"
 	redislib "github.com/redis/go-redis/v9"
 
 	"eve-industry-planner/capacity-controller/config"
@@ -35,7 +34,7 @@ func CooldownRedisKey(svc Service) string {
 type SwarmOptions struct {
 	Docker *client.Client
 	Redis  *redislib.Client
-	NATS   *natslib.Conn
+	NATS   *eipnats.NATS
 	Asynq  *asynq.Inspector // optional; nil → QueueDepthKnown=false
 	Stack  string           // Swarm stack name prefix, e.g. "eip"
 	Cfg    func() config.Config
@@ -379,57 +378,17 @@ func (s *Swarm) applyPressure(svc Service, ss *ServiceState, now time.Time, up, 
 
 func (s *Swarm) pingHealth(ctx context.Context) (map[string][]eipnats.HealthStatus, error) {
 	out := map[string][]eipnats.HealthStatus{}
-	if s.opts.NATS == nil || !s.opts.NATS.IsConnected() {
+	if s.opts.NATS == nil || !s.opts.NATS.Connected() {
 		return out, nil
 	}
-	inbox := natslib.NewInbox()
-	sub, err := s.opts.NATS.SubscribeSync(inbox)
+	statuses, err := eipnats.GatherHealth(ctx, s.opts.NATS, "", healthPingWait)
 	if err != nil {
 		return out, err
 	}
-	defer func() { _ = sub.Unsubscribe() }()
-
-	payload, _ := json.Marshal(eipnats.HealthPing{})
-	if err := s.opts.NATS.PublishRequest(eipnats.SubjectHealthCommandPing, inbox, payload); err != nil {
-		return out, err
-	}
-
-	deadline := time.Now().Add(healthPingWait)
-	for time.Now().Before(deadline) {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			break
-		}
-		msg, err := sub.NextMsg(remaining)
-		if err != nil {
-			break
-		}
-		st, ok := decodeHealthStatus(msg.Data)
-		if !ok {
-			continue
-		}
+	for _, st := range statuses {
 		out[st.Role] = append(out[st.Role], st)
 	}
 	return out, nil
-}
-
-func decodeHealthStatus(data []byte) (eipnats.HealthStatus, bool) {
-	var env eipnats.Message
-	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
-		var st eipnats.HealthStatus
-		if len(env.Data) == 0 {
-			return st, false
-		}
-		if err := json.Unmarshal(env.Data, &st); err != nil {
-			return st, false
-		}
-		return st, true
-	}
-	var st eipnats.HealthStatus
-	if err := json.Unmarshal(data, &st); err != nil {
-		return st, false
-	}
-	return st, st.Role != ""
 }
 
 // Scale updates Swarm desired replicas for the service.
@@ -478,29 +437,12 @@ func (s *Swarm) Uncordon(ctx context.Context, containerID string) error {
 }
 
 func (s *Swarm) wsCommand(ctx context.Context, subject, containerID string, timeout time.Duration) error {
-	if s.opts.NATS == nil || !s.opts.NATS.IsConnected() {
+	if s.opts.NATS == nil || !s.opts.NATS.Connected() {
 		return fmt.Errorf("%s: nats not connected", subject)
 	}
-	containerID = strings.TrimSpace(containerID)
-	if containerID == "" {
-		return fmt.Errorf("%s: empty container_id", subject)
-	}
-	raw, err := json.Marshal(eipnats.WSCommand{ContainerID: containerID})
+	ack, err := eipnats.RequestWSCommand(ctx, s.opts.NATS, subject, containerID, timeout)
 	if err != nil {
 		return err
-	}
-	if timeout <= 0 {
-		timeout = 5 * time.Second
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	msg, err := s.opts.NATS.RequestWithContext(reqCtx, subject, raw)
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", subject, containerID, err)
-	}
-	ack, ok := decodeWSCommandAck(msg.Data)
-	if !ok {
-		return fmt.Errorf("%s %s: bad ack", subject, containerID)
 	}
 	if !ack.OK {
 		if ack.Error != "" {
@@ -509,23 +451,4 @@ func (s *Swarm) wsCommand(ctx context.Context, subject, containerID string, time
 		return fmt.Errorf("%s %s: not ok", subject, containerID)
 	}
 	return nil
-}
-
-func decodeWSCommandAck(data []byte) (eipnats.WSCommandAck, bool) {
-	var env eipnats.Message
-	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
-		var ack eipnats.WSCommandAck
-		if len(env.Data) == 0 {
-			return ack, false
-		}
-		if err := json.Unmarshal(env.Data, &ack); err != nil {
-			return ack, false
-		}
-		return ack, true
-	}
-	var ack eipnats.WSCommandAck
-	if err := json.Unmarshal(data, &ack); err != nil {
-		return ack, false
-	}
-	return ack, true
 }

@@ -47,14 +47,9 @@ func TestDrainForRollPublishesDraining(t *testing.T) {
 		Clients:        make(map[string]*Client),
 		intakeStopChan: intake,
 		shutdownChan:   shutdown,
-		placementPublishFn: func(_ string, data []byte) error {
+		placementPublishFn: func(state eipnats.PlacementState) error {
 			pubs++
-			st, err := eipnats.ParsePlacementState(data)
-			if err != nil {
-				t.Errorf("parse: %v", err)
-				return err
-			}
-			got = st
+			got = state
 			return nil
 		},
 	}

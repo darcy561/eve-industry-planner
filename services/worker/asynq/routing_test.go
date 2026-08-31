@@ -1,7 +1,12 @@
 package asynq
 
 import (
+	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/stackservices"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
+
 	eipnats "eve-industry-planner/shared/nats"
+	"github.com/hibiken/asynq"
 	"testing"
 	"time"
 )
@@ -54,3 +59,32 @@ func TestDrainAccountStatsRebuildQueue_TaskNameIsRegistered(t *testing.T) {
 		t.Fatalf("GetTaskTimeout(%q) = %v, want %v", task.Name, GetTaskTimeout(task.Name), task.DefaultTimeout)
 	}
 }
+
+// Every task must have a handler. A task published with nothing registered to
+// run it is accepted by asynq and then silently discarded, which is invisible
+// until someone notices the work never happened.
+func TestEveryTaskHasAHandler(t *testing.T) {
+	// Handlers register as the mux is built, so build one. Nothing is executed,
+	// so the dependencies are never dereferenced.
+	SetupHandlers(asynq.NewServeMux(), noDeps{})
+
+	registered := make(map[string]struct{}, len(RegisteredHandlers()))
+	for _, name := range RegisteredHandlers() {
+		registered[name] = struct{}{}
+	}
+	if len(registered) == 0 {
+		t.Fatal("no handlers registered; the mux was never built")
+	}
+	for _, task := range eipnats.Tasks() {
+		if _, ok := registered[task.Name]; !ok {
+			t.Errorf("%s has no asynq handler", task.Name)
+		}
+	}
+}
+
+// noDeps satisfies WorkerDependencies for a registration-only build.
+type noDeps struct{}
+
+func (noDeps) GetClients() *stackservices.Clients           { return nil }
+func (noDeps) GetESIClient() esiratelimiter.ClientInterface { return nil }
+func (noDeps) GetEntityCipher() *entityid.Cipher            { return nil }

@@ -87,7 +87,7 @@ func (a *app) startProbes(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "api",
 		InstanceID: container.ID(),
-		Conn:       a.clients.NATS.Conn(),
+		NATS:       a.clients.NATS,
 		Ready:      ready,
 		Enabled:    true,
 		Fill: func(st *eipnats.HealthStatus) {

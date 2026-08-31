@@ -59,7 +59,7 @@ func openRuntime(ctx context.Context, watchPolicy bool) (*runtime, func(), error
 	swarm := cluster.NewSwarm(cluster.SwarmOptions{
 		Docker: api,
 		Redis:  clients.Redis,
-		NATS:   clients.NATS.Conn(),
+		NATS:   clients.NATS,
 		Asynq:  newAsynqInspector(clients.Redis),
 		Stack:  envOr("EIP_STACK_NAME", "eip"),
 		Cfg:    cfgHolder.get,

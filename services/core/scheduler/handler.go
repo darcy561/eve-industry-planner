@@ -133,7 +133,7 @@ func (s *TaskScheduler) Start() error {
 
 	// Deferred runs arrive as schedules firing on the schedule stream.
 	if s.nats != nil {
-		consumer, err := helpers.SetupScheduleRunner(s.nats, s.runFiredSchedule, s.stopChan)
+		consumer, err := helpers.SetupScheduleRunner(s.nats, eipnats.Handle(otelTracerName, "scheduler.run_fired_schedule", s.runFiredSchedule), s.stopChan)
 		if err != nil {
 			return fmt.Errorf("failed to setup schedule runner: %w", err)
 		}
@@ -149,49 +149,20 @@ func (s *TaskScheduler) Start() error {
 // runFiredSchedule runs the cron job a fired schedule names. The id is the last
 // part of the delivery subject, and is the same key the cron registry uses, so a
 // deferred run and a scheduled one execute exactly the same handler.
-func (s *TaskScheduler) runFiredSchedule(msg jetstream.Msg) {
-	ctx, endSpan := eipnats.BeginConsumerContext(
-		context.Background(),
-		otelTracerName,
-		"scheduler.run_fired_schedule",
-		msg,
-		nil,
-	)
-	defer endSpan()
-
-	deliveryCount, _ := eipnats.GetMessageMetadata(msg)
+func (s *TaskScheduler) runFiredSchedule(ctx context.Context, msg jetstream.Msg) error {
 	jobName, err := eipnats.ExtractIDFromSubject(msg.Subject(), eipnats.SubjectScheduledPrefix)
 	if err != nil {
-		eipnats.FinishNATSConsumerOperation(ctx, "warn", "fired schedule rejected", map[string]any{
-			"subject": msg.Subject(),
-			"reason":  "no job name in subject",
-		})
-		eipnats.AcknowledgeMessage(ctx, msg, "no job name in subject", deliveryCount)
-		return
+		return eipnats.Terminate("no job name in subject %s", msg.Subject())
 	}
-
 	handler, exists := s.handlers[jobName]
 	if !exists {
-		eipnats.FinishNATSConsumerOperation(ctx, "warn", "fired schedule rejected", map[string]any{
-			"job":    jobName,
-			"reason": "no handler registered",
-		})
-		eipnats.AcknowledgeMessage(ctx, msg, "no handler registered", deliveryCount)
-		return
+		return eipnats.Terminate("no handler registered for %s", jobName)
 	}
-
 	if err := handler(ctx, msg.Data()); err != nil {
-		logs.ErrorCtx(ctx, "fired schedule failed", "component", schedulerLogComponent, "job", jobName, "error", err)
-		eipnats.FinishNATSConsumerOperation(ctx, "warn", "fired schedule failed", map[string]any{
-			"job":   jobName,
-			"error": err.Error(),
-		})
-		eipnats.NackMessage(ctx, msg)
-		return
+		return fmt.Errorf("run %s: %w", jobName, err)
 	}
-
-	eipnats.AcknowledgeMessage(ctx, msg, "schedule run", deliveryCount)
-	eipnats.FinishNATSConsumerOperation(ctx, "info", "fired schedule ran", map[string]any{"job": jobName})
+	logs.InfoCtx(ctx, "fired schedule ran", "component", schedulerLogComponent, "job", jobName)
+	return nil
 }
 
 // Stop stops listening for scheduling requests and stops the scheduler

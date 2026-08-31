@@ -92,7 +92,7 @@ type Server struct {
 	plannedCordon   atomic.Bool // planned evacuate soft-stop — refuse upgrades + placement draining; Ready stays OK
 
 	// Placement state publish (NATS SubjectWSPlacementState); optional override for tests.
-	placementPublishFn func(subject string, data []byte) error
+	placementPublishFn func(state eipnats.PlacementState) error
 	placementMu        sync.Mutex
 	lastPlacementState eipnats.PlacementState
 	hasLastPlacement   bool

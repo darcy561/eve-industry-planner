@@ -62,6 +62,7 @@ func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) 
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
+	batch := clients.NATS.Batching()
 	if _, err := clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
@@ -112,7 +113,7 @@ func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) 
 			continue
 		}
 
-		if err := eipnats.PublishImportArchivedJobToMongo(ctx, clients.NATS, userID, snap.Ref.Path, snap.Ref.ID, docJSON, ""); err != nil {
+		if err := eipnats.PublishImportArchivedJobToMongo(ctx, batch, userID, snap.Ref.Path, snap.Ref.ID, docJSON, ""); err != nil {
 			logs.ErrorCtx(ctx, "archived job scan: publish task", "firestore_path", snap.Ref.Path, "error", err)
 			errorsN++
 			continue
@@ -121,6 +122,9 @@ func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) 
 	}
 
 	logs.InfoCtx(ctx, "archived job scan finished", "published_tasks", published, "skipped_or_failed", errorsN)
+	if err := batch.Wait(ctx); err != nil {
+		return fmt.Errorf("enqueue importArchivedJobToMongo: %w", err)
+	}
 	if errorsN > 0 {
 		return fmt.Errorf("enqueue completed with %d publication errors (published=%d)", errorsN, published)
 	}

@@ -47,7 +47,7 @@ func runServe(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "capacity-controller",
 		InstanceID: container.ID(),
-		Conn:       rt.clients.NATS.Conn(),
+		NATS:       rt.clients.NATS,
 		Ready:      ready,
 		Enabled:    true,
 		Fill: func(st *eipnats.HealthStatus) {
