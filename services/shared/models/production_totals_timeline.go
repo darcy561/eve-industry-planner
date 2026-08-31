@@ -58,6 +58,17 @@ type CalendarMonth struct {
 	Month int `bson:"month" json:"month"`
 }
 
+// ordinal packs the month into one comparable integer.
+func (m CalendarMonth) ordinal() int { return m.Year*12 + m.Month }
+
+// Before reports whether m is an earlier month than other.
+func (m CalendarMonth) Before(other CalendarMonth) bool {
+	return m.ordinal() < other.ordinal()
+}
+
+// IsZero reports whether the month is unset.
+func (m CalendarMonth) IsZero() bool { return m == CalendarMonth{} }
+
 // ProductionTotalsTimelineBucket is one calendar month of an account's sales.
 type ProductionTotalsTimelineBucket struct {
 	CalendarMonth `bson:",inline"`

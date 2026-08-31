@@ -1,38 +1,21 @@
 import { describe, it, expect } from "vitest";
 import {
-  estimateComparison,
   costRange,
+  historyWindow,
+  monthLabel,
   outputDestinations,
+  shortMonthLabel,
 } from "./buildHistoryFigures";
-
-describe("estimateComparison", () => {
-  it("reports how far an estimate sits above the last build", () => {
-    const got = estimateComparison(258, { lastCostPerItem: 240 });
-
-    expect(got).toMatchObject({ estimate: 258, last: 240, difference: 18, dearer: true });
-    expect(got.percent).toBeCloseTo(7.5);
-  });
-
-  it("reports a cheaper estimate as not dearer", () => {
-    expect(estimateComparison(200, { lastCostPerItem: 250 })).toMatchObject({
-      difference: -50,
-      dearer: false,
-    });
-  });
-
-  // Nothing to compare against is a different answer from "no change".
-  it.each([
-    ["no estimate", 0, { lastCostPerItem: 240 }],
-    ["no build behind it", 258, { lastCostPerItem: 0 }],
-    ["no history at all", 258, undefined],
-  ])("returns null with %s", (_name, estimate, history) => {
-    expect(estimateComparison(estimate, history)).toBeNull();
-  });
-});
 
 describe("costRange", () => {
   it("describes the spread across builds", () => {
-    expect(costRange({ buildCount: 4, cheapestCostPerItem: 228, dearestCostPerItem: 236 })).toEqual({
+    expect(
+      costRange({
+        buildCount: 4,
+        cheapestCostPerItem: 228,
+        dearestCostPerItem: 236,
+      }),
+    ).toEqual({
       low: 228,
       high: 236,
       spread: 8,
@@ -41,7 +24,13 @@ describe("costRange", () => {
 
   // One build is a figure, not a range, and the strip already shows it as "last".
   it("returns null for a single build", () => {
-    expect(costRange({ buildCount: 1, cheapestCostPerItem: 228, dearestCostPerItem: 228 })).toBeNull();
+    expect(
+      costRange({
+        buildCount: 1,
+        cheapestCostPerItem: 228,
+        dearestCostPerItem: 228,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -65,7 +54,51 @@ describe("outputDestinations", () => {
   });
 
   it("returns nothing to draw when no output is recorded", () => {
-    expect(outputDestinations({ breakdown: {} })).toEqual({ rows: [], total: 0 });
+    expect(outputDestinations({ breakdown: {} })).toEqual({
+      rows: [],
+      total: 0,
+    });
   });
 });
 
+describe("month labels", () => {
+  it("renders a calendar month for a figure, and a key for an axis", () => {
+    expect(monthLabel({ year: 2026, month: 3 })).toBe("Mar 2026");
+    expect(shortMonthLabel("2026-03")).toBe("Mar 26");
+  });
+
+  it.each([
+    ["unset", undefined],
+    ["zeroed", { year: 0, month: 0 }],
+    ["out of range", { year: 2026, month: 13 }],
+  ])("returns null when the month is %s", (_name, month) => {
+    expect(monthLabel(month)).toBeNull();
+  });
+
+  // An axis tick has to render something, so an unreadable key passes through
+  // rather than leaving a blank label.
+  it("passes an unreadable key through to the axis", () => {
+    expect(shortMonthLabel("not-a-month")).toBe("not-a-month");
+  });
+});
+
+// The window comes from cost months, not archive dates: a job's costs are filed
+// under the month production started, which on imported history can be years
+// before the job was archived.
+describe("historyWindow", () => {
+  it("spans the months the item's costs are filed under", () => {
+    expect(
+      historyWindow({
+        firstCostMonth: { year: 2024, month: 9 },
+        lastCostMonth: { year: 2026, month: 5 },
+      }),
+    ).toEqual({ from: "2024-09", to: "2026-05" });
+  });
+
+  it("returns null without marks to derive it from", () => {
+    expect(historyWindow(undefined)).toBeNull();
+    expect(
+      historyWindow({ firstCostMonth: { year: 2024, month: 9 } }),
+    ).toBeNull();
+  });
+});

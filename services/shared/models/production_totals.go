@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 // BuildMeasures is the set of totals every build-scoped aggregate carries. Embed
 // it rather than restating the fields, so a new measure lands in one place.
 type BuildMeasures struct {
@@ -84,18 +82,22 @@ type ProductionTotalsRow struct {
 // Costs are per unit and are build cost — materials, install, invention and
 // extras — so they compare against an estimate of building the item rather than
 // against what it later sold for.
+// Cost months rather than archive dates. A job's costs are filed under the month
+// production started, which is what the timeline plots and can fall years before
+// the job was archived, so ordering on archive dates would make "last build" the
+// last row written rather than the most recent build.
 type BuildHistoryMarks struct {
-	BuildCount   int64     `bson:"buildCount" json:"buildCount"`
-	FirstBuildAt time.Time `bson:"firstBuildAt,omitempty" json:"firstBuildAt"`
+	BuildCount     int64         `bson:"buildCount" json:"buildCount"`
+	FirstCostMonth CalendarMonth `bson:"firstCostMonth" json:"firstCostMonth"`
 
-	LastCostPerItem float64   `bson:"lastCostPerItem" json:"lastCostPerItem"`
-	LastBuildAt     time.Time `bson:"lastBuildAt,omitempty" json:"lastBuildAt"`
+	LastCostPerItem float64       `bson:"lastCostPerItem" json:"lastCostPerItem"`
+	LastCostMonth   CalendarMonth `bson:"lastCostMonth" json:"lastCostMonth"`
 
-	CheapestCostPerItem float64   `bson:"cheapestCostPerItem" json:"cheapestCostPerItem"`
-	CheapestBuildAt     time.Time `bson:"cheapestBuildAt,omitempty" json:"cheapestBuildAt"`
+	CheapestCostPerItem float64       `bson:"cheapestCostPerItem" json:"cheapestCostPerItem"`
+	CheapestCostMonth   CalendarMonth `bson:"cheapestCostMonth" json:"cheapestCostMonth"`
 
-	DearestCostPerItem float64   `bson:"dearestCostPerItem" json:"dearestCostPerItem"`
-	DearestBuildAt     time.Time `bson:"dearestBuildAt,omitempty" json:"dearestBuildAt"`
+	DearestCostPerItem float64       `bson:"dearestCostPerItem" json:"dearestCostPerItem"`
+	DearestCostMonth   CalendarMonth `bson:"dearestCostMonth" json:"dearestCostMonth"`
 }
 
 // Plus sums src into r. JobType is taken from the first non-zero value.

@@ -1,8 +1,6 @@
 package archivestats
 
 import (
-	"time"
-
 	"eve-industry-planner/shared/models"
 )
 
@@ -25,8 +23,12 @@ func CountsTowardBuildHistory(row models.ArchivedJobStats) bool {
 	return !row.Revoked
 }
 
-// AccountBuildHistory reduces one item type's rows to the marks a current
-// estimate is compared against.
+// AccountBuildHistory reduces one item type's rows to the marks a build history
+// is read from.
+//
+// Ordered by cost month, the same basis the timeline plots. Archive dates order
+// rows by when they were written, which on imported history bears no relation to
+// when the builds happened.
 func AccountBuildHistory(rows []models.ArchivedJobStats) models.BuildHistoryMarks {
 	var (
 		out                                    models.BuildHistoryMarks
@@ -42,33 +44,32 @@ func AccountBuildHistory(rows []models.ArchivedJobStats) models.BuildHistoryMark
 			continue
 		}
 
-		at := row.ArchivedAt.UTC()
+		month := costMonthOf(row)
 		out.BuildCount++
 
-		if firstID == "" || buildBefore(at, row.JobID, out.FirstBuildAt, firstID) {
-			out.FirstBuildAt, firstID = at, row.JobID
+		if firstID == "" || monthBefore(month, row.JobID, out.FirstCostMonth, firstID) {
+			out.FirstCostMonth, firstID = month, row.JobID
 		}
-		if lastID == "" || buildBefore(out.LastBuildAt, lastID, at, row.JobID) {
-			out.LastBuildAt, lastID = at, row.JobID
+		if lastID == "" || monthBefore(out.LastCostMonth, lastID, month, row.JobID) {
+			out.LastCostMonth, lastID = month, row.JobID
 			out.LastCostPerItem = perItem
 		}
 		if cheapestID == "" || costBefore(perItem, row.JobID, out.CheapestCostPerItem, cheapestID) {
-			out.CheapestCostPerItem, out.CheapestBuildAt, cheapestID = perItem, at, row.JobID
+			out.CheapestCostPerItem, out.CheapestCostMonth, cheapestID = perItem, month, row.JobID
 		}
 		if dearestID == "" || costBefore(out.DearestCostPerItem, dearestID, perItem, row.JobID) {
-			out.DearestCostPerItem, out.DearestBuildAt, dearestID = perItem, at, row.JobID
+			out.DearestCostPerItem, out.DearestCostMonth, dearestID = perItem, month, row.JobID
 		}
 	}
 
 	return out
 }
 
-// buildBefore and costBefore order builds totally, falling back to the job id so
-// two builds sharing a timestamp or a cost still resolve the same way on every
-// run.
-func buildBefore(aAt time.Time, aJobID string, bAt time.Time, bJobID string) bool {
-	if !aAt.Equal(bAt) {
-		return aAt.Before(bAt)
+// monthBefore and costBefore order builds totally, falling back to the job id so
+// two builds sharing a month or a cost still resolve the same way on every run.
+func monthBefore(a models.CalendarMonth, aJobID string, b models.CalendarMonth, bJobID string) bool {
+	if a != b {
+		return a.Before(b)
 	}
 	return aJobID < bJobID
 }
