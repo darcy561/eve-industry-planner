@@ -48,3 +48,16 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Know what the build history panel shows and where each figure comes from | [plan.md](./plan.md) § J1 |
 | Apply a job's statistics as a delta instead of a rebuild | [plan.md](./plan.md) § J2 |
 | Change how often archived-job statistics are recalculated | [plan.md](./plan.md) § J3 |
+| Understand why a long rebuild queue currently makes no progress | [plan.md](./plan.md) § J3 |
+| Split statistics work across per-account tasks and priorities | [plan.md](./plan.md) § Three tiers of work |
+| Add or rename a statistics task, and know what else must change | [plan.md](./plan.md) § The operator surface moves with the tasks |
+| Scope statistics to something other than an account | [plan.md](./plan.md) § Owners, not accounts |
+| Stop a delta being overwritten by a rebuild running beside it | [plan.md](./plan.md) § A delta must never race a rebuild |
+| Know why an empty bucket is deleted on a count and not a total | [plan.md](./plan.md) § Subtracting to nothing |
+| Find out what happens when a statistics write keeps failing | [plan.md](./plan.md) § A delta that cannot be written |
+| Detect and correct aggregates that disagree with their rows | [plan.md](./plan.md) § J4 |
+| Compare stored figures without float noise reading as drift | [plan.md](./plan.md) § Comparing figures that are floats |
+| Know why archive and statistics documents are no longer fanned out | [plan.md](./plan.md) § The archive and statistics change streams are removed |
+| Tell the client its figures moved, or that a rebuild is outstanding | [plan.md](./plan.md) § J5 |
+| Add a realtime message kind, or a handler for one | [plan.md](./plan.md) § Messages gain a family and a kind |
+| Decide what a change invalidates in the SPA's caches | [plan.md](./plan.md) § One place decides what a change invalidates |
