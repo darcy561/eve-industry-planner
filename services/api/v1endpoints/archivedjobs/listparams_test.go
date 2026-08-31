@@ -164,3 +164,38 @@ func TestListRejectsOutOfBoundsPaging(t *testing.T) {
 		}
 	}
 }
+
+// A date reads newest first; a name reads A to Z. Applying one direction to
+// every field sorted the list from Z when a reader asked for names.
+func TestEachSortFieldHasItsNaturalDirection(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		sort      string
+		ascending bool
+	}{
+		{"", false},
+		{"archivedAt", false},
+		{"name", true},
+		{"itemID", true},
+		{"jobType", true},
+	} {
+		if got := ArchivedJobDefaultAscending(tc.sort); got != tc.ascending {
+			t.Errorf("%q defaults to ascending=%v, want %v", tc.sort, got, tc.ascending)
+		}
+	}
+}
+
+// An explicit direction is the caller's, whichever field they name.
+func TestAnExplicitOrderOverridesTheFieldsDefault(t *testing.T) {
+	t.Parallel()
+
+	desc, err := helper.ResolvePaging(listRequest(t, "sort=name&order=desc"), listPagingRules)
+	if err != nil || desc.Ascending {
+		t.Errorf("order=desc was ignored for name: %+v err=%v", desc, err)
+	}
+	asc, err := helper.ResolvePaging(listRequest(t, "sort=archivedAt&order=asc"), listPagingRules)
+	if err != nil || !asc.Ascending {
+		t.Errorf("order=asc was ignored for archivedAt: %+v err=%v", asc, err)
+	}
+}

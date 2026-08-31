@@ -6,13 +6,18 @@
  * graph the build has. Neither implies the other, so the group wins when a row
  * has both — it is the thing the user named and archived as a unit.
  *
+ * The rows come back in the order the caller asked the server for, so blocks
+ * take the position of their first member rather than being hoisted above the
+ * standalone jobs. Reordering here would answer a different question from the
+ * one the sort control asked.
+ *
  * @param {Array<Object>} jobs
  * @returns {Array<{kind: "group"|"related"|"job", id: string, label: string,
  *                  jobs: Object[]}>}
  */
 export function groupArchivedRows(jobs = []) {
   const blocks = new Map();
-  const standalone = [];
+  const out = [];
 
   for (const job of jobs) {
     const groupID = job?.groupID;
@@ -25,27 +30,28 @@ export function groupArchivedRows(jobs = []) {
         : null;
 
     if (!key) {
-      standalone.push(job);
+      out.push({ kind: "job", id: job.jobID, label: job.name, jobs: [job] });
       continue;
     }
 
-    if (!blocks.has(key)) {
-      blocks.set(key, {
-        kind: groupID ? "group" : "related",
-        id: groupID || relatedSetID,
-        jobs: [],
-      });
+    const existing = blocks.get(key);
+    if (existing) {
+      existing.jobs.push(job);
+      continue;
     }
-    blocks.get(key).jobs.push(job);
+
+    const block = {
+      kind: groupID ? "group" : "related",
+      id: groupID || relatedSetID,
+      jobs: [job],
+    };
+    blocks.set(key, block);
+    out.push(block);
   }
 
-  const out = [...blocks.values()].map((block) => ({
-    ...block,
-    label: blockLabel(block),
-  }));
-
-  for (const job of standalone) {
-    out.push({ kind: "job", id: job.jobID, label: job.name, jobs: [job] });
+  // Labelled once every member is known: a block is named after what it holds.
+  for (const block of blocks.values()) {
+    block.label = blockLabel(block);
   }
 
   return out;

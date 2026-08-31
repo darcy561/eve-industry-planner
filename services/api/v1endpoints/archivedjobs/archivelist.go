@@ -26,6 +26,23 @@ var archivedJobSortFields = map[string]string{
 	"jobType":    "jobType",
 }
 
+// ascendingByDefault names the fields that read forwards when a caller asks for
+// no direction. Everything else reads backwards, which is what a date wants.
+var ascendingByDefault = map[string]bool{
+	"name":    true,
+	"itemID":  true,
+	"jobType": true,
+}
+
+// ArchivedJobDefaultAscending reports the direction a field reads in when the
+// caller names none.
+func ArchivedJobDefaultAscending(sort string) bool {
+	if sort == "" {
+		sort = DefaultArchivedJobSort
+	}
+	return ascendingByDefault[sort]
+}
+
 // DefaultArchivedJobSort orders newest first.
 const DefaultArchivedJobSort = "archivedAt"
 
