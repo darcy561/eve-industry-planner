@@ -64,14 +64,14 @@ func MouseWheelAtZone(id string, up bool) (tea.MouseWheelMsg, bool) {
 
 // Zone id SoT (no ad-hoc strings in Update switches).
 const (
-	ZonePaneOutput     = "pane.output"
-	ZonePaneForm       = "pane.form"
-	ZonePaneNav        = "pane.nav"
-	ZoneCommandLine    = "cmdline"
-	ZoneFinish           = "finish"
-	ZoneBack             = "back"
-	ZoneListRowPrefix    = "list.row."
-	ZoneFormFieldPrefix  = "form.field."
+	ZonePaneOutput      = "pane.output"
+	ZonePaneForm        = "pane.form"
+	ZonePaneNav         = "pane.nav"
+	ZoneCommandLine     = "cmdline"
+	ZoneFinish          = "finish"
+	ZoneBack            = "back"
+	ZoneListRowPrefix   = "list.row."
+	ZoneFormFieldPrefix = "form.field."
 )
 
 func init() {

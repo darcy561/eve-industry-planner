@@ -90,14 +90,14 @@ type ScaleTiming struct {
 }
 
 type ServiceSpec struct {
-	CapacityControllerManaged bool    `yaml:"capacity_controller_managed"`
-	Min                       int     `yaml:"min"`
-	Max                       int     `yaml:"max"`
-	Concurrency               int                `yaml:"concurrency,omitempty"`                 // worker
-	TargetClients             int                `yaml:"target_clients,omitempty"`               // websocket
-	ClientCutoff              int                `yaml:"client_cutoff,omitempty"`                // websocket
-	ReserveCapacity           float64            `yaml:"reserve_capacity,omitempty"`             // websocket
-	QueueScaleUpPct           map[string]float64 `yaml:"queue_scale_up_pct,omitempty"`           // worker: scale-up pending fraction per priority queue
+	CapacityControllerManaged bool               `yaml:"capacity_controller_managed"`
+	Min                       int                `yaml:"min"`
+	Max                       int                `yaml:"max"`
+	Concurrency               int                `yaml:"concurrency,omitempty"`        // worker
+	TargetClients             int                `yaml:"target_clients,omitempty"`     // websocket
+	ClientCutoff              int                `yaml:"client_cutoff,omitempty"`      // websocket
+	ReserveCapacity           float64            `yaml:"reserve_capacity,omitempty"`   // websocket
+	QueueScaleUpPct           map[string]float64 `yaml:"queue_scale_up_pct,omitempty"` // worker: scale-up pending fraction per priority queue
 }
 
 // LoadYAML reads and validates operator config from path.

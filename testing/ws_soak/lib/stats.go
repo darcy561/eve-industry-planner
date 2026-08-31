@@ -300,4 +300,3 @@ func (s *stats) dropRate() float64 {
 	}
 	return float64(s.CloseUnexpected.Load()) / float64(ok)
 }
-

@@ -19,7 +19,7 @@ func StyleProgressOverlay(text string) string {
 	title := lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
 	textStyle := lipgloss.NewStyle().Foreground(theme.Text)
 	muted := lipgloss.NewStyle().Foreground(theme.Muted)
-	ok := lipgloss.NewStyle().Foreground(lipgloss.Color("108"))   // status LightGreen
+	ok := lipgloss.NewStyle().Foreground(lipgloss.Color("108"))             // status LightGreen
 	err := lipgloss.NewStyle().Foreground(lipgloss.Color("167")).Bold(true) // LightRed
 
 	var b strings.Builder

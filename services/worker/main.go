@@ -17,9 +17,9 @@ import (
 // WorkerDependencies holds all dependencies needed by worker subscribers.
 type WorkerDependencies struct {
 	*stackservices.Clients
-	ESIClient   esiratelimiter.ClientInterface
-	AsynqClient *asynq.Client
-	EntityCipher  *entityid.Cipher
+	ESIClient    esiratelimiter.ClientInterface
+	AsynqClient  *asynq.Client
+	EntityCipher *entityid.Cipher
 }
 
 func (d *WorkerDependencies) GetClients() *stackservices.Clients {

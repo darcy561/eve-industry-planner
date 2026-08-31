@@ -129,4 +129,3 @@ func TestStartRejectsEmptyArgs(t *testing.T) {
 		t.Fatal("CollectRawStdout empty")
 	}
 }
-
