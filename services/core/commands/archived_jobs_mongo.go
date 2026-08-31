@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -84,7 +85,7 @@ func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 	queued := 0
 	var queueErrs []error
 	for _, accountID := range accounts {
-		if err := mongo.QueueAccountRebuild(ctxRun, accountID, now); err != nil {
+		if err := mongo.QueueOwnerWork(ctxRun, models.AccountStatsOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
 			queueErrs = append(queueErrs, fmt.Errorf("queue %s: %w", accountID, err))
 			continue
 		}
