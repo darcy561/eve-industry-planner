@@ -173,3 +173,22 @@ export function chartLegendProps(theme) {
     },
   };
 }
+
+/**
+ * The box a category chart draws into: full width, at a fixed aspect within a
+ * bounded height.
+ *
+ * Exported so a caller reserving space for a chart that has not loaded yet
+ * occupies exactly the height the chart will take, rather than restating these
+ * and drifting from them.
+ *
+ * @param {boolean} deviceNotMobile
+ */
+export function timeSeriesSurfaceStyle(deviceNotMobile) {
+  return {
+    width: "100%",
+    aspectRatio: deviceNotMobile ? 1.9 : 1.2,
+    minHeight: 220,
+    maxHeight: 320,
+  };
+}

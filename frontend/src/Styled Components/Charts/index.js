@@ -12,4 +12,5 @@ export {
   chartGridStroke,
   chartLegendProps,
   chartMargins,
+  timeSeriesSurfaceStyle,
 } from "./chartTheme";
