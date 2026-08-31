@@ -37,3 +37,11 @@ global.ResizeObserver = MockObserver;
 global.IntersectionObserver = MockObserver;
 window.ResizeObserver = MockObserver;
 window.IntersectionObserver = MockObserver;
+
+// Node's own Web Storage global has no methods unless `--localstorage-file` names a path, and
+// Vitest skips jsdom's `localStorage`/`sessionStorage` when a global of that name already
+// exists. Point the globals back at the jsdom instance Vitest exposes here.
+if (globalThis.jsdom) {
+  globalThis.localStorage = globalThis.jsdom.window.localStorage;
+  globalThis.sessionStorage = globalThis.jsdom.window.sessionStorage;
+}
