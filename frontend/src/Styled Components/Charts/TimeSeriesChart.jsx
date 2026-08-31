@@ -20,6 +20,7 @@ import {
   formatAxisValue,
   formatTooltipValue,
   resolveSeriesColour,
+  timeSeriesSurfaceStyle,
 } from "./chartTheme";
 
 /**
@@ -82,10 +83,7 @@ export function TimeSeriesChart({
         angle: categoryAngle,
       })}
       style={{
-        width: "100%",
-        aspectRatio: deviceNotMobile ? 1.9 : 1.2,
-        minHeight: 220,
-        maxHeight: 320,
+        ...timeSeriesSurfaceStyle(deviceNotMobile),
         ...style,
       }}
     >
