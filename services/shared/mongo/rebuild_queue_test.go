@@ -147,7 +147,7 @@ func TestQueueOwnerRebuildPreservesQueuedAtAndBumpsClaim(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 8, 22, 10, 0, 0, 0, time.UTC)
 
-	update := queueOwnerRebuildUpdate(models.AccountStatsOwner("acct-1"), now)
+	update := queueOwnerWorkUpdate(models.AccountStatsOwner("acct-1"), StatsWorkRebuild, now)
 
 	// queuedAt is set only on insert, so a re-queue leaves the original wait time
 	// alone rather than making a long-outstanding account look fresh.
@@ -210,7 +210,7 @@ func TestQueueOwnerRebuildUpdateWritesTheOwnerAlongsideTheKey(t *testing.T) {
 	t.Parallel()
 	owner := models.StatsOwner{Kind: models.StatsOwnerCorporation, ID: "corp_56_JxK"}
 
-	update := queueOwnerRebuildUpdate(owner, time.Date(2026, 8, 22, 10, 0, 0, 0, time.UTC))
+	update := queueOwnerWorkUpdate(owner, StatsWorkRebuild, time.Date(2026, 8, 22, 10, 0, 0, 0, time.UTC))
 
 	insert, ok := update["$setOnInsert"].(bson.M)
 	if !ok {

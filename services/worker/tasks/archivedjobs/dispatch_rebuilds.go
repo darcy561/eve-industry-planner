@@ -80,17 +80,25 @@ func DispatchQueuedRebuilds(ctx context.Context, mongo *eipmongo.Mongo, nats *ei
 		return out, fmt.Errorf("nats handle is required")
 	}
 
-	queued, err := mongo.ListQueuedOwners(ctx, now.Add(-rebuildDebounce))
+	// A delta is what a user is waiting on, so it is eligible at once; the
+	// debounce holds back only the expensive kind.
+	queued, err := mongo.ListQueuedOwners(ctx, now)
 	if err != nil {
 		return out, fmt.Errorf("list queued owners: %w", err)
 	}
-	out.Eligible = len(queued)
 
 	for _, entry := range queued {
 		if err := ctx.Err(); err != nil {
 			break
 		}
-		if err := eipnats.PublishRebuildOwnerStatistics(
+		if entry.Work == eipmongo.StatsWorkRebuild && entry.QueuedAt.After(now.Add(-rebuildDebounce)) {
+			continue
+		}
+		publish := eipnats.PublishRebuildOwnerStatistics
+		if entry.Work == eipmongo.StatsWorkDelta {
+			publish = eipnats.PublishApplyOwnerStatisticsDelta
+		}
+		if err := publish(
 			ctx, nats, string(entry.Owner.Kind), entry.Owner.ID, entry.Claim,
 		); err != nil {
 			out.Failed++
@@ -100,6 +108,7 @@ func DispatchQueuedRebuilds(ctx context.Context, mongo *eipmongo.Mongo, nats *ei
 		}
 		out.Dispatched++
 	}
+	out.Eligible = out.Dispatched + out.Failed
 
 	return out, nil
 }

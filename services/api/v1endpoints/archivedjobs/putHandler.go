@@ -199,11 +199,15 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 	nJobs := len(reqBody.Jobs)
 
-	// The account's statistics are now stale. Queuing rather than recomputing here
-	// keeps the write cheap and collapses a burst of archives into one rebuild.
+	// The new rows are not in the account's aggregates yet. Queuing rather than
+	// folding them here keeps the write cheap and collapses a burst of archives
+	// into one pass — the rows carry no contribution stamp, so whichever pass runs
+	// finds all of them.
+	//
 	// A failure to queue is logged rather than failing the request: the jobs are
-	// saved, and the next archive or a manual rebuild re-queues the account.
-	if err := h.Mongo.QueueAccountRebuild(ctx, accountID, time.Now().UTC()); err != nil {
+	// saved and their rows are still unstamped, so the next archive or a manual
+	// rebuild picks them up.
+	if err := h.Mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(accountID), eipmongo.StatsWorkDelta, time.Now().UTC()); err != nil {
 		logs.AttachHandlerCaveat(r, "stats_rebuild_not_queued",
 			"archived jobs saved but the statistics rebuild was not queued",
 			map[string]any{"account_id": accountID, "error": err.Error()})

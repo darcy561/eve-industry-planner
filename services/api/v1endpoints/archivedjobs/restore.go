@@ -97,12 +97,20 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		return restoreResult{}, fmt.Errorf("remove archived documents: %w", delErr)
 	}
 
-	// Queued last: the rebuild reads the archive and must see the deletion.
+	// The restored jobs' figures are still counted in the owner's aggregates.
+	// Revoking their rows records that they should not be, and leaves the stamp
+	// that says they still are — which is what the statistics pass looks for to
+	// take them back out.
+	if _, revokeErr := h.Mongo.RevokeStatsRowsForJobs(ctx, req.Archive.OwnerID, jobIDs, now); revokeErr != nil {
+		return restoreResult{}, fmt.Errorf("revoke statistics rows: %w", revokeErr)
+	}
+
+	// Queued last: the pass reads the archive and must see the deletion.
 	if req.Archive.queueRebuild == nil {
-		return restoreResult{}, fmt.Errorf("archive scope has no rebuild queue")
+		return restoreResult{}, fmt.Errorf("archive scope has no statistics queue")
 	}
 	if queueErr := req.Archive.queueRebuild(ctx, h.Mongo, req.Archive.OwnerID, now); queueErr != nil {
-		return restoreResult{}, fmt.Errorf("queue statistics rebuild: %w", queueErr)
+		return restoreResult{}, fmt.Errorf("queue statistics work: %w", queueErr)
 	}
 
 	return restoreResult{RestoredJobIDs: jobIDs, Jobs: req.Jobs, Conflicts: conflicts, Groups: groups}, nil

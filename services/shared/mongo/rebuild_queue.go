@@ -12,10 +12,24 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// QueuedOwner is one owner waiting for a statistics rebuild, together with the
-// claim token that was current when it was read.
+// StatsWork names what an owner is waiting for.
+//
+// The two differ in cost and in what they mean to a reader: a delta is seconds of
+// work nobody needs to be told about, a rebuild re-derives everything and is
+// worth reporting. One queue carries both because the claim protocol, the wait
+// time and the dispatcher are per owner either way.
+type StatsWork string
+
+const (
+	StatsWorkDelta   StatsWork = "delta"
+	StatsWorkRebuild StatsWork = "rebuild"
+)
+
+// QueuedOwner is one owner waiting for statistics work, together with the claim
+// token that was current when it was read.
 type QueuedOwner struct {
 	Owner models.StatsOwner
+	Work  StatsWork
 	Claim int64
 	// QueuedAt is when the owner first became outstanding, not when it was last
 	// changed, so a debounce measures the longest anything has waited.
@@ -29,6 +43,16 @@ type QueuedOwner struct {
 // owner only if the claim it read is still current, so a change arriving while
 // that rebuild is in flight leaves the owner queued rather than being dropped.
 func (m *Mongo) QueueOwnerRebuild(ctx context.Context, owner models.StatsOwner, now time.Time, opts ...RetryOption) error {
+	return m.QueueOwnerWork(ctx, owner, StatsWorkRebuild, now, opts...)
+}
+
+// QueueOwnerWork records that an owner has statistics work outstanding.
+//
+// A rebuild supersedes a delta: it re-derives every row from its jobs and stamps
+// them, so it already accounts for whatever the deltas would have applied.
+// Upgrading an entry is therefore lossless, and the reverse never happens — a
+// delta arriving against a queued rebuild leaves the rebuild in place.
+func (m *Mongo) QueueOwnerWork(ctx context.Context, owner models.StatsOwner, work StatsWork, now time.Time, opts ...RetryOption) error {
 	if m == nil || m.AccountRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
@@ -40,12 +64,21 @@ func (m *Mongo) QueueOwnerRebuild(ctx context.Context, owner models.StatsOwner, 
 		return err
 	}
 
-	return Retry(ctx, applyRetryOptions("QueueOwnerRebuild", opts), func() error {
+	return Retry(ctx, applyRetryOptions("QueueOwnerWork", opts), func() error {
 		_, uerr := coll.UpdateOne(
 			ctx,
 			queuedOwnerFilter(owner),
-			queueOwnerRebuildUpdate(owner, now),
+			queueOwnerWorkUpdate(owner, work, now),
 			options.UpdateOne().SetUpsert(true),
+		)
+		if uerr != nil || work != StatsWorkRebuild {
+			return uerr
+		}
+		// Upgrade an entry already waiting on a delta. Separate from the upsert
+		// because $setOnInsert cannot raise a field on a document that exists.
+		_, uerr = coll.UpdateOne(ctx,
+			bson.M{"_id": owner.Key(), "work": string(StatsWorkDelta)},
+			bson.M{"$set": bson.M{"work": string(StatsWorkRebuild)}},
 		)
 		return uerr
 	})
@@ -91,6 +124,7 @@ func (m *Mongo) ListQueuedOwners(ctx context.Context, eligibleBefore time.Time, 
 			var row struct {
 				ID       string    `bson:"_id"`
 				Claim    int64     `bson:"claim"`
+				Work     string    `bson:"work"`
 				QueuedAt time.Time `bson:"queuedAt"`
 			}
 			if decErr := cursor.Decode(&row); decErr != nil {
@@ -102,7 +136,13 @@ func (m *Mongo) ListQueuedOwners(ctx context.Context, eligibleBefore time.Time, 
 				// key, so it is skipped rather than failing the whole read.
 				continue
 			}
-			out = append(out, QueuedOwner{Owner: owner, Claim: row.Claim, QueuedAt: row.QueuedAt})
+			work := StatsWork(row.Work)
+			if work != StatsWorkDelta && work != StatsWorkRebuild {
+				// An entry written before the kind existed is a rebuild: that is
+				// the only work anything queued at the time.
+				work = StatsWorkRebuild
+			}
+			out = append(out, QueuedOwner{Owner: owner, Work: work, Claim: row.Claim, QueuedAt: row.QueuedAt})
 		}
 		return cursor.Err()
 	})
@@ -204,9 +244,9 @@ func queuedOwnerFilter(owner models.StatsOwner) bson.M {
 //
 // The owner is written out as well as being the key, so the queue can be read
 // without every consumer parsing ids.
-func queueOwnerRebuildUpdate(owner models.StatsOwner, now time.Time) bson.M {
+func queueOwnerWorkUpdate(owner models.StatsOwner, work StatsWork, now time.Time) bson.M {
 	return bson.M{
-		"$setOnInsert": bson.M{"queuedAt": now.UTC(), "owner": owner},
+		"$setOnInsert": bson.M{"queuedAt": now.UTC(), "owner": owner, "work": string(work)},
 		"$inc":         bson.M{"claim": 1},
 	}
 }
