@@ -6,8 +6,8 @@ package builder
 type Kind int
 
 const (
-	KindText Kind = iota
-	KindSecret   // deprecated: treated as plain KindText (ops TUI shows values)
+	KindText   Kind = iota
+	KindSecret      // deprecated: treated as plain KindText (ops TUI shows values)
 	KindReadonly
 	KindBool // huh Confirm (space / ←→)
 )

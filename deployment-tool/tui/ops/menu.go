@@ -20,9 +20,9 @@ import (
 type Special int
 
 const (
-	SpecialNone Special = iota
-	SpecialCommand // More → Command: host eip verbs + core tasks (cli …)
-	SpecialRestart // pick running service (or all), then child eip restart … -y
+	SpecialNone    Special = iota
+	SpecialCommand         // More → Command: host eip verbs + core tasks (cli …)
+	SpecialRestart         // pick running service (or all), then child eip restart … -y
 
 	SpecialLogs    // type → source pickers, then dump or follow window
 	SpecialSetup   // Setup: env builder → defaults/advanced config

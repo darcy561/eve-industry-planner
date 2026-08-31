@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 )
 

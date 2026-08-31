@@ -271,8 +271,8 @@ func HasEnvironmentKey(svc Service, key string) bool {
 
 // Capacity-sync env keys (applied only when the stack service declares them).
 const (
-	EnvWSClientCutoff  = "WS_CLIENT_CUTOFF"
-	EnvWSTargetClients = "WS_TARGET_CLIENTS"
+	EnvWSClientCutoff         = "WS_CLIENT_CUTOFF"
+	EnvWSTargetClients        = "WS_TARGET_CLIENTS"
 	EnvWorkerAsynqConcurrency = "WORKER_ASYNQ_CONCURRENCY"
 )
 

@@ -43,14 +43,14 @@ type Config struct {
 	MaxWatch    int    // fail if never reach this desired/running (default 2)
 
 	// Websocket / api (soaklib ProfileHold, Accounts==Clients)
-	WSURL       string
-	Clients     int
-	WSDuration  time.Duration // max hold wall (cancelled after scale-up)
-	Ramp        time.Duration // stagger connects (0 = auto from client count)
-	MinLive     int           // wait for this many live WS clients before scale-up assert (0 = auto ~80%)
-	Insecure    bool
-	NoSeed      bool
-	SeedOnly    bool
+	WSURL      string
+	Clients    int
+	WSDuration time.Duration // max hold wall (cancelled after scale-up)
+	Ramp       time.Duration // stagger connects (0 = auto from client count)
+	MinLive    int           // wait for this many live WS clients before scale-up assert (0 = auto ~80%)
+	Insecure   bool
+	NoSeed     bool
+	SeedOnly   bool
 }
 
 func (c Config) withDefaults() Config {

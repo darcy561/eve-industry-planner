@@ -26,7 +26,7 @@ func TestUpdateStacksMissingOnly(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	// Point raw.githubusercontent base at the test server by overriding Repo + monkey… 
+	// Point raw.githubusercontent base at the test server by overriding Repo + monkey…
 	// UpdateStacks builds https://raw.githubusercontent.com/<repo>/refs/heads/<branch>/<file>.
 	// Use a custom HTTP client that rewrites the host to the test server.
 	client := &http.Client{

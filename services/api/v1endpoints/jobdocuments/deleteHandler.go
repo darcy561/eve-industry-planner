@@ -9,8 +9,8 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/v2/bson"

@@ -73,4 +73,3 @@ func TestResolveSource(t *testing.T) {
 		}
 	}
 }
-

@@ -18,4 +18,3 @@ func TestDigestsMatch(t *testing.T) {
 		t.Fatal("empty digest should not match")
 	}
 }
-

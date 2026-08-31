@@ -9,9 +9,9 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 

@@ -58,10 +58,10 @@ func TestIsLocalDevVersion(t *testing.T) {
 
 func TestChannelTagFromAppVersion(t *testing.T) {
 	cases := map[string]string{
-		"prerelease":                        "prerelease",
-		"prerelease-swarm-hard-cutover":     "prerelease-swarm-hard-cutover",
-		"1.2.3":                             "",
-		"latest":                            "",
+		"prerelease":                    "prerelease",
+		"prerelease-swarm-hard-cutover": "prerelease-swarm-hard-cutover",
+		"1.2.3":                         "",
+		"latest":                        "",
 		"0.0.0-prerelease.swarm-hard-cutover.abc1234": "",
 		"": "",
 	}

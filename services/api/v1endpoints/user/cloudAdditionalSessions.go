@@ -1,15 +1,15 @@
-﻿package user
+package user
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/crypto/aesgcm"
 	evesso "eve-industry-planner/shared/core/evesso"
-	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/crypto/aesgcm"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
