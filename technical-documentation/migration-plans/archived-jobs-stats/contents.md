@@ -48,6 +48,9 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Know what the build history panel shows and where each figure comes from | [plan.md](./plan.md) § J1 |
 | Decide what the build history panel compares an item's history against | [plan.md](./plan.md) § Open — what the panel compares history against |
 | Apply a job's statistics as a delta instead of a rebuild | [plan.md](./plan.md) § J2 |
+| See what the delta path landed, and what it still owes | [plan.md](./plan.md) § What landed (J2) |
+| Know why a rebuilt row is stamped as already counted | [plan.md](./plan.md) § What landed (J2) |
+| Find where the delta shape lives, and why it is not in either caller | [plan.md](./plan.md) § J2 |
 | Change how often archived-job statistics are recalculated | [plan.md](./plan.md) § J3 |
 | Understand why a long rebuild queue currently makes no progress | [plan.md](./plan.md) § J3 |
 | Split statistics work across per-account tasks and priorities | [plan.md](./plan.md) § Three tiers of work |
@@ -58,6 +61,9 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Find out what happens when a statistics write keeps failing | [plan.md](./plan.md) § A delta that cannot be written |
 | Detect and correct aggregates that disagree with their rows | [plan.md](./plan.md) § J4 |
 | Compare stored figures without float noise reading as drift | [plan.md](./plan.md) § Comparing figures that are floats |
+| Decide when an owner's turn to be reconciled comes round | [plan.md](./plan.md) § Scheduling |
+| See what reconciliation landed, and what it shares with the rebuild | [plan.md](./plan.md) § What landed (J4) |
+| Know why a bucket carries a row count, and why a rebuild once lost it | [plan.md](./plan.md) § The bucket's contributing-row count |
 | Know why archive and statistics documents are no longer fanned out | [plan.md](./plan.md) § The archive and statistics change streams are removed |
 | Tell the client its figures moved, or that a rebuild is outstanding | [plan.md](./plan.md) § J5 |
 | Add a realtime message kind, or a handler for one | [plan.md](./plan.md) § Messages gain a family and a kind |

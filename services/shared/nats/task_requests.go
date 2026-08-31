@@ -119,6 +119,24 @@ type RebuildOwnerStatisticsRequest struct {
 	Claim     int64  `json:"claim"`
 }
 
+// ReconcileOwnerStatisticsRequest names one owner whose aggregates are to be
+// rewritten from its stored rows.
+//
+// No claim: reconciliation is not queued work anything requested, so there is no
+// entry for it to clear and nothing for a claim to protect. It runs on a rota,
+// and the rows it reads are the only input it has.
+type ReconcileOwnerStatisticsRequest struct {
+	OwnerKind string `json:"owner_kind"`
+	OwnerID   string `json:"owner_id"`
+}
+
+// SpanAttributes records which owner a reconcile covers.
+func (r ReconcileOwnerStatisticsRequest) SpanAttributes() []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.String("statistics.owner_kind", r.OwnerKind),
+	}
+}
+
 // SpanAttributes records which owner a rebuild covers.
 func (r RebuildOwnerStatisticsRequest) SpanAttributes() []attribute.KeyValue {
 	return []attribute.KeyValue{

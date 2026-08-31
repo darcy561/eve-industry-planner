@@ -153,6 +153,12 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	handle(mux, eipnats.ApplyOwnerStatisticsDelta, func(ctx context.Context, t *asynq.Task) error {
 		return archivedjobtasks.ApplyOwnerStatisticsDelta(ctx, t, taskDeps)
 	})
+	handle(mux, eipnats.DispatchStatisticsReconciles, func(ctx context.Context, t *asynq.Task) error {
+		return archivedjobtasks.DispatchStatisticsReconciles(ctx, t, taskDeps)
+	})
+	handle(mux, eipnats.ReconcileOwnerStatistics, func(ctx context.Context, t *asynq.Task) error {
+		return archivedjobtasks.ReconcileOwnerStatistics(ctx, t, taskDeps)
+	})
 	handle(mux, eipnats.RotateRefreshTokenKeys, func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.RotateRefreshTokenKeys(ctx, t, taskDeps)
 	})

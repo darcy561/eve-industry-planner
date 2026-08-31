@@ -143,14 +143,15 @@ collection name travels as a string:
 | `account_stats_rebuild_queue` | `AccountRebuildQueue` | accounts whose statistics need recalculating |
 
 **Rebuild queue.** Queues are named for the work they trigger rather than the state of the data.
-`QueueAccountRebuild` keeps the original `queuedAt` across re-queues, so the wait time reflects
-when work first became outstanding, and bumps a `claim` counter every time.
+One entry per owner, keyed `kind:id`, carrying the work it is waiting for — `delta` or `rebuild`.
+`QueueOwnerWork` keeps the original `queuedAt` across re-queues, so the wait time reflects
+when work first became outstanding, and bumps a `claim` counter every time. A rebuild queued over a
+waiting delta upgrades the entry, because a rebuild derives every figure the delta would have added.
 
-`ListQueuedAccounts` returns each account with the claim current when it was read;
-`ClearQueuedAccounts` deletes only where that claim still matches. An account re-queued while its
-rebuild is in flight therefore stays queued instead of being silently dropped, and the difference
-between the count cleared and the count attempted is how many arrived mid-rebuild. Clearing an
-empty set returns without reaching Mongo.
+`ListQueuedOwners` returns each owner with the claim current when it was read; `ClearQueuedOwner`
+deletes only where that claim still matches, and `OwnerClaimIsCurrent` reads the same condition for
+a task that wants to know before it writes. An owner re-queued while its work is in flight therefore
+stays queued instead of being silently dropped.
 
 **Two additions to the shared `Docs` surface**, rather than query helpers beside the call sites:
 

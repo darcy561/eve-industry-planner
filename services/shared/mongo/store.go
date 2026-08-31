@@ -29,6 +29,7 @@ type Mongo struct {
 	ArchivedJobStats      *Docs // per-archived-job figures the statistics pipelines read
 	AccountTimelineMonths *Docs // pre-aggregated calendar months per account and item type
 	AccountRebuildQueue   *Docs // accounts whose statistics need recalculating
+	AccountReconcileRota  *Docs // when each owner was last reconciled against its rows
 }
 
 // NewMongo pins DatabaseName and binds named Docs fields. client must be non-nil.
@@ -55,6 +56,7 @@ func NewMongo(client *mongo.Client) (*Mongo, error) {
 	m.ArchivedJobStats = m.Docs(CollectionArchivedJobStats)
 	m.AccountTimelineMonths = m.Docs(CollectionAccountTimelineMonths)
 	m.AccountRebuildQueue = m.Docs(CollectionAccountRebuildQueue)
+	m.AccountReconcileRota = m.Docs(CollectionAccountReconcileRota)
 	return m, nil
 }
 

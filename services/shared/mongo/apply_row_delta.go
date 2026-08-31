@@ -47,7 +47,7 @@ func (m *Mongo) ApplyStatsDelta(ctx context.Context, accountID string, delta mod
 	if err := m.incrementTotals(ctx, accountID, delta); err != nil {
 		return err
 	}
-	return m.stampContributed(ctx, rowIDs, now)
+	return m.StampContributed(ctx, rowIDs, now)
 }
 
 func (m *Mongo) incrementBuckets(ctx context.Context, accountID string, delta models.StatsDelta) error {
@@ -324,8 +324,8 @@ func buildMeasureIncrements(prefix string, m models.BuildMeasures) bson.M {
 	return inc
 }
 
-// stampContributed records that these rows' figures are in the aggregates.
-func (m *Mongo) stampContributed(ctx context.Context, rowIDs []string, now time.Time) error {
+// StampContributed records that these rows' figures are in the aggregates.
+func (m *Mongo) StampContributed(ctx context.Context, rowIDs []string, now time.Time) error {
 	if len(rowIDs) == 0 {
 		return nil
 	}

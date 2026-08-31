@@ -1,6 +1,8 @@
 package archivestats
 
 import (
+	"maps"
+
 	"eve-industry-planner/shared/models"
 )
 
@@ -17,9 +19,7 @@ func ContributionOf(row models.ArchivedJobStats) models.StatsDelta {
 		Buckets: map[models.StatsBucketKey]models.StatsBucketDelta{},
 		Totals:  map[models.StatsTypeKey]models.StatsTypeDelta{},
 	}
-	for key, measures := range AccumulateAccountBuckets(one) {
-		delta.Buckets[key] = models.StatsBucketDelta{Measures: measures, Rows: 1}
-	}
+	maps.Copy(delta.Buckets, AccumulateAccountBuckets(one))
 
 	if row.Revoked {
 		// A revoked row describes a job that is no longer archived; the folds skip

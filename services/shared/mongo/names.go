@@ -21,6 +21,7 @@ const (
 	CollectionArchivedJobStats      = "account_archived_job_stats"
 	CollectionAccountTimelineMonths = "account_timeline_months"
 	CollectionAccountRebuildQueue   = "account_stats_rebuild_queue"
+	CollectionAccountReconcileRota  = "account_stats_reconcile_rota"
 )
 
 // SchemaMaintainedCollections lists every collection whose documents carry a

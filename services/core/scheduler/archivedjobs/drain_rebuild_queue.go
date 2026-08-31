@@ -11,12 +11,6 @@ import (
 
 const logComponent = "archivedjobs"
 
-const (
-// Every two minutes. The tick only dispatches, so it is cheap, and a tick that
-// fails to publish costs one interval rather than an hour. How long an owner
-// actually waits is the debounce the worker applies, not this.
-)
-
 // ScheduleDrainAccountStatsRebuildQueue publishes one dispatch task per tick.
 //
 // The queue names the work, so this carries no payload. The task it publishes

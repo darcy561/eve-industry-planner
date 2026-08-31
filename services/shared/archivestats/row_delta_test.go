@@ -38,10 +38,13 @@ func TestSummedContributionsEqualAWholesaleFold(t *testing.T) {
 
 	wholesale := AccumulateAccountBuckets(rows)
 
-	summed := map[models.StatsBucketKey]models.SalesMeasures{}
+	summed := map[models.StatsBucketKey]models.StatsBucketDelta{}
 	for _, row := range rows {
 		for key, bucket := range ContributionOf(row).Buckets {
-			summed[key] = summed[key].Plus(bucket.Measures)
+			held := summed[key]
+			held.Measures = held.Measures.Plus(bucket.Measures)
+			held.Rows += bucket.Rows
+			summed[key] = held
 		}
 	}
 
@@ -50,8 +53,14 @@ func TestSummedContributionsEqualAWholesaleFold(t *testing.T) {
 	}
 	for key, want := range wholesale {
 		got := summed[key]
-		if !measuresClose(got, want) {
-			t.Errorf("bucket %+v:\n got  %+v\n want %+v", key, got, want)
+		if !measuresClose(got.Measures, want.Measures) {
+			t.Errorf("bucket %+v:\n got  %+v\n want %+v", key, got.Measures, want.Measures)
+		}
+		// The count has to agree too: it is what decides whether a bucket still
+		// has contributors, so a delta that adds one and a fold that counts
+		// another leaves a bucket that outlives its rows or dies before them.
+		if got.Rows != want.Rows {
+			t.Errorf("bucket %+v: summed %d rows, wholesale counted %d", key, got.Rows, want.Rows)
 		}
 	}
 }

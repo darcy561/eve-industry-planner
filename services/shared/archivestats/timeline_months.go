@@ -25,11 +25,21 @@ import (
 // item types reads the direct buckets alone; a view scoped to one item reads
 // both, which is the whole history for an item only ever built as an
 // intermediate.
-func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[models.StatsBucketKey]models.SalesMeasures {
-	buckets := make(map[models.StatsBucketKey]models.SalesMeasures)
+func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[models.StatsBucketKey]models.StatsBucketDelta {
+	buckets := make(map[models.StatsBucketKey]models.StatsBucketDelta)
+	var touched map[models.StatsBucketKey]struct{}
 
+	// A row reaches several buckets — one per sale month, one per fee month, one
+	// for its cost month — but counts as a single contributor to each, so the
+	// count follows the row rather than the number of measures added.
 	add := func(key models.StatsBucketKey, measures models.SalesMeasures) {
-		buckets[key] = buckets[key].Plus(measures)
+		held := buckets[key]
+		held.Measures = held.Measures.Plus(measures)
+		if _, seen := touched[key]; !seen {
+			touched[key] = struct{}{}
+			held.Rows++
+		}
+		buckets[key] = held
 	}
 
 	for _, doc := range docs {
@@ -37,6 +47,7 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[models.StatsBu
 			continue
 		}
 		chain := doc.IsProductionChain
+		touched = make(map[models.StatsBucketKey]struct{})
 
 		for _, line := range doc.TransactionLines {
 			add(models.StatsBucketKey{TypeID: doc.TypeID, IsProductionChain: chain, CalendarMonth: line.CalendarMonth}, models.SalesMeasures{
@@ -123,7 +134,8 @@ func AccountBuckets(accountID string, docs []models.ArchivedJobStats) []models.A
 			TypeID:            key.TypeID,
 			IsProductionChain: key.IsProductionChain,
 			CalendarMonth:     key.CalendarMonth,
-			SalesMeasures:     folded[key],
+			SalesMeasures:     folded[key].Measures,
+			ContributingRows:  folded[key].Rows,
 		})
 	}
 	return out
