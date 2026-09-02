@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { resolveArchiveRange } from "./ArchiveRangeControl";
+import { ARCHIVE_RANGES, resolveArchiveRange } from "./ArchiveRangeControl";
 
 // Mid-month, to catch anything that assumes the first or last day.
 const now = new Date(Date.UTC(2026, 7, 17)); // 2026-08-17
 
 describe("resolveArchiveRange", () => {
-  // No range is how a caller asks the server to choose the window, which is the
-  // current month and the one before it.
-  it("returns no bounds for the default", () => {
+  // Unbounded is how the API is asked for its own window, which is this month
+  // and the one before — what the label says. Sending bounds for it would be a
+  // second cache entry holding months already read.
+  it("resolves the default to no bounds at all", () => {
     expect(resolveArchiveRange("default", now)).toEqual({});
   });
 
@@ -55,5 +56,29 @@ describe("resolveArchiveRange", () => {
       const bounds = [range.from, range.to].filter(Boolean);
       expect(bounds.length === 0 || bounds.length === 2).toBe(true);
     }
+  });
+});
+
+// The server caps an explicit range, so "everything" cannot be expressed as a
+// very wide window: it is asked for by name and bounded by what the account has.
+describe("all time", () => {
+  it("resolves to a named range rather than a pair of bounds", () => {
+    const resolved = resolveArchiveRange("all", new Date("2026-09-01T00:00:00Z"));
+
+    expect(resolved).toEqual({ range: "all" });
+    expect(resolved.from).toBeUndefined();
+    expect(resolved.to).toBeUndefined();
+  });
+
+  it("is offered as the last preset", () => {
+    expect(ARCHIVE_RANGES.at(-1)).toMatchObject({ key: "all", label: "All time" });
+  });
+
+  // The month presets keep working alongside it.
+  it("leaves a month preset resolving to bounds", () => {
+    const resolved = resolveArchiveRange("6m", new Date("2026-09-01T00:00:00Z"));
+
+    expect(resolved).toEqual({ from: "2026-04", to: "2026-09" });
+    expect(resolved.range).toBeUndefined();
   });
 });

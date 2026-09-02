@@ -26,12 +26,17 @@ export function isCalendarMonth(value) {
  * rather than filling in the missing bound, because a silently narrowed window
  * is indistinguishable from an account with little history.
  *
- * @param {{from?: string, to?: string, typeID?: string|number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  * @returns {URLSearchParams}
  */
-function rangeParams({ from, to, typeID, includeProductionChain } = {}) {
+function rangeParams({ from, to, range, typeID, includeProductionChain } = {}) {
   const params = new URLSearchParams();
-  if (from && to) {
+  // Everything the account has. Sent instead of a range rather than alongside
+  // one: the server refuses the two together, since a bounded window and "all of
+  // it" are different requests.
+  if (range === "all") {
+    params.set("range", "all");
+  } else if (from && to) {
     params.set("from", from);
     params.set("to", to);
   }
@@ -100,7 +105,7 @@ async function readStatistics(url, requestName) {
  * caller can tell that window from one it asked for. Each month carries
  * `complete`, false for the month still in progress.
  *
- * @param {{from?: string, to?: string, typeID?: string|number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  * @returns {Promise<{period: Object, totals: Object, months: Object[]}|null>}
  *
  * @example
@@ -136,7 +141,7 @@ export async function getAccountTimeline(options = {}) {
  * rather than something to apply to the returned array. `paging.totalItems` is
  * every item type in the window, not the page length.
  *
- * @param {{from?: string, to?: string, typeID?: string|number, sort?: string, order?: "asc"|"desc", limit?: number, offset?: number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number, sort?: string, order?: "asc"|"desc", limit?: number, offset?: number}} [options]
  * @returns {Promise<{period: Object, paging: Object, items: Object[]}|null>}
  */
 export async function getAccountTimelineItems(options = {}) {

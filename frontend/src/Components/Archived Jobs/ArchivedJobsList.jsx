@@ -147,6 +147,20 @@ const SEGMENT_LABELS = {
   productionChain: { label: "Chain", colour: "info" },
 };
 
+/**
+ * Marks a job whose figures have not reached the account totals yet. The figures
+ * beside it are not in doubt: a job's own numbers are written when it is
+ * archived.
+ */
+function AwaitingTotalsChip({ awaiting }) {
+  if (!awaiting) return null;
+  return (
+    <Tooltip title="This job's figures are correct, but are not in your account totals yet.">
+      <Chip size="small" variant="outlined" color="warning" label="Pending" />
+    </Tooltip>
+  );
+}
+
 function SegmentChip({ segment }) {
   const meta = SEGMENT_LABELS[segment];
   if (!meta) {
@@ -223,7 +237,10 @@ function JobRow({ job, onRestore, busy, indented }) {
         </Typography>
       </TableCell>
       <TableCell>
-        <SegmentChip segment={job.measures?.segment} />
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <SegmentChip segment={job.measures?.segment} />
+          <AwaitingTotalsChip awaiting={job.awaitingTotals} />
+        </Stack>
       </TableCell>
       <TableCell align="right">
         <Money value={job.measures?.jobCostTotal} />
@@ -267,7 +284,10 @@ function JobCard({ job, onRestore, busy }) {
           justifyContent="space-between"
         >
           <Typography variant="subtitle2">{job.name}</Typography>
-          <SegmentChip segment={job.measures?.segment} />
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <SegmentChip segment={job.measures?.segment} />
+            <AwaitingTotalsChip awaiting={job.awaitingTotals} />
+          </Stack>
         </Stack>
 
         <Stack direction="row" spacing={2}>

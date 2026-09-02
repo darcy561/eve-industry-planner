@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Button,
   Fade,
   FormControl,
   Grid,
+  Link,
   MenuItem,
   Paper,
   Select,
@@ -26,9 +27,10 @@ import {
   formatNumberForLocale,
   numberToShortText,
 } from "../../Functions/Helper/numberParser";
-import { getFullItemList } from "../../Functions/Helper/getCachedData";
 import { useAccountTimelineItemsQuery } from "../../Hooks/React Query/Backend/statisticsTimeline";
 import { ITEM_BREAKDOWN_TITLE } from "./ArchiveChartPanels";
+import { useItemNames } from "./useItemNames";
+import { timelineWindow } from "./useArchiveTimeline";
 
 /**
  * The two lengths this table has.
@@ -64,44 +66,6 @@ const SORT_OPTIONS = [
 ];
 
 
-/**
- * Item names for the rows on screen. The endpoint returns type ids; names come
- * from the cached static list, read the way the rest of the app reads it.
- *
- * @param {{typeID: number}[]} items
- */
-function useItemNames(items) {
-  const [names, setNames] = useState({});
-
-  useEffect(() => {
-    let cancelled = false;
-    if (items.length === 0) return undefined;
-
-    getFullItemList()
-      .then((list) => {
-        if (cancelled || !list) return;
-        setNames(
-          Object.fromEntries(
-            items.map(({ typeID }) => [
-              typeID,
-              list[typeID]?.name ?? `Type ${typeID}`,
-            ]),
-          ),
-        );
-      })
-      .catch(() => {
-        // A missing name is cosmetic; the figures still read correctly against
-        // the type id.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [items]);
-
-  return names;
-}
-
 /** Money, abbreviated in the cell with the full value on hover. */
 function Money({ value }) {
   const amount = Number(value ?? 0);
@@ -109,6 +73,22 @@ function Money({ value }) {
     <Tooltip title={formatNumberForLocale(amount)} arrow placement="top">
       <span>{numberToShortText(amount, 2)}</span>
     </Tooltip>
+  );
+}
+
+/**
+ * The item's name, as a link when there is somewhere to go.
+ *
+ * The name rather than the whole row: a row of figures that is also a control
+ * has to announce itself as one, and the name is the part a reader is already
+ * treating as the item.
+ */
+function ItemName({ name, onSelect }) {
+  if (!onSelect) return name;
+  return (
+    <Link component="button" type="button" underline="hover" onClick={onSelect}>
+      {name}
+    </Link>
   );
 }
 
@@ -144,8 +124,10 @@ function LoadingRows() {
  * @param {Object} [props]
  * @param {string} [props.from] - YYYY-MM; omit for the server's default window
  * @param {string} [props.to] - YYYY-MM
+ * @param {(item: {typeID: number, name: string}) => void} [props.onSelectItem] -
+ *   opens the item's own view; the name is plain text when it is not given
  */
-export function ArchivedItemBreakdown({ from, to } = {}) {
+export function ArchivedItemBreakdown({ from, to, range, onSelectItem } = {}) {
   const theme = useTheme();
   const [sort, setSort] = useState("profitLoss");
   const [expanded, setExpanded] = useState(false);
@@ -154,7 +136,7 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
   const { data, isLoading } = useAccountTimelineItemsQuery({
     sort,
     limit,
-    ...(from && to ? { from, to } : {}),
+    ...timelineWindow({ from, to, range }),
   });
 
   const fetched = useMemo(() => data?.items ?? [], [data]);
@@ -245,7 +227,17 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
               const row = (
                 <TableRow key={item.typeID}>
                   <TableCell>
-                    {names[item.typeID] ?? `Type ${item.typeID}`}
+                    <ItemName
+                      name={names[item.typeID] ?? `Type ${item.typeID}`}
+                      onSelect={
+                        onSelectItem &&
+                        (() =>
+                          onSelectItem({
+                            typeID: item.typeID,
+                            name: names[item.typeID] ?? `Type ${item.typeID}`,
+                          }))
+                      }
+                    />
                   </TableCell>
                   <TableCell align="right">
                     <Money value={item.jobCostTotal} />

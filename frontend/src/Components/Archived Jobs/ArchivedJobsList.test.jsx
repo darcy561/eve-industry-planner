@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { screen } from "@testing-library/react";
+import {
+  renderWithTheme,
+  setViewportWide,
+} from "../../../tests/archiveHarness.jsx";
 
 const useArchivedJobsQuery = vi.fn();
 
@@ -16,28 +19,8 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 
 const { ArchivedJobsList } = await import("./ArchivedJobsList.jsx");
 
-// useMediaQuery reads the breakpoints off the theme, so one has to be in context.
-const theme = createTheme();
 function renderList(props) {
-  return render(
-    <ThemeProvider theme={theme}>
-      <ArchivedJobsList {...props} />
-    </ThemeProvider>,
-  );
-}
-
-/** matchMedia reports false by default, which is the narrow layout. */
-function setWide(isWide) {
-  window.matchMedia = vi.fn().mockImplementation((query) => ({
-    matches: isWide,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  }));
+  return renderWithTheme(      <ArchivedJobsList {...props} />);
 }
 
 const jobs = [
@@ -66,7 +49,7 @@ describe("ArchivedJobsList", () => {
   // Six columns cannot be read on a phone, and scrolling them sideways hides the
   // figures behind the name.
   it("uses cards on a narrow screen", () => {
-    setWide(false);
+    setViewportWide(false);
     const { container } = renderList();
 
     expect(container.querySelector("table")).toBeNull();
@@ -76,7 +59,7 @@ describe("ArchivedJobsList", () => {
   });
 
   it("uses the table on a wide screen", () => {
-    setWide(true);
+    setViewportWide(true);
     const { container } = renderList();
 
     expect(container.querySelector("table")).not.toBeNull();
@@ -84,11 +67,68 @@ describe("ArchivedJobsList", () => {
 
   // The list is not queried until the tab holding it is opened.
   it("stays disabled until enabled", () => {
-    setWide(true);
+    setViewportWide(true);
     renderList({ enabled: false });
 
     expect(useArchivedJobsQuery.mock.calls[0][1]).toMatchObject({
       enabled: false,
     });
+  });
+});
+
+// A job's own figures are written when it is archived, but they reach the
+// account totals a fold later. The row says which side of that it is on, or a
+// reader cannot tell a total that excludes this job from one that is simply
+// smaller than they expected.
+describe("jobs not yet in the totals", () => {
+  function withAwaiting(awaitingTotals) {
+    useArchivedJobsQuery.mockReturnValue({
+      data: {
+        jobs: [{ ...jobs[0], awaitingTotals }],
+        paging: { totalJobs: 1 },
+      },
+      isLoading: false,
+      isError: false,
+    });
+  }
+
+  it("marks a job the server reports as awaiting totals", () => {
+    setViewportWide(true);
+    withAwaiting(true);
+    renderList();
+
+    expect(screen.getByText("Pending")).toBeTruthy();
+    // The figures are shown regardless: they are the job's own and are correct.
+    expect(screen.getByText("Market")).toBeTruthy();
+  });
+
+  it("marks nothing when the job is counted", () => {
+    setViewportWide(true);
+    withAwaiting(false);
+    renderList();
+
+    expect(screen.queryByText("Pending")).toBeNull();
+  });
+
+  // The field is omitted rather than sent as false, so an absent one must read
+  // as counted rather than as unknown.
+  it("treats an absent field as counted", () => {
+    setViewportWide(true);
+    useArchivedJobsQuery.mockReturnValue({
+      data: { jobs, paging: { totalJobs: 1 } },
+      isLoading: false,
+      isError: false,
+    });
+    renderList();
+
+    expect(screen.queryByText("Pending")).toBeNull();
+  });
+
+  it("marks it on the narrow layout too", () => {
+    setViewportWide(false);
+    withAwaiting(true);
+    renderList();
+
+    expect(screen.getByText("Pending")).toBeTruthy();
   });
 });

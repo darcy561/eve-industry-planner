@@ -24,10 +24,13 @@ const STATISTICS_STALE_TIME_MS =
  * does not: two components asking for "the default" and "the last six months"
  * must not share a cache entry.
  *
- * @param {{from?: string, to?: string, typeID?: string|number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  */
-function rangeKeyPart({ from, to, typeID, includeProductionChain } = {}) {
+function rangeKeyPart({ from, to, range, typeID, includeProductionChain } = {}) {
   return {
+    // An all-time read is its own window, not a default one, so it caches apart
+    // from both.
+    range: range ?? "window",
     from: from ?? "default",
     to: to ?? "default",
     typeID: typeID == null || typeID === "" ? "all" : String(typeID),
@@ -41,7 +44,7 @@ function rangeKeyPart({ from, to, typeID, includeProductionChain } = {}) {
  * React Query key for the monthly timeline
  * (`GET /api/v1/statistics/account/timeline`).
  *
- * @param {{from?: string, to?: string, typeID?: string|number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  * @returns {import("@tanstack/react-query").QueryKey}
  */
 export function timelineQueryKey(options = {}) {
@@ -61,7 +64,7 @@ export function timelineQueryKey(options = {}) {
  * different sort or page is a different response rather than a re-slice of one
  * already cached.
  *
- * @param {{from?: string, to?: string, typeID?: string|number, sort?: string, order?: string, limit?: number, offset?: number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number, sort?: string, order?: string, limit?: number, offset?: number}} [options]
  * @returns {import("@tanstack/react-query").QueryKey}
  */
 export function timelineItemsQueryKey(options = {}) {
@@ -82,7 +85,7 @@ export function timelineItemsQueryKey(options = {}) {
 
 /**
  * Base options for prefetch / `useAccountTimelineQuery`.
- * @param {{from?: string, to?: string, typeID?: string|number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  */
 export function timelineQueryOptions(options = {}) {
   return {
@@ -95,7 +98,7 @@ export function timelineQueryOptions(options = {}) {
 
 /**
  * Base options for prefetch / `useAccountTimelineItemsQuery`.
- * @param {{from?: string, to?: string, typeID?: string|number, sort?: string, order?: string, limit?: number, offset?: number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number, sort?: string, order?: string, limit?: number, offset?: number}} [options]
  */
 export function timelineItemsQueryOptions(options = {}) {
   return {
@@ -117,7 +120,7 @@ export function timelineItemsQueryOptions(options = {}) {
  * server chose the window. `month.complete` is false for the month still in
  * progress, which a comparison must label rather than show as a decline.
  *
- * @param {{from?: string, to?: string, typeID?: string|number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  * @param {{enabled?: boolean}} [queryOptions]
  */
 export function useAccountTimelineQuery(options = {}, { enabled } = {}) {
@@ -135,7 +138,7 @@ export function useAccountTimelineQuery(options = {}, { enabled } = {}) {
  * `data.paging.totalItems` is every item type in the window, not the page
  * length, so a caller can page without a second request for the count.
  *
- * @param {{from?: string, to?: string, typeID?: string|number, sort?: string, order?: string, limit?: number, offset?: number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number, sort?: string, order?: string, limit?: number, offset?: number}} [options]
  * @param {{enabled?: boolean}} [queryOptions]
  */
 export function useAccountTimelineItemsQuery(options = {}, { enabled } = {}) {
@@ -151,7 +154,7 @@ export function useAccountTimelineItemsQuery(options = {}, { enabled } = {}) {
  * Warm the cache for the default month-on-month window.
  *
  * @param {import("@tanstack/react-query").QueryClient} queryClient
- * @param {{from?: string, to?: string, typeID?: string|number}} [options]
+ * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  */
 export async function prefetchAccountTimelineQuery(queryClient, options = {}) {
   if (!useUsersStore.getState().account.isLoggedIn) return;

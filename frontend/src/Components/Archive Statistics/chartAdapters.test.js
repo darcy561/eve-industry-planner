@@ -11,6 +11,7 @@ import {
   toCostComponentTotalRows,
   toBuildCostPerUnitRows,
   BUILD_COST_COMPONENTS,
+  sumTimelineMeasures,
 } from "./chartAdapters";
 
 describe("monthKey", () => {
@@ -363,5 +364,24 @@ describe("toBuildCostPerUnitRows", () => {
       "inventionCostTotal",
       "extrasTotal",
     ]);
+  });
+});
+
+describe("summing a window", () => {
+  const months = [
+    { year: 2025, month: 12, quantityProduced: 1, profitLoss: 10 },
+    { year: 2026, month: 1, quantityProduced: 2, profitLoss: 20 },
+    { year: 2026, month: 2, quantityProduced: 4, profitLoss: 40 },
+  ];
+
+  it("adds the window up from the same rows the charts draw", () => {
+    const total = sumTimelineMeasures(months.slice(1));
+
+    expect(total.quantityProduced).toBe(6);
+    expect(total.profitLoss).toBe(60);
+  });
+
+  it("sums an empty window to zeroes rather than nothing", () => {
+    expect(sumTimelineMeasures([])).toMatchObject({ profitLoss: 0, salesTotal: 0 });
   });
 });
