@@ -16,6 +16,7 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Entity id encryption (entity refs, entitlements snapshot) | [entity-id-encryption/contents.md](./entity-id-encryption/contents.md) |
 | Swarm stack migration (**promoted** — kept only because changestream-tenant-scale cites its overlays) | [swarm-stack/contents.md](./swarm-stack/contents.md) |
 | Changestream tenant scale (publisher queues / metrics / future auto-detect) | [changestream-tenant-scale/contents.md](./changestream-tenant-scale/contents.md) |
+| Shared planners (planner as a scope, membership, invites, the owner block) | [shared-planners/contents.md](./shared-planners/contents.md) |
 | Archived jobs statistics (rollups, snapshots, corp aggregation) | [archived-jobs-stats/contents.md](./archived-jobs-stats/contents.md) |
 | Collection naming (**promoted** — kept only because archived-jobs-stats cites its renames; live SoT in [backend/shared/mongo.md](../backend/shared/mongo.md)) | [collection-naming/contents.md](./collection-naming/contents.md) |
 | Go 1.27 adoption (json/v2, simulated-time tests, `go fix` sweep) | [go-127-adoption/contents.md](./go-127-adoption/contents.md) |
