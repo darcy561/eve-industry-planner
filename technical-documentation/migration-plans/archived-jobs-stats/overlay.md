@@ -1358,6 +1358,15 @@ rebuild, which is why the two commands after it are not optional: the script lea
 corporation ids on sale lines, and `encodeJobIdentity` converts them to refs exactly as the archive
 PUT route would.
 
+**A seeded job carries the fields the reduction reads, not the ones that look like totals.** Three of
+them are easy to get wrong, and getting them wrong produces jobs that are accepted and worthless:
+quantity comes from `itemsProducedPerRun` times each setup's runs and jobs, so a job with no
+`build.setup` produces nothing and the rebuild skips it entirely; materials are summed from
+`build.materials[].purchasedCost`, not `costs.totalPurchaseCost`; and installs from
+`costs.linkedJobs[].cost`, not `costs.installCosts`. A job written to the second field of each pair
+costs nothing but its invention and extras, and reads as almost pure profit. The generator writes
+both members of each pair, as a real job does.
+
 The shapes are mixed so every branch the statistics take is represented: jobs with parents land in
 the production-chain segment, jobs with sales or a broker fee in the market segment, and jobs whose
 output was kept in retained stock. Costs, install fees, invention and sale prices vary per item, and
@@ -1464,8 +1473,8 @@ The labels follow the figure rather than the panel:
 | Total Cost Per Item | what one unit cost to make and sell |
 
 The Building tab's figure keeps its own formula: it uses `getJobInstallCostForPlanning` rather than
-the recorded `installCosts`, so it answers a planning question rather than a cost one. Its label now
-says so rather than claiming to be the total.
+`Job.totalInstallCost()`, so it answers a planning question rather than a cost one — setup estimates
+stand in until ESI jobs are linked. Its label now says so rather than claiming to be the total.
 
 Wording was made consistent across the panels that show the same figures — "Total Items Built",
 "Total Broker Fees", "Total Transaction Fees", "Total Job Cost", "Total Sales" — so the Selling

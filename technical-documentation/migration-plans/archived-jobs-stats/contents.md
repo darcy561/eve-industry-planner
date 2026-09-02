@@ -10,6 +10,7 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 
 - Live archived-jobs behaviour → [backend/contents.md](../../backend/contents.md) (promoted only when this project closes)
 - Live Mongo access layer → [backend/shared/mongo.md](../../backend/shared/mongo.md)
+- The owner block, the planner document, membership and everything that decides which planner a job belongs to → [shared-planners/plan.md](../shared-planners/plan.md). This project applies the four items that plan hands it; it does not own the model.
 - Entity refs (`char_…` / `corp_…` / `alliance_…`), the `shared/crypto/entityid` cipher that derives them, and the `encodeJobIdentity` conversion → [entity-id-encryption/plan.md](../entity-id-encryption/plan.md)
 - Frontend SPA conventions → [frontend/technical-rules.md](../../frontend/technical-rules.md)
 
@@ -18,6 +19,7 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | I need to… | Read |
 |------------|------|
 | Understand the goal, stages, and done-when | [plan.md](./plan.md) |
+| See what this project owes the shared-planners owner block | [plan.md](./plan.md) § Owner block — owed to shared planners |
 | See why the existing branch is not merged | [plan.md](./plan.md) § Starting position |
 | Know what the statistics surface looks like after each stage | [overlay.md](./overlay.md) |
 | Check what has landed and what is still open | [plan.md](./plan.md) § Stage status |
@@ -34,6 +36,10 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Know which group a restored job rejoins, and whether it is merged or rebuilt | [overlay.md](./overlay.md) § Every restored job returns to its own group |
 | Find out why a restore can be refused while another session is editing | [overlay.md](./overlay.md) § The group's lock stands for its archived members |
 | See what the archived-jobs page renders and how its charts are layered | [overlay.md](./overlay.md) § Stage H |
+| Show one item's history over time, or add to the item tab | [plan.md](./plan.md) § Item statistics is its own tab |
+| Know why a period's figures are sliced in the browser rather than fetched | [plan.md](./plan.md) § Item statistics is its own tab |
+| Mark a job whose figures have not reached the aggregates yet | [plan.md](./plan.md) § List and restore |
+| Write a test that renders an archive page against its endpoints | [plan.md](./plan.md) § Handoff status |
 | Understand why group derivation exists twice, and what keeps the two honest | [overlay.md](./overlay.md) § Stage I |
 | Change a rule about what a group derives from its jobs | [overlay.md](./overlay.md) § The corpus is the rule |
 | Get archive data on a dev account to work against | [overlay.md](./overlay.md) § Generated archive data for development |
@@ -67,4 +73,8 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Know why archive and statistics documents are no longer fanned out | [plan.md](./plan.md) § The archive and statistics change streams are removed |
 | Tell the client its figures moved, or that a rebuild is outstanding | [plan.md](./plan.md) § J5 |
 | Add a realtime message kind, or a handler for one | [plan.md](./plan.md) § Messages gain a family and a kind |
+| See what the notification path landed, and who publishes one | [plan.md](./plan.md) § What landed (J5) |
+| Know why archiving still invalidates its own caches | [plan.md](./plan.md) § Departed from: the notification does not replace call-site invalidation |
+| Find where a failed recalculation is recorded and read | [plan.md](./plan.md) § Telling the user when figures are known to be behind |
+| Show a user that their figures are being rebuilt, or are stale | [plan.md](./plan.md) § Where the client shows it |
 | Decide what a change invalidates in the SPA's caches | [plan.md](./plan.md) § One place decides what a change invalidates |
