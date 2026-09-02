@@ -42,6 +42,9 @@ var timelineItemPagingRules = helper.PagingRules{
 
 // timelineWindow is the resolved month range a request reads.
 type timelineWindow struct {
+	// All reads every month the account has. From and To are unset with it, and
+	// the response says so rather than reporting a range it did not apply.
+	All  bool
 	From eipmongo.MonthKey
 	To   eipmongo.MonthKey
 	// Defaulted records that neither bound was supplied, so the response can say
@@ -75,6 +78,16 @@ func parseMonth(name, raw string) (eipmongo.MonthKey, error) {
 func resolveTimelineWindow(r *http.Request, now time.Time) (timelineWindow, error) {
 	fromRaw := strings.TrimSpace(r.URL.Query().Get("from"))
 	toRaw := strings.TrimSpace(r.URL.Query().Get("to"))
+
+	// Everything the account has. A window long enough to cover it would be
+	// refused for exceeding the maximum.
+	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("range")), "all") {
+		if fromRaw != "" || toRaw != "" {
+			return timelineWindow{}, helper.BadParam("statistics_conflicting_range", "conflicting_range",
+				"range=all covers everything, so from and to must be omitted")
+		}
+		return timelineWindow{All: true}, nil
+	}
 
 	if fromRaw == "" && toRaw == "" {
 		current := eipmongo.CurrentMonth(now)
@@ -120,4 +133,13 @@ func resolveTimelineWindow(r *http.Request, now time.Time) (timelineWindow, erro
 // refused, the figures being the ones the caller can correctly use.
 func resolveProductionChainScope(r *http.Request, typeID int) bool {
 	return typeID > 0 && helper.BoolParam(r, "includeProductionChain")
+}
+
+// periodBound renders a window edge for the response. An all-time read applied
+// no bound, so it reports none rather than the zero month.
+func periodBound(all bool, month eipmongo.MonthKey) string {
+	if all {
+		return ""
+	}
+	return month.String()
 }

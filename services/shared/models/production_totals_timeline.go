@@ -141,15 +141,15 @@ type StatsBucketDelta struct {
 
 // StatsTypeDelta is one item type's share of a row's contribution.
 //
-// BuildRows counts the rows behind the measures. Emptiness is decided on it
-// rather than on the money: subtracting float64 leaves a residue rather than
-// zero, so a document that should be gone would never match a test for zero and
-// would accumulate instead.
+// Emptiness is decided on the job count inside Measures, not on the money:
+// subtracting float64 leaves a residue rather than zero, so a document that
+// should be gone would never match a test for zero and would accumulate instead.
+// That count is one per row and already stored, so nothing carries a second copy
+// of it.
 type StatsTypeDelta struct {
-	JobType   int
-	Measures  BuildMeasures
-	SoldQty   float64
-	BuildRows int64
+	JobType  int
+	Measures BuildMeasures
+	SoldQty  float64
 }
 
 // Negated returns the delta that undoes this one.
@@ -164,7 +164,6 @@ func (d StatsDelta) Negated() StatsDelta {
 	for key, total := range d.Totals {
 		total.Measures = total.Measures.Negated()
 		total.SoldQty = -total.SoldQty
-		total.BuildRows = -total.BuildRows
 		out.Totals[key] = total
 	}
 	return out

@@ -69,15 +69,8 @@ func RebuildAccountStatistics(
 	out.StatsRows = len(rows)
 	out.SkippedJobs = acc.skipped
 
-	rowItems := make([]eipmongo.StructUpsertItem, 0, len(rows))
-	for _, row := range rows {
-		rowItems = append(rowItems, eipmongo.StructUpsertItem{DocID: row.ID, Value: row})
-	}
-
-	if len(rowItems) > 0 {
-		if _, err := mongo.ArchivedJobStats.UpsertStructsPreservingMetaBulk(ctx, rowItems, rebuildUpsertBatch); err != nil {
-			return out, fmt.Errorf("upsert statistics rows: %w", err)
-		}
+	if err := mongo.WriteStatsRows(ctx, rows, rebuildUpsertBatch); err != nil {
+		return out, fmt.Errorf("upsert statistics rows: %w", err)
 	}
 
 	folded := foldAccountAggregates(accountID, rows)
@@ -212,13 +205,16 @@ type accountRows struct {
 // previous row in place, unchanged, until the job is corrected.
 func (a *accountRows) add(job models.Job) {
 	a.jobCount++
-	snap, err := computeBuildStatSnapshot(job)
+	row, err := archivestats.NewAccountRow(job, a.now)
 	if err != nil {
 		a.skipped++
 		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(job.MetaData.AccountID, job.JobID))
 		return
 	}
-	row := archivestats.BuildAccountSnapshot(job, snap, a.now)
+	// The rebuild writes the aggregates from these rows in the same pass, so they
+	// are counted the moment they are written. Leaving them unstamped would offer
+	// every one of them to the next fold as outstanding.
+	row.ContributedAt = &a.now
 	a.rows = append(a.rows, row)
 	a.keepIDs = append(a.keepIDs, row.ID)
 }

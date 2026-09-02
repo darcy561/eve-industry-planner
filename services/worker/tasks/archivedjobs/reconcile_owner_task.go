@@ -54,6 +54,8 @@ func ReconcileOwnerStatistics(ctx context.Context, t *asynq.Task, deps *esitasks
 		"component", "archivedjobs",
 		"owner_kind", owner.Kind,
 		"rows", result.Rows,
+		"created", result.Created,
+		"skipped_jobs", result.SkippedJobs,
 		"timeline_months", result.Buckets,
 		"production_totals", result.Totals,
 		"pruned_buckets", result.PrunedBuckets,
@@ -61,6 +63,8 @@ func ReconcileOwnerStatistics(ctx context.Context, t *asynq.Task, deps *esitasks
 	)
 
 	if result.Drifted() {
+		notifyStatisticsProcessed(ctx, deps.NATS, owner, time.Now().UTC())
+
 		// The aggregates have already been corrected. This says a delta went
 		// wrong, which is the only way stored figures can disagree with the rows
 		// they were folded from.

@@ -18,6 +18,8 @@ import (
 // account's first archived job, which is what makes them the figure to compare a
 // month against.
 type totalsResponse struct {
+	// Embedded, so its field appears beside the figures rather than nested.
+	recalculationEnvelope
 	// TypeID echoes the item filter when one was applied.
 	TypeID int                          `json:"typeID,omitempty"`
 	Items  []models.ProductionTotalsRow `json:"items"`
@@ -64,6 +66,8 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	recalc := recalculationFor(ctx, h.Mongo, accountID)
+
 	rows, err := h.Mongo.LoadAccountProductionTotals(ctx, accountID, typeID)
 	if err != nil {
 		metrics.Error("database_error")
@@ -74,7 +78,7 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 	if helper.BoolParam(r, "summary") {
 		total := foldTotals(rows)
 		w.WriteHeader(http.StatusOK)
-		if err := helper.EncodeJSON(w, totalsResponse{TypeID: typeID, Items: []models.ProductionTotalsRow{}, Total: &total}); err != nil {
+		if err := helper.EncodeJSON(w, totalsResponse{recalculationEnvelope: recalc, TypeID: typeID, Items: []models.ProductionTotalsRow{}, Total: &total}); err != nil {
 			metrics.Error("encode_error")
 			helper.RespondEndpointServerError(w, r, "Internal server error", "totals get: encode failed", "statistics_totals_encode_failed", "statistics_totals", err, nil)
 			return
@@ -95,7 +99,7 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 		items = []models.ProductionTotalsRow{}
 	}
 	w.WriteHeader(http.StatusOK)
-	if err := helper.EncodeJSON(w, totalsResponse{TypeID: typeID, Items: items}); err != nil {
+	if err := helper.EncodeJSON(w, totalsResponse{recalculationEnvelope: recalc, TypeID: typeID, Items: items}); err != nil {
 		metrics.Error("encode_error")
 		helper.RespondEndpointServerError(w, r, "Internal server error", "totals get: encode failed", "statistics_totals_encode_failed", "statistics_totals", err, nil)
 		return

@@ -39,8 +39,9 @@ func RebuildOwnerStatistics(ctx context.Context, t *asynq.Task, deps *esitasks.T
 
 	result, cleared, err := rebuildOwner(ctx, deps.Mongo, eipmongo.QueuedOwner{Owner: owner, Claim: req.Claim}, time.Now().UTC())
 	if err != nil {
-		return fmt.Errorf("rebuild %s statistics: %w", owner.Kind, err)
+		return stopIfOutOfAttempts(ctx, deps.Mongo, owner, fmt.Errorf("rebuild %s statistics: %w", owner.Kind, err))
 	}
+	forgetFailuresIfStillQueued(ctx, deps.Mongo, owner, cleared)
 
 	logs.InfoCtx(ctx, "owner statistics rebuilt",
 		"component", "archivedjobs",
@@ -52,6 +53,8 @@ func RebuildOwnerStatistics(ctx context.Context, t *asynq.Task, deps *esitasks.T
 		"skipped_jobs", result.SkippedJobs,
 		"cleared", cleared,
 	)
+
+	notifyStatisticsProcessed(ctx, deps.NATS, owner, time.Now().UTC())
 
 	if !cleared {
 		// Not a failure: the owner changed while this ran, so its entry stands and

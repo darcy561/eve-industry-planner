@@ -31,20 +31,14 @@ func TestJob_JSON_FirestoreToDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 10},
 			"childJobs": {},
 			"costs": {
 				"totalPurchaseCost": 0,
 				"extrasCosts": [],
-				"extrasTotal": 0,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -109,7 +103,6 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 1},
 			"childJobs": {},
 			"costs": {
 				"totalPurchaseCost": 0,
@@ -123,13 +116,9 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 				],
 				"extrasTotal": 123.45,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -263,22 +252,16 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 1},
 			"childJobs": {},
 			"costs": {
 				"totalPurchaseCost": 0,
 				"extrasCosts": [
 					{"id": "row-1", "category": "2", "extraText": "Label", "extraValue": 99.5}
 				],
-				"extrasTotal": 0,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -338,20 +321,14 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 1},
 			"childJobs": {},
 			"costs": {
 				"totalPurchaseCost": 0,
 				"extrasCosts": [],
-				"extrasTotal": 0,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -373,8 +350,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 						}
 					],
 					"quantityPurchased": 360,
-					"purchasedCost": 17200800,
-					"purchaseComplete": true
+					"purchasedCost": 17200800
 				}
 			]
 		},
@@ -455,7 +431,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 					"useAlternativeSystemIndexValue": false
 				}
 			},
-			"products": {"totalQuantity": 1},
 			"childJobs": {"57478": []},
 			"costs": {
 				"totalPurchaseCost": 676669000,
@@ -467,7 +442,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 						"extraValue": 33
 					}
 				],
-				"extrasTotal": 33,
 				"linkedJobs": [
 					{
 						"status": "active",
@@ -488,13 +462,9 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 						"corporation_id": 98699553
 					}
 				],
-				"installCosts": 93039957,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -517,8 +487,7 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 					"typeID": 57478,
 					"name": "Auto-Integrity Preservation Seal",
 					"quantityPurchased": 360,
-					"quantity": 360,
-					"purchaseComplete": true
+					"quantity": 360
 				}
 			]
 		},
@@ -586,20 +555,14 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 200},
 			"childJobs": {},
 			"costs": {
 				"totalPurchaseCost": 0,
 				"extrasCosts": [],
-				"extrasTotal": 0,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [
 					{
 						"duration": 90,

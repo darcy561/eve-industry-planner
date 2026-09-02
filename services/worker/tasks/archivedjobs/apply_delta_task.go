@@ -21,6 +21,7 @@ type DeltaResult struct {
 	Removed       int
 	TypesTouched  int
 	BucketsPruned int64
+	TotalsPruned  int64
 	// Deferred means the fold found the owner taken on by something else and
 	// wrote nothing, leaving its rows outstanding.
 	Deferred bool
@@ -30,7 +31,9 @@ type DeltaResult struct {
 //
 // The task carries no list of jobs. Its work is every row for the owner with no
 // `contributedAt`, so the stamp that keeps a row from being counted twice is also
-// what describes what is outstanding. Three properties follow: archiving twenty
+// what describes what is outstanding. The rows themselves are written where the
+// job is archived, which is what keeps this pass proportional to what changed
+// rather than to the size of the archive. Three properties follow: archiving twenty
 // jobs is one task rather than twenty, a task that dies leaves its unreached rows
 // still unstamped for the next run, and a row cannot be applied twice because it
 // is stamped in the same call that applies it.
@@ -55,8 +58,9 @@ func ApplyOwnerStatisticsDelta(ctx context.Context, t *asynq.Task, deps *esitask
 	queued := eipmongo.QueuedOwner{Owner: owner, Work: eipmongo.StatsWorkDelta, Claim: req.Claim}
 	result, cleared, err := applyOwnerDelta(ctx, deps.Mongo, queued, time.Now().UTC())
 	if err != nil {
-		return fmt.Errorf("apply statistics delta: %w", err)
+		return stopIfOutOfAttempts(ctx, deps.Mongo, owner, fmt.Errorf("apply statistics delta: %w", err))
 	}
+	forgetFailuresIfStillQueued(ctx, deps.Mongo, owner, cleared)
 
 	logs.InfoCtx(ctx, "owner statistics delta applied",
 		"component", "archivedjobs",
@@ -65,9 +69,16 @@ func ApplyOwnerStatisticsDelta(ctx context.Context, t *asynq.Task, deps *esitask
 		"removed", result.Removed,
 		"types_touched", result.TypesTouched,
 		"buckets_pruned", result.BucketsPruned,
+		"totals_pruned", result.TotalsPruned,
 		"deferred", result.Deferred,
 		"cleared", cleared,
 	)
+
+	if result.Added > 0 || result.Removed > 0 {
+		// A pass that folded nothing changed nothing, so there is nothing to tell
+		// a client about.
+		notifyStatisticsProcessed(ctx, deps.NATS, owner, time.Now().UTC())
+	}
 	return nil
 }
 
@@ -149,6 +160,14 @@ func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo
 	}
 	out.BucketsPruned = pruned
 
+	// The same emptiness, one document up. A type whose last job was restored has
+	// no month left and no lifetime figures either.
+	prunedTotals, err := mongo.PruneEmptyTotals(ctx, accountID)
+	if err != nil {
+		return out, false, fmt.Errorf("prune empty totals: %w", err)
+	}
+	out.TotalsPruned = prunedTotals
+
 	cleared, err := mongo.ClearQueuedOwner(ctx, queued)
 	if err != nil {
 		return out, false, fmt.Errorf("clear queue entry: %w", err)
@@ -185,7 +204,6 @@ func accumulate(rows []models.ArchivedJobStats, negate bool, types map[int]struc
 			held.JobType = total.JobType
 			held.Measures = held.Measures.Plus(total.Measures)
 			held.SoldQty += total.SoldQty
-			held.BuildRows += total.BuildRows
 			delta.Totals[key] = held
 			types[key.TypeID] = struct{}{}
 		}

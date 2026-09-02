@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
@@ -22,7 +22,7 @@ const parityScratchAccount = "eip-parity-account"
 // Requires EIP_MONGO_PARITY_LIVE=1. Scratch docs use eip-parity-account and are deleted in cleanup.
 
 func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -126,28 +126,6 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 	}
 
 	t.Log("live put/get job(+group) roundtrip ok")
-}
-
-func requireLiveMongo(t *testing.T) *eipmongo.Mongo {
-	t.Helper()
-	if os.Getenv("EIP_MONGO_PARITY_LIVE") != "1" {
-		t.Skip("set EIP_MONGO_PARITY_LIVE=1 to run against stack Mongo")
-	}
-	mongo, err := eipmongo.ConnectPrimary()
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		mongo.Disconnect(ctx)
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if err := mongo.Ping(ctx); err != nil {
-		t.Fatalf("ping: %v", err)
-	}
-	return mongo
 }
 
 func findOneJob(t *testing.T, ctx context.Context, m *eipmongo.Mongo) (models.Job, bool) {

@@ -21,8 +21,13 @@ type ReconcileResult struct {
 	PrunedTotals  int64
 	Counted       int
 	Uncounted     int
-	BucketDrift   archivestats.Drift
-	TotalDrift    archivestats.Drift
+	// Created counts rows built for archived jobs that had none.
+	Created int
+	// SkippedJobs counts archived jobs whose figures could not be computed, so
+	// they still have no row and are offered again next time.
+	SkippedJobs int
+	BucketDrift archivestats.Drift
+	TotalDrift  archivestats.Drift
 }
 
 // Drifted reports whether either collection disagreed with the rows.
@@ -61,6 +66,17 @@ func ReconcileAccountStatistics(
 	if err != nil {
 		return out, fmt.Errorf("load statistics rows: %w", err)
 	}
+
+	// A job archived while nothing folded for this owner has no row, and rows are
+	// what everything below reads. Building them here is what makes the rota a
+	// backstop for a missed row write rather than only for arithmetic that
+	// drifted. The rows just read say which jobs already have one.
+	fresh, err := writeRowsForNewlyArchivedJobs(ctx, mongo, accountID, rows, now)
+	if err != nil {
+		return out, err
+	}
+	rows = append(rows, fresh.Rows...)
+	out.Created, out.SkippedJobs = len(fresh.Rows), fresh.Skipped
 	out.Rows = len(rows)
 
 	// A fold in flight is holding rows this reconcile is about to account for.

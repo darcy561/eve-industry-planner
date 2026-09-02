@@ -25,8 +25,13 @@ type listEntry struct {
 	GroupID      string `json:"groupID,omitempty"`
 	RelatedSetID string `json:"relatedSetID,omitempty"`
 
-	// Measures is absent, not zeroed, when the rebuild has not folded this job.
+	// Measures is absent, not zeroed, when the job has no statistics row.
 	Measures *listMeasures `json:"measures,omitempty"`
+
+	// AwaitingTotals says this job's figures are not in the account's aggregates
+	// yet. The measures beside it are still correct: they are the job's own, and
+	// are written when it is archived. Sent only when true.
+	AwaitingTotals bool `json:"awaitingTotals,omitempty"`
 }
 
 // listMeasures is what a row reports about a job's money.
@@ -135,6 +140,7 @@ func (h *Handlers) GetArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		}
 		if row, ok := stats[job.JobID]; ok {
 			entry.Measures = measuresFromStats(row)
+			entry.AwaitingTotals = row.AwaitsContribution()
 		}
 		jobs = append(jobs, entry)
 	}

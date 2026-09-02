@@ -173,10 +173,12 @@ func (s *Server) handleUnsubscribeRequest(clientID string, docID string) {
 	s.activeSubsMu.Unlock()
 }
 
-// broadcastRawToAccount delivers a pre-marshaled JSON message to every connection for the account.
-func (s *Server) broadcastRawToAccount(accountID string, data []byte, suppressSessionID string) outboundDeliveryOutcome {
+// broadcastRawToAccount delivers a pre-marshaled JSON message to every connection
+// for the account. routeKind names the traffic for the delivery outcome, since
+// more than one kind of message reaches a browser this way.
+func (s *Server) broadcastRawToAccount(routeKind, accountID string, data []byte, suppressSessionID string) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
-		RouteKind:         "doc_lock",
+		RouteKind:         routeKind,
 		AccountID:         accountID,
 		SuppressSessionID: strings.TrimSpace(suppressSessionID),
 	}
@@ -215,8 +217,8 @@ func (s *Server) broadcastRawToAccount(accountID string, data []byte, suppressSe
 			out.recordRecipient(cid, client)
 		} else {
 			out.recordSendBufferFull(cid)
-			logs.WarnCtx(context.Background(), "doc lock: client send buffer full",
-				"client_id", cid)
+			logs.WarnCtx(context.Background(), "client send buffer full, dropping message",
+				"route_kind", routeKind, "client_id", cid)
 		}
 	}
 	if out.RecipientCount > 0 {

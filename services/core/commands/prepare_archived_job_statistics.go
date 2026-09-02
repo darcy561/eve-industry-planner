@@ -105,7 +105,7 @@ func runPrepareArchivedJobStatistics(ctx context.Context, args []string) error {
 // Removing a field from its struct stops it being written, but the rebuild
 // upserts with $set and never replaces, so a document that already holds one
 // keeps it. They are listed here to be unset.
-var retiredStatisticsFields = []string{"dataSnapshots"}
+var retiredStatisticsFields = []string{"dataSnapshots", "buildRows"}
 
 func dropRetiredStatisticsFields(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
 	coll := clients.Mongo.AccountProductionTotals.Collection()

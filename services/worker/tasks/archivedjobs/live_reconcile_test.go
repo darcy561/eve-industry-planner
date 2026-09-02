@@ -2,34 +2,17 @@ package archivedjobs
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const reconcileScratchAccount = "eip-parity-reconcile-account"
-
-func requireLiveMongo(t *testing.T) *eipmongo.Mongo {
-	t.Helper()
-	if os.Getenv("EIP_MONGO_PARITY_LIVE") != "1" {
-		t.Skip("set EIP_MONGO_PARITY_LIVE=1 to run against stack Mongo")
-	}
-	mongo, err := eipmongo.ConnectPrimary()
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		mongo.Disconnect(ctx)
-	})
-	return mongo
-}
 
 // scratchRow is one archived job's figures, written straight into the rows
 // collection so a reconcile has something authoritative to fold.
@@ -54,7 +37,7 @@ func scratchRow(jobID string, typeID int, costMonth models.CalendarMonth, sale f
 // Reconciliation exists to make aggregates agree with the rows beneath them
 // again, whatever went wrong. Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 

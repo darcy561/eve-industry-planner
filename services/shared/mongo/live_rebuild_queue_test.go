@@ -7,6 +7,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -16,7 +17,7 @@ const rebuildQueueScratchAccount = "eip-parity-rebuild-account"
 // The claim protocol only really exists once a server is applying the writes.
 // Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -106,7 +107,7 @@ func findScratch(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo) []eip
 // condition that lets it clear the entry has to be readable before it writes.
 // Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_rebuildQueue_claimCurrencyGuardsAFold(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 

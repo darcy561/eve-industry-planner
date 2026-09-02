@@ -135,6 +135,10 @@ func earliestTransactionDate(transactions []models.Transaction, fallback time.Ti
 // BuildAccountSnapshot reduces one archived job to the account-scoped statistics
 // row for it. now stamps ProcessedAt and stands in for a missing archive date, so
 // callers control the clock.
+//
+// The row is returned uncounted. Whether its figures are in the aggregates is not
+// a property of the job, and only a caller that wrote them can say so — a caller
+// that merely creates the row leaves it outstanding for the next fold.
 func BuildAccountSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time) models.ArchivedJobStats {
 	doc := buildSnapshot(job, snap, now)
 	doc.AccountID = job.MetaData.AccountID
@@ -182,7 +186,6 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		// aggregates from it. Leaving it unstamped would offer it to the next
 		// incremental pass as outstanding work and count it a second time, on top
 		// of totals that are already whole.
-		ContributedAt: &now,
 	}
 }
 

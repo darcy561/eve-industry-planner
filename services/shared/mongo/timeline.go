@@ -99,6 +99,10 @@ type TimelineQuery struct {
 	// those costs are also counted through the parent job that consumed the
 	// output, so including both counts the same build twice.
 	IncludeProductionChain bool
+	// AllTime reads every month the account has, ignoring From and To. Separate
+	// from a very wide range because a range can be refused for being too long,
+	// while this is bounded by what exists.
+	AllTime bool
 }
 
 // TimelineMonthRow is one calendar month summed across every item type the
@@ -213,14 +217,17 @@ func extraCategoryTotalsPush(group bson.M) bson.M {
 // rangeMatchStages are the shared leading stages: filter by account and type on
 // indexed fields first, then bound the month range on the computed ordinal.
 func rangeMatchStages(q TimelineQuery) []bson.D {
-	return []bson.D{
-		{{Key: "$match", Value: timelineRangeFilter(q)}},
-		{{Key: "$addFields", Value: bson.M{"monthOrdinal": monthOrdinalExpr()}}},
-		{{Key: "$match", Value: bson.M{"monthOrdinal": bson.M{
+	stages := []bson.D{{{Key: "$match", Value: timelineRangeFilter(q)}}}
+	if q.AllTime {
+		return stages
+	}
+	return append(stages,
+		bson.D{{Key: "$addFields", Value: bson.M{"monthOrdinal": monthOrdinalExpr()}}},
+		bson.D{{Key: "$match", Value: bson.M{"monthOrdinal": bson.M{
 			"$gte": monthOrdinal(q.From),
 			"$lte": monthOrdinal(q.To),
 		}}}},
-	}
+	)
 }
 
 // TimelineMonths sums an account's bucket rows into one entry per calendar
@@ -236,7 +243,7 @@ func (m *Mongo) TimelineMonths(ctx context.Context, q TimelineQuery, opts ...Ret
 	if q.AccountID == "" {
 		return nil, fmt.Errorf("accountID is required")
 	}
-	if q.To.Before(q.From) {
+	if !q.AllTime && q.To.Before(q.From) {
 		return nil, fmt.Errorf("timeline range ends before it starts: %s to %s", q.From, q.To)
 	}
 
@@ -282,7 +289,7 @@ func (m *Mongo) TimelineItems(ctx context.Context, q TimelineQuery, sortField st
 	if q.AccountID == "" {
 		return page, fmt.Errorf("accountID is required")
 	}
-	if q.To.Before(q.From) {
+	if !q.AllTime && q.To.Before(q.From) {
 		return page, fmt.Errorf("timeline range ends before it starts: %s to %s", q.From, q.To)
 	}
 	if sortField == "" {

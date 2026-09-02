@@ -94,6 +94,9 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 	// Lock notifications (API → NATS doc.lock.{accountID} → all tabs)
 	s.subscribeToDocLockNotifications()
 
+	// Account notifications (worker → NATS notify.{tenant}.{subtype} → all tabs)
+	s.subscribeToNotifications()
+
 	s.reconcileDocUpdateFanoutConsumers()
 
 	// Start cleanup goroutine for idle queues

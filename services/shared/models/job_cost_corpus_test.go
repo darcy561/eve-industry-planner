@@ -22,6 +22,7 @@ type costCase struct {
 }
 
 type costExpects struct {
+	Produced       int     `json:"produced"`
 	Materials      float64 `json:"materials"`
 	Install        float64 `json:"install"`
 	Invention      float64 `json:"invention"`
@@ -52,6 +53,10 @@ func TestJobCostMatchesTheCorpus(t *testing.T) {
 	for _, tc := range doc.Cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			parts := tc.Job.CostParts()
+
+			if got := tc.Job.TotalQuantityProduced(); got != tc.Expected.Produced {
+				t.Errorf("produced = %v, want %v\n%s", got, tc.Expected.Produced, tc.Why)
+			}
 
 			for _, check := range []struct {
 				field string

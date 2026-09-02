@@ -252,8 +252,14 @@ func loadArchivedJob(ctx context.Context, scope archiveScope, jobID string) (*mo
 	return out, nil
 }
 
-// loadArchivedJobStatsByJobIDs reads statistics rows by _id. A job with no row
-// is omitted rather than zeroed: the rebuild has not folded it yet.
+// loadArchivedJobStatsByJobIDs reads statistics rows by _id.
+//
+// A row holds one job's own figures and is written with the job, so an archived
+// job shows its outcome immediately while the timeline behind it waits for the
+// next fold.
+//
+// A job with no row is omitted rather than zeroed: showing zeros would report a
+// job that cost nothing, and the reconcile rota builds the missing row.
 func loadArchivedJobStatsByJobIDs(ctx context.Context, scope archiveScope, jobIDs []string) (map[string]models.ArchivedJobStats, error) {
 	if len(jobIDs) == 0 {
 		return map[string]models.ArchivedJobStats{}, nil

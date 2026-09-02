@@ -99,6 +99,7 @@ func open(ctx context.Context, cfg dialConfig) (Backend, error) {
 }
 
 // dialS3 retries the dial so a restarting object store does not fail service start-up.
+// The attempt budget spans a cold data-tier start, matching the other stack dependencies.
 func dialS3(ctx context.Context, cfg dialConfig) (*S3Backend, error) {
 	var b *S3Backend
 	err := retry.Do(ctx, func(ctx context.Context) error {
@@ -109,7 +110,7 @@ func dialS3(ctx context.Context, cfg dialConfig) (*S3Backend, error) {
 		logs.WarnCtx(ctx, "object store dial failed", "attempt", a.Attempt, "max_attempts", a.MaxAttempts, "error", err)
 		return true
 	},
-		retry.WithMaxAttempts(5),
+		retry.WithMaxAttempts(12),
 		retry.WithInitialDelay(time.Second),
 		retry.WithMaxDelay(5*time.Second),
 		retry.WithOperationName("object store dial"),

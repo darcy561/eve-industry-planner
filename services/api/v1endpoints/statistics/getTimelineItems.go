@@ -37,6 +37,8 @@ type timelineItemsPaging struct {
 // types: embedding this in each month would multiply the breakdown by the number
 // of months and make the common chart request pay for detail it does not draw.
 type timelineItemsResponse struct {
+	// Embedded, so its field appears beside the figures rather than nested.
+	recalculationEnvelope
 	Period timelinePeriod      `json:"period"`
 	Paging timelineItemsPaging `json:"paging"`
 	Items  []timelineItemEntry `json:"items"`
@@ -93,6 +95,7 @@ func (h *Handlers) GetTimelineItemsHandler(w http.ResponseWriter, r *http.Reques
 		AccountID: accountID,
 		From:      window.From,
 		To:        window.To,
+		AllTime:   window.All,
 		TypeID:    typeID,
 	}, paging.Sort, paging.Ascending, paging.Limit, paging.Offset)
 	if err != nil {
@@ -121,10 +124,12 @@ func (h *Handlers) GetTimelineItemsHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	resp := timelineItemsResponse{
+		recalculationEnvelope: recalculationFor(ctx, h.Mongo, accountID),
 		Period: timelinePeriod{
-			From:      window.From.String(),
-			To:        window.To.String(),
+			From:      periodBound(window.All, window.From),
+			To:        periodBound(window.All, window.To),
 			Defaulted: window.Defaulted,
+			All:       window.All,
 			TypeID:    typeID,
 		},
 		Paging: timelineItemsPaging{

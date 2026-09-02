@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/logs"
@@ -43,6 +44,10 @@ import (
 //
 // For each job, _meta.archivedBy is set to the authenticated account (who submitted the request), in addition
 // to _meta.archivedAt, accountID, lastModified, and lastUpdatedBy.
+// archivedJobStatsBatch bounds one bulk write of statistics rows. The archive
+// batch is capped well below it, so a request is a single round trip.
+const archivedJobStatsBatch = 200
+
 func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request) {
 	obsCtx := r.Context()
 	start := helper.RequestStartOrNow(obsCtx)
@@ -166,6 +171,8 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 
 	now := time.Now().UTC()
 	bulkOps := make([]mongodriver.WriteModel, 0, len(reqBody.Jobs))
+	statsRows := make([]models.ArchivedJobStats, 0, len(reqBody.Jobs))
+	var unbuildable int
 	for i := range reqBody.Jobs {
 		job := &reqBody.Jobs[i]
 		helper.PopulateRequestMeta(r, &job.MetaData.MetaData, accountID)
@@ -181,6 +188,21 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 			SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": job.MetaData.AccountID}).
 			SetUpdate(bson.M{"$set": job, "$unset": eipmongo.ArchivedJobsUpsertUnset}).
 			SetUpsert(true))
+
+		// The row is derived from the job and nothing else, so it is built where
+		// the job already is. Leaving it to be discovered later would mean asking
+		// "which of this account's jobs have no row", which costs a pass over the
+		// whole archive on every archive — the cost the incremental path exists to
+		// avoid.
+		//
+		// It is written uncounted: the fold queued below is what puts its figures
+		// into the aggregates.
+		row, rowErr := archivestats.NewAccountRow(*job, now)
+		if rowErr != nil {
+			unbuildable++
+			continue
+		}
+		statsRows = append(statsRows, row)
 	}
 
 	collection := h.Mongo.ArchivedJobs.Collection()
@@ -196,13 +218,29 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// After the jobs, so a row never describes a job that failed to save. A
+	// failure here is not a failure to archive: the jobs are saved, and the
+	// reconcile rota builds rows for archived jobs that have none.
+	if len(statsRows) > 0 {
+		if rowErr := h.Mongo.WriteStatsRows(ctx, statsRows, archivedJobStatsBatch); rowErr != nil {
+			logs.AttachHandlerCaveat(r, "stats_rows_not_written",
+				"archived jobs saved but their statistics rows were not",
+				map[string]any{"account_id": accountID, "rows": len(statsRows), "error": rowErr.Error()})
+		}
+	}
+	if unbuildable > 0 {
+		logs.AttachHandlerCaveat(r, "stats_rows_unbuildable",
+			"some archived jobs carry no figures to derive statistics from",
+			map[string]any{"account_id": accountID, "jobs": unbuildable})
+	}
+
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 	nJobs := len(reqBody.Jobs)
 
-	// The new rows are not in the account's aggregates yet. Queuing rather than
-	// folding them here keeps the write cheap and collapses a burst of archives
-	// into one pass — the rows carry no contribution stamp, so whichever pass runs
-	// finds all of them.
+	// The rows written above are not in the account's aggregates yet. Queuing
+	// rather than folding them here keeps the write cheap and collapses a burst of
+	// archives into one pass — the rows carry no contribution stamp, so whichever
+	// pass runs finds all of them.
 	//
 	// A failure to queue is logged rather than failing the request: the jobs are
 	// saved and their rows are still unstamped, so the next archive or a manual
