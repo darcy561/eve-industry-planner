@@ -125,6 +125,12 @@ services:
       S3_BUCKET: static-data,static-data-test
     volumes:
       - seaweedfs_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8333/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
     deploy:
       <<: *data-deploy
 
