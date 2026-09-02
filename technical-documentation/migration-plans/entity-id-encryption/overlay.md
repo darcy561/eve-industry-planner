@@ -47,7 +47,7 @@ Determinism comes from deriving the AES-GCM nonce from the id rather than at ran
 construction SIV mode formalises ([RFC 5297](https://www.rfc-editor.org/rfc/rfc5297),
 [RFC 8452](https://www.rfc-editor.org/rfc/rfc8452)). Reusing a nonce is only unsafe across
 differing plaintexts under one key; here the nonce is a function of the plaintext, so a repeat
-always accompanies the identical plaintext. Rationale → [plan.md](./plan.md) § Decision.
+always accompanies the identical plaintext. Rationale → [plan.md](./plan.md) § Design.
 
 ### Deriving and reading refs — `entityid`
 

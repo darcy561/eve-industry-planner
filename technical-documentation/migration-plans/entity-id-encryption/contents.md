@@ -20,6 +20,6 @@ snapshot that replaces token-embedded scope lists, and login-time backfill for l
 |------------|------|
 | Understand the ref model, contracts, and rollout phases | [plan.md](./plan.md) |
 | Check what has landed and what is still open | [plan.md](./plan.md) § Rollout status |
-| Understand why refs are encrypted rather than hashed | [plan.md](./plan.md) § Decision |
+| Understand why a ref must be both deterministic and reversible | [plan.md](./plan.md) § Design |
 | See how the `entityid` primitive behaves | [overlay.md](./overlay.md) § Shared entity id helpers |
 | See how a surface behaves after a phase lands | [overlay.md](./overlay.md) |

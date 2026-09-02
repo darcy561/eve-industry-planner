@@ -1,6 +1,6 @@
 # Go 1.27 adoption — plan
 
-**Status:** Phase 1 (docs) — complete; no track work started here (one Track B target was closed by another project — see Track B)
+**Status:** Phase 1 (docs) complete; no track work started. Verified against the tree at this update — Tracks A, B and C are all at zero.
 **Code in scope:** [`services/`](../../../services/) (all areas), [`testing/`](../../../testing/), [`deployment-tool/`](../../../deployment-tool/)
 **Live SoT (until promote):** [backend/core/core.md](../../backend/core/core.md), [backend/api/contents.md](../../backend/api/contents.md), [technical-rules.md](../../technical-rules.md) § Prefer modern Go
 
@@ -43,7 +43,7 @@ Two consequences that the tracks below depend on:
 
 Measured behaviour differences, the retag rule, and the house-options set: [json-semantics.md](./json-semantics.md). Read that before starting any phase here.
 
-Surface: 148 files import `encoding/json` (41 shared, 28 worker, 27 websocket, 23 core, 21 api); 173 `Unmarshal` and 99 `Marshal` call sites; 242 `,omitempty` tags of which ~100 sit on numeric or bool fields; 14 custom marshaler methods; one production `DisallowUnknownFields` site. There is **no** shared JSON helper today — every call site imports the stdlib directly.
+Surface: 143 files under `services/` import `encoding/json` (43 shared, 26 worker, 26 websocket, 23 core, 21 api, 2 capacity-controller, 1 ws-router, 1 cmd); 308 `,omitempty` tags against 4 `omitzero`, and all four of those are `time.Time` or struct fields that A1 leaves alone; 14 custom marshaler methods; one production `DisallowUnknownFields` site. There is **no** shared JSON helper today — every call site imports the stdlib directly. Recount for the area you open rather than working from these numbers.
 
 ```mermaid
 flowchart LR
@@ -89,10 +89,10 @@ Feasible with no seam, all in-process and channel-driven:
 
 | Target | Today |
 |--------|-------|
-| [`core/servicemanager/managed_test.go`](../../../services/core/servicemanager/managed_test.go) | Three deadline + `time.Sleep(10ms)` poll loops |
-| [`core/scheduler/cancel_on_shutdown_test.go`](../../../services/core/scheduler/cancel_on_shutdown_test.go) | 3s / 5s / 5s deadlines around gocron shutdown |
+| [`core/servicemanager/managed_test.go`](../../../services/core/servicemanager/managed_test.go) | Two 2s `time.After` selects waiting on start/stop signals |
+| [`core/scheduler/cancel_on_shutdown_test.go`](../../../services/core/scheduler/cancel_on_shutdown_test.go) | A 3s `wait.For` poll and 30s / 5s / 5s `time.After` selects around gocron shutdown |
 
-[`core/scheduler/esi/downtime.go`](../../../services/core/scheduler/esi/downtime.go) was a third target here, for an untested deferral that only ran between 11:00 and 11:15 UTC and held a goroutine blocked on `<-timer.C` with no context branch. That goroutine is gone: the deferral is a schedule on the schedule stream ([backend/core/scheduler.md](../../backend/core/scheduler.md) § Deferring past EVE downtime), and the package has tests that take the instant as a parameter rather than waiting for one. Simulated time has nothing left to pin down there, and the cancellation gap against [technical-rules.md](../../technical-rules.md) § Concurrency and cancellation is closed with it.
+Both are ceilings rather than sleeps, so the wall-clock cost is small when the code behaves; the gain is that a regression fails in simulated time instead of hanging out to a real deadline.
 
 Blocked until a seam exists — these drive real leases through miniredis, which serves over loopback TCP and exposes no custom-listener API. Real network I/O never counts as durably blocked, so a bubble deadlocks rather than fails:
 
@@ -100,9 +100,11 @@ Blocked until a seam exists — these drive real leases through miniredis, which
 - [`core/leadership/failover_test.go`](../../../services/core/leadership/failover_test.go)
 - [`core/singleton/service_test.go`](../../../services/core/singleton/service_test.go)
 
-The seam now has a home: every Redis-backed test takes [`testing/redisfake`](../../../testing/redisfake/), which owns construction of the miniredis server and its client. Making those tests bubble-safe means giving that one constructor an in-memory transport (or a fake lease behind [`shared/core/redis/lease`](../../../services/shared/core/redis/lease/)) rather than editing each test. Sized and decided before any of those three are attempted.
+The seam has a home: every Redis-backed test takes [`testing/redisfake`](../../../testing/redisfake/), which owns construction of the miniredis server and its client, and its package comment names itself as the one place to change. Making those tests bubble-safe means giving that constructor an in-memory transport (or a fake lease behind [`shared/core/redis/lease`](../../../services/shared/core/redis/lease/)) rather than editing each test.
 
-Done when: both unblocked targets run under `testing/synctest`, and the lease-seam decision is recorded here either as scheduled or as declined.
+There is a working precedent in the same module: [`testing/httpfake`](../../../testing/httpfake/) serves over an in-memory pipe rather than a socket precisely so it stays usable inside a bubble, and its own test runs under `synctest.Test`. Size the Redis seam against that shape before attempting any of the three.
+
+Done when: both unblocked targets run under `testing/synctest`, and the Redis seam decision is recorded here either as scheduled or as declined.
 
 ## Track C — `go fix` sweep
 
@@ -110,7 +112,7 @@ Done when: both unblocked targets run under `testing/synctest`, and the lease-se
 
 By area, re-counted at this update — **47 files**: `services/` 36 (shared 10, api 9, core 7, worker 4, capacity-controller 2, websocket 2, ws-router 2), separate module `testing/` 8, `deployment-tool/` 3.
 
-The count is a snapshot, not an inventory: it falls on its own as areas are touched under the scoped `go fix` rule, and one core suggestion went out when the downtime deferral was rewritten. Re-run the command for the area you are about to open rather than working from these numbers.
+The count is a snapshot, not an inventory: it falls on its own as areas are touched under the scoped `go fix` rule. Re-run the command for the area you are about to open rather than working from these numbers.
 
 Land **per area, scoped to that area**, per [technical-rules.md](../../technical-rules.md) § Prefer modern Go — not as one 47-file commit, and not widened into packages a slice does not otherwise touch. Where an area is already being opened by Track A Phase A3, its `go fix` slice should land first so the JSON change reviews clean.
 
@@ -122,7 +124,7 @@ Done when: `go fix -diff` is empty for every area, or a remaining suggestion is 
 |---|----------|-----------|
 | 1 | Is v2's read-side strictness (duplicate names, case sensitivity, UTF-8 validation) worth the migration at all, given the measured ~13% unmarshal gain and no marshal gain? | Before A1 |
 | 2 | Does the frontend contract keep `null` for empty collections, or move to `[]`? Governs whether `FormatNilSliceAsNull` stays on permanently. | A4 |
-| 3 | Is the lease seam in `shared/core/redis/lease` worth building for test determinism alone? | Track B |
+| 3 | Is the Redis seam worth building for test determinism alone — an in-memory transport in `testing/redisfake`, or a fake lease behind `shared/core/redis/lease`? `testing/httpfake` shows the transport shape works. | Track B |
 
 ## Done-when (project)
 

@@ -27,110 +27,72 @@ Phases 3 and 5–9 do not exist in the codebase yet: there is no login backfill 
 entitlements store. Refs themselves are in use across sessions, websocket routing and job
 documents.
 
-## Decision — refs become reversible deterministic encryption (SIV)
+## Design — refs are deterministic reversible encryption
 
-**Status: landed.** `shared/crypto/entityid` replaces the HMAC helpers, and every consumer
-converts through it.
+A ref is the value stored in place of a raw EVE entity id. It is produced by **deterministic
+authenticated encryption** — SIV mode ([RFC 5297](https://www.rfc-editor.org/rfc/rfc5297),
+[RFC 8452](https://www.rfc-editor.org/rfc/rfc8452)) — so the same id always yields the same ref
+and the ref still decrypts.
 
-### Why the HMAC ref is being replaced
+Both properties are load-bearing:
 
-A ref must be recoverable. The lifecycle in this plan has always said a raw id is converted
-at ingest and converted back before serialising to the client, and § End-to-End ID Lifecycle
-holds only because its scope was authorization state, where no id is ever displayed. Refs
-were later extended to job document fields — corporation and character on transactions,
-market orders, broker fees and linked jobs — which *are* displayed. HMAC is one-way, so for
-any field whose only surviving copy of the id was the stored ref, conversion destroys the id
-permanently.
+| Property | Why the design needs it |
+|---|---|
+| Same id → same ref | A ref is identity: it keys statistics aggregation, Redis lock partitions and websocket tenant pools, and it is how a caller holding an id queries for stored documents |
+| A ref decrypts back to its id | The response boundary must return the raw id a client is owed; for fields where the stored document is the only copy, nothing else can reconstruct it |
+| Opaque in logs and in the database | A database leak without the key yields nothing |
 
-The concrete failure: a converted linked job is serialised with neither `corporation_id`
-(zeroed) nor `corporation_ref` (`json:"-"`), the client echoes the document back without
-either, and the next write persists the absence. Fields whose id the client holds from
-another source survive by re-derivation and mask the problem.
-
-### The replacement
-
-One value per entity id, stored in place of the ref, produced by **deterministic authenticated
-encryption** — SIV mode ([RFC 5297](https://www.rfc-editor.org/rfc/rfc5297),
-[RFC 8452](https://www.rfc-editor.org/rfc/rfc8452)). The nonce is derived from the plaintext
-rather than randomly, so the same id always yields the same ciphertext and the ciphertext
-still decrypts.
-
-This keeps every property the ref was chosen for and adds the missing one:
-
-| Property | HMAC ref | SIV |
-|---|---|---|
-| Same id → same stored value (queryable, usable as an aggregation key, lock partition, tenant key) | yes | yes |
-| Opaque in logs and in the database | yes | yes |
-| Useless if the database leaks without the key | yes | yes |
-| Recoverable at the response boundary | **no** | yes |
-
-Because the value is deterministic, it serves as identity directly: no second field, no
-sealed envelope beside it, no per-document spec marker.
-
-### Options considered
-
-1. **SIV replaces the ref entirely.** One mechanism, one stored value, one identity per
-   entity. Chosen.
-2. **Keep the HMAC ref and add a sealed envelope holding the raw ids.** Also works, but it is
-   two fields doing one field's job, and the document carries a spec marker to describe the
-   envelope layout. Rejected as more surface for no additional property.
-3. **Keep HMAC for authorization surfaces and use SIV for document fields.** Rejected: one
-   corporation would hold two different opaque values, splitting the identity that statistics
-   aggregation, lock partitions and tenant pools all key on — the same failure § Single key,
-   never rolled exists to prevent.
+Because one value carries both, it serves as identity directly: one field per entity id, and no
+separate copy of the id stored anywhere alongside it.
 
 ### Construction
 
-Implemented in-tree rather than by taking a new crypto dependency, because both halves already
-exist and the construction is small:
+Implemented in-tree rather than by taking a crypto dependency, because both halves already exist
+in the standard library and the construction is small:
 
 ```
 nonce = HMAC(nonceKey, kind + ":" + id)[:12]
 ct    = AES-GCM(dataKey, nonce, id, aad = kind)
 ```
 
-`nonceKey` and `dataKey` are separate keys. Reusing a GCM nonce is only catastrophic across
-*different* plaintexts under one key; here the nonce is a function of the plaintext, so a
-repeated nonce always accompanies the identical plaintext. The alternative — depending on
-`github.com/secure-io/siv-go` for RFC 5297 / RFC 8452 — was considered and can be revisited if
-the in-tree construction proves awkward to review.
+`nonceKey` and `dataKey` are separate subkeys derived from `ENTITY_ID_KEY` under distinct labels.
+Reusing a GCM nonce is only catastrophic across *different* plaintexts under one key; here the
+nonce is a function of the plaintext, so a repeated nonce always accompanies the identical
+plaintext. Depending on `github.com/secure-io/siv-go` for RFC 5297 / RFC 8452 instead remains
+open if the in-tree construction proves awkward to review.
 
 ### Accepted trade-off
 
 Anything that can return an id to a client can recover every id in the database, so the key
-holder can decrypt. Ids are still never stored in readable form and a database leak without
-the key still yields nothing. Irreversibility and returning ids to clients are mutually
-exclusive; this project takes the latter.
+holder can decrypt. Ids are still never stored in readable form and a database leak without the
+key still yields nothing. Irreversibility and returning ids to clients are mutually exclusive;
+this project takes the latter.
 
-### Wire and schema compatibility
+### Field naming
 
-**Migrate-required in principle, no-op in practice.** No ref has ever been written to a
-deployed database: live job documents still carry raw `corporation_id`, and no sealed
-envelope was ever persisted. The stored format is therefore still free to change, and no
-backfill of existing refs is needed. The pending conversion of legacy raw ids is unaffected
-— it reads the same raw field and writes the new value instead of a ref.
+A field named `…ID` holds an actual EVE id and means you are at a boundary; anywhere else it is
+`…Ref`. "Ref" names what the value *is* — a reference to an entity — not the primitive behind it,
+so `CorporationRef` / `corporation_ref` are independent of the crypto. `Encrypt` and `Decrypt`
+name the operations, `entityid.Cipher` the machinery.
 
-Surfaces that change shape: Redis session grants, websocket scope payloads, the affinity
-cookie, NATS routing keys, and the job document fields. All are internal or already flagged
-in § Wire and schema compatibility.
+### Stored format
 
-### What this replaced
+No ref has been written to a deployed database: live job documents still carry raw
+`corporation_id`. The stored format is therefore still free to change and no backfill of
+existing refs is needed. Converting the legacy raw ids reads the same raw field and writes the
+ref in its place.
 
-- `shared/crypto/authzhmac/{helper,ref}` and `shared/crypto/sealedfields` are deleted.
-  `models.FieldProtection` no longer carries an envelope; it is the spec marker alone.
-- `AUTHZ_HMAC_KEY` is now `ENTITY_ID_KEY`, in the `EnvFields` entry, the Swarm secret list and
-  `docker-stack.yml`.
-- `protectedfields.ToRefs` / `RefsForIDs` are `Encrypt` / `ValuesForIDs`, and `Decrypt` is new.
-- [overlay.md](./overlay.md) § Reverse lookup is not provided is retracted. It contradicted
-  § End-to-End ID Lifecycle in this plan and an explicit project requirement, and it is the
-  reason the gap survived review: the limitation was documented rather than resolved.
+### Open at promote
 
-Field naming did **not** change. A ref is named for what it is — a reference to an entity —
-not for the primitive behind it, so `CorporationRef` / `corporation_ref` are unchanged.
+Two live docs and one product surface name a retired key. Docs are live SoT, so they are not
+edited during the project:
 
-**Open at promote:** [backend/api/auth/roadmap.md](../../backend/api/auth/roadmap.md) links to
-this project under its old folder name and names the old key. It is live SoT, so it is not edited
-during the project; repair the link and the key name on promote.
+- [backend/api/auth/roadmap.md](../../backend/api/auth/roadmap.md) links to this project under a
+  stale folder name and names a stale key — repair both.
+- [deployment/guide.md](../../deployment/guide.md) tells the operator they back up
+  `AUTHZ_HMAC_KEY` during `eip init`; the prompt is for `ENTITY_ID_KEY`.
+- The Deployment Tool labels the field "HMAC" and types it `env.FieldHMAC`; rename to match
+  `ENTITY_ID_KEY` with the promote or before it.
 
 ## Shared helper implementation
 
@@ -148,18 +110,23 @@ grants, websocket scopes and tenant keys, and through job documents via
 - Move authorization to server-side dynamic entitlements (event-driven), not token-embedded scope lists.
 - Ensure legacy accounts that were created without `character_id` metadata are repaired at login.
 
-## Ref Model (Model 1)
+## Ref Model
 
-- `char_ref = HMAC_SHA256(pepper, "char:"+character_id)`
-- `corp_ref = HMAC_SHA256(pepper, "corp:"+corporation_id)`
-- `alliance_ref = HMAC_SHA256(pepper, "alliance:"+alliance_id)`
+A ref is the deterministic encryption of one entity id under `ENTITY_ID_KEY`, described in
+§ Construction:
+
+- `char_ref = Encrypt("char", character_id)`
+- `corp_ref = Encrypt("corp", corporation_id)`
+- `alliance_ref = Encrypt("alliance", alliance_id)`
 
 Implementation notes:
 
-- Use domain separation prefixes exactly as above.
+- Use the kind prefixes exactly as above; the kind is bound into both the derived nonce and
+  the AEAD's additional data, so one numeric id yields a different ref per kind and a ref
+  cannot be reinterpreted as another kind.
 - Refs carry no version prefix: the format is `{kind}_{token}` (example: `char_...`).
-- Encode as base64url without padding (optionally truncate digest before encoding).
-- Keep pepper in secrets management, never in source control.
+- The token is base64url without padding of the derived nonce followed by the ciphertext.
+- Keep the key in secrets management, never in source control.
 
 ### Single key, never rolled
 
@@ -197,7 +164,7 @@ Consequences to design around:
   as real ids cross the API boundary. That is future work, not a current requirement.
 - Because the key is permanent, its secrecy is the entire control. Character, corporation
   and alliance ids are a small enumerable space, so anyone holding both the database and the
-  pepper can rebuild the id-to-ref table. Refs defend against a database leak *without* the
+  key can read every id back — and could rebuild the id-to-ref table even without decrypting. Refs defend against a database leak *without* the
   secrets, which is the case worth defending given Mongo and Swarm secrets have different
   blast radii.
 
@@ -213,7 +180,7 @@ rather than migrations.
 | Redis websocket handoff | `corporation_ids` / `alliance_ids` become `corporation_refs` / `alliance_refs` | **breaking**, short-lived keys |
 | NATS `doc.update` | route fields and `scopes` renamed to ref names | **breaking**, same-deploy |
 | Affinity cookie | `corporation:{id}` becomes `corporation:{ref}` | **breaking** — existing cookies stop matching, so connected clients are reshuffled across websocket replicas once |
-| Operator env | `AUTHZ_HMAC_KEY` replaced by `ENTITY_ID_KEY`, mounted for api, worker and websocket | **migrate-required** — the key must be mounted before deploy, or the services will not start |
+| Operator env | `ENTITY_ID_KEY` is required, mounted for api, worker and websocket | **migrate-required** — the key must be mounted before deploy, or the services will not start |
 | Browser `upgrade_scopes` | unchanged — the client still names organisations by id | additive |
 
 ## ID Spec (Implementation Contract)
@@ -224,29 +191,34 @@ rather than migrations.
 - `corp_<token>`
 - `alliance_<token>`
 
-Where `<token>` is base64url(no padding) of an HMAC-SHA256 digest (optionally truncated to 20 bytes before encoding).
+Where `<token>` is base64url(no padding) of the derived 12-byte nonce followed by the AES-GCM
+ciphertext of the id.
 
 ### Input canonicalization rules
 
-- Treat all raw ids as signed integer input and canonicalize to base-10 string via `strconv.FormatInt(id, 10)`.
+- Treat all raw ids as signed integer input and encrypt the id as a big-endian `int64`, so no
+  string formatting can vary the ref.
 - Reject `id <= 0` as invalid input.
-- Always hash exactly `<kind>:<canonical_id>` (no whitespace).
-- Never hash display names or mixed-case strings for identity refs.
+- Bind exactly `<kind>` into the nonce derivation and the additional data (no whitespace).
+- Never encrypt display names or mixed-case strings for identity refs.
 
 ### Determinism and scope separation guarantees
 
 - Same `(kind, id)` always yields the same ref. Refs carry no key version.
-- Different kinds must not collide for the same numeric id because kind prefix is part of HMAC input.
+- Different kinds must not collide for the same numeric id because the kind is bound into both the nonce derivation and the AEAD's additional data.
 - Ref stability holds for the life of the deployment, which is what lets a ref serve as identity —
   see § Single key, never rolled.
 
 ### Required shared helper API
 
-- `RefFromCharacterID(id int64) (string, error)`
-- `RefFromCorporationID(id int64) (string, error)`
-- `RefFromAllianceID(id int64) (string, error)`
-- `ParseRefKind(ref string) (kind string, ok bool)`
-- `ValidShape(ref string) bool`
+Landed as `shared/crypto/entityid`; behaviour → [overlay.md](./overlay.md) § Shared entity id helpers.
+
+- `(*Cipher).Character(id int64) (string, error)`, and the `Corporation` / `Alliance` pair
+- `(*Cipher).Encrypt(kind string, id int64) (string, error)`
+- `(*Cipher).Decrypt(ref string) (kind string, id int64, err error)`
+- `(*Cipher).DecryptKind(want, ref string) (int64, error)`
+- `ParseKind(ref string) (kind string, ok bool)` and `ValidShape(ref string) bool`, neither of
+  which needs the key
 
 Operational rules:
 
@@ -273,11 +245,12 @@ built first if that decision is ever revisited.
 - Never commit key to source control or image layers.
 - Restrict key access to services that derive refs.
 
-## Refresh Token Security Hardening (Required)
+## Refresh Token Security Hardening
 
-Current gap:
-
-- ESI refresh tokens are currently stored unencrypted at rest. This must be remediated before full authz cutover.
+**Status: landed** — see [overlay.md](./overlay.md) § Refresh token encryption. The stored field
+names are `rTokenCiphertext` / `rTokenNonce` / `rTokenKeyVersion` rather than the
+`refresh_token_*` names sketched below. The rest of this section is the contract that work was
+built to.
 
 Required target:
 
@@ -365,7 +338,7 @@ Some existing accounts were stored before `character_id` metadata existed. We mu
 At login (after ESI token validation):
 
 1. Resolve current `character_id` from ESI verify endpoint / token introspection data.
-2. Compute `character_ref` using HMAC helper.
+2. Compute `character_ref` using the entity id cipher.
 3. Load account metadata by `account_id` (derived from `character_hash` as today).
 4. If account metadata is missing `character_ref` (or missing the corresponding character entry), upsert:
    - add `character_ref`
@@ -388,7 +361,7 @@ This login-time check remains permanently as a safety net for any partially migr
 ## End-to-End ID Lifecycle
 
 1. Client/ESI provides raw id (transient only).
-2. Backend derives `*_ref` via HMAC helper.
+2. Backend derives `*_ref` via the entity id cipher.
 3. Raw id is discarded after derivation (not persisted in planner-facing stores).
 4. Snapshot/index state is written using only refs.
 5. API/WS authorization evaluates refs + roles from snapshot.
@@ -410,7 +383,7 @@ Event sources:
 Implementation requirement:
 
 - The corporation ESI claims task must be migrated to this framework:
-  - derive `corp_ref` from ESI `corporation_id` via shared HMAC helper
+  - derive `corp_ref` from ESI `corporation_id` via the shared entity id cipher
   - write only refs into authz snapshots/metadata used for authorization
   - trigger authz recompute/version bump events after updates
   - avoid persisting raw `corporation_id` in planner-facing authz stores
@@ -419,7 +392,7 @@ Pipeline:
 
 1. Emit authz recompute event for account.
 2. Consumer loads latest source state.
-3. Derive refs (`char_ref`, `corp_ref`, `alliance_ref`) using HMAC helpers.
+3. Derive refs (`char_ref`, `corp_ref`, `alliance_ref`) using the entity id cipher.
 4. Write new entitlements snapshot, increment `version`.
 5. Notify live websocket sessions (`entitlements_updated` with version).
 
@@ -444,7 +417,7 @@ Rationale:
 
 ## Rollout Phases
 
-1. Add shared HMAC helpers + tests.
+1. Add shared entity id helpers + tests.
 2. Add metadata schema fields and reverse indexes.
 3. Add login-time backfill check for legacy accounts (required before broader cutover).
 4. Implement refresh-token encryption at rest + migration (blocking security milestone).
@@ -456,7 +429,7 @@ Rationale:
 
 Corporation claims task milestone (must be completed before phase 5 cutover):
 
-- Update the corporation ESI claims worker/task to publish/consume only HMAC-derived refs for authz writes.
+- Update the corporation ESI claims worker/task to publish/consume only refs for authz writes.
 - Ensure downstream authz recompute reads those ref outputs directly.
 - Add regression coverage for corporation membership changes flowing through the ref-based pipeline.
 
@@ -470,7 +443,7 @@ Corporation claims task milestone (must be completed before phase 5 cutover):
 
 ### Required tests
 
-- Unit: deterministic vectors for char/corp/alliance refs.
+- Unit: deterministic vectors for char/corp/alliance refs, and round-trip back to the id.
 - Unit: invalid id rejection and ref shape validation.
 - Integration: login backfill creates `character_ref` + reverse index without persisting `character_id`.
 - Integration: snapshot rebuild after TTL expiry restores authz behaviour.
