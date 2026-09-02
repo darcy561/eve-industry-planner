@@ -1,27 +1,22 @@
 /**
- * Routes NATS/WebSocket `ChangeStreamMessage`-shaped JSON into Zustand (users + application_settings).
- * Skips stale/duplicate events using `realtimeSync` monotonic cursors.
+ * Routes an inbound realtime message to the family that knows what to do with it.
  *
- * Per-collection logic lives under `handlers/` — add new handler modules there and
- * dispatch from this file.
+ * A message names its family in `type` and, within that family, its kind in
+ * `subtype`. A message that names no family is a document change: every producer
+ * of those predates the field.
+ *
+ * A message no family claims is reported rather than dropped. Silence here is
+ * what let two collections stream to every browser for nothing without anyone
+ * noticing, so the next such gap should be visible on its first message.
  */
 
-import useUsersStore from "../Zustand/usersStore.js";
-import { metaLastModifiedMs } from "../Zustand/realtimeSyncSlice.js";
-import { enqueueInboundJobDocumentChange } from "../Functions/Debounce/inboundJobDocumentsCoalesce.js";
+import { applyDocumentMessage } from "./handlers/documentMessage.js";
+import { applyNotificationMessage } from "./handlers/notificationMessage.js";
 import {
-  handleApplicationSettingsDocumentDelete,
-  handleApplicationSettingsDocumentUpsert,
-  handleUserJobGroupDelete,
-  handleUserJobGroupUpsert,
-  handleUsersDocumentDelete,
-  handleUsersDocumentUpsert,
-  handleWatchlistDeprecatedDelete,
-  handleWatchlistDeprecatedUpsert,
-} from "./handlers/index.js";
-import { USER_JOB_GROUPS_COLLECTION } from "../Functions/Endpoints/Private/groups.js";
-import { USER_JOB_DOCUMENTS_COLLECTION } from "../Functions/Endpoints/Private/jobDocuments.js";
-import { USER_WATCHLIST_DEPRECATED_COLLECTION } from "../Functions/Endpoints/Private/watchlistDeprecated.js";
+  MESSAGE_TYPE_DOCUMENT,
+  MESSAGE_TYPE_NOTIFICATION,
+  messageFamily,
+} from "./messageKinds.js";
 
 /**
  * @param {unknown} raw - parsed JSON from WebSocket
@@ -30,115 +25,22 @@ export async function applyRemoteMessage(raw) {
   if (!raw || typeof raw !== "object") return;
 
   const msg = /** @type {Record<string, unknown>} */ (raw);
-  const collection =
-    typeof msg.collection === "string" ? msg.collection : null;
-  const operationType =
-    typeof msg.operationType === "string"
-      ? msg.operationType.toLowerCase()
-      : "";
-  const rawId = msg.docID ?? msg.docId;
-  const docID =
-    typeof rawId === "string"
-      ? rawId
-      : typeof rawId === "number" && Number.isFinite(rawId)
-        ? String(rawId)
-        : null;
-  const document = /** @type {Record<string, unknown>|undefined} */ (
-    msg.document
-  );
-  const previousDocument = /** @type {Record<string, unknown>|undefined} */ (
-    msg.previousDocument
-  );
-  const refreshTokensChanged =
-    typeof msg.refreshTokensChanged === "boolean"
-      ? msg.refreshTokensChanged
-      : typeof msg.refresh_tokens_changed === "boolean"
-        ? msg.refresh_tokens_changed
-        : false;
-  const linkedCharactersChanged =
-    typeof msg.linkedCharactersChanged === "boolean"
-      ? msg.linkedCharactersChanged
-      : typeof msg.linked_characters_changed === "boolean"
-        ? msg.linked_characters_changed
-        : refreshTokensChanged;
+  const family = messageFamily(msg);
 
-  if (!collection || !docID) return;
+  if (family === MESSAGE_TYPE_DOCUMENT) {
+    await applyDocumentMessage(msg);
+    return;
+  }
 
-  const accountId = useUsersStore.getState().account.accountID;
-  if (!accountId) return;
-
-  const docKey = `${collection}.${docID}`;
-  const rs = useUsersStore.getState().realtimeSync.actions;
-
-  const ctxBase = { accountId, docKey, docID, rs };
-
-  if (operationType === "delete" || operationType === "drop") {
-    if (collection === "account_settings") {
-      handleApplicationSettingsDocumentDelete(ctxBase);
-      return;
-    }
-    if (collection === "accounts") {
-      handleUsersDocumentDelete(ctxBase);
-      return;
-    }
-    if (collection === USER_JOB_GROUPS_COLLECTION) {
-      await handleUserJobGroupDelete(ctxBase);
-      return;
-    }
-    if (collection === USER_WATCHLIST_DEPRECATED_COLLECTION) {
-      handleWatchlistDeprecatedDelete(ctxBase);
-      return;
-    }
-    if (collection === USER_JOB_DOCUMENTS_COLLECTION) {
-      enqueueInboundJobDocumentChange("delete", docID);
-      return;
+  if (family === MESSAGE_TYPE_NOTIFICATION) {
+    if (!applyNotificationMessage(msg)) {
+      console.warn(
+        "[realtime] no handler for notification",
+        typeof msg.subtype === "string" ? msg.subtype : "(none)",
+      );
     }
     return;
   }
 
-  if (!document || typeof document !== "object") return;
-
-  const remoteMs = metaLastModifiedMs(document);
-  if (remoteMs == null) {
-    return;
-  }
-  const prevCursor = rs.getCursorMs(docKey);
-  // Only drop strictly older events. `<=` would drop a new update that shares the same
-  // _meta.lastModified ms as the cursor (ties, sub-ms resolution, or duplicate deliveries).
-  if (remoteMs < prevCursor) {
-    return;
-  }
-
-  const upsertCtx = {
-    ...ctxBase,
-    document,
-    remoteMs,
-    previousDocument,
-    refreshTokensChanged,
-    linkedCharactersChanged,
-  };
-
-  if (collection === "accounts") {
-    handleUsersDocumentUpsert(upsertCtx);
-    return;
-  }
-
-  if (collection === "account_settings") {
-    handleApplicationSettingsDocumentUpsert(upsertCtx);
-    return;
-  }
-
-  if (collection === USER_JOB_GROUPS_COLLECTION) {
-    handleUserJobGroupUpsert(upsertCtx);
-    return;
-  }
-
-  if (collection === USER_WATCHLIST_DEPRECATED_COLLECTION) {
-    handleWatchlistDeprecatedUpsert(upsertCtx);
-    return;
-  }
-
-  if (collection === USER_JOB_DOCUMENTS_COLLECTION) {
-    enqueueInboundJobDocumentChange("upsert", docID, document);
-  }
+  console.warn("[realtime] no handler for message family", family);
 }

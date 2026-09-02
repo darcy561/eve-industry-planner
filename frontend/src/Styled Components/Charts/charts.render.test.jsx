@@ -198,3 +198,65 @@ describe("chart primitives", () => {
     expect(container.querySelector("svg")).not.toBeNull();
   });
 });
+
+// A month nothing sold in has no average price, which is not a price of zero.
+// The series therefore carries nulls, and how the line handles them decides
+// whether a sparse history is readable or a scatter of fragments.
+describe("a sparse line series", () => {
+  const sparseMonths = [
+    { month: "2026-05", price: 1000 },
+    { month: "2026-06", price: null },
+    { month: "2026-07", price: null },
+    { month: "2026-08", price: 1400 },
+  ];
+
+  function draw(series) {
+    return sized(
+      <TimeSeriesChart rows={sparseMonths} categoryKey="month" series={[series]} />,
+    ).container;
+  }
+
+  it("bridges the gap and marks the readings that are real", () => {
+    const container = draw({
+      key: "price",
+      label: "Avg sale price",
+      type: "line",
+      sparse: true,
+    });
+
+    const curve = container.querySelector(".recharts-line-curve");
+    expect(curve).not.toBeNull();
+    // One unbroken path rather than a fragment per run of readings. A break is
+    // written into the path data as a second move command.
+    const d = curve.getAttribute("d") ?? "";
+    expect(d.match(/M/g)?.length ?? 0).toBe(1);
+    // The dots are what separate an observed value from the bridge drawn
+    // between two of them.
+    expect(container.querySelectorAll(".recharts-line-dot").length).toBe(2);
+  });
+
+  // A dense series gains nothing from either, and dots on one would be noise.
+  it("leaves a series that declares no gaps alone", () => {
+    const container = draw({ key: "price", label: "Price", type: "line" });
+
+    expect(container.querySelector(".recharts-line-curve")).not.toBeNull();
+    expect(container.querySelectorAll(".recharts-line-dot").length).toBe(0);
+  });
+
+  // The case that draws nothing at all without dots: a single reading has no
+  // neighbour to draw a segment to.
+  it("still shows a lone reading surrounded by gaps", () => {
+    const { container } = sized(
+      <TimeSeriesChart
+        rows={[
+          { month: "2026-05", price: null },
+          { month: "2026-06", price: 1200 },
+          { month: "2026-07", price: null },
+        ]}
+        categoryKey="month"
+        series={[{ key: "price", label: "Price", type: "line", sparse: true }]}
+      />,
+    );
+    expect(container.querySelectorAll(".recharts-line-dot").length).toBe(1);
+  });
+});

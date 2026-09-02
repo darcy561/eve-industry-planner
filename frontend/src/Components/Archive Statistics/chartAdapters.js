@@ -158,6 +158,22 @@ export const BUILD_COST_COMPONENTS = COST_COMPONENTS.filter(({ key }) =>
 );
 
 /**
+ * The build-cost-per-unit chart, wherever an item's cost history is shown. Reads
+ * the rows [toBuildCostPerUnitRows] produces.
+ */
+export const COST_SERIES = [
+  ...BUILD_COST_COMPONENTS.map(({ key, label }) => ({ key, label, type: "bar" })),
+  {
+    key: "averageSalePrice",
+    label: "Avg sale price",
+    type: "line",
+    role: "sales",
+    // An item is not sold every month it is built.
+    sparse: true,
+  },
+];
+
+/**
  * Build cost per unit produced, per month, with the average price its output
  * sold for.
  *
@@ -184,6 +200,47 @@ export function toBuildCostPerUnitRows(data) {
     }
     return entry;
   });
+}
+
+/**
+ * The figures a set of months adds up to, summed from the same rows the charts
+ * draw so the two cannot disagree.
+ *
+ * @param {Object[]} months
+ */
+export function sumTimelineMeasures(months = []) {
+  return months.reduce(
+    (total, row) => ({
+      quantityProduced: total.quantityProduced + Number(row?.quantityProduced ?? 0),
+      quantitySold: total.quantitySold + Number(row?.quantitySold ?? 0),
+      salesTotal: total.salesTotal + Number(row?.salesTotal ?? 0),
+      jobCostTotal: total.jobCostTotal + Number(row?.jobCostTotal ?? 0),
+      profitLoss: total.profitLoss + Number(row?.profitLoss ?? 0),
+    }),
+    {
+      quantityProduced: 0,
+      quantitySold: 0,
+      salesTotal: 0,
+      jobCostTotal: 0,
+      profitLoss: 0,
+    },
+  );
+}
+
+/**
+ * What was built and what was sold, per month. Counts, so a month with neither
+ * carries zero rather than a gap.
+ *
+ * @param {Object} data - `GET /statistics/account/timeline`
+ */
+export function toQuantityRows(data) {
+  const months = data?.months ?? [];
+  return months.map((row) => ({
+    month: monthKey(row),
+    complete: Boolean(row?.complete),
+    quantityProduced: Number(row?.quantityProduced ?? 0),
+    quantitySold: Number(row?.quantitySold ?? 0),
+  }));
 }
 
 /**

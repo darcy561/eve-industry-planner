@@ -10,7 +10,6 @@ import { PieChart, TimeSeriesChart } from "../../Styled Components/Charts";
 import { getFullItemList } from "../../Functions/Helper/getCachedData";
 import useUsersStore from "../../Zustand/usersStore";
 import {
-  useAccountTimelineQuery,
   useAccountTimelineItemsQuery,
 } from "../../Hooks/React Query/Backend/statisticsTimeline";
 import { useAccountTotalsSummaryQuery } from "../../Hooks/React Query/Backend/statisticsTotals";
@@ -25,14 +24,8 @@ import {
   toSegmentRows,
   toTimelineRows,
 } from "./chartAdapters";
-
-/** A month in progress is partial, so it is labelled rather than drawn as final. */
-function monthLabel(rows) {
-  return (value) => {
-    const row = rows.find((r) => r.month === value);
-    return row && !row.complete ? `${value} (so far)` : value;
-  };
-}
+import { monthLabel, NoData } from "./panelParts";
+import { timelineWindow, useArchiveTimeline } from "./useArchiveTimeline";
 
 /** The measure a panel ranks or splits by, shown in the panel header. */
 function MeasureSelect({ value, onChange, options }) {
@@ -89,20 +82,6 @@ function useItemNames(items) {
   return names;
 }
 
-/** Shared empty state, so a panel with no rows says why rather than drawing nothing. */
-function NoData({ children }) {
-  return (
-    <Typography
-      variant="body2"
-      color="text.secondary"
-      sx={{ py: 4 }}
-      align="center"
-    >
-      {children}
-    </Typography>
-  );
-}
-
 /**
  * Profit and cost per calendar month.
  *
@@ -110,10 +89,8 @@ function NoData({ children }) {
  * @param {string} [props.from]
  * @param {string} [props.to]
  */
-export function ArchiveTimelinePanel({ from, to }) {
-  const { data, isLoading, isError } = useAccountTimelineQuery(
-    from && to ? { from, to } : {},
-  );
+export function ArchiveTimelinePanel({ from, to, range }) {
+  const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
   const rows = useMemo(() => toTimelineRows(data), [data]);
 
   return (
@@ -142,10 +119,8 @@ export function ArchiveTimelinePanel({ from, to }) {
 }
 
 /** Running profit across the window. */
-export function ArchiveCumulativePanel({ from, to }) {
-  const { data, isLoading, isError } = useAccountTimelineQuery(
-    from && to ? { from, to } : {},
-  );
+export function ArchiveCumulativePanel({ from, to, range }) {
+  const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
   const rows = useMemo(() => toCumulativeRows(data), [data]);
 
   return (
@@ -186,12 +161,12 @@ const ITEM_MEASURES = [
 ];
 
 /** How the top items split the selected measure. */
-export function ArchiveItemChartPanel({ from, to, limit = 10 }) {
+export function ArchiveItemChartPanel({ from, to, range, limit = 10 }) {
   const [sort, setSort] = useState("profitLoss");
   const { data, isLoading, isError } = useAccountTimelineItemsQuery({
     sort,
     limit,
-    ...(from && to ? { from, to } : {}),
+    ...timelineWindow({ from, to, range }),
   });
 
   const names = useItemNames(data?.items ?? []);
@@ -272,10 +247,8 @@ export function ArchiveSegmentPanel() {
 }
 
 /** What a period's cost was spent on, month by month. */
-export function ArchiveCostBreakdownPanel({ from, to }) {
-  const { data, isLoading, isError } = useAccountTimelineQuery(
-    from && to ? { from, to } : {},
-  );
+export function ArchiveCostBreakdownPanel({ from, to, range }) {
+  const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
   const rows = useMemo(() => toCostComponentRows(data), [data]);
   const series = useMemo(
     () => COST_COMPONENTS.map(({ key, label }) => ({ key, label, type: "bar" })),
@@ -304,10 +277,8 @@ export function ArchiveCostBreakdownPanel({ from, to }) {
 }
 
 /** The same components summed over the period, as shares of the total. */
-export function ArchiveCostTotalsPanel({ from, to }) {
-  const { data, isLoading, isError } = useAccountTimelineQuery(
-    from && to ? { from, to } : {},
-  );
+export function ArchiveCostTotalsPanel({ from, to, range }) {
+  const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
   const rows = useMemo(() => toCostComponentTotalRows(data), [data]);
 
   return (
@@ -327,10 +298,8 @@ export function ArchiveCostTotalsPanel({ from, to }) {
 }
 
 /** Extras spend for the whole period, split by category. */
-export function ArchiveExtrasTotalsPanel({ from, to }) {
-  const { data, isLoading, isError } = useAccountTimelineQuery(
-    from && to ? { from, to } : {},
-  );
+export function ArchiveExtrasTotalsPanel({ from, to, range }) {
+  const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
   const categories = useUsersStore(
     (state) => state.applicationSettings.extrasCategories,
   );
@@ -361,10 +330,8 @@ export function ArchiveExtrasTotalsPanel({ from, to }) {
  * Category names come from the account's own list, deleted entries included: a
  * past cost belongs to the category it was filed under.
  */
-export function ArchiveExtrasPanel({ from, to }) {
-  const { data, isLoading, isError } = useAccountTimelineQuery(
-    from && to ? { from, to } : {},
-  );
+export function ArchiveExtrasPanel({ from, to, range }) {
+  const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
   const categories = useUsersStore(
     (state) => state.applicationSettings.extrasCategories,
   );

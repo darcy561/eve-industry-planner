@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { screen, fireEvent } from "@testing-library/react";
+import { renderWithTheme } from "../../../tests/archiveHarness.jsx";
 
 const panelCalls = [];
 function stubPanel(name) {
@@ -21,6 +21,7 @@ vi.mock("../Archive Statistics", () => ({
   ArchiveExtrasTotalsPanel: stubPanel("extrasTotals"),
   ArchiveCostBreakdownPanel: stubPanel("costBreakdown"),
   ArchiveCostTotalsPanel: stubPanel("costTotals"),
+  RecalculationNotice: () => null,
 }));
 
 vi.mock("../../Styled Components/defaultPageLayout", () => ({
@@ -29,14 +30,8 @@ vi.mock("../../Styled Components/defaultPageLayout", () => ({
 
 const { ArchivedJobsPage } = await import("./ArchivedJobsPage.jsx");
 
-// useMediaQuery reads breakpoints off the theme, so one has to be in context.
-const theme = createTheme();
 function renderPage() {
-  return render(
-    <ThemeProvider theme={theme}>
-      <ArchivedJobsPage />
-    </ThemeProvider>,
-  );
+  return renderWithTheme(      <ArchivedJobsPage />);
 }
 
 beforeEach(() => {
@@ -75,9 +70,14 @@ describe("ArchivedJobsPage", () => {
     fireEvent.mouseDown(screen.getByRole("combobox"));
     fireEvent.click(screen.getByText("Last 12 months"));
 
-    const ranged = panelCalls.filter((call) => call.props.from);
+    // The last render of each panel, not every render: the page starts on a
+    // window of its own, so accumulating calls compares two selections.
+    const latest = new Map();
+    for (const call of panelCalls) latest.set(call.name, call.props);
+
+    const ranged = [...latest.values()].filter((props) => props.from);
     expect(ranged.length).toBeGreaterThan(0);
-    const windows = new Set(ranged.map((c) => `${c.props.from}:${c.props.to}`));
+    const windows = new Set(ranged.map((p) => `${p.from}:${p.to}`));
     expect(windows.size).toBe(1);
   });
 

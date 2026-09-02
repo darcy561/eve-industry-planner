@@ -138,15 +138,25 @@ export function TimeSeriesChart({
           dataKey: s.key,
           name: s.label,
           ...(s.axis === "right" ? { yAxisId: "right" } : {}),
+          // Stacked bars total to their height, which suits composition but not
+          // comparison — so it is per series, not chart-wide.
+          ...(s.stackId ? { stackId: s.stackId } : {}),
         };
         if (s.type === "line") {
+          // A sparse series has categories with no reading at all — a month
+          // nothing sold in has no average price, which is not zero. Gaps are
+          // bridged so the trend reads, and the real readings are dotted so the
+          // bridge is not mistaken for data. Without dots a reading with gaps
+          // either side draws nothing at all.
+          const sparse = s.sparse === true;
           return (
             <Line
               key={s.key}
               {...shared}
               type="monotone"
               stroke={colour}
-              dot={false}
+              connectNulls={sparse}
+              dot={sparse ? { r: 2.5, fill: colour, strokeWidth: 0 } : false}
               activeDot
             />
           );

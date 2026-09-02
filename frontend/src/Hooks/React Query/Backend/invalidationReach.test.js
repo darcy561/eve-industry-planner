@@ -15,26 +15,32 @@ vi.mock("../../../Functions/Endpoints/Private/statisticsTimeline.js", () => ({
 vi.mock("../../../Functions/Endpoints/Private/statisticsTotals.js", () => ({ default: vi.fn() }));
 
 const { timelineQueryKey, timelineItemsQueryKey } = await import("./statisticsTimeline.js");
-const { invalidateStatisticsQueries } = await import("./statisticsKeys.js");
+const { invalidateArchiveQueries, archivedJobsQueryKey } = await import("./archivedJobsList.js");
 const { totalsQueryKey } = await import("./statisticsTotals.js");
 
-// The three views are produced by one rebuild, so an archive must invalidate all
-// of them. A key that sits outside the shared root survives and shows figures the
-// rebuild has already replaced — a stale dashboard beside fresh totals, which
-// reads as a backend fault rather than a cache that was not cleared.
+// Archiving a job changes the archive and the figures derived from it together,
+// so one call has to reach both. A key outside what it invalidates survives and
+// shows what the write already replaced — a stale dashboard beside fresh totals,
+// or a list missing the job just archived into it.
 //
 // Asserted against a real QueryClient rather than by comparing key shapes,
 // because the shapes can match while the prefix still fails to match.
-describe("statistics invalidation", () => {
-  it("reaches every statistics view after an archive", async () => {
+describe("archive invalidation", () => {
+  it("reaches every statistics view and the archive list", async () => {
     const qc = new QueryClient();
     qc.setQueryData(timelineQueryKey(), { months: [] });
     qc.setQueryData(timelineItemsQueryKey(), { items: [] });
     qc.setQueryData(totalsQueryKey(34), { typeID: 34 });
+    qc.setQueryData(archivedJobsQueryKey(), { jobs: [] });
 
-    invalidateStatisticsQueries(qc);
+    invalidateArchiveQueries(qc);
 
-    for (const key of [timelineQueryKey(), timelineItemsQueryKey(), totalsQueryKey(34)]) {
+    for (const key of [
+      timelineQueryKey(),
+      timelineItemsQueryKey(),
+      totalsQueryKey(34),
+      archivedJobsQueryKey(),
+    ]) {
       expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true);
     }
   });

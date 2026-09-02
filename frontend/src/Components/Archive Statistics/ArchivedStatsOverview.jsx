@@ -7,7 +7,7 @@ import {
   formatNumberForLocale,
   numberToShortText,
 } from "../../Functions/Helper/numberParser";
-import { useAccountTimelineQuery } from "../../Hooks/React Query/Backend/statisticsTimeline";
+import { useArchiveTimeline } from "./useArchiveTimeline";
 
 /**
  * Percentage change from previous to current.
@@ -23,6 +23,24 @@ function percentChange(current, previous) {
   const baseline = Math.abs(previous);
   if (baseline < Number.EPSILON) return null;
   return ((current - previous) / baseline) * 100;
+}
+
+/**
+ * What a month cost, fees included.
+ *
+ * A timeline month's `jobCostTotal` is build cost alone and carries the two
+ * selling fees separately, so spend read straight off it leaves received minus
+ * spent larger than the profit beside it. The lifetime totals row spells the
+ * same field the other way, fees included.
+ *
+ * @param {Object} month
+ */
+function spend(month) {
+  return (
+    Number(month?.jobCostTotal ?? 0) +
+    Number(month?.brokersFeeTotal ?? 0) +
+    Number(month?.transactionFeeTotal ?? 0)
+  );
 }
 
 /**
@@ -68,7 +86,14 @@ function changeDisplay(current, previous, favourable) {
  * card says "so far this month" rather than dressing a partial total as a final
  * one.
  */
-function MetricCard({ label, value, previousValue, favourable, isLoading }) {
+function MetricCard({
+  label,
+  value,
+  previousValue,
+  favourable,
+  signed = false,
+  isLoading,
+}) {
   if (isLoading) {
     return (
       <Paper variant="outlined" sx={{ ...appShellSetupSectionPaperSx, p: 2 }}>
@@ -84,6 +109,14 @@ function MetricCard({ label, value, previousValue, favourable, isLoading }) {
     label: changeLabel,
     ArrowIcon,
   } = changeDisplay(value, previousValue, favourable);
+
+  // The figure says what it is; the arrow says how it compares. Only a signed
+  // measure has a good and a bad side of zero — spend is a magnitude.
+  const valueTone = !signed
+    ? "text.primary"
+    : value < 0
+      ? "error.main"
+      : "success.main";
 
   return (
     <Paper variant="outlined" sx={{ ...appShellSetupSectionPaperSx, p: 2 }}>
@@ -101,7 +134,7 @@ function MetricCard({ label, value, previousValue, favourable, isLoading }) {
               typography: { xs: "h6", md: "h5" },
               width: "fit-content",
               lineHeight: 1.2,
-              color: tone,
+              color: valueTone,
             }}
           >
             {formatNumberForLocale(value)}
@@ -134,6 +167,24 @@ function MetricCard({ label, value, previousValue, favourable, isLoading }) {
 }
 
 /**
+ * The row for a month relative to this one, or nothing recorded for it.
+ *
+ * Buckets are filed against UTC month boundaries, so the month being asked for
+ * is resolved there too.
+ *
+ * @param {Object[]} months
+ * @param {number} offset - 0 for this month, -1 for the one before
+ */
+function monthOn(months, offset, now = new Date()) {
+  const shifted = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1),
+  );
+  const year = shifted.getUTCFullYear();
+  const month = shifted.getUTCMonth() + 1;
+  return months.find((row) => row.year === year && row.month === month) ?? {};
+}
+
+/**
  * Where this month stands against the last one.
  *
  * A running position rather than a settled result: the current month is still
@@ -141,34 +192,24 @@ function MetricCard({ label, value, previousValue, favourable, isLoading }) {
  * progress against a completed month. Charts over finished months are a separate
  * view.
  *
- * With no range, the server picks the window: the current month and the one
- * before it, which is the comparison this view exists to make. A caller with its
- * own range control passes one so the cards agree with what it shows elsewhere.
- *
- * @param {Object} [props]
- * @param {string} [props.from] - YYYY-MM
- * @param {string} [props.to] - YYYY-MM
+ * It takes no window. The comparison is always this calendar month against the
+ * last one, so a period chosen for the panels elsewhere does not move it.
  */
-export function ArchivedStatsOverview({ from, to } = {}) {
-  const { data, isLoading } = useAccountTimelineQuery(
-    from && to ? { from, to } : {},
-  );
-
-  const months = data?.months ?? [];
-  // Ascending from the server, so the last entry is the month in progress. Read
-  // from the end rather than by index: an account with one month of history
-  // returns a single entry, and treating it as the previous month would compare
-  // this month against itself.
-  const current = months.at(-1) ?? {};
-  const previous = months.length > 1 ? months.at(-2) : {};
+export function ArchivedStatsOverview() {
+  // Not narrowed by the page's period: the heading promises this month against
+  // last, whatever the panels beneath are drawing.
+  const { months, isLoading } = useArchiveTimeline();
+  // Matched on the calendar, not on position: a month with nothing archived in
+  // it has no row at all, so the newest row returned can be a month or more old
+  // and would otherwise be read as this one.
+  const current = monthOn(months, 0);
+  const previous = monthOn(months, -1);
 
   const measures = [
     {
       label: "Amount Spent",
-      // jobCostTotal already carries both fee totals, so adding them here counts
-      // them twice.
-      value: Number(current.jobCostTotal ?? 0),
-      previousValue: Number(previous.jobCostTotal ?? 0),
+      value: spend(current),
+      previousValue: spend(previous),
       favourable: "down",
     },
     {
@@ -182,6 +223,8 @@ export function ArchivedStatsOverview({ from, to } = {}) {
       value: Number(current.profitLoss ?? 0),
       previousValue: Number(previous.profitLoss ?? 0),
       favourable: "up",
+      // The only one of the three whose sign is a verdict rather than a size.
+      signed: true,
     },
   ];
 

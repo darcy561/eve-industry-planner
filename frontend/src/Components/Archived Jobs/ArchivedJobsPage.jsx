@@ -11,7 +11,9 @@ import {
   ArchiveSegmentPanel,
   ArchiveTimelinePanel,
   ArchivedItemBreakdown,
+  ArchivedItemStatistics,
   ArchivedStatsOverview,
+  RecalculationNotice,
 } from "../Archive Statistics";
 import {
   ArchiveRangeControl,
@@ -20,6 +22,7 @@ import {
 import { ArchivedJobsList } from "./ArchivedJobsList";
 
 const TAB_STATISTICS = "statistics";
+const TAB_ITEM = "item";
 const TAB_JOBS = "jobs";
 
 /**
@@ -39,15 +42,39 @@ export function ArchivedJobsPage() {
 
   // Once opened the tab stays mounted, so switching back does not re-query.
   const [jobsOpened, setJobsOpened] = useState(false);
+  const [itemOpened, setItemOpened] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
   const openTab = (_event, next) => {
     setTab(next);
     if (next === TAB_JOBS) setJobsOpened(true);
+    if (next === TAB_ITEM) setItemOpened(true);
   };
+
+  const openItem = (item) => {
+    setSelectedItem(item);
+    setItemOpened(true);
+    setTab(TAB_ITEM);
+  };
+
 
   return (
     <DefaultPageLayout>
-      <Grid container spacing={2} sx={{ flex: 1, width: "100%", minWidth: 0 }}>
-        <Grid size={12}>
+      {/* A column, not a wrapping grid: a grid container shares spare height
+          across every line, which floats the whole page down. */}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          flex: 1,
+          minHeight: 0,
+          width: "100%",
+          minWidth: 0,
+        }}
+      >
+        <RecalculationNotice {...range} />
+
+        <Box>
           <Tabs
             value={tab}
             onChange={openTab}
@@ -55,30 +82,26 @@ export function ArchivedJobsPage() {
             sx={{ width: "100%" }}
           >
             <Tab label="Statistics" value={TAB_STATISTICS} />
+            <Tab label="Item Statistics" value={TAB_ITEM} />
             <Tab label="Archived Jobs" value={TAB_JOBS} />
           </Tabs>
-        </Grid>
+        </Box>
 
         {tab === TAB_STATISTICS && (
-          <Grid size={12}>
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: { xs: "stretch", sm: "flex-end" },
-              }}
-            >
-              <ArchiveRangeControl value={rangeKey} onChange={setRangeKey} />
-            </Box>
-          </Grid>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: { xs: "stretch", sm: "flex-end" },
+            }}
+          >
+            <ArchiveRangeControl value={rangeKey} onChange={setRangeKey} />
+          </Box>
         )}
 
-        <Grid
-          size={12}
-          sx={{ display: tab === TAB_STATISTICS ? "block" : "none" }}
-        >
+        <Box sx={{ display: tab === TAB_STATISTICS ? "block" : "none" }}>
           <Grid container spacing={2} sx={{ width: "100%", minWidth: 0 }}>
             <Grid size={12}>
-              <ArchivedStatsOverview {...range} />
+              <ArchivedStatsOverview />
             </Grid>
             <Grid size={{ xs: 12, lg: 6 }}>
               <ArchiveTimelinePanel {...range} />
@@ -105,19 +128,34 @@ export function ArchivedJobsPage() {
               <ArchiveCostTotalsPanel {...range} />
             </Grid>
             <Grid size={12}>
-              <ArchivedItemBreakdown {...range} />
+              <ArchivedItemBreakdown {...range} onSelectItem={openItem} />
             </Grid>
           </Grid>
-        </Grid>
+        </Box>
 
-        <Grid size={12} sx={{ display: tab === TAB_JOBS ? "block" : "none" }}>
-          <Grid container spacing={2} sx={{ width: "100%", minWidth: 0 }}>
-            <Grid size={12}>
-              {jobsOpened && <ArchivedJobsList enabled={jobsOpened} />}
-            </Grid>
-          </Grid>
-        </Grid>
-      </Grid>
+        <Box
+          sx={{
+            // The one child that grows, so its holding state fills the page.
+            display: tab === TAB_ITEM ? "flex" : "none",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          {itemOpened && (
+            <ArchivedItemStatistics
+              {...range}
+              item={selectedItem}
+              onSelectItem={setSelectedItem}
+              rangeKey={rangeKey}
+              onRangeChange={setRangeKey}
+            />
+          )}
+        </Box>
+
+        <Box sx={{ display: tab === TAB_JOBS ? "block" : "none" }}>
+          {jobsOpened && <ArchivedJobsList enabled={jobsOpened} />}
+        </Box>
+      </Box>
     </DefaultPageLayout>
   );
 }
