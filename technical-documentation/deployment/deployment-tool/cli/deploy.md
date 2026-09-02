@@ -32,7 +32,7 @@ Requires `docker` on PATH for `docker stack deploy` and (dev) `docker buildx bak
 | `dataplane.EnsureS3` | Caller SoT → `s3.Ensure`. Used by Ready, `eip ensure-s3`, `eip init` (when seaweedfs up). |
 | `dataplane.EnsureMongo` | Caller SoT → `mongo.Ensure`. Used by Ready, `eip ensure-mongo`, `eip init` (when mongo up). |
 | `s3.Ensure` | Fail-closed `.env` gate (`S3_*` must be set), weed bucket list/create `static-data` / `static-data-test`, Check. |
-| `mongo.Ensure` | Host-side mongosh: keyfile / RS / users / preimages / indexes (`IndexSpecs`). Stack CMD is auth-first `mongod`. |
+| `mongo.Ensure` | Host-side mongosh: keyfile / RS / users / renames / preimages / indexes (`IndexSpecs`). Renames are gated by the structural version in `shared_deploy_state`, so a settled database costs one read instead of an exec per entry. Stack CMD is auth-first `mongod`. |
 | `mongo.RestoreKeyfileFromContainer` | Live task → `./mongo-keyfile` + `.bak`. CLI: `eip restore-mongo-keyfile` |
 | `mongo.Rekey` | Stack down → temp mongod → promote keyfile. CLI: `eip rekey-mongo -y` |
 | `Inspect` / `Source` | `eip.deploy.source` (`live` / `dev` / `mixed` / `unknown`) |
