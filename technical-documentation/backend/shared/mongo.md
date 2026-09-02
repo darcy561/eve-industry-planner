@@ -129,8 +129,13 @@ Collection names are duplicated across a module boundary — this package holds 
 `TestCollectionNames_canonical` here and `TestIndexSpecCollectionsAreKnown` /
 `TestPreimageCollectionsAreKnown` there pin the two copies together, so changing a name in one
 module fails the other module's test. Renaming an existing collection additionally needs a
-`CollectionRenames` entry so deployed databases move with the code — see
-[deploy.md](../../deployment/deployment-tool/cli/deploy.md) (`eip ensure-mongo`).
+`CollectionRenames` entry, carrying the next structural version, so deployed databases move with the
+code — see [deploy.md](../../deployment/deployment-tool/cli/deploy.md) (`eip ensure-mongo`).
+
+One collection in the database belongs to no service: `shared_deploy_state` holds a single row
+recording the structural version `eip ensure-mongo` has applied, which is how it skips renames it has
+already done. It is owned by the Deployment Tool, so it is absent from this package's constants by
+design — a reader finding it in the database has not found an unclassified collection.
 
 ## Errors and retry
 
