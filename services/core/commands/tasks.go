@@ -37,6 +37,7 @@ const usage = `Usage:
   tasks backfillArchivedAt [-dry-run]
   tasks queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]
   tasks prepareArchivedJobStatistics [-dry-run]
+  tasks encodeJobIdentity [-collection <name>] [-limit <n>] [-dry-run]
   tasks <task-name> [--version=<int>] [--data='<json>']
 
 Examples:

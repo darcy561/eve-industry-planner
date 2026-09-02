@@ -1,4 +1,4 @@
-package archivedjobs
+package archivestats
 
 import (
 	"testing"
@@ -8,23 +8,23 @@ import (
 
 func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 	job := models.Job{
-		JobID:   "job-test-1",
-		ItemID:  34,
-		JobType: 1,
+		ItemsProducedPerRun: 1,
+		JobID:               "job-test-1",
+		ItemID:              34,
+		JobType:             1,
 		Build: models.JobBuild{
-			Products: models.JobProducts{TotalQuantity: 10},
+			Setup: map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 5, JobCount: 2}},
 			Materials: []models.JobMaterial{
 				{TypeID: 34, PurchasedCost: 70},
 				{TypeID: 35, PurchasedCost: 30},
 			},
 			Costs: models.JobCosts{
 				TotalPurchaseCost: 100,
-				InstallCosts:      5,
-				ExtrasTotal:       3,
-				InventionCosts:    2,
+				ExtrasCosts:       []models.ExtraCost{{ID: "e1", ExtraValue: 3}},
+				InventionEntries:  []models.InventionEntry{{ID: 1, ItemName: "Datacore", ItemCost: 2}},
 				LinkedJobs: []models.LinkedESIJob{
-					{IsCorporation: false},
-					{IsCorporation: true},
+					{IsCorporation: false, Cost: 2},
+					{IsCorporation: true, Cost: 3},
 				},
 			},
 			Sale: models.JobSale{
@@ -41,7 +41,7 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 		},
 	}
 
-	snap, err := computeBuildStatSnapshot(job)
+	snap, err := BuildStatSnapshotFor(job)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,11 +64,8 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 	}
 }
 
-func TestComputeBuildStatSnapshot_zeroQuantityErrors(t *testing.T) {
-	_, err := computeBuildStatSnapshot(models.Job{
-		JobID: "x",
-		Build: models.JobBuild{Products: models.JobProducts{TotalQuantity: 0}},
-	})
+func TestComputeBuildStatSnapshot_noSetupsErrors(t *testing.T) {
+	_, err := BuildStatSnapshotFor(models.Job{JobID: "x"})
 	if err == nil {
 		t.Fatal("expected error")
 	}

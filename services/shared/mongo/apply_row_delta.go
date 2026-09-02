@@ -103,7 +103,6 @@ func (m *Mongo) incrementTotals(ctx context.Context, accountID string, delta mod
 	writes := make([]mongo.WriteModel, 0, len(delta.Totals))
 	for key, total := range delta.Totals {
 		inc := buildMeasureIncrements("", total.Measures)
-		inc["buildRows"] = total.BuildRows
 		if key.Segment != "" {
 			maps.Copy(inc, buildMeasureIncrements("breakdown."+key.Segment+".", total.Measures))
 			if total.SoldQty != 0 {
@@ -342,6 +341,44 @@ func (m *Mongo) StampContributed(ctx context.Context, rowIDs []string, now time.
 	})
 }
 
+// PruneEmptyTotals removes an item type's lifetime totals once no job of that
+// type is archived any more.
+//
+// Without it a restored job leaves a row of zeros behind, and an absent row and
+// an all-zero row mean different things: the totals read serves what it finds, so
+// the item keeps appearing — with nothing to show — in every view that lists what
+// an account has built.
+//
+// Decided on the job count, which is an integer and exact. The money fields
+// cannot answer it: subtracting float64 leaves a residue rather than zero, so a
+// row that should be gone would never match.
+func (m *Mongo) PruneEmptyTotals(ctx context.Context, accountID string) (int64, error) {
+	if m == nil || m.AccountProductionTotals == nil {
+		return 0, fmt.Errorf("mongo handle is required")
+	}
+	coll, err := m.AccountProductionTotals.requireColl()
+	if err != nil {
+		return 0, err
+	}
+
+	var deleted int64
+	err = Retry(ctx, applyRetryOptions("PruneEmptyTotals", nil), func() error {
+		deleted = 0
+		res, derr := coll.DeleteMany(ctx, bson.M{
+			"accountID": accountID,
+			"totalJobs": bson.M{"$lte": 0},
+		})
+		if derr != nil {
+			return derr
+		}
+		if res != nil {
+			deleted = res.DeletedCount
+		}
+		return nil
+	})
+	return deleted, err
+}
+
 // PruneEmptyBuckets removes monthly buckets nothing contributes to any more.
 //
 // Run after a removal rather than during it: the count reaching zero is what
@@ -401,4 +438,62 @@ func measureIncrements(m models.SalesMeasures) bson.M {
 		add("extraCategoryTotals."+category, value)
 	}
 	return inc
+}
+
+// EachArchivedJobWithoutStatsRow walks the account's archived jobs whose job id
+// is not in have, handing each to fn.
+//
+// The caller supplies what it already knows about rather than this reading them
+// again: its only other caller has just loaded every row for the account, and
+// two reads of one collection to answer one question is one too many. One
+// id-only read decides which jobs are missing, so a pass that finds nothing new
+// loads no job document at all.
+func (m *Mongo) EachArchivedJobWithoutStatsRow(ctx context.Context, accountID string, have map[string]struct{}, fn func(models.Job) error) error {
+	if m == nil || m.ArchivedJobs == nil {
+		return fmt.Errorf("mongo handle is required")
+	}
+	if accountID == "" {
+		return fmt.Errorf("accountID is required")
+	}
+	if fn == nil {
+		return fmt.Errorf("a visitor is required")
+	}
+
+	jobIDs, err := m.ArchivedJobs.ListIDs(ctx, ArchivedJobAccountFilter(accountID))
+	if err != nil {
+		return fmt.Errorf("list archived jobs: %w", err)
+	}
+
+	missing := make([]string, 0)
+	for _, jobID := range jobIDs {
+		if _, ok := have[jobID]; !ok {
+			missing = append(missing, jobID)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	coll, err := m.ArchivedJobs.requireColl()
+	if err != nil {
+		return err
+	}
+	filter := ArchivedJobAccountFilter(accountID)
+	filter["_id"] = bson.M{"$in": missing}
+
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var job models.Job
+		if decErr := cursor.Decode(&job); decErr != nil {
+			return decErr
+		}
+		if fnErr := fn(job); fnErr != nil {
+			return fnErr
+		}
+	}
+	return cursor.Err()
 }

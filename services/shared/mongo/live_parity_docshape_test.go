@@ -8,6 +8,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
@@ -18,7 +19,7 @@ import (
 // Requires EIP_MONGO_PARITY_LIVE=1. Uses scratch account eip-parity-account.
 
 func TestLive_docShape_jobUpsert(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -126,7 +127,7 @@ func TestLive_docShape_jobUpsert(t *testing.T) {
 }
 
 func TestLive_docShape_preservingMetaUserAndSettings(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -229,7 +230,7 @@ func TestLive_docShape_preservingMetaUserAndSettings(t *testing.T) {
 }
 
 func TestLive_docShape_watchlistReplace(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 

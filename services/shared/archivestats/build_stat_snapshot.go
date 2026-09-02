@@ -1,4 +1,4 @@
-package archivedjobs
+package archivestats
 
 import (
 	"fmt"
@@ -14,11 +14,11 @@ func roundBuildStatMoney(x float64) float64 {
 	return math.Round((x+buildStatRoundEps)*100) / 100
 }
 
-// computeBuildStatSnapshot mirrors frontend/functions archivedJobs.js reducers and arithmetic.
-func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) {
-	totalProduced := float64(job.Build.Products.TotalQuantity)
+// BuildStatSnapshotFor mirrors frontend/functions archivedJobs.js reducers and arithmetic.
+func BuildStatSnapshotFor(job models.Job) (models.BuildStatSnapshot, error) {
+	totalProduced := float64(job.TotalQuantityProduced())
 	if totalProduced <= 0 {
-		return models.BuildStatSnapshot{}, fmt.Errorf("build.products.totalQuantity must be > 0 (jobID=%s)", job.JobID)
+		return models.BuildStatSnapshot{}, fmt.Errorf("the setups produce nothing (jobID=%s)", job.JobID)
 	}
 
 	totalSale := 0.0
@@ -62,4 +62,19 @@ func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) 
 		AverageSalePrice:    averageSalePrice,
 		ProfitLoss:          profitLoss,
 	}, nil
+}
+
+// NewAccountRow derives the statistics row for one archived job.
+//
+// The row is the unit everything above it is folded from, and it is derived from
+// the job alone — so it can be written wherever the job is, rather than found
+// again later by a reader that has to work out which jobs lack one.
+//
+// Returned uncounted: see [BuildAccountSnapshot].
+func NewAccountRow(job models.Job, now time.Time) (models.ArchivedJobStats, error) {
+	snap, err := BuildStatSnapshotFor(job)
+	if err != nil {
+		return models.ArchivedJobStats{}, err
+	}
+	return BuildAccountSnapshot(job, snap, now), nil
 }

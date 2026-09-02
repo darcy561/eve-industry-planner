@@ -10,6 +10,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -19,7 +20,7 @@ import (
 // Requires EIP_MONGO_PARITY_LIVE=1.
 
 func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -68,7 +69,7 @@ func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 
 // LoadJobsByFilter merges accountID into the filter. Seeds scratch docs so identity is via jobID.
 func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -201,7 +202,7 @@ func cloneFilter(in bson.M) bson.M {
 // Docs-layer slip: filter omits _meta.accountID. LoadJobsByFilter must still scope;
 // the same Find without merge returns both accounts (what happens if we don't merge).
 func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 

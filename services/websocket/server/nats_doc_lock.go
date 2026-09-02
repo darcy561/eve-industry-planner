@@ -40,7 +40,7 @@ func (s *Server) subscribeToDocLockNotifications() {
 				return eipnats.Terminate("unreadable lock payload on %s: %v", subject, err)
 			}
 
-			outcome := s.broadcastRawToAccount(accountID, wire, suppressSessionID)
+			outcome := s.broadcastRawToAccount("doc_lock", accountID, wire, suppressSessionID)
 			// Reports recipients, suppression and an idle replica, which the
 			// generic outcome cannot express; the wrapper leaves it as the one
 			// outcome for this message.

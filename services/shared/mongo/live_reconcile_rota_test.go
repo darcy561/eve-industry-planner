@@ -8,8 +8,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
-
-	"go.mongodb.org/mongo-driver/v2/bson"
+	"eve-industry-planner/testing/mongolive"
 )
 
 const rotaScratchAccount = "eip-parity-rota-account"
@@ -18,19 +17,12 @@ const rotaScratchAccount = "eip-parity-rota-account"
 // been reconciled is due at once, and one just reconciled is not due again until
 // the window has passed. Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_reconcileRota_dueTimeDecidesTurn(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	owner := models.AccountStatsOwner(rotaScratchAccount)
-	clean := func() {
-		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
-		defer c()
-		_, _ = mongo.ArchivedJobStats.Collection().DeleteMany(cctx, bson.M{"accountID": rotaScratchAccount})
-		_, _ = mongo.AccountReconcileRota.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
-	}
-	clean()
-	t.Cleanup(clean)
+	mongolive.ScratchAccount(t, mongo, rotaScratchAccount)
 
 	// The rota is driven by who has rows, so the owner has to have one.
 	row := models.ArchivedJobStats{
@@ -76,23 +68,14 @@ func TestLive_reconcileRota_dueTimeDecidesTurn(t *testing.T) {
 // An owner with no stamp outranks a stamped one, so a newly seen owner is taken
 // on the next tick rather than waiting behind the whole population.
 func TestLive_reconcileRota_neverReconciledOutranksAStampedOwner(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	const fresh = rotaScratchAccount + "-fresh"
 	const stamped = rotaScratchAccount + "-stamped"
-	clean := func() {
-		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
-		defer c()
-		for _, id := range []string{fresh, stamped} {
-			_, _ = mongo.ArchivedJobStats.Collection().DeleteMany(cctx, bson.M{"accountID": id})
-			_, _ = mongo.AccountReconcileRota.Collection().DeleteMany(cctx,
-				bson.M{"_id": models.AccountStatsOwner(id).Key()})
-		}
-	}
-	clean()
-	t.Cleanup(clean)
+	mongolive.ScratchAccount(t, mongo, fresh)
+	mongolive.ScratchAccount(t, mongo, stamped)
 
 	for _, id := range []string{fresh, stamped} {
 		row := models.ArchivedJobStats{

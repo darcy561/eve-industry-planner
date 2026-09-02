@@ -33,10 +33,9 @@ func ContributionOf(row models.ArchivedJobStats) models.StatsDelta {
 		sold += line.Quantity
 	}
 	delta.Totals[models.StatsTypeKey{TypeID: row.TypeID, Segment: JobSegment(row)}] = models.StatsTypeDelta{
-		JobType:   row.JobType,
-		Measures:  measures,
-		SoldQty:   sold,
-		BuildRows: 1,
+		JobType:  row.JobType,
+		Measures: measures,
+		SoldQty:  sold,
 	}
 	return delta
 }

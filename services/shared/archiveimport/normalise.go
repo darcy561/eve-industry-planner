@@ -501,10 +501,6 @@ func upgradeLegacyJobShape(m map[string]any) {
 		build["childJobs"] = childJobs
 	}
 
-	if prod, ok := build["products"].(map[string]any); ok {
-		delete(prod, "quantityPerJob")
-		delete(prod, "recalculate")
-	}
 	delete(build, "buildChar")
 	delete(build, "time")
 
@@ -652,6 +648,9 @@ func stripLegacyRootFields(m map[string]any) {
 	}
 }
 
+// normalizeBuildSubtree also drops build.products: what a job produces is worked
+// out from its setups (models.Job.TotalQuantityProduced), so the legacy stored
+// total is not carried onto the document.
 func normalizeBuildSubtree(m map[string]any) {
 	build, _ := m["build"].(map[string]any)
 	if build == nil {
@@ -659,7 +658,7 @@ func normalizeBuildSubtree(m map[string]any) {
 	}
 	normalizeJobSetupMaps(build)
 	normalizePurchasing(build)
-	normalizeProductsTotalQuantity(build)
+	delete(build, "products")
 }
 
 // normalizeJobSetupMaps coerces each build.setup entry for models.JobSetup value fields (legacy null / Firestore scalar types).
@@ -781,17 +780,6 @@ func jobSetupAppliedRequirementID(s map[string]any) int64 {
 		return -1
 	}
 	return n
-}
-
-// normalizeProductsTotalQuantity rounds legacy Firestore floats for models.JobProducts.TotalQuantity.
-func normalizeProductsTotalQuantity(build map[string]any) {
-	prod, ok := build["products"].(map[string]any)
-	if !ok || prod == nil {
-		return
-	}
-	if v, ok := prod["totalQuantity"]; ok && v != nil {
-		prod["totalQuantity"] = materialCountQuantityInt(v)
-	}
 }
 
 func normalizePurchasing(build map[string]any) {

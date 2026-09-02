@@ -7,6 +7,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -22,20 +23,11 @@ const (
 // server is applying it.
 // Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_accountRebuild_revokeAndPrune(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	statsColl := mongo.ArchivedJobStats.Collection()
-	bucketColl := mongo.AccountTimelineMonths.Collection()
-	clean := func() {
-		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
-		defer c()
-		_, _ = statsColl.DeleteMany(cctx, bson.M{"accountID": rebuildStatsScratchAccount})
-		_, _ = bucketColl.DeleteMany(cctx, bson.M{"accountID": rebuildStatsScratchAccount})
-	}
-	clean()
-	t.Cleanup(clean)
+	mongolive.ScratchAccount(t, mongo, rebuildStatsScratchAccount)
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 
@@ -111,20 +103,11 @@ func TestLive_accountRebuild_revokeAndPrune(t *testing.T) {
 // whose rebuild returned no rows.
 // Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_accountRebuild_emptyKeepListClearsTheAccount(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	statsColl := mongo.ArchivedJobStats.Collection()
-	bucketColl := mongo.AccountTimelineMonths.Collection()
-	clean := func() {
-		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
-		defer c()
-		_, _ = statsColl.DeleteMany(cctx, bson.M{"accountID": rebuildStatsScratchAccount})
-		_, _ = bucketColl.DeleteMany(cctx, bson.M{"accountID": rebuildStatsScratchAccount})
-	}
-	clean()
-	t.Cleanup(clean)
+	mongolive.ScratchAccount(t, mongo, rebuildStatsScratchAccount)
 
 	rowID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-only")
 	bucketID := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8, false)
@@ -161,18 +144,11 @@ func TestLive_accountRebuild_emptyKeepListClearsTheAccount(t *testing.T) {
 // readable.
 // Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_accountRebuild_writesBeforeRemoving(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	statsColl := mongo.ArchivedJobStats.Collection()
-	clean := func() {
-		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
-		defer c()
-		_, _ = statsColl.DeleteMany(cctx, bson.M{"accountID": rebuildStatsScratchAccount})
-	}
-	clean()
-	t.Cleanup(clean)
+	mongolive.ScratchAccount(t, mongo, rebuildStatsScratchAccount)
 
 	staleID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-stale")
 	freshID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-fresh")

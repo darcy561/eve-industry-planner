@@ -23,6 +23,9 @@ type timelinePeriod struct {
 	Defaulted bool `json:"defaulted"`
 	// TypeID echoes the item filter when one was applied.
 	TypeID int `json:"typeID,omitempty"`
+	// All reports that the response covers every month the account has, which is
+	// what an empty from and to mean when it is set.
+	All bool `json:"all,omitempty"`
 	// IncludesProductionChain reports whether output consumed by a parent build
 	// is counted. A caller cannot otherwise tell a request it was refused from
 	// one it never made, and the figures differ.
@@ -45,6 +48,8 @@ type timelineMonthEntry struct {
 // Totals are summed server-side over the same rows the months came from, so the
 // headline figure and the months cannot disagree.
 type timelineResponse struct {
+	// Embedded, so its field appears beside the figures rather than nested.
+	recalculationEnvelope
 	Period timelinePeriod       `json:"period"`
 	Totals models.SalesMeasures `json:"totals"`
 	Months []timelineMonthEntry `json:"months"`
@@ -54,7 +59,8 @@ type timelineResponse struct {
 //
 // Returns one entry per calendar month in the window, summed across every item
 // type unless typeID narrows it. With no from/to the window is the current month
-// and the one before it, which is the dashboard's month-on-month comparison.
+// and the one before it, which is the dashboard's month-on-month comparison, and
+// `range=all` reads every month the account has instead of a bounded window.
 //
 // The account is resolved by the auth middleware from the session cookie, never
 // read from the request.
@@ -99,6 +105,7 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		AccountID:              accountID,
 		From:                   window.From,
 		To:                     window.To,
+		AllTime:                window.All,
 		TypeID:                 typeID,
 		IncludeProductionChain: includeChain,
 	})
@@ -126,10 +133,12 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := timelineResponse{
+		recalculationEnvelope: recalculationFor(ctx, h.Mongo, accountID),
 		Period: timelinePeriod{
-			From:      window.From.String(),
-			To:        window.To.String(),
+			From:      periodBound(window.All, window.From),
+			To:        periodBound(window.All, window.To),
 			Defaulted: window.Defaulted,
+			All:       window.All,
 			TypeID:    typeID,
 
 			IncludesProductionChain: includeChain,

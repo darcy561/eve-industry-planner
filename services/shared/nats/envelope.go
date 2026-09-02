@@ -30,8 +30,13 @@ const (
 // Message represents a generic message with a type and optional payload data.
 // This is the unified message structure used for all NATS message publishing.
 type Message struct {
-	Type string          `json:"type"`           // Message type identifier (e.g., "task", "schedule", "empty")
-	Data json.RawMessage `json:"data,omitempty"` // Optional JSON-encoded payload data
+	Type string `json:"type"` // Message type identifier (e.g., "task", "schedule", "empty")
+	// Subtype names what the message is within its type, so a message is
+	// described the same way between services as it is to a browser and a new
+	// kind is one definition rather than two that must be kept aligned. A message
+	// without one keeps the meaning its Type already carries.
+	Subtype string          `json:"subtype,omitempty"`
+	Data    json.RawMessage `json:"data,omitempty"` // Optional JSON-encoded payload data
 
 	// TraceCarrierTraceparent and TraceCarrierTracestate duplicate W3C trace context in the JSON body
 	// (same values as NATS headers from natsprop.Inject) so Asynq workers still correlate when headers

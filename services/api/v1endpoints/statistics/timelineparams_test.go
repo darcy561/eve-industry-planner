@@ -289,3 +289,40 @@ func TestResolveProductionChainScope(t *testing.T) {
 		})
 	}
 }
+
+// A range long enough to cover an old account is refused for exceeding the
+// maximum, and one short enough to be accepted cuts history off silently. So
+// "everything" is its own request rather than a very wide window.
+func TestResolveTimelineWindowReadsRangeAll(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+
+	window, err := resolveTimelineWindow(httptest.NewRequest(http.MethodGet, "/?range=all", nil), now)
+	if err != nil {
+		t.Fatalf("range=all: %v", err)
+	}
+	if !window.All {
+		t.Fatal("range=all did not resolve to an all-time window")
+	}
+	if window.Defaulted {
+		t.Fatal("an all-time window is asked for, not defaulted to")
+	}
+
+	// Case is the only thing a caller is likely to get wrong here.
+	if w, err := resolveTimelineWindow(httptest.NewRequest(http.MethodGet, "/?range=ALL", nil), now); err != nil || !w.All {
+		t.Fatalf("range=ALL: window=%+v err=%v", w, err)
+	}
+
+	// A window and "everything" are different requests, so asking for both is a
+	// mistake worth naming rather than resolving one way or the other.
+	if _, err := resolveTimelineWindow(
+		httptest.NewRequest(http.MethodGet, "/?range=all&from=2026-01&to=2026-06", nil), now,
+	); err == nil {
+		t.Fatal("range=all with a range was accepted")
+	}
+
+	// Anything else in the parameter is not an all-time read.
+	if w, err := resolveTimelineWindow(httptest.NewRequest(http.MethodGet, "/?range=6m", nil), now); err != nil || w.All {
+		t.Fatalf("range=6m: window=%+v err=%v", w, err)
+	}
+}

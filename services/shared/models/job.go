@@ -45,7 +45,6 @@ type Job struct {
 // JobBuild contains all build-related data including setups, costs, and sales
 type JobBuild struct {
 	Setup     map[string]JobSetup `json:"setup" bson:"setup"`
-	Products  JobProducts         `json:"products" bson:"products"`
 	Costs     JobCosts            `json:"costs" bson:"costs"`
 	Sale      JobSale             `json:"sale" bson:"sale"`
 	Materials []JobMaterial       `json:"materials" bson:"materials"`
@@ -84,20 +83,11 @@ type MaterialCount struct {
 	RawQuantity int `json:"rawQuantity" bson:"rawQuantity"`
 }
 
-// JobProducts contains product quantity information (whole units).
-// Legacy fractional totalQuantity values are rounded in archiveimport.normalizeProductsTotalQuantity.
-type JobProducts struct {
-	TotalQuantity int `json:"totalQuantity" bson:"totalQuantity"`
-}
-
 // JobCosts contains all cost-related data for the job
 type JobCosts struct {
 	TotalPurchaseCost float64          `json:"totalPurchaseCost" bson:"totalPurchaseCost"`
 	ExtrasCosts       []ExtraCost      `json:"extrasCosts" bson:"extrasCosts"`
-	ExtrasTotal       float64          `json:"extrasTotal" bson:"extrasTotal"`
 	LinkedJobs        []LinkedESIJob   `json:"linkedJobs" bson:"linkedJobs"`
-	InstallCosts      float64          `json:"installCosts" bson:"installCosts"`
-	InventionCosts    float64          `json:"inventionCosts" bson:"inventionCosts"`
 	InventionEntries  []InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
 }
 
@@ -124,6 +114,62 @@ func (p JobCostParts) Total() float64 {
 	return p.Build() + p.BrokersFee + p.TransactionFee
 }
 
+// TotalInstallCost is what the installs cost: the sum of the ESI jobs linked to
+// this job at the build stage.
+//
+// It is summed from the linked rows on every call, so linking and unlinking
+// cannot leave the figure behind. Nothing linked costs nothing — setup estimates
+// are a planning figure the SPA keeps to itself. Job.totalInstallCost() in the
+// SPA is the same method.
+func (j Job) TotalInstallCost() float64 {
+	var installed float64
+	for _, linked := range j.Build.Costs.LinkedJobs {
+		installed += linked.Cost
+	}
+	return installed
+}
+
+// TotalQuantityProduced is how many items the job produces: what its setups are
+// set to make.
+//
+// It is worked out from the setups on every call, so a setup added, removed or
+// resized is reflected immediately and nothing is stored that could fall behind
+// them. Job.totalQuantityProduced() in the SPA is the same method.
+func (j Job) TotalQuantityProduced() int {
+	produced := 0
+	for _, setup := range j.Build.Setup {
+		produced += j.ItemsProducedPerRun * setup.RunCount * setup.JobCount
+	}
+	return produced
+}
+
+// TotalExtrasCost is what the extras cost: the sum of the rows the Extras panel
+// keeps on the job.
+//
+// It is summed from the rows on every call, so adding, removing or editing one
+// is reflected at once. Job.totalExtrasCost() in the SPA is the same method.
+func (j Job) TotalExtrasCost() float64 {
+	total := 0.0
+	for _, extra := range j.Build.Costs.ExtrasCosts {
+		total += extra.ExtraValue
+	}
+	return total
+}
+
+// TotalInventionCost is what invention cost: the sum of the entries recorded
+// against the job.
+//
+// It is summed from the entries on every call, so adding, removing or editing
+// one is reflected at once. Job.totalInventionCost() in the SPA is the same
+// method.
+func (j Job) TotalInventionCost() float64 {
+	total := 0.0
+	for _, entry := range j.Build.Costs.InventionEntries {
+		total += entry.ItemCost
+	}
+	return total
+}
+
 // CostParts reads what the job cost from its own fields.
 //
 // Materials are summed from the purchases rather than read from
@@ -132,9 +178,9 @@ func (p JobCostParts) Total() float64 {
 // purchases can.
 func (j Job) CostParts() JobCostParts {
 	parts := JobCostParts{
-		Install:   j.Build.Costs.InstallCosts,
-		Invention: j.Build.Costs.InventionCosts,
-		Extras:    j.Build.Costs.ExtrasTotal,
+		Install:   j.TotalInstallCost(),
+		Invention: j.TotalInventionCost(),
+		Extras:    j.TotalExtrasCost(),
 	}
 	for _, material := range j.Build.Materials {
 		parts.Materials += material.PurchasedCost
@@ -358,8 +404,6 @@ type InventionEntry struct {
 
 // JobSale contains sales and market order data
 type JobSale struct {
-	TotalSold    float64       `json:"totalSold" bson:"totalSold"`
-	TotalSale    float64       `json:"totalSale" bson:"totalSale"`
 	MarketOrders []MarketOrder `json:"marketOrders" bson:"marketOrders"`
 	Transactions []Transaction `json:"transactions" bson:"transactions"`
 	BrokersFee   []BrokerFee   `json:"brokersFee" bson:"brokersFee"`
@@ -436,7 +480,6 @@ type JobMaterial struct {
 	Purchasing        []Purchase `json:"purchasing" bson:"purchasing"`
 	QuantityPurchased int        `json:"quantityPurchased" bson:"quantityPurchased"` // rounded on historic import
 	PurchasedCost     float64    `json:"purchasedCost" bson:"purchasedCost"`         // coerced on historic import
-	PurchaseComplete  bool       `json:"purchaseComplete" bson:"purchaseComplete"`
 }
 
 // Purchase represents a material purchase transaction.

@@ -92,8 +92,10 @@ func TestApplyingThenNegatingLeavesNothing(t *testing.T) {
 		if net != (models.BuildMeasures{}) {
 			t.Errorf("%+v totals did not return to zero: %+v", key, net)
 		}
-		if total.BuildRows+undo.Totals[key].BuildRows != 0 {
-			t.Errorf("%+v build count did not return to zero", key)
+		// The job count is what decides whether the row still has anything behind
+		// it, so it has to come back to zero exactly rather than nearly.
+		if total.Measures.TotalJobs+undo.Totals[key].Measures.TotalJobs != 0 {
+			t.Errorf("%+v job count did not return to zero", key)
 		}
 	}
 }
@@ -173,7 +175,7 @@ func TestRowsOfOneTypeInDifferentSegmentsAreCreditedSeparately(t *testing.T) {
 	for _, row := range []models.ArchivedJobStats{chain, sold} {
 		for key, total := range ContributionOf(row).Totals {
 			held := merged[key]
-			held.BuildRows += total.BuildRows
+			held.Measures = held.Measures.Plus(total.Measures)
 			merged[key] = held
 		}
 	}
@@ -185,32 +187,32 @@ func TestRowsOfOneTypeInDifferentSegmentsAreCreditedSeparately(t *testing.T) {
 		{TypeID: 34, Segment: models.ArchiveSegmentProductionChain},
 		{TypeID: 34, Segment: models.ArchiveSegmentStandaloneRecordedSale},
 	} {
-		if merged[key].BuildRows != 1 {
-			t.Errorf("%+v has %d rows, want 1", key, merged[key].BuildRows)
+		if merged[key].Measures.TotalJobs != 1 {
+			t.Errorf("%+v has %d jobs, want 1", key, merged[key].Measures.TotalJobs)
 		}
 	}
 }
 
-// A rebuild writes the aggregates and the rows in one pass, so its rows are
-// already counted. An unstamped row is the incremental pass's definition of
-// outstanding work — leaving one behind would fold it again on top of totals
-// that are already whole.
-func TestARebuiltRowIsMarkedAsAlreadyCounted(t *testing.T) {
+// A row says nothing about whether its figures are counted, because the job it
+// came from does not know. A caller that only creates the row must leave it
+// outstanding, or the fold that exists to find new rows would skip every one.
+func TestABuiltRowIsUncountedUntilAWriterSaysOtherwise(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC)
 	row := BuildAccountSnapshot(models.Job{
-		JobID:  "job-1",
-		ItemID: 34,
+		JobID:               "job-1",
+		ItemID:              34,
+		ItemsProducedPerRun: 4,
 		Build: models.JobBuild{
-			Products: models.JobProducts{TotalQuantity: 4},
+			Setup: map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}},
 		},
 	}, models.BuildStatSnapshot{TotalProduced: 4}, now)
 
-	if row.ContributedAt == nil {
-		t.Fatal("a rebuilt row carries no contribution stamp; the next pass would count it again")
+	if row.ContributedAt != nil {
+		t.Fatal("a freshly built row claims to be counted; a new job's figures would never be folded in")
 	}
-	if !row.ContributedAt.Equal(now) {
-		t.Fatalf("stamped %v, want the pass's own clock %v", row.ContributedAt, now)
+	if !row.AwaitsContribution() {
+		t.Fatal("a freshly built row is not offered as outstanding work")
 	}
 }

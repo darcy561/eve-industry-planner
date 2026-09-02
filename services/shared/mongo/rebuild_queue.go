@@ -236,6 +236,131 @@ func (m *Mongo) BumpOwnerClaim(ctx context.Context, owner models.StatsOwner, opt
 	})
 }
 
+// RecalculationState is what a read tells a client about work it is waiting on.
+//
+// Only a rebuild is reported. After a fold became the routine path, an owner is
+// in the queue briefly every time a job is archived, so reporting mere
+// membership would announce a recalculation for ordinary new jobs — the opposite
+// of what this is for. A fold's latency is seconds, the notification already
+// covers it, and there is nothing a user could do about one.
+type RecalculationState string
+
+const (
+	// RecalculationCurrent means the figures are as good as the archive.
+	RecalculationCurrent RecalculationState = ""
+	// RecalculationRunning means a full rebuild is outstanding, so the figures on
+	// screen predate a change to how they are derived.
+	RecalculationRunning RecalculationState = "recalculating"
+	// RecalculationFailed means that rebuild ran out of attempts. Without it a
+	// permanently failing owner shows a spinner that never resolves.
+	RecalculationFailed RecalculationState = "failed"
+)
+
+// ownerWorkFailureCeiling is how many recorded failures make a rebuild failed
+// rather than pending.
+//
+// One is enough: a failure is only recorded once asynq has exhausted its own
+// retries, so the entry is written by work that has already tried and stopped.
+const ownerWorkFailureCeiling = 1
+
+// OwnerRecalculationState reports whether an owner is waiting on a rebuild, and
+// whether that rebuild has given up.
+//
+// One lookup by `_id` on a small collection, at read time, rather than a flag
+// stored on any statistics document — nothing has to remember to keep it in step
+// with the queue, because it is read from the queue.
+func (m *Mongo) OwnerRecalculationState(ctx context.Context, owner models.StatsOwner, opts ...RetryOption) (RecalculationState, error) {
+	if m == nil || m.AccountRebuildQueue == nil {
+		return RecalculationCurrent, fmt.Errorf("mongo handle is required")
+	}
+	if err := owner.Validate(); err != nil {
+		return RecalculationCurrent, err
+	}
+	coll, err := m.AccountRebuildQueue.requireColl()
+	if err != nil {
+		return RecalculationCurrent, err
+	}
+
+	state := RecalculationCurrent
+	err = Retry(ctx, applyRetryOptions("OwnerRecalculationState", opts), func() error {
+		state = RecalculationCurrent
+		var row struct {
+			Work     string `bson:"work"`
+			Failures int64  `bson:"failures"`
+		}
+		derr := coll.FindOne(ctx, queuedOwnerFilter(owner)).Decode(&row)
+		if errors.Is(derr, mongo.ErrNoDocuments) {
+			return nil
+		}
+		if derr != nil {
+			return derr
+		}
+		if StatsWork(row.Work) == StatsWorkDelta {
+			return nil
+		}
+		if row.Failures >= ownerWorkFailureCeiling {
+			state = RecalculationFailed
+			return nil
+		}
+		state = RecalculationRunning
+		return nil
+	})
+	if err != nil {
+		return RecalculationCurrent, err
+	}
+	return state, nil
+}
+
+// RecordOwnerWorkFailure records that an owner's work stopped without finishing.
+//
+// The entry is left in place rather than cleared, so the work stays outstanding
+// and a read can say the figures are stale. Recording it is what stops the
+// retries: without a count, a permanently failing owner is dispatched, fails,
+// and is dispatched again for as long as it exists.
+func (m *Mongo) RecordOwnerWorkFailure(ctx context.Context, owner models.StatsOwner, reason string, now time.Time, opts ...RetryOption) error {
+	if m == nil || m.AccountRebuildQueue == nil {
+		return fmt.Errorf("mongo handle is required")
+	}
+	if err := owner.Validate(); err != nil {
+		return err
+	}
+	coll, err := m.AccountRebuildQueue.requireColl()
+	if err != nil {
+		return err
+	}
+	return Retry(ctx, applyRetryOptions("RecordOwnerWorkFailure", opts), func() error {
+		_, uerr := coll.UpdateOne(ctx, queuedOwnerFilter(owner), bson.M{
+			"$inc": bson.M{"failures": 1},
+			"$set": bson.M{"lastError": reason, "lastFailedAt": now.UTC()},
+		})
+		return uerr
+	})
+}
+
+// ClearOwnerWorkFailure forgets an owner's recorded failures.
+//
+// Called where work succeeded but could not clear its entry, because the owner
+// was re-queued while it ran. The entry stands for the new request; the failures
+// belong to a run that has since worked, and leaving them would report a failed
+// recalculation for work that is merely outstanding.
+func (m *Mongo) ClearOwnerWorkFailure(ctx context.Context, owner models.StatsOwner, opts ...RetryOption) error {
+	if m == nil || m.AccountRebuildQueue == nil {
+		return fmt.Errorf("mongo handle is required")
+	}
+	if err := owner.Validate(); err != nil {
+		return err
+	}
+	coll, err := m.AccountRebuildQueue.requireColl()
+	if err != nil {
+		return err
+	}
+	return Retry(ctx, applyRetryOptions("ClearOwnerWorkFailure", opts), func() error {
+		_, uerr := coll.UpdateOne(ctx, queuedOwnerFilter(owner),
+			bson.M{"$unset": bson.M{"failures": "", "lastError": "", "lastFailedAt": ""}})
+		return uerr
+	})
+}
+
 // queuedOwnerFilter selects one owner's queue entry.
 func queuedOwnerFilter(owner models.StatsOwner) bson.M {
 	return bson.M{"_id": owner.Key()}

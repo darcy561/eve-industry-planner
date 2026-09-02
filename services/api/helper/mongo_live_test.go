@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -24,28 +24,6 @@ import (
 // Exercises API helper + the same Docs put/get paths handlers use after auth/lock gates.
 
 const apiLiveScratchAccount = "eip-api-live-account"
-
-func requireLiveMongo(t *testing.T) *eipmongo.Mongo {
-	t.Helper()
-	if os.Getenv("EIP_MONGO_PARITY_LIVE") != "1" {
-		t.Skip("set EIP_MONGO_PARITY_LIVE=1 to run against stack Mongo")
-	}
-	m, err := eipmongo.ConnectPrimary()
-	if err != nil {
-		t.Fatalf("ConnectPrimary: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		m.Disconnect(ctx)
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if err := m.Ping(ctx); err != nil {
-		t.Fatalf("ping: %v", err)
-	}
-	return m
-}
 
 func cleanupAPILiveAccount(t *testing.T, m *eipmongo.Mongo) {
 	t.Helper()
@@ -63,7 +41,7 @@ func cleanupAPILiveAccount(t *testing.T, m *eipmongo.Mongo) {
 }
 
 func TestLive_ResolveUserDocumentsForLogin(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -118,7 +96,7 @@ func TestLive_ResolveUserDocumentsForLogin(t *testing.T) {
 }
 
 func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -167,7 +145,7 @@ func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
 }
 
 func TestLive_GroupsPutGetFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -200,7 +178,7 @@ func TestLive_GroupsPutGetFlow(t *testing.T) {
 }
 
 func TestLive_UserAndSettingsUpsertReload(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -261,7 +239,7 @@ func TestLive_UserAndSettingsUpsertReload(t *testing.T) {
 }
 
 func TestLive_WatchlistPutGetFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -305,7 +283,7 @@ func TestLive_WatchlistPutGetFlow(t *testing.T) {
 }
 
 func TestLive_JobDocumentsDeleteFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -339,7 +317,7 @@ func TestLive_JobDocumentsDeleteFlow(t *testing.T) {
 }
 
 func TestLive_GroupsDeleteFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -373,7 +351,7 @@ func TestLive_GroupsDeleteFlow(t *testing.T) {
 }
 
 func TestLive_JobsGroupsListFlows(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -419,7 +397,7 @@ func TestLive_JobsGroupsListFlows(t *testing.T) {
 }
 
 func TestLive_GroupsMembershipDelta(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

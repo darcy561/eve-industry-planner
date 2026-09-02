@@ -46,9 +46,9 @@ func TestDispatchResultSeparatesDispatchedFromFailed(t *testing.T) {
 }
 
 func archivedJob(accountID, jobID string, produced int) models.Job {
-	job := models.Job{JobID: jobID}
+	job := models.Job{JobID: jobID, ItemsProducedPerRun: produced}
 	job.MetaData.AccountID = accountID
-	job.Build.Products.TotalQuantity = produced
+	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
 	return job
 }
 

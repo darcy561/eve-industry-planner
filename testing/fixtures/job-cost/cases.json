@@ -1,17 +1,14 @@
 {
-  "$comment": "Job cost corpus. The SPA (Classes/job.js) and the backend (models.Job.CostParts) both work out what a job cost, and both read these cases so the two cannot drift. Sale lines keep ESI's own field names (`tax`); our own aggregate is a transaction fee. Materials are summed from the purchases: build.costs.totalPurchaseCost is a cached copy that has historically been written both with and without invention.",
+  "$comment": "Job cost corpus. The SPA (Classes/job.js) and the backend (models.Job.CostParts) both work out what a job cost, and both read these cases so the two cannot drift. Sale lines keep ESI's own field names (`tax`); our own aggregate is a transaction fee. What a job produces is summed from its setups, materials from the purchases, installs from the linked ESI jobs extras from the extras rows and invention from its entries: build.costs.totalPurchaseCost is a cached copy that has historically been written both with and without invention.",
   "cases": [
     {
       "name": "every component",
-      "why": "A job's cost is materials, install, extras, invention, broker fees and tax.",
+      "why": "A job's cost is materials, install, extras, invention, broker fees and tax. Install is summed from the linked ESI jobs.",
       "job": {
         "jobID": "job-every-component",
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "products": {
-            "totalQuantity": 10
-          },
           "materials": [
             {
               "typeID": 34,
@@ -24,9 +21,28 @@
           ],
           "costs": {
             "totalPurchaseCost": 100,
-            "installCosts": 5,
-            "extrasTotal": 3,
-            "inventionCosts": 2
+            "linkedJobs": [
+              {
+                "job_id": 900000,
+                "status": "delivered",
+                "cost": 5
+              }
+            ],
+            "extrasCosts": [
+              {
+                "id": "extra-1",
+                "category": "0",
+                "extraText": "Courier",
+                "extraValue": 3
+              }
+            ],
+            "inventionEntries": [
+              {
+                "id": 1,
+                "itemName": "Datacore",
+                "itemCost": 2
+              }
+            ]
           },
           "sale": {
             "brokersFee": [
@@ -45,10 +61,19 @@
                 "tax": 0.25
               }
             ]
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1
+            }
           }
-        }
+        },
+        "itemsProducedPerRun": 10
       },
       "expected": {
+        "produced": 10,
         "materials": 100,
         "install": 5,
         "invention": 2,
@@ -67,9 +92,6 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "products": {
-            "totalQuantity": 10
-          },
           "materials": [
             {
               "typeID": 34,
@@ -85,18 +107,24 @@
             }
           ],
           "costs": {
-            "totalPurchaseCost": 60,
-            "installCosts": 0,
-            "extrasTotal": 0,
-            "inventionCosts": 0
+            "totalPurchaseCost": 60
           },
           "sale": {
             "brokersFee": [],
             "transactions": []
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1
+            }
           }
-        }
+        },
+        "itemsProducedPerRun": 10
       },
       "expected": {
+        "produced": 10,
         "materials": 60,
         "install": 0,
         "invention": 0,
@@ -115,9 +143,6 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "products": {
-            "totalQuantity": 10
-          },
           "materials": [
             {
               "typeID": 34,
@@ -126,17 +151,30 @@
           ],
           "costs": {
             "totalPurchaseCost": 125,
-            "installCosts": 0,
-            "extrasTotal": 0,
-            "inventionCosts": 25
+            "inventionEntries": [
+              {
+                "id": 1,
+                "itemName": "Datacore",
+                "itemCost": 25
+              }
+            ]
           },
           "sale": {
             "brokersFee": [],
             "transactions": []
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1
+            }
           }
-        }
+        },
+        "itemsProducedPerRun": 10
       },
       "expected": {
+        "produced": 10,
         "materials": 100,
         "install": 0,
         "invention": 25,
@@ -155,9 +193,6 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "products": {
-            "totalQuantity": 10
-          },
           "materials": [
             {
               "typeID": 34,
@@ -166,17 +201,30 @@
           ],
           "costs": {
             "totalPurchaseCost": 100,
-            "installCosts": 0,
-            "extrasTotal": 0,
-            "inventionCosts": 7
+            "inventionEntries": [
+              {
+                "id": 1,
+                "itemName": "Datacore",
+                "itemCost": 7
+              }
+            ]
           },
           "sale": {
             "brokersFee": [],
             "transactions": []
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1
+            }
           }
-        }
+        },
+        "itemsProducedPerRun": 10
       },
       "expected": {
+        "produced": 10,
         "materials": 100,
         "install": 0,
         "invention": 7,
@@ -195,9 +243,6 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "products": {
-            "totalQuantity": 10
-          },
           "materials": [
             {
               "typeID": 34,
@@ -205,10 +250,7 @@
             }
           ],
           "costs": {
-            "totalPurchaseCost": 100,
-            "installCosts": 0,
-            "extrasTotal": 0,
-            "inventionCosts": 0
+            "totalPurchaseCost": 100
           },
           "sale": {
             "brokersFee": [
@@ -223,10 +265,19 @@
                 "tax": 2
               }
             ]
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1
+            }
           }
-        }
+        },
+        "itemsProducedPerRun": 10
       },
       "expected": {
+        "produced": 10,
         "materials": 100,
         "install": 0,
         "invention": 0,
@@ -245,23 +296,26 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "products": {
-            "totalQuantity": 10
-          },
           "materials": [],
           "costs": {
-            "totalPurchaseCost": 0,
-            "installCosts": 0,
-            "extrasTotal": 0,
-            "inventionCosts": 0
+            "totalPurchaseCost": 0
           },
           "sale": {
             "brokersFee": [],
             "transactions": []
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1
+            }
           }
-        }
+        },
+        "itemsProducedPerRun": 10
       },
       "expected": {
+        "produced": 10,
         "materials": 0,
         "install": 0,
         "invention": 0,
@@ -280,9 +334,6 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "products": {
-            "totalQuantity": 10
-          },
           "materials": [
             {
               "typeID": 34,
@@ -290,10 +341,7 @@
             }
           ],
           "costs": {
-            "totalPurchaseCost": 50,
-            "installCosts": 0,
-            "extrasTotal": 0,
-            "inventionCosts": 0
+            "totalPurchaseCost": 50
           },
           "sale": {
             "brokersFee": [
@@ -320,10 +368,19 @@
                 "tax": 1.5
               }
             ]
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1
+            }
           }
-        }
+        },
+        "itemsProducedPerRun": 10
       },
       "expected": {
+        "produced": 10,
         "materials": 50,
         "install": 0,
         "invention": 0,
@@ -332,6 +389,44 @@
         "transactionFee": 2.0,
         "build": 50,
         "total": 58.0
+      }
+    },
+    {
+      "name": "installs are what the linked jobs cost",
+      "why": "Nothing is linked, so the installs cost nothing: the setup estimate is a planning figure, not what the job cost. The install line and the build cost read the same figure \u2014 the planner and the archive must not disagree about it.",
+      "job": {
+        "jobID": "corpus-install-nothing-linked",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "jobCount": 2,
+              "estimatedInstallCost": 15,
+              "runCount": 1
+            }
+          },
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasedCost": 100
+            }
+          ],
+          "costs": {}
+        },
+        "itemsProducedPerRun": 5
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 100,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 100,
+        "total": 100
       }
     }
   ]
