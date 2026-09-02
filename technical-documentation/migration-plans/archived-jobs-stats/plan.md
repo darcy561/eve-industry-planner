@@ -779,10 +779,40 @@ window is the server's (`period.defaulted` distinguishes it from a narrow explic
 are sent as both bounds or neither — the API rejects a half-given range with 400 rather than
 repairing it, and those codes are not retried.
 
+#### Item statistics is its own tab
+
+The breakdown table answers which items earned the most. It cannot answer what one item has done
+over time, which is a different question with a different shape — one item, every month — so it gets
+its own tab rather than a mode on the table. The Blueprint Archive dialogue is left alone: it is a
+per-item summary opened from a blueprint and is not trying to be this.
+
+The item is chosen from the **blueprint list the SPA already searches**, not from a ranked list of
+the items the archive holds. An item with no archived jobs is a legitimate thing to ask about — the
+answer is "nothing yet" — and the ranking endpoint caps its page, so a list built from it would omit
+items silently rather than admit it had.
+
+**The window asked for is the window read.** A period is sent to the server, which filters on an
+index it already has; the client never trims a wider read down. Reading all of an account's history
+to show two months of it is work at both ends for months nothing displays, and the page opens on two
+months precisely because that is the useful default.
+
+Both tabs go through `useArchiveTimeline`, which takes an optional item — the item tab is the same
+read with a `typeID` on it, not a second mechanism. `timelineWindow` beside it is the one place that
+decides how a window is expressed to the API, because the two `timeline/items` readers have to say
+it the same way.
+
+Each window is its own cache entry, so a period visited twice is served from the first visit and the
+control still feels immediate after the first read of it. The default preset sends **no bounds**,
+which is how the API is asked for its own comparison window — the same request the overview makes,
+so the page opens on one entry rather than two holding the same two months.
+The rule that comes with it: a figure shown under a period control is summed from the sliced months,
+never read from a lifetime total that arrived in the same response.
+
 #### List and restore
 
-**The page is two tabs — Statistics and Archived Jobs.** Charts sit on the default tab; the list
-gets the second, and the full page width its three row shapes need.
+**The page is three tabs — Statistics, Item Statistics and Archived Jobs.** Charts sit on the
+default tab, per-item history on the second, and the list on the third with the full page width its
+three row shapes need. Neither of the later two is queried until it is opened.
 
 **The list does not load with the page.** Charts are the reason most visitors open it, so eagerly
 paging the archive would spend a database read per visit on a table almost nobody scrolls, and the
@@ -796,6 +826,11 @@ A table over `GET /api/v1/archived-jobs` with the filters the endpoint offers an
 the full document. Restore reports its ESI conflicts in the confirmation that follows rather than
 failing silently, and invalidates the statistics queries on success — the rebuild it queued changes
 every view on the page.
+
+**A row whose figures are not in the aggregates yet says so.** The list reports `awaitingTotals`
+from the statistics row's missing `contributedAt`, and the row carries a chip. Archiving returns
+before the fold that counts it runs, so a job is briefly in the list and not in the charts; unmarked,
+that reads as a figure that is wrong rather than one that is a few seconds away.
 
 Rows are presented in the three shapes Stage G restores: named group blocks, related-set blocks
 labelled by their output job, and standalone rows. Each block restores as a unit, and every job
@@ -1833,6 +1868,60 @@ with no `type` still routes to the document path; and an unrecognised `subtype` 
 than silently dropped. The message-kind corpus is read by a test on each side, so a kind added in Go
 without its SPA counterpart fails.
 
+##### What landed
+
+1. **The vocabulary is one corpus.** `testing/fixtures/realtime-messages/kinds.json` is read by a Go
+   test and a vitest test, so a kind added on one side without the other turns the other side red.
+   `nats.Message` gained an optional `Subtype`, and a notification is published as that envelope and
+   forwarded to the browser unchanged.
+2. **One wildcard subscription, not one per hosted tenant.** Notifications are rare and small,
+   delivery already decides who is connected, and a subscription that never changes cannot fall out
+   of step with a tenant set that does. `broadcastRawToAccount` gained a route kind rather than
+   growing a second copy: more than one kind of message now reaches a browser through it.
+3. **Who publishes, and when.** The fold publishes only when it folded something; the rebuild always;
+   the reconcile **only when it corrected drift**. The reconcile visits every owner on a rota, and
+   "your figures are the same as yesterday" is not worth a snackbar.
+4. **The retry ceiling was built here.** It was agreed in J2 and never landed, and the failed state
+   reads it. A task returns its error unchanged while asynq has attempts left; at the ceiling it
+   writes `failures`, `lastError` and `lastFailedAt` to the queue entry and stops. The entry stays
+   queued, because the work is still outstanding — what changed is that a read can now say so.
+   Work that succeeds but cannot clear its entry forgets the failure, since that entry stands for a
+   request that arrived later rather than for the run that failed.
+5. **The flag is embedded in all three statistics responses.** A client learns the figures are being
+   rebuilt from the same request that returned them, so there is no window where it has drawn one and
+   not asked about the other. It is omitted when there is nothing to say, and a failure to read it
+   never fails the request — the figures are what was asked for.
+
+##### Departed from: the notification does not replace call-site invalidation
+
+This section proposed that the notification replace the invalidation the archiving call sites do.
+What landed keeps those calls and points them at `invalidateArchiveQueries`, the function that
+already invalidates both trees.
+
+The concern behind the proposal was duplicated knowledge of *which caches an action affects*. That
+knowledge already lives in one function; a call site only calls it, so there is nothing duplicated to
+remove. Removing the calls would instead make the acting user's own screen depend on a message the
+design deliberately makes droppable — a failed publish would leave the person who archived the job
+looking at a list that does not contain it. The notification now covers the sessions that did not
+act, and server-initiated changes, which is what it is good for.
+
+The defect the section describes is fixed either way: both archiving paths invalidated statistics
+only, so the archive list kept a page without the job just archived into it.
+`invalidateStatisticsQueries` had no caller left afterwards and is gone.
+
+##### Where the client shows it
+
+**Above the tabs, as one statement for the page.** A rebuild moves every figure the page holds, so a
+marker beside one of them would be both wrong and repeated nine times; the notice sits over all three
+tabs and no panel carries a stale state of its own. Running reads as information, failed as a
+warning — the difference matters to the reader, because one resolves itself and the other will not.
+
+The state comes back on `useArchiveTimeline` rather than through a hook of its own, and the notice
+takes the page's window so it reads the response the panels are already reading. Every statistics
+response carries the state, so a window of its own would be a request for a field it can have for
+nothing. A state this side has no wording for renders nothing: a value the server gains before
+the SPA knows it should be silent, not an empty alert.
+
 #### Chosen values
 
 Set here so they are decided once rather than at each call site, and so a later change is a change to
@@ -1842,9 +1931,9 @@ this table rather than an archaeology exercise.
 |-------|---------|-----------|
 | Dispatch cron | `*/2 * * * *` | A tick that fails to publish costs two minutes rather than an hour |
 | Debounce window | 5 minutes | The longest an owner waits, and the shortest gap between two of its rebuilds |
-| Reconciliation rota | every owner once per 7 days, id hashed across the window | Routine enough to catch a delta bug, spread so no tick carries the fleet |
+| Reconciliation rota | every owner once per 24 hours, oldest stamp first, 50 owners a tick on a `*/15` cron | Routine enough to catch a delta bug; the cap spreads a first run, where every owner is due at once |
 | Retry ceiling | asynq's default `MaxRetry` | Statistics do not need a second retry policy beside the one every other task uses |
-| Float tolerance | 1e-6 relative, 0.01 ISK absolute near zero | Counts still compare exactly, and are the primary drift signal |
+| Float tolerance | 1e-9 relative, 0.0001 ISK absolute near zero | Tight enough that only float residue passes; counts still compare exactly and are the primary drift signal |
 | Delta task priority | `priority_3` | User-facing freshness, small unit of work |
 | Reconcile / rebuild priority | `priority_5` | Bulk, nothing waits on them |
 
@@ -1857,6 +1946,84 @@ this table rather than an archaeology exercise.
   `account_*` collections.
 - The restore sequence, whose ordering and lock gate are Stage G's and are untouched beyond the
   delta and the min/max repair.
+
+## Owner block — owed to shared planners
+
+[shared-planners](../shared-planners/plan.md) makes the planner an explicit thing a user works in, and
+replaces the per-scope fields on stored documents with a single owner. Four items land **here**,
+because they are cheap only while this project is still open and touching live data. The shapes below
+are settled; the reasoning for each lives in that plan.
+
+| Item | Status |
+|------|--------|
+| 1. `ArchivedJobStats` takes an owner | **Not started.** The row still carries `AccountID` and `CorpRef`, and `Version` is not yet `RowVersion` |
+| 2. Collection and document-id renames | **Not started.** The five collections still carry their `account_` names |
+| 3. Route and query key take an owner | **Not started.** The route is still `/api/v1/statistics/account/…` and `STATISTICS_QUERY_KEY_ROOT` is still a bare `"statistics"` |
+| 4. Stage C's ownership inference is dropped | **Done.** `corpinference`, the per-line corporation fields and the lane on the corporation bucket are gone; nothing in `services/` or the SPA infers a scope |
+
+Shared-planners Stages A and B have not started either, so nothing here is holding that plan up.
+
+### 1. `ArchivedJobStats` takes an owner
+
+`AccountID` and `CorpRef` collapse into one embedded owner. The row also gains `ArchivedBy`, the
+account that archived the job, so per-member contribution inside a shared planner is answerable
+without writing a second archive.
+
+The row has no schema version today. `SchemaVersion` is added, and the existing `Version` field — the
+row version the delta and rebuild path use — is renamed **`RowVersion`** in the same change, so two
+unrelated version fields cannot be confused.
+
+```go
+type Owner struct {
+	Kind OwnerKind `bson:"kind"`
+	ID   string    `bson:"id"`
+}
+```
+
+`Owner` carries **no JSON tags**. For the corporation and alliance kinds its `ID` is a ref, so a
+response serialising it directly would leak one; every response builds an owner handle explicitly
+instead, which turns a missed conversion into a compile error.
+
+`models.StatsOwner` is renamed `models.Owner` — it stops being a statistics concept once it is on
+every document. `Key()`, `ParseOwnerKey`, `Validate` and `IsZero` carry over unchanged, and the
+`account` kind resolves to exactly the key this project already uses.
+
+### 2. Collection and document-id renames ride with the backfill
+
+The renames this plan parked as "the expensive part of a scope change" happen, because every kind
+shares one collection under the owner model. The entire cost of a rename is touching live data, which
+the owner backfill is doing anyway; splitting them pays that cost twice over the same collections.
+
+Names are chosen per collection rather than by swapping one prefix for another: `account_archived_jobs`
+becomes `archived_jobs`, `account_archived_job_stats` becomes `archived_job_stats`, and so on. The
+owner block on the document states ownership, so a name that also encodes it says the same thing
+twice. Document ids take the owner key in place of the account id —
+`ArchivedJobStatsDocumentID` becomes `{ownerKey}|{jobID}`.
+
+### 3. The statistics route and query key take an owner
+
+`/api/v1/statistics/account/…` is about to become a live public surface with one scope hardcoded in
+its path. Parameterising it by owner handle **now**, while the account is the only accepted value, is
+additive; changing it later is breaking. The same applies to `STATISTICS_QUERY_KEY_ROOT`: without the
+owner in the key, two planners share one cache entry the first time a shared planner exists.
+
+### 4. Stage C's ownership inference is dropped
+
+Stage C is blocked on nothing deciding, from the corporation and character ids the SPA records, that a
+job is corporation scoped. Under the owner model that decision does not exist: **a job's owner is the
+planner it was created in**, written once at creation and never inferred from a correlated field. The
+half-built inference producer is not finished — it is removed from scope. The ids the SPA records stay
+useful for linking ESI jobs; they are not evidence of ownership.
+
+### Sequencing
+
+Items 1 and 2 are one change to live data and ship together, and Stage J widened what they touch: the
+statistics row is now written by `api/v1endpoints/archivedjobs` as well as the worker, so
+`ArchivedJobStatsDocumentID` and the row's field names have call sites in two services plus the live
+tests rather than one worker package. Item 3 is additive and can land any time before the route
+reaches `Public`. Item 4 is a reduction in scope. The wider expand → backfill →
+switch → contract sequence, and the task that performs it, belong to
+[shared-planners](../shared-planners/plan.md) § Stage B.
 
 ## Go modernization in scope
 
@@ -1886,15 +2053,16 @@ whichever work touches SSO next rather than widened into this stage.
 |-------|--------|
 | Phase 1 — project docs | Complete |
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
-| B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
-| C — corporation statistics pipeline | **Deferred** — a job belongs to one archive, so this pipeline aggregates corporation-scoped jobs rather than slicing account ones; per-line attribution was removed. The producer is half built: the SPA now records the corporation and character ids ESI supplies, but nothing yet decides from them that a job is corporation scoped and stamps `_meta.corporationRef`. See § Ownership is a property of the job |
+| B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, its schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
+| C — corporation statistics pipeline | **Superseded in part** — its ownership question is answered by [shared-planners](../shared-planners/plan.md): a job's owner is the planner it was created in, so the half-built inference producer that would decide corporation scope from recorded ids is dropped. What remains of C is aggregation over a non-account owner, which the owner block makes additive. See § Owner block — owed to shared planners |
 | D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. Months carry the six components of a period's cost and its extras by category; `totals?summary=1` folds the archive into one row. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
 | E — frontend | **Complete for the account scope** — the SPA reads `totals`, `timeline` and `timeline/items`; build-stats is deleted; the dashboard carries the month-on-month comparison and the item breakdown; the archive dialogue is split into its four segment blocks. Corporation scope waits for Stage C |
 | F — archived jobs read API | **Complete** — `GET /api/v1/archived-jobs` serves a paged, filtered list of summaries and `GET /api/v1/archived-jobs/{jobID}` one full document. Rows report group and related-set membership, figures come from the shared `archivestats` reduction, and the query parsing both this and the statistics views use moved to `api/helper`. Indexes landed in the Deployment Tool |
 | G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, return the jobs to their groups, delete the archived documents, queue the rebuild. Each job rejoins the group it was archived from, merging into it when it is still on the planner. Conflicts are reported and stripped rather than blocking, and a group another session holds refuses the restore |
-| H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries the statistics tab (metric cards, eight charts, item table) and the jobs tab (list, three row shapes, restore). Chart primitives are shared and the price-history dialogue moved onto them. The list is not queried until its tab is opened, and both tabs carry a mobile layout |
+| H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries three tabs: statistics (metric cards, eight charts, item table), per-item history over the same windowed reads, and the jobs list with its three row shapes and restore. Chart primitives are shared and the price-history dialogue moved onto them. Neither later tab is queried until it is opened, and all three carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
-| J — incremental statistics and the build history panel | **J1 to J4 complete; J5 planned.** Archiving and restoring no longer rebuild anything: a job's figures are folded in or taken back out on their own, and a fold that finds the owner taken on by a rebuild stands down instead of writing.  J1 landed the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row, `includeProductionChain` on the timeline read, the rebuilt Build History panel, the deletion of `BuildStatSnapshot`'s stored array, and the removal of the `archive_and_stats` change-stream group. The rest:  archiving a job currently rebuilds every statistic the account holds, because `RebuildAccountStatistics` reduces every archived job on every run. Three slices: the stored snapshot array becomes a query and the panel that read it is rebuilt on the existing chart primitives; a job's contribution is applied as a delta rather than recomputed wholesale; the drain becomes a dispatcher over one task per owner, split by cost into a routine reconcile and a bulk full rebuild; reconciliation rewrites aggregates from rows every cycle so drift self-heals and detection is only reporting; and the client is told when figures move and when a recalculation is outstanding. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
+| J — incremental statistics and the build history panel | **Complete bar one placement decision.** J1 replaced the stored snapshot array with a query, added the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row and `includeProductionChain` on the timeline read, rebuilt the Build History panel on the chart primitives, and removed the `archive_and_stats` change-stream group. J2 made a job's figures a delta — folded in on archive, taken back on restore — guarded by `contributedAt` on the row and a claim bump that stands a fold down when a rebuild has taken the owner on. J3 made the drain a dispatcher over one task per owner. J4 reconciles every owner once a day, oldest stamp first, rewriting aggregates from the rows and reporting drift without acting on it. J5 gave realtime messages a `type`/`subtype` vocabulary, notifies an account when its figures move, reports the recalculating and failed states on every statistics response, and shows them above the page's tabs. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
+| Owner block — owed to shared planners | **Item 4 done, items 1 to 3 not started** — the ownership inference Stage C was blocked on is removed; the owner field, the collection renames and the owner-shaped route and query key are still owed. See § Owner block — owed to shared planners |
 
 ## Done when
 
@@ -1922,12 +2090,15 @@ whichever work touches SSO next rather than widened into this stage.
 - No change stream carries archive or statistics documents that nothing subscribes to.
 - Realtime messages carry a family and a kind, and one the client does not recognise is reported
   rather than discarded.
+- One item's history over time is answerable on its own, not only as a row in a ranking.
+- The archive surfaces have tests that render the page against its endpoints, so a change of meaning
+  between two units is caught where a user would see it rather than in neither unit's tests.
 - Overlays in this folder describe the landed behaviour, ready to promote into live SoT.
 
 ## Handoff status
 
 **Stage B is committed on `feature/archived-jobs-stats`.** The transformation, the worker rebuild,
-the drain, its task and asynq handler, the archived-jobs producer and the hourly schedule are all
+the drain, its task and asynq handler, the archived-jobs producer and its schedule are all
 reachable from a clone.
 
 `services` builds, vets and tests clean, and `go fix -diff` reports nothing on any package this
@@ -1936,8 +2107,8 @@ stage touched. The one outstanding `go fix` suggestion in scope is `shared/tasks
 than swept in.
 
 **Stage B is closed.** The account pipeline runs end to end: `PUT /archived-jobs` queues an account,
-`ScheduleDrainAccountStatsRebuildQueue` publishes hourly at minute 30, the worker drains, and the
-claim protocol decides what stays queued. Behaviour → [overlay.md](./overlay.md) § Stage B.
+`ScheduleDrainAccountStatsRebuildQueue` publishes on its cron, the worker dispatches, and the claim
+protocol decides what stays queued. Behaviour → [overlay.md](./overlay.md) § Stage B.
 
 **Stage E is closed for the account scope.** The SPA reads `totals`, `timeline` and
 `timeline/items`; the dashboard carries the month-on-month comparison and the item breakdown; the
@@ -1978,8 +2149,39 @@ it is not. A group another session holds refuses the restore. Behaviour →
 three rules that had drifted — name truncation, blank output names, and id ordering — now agree.
 Behaviour → [overlay.md](./overlay.md) § Stage I.
 
-**Start here: Stage C**, the only stage still open. Everything else is complete for the account
-scope.
+**Stage J is complete.** Archiving a job
+folds its figures in and restoring takes them back out, so what an archive costs no longer depends on
+how much the archive holds; a wholesale rebuild is what the rota and the tasks CLI run. The
+statistics row is built in the archive request itself rather than by the work that follows it — the
+first shape queued a fold whose work list was rows, so the job that queued the fold was the one job
+it could not see. Aggregates are rewritten from rows on a daily rota, and drift is reported rather
+than acted on.
+
+**Restore is covered end to end on both sides.** Its pieces were unit tested while the sequence that
+uses them was not: `live_restore_test.go` drives select → restore against stack Mongo and holds the
+three things the order exists for — the job is back on the planner without its archive stamps and the
+archived document is gone, its statistics row is revoked but keeps the stamp that says its figures
+are still counted, and a delta is queued rather than a rebuild. A contested ESI id is reported and
+stripped rather than refusing the job. `ArchivedJobsRestore.integration.test.jsx` covers the client
+half: which scope each button asks for, the response being applied to the planner store by the one
+tab the websocket will not tell, the conflict wording, and a failed restore leaving the caches alone.
+Both were confirmed to bite by breaking the code they cover.
+
+**The archive surfaces have page-level tests, not only unit tests.** Suites render a real page
+against mocked endpoints — the statistics page and its tabs, the item tab, the jobs list, its search,
+sort and paging, and the eight chart panels' own contract with the primitives they draw through — and
+they were confirmed to catch the regression that prompted them by reverting the fix and watching them
+fail. Shared scaffolding rather than per-file copies: `frontend/tests/archiveHarness.jsx` holds the
+store mocks, chart capture and render helpers, and `testing/mongolive` holds the live-Mongo gate and
+the scratch-account cleanup the Go live tests share. Browser-level coverage (Playwright) is a
+deliberate later decision, not an oversight.
+
+**Two things are open: Stage C, and the owner block owed to shared planners.** Every stage is
+complete for the account scope. Of the owner block only item 4 has landed — item 3 is the
+one with a deadline rather than a dependency, because parameterising the statistics route by owner is
+additive today and breaking once the route is public.
+
+**Start here: Stage C.**
 
 **Stages H and I are independent of Stage C** and proceed while the corporation scope stays deferred;
 the page leaves the same corporation seams the archive dialogue does.
@@ -2020,8 +2222,10 @@ step 1 has already run against live was not checked; do not assume live matches 
 
 1. **A statistics rebuild is owed** — see § Operational steps owed. Changes have landed since the last
    one: the Market segment decides on evidence, broker fees count as market activity, the stored row
-   lost its per-line corporation fields, and a job's cost now includes invention. Existing rows keep
-   the old figures until a rebuild rewrites them. Behaviour →
+   lost its per-line corporation fields, a job's cost now includes invention, and Stage J added
+   `quantityProduced`, the production-chain key, `history` on the totals row and `contributingRows`
+   on every bucket. Existing rows keep the old figures until a rebuild rewrites them; the rota
+   corrects them owner by owner over a week without one. Behaviour →
    [overlay.md](./overlay.md) § Corrections to figures already served.
 2. **`retainedStockBuild` is dead in the UI.** Nothing in `frontend/src` writes it, so Stock means
    "no recorded sale" rather than "deliberately kept". Wiring it would separate the two.
@@ -2032,10 +2236,21 @@ step 1 has already run against live was not checked; do not assume live matches 
    drift permanently. Not investigated further; outside this plan's surface.
 5. **The dev database holds 110 `testfixture-` jobs** from month-duplication testing. Harmless,
    removable whenever.
-6. **The worker's end-to-end composition still has no live test** — see Open question 1. The Mongo
-   helpers are covered individually; what the cron exercises untested is the rebuild that calls them
-   in order. The obstacle the question recorded is gone: `eip dev` now publishes the data ports on
-   the host, so a live test runs from a host shell rather than needing a one-off container.
+6. ~~**The worker's end-to-end composition still has no live test.**~~ **Closed** — see Open
+   question 1. `ReconcileAccountStatistics` is driven over seeded jobs against stack Mongo, as are
+   the archive → fold → restore → fold cycle and the recovery of an archived job whose row was never
+   folded. `RebuildAccountStatistics` itself is still only exercised by the rota against real data,
+   which now matters less: the reconcile and the rebuild derive and write aggregates through the same
+   pair of functions, so a test of one covers the half they share.
+
+7. ~~**Nothing links into the item tab.**~~ **Done** — a breakdown row's item name is a link that
+   opens the item tab on that item.
+
+8. ~~**The recalculation flag has no display.**~~ **Done** — see § Where the client shows it.
+
+9. **Browser-level tests are not started.** The page-level suites render components against mocked
+   endpoints, which is where a shared-meaning change between two units shows up. What they cannot see
+   is the route, the real query client and a real response together. Deliberately deferred.
 
 **`dataSnapshots` is the one shape still carried for compatibility.** The totals row holds an
 unbounded per-job array that duplicates `account_archived_job_stats`, kept so the two panels reading
@@ -2101,10 +2316,16 @@ knowing rather than manufacturing a date.
    | `live_account_rebuild_test.go` § emptyKeepListClearsTheAccount | An empty keep-list drops the `$nin` and empties the account, rather than leaving it untouched |
    | `live_account_rebuild_test.go` § writesBeforeRemoving | Both outgoing and incoming rows are readable between the write and removal halves, so a mid-rebuild reader sees no gap |
 
-   **Still open:** no live test drives `RebuildAccountStatistics` end to end over seeded archived
-   jobs. The helpers are pinned individually, but the worker's own composition of them — load,
-   build rows, upsert, revoke, prune — is exercised only by the hourly cron against real data.
-   Closing this needs full `models.Job` fixtures, which is why it was not done with the rest.
+   Stage J added three more, all passing against stack Mongo: `live_reconcile_test.go` drives
+   `ReconcileAccountStatistics` over seeded jobs and breaks the aggregates four ways at once,
+   `live_rearchive_test.go` runs a job through archive, restore and re-archive and back to its
+   starting figures, and `live_new_job_rows_test.go` proves the rota recovers an archived job whose
+   statistics row was never folded. The `models.Job` fixtures that were the obstacle exist now.
+
+   **Still open, and smaller than it was:** `RebuildAccountStatistics` itself is driven only by the
+   rota against real data. The reconcile derives and writes an owner's aggregates through the same
+   pair of functions the rebuild uses, so what is untested is the row load and revoke either side of
+   them, not the arithmetic between.
 
    **The revoke idempotency assertion is deliberately awkward.** It passes a *later* timestamp on
    the second pass, because `$set` writes `revokedAt` as well as `revoked`: with the same
@@ -2125,25 +2346,18 @@ knowing rather than manufacturing a date.
 3. **Keep-list size.** Revoke and prune pass every surviving id in a `$nin`. Fine at hundreds; an
    account with tens of thousands of archived jobs would want a generation counter on the rows
    instead.
-4. ~~**Producer without consumer.**~~ Closed: the hourly drain schedule landed, so the queue has a
+4. ~~**Producer without consumer.**~~ Closed: the drain schedule landed, so the queue has a
    consumer and the first pass picks up whatever accumulated.
 
-5. **`shared/archivestats` is not shared.** Its only importer is
-   `worker/tasks/archivedjobs/rebuild_account.go`, and nothing in `api/`, `core/` or `websocket/`
-   touches it. The package sits in `shared/` on the expectation of a second consumer, but Stage C's
-   corporation pipeline is another worker task, so even then both callers are the same service.
+5. ~~**`shared/archivestats` is not shared.**~~ **Closed — it is, and the move it proposed would now
+   break the service-import rule.** Three services read it: the worker rebuilds and reconciles with
+   it, `api/v1endpoints/archivedjobs` builds a job's statistics row in the archive request and
+   reduces figures for the list, and `core` uses it in the archive-date backfill.
 
-   What would justify `shared/` is a consumer in a different service, and the API is the only
-   candidate — which Stage D deliberately ruled out by having it read pre-aggregated documents
-   rather than recompute anything.
-
-   Moving it to `worker/tasks/archivedjobs/archivestats/` is a mechanical change: the package imports
-   only `models` and `mongo`, so nothing structural blocks it. Left where it is for now because Stage
-   C will add code to it, and moving a package while a stage is still writing into it is churn for no
-   benefit. Revisit when Stage C closes, or sooner if it is cancelled.
-
-   One of its four exported symbols has no caller outside the package: `AccumulateAccountBuckets`,
-   an exported internal whose only caller is `AccountBuckets`.
+   What closed it is J2's decision that the row is written where the job is archived. Stage D's
+   reasoning still holds — the API recomputes no aggregate — but it does produce the row a fold
+   later counts, and that is the same reduction the worker runs. Sharing the code is what keeps the
+   two from disagreeing about what a job contributed.
 
 ### Decisions already made, so they are not re-litigated
 
@@ -2157,15 +2371,13 @@ knowing rather than manufacturing a date.
 - A job is scoped to a corporation only from an **id recorded against it**, never inferred from a
   character, station, blueprint or account — see § What may scope a job to a corporation. Work whose
   corporation was never recorded stays personal.
-- The drain cron runs **hourly at minute 30**, offset from the build stats fan-out on minute 0
-  because both read archived-jobs data and contending every hour buys nothing. It publishes
-  **unconditionally** rather than reading the queue first: that read would duplicate the worker's
-  own and give the scheduler a Mongo dependency to fail on, to save one message an hour.
-- The drain is **one task over the whole queue**, not one task per account, even though the
-  neighbouring `ProcessArchivedBuildStats` fans out per account. The claim protocol that keeps a
-  mid-rebuild re-queue from being cleared lives in the drain; per-account fan-out would move that
-  logic into a path the queue's semantics are not tested against, to buy parallelism a queue of this
-  size does not need. Revisit if a pass approaches its 15 minute timeout.
+- The drain cron publishes **unconditionally** rather than reading the queue first: that read would
+  duplicate the worker's own and give the scheduler a Mongo dependency to fail on, to save one
+  message a tick. It runs on `*/2`, and the debounce rather than the cron decides how long an owner
+  waits — Stage B's hourly minute-30 tick was replaced by J3.
+- The drain **dispatches one task per owner** rather than doing the work itself. Stage B ran one task
+  over the whole queue, which J3 replaced when a queue too long for one pass made no progress at all;
+  the claim protocol moved with it, so a mid-rebuild re-queue is still not cleared.
 - The B1 / B2 / B3 split is conversational shorthand, not a documented structure: B1 pure
   transformation, B2 worker tasks, B3 scheduling and producers. This plan defines Stage B as one
   stage.
