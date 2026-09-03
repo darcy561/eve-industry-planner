@@ -21,11 +21,11 @@ import { getAppVersionNumber } from "../Functions/Endpoints/Public/appConfig.js"
  * 
  * @class JobSnapshot
  * @example
- * // Create snapshot from existing job
- * const snapshot = new JobSnapshot(jobInstance);
- * 
+ * // From a job, which is where every figure on the snapshot comes from
+ * const snapshot = new JobSnapshot(job);
+ *
  * @example
- * // Create snapshot from data
+ * // From a snapshot that was stored
  * const snapshot = new JobSnapshot({
  *   jobID: 'job-123',
  *   name: 'Tritanium',
@@ -232,20 +232,9 @@ class JobSnapshot {
     );
     this.childJobs = new Set(Object.values(build.childJobs).flat());
 
-    this.totalComplete = build.materials.filter(
-      (material) => material.quantityPurchased >= material.quantity
-    ).length;
+    this.totalComplete = inputJob.totalCompletedMaterials();
 
-    const tempJobs = build.costs.linkedJobs || [];
-    this.endDateDisplay = tempJobs.length
-      ? Date.parse(
-          tempJobs.reduce((latest, job) =>
-            Date.parse(job.end_date) > Date.parse(latest.end_date)
-              ? job
-              : latest
-          ).end_date
-        )
-      : null;
+    this.endDateDisplay = inputJob.lastLinkedJobToFinish()?.finishesAt ?? null;
 
     const { totalJobCount, totalSetupCount } = Object.values(
       build.setup

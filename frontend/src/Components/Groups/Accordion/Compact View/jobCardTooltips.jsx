@@ -31,7 +31,7 @@ function getTooltipContent(job) {
       }
       return <p>Ready To Build</p>;
     case 2:
-      const timeRemaining = sortJobs(job);
+      const timeRemaining = timeUntilNextJobFinishes(job);
 
       return (
         <span>
@@ -78,20 +78,9 @@ function getTooltipContent(job) {
   }
 }
 
-function sortJobs(job) {
-  let tempJobs = [...job.build.costs.linkedJobs];
-  if (tempJobs.length === 0) return null;
-
-  tempJobs.sort((a, b) => {
-    if (Date.parse(a.end_date) > Date.parse(b.end_date)) {
-      return 1;
-    }
-    if (Date.parse(a.end_date) < Date.parse(b.end_date)) {
-      return -1;
-    }
-    return 0;
-  });
-  return formatTimeRemaining(Date.parse(tempJobs[0].end_date));
+function timeUntilNextJobFinishes(job) {
+  const next = job.nextLinkedJobToFinish();
+  return next ? formatTimeRemaining(next.finishesAt) : null;
 }
 
 export default getTooltipContent;
