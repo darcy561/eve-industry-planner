@@ -1,21 +1,48 @@
 import { describe, expect, test } from "vitest";
 import Job from "./job.js";
+import Setup from "./jobSetup.js";
 
 // What a job cost is pinned by the shared corpus, which the backend reads too.
 // These cover what only the SPA does with it.
 
+// A job produces what its setups are set to make, so the quantity is expressed
+// as one setup of one run producing `totalQuantity` items.
 function jobWith({ materials = [], invention = 0, totalQuantity = 10 }) {
   return new Job({
     jobID: "job-1",
     itemID: 587,
     jobType: 1,
+    itemsProducedPerRun: totalQuantity,
     build: {
-      products: { totalQuantity },
-      materials: materials.map((purchasedCost, i) => ({
+      setup: {
+        "setup-1": {
+          id: "setup-1",
+          runCount: 1,
+          jobCount: 1,
+          materialCount: Object.fromEntries(
+            materials.map((spend, i) => [
+              34 + i,
+              { typeID: 34 + i, quantity: spend },
+            ]),
+          ),
+        },
+      },
+      materials: materials.map((spend, i) => ({
         typeID: 34 + i,
-        purchasedCost,
+        quantity: spend,
+        purchasing: [
+          { id: `p${i}`, typeID: 34 + i, itemCount: spend, itemCost: 1 },
+        ],
       })),
-      costs: { installCosts: 5, extrasTotal: 3, inventionCosts: invention },
+      costs: {
+        linkedJobs: [{ job_id: 1, cost: 5 }],
+        extrasCosts: [
+          { id: "extra-1", category: "0", extraText: "Courier", extraValue: 3 },
+        ],
+        inventionEntries: invention
+          ? [{ id: 1, itemName: "Datacore", itemCost: invention }]
+          : [],
+      },
     },
   });
 }
@@ -51,18 +78,62 @@ describe("cost per item", () => {
   });
 });
 
+describe("what the installs cost", () => {
+  // Summed on every call from the rows themselves, so linking and unlinking
+  // cannot leave the figure behind.
+  test("the linked ESI jobs are what the installs cost", () => {
+    const job = jobWith({ materials: [100] });
+    job.build.costs.linkedJobs = [
+      { job_id: 1, cost: 12 },
+      { job_id: 2, cost: 8 },
+    ];
+
+    expect(job.totalInstallCost()).toBe(20);
+    expect(job.buildCost()).toBe(123);
+  });
+
+  // Setup estimates are a planning figure — getJobInstallCostForPlanning owns
+  // them — so nothing linked costs nothing here.
+  test("nothing linked costs nothing", () => {
+    const job = jobWith({ materials: [100] });
+    job.build.costs.linkedJobs = [];
+    job.build.setup = {
+      "setup-1": new Setup({
+        id: "setup-1",
+        jobType: 1,
+        estimatedInstallCost: 15,
+        jobCount: 2,
+        materialCount: { 34: { typeID: 34, quantity: 100 } },
+      }),
+    };
+
+    expect(job.totalInstallCost()).toBe(0);
+    expect(job.buildCost()).toBe(103);
+  });
+
+  test("unlinking a job takes its cost back off", () => {
+    const job = jobWith({ materials: [100] });
+    job.build.costs.linkedJobs = [
+      { job_id: 1, cost: 12 },
+      { job_id: 2, cost: 8 },
+    ];
+
+    job.unlinkESIJob({ job_id: 2, cost: 8 });
+
+    expect(job.totalInstallCost()).toBe(12);
+  });
+});
+
 describe("invention is its own cost", () => {
-  // Folding invention into the material total is what left totalPurchaseCost
-  // meaning two different things depending on the order of edits.
+  // Invention is its own component: a job that had to invent its blueprint paid
+  // that on top of its materials, and neither figure belongs in the other.
   test("recording invention does not change the material total", () => {
     const job = jobWith({ materials: [100] });
-    const before = job.build.costs.totalPurchaseCost;
 
     job.addInventionCost({ id: "inv-1", itemCost: 25 });
 
-    expect(job.build.costs.inventionCosts).toBe(25);
-    expect(job.build.costs.totalPurchaseCost).toBe(before);
-    expect(job.materialCost()).toBe(100);
+    expect(job.totalInventionCost()).toBe(25);
+    expect(job.totalMaterialCost()).toBe(100);
     expect(job.buildCost()).toBe(133);
   });
 
@@ -72,8 +143,26 @@ describe("invention is its own cost", () => {
 
     job.removeInventionCost({ id: "inv-1", itemCost: 25 });
 
-    expect(job.build.costs.inventionCosts).toBe(0);
+    expect(job.totalInventionCost()).toBe(0);
     expect(job.buildCost()).toBe(108);
+  });
+});
+
+describe("what a sold item went for", () => {
+  test("the average is the sales over the items sold", () => {
+    const job = jobWith({ materials: [100] });
+    job.build.sale.transactions = [
+      { transaction_id: 1, amount: 300, quantity: 2 },
+      { transaction_id: 2, amount: 100, quantity: 2 },
+    ];
+
+    expect(job.averageItemSalePrice()).toBe(100);
+  });
+
+  // Nothing sold has no average price, and must not be reported as NaN: the
+  // Selling panel hands this straight to the number formatter.
+  test("nothing sold has no average", () => {
+    expect(jobWith({ materials: [100] }).averageItemSalePrice()).toBe(0);
   });
 });
 

@@ -789,18 +789,18 @@ func normalizePurchasing(build map[string]any) {
 		if !ok {
 			continue
 		}
-		if v, ok := mat["quantity"]; ok {
-			mat["quantity"] = materialCountQuantityInt(v)
-		}
+		// What a material needs comes from the setups
+		// (models.Job.MaterialRequirement), so the stored figure is not carried
+		// onto the document.
+		delete(mat, "quantity")
 		if v, ok := mat["volume"]; ok {
 			mat["volume"] = historicFloat64Scalar(v)
 		}
-		if v, ok := mat["quantityPurchased"]; ok {
-			mat["quantityPurchased"] = materialCountQuantityInt(v)
-		}
-		if v, ok := mat["purchasedCost"]; ok {
-			mat["purchasedCost"] = historicFloat64Scalar(v)
-		}
+		// What a material bought is read from its purchases
+		// (models.JobMaterial.PurchasedCost), so the stored totals are not carried
+		// onto the document.
+		delete(mat, "quantityPurchased")
+		delete(mat, "purchasedCost")
 		pur, _ := mat["purchasing"].([]any)
 		for _, pi := range pur {
 			p, ok := pi.(map[string]any)

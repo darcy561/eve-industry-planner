@@ -91,7 +91,7 @@ const shouldRecalculate = (job, parentJobRequirements) => {
   const neededRuns = Math.ceil(parentJobRequirements / job.itemsProducedPerRun);
   const minBuildQuantity = neededRuns * job.itemsProducedPerRun;
 
-  const { totalQuantity: currentProduction } = job.build.products;
+  const currentProduction = job.totalQuantityProduced();
 
   const isOverproducing =
     currentProduction > minBuildQuantity + job.itemsProducedPerRun;

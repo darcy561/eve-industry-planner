@@ -26,7 +26,14 @@ func TestJobCostPartsAreReadFromTheJob(t *testing.T) {
 	t.Parallel()
 
 	job := Job{}
-	job.Build.Materials = []JobMaterial{{PurchasedCost: 60}, {PurchasedCost: 40}}
+	job.Build.Materials = []JobMaterial{
+		{TypeID: 34, Purchasing: []Purchase{{ID: "p1", ItemCount: 60, ItemCost: 1}}},
+		{TypeID: 35, Purchasing: []Purchase{{ID: "p2", ItemCount: 40, ItemCost: 1}}},
+	}
+	job.Build.Setup = map[string]JobSetup{"s1": {ID: "s1", MaterialCount: map[string]MaterialCount{
+		"34": {TypeID: 34, Quantity: 60},
+		"35": {TypeID: 35, Quantity: 40},
+	}}}
 	job.Build.Costs.LinkedJobs = []LinkedESIJob{{JobID: 1, Cost: 3}, {JobID: 2, Cost: 2}}
 	job.Build.Costs.InventionEntries = []InventionEntry{{ID: 1, ItemName: "Datacore", ItemCost: 2}}
 	job.Build.Costs.ExtrasCosts = []ExtraCost{{ID: "e1", ExtraValue: 2}, {ID: "e2", ExtraValue: 1}}

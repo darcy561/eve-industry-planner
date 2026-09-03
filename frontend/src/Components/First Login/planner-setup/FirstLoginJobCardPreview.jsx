@@ -27,11 +27,9 @@ export function FirstLoginJobCardPreview({ layoutCompact = false }) {
       jobType: jobTypes.manufacturing,
       jobStatus: 0,
       build: {
-        products: {
-          totalQuantity: 1000,
-        },
         materials: [],
       },
+      totalQuantityProduced: () => 1000,
       apiJobs: new Set(),
       apiOrders: new Set(),
       apiTransactions: new Set(),

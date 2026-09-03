@@ -13,15 +13,20 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 		ItemID:              34,
 		JobType:             1,
 		Build: models.JobBuild{
-			Setup: map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 5, JobCount: 2}},
+			Setup: map[string]models.JobSetup{"s1": {
+				ID: "s1", RunCount: 5, JobCount: 2,
+				MaterialCount: map[string]models.MaterialCount{
+					"34": {TypeID: 34, Quantity: 70},
+					"35": {TypeID: 35, Quantity: 30},
+				},
+			}},
 			Materials: []models.JobMaterial{
-				{TypeID: 34, PurchasedCost: 70},
-				{TypeID: 35, PurchasedCost: 30},
+				{TypeID: 34, Purchasing: []models.Purchase{{ID: "p1", ItemCount: 70, ItemCost: 1}}},
+				{TypeID: 35, Purchasing: []models.Purchase{{ID: "p2", ItemCount: 30, ItemCost: 1}}},
 			},
 			Costs: models.JobCosts{
-				TotalPurchaseCost: 100,
-				ExtrasCosts:       []models.ExtraCost{{ID: "e1", ExtraValue: 3}},
-				InventionEntries:  []models.InventionEntry{{ID: 1, ItemName: "Datacore", ItemCost: 2}},
+				ExtrasCosts:      []models.ExtraCost{{ID: "e1", ExtraValue: 3}},
+				InventionEntries: []models.InventionEntry{{ID: 1, ItemName: "Datacore", ItemCost: 2}},
 				LinkedJobs: []models.LinkedESIJob{
 					{IsCorporation: false, Cost: 2},
 					{IsCorporation: true, Cost: 3},

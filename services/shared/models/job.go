@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -75,6 +76,12 @@ type JobSetup struct {
 	UseAlternativeSystemIndexValue bool                     `json:"useAlternativeSystemIndexValue" bson:"useAlternativeSystemIndexValue"`
 }
 
+// MaterialQuantity is how many of a material this setup calls for.
+// JobSetup#materialQuantity in the SPA is the same method.
+func (s JobSetup) MaterialQuantity(typeID int) int {
+	return s.MaterialCount[strconv.Itoa(typeID)].Quantity
+}
+
 // MaterialCount represents material quantity tracking in a setup (whole units only).
 // Legacy Firestore floats are rounded during archiveimport (fillSetupMaterialCount).
 type MaterialCount struct {
@@ -85,10 +92,9 @@ type MaterialCount struct {
 
 // JobCosts contains all cost-related data for the job
 type JobCosts struct {
-	TotalPurchaseCost float64          `json:"totalPurchaseCost" bson:"totalPurchaseCost"`
-	ExtrasCosts       []ExtraCost      `json:"extrasCosts" bson:"extrasCosts"`
-	LinkedJobs        []LinkedESIJob   `json:"linkedJobs" bson:"linkedJobs"`
-	InventionEntries  []InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
+	ExtrasCosts      []ExtraCost      `json:"extrasCosts" bson:"extrasCosts"`
+	LinkedJobs       []LinkedESIJob   `json:"linkedJobs" bson:"linkedJobs"`
+	InventionEntries []InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
 }
 
 // JobCostParts are the six components a job's cost is made of.
@@ -170,20 +176,40 @@ func (j Job) TotalInventionCost() float64 {
 	return total
 }
 
+// MaterialRequirement is how many of a material the job's setups call for.
+//
+// Summed from the setups on every call, so a setup added, removed or resized
+// moves what each material needs with it. Job#materialRequirement in the SPA is
+// the same method.
+func (j Job) MaterialRequirement(typeID int) int {
+	required := 0
+	for _, setup := range j.Build.Setup {
+		required += setup.MaterialQuantity(typeID)
+	}
+	return required
+}
+
+// TotalMaterialCost is what the materials cost the job: what each material's
+// purchases bought, summed. Job.totalMaterialCost() in the SPA is the same
+// method.
+func (j Job) TotalMaterialCost() float64 {
+	total := 0.0
+	for _, material := range j.Build.Materials {
+		total += material.PurchasedCost(j.MaterialRequirement(material.TypeID))
+	}
+	return total
+}
+
 // CostParts reads what the job cost from its own fields.
 //
-// Materials are summed from the purchases rather than read from
-// `totalPurchaseCost`: that field has been written both ways — materials alone,
-// and materials with invention folded in — so it cannot say which it holds. The
-// purchases can.
+// Every component is summed from the rows that make it up: the purchases on each
+// material, the linked ESI jobs, the extras rows and the invention entries.
 func (j Job) CostParts() JobCostParts {
 	parts := JobCostParts{
+		Materials: j.TotalMaterialCost(),
 		Install:   j.TotalInstallCost(),
 		Invention: j.TotalInventionCost(),
 		Extras:    j.TotalExtrasCost(),
-	}
-	for _, material := range j.Build.Materials {
-		parts.Materials += material.PurchasedCost
 	}
 	for _, fee := range j.Build.Sale.BrokersFee {
 		parts.BrokersFee += fee.Amount
@@ -192,6 +218,48 @@ func (j Job) CostParts() JobCostParts {
 		parts.TransactionFee += transaction.Tax
 	}
 	return parts
+}
+
+// countedPurchases is what the job is charged for on a material, and how much of
+// it that bought.
+//
+// The cheapest purchases fill the requirement first, so a job pays the best
+// prices it managed and the dearest units are the ones left over. Nothing beyond
+// the requirement adds cost. Material#quantityPurchased and
+// Material#purchasedCost in the SPA are the same figures.
+func (m JobMaterial) countedPurchases(requirement int) (int, float64) {
+	rows := make([]Purchase, 0, len(m.Purchasing))
+	for _, row := range m.Purchasing {
+		if row.ItemCount >= 0 && row.ItemCost >= 0 {
+			rows = append(rows, row)
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].ItemCost < rows[j].ItemCost })
+
+	quantity := 0
+	cost := 0.0
+	for _, row := range rows {
+		take := min(row.ItemCount, max(0, requirement-quantity))
+		if take <= 0 {
+			continue
+		}
+		quantity += take
+		cost += float64(take) * row.ItemCost
+	}
+	return quantity, cost
+}
+
+// QuantityPurchased is how many of the purchases count toward the requirement
+// the job's setups call for.
+func (m JobMaterial) QuantityPurchased(requirement int) int {
+	quantity, _ := m.countedPurchases(requirement)
+	return quantity
+}
+
+// PurchasedCost is what that counted quantity cost.
+func (m JobMaterial) PurchasedCost(requirement int) float64 {
+	_, cost := m.countedPurchases(requirement)
+	return cost
 }
 
 // ExtraCost matches the SPA extras row (Extras panel, Job.toDocument): id, category, extraText, extraValue.
@@ -472,14 +540,11 @@ type BrokerFee struct {
 
 // JobMaterial represents a material required for the job
 type JobMaterial struct {
-	TypeID            int        `json:"typeID" bson:"typeID"`
-	Name              string     `json:"name" bson:"name"`
-	Quantity          int        `json:"quantity" bson:"quantity"` // rounded on historic import (archiveimport.normalizePurchasing)
-	JobType           int        `json:"jobType" bson:"jobType"`
-	Volume            float64    `json:"volume" bson:"volume"` // coerced on historic import
-	Purchasing        []Purchase `json:"purchasing" bson:"purchasing"`
-	QuantityPurchased int        `json:"quantityPurchased" bson:"quantityPurchased"` // rounded on historic import
-	PurchasedCost     float64    `json:"purchasedCost" bson:"purchasedCost"`         // coerced on historic import
+	TypeID     int        `json:"typeID" bson:"typeID"`
+	Name       string     `json:"name" bson:"name"`
+	JobType    int        `json:"jobType" bson:"jobType"`
+	Volume     float64    `json:"volume" bson:"volume"` // coerced on historic import
+	Purchasing []Purchase `json:"purchasing" bson:"purchasing"`
 }
 
 // Purchase represents a material purchase transaction.

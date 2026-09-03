@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   serialiseGroupToTemplatePayload,
-  expectedTotalFromSetups,
   hasParentCycle,
 } from "../src/Functions/GroupTemplates/serialiseGroupToTemplatePayload";
 
@@ -14,6 +13,8 @@ function minimalJob(overrides = {}) {
     name: overrides.name ?? "Test job",
     parentJobs: overrides.parentJobs ?? [],
     itemsProducedPerRun: overrides.itemsProducedPerRun ?? 1,
+    totalQuantityProduced: () =>
+      overrides.totalQuantity !== undefined ? overrides.totalQuantity : 5,
     build: {
       materials: overrides.materials ?? [
         { typeID: 35, name: "Mat", quantity: 1 },
@@ -33,12 +34,6 @@ function minimalJob(overrides = {}) {
           customStructureID: "",
           selectedCharacter: "",
         },
-      },
-      products: {
-        totalQuantity:
-          overrides.totalQuantity !== undefined
-            ? overrides.totalQuantity
-            : 5,
       },
     },
     rawData: { products: [{ quantity: 1 }] },
@@ -60,16 +55,6 @@ describe("serialiseGroupToTemplatePayload", () => {
     expect(out.payload.jobs[0].desiredTotalQuantity).toBe(5);
     expect(out.payload.jobs[0].presetSetups).toHaveLength(1);
     expect(out.payload.jobs[0].presetSetups[0].runCount).toBe(5);
-  });
-
-  it("throws when setup total does not match persisted total", () => {
-    const j = minimalJob({ totalQuantity: 99 });
-    expect(() =>
-      serialiseGroupToTemplatePayload({
-        groupID: "g",
-        jobs: [j],
-      })
-    ).toThrow(/mismatch/i);
   });
 
   it("maps parent and child links inside the group", () => {
@@ -112,13 +97,6 @@ describe("serialiseGroupToTemplatePayload", () => {
       tParent.childLinksByMaterialTypeId["35"] ||
         tParent.childLinksByMaterialTypeId[35]
     ).toContain(tChild.templateJobId);
-  });
-});
-
-describe("expectedTotalFromSetups", () => {
-  it("sums runs with itemsProducedPerRun", () => {
-    const job = minimalJob({});
-    expect(expectedTotalFromSetups(job)).toBe(5);
   });
 });
 

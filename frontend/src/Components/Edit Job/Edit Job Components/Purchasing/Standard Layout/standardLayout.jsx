@@ -37,7 +37,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
       if (!state.activeJob.includedInGroup) {
         childJobs = filterJobs(jobArray);
         childJobProductionTotal = childJobs.reduce(
-          (total, job) => total + job.build.products.totalQuantity,
+          (total, job) => total + job.totalQuantityProduced(),
           0
         );
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -46,7 +46,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
           );
 
           if (!matchingCostImport) {
-            return (total += job.build.products.totalQuantity);
+            return (total += job.totalQuantityProduced());
           }
           return total;
         }, 0);
@@ -56,7 +56,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
           ...Object.values(state.temporaryChildJobs),
         ]);
         childJobProductionTotal = childJobs.reduce((total, job) => {
-          return (total += job.build.products.totalQuantity);
+          return (total += job.totalQuantityProduced());
         }, 0);
 
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -65,7 +65,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
           );
 
           if (!matchingCostImport) {
-            return (total += job.build.products.totalQuantity);
+            return (total += job.totalQuantityProduced());
           }
           return total;
         }, 0);

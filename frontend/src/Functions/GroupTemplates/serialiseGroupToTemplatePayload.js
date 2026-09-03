@@ -25,21 +25,6 @@ export function setupToPresetRow(setup) {
 }
 
 /**
- * Sum of (runCount * jobCount) * itemsProducedPerRun across setups on the job.
- *
- * @param {import("../../Classes/job").default} job
- * @returns {number}
- */
-export function expectedTotalFromSetups(job) {
-  const perRun = job.itemsProducedPerRun || 0;
-  let sum = 0;
-  for (const s of Object.values(job.build?.setup || {})) {
-    sum += (s.runCount || 0) * (s.jobCount || 0) * perRun;
-  }
-  return sum;
-}
-
-/**
  * @param {import("../../Classes/job.js").default} job
  * @param {Map<string, string>} jobIdToTemplateId
  * @returns {string[]}
@@ -162,20 +147,14 @@ export function serialiseGroupToTemplatePayload({
       throw new Error(`Job ${job.name || job.jobID} has no setups to capture.`);
     }
 
-    const persistedTotal = Math.round(job.build?.products?.totalQuantity ?? 0);
-    const fromSetups = Math.round(expectedTotalFromSetups(job));
-    if (fromSetups !== persistedTotal) {
-      throw new Error(
-        `Quantity mismatch for "${job.name}": setups imply ${fromSetups} but job total is ${persistedTotal}. Adjust setups before saving.`
-      );
-    }
+    const desiredTotal = Math.round(job.totalQuantityProduced());
 
     nodes.push({
       templateJobId,
       itemID: job.itemID,
       jobType: job.jobType,
       name: job.name || "",
-      desiredTotalQuantity: persistedTotal,
+      desiredTotalQuantity: desiredTotal,
       parentTemplateJobIds,
       childLinksByMaterialTypeId: mapChildLinks(job, jobIdToTemplateId),
       presetSetups: setups,

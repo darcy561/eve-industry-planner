@@ -73,7 +73,7 @@ function OutputJobCard({ inputJob, state, actions }) {
             <Grid size={12}>
               <Typography variant="caption">
                 Quantity Produced:{" "}
-                {formatNumberForLocale(inputJob.build.products.totalQuantity, {
+                {formatNumberForLocale(inputJob.totalQuantityProduced(), {
                   max: 0,
                 })}
               </Typography>

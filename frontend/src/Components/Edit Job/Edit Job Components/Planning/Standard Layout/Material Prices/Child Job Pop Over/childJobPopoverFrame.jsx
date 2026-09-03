@@ -87,10 +87,10 @@ export function ChildJobPopoverFrame(props) {
 
   const totalInstallCosts = getJobInstallCostForPlanning(currentJob);
 
+  const quantityProduced = currentJob?.totalQuantityProduced() ?? 0;
   const totalCostPerItem =
-    (currentJob?.build?.products?.totalQuantity || 0) !== 0
-      ? (totalCostOfMaterials + totalInstallCosts) /
-        currentJob.build.products.totalQuantity
+    quantityProduced !== 0
+      ? (totalCostOfMaterials + totalInstallCosts) / quantityProduced
       : 0;
 
   return (
@@ -152,9 +152,7 @@ export function ChildJobPopoverFrame(props) {
             />
             <DisplayMismatchedChildTotals_ChildJobPopoverFrame
               materialQuantity={material?.quantity || 0}
-              totalItemsProduced={
-                currentJob?.build?.products?.totalQuantity || 0
-              }
+              totalItemsProduced={quantityProduced}
               totalCostPerItem={totalCostPerItem}
             />
             <ChildJobSwitcher_ChildJobPopoverFrame

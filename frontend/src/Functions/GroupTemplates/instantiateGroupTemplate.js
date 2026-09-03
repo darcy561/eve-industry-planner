@@ -67,9 +67,9 @@ export async function instantiateGroupTemplate({
         `Could not build job for item ${node.itemID} (${node.name || node.templateJobId}). The blueprint may be unavailable.`
       );
     }
-    if (job.build.products.totalQuantity !== desired) {
+    if (job.totalQuantityProduced() !== desired) {
       throw new Error(
-        `Could not match target quantity for "${job.name}" (wanted ${desired}, got ${job.build.products.totalQuantity}).`
+        `Could not match target quantity for "${job.name}" (wanted ${desired}, got ${job.totalQuantityProduced()}).`
       );
     }
     templateToJob.set(node.templateJobId, job);
