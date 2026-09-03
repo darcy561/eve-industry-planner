@@ -121,8 +121,6 @@ async function buildSetupOptions(inputJobObject, buildRequestObject, queryClient
     }
     const keys = Object.keys(inputJobObject.build.setup);
     inputJobObject.layout.setupToEdit = keys[0];
-    inputJobObject.recalculateTotalQuantityProduced();
-    inputJobObject.recalculateTotalMaterialQuantities();
 
     const target =
       typeof requiredQuantity === "number" && requiredQuantity > 0
@@ -130,7 +128,7 @@ async function buildSetupOptions(inputJobObject, buildRequestObject, queryClient
         : null;
     if (
       target != null &&
-      inputJobObject.build.products.totalQuantity !== target
+      inputJobObject.totalQuantityProduced() !== target
     ) {
       recalculateJobForNewTotal(inputJobObject, target, queryClient);
     }

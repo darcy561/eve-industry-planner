@@ -1,7 +1,6 @@
 import { Typography, Grid } from "@mui/material";
 import { LARGE_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import { getJobInstallCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 
 export function InformationPanel({ state }) {
@@ -17,7 +16,7 @@ export function InformationPanel({ state }) {
           }}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Total Material Cost:{" "}
-            {formatNumberForLocale(state.activeJob.materialCost())}
+            {formatNumberForLocale(state.activeJob.totalMaterialCost())}
           </Typography>
         </Grid>
         <Grid
@@ -29,9 +28,7 @@ export function InformationPanel({ state }) {
           }}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Total Install Costs:{" "}
-            {formatNumberForLocale(
-              getJobInstallCostForPlanning(state.activeJob)
-            )}
+            {formatNumberForLocale(state.activeJob.totalInstallCost())}
           </Typography>
         </Grid>
         <Grid
@@ -43,11 +40,7 @@ export function InformationPanel({ state }) {
           }}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Estimated Cost Per Item:{" "}
-            {formatNumberForLocale(
-              (state.activeJob.materialCost() +
-                getJobInstallCostForPlanning(state.activeJob)) /
-              state.activeJob.build.products.totalQuantity
-            )}
+            {formatNumberForLocale(state.activeJob.buildCostPerItem())}
           </Typography>
         </Grid>
       </Grid>

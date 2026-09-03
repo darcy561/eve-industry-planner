@@ -40,7 +40,7 @@ export function ProductionStats({ state, actions }) {
           let childJob = findJobInJobArray(childID);
           if (!childJob) continue;
           returnObject.multipleChildren = true;
-          returnObject.childrenTotal += childJob.build.products.totalQuantity;
+          returnObject.childrenTotal += childJob.totalQuantityProduced();
         }
       }
     }
@@ -117,7 +117,7 @@ export function ProductionStats({ state, actions }) {
               <Typography
                 sx={{ typography: { xs: "caption", sm: "body2" } }}
                 color={
-                  activeJob.build.products.totalQuantity +
+                  activeJob.totalQuantityProduced() +
                     parentRequirements.childrenTotal <
                   parentRequirements.parentTotal
                     ? "error.main"
@@ -133,14 +133,14 @@ export function ProductionStats({ state, actions }) {
                 sx={{ typography: { xs: "caption", sm: "body2" } }}
                 align="right"
                 color={
-                  activeJob.build.products.totalQuantity +
+                  activeJob.totalQuantityProduced() +
                     parentRequirements.childrenTotal <
                   parentRequirements.parentTotal
                     ? "error.main"
                     : null
                 }
               >
-                {formatNumberForLocale(activeJob.build.products.totalQuantity, {
+                {formatNumberForLocale(activeJob.totalQuantityProduced(), {
                   max: 0,
                 })}
               </Typography>
@@ -173,7 +173,7 @@ export function ProductionStats({ state, actions }) {
                     <Typography
                       sx={{ typography: { xs: "caption", sm: "body2" } }}
                       color={
-                        activeJob.build.products.totalQuantity +
+                        activeJob.totalQuantityProduced() +
                           parentRequirements.childrenTotal <
                         parentRequirements.parentTotal
                           ? "error.main"
@@ -188,7 +188,7 @@ export function ProductionStats({ state, actions }) {
                       sx={{ typography: { xs: "caption", sm: "body2" } }}
                       align="right"
                       color={
-                        activeJob.build.products.totalQuantity +
+                        activeJob.totalQuantityProduced() +
                           parentRequirements.childrenTotal <
                         parentRequirements.parentTotal
                           ? "error.main"

@@ -33,7 +33,6 @@ func TestJob_JSON_FirestoreToDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [],
 				"linkedJobs": [],
 				"inventionEntries": []
@@ -105,7 +104,6 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [
 					{
 						"id": "uuid",
@@ -254,7 +252,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [
 					{"id": "row-1", "category": "2", "extraText": "Label", "extraValue": 99.5}
 				],
@@ -323,7 +320,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [],
 				"linkedJobs": [],
 				"inventionEntries": []
@@ -337,7 +333,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 				{
 					"typeID": 57478,
 					"name": "x",
-					"quantity": 360,
 					"jobType": 1,
 					"volume": 16,
 					"purchasing": [
@@ -348,9 +343,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 							"itemCount": 360,
 							"childJobImport": false
 						}
-					],
-					"quantityPurchased": 360,
-					"purchasedCost": 17200800
+					]
 				}
 			]
 		},
@@ -433,7 +426,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 			},
 			"childJobs": {"57478": []},
 			"costs": {
-				"totalPurchaseCost": 676669000,
 				"extrasCosts": [
 					{
 						"id": "ee3c139f-7cce-8613-6f92-4bd7bebbfe92",
@@ -482,12 +474,9 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 						}
 					],
 					"volume": 16,
-					"purchasedCost": 17200800,
 					"jobType": 1,
 					"typeID": 57478,
-					"name": "Auto-Integrity Preservation Seal",
-					"quantityPurchased": 360,
-					"quantity": 360
+					"name": "Auto-Integrity Preservation Seal"
 				}
 			]
 		},
@@ -557,7 +546,6 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [],
 				"linkedJobs": [],
 				"inventionEntries": []

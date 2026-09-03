@@ -1180,18 +1180,19 @@ func TestJobFromFirestoreMap_normalizesJobMaterialScalars(t *testing.T) {
 				"x": map[string]any{
 					"id": "x", "runCount": float64(1), "jobCount": float64(1),
 					"ME": float64(0), "TE": float64(0), "jobType": float64(1),
-					"materialCount": map[string]any{},
+					"materialCount": map[string]any{
+						"34": map[string]any{"typeID": float64(34), "quantity": float64(1001)},
+					},
 				},
 			},
 			"products": map[string]any{"totalQuantity": float64(1)},
 			"costs":    map[string]any{"extrasCosts": []any{}, "linkedJobs": []any{}},
 			"materials": []any{
 				map[string]any{
-					"typeID":   float64(34),
-					"name":     "Trit",
-					"quantity": "1001",
-					"jobType":  float64(0),
-					"volume":   "0.0375",
+					"typeID":  float64(34),
+					"name":    "Trit",
+					"jobType": float64(0),
+					"volume":  "0.0375",
 					"purchasing": []any{
 						map[string]any{
 							"id":             "p1",
@@ -1227,17 +1228,19 @@ func TestJobFromFirestoreMap_normalizesJobMaterialScalars(t *testing.T) {
 		t.Fatalf("materials len: %d", len(job.Build.Materials))
 	}
 	m := job.Build.Materials[0]
-	if m.Quantity != 1001 {
-		t.Fatalf("quantity: got %d", m.Quantity)
+	if got := job.MaterialRequirement(m.TypeID); got != 1001 {
+		t.Fatalf("requirement: got %d want 1001 (the setup's material count, coerced)", got)
 	}
 	if m.Volume != 0.0375 {
 		t.Fatalf("volume: got %v want 0.0375", m.Volume)
 	}
-	if m.QuantityPurchased != 2 {
-		t.Fatalf("quantityPurchased: got %d want 2 (rounded)", m.QuantityPurchased)
+	// The document's own totals (2 bought for 12.50) disagree with its purchases,
+	// which are 5 at 3.125 and 1 at 2. The purchases are the figures.
+	if got := m.QuantityPurchased(job.MaterialRequirement(m.TypeID)); got != 6 {
+		t.Fatalf("quantityPurchased: got %d want 6", got)
 	}
-	if m.PurchasedCost != 12.5 {
-		t.Fatalf("purchasedCost: got %v", m.PurchasedCost)
+	if got := m.PurchasedCost(job.MaterialRequirement(m.TypeID)); got != 17.625 {
+		t.Fatalf("purchasedCost: got %v want 17.625", got)
 	}
 	if len(m.Purchasing) != 2 {
 		t.Fatalf("purchasing len: %d", len(m.Purchasing))

@@ -1,8 +1,5 @@
 import useUsersStore from "../../Zustand/usersStore.js";
-import {
-  getJobActualInstallCost,
-  getJobInstallCostForPlanning,
-} from "../Installation Costs/installCosts.js";
+import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts.js";
 
 /** @param {unknown} n @param {number} [fallback=0] */
 function toFinite(n, fallback = 0) {
@@ -17,8 +14,10 @@ function toFinite(n, fallback = 0) {
  *
  * @param {import("../../Classes/job").default} outputJob
  * @param {{ installCostMode?: "actual" | "planning" }} [options]
- *   - `actual` — group output / ESI totals only (no setup estimates)
- *   - `planning` — actual when set, else setup estimates (edit job material pricing)
+ *   - `actual` — what the linked ESI jobs cost, and nothing until they are linked
+ *     (group output)
+ *   - `planning` — the same figure once anything is linked, setup estimates until
+ *     then (edit job material pricing)
  */
 export function calculateCurrentJobBuildCostFromChildren(
   outputJob,
@@ -30,19 +29,17 @@ export function calculateCurrentJobBuildCostFromChildren(
 
   const getInstallCost =
     options.installCostMode === "actual"
-      ? getJobActualInstallCost
+      ? (job) => job.totalInstallCost()
       : getJobInstallCostForPlanning;
 
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
-  const products = outputJob.build.products;
-  const outTotalQty = toFinite(products?.totalQuantity);
+  const outTotalQty = toFinite(outputJob.totalQuantityProduced());
   if (outTotalQty <= 0) {
     return 0;
   }
 
-  const costs = outputJob.build.costs;
   let finalBuildCost =
-    getInstallCost(outputJob) + toFinite(costs?.extrasTotal);
+    getInstallCost(outputJob) + outputJob.totalExtrasCost();
 
   for (const material of outputJob.build.materials ?? []) {
     const childJobs = outputJob.build.childJobs?.[material.typeID];
@@ -85,8 +82,8 @@ function findItemBuildCost(
     }
 
     returnTotal += getInstallCost(childJob);
-    returnTotal += toFinite(childJob.build.costs?.extrasTotal);
-    totalProduced += toFinite(childJob.build.products?.totalQuantity);
+    returnTotal += childJob.totalExtrasCost();
+    totalProduced += toFinite(childJob.totalQuantityProduced());
 
     for (const cMaterial of childJob.build.materials ?? []) {
       const nestedChildIds = childJob.build.childJobs?.[cMaterial.typeID];

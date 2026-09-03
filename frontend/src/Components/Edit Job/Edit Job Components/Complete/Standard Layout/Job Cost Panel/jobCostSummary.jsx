@@ -1,6 +1,5 @@
 import { Tooltip, Typography, Grid } from "@mui/material";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import { getJobInstallCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 
@@ -27,7 +26,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.materialCost())}
+              {formatNumberForLocale(state.activeJob.totalMaterialCost())}
             </Typography>
           </Grid>
         </Grid>
@@ -52,9 +51,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(
-                getJobInstallCostForPlanning(state.activeJob)
-              )}
+              {formatNumberForLocale(state.activeJob.totalInstallCost())}
             </Typography>
           </Grid>
         </Grid>
@@ -79,7 +76,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.build.costs.extrasTotal)}
+              {formatNumberForLocale(state.activeJob.totalExtrasCost())}
             </Typography>
           </Grid>
         </Grid>
@@ -104,7 +101,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.build.costs.inventionCosts)}
+              {formatNumberForLocale(state.activeJob.totalInventionCost())}
             </Typography>
           </Grid>
         </Grid>
@@ -151,7 +148,7 @@ export function JobCostSummaryPanel({ state }) {
               align="right"
             >
               {formatNumberForLocale(
-                state.activeJob.build.products.totalQuantity,
+                state.activeJob.totalQuantityProduced(),
                 { max: 0 }
               )}
             </Typography>

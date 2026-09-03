@@ -1,6 +1,7 @@
 import uuid from "react-uuid";
 import { jobTypes } from "../Context/defaultValues";
 import Setup from "./jobSetup";
+import Material from "./jobMaterial";
 import LinkedESIJob from "./linkedESIJob";
 import JobSnapshot from "./jobSnapshot";
 import createESIMarketOrder from "../Functions/MarketOrders/createMarketOrder";
@@ -76,8 +77,8 @@ function normalizeExtrasCostsIncoming(rows) {
  * job.linkESIJob(esiJobData, jobOwner);
  *
  * @example
- * // Add material purchase
- * job.addPurchaseCostToMaterial(materialID, purchaseObject);
+ * // Record a material purchase
+ * job.importPurchaseToMaterial(materialID, purchase);
  *
  * @example
  * // Add market order for sales
@@ -116,10 +117,7 @@ class Job {
    * @param {Object} [buildRequest.childJobs] - Child jobs configuration
    */
   constructor(itemJson, buildRequest) {
-    this.metaLevel =
-      itemJson?.metaLevel ??
-      itemJson?.metaGroup ??
-      null;
+    this.metaLevel = itemJson?.metaLevel ?? itemJson?.metaGroup ?? null;
     this.jobType = itemJson.jobType;
     this.name = itemJson.name;
     this.jobID = itemJson?.jobID || `job-${uuid()}`;
@@ -130,7 +128,11 @@ class Job {
     this.apiJobs = new Set(itemJson?.apiJobs || []);
     this.apiOrders = new Set(itemJson?.apiOrders || []);
     this.apiTransactions = new Set(itemJson?.apiTransactions || []);
-    this.parentJobs = itemJson?.parentJobs || itemJson?.parentJob || buildRequest?.parentJobs || [];
+    this.parentJobs =
+      itemJson?.parentJobs ||
+      itemJson?.parentJob ||
+      buildRequest?.parentJobs ||
+      [];
     this.blueprintTypeID = itemJson?.blueprintTypeID || null;
     this.isReadyToSell = itemJson?.isReadyToSell || false;
     const mergedGroupID = itemJson?.groupID ?? buildRequest?.groupID;
@@ -145,35 +147,28 @@ class Job {
         : !this.includedInGroup || this.isReadyToSell;
     this.build = {
       setup: documentToSetups(itemJson),
-      products: {
-        totalQuantity: itemJson?.build?.products?.totalQuantity || 0,
-      },
       childJobs: itemJson?.build?.childJobs || {},
       costs: {
-        totalPurchaseCost: itemJson?.build?.costs?.totalPurchaseCost || 0,
         extrasCosts: normalizeExtrasCostsIncoming(
-          itemJson?.build?.costs?.extrasCosts || []
+          itemJson?.build?.costs?.extrasCosts || [],
         ),
-        extrasTotal: itemJson?.build?.costs?.extrasTotal || 0,
         linkedJobs: itemJson?.build?.costs?.linkedJobs || [],
-        installCosts: itemJson?.build?.costs?.installCosts || 0,
-        inventionCosts: itemJson?.build?.costs?.inventionCosts || 0,
         inventionEntries: itemJson?.build?.costs?.inventionEntries || [],
       },
       sale: {
-        totalSold: itemJson?.build?.sale?.totalSold || 0,
-        totalSale: itemJson?.build?.sale?.totalSale || 0,
         marketOrders: itemJson?.build?.sale?.marketOrders || [],
         transactions: itemJson?.build?.sale?.transactions || [],
         brokersFee: itemJson?.build?.sale?.brokersFee || [],
       },
-      materials: itemJson?.build?.materials || null,
+      materials: documentToMaterials(itemJson, (typeID) =>
+        this.materialRequirement(typeID),
+      ),
     };
     this.build.sale.transactions = normalizeTransactions(
-      this.build.sale.transactions
+      this.build.sale.transactions,
     );
     this.apiTransactions = new Set(
-      [...this.apiTransactions].map((id) => normalizeTransactionID(id))
+      [...this.apiTransactions].map((id) => normalizeTransactionID(id)),
     );
     this.rawData = itemJson?.rawData || {};
     this.skills = itemJson?.skills || [];
@@ -247,8 +242,9 @@ class Job {
       this.rawData.products = itemJson.activities.manufacturing.products;
       this.rawData.time = itemJson.activities.manufacturing.time;
       this.skills = itemJson.activities.manufacturing.skills || [];
-      this.build.materials = JSON.parse(
-        JSON.stringify(itemJson.activities.manufacturing.materials)
+      this.build.materials = itemJson.activities.manufacturing.materials.map(
+        (material) =>
+          new Material(material, (typeID) => this.materialRequirement(typeID)),
       );
       this.itemsProducedPerRun =
         itemJson.activities.manufacturing.products[0].quantity;
@@ -258,20 +254,17 @@ class Job {
       this.rawData.products = itemJson.activities.reaction.products;
       this.rawData.time = itemJson.activities.reaction.time;
       this.skills = itemJson.activities.reaction.skills || [];
-      this.build.materials = JSON.parse(
-        JSON.stringify(itemJson.activities.reaction.materials)
+      this.build.materials = itemJson.activities.reaction.materials.map(
+        (material) =>
+          new Material(material, (typeID) => this.materialRequirement(typeID)),
       );
       this.itemsProducedPerRun =
         itemJson.activities.reaction.products[0].quantity;
     }
 
     this.build.materials.forEach((material) => {
-      material.purchasing = [];
-      material.quantityPurchased = 0;
-      material.purchasedCost = 0;
-      material.purchaseComplete = false;
       const buildItem = buildRequest?.childJobs?.find(
-        (i) => i.typeID === material.typeID
+        (i) => i.typeID === material.typeID,
       );
 
       this.build.childJobs[material.typeID] = buildItem?.childJobs
@@ -333,6 +326,9 @@ class Job {
           acc[key] = value.toDocument();
           return acc;
         }, {}),
+        materials: this.build.materials
+          ? this.build.materials.map((material) => material.toDocument())
+          : null,
       },
       rawData: this.rawData,
       skills: this.skills,
@@ -432,8 +428,9 @@ class Job {
    * This method connects an EVE Online ESI job to track its progress:
    * - Adds the ESI job ID to the tracked jobs set
    * - Creates a LinkedESIJob instance for detailed tracking
-   * - Updates installation costs based on ESI job cost
-   * - Maintains cost calculation integrity
+   *
+   * The linked rows are what the installs cost — see {@link Job#totalInstallCost}
+   * — so there is no separate total to keep in step.
    *
    * @param {Object} esiJob - ESI job data from EVE Online API
    * @param {number} esiJob.job_id - ESI job ID
@@ -451,18 +448,8 @@ class Job {
    */
   linkESIJob(esiJob, jobOwner) {
     if (!esiJob || !jobOwner) return;
-    if (
-      isNaN(this.build.costs.installCosts) ||
-      this.build.costs.installCosts < 0
-    ) {
-      this.build.costs.installCosts = this.build.costs.linkedJobs.reduce(
-        (prev, job) => (prev += job.cost),
-        0
-      );
-    }
     this.apiJobs.add(esiJob.job_id);
     this.build.costs.linkedJobs.push({ ...new LinkedESIJob(esiJob, jobOwner) });
-    this.build.costs.installCosts += esiJob.cost;
   }
 
   /**
@@ -471,12 +458,12 @@ class Job {
    * This method removes the connection to an ESI job:
    * - Removes the ESI job ID from tracked jobs
    * - Removes the linked job from the costs array
-   * - Updates installation costs by subtracting the job cost
-   * - Maintains cost calculation integrity
+   *
+   * Its install cost goes with it, because {@link Job#totalInstallCost} reads the
+   * remaining rows.
    *
    * @param {Object} linkedJob - Linked ESI job object to remove
    * @param {number} linkedJob.job_id - ESI job ID to remove
-   * @param {number} linkedJob.cost - Cost to subtract from installation costs
    *
    * @example
    * // Unlink an ESI job
@@ -487,20 +474,10 @@ class Job {
    */
   unlinkESIJob(linkedJob) {
     if (!linkedJob) return;
-    if (
-      isNaN(this.build.costs.installCosts) ||
-      this.build.costs.installCosts < 0
-    ) {
-      this.build.costs.installCosts = this.build.costs.linkedJobs.reduce(
-        (prev, job) => (prev += job.cost),
-        0
-      );
-    }
     this.apiJobs.delete(linkedJob.job_id);
     this.build.costs.linkedJobs = this.build.costs.linkedJobs.filter(
-      (i) => i.job_id !== linkedJob.job_id
+      (i) => i.job_id !== linkedJob.job_id,
     );
-    this.build.costs.installCosts -= linkedJob.cost;
   }
 
   /**
@@ -524,10 +501,6 @@ class Job {
       ...newItem,
       category: normalizeExtrasCostCategoryString(newItem.category),
     });
-    this.build.costs.extrasTotal = this.build.costs.extrasCosts.reduce(
-      (prev, curr) => prev + curr.extraValue,
-      0
-    );
   }
 
   /**
@@ -539,11 +512,7 @@ class Job {
   removeExtrasCost(item) {
     if (!item) return;
     this.build.costs.extrasCosts = this.build.costs.extrasCosts.filter(
-      (i) => i.id !== item.id
-    );
-    this.build.costs.extrasTotal = this.build.costs.extrasCosts.reduce(
-      (prev, curr) => prev + curr.extraValue,
-      0
+      (i) => i.id !== item.id,
     );
   }
   /**
@@ -556,7 +525,6 @@ class Job {
   addInventionCost(inputObject) {
     if (!inputObject) return;
     this.build.costs.inventionEntries.push(inputObject);
-    this.build.costs.inventionCosts += inputObject.itemCost;
   }
 
   /**
@@ -570,7 +538,6 @@ class Job {
     if (!inputObject) return;
     this.build.costs.inventionEntries =
       this.build.costs.inventionEntries.filter((i) => i.id !== inputObject.id);
-    this.build.costs.inventionCosts -= inputObject.itemCost;
   }
 
   /**
@@ -643,16 +610,60 @@ class Job {
   }
 
   /**
+   * The total sum of install costs for linked esi jobs.
+   *
+   * @returns {number} Install cost
+   */
+  totalInstallCost() {
+    return this.build.costs.linkedJobs.reduce(
+      (total, linkedJob) => total + (Number(linkedJob?.cost) || 0),
+      0,
+    );
+  }
+
+  /**
+   * What the extras cost, summed from the rows the Extras panel keeps.
+   *
+   * Read from the rows on every call, so adding, removing or editing one is
+   * reflected at once. `models.Job.TotalExtrasCost` is the same method on the
+   * backend.
+   *
+   * @returns {number} Extras total
+   */
+  totalExtrasCost() {
+    return this.build.costs.extrasCosts.reduce(
+      (total, extra) => total + (Number(extra?.extraValue) || 0),
+      0
+    );
+  }
+
+  /**
+   * What invention cost, summed from the entries recorded against the job.
+   *
+   * Read from the entries on every call, so adding, removing or editing one is
+   * reflected at once. `models.Job.TotalInventionCost` is the same method on the
+   * backend.
+   *
+   * @returns {number} Invention total
+   */
+  totalInventionCost() {
+    return this.build.costs.inventionEntries.reduce(
+      (total, entry) => total + (Number(entry?.itemCost) || 0),
+      0
+    );
+  }
+
+  /**
    * What it cost to build the item, before any cost of selling it.
    *
    * @returns {number} Build cost
    */
   buildCost() {
     return (
-      this.materialCost() +
-      this.build.costs.installCosts +
-      this.build.costs.extrasTotal +
-      this.build.costs.inventionCosts
+      this.totalMaterialCost() +
+      this.totalInstallCost() +
+      this.totalExtrasCost() +
+      this.totalInventionCost()
     );
   }
 
@@ -662,7 +673,9 @@ class Job {
    * @returns {number} Total cost
    */
   totalCost() {
-    return this.buildCost() + this.brokersFeeTotal() + this.transactionFeeTotal();
+    return (
+      this.buildCost() + this.brokersFeeTotal() + this.transactionFeeTotal()
+    );
   }
 
   /**
@@ -673,7 +686,7 @@ class Job {
   brokersFeeTotal() {
     return this.build.sale.brokersFee.reduce(
       (total, fee) => total + (fee.amount || 0),
-      0
+      0,
     );
   }
 
@@ -688,7 +701,7 @@ class Job {
   transactionFeeTotal() {
     return this.build.sale.transactions.reduce(
       (total, transaction) => total + (transaction.tax || 0),
-      0
+      0,
     );
   }
 
@@ -700,22 +713,53 @@ class Job {
   salesTotal() {
     return this.build.sale.transactions.reduce(
       (total, transaction) => total + (transaction.amount || 0),
-      0
+      0,
     );
   }
 
   /**
-   * What was spent on materials, summed from the purchases themselves.
+   * What the materials cost the job: what each material's purchases bought,
+   * summed. `models.Job.TotalMaterialCost` is the same method on the backend.
    *
-   * `totalPurchaseCost` is a cached copy of this and has been written both ways
-   * historically — materials alone, and materials with invention folded in — so
-   * the purchases are the figure to trust.
-   *
-   * @returns {number} Material spend
+   * @returns {number} Material cost
    */
-  materialCost() {
+  totalMaterialCost() {
     return this.build.materials.reduce(
-      (total, material) => total + (material.purchasedCost || 0),
+      (total, material) => total + material.purchasedCost,
+      0,
+    );
+  }
+
+  /**
+   * How many of a material the job's setups call for.
+   *
+   * Summed from the setups on every call, so a setup added, removed or resized
+   * moves what each material needs with it.
+   *
+   * @param {number} typeID - EVE type id of the material
+   * @returns {number} Quantity required
+   */
+  materialRequirement(typeID) {
+    return Object.values(this.build.setup).reduce(
+      (total, setup) => total + setup.materialQuantity(typeID),
+      0,
+    );
+  }
+
+  /**
+   * How many items the job produces: what its setups are set to make.
+   *
+   * Worked out from the setups on every call, so a setup added, removed or
+   * resized is reflected immediately and nothing is stored that could fall
+   * behind them. `models.Job.TotalQuantityProduced` is the same method on the
+   * backend.
+   *
+   * @returns {number} Items produced
+   */
+  totalQuantityProduced() {
+    return Object.values(this.build.setup).reduce(
+      (total, { runCount, jobCount }) =>
+        total + this.itemsProducedPerRun * runCount * jobCount,
       0
     );
   }
@@ -729,7 +773,7 @@ class Job {
    * @returns {number} Build cost per item (rounded to 2 decimal places)
    */
   buildCostPerItem() {
-    return this._perItem(this.buildCost());
+    return this.#costPerItem(this.buildCost());
   }
 
   /**
@@ -741,21 +785,33 @@ class Job {
    * @returns {number} Total cost per item (rounded to 2 decimal places)
    */
   totalCostPerItem() {
-    return this._perItem(this.totalCost());
+    return this.#costPerItem(this.totalCost());
   }
 
   /**
-   * @private
-   * @param {number} cost
-   * @returns {number} Cost divided by what was produced, or 0 when nothing was
+   * Takes a total cost and calculates the item cost.
+   *
+   * @param {number} cost - A total cost
+   * @returns {number} Cost per item
    */
-  _perItem(cost) {
-    if (!this.build.products.totalQuantity) return 0;
-    return (
-      Math.round(
-        (cost / this.build.products.totalQuantity + Number.EPSILON) * 100
-      ) / 100
+  #costPerItem(cost) {
+    if (!this.totalQuantityProduced()) return 0;
+
+    return cost / this.totalQuantityProduced();
+  }
+
+  /**
+   * What a sold item went for on average.
+   *
+   * @returns {number} Sales over items sold, or 0 when nothing has sold
+   */
+  averageItemSalePrice() {
+    const itemsSold = this.build.sale.transactions.reduce(
+      (total, transaction) => total + (transaction.quantity || 0),
+      0
     );
+    if (!itemsSold) return 0;
+    return this.salesTotal() / itemsSold;
   }
 
   /**
@@ -773,7 +829,7 @@ class Job {
   removeChildJob(materialTypeID, childIDToRemove) {
     if (!materialTypeID || !childIDToRemove) {
       console.error(
-        `Missing input data: materialTypeID=${materialTypeID}, childIDToRemove=${childIDToRemove}`
+        `Missing input data: materialTypeID=${materialTypeID}, childIDToRemove=${childIDToRemove}`,
       );
 
       return;
@@ -791,7 +847,7 @@ class Job {
         : [childIDToRemove];
 
     this.build.childJobs[materialTypeID] = childLocation.filter(
-      (i) => !childrenToRemove.includes(i)
+      (i) => !childrenToRemove.includes(i),
     );
   }
 
@@ -820,7 +876,7 @@ class Job {
 
     Object.entries(this.build.childJobs).forEach(([key, value]) => {
       this.build.childJobs[key] = value.filter((i) =>
-        childrenToKeep.includes(i)
+        childrenToKeep.includes(i),
       );
     });
   }
@@ -844,7 +900,7 @@ class Job {
       !this.build.childJobs[materialTypeID]
     ) {
       console.error(
-        `Missing input data: materialTypeID=${materialTypeID}, childIDToAdd=${childIDToAdd}`
+        `Missing input data: materialTypeID=${materialTypeID}, childIDToAdd=${childIDToAdd}`,
       );
       return;
     }
@@ -911,7 +967,7 @@ class Job {
     if (parentsToRemove.length === 0) return;
 
     this.parentJobs = this.parentJobs.filter(
-      (id) => !parentsToRemove.includes(id)
+      (id) => !parentsToRemove.includes(id),
     );
   }
 
@@ -937,7 +993,9 @@ class Job {
         ? [...includedJobIDs]
         : [includedJobIDs];
 
-    this.parentJobs = this.parentJobs.filter((id) => parentsToKeep.includes(id));
+    this.parentJobs = this.parentJobs.filter((id) =>
+      parentsToKeep.includes(id),
+    );
   }
 
   /**
@@ -1002,61 +1060,47 @@ class Job {
   }
 
   /**
-   * Adds a purchase cost to a specific material.
-   *
-   * This method tracks material purchases and updates completion status:
-   * - Validates input parameters
-   * - Finds the material by type ID
-   * - Adds purchase information to the material
-   * - Updates purchased quantities and costs
-   * - Marks material as complete if fully purchased
-   * - Updates total purchase cost
+   * Records a purchase against one of the job's materials.
    *
    * @param {number} materialID - Type ID of the material
-   * @param {Object} purchaseObject - Purchase information object
-   * @param {number} purchaseObject.itemCount - Number of items purchased
-   * @param {number} purchaseObject.itemCost - Cost per item
+   * @param {Object} purchase - What was bought, as {@link Material#importPurchase} takes it
+   * @param {Object} [options] - Passed through to {@link Material#importPurchase}
+   * @returns {{ taken: number, leftOver: number }} What the material took, and
+   *   what is left for the caller to offer elsewhere
    */
-  addPurchaseCostToMaterial(materialID, purchaseObject) {
-    if (!materialID || !purchaseObject) {
-      console.error("Material ID or Purchase object missing");
-      return;
-    }
-    const material = this.build.materials.find((i) => i.typeID == materialID);
-    if (!material) return;
+  importPurchaseToMaterial(materialID, purchase, options) {
+    const material = this.build.materials?.find((i) => i.typeID == materialID);
+    if (!material || !purchase) return { taken: 0, leftOver: 0 };
 
-    material.purchasing.push(purchaseObject);
-    material.quantityPurchased += purchaseObject.itemCount;
-    material.purchasedCost +=
-      purchaseObject.itemCost * purchaseObject.itemCount;
-
-    if (material.quantityPurchased >= material.quantity) {
-      material.purchaseComplete = true;
-    }
-
-    this.build.costs.totalPurchaseCost +=
-      purchaseObject.itemCost * purchaseObject.itemCount;
+    return material.importPurchase(purchase, options);
   }
 
   /**
-   * Calculates the total purchase cost for raw materials.
+   * Removes a purchase from one of the job's materials.
    *
-   * This method calculates the total purchase cost for raw materials:
-   * - Filters materials that have child jobs
-   * - Sums the purchased cost of the materials that do not have child jobs
-   *
-   * @returns {number} Total purchase cost for raw materials
+   * @param {number} materialID - Type ID of the material
+   * @param {string} purchaseID
+   * @returns {boolean} Whether a purchase was removed
    */
+  removeMaterialPurchase(materialID, purchaseID) {
+    const material = this.build.materials?.find((i) => i.typeID == materialID);
+    if (!material) return false;
 
-  totalRawMaterialPurchaseCost() {
-    return this.build.materials.reduce((prev, material) => {
-      return prev + material.purchasing.reduce((prev, purchase) => {
-        if (purchase.childJobImport) {
-          return prev;
-        }
-        return prev + purchase.itemCost * purchase.itemCount;
-      }, 0);
-    }, 0);
+    return material.removePurchase(purchaseID);
+  }
+
+  /**
+   * What the job spent buying materials rather than building them: every
+   * purchase except the ones imported from a child job, which are that child's
+   * cost and not a spend of this job's.
+   *
+   * @returns {number} Bought material cost
+   */
+  totalBoughtMaterialCost() {
+    return this.build.materials.reduce(
+      (total, material) => total + material.boughtCost,
+      0
+    );
   }
 
   /**
@@ -1087,7 +1131,7 @@ class Job {
       }
     }
     transactionsToAdd.forEach((trans) =>
-      this.apiTransactions.add(trans.transaction_id)
+      this.apiTransactions.add(trans.transaction_id),
     );
 
     this.build.sale.transactions = [
@@ -1112,7 +1156,7 @@ class Job {
   removeTransaction(transaction) {
     if (!transaction) return;
     this.build.sale.transactions = this.build.sale.transactions.filter(
-      (i) => i.transaction_id !== transaction.transaction_id
+      (i) => i.transaction_id !== transaction.transaction_id,
     );
     this.apiTransactions.delete(transaction.transaction_id);
   }
@@ -1154,11 +1198,11 @@ class Job {
     if (!order) return;
 
     this.build.sale.brokersFee = this.build.sale.brokersFee.filter(
-      (i) => i.order_id !== order.order_id
+      (i) => i.order_id !== order.order_id,
     );
 
     this.build.sale.marketOrders = this.build.sale.marketOrders.filter(
-      (i) => i.order_id !== order.order_id
+      (i) => i.order_id !== order.order_id,
     );
 
     const transactionIdsToRemove = this.build.sale.transactions
@@ -1168,7 +1212,7 @@ class Job {
     transactionIdsToRemove.forEach((id) => this.apiTransactions.delete(id));
 
     this.build.sale.transactions = this.build.sale.transactions.filter(
-      (i) => i.location_id !== order.location_id
+      (i) => i.location_id !== order.location_id,
     );
 
     this.apiOrders.delete(order.order_id);
@@ -1215,7 +1259,7 @@ class Job {
     this.build.sale.marketOrders.forEach((order) => {
       if (!order?.complete) {
         const latestData = latestESIOrders.find(
-          (i) => i.order_id === order.order_id
+          (i) => i.order_id === order.order_id,
         );
         if (!latestData) return;
 
@@ -1227,53 +1271,13 @@ class Job {
           complete: latestData.volume_remain === 0,
           timeStamps: [...(order.timeStamps || []), latestData.issued],
         };
-        Object.keys(merged).forEach(key => {
+        Object.keys(merged).forEach((key) => {
           order[key] = merged[key];
         });
       }
     });
   }
 
-  /**
-   * Recalculates the total quantity produced for the job.
-   *
-   * This method recalculates the total quantity produced for the job:
-   * - Recalculates the total quantity produced for the job
-   */
-  recalculateTotalQuantityProduced() {
-    this.build.products.totalQuantity = Object.values(this.build.setup).reduce(
-      (prev, { runCount, jobCount }) => {
-        return (prev += this.itemsProducedPerRun * runCount * jobCount);
-      },
-      0
-    );
-  }
-
-  /**
-   * Recalculates the total material quantities for the job.
-   *
-   * This method recalculates the total material quantities for the job:
-   * - Recalculates the total material quantities for the job
-   */
-  recalculateTotalMaterialQuantities() {
-    const newMaterialQuantities = {};
-
-    for (const setup of Object.values(this.build.setup)) {
-      const materialCount = setup.materialCount || {};
-
-      for (const materialId of Object.keys(materialCount)) {
-        const quantity = materialCount[materialId].quantity || 0;
-        newMaterialQuantities[materialId] =
-          (newMaterialQuantities[materialId] || 0) + quantity;
-      }
-    }
-    for (const material of this.build.materials) {
-      const materialId = material.typeID.toString();
-      if (materialId in newMaterialQuantities) {
-        material.quantity = newMaterialQuantities[materialId];
-      }
-    }
-  }
 
   /**
    * Attaches a new setup to the job.
@@ -1288,18 +1292,20 @@ class Job {
   attachNewSetupToJob(setup) {
     this.build.setup[setup.id] = setup;
     this.layout.setupToEdit = setup.id;
-    this.recalculateTotalQuantityProduced();
-    this.recalculateTotalMaterialQuantities();
   }
 
   addNewSetup(queryClient) {
     const requiredQuantity = this.rawData.products[0].quantity;
-    const context = buildSetupContextForJob(this, requiredQuantity, queryClient);
+    const context = buildSetupContextForJob(
+      this,
+      requiredQuantity,
+      queryClient,
+    );
     const newSetup = buildSetupFromQuantity(
       this,
       context.setupQuantities[0],
       queryClient,
-      context
+      context,
     );
     this.attachNewSetupToJob(newSetup);
   }
@@ -1323,8 +1329,6 @@ class Job {
     }
     delete this.build.setup[this.layout.setupToEdit];
     this.layout.setupToEdit = Object.keys(this.build.setup).at(-1);
-    this.recalculateTotalQuantityProduced();
-    this.recalculateTotalMaterialQuantities();
     return true;
   }
 
@@ -1332,7 +1336,7 @@ class Job {
     setupId,
     queryClient,
     additionalMaterialPrices = {},
-    additionalSystemIndexValues = {}
+    additionalSystemIndexValues = {},
   ) {
     if (!setupId || !this.build.setup[setupId]) {
       console.error("Setup ID not provided or setup not found");
@@ -1344,23 +1348,21 @@ class Job {
       this.skills,
       queryClient,
       additionalMaterialPrices,
-      additionalSystemIndexValues
+      additionalSystemIndexValues,
     );
-    this.recalculateTotalQuantityProduced();
-    this.recalculateTotalMaterialQuantities();
   }
   /**
- * Calculates the total number of involved characters for the job.
- *
-  * This method calculates the total number of involved characters for the job:
-  * - Creates a set of involved character IDs
-  * - Adds the character IDs from the linked jobs to the set
-  * - Adds the character IDs from the market orders to the set
-  * - This does not include any characters relating to the invention costs.
-  * - Returns an object containing the number of unique characters and the set of involved character IDs
- *
- * @returns {Object} Object containing the number of unique characters and the set of involved character IDs
- */
+   * Calculates the total number of involved characters for the job.
+   *
+   * This method calculates the total number of involved characters for the job:
+   * - Creates a set of involved character IDs
+   * - Adds the character IDs from the linked jobs to the set
+   * - Adds the character IDs from the market orders to the set
+   * - This does not include any characters relating to the invention costs.
+   * - Returns an object containing the number of unique characters and the set of involved character IDs
+   *
+   * @returns {Object} Object containing the number of unique characters and the set of involved character IDs
+   */
 
   calculateTotalInvolvedCharacters() {
     const involvedCharacterIDs = new Set();
@@ -1373,10 +1375,11 @@ class Job {
       involvedCharacterIDs.add(order.characterID);
     }
 
-    return { numberOfUniqueCharacters: involvedCharacterIDs.size, involvedCharacterIDs }
+    return {
+      numberOfUniqueCharacters: involvedCharacterIDs.size,
+      involvedCharacterIDs,
+    };
   }
-
-  
 }
 
 /**
@@ -1413,6 +1416,20 @@ function documentToSetups(object) {
     acc[value.id] = new Setup(value);
     return acc;
   }, {});
+}
+
+/**
+ * Helper function that converts a document's material rows to Material instances.
+ *
+ * @param {Object} object - Object containing job data
+ * @returns {Array<Material>|null} The job's materials, or null when it has none yet
+ */
+function documentToMaterials(object, requirement) {
+  const rows = object?.build?.materials;
+  if (!Array.isArray(rows)) {
+    return null;
+  }
+  return rows.map((row) => new Material(row, requirement));
 }
 
 function normalizeTransactions(transactions) {

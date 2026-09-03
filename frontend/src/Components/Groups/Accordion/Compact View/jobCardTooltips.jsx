@@ -7,7 +7,7 @@ function getTooltipContent(job) {
         <span>
           <p>
             Quantity:{" "}
-            {formatNumberForLocale(job.build.products.totalQuantity, {
+            {formatNumberForLocale(job.totalQuantityProduced(), {
               max: 0,
             })}
           </p>
@@ -53,7 +53,7 @@ function getTooltipContent(job) {
         <span>
           <p>
             Items Built:{" "}
-            {formatNumberForLocale(job.build.products.totalQuantity, {
+            {formatNumberForLocale(job.totalQuantityProduced(), {
               max: 0,
             })}
           </p>

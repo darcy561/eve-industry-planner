@@ -42,7 +42,7 @@ export function MaterialTotalsWithMarketPrices_MaterialPrices({
         totalInstallCosts={totalInstallCosts}
         totalPrice={totalPrice}
         totalMarketPrice={totalMarketPrice}
-        totalQuantity={state.activeJob.build.products.totalQuantity}
+        totalQuantity={state.activeJob.totalQuantityProduced()}
       />
     </Grid>
   );

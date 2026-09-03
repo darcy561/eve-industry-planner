@@ -114,7 +114,7 @@ export function ParentJobDialogue({
                     <Typography variant="body2">
                       {job.setupCount()} setup
                       {job.setupCount() === 1 ? "" : "s"} ·{" "}
-                      {job.build?.products?.totalQuantity ?? 0} items produced
+                      {job.totalQuantityProduced()} items produced
                     </Typography>
                   </Grid>
                   <Grid size={1}>

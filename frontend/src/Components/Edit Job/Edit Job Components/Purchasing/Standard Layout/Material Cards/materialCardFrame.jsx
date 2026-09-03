@@ -7,6 +7,7 @@ import { TotalCost_Purchasing } from "./totalMaterialCost";
 import { MaterialCostsFrame_Purchasing } from "./materialCostsFrame";
 import { AddMaterialCost_Purchasing } from "./addMaterialCosts";
 import { MaterialCompleteBox_Purchasing } from "./materialCompleteBox";
+import { MaterialExcessBox_Purchasing } from "./materialExcessBox";
 import { AwaitingCostImportBox_Purchasing } from "./awaitingCostImportBox";
 import getCurrentLinkedChildJobIDsForMaterial from "./functions/getCurrentLinkedChildJobIDsForMaterial.js";
 import AssetsIconButton from "../../../../../../Styled Components/IconButton/assets";
@@ -40,7 +41,7 @@ export function MaterialCardFrame_Purchasing(props) {
       if (!state.activeJob.includedInGroup) {
         childJobs = filterJobs(jobArray);
         childJobProductionTotal = childJobs.reduce(
-          (total, job) => total + job.build.products.totalQuantity,
+          (total, job) => total + job.totalQuantityProduced(),
           0
         );
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -49,7 +50,7 @@ export function MaterialCardFrame_Purchasing(props) {
           );
 
           if (!matchingCostImport) {
-            return (total += job.build.products.totalQuantity);
+            return (total += job.totalQuantityProduced());
           }
           return total;
         }, 0);
@@ -59,7 +60,7 @@ export function MaterialCardFrame_Purchasing(props) {
           Object.entries(state.temporaryChildJobs),
         ]);
         childJobProductionTotal = childJobs.reduce((total, job) => {
-          return (total += job.build.products.totalQuantity);
+          return (total += job.totalQuantityProduced());
         }, 0);
 
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -68,7 +69,7 @@ export function MaterialCardFrame_Purchasing(props) {
           );
 
           if (!matchingCostImport) {
-            return (total += job.build.products.totalQuantity);
+            return (total += job.totalQuantityProduced());
           }
           return total;
         }, 0);
@@ -261,6 +262,9 @@ export function MaterialCardFrame_Purchasing(props) {
               childJobs={childJobs}
               childJobProductionTotal={childJobProductionTotal}
             />
+          </Box>
+          <Box sx={{ flexShrink: 0, display: "flex" }}>
+            <MaterialExcessBox_Purchasing material={material} />
           </Box>
           <Box sx={{ flexShrink: 0 }}>
             <MaterialCompleteBox_Purchasing

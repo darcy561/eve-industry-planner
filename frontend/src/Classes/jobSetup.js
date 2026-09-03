@@ -129,6 +129,16 @@ class Setup {
   }
 
   /**
+   * How many of a material this setup calls for.
+   *
+   * @param {number} typeID - EVE type id of the material
+   * @returns {number} Quantity required by this setup
+   */
+  materialQuantity(typeID) {
+    return this.materialCount?.[String(typeID)]?.quantity || 0;
+  }
+
+  /**
    * Converts the setup instance to a document object for storage.
    *
    * @returns {Object} Document object ready for storage

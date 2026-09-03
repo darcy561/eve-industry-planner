@@ -217,7 +217,7 @@ class JobSnapshot {
     this.apiJobs = new Set(apiJobs);
     this.apiOrders = new Set(apiOrders);
     this.apiTransactions = new Set(apiTransactions);
-    this.itemQuantity = build.products.totalQuantity;
+    this.itemQuantity = inputJob.totalQuantityProduced();
     this.totalMaterials = build.materials.length;
     this.buildVer = buildVer || getAppVersionNumber();
     this.parentJobs = JobSnapshot.mergeParentJobIds(

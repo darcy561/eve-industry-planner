@@ -1,5 +1,10 @@
 /**
- * Install cost calculations — single module for setup formulas, job totals, and recalculation.
+ * Install cost estimates — the setup formula, the sum of those estimates across a
+ * job's setups, and their recalculation when market or system index data changes.
+ *
+ * What a job's installs actually cost is Job.totalInstallCost(): the ESI jobs
+ * linked to it. Only getJobInstallCostForPlanning mixes the two, and only to
+ * stand in with estimates before anything is linked.
  */
 
 import Setup from "../../Classes/jobSetup";
@@ -92,53 +97,25 @@ export function sumSetupEstimatedInstallCosts(setups) {
 }
 
 /**
- * Whether this job has authoritative actual install costs (ESI-linked or stored total).
+ * Edit job / planning rollups: what the linked ESI jobs cost once any are
+ * linked, and the setup estimates until they are.
  *
- * @param {{ build?: { costs?: { installCosts?: number, linkedJobs?: unknown[] } } }} job
- * @returns {boolean}
- */
-export function hasAuthoritativeActualInstallCost(job) {
-  if (!job?.build?.costs) return false;
-
-  const { installCosts, linkedJobs } = job.build.costs;
-  if (Array.isArray(linkedJobs) && linkedJobs.length > 0) {
-    return true;
-  }
-  const persisted = Number(installCosts);
-  return Number.isFinite(persisted) && persisted > 0;
-}
-
-/**
- * Actual install cost from ESI linking (`build.costs.installCosts`). No setup estimates.
+ * A linked job that has not reported a cost yet is still linked, so the
+ * estimates do not come back once the build has started.
  *
- * @param {{ build?: { costs?: { installCosts?: number, linkedJobs?: unknown[] } } }} job
- * @returns {number}
- */
-export function getJobActualInstallCost(job) {
-  if (!hasAuthoritativeActualInstallCost(job)) return 0;
-
-  const persisted = Number(job.build.costs.installCosts);
-  return Math.max(0, Number.isFinite(persisted) ? persisted : 0);
-}
-
-/**
- * Edit job / planning rollups: actual install when set, otherwise setup estimates.
- *
- * @param {{ build?: { setup?: object, costs?: { installCosts?: number, linkedJobs?: unknown[] } } }} job
+ * @param {Job} job
  * @returns {number}
  */
 export function getJobInstallCostForPlanning(job) {
-  if (!job?.build?.costs) return 0;
+  if (!job?.build) return 0;
 
-  if (hasAuthoritativeActualInstallCost(job)) {
-    return getJobActualInstallCost(job);
+  const linkedJobs = job.build.costs?.linkedJobs;
+  if (Array.isArray(linkedJobs) && linkedJobs.length > 0) {
+    return job.totalInstallCost();
   }
 
   return sumSetupEstimatedInstallCosts(job.build.setup);
 }
-
-/** @deprecated Use {@link getJobInstallCostForPlanning} */
-export const getJobInstallCostForBuildPricing = getJobInstallCostForPlanning;
 
 /**
  * Refreshes `setup.estimatedInstallCost` on jobs when market or system index data updates.

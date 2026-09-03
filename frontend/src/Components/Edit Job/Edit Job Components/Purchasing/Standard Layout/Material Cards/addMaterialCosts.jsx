@@ -2,11 +2,8 @@ import { IconButton, TextField, Tooltip, Box, CircularProgress } from "@mui/mate
 import { useFormStatus } from "react-dom";
 import AddIcon from "@mui/icons-material/Add";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
+import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import {
-  addMaterialCostsToJob,
-  materialPriceObjectFactory,
-} from "../../../../../../Functions/JobPlanner/materialCosts";
 import { useEffectiveMarketHubFromLayout } from "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
 
 export function AddMaterialCost_Purchasing({
@@ -53,21 +50,18 @@ export function AddMaterialCost_Purchasing({
     ) {
       return;
     }
-    const { newMaterialArray, newTotalPurchaseCost } = addMaterialCostsToJob(
-      state.activeJob,
-      [
-        materialPriceObjectFactory(
-          material.typeID,
-          itemCountInput,
-          itemCostInput
-        ),
-      ]
+    const { leftOver } = state.activeJob.importPurchaseToMaterial(
+      material.typeID,
+      { itemCount: itemCountInput, itemCost: itemCostInput },
+      { recordExcess: true }
     );
 
-    state.activeJob.build.materials = newMaterialArray;
-    state.activeJob.build.costs.totalPurchaseCost = newTotalPurchaseCost;
     actions.updateActiveJob(state.activeJob);
-    showSnackbarSuccess("Success");
+    showSnackbarSuccess(
+      leftOver > 0
+        ? `Success. ${formatNumberForLocale(leftOver, { max: 0 })} more than this job needs, not charged to it.`
+        : "Success"
+    );
   }
 
   // Determine if cost entry should be shown
