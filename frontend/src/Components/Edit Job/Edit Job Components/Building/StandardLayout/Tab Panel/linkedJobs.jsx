@@ -115,11 +115,8 @@ export function LinkedJobsTab(props) {
             const facilityData = useUsersStore
               .getState()
               .worldData.actions.findUniverseData(job.station_id);
-            const timeRemaining = formatTimeRemaining(Date.parse(job.end_date));
-            const isReadyToDeliver =
-              job.status === "active" && 
-              (timeRemaining === "Complete" || 
-               Date.parse(job.end_date) - Date.now() <= 0);
+            const timeRemaining = formatTimeRemaining(job.finishesAt);
+            const isReadyToDeliver = job.isReadyToDeliver;
 
             return (
               <Grid
@@ -155,17 +152,7 @@ export function LinkedJobsTab(props) {
                   >
                     <LinearProgress
                       variant="determinate"
-                      value={
-                        job.status === "delivered"
-                          ? 100
-                          : isReadyToDeliver
-                            ? 100
-                            : 100 -
-                            ((Date.parse(job.end_date) - Date.now()) /
-                              (Date.parse(job.end_date) -
-                                Date.parse(job.start_date))) *
-                            100
-                      }
+                      value={job.progressPercent}
                       sx={{
                         position: "absolute",
                         top: 0,

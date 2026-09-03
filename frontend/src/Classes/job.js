@@ -152,7 +152,7 @@ class Job {
         extrasCosts: normalizeExtrasCostsIncoming(
           itemJson?.build?.costs?.extrasCosts || [],
         ),
-        linkedJobs: itemJson?.build?.costs?.linkedJobs || [],
+        linkedJobs: documentToLinkedJobs(itemJson),
         inventionEntries: itemJson?.build?.costs?.inventionEntries || [],
       },
       sale: {
@@ -329,6 +329,12 @@ class Job {
         materials: this.build.materials
           ? this.build.materials.map((material) => material.toDocument())
           : null,
+        costs: {
+          ...this.build.costs,
+          linkedJobs: this.build.costs.linkedJobs.map((linkedJob) =>
+            linkedJob.toDocument(),
+          ),
+        },
       },
       rawData: this.rawData,
       skills: this.skills,
@@ -435,21 +441,17 @@ class Job {
    * @param {Object} esiJob - ESI job data from EVE Online API
    * @param {number} esiJob.job_id - ESI job ID
    * @param {number} esiJob.cost - Installation cost
-   * @param {Object} jobOwner - Job owner information
-   * @param {string} jobOwner.CharacterHash - Character hash of the owner
+   * @param {Object} jobOwner - The character the job was read for
+   * @param {string} jobOwner.CharacterHash
+   * @param {number} [jobOwner.CharacterID]
    *
    * @example
-   * // Link an ESI job for tracking
-   * job.linkESIJob({
-   *   job_id: 12345,
-   *   cost: 1000000,
-   *   status: 'active'
-   * }, { CharacterHash: 'ABC123' });
+   * job.linkESIJob(esiJob, { CharacterHash: "ABC123", CharacterID: 94800326 });
    */
   linkESIJob(esiJob, jobOwner) {
     if (!esiJob || !jobOwner) return;
     this.apiJobs.add(esiJob.job_id);
-    this.build.costs.linkedJobs.push({ ...new LinkedESIJob(esiJob, jobOwner) });
+    this.build.costs.linkedJobs.push(LinkedESIJob.fromESI(esiJob, jobOwner));
   }
 
   /**
@@ -1231,15 +1233,43 @@ class Job {
    */
   updateLinkedJobData(latestESIJobs) {
     if (!latestESIJobs) return;
-    this.build.costs.linkedJobs.forEach((job) => {
-      if (job.status === "active") {
-        const latestData = latestESIJobs.find((i) => i.job_id === job.job_id);
-        if (!latestData) return;
-        job.status = latestData.status;
-        job.completed_date = latestData.completed_date || null;
-        job.end_date = latestData.end_date;
-      }
+    this.build.costs.linkedJobs.forEach((linkedJob) => {
+      linkedJob.applyLatest(
+        latestESIJobs.find((i) => i.job_id === linkedJob.job_id),
+      );
     });
+  }
+
+  /**
+   * The linked job that finishes last, which is when the job as a whole is done.
+   * Jobs with no end date are not waited on.
+   *
+   * @returns {LinkedESIJob|null}
+   */
+  lastLinkedJobToFinish() {
+    return this.build.costs.linkedJobs.reduce((latest, linkedJob) => {
+      if (linkedJob.finishesAt === null) return latest;
+      if (!latest || linkedJob.finishesAt > latest.finishesAt) {
+        return linkedJob;
+      }
+      return latest;
+    }, null);
+  }
+
+  /**
+   * The linked job that finishes first, which is what the planner counts down
+   * to. Jobs with no end date are not waited on.
+   *
+   * @returns {LinkedESIJob|null}
+   */
+  nextLinkedJobToFinish() {
+    return this.build.costs.linkedJobs.reduce((soonest, linkedJob) => {
+      if (linkedJob.finishesAt === null) return soonest;
+      if (!soonest || linkedJob.finishesAt < soonest.finishesAt) {
+        return linkedJob;
+      }
+      return soonest;
+    }, null);
   }
 
   /**
@@ -1368,11 +1398,11 @@ class Job {
     const involvedCharacterIDs = new Set();
 
     for (const linkedJob of this.build.costs.linkedJobs) {
-      involvedCharacterIDs.add(linkedJob.characterID);
+      involvedCharacterIDs.add(linkedJob.CharacterHash);
     }
 
     for (const order of this.build.sale.marketOrders) {
-      involvedCharacterIDs.add(order.characterID);
+      involvedCharacterIDs.add(order.CharacterHash);
     }
 
     return {
@@ -1424,6 +1454,20 @@ function documentToSetups(object) {
  * @param {Object} object - Object containing job data
  * @returns {Array<Material>|null} The job's materials, or null when it has none yet
  */
+/**
+ * Helper function that converts a document's linked ESI jobs to instances.
+ *
+ * @param {Object} object - Object containing job data
+ * @returns {Array<LinkedESIJob>}
+ */
+function documentToLinkedJobs(object) {
+  const rows = object?.build?.costs?.linkedJobs;
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  return rows.map((row) => new LinkedESIJob(row));
+}
+
 function documentToMaterials(object, requirement) {
   const rows = object?.build?.materials;
   if (!Array.isArray(rows)) {

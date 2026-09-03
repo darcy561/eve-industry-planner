@@ -10,6 +10,7 @@ import { MaterialCompleteBox_Purchasing } from "./materialCompleteBox";
 import { MaterialExcessBox_Purchasing } from "./materialExcessBox";
 import { AwaitingCostImportBox_Purchasing } from "./awaitingCostImportBox";
 import getCurrentLinkedChildJobIDsForMaterial from "./functions/getCurrentLinkedChildJobIDsForMaterial.js";
+import { childJobSupplyForMaterial } from "./functions/childJobSupplyForMaterial.js";
 import AssetsIconButton from "../../../../../../Styled Components/IconButton/assets";
 import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
 import useUsersStore from "../../../../../../Zustand/usersStore";
@@ -57,7 +58,7 @@ export function MaterialCardFrame_Purchasing(props) {
       } else {
         childJobs = filterJobs([
           ...jobArray,
-          Object.entries(state.temporaryChildJobs),
+          ...Object.values(state.temporaryChildJobs),
         ]);
         childJobProductionTotal = childJobs.reduce((total, job) => {
           return (total += job.totalQuantityProduced());
@@ -89,6 +90,12 @@ export function MaterialCardFrame_Purchasing(props) {
     childJobLocation,
     remainingTotalToBeImported,
   } = calculateChildJobData();
+
+  const childSupply = childJobSupplyForMaterial(
+    state.activeJob,
+    material,
+    childJobs,
+  );
 
   return (
     <Grid
@@ -212,7 +219,7 @@ export function MaterialCardFrame_Purchasing(props) {
           {childJobLocation.length > 0 ? (
             <MaterialQuantityInfoDoubleRow
               material={material}
-              childJobProductionTotal={childJobProductionTotal}
+              childSupply={childSupply}
               remainingTotalToBeImported={remainingTotalToBeImported}
             />
           ) : (
@@ -260,7 +267,7 @@ export function MaterialCardFrame_Purchasing(props) {
             <AwaitingCostImportBox_Purchasing
               {...props}
               childJobs={childJobs}
-              childJobProductionTotal={childJobProductionTotal}
+              childSupply={childSupply}
             />
           </Box>
           <Box sx={{ flexShrink: 0, display: "flex" }}>
@@ -270,14 +277,14 @@ export function MaterialCardFrame_Purchasing(props) {
             <MaterialCompleteBox_Purchasing
               material={material}
               childJobs={childJobs}
-              childJobProductionTotal={childJobProductionTotal}
+              childSupply={childSupply}
               remainingTotalToBeImported={remainingTotalToBeImported}
             />
           </Box>
           <Box sx={{ flexShrink: 0, marginTop: "auto" }}>
             <AddMaterialCost_Purchasing
               {...props}
-              childJobProductionTotal={childJobProductionTotal}
+              childSupply={childSupply}
               childJobs={childJobs}
             />
           </Box>

@@ -8,6 +8,7 @@ import { MaterialCardFrame_Purchasing } from "./Material Cards/materialCardFrame
 import useUsersStore from "../../../../../Zustand/usersStore";
 import TutorialTemplate from "../../../../Tutorials/tutorialTemplate";
 import getCurrentLinkedChildJobIDsForMaterial from "./Material Cards/functions/getCurrentLinkedChildJobIDsForMaterial.js.js";
+import { childJobSupplyForMaterial } from "./Material Cards/functions/childJobSupplyForMaterial.js";
 import JobSetupInfoFrame from "./JobSetupInfo/JobSetupInfoFrame";
 
 export function Purchasing_StandardLayout_EditJob(props) {
@@ -20,7 +21,6 @@ export function Purchasing_StandardLayout_EditJob(props) {
   // Helper function to calculate child job data for a material
   const calculateChildJobData = (material) => {
     let childJobs = [];
-    let childJobProductionTotal = 0;
     let remainingTotalToBeImported = 0;
     const childJobLocation = getCurrentLinkedChildJobIDsForMaterial(
       material.typeID,
@@ -36,10 +36,6 @@ export function Purchasing_StandardLayout_EditJob(props) {
 
       if (!state.activeJob.includedInGroup) {
         childJobs = filterJobs(jobArray);
-        childJobProductionTotal = childJobs.reduce(
-          (total, job) => total + job.totalQuantityProduced(),
-          0
-        );
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
           const matchingCostImport = material.purchasing.find(
             (i) => i.childID === job.jobID
@@ -55,10 +51,6 @@ export function Purchasing_StandardLayout_EditJob(props) {
           ...jobArray,
           ...Object.values(state.temporaryChildJobs),
         ]);
-        childJobProductionTotal = childJobs.reduce((total, job) => {
-          return (total += job.totalQuantityProduced());
-        }, 0);
-
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
           const matchingCostImport = material.purchasing.find(
             (i) => i.childID === job.jobID
@@ -73,72 +65,31 @@ export function Purchasing_StandardLayout_EditJob(props) {
     }
     return {
       childJobs,
-      childJobProductionTotal,
       remainingTotalToBeImported,
     };
   };
 
-  // Helper function to determine material status for sorting
+  // The same reading the card gives a material: what still has to be bought,
+  // what is waiting on a child job's cost, and what is done.
   const getMaterialStatus = (material) => {
-    const { childJobs, childJobProductionTotal, remainingTotalToBeImported } =
+    const { childJobs, remainingTotalToBeImported } =
       calculateChildJobData(material);
+    const childSupply = childJobSupplyForMaterial(
+      state.activeJob,
+      material,
+      childJobs,
+    );
 
-    // Check if complete
-    let isComplete = false;
-    if (childJobs.length === 0) {
-      isComplete = material.quantityPurchased >= material.quantity;
-    } else {
-      if (childJobProductionTotal >= material.quantity) {
-        isComplete = remainingTotalToBeImported === 0;
-      } else {
-        const shortfall = material.quantity - childJobProductionTotal;
-        isComplete =
-          material.quantityPurchased >= shortfall &&
-          remainingTotalToBeImported === 0;
-      }
-    }
+    const stillToBuy = Math.max(
+      0,
+      material.quantityStillRequired() -
+        (childJobs.length === 0 ? 0 : childSupply.min),
+    );
+    if (stillToBuy > 0) return 0;
 
-    // Check if waiting for child job costs
-    let isWaitingForCosts = false;
-    if (childJobs.length > 0) {
-      // Check if costs are not imported
-      let costNotImported = true;
-      for (const job of childJobs) {
-        const matchedCostImport = material.purchasing.find(
-          (i) => i.childID === job.jobID
-        );
-        if (matchedCostImport) {
-          costNotImported = false;
-          break;
-        }
-      }
+    if (childJobs.length > 0 && remainingTotalToBeImported > 0) return 1;
 
-      if (costNotImported) {
-        if (childJobProductionTotal >= material.quantity) {
-          isWaitingForCosts = true;
-        } else {
-          const shortfall = material.quantity - childJobProductionTotal;
-          isWaitingForCosts = material.quantityPurchased >= shortfall;
-        }
-      }
-    }
-
-    // Check if needs prices
-    let needsPrices = false;
-    if (childJobs.length === 0) {
-      needsPrices = material.quantityPurchased < material.quantity;
-    } else {
-      if (childJobProductionTotal < material.quantity) {
-        const shortfall = material.quantity - childJobProductionTotal;
-        needsPrices = material.quantityPurchased < shortfall;
-      }
-    }
-
-    // Return status priority: 0 = needs prices, 1 = waiting for costs, 2 = complete
-    if (needsPrices) return 0;
-    if (isWaitingForCosts) return 1;
-    if (isComplete) return 2;
-    return 0; // Default to needs prices if unclear
+    return 2;
   };
 
   // Memoized sorted materials array
