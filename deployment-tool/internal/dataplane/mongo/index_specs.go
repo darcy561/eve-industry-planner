@@ -75,29 +75,29 @@ func IndexSpecs() []IndexSpec {
 		},
 		{
 			// Restore asks which planner job already claims an ESI id before it
-			// hands one back, so each linked series is searched by value within
-			// an account.
+			// hands one back. A job holds an id by carrying its row, so each
+			// linked series is searched by the id on the row within an account.
 			Collection: "account_job_documents",
-			Name:       "ajd_meta_accountID_apiOrders_1",
+			Name:       "ajd_meta_accountID_marketOrders_order_id_1",
 			Keys: []IndexKey{
 				{Field: "_meta.accountID", Order: 1},
-				{Field: "apiOrders", Order: 1},
+				{Field: "build.sale.marketOrders.order_id", Order: 1},
 			},
 		},
 		{
 			Collection: "account_job_documents",
-			Name:       "ajd_meta_accountID_apiJobs_1",
+			Name:       "ajd_meta_accountID_linkedJobs_job_id_1",
 			Keys: []IndexKey{
 				{Field: "_meta.accountID", Order: 1},
-				{Field: "apiJobs", Order: 1},
+				{Field: "build.costs.linkedJobs.job_id", Order: 1},
 			},
 		},
 		{
 			Collection: "account_job_documents",
-			Name:       "ajd_meta_accountID_apiTransactions_1",
+			Name:       "ajd_meta_accountID_transactions_transaction_id_1",
 			Keys: []IndexKey{
 				{Field: "_meta.accountID", Order: 1},
-				{Field: "apiTransactions", Order: 1},
+				{Field: "build.sale.transactions.transaction_id", Order: 1},
 			},
 		},
 		{

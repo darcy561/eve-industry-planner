@@ -103,14 +103,14 @@ describe("where a linked job has got to", () => {
 
     expect(linked.isActive).toBe(true);
     expect(linked.isReadyToDeliver).toBe(false);
-    expect(Math.round(linked.progressPercent)).toBe(50);
+    expect(Math.round(linked.progressPercent())).toBe(50);
   });
 
   test("a run that has had its time is waiting to be delivered", () => {
     const linked = runningBetween(24, -1);
 
     expect(linked.isReadyToDeliver).toBe(true);
-    expect(linked.progressPercent).toBe(100);
+    expect(linked.progressPercent()).toBe(100);
   });
 
   test("a delivered run is finished, however long ago it ended", () => {
@@ -118,7 +118,7 @@ describe("where a linked job has got to", () => {
 
     expect(linked.isDelivered).toBe(true);
     expect(linked.isReadyToDeliver).toBe(false);
-    expect(linked.progressPercent).toBe(100);
+    expect(linked.progressPercent()).toBe(100);
   });
 
   test("a run with no end date is not waited on", () => {
@@ -126,7 +126,7 @@ describe("where a linked job has got to", () => {
 
     expect(linked.finishesAt).toBeNull();
     expect(linked.isReadyToDeliver).toBe(false);
-    expect(linked.progressPercent).toBe(0);
+    expect(linked.progressPercent()).toBe(0);
   });
 });
 

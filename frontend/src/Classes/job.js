@@ -3,7 +3,9 @@ import { jobTypes } from "../Context/defaultValues";
 import Setup from "./jobSetup";
 import Material from "./jobMaterial";
 import LinkedESIJob from "./linkedESIJob";
-import createESIMarketOrder from "../Functions/MarketOrders/createMarketOrder";
+import BrokerFee from "./brokerFee";
+import MarketOrder from "./marketOrder";
+import Transaction from "./transaction";
 import useUsersStore from "../Zustand/usersStore";
 import {
   buildSetupContextForJob,
@@ -106,17 +108,20 @@ class Job {
         inventionEntries: itemJson?.build?.costs?.inventionEntries || [],
       },
       sale: {
-        marketOrders: itemJson?.build?.sale?.marketOrders || [],
-        transactions: itemJson?.build?.sale?.transactions || [],
-        brokersFee: itemJson?.build?.sale?.brokersFee || [],
+        marketOrders: (itemJson?.build?.sale?.marketOrders || []).map(
+          (row) => new MarketOrder(row),
+        ),
+        transactions: (itemJson?.build?.sale?.transactions || []).map(
+          (row) => new Transaction(row),
+        ),
+        brokersFee: (itemJson?.build?.sale?.brokersFee || []).map(
+          (row) => new BrokerFee(row),
+        ),
       },
       materials: documentToMaterials(itemJson, (typeID) =>
         this.materialRequirement(typeID),
       ),
     };
-    this.build.sale.transactions = normalizeTransactions(
-      this.build.sale.transactions,
-    );
     this.rawData = itemJson?.rawData || {};
     this.skills = itemJson?.skills || [];
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
@@ -246,6 +251,16 @@ class Job {
             linkedJob.toDocument(),
           ),
         },
+        sale: {
+          ...this.build.sale,
+          marketOrders: this.build.sale.marketOrders.map((order) =>
+            order.toDocument(),
+          ),
+          transactions: this.build.sale.transactions.map((transaction) =>
+            transaction.toDocument(),
+          ),
+          brokersFee: this.build.sale.brokersFee.map((fee) => fee.toDocument()),
+        },
       },
       rawData: this.rawData,
       skills: this.skills,
@@ -298,8 +313,8 @@ class Job {
    */
   get esiTransactionIDs() {
     return new Set(
-      this.build.sale.transactions.map((transaction) =>
-        normalizeTransactionID(transaction.transaction_id),
+      this.build.sale.transactions.map(
+        (transaction) => transaction.transaction_id,
       ),
     );
   }
@@ -366,6 +381,10 @@ class Job {
    */
   linkESIJob(esiJob, jobOwner) {
     if (!esiJob || !jobOwner) return;
+    // Linking the same run twice would show it twice and charge its install
+    // cost twice, and the panel links on a delay, so a second click or a "link
+    // all" can arrive before the first has landed.
+    if (this.esiJobIDs.has(esiJob.job_id)) return;
     this.build.costs.linkedJobs.push(LinkedESIJob.fromESI(esiJob, jobOwner));
   }
 
@@ -920,12 +939,11 @@ class Job {
   addTransaction(transaction, activeOrder) {
     if (!transaction) return;
 
-    const transactionsToAdd = Array.isArray(transaction)
-      ? transaction
-      : [transaction];
+    const transactionsToAdd = (
+      Array.isArray(transaction) ? transaction : [transaction]
+    ).map((row) => (row instanceof Transaction ? row : new Transaction(row)));
 
     for (let trans of transactionsToAdd) {
-      trans.transaction_id = normalizeTransactionID(trans.transaction_id);
       if (activeOrder && this.build.sale.marketOrders.length > 1) {
         trans.order_id = activeOrder;
       } else {
@@ -961,10 +979,14 @@ class Job {
    * @param {Object} brokersFee - Broker's fee information
    */
   addMarketOrder(order, brokersFee) {
-    if (!order || !brokersFee) return;
+    if (!order) return;
 
-    this.build.sale.brokersFee.push(brokersFee);
-    this.build.sale.marketOrders.push(createESIMarketOrder(order));
+    if (brokersFee) {
+      this.build.sale.brokersFee.push(
+        brokersFee instanceof BrokerFee ? brokersFee : new BrokerFee(brokersFee),
+      );
+    }
+    this.build.sale.marketOrders.push(MarketOrder.fromESI(order));
   }
 
   /**
@@ -980,7 +1002,7 @@ class Job {
     if (!order) return;
 
     this.build.sale.brokersFee = this.build.sale.brokersFee.filter(
-      (i) => i.order_id !== order.order_id,
+      (fee) => !fee.belongsToOrder(order.order_id),
     );
 
     this.build.sale.marketOrders = this.build.sale.marketOrders.filter(
@@ -1036,35 +1058,6 @@ class Job {
       }
       return soonest;
     }, null);
-  }
-
-  /**
-   * Updates linked market order data with latest information.
-   *
-   * @param {Array<Object>} latestESIOrders - Array of latest ESI order data
-   */
-  updateLinkedMarketOrderData(latestESIOrders) {
-    if (!latestESIOrders) return;
-    this.build.sale.marketOrders.forEach((order) => {
-      if (!order?.complete) {
-        const latestData = latestESIOrders.find(
-          (i) => i.order_id === order.order_id,
-        );
-        if (!latestData) return;
-
-        // Merge latestData onto order, mapping price to item_price and preserving timestamp history
-        const merged = {
-          ...order,
-          ...latestData,
-          item_price: latestData.price,
-          complete: latestData.volume_remain === 0,
-          timeStamps: [...(order.timeStamps || []), latestData.issued],
-        };
-        Object.keys(merged).forEach((key) => {
-          order[key] = merged[key];
-        });
-      }
-    });
   }
 
   /**
@@ -1196,51 +1189,6 @@ function documentToMaterials(object, requirement) {
   return rows.map((row) => new Material(row, requirement));
 }
 
-function normalizeTransactions(transactions) {
-  if (!Array.isArray(transactions)) {
-    return [];
-  }
 
-  return transactions.map((tx) => {
-    if (!tx || typeof tx !== "object") {
-      return tx;
-    }
-
-    return {
-      ...tx,
-      transaction_id: normalizeTransactionID(tx.transaction_id),
-    };
-  });
-}
-
-function normalizeTransactionID(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.trunc(value);
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed !== "") {
-      const parsed = Number(trimmed);
-      if (Number.isFinite(parsed)) {
-        return Math.trunc(parsed);
-      }
-      return -stableStringHash(trimmed);
-    }
-  }
-
-  return 0;
-}
-
-function stableStringHash(text) {
-  // FNV-1a 32-bit hash, coerced to positive non-zero integer.
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  const normalized = hash >>> 0;
-  return normalized === 0 ? 1 : normalized;
-}
 
 export default Job;

@@ -38,6 +38,7 @@ import { useEditJobLeaveConfirm } from "./Edit Job Hooks/useEditJobLeaveConfirm"
 import EditJobStepContentSelector from "./EditJobStepContentSelector";
 import { useEditJobInitialState } from "./Edit Job Hooks/useEditJobInitialState";
 import { useEditJobDocumentLocks } from "./Edit Job Hooks/useEditJobDocumentLocks";
+import { useRefreshLinkedESIData } from "./Hooks/useRefreshLinkedESIData";
 import {
   canJumpToJobStep,
   canMoveJobBackward,
@@ -62,6 +63,7 @@ export default function EditJob_New() {
     state.activeJob,
     actions.updateActiveJob
   );
+  useRefreshLinkedESIData(state.activeJob, actions.updateActiveJob);
   useEditJobDocumentLocks({
     jobID,
     activeJob: state.activeJob,

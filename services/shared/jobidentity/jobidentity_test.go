@@ -17,7 +17,8 @@ func jobWithIDs() *models.Job {
 	job := &models.Job{JobID: "job-1"}
 	job.Build.Sale.Transactions = []models.Transaction{{TransactionID: 7712345678, CorporationID: 98765432, CharacterID: 91234567}}
 	job.Build.Sale.MarketOrders = []models.MarketOrder{{OrderID: 6201234567, CorporationID: 98765432, CharacterID: 91234567}}
-	job.Build.Sale.BrokersFee = []models.BrokerFee{{ID: 5500000001, CorporationID: 98765432, CharacterID: 91234567}}
+	// A broker fee records no identity of its own; its order carries it.
+	job.Build.Sale.BrokersFee = []models.BrokerFee{{ID: 5500000001, OrderID: 6201234567}}
 	job.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: 512345678, CorporationID: 98765432, CharacterID: 91234567}}
 	return job
 }
@@ -37,7 +38,6 @@ func TestToRefsReplacesEveryIDAndMarksTheSpec(t *testing.T) {
 	for _, got := range []string{
 		job.Build.Sale.Transactions[0].CorporationRef,
 		job.Build.Sale.MarketOrders[0].CorporationRef,
-		job.Build.Sale.BrokersFee[0].CorporationRef,
 		job.Build.Costs.LinkedJobs[0].CorporationRef,
 	} {
 		if kind, ok := entityid.ParseKind(got); !ok || kind != entityid.KindCorp {
@@ -47,7 +47,6 @@ func TestToRefsReplacesEveryIDAndMarksTheSpec(t *testing.T) {
 	for _, got := range []string{
 		job.Build.Sale.Transactions[0].CharacterRef,
 		job.Build.Sale.MarketOrders[0].CharacterRef,
-		job.Build.Sale.BrokersFee[0].CharacterRef,
 		job.Build.Costs.LinkedJobs[0].CharacterRef,
 	} {
 		if kind, ok := entityid.ParseKind(got); !ok || kind != entityid.KindCharacter {
@@ -179,10 +178,11 @@ func TestClientRoundTripPreservesStoredIdentity(t *testing.T) {
 		t.Fatalf("Encrypt: %v", err)
 	}
 	want := storedValues(t, stored)
-	// One per populated id in jobWithIDs: a corporation and a character on each
-	// of the three sale lines and on the linked job.
-	if len(want) != 8 {
-		t.Fatalf("expected 8 stored values, got %d", len(want))
+	// One per populated id in jobWithIDs: a corporation and a character on the
+	// transaction, the market order and the linked job. A broker fee records no
+	// identity — its order does.
+	if len(want) != 6 {
+		t.Fatalf("expected 6 stored values, got %d", len(want))
 	}
 
 	// Response boundary: restore the ids the client is owed.

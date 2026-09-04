@@ -12,9 +12,14 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// Job represents a complete EVE Online industry job with all nested data structures.
-// This model is shared across services for job data consistency.
-// Ownership and lifecycle (account, archive, delete flags) live on MetaData (`_meta`), not root fields.
+// Job is one industry job, shared by every service that reads one.
+//
+// What the job costs, produces and has linked is derived from the rows it holds
+// rather than stored beside them, so a figure cannot fall behind an edit — the
+// methods below are the only way to ask.
+//
+// Ownership and lifecycle (account, archive, delete flags) live on MetaData
+// (`_meta`), not root fields.
 type Job struct {
 	SchemaVersion       int              `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
 	DisplayOnPlanner    bool             `json:"displayOnPlanner" bson:"displayOnPlanner"`
@@ -219,7 +224,17 @@ func (j Job) LinkedESIJobIDs() []int64 {
 	return out
 }
 
-// LinkedOrderIDs is the ESI market orders linked to this job.
+// IsComplete reports whether everything the order listed has sold.
+//
+// Read from the volume left rather than stored beside it, so an order cannot
+// claim to be finished while it still holds volume. MarketOrder#isComplete in
+// the SPA is the same reading.
+func (o MarketOrder) IsComplete() bool {
+	return o.VolumeTotal > 0 && o.VolumeRemain <= 0
+}
+
+// LinkedOrderIDs is the ESI market orders linked to this job, read from the
+// rows on the sale. Job#esiOrderIDs in the SPA is the same reading.
 func (j Job) LinkedOrderIDs() []int64 {
 	out := make([]int64, 0, len(j.Build.Sale.MarketOrders))
 	for _, order := range j.Build.Sale.MarketOrders {
@@ -228,7 +243,8 @@ func (j Job) LinkedOrderIDs() []int64 {
 	return out
 }
 
-// LinkedTransactionIDs is the ESI transactions linked to this job.
+// LinkedTransactionIDs is the ESI transactions linked to this job, read from the
+// rows on the sale. Job#esiTransactionIDs in the SPA is the same reading.
 func (j Job) LinkedTransactionIDs() []int64 {
 	out := make([]int64, 0, len(j.Build.Sale.Transactions))
 	for _, transaction := range j.Build.Sale.Transactions {
@@ -558,8 +574,7 @@ type MarketOrder struct {
 	CorporationRef string   `json:"-" bson:"corporation_ref,omitempty"`
 	CharacterID    int      `json:"character_id,omitempty" bson:"-"` // client-facing only
 	CharacterRef   string   `json:"-" bson:"character_ref,omitempty"`
-	Complete       bool     `json:"complete" bson:"complete"` // Whether order is complete
-	State          string   `json:"state" bson:"state"`       // Order state (active, etc.)
+	State          string   `json:"state" bson:"state"` // Order state (active, etc.)
 }
 
 // Transaction represents a completed market transaction
@@ -586,17 +601,18 @@ type Transaction struct {
 
 // BrokerFee represents broker fees for market orders
 // Matches the structure created by ESIBrokerFee in findBrokersFeeEntry.js
+// BrokerFee is what listing a market order cost. Whose fee it is comes from the
+// order it was charged for, which records its own character and corporation, so
+// the fee carries no identity of its own.
+//
+// The amount is worked out per order rather than read from the journal: listing
+// several orders at once charges them in one entry covering all of them, which
+// also makes ID shared between those orders rather than an identity for the fee.
 type BrokerFee struct {
-	OrderID        int     `json:"order_id" bson:"order_id"`                               // Order ID associated with the fee
-	ID             int64   `json:"id" bson:"id"`                                           // Journal entry ID
-	Complete       bool    `json:"complete" bson:"complete"`                               // Whether the fee is complete
-	Date           string  `json:"date" bson:"date"`                                       // Fee date
-	Amount         float64 `json:"amount" bson:"amount"`                                   // Fee amount
-	CharacterHash  string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
-	CorporationID  int     `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
-	CorporationRef string  `json:"-" bson:"corporation_ref,omitempty"`
-	CharacterID    int     `json:"character_id,omitempty" bson:"-"` // client-facing only
-	CharacterRef   string  `json:"-" bson:"character_ref,omitempty"`
+	OrderID int     `json:"order_id" bson:"order_id"` // Order ID associated with the fee
+	ID      int64   `json:"id" bson:"id"`             // Journal entry ID; shared by orders listed together
+	Date    string  `json:"date" bson:"date"`         // Fee date
+	Amount  float64 `json:"amount" bson:"amount"`     // Fee amount
 }
 
 // JobMaterial represents a material required for the job
@@ -720,9 +736,6 @@ type JobMetaData struct {
 	ArchivedAt       time.Time `json:"archivedAt,omitzero" bson:"archivedAt,omitzero"`
 	ArchivedBy       string    `json:"archivedBy,omitempty" bson:"archivedBy,omitempty"`
 	ArchiveProcessed bool      `json:"archiveProcessed,omitempty" bson:"archiveProcessed,omitempty"`
-	// RetainedStockBuild marks output the user keeps rather than sells, so the
-	// statistics pipeline counts it as retained rather than as an unsold shortfall.
-	RetainedStockBuild bool      `json:"retainedStockBuild,omitempty" bson:"retainedStockBuild,omitempty"`
-	DeletedAt          time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitzero"`
-	DeletedBy          string    `json:"deletedBy,omitempty" bson:"deletedBy,omitempty"`
+	DeletedAt        time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitzero"`
+	DeletedBy        string    `json:"deletedBy,omitempty" bson:"deletedBy,omitempty"`
 }
