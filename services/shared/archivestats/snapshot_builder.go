@@ -147,6 +147,7 @@ func earliestTransactionDate(transactions []models.Transaction, fallback time.Ti
 func BuildAccountSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time) models.ArchivedJobStats {
 	doc := buildSnapshot(job, snap, now)
 	doc.AccountID = job.MetaData.AccountID
+	doc.Owner = models.AccountOwner(doc.AccountID)
 	doc.ID = eipmongo.ArchivedJobStatsDocumentID(doc.AccountID, job.JobID)
 	return doc
 }
@@ -166,12 +167,14 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 	unsoldQuantity := max(snap.TotalProduced-soldQuantity, 0)
 
 	return models.ArchivedJobStats{
+		SchemaVersion:     models.ArchivedJobStatsSchemaCurrent,
 		JobID:             job.JobID,
 		TypeID:            job.ItemID,
 		JobType:           job.JobType,
 		IsProductionChain: len(job.ParentJobs) > 0,
-		// A retained build is produced but deliberately not sold, so it must not
-		// read as an unsold shortfall in the aggregates.
+		// Who archived it, which inside a shared planner is a different question
+		// from who owns the row.
+		ArchivedBy:          job.MetaData.ArchivedBy,
 		ArchivedAt:          archivedAt,
 		CostMonth:           costMonthFor(job, archivedAt),
 		MonthsFiled:         job.FilesItsOwnMonths(),
@@ -187,10 +190,6 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		TransactionLines:    transactionLines,
 		FeeLines:            feeLines,
 		ProcessedAt:         now,
-		// A row a rebuild produced is already counted: the same pass writes the
-		// aggregates from it. Leaving it unstamped would offer it to the next
-		// incremental pass as outstanding work and count it a second time, on top
-		// of totals that are already whole.
 	}
 }
 

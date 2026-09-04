@@ -126,3 +126,90 @@ func TestDrainTaskIsTriggerable(t *testing.T) {
 		t.Fatalf("command is %q, want the name the usage text prints", d.command)
 	}
 }
+
+// The lookup is derived from the table, aliases included, so a command cannot be
+// runnable but unfindable — or findable under a name the table does not offer.
+func TestEveryCLICommandIsFindableByName(t *testing.T) {
+	t.Parallel()
+
+	lookup := cliLookup()
+	for _, c := range cliTable {
+		if c.command == "" {
+			t.Error("a CLI command has no name")
+			continue
+		}
+		if c.run == nil {
+			t.Errorf("%q has nothing to run", c.command)
+		}
+		for _, name := range append([]string{c.command}, c.aliases...) {
+			found, ok := lookup[strings.ToLower(name)]
+			if !ok {
+				t.Errorf("%q is listed but not findable", name)
+				continue
+			}
+			if found.command != c.command {
+				t.Errorf("%q resolves to %q", name, found.command)
+			}
+		}
+	}
+
+	for key := range lookup {
+		if key != strings.ToLower(key) {
+			t.Errorf("lookup key %q is not lowercase, so a case-insensitive match cannot find it", key)
+		}
+	}
+}
+
+// A CLI command and a triggerable task sharing a name would make one of them
+// unreachable: Handle checks the CLI table first.
+func TestNoCommandNameIsBothCLIAndTask(t *testing.T) {
+	t.Parallel()
+
+	tasks := dispatchLookup()
+	for name := range cliLookup() {
+		if _, clash := tasks[name]; clash {
+			t.Errorf("%q is both a CLI command and a triggerable task", name)
+		}
+	}
+}
+
+// The usage text and `tasks list` are built from the tables rather than kept in
+// step by hand. They had drifted before: encodeJobIdentity was runnable and in
+// the usage text but missing from the list.
+func TestUsageTextNamesEveryRunnableCommand(t *testing.T) {
+	t.Parallel()
+
+	usage := usageText()
+	for _, c := range cliTable {
+		if !strings.Contains(usage, "tasks "+c.command) {
+			t.Errorf("usage text omits %q", c.command)
+		}
+	}
+	for _, d := range dispatchTable {
+		if !strings.Contains(usage, "tasks "+d.command) {
+			t.Errorf("usage text omits task %q", d.command)
+		}
+	}
+	if !strings.Contains(usage, "tasks list") {
+		t.Error("usage text omits list")
+	}
+}
+
+// The release migration is how a deploy reshapes stored documents, so losing it
+// from the operator surface is not something to notice during a release. A
+// command dropped from the table is otherwise silent: the usage text and the
+// listing are both derived from it, so they agree about its absence.
+func TestPrepareReleaseIsRunnable(t *testing.T) {
+	t.Parallel()
+
+	found, ok := cliLookup()["preparerelease"]
+	if !ok {
+		t.Fatal("prepareRelease is not runnable from the command line")
+	}
+	if found.run == nil {
+		t.Fatal("prepareRelease has nothing to run")
+	}
+	if !strings.Contains(found.args, "-dry-run") {
+		t.Errorf("args = %q, want the dry run an operator checks a release with first", found.args)
+	}
+}

@@ -83,7 +83,7 @@ func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 	queued := 0
 	var queueErrs []error
 	for _, accountID := range accounts {
-		if err := mongo.QueueOwnerWork(ctxRun, models.AccountStatsOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
+		if err := mongo.QueueOwnerWork(ctxRun, models.AccountOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
 			queueErrs = append(queueErrs, fmt.Errorf("queue %s: %w", accountID, err))
 			continue
 		}

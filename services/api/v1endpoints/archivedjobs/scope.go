@@ -43,7 +43,7 @@ func accountArchiveScope(m *eipmongo.Mongo, accountID string) (archiveScope, err
 		ownerFilter:     eipmongo.ArchivedJobAccountFilter,
 		statsDocumentID: eipmongo.ArchivedJobStatsDocumentID,
 		queueRebuild: func(ctx context.Context, m *eipmongo.Mongo, ownerID string, now time.Time) error {
-			return m.QueueOwnerWork(ctx, models.AccountStatsOwner(ownerID), eipmongo.StatsWorkDelta, now)
+			return m.QueueOwnerWork(ctx, models.AccountOwner(ownerID), eipmongo.StatsWorkDelta, now)
 		},
 		relinksESI: true,
 	}, nil

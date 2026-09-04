@@ -6,6 +6,7 @@ import (
 	"maps"
 	"time"
 
+	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/models"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -182,7 +183,7 @@ func (m *Mongo) LoadUncountedStatsRows(ctx context.Context, accountID string) ([
 		defer cursor.Close(ctx)
 		return cursor.All(ctx, &out)
 	})
-	return out, err
+	return upgradeStatsRows(out), err
 }
 
 // LoadRevokedContributedRows reads rows whose figures are still counted but whose
@@ -216,7 +217,7 @@ func (m *Mongo) LoadRevokedContributedRows(ctx context.Context, accountID string
 		defer cursor.Close(ctx)
 		return cursor.All(ctx, &out)
 	})
-	return out, err
+	return upgradeStatsRows(out), err
 }
 
 // ClearContributedStamp records that these rows' figures are no longer counted.
@@ -298,7 +299,7 @@ func (m *Mongo) LoadTypeStatsRows(ctx context.Context, accountID string, typeID 
 		defer cursor.Close(ctx)
 		return cursor.All(ctx, &out)
 	})
-	return out, err
+	return upgradeStatsRows(out), err
 }
 
 // buildMeasureIncrements renders build measures as $inc fields under a prefix.
@@ -496,4 +497,17 @@ func (m *Mongo) EachArchivedJobWithoutStatsRow(ctx context.Context, accountID st
 		}
 	}
 	return cursor.Err()
+}
+
+// upgradeStatsRows brings rows to the current shape as they are read.
+//
+// Rows written before the owner existed carry only accountID. Every reader goes
+// through here rather than each one remembering, because a row without an owner
+// reaching a caller looks like a row nobody owns.
+func upgradeStatsRows(rows []models.ArchivedJobStats) []models.ArchivedJobStats {
+	upgrader := documentschema.Upgrader{}
+	for i := range rows {
+		upgrader.ArchivedJobStats(&rows[i])
+	}
+	return rows
 }

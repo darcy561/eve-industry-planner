@@ -11,11 +11,10 @@ import (
 	"time"
 
 	clicommands "eve-industry-planner/core/commands/cli"
-	firestoreimport "eve-industry-planner/core/migration/firestoreimport"
 	eipnats "eve-industry-planner/shared/nats"
 )
 
-const usage = `Usage:
+const usageExamples = `Examples:
   tasks list
   tasks sdeVersion
   tasks sdeVersionHistory
@@ -24,56 +23,13 @@ const usage = `Usage:
   tasks workerQueues
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
-  tasks forceSdeRebuild
-  tasks drainAccountStatsRebuildQueue
-  tasks rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
-  tasks migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
-  tasks migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
-  tasks importArchivedJobsFromFirestore [flags]
-  tasks importUserAccountsFromFirestore [flags]
-  tasks importWatchlistFromFirestore [flags]
-  tasks importJobGroupsFromFirestore [flags]
-  tasks importUserJobDocumentsFromFirestore [flags]
-  tasks backfillArchivedAt [-dry-run]
-  tasks queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]
-  tasks prepareRelease [-dry-run]
-  tasks encodeJobIdentity [-collection <name>] [-limit <n>] [-dry-run]
-  tasks <task-name> [--version=<int>]
-
-Examples:
-  tasks list
-  tasks sdeVersion
-  tasks sdeVersionHistory
-  tasks esiRateLimitGroups
-  tasks resetEsiRateLimitGroups
-  tasks workerQueues
-  tasks purgeWorkerQueues
-  tasks unlockSdeVersion
-  tasks importArchivedJobsFromFirestore
-  tasks importArchivedJobsFromFirestore -credentials /app/adminSDK.json
-  tasks importArchivedJobsFromFirestore -reprocess -credentials /app/adminSDK.json
-  tasks importUserAccountsFromFirestore -dry-run -dev
-  tasks importUserAccountsFromFirestore -account <firebase_uid> -live
-  tasks importWatchlistFromFirestore -dry-run -dev
-  tasks importWatchlistFromFirestore -account <firebase_uid> -live
-  tasks importJobGroupsFromFirestore -dry-run -dev
-  tasks importJobGroupsFromFirestore -account <firebase_uid> -live
-  tasks importUserJobDocumentsFromFirestore -dry-run -dev
-  tasks importUserJobDocumentsFromFirestore -live
-  tasks importUserJobDocumentsFromFirestore -live -skip-auth-recency
-  tasks importUserJobDocumentsFromFirestore -account <firebase_uid> -live
-  tasks importUserJobDocumentsFromFirestore -account <firebase_uid> -enqueue -live
-  tasks importUserJobDocumentsFromFirestore -inline -live
   tasks queueArchivedJobStatsRebuild -all -dry-run
-  tasks queueArchivedJobStatsRebuild -account <firebase_uid> -dry-run
+  tasks queueArchivedJobStatsRebuild -account <account_id> -dry-run
   tasks checkSdeUpdates
   tasks applySdeVersion --version=12345
   tasks forceSdeRebuild
   tasks rotateRefreshTokenKeys --from=v1 --scan-batch-size=500
-  tasks migrateEncryptedCloudRefreshTokens --scan-batch-size=500
-  tasks dispatchStatisticsReconciles
-  tasks migrateUserCloudAccountsToUserDoc --scan-batch-size=500
-`
+  tasks dispatchStatisticsReconciles`
 
 // taskOptions carries what an operator typed alongside the task name.
 type taskOptions struct {
@@ -150,6 +106,70 @@ func dispatchLookup() map[string]dispatch {
 	return lookup
 }
 
+// cliCommand is one command that runs in this process, as opposed to a task
+// published to the worker. Its args string is what follows the name in the usage
+// text, so a command's flags are described where it is declared.
+type cliCommand struct {
+	command string
+	aliases []string
+	args    string
+	run     func(ctx context.Context, args []string) error
+}
+
+// cliTable is the allowlist for in-process commands, mirroring dispatchTable.
+//
+// One table rather than a switch, a usage block and a printed list that must
+// agree: they had already drifted — encodeJobIdentity was runnable and in the
+// usage text but absent from `tasks list`, so an operator reading the list would
+// not know it existed.
+var cliTable = []cliCommand{
+	{command: "sdeVersion", run: func(context.Context, []string) error { return clicommands.RunSdeVersion() }},
+	{command: "sdeVersionHistory", run: func(context.Context, []string) error { return clicommands.RunSdeVersionHistory() }},
+	{command: "esiRateLimitGroups", run: func(context.Context, []string) error { return clicommands.RunEsiRateLimitGroups() }},
+	{command: "resetEsiRateLimitGroups", run: func(context.Context, []string) error { return clicommands.RunResetEsiRateLimitGroups() }},
+	{command: "workerQueues", run: func(context.Context, []string) error { return clicommands.RunWorkerQueues() }},
+	{command: "purgeWorkerQueues", run: func(context.Context, []string) error { return clicommands.RunPurgeWorkerQueues() }},
+	{command: "unlockSdeVersion", run: func(context.Context, []string) error { return clicommands.RunUnlockSdeVersion() }},
+	{command: "backfillArchivedAt", args: "[-dry-run]", run: runBackfillArchivedAt},
+	{command: "queueArchivedJobStatsRebuild", args: "[-all] [-account id] [-dry-run]", run: runQueueArchivedJobStatsRebuild},
+	{command: "prepareRelease", args: "[-dry-run]", run: runPrepareRelease},
+	{command: "rotateRefreshTokenKeys", args: "[--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]", run: runRotateRefreshTokenKeys},
+	{command: "encodeJobIdentity", args: "[-collection <name>] [-limit <n>] [-dry-run]", run: runEncodeJobIdentity},
+}
+
+// cliLookup is derived from the table, aliases included, so a command cannot be
+// runnable but unfindable. Matching is case-insensitive, as it is for tasks.
+func cliLookup() map[string]cliCommand {
+	lookup := make(map[string]cliCommand, len(cliTable))
+	for _, c := range cliTable {
+		lookup[strings.ToLower(c.command)] = c
+		for _, alias := range c.aliases {
+			lookup[strings.ToLower(alias)] = c
+		}
+	}
+	return lookup
+}
+
+// usageText is built from the two tables, so a command reaches the usage text by
+// being runnable rather than by being remembered.
+func usageText() string {
+	var b strings.Builder
+	b.WriteString("Usage:\n")
+	b.WriteString("  tasks list\n")
+	for _, c := range cliTable {
+		b.WriteString("  tasks " + c.command)
+		if c.args != "" {
+			b.WriteString(" " + c.args)
+		}
+		b.WriteString("\n")
+	}
+	for _, d := range dispatchTable {
+		b.WriteString("  tasks " + d.command + "\n")
+	}
+	b.WriteString("\n" + usageExamples)
+	return b.String()
+}
+
 // Handle runs command-mode task commands.
 // Returns true when command mode is used (handled), false when normal service mode should run.
 func Handle(ctx context.Context, args []string) (bool, error) {
@@ -157,77 +177,29 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return false, nil
 	}
 	if len(args) == 1 {
-		return true, fmt.Errorf("%s", usage)
+		return true, fmt.Errorf("%s", usageText())
 	}
 
-	switch args[1] {
-	case "list":
+	if strings.EqualFold(args[1], "list") {
 		return true, runList()
-	case "sdeVersion":
-		return true, clicommands.RunSdeVersion()
-	case "sdeVersionHistory":
-		return true, clicommands.RunSdeVersionHistory()
-	case "esiRateLimitGroups":
-		return true, clicommands.RunEsiRateLimitGroups()
-	case "resetEsiRateLimitGroups":
-		return true, clicommands.RunResetEsiRateLimitGroups()
-	case "workerQueues":
-		return true, clicommands.RunWorkerQueues()
-	case "purgeWorkerQueues":
-		return true, clicommands.RunPurgeWorkerQueues()
-	case "unlockSdeVersion":
-		return true, clicommands.RunUnlockSdeVersion()
-	case "importArchivedJobsFromFirestore":
-		return true, runImportArchivedJobsFromFirestoreScan(ctx, args[2:])
-	case "importUserAccountsFromFirestore":
-		return true, runImportUserAccountsFromFirestoreScan(ctx, args[2:])
-	case "importWatchlistFromFirestore":
-		return true, firestoreimport.RunImportWatchlistFromFirestore(ctx, args[2:])
-	case "importJobGroupsFromFirestore":
-		return true, firestoreimport.RunImportJobGroupsFromFirestore(ctx, args[2:])
-	case "importUserJobDocumentsFromFirestore", "importUserJobDocuementsFromFirestore":
-		return true, firestoreimport.RunImportUserJobDocumentsFromFirestore(ctx, args[2:])
-	case "backfillArchivedAt":
-		return true, runBackfillArchivedAt(ctx, args[2:])
-	case "queueArchivedJobStatsRebuild":
-		return true, runQueueArchivedJobStatsRebuild(ctx, args[2:])
-	case "prepareRelease":
-		return true, runPrepareRelease(ctx, args[2:])
-	case "rotateRefreshTokenKeys":
-		return true, runRotateRefreshTokenKeys(ctx, args[2:])
-	case "encodeJobIdentity":
-		return true, runEncodeJobIdentity(ctx, args[2:])
-	case "migrateEncryptedCloudRefreshTokens":
-		return true, runEncryptCloudRefreshTokensMigration(ctx, args[2:])
-	case "migrateUserCloudAccountsToUserDoc":
-		return true, runMigrateUserCloudAccountsToUserDoc(ctx, args[2:])
-	default:
-		return true, runTrigger(ctx, args[1:])
 	}
+	if command, known := cliLookup()[strings.ToLower(args[1])]; known {
+		return true, command.run(ctx, args[2:])
+	}
+	return true, runTrigger(ctx, args[1:])
 }
 
 func runList() error {
 	fmt.Println("Available commands:")
 	fmt.Println("  CLI:")
 	fmt.Println("  - list")
-	fmt.Println("  - sdeVersion")
-	fmt.Println("  - sdeVersionHistory")
-	fmt.Println("  - esiRateLimitGroups")
-	fmt.Println("  - resetEsiRateLimitGroups")
-	fmt.Println("  - workerQueues")
-	fmt.Println("  - purgeWorkerQueues")
-	fmt.Println("  - unlockSdeVersion")
-	fmt.Println("  - importArchivedJobsFromFirestore [-unprocessed-only] [-reprocess] [-credentials path] [-firebase-project-id id]")
-	fmt.Println("  - importUserAccountsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
-	fmt.Println("  - importWatchlistFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
-	fmt.Println("  - importJobGroupsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
-	fmt.Println("  - importUserJobDocumentsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-inline] [-enqueue] [-skip-auth-recency]")
-	fmt.Println("  - backfillArchivedAt [-dry-run]")
-	fmt.Println("  - queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]")
-	fmt.Println("  - prepareRelease [-dry-run]")
-	fmt.Println("  - rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
-	fmt.Println("  - migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
-	fmt.Println("  - migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
+	for _, c := range cliTable {
+		if c.args == "" {
+			fmt.Printf("  - %s\n", c.command)
+			continue
+		}
+		fmt.Printf("  - %s %s\n", c.command, c.args)
+	}
 	fmt.Println()
 	fmt.Println("  Triggerable tasks:")
 	for _, d := range allTasks() {
@@ -246,7 +218,7 @@ func runTrigger(ctx context.Context, args []string) error {
 		first := strings.TrimSpace(args[0])
 		if first != "" && !strings.HasPrefix(first, "-") {
 			if _, known := dispatchLookup()[strings.ToLower(first)]; !known {
-				return fmt.Errorf("unknown command or task %q (use `tasks list`)\n\n%s", first, usage)
+				return fmt.Errorf("unknown command or task %q (use `tasks list`)\n\n%s", first, usageText())
 			}
 		}
 	}
@@ -298,20 +270,20 @@ func runTrigger(ctx context.Context, args []string) error {
 			versionSet = true
 			i = next
 		case strings.HasPrefix(a, "--"):
-			return fmt.Errorf("unknown flag %q\n\n%s", a, usage)
+			return fmt.Errorf("unknown flag %q\n\n%s", a, usageText())
 		default:
 			// First non-flag token is treated as the task name.
 			if taskNameInput == "" {
 				taskNameInput = a
 			} else {
-				return fmt.Errorf("unexpected extra argument %q\n\n%s", a, usage)
+				return fmt.Errorf("unexpected extra argument %q\n\n%s", a, usageText())
 			}
 		}
 	}
 
 	taskNameInput = strings.TrimSpace(taskNameInput)
 	if taskNameInput == "" {
-		return fmt.Errorf("expected exactly one <task-name>\n\n%s", usage)
+		return fmt.Errorf("expected exactly one <task-name>\n\n%s", usageText())
 	}
 	d, exists := dispatchLookup()[strings.ToLower(taskNameInput)]
 	if !exists {

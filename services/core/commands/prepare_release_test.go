@@ -72,15 +72,15 @@ func TestUnaddressableQueueEntriesAreThoseThatNameNoOwner(t *testing.T) {
 	t.Parallel()
 
 	stored := []string{
-		models.AccountStatsOwner("acct-1").Key(),
+		models.AccountOwner("acct-1").Key(),
 		"acct-2", // an older key: a bare account id with no kind
-		models.StatsOwner{Kind: models.StatsOwnerCorporation, ID: "corp_56_JxK"}.Key(),
+		models.Owner{Kind: models.OwnerCorporation, ID: "corp_56_JxK"}.Key(),
 		"character:xyz", // a kind nothing can rebuild
 	}
 
 	var unaddressable []string
 	for _, id := range stored {
-		if _, err := models.ParseStatsOwnerKey(id); err != nil {
+		if _, err := models.ParseOwnerKey(id); err != nil {
 			unaddressable = append(unaddressable, id)
 		}
 	}
@@ -88,5 +88,41 @@ func TestUnaddressableQueueEntriesAreThoseThatNameNoOwner(t *testing.T) {
 	want := []string{"acct-2", "character:xyz"}
 	if !slices.Equal(unaddressable, want) {
 		t.Fatalf("unaddressable = %v, want %v", unaddressable, want)
+	}
+}
+
+// The release catalogue is what a deploy runs, so a malformed entry is a
+// production problem rather than a compile error. Each is checked for the two
+// things that would make it useless: a version to report it under, and a step
+// with something to run.
+func TestReleasesCatalogIsValid(t *testing.T) {
+	t.Parallel()
+
+	seen := map[string]bool{}
+	for _, rel := range releases {
+		if rel.version == "" {
+			t.Error("a release carries no version")
+		}
+		if seen[rel.version] {
+			t.Errorf("release %q is declared twice — its steps would run twice", rel.version)
+		}
+		seen[rel.version] = true
+
+		if len(rel.steps) == 0 {
+			t.Errorf("release %q declares no steps", rel.version)
+		}
+		names := map[string]bool{}
+		for _, step := range rel.steps {
+			if step.name == "" {
+				t.Errorf("release %q has a step with no name", rel.version)
+			}
+			if step.run == nil {
+				t.Errorf("release %q step %q has nothing to run", rel.version, step.name)
+			}
+			if names[step.name] {
+				t.Errorf("release %q declares step %q twice", rel.version, step.name)
+			}
+			names[step.name] = true
+		}
 	}
 }

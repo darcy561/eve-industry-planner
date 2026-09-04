@@ -25,13 +25,13 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
 		defer c()
-		_, _ = coll.DeleteMany(cctx, bson.M{"_id": models.AccountStatsOwner(rebuildQueueScratchAccount).Key()})
+		_, _ = coll.DeleteMany(cctx, bson.M{"_id": models.AccountOwner(rebuildQueueScratchAccount).Key()})
 	}
 	clean()
 	t.Cleanup(clean)
 
 	first := time.Now().UTC().Truncate(time.Millisecond)
-	if err := mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(rebuildQueueScratchAccount), eipmongo.StatsWorkRebuild, first); err != nil {
+	if err := mongo.QueueOwnerWork(ctx, models.AccountOwner(rebuildQueueScratchAccount), eipmongo.StatsWorkRebuild, first); err != nil {
 		t.Fatalf("QueueAccountRebuild: %v", err)
 	}
 
@@ -45,14 +45,14 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 
 	// A second request re-queues without resetting the wait time.
 	later := first.Add(time.Hour)
-	if err := mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(rebuildQueueScratchAccount), eipmongo.StatsWorkRebuild, later); err != nil {
+	if err := mongo.QueueOwnerWork(ctx, models.AccountOwner(rebuildQueueScratchAccount), eipmongo.StatsWorkRebuild, later); err != nil {
 		t.Fatalf("re-queue: %v", err)
 	}
 	var stored struct {
 		QueuedAt time.Time `bson:"queuedAt"`
 		Claim    int64     `bson:"claim"`
 	}
-	if err := coll.FindOne(ctx, bson.M{"_id": models.AccountStatsOwner(rebuildQueueScratchAccount).Key()}).Decode(&stored); err != nil {
+	if err := coll.FindOne(ctx, bson.M{"_id": models.AccountOwner(rebuildQueueScratchAccount).Key()}).Decode(&stored); err != nil {
 		t.Fatalf("read back: %v", err)
 	}
 	if !stored.QueuedAt.Equal(first) {
@@ -63,7 +63,7 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	}
 
 	// A rebuild holding the stale claim must not clear the account.
-	owner := models.AccountStatsOwner(rebuildQueueScratchAccount)
+	owner := models.AccountOwner(rebuildQueueScratchAccount)
 	cleared, err := mongo.ClearQueuedOwner(ctx, eipmongo.QueuedOwner{Owner: owner, Claim: 1})
 	if err != nil {
 		t.Fatalf("ClearQueuedOwner (stale): %v", err)
@@ -111,7 +111,7 @@ func TestLive_rebuildQueue_claimCurrencyGuardsAFold(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	owner := models.AccountStatsOwner(rebuildQueueScratchAccount)
+	owner := models.AccountOwner(rebuildQueueScratchAccount)
 	coll := mongo.AccountRebuildQueue.Collection()
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)

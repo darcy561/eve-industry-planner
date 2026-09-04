@@ -37,12 +37,21 @@ type ArchivedJobFeeLine struct {
 }
 
 // ArchivedJobStats is one archived job reduced to the figures the statistics
-// pipelines read. AccountID owns account-scoped rows; CorpRef owns rows archived
-// under a corporation with no account owner.
+// pipelines read.
+//
+// Owner is who the row belongs to. AccountID and CorpRef say the same thing in
+// the shape that predates it, and are still what every query filters on until
+// the stored rows carry an owner; a row read before then is given one by
+// [documentschema.Upgrader.ArchivedJobStats].
 type ArchivedJobStats struct {
-	ID                string    `bson:"_id" json:"-"`
-	AccountID         string    `bson:"accountID" json:"accountID"`
-	CorpRef           string    `bson:"corpRef,omitempty" json:"corpRef,omitempty"`
+	ID            string `bson:"_id" json:"-"`
+	SchemaVersion int    `bson:"schemaVersion,omitempty" json:"-"`
+	Owner         Owner  `bson:"owner" json:"-"`
+	AccountID     string `bson:"accountID" json:"accountID"`
+	CorpRef       string `bson:"corpRef,omitempty" json:"corpRef,omitempty"`
+	// ArchivedBy is the account that archived the job, which inside a shared
+	// planner is not the same question as who owns the row.
+	ArchivedBy        string    `bson:"archivedBy,omitempty" json:"-"`
 	JobID             string    `bson:"jobID" json:"jobID"`
 	TypeID            int       `bson:"typeID" json:"typeID"`
 	JobType           int       `bson:"jobType" json:"jobType"`
@@ -75,7 +84,6 @@ type ArchivedJobStats struct {
 	SkipReason string     `bson:"skipReason,omitempty" json:"-"`
 	Revoked    bool       `bson:"revoked" json:"revoked"`
 	RevokedAt  *time.Time `bson:"revokedAt,omitempty" json:"revokedAt,omitempty"`
-	Version    int        `bson:"version" json:"version"`
 }
 
 // AwaitsContribution reports whether this row's figures are not yet in the

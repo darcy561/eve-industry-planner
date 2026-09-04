@@ -29,7 +29,7 @@ func recalculationFor(ctx context.Context, mongo *eipmongo.Mongo, accountID stri
 	if mongo == nil || accountID == "" {
 		return recalculationEnvelope{}
 	}
-	state, err := mongo.OwnerRecalculationState(ctx, models.AccountStatsOwner(accountID))
+	state, err := mongo.OwnerRecalculationState(ctx, models.AccountOwner(accountID))
 	if err != nil {
 		logs.WarnCtx(ctx, "recalculation state unread",
 			"component", "statistics", "error", err)

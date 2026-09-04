@@ -105,7 +105,7 @@ func (m *Mongo) LoadAccountArchivedJobStats(ctx context.Context, accountID strin
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	return upgradeStatsRows(out), nil
 }
 
 // RevokeAccountArchivedJobStats marks rows whose job is no longer archived. Rows

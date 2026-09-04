@@ -18,8 +18,8 @@ import (
 //
 // Only an owner kind that has clients is worth a message; corporation and
 // alliance tenants have none yet.
-func notifyStatisticsProcessed(ctx context.Context, nats *eipnats.NATS, owner models.StatsOwner, at time.Time) {
-	if nats == nil || owner.Kind != models.StatsOwnerAccount || owner.ID == "" {
+func notifyStatisticsProcessed(ctx context.Context, nats *eipnats.NATS, owner models.Owner, at time.Time) {
+	if nats == nil || owner.Kind != models.OwnerAccount || owner.ID == "" {
 		return
 	}
 	body := eipnats.ArchiveStatsProcessedNotification{

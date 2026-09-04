@@ -5,70 +5,76 @@ import (
 	"strings"
 )
 
-// StatsOwnerKind names what a set of build statistics belongs to.
+// OwnerKind names what a stored document belongs to.
 //
 // A corporation is a peer of an account rather than a slice of one: it holds its
-// own jobs and its own archive. An alliance is expected to follow as a third
-// kind, so anything keyed on an owner takes the kind alongside the id.
-type StatsOwnerKind string
+// own jobs and its own archive. Anything keyed on an owner therefore takes the
+// kind alongside the id.
+type OwnerKind string
 
 const (
-	StatsOwnerAccount     StatsOwnerKind = "account"
-	StatsOwnerCorporation StatsOwnerKind = "corporation"
-	StatsOwnerAlliance    StatsOwnerKind = "alliance"
+	OwnerAccount     OwnerKind = "account"
+	OwnerPlanner     OwnerKind = "planner"
+	OwnerCorporation OwnerKind = "corporation"
+	OwnerAlliance    OwnerKind = "alliance"
 )
 
-// StatsOwner addresses one set of build statistics.
+// Owner addresses whatever a document belongs to.
 //
-// ID is whatever identifies the kind internally: an account id for an account,
-// and a ref for a corporation or alliance, which are never held as raw entity
-// ids. Nothing here converts between the two.
-type StatsOwner struct {
-	Kind StatsOwnerKind `bson:"kind" json:"kind"`
-	ID   string         `bson:"id" json:"id"`
+// ID is whatever identifies the kind internally: an account id for an account, a
+// minted id for a planner, and a ref for a corporation or alliance, which are
+// never held as raw entity ids. Nothing here converts between the two.
+//
+// No JSON tags, deliberately. For the corporation and alliance kinds the ID is a
+// ref, so a response serialising an owner directly would leak one; a response
+// builds an owner handle explicitly instead, which turns a missed conversion into
+// a compile error rather than a leak.
+type Owner struct {
+	Kind OwnerKind `bson:"kind"`
+	ID   string    `bson:"id"`
 }
 
-// AccountStatsOwner addresses an account's statistics.
-func AccountStatsOwner(accountID string) StatsOwner {
-	return StatsOwner{Kind: StatsOwnerAccount, ID: accountID}
+// AccountOwner addresses what an account owns.
+func AccountOwner(accountID string) Owner {
+	return Owner{Kind: OwnerAccount, ID: accountID}
 }
 
 // Key identifies the owner in a single string, for a document id or a
 // deduplication token.
-func (o StatsOwner) Key() string {
+func (o Owner) Key() string {
 	return string(o.Kind) + ":" + o.ID
 }
 
-// ParseStatsOwnerKey reads back what Key wrote.
+// ParseOwnerKey reads back what Key wrote.
 //
 // The id may itself contain a colon, so only the first separates kind from id.
-func ParseStatsOwnerKey(key string) (StatsOwner, error) {
+func ParseOwnerKey(key string) (Owner, error) {
 	kind, id, found := strings.Cut(key, ":")
 	if !found {
-		return StatsOwner{}, fmt.Errorf("owner key %q must be kind:id", key)
+		return Owner{}, fmt.Errorf("owner key %q must be kind:id", key)
 	}
-	owner := StatsOwner{Kind: StatsOwnerKind(kind), ID: id}
+	owner := Owner{Kind: OwnerKind(kind), ID: id}
 	if err := owner.Validate(); err != nil {
-		return StatsOwner{}, err
+		return Owner{}, err
 	}
 	return owner, nil
 }
 
-// Validate reports whether the owner names something that can hold statistics.
+// Validate reports whether the owner names something that can own a document.
 //
 // An unknown kind is refused rather than carried: a kind reaching storage that
 // nothing knows how to read would key documents nothing can find again.
-func (o StatsOwner) Validate() error {
+func (o Owner) Validate() error {
 	switch o.Kind {
-	case StatsOwnerAccount, StatsOwnerCorporation, StatsOwnerAlliance:
+	case OwnerAccount, OwnerPlanner, OwnerCorporation, OwnerAlliance:
 	default:
-		return fmt.Errorf("unknown statistics owner kind %q", o.Kind)
+		return fmt.Errorf("unknown owner kind %q", o.Kind)
 	}
 	if strings.TrimSpace(o.ID) == "" {
-		return fmt.Errorf("statistics owner of kind %q needs an id", o.Kind)
+		return fmt.Errorf("owner of kind %q needs an id", o.Kind)
 	}
 	return nil
 }
 
 // IsZero reports whether the owner is unset.
-func (o StatsOwner) IsZero() bool { return o == StatsOwner{} }
+func (o Owner) IsZero() bool { return o == Owner{} }

@@ -28,29 +28,50 @@ type releaseStep struct {
 	run  func(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error)
 }
 
-// archivedJobStatisticsRelease is the work a deploy owes the statistics
-// documents, in the order it has to happen.
+// release groups the steps one app version owes the database.
 //
-// Add to this slice rather than adding a sibling command: an operator running a
-// release should not have to know which steps this version needs, and steps that
-// have become no-ops report zero rather than being removed, so running it against
-// an environment that is already current is safe.
-var archivedJobStatisticsRelease = []releaseStep{
-	{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
-	{name: "drop retired change stream resume tokens", run: dropRetiredResumeTokens},
-	{name: "drop unaddressable rebuild queue entries", run: dropUnaddressableQueueEntries},
-	{name: "queue every account for rebuild", run: queueEveryAccountForRebuild},
+// Grouping by version rather than keeping one flat list is what lets an operator
+// read what a deploy is about to do, and what lets a reader tell which release
+// introduced a step long after it became a no-op.
+type release struct {
+	version string
+	steps   []releaseStep
 }
 
-// runPrepareArchivedJobStatistics brings stored statistics to the shape this
-// release reads, and queues the rebuild that fills it.
-func runPrepareArchivedJobStatistics(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("prepareArchivedJobStatistics", flag.ContinueOnError)
+// releases is every version's cutover work, oldest first, in the order it has to
+// happen.
+//
+// Add to this rather than adding a sibling command: an operator running a release
+// should not have to know which steps their version needs. Every release's steps
+// run every time, because a step that has become a no-op reports zero rather than
+// being removed — which is what makes running this against an environment that is
+// already current safe, and what lets an environment several versions behind
+// catch up in one command.
+var releases = []release{{
+	version: "0.9.0",
+	steps: []releaseStep{
+		{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
+		{name: "drop retired change stream resume tokens", run: dropRetiredResumeTokens},
+		{name: "drop unaddressable rebuild queue entries", run: dropUnaddressableQueueEntries},
+		{name: "queue every account for rebuild", run: queueEveryAccountForRebuild},
+	},
+}}
+
+// runPrepareRelease brings stored documents to the shape the deployed code
+// reads, and queues the work that refills what it changed.
+//
+// This is the release migration: a deploy runs it once, and it is the only place
+// a version's data work is written down.
+func runPrepareRelease(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("prepareRelease", flag.ContinueOnError)
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: tasks prepareArchivedJobStatistics [flags]\n\n")
-		fmt.Fprintf(fs.Output(), "Runs every cutover step the statistics documents need, in order:\n")
-		for _, step := range archivedJobStatisticsRelease {
-			fmt.Fprintf(fs.Output(), "  - %s\n", step.name)
+		fmt.Fprintf(fs.Output(), "Usage: tasks prepareRelease [flags]\n\n")
+		fmt.Fprintf(fs.Output(), "Runs every release's cutover steps, oldest first:\n")
+		for _, rel := range releases {
+			fmt.Fprintf(fs.Output(), "  %s\n", rel.version)
+			for _, step := range rel.steps {
+				fmt.Fprintf(fs.Output(), "    - %s\n", step.name)
+			}
 		}
 		fmt.Fprintf(fs.Output(), "\nSafe to re-run: a step that has nothing to do reports zero.\n")
 		fmt.Fprintf(fs.Output(), "The rebuild runs when the drain next fires; trigger it now with\n")
@@ -77,21 +98,25 @@ func runPrepareArchivedJobStatistics(ctx context.Context, args []string) error {
 	}
 
 	var failures []error
-	for _, step := range archivedJobStatisticsRelease {
-		result, err := step.run(ctxRun, clients, *dryRun)
-		if err != nil {
-			failures = append(failures, fmt.Errorf("%s: %w", step.name, err))
-			fmt.Fprintf(os.Stderr, "  %s: failed: %v\n", step.name, err)
-			continue
+	total := 0
+	for _, rel := range releases {
+		for _, step := range rel.steps {
+			total++
+			label := rel.version + " " + step.name
+			result, err := step.run(ctxRun, clients, *dryRun)
+			if err != nil {
+				failures = append(failures, fmt.Errorf("%s: %w", label, err))
+				fmt.Fprintf(os.Stderr, "  %s: failed: %v\n", label, err)
+				continue
+			}
+			fmt.Printf("%s%s: %s\n", prefix, label, result)
 		}
-		fmt.Printf("%s%s: %s\n", prefix, step.name, result)
 	}
 
 	if len(failures) > 0 {
 		// Steps do not depend on each other, so the ones that succeeded stand and
 		// the release can be re-run for the rest.
-		return fmt.Errorf("prepareArchivedJobStatistics: %d/%d step(s) failed",
-			len(failures), len(archivedJobStatisticsRelease))
+		return fmt.Errorf("prepareRelease: %d/%d step(s) failed", len(failures), total)
 	}
 
 	if !*dryRun {
@@ -188,7 +213,7 @@ func dropUnaddressableQueueEntries(ctx context.Context, clients *stackservices.C
 
 	var unaddressable []string
 	for _, id := range stored {
-		if _, perr := models.ParseStatsOwnerKey(id); perr != nil {
+		if _, perr := models.ParseOwnerKey(id); perr != nil {
 			unaddressable = append(unaddressable, id)
 		}
 	}
@@ -223,7 +248,7 @@ func queueEveryAccountForRebuild(ctx context.Context, clients *stackservices.Cli
 	queued := 0
 	var queueErrs []error
 	for _, accountID := range accounts {
-		if err := mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
+		if err := mongo.QueueOwnerWork(ctx, models.AccountOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
 			queueErrs = append(queueErrs, fmt.Errorf("queue %s: %w", accountID, err))
 			continue
 		}

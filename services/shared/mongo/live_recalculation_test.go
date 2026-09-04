@@ -22,7 +22,7 @@ func TestLive_recalculationState_readsTheQueueEntry(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	owner := models.AccountStatsOwner(recalcScratchAccount)
+	owner := models.AccountOwner(recalcScratchAccount)
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
 		defer c()

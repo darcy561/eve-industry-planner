@@ -235,7 +235,7 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	// A failure to queue is logged rather than failing the request: the jobs are
 	// saved and their rows are still unstamped, so the next archive or a manual
 	// rebuild picks them up.
-	if err := h.Mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(accountID), eipmongo.StatsWorkDelta, time.Now().UTC()); err != nil {
+	if err := h.Mongo.QueueOwnerWork(ctx, models.AccountOwner(accountID), eipmongo.StatsWorkDelta, time.Now().UTC()); err != nil {
 		logs.AttachHandlerCaveat(r, "stats_rebuild_not_queued",
 			"archived jobs saved but the statistics rebuild was not queued",
 			map[string]any{"account_id": accountID, "error": err.Error()})

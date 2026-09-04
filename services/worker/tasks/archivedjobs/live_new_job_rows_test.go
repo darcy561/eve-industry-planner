@@ -22,7 +22,7 @@ func TestLive_archivedJobWithoutARowIsRecoveredByTheRota(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	owner := models.AccountStatsOwner(newRowsScratchAccount)
+	owner := models.AccountOwner(newRowsScratchAccount)
 	mongolive.ScratchAccount(t, mongo, newRowsScratchAccount)
 
 	job := models.Job{
