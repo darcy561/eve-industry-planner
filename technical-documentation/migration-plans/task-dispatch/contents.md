@@ -17,8 +17,9 @@ it wants run.
 | I need to… | Read |
 |------------|------|
 | Understand what is unresolved about dispatch | [plan.md](./plan.md) |
-| See why a task type is carried twice | [plan.md](./plan.md) § The subject and the envelope disagree |
+| See what decides a task's type | [plan.md](./plan.md) § The subject is authoritative |
 | Know what an unregistered task does today | [plan.md](./plan.md) § An unknown task runs on defaults |
 | Collapse the double envelope | [plan.md](./plan.md) § Stage B |
+| See why the trace rides in headers only | [plan.md](./plan.md) § The envelope carried the trace twice |
 | Change how the operator CLI names tasks | [plan.md](./plan.md) § Stage C |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
