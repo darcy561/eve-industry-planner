@@ -9,6 +9,7 @@ import (
 
 	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/shared/container"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/lifecycle"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
@@ -22,6 +23,7 @@ type app struct {
 	g        lifecycle.Group
 	stopDeps func(context.Context)
 	clients  *stackservices.Clients
+	esi      esiclient.API
 	initErr  error
 }
 
@@ -56,6 +58,16 @@ func (a *app) connectDeps(ctx context.Context) error {
 	}
 	a.clients = clients
 	a.stopDeps = stopDeps
+
+	// The api makes no metered ESI calls. It holds the limiter so that work an
+	// outage stops — EVE SSO token refresh — can report what it saw, and so a
+	// background refresh can ask before trying.
+	esi, stopESI, err := esiclient.New(clients.Redis, esiclient.DefaultConfig())
+	if err != nil {
+		return a.fail(fmt.Errorf("build esi client: %w", err))
+	}
+	a.g.Add(lifecycle.FromStop("esi-dispatcher", stopESI))
+	a.esi = esi
 	return nil
 }
 
@@ -104,7 +116,7 @@ func (a *app) startProbes(ctx context.Context) error {
 }
 
 func (a *app) startServer(ctx context.Context) error {
-	apiRunner, err := StartAPIServer(ctx, a.clients)
+	apiRunner, err := StartAPIServer(ctx, a.clients, a.esi)
 	if err != nil {
 		return a.fail(err)
 	}

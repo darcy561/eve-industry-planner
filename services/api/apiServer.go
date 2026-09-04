@@ -26,6 +26,7 @@ import (
 	"eve-industry-planner/api/v1endpoints/watchlist"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
 
@@ -40,7 +41,7 @@ type route struct {
 	Handler http.HandlerFunc
 }
 
-func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecycle.Runner, error) {
+func StartAPIServer(ctx context.Context, clients *stackservices.Clients, esi esiclient.API) (lifecycle.Runner, error) {
 	logs.SetDebugIdentityResolver(func(ctx context.Context) (string, string) {
 		return auth.AccountIDFromContext(ctx), auth.SessionIDFromContext(ctx)
 	})
@@ -105,7 +106,7 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 		return nil, fmt.Errorf("load authz hmac key for entity refs: %w", err)
 	}
 
-	deps := apideps.FromClients(clients, entityCipher)
+	deps := apideps.FromClients(clients, entityCipher, esi)
 	v1 := v1endpoints.New(deps)
 	ssoH := ssoendpoints.New(deps)
 	userH := user.New(deps)

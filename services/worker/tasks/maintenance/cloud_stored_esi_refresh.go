@@ -12,9 +12,8 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -27,16 +26,9 @@ const (
 // CloudStoredEsiRefreshMaintenance rotates Mongo-stored ESI OAuth refresh rows for one cloud account
 // when last login is within the maintenance band (re-checked here). Accounts beyond the abandon window
 // are skipped so tokens may go stale as intended.
-func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func CloudStoredEsiRefreshMaintenance(ctx context.Context, payload eipnats.CloudStoredEsiRefreshMaintenanceRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
-	}
-	payload, err := esitasks.UnmarshalTaskPayload[eipnats.CloudStoredEsiRefreshMaintenanceRequest](task)
-	if err != nil {
-		return fmt.Errorf("invalid payload: %w", err)
 	}
 	accountID := strings.TrimSpace(payload.AccountID)
 	if accountID == "" {
@@ -120,19 +112,7 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 	}
 
 	stats, err := maintainAccountCloudRefreshTokens(ctx, mongo.Users, accountID, &cfg)
-	// A rotation that reached SSO is evidence the servers are up; one that failed
-	// every row it tried is evidence they are not. Same signal an ESI call gives,
-	// from a caller that pays nothing for it.
-	//
-	// A pass that rotated nothing says nothing either way, so it is not reported.
-	if deps.ESI != nil {
-		switch {
-		case stats.RowsRefreshed > 0 || stats.RowsKeyRotate > 0:
-			_ = deps.ESI.Observe(ctx, "evesso", true)
-		case stats.RowsFailed > 0:
-			_ = deps.ESI.Observe(ctx, "evesso", false)
-		}
-	}
+	observeSSO(ctx, deps.ESI, stats)
 	if err != nil {
 		if errors.Is(err, errCloudEsiMaintUserNotFound) {
 			logs.InfoCtx(ctx, "cloud esi refresh maintenance: user not found", "account_id", accountID)
@@ -155,4 +135,22 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 		"rows_deferred_retry", stats.RowsRetryNext,
 	)
 	return nil
+}
+
+// observeSSO tells the limiter what the token endpoint did, and nothing else.
+//
+// A row that failed to decrypt or re-encrypt never reached EVE SSO, so it is
+// evidence about this deployment rather than about CCP's servers — counting it
+// would let a broken keyring read as an outage. A pass that called SSO not at
+// all says nothing either way and reports nothing.
+func observeSSO(ctx context.Context, esi esiclient.API, stats cloudEsiMaintainStats) {
+	if esi == nil {
+		return
+	}
+	switch {
+	case stats.SSOAnswered > 0:
+		_ = esi.Observe(ctx, "evesso", true)
+	case stats.SSOSilent > 0:
+		_ = esi.Observe(ctx, "evesso", false)
+	}
 }

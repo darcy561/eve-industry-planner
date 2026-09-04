@@ -12,7 +12,7 @@ import (
 	"eve-industry-planner/api/helper"
 	cloudstoredesi "eve-industry-planner/api/helper/cloudstoredesi"
 	"eve-industry-planner/shared/core/config"
-	evesso "eve-industry-planner/shared/core/evesso"
+	evesso "eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -49,7 +49,8 @@ func (h *Handlers) refreshStoredEsiFromMongo(ctx context.Context, accountID, tar
 		return nil, fmt.Errorf("mongo stored esi: %w", err)
 	}
 
-	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, h.Mongo, accountID, targetHash, &cfg)
+	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, h.Mongo, accountID, targetHash, &cfg,
+		func(err error) { h.ReportSSO(ctx, err) })
 }
 
 // ServerStoredEsiAccessTokenHandler handles POST /api/v1/esi/characters/access-token/server:
@@ -122,7 +123,7 @@ func (h *Handlers) ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *h
 				"character_hash":            targetHash,
 			})
 		default:
-			if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
+			if evesso.IsPermanentRefreshFailure(err) {
 				m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)
 				helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token", "cloud stored ESI refresh: invalid grant (upstream)", "linked_esi_invalid_grant", "eve_sso_token_refresh", err, map[string]any{"character_hash": targetHash})
 			} else if strings.Contains(err.Error(), "encrypt") {
