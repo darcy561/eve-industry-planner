@@ -1,6 +1,6 @@
 import findTransactionsForMarketOrders from "./findTransactionsForMarketOrders";
 import findJournalEntriesFromTransaction from "./findJournalEntriesFromTransaction";
-import createTransaction from "./createTransaction";
+import Transaction from "../../Classes/transaction";
 
 export default function findOrderTransactions(
   inputJob,
@@ -23,22 +23,23 @@ export default function findOrderTransactions(
     itemTransactions.forEach((itemTrans) => {
       const { journalEntry, transactionTax } =
         findJournalEntriesFromTransaction(itemTrans, queryClient);
-      if (!journalEntry && !transactionTax) return;
-      
-      // Guard against undefined journalEntry when accessing description
-      if (!journalEntry || !journalEntry.description) return;
-      
+      // A sale is offered only once the account can supply every figure the row
+      // will store. The journal carries the money, the description and the tax,
+      // and it is a separate endpoint that can lag the transactions — a row
+      // linked without them keeps a blank description and no tax for good,
+      // understating what the job paid.
+      if (!journalEntry?.description || !transactionTax) return;
+
       const descriptionTrim = journalEntry.description
         .replace("Market: ", "")
         .split(" bought");
       transactionData.push(
-        createTransaction(
-          itemTrans,
-          descriptionTrim[0],
+        Transaction.fromESI(itemTrans, {
           journalEntry,
-          transactionTax,
-          order.CharacterHash
-        )
+          taxEntry: transactionTax,
+          description: descriptionTrim[0],
+          owner: { CharacterHash: order.CharacterHash },
+        })
       );
       matchedTransactionIDs.add(itemTrans.transaction_id);
     });

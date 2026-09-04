@@ -1,42 +1,41 @@
 import { getAllCachedCharacterJournal } from "../../Hooks/EveEsi/Character/useGetAllCharacterJournal";
 import { getAllCachedCorporationJournal } from "../../Hooks/EveEsi/Corporation/useGetAllCorporationJournal";
+import BrokerFee from "../../Classes/brokerFee";
 
+/**
+ * The broker fee row for one market order.
+ *
+ * The amount is always the figure worked out for this order, never the journal
+ * entry's own: listing several orders at once through multi-sell charges them
+ * in a single `brokers_fee` entry whose amount covers all of them. For the same
+ * reason the entry's id is shared between those orders and is not an identity
+ * for the fee.
+ *
+ * The journal supplies only when the fee was charged. It is a separate endpoint
+ * from the orders, so it can lag behind one — in which case the fee is still
+ * recorded, dated by the listing itself. Whose fee it is comes from the order
+ * it belongs to, which records that already.
+ *
+ * @param {Object} order - The market order being linked
+ * @param {number} brokersFee - What the listing cost this order
+ * @param {import("@tanstack/react-query").QueryClient} queryClient
+ * @returns {BrokerFee}
+ */
 export default function findBrokersFeeEntry(order, brokersFee, queryClient) {
+  const { data: characterJournal } = getAllCachedCharacterJournal(queryClient);
+  const { data: corporationJournal } =
+    getAllCachedCorporationJournal(queryClient);
 
-    const { data: characterJournal } = getAllCachedCharacterJournal(queryClient);
-    const { data: corporationJournal } = getAllCachedCorporationJournal(queryClient);
+  const journalEntries = [
+    ...Object.values(characterJournal || {}).flat(),
+    ...Object.values(corporationJournal || {}).flat(),
+  ];
 
-    function ESIBrokerFee(entry, order, brokersFee) {
-        return {
-            order_id: order.order_id,
-            id: entry.id,
-            complete: false,
-            date: entry.date,
-            amount: brokersFee || 0,
-            corporation_id: order.corporation_id ?? null,
-            character_id: entry.character_id ?? null,
-            CharacterHash: order.CharacterHash
-        }
-    }
+  const entry = journalEntries.find(
+    (candidate) =>
+      candidate?.ref_type === "brokers_fee" &&
+      Date.parse(order?.issued) === Date.parse(candidate?.date)
+  );
 
-    const checkEntry = (entry) => {
-        if (
-            entry?.ref_type === "brokers_fee" ||
-            Date.parse(order?.issued) === Date.parse(entry?.date)
-        ) {
-            return ESIBrokerFee(entry, order, brokersFee);
-        }
-        return null;
-    };
-
-    const journalEntries = [...Object.values(characterJournal).flat(), ...Object.values(corporationJournal).flat()];
-
-    for (const entry of journalEntries) {
-        const brokerFee = checkEntry(entry);
-        if (brokerFee !== null) {
-            return brokerFee;
-        }
-    }
-
-    return null;
+  return BrokerFee.fromJournalEntry(entry, order, brokersFee);
 }

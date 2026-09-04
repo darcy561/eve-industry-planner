@@ -120,7 +120,7 @@ class LinkedESIJob {
    *
    * @returns {number} 0 to 100
    */
-  get progressPercent() {
+  progressPercent() {
     if (this.isDelivered || this.isReadyToDeliver) return 100;
 
     const finishes = this.finishesAt;

@@ -121,9 +121,9 @@ segment a one-const change, but segments are a closed classification that change
 than measures, and named fields keep the compiler checking producers.
 
 **Wire compatibility:** additive for the statistics shapes, which no document uses yet.
-`ProductionTotalsRow` keeps `dataSnapshots` — the totals read serves it and the SPA reads it in two
-places, so it stays until a view exists for the per-job rows it duplicates. Embedding does not
-change the stored or served shape of any existing document.
+`ProductionTotalsRow` kept `dataSnapshots` at this point, because the totals read served it and the
+SPA read it in two places. J1 removed it in favour of `BuildHistoryMarks`, which is what those two
+readers use now. Embedding does not change the stored or served shape of any existing document.
 
 ### Also landed
 
@@ -685,7 +685,7 @@ Landed for the account scope.
 | `Dashboard/Components/ArchivedStatsOverview` | `timeline` | This month against last — sales, job cost, profit, each with the change |
 | `Dashboard/Components/ArchivedItemBreakdown` | `timeline/items` | Which item types drove the month, ranked server-side |
 | `Dialogues/Blueprint Archive` | `totals` | One item type's lifetime figures, split into four segment blocks |
-| `Edit Job/.../Archive Jobs Panel` | `totals` | Per-job rows, from the `dataSnapshots` embedded on the row |
+| `Edit Job/.../Archive Jobs Panel` | `totals` | What the item has cost before, from the `history` marks on the row |
 
 Three modules serve them, named for the views rather than for the retired producer:
 `statisticsTimeline.js` (the two timeline reads), `statisticsTotals.js` (lifetime totals), and
@@ -1052,14 +1052,20 @@ link the account does not hold, and the next save would try to claim it back fro
 
 Two rules the resolution depends on:
 
-- **Kinds do not cross.** Orders, jobs and transactions are separate arrays whose ids can collide
+- **Kinds do not cross.** Orders, jobs and transactions are separate series whose ids can collide
   numerically, so a conflict on one kind never strips that number from another.
 - **The set being restored excludes itself.** A related set restored together would otherwise report
   its own members as conflicting holders once the first of them was written.
 
+A job holds an ESI id by carrying its row, so both sides of the check read the rows: the restoring
+job's own ids come from `Job.LinkedOrderIDs`, `LinkedESIJobIDs` and `LinkedTransactionIDs`, and a
+holder is found by searching those same paths. A conflicted entry is dropped by removing the row
+itself.
+
 Lookup is one query per kind, not per id: a job's ids go in together with `$in`, so a job linking a
 hundred transactions costs one round trip. Three indexes in the Deployment Tool serve it —
-`_meta.accountID` with each of `apiOrders`, `apiJobs` and `apiTransactions`.
+`_meta.accountID` with each of `build.sale.marketOrders.order_id`,
+`build.costs.linkedJobs.job_id` and `build.sale.transactions.transaction_id`.
 
 ### Groups are rebuilt from their jobs
 
@@ -1292,6 +1298,204 @@ Three rules disagreed before the corpus existed, and each was fixed on the side 
 Derivation is all the corpus covers. Merge, restore and the lock gate have no SPA counterpart, and
 the archived-member rules are not shared logic despite touching the same field — the SPA preserves
 `archivedJobIDs` through a recompute, the backend clears them on merge. Those keep their own tests.
+
+## Stage J — incremental statistics, reconciliation and what the client is told
+
+Archiving a job used to rebuild every statistic its account held: every archived job reduced, every
+row, bucket and lifetime total rewritten. What archiving cost therefore grew with the archive it
+joined, and a build from a year ago was recomputed because something was archived today.
+
+It costs the same now whether the archive holds ten jobs or ten thousand. A job's figures are folded
+in when it is archived and taken back out when it is restored, and the wholesale rebuild is what a
+rota and the tasks CLI run rather than what a user's action triggers.
+
+Everything below is shaped around an **owner** — a kind and an id — rather than an account id, so
+Stage C adds a kind rather than a rewrite. The account kind resolves to exactly the key used today.
+
+### A job's figures are a delta
+
+The unit is the per-job row. It is derived from the job and nothing else, so it is built where the
+job already is — in the archive request itself — rather than found later by a reader working out
+which jobs lack one.
+
+| Step | What happens |
+|------|--------------|
+| Archive | `archivestats.NewAccountRow` builds the row beside the job, written **uncounted**, and the owner is queued for a fold |
+| Fold | Every row for the owner with no `contributedAt` is folded into the aggregates and stamped in the same write |
+| Restore | The rows are marked revoked, keeping their stamp, and the next fold subtracts exactly what they added |
+
+`contributedAt` does two jobs at once: it is the guard against counting a row twice, and it is the
+description of what is outstanding. The rows without one **are** the work — the fold carries no list
+of jobs, which is what keeps it proportional to what changed. Three properties follow: archiving
+twenty jobs is one task rather than twenty, a task that dies leaves its unreached rows still
+unstamped for the next run, and a row cannot be applied twice because it is stamped in the call that
+applies it.
+
+Removal is the same arithmetic negated — `SalesMeasures.Negated` — rather than a second
+implementation that could disagree with the addition. `archivestats.ContributionOf` calls the same
+folds a rebuild calls, for the same reason.
+
+**Emptiness is decided on a count, never on money.** Subtracting `float64` leaves a residue rather
+than zero, so a bucket that should be gone would never match a test for zero ISK. Every bucket
+carries `contributingRows`, and every type delta carries a job count, both exact integers.
+
+**Two figures do not invert, and are recomputed instead.** The cheapest and dearest build cost cannot
+be moved by addition — removing the cheapest leaves nothing in a counter to recover the next one
+from — so each touched item type's `BuildHistoryMarks` are rebuilt from its rows.
+
+### A claim decides who may write
+
+A fold reads rows, then writes. A rebuild finishing in between would have counted those rows already,
+and the fold's increments would count them a second time.
+
+The queue entry carries a claim, and the claim travels with the dispatched task. A fold may only
+write while `OwnerClaimIsCurrent` still matches what it was dispatched with; anything else holding
+the owner accounts for those rows itself. A writer that derives aggregates from rows wholesale — the
+reconcile — calls `BumpOwnerClaim` for the same reason, telling a fold in flight to stand down
+rather than add its rows on top of what was just written.
+
+Work that succeeds but cannot clear its entry has been superseded by a request that arrived while it
+ran; the entry stands for that request, so its recorded failures are forgotten rather than reported
+against it.
+
+### One task per owner, dispatched rather than drained
+
+The queue is keyed by owner and names what is outstanding: a **delta**, which is seconds of work
+nobody needs to be told about, or a **rebuild**, which re-derives everything and is worth reporting.
+One queue carries both, because the claim protocol, the wait and the dispatcher are per owner either
+way. A rebuild supersedes a delta and never the reverse — it already accounts for whatever the
+deltas would have applied.
+
+`cron.drainAccountStatsRebuildQueue` runs every two minutes and **dispatches only**: one task per
+owner whose wait is up, each clearing its own entry. Rebuilding inside the dispatcher put every owner
+behind one serial pass inside one task timeout, so a queue larger than that window could not finish —
+and because the clear ran after the loop on the same cancelled context, a pass that ran out of time
+cleared nothing and the next started from the same place.
+
+An owner waits `rebuildDebounce` (five minutes) before its rebuild is dispatched. `queuedAt` is not
+moved by a re-queue, so that bounds the **longest** an owner waits rather than sliding: an owner
+changing continuously is still rebuilt once per window.
+
+Repeated failure is not allowed to become a loop. At asynq's attempt ceiling the failure is written
+to the queue entry and the task stops, which is what lets a read tell the user their figures are
+stale rather than showing a recalculation that never resolves. The entry stays queued, because the
+work is still outstanding.
+
+### The rota corrects drift without being asked
+
+`cron.dispatchStatisticsReconciles` runs every fifteen minutes and takes the owners whose last
+reconcile is older than `reconcileWindow` (24 hours), oldest stamp first, up to
+`reconcileDispatchCap` (50) a tick. An owner with no stamp has never been reconciled and sorts ahead
+of every stamped one, so a newly seen owner is taken on the next tick rather than waiting out a
+window.
+
+`ReconcileAccountStatistics` rewrites an owner's aggregates from its stored rows. It re-derives
+nothing from job documents: rows are written whole, once per job, and never incremented, so they stay
+authoritative for every aggregate above them while an aggregate can drift by a `$inc` that never
+landed or landed twice. That is why repair reads rows, and why it is far cheaper than a rebuild.
+
+**The write is unconditional, and the comparison only reports.** Detecting drift and correcting it
+are separate so a fault in the detection cannot stop the correction — "detect, then queue a repair"
+is silent exactly when detection is the broken part. Money is compared on a relative tolerance
+falling back to an absolute one near zero, because repeated `$inc` and a single summation do not
+produce identical `float64`s; integer counts are compared exactly and are the signal that
+distinguishes a bug from arithmetic.
+
+The rota is also the backstop for a row that was never written: `writeRowsForNewlyArchivedJobs` turns
+archived jobs with no statistics row into rows before the fold, so a job the fold could never see —
+because its work list is rows — is recovered rather than being invisible forever.
+
+A job the reduction cannot read keeps its row and its figures, because it is still archived and
+dropping them would take real history out of the totals over a document that cannot be parsed. The
+row is stamped `skippedAt` with a reason instead, so a stale row is distinguishable from a current
+one; the archive list reports `figuresStale`, the row wears a **Stale** chip, and the stamp clears
+the moment the job reads again.
+
+### What a build has cost before
+
+The lifetime totals row carried an unbounded per-job array. It now carries `BuildHistoryMarks` — a
+build count, the first and last cost month, and the cheapest and dearest cost per unit with the month
+each fell in. The per-job detail behind them is a query, not a stored duplicate.
+
+The marks are **per unit and build cost** — materials, install, invention and extras — so they
+compare against an estimate of building the item rather than against what it later sold for. They are
+ordered by **cost month** rather than archive date: a job's costs are filed under the month
+production started, which can fall years before it was archived, so ordering on archive dates would
+make "last build" the last row written rather than the most recent build.
+
+Monthly buckets gained `quantityProduced`, which makes cost per unit derivable from a month, and
+`isProductionChain` joined the bucket key. Chain output gets buckets of its own because its costs are
+also counted through the parent job that consumed them: a view summing across item types reads the
+direct buckets alone, and a view scoped to one item may ask for both with `includeProductionChain`,
+which is the whole history for an item only ever built as an intermediate.
+
+The `archive_and_stats` change-stream group is gone. Nothing subscribed to archive or statistics
+documents, so the fan-out ran end to end and was thrown away at the last step.
+
+### How the client learns the figures moved
+
+Realtime messages describe themselves with two fields. A **family** says how to route the message at
+all, and a **kind** says what to do with it inside that family; before them, "this is a document
+change" was implicit in the shape, so anything that was not one had nowhere to go and was dropped
+without a word. An absent family reads as `document`, because producers of those predate the field.
+
+| Family | Kinds |
+|--------|-------|
+| `document` | a change to a document, carrying its collection and body |
+| `notification` | `archiveStatsProcessed` — an owner's figures have been written |
+
+The SPA cannot import the Go constants, so both sides read one corpus,
+`testing/fixtures/realtime-messages/kinds.json`; adding a kind on one side without the other turns
+the other red.
+
+The notification is **core NATS, not JetStream**, published without acknowledgement or retry. One
+replayed three hours later is worse than silence, and nothing is lost by dropping one: every state it
+announces is readable on the next request. It saves a client from waiting for that request, which is
+all it should be trusted to do. It carries no figures — a client not showing them has nothing to do,
+and one that is refetches what it has on screen.
+
+Outstanding work is reported the other way, on the reads themselves. Every statistics response
+embeds a recalculation envelope when there is something to say, and omits it when there is not, so a
+client learns the figures are being rebuilt from the same request that returned them and there is no
+window where it has drawn one and not yet asked about the other.
+
+| State | Means |
+|-------|-------|
+| absent | nothing outstanding |
+| `recalculating` | a rebuild is queued or running |
+| `failed` | a rebuild gave up; the figures on screen are stale |
+
+**Only a rebuild is reported.** Once a fold became the routine path, an owner is in the queue briefly
+every time a job is archived, so reporting mere membership would announce a recalculation for
+ordinary new jobs — the opposite of what this is for. The state is one lookup by `_id` on the queue
+at read time rather than a flag stored on a statistics document, so nothing has to remember to keep
+it in step.
+
+The SPA shows it above the page's tabs, so it describes the page rather than any one panel.
+
+## What "kept as stock" means
+
+A job is credited to exactly one segment: a production-chain step, a recorded sale, or retained
+stock. Market is decided on **evidence** — a transaction line carrying money or goods, whoever wrote
+it, or a broker fee paid to list the output — and everything left over is stock. Falling the other
+way put every unsold build under Market with nothing but zeros for sales and fees, which reads as a
+market sale that had somehow earned nothing.
+
+That segment answers "how many builds never sold at all". It cannot answer "how much is still held",
+because a job that sold most of a run counts entirely as a sale.
+
+**Nothing tracks kept output, and nothing should.** ESI reports what a character holds, but nothing
+attributes a stack in a hangar to the job that built it, so a stored "this was kept" flag would
+present a guess as a record. The archive therefore derives the quantity instead:
+
+```
+kept = quantityProduced − quantitySold
+```
+
+Both are already on every bucket, so it needs no stored field and no backfill. The **Kept as stock**
+panel plots it per month, floored at zero — a month can settle a sale against an earlier month's
+build, and a negative there would read as owing stock rather than holding none. Chain output is
+excluded, because the timeline sums direct buckets unless an item view asks for the chain.
 
 ## Ingest — entity ids on stored jobs
 

@@ -16,7 +16,7 @@ const corporationMarketOrdersQueryKey = "corporationMarketOrders";
  * 2. Fetches corporation market orders page by page until all data is retrieved
  * 3. Combines all pages into a single array
  * 4. Handles rate limiting errors with appropriate wait times
- * 5. Caches data for 1 hour with 30-minute stale time
+ * 5. Caches data for 1 hour with 30-minute stale time, refetching on mount once stale
  *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
@@ -28,7 +28,7 @@ const corporationMarketOrdersQueryKey = "corporationMarketOrders";
  * @returns {number} returns.retry - Number of retry attempts (3)
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
- * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
+ * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (true, subject to staleTime)
  */
 function corporationMarketOrdersQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;
@@ -86,7 +86,10 @@ function corporationMarketOrdersQuery(characterHash) {
       return Math.min(1000 * 2 ** attemptIndex, 30000);
     },
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    // Linked orders are stored on a job, so a stale reading is written into the
+    // document and frozen when the job is archived. Mounting a panel that shows
+    // them refetches once the data passes staleTime.
+    refetchOnMount: true,
   };
 }
 

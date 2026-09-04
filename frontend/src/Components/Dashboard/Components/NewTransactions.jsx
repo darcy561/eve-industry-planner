@@ -29,6 +29,7 @@ import { useGetAllCorporationJournal } from "../../../Hooks/EveEsi/Corporation/u
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { formatDateForLocale, formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import { LAST_JOB_STATUS_ID } from "../../../Context/defaultValues";
+import Transaction from "../../../Classes/transaction";
 
 export function NewTransactions() {
   const { jobArray } = useUsersStore((state) => state.jobData);
@@ -144,12 +145,18 @@ export function NewTransactions() {
               const { journalEntry, transactionTax } =
                 findJournalEntriesFromTransaction(trans, queryClient) || {};
 
-              if (journalEntry && transactionTax) {
-                transactions.push({
-                  ...trans,
-                  description: journalEntry.description,
-                  tax: Math.abs(transactionTax.amount),
-                });
+              // The same completeness rule the job's panel applies: a sale is
+              // only shown once the journal supplies both its entries.
+              if (journalEntry?.description && transactionTax) {
+                transactions.push(
+                  Transaction.fromESI(trans, {
+                    journalEntry,
+                    taxEntry: transactionTax,
+                    description: journalEntry.description
+                      .replace("Market: ", "")
+                      .split(" bought")[0],
+                  })
+                );
                 matchedTransactionIDs.add(trans.transaction_id);
               }
             } catch (transError) {

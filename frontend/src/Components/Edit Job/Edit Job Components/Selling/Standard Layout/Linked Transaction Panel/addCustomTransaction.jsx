@@ -15,6 +15,7 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import DOMPurify from "dompurify";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
+import Transaction from "../../../../../../Classes/transaction";
 
 /**
  * The trigger for this dialogue already gates on the active job lock, but we
@@ -36,7 +37,7 @@ export function AddCustomTransactionDialogue({
     journal_ref_id: null,
     unit_price: 0,
     amount: 0,
-    transaction_id: createCustomTransactionID(),
+    transaction_id: Transaction.mintCustomID(),
     quantity: 0,
     date: new Date(),
     location_id: null,
@@ -217,7 +218,9 @@ export function AddCustomTransactionDialogue({
               disabled={jobLockReadOnly}
               onClick={() => {
                 if (jobLockReadOnly) return;
-                state.activeJob.build.sale.transactions.push(transactionData);
+                state.activeJob.build.sale.transactions.push(
+                  new Transaction(transactionData),
+                );
                 actions.updateActiveJob(state.activeJob);
               }}
             >
@@ -230,11 +233,6 @@ export function AddCustomTransactionDialogue({
   );
 }
 
-function createCustomTransactionID() {
-  const timestampPart = Date.now() * 1000;
-  const randomPart = Math.floor(Math.random() * 1000);
-  return -(timestampPart + randomPart);
-}
 
 function parseNonNegativeNumber(value) {
   const parsed = Number(value);

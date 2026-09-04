@@ -43,14 +43,6 @@ func targets(job *models.Job) []protectedfields.Target {
 		)
 	}
 
-	fees := job.Build.Sale.BrokersFee
-	for i := range fees {
-		out = append(out,
-			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &fees[i].CorporationID, Ref: &fees[i].CorporationRef},
-			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &fees[i].CharacterID, Ref: &fees[i].CharacterRef},
-		)
-	}
-
 	linked := job.Build.Costs.LinkedJobs
 	for i := range linked {
 		out = append(out,

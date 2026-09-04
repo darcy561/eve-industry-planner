@@ -867,7 +867,7 @@ func stripEmptySaleCharacterHashes(m map[string]any) {
 	if sale == nil {
 		return
 	}
-	for _, key := range []string{"transactions", "brokersFee", "marketOrders"} {
+	for _, key := range []string{"transactions", "marketOrders"} {
 		stripEmptyCharacterHashInList(sale, key)
 	}
 }
@@ -1037,6 +1037,9 @@ func normalizeSaleDates(sale map[string]any) {
 		if !ok {
 			continue
 		}
+		// A fee is charged once and never revisited, so nothing reads a
+		// completion flag on it.
+		delete(f, "complete")
 		if d, ok := f["date"]; ok {
 			if s, ok := d.(string); ok && s != "" {
 				continue
@@ -1229,6 +1232,9 @@ func normalizeMarketOrders(sale map[string]any) {
 			}
 			delete(mo, "price")
 		}
+		// Whether an order has sold out is read from the volume left
+		// (models.MarketOrder.IsComplete), not carried onto the document.
+		delete(mo, "complete")
 	}
 }
 

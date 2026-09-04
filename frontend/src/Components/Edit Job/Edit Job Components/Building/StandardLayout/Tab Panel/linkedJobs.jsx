@@ -152,7 +152,7 @@ export function LinkedJobsTab(props) {
                   >
                     <LinearProgress
                       variant="determinate"
-                      value={job.progressPercent}
+                      value={job.progressPercent()}
                       sx={{
                         position: "absolute",
                         top: 0,

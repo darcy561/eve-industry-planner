@@ -548,7 +548,6 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 						"volume_total": 200000,
 						"timeStamps": ["2026-04-03T15:27:19Z"],
 						"CharacterHash": "x",
-						"complete": true,
 						"state": "expired"
 					}
 				],
