@@ -41,8 +41,8 @@ function makeGroup(id = "g1") {
 function makeJob(id = "j1") {
   return {
     jobID: id,
-    removeParentJobsNotIncludedInInput: vi.fn(),
-    removeChildJobsNotIncludedInInputFromAllMaterials: vi.fn(),
+    keepOnlyParentJobs: vi.fn(),
+    keepOnlyChildJobs: vi.fn(),
   };
 }
 

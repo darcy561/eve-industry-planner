@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
 
 	"eve-industry-planner/deployment-tool/internal/yamlutil"
@@ -324,6 +325,8 @@ func (c Config) SyncEnvMap() map[string]string {
 		"EIP_API_REPLICAS":     itoa(api.Min),
 		"EIP_API_CAPACITY_MIN": itoa(api.Min),
 		"EIP_API_CAPACITY_MAX": itoa(api.Max),
+
+		"EIP_OBSERVABILITY_ENABLED": strconv.FormatBool(c.Addons.Observability.Enabled),
 
 		"EIP_HTTP_PORT":                   itoa(ports.HTTP),
 		"EIP_HTTPS_PORT":                  itoa(ports.HTTPS),

@@ -21,6 +21,7 @@ vi.mock("../Archive Statistics", () => ({
   ArchiveExtrasTotalsPanel: stubPanel("extrasTotals"),
   ArchiveCostBreakdownPanel: stubPanel("costBreakdown"),
   ArchiveCostTotalsPanel: stubPanel("costTotals"),
+  ArchiveStockPanel: stubPanel("stock"),
   RecalculationNotice: () => null,
 }));
 
@@ -57,6 +58,7 @@ describe("ArchivedJobsPage", () => {
       "extrasTotals",
       "costBreakdown",
       "costTotals",
+      "stock",
       "breakdown",
     ]) {
       expect(screen.getByTestId(name)).toBeInTheDocument();

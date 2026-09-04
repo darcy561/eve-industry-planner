@@ -172,7 +172,6 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		IsProductionChain: len(job.ParentJobs) > 0,
 		// A retained build is produced but deliberately not sold, so it must not
 		// read as an unsold shortfall in the aggregates.
-		RetainedStockBuild:  job.MetaData.RetainedStockBuild,
 		ArchivedAt:          archivedAt,
 		CostMonth:           costMonthFor(job, archivedAt),
 		MonthsFiled:         job.FilesItsOwnMonths(),

@@ -24,6 +24,12 @@ x-redis-env: &redis-env
 x-nats-env: &nats-env
   NATS_URL: nats://nats:4222
 
+# OTLP export follows addons.observability.enabled (eip sync → EIP_OBSERVABILITY_ENABLED).
+# Off means no exporter at all: Alloy is not deployed with the addon off, and dialling it
+# leaves every service retrying a name that resolves to nothing.
+x-otel-env: &otel-env
+  OBSERVABILITY_ENABLED: ${EIP_OBSERVABILITY_ENABLED:-false}
+
 x-objectstore-env: &objectstore-env
   S3_URL: http://seaweedfs:8333
 
@@ -204,7 +210,7 @@ services:
     networks: [eip-core, eip-public]
     dns: *common-dns
     environment:
-      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env]
       APP_VERSION: ${APP_VERSION}
     secrets: *secrets-api
     volumes:
@@ -252,7 +258,7 @@ services:
     networks: [eip-core]
     dns: *common-dns
     environment:
-      <<: [*mongo-env, *redis-env, *nats-env, *app-public-env]
+      <<: [*mongo-env, *redis-env, *nats-env, *app-public-env, *otel-env]
       APP_VERSION: ${APP_VERSION}
       EIP_ALLOWED_ORIGINS: ${EIP_ALLOWED_ORIGINS:?EIP_ALLOWED_ORIGINS must be set}
       WS_CLIENT_CUTOFF: "2000"
@@ -345,7 +351,7 @@ services:
     networks: [eip-core]
     dns: *common-dns
     environment:
-      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env]
       APP_VERSION: ${APP_VERSION}
       WORKER_ASYNQ_CONCURRENCY: "50"
     secrets: *secrets-worker
@@ -372,7 +378,7 @@ services:
     networks: [eip-core]
     dns: *common-dns
     environment:
-      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env]
       APP_VERSION: ${APP_VERSION}
     secrets: *secrets-core
     volumes:
@@ -416,7 +422,7 @@ services:
     networks: [eip-core, eip-docker-capacity]
     dns: *common-dns
     environment:
-      <<: [*redis-env, *nats-env]
+      <<: [*redis-env, *nats-env, *otel-env]
       APP_VERSION: ${APP_VERSION}
       DOCKER_HOST: tcp://capacity-docker-proxy:2375
       EIP_STACK_NAME: eip

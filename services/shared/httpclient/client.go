@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"errors"
@@ -28,21 +29,31 @@ type Config struct {
 	UserAgent string
 	// Transport overrides the shared traced transport.
 	Transport http.RoundTripper
+	// Gate admits and settles every attempt, retries included. A rate limiter
+	// goes here; nil means no gating.
+	Gate Gate
+	// OnComplete reports every finished attempt, for metrics or logging. The
+	// client records neither itself.
+	OnComplete func(Attempt)
 }
 
-// Client issues outbound HTTP for a service. It owns transfer concerns —
-// compression, byte accounting, conditional-request headers, validator and
-// cache parsing — and no policy: it does not retry, rate limit, authenticate,
-// or decide that a status code is a failure.
+// Client issues outbound HTTP for a service: compression, byte accounting,
+// conditional requests, validator and cache parsing, retries, and the Gate that
+// admits each attempt.
 //
-// It has no timeout of its own. Callers bound a request with their context, so
-// a long stream is not cut short by a client-wide deadline; waiting for
+// It holds no opinion about meaning — it does not authenticate, and a 404 or 429
+// comes back as a Response rather than an error.
+//
+// It has no timeout of its own, so a long stream is not cut short by a
+// client-wide deadline. Callers bound a request with their context; waiting for
 // response headers is bounded by the transport.
 type Client struct {
 	http         *http.Client
 	baseURL      string
 	maxBodyBytes int64
 	userAgent    string
+	gate         Gate
+	onComplete   func(Attempt)
 }
 
 // New returns a Client for cfg.
@@ -64,6 +75,8 @@ func New(cfg Config) *Client {
 		baseURL:      strings.TrimRight(cfg.BaseURL, "/"),
 		maxBodyBytes: maxBody,
 		userAgent:    agent,
+		gate:         cfg.Gate,
+		onComplete:   cfg.OnComplete,
 	}
 }
 
@@ -75,35 +88,69 @@ type Request struct {
 	Query  url.Values
 	Header http.Header
 	Body   []byte
+	// Form is sent form-encoded when Body is empty, and sets the content type.
+	Form url.Values
+	// Host overrides the Host header. Setting it through Header does nothing:
+	// net/http writes this field or the URL's host, and ignores the rest.
+	Host string
+	// Timeout bounds one attempt of Do. Stream ignores it — the caller's context
+	// governs a body that may be read for a long time.
+	Timeout time.Duration
 
-	// IfNoneMatch and IfModifiedSince make the call conditional. A conditional
-	// hit answers 304, which is cheaper on every axis that matters — bytes,
-	// origin work, and rate-limit cost where the origin charges by response.
+	// IfNoneMatch and IfModifiedSince make the call conditional. A 304 is
+	// cheaper on bytes, on origin work, and on rate-limit cost where the origin
+	// charges by response.
 	IfNoneMatch     string
 	IfModifiedSince time.Time
+
+	// Retry sends the call again when the outcome warrants it. The zero value
+	// sends once.
+	Retry Retry
 }
 
 // Do sends the request and reads the whole body, decompressed.
 //
-// A non-2xx status is returned as a Response, not an error — call Response.Err
-// to treat it as one. An error means the exchange did not complete.
+// A non-2xx status is a Response, not an error — call Response.Err to treat it
+// as one. An error means no attempt produced a response.
 func (c *Client) Do(ctx context.Context, req Request) (*Response, error) {
+	return attempt(ctx, req, c.doOnce, func(r *Response) (int, http.Header) {
+		return r.Status, r.Header
+	})
+}
+
+func (c *Client) doOnce(ctx context.Context, req Request) (*Response, error) {
 	started := time.Now()
+
+	if req.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, req.Timeout)
+		defer cancel()
+	}
+
+	ticket, err := c.admit(ctx, &req)
+	if err != nil {
+		return nil, err
+	}
 
 	httpResp, wire, err := c.send(ctx, req)
 	if err != nil {
+		c.settle(ctx, ticket, nil, err)
+		c.report(req, 0, "", 0, started, err)
 		return nil, err
 	}
 	defer httpResp.Body.Close()
 
-	body, err := c.readBody(httpResp)
-	if err != nil {
-		return nil, err
+	body, readErr := c.readBody(httpResp)
+	if readErr != nil {
+		c.settle(ctx, ticket, nil, readErr)
+		c.report(req, httpResp.StatusCode, httpResp.Proto, wire.Load(), started, readErr)
+		return nil, readErr
 	}
 
 	now := time.Now()
-	return &Response{
+	resp := &Response{
 		Status:      httpResp.StatusCode,
+		Proto:       httpResp.Proto,
 		Header:      httpResp.Header,
 		Body:        body,
 		Wire:        wire.Load(),
@@ -111,31 +158,50 @@ func (c *Client) Do(ctx context.Context, req Request) (*Response, error) {
 		NotModified: httpResp.StatusCode == http.StatusNotModified,
 		Validators:  readValidators(httpResp.Header),
 		Cache:       readCacheInfo(httpResp.Header, now),
-	}, nil
+	}
+	c.settle(ctx, ticket, resp, nil)
+	c.report(req, resp.Status, resp.Proto, resp.Wire, started, nil)
+	return resp, nil
 }
 
-// Stream sends the request and hands back a decompressed reader the caller must
-// close. Byte accounting continues while the body is read; Stream.Wire reports
-// the compressed total.
+// Stream sends the request and hands back a decompressed reader the caller
+// closes. Stream.Wire reports the compressed total as it is read.
 //
-// The caller's context governs the whole read, so it must outlive the body.
+// Retry covers getting the headers only: once bytes have been read a second
+// attempt is a different operation. The caller's context must outlive the body.
 func (c *Client) Stream(ctx context.Context, req Request) (*Stream, error) {
+	return attempt(ctx, req, c.streamOnce, func(s *Stream) (int, http.Header) {
+		return s.Status, s.Header
+	})
+}
+
+func (c *Client) streamOnce(ctx context.Context, req Request) (*Stream, error) {
 	started := time.Now()
+
+	ticket, err := c.admit(ctx, &req)
+	if err != nil {
+		return nil, err
+	}
 
 	httpResp, wire, err := c.send(ctx, req)
 	if err != nil {
+		c.settle(ctx, ticket, nil, err)
+		c.report(req, 0, "", 0, started, err)
 		return nil, err
 	}
 
 	body, err := decompress(httpResp)
 	if err != nil {
 		httpResp.Body.Close()
+		c.settle(ctx, ticket, nil, err)
+		c.report(req, httpResp.StatusCode, httpResp.Proto, wire.Load(), started, err)
 		return nil, err
 	}
 
 	now := time.Now()
-	return &Stream{
+	stream := &Stream{
 		Status:      httpResp.StatusCode,
+		Proto:       httpResp.Proto,
 		Header:      httpResp.Header,
 		Body:        body,
 		Duration:    now.Sub(started),
@@ -143,7 +209,76 @@ func (c *Client) Stream(ctx context.Context, req Request) (*Stream, error) {
 		Validators:  readValidators(httpResp.Header),
 		Cache:       readCacheInfo(httpResp.Header, now),
 		wire:        wire,
-	}, nil
+	}
+	// Settled on headers: the cost is fixed by the status, and the caller may
+	// hold the body open for a long time.
+	c.settle(ctx, ticket, &Response{
+		Status:     stream.Status,
+		Proto:      stream.Proto,
+		Header:     stream.Header,
+		Validators: stream.Validators,
+		Cache:      stream.Cache,
+	}, nil)
+	c.report(req, stream.Status, stream.Proto, wire.Load(), started, nil)
+	return stream, nil
+}
+
+func (c *Client) report(req Request, status int, proto string, wire int64, started time.Time, err error) {
+	if c.onComplete == nil {
+		return
+	}
+	c.onComplete(Attempt{
+		Method:   cmp.Or(req.Method, http.MethodGet),
+		URL:      req.Path,
+		Status:   status,
+		Proto:    proto,
+		Wire:     wire,
+		Duration: time.Since(started),
+		Err:      err,
+	})
+}
+
+// attempt runs one call and repeats it while req.Retry warrants it. Shared by
+// Do and Stream so the two cannot drift.
+func attempt[T any](
+	ctx context.Context,
+	req Request,
+	once func(context.Context, Request) (T, error),
+	outcome func(T) (int, http.Header),
+) (T, error) {
+	policy := req.Retry
+	attempts := 1
+	if policy.allows(req.Method) {
+		attempts = policy.Attempts
+	}
+
+	for n := 1; ; n++ {
+		result, err := once(ctx, req)
+
+		var header http.Header
+		var repeat bool
+		switch {
+		case err != nil:
+			repeat = policy.repeatError(err)
+		default:
+			var status int
+			status, header = outcome(result)
+			repeat = policy.repeatStatus(status)
+		}
+
+		if !repeat || n >= attempts {
+			return result, err
+		}
+
+		// Superseded by the next attempt; do not hold the connection open.
+		if discarded, ok := any(result).(*Stream); ok && discarded != nil {
+			discarded.Body.Close()
+		}
+
+		if !policy.sleep(ctx, policy.wait(n, header)) {
+			return result, err
+		}
+	}
 }
 
 // Err mirrors Response.Err for a streamed response. The body is unread at this
@@ -166,23 +301,31 @@ func (c *Client) send(ctx context.Context, req Request) (*http.Response, *atomic
 		method = http.MethodGet
 	}
 
+	payload := req.Body
+	if len(payload) == 0 && len(req.Form) > 0 {
+		payload = []byte(req.Form.Encode())
+	}
+
 	var body io.Reader
-	if len(req.Body) > 0 {
-		body = bytes.NewReader(req.Body)
+	if len(payload) > 0 {
+		body = bytes.NewReader(payload)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
 		return nil, nil, err
 	}
-	c.applyHeaders(httpReq, req)
+	if req.Host != "" {
+		httpReq.Host = req.Host
+	}
+	c.applyHeaders(httpReq, req, len(payload) > 0)
 
 	httpResp, err := c.http.Do(httpReq)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Count before decompression so the figure is what crossed the wire.
+	// Counted before decompression so the figure is what crossed the wire.
 	wire := &atomic.Int64{}
 	httpResp.Body = readCloser{
 		Reader: countingReader{r: httpResp.Body, n: wire},
@@ -216,7 +359,7 @@ func (c *Client) resolve(req Request) (string, error) {
 	return parsed.String(), nil
 }
 
-func (c *Client) applyHeaders(httpReq *http.Request, req Request) {
+func (c *Client) applyHeaders(httpReq *http.Request, req Request, hasBody bool) {
 	for key, values := range req.Header {
 		for _, value := range values {
 			httpReq.Header.Add(key, value)
@@ -228,11 +371,15 @@ func (c *Client) applyHeaders(httpReq *http.Request, req Request) {
 	if httpReq.Header.Get("Accept") == "" {
 		httpReq.Header.Set("Accept", "application/json")
 	}
-	if len(req.Body) > 0 && httpReq.Header.Get("Content-Type") == "" {
-		httpReq.Header.Set("Content-Type", "application/json")
+	if hasBody && httpReq.Header.Get("Content-Type") == "" {
+		contentType := "application/json"
+		if len(req.Body) == 0 && len(req.Form) > 0 {
+			contentType = "application/x-www-form-urlencoded"
+		}
+		httpReq.Header.Set("Content-Type", contentType)
 	}
-	// Requested explicitly, and so decompressed here rather than by the
-	// transport, which is what keeps the pre-decompression byte count available.
+	// Requested explicitly so decompression happens here, which is what keeps
+	// the pre-decompression byte count available.
 	if httpReq.Header.Get("Accept-Encoding") == "" {
 		httpReq.Header.Set("Accept-Encoding", "gzip")
 	}

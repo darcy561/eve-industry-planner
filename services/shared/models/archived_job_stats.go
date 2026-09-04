@@ -40,16 +40,14 @@ type ArchivedJobFeeLine struct {
 // pipelines read. AccountID owns account-scoped rows; CorpRef owns rows archived
 // under a corporation with no account owner.
 type ArchivedJobStats struct {
-	ID                string `bson:"_id" json:"-"`
-	AccountID         string `bson:"accountID" json:"accountID"`
-	CorpRef           string `bson:"corpRef,omitempty" json:"corpRef,omitempty"`
-	JobID             string `bson:"jobID" json:"jobID"`
-	TypeID            int    `bson:"typeID" json:"typeID"`
-	JobType           int    `bson:"jobType" json:"jobType"`
-	IsProductionChain bool   `bson:"isProductionChain" json:"isProductionChain"`
-	// RetainedStockBuild marks a job the user keeps as stock rather than selling.
-	RetainedStockBuild bool      `bson:"retainedStockBuild,omitempty" json:"retainedStockBuild,omitempty"`
-	ArchivedAt         time.Time `bson:"archivedAt" json:"archivedAt"`
+	ID                string    `bson:"_id" json:"-"`
+	AccountID         string    `bson:"accountID" json:"accountID"`
+	CorpRef           string    `bson:"corpRef,omitempty" json:"corpRef,omitempty"`
+	JobID             string    `bson:"jobID" json:"jobID"`
+	TypeID            int       `bson:"typeID" json:"typeID"`
+	JobType           int       `bson:"jobType" json:"jobType"`
+	IsProductionChain bool      `bson:"isProductionChain" json:"isProductionChain"`
+	ArchivedAt        time.Time `bson:"archivedAt" json:"archivedAt"`
 	// CostMonth pins job-cost attribution so monthly figures stay stable across rebuilds.
 	// Workers fall back to ArchivedAt when it is zero.
 	CostMonth             CalendarMonth `bson:"costMonth" json:"costMonth,omitzero"`

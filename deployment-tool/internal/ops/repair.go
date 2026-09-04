@@ -31,6 +31,9 @@ type RepairPlan struct {
 	Ensure        []string // Swarm shorts with a registered dataplane ensure
 	ForceUpdate   []string // present + bad (catalogue.OrderPrefer)
 	Missing       []string
+	// ObsUndeploy is the reverse of Missing: the addon is deployed but disabled,
+	// and only a redeploy without its fragment prunes it away.
+	ObsUndeploy bool
 }
 
 // Repair heals an already-deployed unhealthy stack: optional rematerialise for
@@ -66,11 +69,12 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 	}
 
 	view := deploy.View{
-		Home:      home,
-		StackName: snap.Name,
-		Snapshot:  snap,
-		Source:    deploy.ResolveSource(snap),
-		Fragments: deploy.FragmentStates(snap),
+		Home:       home,
+		StackName:  snap.Name,
+		Snapshot:   snap,
+		Source:     deploy.ResolveSource(snap),
+		Fragments:  deploy.FragmentStates(snap),
+		ObsEnabled: deploy.ObservabilityEnabled(home),
 	}
 	report := status.Build(view)
 	plan := BuildRepairPlan(report, snap, view.Source)
@@ -85,7 +89,14 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 	}
 
 	if plan.Rematerialise {
-		msg.Step("Rematerialising stack (%s) to restore missing services…", plan.RematSource)
+		why := "to restore missing services"
+		if plan.ObsUndeploy {
+			why = "to remove the disabled observability addon"
+			if len(plan.Missing) > 0 {
+				why = "to restore missing services and remove the disabled observability addon"
+			}
+		}
+		msg.Step("Rematerialising stack (%s) %s…", plan.RematSource, why)
 		if err := deploy.Rematerialise(ctx, plan.RematSource); err != nil {
 			return err
 		}
@@ -148,13 +159,19 @@ func BuildRepairPlan(report status.Report, snap docker.StackSnapshot, src deploy
 	}
 
 	p := RepairPlan{}
+	if !report.ObsEnabled && obsOnStack(snap) {
+		p.Rematerialise = true
+		p.ObsUndeploy = true
+	}
 	if len(missing) > 0 {
 		p.Rematerialise = true
+		p.Missing = slices.Sorted(maps.Keys(missing))
+	}
+	if p.Rematerialise {
 		p.RematSource = deploy.SourceLive
 		if src == deploy.SourceDev {
 			p.RematSource = deploy.SourceDev
 		}
-		p.Missing = slices.Sorted(maps.Keys(missing))
 	}
 
 	for _, e := range dataplane.ServiceEnsures() {
@@ -170,6 +187,16 @@ func BuildRepairPlan(report status.Report, snap docker.StackSnapshot, src deploy
 // Empty reports whether the plan has no heal work.
 func (p RepairPlan) Empty() bool {
 	return !p.Rematerialise && len(p.Ensure) == 0 && len(p.ForceUpdate) == 0
+}
+
+// obsOnStack reports whether any observability addon service is deployed.
+func obsOnStack(snap docker.StackSnapshot) bool {
+	for _, short := range catalogue.ObsShorts() {
+		if _, ok := snap.Services[short]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func serviceHealthBad(info docker.ServiceInfo) bool {
@@ -263,7 +290,12 @@ func printRepairPlan(p RepairPlan) {
 	msg.Line("repair dry-run:")
 	if p.Rematerialise {
 		msg.Line(fmt.Sprintf("  rematerialise: yes (source=%s)", p.RematSource))
-		msg.Line(fmt.Sprintf("  missing: %s", strings.Join(p.Missing, ", ")))
+		if len(p.Missing) > 0 {
+			msg.Line(fmt.Sprintf("  missing: %s", strings.Join(p.Missing, ", ")))
+		}
+		if p.ObsUndeploy {
+			msg.Line("  observability: disabled but deployed — will be pruned")
+		}
 	} else {
 		msg.Line("  rematerialise: no")
 	}

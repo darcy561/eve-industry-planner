@@ -3,10 +3,10 @@ package tasks
 import (
 	"eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/esiclient"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -18,17 +18,17 @@ type TaskDependencies struct {
 	NATS        *eipnats.NATS
 	Redis       *redis.Client
 	ObjectStore objectstore.Backend
-	ESIClient   esiratelimiter.ClientInterface
+	ESI         esiclient.API
 	// EntityCipher derives the refs that replace raw entity ids. Built once at the
 	// composition root so a missing key stops the worker starting rather than
 	// failing individual tasks.
 	EntityCipher *entityid.Cipher
 }
 
-// FromClients maps a stackservices.Clients bag plus ESI into TaskDependencies.
-// refs derives entity refs; the connect bag does not carry it.
-func FromClients(c *stackservices.Clients, esi esiratelimiter.ClientInterface, refs *entityid.Cipher) *TaskDependencies {
-	d := &TaskDependencies{ESIClient: esi, EntityCipher: refs}
+// FromClients maps a stackservices.Clients bag plus the ESI client into
+// TaskDependencies. refs derives entity refs; the connect bag does not carry it.
+func FromClients(c *stackservices.Clients, esi esiclient.API, refs *entityid.Cipher) *TaskDependencies {
+	d := &TaskDependencies{ESI: esi, EntityCipher: refs}
 	if c == nil {
 		return d
 	}

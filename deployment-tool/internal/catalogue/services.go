@@ -133,3 +133,17 @@ func Groups() []Group {
 		},
 	}
 }
+
+// ObsShorts returns the Swarm shorts belonging to the observability addon.
+func ObsShorts() []string {
+	var out []string
+	for _, g := range Groups() {
+		if g.Fragment != FragmentObs {
+			continue
+		}
+		for _, svc := range g.Services {
+			out = append(out, svc.Short)
+		}
+	}
+	return out
+}

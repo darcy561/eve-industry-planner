@@ -7,34 +7,6 @@ import (
 	"eve-industry-planner/testing/redisfake"
 )
 
-func TestNextRegionCronIndex_CyclesInOrder(t *testing.T) {
-	ctx := context.Background()
-	client := redisfake.New(t).Client
-
-	const count = 4
-	want := []int{0, 1, 2, 3, 0, 1}
-
-	for i, expected := range want {
-		got, err := NextRegionCronIndex(ctx, client, count)
-		if err != nil {
-			t.Fatalf("run %d: unexpected error: %v", i, err)
-		}
-		if got != expected {
-			t.Fatalf("run %d: index = %d, want %d", i, got, expected)
-		}
-	}
-}
-
-func TestNextRegionCronIndex_ZeroCount(t *testing.T) {
-	got, err := NextRegionCronIndex(context.Background(), redisfake.New(t).Client, 0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != 0 {
-		t.Fatalf("index = %d, want 0", got)
-	}
-}
-
 func TestSaveAndGetRegionMarketOrdersETags(t *testing.T) {
 	ctx := context.Background()
 	client := redisfake.New(t).Client

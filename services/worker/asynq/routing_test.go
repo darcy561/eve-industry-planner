@@ -2,8 +2,8 @@ package asynq
 
 import (
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/stackservices"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	eipnats "eve-industry-planner/shared/nats"
 	"github.com/hibiken/asynq"
@@ -85,6 +85,6 @@ func TestEveryTaskHasAHandler(t *testing.T) {
 // noDeps satisfies WorkerDependencies for a registration-only build.
 type noDeps struct{}
 
-func (noDeps) GetClients() *stackservices.Clients           { return nil }
-func (noDeps) GetESIClient() esiratelimiter.ClientInterface { return nil }
-func (noDeps) GetEntityCipher() *entityid.Cipher            { return nil }
+func (noDeps) GetClients() *stackservices.Clients { return nil }
+func (noDeps) GetESI() esiclient.API              { return nil }
+func (noDeps) GetEntityCipher() *entityid.Cipher  { return nil }

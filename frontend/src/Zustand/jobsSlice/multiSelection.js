@@ -8,6 +8,7 @@
  * @fileoverview Multi-selection management operations
  * @author EVE Industry Planner Team
  */
+import asIDList from "../../Functions/Helper/asIDList";
 
 /**
  * Multi-selection management actions for jobs slice.
@@ -36,7 +37,7 @@ export const multiSelectionActions = (set, get) => ({
   addToMultiSelect: (ids) => {
     if (!ids) return;
     
-    const idsArray = Array.isArray(ids) || ids instanceof Set ? [...ids] : [ids];
+    const idsArray = asIDList(ids);
     
     set(
       (state) => ({
@@ -66,7 +67,7 @@ export const multiSelectionActions = (set, get) => ({
   removeFromMultiSelect: (ids) => {
     if (!ids) return;
     
-    const idsArray = Array.isArray(ids) || ids instanceof Set ? [...ids] : [ids];
+    const idsArray = asIDList(ids);
     
     set(
       (state) => ({

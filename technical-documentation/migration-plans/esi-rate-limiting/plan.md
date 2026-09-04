@@ -100,7 +100,21 @@ one the live path needs.
 
 ## Package layout
 
+The client sits on `services/shared/httpclient`, which owns transfer and repeats
+for every service, and adds only what is specific to ESI.
+
 ```
+services/shared/httpclient/     transport, retries, and the Gate seam
+├── client.go       Client, Config, Request, Do, Stream, the attempt loop
+├── gate.go         Gate, Ticket — where a limiter plugs in
+├── retry.go        Retry policy, repeat classification, backoff
+├── response.go     Response, Stream, Validators, CacheInfo, wire counting
+├── json.go         Response.JSON, StreamJSON
+├── observe.go      Attempt, for Config.OnComplete
+├── transport.go    shared traced transport, TCP and unix socket
+├── errors.go       StatusError, BodyTooLargeError
+└── headers.go      User-Agent
+
 services/shared/esiclient/
 ├── bucket.go       Bucket, Identity, Class, key building, token cost table
 ├── client.go       Client, Request, Response, Do
@@ -113,9 +127,35 @@ services/shared/esiclient/
 └── fake.go         in-memory Client for other packages' tests
 ```
 
-Three layers, each with one job: `client` knows HTTP and ESI headers and never touches Redis;
-`dispatcher` knows permits, ordering and the decision to wait or yield, and never touches HTTP;
-`state` knows key names and the scripts, and never knows that anything is waiting.
+Three layers, each with one job: `client` knows ESI headers and never touches Redis; `dispatcher`
+knows permits, ordering and the decision to wait or yield, and never touches HTTP; `state` knows key
+names and the scripts, and never knows that anything is waiting.
+
+**`Gate` is the seam between the two packages.** `httpclient.Gate` is asked to admit every attempt and
+told what each one cost; `esiclient`'s dispatcher implements it. That placement is what makes retries
+and budget agree by construction: the retry loop lives inside the HTTP client, below the gate call, so
+a repeated request admits and settles again rather than spending a reservation it never made.
+
+```go
+type Gate interface {
+    Admit(ctx context.Context, req *Request) (Ticket, error)
+    Settle(ctx context.Context, ticket Ticket, resp *Response, err error)
+}
+```
+
+An `Admit` error is never retried — the gate owns the timing, so `KindDecelerating`, `KindGated` and
+`KindDowntime` reach the task unaltered, `RetryAfter` included.
+
+Two things follow from `Admit` receiving the request and its context, both settled before Stage B
+rather than during it:
+
+- **`Class` and `Identity` travel by context**, not by a field on `httpclient.Request`. The dispatcher
+  reads them in `Admit`. Four other services use that type; none should carry an ESI concern.
+- **The downtime probe needs no bypass.** `Admit` sees the path, so the dispatcher recognises its own
+  `/status/` probe and admits it while everything else is gated.
+
+`Settle` fires after the body is read for `Do` and on headers for `Stream`, so a paged walk reconciles
+its ledger entry before it finishes reading. The cost is fixed by the status either way.
 
 The name `esiclient` is chosen against `worker/esi` and `shared/core/evesso`, which already exist and
 own different things (status checking and SSO token exchange respectively).
@@ -150,13 +190,12 @@ separate allowances.
 ### Request and response
 
 ```go
-// Class decides queue order and how long a caller will wait before yielding.
+// Class is who wanted the call: the backend decided to do it, or someone asked.
 type Class uint8
 
 const (
-    ClassBulk        Class = iota // background refresh; yields early, frees the worker slot
-    ClassStandard                 // default for task work
-    ClassInteractive              // a user is waiting; may draw on the urgent lane
+    ClassBackground    Class = iota // cron refreshes and the affiliation sweep
+    ClassUserRequested              // someone asked for it and is waiting
 )
 
 type Request struct {
@@ -445,20 +484,35 @@ observed allowance and the ceiling is `MinSpacing` per endpoint.
 
 ### Headroom a burst can actually use
 
-The measured figures say the headroom is large and currently unused. `market-order` allows 6.67 req/s
-sustained and we pace at 3; a sampled region pagination spent 356 of 12,000 tokens. So a spike can be
-driven well above the present rate and still finish inside a few percent of the window — this is the
-concrete case the glide exists to serve.
+Measured at Stage C by reading `X-Pages` from the first page of each hub, which costs one request
+rather than a full walk:
 
-It also settles a question this design does **not** need to answer. A job larger than its whole bucket
-would have to span windows and could not be restarted from the beginning, which would make a resumable
-page cursor mandatory. At 356 tokens against 12,000 nothing is close, so no cursor is planned. Stage C
-re-measures against the busiest hub rather than the sampled one; only a measurement that changes this
-picture would put resumability back on the table.
+| Hub | Pages | Tokens | Share of a 12,000 window |
+|-----|-------|--------|--------------------------|
+| Jita | 412 | 824 | 6.9% |
+| Amarr | 185 | 370 | 3.1% |
+| Dodixie | 120 | 240 | 2.0% |
+| Hek | 120 | 240 | 2.0% |
+| **All four** | **837** | **1,674** | **14.0%** |
 
-The scheduler's `estimatedTokensPerRegionRefresh = 1000` is roughly 3× the sampled cost and is
-compared against 12,000, so `canAffordRegionRefresh` effectively never defers. Stage E replaces the
-constant with the ledger's measured cost, which makes the gate meaningful rather than decorative.
+So a complete cycle of every hub costs about a seventh of one window, against a sustained rate of
+6.67 req/s that allows roughly 6,000 requests in the same period. Jita at the 100 ms burst ceiling
+finishes in about 41 seconds and takes fill from 1.0 to 0.93 — the glide does not engage for a single
+hub, which is what it should do.
+
+That also settles resumability for good: the largest single job is 824 tokens against 12,000, so
+nothing spans a window and no page cursor is needed.
+
+**A correction to an earlier reading.** A sample taken from live Redis showed 356 tokens, and this
+plan inferred from it that `estimatedTokensPerRegionRefresh = 1000` was roughly 3× reality. Measured
+against Jita it is 1.2× — a fair over-estimate rather than a decorative one. Replacing it with the
+ledger's measured per-region cost at Stage E is still worth doing, because it lets the gate reason
+about the hub it is actually about to fetch, but it is a refinement rather than a repair.
+
+**A Stage G finding.** ESI reported `max-age` of about 82 seconds on market orders while the cron
+refreshes one hub every 15 minutes. Budget is not what limits freshness here — a full four-hub cycle
+every five minutes would still sit inside the sustained rate. That is a scheduling decision, not a
+limiter one.
 
 ## Deriving limits from ESI
 
@@ -544,11 +598,22 @@ A class may always spend up to its floor. Capacity above the sum of the floors i
 in class order, so a quiet system still lets any class burst into the whole bucket. Bulk cannot be
 starved because its floor is not something external work is allowed to take.
 
-| Class | Work | Guaranteed floor | Above the floors | On a long wait |
-|-------|------|------------------|------------------|----------------|
-| `ClassBulk` | Internal cron refreshes | Always spendable | Last claim | Yields early; also deferred at publish |
-| `ClassStandard` | External async (session grants) | Always spendable | Second claim | Waits rather than yields |
-| `ClassInteractive` | External sync, a user blocked | Always spendable | First claim | Waits; falls back to 202 |
+| Class | Work | Floor | On a long wait |
+|-------|------|-------|----------------|
+| `ClassBackground` | Cron refreshes and the session affiliation sweep | 0.30 | Yields early; also deferred at publish |
+| `ClassUserRequested` | Anything a person asked for and is waiting on | 0.35 | Waits; the api falls back to 202 |
+
+**There are two classes, because there are two answers to "who wanted this".** A middle class for work
+a user triggered but is not blocked on covered one endpoint and cost a floor, a place in every
+scheduling decision, and most of the tuning effort — three-way distribution swung wildly on every
+change while two-way cases stayed stable throughout. Character affiliation is backend work: a user's
+login sets it off, but nothing waits on it.
+
+Floors are **minimums, not expected shares**. Above them demand decides, so background work still
+takes most of the throughput on the smaller floor simply by asking more often; what its floor buys is
+that a person's request is never queued behind a refresh cycle. Ordering floors by expected volume
+instead inverted the priority — the user class reached its small floor first and then lost every
+contest to the larger-floored ones.
 
 `Headroom` is therefore **class-scoped** — `Headroom(ctx, bucket, class)`. A scheduler asking whether
 it can afford a refresh must be told what *bulk* can afford, not what the bucket holds in total, or it
@@ -651,6 +716,10 @@ unreadable limit, and `getTokenLimitFromRedis` returning `-1` disables token enf
 rollback runs unmetered on 3 req/s spacing alone until the old keys repopulate from response headers.
 That is survivable at current volumes and is the reason to roll back promptly rather than sit on it.
 
+Stage A0 is additive and process-local: new files in `shared/httpclient` plus new exported types.
+Nothing existing changed behaviour, and `shared/core/retry` was deliberately left alone — it is shaped
+for its three current callers, and the new client's retry is built for the new client instead.
+
 No HTTP, NATS or persisted-document surface changes in Stages A–E. Stage F adds a 202 outcome to at
 least one api endpoint, which is additive for a new endpoint and breaking for an existing one — to be
 stated per endpoint when that stage is planned.
@@ -692,6 +761,67 @@ today. `core/scheduler/esi` keeps `DeferPublicationUntilAfterDowntime` — defer
 own behaviour — but reads the observed gate rather than holding a second copy of the times, which
 also retires the duplicate window in `worker/ratelimiter/redis_client.go`.
 
+**Landed with Stage B.** `downtime.go` plus a check folded into both scripts, so watching for
+downtime costs no extra round trip — `reserve` already runs per admission and reads the fleet gate at
+the top, before any bucket.
+
+Availability is read from what the server answered, and the three cases are kept apart, which one
+test caught the hard way: a **released** reservation is a request that never left and says nothing;
+an attempt that produced **no response** is evidence the server is away; and an answer of **any**
+kind — a 404 included — means it is up, so the gate clears on that rather than waiting out a window.
+Treating a release as a failure tripped the gate after a handful of cancelled calls.
+
+**No clock appears anywhere in it.** An earlier cut kept the announced window as a hint that lowered
+the evidence needed, which was still a schedule that CCP can move and that would silently go stale.
+It also bought almost nothing: an outage fails everything at once, so failures reach two sources
+within a request or two, which is as fast as knowing the clock would have made it.
+
+An outage is concluded from failures spreading across **sources** — buckets, and callers like SSO that
+have none — with three failures needed and two sources, or eight failures from a lone source. One
+endpoint failing its retries is that endpoint, not Tranquility; without that rule a single bad batch
+in a login stopped every refresh the worker had, which is how the parity work found it.
+
+While gated, exactly one caller probes on a doubling backoff from 2 s to 20 s, and the rest are
+refused with `KindDowntime` and the time of that probe. A bucket that hits the gate has its whole
+queue released, since nothing will be served anywhere until Tranquility answers.
+
+**SSO observes the gate without paying for it.** Token rotation at `login.eveonline.com` is stopped by
+the same outage but is not rate limited, so `Availability` and `Observe` read and feed the gate with
+no bucket and no token. Its failures are a second source, and its successes clear the gate — if SSO
+is answering, the servers are back. The rules are one shared Lua fragment between `settle` and
+`observe`, so the two cannot drift.
+
+`core/scheduler/esi/downtime.go` still holds a hardcoded window of its own, used to schedule a
+deferred publish. Stage E replaces that with the observed gate's next probe: a predicted end time is
+the same mistake in the other service.
+
+**Tested against an origin that actually goes away.** `testing/esi_soak` can take the origin down and
+bring it back, which is what a state machine like this needs rather than unit tests of its
+transitions. Four replicas, twelve callers, a three-second outage:
+
+| | |
+|---|---|
+| Calls that reached the down server | **14–18** out of thousands attempted |
+| Refused locally instead | ~6,000 |
+| Resumed after the server returned | **100 ms** |
+
+Both numbers matter and they pull against each other. Every call that reaches a down server is a
+non-2xx counting toward the fleet-wide limit that returns 420 across every route, so a limiter that
+keeps trying through an outage takes itself off the air for everything. But a limiter that backs off
+too hard is still dark when the server returns.
+
+**Two defects the outage tests found.** The backoff was doubling on every failed call rather than once
+per probe, and deciding the server is away takes a burst of concurrent failures — so it ran to the
+ceiling before the gate had settled and paid it back as recovery lag: 18 seconds against the 100 ms
+it takes now. And the ceiling itself was a minute, which is a minute of lost time on a downtime
+lasting fifteen; twenty seconds bounds that while costing three failed calls a minute against a limit
+of a hundred.
+
+Observed live during this work: at 11:01 UTC ESI answered `502`, and the limiter being replaced
+refused every call for the full window on the clock alone — enough to make a comparison run in that
+window report it serving nothing. The comparison tests now skip there, which is itself the argument
+for observing rather than scheduling.
+
 #### What happens to the status check
 
 `worker/esi/status.go` is absorbed by the gate rather than moved across. Its role changes from a
@@ -711,9 +841,19 @@ an exhausted `status` bucket makes the pre-flight return a `RateLimitError` and 
 when TQ is perfectly healthy. The gate probe is the one call admitted while gated, so the check that
 decides whether we may call ESI is no longer subject to the budget it is deciding about.
 
-**The `status` bucket nearly empties.** It is 600/15m — our second smallest — and it exists almost
-entirely to answer a boolean for four task types. Probing only on uncertainty removes that standing
-cost. The probe keeps its `If-None-Match`, since a 304 costs 1 token against a 2xx's 2.
+**The `status` bucket empties, rather than nearly.** As built, the gate does not call `/status/` at
+all. Availability is read from every response, and when the gate is closed the probe is simply the
+next real call a caller wanted to make — admitted through, and judged on what comes back. So the
+probe costs nothing beyond work that was already wanted, and no endpoint is special.
+
+`/status/` keeps a policy entry so anything that wants server status can still ask for it, but the
+limiter no longer depends on it, and nothing reads its payload today.
+
+One consequence to know: while the gate is closed, it clears on an answer from whatever endpoint wins
+the next probe. Varied traffic self-corrects, and any status from 2xx to 4xx counts as an answer, so
+this only bites if the sole traffic during a gate is to an endpoint that is itself persistently
+failing. The worker spreads across market, industry, prices and affiliation, so that is unlikely
+rather than impossible.
 
 `ServerStatusResponse` (`players`, `server_version`, `start_time`) is fetched and written to Redis and
 **read by nothing** — no caller outside `status.go` touches those fields. The payload and the
@@ -765,14 +905,29 @@ worker's Redis keys directly. It keeps the registration — that is its job — 
 shared client's snapshot instead of rebuilding key strings, which removes the last cross-service key
 coupling. What it should emit under the new model:
 
-| Signal | Why |
-|--------|-----|
-| Bucket fill (`available ÷ limit`) | The input to the glide; the one number that explains pacing |
-| Observed limit and window per bucket | Makes a CCP-side change visible the moment it lands |
-| Spend per class | Shows whether floors are doing anything |
-| Yields by `Kind` | Separates queue depth from deceleration from gating |
-| Consecutive deferrals and data age per cron job | The starvation signal |
-| Probes, 429s, error-counter level | Discovery churn and how close the 420 guard is |
+**Landed with Stage B.** `esiclient/metrics.go` emits through the OTel global meter
+`eve-industry-planner/esiclient`, following the same shape as `shared/telemetry/workermetrics`.
+
+| Instrument | Kind | Reads |
+|------------|------|-------|
+| `esi.bucket.limit` / `.spent` / `.fill` / `.gated` | gauge | the allowance, what is live in the window, the share left, and whether a Retry-After is in force |
+| `esi.queue.waiting` / `.slots_held` | gauge | callers parked in process, and slots reserved but not yet handed over |
+| `esi.requests_total` | counter | by group, scope, class, status class |
+| `esi.tokens_spent_total` | counter | the budget actually consumed, by group and class |
+| `esi.yields_total` | counter | by reason — queued, decelerating, gated, error_limit, downtime, discovering |
+| `esi.probes_total`, `esi.gate_closures_total` | counter | discovery churn, and each 429 that stopped the fleet |
+| `esi.queue_wait_milliseconds` | histogram | how long a caller waited for a slot |
+| `esi.request_duration_milliseconds`, `esi.request_wire_bytes` | histogram | latency and transfer |
+
+**No label carries a bucket key.** An authenticated bucket is keyed per character, so that would grow
+a time series per player. Labels are `group` plus a `scope` of `address` or `character`, and a test
+asserts no character id reaches a label.
+
+`RegisterMetrics(client.Dispatcher())` starts the gauges; the callback runs on the exporter interval,
+so Grafana sees the fill curve the pacing follows rather than only the events around it.
+
+Still outstanding: consecutive deferrals and data age per cron job, which belong to the scheduler at
+Stage E.
 
 ### Operator surface
 
@@ -804,12 +959,276 @@ status class drove the counter.
 
 Every stage ships its tests. Two conventions this project follows:
 
+`shared/httpclient` is at 91% statement coverage: decompression and wire-byte accounting, conditional
+requests and 304, status-as-data, the body cap, request building, form bodies, the Host override,
+per-attempt timeouts, JSON decoding and array streaming, the unix transport, and — through a
+recording gate — that every retried attempt is admitted and settled exactly once and that a gate
+refusal is never repeated whatever shape it takes.
+
+Other packages test against it through `testing/httpfake`: `Config()` and `NewClient()` wire a client
+to the fake, so `Queue` drives a retry sequence and `CallsTo` counts attempts without a test
+hand-rolling counters.
+
+These run in the services unit suite with no Docker, but only the origin is fake — the real transport,
+gzip, TCP, retry loop and gate all run, and part of the suite runs over real TLS with HTTP/2
+negotiated so byte counting and header parsing are proven against h2 framing rather than plaintext
+HTTP/1.1 alone.
+
+**No end-to-end coverage exists for this package, by design.** True end-to-end means a real origin,
+and the transport knows nothing about any particular one. That belongs to Stage C, whose replay
+harness drives recorded ESI header sequences through the whole stack. Three things consequently stay
+unproven until then: `ResponseHeaderTimeout` firing, `ProxyFromEnvironment`, and the OTel client spans
+the transport emits.
+
 - Script and state behaviour is tested against a **real Redis**, not a fake, in `*_live_test.go`
   files consistent with the existing live-test naming in `shared/nats` and `api/v1endpoints`. Lua
   semantics, `TIME`, ZSET expiry ordering and atomicity are the things under test, and a fake
   reimplements exactly the parts that could be wrong.
 - Dispatcher behaviour is tested without Redis, against a stubbed state layer, so ordering, floors,
   tolerance, the permit race and gate propagation are exercised deterministically.
+
+### Beyond unit: the fleet soak
+
+Everything above runs one dispatcher, which proves nothing about the claim the design actually rests
+on — that several replicas, each pacing itself, stay inside one budget because the clock and the
+ledger are shared. `testing/esi_soak` exists for that, following the `_soak/lib` plus thin `main.go`
+shape of `ws_soak` and `capacity_soak`.
+
+**The origin is the judge, not a stub.** It meters exactly as ESI does — a floating window of token
+charges — and answers 429 the moment its allowance is gone. So the headline assertion is not an
+internal counter but the thing that matters: *drive the fleet hard and the origin never has to refuse
+it*. A control test floods the origin unpaced and confirms it does refuse, so a passing soak cannot
+mean a lenient judge.
+
+Recorded from six replicas and forty-eight callers over twenty-five seconds, against a throwaway
+Redis and an allowance of 400 in a 30 s window:
+
+| | |
+|---|---|
+| Peak spend | **385 of 400** — 96% of the budget used |
+| Origin refusals | **0** |
+| Yields | 1,338 queued, 149 decelerating, 45 discovering |
+
+Using nearly all of an allowance without crossing it is the whole point; a limiter that never gets
+close is failing differently.
+
+**The ETAs proved to be worth obeying.** The driver first spun on refusal, producing 18,596 attempts
+for 20 served calls. Making it honour the `RetryAfter` it was handed cut that to 80 attempts for 15
+served — the same throughput for 0.4% of the churn. That is the retry-at-recovery design measured
+rather than argued, and a test now asserts the attempts-per-served ratio stays low.
+
+CLI: `go run ./esi_soak -redis 127.0.0.1:6379 -replicas 4 -duration 30s -allowance 600`. Point it at a
+scratch Redis, never the stack's — the run writes bucket state the running system paces itself on.
+
+### Side by side with the limiter being replaced
+
+**Both limiters get the same pacing.** A first attempt at this compared the current limiter at its
+configured 3 req/s against the replacement bursting at 50, and mostly measured the two numbers rather
+than the two designs — a difference erased by passing a larger rate to the old constructor. `RunLegacy`
+therefore takes the rate as an argument, and the allowance is set small enough that the budget binds
+rather than the clock.
+
+**Tokens per call are identical by construction** and are not the comparison. ESI prices the response,
+not the caller, so both spend 1.75 tokens per served call. An early version of this section reported
+"budget used 7% against 36%" as though the replacement spent more efficiently; it was the same fact as
+"calls served" in another unit, and it has been removed.
+
+What the two actually differ on is when they decide they may spend a token. The current limiter counts
+after the response — its own script says it does not reserve — so concurrent callers pass the same
+check and the overshoot is found afterwards. The replacement reserves first.
+
+`RunLegacy` drives the current `worker/ratelimiter` through the same origin, same allowance, same
+judge, so the two can be compared rather than asserted about. Their key namespaces differ
+(`esi:group:*` against `esi:b:*`), so a single Redis serves both without either seeing the other.
+
+Four replicas, four seconds, an allowance of 120 in a 30 s window, both paced at 5 ms. The ceiling is
+120 tokens, so about 60 calls at two apiece:
+
+| | Current | New |
+|---|---|---|
+| **Origin refusals (429s provoked)** | **2–4** | **0** |
+| Peak spend | 119 / 120 | 112 / 120 |
+| Calls served | 68 | 64 |
+| Tokens per call | 1.75 | 1.75 |
+| Yield reasons | `task_time_budget: 24, client_yield: 22, unclassified: 2` | `decelerating: 22, queued: 21, discovering: 20` |
+
+The current limiter serves about a third more by running the bucket to 119 of 120 and being refused
+four times on the way. Those refusals are the thing: a 429 is ESI telling us we spent budget we did
+not have, and under the real 420 guard a run of them is how a fleet takes itself off the air. The
+replacement stops short and is never refused.
+
+The yield column is the other half of it. Every refusal the current limiter issues is
+`task_time_budget` or `client_yield` — it can say a task ran out of time, but not whether the bucket
+was busy, low or gated, which is the distinction that tells an operator whether to wait or to look.
+
+**`GlideFrom` was set from this, not picked.** The replacement first served well under the current
+limiter, which is a fair thing to be challenged on. Sweeping the value against the same tight
+allowance:
+
+| `GlideFrom` | Served | Budget used | Refusals |
+|-------------|--------|-------------|----------|
+| 0.80 | 45 | 65% | 0 |
+| 0.50 | 52 | 76% | 0 |
+| **0.30** | **61** | **88%** | **0** |
+| 0.15 | 62 | 90% | 0 |
+| 0.05 | 62 | 90% | 0 |
+
+Refusals stay at zero across the whole sweep, which corrects what the glide is for: **reservation is
+what keeps the fleet inside the allowance; the glide only smooths the approach** so the bank is not
+slammed and then stalled on. A lower value is therefore safe, and 0.5 was simply leaving budget
+unspent. 0.30 is the knee — nothing further is gained below it, so the deceleration margin above it is
+free. The default is now 0.30 and the sweep is kept as a test.
+
+Note this only bites on a tight allowance. At the measured production figures — 12,000 tokens against
+1,674 for a full four-hub cycle — fill never falls below 0.86 and the glide never engages at all. It
+matters for `industry` at 150/15m, not for `market-order`.
+
+**Floors were costing throughput they did not need to.** Fixed per-class caps summing to one made a
+floor provable, but they also held a class's share idle when nobody was collecting on it: bulk was
+four sixths of the demand and capped at 44% of the bucket, so it stalled while interactive's 25% went
+unused. The rule is now stated the way the promise actually reads — **a class may spend everything
+the other classes are not still owed** — which guarantees the same floors and wastes nothing while
+they go unclaimed.
+
+That first cut was too strict at the tail: with four tokens left, reserving the others' full floors
+blocked every class at once. So a class also always keeps its floor's share of whatever remains,
+which is what lets the last of a bank be spent rather than deadlocked. A replay test caught this
+immediately, on a response that cut the allowance to twenty.
+
+### What mixed classes exposed
+
+Aggregate soaks pass while a class is being starved, so `esi_soak` now records served calls, yields,
+tokens and mean wait **per class**. Running three classes against one bucket found two defects that
+single-class load could not.
+
+**The queue was strict class order, so the lower classes were starved outright.** A class whose
+callers re-queue the moment they are served is permanently at the head, and nothing below it is ever
+reached: bulk served 0 or 1 calls against interactive's 91 to 162. The token floors were working and
+irrelevant — bulk never got far enough to ask for a token. Selection now happens at hand-off against
+the same floors that govern the budget: the class furthest below its share goes first, rank only
+breaks ties, and the tally decays so it follows recent traffic. A white-box test holds the
+distribution to its target.
+
+**The waiter cap was class-blind, which undid the scheduling beneath it.** Six bulk callers kept the
+queue at its cap of nine, so an interactive caller was refused before it ever entered the queue and
+the selection that would have favoured it never saw it. A class under its floor's share of the queue
+is now admitted past the cap, loosening the bound by at most one place per class. Bulk went from 0%
+to 13% of the spend while outnumbered seven to one.
+
+**A third fix on the way there.** A `KindQueued` refusal set `RetryAfter` to the caller's own
+tolerance, so a class given generous patience served a long penalty precisely for being patient. It
+now returns about when the queue drains at burst pace, which is what the refusal means.
+
+**And the cause of the starvation that was left open.** Comparing mixed load against the current
+limiter found it: selection was ranking classes by `floorShare − actualShare`, a difference, which
+favours whichever under-served class has the **largest** floor. Standard, owed 0.31, always
+out-deficited interactive, owed 0.19, so it monopolised the correction and the smallest class got one
+call in two hundred. Ranking by the **ratio** of what a class has had to what it is owed fixes it: a
+class at half its entitlement ranks the same whether it is owed a half or a sixth. The same run then
+divides 215 calls as 101 interactive, 41 standard, 73 bulk, with none starved.
+
+### Mixed load against the current limiter
+
+Same callers, same pacing, allowance 400 in a 30 s window:
+
+| | Current (no classes) | New |
+|---|---|---|
+| Served | 228 | 215 |
+| Origin refusals | 1–2 | **0** |
+| Peak spend | 399 / 400 | 376 / 400 |
+| interactive | 49 (wait 206 ms) | 101 (wait 31 ms) |
+| standard | 54 (wait 158 ms) | 41 (wait 81 ms) |
+| bulk | 125 (wait 173 ms) | 73 (wait 50 ms) |
+
+Throughput is within 6%, so the queue and the selection in front of every call cost little. The
+current limiter's split is not a decision — it has no notion of class, so where its throughput lands
+is whatever contention produced, and it tracks caller counts rather than anything anyone chose. It
+also buys its extra calls the same way it does elsewhere: by running to 399 of 400 and being refused.
+
+Waits are the clearer difference. Every class waits less under the replacement despite its extra
+machinery, because a caller either gets a slot or is told when to come back, rather than contending
+repeatedly for one.
+
+### What it costs Redis
+
+Counted with a hook on the client, so both limiters are measured the same way:
+
+| | Commands per served call | Busiest commands |
+|---|--------------------------|------------------|
+| Current | **22.7** | `expire=3487 eval=1086 get=541` |
+| New | **1.8** | `evalsha=286` |
+
+Twelve times less traffic for the same delivered work. The breakdown names the reason: the current
+limiter refreshes its TTLs as separate unpipelined commands, three per script call, and repeats the
+whole sequence for calls it then refuses. The replacement folds the expiries into the scripts, spends
+one round trip on the reservation and one on the settle, and remembers a path's group instead of
+re-reading and rewriting it.
+
+This is worth more than the ratio suggests. The same Redis carries the asynq queues, so limiter
+chatter is not free of the thing it is pacing.
+
+### One report, every scenario
+
+`TestFullComparisonReport` runs four load shapes through both limiters and prints them together,
+because the trade only reads properly when throughput, refusals, budget, class shares and Redis
+traffic are seen side by side. Three replicas, four seconds a run, both paced at 5 ms:
+
+```
+scenario               limiter   served  refused      spend tok/call   redis   r/call  try/srv
+----------------------------------------------------------------------------------------------
+balanced mix 6:2       current      228        1    399/400     1.75    5878     25.8      1.1
+                       new          214        0    374/400     1.75     388      1.8      1.6
+bulk heavy 7:1         current      228        1    399/400     1.75    5588     24.5      1.1
+                       new          215        0    376/400     1.75     395      1.8      1.7
+interactive heavy 1:7  current      228        1    399/400     1.75    6278     27.5      1.1
+                       new          215        0    376/400     1.75     400      1.9      1.2
+tight allowance 6:2    current       68        3    119/120     1.75    1819     26.8      1.7
+                       new           67        0    117/120     1.75     219      3.3      1.8
+```
+
+The tight-allowance row states the trade most plainly: **67 calls against 68, and the current limiter
+needs three refusals to get its extra one.** Where the allowance is generous the replacement gives up
+about 6% of throughput; where it binds, it gives up almost nothing and still never provokes a 429.
+
+The shape holds across every scenario: within 6% of the throughput, no refusals against one to five,
+and an order of magnitude less Redis. The report asserts those three and prints the class breakdown
+for reading rather than gating on it.
+
+**It also found the selection was unstable, which the per-scenario tests each missed.** Ranking purely
+by proportion of entitlement hands the queue to whichever class has fewest callers — a small class
+accumulates hand-offs slowly and so never stops looking owed. One caller in eight was taking 91% of
+the throughput. Selection is now two-tier: a class short of its floor goes first, and among those the
+one furthest short; once every waiting class has its floor, rank decides. The balanced mix then tracks
+the current limiter's own distribution almost exactly — 39/63/112 against 42/67/119 — at a third of
+the wait and none of the refusals.
+
+**Still open, and it should be settled before cutover.** Under the tight allowance bulk is served
+nothing at all. Its floor is the largest, so selection is not the cause: its tolerance is the
+shortest (500 ms against interactive's five seconds), so under scarcity it times out and leaves the
+queue before its floor can be claimed. A floor expressed in tokens cannot be honoured by a caller that
+will not wait for it. Either bulk waits longer when it is the class being owed, or a class below its
+floor holds its place rather than timing out — the two knobs are pulling against each other and the
+resolution is a design decision, not a tuning one.
+
+### A load shaped like production
+
+The soak's steady callers are not what the worker does. `TestPagedWalkWithInteractiveBursts` runs the
+real shape: a sequential sixty-page walk of a region's order book on the bulk lane, with a
+user-triggered call arriving on the interactive lane every 150 ms while it runs.
+
+All sixty pages completed, all twenty interactive calls were served, mean wait **1 ms** and worst
+**6 ms**, and the origin refused nothing. A user waiting on a page load is not held up by a
+background walk, and the bursts do not stall the walk — which is the behaviour the classes exist to
+produce, on the only load shape that matters.
+
+**A defect this comparison found.** The replacement first served only 21 calls for 36 tokens, and
+raising the waiter cap and tolerance changed nothing — so the constraint was pacing. `fill` was being
+computed from `available`, which had already been narrowed by the class cap, so a bulk caller saw
+`fill = 0.44` on an entirely empty bucket, fell below `GlideFrom` of 0.5, and decelerated from its
+first call: it never burst at all. Pacing now reads the bucket's own occupancy while the class cap
+stays an admission ceiling, and the same run serves 51 for 89 tokens. Two tests hold that line — one
+that a class-capped caller still bursts on an empty bucket, one that spacing genuinely stretches once
+the bank is low.
 
 `fake.go` ships with Stage B so `worker/tasks/esi` and the api can drop their hand-rolled ESI mocks
 onto one shared fake at Stage D and F.
@@ -822,7 +1241,48 @@ existing worker topic will no longer own this behaviour.
 
 Phase 1 is this folder.
 
+### Stage A0 — Transport foundation
+
+`services/shared/httpclient`: the `Client`, the `Gate` seam, `Retry`, and transfer handling —
+conditional requests, gzip with pre-decompression byte counting, cache and validator parsing, a
+traced transport, and a body cap. Status is data, so a 404 or 429 returns a `Response` rather than an
+error.
+
+Wired to nothing. `ApplyDefaultHeaders` and its existing callers are untouched, and no dependency was
+added.
+
 ### Stage A — Models, keys and scripts
+
+**Landed.** `bucket.go`, `errors.go`, `config.go`, `scripts.go`, `state.go`, `parse.go` — 88% covered
+by 23 tests against miniredis through `testing/redisfake`, so Stage A runs in the no-Docker suite.
+Miniredis executes the Lua rather than emulating the calls, but it is a reimplementation: Stage C's
+harness is where the scripts meet a real Redis.
+
+Two things the models settled that the plan had left implied. `Store.Release` is `Settle` with a zero
+cost rather than a third script, since a released reservation and a free response are the same write.
+And the class caps are checked to sum to no more than one: the plan's first split let two classes
+together exceed the bucket, which would have made the third class's floor a suggestion.
+
+#### The wire types come too
+
+`types.go` holds the shapes ESI returns — `MarketOrder`, `IndustrySystem`, `TypePrice`,
+`CharacterAffiliation`, `ServerStatus` — because the compatibility date that pins a response's shape
+already lives here in `EndpointPolicy`. Bumping a date is only reviewable against the struct when the
+two sit together.
+
+They are the wire and nothing else: no timestamps we stamped, no activities folded into named fields.
+The application's own shapes stay where they are, in `shared/core/esi/types`, and conversion happens
+after decoding. That split already exists in the code — `ESIIndustrySystem` beside
+`esitypes.SystemIndexes` — but the wire half sits in `worker/tasks/esi`, where the api cannot reach
+it and where a `character_id` field is easy to miss.
+
+That last point matters beyond tidiness: these structs are the ingest boundary where raw character,
+corporation and alliance ids arrive, and they have to become refs before reaching a document, a task
+payload or a log. One package makes that boundary something you can audit.
+
+At Stage D, `ESIMarketOrder`, `ESIIndustrySystem`, `ESICostIndice`, `ESIAdjustedPrice` and
+`CharacterAffiliation` are deleted from `worker/tasks/esi` and their call sites read these instead.
+
 
 `bucket.go`, `config.go`, `errors.go`, `state.go`, `scripts.go`. No HTTP and no dispatcher. Tests
 cover the cost table (including 429 at zero), key construction, endpoint pattern matching and
@@ -852,12 +1312,46 @@ both directions; and a stale bucket re-probes rather than reusing a remembered n
 
 ### Stage B — Dispatcher and client
 
-`dispatcher.go`, `client.go`, `fake.go`. Tests cover ordering by class, the waiter cap, tolerance per
-class, mid-wait gating, the permit/timeout race, block versus direct mode, and header learning of
-`X-Ratelimit-Group`. A flood test drives concurrent callers against a fake ESI server and a real
-Redis and asserts that observed spend never exceeds the bucket limit.
+**Landed.** `dispatcher.go` implements `httpclient.Gate` over the Stage A store: a pump goroutine per
+bucket, waiters ordered by `(class, arrival)` in a heap, slots reserved only while callers are
+present, and unclaimed slots handed back rather than wasted. `client.go` resolves the bucket, policy
+and compatibility date once per call and carries them to the gate by context. `api.go` declares the
+`API` interface a caller depends on.
+
+The test double is `testing/esifake`, beside `httpfake` and `redisfake`, rather than a `fake.go` in
+the package — that is where this repo keeps its doubles, and a caller testing against ESI should not
+have to build a client to get one.
+
+**A defect the tests caught.** The first call to an unseen path guesses a placeholder bucket, and the
+settle was writing the allowance there rather than to the group the response disclosed. Every path
+therefore discovered twice, and the second discovery met whatever concurrency was in flight — three
+of four callers were refused with `KindDiscovering`. `Settle` now re-keys onto the disclosed bucket
+and releases the placeholder charge, so discovery happens once. A test asserts no second discovery.
 
 ### Stage C — Proving it before anything uses it
+
+**Landed.** Three things were proved rather than assumed.
+
+*Recorded ESI sequences.* `replay_test.go` drives the situations the budget model must survive, each
+written as ESI states it: a 429 with `Retry-After` stopping every subsequent call, an allowance halved
+mid-window and honoured immediately, an allowance raised and taken up without a deploy, a
+conditional pass costing one token against a 2xx's two, a legacy route with no rate-limit headers
+still paced, and an error storm tripping our own guard before ESI would answer 420.
+
+*Redis work per request.* Counted with a client hook. Direct mode is **2 commands** — one reserve, one
+settle, both a single EVAL — against the eleven unpipelined round trips the current limiter issues.
+Block mode covers eight or more calls with one reservation. Getting there removed a real waste: the
+path-to-group mapping was being read and rewritten on every call, and is now remembered in process
+with Redis kept as the shared record.
+
+*Real Redis.* The scripts had only met miniredis, which runs Lua but is a reimplementation.
+`store_live_test.go` runs them against a real server behind `EIP_REDIS_PARITY_LIVE=1`, checking the
+things a fake is most likely to differ on: sub-second times surviving the round trip (Redis truncates
+a Lua number to an integer, which is why the scripts return strings), charges expiring individually so
+the window floats, one probe winning discovery, and twenty concurrent callers unable to spend more
+than eight tokens' worth. All four pass on Redis 8. The gate helper is `testing/redislive`, and it
+points at a throwaway server by design — these tests write bucket state, which the running stack
+relies on.
 
 A harness that replays recorded ESI header sequences (including a 429 with `Retry-After`, a limit
 change mid-window, and a 304-heavy pass) and asserts budget behaviour, plus a count of Redis
@@ -905,9 +1399,34 @@ existing websocket document fan-out.
 
 ### Stage G — Budget-driven scheduling
 
-Schedule the next public refresh from the `max-age` ESI advertises rather than a fixed cron cycle,
-using the `CacheSeconds` already captured and `NATS.ScheduleAt`. Audit that every public route sends
-`If-None-Match` so a repeat pass costs 1 token rather than 2.
+The next public refresh is booked from the `max-age` ESI advertises rather than run on a fixed cron
+cycle. Each refresh records when its data stops being current — `rediscore.SaveNextRefresh`, keyed
+on the dataset — and the scheduler reads that before publishing.
+
+A 304 records a freshness too. That is the point: a 304 is ESI restating how long the answer stays
+good, and honouring it is what stops the next tick paying a token to be told the same thing.
+
+Two shapes, because the jobs differ. Adjusted prices and industry systems each refresh one dataset,
+so a run inside the window is deferred to the moment it expires (`DeferPublicationUntilStale`).
+
+Region market orders sweep on staleness. The rotating cursor they used to take turns from tied how
+fresh a hub could be to how many hubs there were — four hubs on a fifteen-minute cron meant each was
+walked hourly against a five-minute max-age — and gave Jita's 411 pages the same share as Hek's 120.
+Each tick now publishes every hub past `regionSweepInterval`, oldest first, so a budget too tight for
+all of them spends what it has on the oldest, and adding a hub costs tokens rather than silently
+making the others staler. `NextRegionCronIndex` and its cursor key are gone.
+
+The interval is set to one hour, matching what the cursor achieved in practice, so the change is one
+of shape rather than of cost. Measured page counts make the trade explicit: 837 pages and ~1,674
+tokens per full pass against 12,000 per fifteen minutes, so an hourly sweep is about 3.5% of the
+allowance and a five-minute one — tracking max-age — would be roughly 40%.
+
+The cron schedule stays as the backstop: it fires when nothing has recorded a freshness, and recovers
+the cycle if a deferral is lost.
+
+Conditional requests were audited rather than assumed. Every GET endpoint policy carries
+`Conditional: true`, and all three GET call sites send `If-None-Match`; `POST /characters/affiliation/`
+is correctly not conditional, because a POST is issued no validator.
 
 ## Go modernisation in scope
 
@@ -917,7 +1436,7 @@ using the `CacheSeconds` already captured and `NATS.ScheduleAt`. Audit that ever
 |------|------------|----------|
 | `worker/ratelimiter/errors.go` | `errors.AsType` over `errors.As` | New `esiclient/errors.go` starts on the modern form |
 | `worker/ratelimiter/limiter.go`, `flood_test.go` | `slices`, `wg.Go` | Moot — deleted in Stage D |
-| `shared/core/redis/unavailable.go` | `errors.AsType` ×2 | Land with Stage E, which already edits that package |
+| `shared/core/redis/unavailable.go` | `errors.AsType` ×2 | Done |
 
 `api/helper/sso/jwt.go` also reports `any` over `interface{}`, but it is outside this project's touch
 surface and is not being pulled in.
@@ -932,20 +1451,70 @@ surface and is not being pulled in.
 - No task is requeued for a wait its class could have absorbed in place.
 - A scheduler can ask what it can afford before it publishes, through one API rather than by reading
   another service's keys.
-- `worker/ratelimiter` and `shared/core/redis/market_orders.go` no longer exist.
+- `worker/ratelimiter` no longer exists.
+- `shared/core/redis/market_orders.go` holds no limiter state. The file itself stays: what remained
+  after `GetMarketOrderTokenLimit` and `GetMarketOrderTokensUsed` went is the application's own
+  region page cache, ETags, refresh times and cursor, none of which the limiter owns. Retiring the
+  file outright was the wrong target; retiring its coupling to the limiter was the right one.
+
+## Staleness escalation was not needed
+
+`Config.StaleSoft` and `StaleHard` were designed as escalation thresholds: how far past an
+advertised expiry a refresh stops being deferrable, first competing with external work and then
+running regardless. Stage G built the deferral and not the escalation, and the fields are read by
+nothing.
+
+They address starvation that the class floors already prevent. A background refresh is refused only
+when its class headroom cannot cover the whole run, and the 0.30 floor guarantees background 3,600
+tokens of a 12,000 allowance — more than twice the 1,674 a full four-hub cycle costs. For the
+refusal to persist the bucket has to be genuinely depleted, which resolves on its own as the
+floating window ages charges out.
+
+A second mechanism forcing a run through would therefore fire only in a state the floors make
+unreachable, and would do so by overriding the budget check that stops a 429.
 
 ## Stage status
 
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project folder and docs | Done |
-| A — models, keys and scripts | Not started |
-| B — dispatcher and client | Not started |
-| C — proving it before anything uses it | Not started |
-| D — worker cutover | Not started |
-| E — scheduler, metrics and CLI | Not started |
-| F — api integration | Not started |
-| G — budget-driven scheduling | Not started |
+| A0 — transport foundation (`shared/httpclient`) | Done — built and tested, no caller |
+| A — models, keys and scripts | Done — built and tested, no caller |
+| B — dispatcher and client | Done — dispatcher, client, metrics, downtime gate; no caller |
+| C — proving it before anything uses it | Done — replay, Redis-op count, live-Redis parity, measurements, fleet soak, side-by-side comparison, mixed classes, production-shaped load |
+| D — worker cutover | Done — every worker ESI call is on the new client; `worker/ratelimiter` and `worker/esi` deleted |
+| E — scheduler, metrics and CLI | Done — observed downtime, measured affordability, bucket gauges, per-replica queue gauges, inverted CLI reset |
+| F — api integration | Nothing to do — the api makes no outbound ESI calls; see below |
+| G — budget-driven scheduling | Done — refreshes scheduled from ESI's advertised max-age; conditional coverage audited |
+
+### What the comparison harness cost
+
+The side-by-side soak (`testing/esi_soak/lib/legacy.go` and its three comparison tests) ran the old
+limiter against the new one. Deleting `worker/ratelimiter` removed the thing it compared against, so
+the harness went with it. Its findings are recorded in this plan and do not need the code to stay:
+0 refusals against 1–5, 1.8–3.3 Redis commands per call against 24.5–29.3, throughput within 6%. The
+soak suite that exercises the new client alone — outage, glide, mixed classes, workload — is
+unchanged and still runs.
+
+### Stage F found nothing to convert
+
+Stage F was scoped to the api's ESI calls. There are none: the api's only outbound HTTP is EVE SSO
+(the token endpoint through `shared/core/evesso`, and JWKS in `api/helper/sso`) plus a feedback
+webhook. SSO is not metered by ESI, so it holds no bucket and spends no token.
+
+What the api is missing is not throughput but visibility: its three SSO refresh call sites cannot
+feed or read the downtime gate, so during an outage the api keeps calling a dead SSO while the
+worker beside it has already concluded the servers are away. Moving those calls onto
+`shared/httpclient` would let them report what they see, and would replace a hand-rolled retry loop
+with `Request.Retry`. That is a small, self-contained follow-up rather than a stage.
+
+### One agreed item not built
+
+The plan lists a `DefaultClass` field on `shared/nats/tasks.go` task definitions. Every worker ESI
+call is background work — all four pass `ClassBackground` — so the field would carry one value
+everywhere and be read nowhere. The class distinction only becomes real when something
+user-requested calls ESI, which today nothing does. Left out deliberately; it wants building
+alongside the first caller that needs a different value.
 
 ## Open questions
 
@@ -959,14 +1528,18 @@ surface and is not being pulled in.
    it all shares the IP bucket. Corporation membership from the api is authenticated and gets its own
    per-character bucket. Any further per-character work should be identified before Stage F so the
    contention picture is known rather than discovered.
-4. **Floor values, `StaleSoft`/`StaleHard`, and the per-endpoint `MaxShare`.** Placeholders until
-   Stage C measures a real window. These are tuning of our own behaviour inside an observed budget,
-   so a wrong value costs throughput, never a breach — except the floors, where too small a bulk
-   floor is the starvation this section exists to prevent, and wants a value derived from the cost of
-   one full refresh cycle rather than picked.
+4. **Floor values, `StaleSoft`/`StaleHard`, and the per-endpoint `MaxShare`.** Now checked against
+   real figures rather than guessed: a full four-hub cycle is 837 pages and 1,674 tokens, so the
+   background floor of 0.30 (3,600 tokens) covers two complete cycles inside one window, and
+   `MaxShare` of 0.6 on market orders leaves ample room for the other endpoints sharing that group.
+   `StaleSoft` and `StaleHard` are read by nothing — see § Staleness escalation was not needed.
 5. **Burst ceiling per endpoint.** `MinSpacing` is the fastest we will drive an endpoint with a full
    bank. It is a politeness and blast-radius choice rather than a limit ESI imposes, so it wants a
    deliberate value per endpoint at Stage C rather than one number copied across the table.
-6. **Probe cost on a cold start.** Every bucket needs one discovery request after a deploy that
+6. **Whether `shared/httpclient` should log or emit metrics of its own.** It currently does neither:
+   `otelhttp` produces client spans, `Config.OnComplete` is there for a caller that wants per-attempt
+   figures, and `esiclient` records the ESI-specific ones. Revisit only if a transport failure proves
+   hard to see from spans alone.
+7. **Probe cost on a cold start.** Every bucket needs one discovery request after a deploy that
    clears Redis, or after `2 × window` of silence. With a handful of buckets that is negligible; it
    is listed so it is a known cost rather than a surprise in the first minute of a cold start.

@@ -11,4 +11,5 @@ export {
   ArchiveExtrasTotalsPanel,
   ArchiveCostBreakdownPanel,
   ArchiveCostTotalsPanel,
+  ArchiveStockPanel,
 } from "./ArchiveChartPanels";

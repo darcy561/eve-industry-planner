@@ -8,13 +8,12 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/container"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/lifecycle"
-	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
 	asynqpkg "eve-industry-planner/worker/asynq"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/hibiken/asynq"
@@ -70,21 +69,6 @@ func (a *app) prepare(ctx context.Context) error {
 		return a.fail(err)
 	}
 
-	const defaultRateLimit = 3.0
-	esiClient := esiratelimiter.NewRedisESIClient("https://esi.evetech.net", a.clients.Redis, defaultRateLimit)
-	rateLimits := map[string]float64{
-		"market-order": defaultRateLimit,
-		"industry":     defaultRateLimit,
-		"characters":   defaultRateLimit,
-		"status":       defaultRateLimit,
-	}
-	if err := esiClient.InitializeDefaultRateLimits(ctx, rateLimits); err != nil {
-		logs.ErrorCtx(ctx, "failed to initialize rate limits", "error", err)
-	} else {
-		logs.InfoCtx(ctx, "rate limits initialised for primary groups", "rate_limits", rateLimits)
-	}
-	logs.InfoCtx(ctx, "Redis-based ESI rate-limited client initialised (distributed rate limiting enabled)")
-
 	asynqClient, redisOpt, err := asynqpkg.SetupClient()
 	if err != nil {
 		return a.fail(err)
@@ -98,9 +82,23 @@ func (a *app) prepare(ctx context.Context) error {
 		return a.fail(fmt.Errorf("load authz hmac key for entity refs: %w", err))
 	}
 
+	esi, stopESI, err := esiclient.New(a.clients.Redis, esiclient.DefaultConfig())
+	if err != nil {
+		return a.fail(fmt.Errorf("build esi client: %w", err))
+	}
+	a.g.Add(lifecycle.FromStop("esi-dispatcher", stopESI))
+
+	// Queue depth is the part of the limiter only this replica knows; the bucket
+	// figures it shares with every other replica are reported by core.
+	stopESIMetrics, err := esiclient.RegisterMetrics(esi.Dispatcher())
+	if err != nil {
+		return a.fail(fmt.Errorf("register esi metrics: %w", err))
+	}
+	a.g.Add(lifecycle.FromStop("esi-metrics", func() { _ = stopESIMetrics() }))
+
 	a.deps = &WorkerDependencies{
 		Clients:      a.clients,
-		ESIClient:    esiClient,
+		ESI:          esi,
 		AsynqClient:  asynqClient,
 		EntityCipher: entityCipher,
 	}

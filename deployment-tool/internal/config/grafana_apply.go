@@ -158,7 +158,11 @@ func applyGrafanaPath(ctx context.Context, apiClient *client.Client, cfg Config,
 		return err
 	}
 	if !live.Running {
-		msg.Line("skip grafana: not deployed (obs addon off)")
+		if cfg.Addons.Observability.Enabled {
+			msg.Line("skip grafana: addon enabled but not deployed — run eip repair")
+		} else {
+			msg.Line("skip grafana: not deployed (obs addon off)")
+		}
 		return nil
 	}
 

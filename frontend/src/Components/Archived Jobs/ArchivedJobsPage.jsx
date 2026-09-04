@@ -9,6 +9,7 @@ import {
   ArchiveExtrasTotalsPanel,
   ArchiveItemChartPanel,
   ArchiveSegmentPanel,
+  ArchiveStockPanel,
   ArchiveTimelinePanel,
   ArchivedItemBreakdown,
   ArchivedItemStatistics,
@@ -125,6 +126,9 @@ export function ArchivedJobsPage() {
             </Grid>
             <Grid size={{ xs: 12, lg: 6 }}>
               <ArchiveCostTotalsPanel {...range} />
+            </Grid>
+            <Grid size={{ xs: 12, lg: 6 }}>
+              <ArchiveStockPanel {...range} />
             </Grid>
             <Grid size={12}>
               <ArchivedItemBreakdown {...range} onSelectItem={openItem} />

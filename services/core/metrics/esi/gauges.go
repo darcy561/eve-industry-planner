@@ -6,97 +6,82 @@ import (
 	"time"
 
 	"eve-industry-planner/core/metrics/common"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
 
-	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
 var registerOnce sync.Once
 
-// Register registers observable gauges backed by Redis (same keys as worker ESI client).
-// Callback runs on the OTel metric export interval (~15s).
-func Register(rdb *redis.Client) {
+// Register publishes what the fleet's ESI buckets hold. The worker reports its
+// own queue depth and request outcomes through shared/esiclient; these are the
+// shared bucket figures, which core can report even while no worker is running.
+//
+// The callback runs on the OTel export interval (~15s).
+func Register(store *esiclient.Store) {
 	registerOnce.Do(func() {
-		if rdb == nil {
+		if store == nil {
 			return
 		}
 		m := common.Meter()
-		// Unit "1"; Prometheus names are core_esi_group_token_* (collector translation_strategy without unit suffix).
-		gLimit, err := m.Float64ObservableGauge("core.esi.group.token_limit",
-			metric.WithUnit("1"),
-			metric.WithDescription("ESI error-limit token allowance for this group (X-Ratelimit-Limit style bucket)."),
-		)
-		if err != nil {
-			logs.ErrorCtx(context.Background(), "core metrics esi: token_limit gauge", "error", err)
+
+		gauge := func(name, unit, description string) (metric.Float64ObservableGauge, bool) {
+			g, err := m.Float64ObservableGauge(name, metric.WithUnit(unit), metric.WithDescription(description))
+			if err != nil {
+				logs.ErrorCtx(context.Background(), "core metrics esi: gauge", "name", name, "error", err)
+				return nil, false
+			}
+			return g, true
+		}
+
+		gLimit, ok := gauge("core.esi.bucket.token_limit", "1", "Token allowance ESI disclosed for this bucket.")
+		if !ok {
 			return
 		}
-		gUsed, err := m.Float64ObservableGauge("core.esi.group.token_used",
-			metric.WithUnit("1"),
-			metric.WithDescription("Tokens consumed in the current rolling 15m window (from Redis)."),
-		)
-		if err != nil {
-			logs.ErrorCtx(context.Background(), "core metrics esi: token_used gauge", "error", err)
+		gUsed, ok := gauge("core.esi.bucket.token_used", "1", "Tokens spent inside the bucket's window.")
+		if !ok {
 			return
 		}
-		gRem, err := m.Float64ObservableGauge("core.esi.group.token_remaining",
-			metric.WithUnit("1"),
-			metric.WithDescription("Tokens remaining before exhaustion (limit − used when enforced)."),
-		)
-		if err != nil {
-			logs.ErrorCtx(context.Background(), "core metrics esi: token_remaining gauge", "error", err)
+		gRem, ok := gauge("core.esi.bucket.token_remaining", "1", "Tokens left before the bucket refuses.")
+		if !ok {
 			return
 		}
-		gInto, err := m.Float64ObservableGauge("core.esi.group.seconds_into_window",
-			metric.WithUnit("s"),
-			metric.WithDescription("Seconds since oldest consumption in the rolling 15m window (0–900s)."),
-		)
-		if err != nil {
-			logs.ErrorCtx(context.Background(), "core metrics esi: seconds_into_window gauge", "error", err)
+		gFill, ok := gauge("core.esi.bucket.fill", "1", "Share of the allowance still available (0–1), which is what sets pacing.")
+		if !ok {
 			return
 		}
-		gReset, err := m.Float64ObservableGauge("core.esi.group.seconds_until_reset",
-			metric.WithUnit("s"),
-			metric.WithDescription("When exhausted: seconds until oldest consumption ages out of the 15m window (next token). 0 when not waiting."),
-		)
-		if err != nil {
-			logs.ErrorCtx(context.Background(), "core metrics esi: seconds_until_reset gauge", "error", err)
+		gOpen, ok := gauge("core.esi.bucket.seconds_until_open", "s", "Seconds until a refusing bucket admits again. 0 when it is not refusing.")
+		if !ok {
 			return
 		}
 
-		_, err = m.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+		_, err := m.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
 			cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 			defer cancel()
-			now := time.Now()
-			groups, err := DiscoverGroups(cctx, rdb)
+
+			rows, err := Read(cctx, store, time.Now())
 			if err != nil {
-				logs.WarnCtx(cctx, "core metrics esi: discover ESI groups", "error", err)
+				logs.WarnCtx(cctx, "core metrics esi: read bucket state", "error", err)
 				return nil
 			}
-			for _, g := range groups {
-				st, err := ReadGroupState(cctx, rdb, now, g)
-				if err != nil {
-					logs.WarnCtx(cctx, "core metrics esi: read ESI group state", "group", g, "error", err)
+			for _, row := range rows {
+				if !row.Known {
 					continue
 				}
-				attr := metric.WithAttributes(attribute.String("group", g))
-				limit := float64(st.TokenLimit)
-				if limit < 0 {
-					limit = 0
-				}
-				rem := st.TokenRemaining
-				if rem < 0 {
-					rem = 0
-				}
-				o.ObserveFloat64(gLimit, limit, attr)
-				o.ObserveFloat64(gUsed, st.TokenUsed, attr)
-				o.ObserveFloat64(gRem, rem, attr)
-				o.ObserveFloat64(gInto, st.SecondsIntoWindow, attr)
-				o.ObserveFloat64(gReset, st.SecondsUntilReset, attr)
+				attr := metric.WithAttributes(
+					attribute.String("group", row.Group),
+					attribute.String("scope", row.Scope),
+				)
+				o.ObserveFloat64(gLimit, float64(row.TokenLimit), attr)
+				o.ObserveFloat64(gUsed, float64(row.TokenUsed), attr)
+				o.ObserveFloat64(gRem, float64(row.TokenRemaining), attr)
+				o.ObserveFloat64(gFill, row.Fill, attr)
+				o.ObserveFloat64(gOpen, row.SecondsUntilOpen, attr)
 			}
 			return nil
-		}, gLimit, gUsed, gRem, gInto, gReset)
+		}, gLimit, gUsed, gRem, gFill, gOpen)
 		if err != nil {
 			logs.ErrorCtx(context.Background(), "core metrics esi: register callback", "error", err)
 		}

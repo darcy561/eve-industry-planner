@@ -6,10 +6,10 @@ import (
 	"eve-industry-planner/shared/stackservices"
 	"time"
 
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	archivedjobtasks "eve-industry-planner/worker/tasks/archivedjobs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	jobidentitytasks "eve-industry-planner/worker/tasks/jobidentity"
@@ -29,7 +29,7 @@ import (
 // WorkerDependencies holds dependencies needed by task handlers
 type WorkerDependencies interface {
 	GetClients() *stackservices.Clients
-	GetESIClient() esiratelimiter.ClientInterface
+	GetESI() esiclient.API
 	GetEntityCipher() *entityid.Cipher
 }
 
@@ -67,7 +67,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 				workermetrics.RecordAsynqTask(ctx, taskType, "success", elapsed)
 				logs.AttachDebugStepCtx(ctx, "asynq_task_completed", outcomeDetail)
 				emitAsynqTaskLog(ctx, "debug", "asynq task completed", outcomeDetail)
-			case errIsRateLimitDeferral(err):
+			case esiclient.IsRateLimit(err):
 				// Matches asynq.Config.IsFailure: task is re-queued for later; do not count in metrics
 				// (these bounce until they eventually succeed or fail for real).
 				span.SetAttributes(attribute.String("asynq.task.outcome", "retry_rate_limit"))
@@ -89,7 +89,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	})
 
 	// Create task dependencies once
-	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESIClient(), deps.GetEntityCipher())
+	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESI(), deps.GetEntityCipher())
 
 	// Register task handlers
 	handle(mux, eipnats.RefreshSystemIndexes, func(ctx context.Context, t *asynq.Task) error {

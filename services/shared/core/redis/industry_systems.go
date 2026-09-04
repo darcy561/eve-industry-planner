@@ -37,13 +37,3 @@ func GetIndustrySystemsETag(ctx context.Context, client *redis.Client) (string, 
 func SaveIndustrySystemsLastUpdated(ctx context.Context, client *redis.Client, unixMillis int64) error {
 	return SetString(ctx, client, "esi:industry_systems:last_updated", strconv.FormatInt(unixMillis, 10), 0)
 }
-
-// GetIndustrySystemsNextRefresh retrieves the next refresh timestamp (millis since epoch).
-// Returns 0 if not found or on error.
-func GetIndustrySystemsNextRefresh(ctx context.Context, client *redis.Client) (int64, error) {
-	s, err := GetString(ctx, client, "esi:industry_systems:next_refresh")
-	if err != nil {
-		return 0, err
-	}
-	return strconv.ParseInt(s, 10, 64)
-}

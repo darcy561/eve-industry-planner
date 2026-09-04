@@ -25,7 +25,10 @@ type CacheInfo struct {
 // Response is a fully read response. Body is decompressed; Wire counts the bytes
 // that crossed the connection, which is what transfer accounting wants.
 type Response struct {
-	Status      int
+	Status int
+	// Proto is what was actually negotiated, "HTTP/2.0" or "HTTP/1.1". h2 is the
+	// origin's choice, so this is the only way to see a downgrade.
+	Proto       string
 	Header      http.Header
 	Body        []byte
 	Wire        int64
@@ -38,6 +41,7 @@ type Response struct {
 // Stream is a response whose body the caller reads and closes. Body is decompressed.
 type Stream struct {
 	Status      int
+	Proto       string
 	Header      http.Header
 	Body        io.ReadCloser
 	Duration    time.Duration

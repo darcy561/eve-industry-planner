@@ -133,7 +133,6 @@ func TestBreakdownCreditsEachJobToOneSegment(t *testing.T) {
 	chain := withSale(jobRow("job-1", 34, 100, 1), 400, 0, 1)
 	chain.IsProductionChain = true
 	retained := jobRow("job-2", 34, 200, 2)
-	retained.RetainedStockBuild = true
 	sold := withSale(jobRow("job-3", 34, 300, 3), 900, 0, 3)
 
 	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{chain, retained, sold})
@@ -259,23 +258,25 @@ func TestZeroValuedLinesAreNotMarketEvidence(t *testing.T) {
 	}
 }
 
-// The flag is a user's statement about their own output, so it outranks the
-// sale evidence: a job marked as kept stays stock even if a line was recorded
-// against it.
-func TestRetainedFlagOutranksRecordedSale(t *testing.T) {
+// Stock is the absence of a sale, not a claim about where the output went.
+// A job that sold part of its run met the market, so the whole job counts as a
+// sale — how much of it is still held is a quantity, not a segment.
+func TestAPartialSaleIsStillASale(t *testing.T) {
 	t.Parallel()
 
-	flagged := withSale(jobRow("job-1", 34, 1000, 10), 2000, 0, 10)
-	flagged.RetainedStockBuild = true
+	partial := withSale(jobRow("job-1", 34, 1000, 10), 2000, 0, 4)
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{flagged})
+	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{partial})
 	b := totals[0].Breakdown
 
-	if b.RetainedStock.TotalJobs != 1 {
-		t.Fatalf("stock holds %d jobs, want the flagged build", b.RetainedStock.TotalJobs)
+	if b.StandaloneRecordedSale.TotalJobs != 1 {
+		t.Fatalf("market holds %d jobs, want the job that recorded a sale", b.StandaloneRecordedSale.TotalJobs)
 	}
-	if b.StandaloneRecordedSale.TotalJobs != 0 {
-		t.Fatalf("market holds %d jobs, want 0 — the user marked this as kept", b.StandaloneRecordedSale.TotalJobs)
+	if b.RetainedStock.TotalJobs != 0 {
+		t.Fatalf("stock holds %d jobs, want 0 — a partial sale is still a sale", b.RetainedStock.TotalJobs)
+	}
+	if b.StandaloneRecordedSale.TotalSoldQuantity != 4 {
+		t.Fatalf("sold quantity = %v, want the 4 units the line records", b.StandaloneRecordedSale.TotalSoldQuantity)
 	}
 }
 

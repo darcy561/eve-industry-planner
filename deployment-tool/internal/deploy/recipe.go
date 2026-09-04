@@ -133,6 +133,7 @@ func Run(ctx context.Context, src Source) error {
 	}
 
 	swarm.PruneStale(ctx, expanded.Secrets)
+	swarm.PruneStaleConfigs(ctx, expanded.Configs)
 	if src == SourceLive {
 		if err := images.ReconcileLive(ctx, home, wantObs); err != nil {
 			return err

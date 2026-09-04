@@ -19,6 +19,7 @@ type expandedStack struct {
 	App     string
 	Obs     string // empty when observability addon off
 	Secrets swarm.SecretsOverlay
+	Configs map[string]string // logical key → hashed object, for the stale sweep
 }
 
 // materialiseExpanded syncs secrets/configs objects (Moby Secret*/Config*), expands
@@ -86,7 +87,7 @@ func materialiseExpanded(ctx context.Context, home string, src Source, cfg confi
 		return expandedStack{}, err
 	}
 
-	out := expandedStack{Data: tmpData, App: tmpApp, Secrets: secretsOv}
+	out := expandedStack{Data: tmpData, App: tmpApp, Secrets: secretsOv, Configs: configsMap}
 	if wantObs {
 		tmpObs, err := expandFragment(ctx, "observability", home, []string{kit.ObsStackFile}, expandEnv, src, cfg.SyncEnvMap())
 		if err != nil {

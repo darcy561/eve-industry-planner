@@ -7,6 +7,7 @@ import (
 	"eve-industry-planner/core/metrics/esi"
 	"eve-industry-planner/core/metrics/sde"
 	"eve-industry-planner/core/metrics/users"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
 
@@ -17,7 +18,7 @@ import (
 // RegisterAll wires core service metric groups.
 func RegisterAll(rdb *redis.Client, mongoHandle *eipmongo.Mongo, natsHandle *eipnats.NATS) []func(context.Context) {
 	cleanups := make([]func(context.Context), 0, 1)
-	esi.Register(rdb)
+	esi.Register(esiclient.NewStore(rdb, esiclient.DefaultConfig()))
 	users.Register(mongoHandle)
 	sde.Register()
 	appconfig.Register()

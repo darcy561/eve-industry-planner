@@ -22,6 +22,7 @@ type Report struct {
 	OverallDetail string                 `json:"overallDetail"`
 	CriticalBad   int                    `json:"criticalBad"`
 	OpsBad        int                    `json:"opsBad"`
+	ObsEnabled    bool                   `json:"obsEnabled"`
 }
 
 // GroupSection is one titled block of service rows.
@@ -40,13 +41,14 @@ func Build(v deploy.View) Report {
 		Source:       string(v.Source),
 		SourceDetail: deploy.SourceDetail(v.Source),
 		Fragments:    v.Fragments,
+		ObsEnabled:   v.ObsEnabled,
 	}
 	if r.StackName == "" {
 		r.StackName = kit.StackName
 	}
 
 	for _, g := range catalogue.Groups() {
-		if g.Fragment == catalogue.FragmentObs && !groupOnStack(snap, g) {
+		if g.Fragment == catalogue.FragmentObs && !v.ObsEnabled && !groupOnStack(snap, g) {
 			continue
 		}
 		sec := GroupSection{Title: g.Title}

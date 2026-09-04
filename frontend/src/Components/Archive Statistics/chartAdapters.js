@@ -223,19 +223,28 @@ export function sumTimelineMeasures(months = []) {
 }
 
 /**
- * What was built and what was sold, per month. Counts, so a month with neither
- * carries zero rather than a gap.
+ * What was built, what was sold, and what is left over, per month. Counts, so a
+ * month with neither carries zero rather than a gap.
+ *
+ * `quantityKept` floors at zero: a month can record more sold than produced when
+ * a sale settles against an earlier month's build, and a negative there would
+ * read as owing stock rather than holding none.
  *
  * @param {Object} data - `GET /statistics/{owner}/timeline`
  */
 export function toQuantityRows(data) {
   const months = data?.months ?? [];
-  return months.map((row) => ({
-    month: monthKey(row),
-    complete: Boolean(row?.complete),
-    quantityProduced: Number(row?.quantityProduced ?? 0),
-    quantitySold: Number(row?.quantitySold ?? 0),
-  }));
+  return months.map((row) => {
+    const quantityProduced = Number(row?.quantityProduced ?? 0);
+    const quantitySold = Number(row?.quantitySold ?? 0);
+    return {
+      month: monthKey(row),
+      complete: Boolean(row?.complete),
+      quantityProduced,
+      quantitySold,
+      quantityKept: Math.max(quantityProduced - quantitySold, 0),
+    };
+  });
 }
 
 /**

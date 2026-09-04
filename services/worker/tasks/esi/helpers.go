@@ -3,116 +3,33 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"io"
-	"math/rand"
-	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
+	rediscore "eve-industry-planner/shared/core/redis"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
-	esicore "eve-industry-planner/worker/esi"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
+
+	"github.com/redis/go-redis/v9"
 )
 
-// countingReader counts bytes read from an underlying reader
-type countingReader struct {
-	r io.Reader
-	n int64
-}
-
-func (c *countingReader) Read(p []byte) (int, error) {
-	n, err := c.r.Read(p)
-	c.n += int64(n)
-	return n, err
-}
-
-// parseCacheSeconds extracts max-age seconds from Cache-Control or computes from Expires header
-func parseCacheSeconds(resp *http.Response) int {
-	cc := resp.Header.Get("Cache-Control")
-	if cc != "" {
-		parts := strings.SplitSeq(cc, ",")
-		for p := range parts {
-			p = strings.TrimSpace(p)
-			if after, ok := strings.CutPrefix(p, "max-age="); ok {
-				v := after
-				if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
-					return secs
-				}
-			}
-		}
-	}
-	if exp := resp.Header.Get("Expires"); exp != "" {
-		if t, err := http.ParseTime(exp); err == nil {
-			d := time.Until(t)
-			if d > 0 {
-				return int(d.Seconds())
-			}
-		}
-	}
-	return 0
-}
-
-// HandleStatusCheckResult handles the result of a server status check, returning nil if processing should continue.
-// Returns an error if the status check failed - asynq will automatically retry on error.
-// taskName is used for logging purposes (e.g., "system indexes refresh", "adjusted prices refresh").
-func HandleStatusCheckResult(ctx context.Context, statusResult esicore.StatusResult, taskName string) error {
-	if statusResult.Available {
-		logs.DebugCtx(ctx, "server status check passed, proceeding with refresh",
-			"cached", statusResult.Cached,
-			"task", taskName)
-		return nil
-	}
-
-	// Server not available - return error for asynq to retry
-	if statusResult.Error != nil {
-		if esiratelimiter.IsRateLimitError(statusResult.Error) {
-			rateLimitErr := esiratelimiter.GetRateLimitError(statusResult.Error)
-			logs.InfoCtx(ctx, "server status check rate limited",
-				"retryable", rateLimitErr.Retryable,
-				"retry_after", rateLimitErr.RetryAfter,
-				"reason", rateLimitErr.Reason,
-				"group", rateLimitErr.Group,
-				"task", taskName)
-			// Return error - asynq will retry with exponential backoff
-			return fmt.Errorf("rate limited: %w", statusResult.Error)
-		}
-		// Other error - server unavailable
-		logs.WarnCtx(ctx, "server status check failed, servers may be unavailable",
-			"error", statusResult.Error,
-			"task", taskName)
-		return fmt.Errorf("server unavailable: %w", statusResult.Error)
-	}
-
-	// Available is false but no error - shouldn't happen, but handle gracefully
-	logs.WarnCtx(ctx, "server status check indicates servers unavailable",
-		"task", taskName)
-	return fmt.Errorf("server unavailable")
-}
-
-// HandleStreamError handles errors from ESI streaming operations, including rate limit errors.
-// Logs the error and returns it so asynq can retry.
-// taskName is used for logging (e.g., "system indexes refresh", "adjusted prices refresh").
+// HandleStreamError logs a failed ESI pass and returns the error so asynq
+// retries. A rate-limit refusal carries when to come back, so it is logged as
+// timing rather than as a fault.
 func HandleStreamError(ctx context.Context, err error, taskName string) error {
 	if err == nil {
 		return nil
 	}
 
-	logs.DebugCtx(ctx, "stream error returned", "error", err, "error_type", fmt.Sprintf("%T", err), "task", taskName)
-
-	if esiratelimiter.IsRateLimitError(err) {
-		rateLimitErr := esiratelimiter.GetRateLimitError(err)
-		logs.DebugCtx(ctx, "detected rate limit error in refresh",
-			"retryable", rateLimitErr.Retryable,
-			"retry_after", rateLimitErr.RetryAfter,
-			"reason", rateLimitErr.Reason,
-			"group", rateLimitErr.Group,
+	if limit, ok := esiclient.AsRateLimit(err); ok {
+		logs.DebugCtx(ctx, "ESI refusal, deferring",
+			"kind", limit.Kind,
+			"retry_in", limit.RetryIn(),
+			"reason", limit.Reason,
+			"bucket", limit.Bucket,
 			"task", taskName)
-		// Return error - asynq will retry with exponential backoff
 		return err
 	}
 
-	// Handle non-rate-limit stream errors
 	logs.ErrorCtx(ctx, "failed streaming ESI data",
 		"error", err,
 		"error_type", fmt.Sprintf("%T", err),
@@ -121,155 +38,20 @@ func HandleStreamError(ctx context.Context, err error, taskName string) error {
 	return err
 }
 
-// ShouldStopRetryOnRateLimit checks if an error is a rate limit error during retry attempts.
-// If it is, it logs the details and returns true to indicate the caller should stop retrying
-// and return immediately, letting the error propagate up to HandleStreamError for proper handling.
-// This is used in retry loops to avoid unnecessary retries when rate limited.
-func ShouldStopRetryOnRateLimit(ctx context.Context, err error, attempt int, path string) bool {
-	if !esiratelimiter.IsRateLimitError(err) {
-		return false
-	}
-
-	rateLimitErr := esiratelimiter.GetRateLimitError(err)
-	logs.DebugCtx(ctx, "rate limit error detected in stream function, returning for asynq retry",
-		"attempt", attempt,
-		"retryable", rateLimitErr.Retryable,
-		"retry_after", rateLimitErr.RetryAfter,
-		"reason", rateLimitErr.Reason,
-		"group", rateLimitErr.Group,
-		"token_used", rateLimitErr.TokenUsed,
-		"token_limit", rateLimitErr.TokenLimit,
-		"estimated_tokens", rateLimitErr.EstimatedTokens,
-		"path", path)
-
-	// Always return true for rate limit errors - let asynq handle retries
-	return true
-}
-
-// DoRequestWithRetry executes an ESI HTTP request with bounded in-task retries.
-// Rate limit errors short-circuit immediately so the task can be retried by Asynq.
-func DoRequestWithRetry(
-	ctx context.Context,
-	maxAttempts int,
-	path string,
-	request func() (*http.Response, error),
-) (*http.Response, error) {
-	if maxAttempts <= 0 {
-		maxAttempts = 4
-	}
-
-	var resp *http.Response
-	var err error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		resp, err = request()
-		if err == nil {
-			return resp, nil
-		}
-
-		logs.DebugCtx(ctx, "ESI request failed",
-			"attempt", attempt,
-			"max_attempts", maxAttempts,
-			"error", err,
-			"error_type", fmt.Sprintf("%T", err),
-			"path", path)
-
-		if ShouldStopRetryOnRateLimit(ctx, err, attempt, path) {
-			return nil, err
-		}
-		if attempt >= maxAttempts {
-			return nil, err
-		}
-
-		backoff := time.Duration(500*(1<<uint(attempt-1))) * time.Millisecond
-		jitter := time.Duration(rand.Intn(100)) * time.Millisecond
-		waitTime := backoff + jitter
-		logs.DebugCtx(ctx, "waiting before retry with exponential backoff",
-			"attempt", attempt,
-			"backoff", backoff,
-			"jitter", jitter,
-			"wait_time", waitTime,
-			"path", path)
-		time.Sleep(waitTime)
-	}
-	return nil, err
-}
-
-// DoWithRetry runs ClientInterface.Do with the same bounded in-task retry, backoff,
-// and rate-limit short-circuit behaviour as DoRequestWithRetry. Use a nil body for GET.
-func DoWithRetry(
-	ctx context.Context,
-	maxAttempts int,
-	path string,
-	request func() ([]byte, *http.Response, error),
-) ([]byte, *http.Response, error) {
-	if maxAttempts <= 0 {
-		maxAttempts = 4
-	}
-
-	var body []byte
-	var resp *http.Response
-	var err error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		body, resp, err = request()
-		if err == nil {
-			return body, resp, nil
-		}
-
-		logs.DebugCtx(ctx, "ESI Do request failed",
-			"attempt", attempt,
-			"max_attempts", maxAttempts,
-			"error", err,
-			"error_type", fmt.Sprintf("%T", err),
-			"path", path)
-
-		if ShouldStopRetryOnRateLimit(ctx, err, attempt, path) {
-			return nil, nil, err
-		}
-		if attempt >= maxAttempts {
-			return nil, nil, err
-		}
-
-		backoff := time.Duration(500*(1<<uint(attempt-1))) * time.Millisecond
-		jitter := time.Duration(rand.Intn(100)) * time.Millisecond
-		waitTime := backoff + jitter
-		logs.DebugCtx(ctx, "waiting before retry with exponential backoff (Do)",
-			"attempt", attempt,
-			"backoff", backoff,
-			"jitter", jitter,
-			"wait_time", waitTime,
-			"path", path)
-		time.Sleep(waitTime)
-	}
-	return nil, nil, err
-}
-
-// DoEsiWithRetry runs ClientInterface.Do for any HTTP verb with the same retry semantics as [DoWithRetry].
-// Pass requestBody as nil for GET; for POST set Content-Type and JSON in headers/requestBody as needed.
+// recordNextRefresh stores when ESI says a dataset stops being current, so the
+// scheduler publishes the next refresh then rather than on a fixed cycle.
 //
-// The path value is used as the retry log key (same as streaming helpers); method is only sent to ESI.
-func DoEsiWithRetry(
-	ctx context.Context,
-	client esiratelimiter.ClientInterface,
-	maxAttempts int,
-	method, path string,
-	headers map[string]string,
-	requestBody []byte,
-	group esiratelimiter.GroupDesignation,
-) ([]byte, *http.Response, error) {
-	return DoWithRetry(ctx, maxAttempts, path, func() ([]byte, *http.Response, error) {
-		return client.Do(ctx, method, path, headers, requestBody, group)
-	})
-}
-
-// DoEsiPostWithRetry is shorthand for [DoEsiWithRetry] with http.MethodPost.
-func DoEsiPostWithRetry(
-	ctx context.Context,
-	client esiratelimiter.ClientInterface,
-	maxAttempts int,
-	path string,
-	headers map[string]string,
-	requestBody []byte,
-	group esiratelimiter.GroupDesignation,
-) ([]byte, *http.Response, error) {
-	return DoEsiWithRetry(ctx, client, maxAttempts, http.MethodPost, path, headers, requestBody, group)
+// A missing max-age leaves the previous answer in place: the endpoint has
+// stopped saying, and a guess would be worse than the last thing it said. A
+// failure to record is logged and not returned — the data was fetched and
+// stored, and the cron cycle is still there as a backstop.
+func recordNextRefresh(ctx context.Context, client *redis.Client, dataset string, maxAge time.Duration) {
+	if maxAge <= 0 {
+		return
+	}
+	at := time.Now().Add(maxAge)
+	if err := rediscore.SaveNextRefresh(ctx, client, dataset, at); err != nil {
+		logs.WarnCtx(ctx, "failed recording next refresh time",
+			"dataset", dataset, "next_refresh_utc", at.UTC().Format(time.RFC3339), "error", err)
+	}
 }

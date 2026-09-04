@@ -84,6 +84,11 @@ describe("what each month panel plots", () => {
       series: ["cumulativeProfit"],
     },
     {
+      name: "what was built, sold and kept",
+      Panel: panels.ArchiveStockPanel,
+      series: ["quantityProduced", "quantitySold", "quantityKept"],
+    },
+    {
       name: "cost components",
       Panel: panels.ArchiveCostBreakdownPanel,
       // Read from the list rather than restated, so a component added there has
@@ -109,6 +114,45 @@ describe("what each month panel plots", () => {
     renderWithProviders(<panels.ArchiveTimelinePanel from="2026-07" to="2026-08" />);
 
     expect(lastChart("time").rows.map((r) => r.month)).toEqual(["2026-07", "2026-08"]);
+  });
+});
+
+describe("kept as stock", () => {
+  // The figure is a subtraction the server does not send, so the panel is the
+  // only place it can be wrong.
+  it("plots what a month produced and did not sell", () => {
+    renderWithProviders(<panels.ArchiveStockPanel from="2026-07" to="2026-08" />);
+
+    expect(lastChart("time").rows.map((r) => r.quantityKept)).toEqual([5, 5]);
+  });
+
+  // A month can settle a sale against an earlier month's build. Negative kept
+  // would read as owing stock rather than holding none.
+  it("never reports less than nothing kept", () => {
+    useAccountTimelineQuery.mockReturnValue(
+      settled({ months: [monthRow(2026, 7, { quantityProduced: 2, quantitySold: 9 })] }),
+    );
+    renderWithProviders(<panels.ArchiveStockPanel />);
+
+    expect(screen.getByText("Everything built in this period sold.")).toBeInTheDocument();
+  });
+
+  // Drawing a flat zero line invites the reader to look for a trend in it.
+  it("says everything sold rather than drawing an empty series", () => {
+    useAccountTimelineQuery.mockReturnValue(
+      settled({ months: [monthRow(2026, 7, { quantityProduced: 4, quantitySold: 4 })] }),
+    );
+    renderWithProviders(<panels.ArchiveStockPanel />);
+
+    expect(screen.getByText("Everything built in this period sold.")).toBeInTheDocument();
+    expect(chartRenders).toHaveLength(0);
+  });
+
+  it("says so when the period holds no jobs at all", () => {
+    useAccountTimelineQuery.mockReturnValue(settled({ months: [] }));
+    renderWithProviders(<panels.ArchiveStockPanel />);
+
+    expect(screen.getByText("No archived jobs in this period.")).toBeInTheDocument();
   });
 });
 

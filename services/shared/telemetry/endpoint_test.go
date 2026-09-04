@@ -31,6 +31,7 @@ func TestNormalizeOTLPEndpoint(t *testing.T) {
 }
 
 func TestConfig_shouldInit(t *testing.T) {
+	t.Setenv(observabilityEnabledEnv, "true")
 	c := DefaultConfig("api")
 	if !c.shouldInit() {
 		t.Fatal("expected init with default OTLP")
