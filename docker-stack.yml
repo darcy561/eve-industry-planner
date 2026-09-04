@@ -100,7 +100,7 @@ x-app-deploy: &app-deploy
     order: stop-first
     parallelism: 1
   restart_policy:
-    condition: on-failure
+    condition: any
     delay: 5s
 
 # Service-level (not under deploy:). Every *app-deploy consumer merges this at the service root.
@@ -119,7 +119,9 @@ x-proxy-deploy: &proxy-deploy
     order: stop-first
     parallelism: 1
   restart_policy:
-    condition: on-failure
+    # any, not on-failure: a service told to stop exits 0, which on-failure reads
+    # as "done" and leaves the service with no task.
+    condition: any
     delay: 5s
 
 services:
