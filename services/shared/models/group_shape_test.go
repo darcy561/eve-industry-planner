@@ -96,8 +96,8 @@ func TestWorkflowProgressResetsRatherThanBeingInvented(t *testing.T) {
 	if len(group.ArchivedJobIDs) != 0 {
 		t.Errorf("archivedJobIDs = %v, want empty", group.ArchivedJobIDs)
 	}
-	if !group.ShowComplete || group.GroupType != 1 {
-		t.Errorf("defaults not applied: showComplete=%v groupType=%d", group.ShowComplete, group.GroupType)
+	if group.GroupType != 1 {
+		t.Errorf("defaults not applied: groupType=%d", group.GroupType)
 	}
 }
 
@@ -113,7 +113,6 @@ func TestAddJobsKeepsWhatTheGroupOwns(t *testing.T) {
 		GroupID:         "group-1",
 		GroupName:       "Rifter run",
 		GroupStatus:     2,
-		ShowComplete:    false,
 		AreComplete:     []string{"job-live"},
 		IncludedJobIDs:  []string{"job-live", "job-archived"},
 		ArchivedJobIDs:  []string{"job-archived"},
@@ -129,7 +128,7 @@ func TestAddJobsKeepsWhatTheGroupOwns(t *testing.T) {
 
 	merged := existing.AddJobs([]Job{restored})
 
-	if merged.GroupName != "Rifter run" || merged.GroupStatus != 2 || merged.ShowComplete {
+	if merged.GroupName != "Rifter run" || merged.GroupStatus != 2 {
 		t.Fatalf("the group's own fields were rewritten: %+v", merged)
 	}
 	if !slices.Equal(merged.AreComplete, []string{"job-live"}) {

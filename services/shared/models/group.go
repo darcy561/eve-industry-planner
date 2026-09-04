@@ -14,7 +14,6 @@ type Group struct {
 	MaterialIDs     []int         `json:"materialIDs" bson:"materialIDs"`
 	OutputJobCount  int           `json:"outputJobCount" bson:"outputJobCount"`
 	AreComplete     []string      `json:"areComplete" bson:"areComplete"`
-	ShowComplete    bool          `json:"showComplete" bson:"showComplete"`
 	GroupStatus     int           `json:"groupStatus" bson:"groupStatus"`
 	GroupType       int           `json:"groupType" bson:"groupType"`
 	LinkedJobIDs    []int64       `json:"linkedJobIDs" bson:"linkedJobIDs"`
