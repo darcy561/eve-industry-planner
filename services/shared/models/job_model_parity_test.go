@@ -9,10 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// Parity expectations: ../../../../migration/JOB_MODEL_PARITY_AUDIT.md (Phase 0).
-
-func TestJob_JSON_FirestoreToDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
-	const firestoreLike = `{
+func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
+	const legacyDocument = `{
 		"buildVer": "9.9.9",
 		"metaLevel": 2,
 		"jobType": 1,
@@ -63,7 +61,7 @@ func TestJob_JSON_FirestoreToDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 	}`
 
 	var job Job
-	if err := json.Unmarshal([]byte(firestoreLike), &job); err != nil {
+	if err := json.Unmarshal([]byte(legacyDocument), &job); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if job.MetaLevel == nil || *job.MetaLevel != 2 {

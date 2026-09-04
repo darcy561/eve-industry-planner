@@ -53,8 +53,7 @@ func DefaultExtrasCategories() []ExtraCategory {
 	}
 }
 
-// DefaultApplicationSettings returns a full new-account application_settings document for Mongo
-// and as the base for Firebase → Mongo mapping (overlaid with Firestore data when present).
+// DefaultApplicationSettings returns a full new-account application_settings document for Mongo.
 func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSettings {
 	return ApplicationSettings{
 		SchemaVersion:                    ApplicationSettingsSchemaCurrent,

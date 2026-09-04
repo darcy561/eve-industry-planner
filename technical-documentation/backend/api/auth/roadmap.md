@@ -358,4 +358,3 @@ One production failure mode that motivated **#2–#6** and **#20** — not the o
 
 - Internal JWT / JWKS — removed; [README §2](./overview.md#2-what-changed-compared-to-the-previous-system).
 - `technical-documentation/backend/api/session-esi.md` — may overlap; prefer `technical-documentation/backend/api/auth/*`.
-- `firebaseadmin` — migration/admin only, not request auth ([BACKEND §10](./sessions.md#10-servicessharedfirebaseadmin)).

@@ -12,7 +12,6 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/api/middleware"
-	"eve-industry-planner/api/migrationendpoints"
 	"eve-industry-planner/api/staticdata"
 	"eve-industry-planner/api/v1endpoints"
 	"eve-industry-planner/api/v1endpoints/archivedjobs"
@@ -296,30 +295,6 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients, esi esi
 	// Register private routes (v1)
 	for _, route := range privateRoutes {
 		privateGroup.HandleFunc(route.Path, route.Handler)
-	}
-
-	// Migration-specific groups (separate from v1 handlers)
-	migrationPublicGroup := middleware.NewGroup(mux,
-		middleware.OptionalAccountLogConstructor(clients.Redis),
-		middleware.RateLimiterConstructor(store, publicRateLimit, "migration_public"),
-	)
-
-	migrationPublicRoutes := []route{
-		{
-			Path: "/api/migration/item/{itemID}",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				migrationendpoints.ItemRecipeHandler(w, r)
-			},
-		},
-		{
-			Path: "/api/migration/item",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				migrationendpoints.ItemRecipeHandler(w, r)
-			},
-		},
-	}
-	for _, route := range migrationPublicRoutes {
-		migrationPublicGroup.HandleFunc(route.Path, route.Handler)
 	}
 
 	baseHandler := middleware.RequestStartTimeConstructor()(

@@ -31,7 +31,6 @@ go test ./core/...
 | `scheduler/maintenance` | Cron registration for cloud-ESI refresh / inactive cleanup / session prune; microbatch plan math; Mongo user-filter contracts |
 | `startup` | `EnsureLiveSDEExists` present/missing |
 | `primaryhandoff` | Resume-token Redis key naming |
-| `migration/firestoreimport` | Project ID from service-account JSON |
 
 ### Thin
 

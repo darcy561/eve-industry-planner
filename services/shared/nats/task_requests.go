@@ -1,8 +1,6 @@
 package nats
 
 import (
-	"encoding/json"
-
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -27,34 +25,6 @@ type SDEApplyVersionRequest struct {
 type AccountSessionGrantsRequest struct {
 	AccountID string   `json:"account_id"`
 	Tokens    []string `json:"tokens"` // EVE SSO JWT access tokens (one per character)
-}
-
-// MigrateUserDocumentToMongoRequest represents the data sent to the worker for migrating a Firebase user document to MongoDB.
-// The worker fetches the user document from Firestore using accountID.
-type MigrateUserDocumentToMongoRequest struct {
-	AccountID string `json:"account_id"` // Account ID (Firebase UID)
-}
-
-// MigrateFirestoreWatchlistToMongoRequest copies Firestore ProfileInfo/Watchlist → Mongo user_watchlist_deprecated.
-type MigrateFirestoreWatchlistToMongoRequest struct {
-	AccountID string `json:"account_id"`
-}
-
-// ImportArchivedJobToMongoRequest is the payload for one ArchivedJobs Firestore document to normalise and upsert into the archivedJobs collection.
-// CanonicalBuildVer is optional; when empty the worker resolves it for structured logs only (not persisted on the job document).
-type ImportArchivedJobToMongoRequest struct {
-	UserID              string          `json:"user_id"`
-	FirestorePath       string          `json:"firestore_path,omitempty"`
-	FirestoreDocumentID string          `json:"firestore_document_id,omitempty"`
-	RawData             json.RawMessage `json:"raw_data"`
-	CanonicalBuildVer   string          `json:"canonical_build_ver,omitempty"`
-}
-
-// ImportUserJobDocumentsForAccountRequest runs firestoremig.ImportAllReferencedUserJobDocumentsForAccount in the worker.
-// LoginRecencyMaxAgeSeconds: 0 = apply server default window (~2y of Auth activity). -1 = skip Auth check. >0 = max window in seconds.
-type ImportUserJobDocumentsForAccountRequest struct {
-	AccountID                 string `json:"account_id"`
-	LoginRecencyMaxAgeSeconds int64  `json:"login_recency_max_age_seconds,omitempty"`
 }
 
 // RotateRefreshTokenKeysRequest is the per-account maintenance task payload for key rotation.
@@ -89,20 +59,6 @@ type CloudStoredEsiRefreshMaintenanceRequest struct {
 	AccountID               string `json:"account_id"`
 	RotateAfterLoginDays    int    `json:"rotate_after_login_days,omitempty"`    // default 25
 	AbandonAfterLoginMonths int    `json:"abandon_after_login_months,omitempty"` // default 6
-}
-
-// EncryptCloudRefreshTokensRequest is the per-account migration task payload for
-// encrypting legacy plaintext refreshTokens[].rToken rows.
-type EncryptCloudRefreshTokensRequest struct {
-	AccountID string `json:"account_id"`
-	DryRun    bool   `json:"dry_run,omitempty"`
-}
-
-// MigrateUserCloudAccountsToUserDocRequest is the per-account migration payload
-// for moving userCloudAccounts from application_settings to users.
-type MigrateUserCloudAccountsToUserDocRequest struct {
-	AccountID string `json:"account_id"`
-	DryRun    bool   `json:"dry_run,omitempty"`
 }
 
 // RebuildOwnerStatisticsRequest names one owner's statistics to recompute, and
@@ -172,21 +128,6 @@ func accountAttrs(accountID string) []attribute.KeyValue {
 }
 
 // SpanAttributes records the account a per-account task runs for.
-func (r MigrateUserDocumentToMongoRequest) SpanAttributes() []attribute.KeyValue {
-	return accountAttrs(r.AccountID)
-}
-
-// SpanAttributes records the account a per-account task runs for.
-func (r MigrateFirestoreWatchlistToMongoRequest) SpanAttributes() []attribute.KeyValue {
-	return accountAttrs(r.AccountID)
-}
-
-// SpanAttributes records the account a per-account task runs for.
-func (r ImportUserJobDocumentsForAccountRequest) SpanAttributes() []attribute.KeyValue {
-	return accountAttrs(r.AccountID)
-}
-
-// SpanAttributes records the account a per-account task runs for.
 func (r InactiveAccountPlannerCleanupRequest) SpanAttributes() []attribute.KeyValue {
 	return accountAttrs(r.AccountID)
 }
@@ -216,14 +157,4 @@ func (r SchemaVersionMaintenanceBatchRequest) SpanAttributes() []attribute.KeyVa
 		return nil
 	}
 	return []attribute.KeyValue{attribute.String("task.data.collection", r.Collection)}
-}
-
-// SpanAttributes records the account a per-account task runs for.
-func (r EncryptCloudRefreshTokensRequest) SpanAttributes() []attribute.KeyValue {
-	return accountAttrs(r.AccountID)
-}
-
-// SpanAttributes records the account a per-account task runs for.
-func (r MigrateUserCloudAccountsToUserDocRequest) SpanAttributes() []attribute.KeyValue {
-	return accountAttrs(r.AccountID)
 }

@@ -36,7 +36,6 @@ Handlers are methods: no Mongo/Redis/`deps` parameters on the HTTP function sign
 | Surface | Wiring |
 |---------|--------|
 | `/api/static-data/…` | Package `staticdata` (SDE cache / object store) |
-| `/api/migration/…` | Package `migrationendpoints` |
 | `/healthy` `/health` `/ready` | Orchestration probes in `app.go` (ready: SDE warm + Mongo Ping) |
 
 ## Topic-only detail

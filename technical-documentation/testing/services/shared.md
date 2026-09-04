@@ -26,8 +26,7 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 | Area | What the tests cover |
 |------|----------------------|
 | `core/documentlock` | Atomic acquire/release/handover/extend races; Redis lock roundtrip, waitlist, promote; status batch; cascade pipeline/predicate/membership; lease rebind; event payloads |
-| `archiveimport` (normalise) | Firestore→job normalisation (legacy/modern shapes, materials, groups, export samples) |
-| `models` | Job JSON/BSON parity & unknown-field policy; refresh-token encrypt/reencrypt; group-template validation; flexible JSON scalars |
+| `models` | Job JSON/BSON parity & unknown-field policy; refresh-token encrypt/reencrypt; group-template validation |
 | `core/crypto` + `keyrings` | AES-GCM roundtrip/rotate/AAD; refresh-token keyring legacy parsing |
 | `core/redis/lease` | Single-leader, takeover, lost-lease cancel, reacquire on fn error |
 | `orchestrationprobes` | Health/ready handlers; bus ping role parse/start |
@@ -42,20 +41,18 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 | `esiclient` (unit) | Bucket keying and token cost against the protocol; allowance learned from headers, never written in code; the floating-window ledger; class floors and hand-off order; glide; the observed downtime gate, including source spread and the lone-source trip; operator reset dropping the allowance and keeping the ledger |
 | `esiclient` (soak, `testing/esi_soak`) | Replay; Redis-op counts per call; fleet soak across replicas; outage and recovery; mixed classes; production-shaped load |
 | `evesso` | Token exchange and refresh against `testing/evessofake`, which signs with a real RSA key it publishes through JWKS, so the whole validation path runs rather than a stub of it: issuer, audience, expiry and unpublished-key rejection, plus the rule that a refused grant means the server answered |
-| Other focused | `container` ID; `wsplacement` tenant keys / routing precedence; `swarmsecret` env-over-file; Mongo/Redis URL API fallback; process `APP_VERSION` helpers; dependency unavailable-error detection; small firebaseadmin helpers |
+| Other focused | `container` ID; `wsplacement` tenant keys / routing precedence; `swarmsecret` env-over-file; Mongo/Redis URL API fallback; process `APP_VERSION` helpers; dependency unavailable-error detection |
 
 ### Thin
 
 - `nats` connect and reconnect: the retry loop and its options are not exercised against a server that goes away and returns
 - `nats` core topics: publish and subscribe helpers are covered by their callers rather than directly, and the health census gather has no test of its own
 - `core/config` — mostly service-cred URL fallback; other loaders untested
-- `firebaseadmin` — one negative / formatter test each
 - `mongo` connect / monitor loops and most raw `Collection()` escape hatches
 
 ### Little / none
 
-- `core/objectstore/`, `core/sde/`
-- `migration/firestoremig/`, `lifecycle/`
+- `core/objectstore/`, `core/sde/`, `lifecycle/`
 - `stackservices/connect` (no package tests); `wsplacement` keys untested (`tenant` key helpers have unit tests)
 - Main `appconfig` loader beyond process-version helpers
 
