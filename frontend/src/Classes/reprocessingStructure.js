@@ -6,14 +6,7 @@ import {
 import uuid from "react-uuid";
 import { customStructureLocationMap } from "../Context/defaultValues";
 import DOMPurify from "dompurify";
-
-/** @param {unknown} value @param {number} fallback */
-function coerceFiniteNumber(value, fallback = 0) {
-  if (value === undefined || value === null || value === "") return fallback;
-  const n =
-    typeof value === "number" ? value : Number(String(value).trim());
-  return Number.isFinite(n) ? n : fallback;
-}
+import coerceFiniteNumber from "../Functions/Helper/coerceFiniteNumber";
 
 /**
  * ReprocessingStructure class for EVE Online reprocessing facility configurations.
@@ -128,12 +121,13 @@ class ReprocessingStructure {
   }
 
   /**
-   * Finds the maximum rig value applicable to a specific reprocessing item type.
+   * The bonus this structure's rigs give an item type. Two rigs can be fitted
+   * and only those that apply count, so the better of them is the one used.
    *
    * @param {number} itemType - Reprocessing item type (ore, gas, ice, moon ore)
-   * @returns {number} Maximum rig value applicable to the item type
+   * @returns {number} The rig bonus, or 0 when none applies
    */
-  findRigValueFromReprocessingItemType(itemType = 0) {
+  rigBonusFor(itemType = 0) {
     const rigObjects = [
       getRigInfoFromID(jobTypes.reprocessing, this.rigSlot1),
       getRigInfoFromID(jobTypes.reprocessing, this.rigSlot2),
@@ -149,15 +143,15 @@ class ReprocessingStructure {
   }
 
   /**
-   * Finds the structure value applicable to a specific reprocessing item type.
+   * The bonus the structure itself gives an item type.
    *
    * @param {number} itemType - Reprocessing item type (ore, gas, ice, moon ore)
-   * @returns {number} Structure value applicable to the item type
+   * @returns {number} The structure bonus, or 0 when it gives none
    */
-  findStructureValueFromReprocessingItemType(itemType = 0) {
+  structureBonusFor(itemType = 0) {
     const structureObject = getStructureInfoFromID(
       jobTypes.reprocessing,
-      this.structureType
+      this.structureType,
     );
     if (!structureObject) return 0;
 
@@ -189,7 +183,7 @@ class ReprocessingStructure {
       rigSlot1: this.rigSlot1,
       rigSlot2: this.rigSlot2,
       implant: this.implant,
-      tax: coerceFiniteNumber(this.tax, 0),
+      tax: this.tax,
       default: this.default,
     };
   }

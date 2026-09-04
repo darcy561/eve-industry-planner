@@ -22,6 +22,7 @@ import {
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import DOMPurify from "dompurify";
+import InventionEntry from "../../../../../../Classes/inventionEntry";
 
 export function InventionCostsCard({ state, actions }) {
   function handleRemove(record) {
@@ -40,11 +41,9 @@ export function InventionCostsCard({ state, actions }) {
       return;
     }
 
-    state.activeJob.addInventionCost({
-      id: Date.now(),
-      itemName,
-      itemCost,
-    });
+    state.activeJob.addInventionCost(
+      InventionEntry.forItem(itemName, itemCost),
+    );
 
     actions.updateActiveJob(state.activeJob);
     showSnackbarSuccess("Success");

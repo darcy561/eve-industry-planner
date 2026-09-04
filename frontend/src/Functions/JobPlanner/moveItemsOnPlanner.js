@@ -2,6 +2,7 @@ import Job from "../../Classes/job";
 import Group from "../../Classes/group";
 import { scheduleSaveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
+import { asIDList } from "../Helper/ids";
 import {
   canMoveJobBackward,
   canMoveJobForward,
@@ -31,11 +32,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
   } = useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
 
-  const normalizedIDs = Array.isArray(inputIDs)
-    ? inputIDs
-    : inputIDs instanceof Set
-      ? [...inputIDs]
-      : [inputIDs];
+  const normalizedIDs = asIDList(inputIDs);
   const selectedIDs = [...new Set(normalizedIDs.filter(Boolean))];
   if (!direction || selectedIDs.length === 0) return;
 
@@ -87,7 +84,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
     ...new Set(
       modifiedJobs
         .filter((job) => job.includedInGroup && job.groupID)
-        .map((job) => job.groupID)
+        .map((job) => job.groupID),
     ),
   ];
   const groupsToPersistMap = new Map();

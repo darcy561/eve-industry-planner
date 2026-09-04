@@ -2,6 +2,16 @@ import uuid from "react-uuid";
 import DOMPurify from "dompurify";
 import getAllRelatedJobs from "../Functions/Helper/getAllRelatedJobs";
 import { getRealtimeClientID } from "../Realtime/wsClientIdentity.js";
+import {
+  addIDsToSet,
+  asIDList,
+  asNumberID,
+  asNumberIDList,
+  asNumberIDSet,
+  asStringID,
+  asStringIDSet,
+  removeIDsFromSet,
+} from "../Functions/Helper/ids";
 
 /**
  * Group class for organising and managing EVE Online industry jobs.
@@ -23,7 +33,6 @@ class Group {
    * @param {Array<number>} [data.materialIDs] - Array of material type IDs
    * @param {number} [data.outputJobCount] - Number of output jobs
    * @param {Array<string>} [data.areComplete] - Array of completed job IDs
-   * @param {boolean} [data.showComplete] - Whether to show completed jobs
    * @param {number} [data.groupStatus] - Group status (0-3)
    * @param {number} [data.groupType] - Group type identifier
    * @param {Array<number>} [data.linkedJobIDs] - Array of linked ESI job IDs
@@ -33,23 +42,19 @@ class Group {
   constructor(data) {
     this.groupName = data?.groupName || "Untitled Group";
     this.groupID = data?.groupID || `group-${uuid()}`;
-    this.includedJobIDs = new Set(data?.includedJobIDs?.map(String) || []);
-    this.archivedJobIDs = new Set(data?.archivedJobIDs?.map(String) || []);
-    this.includedTypeIDs = this._newSet(data?.includedTypeIDs ?? [], this._convertToNumber);
-    this.materialIDs = this._newSet(data?.materialIDs ?? [], this._convertToNumber);
+    this.includedJobIDs = asStringIDSet(data?.includedJobIDs);
+    this.archivedJobIDs = asStringIDSet(data?.archivedJobIDs);
+    this.includedTypeIDs = asNumberIDSet(data?.includedTypeIDs);
+    this.materialIDs = asNumberIDSet(data?.materialIDs);
     this.outputJobCount = data?.outputJobCount || 0;
-    this.areComplete = new Set(data?.areComplete?.map(String) || []);
-    this.showComplete = data?.showComplete || true;
+    this.areComplete = asStringIDSet(data?.areComplete);
     this.groupStatus = data?.groupStatus || 0;
     this.groupType = data?.groupType || 1;
-    this.linkedJobIDs = this._newSet(data?.linkedJobIDs ?? [], this._convertToNumber);
-    this.linkedOrderIDs = this._newSet(data?.linkedOrderIDs ?? [], this._convertToNumber);
-    this.linkedTransIDs = this._newSet(data?.linkedTransIDs ?? [], this._convertToNumber);
+    this.linkedJobIDs = asNumberIDSet(data?.linkedJobIDs);
+    this.linkedOrderIDs = asNumberIDSet(data?.linkedOrderIDs);
+    this.linkedTransIDs = asNumberIDSet(data?.linkedTransIDs);
     const rawMeta = data?._meta;
-    this._meta =
-      rawMeta && typeof rawMeta === "object"
-        ? { ...rawMeta }
-        : {};
+    this._meta = rawMeta && typeof rawMeta === "object" ? { ...rawMeta } : {};
     delete this._meta.buildVer;
   }
 
@@ -60,7 +65,7 @@ class Group {
    * @returns {boolean}
    */
   hasIncludedTypeId(typeID) {
-    const n = this._convertToNumber(typeID);
+    const n = asNumberID(typeID);
     return n !== null && this.includedTypeIDs.has(n);
   }
 
@@ -72,10 +77,7 @@ class Group {
   toDocument() {
     // Sorted, so an unchanged group is not rewritten as modified, and a document
     // written here matches one the backend derives from the same jobs.
-    const intArrayFromSet = (set) =>
-      [...set]
-        .filter((id) => Number.isFinite(Number(id)))
-        .sort((a, b) => a - b);
+    const intArrayFromSet = (set) => asNumberIDList(set).sort((a, b) => a - b);
     const doc = {
       groupName: this.groupName,
       groupID: this.groupID,
@@ -85,7 +87,6 @@ class Group {
       materialIDs: intArrayFromSet(this.materialIDs),
       outputJobCount: this.outputJobCount,
       areComplete: [...this.areComplete],
-      showComplete: this.showComplete,
       groupStatus: this.groupStatus,
       groupType: this.groupType,
       linkedJobIDs: intArrayFromSet(this.linkedJobIDs),
@@ -102,72 +103,6 @@ class Group {
       doc._meta = meta;
     }
     return doc;
-  }
-
-  /**
-   * Converts an ID to a number, returning null if invalid.
-   *
-   * @private
-   * @param {*} id - ID to convert to number
-   * @returns {number|null} Converted number or null if invalid
-   */
-  _convertToNumber(id) {
-    const num = Number(id);
-    return isNaN(num) ? null : num;
-  }
-
-  /**
-   * Converts an ID to a string, returning null if null/undefined.
-   *
-   * @private
-   * @param {*} id - ID to convert to string
-   * @returns {string|null} Converted string or null if null/undefined
-   */
-  _convertToString(id) {
-    return id != null ? String(id) : null;
-  }
-
-  /**
-   * Applies an action to a set with ID conversion.
-   *
-   * This private method handles ID conversion and set operations:
-   *
-   * @private
-   * @param {*} inputIDs - ID(s) to process
-   * @param {Function} action - Set method to call (add, delete, etc.)
-   * @param {Set} targetSet - Target set to modify
-   * @param {Function} converter - Function to convert IDs
-   */
-  _toSet(inputIDs, action, targetSet, converter) {
-    if (!inputIDs || !action || !targetSet || !converter) return;
-
-    if (Array.isArray(inputIDs) || inputIDs instanceof Set) {
-      inputIDs.forEach((id) => {
-        const convertedID = converter(id);
-        if (convertedID !== null) {
-          action.call(targetSet, convertedID);
-        }
-      });
-    } else {
-      const convertedID = converter(inputIDs);
-      if (convertedID !== null) {
-        action.call(targetSet, convertedID);
-      }
-    }
-  }
-
-  /**
-   * Creates a new set from input IDs using a converter function.
-   *
-   * @private
-   * @param {*} inputIDs - ID(s) to convert
-   * @param {Function} converter - Function to convert IDs
-   * @returns {Set} New set with converted IDs
-   */
-  _newSet(inputIDs, converter) {
-    const _newSet = new Set();
-    this._toSet(inputIDs, Set.prototype.add, _newSet, converter);
-    return _newSet;
   }
 
   /**
@@ -264,12 +199,7 @@ class Group {
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to add
    */
   addIncludedJobIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.includedJobIDs,
-      this._convertToString
-    );
+    addIDsToSet(this.includedJobIDs, inputJobIDs, asStringID);
   }
 
   /**
@@ -278,7 +208,7 @@ class Group {
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to set
    */
   setIncludedJobIDs(inputJobIDs) {
-    this.includedJobIDs = this._newSet(inputJobIDs, this._convertToString);
+    this.includedJobIDs = asStringIDSet(inputJobIDs);
   }
 
   /**
@@ -301,12 +231,7 @@ class Group {
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to remove
    */
   removeIncludedJobIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.includedJobIDs,
-      this._convertToString
-    );
+    removeIDsFromSet(this.includedJobIDs, inputJobIDs, asStringID);
   }
 
   /**
@@ -315,12 +240,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Type ID(s) to add
    */
   addIncludedTypeIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.includedTypeIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.includedTypeIDs, inputJobIDs, asNumberID);
   }
 
   /**
@@ -329,7 +249,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Type ID(s) to set
    */
   setIncludedTypeIDs(inputJobIDs) {
-    this.includedTypeIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.includedTypeIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
@@ -338,12 +258,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Type ID(s) to remove
    */
   removeIncludedTypeIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.includedTypeIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.includedTypeIDs, inputJobIDs, asNumberID);
   }
 
   /**
@@ -352,12 +267,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputMaterialIDs - Material ID(s) to add
    */
   addMaterialIDs(inputMaterialIDs) {
-    this._toSet(
-      inputMaterialIDs,
-      Set.prototype.add,
-      this.materialIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.materialIDs, inputMaterialIDs, asNumberID);
   }
 
   /**
@@ -366,7 +276,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Material ID(s) to set
    */
   setMaterialIDs(inputJobIDs) {
-    this.materialIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.materialIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
@@ -375,12 +285,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputMaterialIDs - Material ID(s) to remove
    */
   removeMaterialIDs(inputMaterialIDs) {
-    this._toSet(
-      inputMaterialIDs,
-      Set.prototype.delete,
-      this.materialIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.materialIDs, inputMaterialIDs, asNumberID);
   }
 
   /**
@@ -409,12 +314,7 @@ class Group {
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to mark as complete
    */
   addAreComplete(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.areComplete,
-      this._convertToString
-    );
+    addIDsToSet(this.areComplete, inputJobIDs, asStringID);
   }
 
   /**
@@ -423,7 +323,7 @@ class Group {
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to mark as complete
    */
   setAreComplete(inputJobIDs) {
-    this.areComplete = this._newSet(inputJobIDs, this._convertToString);
+    this.areComplete = asStringIDSet(inputJobIDs);
   }
 
   /**
@@ -432,19 +332,7 @@ class Group {
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to remove from complete
    */
   removeAreComplete(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.areComplete,
-      this._convertToString
-    );
-  }
-
-  /**
-   * Toggles the show complete setting.
-   */
-  toggleShowComplete() {
-    this.showComplete = !this.showComplete;
+    removeIDsFromSet(this.areComplete, inputJobIDs, asStringID);
   }
 
   /**
@@ -479,12 +367,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Order ID(s) to add
    */
   addLinkedOrderIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.linkedOrderIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.linkedOrderIDs, inputJobIDs, asNumberID);
   }
 
   /**
@@ -493,7 +376,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Order ID(s) to set
    */
   setLinkedOrderIDs(inputJobIDs) {
-    this.linkedOrderIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.linkedOrderIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
@@ -502,12 +385,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Order ID(s) to remove
    */
   removeLinkedOrderIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.linkedOrderIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.linkedOrderIDs, inputJobIDs, asNumberID);
   }
 
   /**
@@ -516,12 +394,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Job ID(s) to add
    */
   addLinkedJobIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.linkedJobIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.linkedJobIDs, inputJobIDs, asNumberID);
   }
 
   /**
@@ -530,7 +403,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Job ID(s) to set
    */
   setLinkedJobIDs(inputJobIDs) {
-    this.linkedJobIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.linkedJobIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
@@ -539,12 +412,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Job ID(s) to remove
    */
   removeLinkedJobIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.linkedJobIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.linkedJobIDs, inputJobIDs, asNumberID);
   }
 
   /**
@@ -553,12 +421,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Transaction ID(s) to add
    */
   addLinkedTransIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.linkedTransIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.linkedTransIDs, inputJobIDs, asNumberID);
   }
 
   /**
@@ -567,7 +430,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Transaction ID(s) to set
    */
   setLinkedTransIDs(inputJobIDs) {
-    this.linkedTransIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.linkedTransIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
@@ -576,12 +439,7 @@ class Group {
    * @param {number|Array<number>|Set<number>} inputJobIDs - Transaction ID(s) to remove
    */
   removeLinkedTransIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.linkedTransIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.linkedTransIDs, inputJobIDs, asNumberID);
   }
 
   /**
@@ -698,7 +556,8 @@ class Group {
     jobsToRemoveAsArray.forEach((job) => idsOfJobsToRemove.add(job.jobID));
 
     const remainingGroupJobs = jobArray.filter(
-      (job) => job.groupID === this.groupID && !idsOfJobsToRemove.has(job.jobID)
+      (job) =>
+        job.groupID === this.groupID && !idsOfJobsToRemove.has(job.jobID),
     );
 
     const {
@@ -730,14 +589,13 @@ class Group {
   markJobsArchived(archivedJobs, jobArray) {
     if (!archivedJobs || !jobArray) return;
 
-    const asArray = Array.isArray(archivedJobs) ? archivedJobs : [archivedJobs];
+    const asArray = asIDList(archivedJobs);
     if (asArray.length === 0) return;
 
-    this._toSet(
-      asArray.map((job) => job.jobID),
-      Set.prototype.add,
+    addIDsToSet(
       this.archivedJobIDs,
-      this._convertToString
+      asArray.map((job) => job.jobID),
+      asStringID,
     );
     this.removeJobsFromGroup(asArray, jobArray);
   }
@@ -757,7 +615,6 @@ class Group {
 
     return getAllRelatedJobs(outputJob.jobID);
   }
-
 }
 
 export default Group;

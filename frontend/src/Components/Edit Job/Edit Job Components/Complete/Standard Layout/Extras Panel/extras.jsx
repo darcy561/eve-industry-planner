@@ -23,17 +23,14 @@ import ExtrasCategoriesSelect from "../../../../../../Styled Components/Select/e
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import DOMPurify from "dompurify";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import ExtraCost from "../../../../../../Classes/extraCost";
 
 export function ExtrasPanel({ state, actions }) {
   const [extrasCategory, setExtrasCategory] = useState("0");
   const extrasCategories = useUsersStore((state) => state.applicationSettings.extrasCategories);
 
   const getCategoryLabel = (categoryId) => {
-    // Category id is string in API and UI; tolerate legacy numeric rows until re-saved.
-    const n =
-      categoryId == null || categoryId === ""
-        ? 0
-        : Number(categoryId);
+    const n = Number(ExtraCost.categoryOf(categoryId));
     const safeCategoryId = Number.isFinite(n) ? n : 0;
     const category = extrasCategories.find(
       (cat) => cat.id === safeCategoryId || String(cat.id) === String(categoryId)
@@ -63,13 +60,14 @@ export function ExtrasPanel({ state, actions }) {
       ALLOWED_ATTR: [],
     });
 
-    // Persisted shape for each row: { id, category, extraText, extraValue } (see Job.addExtrasCost, models.ExtraCost).
-    state.activeJob.addExtrasCost({
-      id: uuid(),
-      category,
-      extraText: sanitizedText,
-      extraValue,
-    });
+    state.activeJob.addExtrasCost(
+      new ExtraCost({
+        id: uuid(),
+        category,
+        extraText: sanitizedText,
+        extraValue,
+      }),
+    );
 
     actions.updateActiveJob(state.activeJob);
     showSnackbarSuccess("Extra cost added");

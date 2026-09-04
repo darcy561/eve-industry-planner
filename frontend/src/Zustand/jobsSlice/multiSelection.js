@@ -8,7 +8,7 @@
  * @fileoverview Multi-selection management operations
  * @author EVE Industry Planner Team
  */
-import asIDList from "../../Functions/Helper/asIDList";
+import { asIDList } from "../../Functions/Helper/ids";
 
 /**
  * Multi-selection management actions for jobs slice.

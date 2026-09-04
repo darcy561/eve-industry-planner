@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { Box, Button, TextField, Grid, Stack } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
-import DOMPurify from "dompurify";
 import {
   requirements,
   rigTypeMap,
@@ -58,12 +57,7 @@ function StructureOptionsSelection_CustomStructures({
   );
 
   const handleNameChange = (e) => {
-    currentStructure.setName(
-      DOMPurify.sanitize(e.target.value, {
-        ALLOWED_TAGS: [],
-        ALLOWED_ATTR: [],
-      }),
-    );
+    currentStructure.setName(e.target.value);
     setCurrentStructure(new CustomStructure(currentStructure));
   };
 

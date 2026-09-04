@@ -13,6 +13,7 @@ import {
 import calculateTimeForSetup from "../Functions/Blueprint Calculations/calculateTimeForSetup";
 import calculateInstallCostfromSetup from "../Functions/Installation Costs/installCosts";
 import calculateMaterialsFromSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
+import { asStringID } from "../Functions/Helper/ids";
 /**
  * Setup class for EVE Online industry job configurations.
  *
@@ -96,7 +97,7 @@ class Setup {
    * @returns {number} Quantity required by this setup
    */
   materialQuantity(typeID) {
-    return this.materialCount?.[String(typeID)]?.quantity || 0;
+    return this.materialCount?.[asStringID(typeID)]?.quantity || 0;
   }
 
   /**
@@ -155,7 +156,7 @@ class Setup {
     this.estimatedTime = calculateTimeForSetup(
       this,
       jobSkillRequirements,
-      queryClient
+      queryClient,
     );
   }
   /**
@@ -167,12 +168,12 @@ class Setup {
    */
   caclulateEstimatedInstallCost(
     additionalMaterialPrices = {},
-    additionalSystemIndexValues = {}
+    additionalSystemIndexValues = {},
   ) {
     this.estimatedInstallCost = calculateInstallCostfromSetup(
       this,
       additionalMaterialPrices,
-      additionalSystemIndexValues
+      additionalSystemIndexValues,
     );
   }
   /**
@@ -197,13 +198,13 @@ class Setup {
     jobSkillRequirements,
     queryClient,
     additionalMaterialPrices = {},
-    additionalSystemIndexValues = {}
+    additionalSystemIndexValues = {},
   ) {
     this.calculateMaterialCount();
     this.caclulateEstimatedTime(jobSkillRequirements, queryClient);
     this.caclulateEstimatedInstallCost(
       additionalMaterialPrices,
-      additionalSystemIndexValues
+      additionalSystemIndexValues,
     );
   }
 
@@ -271,11 +272,11 @@ class Setup {
    */
   gatherRequirements() {
     const structureRequirements = this.getObjectRequirements(
-      this.getStructureObject
+      this.getStructureObject,
     );
     const rigRequirements = this.getObjectRequirements(this.getRigObject);
     const systemTypeRequirements = this.getObjectRequirements(
-      this.getSystemTypeObject
+      this.getSystemTypeObject,
     );
 
     return {
@@ -422,7 +423,7 @@ class Setup {
     this.manageRequirements(
       structureObject.hasOwnProperty("requirementID")
         ? structureObject.requirementID
-        : null
+        : null,
     );
   }
 
@@ -435,7 +436,9 @@ class Setup {
     if (!rigObject || !Object.hasOwn(rigObject, "material")) return;
     this.rigID = rigObject.id;
     this.manageRequirements(
-      rigObject.hasOwnProperty("requirementID") ? rigObject.requirementID : null
+      rigObject.hasOwnProperty("requirementID")
+        ? rigObject.requirementID
+        : null,
     );
   }
 
@@ -450,7 +453,7 @@ class Setup {
     this.manageRequirements(
       systemObject.hasOwnProperty("requirementID")
         ? systemObject.requirementID
-        : null
+        : null,
     );
   }
 
