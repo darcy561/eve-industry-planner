@@ -1,4 +1,10 @@
-package tasks
+// Package taskrun holds what a worker task has while it runs: the clients it
+// works through, and what it can ask about its own execution.
+//
+// It is separate from the task packages because every one of them needs it, and
+// separate from the composition root because the mux builds it once and hands it
+// to each handler.
+package taskrun
 
 import (
 	"eve-industry-planner/shared/core/objectstore"
@@ -11,9 +17,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// TaskDependencies holds stack clients and ESI rate-limiter used by worker task handlers.
-// Built at the asynq mux composition root — handlers take *TaskDependencies, not *stackservices.Clients.
-type TaskDependencies struct {
+// Dependencies holds the stack clients and the ESI rate limiter a task handler
+// works through. Built at the mux; handlers take this rather than the connect
+// bag it comes from.
+type Dependencies struct {
 	Mongo       *eipmongo.Mongo
 	NATS        *eipnats.NATS
 	Redis       *redis.Client
@@ -26,9 +33,9 @@ type TaskDependencies struct {
 }
 
 // FromClients maps a stackservices.Clients bag plus the ESI client into
-// TaskDependencies. refs derives entity refs; the connect bag does not carry it.
-func FromClients(c *stackservices.Clients, esi esiclient.API, refs *entityid.Cipher) *TaskDependencies {
-	d := &TaskDependencies{ESI: esi, EntityCipher: refs}
+// Dependencies. refs derives entity refs; the connect bag does not carry it.
+func FromClients(c *stackservices.Clients, esi esiclient.API, refs *entityid.Cipher) *Dependencies {
+	d := &Dependencies{ESI: esi, EntityCipher: refs}
 	if c == nil {
 		return d
 	}

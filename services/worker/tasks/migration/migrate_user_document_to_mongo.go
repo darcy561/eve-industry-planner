@@ -9,9 +9,8 @@ import (
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -22,18 +21,9 @@ const firestoreUsersCollection = "Users"
 
 // MigrateUserDocumentToMongo converts a Firebase user document to the new MongoDB format (account doc + application settings)
 // and upserts both documents. Runs with lowest priority (priority_5).
-func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func MigrateUserDocumentToMongo(ctx context.Context, request eipnats.MigrateUserDocumentToMongoRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
-	}
-
-	request, err := esitasks.UnmarshalTaskPayload[eipnats.MigrateUserDocumentToMongoRequest](task)
-	if err != nil {
-		logs.WarnCtx(ctx, "failed to parse migrate user document task payload", "error", err)
-		return fmt.Errorf("invalid task data: %w", err)
 	}
 
 	if request.AccountID == "" {

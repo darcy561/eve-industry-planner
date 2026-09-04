@@ -9,18 +9,12 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 	sdepublish "eve-industry-planner/worker/tasks/sde/publish"
-
-	"github.com/hibiken/asynq"
 )
 
 // RollbackSDEVersion rolls live_data back to the most recent previous version.
-func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
-
+func RollbackSDEVersion(ctx context.Context, deps *taskrun.Dependencies) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 

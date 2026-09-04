@@ -1,4 +1,4 @@
-package tasks
+package esi
 
 import (
 	"encoding/json"
@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/esiclient"
-	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/testing/redisfake"
 
 	"github.com/hibiken/asynq"
@@ -216,9 +215,7 @@ func TestAffiliationRecoversFromABatchThatFailsOnce(t *testing.T) {
 func createMockTask(taskType string, data any) *asynq.Task {
 	var payloadData json.RawMessage
 	if data != nil {
-		dataBytes, _ := json.Marshal(data)
-		taskMsgBytes, _ := json.Marshal(eipnats.TaskMessage{TaskType: taskType, Data: dataBytes})
-		payloadData = taskMsgBytes
+		payloadData, _ = json.Marshal(data)
 	}
 	payloadBytes, _ := json.Marshal(struct {
 		TaskType string          `json:"task_type"`

@@ -1,7 +1,8 @@
-package tasks
+package esi
 
 import (
 	"context"
+	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"net/http"
 	"time"
@@ -11,18 +12,12 @@ import (
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/httpclient"
 	"eve-industry-planner/shared/logs"
-
-	"github.com/hibiken/asynq"
 )
 
 // RefreshAdjustedPrices stores ESI's adjusted prices, skipping the write
 // entirely when the ETag says nothing changed. An unavailable server comes back
 // as a downtime refusal from the request itself, so there is no pre-flight call.
-func RefreshAdjustedPrices(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
-
+func RefreshAdjustedPrices(ctx context.Context, deps *taskrun.Dependencies) error {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 

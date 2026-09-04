@@ -1,8 +1,9 @@
-package tasks_test
+package esi_test
 
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,9 +16,8 @@ import (
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/testing/redisfake"
-	tasks "eve-industry-planner/worker/tasks/esi"
+	esi "eve-industry-planner/worker/tasks/esi"
 
-	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -137,8 +137,8 @@ func esiFor(t *testing.T, baseURL string, client *redis.Client) esiclient.API {
 func runPrices(t *testing.T, origin *priceOrigin) (map[string]string, *redis.Client) {
 	t.Helper()
 	fake := redisfake.New(t)
-	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
-	if err := tasks.RefreshAdjustedPrices(t.Context(), asynq.NewTask("refreshAdjustedPrices", nil), deps); err != nil {
+	deps := &taskrun.Dependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	if err := esi.RefreshAdjustedPrices(t.Context(), deps); err != nil {
 		t.Fatalf("task: %v", err)
 	}
 	return snapshot(t, fake.Client), fake.Client
@@ -188,16 +188,14 @@ func TestAdjustedPricesMakesNoStatusPreflight(t *testing.T) {
 func TestAdjustedPricesLeavesStoredRowsAloneOnNotModified(t *testing.T) {
 	origin := newPriceOrigin(t, 20)
 	fake := redisfake.New(t)
-	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
-	task := asynq.NewTask("refreshAdjustedPrices", nil)
-
-	if err := tasks.RefreshAdjustedPrices(t.Context(), task, deps); err != nil {
+	deps := &taskrun.Dependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	if err := esi.RefreshAdjustedPrices(t.Context(), deps); err != nil {
 		t.Fatalf("first pass: %v", err)
 	}
 	first := snapshot(t, fake.Client)
 
 	origin.notMod.Store(true)
-	if err := tasks.RefreshAdjustedPrices(t.Context(), task, deps); err != nil {
+	if err := esi.RefreshAdjustedPrices(t.Context(), deps); err != nil {
 		t.Fatalf("second pass: %v", err)
 	}
 	second := snapshot(t, fake.Client)
@@ -222,8 +220,8 @@ func TestAdjustedPricesHandlesAnEmptyList(t *testing.T) {
 
 func TestAdjustedPricesRejectsANilTask(t *testing.T) {
 	fake := redisfake.New(t)
-	deps := &tasks.TaskDependencies{Redis: fake.Client}
-	if err := tasks.RefreshAdjustedPrices(t.Context(), nil, deps); err == nil {
+	deps := &taskrun.Dependencies{Redis: fake.Client}
+	if err := esi.RefreshAdjustedPrices(t.Context(), deps); err == nil {
 		t.Error("a nil task should be reported, not dereferenced")
 	}
 }
@@ -237,8 +235,8 @@ func TestAdjustedPricesSkipsWhenTheLockIsHeld(t *testing.T) {
 		t.Fatalf("seeding the lock: %v", err)
 	}
 
-	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
-	if err := tasks.RefreshAdjustedPrices(t.Context(), asynq.NewTask("refreshAdjustedPrices", nil), deps); err != nil {
+	deps := &taskrun.Dependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	if err := esi.RefreshAdjustedPrices(t.Context(), deps); err != nil {
 		t.Fatalf("a held lock is not an error: %v", err)
 	}
 	if made := origin.requests.Load(); made != 0 {
@@ -251,11 +249,11 @@ func TestAdjustedPricesReportsAServerThatIsAway(t *testing.T) {
 	origin.server.Close()
 
 	fake := redisfake.New(t)
-	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	deps := &taskrun.Dependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
-	if err := tasks.RefreshAdjustedPrices(ctx, asynq.NewTask("refreshAdjustedPrices", nil), deps); err == nil {
+	if err := esi.RefreshAdjustedPrices(ctx, deps); err == nil {
 		t.Fatal("a task that could not reach ESI should report it, so asynq retries")
 	}
 }
@@ -263,11 +261,9 @@ func TestAdjustedPricesReportsAServerThatIsAway(t *testing.T) {
 func TestAdjustedPricesRecordsWhenToComeBack(t *testing.T) {
 	origin := newPriceOrigin(t, 5)
 	fake := redisfake.New(t)
-	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
-	task := asynq.NewTask("refreshAdjustedPrices", nil)
-
+	deps := &taskrun.Dependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
 	before := time.Now()
-	if err := tasks.RefreshAdjustedPrices(t.Context(), task, deps); err != nil {
+	if err := esi.RefreshAdjustedPrices(t.Context(), deps); err != nil {
 		t.Fatalf("task: %v", err)
 	}
 
@@ -285,8 +281,11 @@ func TestAdjustedPricesRecordsWhenToComeBack(t *testing.T) {
 	}
 
 	// A 304 is ESI restating how long the answer stays good, so it must move.
+	// The recorded time is now-plus-max-age at millisecond resolution, so the
+	// clock has to have moved for "further out" to mean anything.
+	time.Sleep(2 * time.Millisecond)
 	origin.notMod.Store(true)
-	if err := tasks.RefreshAdjustedPrices(t.Context(), task, deps); err != nil {
+	if err := esi.RefreshAdjustedPrices(t.Context(), deps); err != nil {
 		t.Fatalf("second pass: %v", err)
 	}
 	after, err := rediscore.NextRefresh(t.Context(), fake.Client, rediscore.DatasetMarketPrices)

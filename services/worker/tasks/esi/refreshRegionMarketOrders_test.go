@@ -1,15 +1,12 @@
-package tasks
+package esi
 
 import (
 	"context"
+	"eve-industry-planner/worker/taskrun"
 	"testing"
-)
 
-func TestRefreshRegionMarketOrders_NilTask(t *testing.T) {
-	if err := RefreshRegionMarketOrders(context.Background(), nil, &TaskDependencies{}); err == nil {
-		t.Fatal("expected error for nil task")
-	}
-}
+	eipnats "eve-industry-planner/shared/nats"
+)
 
 func TestRefreshRegionMarketOrders_MissingParameters(t *testing.T) {
 	tests := []struct {
@@ -24,12 +21,9 @@ func TestRefreshRegionMarketOrders_MissingParameters(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			task := createMockTask("refreshRegionMarketOrders", map[string]any{
-				"region_id":  tc.regionID,
-				"station_id": tc.stationID,
-			})
-
-			err := RefreshRegionMarketOrders(context.Background(), task, &TaskDependencies{})
+			err := RefreshRegionMarketOrders(context.Background(),
+				eipnats.RegionMarketOrdersRequest{RegionID: tc.regionID, StationID: tc.stationID},
+				&taskrun.Dependencies{})
 			if err == nil {
 				t.Fatal("expected error for incomplete request")
 			}

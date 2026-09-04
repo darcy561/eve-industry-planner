@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"eve-industry-planner/shared/logs"
@@ -20,46 +19,35 @@ const workerNatsTracerName = "eve-industry-planner/worker/nats"
 // once, so a burst does not overwhelm the asynq client.
 const MaxConcurrentEnqueues = 20
 
-// processMessage receives a NATS message and enqueues it to the asynq server.
-// Acknowledges NATS message immediately after successful enqueue to prevent redelivery.
+// processMessage hands a task message to the asynq server, where it runs.
+//
+// The subject names the task, and naming it is a lookup in the registry rather
+// than a parse of the last segment: a subject no definition claims is refused.
+// Defaulting it instead would run unknown work on a guessed queue under a guessed
+// deadline, which hides the case worth seeing — a task wired incompletely.
+//
+// The message is acknowledged once the task is queued, so durability passes to
+// Redis at that point.
 func processMessage(ctx context.Context, msg jetstream.Msg, client *asynq.Client) error {
 	subject := msg.Subject()
-	taskType := getTaskTypeFromSubject(subject)
-	if taskType == "" {
-		return eipnats.Terminate("unknown task type for subject %s", subject)
+	task, ok := eipnats.TaskBySubject(subject)
+	if !ok {
+		return eipnats.Terminate("no task is registered for subject %s", subject)
 	}
-	if err := asynqpkg.Enqueue(msg, client, taskType, subject); err != nil {
-		return fmt.Errorf("enqueue %s to asynq: %w", taskType, err)
+	if err := asynqpkg.Enqueue(msg, client, task); err != nil {
+		return fmt.Errorf("enqueue %s to asynq: %w", task.Name, err)
 	}
-	logs.DebugCtx(ctx, "nats task enqueued", "subject", subject, "task_type", taskType)
+	logs.DebugCtx(ctx, "nats task enqueued", "subject", subject, "task_type", task.Name)
 	return nil
 }
 
-// getTaskTypeFromSubject derives the asynq task type from the NATS subject.
-// Any subject starting with the task prefix (task.) uses the last segment as the task type.
-// Example: task.scheduled.refreshSystemIndexes -> refreshSystemIndexes, task.migration.migrateUserDocumentToMongo -> migrateUserDocumentToMongo
-func getTaskTypeFromSubject(subject string) string {
-	if !strings.HasPrefix(subject, eipnats.TaskSubjectPrefix) {
-		return ""
-	}
-	after := strings.TrimPrefix(subject, eipnats.TaskSubjectPrefix)
-	if after == "" {
-		return ""
-	}
-	if idx := strings.LastIndex(after, "."); idx >= 0 {
-		return after[idx+1:]
-	}
-	return after
-}
-
-// SubscribeScheduledTasks sets up a single JetStream pull consumer for all tasks (task.>).
-// Any message whose subject starts with the task prefix is accepted and queued; task type is derived
-// from the subject (last segment), and priority from GetPriorityQueue(subject).
-// Returns a cleanup function and an error if subscription fails.
-func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), error) {
+// SubscribeScheduledTasks sets up a single JetStream pull consumer for all tasks
+// (task.>). A message is queued if its subject names a registered task, on that
+// task's own queue and deadline. Returns a cleanup function.
+func SubscribeScheduledTasks(nats *eipnats.NATS, client *asynq.Client) (func(context.Context), error) {
 	ctx := context.Background()
 
-	tasks := deps.NATS.Tasks
+	tasks := nats.Tasks
 	consumerConfig := jetstream.ConsumerConfig{
 		Durable:       eipnats.ConsumerTaskWorker,
 		FilterSubject: tasks.Spec().Subjects[0],
@@ -75,7 +63,7 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 
 	processor := eipnats.Handle(workerNatsTracerName, "nats.enqueue_task",
 		func(ctx context.Context, msg jetstream.Msg) error {
-			return processMessage(ctx, msg, deps.AsynqClient)
+			return processMessage(ctx, msg, client)
 		})
 
 	stop, err := tasks.Subscribe(ctx, consumerConfig, processor, eipnats.WithConcurrency(MaxConcurrentEnqueues))

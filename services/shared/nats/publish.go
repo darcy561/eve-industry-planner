@@ -16,15 +16,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// PublishTask marshals payload into a TaskMessage and publishes it to JetStream,
-// retrying on connection and stream errors.
+// PublishTask publishes payload on a task's subject, retrying on connection and
+// stream errors.
+//
+// The subject names the task; taskType only labels the span. The worker resolves
+// which task to run from the subject alone, so nothing in the body repeats it.
 //
 // W3C trace context from ctx rides on the message and is copied into the Asynq
 // task headers by the worker subscriber, so a handler logging through
 // logs.InfoCtx and friends stays linked to the API span.
-//
-// Optional trailing args, in any order: a *natslib.Conn to check on retry, and a
-// priority queue name (e.g. "priority_5") overriding the task type's default.
 func (n *NATS) PublishTask(ctx context.Context, subject string, taskType string, payload any) (err error) {
 
 	var payloadJSON json.RawMessage
@@ -46,20 +46,9 @@ func (n *NATS) PublishTask(ctx context.Context, subject string, taskType string,
 		span.End()
 	}()
 
-	taskMsg := TaskMessage{
-		TaskType: taskType,
-	}
-	if len(payloadJSON) > 0 {
-		taskMsg.Data = payloadJSON
-	}
-	var taskMsgData []byte
-	taskMsgData, err = json.Marshal(taskMsg)
-	if err != nil {
-		return err
-	}
 	msg := Message{
 		Type: MessageTypeTask,
-		Data: taskMsgData,
+		Data: payloadJSON,
 	}
 	return n.Publish(ctx, subject, msg)
 }
@@ -82,7 +71,7 @@ func (n *NATS) Publish(ctx context.Context, subject string, msg any) error {
 	if n == nil || n.js == nil {
 		return fmt.Errorf("nats handle is required")
 	}
-	msgData, err := encodeMessage(ctx, msg)
+	msgData, err := encodeMessage(msg)
 	if err != nil {
 		return err
 	}
@@ -122,15 +111,10 @@ func (n *NATS) Publish(ctx context.Context, subject string, msg any) error {
 	return nil
 }
 
-// encodeMessage marshals a payload; []byte passes through, a [Message] is enriched first.
-func encodeMessage(ctx context.Context, msg any) ([]byte, error) {
+// encodeMessage marshals a payload; []byte passes through unchanged.
+func encodeMessage(msg any) ([]byte, error) {
 	if bytes, ok := msg.([]byte); ok {
 		return bytes, nil
-	}
-	if m, ok := msg.(Message); ok {
-		m.EnrichTraceCarrierFromContext(ctx)
-		m.EnrichLogContextFromContext(ctx)
-		return json.Marshal(m)
 	}
 	return json.Marshal(msg)
 }

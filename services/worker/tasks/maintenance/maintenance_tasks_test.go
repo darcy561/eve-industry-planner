@@ -2,112 +2,45 @@ package maintenance
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
-func encodeAsynqWrappedPayload(t *testing.T, taskType string, inner any) []byte {
-	t.Helper()
-	innerBytes, err := json.Marshal(inner)
-	if err != nil {
-		t.Fatal(err)
+func depsMongoNil() *taskrun.Dependencies {
+	return &taskrun.Dependencies{}
+}
+
+// Each of these runs against a dependency bag with no Mongo in it, so what is
+// under test is that the task stops on what it genuinely needs rather than
+// getting far enough to touch storage. A malformed or absent request never
+// reaches a handler — the mux refuses it — so there is nothing here for that.
+func TestMaintenanceTasksStopWithoutMongo(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	run := map[string]func() error{
+		"cloud stored esi refresh": func() error {
+			return CloudStoredEsiRefreshMaintenance(ctx,
+				eipnats.CloudStoredEsiRefreshMaintenanceRequest{AccountID: "a"}, depsMongoNil())
+		},
+		"inactive account planner cleanup": func() error {
+			return InactiveAccountPlannerCleanup(ctx,
+				eipnats.InactiveAccountPlannerCleanupRequest{AccountID: "a"}, depsMongoNil())
+		},
+		"rotate refresh token keys": func() error {
+			return RotateRefreshTokenKeys(ctx,
+				eipnats.RotateRefreshTokenKeysRequest{AccountID: "a"}, depsMongoNil())
+		},
 	}
-	outer := struct {
-		TaskType string          `json:"task_type"`
-		Data     json.RawMessage `json:"data"`
-	}{TaskType: taskType, Data: innerBytes}
-	b, err := json.Marshal(outer)
-	if err != nil {
-		t.Fatal(err)
+
+	for name, fn := range run {
+		t.Run(name, func(t *testing.T) {
+			err := fn()
+			if err == nil || err.Error() != "mongo client is required" {
+				t.Fatalf("got %v, want a refusal naming the missing mongo client", err)
+			}
+		})
 	}
-	return b
-}
-
-func depsMongoNil() *esitasks.TaskDependencies {
-	return &esitasks.TaskDependencies{}
-}
-
-func TestCloudStoredEsiRefreshMaintenance_Validation(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	t.Run("nil_task", func(t *testing.T) {
-		err := CloudStoredEsiRefreshMaintenance(ctx, nil, depsMongoNil())
-		if err == nil || err.Error() != "task is nil" {
-			t.Fatalf("got %v", err)
-		}
-	})
-
-	t.Run("nil_mongo", func(t *testing.T) {
-		task := asynq.NewTask("x", encodeAsynqWrappedPayload(t, "task.maintenance.cloudStoredEsiRefreshMaintenance",
-			eipnats.CloudStoredEsiRefreshMaintenanceRequest{AccountID: "a"}))
-		err := CloudStoredEsiRefreshMaintenance(ctx, task, depsMongoNil())
-		if err == nil || err.Error() != "mongo client is required" {
-			t.Fatalf("got %v", err)
-		}
-	})
-
-	t.Run("invalid_payload", func(t *testing.T) {
-		task := asynq.NewTask("x", []byte(`not-json`))
-		err := CloudStoredEsiRefreshMaintenance(ctx, task, depsMongoNil())
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-	// account_id / payload shape checks run after a non-nil Mongo client; cover with integration tests if needed.
-}
-
-func TestInactiveAccountPlannerCleanup_Validation(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	t.Run("nil_task", func(t *testing.T) {
-		err := InactiveAccountPlannerCleanup(ctx, nil, depsMongoNil())
-		if err == nil || err.Error() != "task is nil" {
-			t.Fatalf("got %v", err)
-		}
-	})
-
-	t.Run("nil_mongo", func(t *testing.T) {
-		task := asynq.NewTask("x", encodeAsynqWrappedPayload(t, "task.maintenance.inactiveAccountPlannerCleanup",
-			eipnats.InactiveAccountPlannerCleanupRequest{AccountID: "a"}))
-		err := InactiveAccountPlannerCleanup(ctx, task, depsMongoNil())
-		if err == nil || err.Error() != "mongo client is required" {
-			t.Fatalf("got %v", err)
-		}
-	})
-
-	t.Run("invalid_payload", func(t *testing.T) {
-		task := asynq.NewTask("x", []byte(`{`))
-		err := InactiveAccountPlannerCleanup(ctx, task, depsMongoNil())
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-}
-
-func TestRotateRefreshTokenKeys_Validation(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	t.Run("nil_task", func(t *testing.T) {
-		err := RotateRefreshTokenKeys(ctx, nil, depsMongoNil())
-		if err == nil || err.Error() != "task is nil" {
-			t.Fatalf("got %v", err)
-		}
-	})
-
-	t.Run("nil_mongo", func(t *testing.T) {
-		task := asynq.NewTask("x", encodeAsynqWrappedPayload(t, "task.maintenance.rotateRefreshTokenKeys",
-			eipnats.RotateRefreshTokenKeysRequest{AccountID: "a"}))
-		err := RotateRefreshTokenKeys(ctx, task, depsMongoNil())
-		if err == nil || err.Error() != "mongo client is required" {
-			t.Fatalf("got %v", err)
-		}
-	})
 }

@@ -1,4 +1,4 @@
-package tasks_test
+package esi_test
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/testing/redisfake"
-	tasks "eve-industry-planner/worker/tasks/esi"
+	esi "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -88,7 +88,7 @@ func ordersPageBody(page, perPage int) string {
 }
 
 // walk runs one fetch pass and reports what it delivered and cached.
-func walk(t *testing.T, origin *ordersOrigin, prevETags map[int]string) (tasks.RegionOrdersFetchResult, []string, map[string]string) {
+func walk(t *testing.T, origin *ordersOrigin, prevETags map[int]string) (esi.RegionOrdersFetchResult, []string, map[string]string) {
 	t.Helper()
 	fake := redisfake.New(t)
 
@@ -98,7 +98,7 @@ func walk(t *testing.T, origin *ordersOrigin, prevETags map[int]string) (tasks.R
 
 // fetchInto runs a pass against a caller-supplied Redis, so a replay can reuse
 // the cache the priming pass left behind.
-func fetchInto(t *testing.T, client *redis.Client, origin *ordersOrigin, prevETags map[int]string) (tasks.RegionOrdersFetchResult, []string) {
+func fetchInto(t *testing.T, client *redis.Client, origin *ordersOrigin, prevETags map[int]string) (esi.RegionOrdersFetchResult, []string) {
 	t.Helper()
 
 	cfg := esiclient.DefaultConfig()
@@ -110,7 +110,7 @@ func fetchInto(t *testing.T, client *redis.Client, origin *ordersOrigin, prevETa
 	t.Cleanup(stop)
 
 	var delivered []string
-	result, err := tasks.FetchRegionMarketOrders(t.Context(), api, client, 10000002, prevETags,
+	result, err := esi.FetchRegionMarketOrders(t.Context(), api, client, 10000002, prevETags,
 		func(order esiclient.MarketOrder) error {
 			delivered = append(delivered, fmt.Sprintf("%d:%v:%d", order.OrderID, order.Price, order.VolumeRemain))
 			return nil
@@ -228,7 +228,7 @@ func TestRegionMarketOrdersTreatsAMissingPageCountAsOnePage(t *testing.T) {
 	t.Cleanup(stop)
 
 	count := 0
-	result, err := tasks.FetchRegionMarketOrders(t.Context(), next, fake.Client, 10000002, nil,
+	result, err := esi.FetchRegionMarketOrders(t.Context(), next, fake.Client, 10000002, nil,
 		func(esiclient.MarketOrder) error { count++; return nil })
 	if err != nil {
 		t.Fatalf("fetch: %v", err)

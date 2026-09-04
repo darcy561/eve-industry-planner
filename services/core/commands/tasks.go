@@ -361,8 +361,8 @@ func payloadToInterface(payload json.RawMessage) any {
 	if payload == nil {
 		return nil
 	}
-	// PublishTask marshals this value as JSON into TaskMessage.Data.
-	// json.RawMessage preserves the original JSON bytes when marshaled.
+	// json.RawMessage preserves the original JSON bytes when marshaled, so the
+	// operator's payload reaches the handler as they wrote it.
 	return payload
 }
 

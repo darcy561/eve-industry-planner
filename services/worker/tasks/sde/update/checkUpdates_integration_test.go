@@ -12,8 +12,6 @@ import (
 	objectstore "eve-industry-planner/shared/core/objectstore"
 	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/worker/tasks/sde/update/conversion"
-
-	"github.com/hibiken/asynq"
 )
 
 type previousVersionJSON struct {
@@ -216,7 +214,7 @@ func TestSDEUpdateWorkflowIntegration_parsesRecipeListTypes(t *testing.T) {
 	ctx := context.Background()
 	seedPreviousVersion(t, b, 1)
 
-	if err := CheckSDEUpdates(ctx, asynq.NewTask("checkSDEUpdates", nil), nil); err != nil {
+	if err := CheckSDEUpdates(ctx, nil); err != nil {
 		t.Fatalf("CheckSDEUpdates failed: %v", err)
 	}
 

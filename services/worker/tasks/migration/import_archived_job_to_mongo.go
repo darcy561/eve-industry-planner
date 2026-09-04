@@ -11,9 +11,8 @@ import (
 	"eve-industry-planner/shared/logs"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -23,22 +22,9 @@ const importArchivedJobActor = "worker:importArchivedJobToMongo"
 
 // ImportArchivedJobToMongo parses one Firestore ArchivedJobs payload, normalises it to [models.Job], and upserts into the archivedJobs Mongo collection.
 // On any failure it returns a non-nil error so asynq marks the task failed (and logs retain context for review).
-func ImportArchivedJobToMongo(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func ImportArchivedJobToMongo(ctx context.Context, req eipnats.ImportArchivedJobToMongoRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
-	}
-
-	req, err := esitasks.UnmarshalTaskPayload[eipnats.ImportArchivedJobToMongoRequest](task)
-	if err != nil {
-		logs.ErrorCtx(ctx, "import archived job: invalid task payload",
-			"error", err,
-			"task_type", task.Type(),
-			"payload_len", len(task.Payload()),
-		)
-		return fmt.Errorf("invalid task data: %w", err)
 	}
 
 	if req.UserID == "" {
@@ -72,9 +58,7 @@ func ImportArchivedJobToMongo(ctx context.Context, task *asynq.Task, deps *esita
 		"raw_data_len", len(req.RawData),
 	}
 
-	logs.InfoCtx(ctx, "import archived job: started", append(baseFields,
-		"payload_type", task.Type(),
-	)...)
+	logs.InfoCtx(ctx, "import archived job: started", baseFields...)
 	if len(req.RawData) == 0 {
 		err := fmt.Errorf("raw_data is empty")
 		logs.ErrorCtx(ctx, "import archived job: validation failed", append(baseFields, "error", err.Error())...)

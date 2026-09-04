@@ -9,9 +9,7 @@ import (
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
 // reconcileWindow is how long an owner may go between reconciles.
@@ -27,22 +25,17 @@ const reconcileWindow = 24 * time.Hour
 const reconcileDispatchCap = 50
 
 // ReconcileOwnerStatistics rewrites one owner's aggregates from its stored rows.
-func ReconcileOwnerStatistics(ctx context.Context, t *asynq.Task, deps *esitasks.TaskDependencies) error {
+func ReconcileOwnerStatistics(ctx context.Context, req eipnats.ReconcileOwnerStatisticsRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 
-	req, err := esitasks.UnmarshalTaskPayload[eipnats.ReconcileOwnerStatisticsRequest](t)
-	if err != nil {
-		return fmt.Errorf("decode reconcile owner statistics payload: %w", err)
-	}
-
 	owner := models.StatsOwner{Kind: models.StatsOwnerKind(req.OwnerKind), ID: req.OwnerID}
 	if err := owner.Validate(); err != nil {
-		return fmt.Errorf("reconcile owner statistics: %w: %w", err, asynq.SkipRetry)
+		return fmt.Errorf("reconcile owner statistics: %w: %w", err, eipnats.Terminate("a request cannot be corrected by retrying it"))
 	}
 	if owner.Kind != models.StatsOwnerAccount {
-		return fmt.Errorf("owner kind %q has no rows to reconcile: %w", owner.Kind, asynq.SkipRetry)
+		return fmt.Errorf("owner kind %q has no rows to reconcile: %w", owner.Kind, eipnats.Terminate("no archive for this owner kind"))
 	}
 
 	result, err := ReconcileAccountStatistics(ctx, deps.Mongo, owner.ID, time.Now().UTC())
@@ -94,7 +87,7 @@ type ReconcileDispatchResult struct {
 
 // DispatchStatisticsReconciles publishes a reconcile for every owner whose turn
 // has come round.
-func DispatchStatisticsReconciles(ctx context.Context, _ *asynq.Task, deps *esitasks.TaskDependencies) error {
+func DispatchStatisticsReconciles(ctx context.Context, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}

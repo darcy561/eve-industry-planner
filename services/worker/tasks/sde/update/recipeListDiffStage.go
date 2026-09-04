@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"eve-industry-planner/shared/logs"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 	"eve-industry-planner/worker/tasks/sde/update/conversion"
 )
 
@@ -19,7 +19,7 @@ type recipeListDiffItem struct {
 
 // runSDENewRecipeItemsStage compares the previous version recipeList.json to the new one,
 // and logs the recipe items that are new in the latest update.
-func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistResult, deps *esitasks.TaskDependencies) error {
+func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistResult, deps *taskrun.Dependencies) error {
 	if persistResult == nil {
 		// Placeholder for "no previous version" behaviour (e.g. first-run warmup checks).
 		logs.DebugCtx(ctx, "SDE recipeList diff skipped (persist result was nil)")

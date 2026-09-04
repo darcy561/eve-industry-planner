@@ -9,9 +9,7 @@ import (
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
 // RebuildOwnerStatistics recomputes one owner's statistics and clears its queue
@@ -20,21 +18,16 @@ import (
 // The entry is cleared only if its claim still matches the one dispatched with
 // the task, so an owner changed while this ran keeps its place and is rebuilt
 // again rather than having the change erased by this rebuild's completion.
-func RebuildOwnerStatistics(ctx context.Context, t *asynq.Task, deps *esitasks.TaskDependencies) error {
+func RebuildOwnerStatistics(ctx context.Context, req eipnats.RebuildOwnerStatisticsRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
-	}
-
-	req, err := esitasks.UnmarshalTaskPayload[eipnats.RebuildOwnerStatisticsRequest](t)
-	if err != nil {
-		return fmt.Errorf("decode rebuild owner statistics payload: %w", err)
 	}
 
 	owner := models.StatsOwner{Kind: models.StatsOwnerKind(req.OwnerKind), ID: req.OwnerID}
 	if err := owner.Validate(); err != nil {
 		// Retrying cannot change a payload, so this fails once and stops rather
 		// than occupying the queue until the retry ceiling.
-		return fmt.Errorf("rebuild owner statistics: %w: %w", err, asynq.SkipRetry)
+		return fmt.Errorf("rebuild owner statistics: %w: %w", err, eipnats.Terminate("a request cannot be corrected by retrying it"))
 	}
 
 	result, cleared, err := rebuildOwner(ctx, deps.Mongo, eipmongo.QueuedOwner{Owner: owner, Claim: req.Claim}, time.Now().UTC())
@@ -75,7 +68,7 @@ func rebuildOwner(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo.Qu
 	if queued.Owner.Kind != models.StatsOwnerAccount {
 		// Corporation and alliance archives are not built yet, so there is nothing
 		// to read for them. Retrying will not change that, so it stops.
-		return AccountRebuildResult{}, false, fmt.Errorf("owner kind %q has no archive to rebuild: %w", queued.Owner.Kind, asynq.SkipRetry)
+		return AccountRebuildResult{}, false, fmt.Errorf("owner kind %q has no archive to rebuild: %w", queued.Owner.Kind, eipnats.Terminate("no archive for this owner kind"))
 	}
 
 	result, err := RebuildAccountStatistics(ctx, mongo, queued.Owner.ID, now)

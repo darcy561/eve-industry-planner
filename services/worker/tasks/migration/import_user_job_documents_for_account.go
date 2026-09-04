@@ -10,27 +10,19 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/migration/firestoremig"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // ImportUserJobDocumentsForAccount imports live Firestore job documents referenced by
 // JobSnapshot, GroupData, and Mongo user_job_groups into user_job_documents.
-func ImportUserJobDocumentsForAccount(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func ImportUserJobDocumentsForAccount(ctx context.Context, req eipnats.ImportUserJobDocumentsForAccountRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 
-	req, err := esitasks.UnmarshalTaskPayload[eipnats.ImportUserJobDocumentsForAccountRequest](task)
-	if err != nil {
-		return fmt.Errorf("invalid task data: %w", err)
-	}
 	if req.AccountID == "" {
 		return fmt.Errorf("account_id is required")
 	}

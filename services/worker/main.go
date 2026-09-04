@@ -5,34 +5,9 @@ import (
 	"os"
 
 	"eve-industry-planner/shared/lifecycle"
-	"eve-industry-planner/shared/stackservices"
 
-	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
-
-	"eve-industry-planner/shared/crypto/entityid"
-	"github.com/hibiken/asynq"
 )
-
-// WorkerDependencies holds all dependencies needed by worker subscribers.
-type WorkerDependencies struct {
-	*stackservices.Clients
-	ESI          esiclient.API
-	AsynqClient  *asynq.Client
-	EntityCipher *entityid.Cipher
-}
-
-func (d *WorkerDependencies) GetClients() *stackservices.Clients {
-	return d.Clients
-}
-
-func (d *WorkerDependencies) GetESI() esiclient.API {
-	return d.ESI
-}
-
-func (d *WorkerDependencies) GetEntityCipher() *entityid.Cipher {
-	return d.EntityCipher
-}
 
 func main() {
 	os.Exit(run())

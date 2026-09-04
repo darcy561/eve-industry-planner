@@ -2,7 +2,6 @@ package maintenance
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -12,30 +11,17 @@ import (
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // RotateRefreshTokenKeys rotates encrypted refresh-token rows to the active key version.
-func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func RotateRefreshTokenKeys(ctx context.Context, p eipnats.RotateRefreshTokenKeysRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 
-	var p eipnats.RotateRefreshTokenKeysRequest
-	if len(task.Payload()) > 0 {
-		payload, err := esitasks.UnmarshalTaskPayload[eipnats.RotateRefreshTokenKeysRequest](task)
-		if err == nil {
-			p = payload
-		} else if err := json.Unmarshal(task.Payload(), &p); err != nil {
-			return fmt.Errorf("invalid payload: %w", err)
-		}
-	}
 	p.AccountID = strings.TrimSpace(p.AccountID)
 	p.FromVersion = strings.TrimSpace(p.FromVersion)
 	if p.AccountID == "" {
