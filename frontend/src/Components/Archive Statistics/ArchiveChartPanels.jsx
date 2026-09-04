@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FormControl, MenuItem, Select, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
@@ -7,7 +7,6 @@ import {
 } from "../../Context/appShell";
 import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import { PieChart, TimeSeriesChart } from "../../Styled Components/Charts";
-import { getFullItemList } from "../../Functions/Helper/getCachedData";
 import useUsersStore from "../../Zustand/usersStore";
 import {
   useAccountTimelineItemsQuery,
@@ -26,6 +25,7 @@ import {
 } from "./chartAdapters";
 import { monthLabel, NoData } from "./panelParts";
 import { timelineWindow, useArchiveTimeline } from "./useArchiveTimeline";
+import { useItemNames } from "../../Hooks/useItemNames";
 
 /** The measure a panel ranks or splits by, shown in the panel header. */
 function MeasureSelect({ value, onChange, options }) {
@@ -49,37 +49,6 @@ function MeasureSelect({ value, onChange, options }) {
       </Select>
     </FormControl>
   );
-}
-
-/**
- * Item names for a page of rows, from the cached static list.
- *
- * @param {{typeID: number}[]} items
- */
-function useItemNames(items) {
-  const [names, setNames] = useState({});
-
-  useEffect(() => {
-    let cancelled = false;
-    if (items.length === 0) return undefined;
-
-    getFullItemList()
-      .then((list) => {
-        if (cancelled || !list) return;
-        setNames(
-          Object.fromEntries(items.map(({ typeID }) => [typeID, list[typeID]?.name])),
-        );
-      })
-      .catch(() => {
-        // A missing name only costs a slice its label.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [items]);
-
-  return names;
 }
 
 /**

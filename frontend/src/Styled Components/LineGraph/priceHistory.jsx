@@ -16,7 +16,7 @@ import {
   MARKET_HUB_HISTORY_HELPER_TEXT,
 } from "../../Context/appShell";
 import { normalizeLocaleForIntl } from "../../Functions/Helper/localeDetection";
-import getItemNameFromTypeID from "../../Functions/Helper/getItemNameFromTypeID";
+import { useItemNames } from "../../Hooks/useItemNames";
 import useUsersStore from "../../Zustand/usersStore";
 import { ChartRangeSlider, trailingRange } from "../Charts/ChartRangeSlider";
 import { TimeSeriesChart } from "../Charts/TimeSeriesChart";
@@ -24,26 +24,11 @@ import { TimeSeriesChart } from "../Charts/TimeSeriesChart";
 const { MARKET_OPTIONS } = GLOBAL_CONFIG;
 
 function PriceHistoryItemName({ typeID }) {
-  const [name, setName] = useState(() =>
-    typeID ? "Loading…" : "No Item Selected",
-  );
+  const rows = useMemo(() => (typeID ? [{ typeID }] : []), [typeID]);
+  const names = useItemNames(rows);
 
-  useEffect(() => {
-    if (!typeID) {
-      setName("No Item Selected");
-      return;
-    }
-    let cancelled = false;
-    setName("Loading…");
-    getItemNameFromTypeID(typeID).then((resolved) => {
-      if (!cancelled) setName(resolved ?? "Unknown Item");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [typeID]);
-
-  return name;
+  if (!typeID) return "No Item Selected";
+  return names[typeID] ?? "Loading…";
 }
 
 /**

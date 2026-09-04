@@ -40,7 +40,43 @@ type Job struct {
 	ItemsProducedPerRun int              `json:"itemsProducedPerRun" bson:"itemsProducedPerRun"`
 	Layout              JobLayout        `json:"layout" bson:"layout"`
 	Protected           *FieldProtection `json:"-" bson:"protected,omitempty"`
-	MetaData            JobMetaData      `json:"_meta" bson:"_meta"`
+	// FiledCostMonth and FiledSalesMonth are the months a user filed the job's
+	// two sides under, overriding what the reduction would derive. They live here
+	// rather than on the statistics row because the row is rebuilt from this
+	// document: on the job they are input to the reduction and survive every
+	// rebuild, restore and re-archive.
+	//
+	// The sales side may only be filed when no line came from the market — see
+	// SalesAreFromMarket.
+	FiledCostMonth  *CalendarMonth `json:"filedCostMonth,omitempty" bson:"filedCostMonth,omitempty"`
+	FiledSalesMonth *CalendarMonth `json:"filedSalesMonth,omitempty" bson:"filedSalesMonth,omitempty"`
+	MetaData        JobMetaData    `json:"_meta" bson:"_meta"`
+}
+
+// IsMarketTransactionID reports whether a transaction id is one ESI issued.
+//
+// A sale entered by hand is minted with a negative id, so a positive one is the
+// market's own. Money that arrived through the market arrived when it arrived,
+// which is why the two are told apart at all — and they are told apart in more
+// than one place, over more than one shape, so the rule lives here.
+func IsMarketTransactionID(id int64) bool {
+	return id > 0
+}
+
+// SalesAreFromMarket reports whether ESI recorded any of this job's sales.
+func (j Job) SalesAreFromMarket() bool {
+	for _, transaction := range j.Build.Sale.Transactions {
+		if IsMarketTransactionID(transaction.TransactionID) {
+			return true
+		}
+	}
+	return false
+}
+
+// FilesItsOwnMonths reports whether any month on this job was chosen rather than
+// derived, which a reader has to be told.
+func (j Job) FilesItsOwnMonths() bool {
+	return j.FiledCostMonth.Valid() || j.FiledSalesMonth.Valid()
 }
 
 // JobBuild contains all build-related data including setups, costs, and sales

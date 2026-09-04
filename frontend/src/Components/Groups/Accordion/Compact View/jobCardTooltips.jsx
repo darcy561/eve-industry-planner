@@ -7,20 +7,20 @@ function getTooltipContent(job) {
         <span>
           <p>
             Quantity:{" "}
-            {formatNumberForLocale(job.totalQuantityProduced(), {
+            {formatNumberForLocale(job.totalQuantityProduced, {
               max: 0,
             })}
           </p>
           <p>
-            Job Setups: {formatNumberForLocale(job.setupCount(), { max: 0 })}
+            Job Setups: {formatNumberForLocale(job.setupCount, { max: 0 })}
           </p>
         </span>
       );
     case 1:
-      const totalComplete = job.totalCompletedMaterials();
-      const totalRemaining = job.totalRemainingMaterials();
+      const totalComplete = job.completedMaterialCount;
+      const totalRemaining = job.remainingMaterialCount;
 
-      if (!job.isReadyToBuild()) {
+      if (!job.isReadyToBuild) {
         return (
           <span>
             <p>
@@ -53,7 +53,7 @@ function getTooltipContent(job) {
         <span>
           <p>
             Items Built:{" "}
-            {formatNumberForLocale(job.totalQuantityProduced(), {
+            {formatNumberForLocale(job.totalQuantityProduced, {
               max: 0,
             })}
           </p>
@@ -79,7 +79,7 @@ function getTooltipContent(job) {
 }
 
 function timeUntilNextJobFinishes(job) {
-  const next = job.nextLinkedJobToFinish();
+  const next = job.nextRunToFinish;
   return next ? formatTimeRemaining(next.finishesAt) : null;
 }
 

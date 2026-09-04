@@ -29,7 +29,7 @@ import {
 } from "../../Functions/Helper/numberParser";
 import { useAccountTimelineItemsQuery } from "../../Hooks/React Query/Backend/statisticsTimeline";
 import { ITEM_BREAKDOWN_TITLE } from "./ArchiveChartPanels";
-import { useItemNames } from "./useItemNames";
+import { useItemNames } from "../../Hooks/useItemNames";
 import { timelineWindow } from "./useArchiveTimeline";
 
 /**

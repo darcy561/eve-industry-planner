@@ -86,6 +86,11 @@ func archiveDateFor(job models.Job, now time.Time) time.Time {
 // its earliest sale, then to its archive date. Pinning it on the document keeps a
 // rebuild from re-deciding it and shifting historical months.
 func costMonthFor(job models.Job, archivedAt time.Time) models.CalendarMonth {
+	// A cost carries no date of its own, so a month the user filed it under is
+	// better evidence than anything derived here.
+	if job.FiledCostMonth.Valid() {
+		return *job.FiledCostMonth
+	}
 	if earliest, ok := earliestLinkedJobDate(job.Build.Costs.LinkedJobs, archivedAt); ok {
 		return monthOf(earliest)
 	}
@@ -170,6 +175,7 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		RetainedStockBuild:  job.MetaData.RetainedStockBuild,
 		ArchivedAt:          archivedAt,
 		CostMonth:           costMonthFor(job, archivedAt),
+		MonthsFiled:         job.FilesItsOwnMonths(),
 		TotalProduced:       snap.TotalProduced,
 		TotalMaterialCost:   snap.TotalMaterialCost,
 		TotalInstallCost:    snap.TotalInstallCost,
@@ -197,6 +203,10 @@ func buildTransactionLines(
 	lines := make([]models.ArchivedJobTransactionLine, 0, len(job.Build.Sale.Transactions))
 	soldQuantity := 0.0
 
+	// Only a job whose sales are all hand-entered can be filed: money the market
+	// recorded arrived when it arrived.
+	filed := filedSalesMonth(job)
+
 	for _, t := range job.Build.Sale.Transactions {
 		quantity := float64(t.Quantity)
 		soldQuantity += quantity
@@ -207,7 +217,7 @@ func buildTransactionLines(
 			TransactionID: t.TransactionID,
 			OrderID:       t.OrderID,
 			Date:          date,
-			CalendarMonth: monthOf(date),
+			CalendarMonth: lineMonth(filed, date),
 			Amount:        t.Amount,
 			Quantity:      quantity,
 			Tax:           t.Tax,
@@ -218,8 +228,32 @@ func buildTransactionLines(
 	return lines, soldQuantity
 }
 
+// filedSalesMonth is the month the user filed this job's income under, or nil
+// when they may not: a job with a market sale is filed by the market.
+func filedSalesMonth(job models.Job) *models.CalendarMonth {
+	if job.SalesAreFromMarket() {
+		return nil
+	}
+	if !job.FiledSalesMonth.Valid() {
+		return nil
+	}
+	return job.FiledSalesMonth
+}
+
+// lineMonth prefers a filed month over the line's own date.
+func lineMonth(filed *models.CalendarMonth, date time.Time) models.CalendarMonth {
+	if filed != nil {
+		return *filed
+	}
+	return monthOf(date)
+}
+
 func buildFeeLines(job models.Job, archivedAt time.Time) []models.ArchivedJobFeeLine {
 	lines := make([]models.ArchivedJobFeeLine, 0, len(job.Build.Sale.BrokersFee))
+
+	// A broker fee belongs to a market order, so it moves with the income it was
+	// charged against and only when that income was not the market's.
+	filed := filedSalesMonth(job)
 
 	for _, f := range job.Build.Sale.BrokersFee {
 		date := parseLineDate(f.Date, archivedAt)
@@ -227,7 +261,7 @@ func buildFeeLines(job models.Job, archivedAt time.Time) []models.ArchivedJobFee
 			FeeID:         f.ID,
 			OrderID:       f.OrderID,
 			Date:          date,
-			CalendarMonth: monthOf(date),
+			CalendarMonth: lineMonth(filed, date),
 			Amount:        f.Amount,
 		})
 	}

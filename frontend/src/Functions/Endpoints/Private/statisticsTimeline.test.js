@@ -5,6 +5,10 @@ const requestWithPrivateHeaders = vi.fn();
 vi.mock("./applyPrivateHeaders.js", () => ({
   default: (...args) => requestWithPrivateHeaders(...args),
 }));
+// The path names the owner, so a request needs one.
+vi.mock("../../../Zustand/usersStore", () => ({
+  default: { getState: () => ({ account: { accountID: "acct-1" } }) },
+}));
 
 const { getAccountTimeline, getAccountTimelineItems, isCalendarMonth } =
   await import("./statisticsTimeline.js");
@@ -39,7 +43,7 @@ describe("getAccountTimeline", () => {
 
     const got = await getAccountTimeline();
 
-    expect(requestedURL()).toBe("/api/v1/statistics/account/timeline");
+    expect(requestedURL()).toBe("/api/v1/statistics/account:acct-1/timeline");
     expect(got.period.defaulted).toBe(true);
     expect(got.months).toHaveLength(2);
   });

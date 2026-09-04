@@ -32,7 +32,7 @@ function calculateJobUnitCost(inputJob, ctx) {
   }
 
   try {
-    let jobCost = inputJob.totalExtrasCost();
+    let jobCost = inputJob.totalExtrasCost;
     jobCost += getJobInstallCostForPlanning(inputJob);
 
     for (const material of inputJob.build.materials) {
@@ -52,7 +52,7 @@ function calculateJobUnitCost(inputJob, ctx) {
       }
     }
 
-    return jobCost / inputJob.totalQuantityProduced();
+    return jobCost / inputJob.totalQuantityProduced;
   } finally {
     if (jobID != null) {
       visiting.delete(jobID);

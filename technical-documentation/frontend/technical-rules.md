@@ -42,6 +42,22 @@ observer, a timer.
 for another reason. A 19 idiom that would change behaviour, or that no test covers, is worth
 flagging before taking it.
 
+## Class members: getters and methods
+
+A class in `frontend/src/Classes` exposes a **getter** when the member reads the object's
+fields or totals its rows — `job.buildCost`, `material.quantityRemaining`, `job.childJobIDs`.
+It exposes a **method** when the member takes an input, changes the object, or calculates a
+figure from more than a sum — `job.materialRequirement(typeID)`, `job.importPurchaseToMaterial(...)`,
+`job.buildCostPerItem()`.
+
+A getter is the get: name it for the value, not for fetching it. `parentJobIDs`, not
+`getParentJobIds`.
+
+Derived values are getters rather than stored fields, so a figure cannot fall behind what it is
+derived from. They are absent from a spread of an instance, so an object built with
+`{ ...job }` carries the fields and none of the derived values — pass instances, or rebuild
+with the class.
+
 ## Frontend-specific bar (TBD)
 
 Design-system / visual / SPA-only conventions (component libraries, routing, styling) will be written

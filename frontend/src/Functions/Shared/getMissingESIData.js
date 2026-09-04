@@ -28,11 +28,11 @@ async function getMissingESIData(inputJobs) {
   for (let job of jobsAsArray) {
     requiredMarketData = new Set([
       ...requiredMarketData,
-      ...job.getMaterialIDs(),
+      ...job.materialIDs,
     ]);
     requiredSystemIndexes = new Set([
       ...requiredSystemIndexes,
-      ...job.getSystemIndexes(),
+      ...job.setupSystemIDs,
     ]);
   }
 

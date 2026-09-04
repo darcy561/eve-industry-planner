@@ -57,7 +57,7 @@ function collectMaterialsAndParentJobs(chosenJobs) {
 
   for (let job of chosenJobs) {
     const materialID = job.itemID;
-    const quantity = job.totalQuantityProduced();
+    const quantity = job.totalQuantityProduced;
     const itemCost = job.buildCostPerItem();
 
     if (!collectedMaterials[materialID]) {
@@ -146,7 +146,7 @@ export function distributeItemCostsBetweenJobs(collectedMaterials, jobSelection,
       if (!materialToImport) continue;
 
       for (const costEntry of materialToImport.costs) {
-        if (material.quantityStillRequired() <= 0) break;
+        if (material.quantityRemaining <= 0) break;
 
         if (costEntry.quantity <= 0) continue;
 

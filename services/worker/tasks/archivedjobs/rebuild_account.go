@@ -27,6 +27,9 @@ type AccountRebuildResult struct {
 	// are absent from the totals, so a non-zero count means the account's figures
 	// are incomplete rather than wrong.
 	SkippedJobs int
+	// StaleRows counts the skipped jobs that already had a row, now stamped as
+	// holding the last figures that could be computed.
+	StaleRows int
 }
 
 // rebuildUpsertBatch bounds one bulk write. Large enough that a typical account
@@ -72,6 +75,14 @@ func RebuildAccountStatistics(
 	if err := mongo.WriteStatsRows(ctx, rows, rebuildUpsertBatch); err != nil {
 		return out, fmt.Errorf("upsert statistics rows: %w", err)
 	}
+
+	// After the write, so a job that can be read again has already cleared the
+	// stamp its previous row carried.
+	stamped, err := mongo.StampSkippedStatsRows(ctx, accountID, acc.skippedJobIDs, acc.skipReason, now)
+	if err != nil {
+		return out, err
+	}
+	out.StaleRows = int(stamped)
 
 	folded := foldAccountAggregates(accountID, rows)
 	written, err := writeAccountAggregates(ctx, mongo, folded)
@@ -195,19 +206,27 @@ type accountRows struct {
 	keepIDs  []string
 	jobCount int
 	skipped  int
+	// skippedJobIDs and skipReason carry what could not be reduced, so the rows
+	// left standing can say the figures on them are the last computable ones.
+	skippedJobIDs []string
+	skipReason    string
 }
 
 // add reduces one archived job.
 //
 // A job whose snapshot cannot be computed is skipped but its id is still kept:
 // the job is still archived, so revoking its existing row would record it as
-// removed and drop its history from the account's totals. Skipping it leaves the
-// previous row in place, unchanged, until the job is corrected.
+// removed and drop its history from the account's totals. The previous row
+// stands, stamped as stale, until the job can be read again.
 func (a *accountRows) add(job models.Job) {
 	a.jobCount++
 	row, err := archivestats.NewAccountRow(job, a.now)
 	if err != nil {
 		a.skipped++
+		a.skippedJobIDs = append(a.skippedJobIDs, job.JobID)
+		if a.skipReason == "" {
+			a.skipReason = err.Error()
+		}
 		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(job.MetaData.AccountID, job.JobID))
 		return
 	}

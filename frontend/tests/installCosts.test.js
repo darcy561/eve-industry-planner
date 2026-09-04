@@ -6,7 +6,7 @@ import {
 } from "../src/Functions/Installation Costs/installCosts.js";
 import Job from "../src/Classes/job.js";
 
-// The job helpers read what the installs cost through Job.totalInstallCost(), so
+// The job helpers read what the installs cost through Job.totalInstallCost, so
 // these cases are real jobs rather than job-shaped literals.
 function jobWith(build) {
   return new Job({ jobID: "job-1", itemID: 587, jobType: 1, build });
@@ -30,7 +30,7 @@ describe("installCosts", () => {
       materials: [],
     });
     expect(getJobInstallCostForPlanning(job)).toBe(240);
-    expect(job.totalInstallCost()).toBe(0);
+    expect(job.totalInstallCost).toBe(0);
   });
 
   it("planning mode prefers actual when ESI jobs are linked", () => {
@@ -41,7 +41,7 @@ describe("installCosts", () => {
       materials: [],
     });
     expect(getJobInstallCostForPlanning(job)).toBe(42);
-    expect(job.totalInstallCost()).toBe(42);
+    expect(job.totalInstallCost).toBe(42);
   });
 
   it("actual mode returns zero when ESI linked but cost not yet recorded", () => {
@@ -51,7 +51,7 @@ describe("installCosts", () => {
       products: { totalQuantity: 1 },
       materials: [],
     });
-    expect(job.totalInstallCost()).toBe(0);
+    expect(job.totalInstallCost).toBe(0);
     expect(getJobInstallCostForPlanning(job)).toBe(0);
   });
 

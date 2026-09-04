@@ -4,9 +4,9 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 
 export function SalesStats({ state }) {
-  const brokersFeesTotal = state.activeJob.brokersFeeTotal();
-  const transactionFeeTotal = state.activeJob.transactionFeeTotal();
-  const totalSale = state.activeJob.salesTotal();
+  const brokersFeesTotal = state.activeJob.totalBrokersFees;
+  const transactionFeeTotal = state.activeJob.totalTransactionFees;
+  const totalSale = state.activeJob.totalSales;
 
   return (
     <ContentPanel componentName="Sales Stats Panel">
@@ -20,7 +20,7 @@ export function SalesStats({ state }) {
           <Grid size={{ xs: 12, sm: 4 }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
               {formatNumberForLocale(
-                state.activeJob.totalQuantityProduced(),
+                state.activeJob.totalQuantityProduced,
                 { max: 0 },
               )}
             </Typography>
@@ -44,7 +44,7 @@ export function SalesStats({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.buildCost())}
+              {formatNumberForLocale(state.activeJob.buildCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -110,7 +110,7 @@ export function SalesStats({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalCost())}
+              {formatNumberForLocale(state.activeJob.totalCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -201,12 +201,12 @@ export function SalesStats({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
               color={
-                totalSale - state.activeJob.totalCost() < 0
+                totalSale - state.activeJob.totalCost < 0
                   ? "error"
                   : "primary"
               }
             >
-              {formatNumberForLocale(totalSale - state.activeJob.totalCost())}
+              {formatNumberForLocale(totalSale - state.activeJob.totalCost)}
             </Typography>
           </Grid>
         </Grid>

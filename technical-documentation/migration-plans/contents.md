@@ -23,3 +23,4 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Service library modules (split `shared/` into local `eip/*` modules; build per closure) | [service-library-modules/contents.md](./service-library-modules/contents.md) |
 | Service import boundaries (stop services importing each other) | [service-import-boundaries/contents.md](./service-import-boundaries/contents.md) |
 | Task dispatch (task type authority, envelope collapse, operator CLI) | [task-dispatch/contents.md](./task-dispatch/contents.md) |
+| ESI rate limiting (shared `esiclient`, bucket model, budget-aware scheduling) | [esi-rate-limiting/contents.md](./esi-rate-limiting/contents.md) |

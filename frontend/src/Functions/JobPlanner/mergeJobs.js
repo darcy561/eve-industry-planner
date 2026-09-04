@@ -75,7 +75,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     let totalItemQuantity = 0;
 
     for (const job of group) {
-      totalItemQuantity += job.totalQuantityProduced();
+      totalItemQuantity += job.totalQuantityProduced;
 
       for (const parentID of job.parentJobs ?? []) {
         parentJobs.add(parentID);

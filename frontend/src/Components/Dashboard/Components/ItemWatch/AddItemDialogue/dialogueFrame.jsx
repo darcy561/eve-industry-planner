@@ -56,7 +56,7 @@ export function AddWatchItemDialogue({
         name: mat.name,
         quantity: mat.quantity,
         quantityProduced:
-          job !== undefined ? job.totalQuantityProduced() : 0,
+          job !== undefined ? job.totalQuantityProduced : 0,
         materials: [],
         group: groupSelect,
         buildData:
@@ -85,7 +85,7 @@ export function AddWatchItemDialogue({
       typeID: watchlistItemRequest,
       group: groupSelect,
       name: materialJobs[watchlistItemRequest].name,
-      quantity: materialJobs[watchlistItemRequest].totalQuantityProduced(),
+      quantity: materialJobs[watchlistItemRequest].totalQuantityProduced,
       materials: mainJobMaterials,
       childJobPresent: childJobPresent,
       buildData: Object.values(

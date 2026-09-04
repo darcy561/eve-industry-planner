@@ -1,6 +1,9 @@
 package models
 
-import "maps"
+import (
+	"fmt"
+	"maps"
+)
 
 // SalesMeasures is the set of totals every sales-scoped aggregate carries —
 // timeline responses and the pre-aggregated monthly buckets behind them.
@@ -90,6 +93,18 @@ type CalendarMonth struct {
 
 // ordinal packs the month into one comparable integer.
 func (m CalendarMonth) ordinal() int { return m.Year*12 + m.Month }
+
+// String is the wire and document form, YYYY-MM. Zero-padded so lexical order
+// matches calendar order, which is what lets months sort as strings.
+func (m CalendarMonth) String() string {
+	return fmt.Sprintf("%04d-%02d", m.Year, m.Month)
+}
+
+// Valid reports whether a month names a real one. The pointer form is how an
+// absent month is expressed, so a nil receiver answers false rather than panics.
+func (m *CalendarMonth) Valid() bool {
+	return m != nil && m.Year > 0 && m.Month >= 1 && m.Month <= 12
+}
 
 // Before reports whether m is an earlier month than other.
 func (m CalendarMonth) Before(other CalendarMonth) bool {

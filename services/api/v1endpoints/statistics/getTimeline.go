@@ -55,15 +55,15 @@ type timelineResponse struct {
 	Months []timelineMonthEntry `json:"months"`
 }
 
-// GetTimelineHandler serves GET /api/v1/statistics/account/timeline.
+// GetTimelineHandler serves GET /api/v1/statistics/{owner}/timeline.
 //
 // Returns one entry per calendar month in the window, summed across every item
 // type unless typeID narrows it. With no from/to the window is the current month
 // and the one before it, which is the dashboard's month-on-month comparison, and
 // `range=all` reads every month the account has instead of a bounded window.
 //
-// The account is resolved by the auth middleware from the session cookie, never
-// read from the request.
+// The path names the owner and the session decides whether it may be read; the
+// account behind that session is what the queries below are scoped to.
 func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIStatistics()
@@ -80,6 +80,9 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accountID := helper.AuthenticatedAccountID(r)
+	if !requireOwnedBySession(w, r, metrics, "statistics_timeline", accountID) {
+		return
+	}
 
 	if h.Mongo == nil {
 		metrics.Error("mongo_client_missing")

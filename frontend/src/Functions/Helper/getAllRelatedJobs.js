@@ -44,7 +44,7 @@ function getAllRelatedJobs(inputJobIDs) {
 
       jobIDMap[jobID] = matchedJob;
 
-      const relatedJobs = matchedJob.getRelatedJobs();
+      const relatedJobs = matchedJob.relatedJobIDs;
 
       if (relatedJobs && Array.isArray(relatedJobs)) {
         stack.push(...relatedJobs);

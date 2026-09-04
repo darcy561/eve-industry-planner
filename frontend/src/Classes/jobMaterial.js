@@ -57,9 +57,10 @@ class Material {
    *
    * @returns {number}
    */
-  quantityStillRequired() {
+  get quantityRemaining() {
     return Math.max(0, this.quantity - this.quantityPurchased);
   }
+
 
   /**
    * Records a purchase against the material, taking what the job still needs.
@@ -81,7 +82,7 @@ class Material {
   importPurchase(
     purchase,
     {
-      availableToBuy = this.quantityStillRequired(),
+      availableToBuy = this.quantityRemaining,
       recordExcess = false,
     } = {}
   ) {

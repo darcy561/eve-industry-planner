@@ -1,3 +1,4 @@
+import { monthKeyOrDash } from "./calendarMonth.js";
 import { useMemo } from "react";
 import { Box, Grid, Stack, Typography } from "@mui/material";
 import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
@@ -52,14 +53,6 @@ const ISK = (value) => numberToShortText(Number(value ?? 0), 2);
 // "12.00".
 const COUNT = (value) =>
   formatNumberForLocale(Number(value ?? 0), { min: 0, max: 0 });
-
-/** A cost month as `YYYY-MM`, or a dash when the mark is unset. */
-function markMonth(month) {
-  const year = Number(month?.year ?? 0);
-  const index = Number(month?.month ?? 0);
-  if (!year || !index) return "—";
-  return `${year}-${String(index).padStart(2, "0")}`;
-}
 
 /**
  * Everything the archive knows about one item.
@@ -136,7 +129,7 @@ export function ArchivedItemStatistics({
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
-          alignItems={{ xs: "stretch", sm: "flex-start" }}
+          sx={{ alignItems: { xs: "stretch", sm: "flex-start" } }}
         >
           <Box sx={{ flex: 1, minWidth: 0, maxWidth: { sm: 420 } }}>
             <VirtualisedRecipeSearch
@@ -211,16 +204,16 @@ export function ArchivedItemStatistics({
                       value={ISK(row?.profitLoss)}
                       title={formatNumberForLocale(Number(row?.profitLoss ?? 0))}
                     />
-                    <Figure label="First build" value={markMonth(history?.firstCostMonth)} />
+                    <Figure label="First build" value={monthKeyOrDash(history?.firstCostMonth)} />
                     <Figure
                       label="Cheapest / item"
                       value={ISK(history?.cheapestCostPerItem)}
-                      title={`${markMonth(history?.cheapestCostMonth)} — per item`}
+                      title={`${monthKeyOrDash(history?.cheapestCostMonth)} — per item`}
                     />
                     <Figure
                       label="Dearest / item"
                       value={ISK(history?.dearestCostPerItem)}
-                      title={`${markMonth(history?.dearestCostMonth)} — per item`}
+                      title={`${monthKeyOrDash(history?.dearestCostMonth)} — per item`}
                     />
                   </Grid>
                 </Box>

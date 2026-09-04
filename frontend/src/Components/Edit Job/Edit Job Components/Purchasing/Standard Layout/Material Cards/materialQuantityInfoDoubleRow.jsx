@@ -28,7 +28,7 @@ export function MaterialQuantityInfoDoubleRow({
     : `${formatNumberForLocale(min, { max: 0 })}–${formatNumberForLocale(max, {
         max: 0,
       })}`;
-  const remainingWithChildJobs = Math.max(0, material.quantityStillRequired() - min);
+  const remainingWithChildJobs = Math.max(0, material.quantityRemaining - min);
   const remainingWithoutChildJobs = Math.max(
     0,
     material.quantity -

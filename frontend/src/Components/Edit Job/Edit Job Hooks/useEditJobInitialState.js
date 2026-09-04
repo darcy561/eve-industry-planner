@@ -36,7 +36,7 @@ export function useEditJobInitialState({
         const linkedJobs = await useUsersStore
           .getState()
           .jobData.actions.jobsFromIdsOrObjects([
-            ...matchedJob.getRelatedJobs(),
+            ...matchedJob.relatedJobIDs,
             jobID,
           ]);
 

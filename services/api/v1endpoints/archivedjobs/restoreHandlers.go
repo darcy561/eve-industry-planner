@@ -25,18 +25,19 @@ type restoreResponse struct {
 	Unresolved []string       `json:"unresolved,omitempty"`
 }
 
-// restoreScope is how a request selected what to restore.
-type restoreScope int
+// archiveSelection is how a request named the jobs it addresses. Restore and
+// filing select the same three ways, so they read it from one place.
+type archiveSelection int
 
 const (
-	restoreScopeJob restoreScope = iota
-	restoreScopeGroup
-	restoreScopeRelated
+	selectionJob archiveSelection = iota
+	selectionGroup
+	selectionRelated
 )
 
 // RestoreArchivedJobsHandler handles the three restore routes, which differ only
 // in how they select jobs.
-func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Request, scope restoreScope, id string) {
+func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Request, scope archiveSelection, id string) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIArchivedJobs()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -72,7 +73,7 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	jobs, unresolved, err := selectJobsToRestore(ctx, archive, scope, id)
+	jobs, unresolved, err := selectArchivedJobs(ctx, archive, scope, id)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to restore", "archived jobs restore: selection failed", "archived_jobs_restore_select_failed", "archived_jobs_restore", err, map[string]any{"id": id})
@@ -184,9 +185,9 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, accountID, sessionID 
 // selectJobsToRestore reads the addressed documents, returning the jobs and the
 // ids the walk could not resolve. Each job carries its own group, so the
 // selection does not name one.
-func selectJobsToRestore(ctx context.Context, archive archiveScope, scope restoreScope, id string) ([]models.Job, []string, error) {
+func selectArchivedJobs(ctx context.Context, archive archiveScope, scope archiveSelection, id string) ([]models.Job, []string, error) {
 	switch scope {
-	case restoreScopeJob:
+	case selectionJob:
 		job, err := loadArchivedJob(ctx, archive, id)
 		if err != nil {
 			return nil, nil, err
@@ -196,7 +197,7 @@ func selectJobsToRestore(ctx context.Context, archive archiveScope, scope restor
 		}
 		return []models.Job{*job}, nil, nil
 
-	case restoreScopeGroup:
+	case selectionGroup:
 		// Everything the archive still holds for the group.
 		jobs, err := loadArchivedJobsByFilter(ctx, ArchivedJobQuery{
 			Scope:   archive,
@@ -207,7 +208,7 @@ func selectJobsToRestore(ctx context.Context, archive archiveScope, scope restor
 		}
 		return jobs, nil, nil
 
-	case restoreScopeRelated:
+	case selectionRelated:
 		summaries, err := listAllArchivedSummaries(ctx, archive)
 		if err != nil {
 			return nil, nil, err

@@ -51,6 +51,7 @@ func RebuildOwnerStatistics(ctx context.Context, t *asynq.Task, deps *esitasks.T
 		"timeline_months", result.TimelineMonths,
 		"production_totals", result.ProductionTotals,
 		"skipped_jobs", result.SkippedJobs,
+		"stale_rows", result.StaleRows,
 		"cleared", cleared,
 	)
 

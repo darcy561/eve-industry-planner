@@ -102,15 +102,26 @@ export const RESTORE_SCOPES = {
   RELATED: "related",
 };
 
-function restorePath(scope, id) {
+/**
+ * The path of one action against a job, a group, or a related set.
+ *
+ * Restore and filing address the same three selections, and the server routes
+ * them the same way, so the shape is written once: a set names its container,
+ * and a job names itself.
+ *
+ * @param {"job"|"group"|"related"} scope
+ * @param {string} id
+ * @param {"restore"|"filing"} action
+ */
+function archivedJobsActionPath(scope, id, action) {
   const encoded = encodeURIComponent(id);
   if (scope === RESTORE_SCOPES.GROUP) {
-    return `${ARCHIVED_JOBS_PATH}/groups/${encoded}/restore`;
+    return `${ARCHIVED_JOBS_PATH}/groups/${encoded}/${action}`;
   }
   if (scope === RESTORE_SCOPES.RELATED) {
-    return `${ARCHIVED_JOBS_PATH}/related/${encoded}/restore`;
+    return `${ARCHIVED_JOBS_PATH}/related/${encoded}/${action}`;
   }
-  return `${ARCHIVED_JOBS_PATH}/${encoded}/restore`;
+  return `${ARCHIVED_JOBS_PATH}/${encoded}/${action}`;
 }
 
 /**
@@ -134,7 +145,7 @@ export async function restoreArchivedJobs(scope, id) {
 
   try {
     const response = await requestWithPrivateHeaders(
-      restorePath(scope, id),
+      archivedJobsActionPath(scope, id, "restore"),
       { method: "POST" },
       { requestName: "restoreArchivedJobs" },
     );
@@ -151,6 +162,53 @@ export async function restoreArchivedJobs(scope, id) {
     return await response.json();
   } catch (error) {
     console.error("restoreArchivedJobs:", error);
+    return null;
+  }
+}
+
+/**
+ * Files archived figures under months of the user's choosing: one job, or every
+ * job in a group or related set.
+ *
+ * PATCH `/api/v1/archived-jobs/…/filing`. A month is `YYYY-MM`; `null` returns
+ * that side to what the server derives, and an omitted field leaves it as it was.
+ *
+ * Income the market recorded is not movable. Naming one such job is refused with
+ * 409; naming a set files what it can and reports `salesLockedByMarket`, because
+ * refusing a whole group over one market sale would make bulk filing useless.
+ *
+ * @param {"job"|"group"|"related"} scope
+ * @param {string} id - job id, or the group or related set id
+ * @param {{costMonth?: string|null, salesMonth?: string|null}} months
+ * @returns {Promise<{jobIDs: string[], salesLockedByMarket?: number}|{error: string}|null>}
+ */
+export async function fileArchivedJobMonths(scope, id, months) {
+  if (!id) return null;
+
+  try {
+    const response = await requestWithPrivateHeaders(
+      archivedJobsActionPath(scope, id, "filing"),
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(months ?? {}),
+      },
+      { requestName: "fileArchivedJobMonths" },
+    );
+
+    if (response.status === 409) {
+      return { error: "This job's sales came from the market, so their month cannot be changed." };
+    }
+    if (!response.ok) {
+      console.error(
+        `fileArchivedJobMonths: ${response.status} ${response.statusText}`,
+        await response.text(),
+      );
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("fileArchivedJobMonths:", error);
     return null;
   }
 }

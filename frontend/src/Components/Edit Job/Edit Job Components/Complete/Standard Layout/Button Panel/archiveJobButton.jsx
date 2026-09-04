@@ -11,7 +11,7 @@ import {
   showSnackbarSuccess,
 } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import { invalidateStatisticsQueries } from "../../../../../../Hooks/React Query/Backend/statisticsKeys";
+import { invalidateArchiveQueries } from "../../../../../../Hooks/React Query/Backend/archivedJobsList";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
@@ -42,7 +42,7 @@ export function ArchiveJobButton({ state }) {
       return;
     }
 
-    invalidateStatisticsQueries(queryClient);
+    invalidateArchiveQueries(queryClient);
 
     await markJobsArchivedInGroups([state.activeJob]);
 

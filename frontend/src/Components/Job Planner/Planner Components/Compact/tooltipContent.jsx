@@ -5,13 +5,13 @@ function getTooltipContent(job) {
     case 0:
       return (
         <span>
-          <p>Job Setups: {job.setupCount()}</p>
+          <p>Job Setups: {job.setupCount}</p>
         </span>
       );
     case 1:
       const totalMaterials = job.build.materials.length;
-      const totalComplete = job.totalCompletedMaterials();
-      if (!job.isReadyToBuild()) {
+      const totalComplete = job.completedMaterialCount;
+      if (!job.isReadyToBuild) {
         return (
           <span>
             <p>
@@ -36,7 +36,7 @@ function getTooltipContent(job) {
       return (
         <span>
           <p>
-            Items Built: {formatNumberForLocale(job.totalQuantityProduced(), { max: 0 })}
+            Items Built: {formatNumberForLocale(job.totalQuantityProduced, { max: 0 })}
           </p>
         </span>
       );

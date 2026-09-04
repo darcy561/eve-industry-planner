@@ -132,3 +132,93 @@ describe("jobs not yet in the totals", () => {
     expect(screen.getByText("Pending")).toBeTruthy();
   });
 });
+
+// A rebuild that cannot read a job leaves the figures it last worked out. That
+// is a different thing from waiting for a fold: it does not resolve on its own,
+// so it cannot be shown as though it will.
+describe("jobs whose figures could not be recalculated", () => {
+  function withRow(overrides) {
+    useArchivedJobsQuery.mockReturnValue({
+      data: { jobs: [{ ...jobs[0], ...overrides }], paging: { totalJobs: 1 } },
+      isLoading: false,
+      isError: false,
+    });
+  }
+
+  it("marks a job the server reports as stale", () => {
+    setViewportWide(true);
+    withRow({ figuresStale: true });
+    renderList();
+
+    expect(screen.getByText("Stale")).toBeTruthy();
+    // The figures stay on screen: they are the last ones that could be worked
+    // out, not nothing.
+    expect(screen.getByText("Market")).toBeTruthy();
+  });
+
+  // Both can be true at once — a stale row can also be uncounted — and the one
+  // that will not fix itself is the one worth showing.
+  it("shows stale rather than pending when a row is both", () => {
+    setViewportWide(true);
+    withRow({ figuresStale: true, awaitingTotals: true });
+    renderList();
+
+    expect(screen.getByText("Stale")).toBeTruthy();
+    expect(screen.queryByText("Pending")).toBeNull();
+  });
+
+  it("marks it on the narrow layout too", () => {
+    setViewportWide(false);
+    withRow({ figuresStale: true });
+    renderList();
+
+    expect(screen.getByText("Stale")).toBeTruthy();
+  });
+
+  it("marks nothing when the field is absent", () => {
+    setViewportWide(true);
+    withRow({});
+    renderList();
+
+    expect(screen.queryByText("Stale")).toBeNull();
+  });
+});
+
+// A month someone chose can disagree with the job's own dates, which reads as a
+// fault unless the row says the disagreement was deliberate.
+describe("jobs filed under months of their own", () => {
+  function withRow(overrides) {
+    useArchivedJobsQuery.mockReturnValue({
+      data: { jobs: [{ ...jobs[0], ...overrides }], paging: { totalJobs: 1 } },
+      isLoading: false,
+      isError: false,
+    });
+  }
+
+  it("marks a job whose months were chosen", () => {
+    setViewportWide(true);
+    withRow({ monthsFiled: true });
+    renderList();
+
+    expect(screen.getByText("Filed")).toBeTruthy();
+  });
+
+  // Stale and pending are about whether the figures are current; filed is about
+  // where they sit. The two that need acting on come first.
+  it("yields to the marks that need acting on", () => {
+    setViewportWide(true);
+    withRow({ monthsFiled: true, figuresStale: true });
+    renderList();
+
+    expect(screen.getByText("Stale")).toBeTruthy();
+    expect(screen.queryByText("Filed")).toBeNull();
+  });
+
+  it("offers a way to change them from the row", () => {
+    setViewportWide(true);
+    withRow({});
+    renderList();
+
+    expect(screen.getAllByRole("button", { name: "Months" }).length).toBeGreaterThan(0);
+  });
+});

@@ -343,3 +343,55 @@ func TestEvidencedArchiveDateFallsBackToSales(t *testing.T) {
 		t.Fatal("returned a zero date with ok=true")
 	}
 }
+
+// A job can gain a market sale after its months were filed — ESI links a
+// transaction to a build that was entered by hand. The filing is then no longer
+// the user's to apply, and the reduction is what has to notice: the endpoint
+// only guards the moment the choice is made.
+func TestMarketSalesIgnoreAFiledSalesMonth(t *testing.T) {
+	filed := models.CalendarMonth{Year: 2026, Month: 4}
+	job := models.Job{JobID: "job-filed-market", ItemID: 34, ItemsProducedPerRun: 1}
+	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
+	job.FiledSalesMonth = &filed
+	job.Build.Sale.Transactions = []models.Transaction{{
+		TransactionID: 6000000001, // ESI's own
+		Quantity:      1,
+		Amount:        100,
+		Date:          "2026-08-10T00:00:00Z",
+	}}
+
+	row, err := NewAccountRow(job, time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("NewAccountRow: %v", err)
+	}
+	if got := row.TransactionLines[0].CalendarMonth; got != (models.CalendarMonth{Year: 2026, Month: 8}) {
+		t.Fatalf("market sale filed under %+v, want the month the money arrived", got)
+	}
+}
+
+// The same job without the market line is the user's to file.
+func TestHandEnteredSalesFollowAFiledSalesMonth(t *testing.T) {
+	filed := models.CalendarMonth{Year: 2026, Month: 4}
+	job := models.Job{JobID: "job-filed-hand", ItemID: 34, ItemsProducedPerRun: 1}
+	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
+	job.FiledSalesMonth = &filed
+	job.Build.Sale.Transactions = []models.Transaction{{
+		TransactionID: -1700000000001,
+		Quantity:      1,
+		Amount:        100,
+		Date:          "2026-08-10T00:00:00Z",
+	}}
+	job.Build.Sale.BrokersFee = []models.BrokerFee{{ID: -1, Amount: 5, Date: "2026-08-09T00:00:00Z"}}
+
+	row, err := NewAccountRow(job, time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("NewAccountRow: %v", err)
+	}
+	if got := row.TransactionLines[0].CalendarMonth; got != filed {
+		t.Fatalf("hand-entered sale filed under %+v, want %+v", got, filed)
+	}
+	// The fee was charged against that income, so it moves with it.
+	if got := row.FeeLines[0].CalendarMonth; got != filed {
+		t.Fatalf("broker fee filed under %+v, want %+v", got, filed)
+	}
+}

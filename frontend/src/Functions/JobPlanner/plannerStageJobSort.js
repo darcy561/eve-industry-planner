@@ -13,8 +13,8 @@
  * @returns {number}
  */
 const purchasingStageSort = (a, b) => {
-  const aAll = a.isReadyToBuild();
-  const bAll = b.isReadyToBuild();
+  const aAll = a.isReadyToBuild;
+  const bAll = b.isReadyToBuild;
   if (aAll !== bAll) {
     return aAll ? -1 : 1;
   }

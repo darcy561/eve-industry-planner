@@ -1,3 +1,5 @@
+import { monthKey } from "./calendarMonth.js";
+
 import { mapApiStatsToArchiveBreakdown } from "../Dialogues/Blueprint Archive/mapApiStatsToArchiveBreakdown";
 
 /**
@@ -8,20 +10,13 @@ import { mapApiStatsToArchiveBreakdown } from "../Dialogues/Blueprint Archive/ma
  * when they changed.
  */
 
-/** `YYYY-MM` for a month row, matching the key the documents are stored under. */
-export function monthKey(row) {
-  const year = Number(row?.year ?? 0);
-  const month = Number(row?.month ?? 0);
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
-}
-
 /**
  * Month rows for the timeline chart.
  *
  * The month in progress is a partial figure, so it is marked rather than drawn
  * as though it were a finished month standing lower than the rest.
  *
- * @param {object|undefined} data - `GET /statistics/account/timeline`
+ * @param {object|undefined} data - `GET /statistics/{owner}/timeline`
  */
 export function toTimelineRows(data) {
   const months = data?.months ?? [];
@@ -37,7 +32,7 @@ export function toTimelineRows(data) {
 /**
  * Running total of profit across the window.
  *
- * @param {object|undefined} data - `GET /statistics/account/timeline`
+ * @param {object|undefined} data - `GET /statistics/{owner}/timeline`
  */
 export function toCumulativeRows(data) {
   let running = 0;
@@ -53,7 +48,7 @@ export function toCumulativeRows(data) {
  * Rows keep the order the server ranked them in; sorting here would rank a page
  * against itself rather than against every item in the window.
  *
- * @param {object|undefined} data - `GET /statistics/account/timeline/items`
+ * @param {object|undefined} data - `GET /statistics/{owner}/timeline/items`
  * @param {Record<number, string>} [names] - type id to item name
  */
 export function toItemRows(data, names = {}) {
@@ -81,7 +76,7 @@ const SEGMENT_LABELS = {
  * cannot disagree about what Market or Chain means. Segments with no activity
  * are dropped rather than drawn as empty slices.
  *
- * @param {object|undefined} row - one row from `GET /statistics/account/totals`
+ * @param {object|undefined} row - one row from `GET /statistics/{owner}/totals`
  * @param {string} [measure] - which figure the slices compare
  */
 /**
@@ -120,7 +115,7 @@ export function toSegmentRows(row, measure = "jobCostTotal") {
  * list, which must include deleted ones: a past cost belongs to the category it
  * was filed under, even after the user stops offering it for new entries.
  *
- * @param {object|undefined} data - `GET /statistics/account/timeline`
+ * @param {object|undefined} data - `GET /statistics/{owner}/timeline`
  * @param {Array<{id: string, label: string}>} [categories]
  * @returns {{rows: object[], series: {key: string, label: string}[]}}
  */
@@ -181,7 +176,7 @@ export const COST_SERIES = [
  * which is a different statement from one that cost nothing, and a null leaves a
  * gap in the chart where a zero would draw a floor.
  *
- * @param {Object} data - `GET /statistics/account/timeline`
+ * @param {Object} data - `GET /statistics/{owner}/timeline`
  */
 export function toBuildCostPerUnitRows(data) {
   const months = data?.months ?? [];
@@ -231,7 +226,7 @@ export function sumTimelineMeasures(months = []) {
  * What was built and what was sold, per month. Counts, so a month with neither
  * carries zero rather than a gap.
  *
- * @param {Object} data - `GET /statistics/account/timeline`
+ * @param {Object} data - `GET /statistics/{owner}/timeline`
  */
 export function toQuantityRows(data) {
   const months = data?.months ?? [];

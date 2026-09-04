@@ -1947,6 +1947,90 @@ this table rather than an archaeology exercise.
 - The restore sequence, whose ordering and lock gate are Stage G's and are untouched beyond the
   delta and the min/max repair.
 
+### Stage K — Filing a job's figures by hand
+
+A job's months are derived from what it carries: costs from the earliest linked ESI job, then the
+earliest sale, then the archive date; sales from each transaction's own date. Derivation is right
+whenever the job holds evidence, and guesses when it does not — a build with no linked job and no
+sale is filed wherever it happened to be archived, and a job restored months later moves.
+
+So the user gets to say, and the rule is **evidence wins where evidence exists**.
+
+| Side | Default | May the user move it |
+|------|---------|----------------------|
+| Outgoing (what it cost) | earliest linked ESI job, then earliest sale, then the archive date | **Yes**, always: a cost carries no timestamp of its own |
+| Incoming (what it sold for) | each transaction's own date | **Only** when no line came from the market |
+
+A market transaction is one ESI recorded, and the archive can already tell: a hand-entered sale is
+minted with a **negative** `transaction_id`, so `transaction_id > 0` is the market and needs no new
+flag. A job with even one market line has its incoming side locked — the money arrived when it
+arrived, and letting that be moved would make the figures disagree with the wallet they came from.
+Broker fees follow the same rule for the same reason.
+
+**The override lives on the job, never on the statistics row.** The row is derived output: every
+rebuild recomputes it, so anything stored there is overwritten on the next pass. On the job it is
+*input* to the reduction, which makes the whole feature rebuild-safe for free — the rebuild derives
+the same answer every time, the reconcile finds no drift, and a restore carries the choice back with
+the job so a re-archive files it the same way.
+
+**Changing a month queues the ordinary rebuild.** A delta can add a row's figures or take them back;
+it cannot move them between buckets, because a job has one row and the two halves would have to
+happen at once. The wholesale rebuild already rewrites an owner's aggregates from its rows, so
+filing queues one and the debounce carries it — no new mechanism, and nothing to fall out of step.
+
+**The page is written to React 19 throughout.** Async work is an action rather than a flag someone
+maintains: the filing dialogue submits through `useActionState` with the shell's `formProps`, its Save
+button reads `useFormStatus`, and restore runs inside `useTransition`, so the rows stay disabled for
+as long as the write and the refresh it triggers are in flight. Item names come from a query rather
+than an effect that fetched and set state, which also means every panel shares one read of the static
+list instead of one each. Nothing on the page uses `forwardRef`, `useContext` or an effect.
+
+**A filed job says so.** A month that disagrees with the job's own evidence reads as a bug to the
+next person to look. The row carries the fact and the archive list marks it, beside the stale and
+pending marks it already has — behind them, because those two are about whether the figures are
+current while this one is only about where they sit.
+
+##### What landed
+
+`PATCH /api/v1/archived-jobs/{jobID}/filing` takes `costMonth` and `salesMonth` as `YYYY-MM`. A
+field omitted is left alone, `null` returns that side to what the reduction derives, and a month that
+has not happened is refused. Filing a market job's income answers **409** rather than ignoring the
+field. The job document gains `filedCostMonth` and `filedSalesMonth`; `costMonthFor` and the two line
+builders read them, and the row records `monthsFiled` so the list can mark it.
+
+**The dialogue is the shared shell, and the months are picked.** `ContentDialogue` carries the title,
+helper copy, error boundary and actions, with `DialogueCloseAction` and `useDialogueCloseReset` for
+closing — the same pieces every other dialogue uses. Months come from `@mui/x-date-pickers` in
+year-month views rather than a typed `YYYY-MM`, so there is no format to explain, nothing to parse
+and nothing to sanitise. A picker has no empty state to choose, so each field carries its own Clear:
+clearing is what asks the archive to derive the month again, and without it a filing could not be
+undone.
+
+**Both fields open on where the figures count today**, which is why the archive list carries
+`costMonth` and `salesMonth` beside the row. A blank field would read as "no month", which is a
+different request from leaving a side alone — and a reader cannot judge a change they cannot see the
+starting point of. The income month is the earliest of the sale lines, since filing moves them
+together. The fields sit on app-shell inset surfaces with the shell's own outlined text-field style,
+so the dialogue matches the panels behind it.
+
+**A set is filed as a set.** The same three ways restore names jobs — one job, a group, a related set
+— now name a filing, through the same `selectArchivedJobs`; the name says what it does rather than
+who calls it. A group's members share a filing because they were archived as one, and the block's own
+row carries the control, so correcting twenty jobs is one action rather than twenty.
+
+What the market rule does then depends on how the caller named the jobs. **Naming one job and being
+refused is an answer; refusing a whole group because one member sold on the market would make bulk
+filing useless.** So a single job answers 409, and a set files what it can and reports
+`salesLockedByMarket`, which the client says out loud: "3 sales came from the market and stayed where
+they were." Costs move for every member either way, because no member's costs are evidence of
+anything.
+
+**The market rule is enforced twice, and the second time is not redundant.** The endpoint refuses to
+store a filed income month for a job the market recorded; the reduction ignores one it finds anyway.
+The case that needs the second is a job filed while its sales were hand-entered, which later has an
+ESI transaction linked to it — the stored filing is then no longer the user's to apply, and only the
+reduction is in a position to notice. A mutation test found this guard untested before it was.
+
 ## Owner block — owed to shared planners
 
 [shared-planners](../shared-planners/plan.md) makes the planner an explicit thing a user works in, and
@@ -1958,7 +2042,7 @@ are settled; the reasoning for each lives in that plan.
 |------|--------|
 | 1. `ArchivedJobStats` takes an owner | **Not started.** The row still carries `AccountID` and `CorpRef`, and `Version` is not yet `RowVersion` |
 | 2. Collection and document-id renames | **Not started.** The five collections still carry their `account_` names |
-| 3. Route and query key take an owner | **Not started.** The route is still `/api/v1/statistics/account/…` and `STATISTICS_QUERY_KEY_ROOT` is still a bare `"statistics"` |
+| 3. Route and query key take an owner | **Done.** The route is `/api/v1/statistics/{owner}/{view}` with the owner as a handle, and every statistics query key carries the owner under the shared root |
 | 4. Stage C's ownership inference is dropped | **Done.** `corpinference`, the per-line corporation fields and the lane on the corporation bucket are gone; nothing in `services/` or the SPA infers a scope |
 
 Shared-planners Stages A and B have not started either, so nothing here is holding that plan up.
@@ -2002,10 +2086,27 @@ twice. Document ids take the owner key in place of the account id —
 
 ### 3. The statistics route and query key take an owner
 
-`/api/v1/statistics/account/…` is about to become a live public surface with one scope hardcoded in
+`/api/v1/statistics/account/…` was about to become a live public surface with one scope hardcoded in
 its path. Parameterising it by owner handle **now**, while the account is the only accepted value, is
 additive; changing it later is breaking. The same applies to `STATISTICS_QUERY_KEY_ROOT`: without the
 owner in the key, two planners share one cache entry the first time a shared planner exists.
+
+**Landed.** The three views are `/api/v1/statistics/{owner}/{view}`, where the owner is a handle —
+`account:{id}` today. The router parses it and rejects one it cannot read as a 404; each handler then
+compares it with the session and answers **403** for an owner the session does not hold, which is
+what stops a caller reading another account by editing one segment. A kind that is routable but not
+served yet — `corporation:`, `planner:` — is refused there rather than falling through to the
+caller's own account.
+
+The check lives in the handler rather than the router because it compares the path against the
+session the auth middleware resolved: a router that rejected it would answer 403 where these routes
+answer 401. When a shared planner exists, that equality becomes a grant lookup and nothing else about
+the shape changes.
+
+On the SPA, `statisticsOwner.js` owns the handle: it builds the path and the key prefix from the same
+value, so the two cannot disagree about whose figures are being read. `statisticsQueryScope()`
+returns `["backend", "statistics", "{owner}"]`, which every statistics key now extends — invalidation
+still targets the root above the owner, so archiving still clears every view.
 
 ### 4. Stage C's ownership inference is dropped
 
@@ -2248,7 +2349,18 @@ step 1 has already run against live was not checked; do not assume live matches 
 
 8. ~~**The recalculation flag has no display.**~~ **Done** — see § Where the client shows it.
 
-9. **Browser-level tests are not started.** The page-level suites render components against mocked
+9. ~~**A skipped job keeps stale figures with nothing to say so.**~~ **Fixed** — a job the reduction
+   cannot read keeps its row and its figures, because it is still archived and dropping them would
+   take real history out of the totals over a document the pipeline cannot parse. The row is now
+   stamped `skippedAt` with the reason, so a stale row is distinguishable from a current one, the
+   archive list reports `figuresStale` and the row carries a **Stale** chip, and the rebuild logs
+   `stale_rows` beside `skipped_jobs`. Stale outranks pending on a row that is both: one resolves
+   itself in seconds and the other does not resolve at all. The
+   stamp clears the moment the job can be read again, which makes a recalculation the way out. Rows
+   are stamped, never created: a row carrying no figures would fold as a contributor of nothing and
+   add a count to every bucket it touched.
+
+10. **Browser-level tests are not started.** The page-level suites render components against mocked
    endpoints, which is where a shared-meaning change between two units shows up. What they cannot see
    is the route, the real query client and a real response together. Deliberately deferred.
 
@@ -2378,6 +2490,17 @@ knowing rather than manufacturing a date.
 - The drain **dispatches one task per owner** rather than doing the work itself. Stage B ran one task
   over the whole queue, which J3 replaced when a queue too long for one pass made no progress at all;
   the claim protocol moved with it, so a mid-rebuild re-queue is still not cleared.
+- A job's **cost month is re-derived on every archive**, from the job itself: the earliest linked ESI
+  industry job, then the earliest sale, and only failing both, the archive date. Every path that
+  writes a row — the archive request, the rebuild, and the rota's new-row pass — goes through
+  `archivestats.NewAccountRow`, so a job restored, edited and archived again is filed by the same
+  rule as the first time and returns to the months its evidence names. Sale and fee lines are filed
+  under their own dates throughout, so revenue never moves.
+- **A job with neither a linked ESI job nor a sale may move to the month it was re-archived in, and
+  that is accepted.** Its cost month falls back to the archive date, which restore clears, so the
+  original month cannot be recovered. Such a job records spend with nothing to attribute it to;
+  correcting it is the user's to do by editing the job rather than the pipeline's to infer. Do not
+  add a stored first-archived date or a carried-forward cost month to close it.
 - The B1 / B2 / B3 split is conversational shorthand, not a documented structure: B1 pure
   transformation, B2 worker tasks, B3 scheduling and producers. This plan defines Stage B as one
   stage.
