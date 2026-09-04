@@ -82,7 +82,7 @@ func ReconcileAccountStatistics(
 	// A fold in flight is holding rows this reconcile is about to account for.
 	// Bumping the claim is what tells it to stand down rather than adding them a
 	// second time on top of what is written below.
-	owner := models.AccountStatsOwner(accountID)
+	owner := models.AccountOwner(accountID)
 	if err := mongo.BumpOwnerClaim(ctx, owner); err != nil {
 		return out, fmt.Errorf("invalidate work in flight: %w", err)
 	}

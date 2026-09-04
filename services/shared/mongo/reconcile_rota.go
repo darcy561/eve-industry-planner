@@ -19,7 +19,7 @@ import (
 // owner that has rows is an owner worth reconciling — including one whose
 // aggregate documents have gone missing entirely, which reading the aggregates
 // instead would never find.
-func (m *Mongo) StatisticsOwners(ctx context.Context, opts ...RetryOption) ([]models.StatsOwner, error) {
+func (m *Mongo) StatisticsOwners(ctx context.Context, opts ...RetryOption) ([]models.Owner, error) {
 	if m == nil || m.ArchivedJobStats == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
@@ -27,9 +27,9 @@ func (m *Mongo) StatisticsOwners(ctx context.Context, opts ...RetryOption) ([]mo
 	if err != nil {
 		return nil, fmt.Errorf("list statistics owners: %w", err)
 	}
-	out := make([]models.StatsOwner, 0, len(ids))
+	out := make([]models.Owner, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, models.AccountStatsOwner(id))
+		out = append(out, models.AccountOwner(id))
 	}
 	return out, nil
 }
@@ -42,7 +42,7 @@ func (m *Mongo) StatisticsOwners(ctx context.Context, opts ...RetryOption) ([]mo
 // waiting out a window. Ordering by stamp is what keeps load flat without the
 // tick and the window having to agree on anything: an owner reconciled now is
 // not due again until the window has passed, so the population spreads itself.
-func (m *Mongo) OwnersDueForReconcile(ctx context.Context, dueBefore time.Time, limit int, opts ...RetryOption) ([]models.StatsOwner, error) {
+func (m *Mongo) OwnersDueForReconcile(ctx context.Context, dueBefore time.Time, limit int, opts ...RetryOption) ([]models.Owner, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -55,14 +55,14 @@ func (m *Mongo) OwnersDueForReconcile(ctx context.Context, dueBefore time.Time, 
 		return nil, err
 	}
 
-	due := make([]models.StatsOwner, 0, len(owners))
+	due := make([]models.Owner, 0, len(owners))
 	for _, owner := range owners {
 		if at, stamped := stamps[owner.Key()]; stamped && !at.Before(dueBefore.UTC()) {
 			continue
 		}
 		due = append(due, owner)
 	}
-	slices.SortFunc(due, func(a, b models.StatsOwner) int {
+	slices.SortFunc(due, func(a, b models.Owner) int {
 		at, bt := stamps[a.Key()], stamps[b.Key()]
 		if !at.Equal(bt) {
 			return at.Compare(bt)
@@ -78,7 +78,7 @@ func (m *Mongo) OwnersDueForReconcile(ctx context.Context, dueBefore time.Time, 
 // StampOwnerReconciled records that an owner's aggregates were just rewritten
 // from its rows, which is what takes it out of the due set until the window has
 // passed again.
-func (m *Mongo) StampOwnerReconciled(ctx context.Context, owner models.StatsOwner, now time.Time, opts ...RetryOption) error {
+func (m *Mongo) StampOwnerReconciled(ctx context.Context, owner models.Owner, now time.Time, opts ...RetryOption) error {
 	if m == nil || m.AccountReconcileRota == nil {
 		return fmt.Errorf("mongo handle is required")
 	}

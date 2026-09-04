@@ -21,7 +21,7 @@ func TestLive_reconcileRota_dueTimeDecidesTurn(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	owner := models.AccountStatsOwner(rotaScratchAccount)
+	owner := models.AccountOwner(rotaScratchAccount)
 	mongolive.ScratchAccount(t, mongo, rotaScratchAccount)
 
 	// The rota is driven by who has rows, so the owner has to have one.
@@ -47,7 +47,7 @@ func TestLive_reconcileRota_dueTimeDecidesTurn(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OwnersDueForReconcile: %v", err)
 		}
-		return slices.ContainsFunc(due, func(o models.StatsOwner) bool { return o.ID == rotaScratchAccount })
+		return slices.ContainsFunc(due, func(o models.Owner) bool { return o.ID == rotaScratchAccount })
 	}
 
 	if !held(t, now) {
@@ -93,7 +93,7 @@ func TestLive_reconcileRota_neverReconciledOutranksAStampedOwner(t *testing.T) {
 	now := time.Now().UTC()
 	// Stamped long enough ago to still be due, so both owners are in the listing
 	// and only their order separates them.
-	if err := mongo.StampOwnerReconciled(ctx, models.AccountStatsOwner(stamped), now.Add(-48*time.Hour)); err != nil {
+	if err := mongo.StampOwnerReconciled(ctx, models.AccountOwner(stamped), now.Add(-48*time.Hour)); err != nil {
 		t.Fatalf("StampOwnerReconciled: %v", err)
 	}
 
@@ -101,8 +101,8 @@ func TestLive_reconcileRota_neverReconciledOutranksAStampedOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OwnersDueForReconcile: %v", err)
 	}
-	freshAt := slices.IndexFunc(due, func(o models.StatsOwner) bool { return o.ID == fresh })
-	stampedAt := slices.IndexFunc(due, func(o models.StatsOwner) bool { return o.ID == stamped })
+	freshAt := slices.IndexFunc(due, func(o models.Owner) bool { return o.ID == fresh })
+	stampedAt := slices.IndexFunc(due, func(o models.Owner) bool { return o.ID == stamped })
 	if freshAt < 0 || stampedAt < 0 {
 		t.Fatalf("both owners should be due; fresh at %d, stamped at %d", freshAt, stampedAt)
 	}

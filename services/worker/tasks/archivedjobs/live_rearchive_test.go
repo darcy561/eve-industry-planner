@@ -26,7 +26,7 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	owner := models.AccountStatsOwner(rearchiveScratchAccount)
+	owner := models.AccountOwner(rearchiveScratchAccount)
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
@@ -119,7 +119,7 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 	defer cancel()
 
 	const account = rearchiveScratchAccount + "-prune"
-	owner := models.AccountStatsOwner(account)
+	owner := models.AccountOwner(account)
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()

@@ -37,7 +37,7 @@ func TestNewMongoBindsStatisticsCollections(t *testing.T) {
 func TestRebuildQueueRequiresHandleAndOwner(t *testing.T) {
 	t.Parallel()
 	var nilMongo *Mongo
-	owner := models.AccountStatsOwner("acct")
+	owner := models.AccountOwner("acct")
 
 	if err := nilMongo.QueueOwnerWork(t.Context(), owner, StatsWorkRebuild, time.Time{}); err == nil {
 		t.Fatal("expected an error without a mongo handle")
@@ -53,10 +53,10 @@ func TestRebuildQueueRequiresHandleAndOwner(t *testing.T) {
 	}
 
 	m := testMongo(t)
-	if err := m.QueueOwnerWork(t.Context(), models.AccountStatsOwner(""), StatsWorkRebuild, time.Time{}); err == nil {
+	if err := m.QueueOwnerWork(t.Context(), models.AccountOwner(""), StatsWorkRebuild, time.Time{}); err == nil {
 		t.Fatal("expected an error for an empty accountID")
 	}
-	if err := m.QueueOwnerWork(t.Context(), models.StatsOwner{Kind: "character", ID: "x"}, StatsWorkRebuild, time.Time{}); err == nil {
+	if err := m.QueueOwnerWork(t.Context(), models.Owner{Kind: "character", ID: "x"}, StatsWorkRebuild, time.Time{}); err == nil {
 		t.Fatal("expected an error for an owner kind nothing can read back")
 	}
 }
@@ -146,7 +146,7 @@ func TestQueueOwnerWorkUpdatePreservesQueuedAtAndBumpsClaim(t *testing.T) {
 func TestClearQueuedOwnerFilterIsClaimScoped(t *testing.T) {
 	t.Parallel()
 
-	filter := clearQueuedOwnerFilter(QueuedOwner{Owner: models.AccountStatsOwner("acct-1"), Claim: 7})
+	filter := clearQueuedOwnerFilter(QueuedOwner{Owner: models.AccountOwner("acct-1"), Claim: 7})
 
 	if filter["_id"] != "account:acct-1" {
 		t.Fatalf("_id = %v, want the owner key", filter["_id"])
@@ -163,10 +163,10 @@ func TestClearQueuedOwnerFilterIsClaimScoped(t *testing.T) {
 func TestQueuedOwnerFilterUsesTheOwnerKey(t *testing.T) {
 	t.Parallel()
 
-	if got := queuedOwnerFilter(models.AccountStatsOwner("acct-1"))["_id"]; got != "account:acct-1" {
+	if got := queuedOwnerFilter(models.AccountOwner("acct-1"))["_id"]; got != "account:acct-1" {
 		t.Fatalf("_id = %v, want the owner key", got)
 	}
-	corp := models.StatsOwner{Kind: models.StatsOwnerCorporation, ID: "acct-1"}
+	corp := models.Owner{Kind: models.OwnerCorporation, ID: "acct-1"}
 	if got := queuedOwnerFilter(corp)["_id"]; got == "account:acct-1" {
 		t.Fatal("two kinds sharing an id must not collide on one queue entry")
 	}

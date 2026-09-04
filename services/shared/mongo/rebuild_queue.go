@@ -29,7 +29,7 @@ const (
 // QueuedOwner is one owner waiting for statistics work, together with the claim
 // token that was current when it was read.
 type QueuedOwner struct {
-	Owner models.StatsOwner
+	Owner models.Owner
 	Work  StatsWork
 	Claim int64
 	// QueuedAt is when the owner first became outstanding, not when it was last
@@ -43,7 +43,7 @@ type QueuedOwner struct {
 // them, so it already accounts for whatever the deltas would have applied.
 // Upgrading an entry is therefore lossless, and the reverse never happens — a
 // delta arriving against a queued rebuild leaves the rebuild in place.
-func (m *Mongo) QueueOwnerWork(ctx context.Context, owner models.StatsOwner, work StatsWork, now time.Time, opts ...RetryOption) error {
+func (m *Mongo) QueueOwnerWork(ctx context.Context, owner models.Owner, work StatsWork, now time.Time, opts ...RetryOption) error {
 	if m == nil || m.AccountRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
@@ -115,7 +115,7 @@ func (m *Mongo) ListQueuedOwners(ctx context.Context, eligibleBefore time.Time, 
 			if decErr := cursor.Decode(&row); decErr != nil {
 				return decErr
 			}
-			owner, perr := models.ParseStatsOwnerKey(row.ID)
+			owner, perr := models.ParseOwnerKey(row.ID)
 			if perr != nil {
 				// An entry nothing can address cannot be rebuilt or cleared by
 				// key, so it is skipped rather than failing the whole read.
@@ -219,7 +219,7 @@ func (m *Mongo) OwnerClaimIsCurrent(ctx context.Context, queued QueuedOwner, opt
 // apply them. Bumping the claim is what the fold already reads as "something
 // else took this owner on". There is no upsert: with no entry there is no work
 // in flight to invalidate, and creating one would invent work nothing asked for.
-func (m *Mongo) BumpOwnerClaim(ctx context.Context, owner models.StatsOwner, opts ...RetryOption) error {
+func (m *Mongo) BumpOwnerClaim(ctx context.Context, owner models.Owner, opts ...RetryOption) error {
 	if m == nil || m.AccountRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
@@ -269,7 +269,7 @@ const ownerWorkFailureCeiling = 1
 // One lookup by `_id` on a small collection, at read time, rather than a flag
 // stored on any statistics document — nothing has to remember to keep it in step
 // with the queue, because it is read from the queue.
-func (m *Mongo) OwnerRecalculationState(ctx context.Context, owner models.StatsOwner, opts ...RetryOption) (RecalculationState, error) {
+func (m *Mongo) OwnerRecalculationState(ctx context.Context, owner models.Owner, opts ...RetryOption) (RecalculationState, error) {
 	if m == nil || m.AccountRebuildQueue == nil {
 		return RecalculationCurrent, fmt.Errorf("mongo handle is required")
 	}
@@ -317,7 +317,7 @@ func (m *Mongo) OwnerRecalculationState(ctx context.Context, owner models.StatsO
 // and a read can say the figures are stale. Recording it is what stops the
 // retries: without a count, a permanently failing owner is dispatched, fails,
 // and is dispatched again for as long as it exists.
-func (m *Mongo) RecordOwnerWorkFailure(ctx context.Context, owner models.StatsOwner, reason string, now time.Time, opts ...RetryOption) error {
+func (m *Mongo) RecordOwnerWorkFailure(ctx context.Context, owner models.Owner, reason string, now time.Time, opts ...RetryOption) error {
 	if m == nil || m.AccountRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
@@ -343,7 +343,7 @@ func (m *Mongo) RecordOwnerWorkFailure(ctx context.Context, owner models.StatsOw
 // was re-queued while it ran. The entry stands for the new request; the failures
 // belong to a run that has since worked, and leaving them would report a failed
 // recalculation for work that is merely outstanding.
-func (m *Mongo) ClearOwnerWorkFailure(ctx context.Context, owner models.StatsOwner, opts ...RetryOption) error {
+func (m *Mongo) ClearOwnerWorkFailure(ctx context.Context, owner models.Owner, opts ...RetryOption) error {
 	if m == nil || m.AccountRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
@@ -362,7 +362,7 @@ func (m *Mongo) ClearOwnerWorkFailure(ctx context.Context, owner models.StatsOwn
 }
 
 // queuedOwnerFilter selects one owner's queue entry.
-func queuedOwnerFilter(owner models.StatsOwner) bson.M {
+func queuedOwnerFilter(owner models.Owner) bson.M {
 	return bson.M{"_id": owner.Key()}
 }
 

@@ -18,25 +18,25 @@ type ownerContextKey struct{}
 
 // parseOwnerHandle reads `kind:id`; the id may contain a colon, so only the
 // first separates the two.
-func parseOwnerHandle(segment string) (models.StatsOwner, error) {
+func parseOwnerHandle(segment string) (models.Owner, error) {
 	kind, id, found := strings.Cut(segment, ":")
 	if !found {
-		return models.StatsOwner{}, fmt.Errorf("owner handle %q must be kind:id", segment)
+		return models.Owner{}, fmt.Errorf("owner handle %q must be kind:id", segment)
 	}
 	if id == "" {
-		return models.StatsOwner{}, fmt.Errorf("owner handle %q names no owner", segment)
+		return models.Owner{}, fmt.Errorf("owner handle %q names no owner", segment)
 	}
-	return models.StatsOwner{Kind: models.StatsOwnerKind(kind), ID: id}, nil
+	return models.Owner{Kind: models.OwnerKind(kind), ID: id}, nil
 }
 
-func withRequestOwner(r *http.Request, owner models.StatsOwner) *http.Request {
+func withRequestOwner(r *http.Request, owner models.Owner) *http.Request {
 	return r.WithContext(context.WithValue(r.Context(), ownerContextKey{}, owner))
 }
 
 // requestOwner is the owner the path named, or the zero owner on a request that
 // did not come through the router.
-func requestOwner(r *http.Request) models.StatsOwner {
-	owner, _ := r.Context().Value(ownerContextKey{}).(models.StatsOwner)
+func requestOwner(r *http.Request) models.Owner {
+	owner, _ := r.Context().Value(ownerContextKey{}).(models.Owner)
 	return owner
 }
 
@@ -49,7 +49,7 @@ func requestOwner(r *http.Request) models.StatsOwner {
 // this a grant lookup.
 func requireOwnedBySession(w http.ResponseWriter, r *http.Request, metrics *helper.RequestMetricsTracker, view, accountID string) bool {
 	owner := requestOwner(r)
-	if owner.Kind == models.StatsOwnerAccount && owner.ID == accountID {
+	if owner.Kind == models.OwnerAccount && owner.ID == accountID {
 		return true
 	}
 	metrics.Error("owner_forbidden")

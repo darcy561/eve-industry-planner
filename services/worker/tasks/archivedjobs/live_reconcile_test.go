@@ -49,9 +49,9 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 		_, _ = mongo.AccountTimelineMonths.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.AccountProductionTotals.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.AccountReconcileRota.Collection().DeleteMany(cctx,
-			bson.M{"_id": models.AccountStatsOwner(reconcileScratchAccount).Key()})
+			bson.M{"_id": models.AccountOwner(reconcileScratchAccount).Key()})
 		_, _ = mongo.AccountRebuildQueue.Collection().DeleteMany(cctx,
-			bson.M{"_id": models.AccountStatsOwner(reconcileScratchAccount).Key()})
+			bson.M{"_id": models.AccountOwner(reconcileScratchAccount).Key()})
 	}
 	clean()
 	t.Cleanup(clean)

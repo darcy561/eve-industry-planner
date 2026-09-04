@@ -63,7 +63,7 @@ func ScratchAccount(t *testing.T, mongo *eipmongo.Mongo, accountID string) {
 		defer cancel()
 
 		scope := bson.M{"accountID": accountID}
-		owner := bson.M{"_id": models.AccountStatsOwner(accountID).Key()}
+		owner := bson.M{"_id": models.AccountOwner(accountID).Key()}
 		for _, target := range []struct {
 			docs   *eipmongo.Docs
 			filter bson.M

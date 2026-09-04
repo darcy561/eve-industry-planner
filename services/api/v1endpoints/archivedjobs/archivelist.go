@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
@@ -290,12 +291,14 @@ func loadArchivedJobStatsByJobIDs(ctx context.Context, scope archiveScope, jobID
 		if allErr := cursor.All(ctx, &rows); allErr != nil {
 			return allErr
 		}
-		for _, row := range rows {
+		upgrader := documentschema.Upgrader{}
+		for i := range rows {
 			// Revoked rows describe jobs the rebuild has superseded.
-			if row.Revoked {
+			if rows[i].Revoked {
 				continue
 			}
-			out[row.JobID] = row
+			upgrader.ArchivedJobStats(&rows[i])
+			out[rows[i].JobID] = rows[i]
 		}
 		return nil
 	})

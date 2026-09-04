@@ -141,6 +141,7 @@ func (h *Handlers) FileArchivedJobMonthsHandler(w http.ResponseWriter, r *http.R
 		}
 		row.ID = eipmongo.ArchivedJobStatsDocumentID(accountID, job.JobID)
 		row.AccountID = accountID
+		row.Owner = models.AccountOwner(accountID)
 		rows = append(rows, row)
 	}
 
@@ -152,7 +153,7 @@ func (h *Handlers) FileArchivedJobMonthsHandler(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	if err := h.Mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
+	if err := h.Mongo.QueueOwnerWork(ctx, models.AccountOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
 		metrics.Error("queue")
 		helper.RespondEndpointError(w, r, http.StatusInternalServerError, "Server error", "file months: queue rebuild", "archived_jobs_filing_queue", "archived_jobs_filing", err, nil)
 		return

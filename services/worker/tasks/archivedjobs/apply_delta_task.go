@@ -40,11 +40,11 @@ func ApplyOwnerStatisticsDelta(ctx context.Context, req eipnats.RebuildOwnerStat
 		return fmt.Errorf("mongo client is required")
 	}
 
-	owner := models.StatsOwner{Kind: models.StatsOwnerKind(req.OwnerKind), ID: req.OwnerID}
+	owner := models.Owner{Kind: models.OwnerKind(req.OwnerKind), ID: req.OwnerID}
 	if err := owner.Validate(); err != nil {
 		return fmt.Errorf("apply owner statistics delta: %w: %w", err, eipnats.Terminate("a request cannot be corrected by retrying it"))
 	}
-	if owner.Kind != models.StatsOwnerAccount {
+	if owner.Kind != models.OwnerAccount {
 		return fmt.Errorf("owner kind %q has no archive to read: %w", owner.Kind, eipnats.Terminate("no archive for this owner kind"))
 	}
 

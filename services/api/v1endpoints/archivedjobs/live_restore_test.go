@@ -139,7 +139,7 @@ func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 		Work string `bson:"work"`
 	}
 	if err := mongo.AccountRebuildQueue.Collection().FindOne(ctx,
-		bson.M{"_id": models.AccountStatsOwner(restoreScratchAccount).Key()},
+		bson.M{"_id": models.AccountOwner(restoreScratchAccount).Key()},
 	).Decode(&entry); err != nil {
 		t.Fatalf("no statistics work queued: %v", err)
 	}

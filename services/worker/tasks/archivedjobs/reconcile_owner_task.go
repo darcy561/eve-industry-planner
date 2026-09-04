@@ -30,11 +30,11 @@ func ReconcileOwnerStatistics(ctx context.Context, req eipnats.ReconcileOwnerSta
 		return fmt.Errorf("mongo client is required")
 	}
 
-	owner := models.StatsOwner{Kind: models.StatsOwnerKind(req.OwnerKind), ID: req.OwnerID}
+	owner := models.Owner{Kind: models.OwnerKind(req.OwnerKind), ID: req.OwnerID}
 	if err := owner.Validate(); err != nil {
 		return fmt.Errorf("reconcile owner statistics: %w: %w", err, eipnats.Terminate("a request cannot be corrected by retrying it"))
 	}
-	if owner.Kind != models.StatsOwnerAccount {
+	if owner.Kind != models.OwnerAccount {
 		return fmt.Errorf("owner kind %q has no rows to reconcile: %w", owner.Kind, eipnats.Terminate("no archive for this owner kind"))
 	}
 

@@ -103,7 +103,7 @@ func TestLive_filingMovesBothSidesOfAHandEnteredJob(t *testing.T) {
 		Work string `bson:"work"`
 	}
 	if err := mongo.AccountRebuildQueue.Collection().FindOne(ctx,
-		bson.M{"_id": models.AccountStatsOwner(filingScratchAccount).Key()}).Decode(&entry); err != nil {
+		bson.M{"_id": models.AccountOwner(filingScratchAccount).Key()}).Decode(&entry); err != nil {
 		t.Fatalf("no work queued: %v", err)
 	}
 	if entry.Work != string(eipmongo.StatsWorkRebuild) {

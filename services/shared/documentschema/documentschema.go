@@ -83,3 +83,27 @@ func (u Upgrader) Job(doc *models.Job) {
 		doc.SchemaVersion = models.JobSchemaCurrent
 	}
 }
+
+// ArchivedJobStats normalises a statistics row in memory. Idempotent.
+//
+// A row written before the owner existed carries only AccountID, so the owner is
+// filled from it. That is what makes every read correct from the moment this
+// ships: the stored rows are backfilled separately, and until they are, a reader
+// that asked the row who owns it would get nothing.
+//
+// Unlike the documents a user owns, a row is derived — the way to bring one to
+// the current shape on disk is the rebuild that already rewrites it.
+func (u Upgrader) ArchivedJobStats(doc *models.ArchivedJobStats) {
+	if doc == nil {
+		return
+	}
+	if doc.Owner.IsZero() && doc.AccountID != "" {
+		doc.Owner = models.AccountOwner(doc.AccountID)
+	}
+	if doc.SchemaVersion <= 0 {
+		doc.SchemaVersion = models.ArchivedJobStatsSchemaCurrent
+	}
+	if doc.SchemaVersion > models.ArchivedJobStatsSchemaCurrent {
+		doc.SchemaVersion = models.ArchivedJobStatsSchemaCurrent
+	}
+}

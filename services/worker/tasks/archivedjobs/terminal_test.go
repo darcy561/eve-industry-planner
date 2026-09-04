@@ -40,7 +40,7 @@ func TestARequestThatCannotBeServedIsTerminal(t *testing.T) {
 	requests := map[string]eipnats.RebuildOwnerStatisticsRequest{
 		"an owner kind that is not one":  {OwnerKind: "wormhole", OwnerID: "acct-1"},
 		"no owner at all":                {},
-		"a kind with no archive to read": {OwnerKind: string(models.StatsOwnerCorporation), OwnerID: "corp-1"},
+		"a kind with no archive to read": {OwnerKind: string(models.OwnerCorporation), OwnerID: "corp-1"},
 	}
 
 	for taskName, call := range run {
@@ -67,7 +67,7 @@ func TestAServableOwnerIsNotRefusedAsTerminal(t *testing.T) {
 	// matters is that it is not turned away before it gets there.
 	err := RebuildOwnerStatistics(context.Background(),
 		eipnats.RebuildOwnerStatisticsRequest{
-			OwnerKind: string(models.StatsOwnerAccount),
+			OwnerKind: string(models.OwnerAccount),
 			OwnerID:   "acct-1",
 		},
 		&taskrun.Dependencies{Mongo: &eipmongo.Mongo{}})

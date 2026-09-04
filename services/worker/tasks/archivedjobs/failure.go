@@ -23,7 +23,7 @@ import (
 //
 // The entry itself is left queued. The work is still outstanding, and a later
 // request — or a fixed deployment — clears the failure by succeeding.
-func stopIfOutOfAttempts(ctx context.Context, mongo *eipmongo.Mongo, owner models.StatsOwner, cause error) error {
+func stopIfOutOfAttempts(ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, cause error) error {
 	run, ok := taskrun.Current(ctx)
 	if !ok || !run.FinalAttempt() {
 		return cause
@@ -52,7 +52,7 @@ func stopIfOutOfAttempts(ctx context.Context, mongo *eipmongo.Mongo, owner model
 // The entry stands for a request that arrived while the work ran, not for the
 // run that failed before it, so leaving the failure would report a failed
 // recalculation for work that is merely outstanding.
-func forgetFailuresIfStillQueued(ctx context.Context, mongo *eipmongo.Mongo, owner models.StatsOwner, cleared bool) {
+func forgetFailuresIfStillQueued(ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, cleared bool) {
 	if cleared || mongo == nil {
 		return
 	}

@@ -395,3 +395,34 @@ func TestHandEnteredSalesFollowAFiledSalesMonth(t *testing.T) {
 		t.Fatalf("broker fee filed under %+v, want %+v", got, filed)
 	}
 }
+
+// The row is written with an owner from the day it is built, so nothing has to
+// infer one later from the account id beside it.
+func TestNewRowNamesItsOwnerAndSchema(t *testing.T) {
+	t.Parallel()
+
+	job := models.Job{JobID: "job-owned", ItemID: 34, ItemsProducedPerRun: 1}
+	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
+	job.MetaData.AccountID = "acct-1"
+	job.MetaData.ArchivedBy = "acct-2"
+
+	row, err := NewAccountRow(job, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("NewAccountRow: %v", err)
+	}
+
+	if row.Owner != models.AccountOwner("acct-1") {
+		t.Fatalf("owner = %+v, want the job's account", row.Owner)
+	}
+	if row.AccountID != "acct-1" {
+		t.Fatalf("accountID = %q — still written until the rows are backfilled", row.AccountID)
+	}
+	// Who archived it is not who owns it: inside a shared planner a member
+	// archives into a planner they do not own.
+	if row.ArchivedBy != "acct-2" {
+		t.Fatalf("archivedBy = %q, want the account that archived it", row.ArchivedBy)
+	}
+	if row.SchemaVersion != models.ArchivedJobStatsSchemaCurrent {
+		t.Fatalf("schemaVersion = %d", row.SchemaVersion)
+	}
+}

@@ -9,4 +9,5 @@ const (
 	ApplicationSettingsSchemaCurrent = 1
 	JobSchemaCurrent                 = 1
 	GroupSchemaCurrent               = 1
+	ArchivedJobStatsSchemaCurrent    = 1
 )
