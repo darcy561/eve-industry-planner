@@ -42,12 +42,20 @@ No Traefik route. Slot identity: `worker-{{.Task.Slot}}`.
 
 ## Task dependencies
 
-Worker Asynq handlers take `*TaskDependencies`, not `*stackservices.Clients`. Built at the asynq mux composition root via `FromClients(clients, esi)`.
+Worker Asynq handlers take `*TaskDependencies`, not `*stackservices.Clients`. Built at the asynq mux composition root via `FromClients(clients, esi, refs)` — `refs` derives entity refs, which the connect bag does not carry.
 
 | Field | Role |
 |-------|------|
 | `Mongo` | Shared `*eipmongo.Mongo` — [mongo.md](../shared/mongo.md) |
 | `Redis` / `NATS` / `JetStream` | Stack clients for tasks that need them |
 | `ObjectStore` | Static-data / SDE object backend |
-| `ESIClient` | Rate-limited ESI HTTP |
+| `ESI` | The shared ESI client — [shared/esi.md](../shared/esi.md) |
+| `EntityCipher` | Derives entity refs; a missing key stops the worker starting |
+
+**An ESI refusal is flow control, not failure.** asynq's `IsFailure` returns false for a rate-limit
+error, the retry delay comes from the refusal's own `RetryIn()`, and both that and the exponential
+fallback are spread by a task-derived offset so replicas that failed together do not return together.
+
+Every worker ESI call goes through the shared client, all of it as background work, and none of it
+pre-flights a status check — an unavailable server is a downtime refusal from the request itself.
 

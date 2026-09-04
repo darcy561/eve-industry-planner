@@ -18,7 +18,7 @@ never built. Nothing else declares a job.
 |-----|------|--------------|
 | `cron.drainAccountStatsRebuildQueue` | `*/2 * * * *` | Publishes one dispatch task; the worker reads the rebuild queue and fans out per owner |
 | `cron.cloudStoredEsiRefreshMaintenance` | `*/10 * * * *` | Rotates encrypted cloud ESI refresh tokens, batch size sized from the eligible cohort, staggered across the window |
-| `cron.regionMarketOrdersRefresh` | `*/15 * * * *` | Publishes one market region per run, cycling, when the ESI token budget can absorb it |
+| `cron.regionMarketOrdersRefresh` | `*/15 * * * *` | Publishes every market region whose order book has gone stale, oldest first, when the budget can absorb each |
 | `cron.adjustedPricesRefresh` | `20 * * * *` | Triggers the adjusted-prices refresh |
 | `cron.industrySystemsRefresh` | `50 * * * *` | Triggers the industry system-index refresh |
 | `cron.schemaVersionMaintenance` | `0 * * * *` | Upgrades legacy schema versions in batches, one collection per run |
@@ -53,24 +53,52 @@ does not leave work running.
 
 ## Deferring past EVE downtime
 
-ESI jobs that fire inside the daily maintenance window (11:00–11:15 UTC) do not publish. They call
+ESI jobs do not publish while CCP's servers are not answering. They call
 
 ```go
-DeferPublicationUntilAfterDowntime(ctx, natsHandle, jobName, time.Now())
+DeferPublicationUntilAfterDowntime(ctx, natsHandle, jobName, esi)
 ```
 
-which schedules the job to run two seconds after the window closes and reports that it deferred.
-Callers: `cron.industrySystemsRefresh`, `cron.adjustedPricesRefresh`,
-`cron.cloudStoredEsiRefreshMaintenance`. `cron.regionMarketOrdersRefresh` skips its run instead, and
-the cloud-ESI job also uses the window to cap its batch size.
+which asks the limiter whether the servers are answering and, if not, schedules the job for its next
+probe and reports that it deferred. Callers: `cron.industrySystemsRefresh`,
+`cron.adjustedPricesRefresh`, `cron.regionMarketOrdersRefresh`,
+`cron.cloudStoredEsiRefreshMaintenance`.
+
+**Downtime is observed, not scheduled.** CCP publish a window, but it is an estimate that runs long
+as often as short, so nothing here reads a clock. The limiter concludes an outage from calls failing
+across sources and reopens when anything answers — details in [../shared/esi.md](../shared/esi.md)
+§ Downtime is observed, never scheduled.
+
+The retry time is the limiter's next probe, which widens while an outage lasts, so a long maintenance
+produces fewer deferrals rather than one per cron tick. One schedule id per job, so a later deferral
+replaces the earlier one rather than stacking up pending runs.
 
 The schedule delivers on `scheduled.{jobName}`, where the schedule runner resolves the id back to the
-same handler map — so the deferred run is the same handler, which finds the window closed and
+same handler map — so the deferred run is the same handler, which finds the servers answering and
 publishes. Schedule mechanics → [../shared/nats.md](../shared/nats.md) § Schedules.
 
-Because the id is the job name, a second tick in the same window replaces the schedule rather than
-queuing another. A deferral that cannot be scheduled returns an error instead of publishing during
-downtime; the next tick retries it.
+## Refreshing only what has gone stale
+
+A public refresh runs when ESI says its data stopped being current, not on a fixed cycle. Each
+refresh records `now + max-age` under its dataset, and the scheduler reads that before publishing. A
+304 records a freshness too — it is ESI restating how long the answer stays good, and honouring it is
+what stops the next tick paying a token to be told the same thing.
+
+Adjusted prices and industry systems each refresh one dataset, so a run inside the window is deferred
+to the moment it expires. Region market orders sweep instead: each tick publishes every hub past
+`regionSweepInterval` (one hour), oldest first, so a budget too tight for all of them spends on the
+oldest. A hub is never walked inside its own max-age, which is what keeps a shorter interval safe to
+set.
+
+Nothing spaces the hubs out deliberately, but they separate on their own: the dispatcher walks one
+book at a time, so passes finish seconds apart and a hub whose hour elapses just after a tick waits
+for the next. Within a few hours each owns a tick of its own.
+
+Affordability is measured, not estimated: a region pagination is costed from the page count the last
+pass recorded, and `CanAfford` is asked of the bucket the run will actually spend from.
+
+The cron schedule is the backstop — it fires when nothing has recorded a freshness, and recovers the
+cycle if a deferral is lost.
 
 ## Reading what is waiting
 

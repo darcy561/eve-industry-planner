@@ -11,7 +11,7 @@ rebuild, the trace pipeline that is currently discarded, and the parallel-run cu
 
 ## Does not own
 
-- What the ESI limiter emits and why → [esi-rate-limiting/contents.md](../esi-rate-limiting/contents.md)
+- What the ESI limiter emits and why → [backend/shared/esi.md](../../backend/shared/esi.md) § What it reports
 - Swarm fragment membership and day-2 rolls → [stack/stack.md](../../stack/stack.md)
 - Deployment Tool verbs and the embedded kit → [deployment/deployment-tool/contents.md](../../deployment/deployment-tool/contents.md)
 - Application instrumentation (what a service records) → each service's live topic

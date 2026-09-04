@@ -3,11 +3,13 @@
 ## Owns (SoT)
 
 Shared Go libraries under `services/shared` that are not owned by a single service topic, including
-the messaging layer — streams, subjects, publish and consume, and schedules.
+the messaging layer — streams, subjects, publish and consume, and schedules — and the outbound HTTP
+client and ESI rate limiter.
 
 ## Does not own
 
 - Feature contracts exposed via HTTP → [api/](../api/contents.md)
+- EVE SSO token exchange and JWT validation → `services/shared/evesso`, documented with sessions in [api/auth/sessions.md](../api/auth/sessions.md)
 - Stack topology / EnsureMongo → [stack/](../../stack/contents.md), [deploy.md](../../deployment/deployment-tool/cli/deploy.md)
 - Test depth for shared packages → [testing/services/shared.md](../../testing/services/shared.md)
 - Recurring cron jobs and what each one does → [core/](../core/contents.md) (this section owns schedules, not the crons that use them)
@@ -31,3 +33,13 @@ the messaging layer — streams, subjects, publish and consume, and schedules.
 | Work out why a schedule did not fire | [nats.md](./nats.md) § Schedules |
 | Know what is retried and what is not | [nats.md](./nats.md) § Errors and retry |
 | Document locks (shared package) | [api/document-lock/](../api/document-lock/overview.md) (API topic owns product behaviour; package under `services/shared/core/documentlock`) |
+| Make an outbound HTTP call from a service | [esi.md](./esi.md) § Outbound HTTP |
+| Stream a large response without holding it whole | [esi.md](./esi.md) § Outbound HTTP |
+| Retry a request, or decide what is not retryable | [esi.md](./esi.md) § Outbound HTTP |
+| Call ESI from a service | [esi.md](./esi.md) |
+| Work out what a call costs, and what the allowance is | [esi.md](./esi.md) § What a bucket is |
+| Tune how one endpoint is paced | [esi.md](./esi.md) § Endpoint policy |
+| Understand why a call was refused and when to come back | [esi.md](./esi.md) § Acquiring a slot |
+| Work out whether ESI is down, and how that was decided | [esi.md](./esi.md) § Downtime is observed, never scheduled |
+| See what ESI activity is reported to Grafana | [esi.md](./esi.md) § What it reports |
+| Read or reset ESI bucket state as an operator | [esi.md](./esi.md) § Operating it |
