@@ -73,7 +73,6 @@ func (g Group) RebuildFrom(jobs []Job) Group {
 	c := contributionOf(jobs)
 	return Group{
 		GroupID:         g.GroupID,
-		ShowComplete:    true,
 		GroupType:       1,
 		GroupStatus:     0,
 		AreComplete:     []string{},
@@ -93,8 +92,8 @@ func (g Group) RebuildFrom(jobs []Job) Group {
 // Group.addJobsToGroup. A job being added is a live member, so it also loses any
 // archived mark.
 //
-// GroupName, GroupStatus, AreComplete and ShowComplete belong to the group rather
-// than to its jobs, and are left as they are.
+// GroupName, GroupStatus and AreComplete belong to the group rather than to its
+// jobs, and are left as they are.
 func (g Group) AddJobs(jobs []Job) Group {
 	c := contributionOf(jobs)
 
