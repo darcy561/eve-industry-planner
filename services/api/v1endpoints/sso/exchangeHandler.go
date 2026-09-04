@@ -58,6 +58,9 @@ func (h *Handlers) EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request)
 	defer cancel()
 
 	tokenResponse, err := evesso.ExchangeAuthCodeForEveSSOTokens(ctx, cfg.ClientID, cfg.ClientSecret, authCode)
+	// Reported but never consulted, as on refresh: this is the first step of a
+	// login, and a gate that tripped wrongly must not stop someone signing in.
+	h.ReportSSO(ctx, err)
 	var characterHash string
 	if err != nil {
 		m.Errors.WithLabelValues("sso_exchange_error").Inc(ctx)
