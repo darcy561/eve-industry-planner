@@ -15,6 +15,7 @@ import { characterActions } from "./characterActions.js";
 import { corporationsActions } from "./corporationsActions.js";
 import { tokenActions } from "./tokenActions.js";
 import { clearTabPlannerSession } from "../../Functions/Auth/tabSessionStorage.js";
+import { asNumberIDSet } from "../../Functions/Helper/ids";
 
 export const accountStateDefault = () => ({
   accountID: null,
@@ -104,7 +105,7 @@ export const accountActions = (set, get) => ({
         },
       }),
       false,
-      "account/resetAccountStore"
+      "account/resetAccountStore",
     );
   },
 
@@ -122,7 +123,7 @@ export const accountActions = (set, get) => ({
         },
       }),
       false,
-      "account/setLoggedIn"
+      "account/setLoggedIn",
     );
   },
 
@@ -148,50 +149,26 @@ export const accountActions = (set, get) => ({
         if (esiData.transactionsToAdd) {
           acc.linkedTrans = new Set([
             ...acc.linkedTrans,
-            ...Array.from(esiData.transactionsToAdd, normalizeLinkedID).filter(
-              (id) => typeof id === "number" && Number.isFinite(id)
-            ),
+            ...asNumberIDSet(esiData.transactionsToAdd),
           ]);
         }
 
         if (esiData.ordersToRemove) {
-          const removeSet =
-            esiData.ordersToRemove instanceof Set
-              ? esiData.ordersToRemove
-              : new Set(esiData.ordersToRemove);
+          const removeSet = asNumberIDSet(esiData.ordersToRemove);
           acc.linkedOrders = new Set(
-            [...acc.linkedOrders].filter((id) => !removeSet.has(id))
+            [...acc.linkedOrders].filter((id) => !removeSet.has(id)),
           );
         }
         if (esiData.jobsToRemove) {
-          const removeSet =
-            esiData.jobsToRemove instanceof Set
-              ? esiData.jobsToRemove
-              : new Set(esiData.jobsToRemove);
+          const removeSet = asNumberIDSet(esiData.jobsToRemove);
           acc.linkedJobs = new Set(
-            [...acc.linkedJobs].filter((id) => !removeSet.has(id))
+            [...acc.linkedJobs].filter((id) => !removeSet.has(id)),
           );
         }
         if (esiData.transactionsToRemove) {
-          const removeSet =
-            esiData.transactionsToRemove instanceof Set
-              ? new Set(
-                  Array.from(
-                    esiData.transactionsToRemove,
-                    normalizeLinkedID
-                  ).filter(
-                    (id) => typeof id === "number" && Number.isFinite(id)
-                  )
-                )
-              : new Set(
-                  (esiData.transactionsToRemove || [])
-                    .map(normalizeLinkedID)
-                    .filter(
-                      (id) => typeof id === "number" && Number.isFinite(id)
-                    )
-                );
+          const removeSet = asNumberIDSet(esiData.transactionsToRemove);
           acc.linkedTrans = new Set(
-            [...acc.linkedTrans].filter((id) => !removeSet.has(id))
+            [...acc.linkedTrans].filter((id) => !removeSet.has(id)),
           );
         }
 
@@ -200,7 +177,7 @@ export const accountActions = (set, get) => ({
         return { ...state, account: acc };
       },
       false,
-      "account/addLinkedEsiData"
+      "account/addLinkedEsiData",
     );
   },
 
@@ -234,7 +211,7 @@ export const accountActions = (set, get) => ({
         },
       }),
       false,
-      "account/toggleShareCitadelNames"
+      "account/toggleShareCitadelNames",
     );
   },
 
@@ -254,28 +231,10 @@ export const accountActions = (set, get) => ({
         },
       }),
       false,
-      "account/setHasCompletedFirstLoginFlow"
+      "account/setHasCompletedFirstLoginFlow",
     );
   },
 
   ...characterActions(set, get),
   ...corporationsActions(set, get),
 });
-
-function normalizeLinkedID(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.trunc(value);
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed !== "") {
-      const parsed = Number(trimmed);
-      if (Number.isFinite(parsed)) {
-        return Math.trunc(parsed);
-      }
-    }
-  }
-
-  return null;
-}

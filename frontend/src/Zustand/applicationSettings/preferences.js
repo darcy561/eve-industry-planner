@@ -8,7 +8,7 @@
  * @fileoverview User preferences and settings management actions
  * @author EVE Industry Planner Team
  */
-import asIDList from "../../Functions/Helper/asIDList";
+import { asIDList } from "../../Functions/Helper/ids";
 
 import {
   detectUserLocale,

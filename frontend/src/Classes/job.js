@@ -4,7 +4,14 @@ import Setup from "./jobSetup";
 import Material from "./jobMaterial";
 import LinkedESIJob from "./linkedESIJob";
 import BrokerFee from "./brokerFee";
-import asIDList from "../Functions/Helper/asIDList";
+import {
+  asIDList,
+  asNumberIDList,
+  asStringID,
+  asStringIDList,
+} from "../Functions/Helper/ids";
+import ExtraCost from "./extraCost";
+import InventionEntry from "./inventionEntry";
 import MarketOrder from "./marketOrder";
 import Transaction from "./transaction";
 import useUsersStore from "../Zustand/usersStore";
@@ -12,30 +19,6 @@ import {
   buildSetupContextForJob,
   buildSetupFromQuantity,
 } from "../Functions/JobPlanner/setupBuildHelpers";
-
-/** @param {unknown} category */
-function normalizeExtrasCostCategoryString(category) {
-  if (category == null || category === "") return "0";
-  return String(category);
-}
-
-/**
- * Ensures each extras row's `category` matches API/Go `ExtraCost.category` (string).
- *
- * @param {Array<Record<string, unknown>>} rows
- */
-function normalizeExtrasCostsIncoming(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return Array.isArray(rows) ? rows : [];
-  }
-  return rows.map((row) => {
-    if (!row || typeof row !== "object") return row;
-    return {
-      ...row,
-      category: normalizeExtrasCostCategoryString(row.category),
-    };
-  });
-}
 
 /**
  * An industry job: its setups, materials, costs, and the ESI rows linked to it.
@@ -89,7 +72,7 @@ class Job {
     this.blueprintTypeID = itemJson?.blueprintTypeID || null;
     this.isReadyToSell = itemJson?.isReadyToSell || false;
     const mergedGroupID = itemJson?.groupID ?? buildRequest?.groupID;
-    this.groupID = mergedGroupID == null ? "" : String(mergedGroupID);
+    this.groupID = asStringID(mergedGroupID) ?? "";
     this.includedInGroup =
       itemJson?.includedInGroup ?? this.groupID.trim() !== "";
     const displayFromDoc =
@@ -102,11 +85,13 @@ class Job {
       setup: documentToSetups(itemJson),
       childJobs: itemJson?.build?.childJobs || {},
       costs: {
-        extrasCosts: normalizeExtrasCostsIncoming(
-          itemJson?.build?.costs?.extrasCosts || [],
+        extrasCosts: (itemJson?.build?.costs?.extrasCosts || []).map(
+          (row) => new ExtraCost(row),
         ),
         linkedJobs: documentToLinkedJobs(itemJson),
-        inventionEntries: itemJson?.build?.costs?.inventionEntries || [],
+        inventionEntries: (itemJson?.build?.costs?.inventionEntries || []).map(
+          (row) => new InventionEntry(row),
+        ),
       },
       sale: {
         marketOrders: (itemJson?.build?.sale?.marketOrders || []).map(
@@ -251,6 +236,12 @@ class Job {
           linkedJobs: this.build.costs.linkedJobs.map((linkedJob) =>
             linkedJob.toDocument(),
           ),
+          extrasCosts: this.build.costs.extrasCosts.map((extra) =>
+            extra.toDocument(),
+          ),
+          inventionEntries: this.build.costs.inventionEntries.map((entry) =>
+            entry.toDocument(),
+          ),
         },
         sale: {
           ...this.build.sale,
@@ -285,9 +276,7 @@ class Job {
    * @returns {string[]}
    */
   get parentJobIDs() {
-    const raw = this.parentJobs;
-    if (raw == null) return [];
-    return (Array.isArray(raw) ? raw : [raw]).map((id) => String(id));
+    return asStringIDList(this.parentJobs);
   }
 
   /**
@@ -338,7 +327,7 @@ class Job {
    * @returns {Array<number>} Array of material type IDs
    */
   get materialIDs() {
-    return [this.itemID, ...Object.keys(this.build.childJobs).map(Number)];
+    return [this.itemID, ...asNumberIDList(Object.keys(this.build.childJobs))];
   }
 
   /**
@@ -414,10 +403,9 @@ class Job {
    */
   addExtrasCost(newItem) {
     if (!newItem) return;
-    this.build.costs.extrasCosts.push({
-      ...newItem,
-      category: normalizeExtrasCostCategoryString(newItem.category),
-    });
+    this.build.costs.extrasCosts.push(
+      newItem instanceof ExtraCost ? newItem : new ExtraCost(newItem),
+    );
   }
 
   /**
@@ -437,7 +425,11 @@ class Job {
    */
   addInventionCost(inputObject) {
     if (!inputObject) return;
-    this.build.costs.inventionEntries.push(inputObject);
+    this.build.costs.inventionEntries.push(
+      inputObject instanceof InventionEntry
+        ? inputObject
+        : new InventionEntry(inputObject),
+    );
   }
 
   /**
@@ -534,7 +526,7 @@ class Job {
   get totalExtrasCost() {
     return this.build.costs.extrasCosts.reduce(
       (total, extra) => total + (Number(extra?.extraValue) || 0),
-      0
+      0,
     );
   }
 
@@ -548,7 +540,7 @@ class Job {
   get totalInventionCost() {
     return this.build.costs.inventionEntries.reduce(
       (total, entry) => total + (Number(entry?.itemCost) || 0),
-      0
+      0,
     );
   }
 
@@ -572,9 +564,7 @@ class Job {
    * @returns {number} Total cost
    */
   get totalCost() {
-    return (
-      this.buildCost + this.totalBrokersFees + this.totalTransactionFees
-    );
+    return this.buildCost + this.totalBrokersFees + this.totalTransactionFees;
   }
 
   /**
@@ -653,7 +643,7 @@ class Job {
     return Object.values(this.build.setup).reduce(
       (total, { runCount, jobCount }) =>
         total + this.itemsProducedPerRun * runCount * jobCount,
-      0
+      0,
     );
   }
 
@@ -701,7 +691,7 @@ class Job {
   averageItemSalePrice() {
     const itemsSold = this.build.sale.transactions.reduce(
       (total, transaction) => total + (transaction.quantity || 0),
-      0
+      0,
     );
     if (!itemsSold) return 0;
     return this.totalSales / itemsSold;
@@ -909,7 +899,7 @@ class Job {
   get totalBoughtMaterialCost() {
     return this.build.materials.reduce(
       (total, material) => total + material.boughtCost,
-      0
+      0,
     );
   }
 
@@ -966,7 +956,9 @@ class Job {
 
     if (brokersFee) {
       this.build.sale.brokersFee.push(
-        brokersFee instanceof BrokerFee ? brokersFee : new BrokerFee(brokersFee),
+        brokersFee instanceof BrokerFee
+          ? brokersFee
+          : new BrokerFee(brokersFee),
       );
     }
     this.build.sale.marketOrders.push(MarketOrder.fromESI(order));
@@ -1121,7 +1113,6 @@ class Job {
 
     return characters;
   }
-
 }
 
 /**
@@ -1171,7 +1162,5 @@ function documentToMaterials(object, requirement) {
   }
   return rows.map((row) => new Material(row, requirement));
 }
-
-
 
 export default Job;

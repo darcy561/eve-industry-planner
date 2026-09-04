@@ -5,7 +5,11 @@ import {
   deleteJobDocumentsFromApi,
 } from "../Endpoints/Private/jobDocuments.js";
 import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
-import { showSnackbarError, showSnackbarSuccess } from "../../Events/snackbarEvents";
+import {
+  showSnackbarError,
+  showSnackbarSuccess,
+} from "../../Events/snackbarEvents";
+import { asIDList } from "../Helper/ids";
 
 /**
  * Merges duplicate jobs (same itemID) into replacement jobs.
@@ -33,18 +37,16 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   const { isLoggedIn } = useUsersStore.getState().account;
   const { addLinkedEsiData } = useUsersStore.getState().account.actions;
 
-  const normalizedInput = Array.isArray(inputJobIDs)
-    ? inputJobIDs
-    : inputJobIDs instanceof Set
-      ? [...inputJobIDs]
-      : [inputJobIDs];
+  const normalizedInput = asIDList(inputJobIDs);
   const selectedIDs = [...new Set(normalizedInput.filter(Boolean))];
 
   const selectedJobs = selectedIDs
     .map((id) => findJobInJobArray(id))
     .filter(Boolean);
   const touchedGroupIDs = new Set(
-    selectedJobs.map((j) => j.groupID).filter((id) => Boolean(id && String(id).trim()))
+    selectedJobs
+      .map((j) => j.groupID)
+      .filter((id) => Boolean(id && String(id).trim())),
   );
 
   const jobsByTypeID = new Map();
@@ -55,7 +57,9 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     jobsByTypeID.get(job.itemID).push(job);
   }
 
-  const mergeGroups = [...jobsByTypeID.values()].filter((jobs) => jobs.length > 1);
+  const mergeGroups = [...jobsByTypeID.values()].filter(
+    (jobs) => jobs.length > 1,
+  );
   if (mergeGroups.length === 0) {
     showSnackbarSuccess("0 Jobs Merged", 3);
     return { mergedCount: 0, mergedGroups: 0, removedJobIDs: [] };
@@ -123,7 +127,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   }
 
   const oldJobIDsToRemove = new Set(
-    mergeRecords.flatMap((record) => [...record.oldJobIDs])
+    mergeRecords.flatMap((record) => [...record.oldJobIDs]),
   );
 
   const oldToNew = new Map();
@@ -158,13 +162,15 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
       ...new Set(
         (replacementJob.parentJobs ?? [])
           .map(resolveCurrentJobID)
-          .filter((id) => id !== replacementJob.jobID)
+          .filter((id) => id !== replacementJob.jobID),
       ),
     ];
 
     for (const material of replacementJob.build?.materials ?? []) {
       const typeID = material.typeID;
-      const translatedChildren = (replacementJob.build?.childJobs?.[typeID] ?? [])
+      const translatedChildren = (
+        replacementJob.build?.childJobs?.[typeID] ?? []
+      )
         .map(resolveCurrentJobID)
         .filter((id) => id !== replacementJob.jobID);
       replacementJob.build.childJobs[typeID] = [...new Set(translatedChildren)];
@@ -192,7 +198,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   normaliseParentChildRelationships([...touchedJobs]);
 
   const jobsToPersist = [...touchedJobs].filter(
-    (job) => !oldJobIDsToRemove.has(job.jobID)
+    (job) => !oldJobIDsToRemove.has(job.jobID),
   );
 
   const linkedJobIdsToRemove = new Set();

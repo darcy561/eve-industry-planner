@@ -23,6 +23,7 @@ import GLOBAL_CONFIG from "../../global-config-app.js";
 import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
 import { metaLastModifiedMs } from "../realtimeSyncSlice.js";
+import { asNumberIDSet } from "../../Functions/Helper/ids";
 
 /**
  * Monotonic counter for {@link runStaggeredEsiTokenStep}; the active slot is
@@ -59,24 +60,12 @@ const ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC = 660;
 const PLANNER_SESSION_ROTATE_COOLDOWN_MS =
   Math.max(
     1,
-    Number(GLOBAL_CONFIG.PLANNER_SESSION_ROTATE_COOLDOWN_MINUTES) || 20
+    Number(GLOBAL_CONFIG.PLANNER_SESSION_ROTATE_COOLDOWN_MINUTES) || 20,
   ) *
   60 *
   1000;
 
 /** @param {unknown} value */
-function toLinkedSet(value) {
-  if (value == null) return new Set();
-  if (value instanceof Set) return new Set(value);
-  if (Array.isArray(value)) {
-    return new Set(
-      value
-        .map(normalizeLinkedID)
-        .filter((id) => typeof id === "number" && Number.isFinite(id))
-    );
-  }
-  return new Set();
-}
 
 /**
  * @param {import("../../Classes/character").default|null|undefined} character
@@ -85,7 +74,7 @@ function toLinkedSet(value) {
  */
 function characterNeedsEsiAccessRefresh(
   character,
-  bufferSec = ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC
+  bufferSec = ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC,
 ) {
   if (!character || character.isPlaceholder) {
     return false;
@@ -105,12 +94,12 @@ function characterNeedsEsiAccessRefresh(
 function accountNeedsAuthRefreshOnTabWake(get) {
   const state = get();
   const characters = state.account.characters.filter(
-    (c) => c && !c.isPlaceholder
+    (c) => c && !c.isPlaceholder,
   );
 
   if (
     characters.some((c) =>
-      characterNeedsEsiAccessRefresh(c, ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC)
+      characterNeedsEsiAccessRefresh(c, ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC),
     )
   ) {
     return true;
@@ -130,24 +119,6 @@ function accountNeedsAuthRefreshOnTabWake(get) {
   return false;
 }
 
-function normalizeLinkedID(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.trunc(value);
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed !== "") {
-      const parsed = Number(trimmed);
-      if (Number.isFinite(parsed)) {
-        return Math.trunc(parsed);
-      }
-    }
-  }
-
-  return null;
-}
-
 /**
  * Maps login `user_document` linked* arrays into account `Set`s (camelCase + snake_case keys).
  *
@@ -157,11 +128,11 @@ function normalizeLinkedID(value) {
 function linkedSetsFromUserDocument(userDoc) {
   if (userDoc && typeof userDoc === "object" && !Array.isArray(userDoc)) {
     return {
-      linkedOrders: toLinkedSet(
-        userDoc.linkedOrders ?? userDoc.linked_orders
+      linkedOrders: asNumberIDSet(
+        userDoc.linkedOrders ?? userDoc.linked_orders,
       ),
-      linkedJobs: toLinkedSet(userDoc.linkedJobs ?? userDoc.linked_jobs),
-      linkedTrans: toLinkedSet(userDoc.linkedTrans ?? userDoc.linked_trans),
+      linkedJobs: asNumberIDSet(userDoc.linkedJobs ?? userDoc.linked_jobs),
+      linkedTrans: asNumberIDSet(userDoc.linkedTrans ?? userDoc.linked_trans),
     };
   }
   return {
@@ -244,7 +215,7 @@ export const tokenActions = (set, get) => ({
         },
       }),
       false,
-      "account/setIsFirstTimeLogin"
+      "account/setIsFirstTimeLogin",
     );
   },
 
@@ -269,9 +240,7 @@ export const tokenActions = (set, get) => ({
 
     set(
       (state) => {
-        const linkedPatch = linkedSetsFromUserDocument(
-          response.user_document
-        );
+        const linkedPatch = linkedSetsFromUserDocument(response.user_document);
 
         const ud = response.user_document;
         let nextHasCompletedFirstLogin;
@@ -279,14 +248,13 @@ export const tokenActions = (set, get) => ({
         if (ud && typeof ud === "object" && !Array.isArray(ud)) {
           nextHasCompletedFirstLogin =
             hasCompletedFirstLoginFlowFromUserDocument(ud) ?? false;
-          nextShareCitadelNames =
-            shareCitadelNamesFromUserDocument(ud) ?? true;
+          nextShareCitadelNames = shareCitadelNamesFromUserDocument(ud) ?? true;
         }
 
         const mainCharacterHashForMerge =
           mainCharacterHash !== undefined
             ? mainCharacterHash || undefined
-            : state.account.mainCharacterHash ?? undefined;
+            : (state.account.mainCharacterHash ?? undefined);
 
         let nextApplicationSettings = state.applicationSettings;
         if (
@@ -296,11 +264,11 @@ export const tokenActions = (set, get) => ({
           nextApplicationSettings = mergeApplicationSettingsState(
             state.applicationSettings,
             response.application_settings,
-            mainCharacterHashForMerge
+            mainCharacterHashForMerge,
           );
         }
         let userCloudAccounts = userCloudAccountsFromUserDocument(
-          response.user_document
+          response.user_document,
         );
         if (
           response.esi_oauth_storage === "server" ||
@@ -336,7 +304,9 @@ export const tokenActions = (set, get) => ({
             }),
             sessionID,
             lastPlannerSessionValidatedAt: sessionID ? Date.now() : null,
-            plannerPrivateAuthReady: sessionID ? false : state.account.plannerPrivateAuthReady,
+            plannerPrivateAuthReady: sessionID
+              ? false
+              : state.account.plannerPrivateAuthReady,
             refreshToken: response.refresh_token ?? null,
             refreshTokenEXP:
               response.refresh_token_exp ?? response.refresh_token_expires_at,
@@ -359,7 +329,7 @@ export const tokenActions = (set, get) => ({
         };
       },
       false,
-      "account/applyLoginAuthResponse"
+      "account/applyLoginAuthResponse",
     );
 
     persistTabPlannerSessionFromAuthResponse(response);
@@ -390,7 +360,7 @@ export const tokenActions = (set, get) => ({
         },
       }),
       false,
-      "account/setPlannerPrivateAuthReady"
+      "account/setPlannerPrivateAuthReady",
     );
   },
 
@@ -405,7 +375,7 @@ export const tokenActions = (set, get) => ({
         },
       }),
       false,
-      "account/clearLinkedBootstrapHydrationPending"
+      "account/clearLinkedBootstrapHydrationPending",
     );
   },
 
@@ -418,8 +388,7 @@ export const tokenActions = (set, get) => ({
     if (!doc || typeof doc !== "object") return;
     const linkedPatch = linkedSetsFromUserDocument(doc);
     const userCloudAccounts = userCloudAccountsFromUserDocument(doc);
-    const completedFirstLogin =
-      hasCompletedFirstLoginFlowFromUserDocument(doc);
+    const completedFirstLogin = hasCompletedFirstLoginFlowFromUserDocument(doc);
     const shareCitadelNames = shareCitadelNamesFromUserDocument(doc);
     set(
       (state) => ({
@@ -444,7 +413,7 @@ export const tokenActions = (set, get) => ({
         }),
       }),
       false,
-      "account/applyUserDocumentFromRemote"
+      "account/applyUserDocumentFromRemote",
     );
   },
 
@@ -488,7 +457,7 @@ export const tokenActions = (set, get) => ({
         },
       }),
       false,
-      "account/setSessionTokens"
+      "account/setSessionTokens",
     );
   },
 
@@ -515,7 +484,9 @@ export const tokenActions = (set, get) => ({
 
     const promise = (async () => {
       const state = get();
-      const mainCharacter = state.account.characters?.find((ch) => ch?.isMainCharacter);
+      const mainCharacter = state.account.characters?.find(
+        (ch) => ch?.isMainCharacter,
+      );
       if (!mainCharacter) return;
 
       if (isPlannerReauthDeadlinePassed()) {
@@ -560,12 +531,16 @@ export const tokenActions = (set, get) => ({
           return;
         }
 
-        const tabRefresh = getTabPlannerRefreshToken() ?? state.account.refreshToken;
+        const tabRefresh =
+          getTabPlannerRefreshToken() ?? state.account.refreshToken;
         if (!tabRefresh && !cloud) {
           return;
         }
 
-        const response = await refreshServerSession(tabRefresh || null, eveTokenForRefresh);
+        const response = await refreshServerSession(
+          tabRefresh || null,
+          eveTokenForRefresh,
+        );
 
         const tokenPatch = {
           sessionID: response.session_id ?? get().account.sessionID,
@@ -586,7 +561,7 @@ export const tokenActions = (set, get) => ({
             },
           }),
           false,
-          "account/plannerSessionRotateOk"
+          "account/plannerSessionRotateOk",
         );
       } catch (err) {
         if (redirectToFullEveLoginIfTerminal(err)) {
@@ -605,7 +580,7 @@ export const tokenActions = (set, get) => ({
             const loginResp = await fetchServerSession(eveTokenForRecovery);
             get().account.actions.applyLoginAuthResponse(
               loginResp,
-              mainCharacter.CharacterHash
+              mainCharacter.CharacterHash,
             );
             set(
               (s) => ({
@@ -617,7 +592,7 @@ export const tokenActions = (set, get) => ({
                 },
               }),
               false,
-              "account/plannerSessionReestablishOk"
+              "account/plannerSessionReestablishOk",
             );
             return;
           } catch (reestablishErr) {
@@ -646,12 +621,13 @@ export const tokenActions = (set, get) => ({
    */
   runStaggeredEsiTokenStep: async () => {
     const state = get();
-    if (!state.account.isLoggedIn || !state.account.plannerPrivateAuthReady) return;
+    if (!state.account.isLoggedIn || !state.account.plannerPrivateAuthReady)
+      return;
     const characters = state.account.characters.filter(
       (c) =>
         c &&
         !c.isPlaceholder &&
-        typeof c.refreshEsiAccessTokenIfNeeded === "function"
+        typeof c.refreshEsiAccessTokenIfNeeded === "function",
     );
     if (characters.length === 0) return;
 
@@ -714,7 +690,9 @@ export const tokenActions = (set, get) => ({
     }
     const state = get();
     if (!state.account.isLoggedIn) return;
-    const characters = state.account.characters.filter((u) => u && !u.isPlaceholder);
+    const characters = state.account.characters.filter(
+      (u) => u && !u.isPlaceholder,
+    );
 
     const mainCharacter = characters.find((u) => u?.isMainCharacter);
     const others = characters.filter((u) => u && !u.isMainCharacter);
@@ -729,22 +707,25 @@ export const tokenActions = (set, get) => ({
         }
       } else {
         console.error(
-          "Invalid main character object or missing refreshEsiAccessTokenIfNeeded method"
+          "Invalid main character object or missing refreshEsiAccessTokenIfNeeded method",
         );
       }
     }
 
     await Promise.allSettled(
       others.map(async (character) => {
-        if (!character || typeof character.refreshEsiAccessTokenIfNeeded !== "function") {
+        if (
+          !character ||
+          typeof character.refreshEsiAccessTokenIfNeeded !== "function"
+        ) {
           console.error(
-            "Invalid character object or missing refreshEsiAccessTokenIfNeeded method"
+            "Invalid character object or missing refreshEsiAccessTokenIfNeeded method",
           );
           return;
         }
         await character.refreshEsiAccessTokenIfNeeded();
         await character.getPublicCharacterData();
-      })
+      }),
     );
 
     const esiTokens = get()
@@ -755,7 +736,7 @@ export const tokenActions = (set, get) => ({
     }
 
     await get().account.actions.refreshServerToken(
-      forcePlannerSession ? { force: true } : undefined
+      forcePlannerSession ? { force: true } : undefined,
     );
     get().account.actions.updateCharacters([...get().account.characters]);
   },
@@ -790,7 +771,7 @@ export const tokenActions = (set, get) => ({
 
       const cloud = !!state.applicationSettings?.userCloudAccounts;
       const characters = state.account.characters.filter(
-        (c) => c && !c.isPlaceholder
+        (c) => c && !c.isPlaceholder,
       );
       const mainCharacter = characters.find((c) => c?.isMainCharacter);
       let anyEsiRefreshed = false;
@@ -799,7 +780,7 @@ export const tokenActions = (set, get) => ({
         if (
           !characterNeedsEsiAccessRefresh(
             character,
-            ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC
+            ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC,
           )
         ) {
           continue;
@@ -817,11 +798,12 @@ export const tokenActions = (set, get) => ({
       get().account.actions.updateCharacters([...get().account.characters]);
 
       if (!cloud && mainCharacter) {
-        const currentMain = get()
-          .account.characters?.find((ch) => ch?.isMainCharacter);
+        const currentMain = get().account.characters?.find(
+          (ch) => ch?.isMainCharacter,
+        );
         const attemptedMainRefresh = characterNeedsEsiAccessRefresh(
           mainCharacter,
-          ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC
+          ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC,
         );
         const nowSec = Math.floor(Date.now() / 1000);
         const esiExp = Number(currentMain?.esiAccessTokenEXP) || 0;
@@ -859,5 +841,4 @@ export const tokenActions = (set, get) => ({
       }
     }
   },
-
 });

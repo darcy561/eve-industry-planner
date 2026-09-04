@@ -2,29 +2,17 @@ import { customStructureLocationMap } from "../Context/defaultValues";
 import uuid from "react-uuid";
 import GLOBAL_CONFIG from "../global-config-app";
 import DOMPurify from "dompurify";
+import coerceFiniteNumber from "../Functions/Helper/coerceFiniteNumber";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
-/** @param {unknown} value @param {number} fallback */
-function coerceFiniteNumber(value, fallback = 0) {
-  if (value === undefined || value === null || value === "") return fallback;
-  const n =
-    typeof value === "number" ? value : Number(String(value).trim());
-  return Number.isFinite(n) ? n : fallback;
-}
-
-/** @param {unknown} value @param {number} fallback */
-function coerceSystemID(value, fallback) {
-  if (value === undefined || value === null) return fallback;
-  const s = String(value).trim();
-  if (s === "") return fallback;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : fallback;
-}
-
 /**
- * CustomStructure class for user-defined industry structures.
+ * A structure a user has described so their jobs can be costed in it: where it
+ * is, what it is, what rig it carries, and what it charges.
  *
- * The CustomStructure class provides flexible structure management:
+ * Every value arrives from a text field or a stored document, so the class
+ * settles each one as it is set — a name is sanitised, a tax or a system id
+ * that is not a number falls back — and {@link CustomStructure#toDocument}
+ * writes the fields as they stand.
  *
  * @class CustomStructure
  */
@@ -47,23 +35,22 @@ class CustomStructure {
   constructor(existingValue, jobType) {
     this.id =
       existingValue?.id ??
-      `${customStructureLocationMap[existingValue?.jobType ?? jobType]
+      `${
+        customStructureLocationMap[existingValue?.jobType ?? jobType]
       }-${uuid()}`;
     this.jobType = existingValue?.jobType ?? jobType ?? 0;
     this.name = existingValue?.name ?? "";
     this.systemType = existingValue?.systemType ?? 0;
     this.structureType = existingValue?.structureType ?? 0;
     this.rigType = existingValue?.rigType ?? 0;
-    this.systemID = coerceSystemID(
-      existingValue?.systemID,
-      DEFAULT_SYSTEM
-    );
+    this.systemID = coerceFiniteNumber(existingValue?.systemID, DEFAULT_SYSTEM);
     this.tax = coerceFiniteNumber(existingValue?.tax, 0);
     this.default = existingValue?.default ?? false;
   }
 
   /**
-   * Sets the structure name with input sanitisation.
+   * Sets the structure name. The name is what a user typed, so it is sanitised
+   * here rather than at each place that collects it.
    *
    * @param {string} name - Structure name to set
    */
@@ -107,7 +94,7 @@ class CustomStructure {
    * @param {number} systemID - System ID
    */
   setSystemID(systemID) {
-    this.systemID = coerceSystemID(systemID, DEFAULT_SYSTEM);
+    this.systemID = coerceFiniteNumber(systemID, DEFAULT_SYSTEM);
   }
 
   /**
@@ -134,7 +121,6 @@ class CustomStructure {
    * @returns {Object} Document object ready for storage
    */
   toDocument() {
-    const sid = coerceSystemID(this.systemID, DEFAULT_SYSTEM);
     return {
       id: this.id,
       jobType: this.jobType,
@@ -142,8 +128,8 @@ class CustomStructure {
       systemType: this.systemType,
       structureType: this.structureType,
       rigType: this.rigType,
-      systemID: sid,
-      tax: coerceFiniteNumber(this.tax, 0),
+      systemID: this.systemID,
+      tax: this.tax,
       default: this.default,
     };
   }
