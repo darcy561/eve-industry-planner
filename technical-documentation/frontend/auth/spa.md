@@ -352,10 +352,6 @@ The body carries the raw `refresh_token` for local accounts when Zustand still h
 | `eip_app_refresh` | yes | Server `Set-Cookie` on `204` |
 | `eip_esi_oauth_storage` | no | Server + `clearPlannerAuthCookiesClientSide()` |
 
-### 8.3 No Firebase signout
-
-There is no Firebase Auth state on the SPA in this auth subsystem; `firebaseadmin` on the server is reserved for migration tooling only.
-
 ---
 
 ## 9. Session lifecycle summary

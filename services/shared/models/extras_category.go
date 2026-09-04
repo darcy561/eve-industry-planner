@@ -91,36 +91,6 @@ func coerceDeletedAtFromInterface(v any) *string {
 	}
 }
 
-// NormalizeExtraCategory fills missing soft-delete fields and canonicalizes DeletedAt to RFC3339Nano when present.
-func NormalizeExtraCategory(c ExtraCategory) ExtraCategory {
-	deleted := c.Deleted
-	var deletedAt *string
-	if deleted && c.DeletedAt != nil {
-		deletedAt = coerceDeletedAtFromString(*c.DeletedAt)
-	}
-	if !deleted {
-		deletedAt = nil
-	}
-	return ExtraCategory{
-		ID:        c.ID,
-		Label:     c.Label,
-		Deleted:   deleted,
-		DeletedAt: deletedAt,
-	}
-}
-
-// NormalizeExtrasCategories applies NormalizeExtraCategory to each element (in order).
-func NormalizeExtrasCategories(categories []ExtraCategory) []ExtraCategory {
-	if len(categories) == 0 {
-		return categories
-	}
-	out := make([]ExtraCategory, len(categories))
-	for i := range categories {
-		out[i] = NormalizeExtraCategory(categories[i])
-	}
-	return out
-}
-
 // UnmarshalBSON decodes legacy extras category rows (deletedAt as int64 ms, Date, or string).
 func (e *ExtraCategory) UnmarshalBSON(data []byte) error {
 	var doc struct {
@@ -139,7 +109,7 @@ func (e *ExtraCategory) UnmarshalBSON(data []byte) error {
 	return nil
 }
 
-// UnmarshalJSON accepts string, number (epoch ms), or null for deletedAt (legacy API / Firestore-shaped JSON).
+// UnmarshalJSON accepts string, number (epoch ms), or null for deletedAt.
 func (e *ExtraCategory) UnmarshalJSON(data []byte) error {
 	var w struct {
 		ID        string          `json:"id"`

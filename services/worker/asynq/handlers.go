@@ -14,7 +14,6 @@ import (
 	"eve-industry-planner/worker/tasks/esi"
 	"eve-industry-planner/worker/tasks/jobidentity"
 	"eve-industry-planner/worker/tasks/maintenance"
-	"eve-industry-planner/worker/tasks/migration"
 	sderollbacktasks "eve-industry-planner/worker/tasks/sde/rollback"
 	sdetasks "eve-industry-planner/worker/tasks/sde/update"
 
@@ -40,12 +39,6 @@ func SetupHandlers(mux *asynq.ServeMux, taskDeps *taskrun.Dependencies) error {
 	handle(handlers, eipnats.ApplySDEVersion, taskDeps, sdetasks.ApplySDEVersion)
 	handleTrigger(handlers, eipnats.RebuildCurrentSDEVersion, taskDeps, sdetasks.RebuildCurrentSDEVersion)
 	handle(handlers, eipnats.UpdateAccountSessionGrants, taskDeps, esi.RefreshAccountSessionGrants)
-	handle(handlers, eipnats.MigrateUserDocumentToMongo, taskDeps, migration.MigrateUserDocumentToMongo)
-	handle(handlers, eipnats.EncryptCloudRefreshTokensBatch, taskDeps, migration.EncryptCloudRefreshTokensBatch)
-	handle(handlers, eipnats.MigrateUserCloudAccountsToUserDoc, taskDeps, migration.MigrateUserCloudAccountsToUserDoc)
-	handle(handlers, eipnats.MigrateFirestoreWatchlistToMongo, taskDeps, migration.MigrateFirestoreWatchlistToMongo)
-	handle(handlers, eipnats.ImportArchivedJobToMongo, taskDeps, migration.ImportArchivedJobToMongo)
-	handle(handlers, eipnats.ImportUserJobDocumentsForAccount, taskDeps, migration.ImportUserJobDocumentsForAccount)
 	handleTrigger(handlers, eipnats.DrainAccountStatsRebuildQueue, taskDeps, archivedjobs.DrainAccountStatsRebuildQueue)
 	handle(handlers, eipnats.RebuildOwnerStatistics, taskDeps, archivedjobs.RebuildOwnerStatistics)
 	handle(handlers, eipnats.ApplyOwnerStatisticsDelta, taskDeps, archivedjobs.ApplyOwnerStatisticsDelta)

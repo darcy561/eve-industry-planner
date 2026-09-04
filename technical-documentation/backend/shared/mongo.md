@@ -50,7 +50,7 @@ field. A caller reaches a collection by name on the handle rather than by string
 | `TemplateCatalog` / `TemplatePayloads` | `account_group_template_catalog` / `…_payloads` | group templates, split so a listing does not load every payload |
 | `ArchivedJobs` | `account_archived_jobs` | jobs moved out of the planner |
 | `AccountProductionTotals` | `account_production_totals` | per-account build totals |
-| `WatchlistDeprecated` | `account_watchlist_deprecated` | the watchlist carried over from Firestore |
+| `WatchlistDeprecated` | `account_watchlist_deprecated` | the watchlist in its original stored shape |
 | `Blueprints` | `shared_blueprints` | blueprint reference data, rebuilt from the SDE |
 | `CitadelNames` | `shared_citadel_names` | station and structure names users have submitted |
 

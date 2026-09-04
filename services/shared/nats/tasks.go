@@ -2,7 +2,6 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 )
 
@@ -17,44 +16,6 @@ const (
 
 // Task definitions — single source of truth for name, subject, default priority, and timeout.
 var (
-	MigrateUserDocumentToMongo = defineTask(Definition{
-		Name:            "migrateUserDocumentToMongo",
-		Subject:         "task.migration.migrateUserDocumentToMongo",
-		DefaultPriority: Priority5,
-		DefaultTimeout:  5 * time.Minute,
-	})
-	MigrateFirestoreWatchlistToMongo = defineTask(Definition{
-		Name:            "migrateFirestoreWatchlistToMongo",
-		Subject:         "task.migration.migrateFirestoreWatchlistToMongo",
-		DefaultPriority: Priority5,
-		DefaultTimeout:  2 * time.Minute,
-	})
-	// ImportArchivedJobToMongo normalises one Firestore ArchivedJobs document and upserts [models.Job] into MongoDB archivedJobs.
-	ImportArchivedJobToMongo = defineTask(Definition{
-		Name:            "importArchivedJobToMongo",
-		Subject:         "task.migration.importArchivedJobToMongo",
-		DefaultPriority: Priority5,
-		DefaultTimeout:  3 * time.Minute,
-	})
-	// ImportUserJobDocumentsForAccount copies referenced live Firestore job docs to Mongo user_job_documents (one account per task).
-	ImportUserJobDocumentsForAccount = defineTask(Definition{
-		Name:            "importUserJobDocumentsForAccount",
-		Subject:         "task.migration.importUserJobDocumentsForAccount",
-		DefaultPriority: Priority5,
-		DefaultTimeout:  15 * time.Minute,
-	})
-	EncryptCloudRefreshTokensBatch = defineTask(Definition{
-		Name:            "encryptCloudRefreshTokensBatch",
-		Subject:         "task.migration.encryptCloudRefreshTokensBatch",
-		DefaultPriority: Priority5,
-		DefaultTimeout:  15 * time.Minute,
-	})
-	MigrateUserCloudAccountsToUserDoc = defineTask(Definition{
-		Name:            "migrateUserCloudAccountsToUserDoc",
-		Subject:         "task.migration.migrateUserCloudAccountsToUserDoc",
-		DefaultPriority: Priority5,
-		DefaultTimeout:  10 * time.Minute,
-	})
 	// ApplyOwnerStatisticsDelta folds one owner's uncounted statistics rows into
 	// its aggregates. Small and user-facing — the figures a user just archived
 	// wait on it — so it outranks the bulk rebuild.
@@ -193,41 +154,6 @@ var (
 // names what it is asking for rather than assembling a payload first. A zero
 // value means the worker's default, exactly as the omitted JSON field does.
 
-// PublishMigrateUserDocumentToMongo copies one account's Firestore user document into Mongo.
-func PublishMigrateUserDocumentToMongo(ctx context.Context, n *NATS, accountID string) error {
-	return publish(ctx, n, MigrateUserDocumentToMongo, MigrateUserDocumentToMongoRequest{AccountID: accountID})
-}
-
-// PublishImportArchivedJobToMongo normalises one Firestore archived-job document into Mongo.
-func PublishImportArchivedJobToMongo(ctx context.Context, n *NATS, userID, firestorePath, firestoreDocumentID string, rawData json.RawMessage, canonicalBuildVer string) error {
-	return publish(ctx, n, ImportArchivedJobToMongo, ImportArchivedJobToMongoRequest{
-		UserID:              userID,
-		FirestorePath:       firestorePath,
-		FirestoreDocumentID: firestoreDocumentID,
-		RawData:             rawData,
-		CanonicalBuildVer:   canonicalBuildVer,
-	})
-}
-
-// PublishImportUserJobDocumentsForAccount copies one account's referenced job documents into Mongo.
-// A zero recency window applies the server default; -1 skips the login check.
-func PublishImportUserJobDocumentsForAccount(ctx context.Context, n *NATS, accountID string, loginRecencyMaxAgeSeconds int64) error {
-	return publish(ctx, n, ImportUserJobDocumentsForAccount, ImportUserJobDocumentsForAccountRequest{
-		AccountID:                 accountID,
-		LoginRecencyMaxAgeSeconds: loginRecencyMaxAgeSeconds,
-	})
-}
-
-// PublishEncryptCloudRefreshTokensBatch encrypts one account's stored refresh tokens.
-func PublishEncryptCloudRefreshTokensBatch(ctx context.Context, n *NATS, accountID string, dryRun bool) error {
-	return publish(ctx, n, EncryptCloudRefreshTokensBatch, EncryptCloudRefreshTokensRequest{AccountID: accountID, DryRun: dryRun})
-}
-
-// PublishMigrateUserCloudAccountsToUserDoc moves one account's cloud accounts onto its user document.
-func PublishMigrateUserCloudAccountsToUserDoc(ctx context.Context, n *NATS, accountID string, dryRun bool) error {
-	return publish(ctx, n, MigrateUserCloudAccountsToUserDoc, MigrateUserCloudAccountsToUserDocRequest{AccountID: accountID, DryRun: dryRun})
-}
-
 // PublishDrainAccountStatsRebuildQueue asks the worker to dispatch a rebuild for
 // every owner waiting in the queue.
 func PublishDrainAccountStatsRebuildQueue(ctx context.Context, n *NATS) error {
@@ -339,11 +265,6 @@ func PublishCloudStoredEsiRefreshMaintenance(ctx context.Context, n *NATS, accou
 // TriggerPruneExpiredAccountSessions asks the worker to prune expired account sessions.
 func TriggerPruneExpiredAccountSessions(ctx context.Context, n *NATS) error {
 	return trigger(ctx, n, PruneExpiredAccountSessions)
-}
-
-// PublishMigrateFirestoreWatchlistToMongo copies one account's Firestore watchlist into Mongo.
-func PublishMigrateFirestoreWatchlistToMongo(ctx context.Context, n *NATS, accountID string) error {
-	return publish(ctx, n, MigrateFirestoreWatchlistToMongo, MigrateFirestoreWatchlistToMongoRequest{AccountID: accountID})
 }
 
 // TriggerRollbackSDEVersion rolls the live Static Data Export back to the most

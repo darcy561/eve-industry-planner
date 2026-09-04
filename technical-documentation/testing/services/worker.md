@@ -52,7 +52,6 @@ go test ./worker/...
 
 ### Little / none
 
-- `tasks/migration/` (Firestore→Mongo imports, encrypt tokens, cloud-account migration, …)
 - `tasks/sde/rollback/`
 - Many `tasks/sde/update` stages (download, mapBuild, mongoBlueprints, applyVersion, …) except via checkUpdates/integration
 

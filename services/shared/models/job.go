@@ -32,7 +32,7 @@ type Job struct {
 	Volume              float64          `json:"volume" bson:"volume"`
 	ItemID              int              `json:"itemID" bson:"itemID"`
 	MaxProductionLimit  int              `json:"maxProductionLimit" bson:"maxProductionLimit"`
-	ParentJobs          []string         `json:"parentJobs" bson:"parentJobs"` // canonical document key (Firestore exports may use parentJob; normalizer rewrites)
+	ParentJobs          []string         `json:"parentJobs" bson:"parentJobs"`
 	BlueprintTypeID     *int             `json:"blueprintTypeID" bson:"blueprintTypeID"`
 	GroupID             string           `json:"groupID" bson:"groupID"` // empty string when not in a group
 	IsReadyToSell       bool             `json:"isReadyToSell" bson:"isReadyToSell"`
@@ -121,7 +121,6 @@ func (s JobSetup) MaterialQuantity(typeID int) int {
 }
 
 // MaterialCount represents material quantity tracking in a setup (whole units only).
-// Legacy Firestore floats are rounded during archiveimport (fillSetupMaterialCount).
 type MaterialCount struct {
 	TypeID      int `json:"typeID" bson:"typeID"`
 	Quantity    int `json:"quantity" bson:"quantity"`
@@ -341,8 +340,8 @@ func (m JobMaterial) PurchasedCost(requirement int) float64 {
 
 // ExtraCost matches the SPA extras row (Extras panel, Job.toDocument): id, category, extraText, extraValue.
 // Category is the extras category id as a string (same as ExtraCategory.ID). ExtraText is the description.
-// ExtraValue is the ISK amount (numeric JSON/BSON). UnmarshalJSON/UnmarshalBSON coerce legacy scalars (numeric category,
-// type/label/cost aliases) in addition to archiveimport.normalizeExtrasCosts for Firestore import.
+// ExtraValue is the ISK amount (numeric JSON/BSON). UnmarshalJSON/UnmarshalBSON coerce legacy scalars (numeric
+// category, type/label/cost aliases).
 type ExtraCost struct {
 	ID         string  `json:"id" bson:"id"`
 	Category   string  `json:"category" bson:"category"`
@@ -521,7 +520,7 @@ type LinkedESIJob struct {
 	CharacterHash   string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"`   // Character hash of the owner
 	Runs            int     `json:"runs" bson:"runs"`                                         // Number of runs
 	JobID           int     `json:"job_id" bson:"job_id"`                                     // ESI job ID
-	CompletedDate   string  `json:"completed_date,omitempty" bson:"completed_date,omitempty"` // RFC3339-ish; legacy null/number normalized in archiveimport
+	CompletedDate   string  `json:"completed_date,omitempty" bson:"completed_date,omitempty"` // RFC3339-ish
 	StationID       int     `json:"station_id" bson:"station_id"`                             // Facility/station ID
 	StartDate       string  `json:"start_date" bson:"start_date"`                             // Start date
 	EndDate         string  `json:"end_date" bson:"end_date"`                                 // End date
@@ -563,7 +562,7 @@ type MarketOrder struct {
 	LocationID     int      `json:"location_id" bson:"location_id"`                         // Location ID where order is placed
 	OrderID        int      `json:"order_id" bson:"order_id"`                               // Unique order ID
 	ItemPrice      float64  `json:"item_price" bson:"item_price"`                           // Order price per unit
-	Range          string   `json:"range" bson:"range"`                                     // ESI string (e.g. "region"); legacy non-strings normalized in archiveimport
+	Range          string   `json:"range" bson:"range"`                                     // ESI string (e.g. "region")
 	RegionID       int      `json:"region_id" bson:"region_id"`                             // Region ID where order is placed
 	TypeID         int      `json:"type_id" bson:"type_id"`                                 // Item type ID
 	VolumeRemain   int      `json:"volume_remain" bson:"volume_remain"`                     // Remaining volume
@@ -580,12 +579,12 @@ type MarketOrder struct {
 // Transaction represents a completed market transaction
 // Matches the structure created by createTransaction in createTransaction.js
 type Transaction struct {
-	OrderID        int     `json:"order_id,omitempty" bson:"order_id,omitempty"`           // zero = none; legacy null/string/float normalized in archiveimport
+	OrderID        int     `json:"order_id,omitempty" bson:"order_id,omitempty"`           // zero = none
 	JournalRefID   int64   `json:"journal_ref_id" bson:"journal_ref_id"`                   // Journal reference ID
 	UnitPrice      float64 `json:"unit_price" bson:"unit_price"`                           // Price per unit
 	Amount         float64 `json:"amount" bson:"amount"`                                   // Transaction amount
 	Tax            float64 `json:"tax" bson:"tax"`                                         // Tax amount
-	TransactionID  int64   `json:"transaction_id" bson:"transaction_id"`                   // ESI id; string/float historic imports normalized in archiveimport
+	TransactionID  int64   `json:"transaction_id" bson:"transaction_id"`                   // ESI id
 	Quantity       int     `json:"quantity" bson:"quantity"`                               // Quantity of items
 	Date           string  `json:"date" bson:"date"`                                       // Transaction date
 	LocationID     int     `json:"location_id" bson:"location_id"`                         // Location ID
@@ -629,10 +628,10 @@ type JobMaterial struct {
 type Purchase struct {
 	TypeID         int     `json:"typeID" bson:"typeID"`                       // EVE type id (frontend includes on each row); zero encodes as 0 when unknown
 	ID             string  `json:"id" bson:"id"`                               // UUID identifier
-	ChildID        string  `json:"childID,omitempty" bson:"childID,omitempty"` // Child job id; empty if none; normalized in archiveimport.normalizePurchasing
+	ChildID        string  `json:"childID,omitempty" bson:"childID,omitempty"` // Child job id; empty if none
 	ChildJobImport bool    `json:"childJobImport" bson:"childJobImport"`       // Whether this purchase is imported from a child job
-	ItemCount      int     `json:"itemCount" bson:"itemCount"`                 // Rounded on historic import (archiveimport.normalizePurchasing)
-	ItemCost       float64 `json:"itemCost" bson:"itemCost"`                   // Coerced on historic import
+	ItemCount      int     `json:"itemCount" bson:"itemCount"`                 // Whole units only
+	ItemCost       float64 `json:"itemCost" bson:"itemCost"`
 }
 
 // RawData contains the raw EVE API data for materials, products, and time

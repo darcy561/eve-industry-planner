@@ -109,8 +109,7 @@ func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 func archivedJobsEmptyHint(scopeDesc string) string {
 	return fmt.Sprintf(
 		"note: no documents matched in %s.%s (scope: %s). "+
-			"If you expected rows here, confirm MONGO_URL points at the right cluster and that archived jobs "+
-			"have been imported into Mongo (they are not read from Firestore by this command).\n",
+			"If you expected rows here, confirm MONGO_URL points at the right cluster.\n",
 		eipmongo.DatabaseName, eipmongo.CollectionAccountArchivedJobs, scopeDesc,
 	)
 }
