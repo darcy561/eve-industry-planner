@@ -16,6 +16,7 @@ Single-host Swarm topology: fragments, membership, replica identity, secrets, op
 | I need to… | Read |
 |------------|------|
 | Fragments / membership / replica identity / probes | [stack.md](./stack.md) |
+| Know when Swarm replaces a stopped service | [stack.md](./stack.md) § Restart condition |
 | `.env` / Swarm secrets / host binds | [secrets.md](./secrets.md) |
 | `eip.config.yaml` / sync surface | [config.md](./config.md) |
 | Overlay networks | [network.md](./network.md) |

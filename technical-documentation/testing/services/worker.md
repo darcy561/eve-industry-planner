@@ -10,6 +10,7 @@ Live SoT for test depth under [`services/worker`](../../../services/worker). Beh
 | ESI tasks | `go test ./worker/tasks/esi/` | Market / indexes / grants |
 | SDE update | `go test ./worker/tasks/sde/...` | Update + conversion + publish |
 | Rate limiter | `go test ./worker/ratelimiter/` | Bucket / ESI client Do |
+| Worker end to end | `go test ./worker/` | In-process NATS + Redis; no Docker |
 
 ```bash
 go test ./worker/...
@@ -33,7 +34,10 @@ go test ./worker/...
 | `tasks/sde/update/conversion` | Full conversion vs published reference; reaction blueprint merge; invention modifier rows/exclusions; blueprint published-formula preference |
 | `tasks/sde/publish` | S3 publish order (live then archive) |
 | `tasks/archivedjobs` | Build-stat snapshot math, zero-qty error, document ID |
-| `asynq` | Per-task timeout defaults/overrides/clamps; concurrency default + cap (50) |
+| `asynq` | Timeout from the task's definition and its clamp; concurrency default and cap (50); the request decoded at the mux and refused terminally when absent, null or malformed; terminal errors translated to the queue's sentinel while ordinary errors still retry; handlers checked against the registry in both directions; what `Enqueue` puts on the queue, against a real Redis |
+| `worker` (app) | The stop sequence, and that intake starts last so it stops first; a published task reaching its handler end to end over an embedded JetStream and Redis, for a trigger and for a request; an unregistered subject reaching no handler; an undecodable request archived rather than retried |
+| `taskrun` | A run is unreadable outside a task and readable through the mux's context wrapping; final-attempt arithmetic |
+| `tasks/archivedjobs` — terminal paths | Requests that cannot be served are terminal across all three owner tasks, and a servable owner is not |
 | `esi` | Past ESI compatibility-date integration check |
 
 ### Thin
@@ -45,14 +49,12 @@ go test ./worker/...
 | `tasks/sde/publish` | Single ordering test |
 | `tasks/sde/update/conversion` | Output writers / index stages largely untested |
 | `tasks/archivedjobs` | Snapshot math only — not `process_build_stats` processor |
-| `asynq` | Timeouts/concurrency only — not handlers / servers / clients / enqueue |
 
 ### Little / none
 
 - `tasks/migration/` (Firestore→Mongo imports, encrypt tokens, cloud-account migration, …)
 - `tasks/sde/rollback/`
 - Many `tasks/sde/update` stages (download, mapBuild, mongoBlueprints, applyVersion, …) except via checkUpdates/integration
-- App wiring: `main.go`, `app.go`, `task_subscriber.go`
 
 ## Topic-only detail
 
