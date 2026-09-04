@@ -157,7 +157,7 @@ rather than during it:
 `Settle` fires after the body is read for `Do` and on headers for `Stream`, so a paged walk reconciles
 its ledger entry before it finishes reading. The cost is fixed by the status either way.
 
-The name `esiclient` is chosen against `worker/esi` and `shared/core/evesso`, which already exist and
+The name `esiclient` is chosen against `worker/esi` and `shared/evesso`, which already exist and
 own different things (status checking and SSO token exchange respectively).
 
 ## Go models
@@ -1438,8 +1438,8 @@ is correctly not conditional, because a POST is issued no validator.
 | `worker/ratelimiter/limiter.go`, `flood_test.go` | `slices`, `wg.Go` | Moot — deleted in Stage D |
 | `shared/core/redis/unavailable.go` | `errors.AsType` ×2 | Done |
 
-`api/helper/sso/jwt.go` also reports `any` over `interface{}`, but it is outside this project's touch
-surface and is not being pulled in.
+The JWT validator also reported `any` over `interface{}`; it moved into `shared/evesso` and was fixed
+there.
 
 ## Done when
 
@@ -1500,7 +1500,7 @@ unchanged and still runs.
 ### Stage F found nothing to convert
 
 Stage F was scoped to the api's ESI calls. There are none: the api's only outbound HTTP is EVE SSO
-(the token endpoint through `shared/core/evesso`, and JWKS in `api/helper/sso`) plus a feedback
+(the token endpoint through `shared/evesso`, and JWKS, both in `shared/evesso`) plus a feedback
 webhook. SSO is not metered by ESI, so it holds no bucket and spends no token.
 
 What the api is missing is not throughput but visibility: its three SSO refresh call sites cannot

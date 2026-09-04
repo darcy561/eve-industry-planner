@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -74,7 +74,7 @@ func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		claims, err := sso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
+		claims, err := evesso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
 		if err != nil {
 			skippedTokens++
 			continue

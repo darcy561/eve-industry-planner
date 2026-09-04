@@ -1,8 +1,9 @@
-package tasks
+package esi
 
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,14 +11,13 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/esiclient"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/httpclient"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
 
-	"github.com/hibiken/asynq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -28,21 +28,11 @@ const maxCharacterAffiliationBatch = 1000
 // RefreshAccountSessionGrants validates a batch of EVE SSO tokens, resolves character IDs,
 // queries ESI POST /characters/affiliation/ (batched), aggregates unique corporation and
 // alliance IDs, persists them to Redis, and updates account session grants for all sessions.
-func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
-
+func RefreshAccountSessionGrants(ctx context.Context, request eipnats.AccountSessionGrantsRequest, deps *taskrun.Dependencies) error {
 	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
 	logs.InfoCtx(ctx, "account session grants refresh task received")
-
-	request, err := UnmarshalTaskPayload[eipnats.AccountSessionGrantsRequest](task)
-	if err != nil {
-		logs.WarnCtx(ctx, "failed to parse task data", "error", err)
-		return fmt.Errorf("invalid task data: %w", err)
-	}
 
 	if request.AccountID == "" {
 		logs.WarnCtx(ctx, "missing required parameter (account_id)")
@@ -71,7 +61,7 @@ func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *Ta
 	characterIDs := make([]int, 0, len(request.Tokens))
 
 	for i, tokenString := range request.Tokens {
-		claims, err := sso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
+		claims, err := evesso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
 		if err != nil {
 			logs.WarnCtx(ctx, "failed to validate EVE SSO token in worker",
 				"index", i,

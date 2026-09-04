@@ -26,7 +26,7 @@ func newEveSSOTokenRequest(ctx context.Context, clientID, clientSecret, grantTyp
 	case "refresh_token":
 		data.Set("refresh_token", grantValue)
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", EveSSOTokenURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", TokenURL(), strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -102,8 +102,7 @@ func performEveSSOTokenRequestWithRetry(ctx context.Context, req *http.Request) 
 		}
 		return nil
 	}, func(err error, attempt retry.AttemptContext) bool {
-		var retryableErr eveSSORetryableError
-		if !errors.As(err, &retryableErr) {
+		if _, ok := errors.AsType[eveSSORetryableError](err); !ok {
 			return false
 		}
 		logs.WarnCtx(ctx, "retrying EVE SSO token request", "attempt", attempt.Attempt, "max_attempts", attempt.MaxAttempts, "error", err)

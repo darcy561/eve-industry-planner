@@ -1,7 +1,7 @@
 package sso
 
 import (
-	evesso "eve-industry-planner/shared/core/evesso"
+	evesso "eve-industry-planner/shared/evesso"
 )
 
 const (
