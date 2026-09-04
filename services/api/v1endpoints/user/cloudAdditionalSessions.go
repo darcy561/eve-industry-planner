@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	evesso "eve-industry-planner/shared/core/evesso"
 	"eve-industry-planner/shared/crypto/aesgcm"
+	evesso "eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -52,6 +52,7 @@ func (h *Handlers) BuildCloudLinkedCharactersForLogin(
 		}
 
 		tok, err := evesso.RefreshEveSSOAccessToken(ctx, clientID, clientSecret, plain)
+		h.ReportSSO(ctx, err)
 		if err != nil {
 			logs.WarnCtx(ctx, "cloud login session ESI refresh failed",
 				"character_hash", row.CharacterHash,
