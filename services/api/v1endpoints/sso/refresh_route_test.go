@@ -179,3 +179,76 @@ func TestRefreshRouteRejectsABodyItCannotUse(t *testing.T) {
 		t.Errorf("called SSO %d times for requests that never had a token", got)
 	}
 }
+
+func (rt *route) exchange(t *testing.T, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("encode request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/eve-sso/tokens/exchange", bytes.NewReader(encoded))
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	rt.handler.EveSSOExchangeHandler(rec, req)
+	return rec
+}
+
+func TestExchangeRouteTradesACodeForAToken(t *testing.T) {
+	rt := newRoute(t)
+
+	rec := rt.exchange(t, map[string]any{"auth_code": "a-code-from-the-callback"})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200. body: %s", rec.Code, rec.Body.String())
+	}
+	if got := rt.sso.Exchanges("authorization_code"); got != 1 {
+		t.Errorf("made %d authorization_code calls to SSO, want exactly 1", got)
+	}
+}
+
+func TestExchangeRouteFeedsTheGateToo(t *testing.T) {
+	// The first step of a login is an SSO call like any other, and its silence
+	// is evidence the same way.
+	rt := newRoute(t)
+	rt.sso.GoDown()
+
+	rt.exchange(t, map[string]any{"auth_code": "a-code-from-the-callback"})
+
+	observed := rt.esi.Observations()
+	if len(observed) == 0 {
+		t.Fatal("the exchange route reported nothing; a dead SSO here teaches the fleet nothing")
+	}
+	if observed[len(observed)-1].Reachable {
+		t.Error("silence was reported as the servers answering")
+	}
+}
+
+func TestExchangeRouteStillServesWhileTheGateIsClosed(t *testing.T) {
+	rt := newRoute(t)
+	rt.esi.SetAvailability(esiclient.DowntimeState{Gated: true, NextProbe: time.Now().Add(time.Minute), Failures: 5})
+
+	rec := rt.exchange(t, map[string]any{"auth_code": "a-code-from-the-callback"})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d while the gate was closed; signing in must not be refused on it. body: %s",
+			rec.Code, rec.Body.String())
+	}
+}
+
+func TestExchangeRouteRejectsABodyItCannotUse(t *testing.T) {
+	rt := newRoute(t)
+
+	for _, body := range []any{
+		map[string]any{},
+		map[string]any{"auth_code": ""},
+		map[string]any{"auth_code": "   "},
+	} {
+		if rec := rt.exchange(t, body); rec.Code != http.StatusBadRequest {
+			t.Errorf("body %v produced %d, want 400", body, rec.Code)
+		}
+	}
+	if got := rt.sso.Exchanges("authorization_code"); got != 0 {
+		t.Errorf("called SSO %d times for requests that never had a code", got)
+	}
+}
