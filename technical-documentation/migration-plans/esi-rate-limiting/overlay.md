@@ -184,7 +184,7 @@ replica spend the same budget twice and earn a 429.
 ## api ESI calls
 
 The api makes none. Its only outbound HTTP is EVE SSO — the token endpoint through
-`shared/core/evesso`, and JWKS in `api/helper/sso` — plus a feedback webhook. SSO is not metered by
+`shared/evesso`, and JWKS, both in `shared/evesso` — plus a feedback webhook. SSO is not metered by
 ESI, so it holds no bucket and spends no token.
 
 ## Refresh cadence

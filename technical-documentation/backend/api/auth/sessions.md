@@ -399,7 +399,7 @@ Multiple tabs share one `sessionID`; the WS layer does **not** evict by session 
 
 | Material | Mechanism | Where |
 |---|---|---|
-| **EVE ESI access JWT** | Verified with CCP's JWKS via `services/api/helper/sso` (`ValidateEveTokenAndExtractHash`). Audience claim is `cfg.EveSSOClientID`. | `auth_helpers.go` |
+| **EVE ESI access JWT** | Verified with CCP's JWKS via `services/shared/evesso` (`ValidateEveTokenAndExtractHash`). Audience claim is `cfg.EveSSOClientID`. | `auth_helpers.go` |
 | **Planner refresh token** | Opaque random UUID. Stored as plaintext JSON in Redis with a 7d TTL. **No** at-rest encryption — Redis is the trust boundary. | `refresh_token.go` |
 | **Planner session id** | Opaque random UUID. Stored inside `account_sessions:<accountID>`. Cookie value is the session id directly. | `refresh_token.go` |
 | **ESI refresh token at rest** (cloud accounts only) | AES-GCM via a keyring from env (`REFRESH_TOKEN_AES_KEY`, optional `REFRESH_TOKEN_AES_KEY_VERSION`, optional `REFRESH_TOKEN_AES_LEGACY_KEYS`). Lives in Mongo `users.refreshTokens`. | `services/shared/core/crypto/keyrings/refresh_token.go` |
@@ -492,7 +492,7 @@ stateDiagram-v2
 - **`services/shared/firebaseadmin/client_test.go`** — only ensures the Admin app can boot without `FIREBASE_PROJECT_ID`; not auth-flow coverage.
 - **No JWT signing tests exist** because there is no internal JWT to sign — the previous tests under `internaljwt/` are deleted along with the module.
 - **Integration tests for cookies, Redis CRUD, and the refresh state machine** live alongside their handler packages (search for `*_test.go` under `services/api/v1endpoints/`).
-- **EVE JWT validation** uses CCP's live JWKS; for tests, mock the verifier through the helpers in `services/api/helper/sso`.
+- **EVE JWT validation** uses CCP's live JWKS; for tests, point `EVE_SSO_BASE_URL` at `testing/evessofake`, which signs verifiable tokens.
 
 ---
 

@@ -1,4 +1,4 @@
-package sso
+package evesso
 
 import (
 	"context"
@@ -19,8 +19,12 @@ import (
 // 2. Repeated conversion from JWK format to Go's rsa.PublicKey format
 // The cache TTL is 5 minutes since JWKS keys rarely change
 func fetchJWKSKeys() (map[string]*rsa.PublicKey, error) {
+	// Keyed on where the keys came from. The cache would otherwise outlive a
+	// change of issuer and hand back keys that cannot verify anything.
+	source := MetadataURL()
+
 	jwksCacheMu.RLock()
-	if jwksCache != nil && time.Since(jwksCacheTime) < jwksCacheTTL {
+	if jwksCache != nil && jwksCacheSource == source && time.Since(jwksCacheTime) < jwksCacheTTL {
 		keys := jwksCache.Keys
 		jwksCacheMu.RUnlock()
 		return convertJWKsToRSAPublicKeys(keys)
@@ -31,7 +35,7 @@ func fetchJWKSKeys() (map[string]*rsa.PublicKey, error) {
 	defer jwksCacheMu.Unlock()
 
 	// Double-check after acquiring write lock
-	if jwksCache != nil && time.Since(jwksCacheTime) < jwksCacheTTL {
+	if jwksCache != nil && jwksCacheSource == source && time.Since(jwksCacheTime) < jwksCacheTTL {
 		keys := jwksCache.Keys
 		return convertJWKsToRSAPublicKeys(keys)
 	}
@@ -40,7 +44,7 @@ func fetchJWKSKeys() (map[string]*rsa.PublicKey, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	metadataReq, err := http.NewRequestWithContext(ctx, http.MethodGet, eveSSOMetadataURL, nil)
+	metadataReq, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metadata request: %w", err)
 	}
@@ -90,6 +94,7 @@ func fetchJWKSKeys() (map[string]*rsa.PublicKey, error) {
 
 	// Update cache
 	jwksCache = &jwks
+	jwksCacheSource = source
 	jwksCacheTime = time.Now()
 
 	return convertJWKsToRSAPublicKeys(jwks.Keys)

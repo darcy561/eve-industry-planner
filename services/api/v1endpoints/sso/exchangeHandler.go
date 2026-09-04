@@ -8,6 +8,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -56,7 +57,7 @@ func (h *Handlers) EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	tokenResponse, err := exchangeAuthCodeForEveSSOTokens(ctx, cfg.ClientID, cfg.ClientSecret, authCode)
+	tokenResponse, err := evesso.ExchangeAuthCodeForEveSSOTokens(ctx, cfg.ClientID, cfg.ClientSecret, authCode)
 	var characterHash string
 	if err != nil {
 		m.Errors.WithLabelValues("sso_exchange_error").Inc(ctx)

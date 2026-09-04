@@ -45,7 +45,7 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 - `nats` connect and reconnect: the retry loop and its options are not exercised against a server that goes away and returns
 - `nats` core topics: publish and subscribe helpers are covered by their callers rather than directly, and the health census gather has no test of its own
 - `core/config` — mostly service-cred URL fallback; other loaders untested
-- `firebaseadmin` / `core/evesso` — one negative / formatter test each
+- `firebaseadmin` / `evesso` — one negative / formatter test each
 - `mongo` connect / monitor loops and most raw `Collection()` escape hatches
 
 ### Little / none

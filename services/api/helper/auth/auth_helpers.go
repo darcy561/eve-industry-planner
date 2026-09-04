@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"eve-industry-planner/api/helper/sso"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
@@ -72,7 +72,7 @@ type EveTokenValidationResult struct {
 // ValidateEveTokenAndExtractHash validates an EVE SSO token and extracts relevant information.
 // Returns character hash, scopes, and character name if valid, or an error if invalid.
 func ValidateEveTokenAndExtractHash(ctx context.Context, tokenString, clientID string) (*EveTokenValidationResult, error) {
-	claims, err := sso.ValidateEveSSOToken(tokenString, clientID)
+	claims, err := evesso.ValidateEveSSOToken(tokenString, clientID)
 	if err != nil {
 		return nil, err
 	}

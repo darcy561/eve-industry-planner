@@ -1,4 +1,4 @@
-package sso
+package evesso
 
 import (
 	"sync"
@@ -8,18 +8,18 @@ import (
 )
 
 const (
-	eveSSOMetadataURL = "https://login.eveonline.com/.well-known/oauth-authorization-server"
-	eveSSOIssuer1     = "https://login.eveonline.com/"
-	eveSSOIssuer2     = "https://login.eveonline.com"
-	eveSSOIssuer3     = "login.eveonline.com"
-	eveSSOAudience    = "EVE Online"
-	jwksCacheTTL      = 5 * time.Minute
+	eveSSOIssuer1  = "https://login.eveonline.com/"
+	eveSSOIssuer2  = "https://login.eveonline.com"
+	eveSSOIssuer3  = "login.eveonline.com"
+	eveSSOAudience = "EVE Online"
+	jwksCacheTTL   = 5 * time.Minute
 )
 
 var (
-	jwksCache     *JWKSet
-	jwksCacheTime time.Time
-	jwksCacheMu   sync.RWMutex
+	jwksCache       *JWKSet
+	jwksCacheSource string
+	jwksCacheTime   time.Time
+	jwksCacheMu     sync.RWMutex
 )
 
 // JWKSet represents the JSON Web Key Set structure

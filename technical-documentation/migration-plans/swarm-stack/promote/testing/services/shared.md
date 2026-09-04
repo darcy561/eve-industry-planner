@@ -42,7 +42,7 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 
 - `core/nats` connection/setup beyond helpers above
 - `core/config` — mostly service-cred URL fallback; other loaders untested
-- `firebaseadmin` / `core/evesso` — one negative / formatter test each
+- `firebaseadmin` / `evesso` — one negative / formatter test each
 - `mongo` connect / monitor loops and most raw `Collection()` escape hatches
 
 ### Little / none
