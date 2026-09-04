@@ -45,6 +45,17 @@ Compose puts grace **outside** `deploy:` — hence a separate service-root merge
 
 Websocket process cleanup budget (`shutdownTimeout` / SIGTERM drain wait) is **60s** to match this grace — [websocket.md](../backend/websocket/websocket.md). Other start-first services may use shorter in-process timers; Docker still waits up to 60s before SIGKILL.
 
+## Restart condition
+
+**`restart_policy` is `condition: any`** on every fragment — the two anchors in
+[`docker-stack.yml`](../../docker-stack.yml), the data one and the observability one.
+
+A service asked to stop exits 0, and `on-failure` reads that as the task having finished its work,
+leaving the service with no replacement. Nothing here keeps a stack alive that was meant to go:
+`eip shutdown` removes services rather than stopping them, and a removed service has no task to
+restart. Failure behaviour is the same either way — a crash-looping service is restarted after the
+5s `delay`.
+
 ## Replica identity
 
 Per-process identity is the Docker **short container id** — in-container `HOSTNAME` (default), externally `ContainerStatus.ContainerID[:12]`. Helper: [`container.ID()`](../../services/shared/container/id.go). Used for OTel `service.instance.id`, JetStream durable suffixes, placement backend keys / `PlacementState.container_id`, lease holders, and probes bus instance fields.

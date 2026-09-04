@@ -134,8 +134,9 @@ published.
 
 Stop defaulting a task the registry does not know.
 
-Taken with [`../worker-runtime/`](../worker-runtime/plan.md) Stage D, which rewrote the same
-resolution path.
+Taken with the worker-runtime project's own Stage D, which rewrote the same resolution path. That
+project has promoted; how a subject resolves to a task now lives in
+[backend/worker/worker.md](../../backend/worker/worker.md) § Running a task.
 
 ## Wire compatibility
 
@@ -156,5 +157,10 @@ a message published in the superseded shape does not decode, and nothing was car
 ## Handoff
 
 **Start here:** Stage C, the only stage left — the operator CLI's dispatch view.
+
+Stages A, B and D have already been promoted into live documentation by the worker-runtime project,
+which shared their code: [backend/worker/worker.md](../../backend/worker/worker.md) § Running a task
+and [backend/shared/nats.md](../../backend/shared/nats.md) both describe the current behaviour. This
+folder therefore promotes only what Stage C lands, and is deleted when it does.
 
 Stage B left nothing outstanding.

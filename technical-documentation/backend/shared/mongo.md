@@ -26,14 +26,14 @@ stackservices.Connect* ──► Clients.Mongo (*eipmongo.Mongo)
                               │
          ┌────────────────────┼────────────────────┐
          ▼                    ▼                    ▼
-   apideps.Deps          TaskDependencies     Server / core bags
+   apideps.Deps        taskrun.Dependencies   Server / core bags
    (API handlers)        (worker tasks)       (composition root)
          │                    │
          ▼                    ▼
    Docs fields / writers / eipmongo.Retry
 ```
 
-Composition root opens Mongo via `stackservices`. API handlers use `apideps.Deps`; worker tasks use `TaskDependencies`. Websocket keeps `Server.Stack`; core keeps `*stackservices.Clients` at the composition root.
+Composition root opens Mongo via `stackservices`. API handlers use `apideps.Deps`; worker tasks use `taskrun.Dependencies`. Websocket keeps `Server.Stack`; core keeps `*stackservices.Clients` at the composition root.
 
 ## Handle surface
 

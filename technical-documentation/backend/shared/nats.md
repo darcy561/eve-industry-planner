@@ -29,7 +29,7 @@ stackservices.Connect* ──► Clients.NATS (*eipnats.NATS)
                               │
          ┌────────────────────┼────────────────────┬────────────────────┐
          ▼                    ▼                    ▼                    ▼
-   apideps.Deps        TaskDependencies    contract.Dependencies   Server.Stack
+   apideps.Deps      taskrun.Dependencies  contract.Dependencies   Server.Stack
    (API handlers)      (worker tasks)      (core schedulers)       (websocket)
          │                    │                    │
          ▼                    ▼                    ▼
@@ -151,8 +151,13 @@ eipnats.PublishRefreshRegionMarketOrders(ctx, natsHandle, regionID, stationID)
 eipnats.TriggerCheckSDEUpdates(ctx, natsHandle)
 ```
 
-A zero value means the worker's default, exactly as an omitted JSON field does. A task's queue and
-deadline come from its definition in `tasks.go`; there is no per-publish override.
+A task's queue and deadline come from its definition in `tasks.go`; there is no per-publish override
+and no fallback. A subject the registry does not claim names no task, and the worker refuses it
+rather than guessing.
+
+A task message is one envelope and a payload — `{"type":"task","data":{…}}`, where the data is the
+request the publish helper built. Trace context and request identity travel in the message's headers,
+not in its body.
 
 **A loop that publishes many** takes a batching handle. The helpers are the same; only the ending
 differs:
