@@ -120,17 +120,14 @@ describe("ArchivedItemStatistics", () => {
     expect(screen.getByText("Produced and sold")).toBeTruthy();
     expect(screen.getByText("Cost composition")).toBeTruthy();
     expect(screen.getByText("Profit by month")).toBeTruthy();
-    // One chart per panel. The running total shares the profit chart rather than
-    // sitting under it, because it is what those bars add up to.
-    // jsdom performs no layout, so the marks inside a chart never render; the
-    // wrapper count is what this harness can see. Four panels, four charts.
+    // One chart per panel — the running total shares the profit chart rather
+    // than sitting under it, because it is what those bars add up to. jsdom
+    // renders no marks, so the wrapper count is what this harness can see.
     expect(container.querySelectorAll(".recharts-wrapper").length).toBe(4);
   });
 
-  // The figures are lifetime and the charts follow the range, so a range change
-  // must not look like the item's history changed.
-  // Reading a period chart against an all-time total invites a comparison the
-  // two do not support, so each figure says which it is.
+  // The figures are lifetime and the charts follow the range, so each says which
+  // it is — otherwise a range change reads as the item's history changing.
   it("separates the period figures from the all-time ones", () => {
     renderTab({ item: tritanium, from: "2026-07", to: "2026-07" });
 

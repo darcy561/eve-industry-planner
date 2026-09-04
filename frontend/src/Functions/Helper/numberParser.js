@@ -5,18 +5,6 @@ import useUsersStore from "../../Zustand/usersStore";
  *
  * @param {string|number} str - The number string or number to parse
  * @returns {number} - The parsed number, or 0 if parsing fails
- *
- * @example
- * parseNumberWithSeparators('15,000.00') // Returns 15000
- * parseNumberWithSeparators(15000)        // Returns 15000
- * parseNumberWithSeparators('15.000,00') // Returns 15000
- * parseNumberWithSeparators('1,234.56')  // Returns 1234.56
- * parseNumberWithSeparators('1.234,56')  // Returns 1234.56
- * parseNumberWithSeparators('1234,56')   // Returns 1234.56
- * parseNumberWithSeparators('1234.56')   // Returns 1234.56
- * parseNumberWithSeparators('1,234,567') // Returns 1234567
- * parseNumberWithSeparators('1.234.567') // Returns 1234567
- * parseNumberWithSeparators('2 313,00')  // Returns 2313 (spaces as thousands separators)
  */
 export function parseNumberWithSeparators(str) {
   // If a number is passed, return it directly
@@ -77,13 +65,6 @@ export function parseNumberWithSeparators(str) {
  * @param {number} options.max - Maximum decimal places (default: same as min)
  *
  * @returns {string} - The formatted number string
- *
- * @example
- * formatNumberForLocale(15000) // Returns "15,000.00"
- * formatNumberForLocale(15000, { max: 0 }) // Returns "15,000"
- * formatNumberForLocale(15000, { max: 2 }) // Returns "15,000.00"
- * formatNumberForLocale(15000.5, { min: 0, max: 2 }) // Returns "15,000.5"
- * formatNumberForLocale(15000.123, { min: 1, max: 3 }) // Returns "15,000.123"
  */
 export function formatNumberForLocale(number, options) {
   // Set default values
@@ -135,9 +116,6 @@ export function formatNumberForLocale(number, options) {
  * @param {number} options.max - Maximum decimal places (default: same as min)
  *
  * @returns {string} - The formatted number string
- *
- * @example
- * parseAndFormatNumber('15,000.00', { min: 0, max: 2 }) // Returns "15,000.00"
  */
 export function parseAndFormatNumber(str, options) {
   return formatNumberForLocale(parseNumberWithSeparators(str), options);
@@ -170,18 +148,6 @@ export function formatDateForLocale(date) {
  * @param {number|string} num - The number to convert
  * @param {number} decimals - Number of decimal places (default: 2)
  * @returns {string} - The formatted number with unit suffix
- *
- * @example
- * numberToShortText(1500)        // Returns "1.5 thousand"
- * numberToShortText(1500000)     // Returns "1.5 million"
- * numberToShortText(999)         // Returns "999"
- * numberToShortText(1500, 0)     // Returns "1 thousand"
- * numberToShortText(1500, 3)     // Returns "1.5 thousand"
- * numberToShortText("1,500.00")  // Returns "1.5 thousand"
- * numberToShortText("1.500,00")  // Returns "1.5 thousand"
- * numberToShortText("1,234.56")  // Returns "1.23 thousand"
- * numberToShortText("1.234,56")  // Returns "1.23 thousand"
-
  */
 export function numberToShortText(num, decimals = 2) {
   // Handle edge cases
@@ -237,15 +203,6 @@ export function numberToShortText(num, decimals = 2) {
  * @param {boolean} options.seconds - Include seconds in output (default: true)
  * @param {boolean} options.showZeros - Show zero values for included units (default: false)
  * @returns {string} - Formatted time string (e.g., "2D 5H 30M 15S")
- *
- * @example
- * formatTimeDuration(90000)                    // Returns "1D 1H 0M 0S" (if seconds > 0)
- * formatTimeDuration("90000")                  // Returns "1D 1H 0M 0S"
- * formatTimeDuration(3661)                     // Returns "1H 1M 1S"
- * formatTimeDuration(3661, { seconds: false }) // Returns "1H 1M"
- * formatTimeDuration(3661, { days: false })    // Returns "1H 1M 1S"
- * formatTimeDuration(90000, { hours: false, minutes: false }) // Returns "1D"
- * formatTimeDuration(3661, { showZeros: true, minutes: true, seconds: true }) // Returns "0H 1M 1S"
  */
 export function formatTimeDuration(seconds, options = {}) {
   // Convert string to number if needed
@@ -300,12 +257,6 @@ export function formatTimeDuration(seconds, options = {}) {
  * @param {boolean} options.seconds - Include seconds in output (default: false)
  * @param {boolean} options.showZeros - Show zero values for included units (default: false)
  * @returns {string} - Formatted time remaining string, "Complete" if time has passed, or error messages
- *
- * @example
- * formatTimeRemaining(Date.now() + 90000000)  // Returns "1D 1H 0M" (approximately)
- * formatTimeRemaining(Date.now() - 1000)      // Returns "Complete"
- * formatTimeRemaining("invalid")              // Returns "Invalid input time"
- * formatTimeRemaining(Date.now() + 3661000, { seconds: true }) // Returns "1H 1M 1S"
  */
 export function formatTimeRemaining(inputTime, options = {}) {
   // Convert string to number if needed

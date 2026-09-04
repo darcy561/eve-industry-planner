@@ -8,14 +8,9 @@ const characterAssetsQueryKey = "characterAssets";
 
 /**
  * React Query configuration for fetching character assets from EVE ESI API.
- * 
+ *
  * This query handles character asset data fetching with:
- * - Pagination support for large asset collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimised for asset data
- * - Error handling with descriptive messages
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for assets group
  * 2. Fetches the first page to determine total pages
@@ -23,7 +18,7 @@ const characterAssetsQueryKey = "characterAssets";
  * 4. Combines all pages into a single array
  * 5. Handles rate limiting errors with appropriate wait times
  * 6. Caches data for 30 minutes with 5-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -35,13 +30,6 @@ const characterAssetsQueryKey = "characterAssets";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: assets, isLoading, error } = useQuery(characterAssetsQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading assets...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Assets: {assets.length} items</div>;
  */
 function characterAssetsQuery(characterHash) {
   const findCharacterByHash =

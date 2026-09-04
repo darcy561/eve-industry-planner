@@ -57,6 +57,7 @@ export async function fetchJobGroupsFromApi() {
 
 /**
  * Normalises Mongo/API JSON into the shape {@link Group} expects.
+ *
  * @param {Record<string, unknown>} row
  */
 export function normalizeGroupApiRow(row) {
@@ -102,6 +103,7 @@ export async function deleteJobGroupsFromApi(groupIDs) {
 
 /**
  * Batch upsert groups (`PUT /api/v1/groups`).
+ *
  * @param {unknown[]} groupsPayload
  */
 export async function putJobGroupsBatch(groupsPayload) {

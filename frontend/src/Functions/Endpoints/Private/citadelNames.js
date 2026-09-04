@@ -124,6 +124,7 @@ async function postCitadelNamesBatch(submissions) {
 /**
  * Flushes the in-memory queue using one POST per chunk (≤ {@link MAX_SUBMISSIONS_PER_REQUEST}).
  * Safe to call anytime; no-op if empty.
+ *
  * @returns {Promise<void>}
  */
 export async function flushCitadelNamesSubmissionQueue() {

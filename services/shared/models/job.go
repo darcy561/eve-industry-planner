@@ -27,9 +27,6 @@ type Job struct {
 	Volume              float64          `json:"volume" bson:"volume"`
 	ItemID              int              `json:"itemID" bson:"itemID"`
 	MaxProductionLimit  int              `json:"maxProductionLimit" bson:"maxProductionLimit"`
-	APIJobs             []int            `json:"apiJobs" bson:"apiJobs"`
-	APIOrders           []int            `json:"apiOrders" bson:"apiOrders"`
-	APITransactions     []int            `json:"apiTransactions" bson:"apiTransactions"`
 	ParentJobs          []string         `json:"parentJobs" bson:"parentJobs"` // canonical document key (Firestore exports may use parentJob; normalizer rewrites)
 	BlueprintTypeID     *int             `json:"blueprintTypeID" bson:"blueprintTypeID"`
 	GroupID             string           `json:"groupID" bson:"groupID"` // empty string when not in a group
@@ -210,6 +207,34 @@ func (j Job) TotalInventionCost() float64 {
 		total += entry.ItemCost
 	}
 	return total
+}
+
+// LinkedESIJobIDs is the ESI industry jobs linked to this job, read from the
+// linked rows. Job#esiJobIDs in the SPA is the same reading.
+func (j Job) LinkedESIJobIDs() []int64 {
+	out := make([]int64, 0, len(j.Build.Costs.LinkedJobs))
+	for _, linked := range j.Build.Costs.LinkedJobs {
+		out = append(out, int64(linked.JobID))
+	}
+	return out
+}
+
+// LinkedOrderIDs is the ESI market orders linked to this job.
+func (j Job) LinkedOrderIDs() []int64 {
+	out := make([]int64, 0, len(j.Build.Sale.MarketOrders))
+	for _, order := range j.Build.Sale.MarketOrders {
+		out = append(out, int64(order.OrderID))
+	}
+	return out
+}
+
+// LinkedTransactionIDs is the ESI transactions linked to this job.
+func (j Job) LinkedTransactionIDs() []int64 {
+	out := make([]int64, 0, len(j.Build.Sale.Transactions))
+	for _, transaction := range j.Build.Sale.Transactions {
+		out = append(out, transaction.TransactionID)
+	}
+	return out
 }
 
 // MaterialRequirement is how many of a material the job's setups call for.

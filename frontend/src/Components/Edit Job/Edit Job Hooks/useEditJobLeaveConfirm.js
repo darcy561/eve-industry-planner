@@ -20,10 +20,8 @@ import { yieldEditJobDocumentLocksOnLeave } from "../../../Functions/DocumentLoc
 /**
  * Registers two handlers while the edit-job page is mounted:
  *
- *   - {@link requestEditJobNavigation} so other UI (link tree dialogue, parent
  *     chips, child job button) can request navigation to another job with the
  *     standard save / discard rules.
- *   - {@link requestEditJobReleaseConfirmation} so the document-lock slice can
  *     prompt for save / discard before handing the lock to a requesting tab,
  *     instead of dropping it to neutral.
  *

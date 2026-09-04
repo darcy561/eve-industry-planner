@@ -16,48 +16,9 @@ import calculateMaterialsFromSetup from "../Functions/Blueprint Calculations/cal
 /**
  * Setup class for EVE Online industry job configurations.
  *
- * This class represents a single setup configuration for an industry job:
- * - Structure and rig configuration for manufacturing/reaction
- * - Material efficiency (ME) and time efficiency (TE) settings
- * - System selection and tax configuration
- * - Character assignment for job execution
- * - Material count tracking and time estimation
- * - Requirement management and validation
- *
  * The Setup class provides comprehensive job configuration capabilities:
- * - Structure and rig selection with requirement validation
- * - System and tax configuration for cost optimisation
- * - Character assignment for skill-based calculations
- * - Material efficiency optimisation settings
- * - Time estimation and cost calculation
- * - Alternative system index value management
  *
  * @class Setup
- * @example
- * // Create a new setup for manufacturing
- * const setup = new Setup({
- *   jobType: jobTypes.manufacturing,
- *   runCount: 10,
- *   ME: 10,
- *   TE: 20,
- *   structureID: 12345,
- *   systemID: 30000142
- * });
- *
- * @example
- * // Update setup parameters
- * setup.updateMEValue(15);
- * setup.updateRunCount(20);
- * setup.updateSelectedCharacter('ABC123');
- *
- * @example
- * // Apply requirements
- * setup.applyRequirements('highsec_manufacturing');
- *
- * @example
- * // Get structure information
- * const structure = setup.getStructureObject();
- * const rig = setup.getRigObject();
  */
 class Setup {
   /**
@@ -187,19 +148,8 @@ class Setup {
   /**
    * Calculates the estimated time and installation cost for this setup.
    *
-   * This method calculates time and cost based on character skills and modifiers:
-   * - Finds the selected character or falls back to the main character
-   * - Retrieves character skills for calculation
-   * - Applies time and skill modifiers
-   * - Calculates estimated installation cost
-   *
    * @param {Array<Object>} skillsContext - Array of character skills data
    * @param {Array<Object>} usersContext - Array of user/character data
-   *
-   * @example
-   * // Calculate time and cost for setup
-   * setup.calculateTime(skillsData, usersData);
-   * console.log('Estimated cost:', setup.estimatedInstallCost);
    */
   caclulateEstimatedTime(jobSkillRequirements, queryClient) {
     this.estimatedTime = calculateTimeForSetup(
@@ -317,12 +267,6 @@ class Setup {
   /**
    * Gathers all requirements for this setup.
    *
-   * This method collects requirements from structure, rig, and system type:
-   * - Gets structure requirements if applicable
-   * - Gets rig requirements if applicable
-   * - Gets system type requirements if applicable
-   * - Merges all requirements into a single object
-   *
    * @returns {Object} Combined requirements object
    */
   gatherRequirements() {
@@ -356,14 +300,6 @@ class Setup {
 
   /**
    * Applies requirements to this setup.
-   *
-   * This method applies a requirement configuration to the setup:
-   * - Sets the applied requirement ID
-   * - Updates structure ID if specified in requirements
-   * - Updates rig ID if specified in requirements
-   * - Updates system type ID if specified in requirements
-   * - Updates system ID if specified in requirements
-   * - Updates tax value if specified in requirements
    *
    * @param {string} requirementID - Requirement ID to apply
    */
@@ -442,14 +378,6 @@ class Setup {
 
   /**
    * Updates the custom structure ID and applies its configuration.
-   *
-   * This method updates the custom structure and applies its settings:
-   * - Sets the custom structure ID
-   * - Updates structure type from custom structure
-   * - Updates rig type from custom structure
-   * - Updates system type from custom structure
-   * - Updates system ID from custom structure
-   * - Updates tax value from custom structure
    *
    * @param {string|null} inputValue - Custom structure ID or null to clear
    * @param {Function} getCustomStructureWithID - Function to get custom structure by ID

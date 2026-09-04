@@ -13,10 +13,6 @@ const CLAIMS_URL = "/api/v1/corporation-claims";
  *
  * @param {Array<string>} accessTokenArray - Array of EVE SSO JWT tokens (strings)
  * @returns {Promise<boolean>} `true` on **204** success
- *
- * @example
- * const tokens = ["eve-sso-token-1", "eve-sso-token-2"];
- * const success = await updateCorporationClaims(tokens);
  */
 async function updateCorporationClaims(accessTokenArray) {
   // Validate input

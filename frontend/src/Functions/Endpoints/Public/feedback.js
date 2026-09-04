@@ -12,6 +12,7 @@ const MAX_FEEDBACK_METADATA_JSON = 12000;
 
 /**
  * Application account id from client session (Mongo/Firebase), when logged in.
+ *
  * @returns {string}
  */
 function getClientAccountId() {

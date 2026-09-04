@@ -4,7 +4,6 @@
  * Sorting compares canonical `Job` instances the same way in both surfaces.
  */
 
-
 /**
  * Purchasing stage: all materials purchased first, then alphabetical by name.
  *

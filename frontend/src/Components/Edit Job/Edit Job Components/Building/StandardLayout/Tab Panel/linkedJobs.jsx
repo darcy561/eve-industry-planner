@@ -25,7 +25,7 @@ import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDoc
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 /**
- * Unlinking an ESI job is a write against `activeJob.apiJobs` (persisted), so
+ * Unlinking an ESI job removes a run from `activeJob.build.costs.linkedJobs` (persisted), so
  * the gate is the active job lock (group locks cascade into it automatically).
  */
 export function LinkedJobsTab(props) {
@@ -76,7 +76,7 @@ export function LinkedJobsTab(props) {
     );
   }
 
-  if (state.activeJob.apiJobs.size !== 0) {
+  if (state.activeJob.esiJobIDs.size !== 0) {
     return (
       <Grid
         container

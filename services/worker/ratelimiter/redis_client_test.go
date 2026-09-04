@@ -15,25 +15,15 @@ import (
 	"eve-industry-planner/testing/httpfake"
 )
 
-// Stress tests for Redis-based distributed rate limiter
+// Stress tests for the Redis-backed distributed rate limiter: many workers
+// sharing one global budget rather than one each.
 //
-// These tests verify:
-// - Multiple workers coordinate correctly (global rate limits, not per-worker)
-// - Token bucket tracking across workers
-// - Groups with and without token restrictions
-// - Rate limiting enforcement
-// - Token exhaustion and recovery
-// - EVE downtime blocking
+// They need Redis on localhost:6379 (or setupTestRedis pointed elsewhere) and
+// use DB 15, so they cannot touch anything real.
 //
-// To run these tests:
-//   1. Ensure Redis is running on localhost:6379 (or update setupTestRedis)
-//   2. Run: go test -v ./services/worker/ratelimiter -run TestRedisRateLimiter
-//   3. For stress test: go test -v ./services/worker/ratelimiter -run TestRedisRateLimiter_ConcurrentStressTest
-//
-// Note: Tests use Redis DB 15 to isolate from production data
+//	go test -v ./services/worker/ratelimiter -run TestRedisRateLimiter
 
-// setupTestRedis creates a test Redis client
-// In a real scenario, you'd use a test Redis instance or docker container
+// setupTestRedis creates a test Redis client.
 // Supports environment variables: REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
 func setupTestRedis(t *testing.T) *redis.Client {
 	// Get Redis connection details from environment or use defaults
@@ -389,9 +379,8 @@ func TestRedisRateLimiter_Downtime(t *testing.T) {
 
 // TestRedisRateLimiter_DowntimeBlocksRequests tests that actual requests are blocked during downtime
 func TestRedisRateLimiter_DowntimeBlocksRequests(t *testing.T) {
-	// This test would require time mocking to test actual request blocking
-	// For now, we test the isInDowntime function which is called before requests
-	// In a production scenario, you'd use a time mocking library to test the full flow
+	// Covers isInDowntime, which gates every request. Blocking the request itself
+	// needs a controllable clock.
 	t.Skip("Requires time mocking to test full request blocking flow")
 }
 
@@ -542,9 +531,8 @@ func TestRedisRateLimiter_TokenExhaustionAndRecovery(t *testing.T) {
 
 	t.Logf("Token exhaustion phase: %d exhaustion errors", exhaustedCount)
 
-	// Phase 2: Wait for tokens to recover (simulate by checking Redis state)
-	// In a real scenario, we'd wait for the sliding window to expire
-	// For this test, we'll just verify that the system correctly reports exhaustion
+	// Phase 2: exhaustion is asserted on the reported state rather than by waiting
+	// out the sliding window.
 
 	if exhaustedCount == 0 {
 		t.Error("Expected some token exhaustion errors, got 0")

@@ -9,7 +9,7 @@ const { MARKET_OPTIONS } = GLOBAL_CONFIG;
  * A clickable typography component that opens the market data dialogue.
  * Displays text that can be clicked to view current market data for an EVE Online item.
  * Automatically determines market location if not provided.
- * 
+ *
  * @param {Object} props - Component props
  * @param {number} props.itemTypeID - EVE Online type ID of the item to view market data for
  * @param {string|Object} [props.locationID] - Market location ID or object. If not provided, uses user's default market.
@@ -18,14 +18,6 @@ const { MARKET_OPTIONS } = GLOBAL_CONFIG;
  * @param {string} [props.tooltipText="Click to view item market data."] - Text to display in the tooltip
  * @param {string} [props.tooltipPlacement="top"] - Placement of the tooltip relative to the text
  * @returns {JSX.Element} Market data dialogue trigger text component
- * 
- * @example
- * <MarketDataDialogueTriggerText 
- *   itemTypeID={34}
- *   locationID="jita"
- *   text="Tritanium"
- *   tooltipText="Click to view Tritanium market data"
- * />
  */
 function MarketDataDialogueTriggerText({
   itemTypeID,

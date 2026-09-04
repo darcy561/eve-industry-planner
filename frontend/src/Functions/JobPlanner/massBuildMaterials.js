@@ -15,9 +15,7 @@ import { showSnackbarError, showSnackbarSuccess } from "../../Events/snackbarEve
 /**
  * Mass-builds one material level for selected jobs (planner scoped).
  *
- * This function only considers explicitly provided jobs (no group expansion).
- * It aggregates buildable missing child-material quantities by typeID, builds jobs in batch,
- * links each built child only to requesting parent jobs, then persists and commits updates.
+ * Only the jobs passed in are considered — a group is not expanded to its members.
  *
  * @param {string|Array<string>|Set<string>} inputJobIDs
  * @param {{

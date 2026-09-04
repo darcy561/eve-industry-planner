@@ -8,10 +8,6 @@ import useUsersStore from "../../Zustand/usersStore";
  *
  * @param {Array|Object} jobsToPass - Job object(s) to pass costs from
  * @returns {Promise<Object>} Promise that resolves to notification text
- *
- * @example
- * const result = await passBuildCostsToParentJobs([job1, job2]);
- * console.log(result.messageText); // "2 Costs Imported into 1 Job."
  */
 export async function passBuildCostsToParentJobs(jobsToPass) {
   const { jobsFromIdsOrObjects } = useUsersStore.getState().jobData.actions;
@@ -124,11 +120,6 @@ function findNeededParentJobs(parentMap) {
  * @returns {number} returns.successfulJobImportCount - Number of jobs that received costs
  * @returns {number} returns.priceItemsImportedCount - Number of price items imported
  * @returns {Set<string>} returns.modifiedJobIDs - Set of job IDs that were modified
- * @example
- * const result = distributeItemCostsBetweenJobs(collectedMaterials, jobSelection, materialIDMap);
- * console.log(result.successfulJobImportCount); // Number of jobs
- * console.log(result.priceItemsImportedCount); // Number of price items
- * console.log(result.modifiedJobIDs); // Set of modified job IDs
  */
 export function distributeItemCostsBetweenJobs(collectedMaterials, jobSelection, materialIDMap) {
 

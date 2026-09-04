@@ -6,6 +6,7 @@ const APPLICATION_SETTINGS_URL = "/api/v1/user/application-settings";
 
 /**
  * Saves user account document (linked ESI IDs, refresh tokens) to Mongo via PUT `/api/v1/user/main`.
+ *
  * @returns {Promise<boolean>}
  */
 async function saveUserAccountDocument() {
@@ -44,6 +45,7 @@ async function saveUserAccountDocument() {
 
 /**
  * Saves application settings to Mongo via PUT `/api/v1/user/application-settings`.
+ *
  * @returns {Promise<boolean>}
  */
 async function saveApplicationSettings() {
@@ -82,6 +84,7 @@ async function saveApplicationSettings() {
 
 /**
  * Persists both account and application settings (e.g. when both slices may have changed).
+ *
  * @returns {Promise<boolean>} true if both succeed
  */
 async function saveUserAccountAndApplicationSettings() {
@@ -94,6 +97,7 @@ async function saveUserAccountAndApplicationSettings() {
 
 /**
  * Loads user account document from Mongo via GET `/api/v1/user/main`.
+ *
  * @returns {Promise<Object|null>}
  */
 async function getUserAccountDocument() {
@@ -129,6 +133,7 @@ async function getUserAccountDocument() {
 
 /**
  * Loads application settings from Mongo via GET `/api/v1/user/application-settings`.
+ *
  * @returns {Promise<Object|null>}
  */
 async function getApplicationSettingsDocument() {

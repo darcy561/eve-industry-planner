@@ -20,6 +20,7 @@ export function normalizeTotalsTypeID(typeID) {
 /**
  * React Query key for one item type's lifetime totals
  * (`GET /api/v1/statistics/{owner}/totals`).
+ *
  * @param {string|number|null|undefined} typeID
  * @returns {import("@tanstack/react-query").QueryKey}
  */
@@ -31,6 +32,7 @@ export function totalsQueryKey(typeID) {
 /**
  * Base options for prefetch / `useAccountTotalsQuery`.
  * `staleTime` follows `GLOBAL_CONFIG.DEFAULT_ARCHIVE_REFRESH_PERIOD` (**hours**).
+ *
  * @param {string|number|null|undefined} typeID
  */
 export function totalsQueryOptions(typeID) {
@@ -68,6 +70,7 @@ export function useAccountTotalsQuery(typeID, { enabled: enabledOption } = {}) {
 
 /**
  * Warm the cache when opening a job (e.g. edit flow) so panels read from React Query.
+ *
  * @param {import("@tanstack/react-query").QueryClient} queryClient
  * @param {string|number|null|undefined} typeID
  * @returns {Promise<void>}
@@ -80,6 +83,7 @@ export async function prefetchAccountTotalsQuery(queryClient, typeID) {
 
 /**
  * Remove one totals query from the cache (no refetch). Use after logout or to force a clean slate.
+ *
  * @param {import("@tanstack/react-query").QueryClient} queryClient
  * @param {string|number|null|undefined} typeID
  */
@@ -98,6 +102,7 @@ export function clearAccountTotalsQueryCache(queryClient) {
 
 /**
  * Reset queries (clear state; inactive queries drop observers). See TanStack `QueryClient.resetQueries`.
+ *
  * @param {import("@tanstack/react-query").QueryClient} queryClient
  * @param {string|number|null|undefined} [typeID] - Omit to reset every totals query
  */

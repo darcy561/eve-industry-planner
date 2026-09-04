@@ -2,6 +2,7 @@ import { jobTypes } from "../../Context/defaultValues";
 
 /**
  * Combines character and corporation blueprints into a single array
+ *
  * @param {Object} characterBlueprints - Character blueprints data organised by character hash
  * @param {Object} corporationBlueprints - Corporation blueprints data organised by corporation ID
  * @returns {Array} Combined array of blueprints
@@ -16,6 +17,7 @@ export function combineBlueprints(characterBlueprints, corporationBlueprints) {
 
 /**
  * Sorts blueprints by quantity, material efficiency, and time efficiency
+ *
  * @param {Array} blueprints - Array of blueprint objects
  * @returns {Array} Sorted array of blueprints
  */
@@ -30,11 +32,12 @@ export function sortBlueprints(blueprints) {
 
 /**
  * Filters blueprints based on the selected filter type
+ *
  * @param {Array} allBlueprints - All available blueprints
  * @param {string} filterType - Type of filter ('all', 'active', 'manufacturing', 'reactions', 'bpo', 'bpc')
  * @param {Object} options - Additional options for filtering
  * @param {Array} options.itemList - Item list for job type filtering
- * @param {Array} options.apiJobs - Active industry jobs for 'active' filter
+ * @param {Array} options.esiJobIDs - Active industry jobs for 'active' filter
  * @param {Object} options.queryClient - Query client for getting cached jobs
  * @returns {Array} Filtered array of blueprints
  */
@@ -110,6 +113,7 @@ export function filterBlueprints(allBlueprints, filterType, options = {}) {
 
 /**
  * Filters blueprints by a specific blueprint type ID (for search)
+ *
  * @param {Array} allBlueprints - All available blueprints
  * @param {number} blueprintID - The blueprint type ID to filter by
  * @returns {Array} Filtered array of blueprints
@@ -120,6 +124,7 @@ export function filterBlueprintsByID(allBlueprints, blueprintID) {
 
 /**
  * Gets unique blueprint type IDs from an array of blueprints
+ *
  * @param {Array} blueprints - Array of blueprint objects
  * @returns {Array} Array of unique blueprint type IDs
  */

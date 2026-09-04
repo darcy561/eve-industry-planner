@@ -5,6 +5,7 @@
 
 /**
  * Parse a 0.0–1.0 sample rate from build-time env (string or number). Empty / invalid → default.
+ *
  * @param {unknown} raw
  * @param {number} defaultRate
  * @returns {number}

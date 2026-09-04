@@ -11,11 +11,6 @@ import useUsersStore from "../../Zustand/usersStore";
  *
  * @param {Array} groupJobs - Jobs in the group to close
  * @returns {Promise<void>} Promise that resolves when group is closed and saved
- *
- * @example
- * const jobsToClose = [job1, job2, job3];
- * await closeActiveGroup(jobsToClose);
- * console.log("Group closed successfully");
  */
 export default async function closeActiveGroup(groupJobs) {
   const isLoggedIn = useUsersStore.getState().account.isLoggedIn;

@@ -8,9 +8,9 @@ function jobStub(jobID, { groupID = "group-1", itemID = 34, parents = [] } = {})
     itemID,
     name: jobID,
     parentJobs: parents,
-    apiJobs: new Set(),
-    apiOrders: new Set(),
-    apiTransactions: new Set(),
+    esiJobIDs: new Set(),
+    esiOrderIDs: new Set(),
+    esiTransactionIDs: new Set(),
     build: { materials: [] },
   };
 }

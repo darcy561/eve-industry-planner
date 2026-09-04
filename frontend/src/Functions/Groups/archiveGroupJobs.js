@@ -44,7 +44,7 @@ export async function archiveGroupJobs(selectedJobs) {
   );
 
   for (let selectedJob of filteredJobs) {
-    for (const o of selectedJob.apiOrders || []) {
+    for (const o of selectedJob.esiOrderIDs || []) {
       newLinkedOrders.add(o);
     }
     for (const t of selectedJob.linkedTrans || []) {

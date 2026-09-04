@@ -236,7 +236,6 @@ func (s *Server) reader(client *Client) {
 		if len(msg) > 0 && msg[0] == '{' {
 			var msgData map[string]any
 			if err := json.Unmarshal(msg, &msgData); err != nil {
-				// Not valid JSON
 				logs.WarnCtx(ctx, "websocket message is not valid JSON",
 					"client_id", client.id,
 					"account_id", client.AccountID,
@@ -296,7 +295,6 @@ func (s *Server) reader(client *Client) {
 				continue
 
 			default:
-				// Unknown type or no type field
 				logs.WarnCtx(ctx, "websocket message with unknown or missing type field",
 					"client_id", client.id,
 					"account_id", client.AccountID,

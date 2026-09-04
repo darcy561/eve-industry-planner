@@ -21,33 +21,23 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// PutArchivedJobsHandler handles PUT /v1/archived-jobs — batch upsert into Mongo archivedJobs.
-//
-// This route is registered on the private mux group (apiServer): global middleware → rate limit →
-// [middleware.AuthConstructor] → Router → PutArchivedJobsHandler. Statuses below are what clients
-// should expect; align with frontend saveArchivedJobs (retries only 408, 429, 5xx).
-//
-// Before this handler:
-//   - 429 — rate limiter (private rate); safe to retry with backoff
-//   - 401 — auth middleware: missing/invalid session (do not retry until the session is refreshed)
-//
-// Router (archivedjobs.Router):
-//   - 405 — method other than PUT
-//   - 404 — path not handled by this router
-//
-// This handler:
-//   - 400 — malformed JSON, empty batch, batch >100, empty jobID, duplicate jobIDs
-//   - 401 — should not occur if auth middleware passed (ExtractAccountID failure)
-//   - 403 — job has non-empty _meta.accountID ≠ the authenticated account (do not retry)
-//   - 500 — Mongo bulk write failure (retry)
-//   - 204 — success
-//
-// For each job, _meta.archivedBy is set to the authenticated account (who submitted the request), in addition
-// to _meta.archivedAt, accountID, lastModified, and lastUpdatedBy.
 // archivedJobStatsBatch bounds one bulk write of statistics rows. The archive
 // batch is capped well below it, so a request is a single round trip.
 const archivedJobStatsBatch = 200
 
+// PutArchivedJobsHandler serves PUT /v1/archived-jobs, upserting a batch into
+// archivedJobs.
+//
+// Statuses are what a client should expect; frontend saveArchivedJobs retries
+// only 408, 429 and 5xx.
+//
+//   - 400 — malformed JSON, empty batch, batch >100, empty jobID, duplicate jobIDs
+//   - 403 — a job's non-empty _meta.accountID is not the authenticated account
+//   - 500 — Mongo bulk write failure
+//   - 204 — success
+//
+// Each job is stamped with _meta.archivedBy, archivedAt, accountID, lastModified
+// and lastUpdatedBy.
 func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request) {
 	obsCtx := r.Context()
 	start := helper.RequestStartOrNow(obsCtx)

@@ -27,9 +27,6 @@ import { groupMemberJobScopeAfterGroupGrantPartial } from "../../Functions/Docum
  * with the first chunk because they are far fewer than jobs and one batch
  * always carries the entire group set.
  *
- * Used by `useJobPlannerJobLockSync` (no groups) and
- * `useJobPlannerPageLockSync` (jobs + groups).
- *
  * @param {string[]} jobIDs
  * @param {string[]} groupIDs
  * @param {() => boolean} isCancelled

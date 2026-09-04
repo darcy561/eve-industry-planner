@@ -37,9 +37,9 @@ function getTooltipContent(job) {
         <span>
           <p>
             ESI Jobs Linked:{" "}
-            {formatNumberForLocale(job.apiJobs.size, { max: 0 })}
+            {formatNumberForLocale(job.esiJobIDs.size, { max: 0 })}
           </p>
-          {job.apiJobs.size > 0 && (
+          {job.esiJobIDs.size > 0 && (
             <p>
               {timeRemaining === "Complete"
                 ? "Complete"
@@ -65,11 +65,11 @@ function getTooltipContent(job) {
         <span>
           <p>
             Market Orders:{" "}
-            {formatNumberForLocale(job.apiOrders.size, { max: 0 })}
+            {formatNumberForLocale(job.esiOrderIDs.size, { max: 0 })}
           </p>
           <p>
             Transactions:{" "}
-            {formatNumberForLocale(job.apiTransactions.size, { max: 0 })}
+            {formatNumberForLocale(job.esiTransactionIDs.size, { max: 0 })}
           </p>
         </span>
       );

@@ -20,6 +20,7 @@ import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLo
 
 /**
  * Shared private API retry options (honours server `Retry-After` on 429).
+ *
  * @see apiRateLimitRetryConfig
  */
 export const privateBatchRetryConfig = apiRateLimitRetryConfig;
@@ -64,6 +65,7 @@ function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
 
 /**
  * Thrown / rejected when no authenticated app session is available for a private request (not retried).
+ *
  * @type {string}
  */
 export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
@@ -101,6 +103,7 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
 
 /**
  * Pulls `batch` off the config object so the rest is safe for header helpers + single-request path.
+ *
  * @param {object} [config]
  * @returns {{ inner: object, batch?: PrivateRequestBatchOptions }}
  */
@@ -156,12 +159,6 @@ export function getSessionIDFromStore() {
  * @param {Object} config - Configuration
  * @param {string} [config.requestName] - Optional name for the request (appears in network tab headers)
  * @returns {Object} Options with headers merged (always returns an object — does not short-circuit on missing session)
- *
- * @example
- * const options = applyPrivateHeaders({
- *   method: 'POST',
- *   body: JSON.stringify(data)
- * });
  */
 function applyPrivateHeaders(options = {}, config = {}) {
   const headers = {
@@ -182,6 +179,7 @@ function applyPrivateHeaders(options = {}, config = {}) {
 
 /**
  * One attempt: optional session refresh hook, then `fetch` with private headers (`X-Session-ID` + `X-WS-Client-ID`).
+ *
  * @param {string} URL
  * @param {Object} options
  * @param {Object} headerConfig - `requestName` only (retry stripped)
@@ -201,6 +199,7 @@ async function executePrivateFetchOnce(URL, options, headerConfig) {
 
 /**
  * Single request with retries (no batching).
+ *
  * @param {string} URL
  * @param {Object} options
  * @param {Object} config
@@ -369,12 +368,6 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
  * @param {PrivateRequestBatchOptions} [config.batch]
  * @returns {Promise<Response>} HTTP response (merged synthetic response when `mergeResponseJsonArrays`)
  * @throws {Error} When the session refresh hook fails, or last network error after retries
- *
- * @example
- * const response = await requestWithPrivateHeaders('/api/v1/jobs/add', {
- *   method: 'POST',
- *   body: JSON.stringify(data)
- * }, { requestName: 'addJob' });
  */
 async function requestWithPrivateHeaders(URL, options = {}, config = {}) {
   const { inner: innerConfig, batch } = stripBatchFromConfig(config);

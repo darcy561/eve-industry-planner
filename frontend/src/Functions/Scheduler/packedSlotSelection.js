@@ -15,9 +15,6 @@
  * 5. Ensure tasks with same parents finish together
  *
  * Key behaviours:
- * - Tasks for same material run in parallel (different slots)
- * - Fill gaps in existing slots when possible
- * - Child tasks finish just before parents start
  */
 
 /**
@@ -269,10 +266,9 @@ export function selectSlotPackedStrategy({
                 // Candidate is better (allows parallel execution)
                 best = candidate;
             } else {
-                // Both have same sequential/parallel status
-                // SECONDARY: If parent is scheduled, prefer filling gaps in existing slots
-                // This minimizes slot usage by using gaps before parents start
-                // Note: earliestParentStart === 0 means no parent scheduled (treat as null)
+                // Tie broken by filling the gap before a scheduled parent starts,
+                // which keeps slot usage down. An earliestParentStart of 0 means
+                // no parent is scheduled, so it is treated as null.
                 if (earliestParentStart !== null && earliestParentStart > 0) {
                     if (candidate.fillsGap && !best.fillsGap) {
                         best = candidate;

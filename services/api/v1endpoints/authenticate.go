@@ -74,7 +74,6 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		"token_len": len(tokenString),
 	})
 
-	// Validate the EVE SSO token and extract character hash
 	tokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), tokenString, cfg.SSO.ClientID)
 	if err != nil {
 		contentType := r.Header.Get("Content-Type")

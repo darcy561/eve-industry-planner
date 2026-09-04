@@ -198,9 +198,7 @@ func TestRefreshAccountSessionGrants_InvalidCharacterIDFormat(t *testing.T) {
 }
 
 func TestRefreshAccountSessionGrants_ESIRetryableRateLimitError(t *testing.T) {
-	// Note: This test would require a valid SSO token to pass validation.
-	// For unit testing purposes, we test the ESI error handling path.
-	// In a real scenario, you'd use integration tests with valid tokens.
+	// Covers the ESI error handling path; passing validation needs a real SSO token.
 	t.Skip("Requires valid SSO token - testing ESI error handling is better done in integration tests")
 
 	// The following code shows the expected behaviour:
@@ -371,9 +369,8 @@ func TestRefreshAccountSessionGrants_SuccessfulProcessing(t *testing.T) {
 		ESIClient:    esiClient,
 	}
 
-	// We need to mock StoreCorporations - but it's in a different package
-	// For now, we'll test that the function completes successfully
-	// In a real scenario, you might want to use dependency injection or a test helper
+	// Asserts only that the call completes: StoreCorporations lives in another
+	// package and is not injectable here.
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed on success
@@ -383,7 +380,6 @@ func TestRefreshAccountSessionGrants_SuccessfulProcessing(t *testing.T) {
 }
 
 func TestRefreshAccountSessionGrants_DuplicateCorporations(t *testing.T) {
-	// Note: This test requires valid SSO tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
 	// Mock ESI client to return same corporation ID for all
@@ -417,7 +413,6 @@ func TestRefreshAccountSessionGrants_DuplicateCorporations(t *testing.T) {
 }
 
 func TestRefreshAccountSessionGrants_ZeroCorporationID(t *testing.T) {
-	// Note: This test requires valid SSO tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
 	// Mock ESI client to return corporation ID of 0 (should be skipped)
@@ -451,7 +446,6 @@ func TestRefreshAccountSessionGrants_ZeroCorporationID(t *testing.T) {
 }
 
 func TestRefreshAccountSessionGrants_MixedSuccessAndFailure(t *testing.T) {
-	// Note: This test requires valid SSO tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
 	// Mock ESI client to succeed for first call
@@ -487,9 +481,8 @@ func TestRefreshAccountSessionGrants_MixedSuccessAndFailure(t *testing.T) {
 // Integration-style test with real Redis mock (if needed)
 // This would require a more sophisticated Redis mock or testcontainers
 func TestRefreshAccountSessionGrants_RedisStorageFailure(t *testing.T) {
-	// This test would require mocking StoreCorporations or using dependency injection.
-	// Since StoreCorporations is in a different package and uses Redis directly,
-	// this is better tested with integration tests or by refactoring to use an interface.
+	// StoreCorporations is in another package and talks to Redis directly, so this
+	// path belongs to the integration tests.
 	t.Skip("Requires valid SSO tokens and Redis mocking - better suited for integration tests")
 
 	ctx := context.Background()
@@ -527,7 +520,6 @@ func TestRefreshAccountSessionGrants_RedisStorageFailure(t *testing.T) {
 
 // Test helper to verify the function handles nil response
 func TestRefreshAccountSessionGrants_NilResponse(t *testing.T) {
-	// Note: This test requires valid SSO tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
 	// Mock ESI client to return nil response

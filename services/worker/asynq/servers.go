@@ -81,22 +81,18 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 				// Check if this is a rate limit error with RetryAfter
 				rateLimitErr := extractRateLimitError(e)
 				if rateLimitErr != nil && rateLimitErr.Retryable {
-					// Calculate delay until RetryAfter time
 					waitTime := time.Until(rateLimitErr.RetryAfter)
 					if waitTime > 0 {
 						// Add small buffer to ensure tokens are available
 						waitTime += 1 * time.Second
 
-						// CRITICAL: Add jitter to spread out retries and prevent thundering herd
-						// Shared Redis ESI limiter + multi-replica workers can pile onto RetryAfter.
-						// Jitter spreads retries over a window to prevent synchronised failures
-						// Use 20% jitter (random 0-20% of wait time) to break synchronisation
-						// This ensures tasks don't all retry at exactly the same time
+						// Worker replicas share one Redis ESI limiter, so they all learn the
+						// same RetryAfter and would return together. Up to 20% jitter breaks
+						// that synchronisation.
 						jitterWindow := waitTime / 5 // 20% of wait time
 						if jitterWindow > 0 {
-							// Generate deterministic jitter based on task type and payload
-							// This ensures each unique task gets consistent jitter across retries
-							// but different tasks get different jitter values
+							// Derived from the task rather than random, so a task keeps its
+							// offset across retries while differing from its neighbours.
 							taskIDHash := uint64(0)
 							taskTypeBytes := []byte(t.Type())
 							payloadBytes := t.Payload()
@@ -173,9 +169,8 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 			IsFailure: func(err error) bool {
 				return !errIsRateLimitDeferral(err)
 			},
-			// Error handling
-			// RateLimitError with Retryable=true is intentional (task returned to queue for retry)
-			// Only log actual errors, not intentional retries
+			// A retryable RateLimitError is the task going back on the queue as
+			// intended, so it is not logged as a failure.
 			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
 				if errIsRateLimitDeferral(err) {
 					rateLimitErr := extractRateLimitError(err)

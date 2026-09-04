@@ -9,7 +9,7 @@ const { MARKET_OPTIONS } = GLOBAL_CONFIG;
 /**
  * An icon button component that opens the market data dialogue for a specific item.
  * Displays current market orders and pricing information for the given item and location.
- * 
+ *
  * @param {Object} props - Component props
  * @param {number} props.itemTypeID - EVE Online type ID of the item to view market data for
  * @param {string|Object} [props.locationID] - Market location ID or object. If not provided, uses user's default market.
@@ -18,13 +18,6 @@ const { MARKET_OPTIONS } = GLOBAL_CONFIG;
  * @param {string} [props.tooltipText="Current Market Data"] - Text to display in the tooltip
  * @param {string} [props.tooltipPlacement="top"] - Placement of the tooltip relative to the button
  * @returns {JSX.Element} Market data icon button component
- * 
- * @example
- * <MarketDataIconButton 
- *   itemTypeID={34}
- *   locationID="jita"
- *   tooltipText="View Tritanium Market Data"
- * />
  */
 function MarketDataIconButton({
   itemTypeID,

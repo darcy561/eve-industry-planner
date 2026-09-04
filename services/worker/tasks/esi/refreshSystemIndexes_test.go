@@ -539,11 +539,9 @@ func TestRefreshSystemIndexes_SuccessfulRefresh(t *testing.T) {
 }
 
 func TestRefreshSystemIndexes_ETagSaveFailure(t *testing.T) {
-	// This test requires full integration setup
 	t.Skip("Requires full integration setup - better suited for integration tests")
 }
 
 func TestRefreshSystemIndexes_StreamError(t *testing.T) {
-	// This test requires full integration setup
 	t.Skip("Requires full integration setup - better suited for integration tests")
 }

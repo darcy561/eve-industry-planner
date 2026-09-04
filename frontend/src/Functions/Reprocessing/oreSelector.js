@@ -4,7 +4,7 @@ import useUsersStore from "../../Zustand/usersStore";
  * Selects optimal ore combinations to fulfil mineral requirements using a scoring algorithm.
  * Evaluates each ore based on cost efficiency, mineral yield, waste penalties, and user preferences.
  * Uses a greedy algorithm to build an optimal plan that minimizes cost while meeting requirements.
- * 
+ *
  * @param {Object} mineralRequirements - Object with mineral IDs as keys and required quantities
  * @param {Object} ores - Object with ore IDs as keys and ore objects as values
  * @param {Array<number>} [oreIDsToBeIgnored=[]] - Array of ore IDs to exclude from selection
@@ -14,15 +14,6 @@ import useUsersStore from "../../Zustand/usersStore";
  * @param {number} [reprocessingCalculationSettings.valueMultiplier=1.0] - Value multiplier for scoring
  * @param {number} [reprocessingCalculationSettings.wastePenaltyMultiplier=0.5] - Penalty for excess minerals
  * @returns {Array<Object>} Array of selected ore objects with quantities
- * 
- * @example
- * const plan = oreSelector(
- *   { 34: { remaining: 1000 }, 35: { remaining: 500 } },
- *   oreObjects,
- *   [123, 456],
- *   { preferCompressed: true, wastePenaltyMultiplier: 0.3 }
- * );
- * console.log(plan.length); // Number of ore types selected
  */
 function oreSelector(
   mineralRequirements,

@@ -1,24 +1,12 @@
 /**
  * Assets Dialog Reducer for EVE Industry Planner.
- * 
- * Manages state transitions for the assets dialogue component, handling actions
- * for dialogue visibility, asset selection, loading states, character/corporation
- * selection, and asset data management. This reducer provides centralised
- * state management for the assets dialogue functionality.
- * 
- * @fileoverview Reducer for assets dialogue state management
- * @author EVE Industry Planner Team
  */
 
 import { normalizeSetIsLoadingPayload } from "../../../../Functions/Helper/setIsLoadingAction";
 
 /**
  * Action types for the assets dialogue reducer.
- * 
- * Defines all possible action types that can be dispatched to modify
- * the assets dialogue state. Each action type corresponds to a specific
- * state change operation.
- * 
+ *
  * @constant {Object} ASSETS_DIALOGUE_ACTION_TYPES
  * @property {string} RESET_STATE - Reset the entire state to initial values
  * @property {string} TOGGLE_IS_OPEN - Toggle dialogue open/closed state
@@ -48,11 +36,7 @@ export const ASSETS_DIALOGUE_ACTION_TYPES = {
 
 /**
  * Reducer function for managing assets dialogue state.
- * 
- * Handles state transitions based on action types, providing immutable
- * state updates for the assets dialogue component. Each action type
- * corresponds to a specific state modification operation.
- * 
+ *
  * @param {Object} state - Current state object
  * @param {boolean} state.isOpen - Whether the dialogue is open
  * @param {number|null} state.selectedTypeID - Selected item type ID
@@ -69,12 +53,6 @@ export const ASSETS_DIALOGUE_ACTION_TYPES = {
  * @param {*} [action.payload] - Action payload data
  * @param {Function} createInitialState - Function to create initial state
  * @returns {Object} New state object
- * 
- * @example
- * const newState = assetsDialogueReducer(currentState, {
- *   type: ASSETS_DIALOGUE_ACTION_TYPES.SET_SELECTED_TYPE_ID,
- *   payload: 34
- * }, createInitialState);
  */
 export function assetsDialogueReducer(state, action, createInitialState) {
     switch (action.type) {

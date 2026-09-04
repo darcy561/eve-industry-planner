@@ -9,6 +9,7 @@ export const USER_WATCHLIST_DEPRECATED_COLLECTION = "account_watchlist_deprecate
 
 /**
  * Fetches watchlist groups/items for the account and applies them to Zustand.
+ *
  * @returns {Promise<void>}
  */
 export async function fetchWatchlistDeprecatedFromApi() {

@@ -1,7 +1,7 @@
 /**
  * Creates an ESI market order object from raw order data.
  * Transforms the raw order data into a standardised format with additional metadata.
- * 
+ *
  * @param {Object} order - Raw market order data from ESI API
  * @param {number} order.duration - Order duration in days
  * @param {boolean} order.is_corporation - Whether this is a corporation order
@@ -20,11 +20,6 @@
  * @param {boolean} [order.complete=false] - Whether order is complete
  * @param {string} [order.state="active"] - Order state
  * @returns {Object} Standardised market order object
- * 
- * @example
- * const rawOrder = { order_id: 123, type_id: 34, price: 100, ... };
- * const esiOrder = createESIMarketOrder(rawOrder);
- * console.log(esiOrder.order_id); // 123
  */
 export default function createESIMarketOrder(order) {
   return {

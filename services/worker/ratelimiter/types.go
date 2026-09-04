@@ -8,7 +8,8 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// Used to designate which group to use for rate limiting. PrimaryGroup-SecondaryGroup.
+// GroupDesignation names the rate limit group a request belongs to, spelled
+// PrimaryGroup-SecondaryGroup.
 type GroupDesignation struct {
 	PrimaryGroup   string
 	SecondaryGroup string

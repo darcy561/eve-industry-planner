@@ -1,7 +1,6 @@
 /**
  * EVE OAuth code or stored EVE refresh token -> planner session response, then
  * a single post-login client path.
- * @fileoverview
  */
 import {
   fetchServerSession,
@@ -23,6 +22,7 @@ import { getTabPlannerRefreshToken } from "./tabSessionStorage.js";
 
 /**
  * Stores main character ESI refresh in Mongo (encrypted) for cloud accounts and drops client-held material.
+ *
  * @param {import("../../Classes/character").default} character
  * @param {object} tokenResponse
  */

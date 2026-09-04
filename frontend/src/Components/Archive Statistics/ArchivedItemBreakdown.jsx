@@ -65,7 +65,6 @@ const SORT_OPTIONS = [
   { value: "jobCostTotal", label: "Total Cost" },
 ];
 
-
 /** Money, abbreviated in the cell with the full value on hover. */
 function Money({ value }) {
   const amount = Number(value ?? 0);

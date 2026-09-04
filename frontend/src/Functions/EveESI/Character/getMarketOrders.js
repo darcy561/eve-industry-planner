@@ -3,20 +3,13 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
 /**
  * Fetches character market orders from EVE ESI API with pagination and caching support.
  * Filters out buy orders and only returns sell orders.
- * 
+ *
  * @param {Object} params - Parameters object
  * @param {Object} params.character - Character object with esiAccessToken, CharacterID, and CharacterHash
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingData={}] - Existing data for caching
  * @param {Object} [params.config={}] - Additional configuration options
  * @returns {Promise<Object>} Promise that resolves to market orders data with etag and totalPages
- * 
- * @example
- * const orders = await getCharacterMarketOrders({
- *   character: { esiAccessToken: "token", CharacterID: 123456, CharacterHash: "hash" },
- *   page: 1,
- *   config: { characterHash: "hash" }
- * });
  */
 async function getCharacterMarketOrders({
   character,

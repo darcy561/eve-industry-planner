@@ -12,8 +12,6 @@
  * neither.
  *
  * @class LinkedESIJob
- * @example
- * const linked = LinkedESIJob.fromESI(esiJob, { CharacterHash: "ABC123" });
  */
 class LinkedESIJob {
   /**

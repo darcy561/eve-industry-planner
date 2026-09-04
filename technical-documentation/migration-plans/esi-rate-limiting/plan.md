@@ -170,11 +170,12 @@ type Request struct {
 }
 
 type Response struct {
-    Status  int
-    Header  http.Header
-    Body    []byte            // nil when the caller streams
-    Bucket  Bucket            // the bucket this call was actually charged to
-    Cost    int               // tokens charged
+    Status int
+    Header http.Header
+    Body   []byte      // decompressed; nil when the caller streams
+    Bytes  int64       // compressed bytes off the wire, for transfer accounting
+    Bucket Bucket      // the bucket this call was actually charged to
+    Cost   int         // tokens charged
 }
 ```
 
@@ -253,8 +254,9 @@ type Client interface {
     // Do acquires a slot, sends the request, settles the ledger, and classifies a 429.
     Do(ctx context.Context, req Request) (*Response, error)
 
-    // Stream is Do without reading the body; the caller closes it.
-    Stream(ctx context.Context, req Request) (*http.Response, Reservation, error)
+    // Stream is Do without reading the body: the reader is decompressed and the
+    // caller closes it, then settles the reservation.
+    Stream(ctx context.Context, req Request) (io.ReadCloser, *http.Response, Reservation, error)
 
     // Headroom reports what one class may spend, so a scheduler can decide what to publish.
     Headroom(ctx context.Context, b Bucket, c Class) (Headroom, error)
@@ -690,6 +692,58 @@ today. `core/scheduler/esi` keeps `DeferPublicationUntilAfterDowntime` — defer
 own behaviour — but reads the observed gate rather than holding a second copy of the times, which
 also retires the duplicate window in `worker/ratelimiter/redis_client.go`.
 
+#### What happens to the status check
+
+`worker/esi/status.go` is absorbed by the gate rather than moved across. Its role changes from a
+**pre-flight each task performs** to a **probe the gate performs**, and most of it stops being needed:
+
+| Today | After |
+|-------|-------|
+| Four tasks call `CheckServerStatus`, then `HandleStatusCheckResult` | Nothing calls it; a task that cannot run gets `KindDowntime` from acquire |
+| Redis `valid_until` gate + process-local `lastCheckTime` + in-flight waiter channels | One fleet gate; `probe_until` already gives single-flight across replicas, not just within a process |
+| A check runs on each task's schedule | A probe runs only while the gate is uncertain, on its backoff |
+| `StatusResult` with `Available`, `Status`, `ETag`, `Cached`, `Error` | The gate's `last_ok` and `probe_until` |
+
+Two things this fixes rather than merely relocates.
+
+**The circular dependency goes.** `CheckServerStatus` calls `/status/` *through* the rate limiter, so
+an exhausted `status` bucket makes the pre-flight return a `RateLimitError` and the task fail — even
+when TQ is perfectly healthy. The gate probe is the one call admitted while gated, so the check that
+decides whether we may call ESI is no longer subject to the budget it is deciding about.
+
+**The `status` bucket nearly empties.** It is 600/15m — our second smallest — and it exists almost
+entirely to answer a boolean for four task types. Probing only on uncertainty removes that standing
+cost. The probe keeps its `If-None-Match`, since a 304 costs 1 token against a 2xx's 2.
+
+`ServerStatusResponse` (`players`, `server_version`, `start_time`) is fetched and written to Redis and
+**read by nothing** — no caller outside `status.go` touches those fields. The payload and the
+`SaveServerStatus` / `GetServerStatus` pair in `shared/core/redis/server_status.go` go with it, unless
+we decide to surface player count somewhere, which would be a new feature rather than a port.
+
+With `compatibility_date.go` also going, the `worker/esi` package ceases to exist.
+
+### Request headers and transfer handling belong to the client
+
+`shared/httpclient.ApplyDefaultHeaders` supplies the User-Agent and nothing else, and every ESI call
+site retypes the rest: `Accept: application/json` and `Accept-Encoding: gzip` at four sites,
+`X-Compatibility-Date` at five, `Content-Type` at one. The client sets all of them — the User-Agent
+still through `shared/httpclient`, which stays the owner of that string.
+
+Setting `Accept-Encoding` by hand has a consequence worth naming, because it explains three copies of
+the same code: `http.Transport` only decompresses transparently when **it** added the header, so
+declaring it manually turns that off and each caller decodes for itself. `refreshSystemIndexes`,
+`refreshAdjustedPrices` and `regionMarketOrdersFetch` each build their own `gzip.NewReader`, while
+`tunedTransport` already has `DisableCompression: false`.
+
+Simply dropping the header would lose something real: `regionMarketOrdersFetch` wraps the body in a
+counting reader *before* decompression to record wire bytes in `TotalBytes`, and transparent
+decompression makes that unmeasurable. So the client keeps the explicit encoding and owns both
+halves — it counts compressed bytes, decompresses, and hands the caller a plain reader plus the
+transfer size on `Response`. One implementation, and the byte accounting survives.
+
+`Response` therefore carries `Bytes int64` (compressed, from the wire) alongside `Body`, and `Stream`
+returns an already-decompressed reader.
+
 ### The compatibility date is per endpoint
 
 `X-Compatibility-Date` determines the **shape of the response**, so it belongs with the code that
@@ -817,8 +871,11 @@ production caller.
 
 ### Stage D — Worker cutover
 
-Convert `worker/esi`, `worker/tasks/esi` and `worker/app.go` to the new client, and delete
-`worker/ratelimiter` entirely — package, both implementations, and its tests. Call sites gain an
+Convert `worker/tasks/esi` and `worker/app.go` to the new client, and delete `worker/ratelimiter`
+entirely — package, both implementations, and its tests. `worker/esi` goes too: its status check is
+absorbed by the downtime gate and its compatibility constant by the policy table, leaving nothing in
+the package. The four `CheckServerStatus` pre-flights and `HandleStatusCheckResult` are removed
+rather than rewired, and `shared/core/redis/server_status.go` goes with them. Call sites gain an
 `Identity` where authenticated; `Class` comes from the task definition rather than the call site, so
 `shared/nats/tasks.go` gains a `DefaultClass` alongside `DefaultPriority`.
 

@@ -4,6 +4,7 @@ export const OPEN_SENTRY_CRASH_REPORT = "openSentryCrashReport";
 
 /**
  * Opens the in-app crash report dialogue (MUI) linked to a Sentry error event.
+ *
  * @param {{ eventId: string, hint?: string }} payload
  */
 export function openSentryCrashReportDialogue(payload) {

@@ -37,9 +37,8 @@ type Server struct {
 	sessionHandoffs   map[string]*sessionHandoffEntry
 	sessionHandoffsMu sync.Mutex
 
-	// Active subscriptions (client_id -> map[docID]timestamp)
-	// Track subscriptions per client to preserve across reconnects
-	// Timestamp tracks last activity (connection/subscription) for cleanup of stale subscriptions
+	// client_id -> docID -> last activity. Kept per client so subscriptions
+	// survive a reconnect; the timestamp is what stale-subscription cleanup reads.
 	activeSubscriptions map[string]map[string]time.Time
 	activeSubsMu        sync.RWMutex
 
@@ -65,9 +64,7 @@ type Server struct {
 	docUpdateOutboundShards []chan docUpdateWork
 	outboundInFlight        atomic.Int64 // work currently inside a shard worker
 
-	// Sync queues (client_id -> sync queue)
-	// One sync per client at a time (enforced by queue)
-	// Uses types from sync package
+	// client_id -> sync queue. The queue is what enforces one sync per client.
 	SyncQueues  map[string]*syncpkg.SyncQueue
 	SyncSignals chan string // Channel signaling sync work available (clientID)
 	SyncMu      sync.RWMutex
@@ -166,7 +163,6 @@ func (s *Server) GetSyncMu() interface {
 }
 
 func (s *Server) GetClients() map[string]syncpkg.SyncClient {
-	// Convert map[string]*Client to map[string]syncpkg.SyncClient
 	result := make(map[string]syncpkg.SyncClient, len(s.Clients))
 	for k, v := range s.Clients {
 		result[k] = v

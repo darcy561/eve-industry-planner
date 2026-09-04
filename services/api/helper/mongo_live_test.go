@@ -451,9 +451,6 @@ func scratchJob(jobID, name string) models.Job {
 		Name:             name,
 		ItemID:           34,
 		DisplayOnPlanner: true,
-		APIJobs:          []int{},
-		APIOrders:        []int{},
-		APITransactions:  []int{},
 		ParentJobs:       []string{},
 		Build: models.JobBuild{
 			Setup:     map[string]models.JobSetup{},

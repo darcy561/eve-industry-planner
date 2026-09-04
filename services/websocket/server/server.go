@@ -79,7 +79,6 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 
 	s.initMetrics()
 
-	// Start coordinator goroutines
 	s.startIncomingCoordinator()
 
 	// Start sync coordinator
@@ -99,7 +98,6 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 
 	s.reconcileDocUpdateFanoutConsumers()
 
-	// Start cleanup goroutine for idle queues
 	s.startCleanupGoroutine()
 
 	// Placement state publisher (exits when shutdownChan closes after drain/Shutdown).

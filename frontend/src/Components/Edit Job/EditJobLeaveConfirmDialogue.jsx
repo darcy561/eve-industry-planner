@@ -5,9 +5,7 @@ import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
 /**
  * Confirmation dialogue shared between two flows:
  *
- *   - `navigation` (default): user is leaving the edit page with unsaved
  *     changes. Save/discard advance to the next route; cancel stays.
- *   - `release_request`: another session has requested edit access while we
  *     hold the lock. Save/discard hand over; cancel keeps the lock and is
  *     treated as a denial of the request.
  *

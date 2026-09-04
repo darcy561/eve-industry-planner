@@ -19,18 +19,6 @@ import useUsersStore from "../../Zustand/usersStore";
  * @param {Array<number>} oreIDsToBeIgnored - Array of ore IDs to exclude from selection
  * @param {Object} reprocessingCalculationSettings - Settings for ore selection algorithm
  * @returns {Promise<Object>} Promise that resolves to ore selection results
- *
- * @example
- * const result = await reprocessFromMinerals(
- *   "1000 Tritanium",
- *   { reprocessing: 5 },
- *   { reprocessingYield: 0.5 },
- *   "jita",
- *   "sell",
- *   [123, 456],
- *   { preferCompressed: true }
- * );
- * console.log(result.oreSelection); // Selected ores
  */
 async function reprocessFromMinerals(
   inputString,

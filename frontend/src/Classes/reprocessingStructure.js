@@ -17,47 +17,15 @@ function coerceFiniteNumber(value, fallback = 0) {
 
 /**
  * ReprocessingStructure class for EVE Online reprocessing facility configurations.
- * 
- * This class represents a reprocessing structure configuration for:
- * - Ore, gas, ice, and moon ore reprocessing
- * - Structure and rig configuration for optimal yields
- * - System type and implant bonuses
- * - Tax rate and default structure management
- * - Reprocessing efficiency calculations
- * 
+ *
  * The ReprocessingStructure class provides comprehensive reprocessing management:
- * - Structure type selection for different reprocessing types
- * - Dual rig slot configuration for maximum efficiency
- * - System type and implant bonus integration
- * - Tax rate configuration for cost calculation
- * - Default structure designation
- * - Reprocessing yield calculation methods
- * 
+ *
  * @class ReprocessingStructure
- * @example
- * // Create a new reprocessing structure
- * const structure = new ReprocessingStructure({
- *   name: 'My Reprocessing Facility',
- *   structureType: 12345,
- *   rigSlot1: 67890,
- *   rigSlot2: 11111
- * });
- * 
- * @example
- * // Calculate reprocessing yields
- * const oreYield = structure.findStructureValueFromReprocessingItemType(reprocessingItemTypes.ore);
- * const rigYield = structure.findRigValueFromReprocessingItemType(reprocessingItemTypes.ore);
- * 
- * @example
- * // Update structure configuration
- * structure.setStructureType(54321);
- * structure.setRigSlot1(22222);
- * structure.setTax(0.05);
  */
 class ReprocessingStructure {
   /**
    * Creates a new ReprocessingStructure instance.
-   * 
+   *
    * @param {Object} existingValue - Existing structure data or null for new structure
    * @param {string} [existingValue.id] - Structure ID
    * @param {string} [existingValue.name] - Structure name
@@ -86,7 +54,7 @@ class ReprocessingStructure {
 
   /**
    * Sets the structure type ID.
-   * 
+   *
    * @param {number} id - Structure type ID
    */
   setStructureType(id) {
@@ -95,7 +63,7 @@ class ReprocessingStructure {
 
   /**
    * Sets the system type ID.
-   * 
+   *
    * @param {number} id - System type ID
    */
   setSystemType(id) {
@@ -104,7 +72,7 @@ class ReprocessingStructure {
 
   /**
    * Sets the first rig slot ID.
-   * 
+   *
    * @param {number} id - Rig slot 1 ID
    */
   setRigSlot1(id) {
@@ -113,7 +81,7 @@ class ReprocessingStructure {
 
   /**
    * Sets the second rig slot ID.
-   * 
+   *
    * @param {number} id - Rig slot 2 ID
    */
   setRigSlot2(id) {
@@ -122,7 +90,7 @@ class ReprocessingStructure {
 
   /**
    * Sets the implant ID.
-   * 
+   *
    * @param {number} id - Implant ID
    */
   setImplant(id) {
@@ -131,7 +99,7 @@ class ReprocessingStructure {
 
   /**
    * Sets the structure name with input sanitisation.
-   * 
+   *
    * @param {string} name - Structure name to set
    */
   setName(name) {
@@ -143,7 +111,7 @@ class ReprocessingStructure {
 
   /**
    * Sets the tax rate for this structure.
-   * 
+   *
    * @param {number} tax - Tax rate (0-1)
    */
   setTax(tax) {
@@ -152,7 +120,7 @@ class ReprocessingStructure {
 
   /**
    * Sets whether this structure is the default for reprocessing.
-   * 
+   *
    * @param {boolean} isDefault - Whether this is the default structure
    */
   setDefault(isDefault) {
@@ -161,18 +129,9 @@ class ReprocessingStructure {
 
   /**
    * Finds the maximum rig value applicable to a specific reprocessing item type.
-   * 
-   * This method calculates the rig bonus for a specific item type:
-   * - Checks both rig slots for applicable rigs
-   * - Returns the maximum rig value that applies to the item type
-   * - Returns 0 if no rigs apply to the item type
-   * 
+   *
    * @param {number} itemType - Reprocessing item type (ore, gas, ice, moon ore)
    * @returns {number} Maximum rig value applicable to the item type
-   * 
-   * @example
-   * // Get rig bonus for ore reprocessing
-   * const oreRigBonus = structure.findRigValueFromReprocessingItemType(reprocessingItemTypes.ore);
    */
   findRigValueFromReprocessingItemType(itemType = 0) {
     const rigObjects = [
@@ -191,18 +150,9 @@ class ReprocessingStructure {
 
   /**
    * Finds the structure value applicable to a specific reprocessing item type.
-   * 
-   * This method calculates the structure bonus for a specific item type:
-   * - Returns ore bonus for ore, moon ore, and ice
-   * - Returns gas bonus for gas
-   * - Returns 0 for other item types
-   * 
+   *
    * @param {number} itemType - Reprocessing item type (ore, gas, ice, moon ore)
    * @returns {number} Structure value applicable to the item type
-   * 
-   * @example
-   * // Get structure bonus for ore reprocessing
-   * const oreStructureBonus = structure.findStructureValueFromReprocessingItemType(reprocessingItemTypes.ore);
    */
   findStructureValueFromReprocessingItemType(itemType = 0) {
     const structureObject = getStructureInfoFromID(
@@ -226,7 +176,7 @@ class ReprocessingStructure {
 
   /**
    * Converts the structure to a document object for storage.
-   * 
+   *
    * @returns {Object} Document object ready for storage
    */
   toDocument() {

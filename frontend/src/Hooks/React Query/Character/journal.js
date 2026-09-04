@@ -8,21 +8,16 @@ const characterJournalQueryKey = "characterJournal";
 
 /**
  * React Query configuration for fetching character journal from EVE ESI API.
- * 
+ *
  * This query handles character journal data fetching with:
- * - Pagination support for large journal collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimised for journal data
- * - Error handling with descriptive messages
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for character group
  * 2. Fetches journal entries page by page until all data is retrieved
  * 3. Combines all pages into a single array
  * 4. Handles rate limiting errors with appropriate wait times
  * 5. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -34,13 +29,6 @@ const characterJournalQueryKey = "characterJournal";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: journal, isLoading, error } = useQuery(characterJournalQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading journal...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Journal: {journal.length} entries</div>;
  */
 function characterJournalQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

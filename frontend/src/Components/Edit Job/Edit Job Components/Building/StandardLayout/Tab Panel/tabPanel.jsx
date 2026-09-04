@@ -14,7 +14,7 @@ export function TabPanel_Building(props) {
   function initialTab() {
     if (state.activeJob.layout.esiJobTab) {
       return state.activeJob.layout.esiJobTab;
-    } else if (state.activeJob.apiJobs.size < state.activeJob.totalJobSlots) {
+    } else if (state.activeJob.esiJobIDs.size < state.activeJob.totalJobSlots) {
       return "0";
     } else {
       return "1";

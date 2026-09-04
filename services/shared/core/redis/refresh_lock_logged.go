@@ -8,14 +8,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// AcquireRefreshLock acquires a distributed lock to prevent concurrent refresh operations for the same resource.
-// The lock is identified by lockKey (e.g., "esi:industry_systems:refresh_lock") and ensures only one refresh
-// task processes data for that resource at a time. If another refresh is already in progress, this function
-// returns false to prevent duplicate work.
+// AcquireRefreshLockLogged takes the refresh lock named by lockKey (e.g.
+// "esi:industry_systems:refresh_lock"), so only one task refreshes that resource
+// at a time.
 //
-// Returns the cleanup function and a boolean indicating if processing should continue.
-// If cleanup is returned and shouldContinue is true, the caller must call defer cleanup() to release the lock.
-// If shouldContinue is false, another refresh is in progress and the caller should return (not an error).
+// shouldContinue false means another refresh holds the lock and the caller
+// should return without treating it as an error. When it is true the caller must
+// `defer cleanup()`.
 func AcquireRefreshLockLogged(ctx context.Context, redisClient *redis.Client, lockKey string) (cleanup func(), shouldContinue bool) {
 	lockAcquired, cleanupFunc, err := AcquireRefreshLock(ctx, redisClient, lockKey)
 	if err != nil {

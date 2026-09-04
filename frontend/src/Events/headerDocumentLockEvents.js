@@ -36,6 +36,7 @@ export function patchHeaderDocumentLockUI(partial) {
 
 /**
  * Remove app bar document lock context (e.g. on route unmount).
+ *
  * @returns {void}
  */
 export function clearHeaderDocumentLockUI() {

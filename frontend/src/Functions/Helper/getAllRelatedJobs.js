@@ -8,9 +8,6 @@ import useUsersStore from "../../Zustand/usersStore";
  * @returns {Array<Object>} Related job objects from `jobArray`
  *
  * @throws {Error} Throws if inputJobIDs is missing or invalid type
- *
- * @example
- * const relatedJobs = getAllRelatedJobs("job_123");
  */
 
 function getAllRelatedJobs(inputJobIDs) {

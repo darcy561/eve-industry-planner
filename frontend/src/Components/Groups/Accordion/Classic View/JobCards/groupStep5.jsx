@@ -23,7 +23,7 @@ export default function GroupStep5JobCard({ job }) {
         </Box>
         <Box sx={{ flex: "0 0 16.666%", textAlign: "right", paddingRight: { xs: 2, md: 3 } }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.apiOrders.size, { max: 0 })}
+            {formatNumberForLocale(job.esiOrderIDs.size, { max: 0 })}
           </Typography>
         </Box>
       </Box>
@@ -35,7 +35,7 @@ export default function GroupStep5JobCard({ job }) {
         </Box>
         <Box sx={{ flex: "0 0 16.666%", textAlign: "right", paddingRight: { xs: 2, md: 3 } }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.apiTransactions.size, { max: 0 })}
+            {formatNumberForLocale(job.esiTransactionIDs.size, { max: 0 })}
           </Typography>
         </Box>
       </Box>

@@ -14,6 +14,7 @@ import { selectSlotPackedStrategy } from "./packedSlotSelection";
 
 /**
  * Scheduling strategy types.
+ *
  * @readonly
  * @enum {number}
  */
@@ -65,9 +66,6 @@ export const SchedulingStrategy = {
  * Schedules a set of tasks across characters with limited slots.
  *
  * Heuristic:
- * - Respect all parent/child constraints (DAG-based).
- * - Always start tasks as early as possible given dependencies.
- * - Prefer characters that are already used for the activity type when
  *   there are ties, to keep schedules compact.
  *
  * @param {Object} params

@@ -3,6 +3,7 @@ import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts
 
 /**
  * First matching job per ID (same as repeated `.find()` on a concatenated list).
+ *
  * @param {Array<{ jobID: unknown } | null | undefined>} jobs
  * @returns {Map<unknown, any>}
  */

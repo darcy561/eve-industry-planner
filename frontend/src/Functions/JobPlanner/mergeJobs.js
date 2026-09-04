@@ -11,8 +11,6 @@ import { showSnackbarError, showSnackbarSuccess } from "../../Events/snackbarEve
  * Merges duplicate jobs (same itemID) into replacement jobs.
  *
  * Notes:
- * - Only selected jobs are candidates for merge.
- * - Relationship normalisation is scoped to touched jobs only, so links to jobs
  *   outside the touched set are preserved as-is.
  *
  * @param {string[]|Set<string>|string} inputJobIDs
@@ -204,9 +202,9 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   for (const oldJobID of oldJobIDsToRemove) {
     const oldJob = findJobInJobArray(oldJobID);
     if (!oldJob) continue;
-    for (const id of oldJob.apiJobs ?? []) linkedJobIdsToRemove.add(id);
-    for (const id of oldJob.apiOrders ?? []) linkedOrderIdsToRemove.add(id);
-    for (const id of oldJob.apiTransactions ?? []) linkedTransIdsToRemove.add(id);
+    for (const id of oldJob.esiJobIDs) linkedJobIdsToRemove.add(id);
+    for (const id of oldJob.esiOrderIDs) linkedOrderIdsToRemove.add(id);
+    for (const id of oldJob.esiTransactionIDs) linkedTransIdsToRemove.add(id);
   }
 
   if (isLoggedIn) {

@@ -14,10 +14,8 @@ import (
 //     elect leaders for each other),
 //   - `lease:` prefix on the lease key (convention).
 //
-// We pass nil for *stackservices.Clients because the catalogue's job
-// constructors only consume the clients lazily inside their Run closures.
-// If a future constructor starts touching clients at build time it'll need
-// a real bundle; that's the right time to revisit this test.
+// nil *stackservices.Clients is enough because the job constructors consume the
+// clients lazily, inside their Run closures.
 func TestAllJobs_CatalogIsValid(t *testing.T) {
 	t.Parallel()
 

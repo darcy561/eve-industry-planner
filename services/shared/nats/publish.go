@@ -16,19 +16,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// PublishTask publishes a task message to NATS JetStream with retry logic.
-// The payload is automatically marshaled and wrapped in a TaskMessage structure.
-// W3C propagated context from ctx is attached to the NATS message (traceparent, tracestate, baggage)
-// and copied into Asynq task headers by the worker subscriber. Handlers should log with
-// logs.InfoCtx(ctx, ...), WarnCtx, or ErrorCtx so OTLP logs stay linked to the API span.
-// Optional trailing args can be *natslib.Conn (for connection check on retry) and/or a priority
-// queue name (e.g. "priority_5") to override the task type default. Order does not matter.
+// PublishTask marshals payload into a TaskMessage and publishes it to JetStream,
+// retrying on connection and stream errors.
 //
-// Examples:
+// W3C trace context from ctx rides on the message and is copied into the Asynq
+// task headers by the worker subscriber, so a handler logging through
+// logs.InfoCtx and friends stays linked to the API span.
 //
-//	PublishTask(ctx, js, subject, "refreshRegionMarketOrders", request)
-//	PublishTask(ctx, js, subject, "refreshRegionMarketOrders", request, natsConn)
-//	PublishTask(ctx, js, subject, "migrateUserDocumentToMongo", payload, natsConn, "priority_5")
+// Optional trailing args, in any order: a *natslib.Conn to check on retry, and a
+// priority queue name (e.g. "priority_5") overriding the task type's default.
 func (n *NATS) PublishTask(ctx context.Context, subject string, taskType string, payload any) (err error) {
 
 	var payloadJSON json.RawMessage
@@ -68,14 +64,8 @@ func (n *NATS) PublishTask(ctx context.Context, subject string, taskType string,
 	return n.Publish(ctx, subject, msg)
 }
 
-// PublishEmpty publishes an empty message to NATS JetStream with retry logic.
-// Used for simple trigger messages where no data is needed.
-// Retries up to 5 times with exponential backoff on connection/stream errors.
-// If natsConn is provided, it will check connection status and retry on failure.
-//
-// Example:
-//
-//	PublishEmpty(js, subject, natsConn...)
+// PublishEmpty publishes a bodiless trigger message, retrying up to five times
+// with exponential backoff on connection and stream errors.
 func (n *NATS) PublishEmpty(ctx context.Context, subject string) error {
 	msg := Message{
 		Type: MessageTypeEmpty,

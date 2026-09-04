@@ -26,13 +26,14 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
 
         const uniqueJobIds = new Set();
         const removeSet = new Set(esiDataToLink.industryJobs.remove);
+        const alreadyLinkedToThisJob = activeJob.esiJobIDs;
 
         const matches = allIndustryJobs.filter((job) => {
           if (uniqueJobIds.has(job.job_id)) return false;
           uniqueJobIds.add(job.job_id);
 
           const isCorrectType = job.product_type_id === activeJob.itemID;
-          const isNotInActiveApiJobs = !activeJob.apiJobs.has(job.job_id);
+          const isNotInActiveApiJobs = !alreadyLinkedToThisJob.has(job.job_id);
           const isLinkedButBeingRemoved =
             linkedJobs.has(job.job_id) && removeSet.has(job.job_id);
           const isNotLinked = !linkedJobs.has(job.job_id);

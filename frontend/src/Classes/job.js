@@ -18,6 +18,7 @@ function normalizeExtrasCostCategoryString(category) {
 
 /**
  * Ensures each extras row's `category` matches API/Go `ExtraCost.category` (string).
+ *
  * @param {Array<Record<string, unknown>>} rows
  */
 function normalizeExtrasCostsIncoming(rows) {
@@ -34,59 +35,15 @@ function normalizeExtrasCostsIncoming(rows) {
 }
 
 /**
- * Main Job class for EVE Online industry planning and management.
+ * An industry job: its setups, materials, costs, and the ESI rows linked to it.
  *
- * This class represents a complete industry job in EVE Online, handling:
- * - Manufacturing and reaction job types with full material tracking
- * - Job setup management with multiple configurations per job
- * - Cost tracking including materials, installation, and extras
- * - ESI API integration for linked jobs, orders, and transactions
- * - Parent-child job relationships for complex production chains
- * - Material purchasing and completion tracking
- * - Market order and transaction management for sales
- * - Job status progression and lifecycle management
- *
- * The Job class provides comprehensive industry planning capabilities:
- * - Multi-setup job configurations with different structures and parameters
- * - Material requirement calculation and purchasing tracking
- * - Cost analysis including installation fees and extras
- * - ESI API integration for real-time job and market data
- * - Parent-child job relationships for production chains
- * - Sales tracking with market orders and transactions
- * - Job status management and progression tracking
+ * Figures the job derives — costs, totals and quantities — are getters computed
+ * from the rows they come from, so none of them can fall behind an edit.
  *
  * @class Job
- * @example
- * // Create a new manufacturing job
- * const job = new Job({
- *   jobType: jobTypes.manufacturing,
- *   name: "Tritanium",
- *   volume: 1000,
- *   itemID: 34,
- *   maxProductionLimit: 10000
- * });
- *
- * @example
- * // Create job from existing data
- * const job = new Job(existingJobData, buildRequest);
- * job.buildJobObject(itemJson, buildRequest);
- *
- * @example
- * // Link ESI job to track real-time progress
- * job.linkESIJob(esiJobData, jobOwner);
- *
- * @example
- * // Record a material purchase
- * job.importPurchaseToMaterial(materialID, purchase);
- *
- * @example
- * // Add market order for sales
- * job.addMarketOrder(orderData, brokersFee);
  */
 class Job {
   /**
-   * Creates a new Job instance for EVE Online industry planning.
-   *
    * @param {Object} itemJson - Job data object containing job configuration
    * @param {number} itemJson.jobType - Type of job (manufacturing, reaction, etc.)
    * @param {string} itemJson.name - Name of the item being produced
@@ -96,9 +53,6 @@ class Job {
    * @param {string} [itemJson.jobID] - Unique job identifier
    * @param {number} [itemJson.jobStatus] - Current job status (0-3)
    * @param {number} [itemJson.metaGroup] - Meta level of the item
-   * @param {Set<number>} [itemJson.apiJobs] - Set of linked ESI job IDs
-   * @param {Set<number>} [itemJson.apiOrders] - Set of linked ESI order IDs
-   * @param {Set<number>} [itemJson.apiTransactions] - Set of linked ESI transaction IDs
    * @param {Array<string>} [itemJson.parentJobs] - Array of parent job IDs
    * @param {number} [itemJson.blueprintTypeID] - Blueprint type ID
    * @param {string|null} [itemJson.groupID] - Group ID when the job belongs to a group (omit or null when not grouped)
@@ -124,9 +78,6 @@ class Job {
     this.volume = itemJson.volume;
     this.itemID = itemJson.itemID;
     this.maxProductionLimit = itemJson.maxProductionLimit;
-    this.apiJobs = new Set(itemJson?.apiJobs || []);
-    this.apiOrders = new Set(itemJson?.apiOrders || []);
-    this.apiTransactions = new Set(itemJson?.apiTransactions || []);
     this.parentJobs =
       itemJson?.parentJobs ||
       itemJson?.parentJob ||
@@ -166,9 +117,6 @@ class Job {
     this.build.sale.transactions = normalizeTransactions(
       this.build.sale.transactions,
     );
-    this.apiTransactions = new Set(
-      [...this.apiTransactions].map((id) => normalizeTransactionID(id)),
-    );
     this.rawData = itemJson?.rawData || {};
     this.skills = itemJson?.skills || [];
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
@@ -206,34 +154,12 @@ class Job {
   }
 
   /**
-   * Builds the job object with material data and child job relationships.
-   *
-   * This method processes the raw EVE API data and builds the complete job structure:
-   * - Extracts material requirements from manufacturing or reaction activities
-   * - Sets up material tracking with purchasing arrays and completion status
-   * - Establishes child job relationships for material production
-   * - Sorts materials alphabetically for consistent display
-   * - Sets the first setup as the default for editing
-   *
    * @param {Object} itemJson - Raw EVE API item data
    * @param {Object} itemJson.activities - Activity data from EVE API
    * @param {Object} itemJson.activities.manufacturing - Manufacturing activity data
    * @param {Object} itemJson.activities.reaction - Reaction activity data
    * @param {Object} buildRequest - Build request configuration
    * @param {Object} [buildRequest.childJobs] - Child jobs configuration
-   *
-   * @example
-   * // Build job from EVE API data
-   * job.buildJobObject({
-   *   activities: {
-   *     manufacturing: {
-   *       materials: [...],
-   *       products: [...],
-   *       time: 3600,
-   *       skills: [...]
-   *     }
-   *   }
-   * }, buildRequest);
    */
   buildJobObject(itemJson, buildRequest) {
     if (itemJson.jobType === jobTypes.manufacturing) {
@@ -284,21 +210,10 @@ class Job {
   }
 
   /**
-   * Converts the job instance to a document object for storage.
-   *
-   * This method serialises the job data for persistence:
-   * - Converts Sets to Arrays for JSON serialisation
-   * - Recursively converts Setup objects to documents
-   * - `build.costs.extrasCosts[]` stays in SPA form: `{ id, category, extraText, extraValue }` (see Extras panel; `category` is string id, e.g. `"0"`…`"5"`)
-   * - Preserves all job configuration and state data
-   * - Maintains data integrity for storage and retrieval
+   * `build.costs.extrasCosts[]` stays in SPA form: `{ id, category, extraText,
+   * extraValue }`, with `category` as the string id.
    *
    * @returns {Object} Document object ready for storage
-   *
-   * @example
-   * // Convert job to document for storage
-   * const jobDocument = job.toDocument();
-   * await saveJobToDatabase(jobDocument);
    */
   toDocument() {
     return {
@@ -310,9 +225,6 @@ class Job {
       volume: this.volume,
       itemID: this.itemID,
       maxProductionLimit: this.maxProductionLimit,
-      apiJobs: [...this.apiJobs],
-      apiOrders: [...this.apiOrders],
-      apiTransactions: [...this.apiTransactions],
       parentJobs: this.parentJobs,
       blueprintTypeID: this.blueprintTypeID,
       groupID: this.groupID ?? "",
@@ -351,8 +263,8 @@ class Job {
   }
 
   /**
-   * Parent job IDs (canonical planner links), each as a string.
-   * Normalises legacy `parentJob` singular shapes that may not be arrays on hydrated docs.
+   * Parent job IDs, each as a string. A hydrated document may carry `parentJob` as
+   * a single value rather than an array.
    *
    * @returns {string[]}
    */
@@ -362,40 +274,58 @@ class Job {
     return (Array.isArray(raw) ? raw : [raw]).map((id) => String(id));
   }
 
+  /**
+   * The ESI industry jobs linked to this job. These ids release the run back to
+   * the account when the job is archived, deleted or merged.
+   *
+   * @returns {Set<number>}
+   */
+  get esiJobIDs() {
+    return new Set(
+      this.build.costs.linkedJobs.map((linkedJob) => linkedJob.job_id),
+    );
+  }
 
   /**
-   * Gets all related job IDs (parent and child jobs).
-   *
+   * @returns {Set<number>} The ESI market orders linked to this job
+   */
+  get esiOrderIDs() {
+    return new Set(this.build.sale.marketOrders.map((order) => order.order_id));
+  }
+
+  /**
+   * @returns {Set<number>} The ESI transactions linked to this job
+   */
+  get esiTransactionIDs() {
+    return new Set(
+      this.build.sale.transactions.map((transaction) =>
+        normalizeTransactionID(transaction.transaction_id),
+      ),
+    );
+  }
+
+  /**
    * @returns {Array<string>} Array of related job IDs
    */
   get relatedJobIDs() {
     return [...this.parentJobIDs, ...this.childJobIDs];
   }
 
-
   /**
-   * Gets all child job IDs for this job.
-   *
    * @returns {Array<string>} Array of child job IDs
    */
   get childJobIDs() {
     return Object.values(this.build.childJobs).flat();
   }
 
-
   /**
-   * Gets all material type IDs used in this job.
-   *
    * @returns {Array<number>} Array of material type IDs
    */
   get materialIDs() {
     return [this.itemID, ...Object.keys(this.build.childJobs).map(Number)];
   }
 
-
   /**
-   * Gets all system IDs used in job setups.
-   *
    * @returns {Array<number>} Array of system IDs
    */
   get setupSystemIDs() {
@@ -406,24 +336,15 @@ class Job {
     ];
   }
 
-
-  /**
-   * Advances the job status by one step.
-   */
   stepForward() {
     this.jobStatus++;
   }
 
-  /**
-   * Reverses the job status by one step.
-   */
   stepBackward() {
     this.jobStatus--;
   }
 
   /**
-   * Sets the job status to a specific value.
-   *
    * @param {number} statusID - The status ID to set (0-3)
    */
   setJobStatus(statusID) {
@@ -433,12 +354,6 @@ class Job {
   }
 
   /**
-   * Links an ESI job to this job for real-time tracking.
-   *
-   * This method connects an EVE Online ESI job to track its progress:
-   * - Adds the ESI job ID to the tracked jobs set
-   * - Creates a LinkedESIJob instance for detailed tracking
-   *
    * The linked rows are what the installs cost — see {@link Job#totalInstallCost}
    * — so there is no separate total to keep in step.
    *
@@ -448,52 +363,28 @@ class Job {
    * @param {Object} jobOwner - The character the job was read for
    * @param {string} jobOwner.CharacterHash
    * @param {number} [jobOwner.CharacterID]
-   *
-   * @example
-   * job.linkESIJob(esiJob, { CharacterHash: "ABC123", CharacterID: 94800326 });
    */
   linkESIJob(esiJob, jobOwner) {
     if (!esiJob || !jobOwner) return;
-    this.apiJobs.add(esiJob.job_id);
     this.build.costs.linkedJobs.push(LinkedESIJob.fromESI(esiJob, jobOwner));
   }
 
   /**
-   * Unlinks an ESI job from this job.
-   *
-   * This method removes the connection to an ESI job:
-   * - Removes the ESI job ID from tracked jobs
-   * - Removes the linked job from the costs array
-   *
    * Its install cost goes with it, because {@link Job#totalInstallCost} reads the
    * remaining rows.
    *
    * @param {Object} linkedJob - Linked ESI job object to remove
    * @param {number} linkedJob.job_id - ESI job ID to remove
-   *
-   * @example
-   * // Unlink an ESI job
-   * job.unlinkESIJob({
-   *   job_id: 12345,
-   *   cost: 1000000
-   * });
    */
   unlinkESIJob(linkedJob) {
     if (!linkedJob) return;
-    this.apiJobs.delete(linkedJob.job_id);
     this.build.costs.linkedJobs = this.build.costs.linkedJobs.filter(
       (i) => i.job_id !== linkedJob.job_id,
     );
   }
 
   /**
-   * Adds an extra cost item to the job.
-   *
    * Canonical row shape (same as Extras panel): `{ id, category, extraText, extraValue }`.
-   * - `id` — string UUID (e.g. react-uuid)
-   * - `category` — extras category id as string (`"0"` = unassigned; matches `ExtraCategory.id`)
-   * - `extraText` — label / description (HTML sanitised in UI before add)
-   * - `extraValue` — ISK amount (number)
    *
    * @param {Object} newItem - Extra cost row
    * @param {string} newItem.id
@@ -510,8 +401,6 @@ class Job {
   }
 
   /**
-   * Removes an extra cost item from the job.
-   *
    * @param {Object} item - Extra cost item to remove
    * @param {string} item.id - Unique identifier for the cost item
    */
@@ -522,8 +411,6 @@ class Job {
     );
   }
   /**
-   * Adds an invention cost to the job.
-   *
    * @param {Object} inputObject - Invention cost object
    * @param {string} inputObject.id - Unique identifier
    * @param {number} inputObject.itemCost - Cost of the invention item
@@ -534,8 +421,6 @@ class Job {
   }
 
   /**
-   * Removes an invention cost from the job.
-   *
    * @param {Object} inputObject - Invention cost object to remove
    * @param {string} inputObject.id - Unique identifier
    * @param {number} inputObject.itemCost - Cost to subtract
@@ -547,8 +432,6 @@ class Job {
   }
 
   /**
-   * Gets the number of setups configured for this job.
-   *
    * @returns {number} Number of setups
    */
   get setupCount() {
@@ -556,15 +439,12 @@ class Job {
   }
 
   /**
-   * Gets the count of completed materials.
-   *
    * @returns {number} Number of completed materials
    */
   get completedMaterialCount() {
     return this.build.materials.filter((material) => material.purchaseComplete)
       .length;
   }
-
 
   /**
    * True when the job has at least one material and every material is purchase-complete.
@@ -588,13 +468,10 @@ class Job {
     const status = Number(this.jobStatus);
     if (status === 3 || status === 4) return false;
     if (!this.isReadyToBuild) return false;
-    return (this.apiJobs?.size ?? 0) === 0;
+    return this.esiJobIDs.size === 0;
   }
 
-
   /**
-   * Gets the count of remaining materials to purchase.
-   *
    * @returns {number} Number of remaining materials
    */
   get remainingMaterialCount() {
@@ -602,10 +479,7 @@ class Job {
       .length;
   }
 
-
   /**
-   * Gets the total job count across all setups.
-   *
    * @returns {number} Total job count
    */
   get totalJobSlots() {
@@ -615,9 +489,11 @@ class Job {
     );
   }
 
-
   /**
-   * The total sum of install costs for linked esi jobs.
+   * Summed from the linked rows at call time, so linking or unlinking a run moves
+   * it and there is no stored total to keep in step.
+   *
+   * Backend twin: `models.Job.TotalInstallCost`.
    *
    * @returns {number} Install cost
    */
@@ -631,9 +507,7 @@ class Job {
   /**
    * What the extras cost, summed from the rows the Extras panel keeps.
    *
-   * Read from the rows on every call, so adding, removing or editing one is
-   * reflected at once. `models.Job.TotalExtrasCost` is the same method on the
-   * backend.
+   * Backend twin: `models.Job.TotalExtrasCost`.
    *
    * @returns {number} Extras total
    */
@@ -647,9 +521,7 @@ class Job {
   /**
    * What invention cost, summed from the entries recorded against the job.
    *
-   * Read from the entries on every call, so adding, removing or editing one is
-   * reflected at once. `models.Job.TotalInventionCost` is the same method on the
-   * backend.
+   * Backend twin: `models.Job.TotalInventionCost`.
    *
    * @returns {number} Invention total
    */
@@ -697,7 +569,6 @@ class Job {
     );
   }
 
-
   /**
    * Fees taken on the sales.
    *
@@ -713,7 +584,6 @@ class Job {
     );
   }
 
-
   /**
    * What the sales brought in.
    *
@@ -725,7 +595,6 @@ class Job {
       0,
     );
   }
-
 
   /**
    * What the materials cost the job: what each material's purchases bought,
@@ -743,9 +612,6 @@ class Job {
   /**
    * How many of a material the job's setups call for.
    *
-   * Summed from the setups on every call, so a setup added, removed or resized
-   * moves what each material needs with it.
-   *
    * @param {number} typeID - EVE type id of the material
    * @returns {number} Quantity required
    */
@@ -759,10 +625,7 @@ class Job {
   /**
    * How many items the job produces: what its setups are set to make.
    *
-   * Worked out from the setups on every call, so a setup added, removed or
-   * resized is reflected immediately and nothing is stored that could fall
-   * behind them. `models.Job.TotalQuantityProduced` is the same method on the
-   * backend.
+   * Backend twin: `models.Job.TotalQuantityProduced`.
    *
    * @returns {number} Items produced
    */
@@ -825,14 +688,6 @@ class Job {
   }
 
   /**
-   * Removes child jobs from a specific material type.
-   *
-   * This method removes child job IDs from a material's child job list:
-   * - Validates input parameters
-   * - Checks if the material type exists
-   * - Handles both single IDs and arrays/sets of IDs
-   * - Filters out the specified child job IDs
-   *
    * @param {number} materialTypeID - Type ID of the material
    * @param {string|Array<string>|Set<string>} childIDToRemove - Child job ID(s) to remove
    */
@@ -864,13 +719,6 @@ class Job {
   /**
    * Removes child jobs that are not included in the provided job IDs from all materials.
    *
-   * This method filters child jobs across all materials to keep only those
-   * that are included in the provided job ID list:
-   * - Validates input parameters
-   * - Handles both single IDs and arrays/sets of IDs
-   * - Filters child jobs for each material type
-   * - Keeps only child jobs that are in the included list
-   *
    * @param {string|Array<string>|Set<string>} includedJobIDs - Job IDs to keep
    */
   removeChildJobsNotIncludedInInputFromAllMaterials(includedJobIDs) {
@@ -893,12 +741,6 @@ class Job {
 
   /**
    * Adds child jobs to a specific material type.
-   *
-   * This method adds child job IDs to a material's child job list:
-   * - Validates input parameters and material existence
-   * - Handles both single IDs and arrays/sets of IDs
-   * - Merges new child jobs with existing ones
-   * - Removes duplicates using Set
    *
    * @param {number} materialTypeID - Type ID of the material
    * @param {string|Array<string>|Set<string>} childIDToAdd - Child job ID(s) to add
@@ -929,12 +771,6 @@ class Job {
   /**
    * Adds parent jobs to this job.
    *
-   * This method adds parent job IDs to the job's parent list:
-   * - Validates input parameters
-   * - Handles both single IDs and arrays/sets of IDs
-   * - Merges new parent jobs with existing ones
-   * - Removes duplicates using Set
-   *
    * @param {string|Array<string>|Set<string>} parentJobID - Parent job ID(s) to add
    */
   addParentJob(parentJobID) {
@@ -955,11 +791,6 @@ class Job {
 
   /**
    * Removes parent jobs from this job.
-   *
-   * This method removes parent job IDs from the job's parent list:
-   * - Validates input parameters
-   * - Handles both single IDs and arrays/sets of IDs
-   * - Filters out the specified parent job IDs
    *
    * @param {string|Array<string>|Set<string>} parentJobID - Parent job ID(s) to remove
    */
@@ -983,12 +814,6 @@ class Job {
 
   /**
    * Removes parent jobs that are not included in the provided job IDs.
-   *
-   * This method filters parent jobs to keep only those that are included
-   * in the provided job ID list:
-   * - Validates input parameters
-   * - Handles both single IDs and arrays/sets of IDs
-   * - Filters parent jobs to keep only included ones
    *
    * @param {string|Array<string>|Set<string>} includedJobIDs - Job IDs to keep
    */
@@ -1042,7 +867,6 @@ class Job {
     }
   }
 
-
   /**
    * Records a purchase against one of the job's materials.
    *
@@ -1090,12 +914,6 @@ class Job {
   /**
    * Adds transaction data to the job's sales tracking.
    *
-   * This method processes and adds transaction data:
-   * - Handles both single transactions and arrays
-   * - Assigns order IDs to transactions
-   * - Adds transaction IDs to the API transactions set
-   * - Sorts transactions by date (newest first)
-   *
    * @param {Object|Array<Object>} transaction - Transaction data or array of transactions
    * @param {number} [activeOrder] - Active order ID to assign to transactions
    */
@@ -1114,10 +932,6 @@ class Job {
         trans.order_id = this.build.sale.marketOrders[0].order_id;
       }
     }
-    transactionsToAdd.forEach((trans) =>
-      this.apiTransactions.add(trans.transaction_id),
-    );
-
     this.build.sale.transactions = [
       ...this.build.sale.transactions,
       ...transactionsToAdd,
@@ -1130,10 +944,6 @@ class Job {
   /**
    * Removes a transaction from the job's sales tracking.
    *
-   * This method removes transaction data:
-   * - Removes transaction from the transactions array
-   * - Removes transaction ID from the API transactions set
-   *
    * @param {Object} transaction - Transaction object to remove
    * @param {number} transaction.transaction_id - Transaction ID to remove
    */
@@ -1142,17 +952,10 @@ class Job {
     this.build.sale.transactions = this.build.sale.transactions.filter(
       (i) => i.transaction_id !== transaction.transaction_id,
     );
-    this.apiTransactions.delete(transaction.transaction_id);
   }
 
   /**
    * Adds a market order to the job's sales tracking.
-   *
-   * This method adds market order data:
-   * - Validates input parameters
-   * - Adds broker's fee information
-   * - Creates ESI market order object
-   * - Adds order ID to the API orders set
    *
    * @param {Object} order - Market order data
    * @param {Object} brokersFee - Broker's fee information
@@ -1162,17 +965,12 @@ class Job {
 
     this.build.sale.brokersFee.push(brokersFee);
     this.build.sale.marketOrders.push(createESIMarketOrder(order));
-    this.apiOrders.add(order.order_id);
   }
 
   /**
    * Removes a market order from the job's sales tracking.
    *
-   * This method removes market order data and related transactions:
-   * - Removes broker's fee information
-   * - Removes market order from the orders array
-   * - Removes related transactions by location ID
-   * - Removes order ID from the API orders set
+   * Sales made through the order go with it, matched on location.
    *
    * @param {Object} order - Market order object to remove
    * @param {number} order.order_id - Order ID to remove
@@ -1189,27 +987,13 @@ class Job {
       (i) => i.order_id !== order.order_id,
     );
 
-    const transactionIdsToRemove = this.build.sale.transactions
-      .filter((trans) => trans.location_id === order.location_id)
-      .map((trans) => trans.transaction_id);
-
-    transactionIdsToRemove.forEach((id) => this.apiTransactions.delete(id));
-
     this.build.sale.transactions = this.build.sale.transactions.filter(
       (i) => i.location_id !== order.location_id,
     );
-
-    this.apiOrders.delete(order.order_id);
   }
 
   /**
    * Updates linked ESI job data with latest information.
-   *
-   * This method updates ESI job status and completion information:
-   * - Validates input parameters
-   * - Updates only active jobs
-   * - Updates job status, completion date, and end date
-   * - Maintains data integrity for job tracking
    *
    * @param {Array<Object>} latestESIJobs - Array of latest ESI job data
    */
@@ -1238,7 +1022,6 @@ class Job {
     }, null);
   }
 
-
   /**
    * The linked job that finishes first, which is what the planner counts down
    * to. Jobs with no end date are not waited on.
@@ -1255,16 +1038,8 @@ class Job {
     }, null);
   }
 
-
   /**
    * Updates linked market order data with latest information.
-   *
-   * This method updates market order status and pricing information:
-   * - Validates input parameters
-   * - Updates only incomplete orders
-   * - Updates volume remaining, price, and issue date
-   * - Marks orders as complete when volume reaches zero
-   * - Maintains timestamp history
    *
    * @param {Array<Object>} latestESIOrders - Array of latest ESI order data
    */
@@ -1292,15 +1067,8 @@ class Job {
     });
   }
 
-
   /**
-   * Attaches a new setup to the job.
-   *
-   * This method attaches a new setup to the job:
-   * - Attaches the setup to the job
-   * - Sets the setup to edit
-   * - Recalculates the total quantity produced
-   * - Recalculates the total material quantities
+   * @param {Setup} setup
    */
 
   attachNewSetupToJob(setup) {
@@ -1326,13 +1094,6 @@ class Job {
 
   /**
    * Deletes the active setup from the job.
-   *
-   * This method deletes the active setup from the job:
-   * - Validates input parameters
-   * - Deletes the active setup from the setup object
-   * - Recalculates the total quantity produced
-   * - Recalculates the total material quantities
-   * - Returns true if the setup was deleted, false if not
    *
    * @returns {boolean} True if the setup was deleted, false if not
    */
@@ -1368,14 +1129,7 @@ class Job {
   /**
    * Calculates the total number of involved characters for the job.
    *
-   * This method calculates the total number of involved characters for the job:
-   * - Creates a set of involved character IDs
-   * - Adds the character IDs from the linked jobs to the set
-   * - Adds the character IDs from the market orders to the set
-   * - This does not include any characters relating to the invention costs.
-   * - Returns an object containing the number of unique characters and the set of involved character IDs
-   *
-   * @returns {Object} Object containing the number of unique characters and the set of involved character IDs
+   * Characters named only by an invention cost are not counted.
    */
 
   get involvedCharacters() {
@@ -1397,27 +1151,10 @@ class Job {
 /**
  * Helper function that converts document setup data to Setup instances.
  *
- * This function processes stored setup data and creates Setup class instances:
- * - Validates that setup data exists in the object
- * - Creates Setup instances from stored setup data
- * - Returns an object with setup IDs as keys and Setup instances as values
- *
  * @param {Object} object - Object containing setup data
  * @param {Object} [object.build] - Build configuration object
  * @param {Object} [object.build.setup] - Setup data object
  * @returns {Object} Object with setup IDs as keys and Setup instances as values
- *
- * @example
- * // Convert document setups to Setup instances
- * const setups = documentToSetups({
- *   build: {
- *     setup: {
- *       'setup-1': { id: 'setup-1', runCount: 1, ME: 10 },
- *       'setup-2': { id: 'setup-2', runCount: 2, ME: 5 }
- *     }
- *   }
- * });
- * // Returns: { 'setup-1': Setup instance, 'setup-2': Setup instance }
  */
 function documentToSetups(object) {
   if (!object?.build?.setup) {
@@ -1430,12 +1167,6 @@ function documentToSetups(object) {
   }, {});
 }
 
-/**
- * Helper function that converts a document's material rows to Material instances.
- *
- * @param {Object} object - Object containing job data
- * @returns {Array<Material>|null} The job's materials, or null when it has none yet
- */
 /**
  * Helper function that converts a document's linked ESI jobs to instances.
  *
@@ -1450,6 +1181,13 @@ function documentToLinkedJobs(object) {
   return rows.map((row) => new LinkedESIJob(row));
 }
 
+/**
+ * Helper function that converts a document's material rows to Material instances.
+ *
+ * @param {Object} object - Object containing job data
+ * @param {Function} requirement - Looks up how many of a material the job needs
+ * @returns {Array<Material>|null} The job's materials, or null when it has none yet
+ */
 function documentToMaterials(object, requirement) {
   const rows = object?.build?.materials;
   if (!Array.isArray(rows)) {

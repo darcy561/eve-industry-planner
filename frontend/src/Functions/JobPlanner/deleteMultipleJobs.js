@@ -13,24 +13,13 @@ import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
  * Deletes one or more jobs with clone-on-write safety and strict persistence ordering.
  *
  * Flow:
- * - Normalises input IDs and resolves existing jobs.
- * - Rewrites parent/child links on cloned related jobs only.
- * - Recomputes touched groups once per group using a post-delete effective job array.
- * - (Logged-in) Persists changed job docs, changed group docs, account linked-ESI data, then
  *   deletes target job docs from the API.
- * - Commits local store updates only after persistence succeeds.
  *
  * If any logged-in persistence step fails, local linked-ESI account sets are restored from
  * snapshot and no local delete commit is applied.
  *
  * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to delete
  * @returns {Promise<void>} Promise that resolves when deletion is complete
- *
- * @example
- * await deleteMultipleJobs("job_123");
- *
- * @example
- * await deleteMultipleJobs(["job_123", "job_456", "job_789"]);
  */
 export default async function deleteMultipleJobs(inputJobIDs) {
   const { groupArray, jobArray } = useUsersStore.getState().jobData;
@@ -96,9 +85,9 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     jobArray.map((job) => workingJobsByID.get(job.jobID) ?? job);
 
   for (const inputJob of jobsToDelete) {
-    inputJob.apiJobs.forEach((jobID) => linkedJobIdsToRemove.add(jobID));
-    inputJob.apiOrders.forEach((orderID) => linkedOrderIdsToRemove.add(orderID));
-    inputJob.apiTransactions.forEach((transactionID) =>
+    inputJob.esiJobIDs.forEach((jobID) => linkedJobIdsToRemove.add(jobID));
+    inputJob.esiOrderIDs.forEach((orderID) => linkedOrderIdsToRemove.add(orderID));
+    inputJob.esiTransactionIDs.forEach((transactionID) =>
       linkedTransIdsToRemove.add(transactionID)
     );
 

@@ -5,11 +5,7 @@ import { parseNumberWithSeparators } from "../Helper/numberParser";
 
 /**
  * Imports asset quantities from clipboard data.
- * 
- * This method updates asset quantities based on imported data:
- * - Matches items by name
- * - Updates assetQuantity for matching items
- * 
+ *
  * @returns {Promise<Object>} Object mapping item names to quantities
  */
 

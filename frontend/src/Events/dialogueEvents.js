@@ -3,16 +3,10 @@ import { eventEmitter } from "../utils/EventSystem";
 /**
  * Shows the price history dialogue for a specific item and region.
  * Emits an event to display price history data for the specified item.
- * 
+ *
  * @param {number|null} [typeID=null] - EVE Online item type ID to show price history for
  * @param {number|null} [regionID=null] - EVE Online region ID to show price history for
  * @returns {void}
- * 
- * @example
- * showPriceHistoryDialogue(34, 10000002); // Shows price history for Tritanium in The Forge
- * 
- * @example
- * showPriceHistoryDialogue(); // Shows empty price history dialogue
  */
 export function showPriceHistoryDialogue(typeID = null, regionID = null) {
   eventEmitter.emit("showPriceHistoryDialogue", {
@@ -25,16 +19,10 @@ export function showPriceHistoryDialogue(typeID = null, regionID = null) {
 /**
  * Shows the market data dialogue for a specific item and location.
  * Emits an event to display market data for the specified item.
- * 
+ *
  * @param {number|null} [typeID=null] - EVE Online item type ID to show market data for
  * @param {number|null} [locationID=null] - EVE Online location ID to show market data for
  * @returns {void}
- * 
- * @example
- * showMarketDataDialogue(34, 60003760); // Shows market data for Tritanium in Jita
- * 
- * @example
- * showMarketDataDialogue(); // Shows empty market data dialogue
  */
 export function showMarketDataDialogue(typeID = null, locationID = null) {
   eventEmitter.emit("showMarketDataDialogue", {
@@ -47,15 +35,9 @@ export function showMarketDataDialogue(typeID = null, locationID = null) {
 /**
  * Shows the assets dialogue for a specific item.
  * Emits an event to display asset information for the specified item.
- * 
+ *
  * @param {number|null} [typeID=null] - EVE Online item type ID to show assets for
  * @returns {void}
- * 
- * @example
- * showAssetsDialogue(34); // Shows assets for Tritanium
- * 
- * @example
- * showAssetsDialogue(); // Shows empty assets dialogue
  */
 export function showAssetsDialogue(typeID = null) {
   eventEmitter.emit("showAssetsDialogue", {

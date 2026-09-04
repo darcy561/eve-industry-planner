@@ -23,47 +23,15 @@ function coerceSystemID(value, fallback) {
 
 /**
  * CustomStructure class for user-defined industry structures.
- * 
- * This class represents a custom structure configuration for EVE Online industry:
- * - User-defined structure configurations for industry jobs
- * - Structure type, rig, and system configuration
- * - Tax rate and default structure management
- * - Job type specific structure definitions
- * - System and location configuration
- * 
+ *
  * The CustomStructure class provides flexible structure management:
- * - Custom structure creation and configuration
- * - Structure type and rig selection
- * - System and tax configuration
- * - Default structure designation
- * - Job type specific structure definitions
- * - Input sanitisation for security
- * 
+ *
  * @class CustomStructure
- * @example
- * // Create a new custom structure
- * const structure = new CustomStructure({
- *   jobType: jobTypes.manufacturing,
- *   name: 'My Citadel',
- *   structureType: 12345,
- *   systemID: 30000142
- * });
- * 
- * @example
- * // Update structure properties
- * structure.setName('Updated Citadel');
- * structure.setStructureType(54321);
- * structure.setTax(0.1);
- * structure.setDefault(true);
- * 
- * @example
- * // Convert to document for storage
- * const doc = structure.toDocument();
  */
 class CustomStructure {
   /**
    * Creates a new CustomStructure instance.
-   * 
+   *
    * @param {Object} existingValue - Existing structure data or null for new structure
    * @param {string} [existingValue.id] - Structure ID
    * @param {number} [existingValue.jobType] - Job type this structure is for
@@ -96,7 +64,7 @@ class CustomStructure {
 
   /**
    * Sets the structure name with input sanitisation.
-   * 
+   *
    * @param {string} name - Structure name to set
    */
   setName(name) {
@@ -108,7 +76,7 @@ class CustomStructure {
 
   /**
    * Sets the structure type ID.
-   * 
+   *
    * @param {number} structureType - Structure type ID
    */
   setStructureType(structureType) {
@@ -117,7 +85,7 @@ class CustomStructure {
 
   /**
    * Sets the rig type ID.
-   * 
+   *
    * @param {number} rigType - Rig type ID
    */
   setRigType(rigType) {
@@ -126,7 +94,7 @@ class CustomStructure {
 
   /**
    * Sets the system type ID.
-   * 
+   *
    * @param {number} systemType - System type ID
    */
   setSystemType(systemType) {
@@ -135,7 +103,7 @@ class CustomStructure {
 
   /**
    * Sets the system ID.
-   * 
+   *
    * @param {number} systemID - System ID
    */
   setSystemID(systemID) {
@@ -144,7 +112,7 @@ class CustomStructure {
 
   /**
    * Sets the tax rate for this structure.
-   * 
+   *
    * @param {number} tax - Tax rate (0-1)
    */
   setTax(tax) {
@@ -153,7 +121,7 @@ class CustomStructure {
 
   /**
    * Sets whether this structure is the default for its job type.
-   * 
+   *
    * @param {boolean} isDefault - Whether this is the default structure
    */
   setDefault(isDefault) {
@@ -162,7 +130,7 @@ class CustomStructure {
 
   /**
    * Converts the structure to a document object for storage.
-   * 
+   *
    * @returns {Object} Document object ready for storage
    */
   toDocument() {

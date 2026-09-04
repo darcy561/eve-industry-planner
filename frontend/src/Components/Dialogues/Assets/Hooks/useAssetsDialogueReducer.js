@@ -1,12 +1,9 @@
 /**
  * Assets Dialog Reducer Hook for EVE Industry Planner.
- * 
+ *
  * Custom React hook that provides state management for the assets dialogue component.
  * Uses useReducer with a custom reducer to handle complex state transitions for
  * asset selection, character/corporation management, and dialogue interactions.
- * 
- * @fileoverview Custom hook for assets dialogue state management
- * @author EVE Industry Planner Team
  */
 
 import { useReducer } from "react";
@@ -19,12 +16,7 @@ import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/set
 
 /**
  * Custom hook for managing assets dialogue state.
- * 
- * Provides a reducer-based state management solution for the assets dialogue,
- * including initial state creation based on current user data, action dispatching,
- * and state access. The hook automatically determines initial values based on
- * the current user's data and available characters.
- * 
+ *
  * @returns {Object} Hook return object
  * @returns {Object} returns.state - Current dialogue state
  * @returns {boolean} returns.state.isOpen - Whether dialogue is open
@@ -50,35 +42,11 @@ import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/set
  * @returns {Function} returns.actions.setTopLevelAssets - Set top-level assets
  * @returns {Function} returns.actions.setAssetLocationNames - Set asset location names
  * @returns {Function} returns.actions.setFullItemList - Set full item list
- * 
- * @example
- * function AssetsDialogue() {
- *   const { state, actions } = useAssetsDialogueReducer();
- *   
- *   const handleOpenDialogue = () => {
- *     actions.toggleIsOpen();
- *   };
- *   
- *   const handleSelectType = (typeID) => {
- *     actions.setSelectedTypeID(typeID);
- *   };
- *   
- *   return (
- *     <div>
- *       {state.isOpen && (
- *         <div>Dialog is open for type ID: {state.selectedTypeID}</div>
- *       )}
- *     </div>
- *   );
- * }
  */
 export default function useAssetsDialogueReducer() {
   /**
    * Creates the initial state for the assets dialogue.
-   * 
-   * Determines initial values based on current user data, including
-   * main character information, available characters, and default selections.
-   * 
+   *
    * @returns {Object} Initial state object
    * @returns {boolean} returns.isOpen - Dialog closed by default
    * @returns {number|null} returns.selectedTypeID - No type selected initially
@@ -118,37 +86,24 @@ export default function useAssetsDialogueReducer() {
 
   /**
    * Action dispatchers for the assets dialogue state.
-   * 
-   * Provides convenient methods to dispatch actions to the reducer,
-   * abstracting away the action creation and dispatch logic.
    */
   const actions = {
     /**
      * Resets the state to initial values.
-     * 
-     * @example
-     * actions.resetState();
      */
     resetState: () => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.RESET_STATE });
     },
     /**
      * Toggles the dialogue open/closed state.
-     * 
-     * @example
-     * actions.toggleIsOpen();
      */
     toggleIsOpen: () => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.TOGGLE_IS_OPEN });
     },
     /**
      * Sets the selected item type ID.
-     * 
+     *
      * @param {number|null} typeID - Item type ID to select
-     * 
-     * @example
-     * actions.setSelectedTypeID(34); // Select Tritanium
-     * actions.setSelectedTypeID(null); // Clear selection
      */
     setSelectedTypeID: (typeID) => {
       dispatch({
@@ -158,23 +113,15 @@ export default function useAssetsDialogueReducer() {
     },
     /**
      * Toggles the loading state.
-     * 
-     * @example
-     * actions.toggleIsLoading();
      */
     toggleIsLoading: () => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.TOGGLE_IS_LOADING });
     },
     /**
      * Sets the loading state to a specific value.
-     * 
+     *
      * @param {boolean} value - Loading state value
      * @param {string} [loadingMessage] - Optional caption while loading
-     *
-     * @example
-     * actions.setIsLoading(true); // Start loading
-     * actions.setIsLoading(true, "Resolving locations…");
-     * actions.setIsLoading(false); // Stop loading
      */
     setIsLoading: (value, loadingMessage) => {
       dispatch({
@@ -184,87 +131,54 @@ export default function useAssetsDialogueReducer() {
     },
     /**
      * Toggles the use corporation assets setting.
-     * 
-     * @example
-     * actions.toggleUseCorporationAssets();
      */
     toggleUseCorporationAssets: () => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.TOGGLE_USE_CORPORATION_ASSETS });
     },
     /**
      * Sets the selected character.
-     * 
+     *
      * @param {string|null} character - Character hash to select
-     * 
-     * @example
-     * actions.setSelectedCharacter('character-hash-123');
-     * actions.setSelectedCharacter('allUsers'); // Select all users
      */
     setSelectedCharacter: (character) => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.SET_SELECTED_CHARACTER, payload: character });
     },
     /**
      * Sets the selected corporation.
-     * 
+     *
      * @param {number|null} corporation - Corporation ID to select
-     * 
-     * @example
-     * actions.setSelectedCorporation(123456789);
-     * actions.setSelectedCorporation(null); // Clear corporation selection
      */
     setSelectedCorporation: (corporation) => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.SET_SELECTED_CORPORATION, payload: corporation });
     },
     /**
      * Sets the asset locations data.
-     * 
+     *
      * @param {Map} locations - Asset locations map
-     * 
-     * @example
-     * const locationsMap = new Map();
-     * locationsMap.set(60003760, { name: 'Jita IV - Moon 4', type: 'station' });
-     * actions.setAssetLocations(locationsMap);
      */
     setAssetLocations: (locations) => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.SET_ASSET_LOCATIONS, payload: locations });
     },
     /**
      * Sets the top-level assets data.
-     * 
+     *
      * @param {Map} assets - Top-level assets map
-     * 
-     * @example
-     * const assetsMap = new Map();
-     * assetsMap.set(34, { quantity: 1000, location: 60003760 });
-     * actions.setTopLevelAssets(assetsMap);
      */
     setTopLevelAssets: (assets) => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.SET_TOP_LEVEL_ASSETS, payload: assets });
     },
     /**
      * Sets the asset location names data.
-     * 
+     *
      * @param {Map} names - Asset location names map
-     * 
-     * @example
-     * const namesMap = new Map();
-     * namesMap.set(60003760, 'Jita IV - Moon 4');
-     * actions.setAssetLocationNames(namesMap);
      */
     setAssetLocationNames: (names) => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.SET_ASSET_LOCATION_NAMES, payload: names });
     },
     /**
      * Sets the full item list data.
-     * 
+     *
      * @param {Object} list - Full item list object
-     * 
-     * @example
-     * const itemList = {
-     *   34: { name: 'Tritanium', category: 'Material' },
-     *   35: { name: 'Pyerite', category: 'Material' }
-     * };
-     * actions.setFullItemList(itemList);
      */
     setFullItemList: (list) => {
       dispatch({ type: ASSETS_DIALOGUE_ACTION_TYPES.SET_FULL_ITEM_LIST, payload: list });

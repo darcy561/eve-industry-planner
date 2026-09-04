@@ -334,7 +334,8 @@ func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, mes
 	return out
 }
 
-// deliverToExplicitDocSubscribers delivers to clients that opted into this doc id (legacy / escape hatch).
+// deliverToExplicitDocSubscribers delivers to clients that subscribed to this
+// doc id by name, rather than reaching it through account or org scope.
 func (s *Server) deliverToExplicitDocSubscribers(ctx context.Context, docID string, messageData []byte, sourceClientID, sourceSessionID string) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "explicit",

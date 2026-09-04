@@ -16,9 +16,6 @@ const MAX_ARCHIVED_JOBS_BATCH = 100;
  *
  * @param {Array<Object>} jobs - `Job` instances from `job.js` (each must implement `toDocument()`)
  * @returns {Promise<boolean>} `true` on success. `false` if any batch failed (after `Promise.allSettled` in the private client) or the request threw. Batches use the same retry policy as other private `PUT` calls.
- *
- * @example
- * const ok = await saveArchivedJobs([job]);
  */
 async function saveArchivedJobs(jobs) {
   if (!jobs || !Array.isArray(jobs) || jobs.length === 0) {

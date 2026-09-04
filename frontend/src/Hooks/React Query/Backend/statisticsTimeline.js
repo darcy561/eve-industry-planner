@@ -79,6 +79,7 @@ export function timelineItemsQueryKey(options = {}) {
 
 /**
  * Base options for prefetch / `useAccountTimelineQuery`.
+ *
  * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  */
 export function timelineQueryOptions(options = {}) {
@@ -92,6 +93,7 @@ export function timelineQueryOptions(options = {}) {
 
 /**
  * Base options for prefetch / `useAccountTimelineItemsQuery`.
+ *
  * @param {{from?: string, to?: string, range?: "all", typeID?: string|number, sort?: string, order?: string, limit?: number, offset?: number}} [options]
  */
 export function timelineItemsQueryOptions(options = {}) {

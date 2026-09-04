@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -319,7 +320,8 @@ func TestJobFromFirestoreMap_modernShapeRoundTripMeta(t *testing.T) {
 	}
 }
 
-// Firestore can persist NaN in double fields; json.Marshal in cloneMap used to fail until we sanitise.
+// Firestore can persist NaN in a double field, and json.Marshal rejects it, so
+// cloneMap sanitises it on the way through.
 func TestJobFromFirestoreMap_nestedNaNIsSanitized(t *testing.T) {
 	doc := map[string]any{
 		"jobID":               "job-uuid-nan",
@@ -1311,7 +1313,9 @@ func TestJobFromFirestoreMap_parentJobsNeverNull(t *testing.T) {
 	}
 }
 
-func TestJobFromFirestoreMap_rootAPIArraysNeverNull(t *testing.T) {
+// An imported job holds its ESI ids in its linked rows, so the stored copies do
+// not come across.
+func TestJobFromFirestoreMap_dropsStoredESIIDLists(t *testing.T) {
 	doc := map[string]any{
 		"jobID":              float64(1),
 		"jobType":            float64(1),
@@ -1321,8 +1325,8 @@ func TestJobFromFirestoreMap_rootAPIArraysNeverNull(t *testing.T) {
 		"jobStatus":          float64(0),
 		"volume":             float64(1),
 		"archived":           true,
-		"apiJobs":            nil,
-		"apiOrders":          nil,
+		"apiJobs":            []any{float64(477724009)},
+		"apiOrders":          []any{float64(7)},
 		"apiTransactions":    nil,
 		"rawData": map[string]any{
 			"materials": []any{},
@@ -1330,8 +1334,11 @@ func TestJobFromFirestoreMap_rootAPIArraysNeverNull(t *testing.T) {
 			"time":      float64(0),
 		},
 		"build": map[string]any{
-			"products":  map[string]any{"totalQuantity": float64(1)},
-			"costs":     map[string]any{"extrasCosts": []any{}, "linkedJobs": []any{}},
+			"products": map[string]any{"totalQuantity": float64(1)},
+			"costs": map[string]any{
+				"extrasCosts": []any{},
+				"linkedJobs":  []any{map[string]any{"job_id": float64(477724009)}},
+			},
 			"materials": []any{},
 			"sale":      map[string]any{"marketOrders": []any{}, "transactions": []any{}, "brokersFee": []any{}},
 		},
@@ -1346,6 +1353,13 @@ func TestJobFromFirestoreMap_rootAPIArraysNeverNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !slices.Equal(job.LinkedESIJobIDs(), []int64{477724009}) {
+		t.Fatalf("linked jobs = %v, want the id its row carries", job.LinkedESIJobIDs())
+	}
+	if len(job.LinkedOrderIDs()) != 0 {
+		t.Fatalf("orders = %v, want none: no order row was imported", job.LinkedOrderIDs())
+	}
+
 	b, err := json.Marshal(job)
 	if err != nil {
 		t.Fatal(err)
@@ -1355,9 +1369,8 @@ func TestJobFromFirestoreMap_rootAPIArraysNeverNull(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, key := range []string{"apiJobs", "apiOrders", "apiTransactions"} {
-		raw := string(wrap[key])
-		if raw != "[]" {
-			t.Fatalf("%s: got %s want []", key, raw)
+		if raw, present := wrap[key]; present {
+			t.Fatalf("%s: got %s want the key gone", key, raw)
 		}
 	}
 }

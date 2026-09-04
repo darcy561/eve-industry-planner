@@ -49,10 +49,9 @@ func TestLoadEnvValuesPreviousKeys(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, kit.EnvFile)
-	// Inject a temporary PreviousKeys via ResolveEnvValues on a synthetic field path:
-	// use a real key by writing OLD name only — register migration in test by calling Resolve
-	// against a custom file map with a known PreviousKeys field.
-	// MONGO_PASSWORD has no PreviousKeys in registry; test ResolveEnvValues helper with overlay:
+	// MONGO_PASSWORD carries no PreviousKeys in the registry, so the field is
+	// declared here with one and resolved against a file that holds only the old
+	// name — which is what a key rename looks like on disk.
 	file := map[string]string{
 		"LEGACY_MONGO_PW": "from-old",
 		"APP_VERSION":     "9.9.9",

@@ -1,6 +1,6 @@
 /**
  * Price Entry Reducer Hook for EVE Industry Planner.
- * 
+ *
  * Custom React hook that provides state management for the price entry dialogue component.
  * Uses useReducer with a custom reducer to handle state transitions for price entry
  * building, market/order display settings, and dialogue visibility.
