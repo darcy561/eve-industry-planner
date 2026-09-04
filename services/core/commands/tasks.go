@@ -36,9 +36,9 @@ const usage = `Usage:
   tasks importUserJobDocumentsFromFirestore [flags]
   tasks backfillArchivedAt [-dry-run]
   tasks queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]
-  tasks prepareArchivedJobStatistics [-dry-run]
+  tasks prepareRelease [-dry-run]
   tasks encodeJobIdentity [-collection <name>] [-limit <n>] [-dry-run]
-  tasks <task-name> [--version=<int>] [--data='<json>']
+  tasks <task-name> [--version=<int>]
 
 Examples:
   tasks list
@@ -75,40 +75,79 @@ Examples:
   tasks migrateUserCloudAccountsToUserDoc --scan-batch-size=500
 `
 
-// Enabled task allowlist.
-// Add more tasks to this slice to expose them in `tasks`.
-// Matching is case-insensitive for user convenience.
-var enabledTasks = []eipnats.Definition{
-	eipnats.CheckSDEUpdates,
-	eipnats.ApplySDEVersion,
-	eipnats.RebuildCurrentSDEVersion,
-	eipnats.DrainAccountStatsRebuildQueue,
-	eipnats.DispatchStatisticsReconciles,
+// taskOptions carries what an operator typed alongside the task name.
+type taskOptions struct {
+	version    int
+	versionSet bool
 }
 
-// commandTaskNames renames a task for the command line where the two differ.
-// A task absent from here is typed as it is defined.
-var commandTaskNames = map[string]string{
-	eipnats.RebuildCurrentSDEVersion.Name: "forceSdeRebuild",
-	eipnats.CheckSDEUpdates.Name:          "checkSdeUpdates",
-	eipnats.ApplySDEVersion.Name:          "applySdeVersion",
+// dispatch is one task an operator may run: what they type, the definition it
+// names, and the call that publishes it.
+//
+// The publish is the task's own helper rather than a subject and a payload built
+// here, so a task reaches the operator surface by being listed and cannot be
+// published in a shape its handler does not take.
+type dispatch struct {
+	command string
+	task    eipnats.Definition
+	publish func(context.Context, *eipnats.NATS, taskOptions) error
 }
 
-// enabledTasksLowerLookup is derived from the allowlist so a task cannot be
-// runnable but unfindable, or findable under a name the list does not offer.
-func enabledTasksLowerLookup() map[string]eipnats.Definition {
-	lookup := make(map[string]eipnats.Definition, len(enabledTasks))
-	for _, task := range enabledTasks {
-		lookup[strings.ToLower(commandTaskName(task))] = task
+// dispatchTable is the allowlist. A task absent from it is not runnable from the
+// command line, whatever the registry holds.
+var dispatchTable = []dispatch{
+	{
+		command: "checkSdeUpdates",
+		task:    eipnats.CheckSDEUpdates,
+		publish: func(ctx context.Context, n *eipnats.NATS, _ taskOptions) error {
+			return eipnats.TriggerCheckSDEUpdates(ctx, n)
+		},
+	},
+	{
+		command: "applySdeVersion",
+		task:    eipnats.ApplySDEVersion,
+		publish: func(ctx context.Context, n *eipnats.NATS, o taskOptions) error {
+			if !o.versionSet {
+				return fmt.Errorf("task %q requires --version=<int> (example: tasks applySdeVersion --version=3272045)", "applySdeVersion")
+			}
+			if o.version <= 0 {
+				return fmt.Errorf("task %q requires --version to be a positive integer (> 0), got %d", "applySdeVersion", o.version)
+			}
+			return eipnats.PublishApplySDEVersion(ctx, n, o.version)
+		},
+	},
+	{
+		command: "forceSdeRebuild",
+		task:    eipnats.RebuildCurrentSDEVersion,
+		publish: func(ctx context.Context, n *eipnats.NATS, _ taskOptions) error {
+			return eipnats.TriggerRebuildCurrentSDEVersion(ctx, n)
+		},
+	},
+	{
+		command: "drainAccountStatsRebuildQueue",
+		task:    eipnats.DrainAccountStatsRebuildQueue,
+		publish: func(ctx context.Context, n *eipnats.NATS, _ taskOptions) error {
+			return eipnats.PublishDrainAccountStatsRebuildQueue(ctx, n)
+		},
+	},
+	{
+		command: "dispatchStatisticsReconciles",
+		task:    eipnats.DispatchStatisticsReconciles,
+		publish: func(ctx context.Context, n *eipnats.NATS, _ taskOptions) error {
+			return eipnats.PublishDispatchStatisticsReconciles(ctx, n)
+		},
+	},
+}
+
+// dispatchLookup is derived from the table so a task cannot be runnable but
+// unfindable, or findable under a name the table does not offer. Matching is
+// case-insensitive for convenience.
+func dispatchLookup() map[string]dispatch {
+	lookup := make(map[string]dispatch, len(dispatchTable))
+	for _, d := range dispatchTable {
+		lookup[strings.ToLower(d.command)] = d
 	}
 	return lookup
-}
-
-func commandTaskName(task eipnats.Definition) string {
-	if name, renamed := commandTaskNames[task.Name]; renamed {
-		return name
-	}
-	return task.Name
 }
 
 // Handle runs command-mode task commands.
@@ -152,8 +191,8 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, runBackfillArchivedAt(ctx, args[2:])
 	case "queueArchivedJobStatsRebuild":
 		return true, runQueueArchivedJobStatsRebuild(ctx, args[2:])
-	case "prepareArchivedJobStatistics":
-		return true, runPrepareArchivedJobStatistics(ctx, args[2:])
+	case "prepareRelease":
+		return true, runPrepareRelease(ctx, args[2:])
 	case "rotateRefreshTokenKeys":
 		return true, runRotateRefreshTokenKeys(ctx, args[2:])
 	case "encodeJobIdentity":
@@ -185,14 +224,14 @@ func runList() error {
 	fmt.Println("  - importUserJobDocumentsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-inline] [-enqueue] [-skip-auth-recency]")
 	fmt.Println("  - backfillArchivedAt [-dry-run]")
 	fmt.Println("  - queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]")
-	fmt.Println("  - prepareArchivedJobStatistics [-dry-run]")
+	fmt.Println("  - prepareRelease [-dry-run]")
 	fmt.Println("  - rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println()
 	fmt.Println("  Triggerable tasks:")
-	for _, task := range allTasks() {
-		fmt.Printf("  - %s (worker_task: %s, subject: %s, default_priority: %s)\n", commandTaskName(task), task.Name, task.Subject, task.DefaultPriority)
+	for _, d := range allTasks() {
+		fmt.Printf("  - %s (worker_task: %s, subject: %s, default_priority: %s)\n", d.command, d.task.Name, d.task.Subject, d.task.DefaultPriority)
 	}
 	return nil
 }
@@ -206,19 +245,18 @@ func runTrigger(ctx context.Context, args []string) error {
 	if len(args) > 0 {
 		first := strings.TrimSpace(args[0])
 		if first != "" && !strings.HasPrefix(first, "-") {
-			if _, known := enabledTasksLowerLookup()[strings.ToLower(first)]; !known {
+			if _, known := dispatchLookup()[strings.ToLower(first)]; !known {
 				return fmt.Errorf("unknown command or task %q (use `tasks list`)\n\n%s", first, usage)
 			}
 		}
 	}
 
 	// Support args in either order:
-	// - <task-name> [--version=...] [--data=...]
-	// - --version=... --data=... <task-name>
+	// - <task-name> [--version=...]
+	// - --version=... <task-name>
 	var (
 		version       int
 		versionSet    bool
-		data          string
 		taskNameInput string
 	)
 
@@ -237,24 +275,6 @@ func runTrigger(ctx context.Context, args []string) error {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
-		case strings.HasPrefix(a, "data="):
-			data = strings.TrimPrefix(a, "data=")
-		case a == "data":
-			v, next, err := consumeValue(i)
-			if err != nil {
-				return err
-			}
-			data = v
-			i = next
-		case strings.HasPrefix(a, "--data="):
-			data = strings.TrimPrefix(a, "--data=")
-		case a == "--data":
-			v, next, err := consumeValue(i)
-			if err != nil {
-				return err
-			}
-			data = v
-			i = next
 		case strings.HasPrefix(a, "version="), a == "version":
 			return fmt.Errorf("invalid version flag %q: use --version=<int> (example: tasks applySdeVersion --version=3272045)", a)
 		case strings.HasPrefix(a, "--version="):
@@ -293,15 +313,9 @@ func runTrigger(ctx context.Context, args []string) error {
 	if taskNameInput == "" {
 		return fmt.Errorf("expected exactly one <task-name>\n\n%s", usage)
 	}
-	lookup := enabledTasksLowerLookup()
-	task, exists := lookup[strings.ToLower(taskNameInput)]
+	d, exists := dispatchLookup()[strings.ToLower(taskNameInput)]
 	if !exists {
 		return fmt.Errorf("unknown or disabled task %q (use `tasks list`)", taskNameInput)
-	}
-
-	payload, err := buildTaskPayload(task, versionSet, version, data)
-	if err != nil {
-		return err
 	}
 
 	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.NATS)
@@ -314,47 +328,12 @@ func runTrigger(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
-	publishPayload := payloadToInterface(payload)
-
-	if err := clients.NATS.PublishTask(ctx, task.Subject, task.Name, publishPayload); err != nil {
-		return fmt.Errorf("failed to publish task %q: %w", task.Name, err)
+	if err := d.publish(ctx, clients.NATS, taskOptions{version: version, versionSet: versionSet}); err != nil {
+		return fmt.Errorf("failed to publish task %q: %w", d.task.Name, err)
 	}
 
-	fmt.Printf("Triggered task %q on subject %q", task.Name, task.Subject)
-	fmt.Println()
+	fmt.Printf("Triggered task %q on subject %q\n", d.task.Name, d.task.Subject)
 	return nil
-}
-
-func parseJSONRaw(data string) (json.RawMessage, error) {
-	trimmed := strings.TrimSpace(data)
-	if trimmed == "" {
-		return nil, nil
-	}
-	if !json.Valid([]byte(trimmed)) {
-		return nil, fmt.Errorf("must be valid JSON")
-	}
-	return json.RawMessage(trimmed), nil
-}
-
-func buildTaskPayload(task eipnats.Definition, versionSet bool, version int, rawJSON string) (json.RawMessage, error) {
-	switch task.Name {
-	case eipnats.ApplySDEVersion.Name:
-		if !versionSet {
-			return nil, fmt.Errorf("task %q requires --version=<int> (example: tasks applySdeVersion --version=3272045)", commandTaskName(task))
-		}
-		if version <= 0 {
-			return nil, fmt.Errorf("task %q requires --version to be a positive integer (> 0), got %d", commandTaskName(task), version)
-		}
-		payload, err := json.Marshal(eipnats.SDEApplyVersionRequest{
-			BuildNumber: version,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal apply-version payload: %w", err)
-		}
-		return json.RawMessage(payload), nil
-	default:
-		return parseJSONRaw(rawJSON)
-	}
 }
 
 func payloadToInterface(payload json.RawMessage) any {
@@ -366,6 +345,6 @@ func payloadToInterface(payload json.RawMessage) any {
 	return payload
 }
 
-func allTasks() []eipnats.Definition {
-	return enabledTasks
+func allTasks() []dispatch {
+	return dispatchTable
 }

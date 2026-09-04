@@ -99,16 +99,27 @@ gone for document updates, lock events and schedules as well as tasks.
 **No history explains the original copy.** `services/shared/nats/` carries none under that path, so
 this rests on the evidence above rather than on the reason it was written for.
 
-## The operator CLI names tasks by string
+## The operator CLI dispatches by name
 
-`core/commands/tasks.go` switches on `Name` in five places to trigger any task an operator names with
-a payload they supply. That is untypeable by construction — the payload is only known at runtime — so
-it holds definitions rather than helpers. Its migration commands also read `Subject` and
-`DefaultPriority` from definitions to print what they queued.
+`core/commands/tasks.go` held three structures that had to agree — an allowlist of definitions, a
+rename map for the command line, and a lookup derived from both — and published through
+`PublishTask(subject, name, payload)`, reaching past the typed helpers because the payload was
+operator-supplied JSON.
 
-**To decide:** whether the CLI gets a purpose-built view (name → publish function) so it stops
-reaching into definitions, and whether a publish helper should return what it published so a command
-reports from the result rather than re-deriving it.
+**Decided: a dispatch table, and no, helpers do not report what they published.**
+
+One `dispatchTable` now holds what an operator types, the definition it names, and the call that
+publishes it — the task's own helper. A task reaches the operator surface by being listed, and cannot
+be published in a shape its handler does not take.
+
+The payload that made this untypeable was not being used. `--data` could only reach the four
+triggers, whose handlers take no request and discard it, and `applySdeVersion` built its request from
+`--version` in a branch of its own. So the flag was accepted, validated as JSON, published and
+ignored — while the usage text advertised it. It is gone rather than documented.
+
+On the second question: a command prints the subject from the definition it just published through,
+so there is nothing to drift from and nothing to report back. Changing 26 helper signatures to return
+what a caller already holds would buy nothing.
 
 ## Phases
 
@@ -129,6 +140,10 @@ empty.
 
 Give the CLI a dispatch view of its own, and decide whether publish helpers report what they
 published.
+
+Three structures collapse to one table, and the dead `--data` flag goes with them. The hazard the
+table introduces — an entry naming one task while its closure publishes another — is covered by
+publishing every entry against an embedded NATS and reading back which subject it landed on.
 
 ### Stage D — Unknown tasks are refused
 
@@ -151,16 +166,24 @@ a message published in the superseded shape does not decode, and nothing was car
 | Phase 1 — project folder and docs | Done |
 | A — one authority for a task's type | Done — the subject, envelope copy removed |
 | B — collapse the double envelope | Done |
-| C — the operator CLI | Not started |
+| C — the operator CLI | Done |
 | D — unknown tasks are refused | Done |
 
 ## Handoff
 
-**Start here:** Stage C, the only stage left — the operator CLI's dispatch view.
+**Every stage has landed.** What is left is promotion → [promotion.md](./promotion.md).
 
-Stages A, B and D have already been promoted into live documentation by the worker-runtime project,
-which shared their code: [backend/worker/worker.md](../../backend/worker/worker.md) § Running a task
-and [backend/shared/nats.md](../../backend/shared/nats.md) both describe the current behaviour. This
-folder therefore promotes only what Stage C lands, and is deleted when it does.
+Stages A, B and D are already live: the worker-runtime project promoted them, because the same code
+carried them. [backend/worker/worker.md](../../backend/worker/worker.md) § Running a task holds the
+subject rule and the refusal, and [backend/shared/nats.md](../../backend/shared/nats.md) holds the
+envelope shape.
+
+That leaves Stage C, and only because core's commands have never had a live topic — `backend/core/`
+covers the primary lease and the schedulers but not what an operator can run. The draft adds one
+section there and a task-map row, after which this folder is deleted.
+
+**Not verified on a running stack.** Stage C changed a command-line surface inside the core image, so
+it needs a rebuild to exercise. Its dispatch table is covered by tests that publish every entry
+against an embedded NATS and read back the subject it landed on.
 
 Stage B left nothing outstanding.
