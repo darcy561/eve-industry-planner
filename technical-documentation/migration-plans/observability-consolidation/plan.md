@@ -136,9 +136,8 @@ filtering on `group`, `scope`, `class` and `reason`.
 here: the parallel run is deleted, the ESI dashboard is built in Grafana instead, and only Stage C
 (which is independent of the backend) proceeds.
 
-Depends on the ESI project wiring `esiclient.RegisterMetrics`, which currently has no callers, so
-the worker's queue-depth and per-bucket gauges never reach any backend. That is an
-[esi-rate-limiting](../esi-rate-limiting/contents.md) item, not this project's.
+What the limiter emits, and why bucket state is reported once by core while queue depth is reported
+per replica, is [backend/shared/esi.md](../../backend/shared/esi.md) § What it reports.
 
 ### Stage C — exporters become components
 

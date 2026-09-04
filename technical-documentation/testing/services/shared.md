@@ -38,14 +38,18 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 | `mongo` (unit) | `IsRetryableMongoError` classifier (cancel / no-docs / disconnected / string fallback); groups membership-diff helper |
 | `mongo` (live, opt-in) | `TestLive_*` put/get/schema/load-filter/doc-shape parity against stack Mongo |
 | `mongo/writers` | Arg-validation / nil-bulk unit tests; exercised on live paths via group-templates / build-stats consumers |
-| Other focused | `container` ID; `wsplacement` tenant keys / routing precedence; `swarmsecret` env-over-file; Mongo/Redis URL API fallback; process `APP_VERSION` helpers; dependency unavailable-error detection; small firebaseadmin / evesso helpers |
+| `httpclient` | Retry classification and what is never repeated; gate refusals escaping the retry loop; wire-byte counting through gzip; conditional headers and validator parsing; h2 negotiation |
+| `esiclient` (unit) | Bucket keying and token cost against the protocol; allowance learned from headers, never written in code; the floating-window ledger; class floors and hand-off order; glide; the observed downtime gate, including source spread and the lone-source trip; operator reset dropping the allowance and keeping the ledger |
+| `esiclient` (soak, `testing/esi_soak`) | Replay; Redis-op counts per call; fleet soak across replicas; outage and recovery; mixed classes; production-shaped load |
+| `evesso` | Token exchange and refresh against `testing/evessofake`, which signs with a real RSA key it publishes through JWKS, so the whole validation path runs rather than a stub of it: issuer, audience, expiry and unpublished-key rejection, plus the rule that a refused grant means the server answered |
+| Other focused | `container` ID; `wsplacement` tenant keys / routing precedence; `swarmsecret` env-over-file; Mongo/Redis URL API fallback; process `APP_VERSION` helpers; dependency unavailable-error detection; small firebaseadmin helpers |
 
 ### Thin
 
 - `nats` connect and reconnect: the retry loop and its options are not exercised against a server that goes away and returns
 - `nats` core topics: publish and subscribe helpers are covered by their callers rather than directly, and the health census gather has no test of its own
 - `core/config` — mostly service-cred URL fallback; other loaders untested
-- `firebaseadmin` / `evesso` — one negative / formatter test each
+- `firebaseadmin` — one negative / formatter test each
 - `mongo` connect / monitor loops and most raw `Collection()` escape hatches
 
 ### Little / none
