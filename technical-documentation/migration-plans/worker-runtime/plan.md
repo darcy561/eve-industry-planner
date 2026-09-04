@@ -123,6 +123,17 @@ shared helper would have left the other three services tearing down telemetry be
 `Group.Cleanups` now stops runners in reverse registration order, then app stops. api, core and
 websocket inherit it — see [overlay.md](./overlay.md) § Starting and stopping for what each gains.
 
+**The orchestrator was undoing the drain.** Every Swarm `restart_policy` was `condition: on-failure`,
+and a service asked to stop exits 0 — so Swarm read a clean shutdown as the task having finished its
+work and left the service with no replacement. A worker sent SIGTERM outside a rolling update stayed
+down until someone noticed. Ordering the stop correctly is worth nothing if nothing comes back.
+
+All four anchors are `condition: any` now — the two in the app fragment, the data one and the
+observability one, kept uniform. Nothing there can keep a stack alive that was meant to go, because
+shutdown removes services rather than stopping them, and a removed service has no task to restart.
+Failure behaviour is unchanged. This is stack YAML rather than worker code, but it was found by
+testing this stage and the stage is not true without it.
+
 **Known gap.** The stop sequence is guarded by two tests, but neither can execute the start phases —
 they open Mongo, Redis, NATS and an object store — so a runner moved from one phase to another would
 change the order without failing anything. Source-line order in `app.go` is not registration order
@@ -185,6 +196,29 @@ second from the first once, in `prepare`.
 and the asynq client, which is all it ever used. `worker/main.go` is left as the entrypoint and
 nothing else.
 
+## Verified on the running stack
+
+Every stage was checked against the live Swarm on the rebuilt images, not only in tests.
+
+| Claim | What the stack showed |
+|-------|-----------------------|
+| The registry covers the handlers | The worker boots; a mismatch refuses to start |
+| Queue weights come from one declaration | `"queues":{"priority_1":20,…}` in the startup log |
+| A trigger runs end to end | `drainAccountStatsRebuildQueue` published, enqueued, completed |
+| A request survives the collapsed envelope | `rotateRefreshTokenKeys` completed carrying `account_id`, `dry_run`, `active_version` |
+| Deadlines come from the definition | That task ran under 19m59s, its own value, not the deleted 60s default |
+| Request identity crosses services on headers alone | An api-published `updateAccountSessionGrants` carried `request_id 308d4009…` from the HTTP request through to the worker's log line |
+| Stop order | `Stopping processor` precedes `Starting graceful shutdown`; drain budget 29.4s = `DrainTimeout` + 5s |
+| A stopped service returns | SIGTERM replaced in ~10s, boots clean, processes tasks |
+
+Over half an hour of ordinary traffic: 23 tasks completed across five task types, **0 failed, 0
+nacked, 0 redelivered**, no warnings and no errors.
+
+One artifact worth keeping: `priority_4` holds 15 archived `refreshMarketPrices` tasks from 23 August,
+all archived in the same second with `handler not found`. Their stored payload is the double envelope
+this project removed. A message like that would now be refused at the subject lookup instead, so the
+same mistake fails where it can be read.
+
 ## Wire compatibility
 
 **Every stage is process-local.** Nothing here changes a published message, a subject, a stored
@@ -215,6 +249,16 @@ package, land it as part of that project's slice rather than folding it into thi
 
 ## Handoff
 
-**Start here:** Stage E, the last one. Stage E is last because C and D each moved some of what it consolidates.
+**Every stage has landed, and the result runs.** What is left is not stage work:
+
+- **Promotion is drafted and waiting for go-ahead** → [promotion.md](./promotion.md). It names every
+  live page this owes, what each change replaces, and the text to fold in, so promoting is folding
+  rather than writing. Five pages are affected, and one of them — `backend/shared/nats.md` — is also
+  owed an edit by [`../task-dispatch/`](../task-dispatch/plan.md); whichever lands second reads the
+  other's edit rather than assuming the old text.
+- The stop-order tests cannot see a runner moved between start phases; closing that means making
+  registration order data rather than emergent. See the known gap under Stage A.
+- Tasks needing Mongo are outside the end-to-end harness. `testing/mongolive` is the route, at the
+  cost of those runs needing a live stack.
 
 **No open decisions.**

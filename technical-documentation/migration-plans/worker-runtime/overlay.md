@@ -37,6 +37,12 @@ The worker's per-step cleanup budget is derived from `DrainTimeout` rather than 
 because asynq's shutdown takes no context: a step budget shorter than the drain would not be enforced,
 it would just be untrue.
 
+**A service that stops is replaced.** Swarm's `restart_policy` is `condition: any` on every fragment,
+so a clean exit brings the task back rather than reading as work completed. Draining correctly and
+being restarted are the same requirement: a worker that shuts down tidily and stays down has still
+lost its replica. Nothing there interferes with `eip shutdown`, which removes services rather than
+stopping them.
+
 ## What a task handler receives
 
 **The request the publisher sent, decoded, and nothing else.**
