@@ -26,7 +26,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.totalMaterialCost())}
+              {formatNumberForLocale(state.activeJob.totalMaterialCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -51,7 +51,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.totalInstallCost())}
+              {formatNumberForLocale(state.activeJob.totalInstallCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -76,7 +76,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.totalExtrasCost())}
+              {formatNumberForLocale(state.activeJob.totalExtrasCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -101,7 +101,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.totalInventionCost())}
+              {formatNumberForLocale(state.activeJob.totalInventionCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -124,7 +124,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.buildCost())}
+              {formatNumberForLocale(state.activeJob.buildCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -148,7 +148,7 @@ export function JobCostSummaryPanel({ state }) {
               align="right"
             >
               {formatNumberForLocale(
-                state.activeJob.totalQuantityProduced(),
+                state.activeJob.totalQuantityProduced,
                 { max: 0 }
               )}
             </Typography>

@@ -1,7 +1,5 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
-
-const TIMELINE_PATH = "/api/v1/statistics/account/timeline";
-const TIMELINE_ITEMS_PATH = "/api/v1/statistics/account/timeline/items";
+import { statisticsPath } from "./statisticsOwner.js";
 
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 350;
@@ -97,8 +95,8 @@ async function readStatistics(url, requestName) {
  * Monthly figures for the signed-in account, summed across every item type
  * unless `typeID` narrows it.
  *
- * GET `/api/v1/statistics/account/timeline` (private; the account comes from the
- * session cookie and is never sent).
+ * GET `/api/v1/statistics/{owner}/timeline` (private). The path names the owner
+ * and the session decides whether it may be read.
  *
  * Omitting the range gives the current month and the one before it — the
  * month-on-month comparison — and the response reports `period.defaulted` so a
@@ -123,18 +121,18 @@ export async function getAccountTimeline(options = {}) {
     return null;
   }
 
+  const path = statisticsPath("timeline");
+  if (!path) return null;
+
   const params = rangeParams(options);
   const query = params.toString();
-  return readStatistics(
-    query ? `${TIMELINE_PATH}?${query}` : TIMELINE_PATH,
-    "getAccountTimeline"
-  );
+  return readStatistics(query ? `${path}?${query}` : path, "getAccountTimeline");
 }
 
 /**
  * The per-item breakdown of the same window, ranked and paged.
  *
- * GET `/api/v1/statistics/account/timeline/items` (private).
+ * GET `/api/v1/statistics/{owner}/timeline/items` (private).
  *
  * Ranking happens on the server: ordering item types by profit needs every type
  * in the window before a page can be taken, so `sort` is a request parameter
@@ -155,6 +153,9 @@ export async function getAccountTimelineItems(options = {}) {
     return null;
   }
 
+  const path = statisticsPath("timeline/items");
+  if (!path) return null;
+
   const params = rangeParams(options);
   if (sort) params.set("sort", String(sort));
   if (order) params.set("order", String(order));
@@ -163,7 +164,7 @@ export async function getAccountTimelineItems(options = {}) {
 
   const query = params.toString();
   return readStatistics(
-    query ? `${TIMELINE_ITEMS_PATH}?${query}` : TIMELINE_ITEMS_PATH,
+    query ? `${path}?${query}` : path,
     "getAccountTimelineItems"
   );
 }

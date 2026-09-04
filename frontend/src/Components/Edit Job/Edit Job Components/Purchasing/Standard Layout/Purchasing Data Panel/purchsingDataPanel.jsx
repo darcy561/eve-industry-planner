@@ -28,7 +28,7 @@ export function PurchasingDataPanel_EditJob(props) {
   const { toggleHideCompleteMaterials } =
     useUsersStore.getState().applicationSettings.actions;
 
-  const totalComplete = state.activeJob.totalCompletedMaterials();
+  const totalComplete = state.activeJob.completedMaterialCount;
 
   return (
     <ContentPanel>
@@ -57,7 +57,7 @@ export function PurchasingDataPanel_EditJob(props) {
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
               Total Material Cost:{" "}
-              {formatNumberForLocale(state.activeJob.totalMaterialCost())}
+              {formatNumberForLocale(state.activeJob.totalMaterialCost)}
             </Typography>
           </Grid>
           <Grid
@@ -70,8 +70,8 @@ export function PurchasingDataPanel_EditJob(props) {
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
               Material Cost Per Item:{" "}
               {formatNumberForLocale(
-                state.activeJob.totalMaterialCost() /
-                  state.activeJob.totalQuantityProduced()
+                state.activeJob.totalMaterialCost /
+                  state.activeJob.totalQuantityProduced
               )}
             </Typography>
           </Grid>
@@ -148,7 +148,7 @@ export function PurchasingDataPanel_EditJob(props) {
                             matchedCount++;
 
                             const stillRequired =
-                              material.quantityStillRequired();
+                              material.quantityRemaining;
                             if (stillRequired <= 0) continue;
 
                             const pastedQuantity =

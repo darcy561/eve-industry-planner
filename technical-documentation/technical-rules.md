@@ -21,6 +21,29 @@ Rejecting leftover bad values in code is fine; **do not document or comment thos
 
 Same bar for live docs: [`documentation-rules.md`](./documentation-rules.md) § Document current behaviour only.
 
+## Comments earn their place
+
+**Applies all the time, to every language in the repo.** A comment is for what a reader cannot get
+from the code. Sparse is the house style: a file where the prose outweighs the statements is harder
+to read, not easier, and it goes stale in ways the code does not.
+
+| Comment this | Not this |
+|--------------|----------|
+| An invariant or rule the code cannot show: "both bounds travel together, the API rejects half a range" | A restatement of the next line, or narration of control flow |
+| A *why* that stops a plausible-looking change: "no cache options here — the layer below keys its own cache by version" | The design discussion behind the choice; that belongs in the plan or overlay |
+| A trap that has already cost something: a field that must be unset rather than omitted | A JSDoc block on an obvious local helper, or `@param` for self-describing arguments |
+| What a package or exported surface owns | Anything the name already says |
+
+Two habits that keep this honest:
+
+- **Write the code first, then decide what still needs saying.** Most comments drafted alongside the
+  code are explaining a decision the reader does not need to relive.
+- **Re-read a file whole after several edits.** Comments accumulate one reasonable line at a time,
+  and the bloat is only visible in aggregate.
+
+Naming is the first tool: a function or field named for what it holds needs less comment than one
+that needs a paragraph to excuse its name. Comment content also follows § Current behaviour only.
+
 ## Host ops (Deployment Tool)
 
 Operator surface is the **Deployment Tool** (CLI + TUI). Binary prefix **`eip`** / `eip.exe` — command examples only, not the product name.

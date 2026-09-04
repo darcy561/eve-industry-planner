@@ -9,6 +9,7 @@ import { showSnackbarInfo } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
 import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
+import { closeAdjustmentSummary } from "./closeAdjustmentSummary";
 
 export default async function closeActiveJob(
   inputJob,
@@ -43,6 +44,7 @@ export default async function closeActiveJob(
   }
 
   let recalculatedJobIds = new Set();
+  const adjustments = [];
   const tempJobsSource = tempJobsToAdd ?? {};
   const tempJobs = Object.values(tempJobsSource);
   const IDsOfNewJobs = new Set(
@@ -74,8 +76,14 @@ export default async function closeActiveJob(
 
     recalculatedJobIds = materialTreeShaker(
       allRelatedJobs,
-      (job, requiredQuantity) =>
-        recalculateJobForNewTotal(job, requiredQuantity, queryClient)
+      (job, requiredQuantity) => {
+        const before = job.totalQuantityProduced;
+        recalculateJobForNewTotal(job, requiredQuantity, queryClient);
+        const after = job.totalQuantityProduced;
+        if (before !== after) {
+          adjustments.push({ jobID: job.jobID, name: job.name, before, after });
+        }
+      }
     );
   }
 
@@ -175,6 +183,6 @@ export default async function closeActiveJob(
   updateOrAddJobsToJobArray([inputJob, ...tempJobs, ...batchUpdates]);
   setActiveJobID(null);
   if (persistToServer) {
-    showSnackbarInfo(`${inputJob.name} Updated`);
+    showSnackbarInfo(closeAdjustmentSummary(inputJob, adjustments), 5);
   }
 }

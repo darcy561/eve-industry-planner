@@ -29,7 +29,7 @@ export function childJobSupplyForMaterial(activeJob, material, childJobs) {
 
   const childIDs = new Set(childJobs.map((childJob) => childJob.jobID));
   const output = childJobs.reduce(
-    (total, childJob) => total + childJob.totalQuantityProduced(),
+    (total, childJob) => total + childJob.totalQuantityProduced,
     0
   );
 
@@ -38,12 +38,12 @@ export function childJobSupplyForMaterial(activeJob, material, childJobs) {
   // takes from two of them still only claims once.
   const parentIDs = new Set([activeJob.jobID]);
   for (const childJob of childJobs) {
-    for (const parentID of childJob.getParentJobIds()) {
+    for (const parentID of childJob.parentJobIDs) {
       parentIDs.add(parentID);
     }
   }
 
-  const ownNeed = material.quantityStillRequired();
+  const ownNeed = material.quantityRemaining;
   let imported = 0;
   let otherClaims = 0;
   let sharedWith = 0;
@@ -70,7 +70,7 @@ export function childJobSupplyForMaterial(activeJob, material, childJobs) {
     );
 
     if (parentID === activeJob.jobID) continue;
-    otherClaims += parentMaterial.quantityStillRequired();
+    otherClaims += parentMaterial.quantityRemaining;
     sharedWith++;
   }
 

@@ -32,6 +32,29 @@ type listEntry struct {
 	// yet. The measures beside it are still correct: they are the job's own, and
 	// are written when it is archived. Sent only when true.
 	AwaitingTotals bool `json:"awaitingTotals,omitempty"`
+
+	// FiguresStale says the last rebuild could not read this job, so its measures
+	// are the last ones that could be computed rather than what it is worth now.
+	// Sent only when true.
+	FiguresStale bool `json:"figuresStale,omitempty"`
+
+	// MonthsFiled says the user chose which months this job's figures count in,
+	// so a row whose dates and months disagree reads as a choice. Sent only when
+	// true.
+	MonthsFiled bool `json:"monthsFiled,omitempty"`
+
+	// CostMonth is where this job's costs currently count, filed or derived, so a
+	// dialogue offering to change it can show what it is changing from.
+	CostMonth string `json:"costMonth,omitempty"`
+
+	// SalesMonth is where this job's income currently counts, so the dialogue
+	// opens on it rather than on nothing. It is the earliest of the sale lines:
+	// filing moves them together, so one month can stand for them.
+	SalesMonth string `json:"salesMonth,omitempty"`
+
+	// SalesFromMarket says ESI recorded at least one of the sales, which is what
+	// makes the income side unmovable.
+	SalesFromMarket bool `json:"salesFromMarket,omitempty"`
 }
 
 // listMeasures is what a row reports about a job's money.
@@ -141,6 +164,13 @@ func (h *Handlers) GetArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		if row, ok := stats[job.JobID]; ok {
 			entry.Measures = measuresFromStats(row)
 			entry.AwaitingTotals = row.AwaitsContribution()
+			entry.FiguresStale = row.FiguresAreStale()
+			entry.MonthsFiled = row.MonthsFiled
+			if row.CostMonth.Year > 0 {
+				entry.CostMonth = row.CostMonth.String()
+			}
+			entry.SalesMonth = earliestSaleMonth(row)
+			entry.SalesFromMarket = salesFromMarket(row)
 		}
 		jobs = append(jobs, entry)
 	}
@@ -201,4 +231,31 @@ func measuresFromStats(row models.ArchivedJobStats) *listMeasures {
 		ProfitLoss:    measures.ProfitLoss,
 		Segment:       archivestats.JobSegment(row),
 	}
+}
+
+// salesFromMarket reports whether any of a row's sale lines came from ESI. The
+// rule is models.IsMarketTransactionID; this is the reduced row's shape of the
+// same question models.Job.SalesAreFromMarket asks of the job.
+func salesFromMarket(row models.ArchivedJobStats) bool {
+	for _, line := range row.TransactionLines {
+		if models.IsMarketTransactionID(line.TransactionID) {
+			return true
+		}
+	}
+	return false
+}
+
+// earliestSaleMonth is the first month this job's income counts in, as YYYY-MM,
+// or empty when it has no sales.
+func earliestSaleMonth(row models.ArchivedJobStats) string {
+	var earliest models.CalendarMonth
+	for _, line := range row.TransactionLines {
+		if earliest.Year == 0 || line.CalendarMonth.Before(earliest) {
+			earliest = line.CalendarMonth
+		}
+	}
+	if earliest.Year == 0 {
+		return ""
+	}
+	return earliest.String()
 }

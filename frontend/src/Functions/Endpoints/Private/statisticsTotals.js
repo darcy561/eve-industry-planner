@@ -1,6 +1,5 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
-
-const TOTALS_PATH = "/api/v1/statistics/account/totals";
+import { statisticsPath } from "./statisticsOwner.js";
 
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 350;
@@ -10,9 +9,11 @@ const RETRY_BASE_DELAY_MS = 350;
  * @returns {string}
  */
 function totalsURL(typeID) {
+  const path = statisticsPath("totals");
+  if (!path) return null;
   const params = new URLSearchParams();
   params.set("typeID", String(typeID));
-  return `${TOTALS_PATH}?${params.toString()}`;
+  return `${path}?${params.toString()}`;
 }
 
 /**
@@ -73,9 +74,12 @@ async function getAccountTotalsByTypeID(typeID) {
     return null;
   }
 
+  const url = totalsURL(idStr);
+  if (!url) return null;
+
   try {
     const response = await requestWithPrivateHeaders(
-      totalsURL(idStr),
+      url,
       { method: "GET" },
       {
         requestName: "getAccountTotalsByTypeID",
@@ -108,7 +112,7 @@ async function getAccountTotalsByTypeID(typeID) {
 /**
  * The account's whole archive as one aggregate row.
  *
- * GET `/api/v1/statistics/account/totals?summary=1`, with no `typeID`: the
+ * GET `/api/v1/statistics/{owner}/totals?summary=1`, with no `typeID`: the
  * endpoint rejects `typeID=0` rather than reading it as "everything", and the
  * unfiltered read returns a row per item type, each carrying an unbounded
  * per-job snapshot array. `summary=1` asks the server to fold them instead.
@@ -116,9 +120,12 @@ async function getAccountTotalsByTypeID(typeID) {
  * @returns {Promise<Object|null>} The summed row, or null if the request failed
  */
 export async function getAccountTotalsSummary() {
+  const path = statisticsPath("totals");
+  if (!path) return null;
+
   try {
     const response = await requestWithPrivateHeaders(
-      `${TOTALS_PATH}?summary=1`,
+      `${path}?summary=1`,
       { method: "GET" },
       {
         requestName: "getAccountTotalsSummary",

@@ -33,8 +33,27 @@ vi.mock("../src/Functions/Helper/getAllRelatedJobs", () => ({
   default: () => [],
 }));
 
+const shakerAdjustments = { current: [] };
+
+vi.mock("../src/Functions/JobPlanner/recalculateJobForNewTotal", () => ({
+  default: () => {},
+}));
+
+vi.mock("../src/Functions/Helper/materialTreeShaker", () => ({
+  default: (jobs, recalculate) => {
+    const ids = new Set();
+    for (const adjustment of shakerAdjustments.current) {
+      recalculate(adjustment.job, adjustment.required);
+      ids.add(adjustment.job.jobID);
+    }
+    return ids;
+  },
+}));
+
+const showSnackbarInfo = vi.fn();
+
 vi.mock("../src/Events/snackbarEvents", () => ({
-  showSnackbarInfo: vi.fn(),
+  showSnackbarInfo: (...args) => showSnackbarInfo(...args),
 }));
 
 const storeHolder = { current: null };
@@ -69,7 +88,10 @@ describe("closeActiveJob", () => {
         sessionID: "sess-a",
         actions: { addLinkedEsiData: vi.fn() },
       },
-      applicationSettings: { enableAutomaticJobRecalculation: false },
+      applicationSettings: {
+        enableAutomaticJobRecalculation: false,
+        actions: { getCurrentLocale: () => "en-GB" },
+      },
       jobData: {
         jobArray: [job],
         groupArray: [],
@@ -85,6 +107,39 @@ describe("closeActiveJob", () => {
       },
       ...documentLockSlice(set, get),
     }));
+  });
+
+  // Closing recalculates production against what the parents need, so a
+  // quantity someone set by hand can be replaced on the way out. The person
+  // closing the job is told, rather than finding out when they reopen it.
+  it("says what the recalculation changed on the way out", async () => {
+    const job = makeJob();
+    const produced = [280, 3440];
+    Object.defineProperty(job, "totalQuantityProduced", {
+      get: () => produced.shift() ?? 3440,
+    });
+    shakerAdjustments.current = [{ job, required: 3440 }];
+    storeHolder.current.setState((state) => ({
+      ...state,
+      applicationSettings: {
+        ...state.applicationSettings,
+        enableAutomaticJobRecalculation: true,
+      },
+    }));
+    storeHolder.current
+      .getState()
+      .documentLock.actions.patchDocumentLockForScope(USER_JOBS_COLLECTION, "j1", {
+        readOnly: false,
+        lockHeld: true,
+      });
+
+    await closeActiveJob(job, true, {}, {}, {}, null);
+
+    expect(showSnackbarInfo).toHaveBeenCalledWith(
+      "Test Job updated — now making 3,440",
+      5
+    );
+    shakerAdjustments.current = [];
   });
 
   it("skips API persist without the job lock", async () => {

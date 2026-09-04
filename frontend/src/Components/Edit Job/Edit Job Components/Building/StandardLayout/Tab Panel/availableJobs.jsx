@@ -100,7 +100,7 @@ export function AvailableJobsTab(props) {
   // Show jobs if we have matches and haven't reached the job limit
   if (
     jobMatches.length !== 0 &&
-    state.activeJob.apiJobs.size < state.activeJob.totalJobCount()
+    state.activeJob.apiJobs.size < state.activeJob.totalJobSlots
   ) {
     return (
       <>

@@ -26,7 +26,7 @@ type MonthKey struct {
 // String renders the wire form, YYYY-MM. Zero-padded so lexical order matches
 // calendar order, the same reason the bucket _id is built that way.
 func (m MonthKey) String() string {
-	return fmt.Sprintf("%04d-%02d", m.Year, m.Month)
+	return models.CalendarMonth{Year: m.Year, Month: m.Month}.String()
 }
 
 // ParseMonthKey reads the wire form, YYYY-MM.

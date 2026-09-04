@@ -1,6 +1,8 @@
 import { render, waitFor } from "@testing-library/react";
 import { expect, vi } from "vitest";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /**
@@ -116,7 +118,17 @@ export async function settledOn(count) {
  * even where nothing is fetched.
  */
 export function renderWithTheme(ui) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(<ThemeProvider theme={theme}>{withPickers(ui)}</ThemeProvider>);
+}
+
+/**
+ * The date pickers read their adapter from context, which `AppWrapper` provides
+ * for the whole app — so a view holding one renders only inside it.
+ */
+function withPickers(ui) {
+  return (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>{ui}</LocalizationProvider>
+  );
 }
 
 /**
@@ -143,7 +155,7 @@ export function renderWithProviders(ui) {
   });
   return render(
     <QueryClientProvider client={client}>
-      <ThemeProvider theme={theme}>{ui}</ThemeProvider>
+      <ThemeProvider theme={theme}>{withPickers(ui)}</ThemeProvider>
     </QueryClientProvider>,
   );
 }
@@ -183,12 +195,27 @@ export function timelineResponse(months) {
   return { period: { from: "", to: "", all: true }, totals: {}, months };
 }
 
+/**
+ * The static data files, as a module mock. Every reader is stubbed, so a hook
+ * that starts reading a second file does not break each test that mocks this.
+ */
+export function cachedDataMock(overrides = {}) {
+  return {
+    getFullItemList: vi.fn(async () => ({})),
+    getSearchIndex: vi.fn(async () => []),
+    getReprocessingData: vi.fn(async () => ({})),
+    getRecipeListFromCache: vi.fn(async () => ({})),
+    ...overrides,
+  };
+}
+
 /** Endpoint stubs shared by the archive views. */
 export function emptyArchiveListMock() {
   return {
     getArchivedJobs: vi.fn(async () => ({ jobs: [], paging: { totalJobs: 0 } })),
     getArchivedJob: vi.fn(async () => null),
     restoreArchivedJobs: vi.fn(async () => null),
+    fileArchivedJobMonths: vi.fn(async () => ({ jobIDs: [] })),
     // The real values: a test that asserts which scope was asked for is
     // asserting against the module's own vocabulary, not a copy of it.
     RESTORE_SCOPES: { JOB: "job", GROUP: "group", RELATED: "related" },

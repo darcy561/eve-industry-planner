@@ -3,8 +3,8 @@ import { Typography, Box } from "@mui/material";
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 
 export default function GroupStep2JobCard({ job }) {
-  const totalComplete = job.totalCompletedMaterials();
-  const isNotReadyToBuild = !job.isReadyToBuild();
+  const totalComplete = job.completedMaterialCount;
+  const isNotReadyToBuild = !job.isReadyToBuild;
 
   return (
     <Box

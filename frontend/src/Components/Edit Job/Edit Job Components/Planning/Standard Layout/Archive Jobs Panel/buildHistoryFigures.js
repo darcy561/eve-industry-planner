@@ -1,4 +1,4 @@
-import { monthKey } from "../../../../../../Components/Archive Statistics/chartAdapters";
+import { monthKey } from "../../../../../../Components/Archive Statistics/calendarMonth.js";
 
 /**
  * Reduces the two statistics reads the panel makes into the figures it renders,

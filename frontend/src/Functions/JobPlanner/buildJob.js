@@ -128,7 +128,7 @@ async function buildSetupOptions(inputJobObject, buildRequestObject, queryClient
         : null;
     if (
       target != null &&
-      inputJobObject.totalQuantityProduced() !== target
+      inputJobObject.totalQuantityProduced !== target
     ) {
       recalculateJobForNewTotal(inputJobObject, target, queryClient);
     }

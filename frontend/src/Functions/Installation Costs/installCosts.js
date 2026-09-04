@@ -2,7 +2,7 @@
  * Install cost estimates — the setup formula, the sum of those estimates across a
  * job's setups, and their recalculation when market or system index data changes.
  *
- * What a job's installs actually cost is Job.totalInstallCost(): the ESI jobs
+ * What a job's installs actually cost is Job.totalInstallCost: the ESI jobs
  * linked to it. Only getJobInstallCostForPlanning mixes the two, and only to
  * stand in with estimates before anything is linked.
  */
@@ -111,7 +111,7 @@ export function getJobInstallCostForPlanning(job) {
 
   const linkedJobs = job.build.costs?.linkedJobs;
   if (Array.isArray(linkedJobs) && linkedJobs.length > 0) {
-    return job.totalInstallCost();
+    return job.totalInstallCost;
   }
 
   return sumSetupEstimatedInstallCosts(job.build.setup);

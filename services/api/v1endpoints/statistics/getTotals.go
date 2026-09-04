@@ -29,7 +29,7 @@ type totalsResponse struct {
 	Total *models.ProductionTotalsRow `json:"total,omitempty"`
 }
 
-// GetTotalsHandler serves GET /api/v1/statistics/account/totals.
+// GetTotalsHandler serves GET /api/v1/statistics/{owner}/totals.
 //
 // Returns every item type the account has built, or one when typeID is given.
 // The rows are produced by the statistics rebuild, so they carry the same
@@ -53,6 +53,9 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accountID := helper.AuthenticatedAccountID(r)
+	if !requireOwnedBySession(w, r, metrics, "statistics_totals", accountID) {
+		return
+	}
 
 	if h.Mongo == nil {
 		metrics.Error("mongo_client_missing")

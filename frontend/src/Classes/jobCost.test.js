@@ -88,8 +88,8 @@ describe("what the installs cost", () => {
       { job_id: 2, cost: 8 },
     ];
 
-    expect(job.totalInstallCost()).toBe(20);
-    expect(job.buildCost()).toBe(123);
+    expect(job.totalInstallCost).toBe(20);
+    expect(job.buildCost).toBe(123);
   });
 
   // Setup estimates are a planning figure — getJobInstallCostForPlanning owns
@@ -107,8 +107,8 @@ describe("what the installs cost", () => {
       }),
     };
 
-    expect(job.totalInstallCost()).toBe(0);
-    expect(job.buildCost()).toBe(103);
+    expect(job.totalInstallCost).toBe(0);
+    expect(job.buildCost).toBe(103);
   });
 
   test("unlinking a job takes its cost back off", () => {
@@ -120,7 +120,7 @@ describe("what the installs cost", () => {
 
     job.unlinkESIJob({ job_id: 2, cost: 8 });
 
-    expect(job.totalInstallCost()).toBe(12);
+    expect(job.totalInstallCost).toBe(12);
   });
 });
 
@@ -132,9 +132,9 @@ describe("invention is its own cost", () => {
 
     job.addInventionCost({ id: "inv-1", itemCost: 25 });
 
-    expect(job.totalInventionCost()).toBe(25);
-    expect(job.totalMaterialCost()).toBe(100);
-    expect(job.buildCost()).toBe(133);
+    expect(job.totalInventionCost).toBe(25);
+    expect(job.totalMaterialCost).toBe(100);
+    expect(job.buildCost).toBe(133);
   });
 
   test("removing it puts the cost back", () => {
@@ -143,8 +143,8 @@ describe("invention is its own cost", () => {
 
     job.removeInventionCost({ id: "inv-1", itemCost: 25 });
 
-    expect(job.totalInventionCost()).toBe(0);
-    expect(job.buildCost()).toBe(108);
+    expect(job.totalInventionCost).toBe(0);
+    expect(job.buildCost).toBe(108);
   });
 });
 
@@ -185,17 +185,70 @@ describe("what the job cost in total", () => {
       sales: [200, 50],
     });
 
-    expect(job.buildCost()).toBe(108);
-    expect(job.brokersFeeTotal()).toBe(3);
-    expect(job.transactionFeeTotal()).toBe(0.75);
-    expect(job.salesTotal()).toBe(250);
-    expect(job.totalCost()).toBe(111.75);
+    expect(job.buildCost).toBe(108);
+    expect(job.totalBrokersFees).toBe(3);
+    expect(job.totalTransactionFees).toBe(0.75);
+    expect(job.totalSales).toBe(250);
+    expect(job.totalCost).toBe(111.75);
   });
 
   test("a job that never sold cost only what it took to build", () => {
     const job = jobWith({ materials: [100] });
 
-    expect(job.totalCost()).toBe(job.buildCost());
-    expect(job.salesTotal()).toBe(0);
+    expect(job.totalCost).toBe(job.buildCost);
+    expect(job.totalSales).toBe(0);
+  });
+});
+
+describe("reading a job's figures", () => {
+  function sold(job) {
+    job.build.sale.brokersFee = [{ id: 0, amount: 3 }];
+    job.build.sale.transactions = [
+      { transaction_id: 1, tax: 0.5, amount: 200, quantity: 2 },
+      { transaction_id: 2, tax: 0.25, amount: 50, quantity: 1 },
+    ];
+    return job;
+  }
+
+  test("the sale totals read as values", () => {
+    const job = sold(jobWith({ materials: [100] }));
+
+    expect(job.totalSales).toBe(250);
+    expect(job.totalBrokersFees).toBe(3);
+    expect(job.totalTransactionFees).toBe(0.75);
+  });
+
+  test("the counts read as values", () => {
+    const job = jobWith({ materials: [100, 0] });
+
+    expect(job.setupCount).toBe(1);
+    expect(job.totalJobSlots).toBe(1);
+    expect(job.completedMaterialCount).toBe(1);
+    expect(job.remainingMaterialCount).toBe(1);
+  });
+
+  test("the id lists read as values", () => {
+    const job = jobWith({ materials: [100] });
+    job.parentJobs = ["parent-1"];
+    job.build.childJobs = { 34: ["child-1"], 35: [] };
+
+    expect(job.parentJobIDs).toEqual(["parent-1"]);
+    expect(job.childJobIDs).toEqual(["child-1"]);
+    expect(job.relatedJobIDs).toEqual(["parent-1", "child-1"]);
+    expect(job.materialIDs).toEqual([587, 34, 35]);
+    expect(job.setupSystemIDs).toHaveLength(1);
+  });
+
+  // Every character that worked on the job, counted once, whether they ran it or
+  // sold its output.
+  test("who was involved is one set", () => {
+    const job = jobWith({ materials: [100] });
+    job.build.costs.linkedJobs = [
+      { job_id: 1, cost: 0, CharacterHash: "ABC" },
+      { job_id: 2, cost: 0, CharacterHash: "ABC" },
+    ];
+    job.build.sale.marketOrders = [{ order_id: 1, CharacterHash: "DEF" }];
+
+    expect(job.involvedCharacters.size).toBe(2);
   });
 });

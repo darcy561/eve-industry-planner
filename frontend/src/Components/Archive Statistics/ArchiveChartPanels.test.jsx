@@ -5,7 +5,7 @@ import {
   chartRenders,
   lastChart,
   monthRow,
-  renderWithTheme,
+  renderWithProviders,
 } from "../../../tests/archiveHarness.jsx";
 import { COST_COMPONENTS } from "./chartAdapters.js";
 
@@ -42,9 +42,10 @@ vi.mock("../../Styled Components/Charts", async () => {
 });
 // The panels resolve item names from the cached static list, the way the rest
 // of the app reads it.
-vi.mock("../../Functions/Helper/getCachedData", () => ({
-  getFullItemList: vi.fn(async () => ({ 34: { name: "Tritanium" } })),
-}));
+vi.mock("../../Functions/Helper/getCachedData", async () => {
+  const { cachedDataMock } = await import("../../../tests/archiveHarness.jsx");
+  return cachedDataMock({ getFullItemList: vi.fn(async () => ({ 34: { name: "Tritanium" } })) });
+});
 
 const panels = await import("./ArchiveChartPanels.jsx");
 
@@ -93,7 +94,7 @@ describe("what each month panel plots", () => {
 
   for (const { name, Panel, series } of cases) {
     it(`plots ${name} against the month`, () => {
-      renderWithTheme(<Panel from="2026-07" to="2026-08" />);
+      renderWithProviders(<Panel from="2026-07" to="2026-08" />);
       const chart = lastChart("time");
 
       expect(chart.categoryKey).toBe("month");
@@ -105,7 +106,7 @@ describe("what each month panel plots", () => {
   }
 
   it("draws one row per month of the window it was given", () => {
-    renderWithTheme(<panels.ArchiveTimelinePanel from="2026-07" to="2026-08" />);
+    renderWithProviders(<panels.ArchiveTimelinePanel from="2026-07" to="2026-08" />);
 
     expect(lastChart("time").rows.map((r) => r.month)).toEqual(["2026-07", "2026-08"]);
   });
@@ -114,7 +115,7 @@ describe("what each month panel plots", () => {
 describe("what a panel shows with nothing to draw", () => {
   it("says so rather than drawing an empty chart", () => {
     useAccountTimelineQuery.mockReturnValue(settled({ months: [] }));
-    renderWithTheme(<panels.ArchiveTimelinePanel />);
+    renderWithProviders(<panels.ArchiveTimelinePanel />);
 
     expect(screen.getByText("No archived jobs in this period.")).toBeInTheDocument();
     expect(screen.queryByTestId("chart")).not.toBeInTheDocument();
@@ -122,14 +123,14 @@ describe("what a panel shows with nothing to draw", () => {
 
   it("draws nothing while the read is in flight", () => {
     useAccountTimelineQuery.mockReturnValue({ data: undefined, isLoading: true, isError: false });
-    renderWithTheme(<panels.ArchiveCumulativePanel />);
+    renderWithProviders(<panels.ArchiveCumulativePanel />);
 
     expect(screen.queryByTestId("chart")).not.toBeInTheDocument();
   });
 
   it("draws nothing when the read failed", () => {
     useAccountTimelineQuery.mockReturnValue({ data: undefined, isLoading: false, isError: true });
-    renderWithTheme(<panels.ArchiveCostBreakdownPanel />);
+    renderWithProviders(<panels.ArchiveCostBreakdownPanel />);
 
     expect(screen.queryByTestId("chart")).not.toBeInTheDocument();
   });
@@ -137,7 +138,7 @@ describe("what a panel shows with nothing to draw", () => {
 
 describe("the pie panels", () => {
   it("splits the period's items by the measure chosen", async () => {
-    renderWithTheme(<panels.ArchiveItemChartPanel from="2026-07" to="2026-08" />);
+    renderWithProviders(<panels.ArchiveItemChartPanel from="2026-07" to="2026-08" />);
 
     expect(lastChart("pie").categoryKey).toBe("name");
     expect(lastChart("pie").valueKey).toBe("value");
@@ -146,7 +147,7 @@ describe("the pie panels", () => {
   });
 
   it("asks the server to rank by the measure the reader picked", () => {
-    renderWithTheme(<panels.ArchiveItemChartPanel />);
+    renderWithProviders(<panels.ArchiveItemChartPanel />);
     fireEvent.mouseDown(screen.getAllByRole("combobox")[0]);
     fireEvent.click(screen.getByText("By cost"));
 
@@ -163,7 +164,7 @@ describe("the pie panels", () => {
     useAccountTimelineItemsQuery.mockReturnValue(
       settled({ items: [{ typeID: 34, profitLoss: -100 }] }),
     );
-    renderWithTheme(<panels.ArchiveItemChartPanel />);
+    renderWithProviders(<panels.ArchiveItemChartPanel />);
 
     expect(screen.getByText(/No item returned a positive profit/i)).toBeInTheDocument();
   });
@@ -171,7 +172,7 @@ describe("the pie panels", () => {
   // Lifetime rather than the window: which segment a job belongs to is a
   // property of the job, so the split describes the archive as a whole.
   it("reads the segment split from lifetime totals, not the window", () => {
-    renderWithTheme(<panels.ArchiveSegmentPanel from="2026-07" to="2026-08" />);
+    renderWithProviders(<panels.ArchiveSegmentPanel from="2026-07" to="2026-08" />);
 
     expect(useAccountTotalsSummaryQuery).toHaveBeenCalled();
     expect(lastChart("pie").categoryKey).toBe("segment");
@@ -179,7 +180,7 @@ describe("the pie panels", () => {
 
   it("says nothing is archived rather than drawing an empty split", () => {
     useAccountTotalsSummaryQuery.mockReturnValue(settled({ breakdown: {} }));
-    renderWithTheme(<panels.ArchiveSegmentPanel />);
+    renderWithProviders(<panels.ArchiveSegmentPanel />);
 
     expect(screen.getByText("Nothing archived yet.")).toBeInTheDocument();
   });
@@ -192,13 +193,13 @@ describe("the extras panels", () => {
         months: [monthRow(2026, 8, { extraCategoryTotals: { 0: 5, 7: 3 } })],
       }),
     );
-    renderWithTheme(<panels.ArchiveExtrasPanel from="2026-08" to="2026-08" />);
+    renderWithProviders(<panels.ArchiveExtrasPanel from="2026-08" to="2026-08" />);
 
     expect(lastChart("time").series.length).toBe(2);
   });
 
   it("says so when no extras were recorded", () => {
-    renderWithTheme(<panels.ArchiveExtrasTotalsPanel />);
+    renderWithProviders(<panels.ArchiveExtrasTotalsPanel />);
 
     expect(
       screen.getByText("No extra costs recorded in this period."),

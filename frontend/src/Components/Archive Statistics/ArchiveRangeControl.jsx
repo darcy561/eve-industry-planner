@@ -4,6 +4,7 @@ import {
   appShellOutlinedFormControl,
   getAppShellSelectMenuProps,
 } from "../../Context/appShell";
+import { monthKeyFromDate } from "./calendarMonth.js";
 
 /**
  * Window presets, as a count of months back from the current one.
@@ -24,11 +25,6 @@ export const ARCHIVE_RANGES = [
   // exceeding the server's maximum. The server bounds this by what exists.
   { key: "all", label: "All time", all: true },
 ];
-
-/** `YYYY-MM` for a date. */
-function monthKey(date) {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-}
 
 /**
  * Resolves a preset into the range the statistics views accept.
@@ -53,7 +49,7 @@ export function resolveArchiveRange(key, now = new Date()) {
   const from = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (preset.months - 1), 1),
   );
-  return { from: monthKey(from), to: monthKey(to) };
+  return { from: monthKeyFromDate(from), to: monthKeyFromDate(to) };
 }
 
 /**

@@ -4,7 +4,7 @@ import getAccountTotalsByTypeID, {
 } from "../../../Functions/Endpoints/Private/statisticsTotals.js";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import useUsersStore from "../../../Zustand/usersStore";
-import { STATISTICS_QUERY_KEY_ROOT } from "./statisticsKeys.js";
+import { statisticsQueryScope } from "./statisticsKeys.js";
 
 /**
  * @param {string|number|null|undefined} typeID
@@ -19,13 +19,13 @@ export function normalizeTotalsTypeID(typeID) {
 
 /**
  * React Query key for one item type's lifetime totals
- * (`GET /api/v1/statistics/account/totals`).
+ * (`GET /api/v1/statistics/{owner}/totals`).
  * @param {string|number|null|undefined} typeID
  * @returns {import("@tanstack/react-query").QueryKey}
  */
 export function totalsQueryKey(typeID) {
   const id = normalizeTotalsTypeID(typeID);
-  return ["backend", STATISTICS_QUERY_KEY_ROOT, "totals", id ?? "none"];
+  return [...statisticsQueryScope(), "totals", id ?? "none"];
 }
 
 /**
@@ -92,7 +92,7 @@ export function removeAccountTotalsQuery(queryClient, typeID) {
 /** Remove all totals queries from the cache. */
 export function clearAccountTotalsQueryCache(queryClient) {
   queryClient.removeQueries({
-    queryKey: ["backend", STATISTICS_QUERY_KEY_ROOT, "totals"],
+    queryKey: [...statisticsQueryScope(), "totals"],
   });
 }
 
@@ -109,7 +109,7 @@ export function resetAccountTotalsQueries(queryClient, typeID) {
     return;
   }
   queryClient.resetQueries({
-    queryKey: ["backend", STATISTICS_QUERY_KEY_ROOT, "totals"],
+    queryKey: [...statisticsQueryScope(), "totals"],
   });
 }
 
@@ -123,7 +123,7 @@ export function useAccountTotalsSummaryQuery({ enabled: enabledOption } = {}) {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
 
   return useQuery({
-    queryKey: ["backend", STATISTICS_QUERY_KEY_ROOT, "totals", "summary"],
+    queryKey: [...statisticsQueryScope(), "totals", "summary"],
     queryFn: getAccountTotalsSummary,
     staleTime: GLOBAL_CONFIG.DEFAULT_ARCHIVE_REFRESH_PERIOD * 60 * 60 * 1000,
     refetchOnWindowFocus: false,

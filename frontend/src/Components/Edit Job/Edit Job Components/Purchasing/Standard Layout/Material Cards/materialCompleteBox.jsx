@@ -11,7 +11,7 @@ export function MaterialCompleteBox_Purchasing({
   const isComplete =
     childJobs.length === 0
       ? material.purchaseComplete
-      : material.quantityStillRequired() <= childSupply.min &&
+      : material.quantityRemaining <= childSupply.min &&
         remainingTotalToBeImported === 0;
 
   if (!isComplete) return null;

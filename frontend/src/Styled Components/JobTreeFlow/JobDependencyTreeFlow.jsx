@@ -296,7 +296,7 @@ function JobDependencyTreeFlowInner({
 
 /**
  * Reusable parent/child job graph (React Flow). Pass canonical `Job` instances (or compatible objects
- * with `jobID`, `name`, `getAllChildJobs`, `getParentJobIds`, etc.).
+ * with `jobID`, `name`, `childJobIDs`, `parentJobIDs`, etc.).
  *
  * Wrap with `ReactFlowProvider` is included in the default export.
  *

@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  monthKey,
   toTimelineRows,
   toCumulativeRows,
   toItemRows,
@@ -13,14 +12,6 @@ import {
   BUILD_COST_COMPONENTS,
   sumTimelineMeasures,
 } from "./chartAdapters";
-
-describe("monthKey", () => {
-  // The wire format is zero-padded so lexical order matches calendar order.
-  it("pads to YYYY-MM", () => {
-    expect(monthKey({ year: 2026, month: 7 })).toBe("2026-07");
-    expect(monthKey({ year: 2026, month: 12 })).toBe("2026-12");
-  });
-});
 
 describe("toTimelineRows", () => {
   it("returns no rows for an absent response", () => {

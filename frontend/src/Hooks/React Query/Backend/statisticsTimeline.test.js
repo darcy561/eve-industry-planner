@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 
+const account = { isLoggedIn: true, accountID: "acct-1" };
+
 vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign(
-    (selector) => selector({ account: { isLoggedIn: true } }),
-    { getState: () => ({ account: { isLoggedIn: true } }) }
-  ),
+  default: Object.assign((selector) => selector({ account }), {
+    getState: () => ({ account }),
+  }),
 }));
 
 vi.mock("../../../global-config-app", () => ({
@@ -36,7 +37,16 @@ describe("timeline query keys", () => {
   });
 
   it("separate the two views", () => {
-    expect(timelineQueryKey()[2]).not.toBe(timelineItemsQueryKey()[2]);
+    expect(timelineQueryKey()[3]).not.toBe(timelineItemsQueryKey()[3]);
+  });
+
+  // Two planners' figures are different data under the same view, so the owner
+  // is part of the key. Without it the first shared planner reads an entry
+  // filled for another owner.
+  it("name whose figures they hold", () => {
+    for (const key of [timelineQueryKey(), timelineItemsQueryKey()]) {
+      expect(key[2]).toBe("account:acct-1");
+    }
   });
 
   // The server chooses the window when the caller does not, so "the default" and

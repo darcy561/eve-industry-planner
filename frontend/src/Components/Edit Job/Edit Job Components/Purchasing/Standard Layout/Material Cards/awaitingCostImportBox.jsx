@@ -26,7 +26,7 @@ export function AwaitingCostImportBox_Purchasing({
   // Whatever the child jobs cannot be counted on for has to be bought first,
   // otherwise the card would say a cost is on its way for units nobody is making
   // for this job.
-  if (material.quantityStillRequired() > childSupply.min) return null;
+  if (material.quantityRemaining > childSupply.min) return null;
 
   return (
     <Box

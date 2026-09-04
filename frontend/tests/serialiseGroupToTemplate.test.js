@@ -13,7 +13,7 @@ function minimalJob(overrides = {}) {
     name: overrides.name ?? "Test job",
     parentJobs: overrides.parentJobs ?? [],
     itemsProducedPerRun: overrides.itemsProducedPerRun ?? 1,
-    totalQuantityProduced: () =>
+    totalQuantityProduced:
       overrides.totalQuantity !== undefined ? overrides.totalQuantity : 5,
     build: {
       materials: overrides.materials ?? [

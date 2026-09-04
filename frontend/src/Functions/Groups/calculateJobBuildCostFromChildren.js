@@ -29,17 +29,17 @@ export function calculateCurrentJobBuildCostFromChildren(
 
   const getInstallCost =
     options.installCostMode === "actual"
-      ? (job) => job.totalInstallCost()
+      ? (job) => job.totalInstallCost
       : getJobInstallCostForPlanning;
 
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
-  const outTotalQty = toFinite(outputJob.totalQuantityProduced());
+  const outTotalQty = toFinite(outputJob.totalQuantityProduced);
   if (outTotalQty <= 0) {
     return 0;
   }
 
   let finalBuildCost =
-    getInstallCost(outputJob) + outputJob.totalExtrasCost();
+    getInstallCost(outputJob) + outputJob.totalExtrasCost;
 
   for (const material of outputJob.build.materials ?? []) {
     const childJobs = outputJob.build.childJobs?.[material.typeID];
@@ -82,8 +82,8 @@ function findItemBuildCost(
     }
 
     returnTotal += getInstallCost(childJob);
-    returnTotal += childJob.totalExtrasCost();
-    totalProduced += toFinite(childJob.totalQuantityProduced());
+    returnTotal += childJob.totalExtrasCost;
+    totalProduced += toFinite(childJob.totalQuantityProduced);
 
     for (const cMaterial of childJob.build.materials ?? []) {
       const nestedChildIds = childJob.build.childJobs?.[cMaterial.typeID];

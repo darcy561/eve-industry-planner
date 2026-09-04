@@ -148,6 +148,29 @@ describe("restoring from the archive, end to end", () => {
     );
   });
 
+  // The rows stay disabled for as long as the write and the refresh it triggers
+  // are in flight — not just until the request resolves, which is when a flag
+  // cleared and left the list showing the page the job had already left.
+  it("holds the rows until the restore and its refresh are done", async () => {
+    let finish;
+    restoreArchivedJobs.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    renderWithProviders(<ArchivedJobsList enabled />);
+    const restore = await screen.findByRole("button", { name: "Restore" });
+
+    fireEvent.click(restore);
+    await waitFor(() => expect(restore).toBeDisabled());
+
+    finish({ restoredJobIDs: ["job-1"], jobs: [], groups: [] });
+    await waitFor(() => expect(invalidateArchiveQueries).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Restore" })).toBeEnabled(),
+    );
+  });
+
   it("reports a failed restore and leaves the caches alone", async () => {
     restoreArchivedJobs.mockResolvedValue(null);
     renderWithProviders(<ArchivedJobsList enabled />);

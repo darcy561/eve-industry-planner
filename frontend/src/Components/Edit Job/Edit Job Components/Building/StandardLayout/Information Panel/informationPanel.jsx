@@ -16,7 +16,7 @@ export function InformationPanel({ state }) {
           }}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Total Material Cost:{" "}
-            {formatNumberForLocale(state.activeJob.totalMaterialCost())}
+            {formatNumberForLocale(state.activeJob.totalMaterialCost)}
           </Typography>
         </Grid>
         <Grid
@@ -28,7 +28,7 @@ export function InformationPanel({ state }) {
           }}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Total Install Costs:{" "}
-            {formatNumberForLocale(state.activeJob.totalInstallCost())}
+            {formatNumberForLocale(state.activeJob.totalInstallCost)}
           </Typography>
         </Grid>
         <Grid

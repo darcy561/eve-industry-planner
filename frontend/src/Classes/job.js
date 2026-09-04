@@ -3,7 +3,6 @@ import { jobTypes } from "../Context/defaultValues";
 import Setup from "./jobSetup";
 import Material from "./jobMaterial";
 import LinkedESIJob from "./linkedESIJob";
-import JobSnapshot from "./jobSnapshot";
 import createESIMarketOrder from "../Functions/MarketOrders/createMarketOrder";
 import useUsersStore from "../Zustand/usersStore";
 import {
@@ -357,51 +356,56 @@ class Job {
    *
    * @returns {string[]}
    */
-  getParentJobIds() {
+  get parentJobIDs() {
     const raw = this.parentJobs;
     if (raw == null) return [];
     return (Array.isArray(raw) ? raw : [raw]).map((id) => String(id));
   }
+
 
   /**
    * Gets all related job IDs (parent and child jobs).
    *
    * @returns {Array<string>} Array of related job IDs
    */
-  getRelatedJobs() {
-    return [...this.getParentJobIds(), ...this.getAllChildJobs()];
+  get relatedJobIDs() {
+    return [...this.parentJobIDs, ...this.childJobIDs];
   }
+
 
   /**
    * Gets all child job IDs for this job.
    *
    * @returns {Array<string>} Array of child job IDs
    */
-  getAllChildJobs() {
+  get childJobIDs() {
     return Object.values(this.build.childJobs).flat();
   }
+
 
   /**
    * Gets all material type IDs used in this job.
    *
    * @returns {Array<number>} Array of material type IDs
    */
-  getMaterialIDs() {
+  get materialIDs() {
     return [this.itemID, ...Object.keys(this.build.childJobs).map(Number)];
   }
+
 
   /**
    * Gets all system IDs used in job setups.
    *
    * @returns {Array<number>} Array of system IDs
    */
-  getSystemIndexes() {
+  get setupSystemIDs() {
     return [
       ...Object.values(this.build.setup).reduce((prev, { systemID }) => {
         return prev.add(systemID);
       }, new Set()),
     ];
   }
+
 
   /**
    * Advances the job status by one step.
@@ -547,7 +551,7 @@ class Job {
    *
    * @returns {number} Number of setups
    */
-  setupCount() {
+  get setupCount() {
     return Object.values(this.build.setup).length;
   }
 
@@ -556,10 +560,11 @@ class Job {
    *
    * @returns {number} Number of completed materials
    */
-  totalCompletedMaterials() {
+  get completedMaterialCount() {
     return this.build.materials.filter((material) => material.purchaseComplete)
       .length;
   }
+
 
   /**
    * True when the job has at least one material and every material is purchase-complete.
@@ -567,10 +572,10 @@ class Job {
    *
    * @returns {boolean}
    */
-  isReadyToBuild() {
+  get isReadyToBuild() {
     const materials = this.build?.materials ?? [];
     if (materials.length === 0) return false;
-    return materials.length === this.totalCompletedMaterials();
+    return materials.length === this.completedMaterialCount;
   }
 
   /**
@@ -579,44 +584,44 @@ class Job {
    *
    * @returns {boolean}
    */
-  isJobTreeReadyToStartIndicator() {
-    const st = Number(this.jobStatus);
-    if (st === 3 || st === 4) return false; // Complete / For Sale (persisted ids)
-    if (!this.isReadyToBuild()) return false;
-    const esi =
-      this.apiJobs && typeof this.apiJobs.size === "number"
-        ? this.apiJobs.size
-        : 0;
-    return esi === 0;
+  get isReadyToStart() {
+    const status = Number(this.jobStatus);
+    if (status === 3 || status === 4) return false;
+    if (!this.isReadyToBuild) return false;
+    return (this.apiJobs?.size ?? 0) === 0;
   }
+
 
   /**
    * Gets the count of remaining materials to purchase.
    *
    * @returns {number} Number of remaining materials
    */
-  totalRemainingMaterials() {
+  get remainingMaterialCount() {
     return this.build.materials.filter((material) => !material.purchaseComplete)
       .length;
   }
+
 
   /**
    * Gets the total job count across all setups.
    *
    * @returns {number} Total job count
    */
-  totalJobCount() {
-    return Object.values(this.build.setup).reduce((prev, { jobCount }) => {
-      return (prev += jobCount);
-    }, 0);
+  get totalJobSlots() {
+    return Object.values(this.build.setup).reduce(
+      (total, { jobCount }) => total + jobCount,
+      0,
+    );
   }
+
 
   /**
    * The total sum of install costs for linked esi jobs.
    *
    * @returns {number} Install cost
    */
-  totalInstallCost() {
+  get totalInstallCost() {
     return this.build.costs.linkedJobs.reduce(
       (total, linkedJob) => total + (Number(linkedJob?.cost) || 0),
       0,
@@ -632,7 +637,7 @@ class Job {
    *
    * @returns {number} Extras total
    */
-  totalExtrasCost() {
+  get totalExtrasCost() {
     return this.build.costs.extrasCosts.reduce(
       (total, extra) => total + (Number(extra?.extraValue) || 0),
       0
@@ -648,7 +653,7 @@ class Job {
    *
    * @returns {number} Invention total
    */
-  totalInventionCost() {
+  get totalInventionCost() {
     return this.build.costs.inventionEntries.reduce(
       (total, entry) => total + (Number(entry?.itemCost) || 0),
       0
@@ -660,12 +665,12 @@ class Job {
    *
    * @returns {number} Build cost
    */
-  buildCost() {
+  get buildCost() {
     return (
-      this.totalMaterialCost() +
-      this.totalInstallCost() +
-      this.totalExtrasCost() +
-      this.totalInventionCost()
+      this.totalMaterialCost +
+      this.totalInstallCost +
+      this.totalExtrasCost +
+      this.totalInventionCost
     );
   }
 
@@ -674,9 +679,9 @@ class Job {
    *
    * @returns {number} Total cost
    */
-  totalCost() {
+  get totalCost() {
     return (
-      this.buildCost() + this.brokersFeeTotal() + this.transactionFeeTotal()
+      this.buildCost + this.totalBrokersFees + this.totalTransactionFees
     );
   }
 
@@ -685,12 +690,13 @@ class Job {
    *
    * @returns {number} Fee total
    */
-  brokersFeeTotal() {
+  get totalBrokersFees() {
     return this.build.sale.brokersFee.reduce(
       (total, fee) => total + (fee.amount || 0),
       0,
     );
   }
+
 
   /**
    * Fees taken on the sales.
@@ -700,24 +706,26 @@ class Job {
    *
    * @returns {number} Transaction fee total
    */
-  transactionFeeTotal() {
+  get totalTransactionFees() {
     return this.build.sale.transactions.reduce(
       (total, transaction) => total + (transaction.tax || 0),
       0,
     );
   }
 
+
   /**
    * What the sales brought in.
    *
    * @returns {number} Sales total
    */
-  salesTotal() {
+  get totalSales() {
     return this.build.sale.transactions.reduce(
       (total, transaction) => total + (transaction.amount || 0),
       0,
     );
   }
+
 
   /**
    * What the materials cost the job: what each material's purchases bought,
@@ -725,7 +733,7 @@ class Job {
    *
    * @returns {number} Material cost
    */
-  totalMaterialCost() {
+  get totalMaterialCost() {
     return this.build.materials.reduce(
       (total, material) => total + material.purchasedCost,
       0,
@@ -758,7 +766,7 @@ class Job {
    *
    * @returns {number} Items produced
    */
-  totalQuantityProduced() {
+  get totalQuantityProduced() {
     return Object.values(this.build.setup).reduce(
       (total, { runCount, jobCount }) =>
         total + this.itemsProducedPerRun * runCount * jobCount,
@@ -775,7 +783,7 @@ class Job {
    * @returns {number} Build cost per item (rounded to 2 decimal places)
    */
   buildCostPerItem() {
-    return this.#costPerItem(this.buildCost());
+    return this.#costPerItem(this.buildCost);
   }
 
   /**
@@ -787,7 +795,7 @@ class Job {
    * @returns {number} Total cost per item (rounded to 2 decimal places)
    */
   totalCostPerItem() {
-    return this.#costPerItem(this.totalCost());
+    return this.#costPerItem(this.totalCost);
   }
 
   /**
@@ -797,9 +805,9 @@ class Job {
    * @returns {number} Cost per item
    */
   #costPerItem(cost) {
-    if (!this.totalQuantityProduced()) return 0;
+    if (!this.totalQuantityProduced) return 0;
 
-    return cost / this.totalQuantityProduced();
+    return cost / this.totalQuantityProduced;
   }
 
   /**
@@ -813,7 +821,7 @@ class Job {
       0
     );
     if (!itemsSold) return 0;
-    return this.salesTotal() / itemsSold;
+    return this.totalSales / itemsSold;
   }
 
   /**
@@ -1034,32 +1042,6 @@ class Job {
     }
   }
 
-  /**
-   * Updates the job snapshot in the provided snapshot array.
-   *
-   * This method finds and updates the job's snapshot in the array:
-   * - Validates input parameters
-   * - Finds the job in the snapshot array by jobID
-   * - Replaces the snapshot with a new JobSnapshot instance
-   * - Handles cases where job is not found in the array
-   *
-   * @param {Array<JobSnapshot>} snapshotArray - Array of job snapshots to update
-   */
-  updateJobSnapshot(snapshotArray) {
-    if (!snapshotArray && Array.isArray(snapshotArray)) {
-      console.error("Snapshot array not provided or is not an array.");
-      return;
-    }
-
-    const index = snapshotArray.findIndex((i) => i.jobID === this.jobID);
-
-    if (index === -1) {
-      console.warn("Nothing to update, job is not present in snapshot array.");
-      return;
-    }
-
-    snapshotArray[index] = new JobSnapshot(this);
-  }
 
   /**
    * Records a purchase against one of the job's materials.
@@ -1098,7 +1080,7 @@ class Job {
    *
    * @returns {number} Bought material cost
    */
-  totalBoughtMaterialCost() {
+  get totalBoughtMaterialCost() {
     return this.build.materials.reduce(
       (total, material) => total + material.boughtCost,
       0
@@ -1246,7 +1228,7 @@ class Job {
    *
    * @returns {LinkedESIJob|null}
    */
-  lastLinkedJobToFinish() {
+  get lastRunToFinish() {
     return this.build.costs.linkedJobs.reduce((latest, linkedJob) => {
       if (linkedJob.finishesAt === null) return latest;
       if (!latest || linkedJob.finishesAt > latest.finishesAt) {
@@ -1256,13 +1238,14 @@ class Job {
     }, null);
   }
 
+
   /**
    * The linked job that finishes first, which is what the planner counts down
    * to. Jobs with no end date are not waited on.
    *
    * @returns {LinkedESIJob|null}
    */
-  nextLinkedJobToFinish() {
+  get nextRunToFinish() {
     return this.build.costs.linkedJobs.reduce((soonest, linkedJob) => {
       if (linkedJob.finishesAt === null) return soonest;
       if (!soonest || linkedJob.finishesAt < soonest.finishesAt) {
@@ -1271,6 +1254,7 @@ class Job {
       return soonest;
     }, null);
   }
+
 
   /**
    * Updates linked market order data with latest information.
@@ -1394,22 +1378,20 @@ class Job {
    * @returns {Object} Object containing the number of unique characters and the set of involved character IDs
    */
 
-  calculateTotalInvolvedCharacters() {
-    const involvedCharacterIDs = new Set();
+  get involvedCharacters() {
+    const characters = new Set();
 
     for (const linkedJob of this.build.costs.linkedJobs) {
-      involvedCharacterIDs.add(linkedJob.CharacterHash);
+      characters.add(linkedJob.CharacterHash);
     }
 
     for (const order of this.build.sale.marketOrders) {
-      involvedCharacterIDs.add(order.CharacterHash);
+      characters.add(order.CharacterHash);
     }
 
-    return {
-      numberOfUniqueCharacters: involvedCharacterIDs.size,
-      involvedCharacterIDs,
-    };
+    return characters;
   }
+
 }
 
 /**

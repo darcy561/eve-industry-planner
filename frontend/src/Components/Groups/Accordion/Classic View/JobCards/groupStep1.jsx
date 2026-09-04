@@ -4,7 +4,7 @@ import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../Functions/Helper/numberParser";
 
 export default function GroupStep1JobCard({ job }) {
-  const totalSetupCount = job.setupCount();
+  const totalSetupCount = job.setupCount;
   return (
     <Box
       sx={{
@@ -23,7 +23,7 @@ export default function GroupStep1JobCard({ job }) {
         </Box>
         <Box sx={{ flex: "0 0 33.333%", textAlign: "right", paddingRight: { xs: 2, md: 3 } }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.totalQuantityProduced(), { max: 0 })}
+            {formatNumberForLocale(job.totalQuantityProduced, { max: 0 })}
           </Typography>
         </Box>
       </Box>

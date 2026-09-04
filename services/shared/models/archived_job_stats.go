@@ -65,9 +65,19 @@ type ArchivedJobStats struct {
 	// aggregates above it. It is both the guard against adding them twice and the
 	// list of what is still outstanding: the rows without one are the work.
 	ContributedAt *time.Time `bson:"contributedAt,omitempty" json:"-"`
-	Revoked       bool       `bson:"revoked" json:"revoked"`
-	RevokedAt     *time.Time `bson:"revokedAt,omitempty" json:"revokedAt,omitempty"`
-	Version       int        `bson:"version" json:"version"`
+	// MonthsFiled records that the job named one of its months rather than the
+	// reduction deriving it, so a figure that disagrees with the job's dates can
+	// be read as a choice rather than a fault.
+	MonthsFiled bool `bson:"monthsFiled,omitempty" json:"-"`
+	// SkippedAt marks a row whose job could no longer be reduced, so the figures
+	// below are the last ones that could be computed rather than the job's
+	// current worth. The row stays in the aggregates; a rebuild that can read the
+	// job again replaces it and clears the stamp.
+	SkippedAt  *time.Time `bson:"skippedAt,omitempty" json:"-"`
+	SkipReason string     `bson:"skipReason,omitempty" json:"-"`
+	Revoked    bool       `bson:"revoked" json:"revoked"`
+	RevokedAt  *time.Time `bson:"revokedAt,omitempty" json:"revokedAt,omitempty"`
+	Version    int        `bson:"version" json:"version"`
 }
 
 // AwaitsContribution reports whether this row's figures are not yet in the
@@ -83,6 +93,11 @@ func (s ArchivedJobStats) AwaitsContribution() bool {
 // job is no longer archived.
 //
 // This is the rule LoadRevokedContributedRows selects on.
+// FiguresAreStale reports a row the last rebuild could not recompute.
+func (s ArchivedJobStats) FiguresAreStale() bool {
+	return s.SkippedAt != nil
+}
+
 func (s ArchivedJobStats) AwaitsRemoval() bool {
 	return s.Revoked && s.ContributedAt != nil
 }

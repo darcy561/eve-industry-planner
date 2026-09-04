@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   Box,
   Button,
@@ -43,6 +43,7 @@ import {
   useArchivedJobsQuery,
 } from "../../Hooks/React Query/Backend/archivedJobsList";
 import { groupArchivedRows, blockTotals } from "./groupArchivedRows";
+import { FileMonthsDialogue } from "./FileMonthsDialogue";
 
 const PAGE_SIZE = 25;
 
@@ -148,17 +149,37 @@ const SEGMENT_LABELS = {
 };
 
 /**
- * Marks a job whose figures have not reached the account totals yet. The figures
- * beside it are not in doubt: a job's own numbers are written when it is
- * archived.
+ * What the figures beside a row are worth.
+ *
+ * Two different things a reader can act on. Pending resolves itself in seconds
+ * and the figures are already right — a job's own numbers are written when it is
+ * archived. Stale does not resolve: the last rebuild could not read the job, so
+ * the figures are the ones it had before, and they stay that way until the job
+ * is fixed and the statistics are recalculated.
  */
-function AwaitingTotalsChip({ awaiting }) {
-  if (!awaiting) return null;
-  return (
-    <Tooltip title="This job's figures are correct, but are not in your account totals yet.">
-      <Chip size="small" variant="outlined" color="warning" label="Pending" />
-    </Tooltip>
-  );
+function FiguresChip({ awaiting, stale, filed }) {
+  if (stale) {
+    return (
+      <Tooltip title="These figures could not be recalculated from this job, so they are the last ones worked out. They update when the job is corrected.">
+        <Chip size="small" variant="outlined" color="error" label="Stale" />
+      </Tooltip>
+    );
+  }
+  if (awaiting) {
+    return (
+      <Tooltip title="This job's figures are correct, but are not in your account totals yet.">
+        <Chip size="small" variant="outlined" color="warning" label="Pending" />
+      </Tooltip>
+    );
+  }
+  if (filed) {
+    return (
+      <Tooltip title="You chose which months this job's figures count in, so they may not match its dates.">
+        <Chip size="small" variant="outlined" color="info" label="Filed" />
+      </Tooltip>
+    );
+  }
+  return null;
 }
 
 function SegmentChip({ segment }) {
@@ -223,7 +244,7 @@ function restoreSummary(result) {
 }
 
 /** One archived job. */
-function JobRow({ job, onRestore, busy, indented }) {
+function JobRow({ job, onRestore, onFile, busy, indented }) {
   return (
     <TableRow hover>
       <TableCell sx={{ pl: indented ? 4 : 2 }}>
@@ -237,9 +258,13 @@ function JobRow({ job, onRestore, busy, indented }) {
         </Typography>
       </TableCell>
       <TableCell>
-        <Stack direction="row" spacing={0.5} alignItems="center">
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
           <SegmentChip segment={job.measures?.segment} />
-          <AwaitingTotalsChip awaiting={job.awaitingTotals} />
+          <FiguresChip
+            awaiting={job.awaitingTotals}
+            stale={job.figuresStale}
+            filed={job.monthsFiled}
+          />
         </Stack>
       </TableCell>
       <TableCell align="right">
@@ -249,13 +274,18 @@ function JobRow({ job, onRestore, busy, indented }) {
         <Money value={job.measures?.profitLoss} />
       </TableCell>
       <TableCell align="right">
-        <Button
-          size="small"
-          disabled={busy}
-          onClick={() => onRestore(RESTORE_SCOPES.JOB, job.jobID)}
-        >
-          Restore
-        </Button>
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
+          <Button size="small" disabled={busy} onClick={() => onFile({ kind: "job", id: job.jobID, label: job.name, jobs: [job] })}>
+            Months
+          </Button>
+          <Button
+            size="small"
+            disabled={busy}
+            onClick={() => onRestore(RESTORE_SCOPES.JOB, job.jobID)}
+          >
+            Restore
+          </Button>
+        </Stack>
       </TableCell>
     </TableRow>
   );
@@ -268,7 +298,7 @@ function JobRow({ job, onRestore, busy, indented }) {
  * hides the figures behind the name. The card labels each value instead, so
  * nothing depends on a header that has scrolled out of view.
  */
-function JobCard({ job, onRestore, busy }) {
+function JobCard({ job, onRestore, onFile, busy }) {
   return (
     <Box
       sx={(theme) => ({
@@ -280,13 +310,16 @@ function JobCard({ job, onRestore, busy }) {
         <Stack
           direction="row"
           spacing={1}
-          alignItems="flex-start"
-          justifyContent="space-between"
+          sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
         >
           <Typography variant="subtitle2">{job.name}</Typography>
-          <Stack direction="row" spacing={0.5} alignItems="center">
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
             <SegmentChip segment={job.measures?.segment} />
-            <AwaitingTotalsChip awaiting={job.awaitingTotals} />
+            <FiguresChip
+            awaiting={job.awaitingTotals}
+            stale={job.figuresStale}
+            filed={job.monthsFiled}
+          />
           </Stack>
         </Stack>
 
@@ -304,18 +337,58 @@ function JobCard({ job, onRestore, busy }) {
           </Field>
         </Stack>
 
-        <Button
-          size="small"
-          fullWidth
-          variant="outlined"
-          disabled={busy}
-          onClick={() => onRestore(RESTORE_SCOPES.JOB, job.jobID)}
-        >
-          Restore
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            size="small"
+            fullWidth
+            variant="outlined"
+            disabled={busy}
+            onClick={() => onFile({ kind: "job", id: job.jobID, label: job.name, jobs: [job] })}
+          >
+            Months
+          </Button>
+          <Button
+            size="small"
+            fullWidth
+            variant="outlined"
+            disabled={busy}
+            onClick={() => onRestore(RESTORE_SCOPES.JOB, job.jobID)}
+          >
+            Restore
+          </Button>
+        </Stack>
       </Stack>
     </Box>
   );
+}
+
+/**
+ * What the dialogue is asked to file.
+ *
+ * A block is filed as one, so it names its group or related set and the server
+ * selects the members — the same three ways restore names them. The months it
+ * opens on come from the first row, since a set archived together shares them.
+ */
+function filingTarget(block) {
+  const [first] = block.jobs;
+  return {
+    scope:
+      block.kind === "group"
+        ? RESTORE_SCOPES.GROUP
+        : block.kind === "related"
+          ? RESTORE_SCOPES.RELATED
+          : RESTORE_SCOPES.JOB,
+    id: block.kind === "job" ? first.jobID : block.id,
+    name: block.label ?? first.name,
+    jobCount: block.jobs.length,
+    costMonth: first.costMonth,
+    salesMonth: first.salesMonth,
+    // A set files what it can, so only a lone job locks the whole dialogue.
+    salesFromMarket:
+      block.jobs.length === 1
+        ? Boolean(first.salesFromMarket)
+        : block.jobs.every((job) => job.salesFromMarket),
+  };
 }
 
 /** A labelled value, so a card carries its own headings. */
@@ -331,11 +404,13 @@ function Field({ label, children }) {
 }
 
 /** A group or linked set as a card, with its members inside it. */
-function BlockCard({ block, onRestore, busy }) {
+function BlockCard({ block, onRestore, onFile, busy }) {
   const totals = useMemo(() => blockTotals(block.jobs), [block.jobs]);
 
   if (block.kind === "job") {
-    return <JobCard job={block.jobs[0]} onRestore={onRestore} busy={busy} />;
+    return (
+      <JobCard job={block.jobs[0]} onRestore={onRestore} onFile={onFile} busy={busy} />
+    );
   }
 
   const isGroup = block.kind === "group";
@@ -347,7 +422,7 @@ function BlockCard({ block, onRestore, busy }) {
       })}
     >
       <Stack spacing={1.5}>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
           <Chip
             size="small"
             label={isGroup ? "Group" : "Linked"}
@@ -371,20 +446,31 @@ function BlockCard({ block, onRestore, busy }) {
           </Field>
         </Stack>
 
-        <Button
-          size="small"
-          fullWidth
-          variant="outlined"
-          disabled={busy}
-          onClick={() =>
-            onRestore(
-              isGroup ? RESTORE_SCOPES.GROUP : RESTORE_SCOPES.RELATED,
-              isGroup ? block.id : block.jobs[0].jobID,
-            )
-          }
-        >
-          Restore {isGroup ? "group" : "set"}
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            size="small"
+            fullWidth
+            variant="outlined"
+            disabled={busy}
+            onClick={() => onFile(block)}
+          >
+            Months
+          </Button>
+          <Button
+            size="small"
+            fullWidth
+            variant="outlined"
+            disabled={busy}
+            onClick={() =>
+              onRestore(
+                isGroup ? RESTORE_SCOPES.GROUP : RESTORE_SCOPES.RELATED,
+                isGroup ? block.id : block.jobs[0].jobID,
+              )
+            }
+          >
+            Restore {isGroup ? "group" : "set"}
+          </Button>
+        </Stack>
 
         <Stack spacing={1} sx={{ pl: 1.5 }}>
           {block.jobs.map((job) => (
@@ -392,6 +478,7 @@ function BlockCard({ block, onRestore, busy }) {
               key={job.jobID}
               job={job}
               onRestore={onRestore}
+              onFile={onFile}
               busy={busy}
             />
           ))}
@@ -402,11 +489,13 @@ function BlockCard({ block, onRestore, busy }) {
 }
 
 /** A group, a related set, or a single job. */
-function Block({ block, onRestore, busy }) {
+function Block({ block, onRestore, onFile, busy }) {
   const totals = useMemo(() => blockTotals(block.jobs), [block.jobs]);
 
   if (block.kind === "job") {
-    return <JobRow job={block.jobs[0]} onRestore={onRestore} busy={busy} />;
+    return (
+      <JobRow job={block.jobs[0]} onRestore={onRestore} onFile={onFile} busy={busy} />
+    );
   }
 
   const isGroup = block.kind === "group";
@@ -414,7 +503,7 @@ function Block({ block, onRestore, busy }) {
     <>
       <TableRow sx={{ backgroundColor: "action.hover" }}>
         <TableCell sx={{ pl: 2 }}>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
             <Tooltip
               arrow
               title={
@@ -450,19 +539,24 @@ function Block({ block, onRestore, busy }) {
           <Money value={totals.counted > 0 ? totals.profitLoss : null} />
         </TableCell>
         <TableCell align="right">
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={busy}
-            onClick={() =>
-              onRestore(
-                isGroup ? RESTORE_SCOPES.GROUP : RESTORE_SCOPES.RELATED,
-                isGroup ? block.id : block.jobs[0].jobID,
-              )
-            }
-          >
-            Restore {isGroup ? "group" : "set"}
-          </Button>
+          <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
+            <Button size="small" disabled={busy} onClick={() => onFile(block)}>
+              Months
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={busy}
+              onClick={() =>
+                onRestore(
+                  isGroup ? RESTORE_SCOPES.GROUP : RESTORE_SCOPES.RELATED,
+                  isGroup ? block.id : block.jobs[0].jobID,
+                )
+              }
+            >
+              Restore {isGroup ? "group" : "set"}
+            </Button>
+          </Stack>
         </TableCell>
       </TableRow>
       {block.jobs.map((job) => (
@@ -470,6 +564,7 @@ function Block({ block, onRestore, busy }) {
           key={job.jobID}
           job={job}
           onRestore={onRestore}
+          onFile={onFile}
           busy={busy}
           indented
         />
@@ -491,7 +586,12 @@ export function ArchivedJobsList({ enabled = true }) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("archivedAt");
   const [page, setPage] = useState(1);
-  const [busy, setBusy] = useState(false);
+  // A restore is an action rather than a flag: React holds the pending state
+  // for as long as the write and the refresh it triggers are in flight, so the
+  // rows stay disabled until the list they belong to is the new one.
+  const [busy, startRestore] = useTransition();
+  // The row whose months are being changed, or null when the dialogue is shut.
+  const [filing, setFiling] = useState(null);
 
   const options = useMemo(
     () => ({
@@ -511,9 +611,8 @@ export function ArchivedJobsList({ enabled = true }) {
   const totalJobs = data?.paging?.totalJobs ?? 0;
   const pageCount = Math.max(1, Math.ceil(totalJobs / PAGE_SIZE));
 
-  const handleRestore = async (scope, id) => {
-    setBusy(true);
-    try {
+  const handleRestore = (scope, id) => {
+    startRestore(async () => {
       const result = await restoreArchivedJobs(scope, id);
       if (!result) {
         showSnackbarError("Could not restore. Please try again.");
@@ -522,9 +621,7 @@ export function ArchivedJobsList({ enabled = true }) {
       applyRestoreLocally(result);
       invalidateArchiveQueries(queryClient);
       showSnackbarSuccess(restoreSummary(result));
-    } finally {
-      setBusy(false);
-    }
+    });
   };
 
   return (
@@ -589,6 +686,7 @@ export function ArchivedJobsList({ enabled = true }) {
                       key={`${block.kind}:${block.id}`}
                       block={block}
                       onRestore={handleRestore}
+                      onFile={(block) => setFiling(filingTarget(block))}
                       busy={busy}
                     />
                   ))}
@@ -601,6 +699,7 @@ export function ArchivedJobsList({ enabled = true }) {
                     key={`${block.kind}:${block.id}`}
                     block={block}
                     onRestore={handleRestore}
+                    onFile={(block) => setFiling(filingTarget(block))}
                     busy={busy}
                   />
                 ))}
@@ -618,6 +717,27 @@ export function ArchivedJobsList({ enabled = true }) {
           />
         )}
       </Stack>
+
+      {/* Mounted only while a job is being filed: the pickers read their months
+          once, when they mount, so a dialogue that outlived the row would open
+          on the values of whichever job it first saw — none. */}
+      {filing && (
+        <FileMonthsDialogue
+          target={filing}
+          onClose={() => setFiling(null)}
+          onFiled={(result) => {
+            // The months moved, so both the list and the figures they feed are
+            // out of date; the rebuild the server queued does the rest.
+            invalidateArchiveQueries(queryClient);
+            const locked = result?.salesLockedByMarket ?? 0;
+            showSnackbarSuccess(
+              locked > 0
+                ? `Months updated. ${locked} sale${locked === 1 ? "" : "s"} came from the market and stayed where ${locked === 1 ? "it was" : "they were"}.`
+                : "Months updated. Your totals will follow shortly.",
+            );
+          }}
+        />
+      )}
     </AppShellPanel>
   );
 }

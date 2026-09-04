@@ -14,11 +14,11 @@ describe("job cost corpus", () => {
     const job = new Job(testCase.job);
     const { expected, why } = testCase;
 
-    expect(job.totalQuantityProduced(), why).toBe(expected.produced);
-    expect(job.totalMaterialCost(), why).toBe(expected.materials);
-    expect(job.totalInstallCost(), why).toBe(expected.install);
-    expect(job.totalInventionCost(), why).toBe(expected.invention);
-    expect(job.totalExtrasCost(), why).toBe(expected.extras);
-    expect(job.buildCost(), why).toBe(expected.build);
+    expect(job.totalQuantityProduced, why).toBe(expected.produced);
+    expect(job.totalMaterialCost, why).toBe(expected.materials);
+    expect(job.totalInstallCost, why).toBe(expected.install);
+    expect(job.totalInventionCost, why).toBe(expected.invention);
+    expect(job.totalExtrasCost, why).toBe(expected.extras);
+    expect(job.buildCost, why).toBe(expected.build);
   });
 });

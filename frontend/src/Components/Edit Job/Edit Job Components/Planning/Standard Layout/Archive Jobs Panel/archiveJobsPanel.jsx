@@ -25,7 +25,7 @@ import {
 import { useAccountTotalsQuery } from "../../../../../../Hooks/React Query/Backend/statisticsTotals";
 import { useAccountTimelineQuery } from "../../../../../../Hooks/React Query/Backend/statisticsTimeline";
 import {
-  BUILD_COST_COMPONENTS,
+  COST_SERIES,
   toBuildCostPerUnitRows,
 } from "../../../../../../Components/Archive Statistics/chartAdapters";
 import {
@@ -46,21 +46,6 @@ const figureSx = {
   fontWeight: 600,
   lineHeight: 1.3,
 };
-
-/** Build components stack; the price its output fetched is drawn over them. */
-const COST_SERIES = [
-  ...BUILD_COST_COMPONENTS.map(({ key, label }) => ({
-    key,
-    label,
-    type: "bar",
-  })),
-  {
-    key: "averageSalePrice",
-    label: "Avg sale price",
-    type: "line",
-    role: "sales",
-  },
-];
 
 function Figure({ label, value, title, note, noteColor }) {
   const figure = <Typography sx={figureSx}>{value}</Typography>;

@@ -170,7 +170,7 @@ describe("a job's linked runs", () => {
 
     const reloaded = new Job(job.toDocument());
     expect(reloaded.build.costs.linkedJobs[0]).toBeInstanceOf(LinkedESIJob);
-    expect(reloaded.totalInstallCost()).toBe(1500);
+    expect(reloaded.totalInstallCost).toBe(1500);
   });
 
   test("the one finishing first is what the planner counts down to", () => {
@@ -180,10 +180,10 @@ describe("a job's linked runs", () => {
       esiJob({ job_id: 3, end_date: "2026-09-09T00:00:00Z" })
     );
 
-    expect(job.nextLinkedJobToFinish().job_id).toBe(2);
+    expect(job.nextRunToFinish.job_id).toBe(2);
   });
 
   test("nothing linked has nothing to wait for", () => {
-    expect(jobWithLinkedRuns().nextLinkedJobToFinish()).toBeNull();
+    expect(jobWithLinkedRuns().nextRunToFinish).toBeNull();
   });
 });

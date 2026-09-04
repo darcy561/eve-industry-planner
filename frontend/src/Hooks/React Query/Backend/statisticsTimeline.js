@@ -5,7 +5,7 @@ import {
 } from "../../../Functions/Endpoints/Private/statisticsTimeline.js";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import useUsersStore from "../../../Zustand/usersStore";
-import { STATISTICS_QUERY_KEY_ROOT } from "./statisticsKeys.js";
+import { statisticsQueryScope } from "./statisticsKeys.js";
 
 /**
  * Stale time for every statistics view, in milliseconds.
@@ -42,23 +42,18 @@ function rangeKeyPart({ from, to, range, typeID, includeProductionChain } = {}) 
 
 /**
  * React Query key for the monthly timeline
- * (`GET /api/v1/statistics/account/timeline`).
+ * (`GET /api/v1/statistics/{owner}/timeline`).
  *
  * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  * @returns {import("@tanstack/react-query").QueryKey}
  */
 export function timelineQueryKey(options = {}) {
-  return [
-    "backend",
-    STATISTICS_QUERY_KEY_ROOT,
-    "timeline",
-    rangeKeyPart(options),
-  ];
+  return [...statisticsQueryScope(), "timeline", rangeKeyPart(options)];
 }
 
 /**
  * React Query key for the per-item breakdown
- * (`GET /api/v1/statistics/account/timeline/items`).
+ * (`GET /api/v1/statistics/{owner}/timeline/items`).
  *
  * Paging and ordering are part of the key: the server ranks and pages, so a
  * different sort or page is a different response rather than a re-slice of one
@@ -70,8 +65,7 @@ export function timelineQueryKey(options = {}) {
 export function timelineItemsQueryKey(options = {}) {
   const { sort, order, limit, offset } = options;
   return [
-    "backend",
-    STATISTICS_QUERY_KEY_ROOT,
+    ...statisticsQueryScope(),
     "timelineItems",
     {
       ...rangeKeyPart(options),

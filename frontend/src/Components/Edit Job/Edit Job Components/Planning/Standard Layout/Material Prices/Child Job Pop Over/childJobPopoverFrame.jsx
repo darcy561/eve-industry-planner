@@ -87,7 +87,7 @@ export function ChildJobPopoverFrame(props) {
 
   const totalInstallCosts = getJobInstallCostForPlanning(currentJob);
 
-  const quantityProduced = currentJob?.totalQuantityProduced() ?? 0;
+  const quantityProduced = currentJob?.totalQuantityProduced ?? 0;
   const totalCostPerItem =
     quantityProduced !== 0
       ? (totalCostOfMaterials + totalInstallCosts) / quantityProduced

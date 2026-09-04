@@ -25,7 +25,7 @@ export function AddMaterialCost_Purchasing({
   // imported, so the form offers what the children cannot be counted on for.
   const stillToBuy = Math.max(
     0,
-    material.quantityStillRequired() -
+    material.quantityRemaining -
       (childJobs.length === 0 ? 0 : childSupply.min),
   );
 

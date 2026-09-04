@@ -147,7 +147,7 @@ export function serialiseGroupToTemplatePayload({
       throw new Error(`Job ${job.name || job.jobID} has no setups to capture.`);
     }
 
-    const desiredTotal = Math.round(job.totalQuantityProduced());
+    const desiredTotal = Math.round(job.totalQuantityProduced);
 
     nodes.push({
       templateJobId,

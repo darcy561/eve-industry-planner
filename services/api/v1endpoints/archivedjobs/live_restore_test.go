@@ -37,9 +37,16 @@ func restoreHandlers(t *testing.T, mongo *eipmongo.Mongo) *Handlers {
 // entity ids as refs, and the lifecycle stamps that say it is archived.
 func archiveJob(t *testing.T, ctx context.Context, h *Handlers, job models.Job, at time.Time) {
 	t.Helper()
-	job.MetaData.AccountID = restoreScratchAccount
+	archiveJobFor(t, ctx, h, job, restoreScratchAccount, at)
+}
+
+// archiveJobFor writes a job into one account's archive the way the PUT route
+// leaves it: entity ids as refs, and the stamps that say it is archived.
+func archiveJobFor(t *testing.T, ctx context.Context, h *Handlers, job models.Job, accountID string, at time.Time) {
+	t.Helper()
+	job.MetaData.AccountID = accountID
 	job.MetaData.ArchivedAt = at
-	job.MetaData.ArchivedBy = restoreScratchAccount
+	job.MetaData.ArchivedBy = accountID
 	if err := jobidentity.Encrypt(&job, h.EntityCipher); err != nil {
 		t.Fatalf("encrypt %s: %v", job.JobID, err)
 	}
@@ -88,7 +95,7 @@ func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("archive scope: %v", err)
 	}
-	jobs, _, err := selectJobsToRestore(ctx, scope, restoreScopeJob, "job-restore-1")
+	jobs, _, err := selectArchivedJobs(ctx, scope, selectionJob, "job-restore-1")
 	if err != nil || len(jobs) != 1 {
 		t.Fatalf("select: %v, jobs %d", err, len(jobs))
 	}
@@ -173,7 +180,7 @@ func TestLive_restoreReturnsTheJobToItsGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("archive scope: %v", err)
 	}
-	jobs, _, err := selectJobsToRestore(ctx, scope, restoreScopeGroup, "group-restore-1")
+	jobs, _, err := selectArchivedJobs(ctx, scope, selectionGroup, "group-restore-1")
 	if err != nil || len(jobs) != 1 {
 		t.Fatalf("select by group: %v, jobs %d", err, len(jobs))
 	}
@@ -219,7 +226,7 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("archive scope: %v", err)
 	}
-	jobs, _, err := selectJobsToRestore(ctx, scope, restoreScopeJob, "job-restore-contested")
+	jobs, _, err := selectArchivedJobs(ctx, scope, selectionJob, "job-restore-contested")
 	if err != nil || len(jobs) != 1 {
 		t.Fatalf("select: %v, jobs %d", err, len(jobs))
 	}

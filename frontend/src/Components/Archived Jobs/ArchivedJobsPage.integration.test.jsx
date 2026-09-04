@@ -43,10 +43,10 @@ vi.mock("../../Zustand/usersStore", async () => {
   );
   return usersStoreMock(archiveStoreState());
 });
-vi.mock("../../Functions/Helper/getCachedData", () => ({
-  getFullItemList: vi.fn(async () => ({})),
-  getSearchIndex: vi.fn(async () => []),
-}));
+vi.mock("../../Functions/Helper/getCachedData", async () => {
+  const { cachedDataMock } = await import("../../../tests/archiveHarness.jsx");
+  return cachedDataMock();
+});
 vi.mock("../../Styled Components/Charts", async () => {
   const { chartMocks } = await import("../../../tests/archiveHarness.jsx");
   return chartMocks();

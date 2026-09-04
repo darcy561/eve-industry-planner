@@ -38,11 +38,11 @@ export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null })
                 let totalInvolvedCharacters = 0;
 
                 for (const job of matchedJobs) {
-                    totalBoughtMaterialCost += job.totalBoughtMaterialCost();
-                    totalInstallCosts += job.totalInstallCost();
-                    totalExtrasCosts += job.totalExtrasCost();
-                    totalInventionCosts += job.totalInventionCost();
-                    totalInvolvedCharacters += job.calculateTotalInvolvedCharacters().numberOfUniqueCharacters;
+                    totalBoughtMaterialCost += job.totalBoughtMaterialCost;
+                    totalInstallCosts += job.totalInstallCost;
+                    totalExtrasCosts += job.totalExtrasCost;
+                    totalInventionCosts += job.totalInventionCost;
+                    totalInvolvedCharacters += job.involvedCharacters.size;
                 }
 
                 setBreakdownStats({

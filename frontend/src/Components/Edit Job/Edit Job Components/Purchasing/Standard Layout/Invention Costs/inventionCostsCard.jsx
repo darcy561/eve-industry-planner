@@ -103,7 +103,7 @@ export function InventionCostsCard({ state, actions }) {
             <Grid sx={{ marginTop: "5px", height: "4.5rem" }} size={12}>
               <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
                 Total Cost:{" "}
-                {formatNumberForLocale(state.activeJob.totalInventionCost())}
+                {formatNumberForLocale(state.activeJob.totalInventionCost)}
               </Typography>
             </Grid>
           </Grid>

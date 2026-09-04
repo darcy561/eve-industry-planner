@@ -44,7 +44,7 @@ type timelineItemsResponse struct {
 	Items  []timelineItemEntry `json:"items"`
 }
 
-// GetTimelineItemsHandler serves GET /api/v1/statistics/account/timeline/items.
+// GetTimelineItemsHandler serves GET /api/v1/statistics/{owner}/timeline/items.
 //
 // Groups the window by item type and ranks it server-side. Ranking cannot be
 // done by the caller: ordering item types by profit needs every type in the
@@ -68,6 +68,9 @@ func (h *Handlers) GetTimelineItemsHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	accountID := helper.AuthenticatedAccountID(r)
+	if !requireOwnedBySession(w, r, metrics, "statistics_timeline_items", accountID) {
+		return
+	}
 
 	if h.Mongo == nil {
 		metrics.Error("mongo_client_missing")

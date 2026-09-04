@@ -22,7 +22,7 @@ export default function Step1JobCard({ job }) {
         </Box>
         <Box sx={{ flex: "0 0 33.333%", textAlign: "right", paddingRight: { xs: 2, md: 3 } }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.totalQuantityProduced(), { max: 0 })}
+            {formatNumberForLocale(job.totalQuantityProduced, { max: 0 })}
           </Typography>
         </Box>
       </Box>
@@ -34,7 +34,7 @@ export default function Step1JobCard({ job }) {
         </Box>
         <Box sx={{ flex: "0 0 16.666%", textAlign: "right", paddingRight: { xs: 2, md: 3 } }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.setupCount(), { max: 0 })}
+            {formatNumberForLocale(job.setupCount, { max: 0 })}
           </Typography>
         </Box>
       </Box>

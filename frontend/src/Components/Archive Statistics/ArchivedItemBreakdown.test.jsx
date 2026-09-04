@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders } from "../../../tests/archiveHarness.jsx";
 
 const useAccountTimelineItemsQuery = vi.fn();
 const getFullItemList = vi.fn();
@@ -9,9 +10,10 @@ vi.mock("../../Hooks/React Query/Backend/statisticsTimeline", () => ({
     useAccountTimelineItemsQuery(...args),
 }));
 
-vi.mock("../../Functions/Helper/getCachedData", () => ({
-  getFullItemList: (...args) => getFullItemList(...args),
-}));
+vi.mock("../../Functions/Helper/getCachedData", async () => {
+  const { cachedDataMock } = await import("../../../tests/archiveHarness.jsx");
+  return cachedDataMock({ getFullItemList: (...args) => getFullItemList(...args) });
+});
 
 const { ArchivedItemBreakdown } = await import("./ArchivedItemBreakdown.jsx");
 
@@ -47,7 +49,7 @@ describe("ArchivedItemBreakdown", () => {
   it("resolves type ids to item names", async () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
 
     await waitFor(() =>
       expect(screen.getByText("Ragnarok")).toBeInTheDocument(),
@@ -60,10 +62,28 @@ describe("ArchivedItemBreakdown", () => {
   it("looks the item list up once for the whole page", async () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
 
     await waitFor(() =>
       expect(screen.getByText("Ragnarok")).toBeInTheDocument(),
+    );
+    expect(getFullItemList).toHaveBeenCalledTimes(1);
+  });
+
+  // The list is one read for the whole app rather than one per set of rows, so a
+  // second panel asking gets the first panel's answer rather than a second fetch.
+  it("shares one read of the list between the panels that need it", async () => {
+    useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
+
+    renderWithProviders(
+      <>
+        <ArchivedItemBreakdown />
+        <ArchivedItemBreakdown />
+      </>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Ragnarok").length).toBeGreaterThan(1),
     );
     expect(getFullItemList).toHaveBeenCalledTimes(1);
   });
@@ -74,7 +94,7 @@ describe("ArchivedItemBreakdown", () => {
     getFullItemList.mockResolvedValue({});
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
 
     await waitFor(() =>
       expect(screen.getByText("Type 23773")).toBeInTheDocument(),
@@ -87,7 +107,7 @@ describe("ArchivedItemBreakdown", () => {
   it("asks the server for the ranking rather than sorting the page", async () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
 
     expect(useAccountTimelineItemsQuery.mock.calls[0][0]).toMatchObject({
       sort: "profitLoss",
@@ -107,7 +127,7 @@ describe("ArchivedItemBreakdown", () => {
   it("toggles between five and ten rows", async () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
     expect(useAccountTimelineItemsQuery.mock.calls[0][0].limit).toBe(5);
 
     fireEvent.click(screen.getByRole("button", { name: "Show top 10" }));
@@ -136,7 +156,7 @@ describe("ArchivedItemBreakdown", () => {
     );
     useAccountTimelineItemsQuery.mockReturnValue(page(tenItems, 40));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
     fireEvent.click(screen.getByRole("button", { name: "Show top 10" }));
     await waitFor(() => expect(screen.getByText("Item 1009")).toBeInTheDocument());
 
@@ -159,7 +179,7 @@ describe("ArchivedItemBreakdown", () => {
   it("collapses when the ranking changes", async () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
 
     fireEvent.click(screen.getByRole("button", { name: "Show top 10" }));
     await waitFor(() => {
@@ -178,14 +198,14 @@ describe("ArchivedItemBreakdown", () => {
   // expansion would show anything the collapsed table does not.
   it("offers the longer view only when the window holds more than five items", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
-    const { unmount } = render(<ArchivedItemBreakdown />);
+    const { unmount } = renderWithProviders(<ArchivedItemBreakdown />);
     expect(
       screen.getByRole("button", { name: "Show top 10" }),
     ).toBeInTheDocument();
     unmount();
 
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 5));
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
     expect(
       screen.queryByRole("button", { name: /Show top/ }),
     ).not.toBeInTheDocument();
@@ -196,7 +216,7 @@ describe("ArchivedItemBreakdown", () => {
   it("offers exactly two rankings", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
     fireEvent.mouseDown(screen.getByRole("combobox"));
 
     const options = screen.getAllByRole("option").map((o) => o.textContent);
@@ -206,7 +226,7 @@ describe("ArchivedItemBreakdown", () => {
   it("starts at five rows", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
 
     expect(useAccountTimelineItemsQuery.mock.calls[0][0].limit).toBe(5);
   });
@@ -214,7 +234,7 @@ describe("ArchivedItemBreakdown", () => {
   it("says so when the window is empty rather than showing an empty table", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page([]));
 
-    render(<ArchivedItemBreakdown />);
+    renderWithProviders(<ArchivedItemBreakdown />);
 
     expect(
       screen.getByText("Nothing archived in this period yet."),
@@ -227,7 +247,7 @@ describe("ArchivedItemBreakdown", () => {
       isLoading: true,
     });
 
-    const { container } = render(<ArchivedItemBreakdown />);
+    const { container } = renderWithProviders(<ArchivedItemBreakdown />);
 
     expect(
       screen.queryByText("Nothing archived in this period yet."),
@@ -243,7 +263,7 @@ describe("ArchivedItemBreakdown", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
     getFullItemList.mockResolvedValue([]);
 
-    render(<ArchivedItemBreakdown from="2026-01" to="2026-06" />);
+    renderWithProviders(<ArchivedItemBreakdown from="2026-01" to="2026-06" />);
 
     await waitFor(() =>
       expect(useAccountTimelineItemsQuery.mock.calls[0][0]).toMatchObject({

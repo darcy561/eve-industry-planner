@@ -5,6 +5,10 @@ const requestWithPrivateHeaders = vi.fn();
 vi.mock("./applyPrivateHeaders.js", () => ({
   default: (...args) => requestWithPrivateHeaders(...args),
 }));
+// The path names the owner, so a request needs one.
+vi.mock("../../../Zustand/usersStore", () => ({
+  default: { getState: () => ({ account: { accountID: "acct-1" } }) },
+}));
 
 const { default: getAccountTotalsByTypeID } = await import("./statisticsTotals.js");
 
@@ -49,7 +53,7 @@ describe("getAccountTotalsByTypeID", () => {
     await getAccountTotalsByTypeID(34);
 
     const [url] = requestWithPrivateHeaders.mock.calls[0];
-    expect(url).toBe("/api/v1/statistics/account/totals?typeID=34");
+    expect(url).toBe("/api/v1/statistics/account:acct-1/totals?typeID=34");
   });
 
   // An account that has never built a type gets an empty list, not a placeholder

@@ -5,11 +5,11 @@ import { formatNumberForLocale, formatTimeRemaining } from "../../../../../Funct
 
 export default function GroupStep3JobCard({ job }) {
   let timeRemaining = useMemo(() => {
-    const next = job.nextLinkedJobToFinish();
+    const next = job.nextRunToFinish;
     return next ? formatTimeRemaining(next.finishesAt) : null;
   }, [job]);
 
-  const totalJobCount = job.totalJobCount();
+  const totalJobCount = job.totalJobSlots;
 
   return (
     <Box
