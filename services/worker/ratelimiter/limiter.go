@@ -232,7 +232,6 @@ func (c *ESIClient) GetLimiterForGroup(groupDesignation GroupDesignation) (*Grou
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// Check if limiter exists for this group
 	if limiter, exists := c.limiters[groupName]; exists {
 		// Update last used time
 		limiter.mu.Lock()
@@ -275,10 +274,8 @@ func (c *ESIClient) GetOrCreateGroupLimiter(ctx context.Context, fullGroupName s
 		limiter.lastUsed = time.Now()
 		limiter.mu.Unlock()
 
-		// Update EnforceTokenRestrictions flag if headers are now present
-		// and update token limit if provided and different
-		// IMPORTANT: This update happens regardless of response status code (including 429),
-		// because rate limit headers are present even in error responses.
+		// Applied whatever the status code, 429 included: ESI sends the rate limit
+		// headers on an error response too.
 		limiter.mu.Lock()
 		if hasHeaders {
 			// Headers are present, enable token restrictions
@@ -376,14 +373,10 @@ func (c *ESIClient) GetOrCreateGroupLimiter(ctx context.Context, fullGroupName s
 	}
 
 	if !enforceTokens {
-		// Headers are missing - use default rate/burst, no token tracking
-		// This should be rare - ESI should always provide X-Ratelimit-Limit header
-		// Note: We use default limits because:
-		// 1. Limits can change over time
-		// 2. We should rely on server headers as the source of truth
-		// 3. Wrong limits could cause rate limiting issues
-		newLimiter.TokenLimit = 0 // No token tracking
-		// Use default rate and burst to match initial default behaviour
+		// No X-Ratelimit-Limit header, which should be rare. The server headers are
+		// the source of truth for a group's limits, so nothing is guessed here:
+		// token tracking is off and the defaults stand in.
+		newLimiter.TokenLimit = 0
 		newLimiter.Limiter.SetLimit(c.defLim.DefaultRate)
 		newLimiter.Limiter.SetBurst(c.defLim.DefaultBurst)
 
@@ -430,12 +423,12 @@ func (c *ESIClient) GetMutexForUnknownPath(path string) *sync.Mutex {
 	return mutex
 }
 
-// CleanupMutexForPath removes the mutex for a path from unknownGroups.
-// This prevents memory leaks by cleaning up mutexes after discovery completes.
-// We clean up the mutex after a successful request, regardless of whether the path
-// got a group header or not. Paths without group headers will use the default limiter
-// and don't need the discovery mutex anymore after the first request.
-// Should be called after releasing the mutex lock and processing the response.
+// CleanupMutexForPath drops a path's discovery mutex from unknownGroups, so the
+// map does not grow without bound.
+//
+// Call it after releasing the lock and processing the response, whether or not
+// the path turned out to have a group: a path that stays on the default limiter
+// has no more discovery to do either.
 func (c *ESIClient) CleanupMutexForPath(path string) {
 	bg := context.Background()
 	// Check if path is now known (without holding unknownGroupMutex to avoid lock ordering issues)
@@ -450,9 +443,9 @@ func (c *ESIClient) CleanupMutexForPath(path string) {
 		"path", path,
 		"path_known", pathKnown)
 
-	// Clean up the mutex after discovery completes, even if path doesn't have a group header.
-	// After the first request, we know whether the path has a group or uses default limiter,
-	// so we no longer need the discovery mutex to prevent concurrent requests.
+	// One request settles whether the path has a group or falls back to the
+	// default limiter, so discovery is done and the mutex has nothing left to
+	// guard — dropped even when no group header arrived.
 	c.unknownGroupMutex.Lock()
 	defer c.unknownGroupMutex.Unlock()
 

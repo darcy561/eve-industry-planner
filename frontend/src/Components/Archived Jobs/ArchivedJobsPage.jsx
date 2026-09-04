@@ -56,7 +56,6 @@ export function ArchivedJobsPage() {
     setTab(TAB_ITEM);
   };
 
-
   return (
     <DefaultPageLayout>
       {/* A column, not a wrapping grid: a grid container shares spare height

@@ -68,22 +68,20 @@ func (c *ESIClient) AddGroupLimiter(groupName string, rps float64, burst int) {
 
 // updateFromHeaders updates token bucket from ESI rate limit headers.
 // If this is a new group discovery, creates the group limiter and maps the path.
-// groupDesignation is required and specifies the rate limit group (no longer extracted from headers).
+// groupDesignation is required and names the rate limit group.
 // Character ID should be included in GroupDesignation.SecondaryGroup if needed.
 func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, resp *http.Response, tokensConsumed int, reservedTokens int, path string, groupDesignation GroupDesignation) *GroupLimiter {
 	now := time.Now()
 
-	// Parse ESI rate limit headers (for token limits and usage, not group name)
+	// Token limits and usage only — the group comes from the caller's designation.
 	limitStr := resp.Header.Get("X-Ratelimit-Limit")
 	remainingStr := resp.Header.Get("X-Ratelimit-Remaining")
 	usedStr := resp.Header.Get("X-Ratelimit-Used")
 
-	// Build group name from provided designation (no longer extracted from headers)
 	groupStr := buildGroupNameFromDesignation(groupDesignation)
 
-	// Determine token limit
-	// X-Ratelimit-Limit format is "600/15m" or "150/15m" (tokens/window)
-	// If headers are missing, we'll use default limits instead of inferring
+	// X-Ratelimit-Limit reads "600/15m" — tokens over a window. Absent headers
+	// fall back to the defaults rather than being inferred.
 	tokenLimit := 0
 	if limitStr != "" {
 		if limit, ok := parseTokenLimitFromHeader(limitStr); ok {
@@ -131,18 +129,10 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 			actualLimiter = gl
 		}
 	} else {
-		// No group header - use the limiter we used for the request (default limiter)
-		// This happens when:
-		// 1. The route hasn't had rate limiting rolled out yet (pre-rollout)
-		// 2. ESI server isn't sending group headers for some reason
-		// 3. We're hitting an old endpoint that doesn't support grouping
-		//
-		// Behaviour: All paths without group headers use the default limiter which has
-		// a steady request rate limit. This provides basic rate limiting while we wait
-		// for ESI to provide group information.
+		// No group header, so the route is either pre-rollout or ungrouped. The
+		// default limiter's steady request rate covers it.
 		actualLimiter = gl
 
-		// Log this scenario so we can track which paths don't have group headers
 		logs.DebugCtx(ctx, "response missing X-Ratelimit-Group header, using default limiter",
 			"path", path,
 			"status", resp.StatusCode,
@@ -153,17 +143,12 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 			"has_used_header", usedStr != "",
 			"note", "default limiter provides steady rate limiting for paths without group headers")
 
-		// Note: We intentionally don't map the path to any group, so future requests will continue
-		// using the default limiter. This means:
-		// - Unknown paths without headers will stay on default limiter (steady rate)
-		// - The default limiter uses rate limiting only (no token bucket tracking)
-		// - The default limiter has a steady request rate (RPS limit) that prevents bursts
-		// - This is the desired behaviour for pre-rollout and unknown endpoints
+		// The path is deliberately left unmapped, so it keeps using the default
+		// limiter — rate only, no token bucket — on every later request.
 	}
 
-	// If no group info (using default limiter), skip token bucket tracking
-	// Only use rate limiter (requestsPerSecond) for default limiter
-	// But still handle retry-after for 429 responses
+	// The default limiter has no token bucket, only a request rate — but a 429
+	// still has to set its retry-after.
 	if groupStr == "" {
 		// Handle 429 responses with Retry-After (even without token tracking)
 		if resp.StatusCode == http.StatusTooManyRequests {
@@ -218,19 +203,17 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		actualLimiter.mu.Unlock()
 	}()
 
-	// Update token limit if provided and different
-	// IMPORTANT: This update happens regardless of response status code (including 429),
-	// because rate limit headers are present even in error responses and provide valuable
-	// information about the actual limits and current usage.
-	// NOTE: We already hold actualLimiter.mu.Lock() from line 178, so don't lock again!
+	// Applied whatever the status code, 429 included: ESI sends the rate limit
+	// headers on an error response too, and those are the current figures.
+	//
+	// actualLimiter.mu is already held here — see the deferred unlock above.
 	if tokenLimit > 0 && tokenLimit != actualLimiter.TokenLimit {
 		oldLimit := actualLimiter.TokenLimit
 		actualLimiter.TokenLimit = tokenLimit
 
-		// Update the rate limiter to match the new token limit
-		// Calculate a conservative rate: tokens per 15 minutes / 15 minutes / 60 seconds
-		// This ensures we don't exceed the token limit over time
-		// Using a conservative estimate of 2 tokens per request
+		// A request is assumed to cost two tokens, so the sustainable rate is the
+		// window's tokens spread over it and halved. Deliberately conservative:
+		// under-spending the budget is recoverable, exhausting it is not.
 		tokensPerSecond := float64(tokenLimit) / (15 * 60) // tokens per second
 		requestsPerSecond := tokensPerSecond / 2.0         // conservative: 2 tokens per request
 		if requestsPerSecond < 0.1 {
@@ -244,7 +227,6 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 			// Cap burst to prevent excessive bursts
 			100)
 		actualLimiter.Limiter.SetBurst(newBurst)
-		// NOTE: Don't unlock here - we're already holding the lock from line 178
 
 		logs.DebugCtx(ctx, "updated token limit and rate limiter from response header",
 			"limiter", actualLimiter.Name,
@@ -382,7 +364,6 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 		"primary_group", groupDesignation.PrimaryGroup,
 		"secondary_group", groupDesignation.SecondaryGroup)
 
-	// Get limiter for this group designation
 	gl, known := c.GetLimiterForGroup(groupDesignation)
 
 	// If group limiter doesn't exist yet, use mutex to prevent concurrent requests to same unknown group
@@ -454,7 +435,6 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 		return nil, nil, err
 	}
 
-	// Apply default headers
 	httpclient.ApplyDefaultHeaders(req)
 
 	// Apply custom headers
@@ -490,7 +470,6 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 
 	// Handle server feedback synchronously to ensure proper tracking
 	// This will discover/create the group limiter if needed
-	// Use provided group designation (no longer extracted from headers)
 	logs.DebugCtx(ctx, "ABOUT TO CALL updateFromHeaders", "path", path, "group", gl.Name)
 	actualLimiter := c.updateFromHeaders(ctx, gl, resp, tokensConsumed, estimatedTokens, path, groupDesignation)
 	logs.DebugCtx(ctx, "RETURNED FROM updateFromHeaders", "path", path, "group", actualLimiter.Name)
@@ -563,7 +542,6 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	finalRemaining := finalTokenLimit - finalTokenUsed
 	actualLimiter.mu.RUnlock()
 
-	// Build log fields
 	logFields := []any{
 		"path", path,
 		"group", actualLimiter.Name,
@@ -609,7 +587,6 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 		"primary_group", groupDesignation.PrimaryGroup,
 		"secondary_group", groupDesignation.SecondaryGroup)
 
-	// Get limiter for this group designation
 	gl, known := c.GetLimiterForGroup(groupDesignation)
 
 	// If group limiter doesn't exist yet, use mutex to prevent concurrent requests to same unknown group
@@ -677,7 +654,6 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 		return nil, err
 	}
 
-	// Apply default headers
 	httpclient.ApplyDefaultHeaders(req)
 
 	// Apply custom headers
@@ -710,7 +686,6 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 
 	// Handle server feedback synchronously to ensure proper tracking
 	// This will discover/create the group limiter if needed
-	// Use provided group designation (no longer extracted from headers)
 	actualLimiter := c.updateFromHeaders(ctx, gl, resp, tokensConsumed, estimatedTokens, path, groupDesignation)
 
 	// Update last used time for the actual limiter
@@ -775,7 +750,6 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	finalRemaining := finalTokenLimit - finalTokenUsed
 	actualLimiter.mu.RUnlock()
 
-	// Build log fields
 	logFields := []any{
 		"path", path,
 		"group", actualLimiter.Name,

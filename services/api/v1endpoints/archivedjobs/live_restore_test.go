@@ -213,13 +213,13 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 
 	const contested, free = 4242, 4243
 	holder := seedJob("job-restore-holder")
-	holder.APIJobs = []int{contested}
+	holder.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: contested}}
 	if _, failed, err := mongo.JobDocuments.BulkUpsertJobs(ctx, restoreScratchAccount, []models.Job{holder}, now, "sess-3", ""); err != nil || failed > 0 {
 		t.Fatalf("seed holder job: %v, failed %d", err, failed)
 	}
 
 	archived := seedJob("job-restore-contested")
-	archived.APIJobs = []int{contested, free}
+	archived.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: contested}, {JobID: free}}
 	archiveJob(t, ctx, h, archived, now)
 
 	scope, err := accountArchiveScope(mongo, restoreScratchAccount)
@@ -246,10 +246,10 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load restored job: %v", err)
 	}
-	if slices.Contains(restored.APIJobs, contested) {
-		t.Fatalf("restored job kept an id another job holds: %v", restored.APIJobs)
+	if slices.Contains(restored.LinkedESIJobIDs(), contested) {
+		t.Fatalf("restored job kept an id another job holds: %v", restored.LinkedESIJobIDs())
 	}
-	if !slices.Contains(restored.APIJobs, free) {
-		t.Fatalf("restored job lost an uncontested id: %v", restored.APIJobs)
+	if !slices.Contains(restored.LinkedESIJobIDs(), free) {
+		t.Fatalf("restored job lost an uncontested id: %v", restored.LinkedESIJobIDs())
 	}
 }

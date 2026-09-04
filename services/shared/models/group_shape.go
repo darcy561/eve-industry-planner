@@ -51,14 +51,14 @@ func contributionOf(jobs []Job) groupContribution {
 		for _, material := range job.Build.Materials {
 			c.materialIDs[material.TypeID] = struct{}{}
 		}
-		for _, id := range job.APIJobs {
-			c.linkedJobs[int64(id)] = struct{}{}
+		for _, id := range job.LinkedESIJobIDs() {
+			c.linkedJobs[id] = struct{}{}
 		}
-		for _, id := range job.APIOrders {
-			c.linkedOrders[int64(id)] = struct{}{}
+		for _, id := range job.LinkedOrderIDs() {
+			c.linkedOrders[id] = struct{}{}
 		}
-		for _, id := range job.APITransactions {
-			c.linkedTrans[int64(id)] = struct{}{}
+		for _, id := range job.LinkedTransactionIDs() {
+			c.linkedTrans[id] = struct{}{}
 		}
 	}
 	return c

@@ -8,15 +8,9 @@ const characterBlueprintsQueryKey = "characterBlueprints";
 
 /**
  * React Query configuration for fetching character blueprints from EVE ESI API.
- * 
+ *
  * This query handles character blueprint data fetching with:
- * - Pagination support for large blueprint collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimised for blueprint data
- * - Error handling with descriptive messages
- * - Character hash tracking for data organisation
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for character group
  * 2. Fetches blueprints page by page until all data is retrieved
@@ -24,7 +18,7 @@ const characterBlueprintsQueryKey = "characterBlueprints";
  * 4. Returns data with character hash for identification
  * 5. Handles rate limiting errors with appropriate wait times
  * 6. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -36,13 +30,6 @@ const characterBlueprintsQueryKey = "characterBlueprints";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: blueprints, isLoading, error } = useQuery(characterBlueprintsQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading blueprints...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Blueprints: {blueprints.data.length} items for {blueprints.characterHash}</div>;
  */
 function characterBlueprintsQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

@@ -39,8 +39,6 @@ import {
   openGroupTemplatesSaveDialogue,
 } from "../../../../Events/groupTemplatesDialogueEvents";
 
-/** Left drawer actions still allowed when the group is not editable (viewer
- *  or #21 vacancy). Close/list/selection stay usable to leave or browse. */
 const GROUP_LEFT_PANEL_READONLY_ALLOWED = new Set([
   "Close Group",
   "Shopping List",

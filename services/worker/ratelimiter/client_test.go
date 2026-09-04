@@ -340,9 +340,8 @@ func TestDo_RateLimitCheck(t *testing.T) {
 	// The error should be a rate limit error
 	rateLimitErr := GetRateLimitError(err)
 	if rateLimitErr == nil {
-		// If cleanup freed up tokens, the request might succeed
-		// This is actually correct behaviour - cleanup should free tokens
-		// So we'll just verify that either we got an error OR the request succeeded
+		// Either outcome is correct: cleanup is meant to free tokens, so the request
+		// may legitimately go through.
 		if err != nil {
 			t.Errorf("Do() error = %v, want RateLimitError or nil", err)
 		}
@@ -519,9 +518,8 @@ func TestGroupCreationVariations(t *testing.T) {
 			t.Errorf("After upgrade: TokenLimit = %v, want 600", tokenLimit2)
 		}
 
-		// Third: Verify that CanMakeRequest now enforces token restrictions
-		// Set tokenUsed to limit to test enforcement
-		// Need to add consumptions to maintain tokenUsed after cleanup
+		// tokenUsed is driven to the limit through consumptions, so it survives
+		// cleanup and CanMakeRequest has something to enforce against.
 		now := time.Now()
 		limiter2.mu.Lock()
 		limiter2.TokenUsed = 600 // At limit

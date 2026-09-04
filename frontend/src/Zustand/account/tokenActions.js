@@ -1,8 +1,6 @@
 /**
  * Zustand actions for planner session, login response application, ESI-linked refresh tokens,
  * and scheduled ESI + corporation claims + server session refresh.
- *
- * @fileoverview Token and session credential actions on the account slice
  */
 
 import {
@@ -152,6 +150,7 @@ function normalizeLinkedID(value) {
 
 /**
  * Maps login `user_document` linked* arrays into account `Set`s (camelCase + snake_case keys).
+ *
  * @param {object|null|undefined} userDoc
  * @returns {{ linkedOrders: Set<number>, linkedJobs: Set<number>, linkedTrans: Set<number> }}
  */
@@ -412,6 +411,7 @@ export const tokenActions = (set, get) => ({
 
   /**
    * Merge remote `users` collection document (WebSocket) into linked ESI sets; guarded by caller cursors.
+   *
    * @param {object} doc
    */
   applyUserDocumentFromRemote: (doc) => {

@@ -415,7 +415,6 @@ func TestFloodLimiter_RetryAfterRecovery(t *testing.T) {
 	defer cancel()
 
 	designation := GroupDesignation{PrimaryGroup: "retry", SecondaryGroup: "after"}
-	// Build the actual group name from designation
 	groupName := buildGroupNameFromDesignation(designation) // This will be "retry-after"
 
 	// Use infinite rate so rate limiter never blocks

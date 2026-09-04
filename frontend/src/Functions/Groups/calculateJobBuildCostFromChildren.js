@@ -14,9 +14,7 @@ function toFinite(n, fallback = 0) {
  *
  * @param {import("../../Classes/job").default} outputJob
  * @param {{ installCostMode?: "actual" | "planning" }} [options]
- *   - `actual` — what the linked ESI jobs cost, and nothing until they are linked
  *     (group output)
- *   - `planning` — the same figure once anything is linked, setup estimates until
  *     then (edit job material pricing)
  */
 export function calculateCurrentJobBuildCostFromChildren(

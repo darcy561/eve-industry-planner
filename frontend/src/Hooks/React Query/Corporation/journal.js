@@ -8,16 +8,9 @@ const corporationJournalQueryKey = "corporationJournal";
 
 /**
  * React Query configuration for fetching corporation journal from EVE ESI API.
- * 
+ *
  * This query handles corporation journal data fetching with:
- * - Multi-division support for corporation wallet divisions (up to 7 divisions)
- * - Pagination support for each division's journal entries
- * - Parallel fetching of all divisions for improved performance
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimised for corporation journal data
- * - Error handling with descriptive messages
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for corporation group
  * 2. Fetches journal entries for all 7 wallet divisions in parallel
@@ -26,7 +19,7 @@ const corporationJournalQueryKey = "corporationJournal";
  * 5. Combines all division data into a single flattened array
  * 6. Handles rate limiting errors with appropriate wait times
  * 7. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -38,13 +31,6 @@ const corporationJournalQueryKey = "corporationJournal";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: corpJournal, isLoading, error } = useQuery(corporationJournalQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading corporation journal...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Corporation Journal: {corpJournal.length} entries across all divisions</div>;
  */
 function corporationJournalQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

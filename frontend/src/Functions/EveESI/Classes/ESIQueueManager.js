@@ -25,6 +25,7 @@ class ESIQueueManager {
 
   /**
    * Add a request to the appropriate queue
+   *
    * @param {string} url - Request URL
    * @param {Object} options - Fetch options
    * @param {Object} config - Request configuration
@@ -37,8 +38,7 @@ class ESIQueueManager {
     const priority = config.priority || 'normal';
     const batchable = config.batchable !== false; // Default to true
     const characterHash = config.characterHash || options.characterHash;
-    
-    
+
     const request = {
       url,
       options,
@@ -65,6 +65,7 @@ class ESIQueueManager {
   /**
    * Get rate limit group for URL (from cache or default)
    * Groups are discovered dynamically from X-Ratelimit-Group headers
+   *
    * @param {string} url - ESI endpoint URL
    * @returns {string} Rate limit group (from cache or 'default')
    */
@@ -77,6 +78,7 @@ class ESIQueueManager {
 
   /**
    * Enqueue a request in the appropriate queue
+   *
    * @param {string} group - Rate limit group
    * @param {Object} request - Request object
    */
@@ -122,6 +124,7 @@ class ESIQueueManager {
 
   /**
    * Process a specific queue
+   *
    * @param {string} group - Rate limit group
    * @param {Object} queue - Queue object
    */
@@ -176,6 +179,7 @@ class ESIQueueManager {
   /**
    * Process a single request
    * Group will be discovered dynamically from X-Ratelimit-Group header
+   *
    * @param {Object} request - Request object
    */
   async processSingleRequest(request) {
@@ -199,6 +203,7 @@ class ESIQueueManager {
 
   /**
    * Process a batch of requests
+   *
    * @param {Array} batch - Array of request objects
    */
   async processBatch(batch) {
@@ -212,6 +217,7 @@ class ESIQueueManager {
 
   /**
    * Delay execution
+   *
    * @param {number} ms - Milliseconds to delay
    */
   delay(ms) {
@@ -220,6 +226,7 @@ class ESIQueueManager {
 
   /**
    * Get queue status for a specific group
+   *
    * @param {string} group - Rate limit group
    * @returns {Object} Queue status
    */
@@ -236,6 +243,7 @@ class ESIQueueManager {
 
   /**
    * Get status for all queues
+   *
    * @returns {Object} All queue statuses
    */
   getAllQueueStatuses() {
@@ -248,6 +256,7 @@ class ESIQueueManager {
 
   /**
    * Clear a specific queue
+   *
    * @param {string} group - Rate limit group
    */
   clearQueue(group) {
@@ -276,6 +285,7 @@ class ESIQueueManager {
 
   /**
    * Set batch size for a specific group
+   *
    * @param {string} group - Rate limit group
    * @param {number} size - Batch size
    */
@@ -285,6 +295,7 @@ class ESIQueueManager {
 
   /**
    * Set priority for a request
+   *
    * @param {string} priority - Priority level ('high', 'normal', 'low')
    */
   setPriority(priority) {
@@ -296,6 +307,7 @@ class ESIQueueManager {
 
   /**
    * Get queue statistics
+   *
    * @returns {Object} Queue statistics
    */
   getStatistics() {

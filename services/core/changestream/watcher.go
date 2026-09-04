@@ -262,7 +262,6 @@ func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group Collecti
 
 // processChangeEvent processes a single change event and publishes it to NATS
 func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) error {
-	// Extract operation type
 	operationType, ok := changeEvent["operationType"].(string)
 	if !ok {
 		return fmt.Errorf("missing or invalid operationType")
@@ -298,7 +297,6 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		return fmt.Errorf("missing _id in documentKey")
 	}
 
-	// Convert docID to string
 	var docID string
 	switch v := docIDValue.(type) {
 	case string:
@@ -438,7 +436,6 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		LinkedCharactersChanged: linkedCharactersChanged,
 	}
 
-	// Marshal to JSON
 	messageData, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal change stream message: %w", err)

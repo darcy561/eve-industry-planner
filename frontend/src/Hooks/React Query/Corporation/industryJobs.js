@@ -8,15 +8,9 @@ const corporationIndustryJobsQueryKey = "corporationIndustryJobs";
 
 /**
  * React Query configuration for fetching corporation industry jobs from EVE ESI API.
- * 
+ *
  * This query handles corporation industry job data fetching with:
- * - Pagination support for large corporation industry job collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimised for corporation industry job data
- * - Error handling with descriptive messages
- * - Corporation ID tracking for data organisation
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for industry group
  * 2. Fetches corporation industry jobs page by page until all data is retrieved
@@ -24,7 +18,7 @@ const corporationIndustryJobsQueryKey = "corporationIndustryJobs";
  * 4. Returns data with corporation ID for identification
  * 5. Handles rate limiting errors with appropriate wait times
  * 6. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -36,13 +30,6 @@ const corporationIndustryJobsQueryKey = "corporationIndustryJobs";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: corpIndustryJobs, isLoading, error } = useQuery(corporationIndustryJobsQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading corporation industry jobs...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Corporation Industry Jobs: {corpIndustryJobs.data.length} active jobs for corp {corpIndustryJobs.corporation_id}</div>;
  */
 function corporationIndustryJobsQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

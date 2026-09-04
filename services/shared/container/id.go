@@ -4,8 +4,8 @@
 // OTel service.instance.id, JetStream durable suffixes, placement keys, leases,
 // and probes. Do not read OTEL_SERVICE_INSTANCE_ID — that env is not identity SoT.
 //
-// Depends on ContainerSpec.Hostname / --hostname not being overridden; if it is,
-// revisit this package.
+// Depends on ContainerSpec.Hostname / --hostname not being overridden — an
+// overridden hostname is no longer the container id.
 package container
 
 import (

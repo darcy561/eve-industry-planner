@@ -37,7 +37,6 @@ func SetupClient() (*asynq.Client, asynq.RedisClientOpt, error) {
 		redisAddr = "redis:6379"
 	}
 
-	// Create asynq Redis client options
 	redisOpt := asynq.RedisClientOpt{
 		Addr:     redisAddr,
 		Password: redisPassword,

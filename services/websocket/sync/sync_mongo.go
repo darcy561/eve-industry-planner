@@ -22,7 +22,6 @@ const (
 // structToMap converts a struct to map[string]any via JSON marshaling
 // This ensures proper type conversion and JSON compatibility
 func structToMap(v any) (map[string]any, error) {
-	// Marshal struct to JSON bytes
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal struct to JSON: %w", err)
@@ -162,12 +161,9 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 	return results, nil
 }
 
-// QueryDocumentsByCollection queries documents from MongoDB by collection name and document IDs
-// Returns a map of documentID -> document data (as map[string]any)
-// Documents that don't exist are omitted from the result
-// Uses bulk query with $in operator for efficiency
-// Implements retry logic with exponential backoff for transient MongoDB errors
-// Context can be cancelled to stop ongoing queries if client disconnects
+// QueryDocumentsByCollection reads the named documents in one `$in` query,
+// keyed by document id. A document that does not exist is omitted rather than
+// returned empty. Transient Mongo errors are retried with backoff.
 func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionName string, documentIDs []string, accountID string) (map[string]map[string]any, error) {
 	if len(documentIDs) == 0 {
 		return make(map[string]map[string]any), nil
@@ -180,7 +176,6 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 	default:
 	}
 
-	// Get Mongo handle
 	mongoHandleInterface := s.GetMongoClient()
 	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
@@ -242,7 +237,6 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	default:
 	}
 
-	// Get Mongo handle
 	mongoHandleInterface := s.GetMongoClient()
 	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
@@ -318,7 +312,6 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	default:
 	}
 
-	// Get Mongo handle
 	mongoHandleInterface := s.GetMongoClient()
 	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")

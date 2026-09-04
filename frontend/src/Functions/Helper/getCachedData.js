@@ -201,6 +201,7 @@ async function pruneStaleStaticCacheEntries(cache, meta) {
 
 /**
  * Checks if a file exists in the cache and returns the data if found
+ *
  * @param {string} fileName - The name of the file to check
  * @returns {Promise<Object|null>} The parsed data from cache if found, null otherwise
  */
@@ -232,6 +233,7 @@ export async function checkFileInCache(fileName) {
 
 /**
  * Checks if a file exists in cache and is not stale
+ *
  * @param {string} fileName - The name of the file to check
  * @returns {Promise<Object|null>} The parsed data from cache if found and fresh, null otherwise
  */
@@ -262,6 +264,7 @@ export async function checkFileInCacheWithMetadata(fileName) {
 
 /**
  * Gets data from the cache
+ *
  * @param {string} fileName - The name of the file to get (e.g., 'searchIndex_compressed.json.gz')
  * @returns {Promise<Object>} The parsed JSON data
  */

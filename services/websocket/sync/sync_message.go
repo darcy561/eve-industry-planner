@@ -57,7 +57,7 @@ func ParseSyncMessage(ctx context.Context, clientID string, accountID string, ms
 	return syncMsg, nil
 }
 
-// HandleSyncMessage parses and enqueues a sync message (legacy entrypoint).
+// HandleSyncMessage parses a sync message and enqueues it for processing.
 func HandleSyncMessage(ctx context.Context, s SyncServer, clientID string, accountID string, msgBytes []byte) {
 	syncMsg, err := ParseSyncMessage(ctx, clientID, accountID, msgBytes)
 	if err != nil {

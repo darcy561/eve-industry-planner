@@ -1,21 +1,9 @@
-// cascade_pipeline.go contains the batched-pipeline implementation of the
-// group → job lock cascade-release path.
+// cascade_pipeline.go releases a group's job locks in two Redis pipelines: one
+// GET for every job id, then one DEL for the locks the predicate chose. A group
+// of a hundred jobs is two round trips rather than two hundred.
 //
-// # What changed (vs. the previous per-job loop)
-//
-// The old implementation iterated `group.IncludedJobIDs`, calling
-// `GetLock` (1+ RTTs) and `DeleteLock` (1 RTT) per job. For a group with
-// 100 jobs that meant ~200 sequential Redis round-trips dominated by
-// network latency.
-//
-// `pipelinedDecideAndReleaseJobLocks` collapses that into two pipelines:
-//
-//   - Phase 1: one pipeline that issues GET for every job ID. 1 round-trip.
-//   - Phase 2: one pipeline that DELs only the locks the predicate chose
-//     to release. 1 round-trip.
-//
-// Mongo IO and JetStream publishing stay outside the helper so the
-// Redis-side logic can be unit-tested against miniredis.
+// Mongo IO and JetStream publishing stay outside the helper so the Redis-side
+// logic can be unit-tested against miniredis.
 
 package documentlock
 

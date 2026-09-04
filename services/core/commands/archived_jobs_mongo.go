@@ -20,10 +20,8 @@ import (
 //
 // Rebuilds are wholesale and read archived jobs directly, so an account is the
 // only unit that matters: whichever of its jobs changed, the recomputation is
-// the same. Nothing is written to the jobs themselves.
-//
-// Nothing is written to the job documents themselves: the rebuild reads them and
-// derives everything, so there is no per-job state for an operator to reset.
+// the same. Nothing is written to the job documents, so there is no per-job
+// state for an operator to reset.
 func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("queueArchivedJobStatsRebuild", flag.ContinueOnError)
 	fs.Usage = func() {

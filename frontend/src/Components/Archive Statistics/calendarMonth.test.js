@@ -16,7 +16,6 @@ describe("monthKey", () => {
   });
 });
 
-
 describe("months a picker holds", () => {
   it("writes a date as the stored key", () => {
     expect(monthKeyFromDate(new Date(Date.UTC(2026, 2, 15)))).toBe("2026-03");

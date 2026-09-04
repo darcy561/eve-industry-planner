@@ -69,8 +69,8 @@ func DocLockFiltersForHostedTenants(tenants []string) []string {
 	return out
 }
 
-// CollectionScopedDocID joins collection and docID the way outbound logging/shard keys expect
-// (legacy subject tail after doc.update. was {collection}.{docID}).
+// CollectionScopedDocID joins collection and docID as {collection}.{docID}, the
+// form outbound logging and shard keys expect.
 func CollectionScopedDocID(collection, docID string) string {
 	collection = strings.TrimSpace(collection)
 	docID = strings.TrimSpace(docID)

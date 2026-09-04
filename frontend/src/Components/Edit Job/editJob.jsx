@@ -46,8 +46,6 @@ import {
   isFinalStepLockedForJob,
 } from "../../Functions/Job/jobStepNavigation";
 
-
-
 export default function EditJob_New() {
   const { state, actions } = useEditJobReducer();
   const { setActiveJobID } = useUsersStore.getState().jobData.actions;
@@ -456,10 +454,11 @@ export default function EditJob_New() {
   );
 
   /**
- * Read `/editjob/$id` query params at call time (e.g. link-tree button) - avoids subscribing
- * to search on every render when the dialogue is rarely opened.
- * @returns {{ activeGroup: string|undefined, pageView: string|undefined }}
- */
+   * Read `/editjob/$id` query params at call time (e.g. link-tree button) - avoids subscribing
+   * to search on every render when the dialogue is rarely opened.
+   *
+   * @returns {{ activeGroup: string|undefined, pageView: string|undefined }}
+   */
   function readEditJobUrlSearch() {
     if (typeof window === "undefined") {
       return { activeGroup: undefined, pageView: undefined };
@@ -473,5 +472,4 @@ export default function EditJob_New() {
     };
   }
 }
-
 

@@ -540,11 +540,9 @@ func TestRefreshAdjustedPrices_SuccessfulRefresh(t *testing.T) {
 }
 
 func TestRefreshAdjustedPrices_ETagSaveFailure(t *testing.T) {
-	// This test requires full integration setup
 	t.Skip("Requires full integration setup - better suited for integration tests")
 }
 
 func TestRefreshAdjustedPrices_StreamError(t *testing.T) {
-	// This test requires full integration setup
 	t.Skip("Requires full integration setup - better suited for integration tests")
 }

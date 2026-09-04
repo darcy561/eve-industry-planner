@@ -5,11 +5,9 @@ import { TimeSeriesChart } from "./TimeSeriesChart";
 import { RankedBarChart } from "./RankedBarChart";
 import { PieChart } from "./PieChart";
 
-// jsdom reports a zero-sized container, so ResponsiveContainer would render
-// nothing; the primitives take explicit dimensions for exactly this case.
-// jsdom performs no layout, so a CSS-sized responsive chart can never measure
-// its parent there. Explicit dimensions are passed to test what the chart draws;
-// the sizing itself is asserted on the style object instead.
+// jsdom performs no layout, so a ResponsiveContainer measures a zero-sized
+// parent and draws nothing. Explicit dimensions are passed to test what the
+// chart draws; the sizing itself is asserted on the style object instead.
 function sized(ui) {
   return render(cloneElement(ui, { width: 600, height: 400 }));
 }

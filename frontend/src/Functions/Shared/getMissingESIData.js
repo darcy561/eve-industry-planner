@@ -4,16 +4,11 @@ import getSystemIndexes from "../System Indexes/findSystemIndex";
 /**
  * Retrieves missing ESI data (market data and system indexes) for a collection of jobs.
  * Collects all required material IDs and system IDs from jobs and fetches the data.
- * 
+ *
  * @param {Object|Array<Object>} inputJobs - Job object(s) to get missing data for
  * @returns {Promise<Object>} Promise that resolves to object with market data and system indexes
  * 
  * @throws {Error} Throws error if inputJobs is missing
- * 
- * @example
- * const missingData = await getMissingESIData(jobArray);
- * console.log(missingData.requestedMarketData);
- * console.log(missingData.requestedSystemIndexes);
  */
 async function getMissingESIData(inputJobs) {
   if (!inputJobs) {

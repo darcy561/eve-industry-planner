@@ -6,20 +6,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// mockTimeProvider allows controlling time in tests
-// This is kept for future use when we need to mock time in tests
-// type mockTimeProvider struct {
-// 	now time.Time
-// }
-//
-// func (m *mockTimeProvider) Now() time.Time {
-// 	return m.now
-// }
-//
-// func (m *mockTimeProvider) Advance(d time.Duration) {
-// 	m.now = m.now.Add(d)
-// }
-
 // createTestGroupLimiter creates a GroupLimiter for testing
 func createTestGroupLimiter(name string, tokenLimit int, tokenUsed int) *GroupLimiter {
 	// Set EnforceTokenRestrictions to true if tokenLimit > 0 (headers present)

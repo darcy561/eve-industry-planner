@@ -318,12 +318,6 @@ function RecipeSearchWithBlueprintQueries({
  * @param {boolean} [props.ignoreSelectionOverrides=false] - If true, ignores blueprint availability filtering and shows all items
  * @param {boolean} [props.appShellStyled=false] - Outlined field + app-shell dropdown styling
  * @returns {JSX.Element} Virtualized recipe search autocomplete component
- *
- * @example
- * <VirtualisedRecipeSearch
- *   onSelect={(recipe) => console.log('Selected:', recipe.name)}
- *   ignoreSelectionOverrides={false}
- * />
  */
 function VirtualisedRecipeSearch({
   onSelect,

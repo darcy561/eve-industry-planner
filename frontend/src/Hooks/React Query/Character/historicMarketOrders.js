@@ -8,14 +8,9 @@ const characterHistoricMarketOrdersQueryKey = "characterHistoricMarketOrders";
 
 /**
  * React Query configuration for fetching character historic market orders from EVE ESI API.
- * 
+ *
  * This query handles character historic market order data fetching with:
- * - Pagination support for large historic market order collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimised for historic market order data
- * - Error handling with descriptive messages
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for character group
  * 2. Fetches historic market orders page by page until all data is retrieved
@@ -23,7 +18,7 @@ const characterHistoricMarketOrdersQueryKey = "characterHistoricMarketOrders";
  * 4. Returns data wrapped in an object for consistency
  * 5. Handles rate limiting errors with appropriate wait times
  * 6. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -35,13 +30,6 @@ const characterHistoricMarketOrdersQueryKey = "characterHistoricMarketOrders";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: historicOrders, isLoading, error } = useQuery(characterHistoricMarketOrdersQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading historic market orders...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Historic Orders: {historicOrders.data.length} completed orders</div>;
  */
 function characterHistoricMarketOrdersQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

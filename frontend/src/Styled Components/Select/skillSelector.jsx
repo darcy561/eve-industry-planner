@@ -3,21 +3,13 @@ import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 /**
  * A select component for choosing skill levels (0-5).
  * Displays skill level options from 0 to 5 with error handling.
- * 
+ *
  * @param {Object} props - Component props
  * @param {number} [props.level=0] - Currently selected skill level
  * @param {string} [props.skillName=""] - Name of the skill for labelling
  * @param {Function} props.onChange - Callback function called when selection changes. Receives the skill level number.
  * @param {Object} [props.error] - Error state object with isError boolean and errorText string
  * @returns {JSX.Element} Skill selector component
- * 
- * @example
- * <SkillSelector 
- *   level={3}
- *   skillName="Industry"
- *   onChange={(level) => setSkillLevel(level)}
- *   error={{ isError: false, errorText: "" }}
- * />
  */
 function SkillSelector({
   level = 0,

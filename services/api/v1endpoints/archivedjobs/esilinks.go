@@ -22,26 +22,28 @@ const (
 	esiLinkTransaction esiLinkKind = "transaction"
 )
 
+// esiLinkField is where each kind's ids live on a job document. A job holds an
+// ESI id by carrying the row itself, so the search reads the rows.
 var esiLinkField = map[esiLinkKind]string{
-	esiLinkOrder:       "apiOrders",
-	esiLinkJob:         "apiJobs",
-	esiLinkTransaction: "apiTransactions",
+	esiLinkOrder:       "build.sale.marketOrders.order_id",
+	esiLinkJob:         "build.costs.linkedJobs.job_id",
+	esiLinkTransaction: "build.sale.transactions.transaction_id",
 }
 
 // esiConflict is one ESI entry a restored job cannot reclaim, and the planner
 // job now holding it.
 type esiConflict struct {
 	Kind       esiLinkKind `json:"kind"`
-	ID         int         `json:"id"`
+	ID         int64       `json:"id"`
 	HeldBy     string      `json:"heldBy"`
 	HeldByName string      `json:"heldByName,omitempty"`
 }
 
 // esiLinkSet is a set of ESI ids split by kind.
 type esiLinkSet struct {
-	Orders       []int
-	Jobs         []int
-	Transactions []int
+	Orders       []int64
+	Jobs         []int64
+	Transactions []int64
 }
 
 // esiLinksOf reads a job's own ESI ids.
@@ -50,9 +52,9 @@ func esiLinksOf(job *models.Job) esiLinkSet {
 		return esiLinkSet{}
 	}
 	return esiLinkSet{
-		Orders:       job.APIOrders,
-		Jobs:         job.APIJobs,
-		Transactions: job.APITransactions,
+		Orders:       job.LinkedOrderIDs(),
+		Jobs:         job.LinkedESIJobIDs(),
+		Transactions: job.LinkedTransactionIDs(),
 	}
 }
 
@@ -91,8 +93,8 @@ func resolveESILinks(ctx context.Context, m *eipmongo.Mongo, accountID string, l
 
 	for _, group := range []struct {
 		kind esiLinkKind
-		ids  []int
-		out  *[]int
+		ids  []int64
+		out  *[]int64
 	}{
 		{esiLinkOrder, links.Orders, &free.Orders},
 		{esiLinkJob, links.Jobs, &free.Jobs},
@@ -122,7 +124,7 @@ func resolveESILinks(ctx context.Context, m *eipmongo.Mongo, accountID string, l
 }
 
 // esiHoldersFor finds which planner job holds each id, one query per kind.
-func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kind esiLinkKind, ids []int, excludeJobIDs []string) (map[int]esiHolder, error) {
+func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kind esiLinkKind, ids []int64, excludeJobIDs []string) (map[int64]esiHolder, error) {
 	field, ok := esiLinkField[kind]
 	if !ok {
 		return nil, fmt.Errorf("unknown esi link kind %q", kind)
@@ -140,42 +142,39 @@ func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kin
 		filter["jobID"] = bson.M{"$nin": excludeJobIDs}
 	}
 
-	out := map[int]esiHolder{}
+	out := map[int64]esiHolder{}
 	err := eipmongo.Retry(ctx, "resolve esi link holders", func() error {
 		clear(out)
 		cursor, findErr := coll.Find(ctx, filter, options.Find().SetProjection(bson.M{
-			"jobID": 1,
-			"name":  1,
-			field:   1,
+			"jobID":                   1,
+			"name":                    1,
+			"build.costs.linkedJobs":  1,
+			"build.sale.marketOrders": 1,
+			"build.sale.transactions": 1,
 		}))
 		if findErr != nil {
 			return findErr
 		}
 		defer cursor.Close(ctx)
 
-		wanted := make(map[int]struct{}, len(ids))
+		wanted := make(map[int64]struct{}, len(ids))
 		for _, id := range ids {
 			wanted[id] = struct{}{}
 		}
 
-		var rows []struct {
-			esiHolder       `bson:",inline"`
-			APIOrders       []int `bson:"apiOrders"`
-			APIJobs         []int `bson:"apiJobs"`
-			APITransactions []int `bson:"apiTransactions"`
-		}
+		var rows []models.Job
 		if allErr := cursor.All(ctx, &rows); allErr != nil {
 			return allErr
 		}
 		for _, row := range rows {
-			var held []int
+			var held []int64
 			switch kind {
 			case esiLinkOrder:
-				held = row.APIOrders
+				held = row.LinkedOrderIDs()
 			case esiLinkJob:
-				held = row.APIJobs
+				held = row.LinkedESIJobIDs()
 			case esiLinkTransaction:
-				held = row.APITransactions
+				held = row.LinkedTransactionIDs()
 			}
 			for _, id := range held {
 				// A holder carries all its own ids; only the intersection counts.
@@ -185,7 +184,7 @@ func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kin
 				if _, already := out[id]; already {
 					continue
 				}
-				out[id] = row.esiHolder
+				out[id] = esiHolder{JobID: row.JobID, Name: row.Name}
 			}
 		}
 		return nil

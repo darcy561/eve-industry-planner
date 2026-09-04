@@ -81,7 +81,6 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 		middleware.UnregisteredRoutesMuxConstructor(mux),
 	)(http.NotFoundHandler()) // leaf unused; UnregisteredRoutesMuxConstructor serves the mux directly
 
-	// Public and private groups for v1
 	// Per-ID citadel name GETs are cacheable (browser + CDN); a single page can request many
 	// structure IDs in parallel on a cold cache. Exempt that prefix from the default public
 	// rate limit so we do not need a non-cacheable batch lookup.
@@ -209,7 +208,6 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 			},
 		},
 	}
-	// Register public routes
 	for _, route := range publicRoutes {
 		publicGroup.HandleFunc(route.Path, route.Handler)
 	}
@@ -305,7 +303,6 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 		middleware.RateLimiterConstructor(store, publicRateLimit, "migration_public"),
 	)
 
-	// Migration public routes
 	migrationPublicRoutes := []route{
 		{
 			Path: "/api/migration/item/{itemID}",

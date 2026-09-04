@@ -60,7 +60,6 @@ func JobFromFirestoreMap(doc map[string]any, accountID string) (models.Job, erro
 	ensureMaterialsSlice(clone)
 	ensureParentJobsSlice(clone)
 	normalizeNestedJobIDs(clone)
-	ensureRootAPIIntSlices(clone)
 	normalizeJobLayout(clone)
 
 	if err := hoistMetaAndPlanner(clone, accountID); err != nil {
@@ -642,6 +641,10 @@ func stripLegacyRootFields(m map[string]any) {
 	keys := []string{
 		"bpME", "bpTE", "runCount", "jobCount", "rigType",
 		"structureType", "structureTypeDisplay", "systemType",
+		// The ESI ids a job holds are read from its linked rows
+		// (models.Job.LinkedESIJobIDs and friends), so the stored copies are
+		// not carried onto the document.
+		"apiJobs", "apiOrders", "apiTransactions",
 	}
 	for _, k := range keys {
 		delete(m, k)
@@ -1239,8 +1242,6 @@ func ensureMaterialsSlice(m map[string]any) {
 	}
 }
 
-// ensureRootAPIIntSlices forces apiJobs / apiOrders / apiTransactions to JSON arrays so decoded jobs
-// do not marshal back as null (Go nil slices encode as JSON null).
 // ensureParentJobsSlice normalises Firestore parentJob into canonical parentJobs ([] if missing).
 func ensureParentJobsSlice(m map[string]any) {
 	var v any
@@ -1260,20 +1261,6 @@ func ensureParentJobsSlice(m map[string]any) {
 		m["parentJobs"] = v
 	}
 	delete(m, "parentJob")
-}
-
-func ensureRootAPIIntSlices(m map[string]any) {
-	for _, key := range []string{"apiJobs", "apiOrders", "apiTransactions"} {
-		v := m[key]
-		if v == nil {
-			m[key] = []any{}
-			continue
-		}
-		if _, ok := v.([]any); ok {
-			continue
-		}
-		m[key] = []any{}
-	}
 }
 
 // fillBlueprintTypeIDFromLinkedJobs sets root blueprintTypeID from the first linked ESI job when

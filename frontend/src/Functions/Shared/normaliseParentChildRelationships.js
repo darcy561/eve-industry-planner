@@ -2,10 +2,6 @@
  * Normalises parent/child links across the provided jobs and returns modified job IDs.
  *
  * Rules:
- * - If A lists B as parent, ensure B lists A as child on A.itemID.
- * - If A lists B as child on material type T, ensure B.itemID===T and B lists A as parent.
- * - If a parent link references a provided job that cannot produce the child type, remove it.
- * - If a child link references a provided job with mismatched type, remove both sides.
  *
  * Only relationships between jobs present in `jobs` are normalised.
  *

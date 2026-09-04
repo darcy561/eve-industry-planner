@@ -31,8 +31,21 @@ to read, not easier, and it goes stale in ways the code does not.
 |--------------|----------|
 | An invariant or rule the code cannot show: "both bounds travel together, the API rejects half a range" | A restatement of the next line, or narration of control flow |
 | A *why* that stops a plausible-looking change: "no cache options here — the layer below keys its own cache by version" | The design discussion behind the choice; that belongs in the plan or overlay |
-| A trap that has already cost something: a field that must be unset rather than omitted | A JSDoc block on an obvious local helper, or `@param` for self-describing arguments |
+| A trap that has already cost something: a field that must be unset rather than omitted | A prose essay above a function, bulleted restatements of its steps, or `@example` blocks that re-type the call |
 | What a package or exported surface owns | Anything the name already says |
+
+### JSDoc: the types stay, the essay goes
+
+The SPA is plain JavaScript, so **JSDoc annotations are its only type surface** — they are not
+prose and this rule does not thin them out. Keep `@param`, `@returns`, `@type`, `@property` and the
+rest of the notation on exported functions, class members, and config objects, so a reader and an
+editor can still see what a member takes and gives back.
+
+What goes is the writing wrapped around them: multi-paragraph summaries of what the function does,
+bulleted retellings of its own control flow, `@example` blocks that only spell out the call,
+`@author` / `@fileoverview` boilerplate, and a description line that restates the member's name. A
+trimmed block is usually the tag lines plus at most a sentence that says something the name does
+not.
 
 Two habits that keep this honest:
 

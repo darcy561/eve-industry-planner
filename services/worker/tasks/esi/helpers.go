@@ -100,7 +100,6 @@ func HandleStreamError(ctx context.Context, err error, taskName string) error {
 
 	logs.DebugCtx(ctx, "stream error returned", "error", err, "error_type", fmt.Sprintf("%T", err), "task", taskName)
 
-	// Check if this is a rate limit error
 	if esiratelimiter.IsRateLimitError(err) {
 		rateLimitErr := esiratelimiter.GetRateLimitError(err)
 		logs.DebugCtx(ctx, "detected rate limit error in refresh",

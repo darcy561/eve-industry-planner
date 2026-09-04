@@ -72,7 +72,6 @@ type EveTokenValidationResult struct {
 // ValidateEveTokenAndExtractHash validates an EVE SSO token and extracts relevant information.
 // Returns character hash, scopes, and character name if valid, or an error if invalid.
 func ValidateEveTokenAndExtractHash(ctx context.Context, tokenString, clientID string) (*EveTokenValidationResult, error) {
-	// Validate the EVE SSO token
 	claims, err := sso.ValidateEveSSOToken(tokenString, clientID)
 	if err != nil {
 		return nil, err

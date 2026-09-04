@@ -31,6 +31,8 @@ priority lane, and the cutover of every current consumer of the `esi:group:*` ke
 | Read the Lua script contracts | [plan.md](./plan.md) § Script contracts |
 | Know how a request gets a slot | [plan.md](./plan.md) § Acquisition |
 | Find what breaks when the key schema changes | [plan.md](./plan.md) § Wire compatibility |
+| Know which headers the client sets, and gzip handling | [plan.md](./plan.md) § Request headers and transfer handling belong to the client |
+| See what happens to the ESI status check | [plan.md](./plan.md) § What happens to the status check |
 | Roll back after a cutover | [plan.md](./plan.md) § Cutover and rollback |
 | Know what this emits and what an operator can do | [plan.md](./plan.md) § Cross-cutting concerns |
 | See how each stage is tested | [plan.md](./plan.md) § Testing |

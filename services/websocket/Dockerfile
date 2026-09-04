@@ -3,7 +3,6 @@ FROM golang:1.27.0-alpine AS builder
 
 WORKDIR /app
 
-# Copy source code
 COPY . .
 
 ARG SENTRY_DSN=""
@@ -12,7 +11,6 @@ ARG APP_VERSION
 # Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
 ARG SENTRY_TRACES_SAMPLE_RATE=
 
-# Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
@@ -24,10 +22,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -trimpath \
     -o websocket-service ./websocket
 
-# Final stage - minimal Alpine image
 FROM alpine:3.20
 
-# Build arguments (only non-secret values)
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
 
 # wget: Swarm healthcheck probes :19100/ready
@@ -37,10 +33,8 @@ RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
 
 WORKDIR /app
 
-# Copy the binary from builder stage
 COPY --from=builder /app/websocket-service /app/websocket-service
 
-# Copy entrypoint script
 COPY websocket/entrypoint.sh /entrypoint.sh
 
 RUN mkdir -p /data && \

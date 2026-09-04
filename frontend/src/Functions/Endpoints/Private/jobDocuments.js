@@ -129,6 +129,7 @@ export async function fetchJobDocumentsByIdsFromApi(jobIDs) {
 
 /**
  * Batch upsert (`PUT /api/v1/job-documents`).
+ *
  * @param {Array<Job|object>} jobs - Plain or Job instances (serialised as JSON)
  */
 export async function putJobDocumentsBatch(jobs) {

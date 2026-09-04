@@ -55,7 +55,6 @@ func RefreshSystemIndexes(ctx context.Context, task *asynq.Task, deps *TaskDepen
 	}
 	defer cleanup()
 
-	// Check server status before proceeding
 	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
 	if err := HandleStatusCheckResult(ctx, statusResult, "system indexes refresh"); err != nil {
 		return err
@@ -91,7 +90,6 @@ func RefreshSystemIndexes(ctx context.Context, task *asynq.Task, deps *TaskDepen
 		return fmt.Errorf("failed to save ETag: %w", err)
 	}
 
-	// Save last updated timestamp
 	if err := rediscore.SaveIndustrySystemsLastUpdated(ctx, deps.Redis, time.Now().UnixMilli()); err != nil {
 		logs.WarnCtx(ctx, "failed to save last updated timestamp", "error", err, "reason", "last_updated_save_error")
 		return fmt.Errorf("failed to save last updated timestamp: %w", err)
@@ -102,12 +100,11 @@ func RefreshSystemIndexes(ctx context.Context, task *asynq.Task, deps *TaskDepen
 	return nil
 }
 
-// StreamIndustrySystems makes an HTTP request to ESI and checks the response status code first.
-// For HTTP 304 Not Modified responses, it returns early without streaming.
-// For HTTP 200 OK responses, it performs a streaming decode of the ESI array and invokes
-// onItem for each normalised SystemIndexes. Callers typically persist within the callback.
-// Returns the new ETag, whether it was not modified (HTTP 304), bytes read, and any error.
-// cacheSecondsOut will be populated with parsed cache max-age from response headers if available.
+// StreamIndustrySystems streams ESI's industry system indexes array, calling onItem for each normalised
+// row as it decodes — callers usually persist inside the callback.
+//
+// A 304 returns early without streaming. cacheSecondsOut, when non-nil, receives
+// the max-age parsed from the response headers.
 func StreamIndustrySystems(ctx context.Context, esiClient esiratelimiter.ClientInterface, etag string, onItem func(esitypes.SystemIndexes) error, cacheSecondsOut *int) (string, bool, int64, error) {
 	if esiClient == nil {
 		return "", false, 0, errors.New("ESI client is nil")

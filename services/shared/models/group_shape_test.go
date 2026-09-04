@@ -125,7 +125,7 @@ func TestAddJobsKeepsWhatTheGroupOwns(t *testing.T) {
 
 	restored := jobFor("job-archived", "Tritanium", 34, []string{"job-live"})
 	restored.Build.Materials = []JobMaterial{{TypeID: 36}}
-	restored.APIOrders = []int{99}
+	restored.Build.Sale.MarketOrders = []MarketOrder{{OrderID: 99}}
 
 	merged := existing.AddJobs([]Job{restored})
 

@@ -20,20 +20,10 @@ export const LAST_JOB_STATUS_ID =
 /**
  * Default categories for extra costs in EVE Industry Planner.
  *
- * Defines the standard categories for additional costs that can be associated with
- * industry jobs, such as hauling services, blueprint copies, and other expenses.
- *
  * @type {Array<Object>}
  * @property {string} id - Unique identifier for the category
  * @property {string} label - Display label for the category
  * @property {boolean} permanent - Whether the category is permanent and cannot be removed
- *
- * @example
- * [
- *   { id: "0", label: "Unassigned", permanent: true },
- *   { id: "1", label: "Hauling Service", permanent: false },
- *   { id: "2", label: "Jump Freight Service", permanent: false },
- * ]
  */
 export const extrasCategoriesDefault = [
   { id: "0", label: "Unassigned", deleted: false, deletedAt: null },
@@ -46,8 +36,6 @@ export const extrasCategoriesDefault = [
 
 /**
  * Permanent extras categories for EVE Industry Planner.
- *
- * Defines the categories that are permanent and cannot be removed.
  *
  * @type {Set<number>}
  * @property {string} "0" - Unassigned
@@ -68,14 +56,6 @@ export const permanentExtrasCategories = new Set(["0", "5"]);
  * @type {Array<Object>}
  * @property {string} id - Unique identifier for the listing type
  * @property {string} name - Display name for the listing type
- *
- * @example
- * [
- *   { id: "buy", name: "Buy Orders" },
- *   { id: "sell", name: "Sell Orders" },
- *   { id: "buyP95", name: "Buy Orders (95th %ile)" },
- *   { id: "sellP05", name: "Sell Orders (5th %ile)" }
- * ]
  */
 export let listingType = [
   { id: "buy", name: "Buy Orders" },
@@ -87,9 +67,6 @@ export let listingType = [
 /**
  * Job type enumeration for EVE Online industry activities.
  *
- * Defines the different types of industry jobs available in EVE Online,
- * each representing a different manufacturing or processing activity.
- *
  * @type {Object}
  * @property {number} baseMaterial - Base material (raw materials)
  * @property {number} manufacturing - Manufacturing jobs
@@ -97,16 +74,6 @@ export let listingType = [
  * @property {number} pi - Planetary Interaction jobs
  * @property {number} invention - Invention jobs
  * @property {number} reprocessing - Reprocessing jobs
- *
- * @example
- * {
- *   baseMaterial: 0,
- *   manufacturing: 1,
- *   reaction: 2,
- *   pi: 3,
- *   invention: 4,
- *   reprocessing: 5
- * }
  */
 export let jobTypes = {
   baseMaterial: 0,
@@ -120,22 +87,11 @@ export let jobTypes = {
 /**
  * Mapping of job type IDs to their string representations.
  *
- * Provides a reverse lookup from job type numeric IDs to their corresponding
- * string names for API calls and data processing.
- *
  * @type {Object}
  * @property {string} 1 - "manufacturing"
  * @property {string} 2 - "reaction"
  * @property {string} 4 - "invention"
  * @property {string} 5 - "reprocessing"
- *
- * @example
- * {
- *   1: "manufacturing",
- *   2: "reaction",
- *   4: "invention",
- *   5: "reprocessing"
- * }
  */
 export const jobTypeMapping = {
   [jobTypes.manufacturing]: "manufacturing",
@@ -147,24 +103,12 @@ export const jobTypeMapping = {
 /**
  * Reprocessing item type enumeration.
  *
- * Defines the different types of materials that can be reprocessed in EVE Online,
- * each requiring different skills, structures, and efficiency calculations.
- *
  * @type {Object}
  * @property {number} ore - Regular asteroid ore
  * @property {number} moonOre - Moon mining ore
  * @property {number} ice - Ice mining materials
  * @property {number} gas - Gas cloud materials
  * @property {number} scrap - Scrap materials
- *
- * @example
- * {
- *   ore: 0,
- *   moonOre: 1,
- *   ice: 2,
- *   gas: 3,
- *   scrap: 4
- * }
  */
 export const reprocessingItemTypes = {
   ore: 0,
@@ -178,9 +122,6 @@ export const reprocessingItemTypes = {
 /**
  * Mapping of reprocessing item type IDs to their string representations.
  *
- * Provides a reverse lookup from reprocessing item type numeric IDs to their
- * corresponding string names for API calls and data processing.
- *
  * @type {Object}
  * @property {string} 0 - "ore"
  * @property {string} 1 - "moonOre"
@@ -188,16 +129,6 @@ export const reprocessingItemTypes = {
  * @property {string} 3 - "gas"
  * @property {string} 4 - "scrap"
  * @property {string} 5 - "unrefinedOre"
- *
- * @example
- * {
- *   0: "ore",
- *   1: "moonOre",
- *   2: "ice",
- *   3: "gas",
- *   4: "scrap",
- *   5: "unrefinedOre"
- * }
  */
 export const reprocessingItemTypesByValue = {
   [reprocessingItemTypes.ore]: "ore",
@@ -211,24 +142,9 @@ export const reprocessingItemTypesByValue = {
 /**
  * Blueprint efficiency options for EVE Online industry.
  *
- * Defines the available Material Efficiency (ME) and Time Efficiency (TE) levels
- * for blueprints. ME reduces material requirements, while TE reduces manufacturing time.
- *
  * @type {Object}
  * @property {Array<Object>} me - Material Efficiency options (0-10)
  * @property {Array<Object>} te - Time Efficiency options (0-10, but labels show actual TE values)
- *
- * @example
- * {
- *   me: [
- *     { value: 0, label: "0" },
- *     { value: 1, label: "1" }
- *   ],
- *   te: [
- *     { value: 0, label: "0" },
- *     { value: 1, label: "2" }
- *   ]
- * }
  */
 export const blueprintOptions = {
   me: [
@@ -261,10 +177,6 @@ export const blueprintOptions = {
 /**
  * Structure options for EVE Online industry calculations.
  *
- * Defines all available structures, rigs, and system modifiers for different
- * industry activities including manufacturing, reactions, and reprocessing.
- * Each structure type has different efficiency bonuses and requirements.
- *
  * @type {Object}
  * @property {Object} manStructure - Manufacturing structure options
  * @property {Object} manRigs - Manufacturing rig options
@@ -278,14 +190,6 @@ export const blueprintOptions = {
  * @property {Object} inventionStructure - Invention structure options
  * @property {Object} inventionRigs - Invention rig options
  * @property {Object} inventionSystem - Invention system security modifiers
- *
- * @example
- * {
- *   manStructure: {
- *     0: { id: 0, label: "NPC Station", material: 0, time: 0, cost: 0, requirementID: 2 },
- *     1: { id: 1, label: "Medium", material: 1, time: 0.15, cost: 0.03 }
- *   }
- * }
  */
 export const structureOptions = {
   manStructure: {
@@ -482,9 +386,6 @@ export const structureOptions = {
 /**
  * Mapping of job types to their corresponding structure options.
  *
- * Provides a lookup table to get the appropriate structure options
- * for each type of industry job.
- *
  * @type {Object}
  * @property {Object} 1 - Manufacturing structure options
  * @property {Object} 2 - Reaction structure options
@@ -500,9 +401,6 @@ export const structureTypeMap = {
 /**
  * Mapping of job types to their corresponding rig options.
  *
- * Provides a lookup table to get the appropriate rig options
- * for each type of industry job.
- *
  * @type {Object}
  * @property {Object} 1 - Manufacturing rig options
  * @property {Object} 2 - Reaction rig options
@@ -517,9 +415,6 @@ export const rigTypeMap = {
 };
 /**
  * Mapping of job types to their corresponding system security modifiers.
- *
- * Provides a lookup table to get the appropriate system security modifiers
- * for each type of industry job.
  *
  * @type {Object}
  * @property {Object} 1 - Manufacturing system modifiers
@@ -537,9 +432,6 @@ export const systemTypeMap = {
 /**
  * Mapping of job types to their custom structure property names.
  *
- * Provides a lookup table to get the property name for custom structures
- * in user data for each type of industry job.
- *
  * @type {Object}
  * @property {string} 1 - "manufacturing" (under `customStructures`)
  * @property {string} 2 - "reaction"
@@ -555,9 +447,6 @@ export const customStructureMap = {
 
 /**
  * Mapping of job types to their custom structure location property names.
- *
- * Provides a lookup table to get the property name for custom structure
- * locations in user data for each type of industry job.
  *
  * @type {Object}
  * @property {string} 1 - "manStruct"
@@ -575,9 +464,6 @@ export const customStructureLocationMap = {
 /**
  * System structure requirements for different job types.
  *
- * Defines the requirement IDs for structures in specific systems
- * for different types of industry jobs.
- *
  * @type {Object}
  * @property {Object} 30100000 - System ID requirements
  * @property {Array<number>} 30100000.allowedJobTypes - Allowed job types for this system
@@ -592,9 +478,6 @@ export const systemStructureRequirements = {
 
 /**
  * Requirements mapping for structures and rigs.
- *
- * Defines the requirements for different structures and rigs,
- * including their IDs, alternative system values, and allowed job types.
  *
  * @type {Object}
  * @property {Object} 0 - The Fulcrum requirements
@@ -641,7 +524,6 @@ export const requirements = {
 export const SCC_SURCHARGE = 0.04;
 
 /**
- *
  * Defines the Alpha clone tax for EVE Online industry jobs.
  * Used for calculating the install cost of industry jobs.
  *
@@ -651,9 +533,6 @@ export const ALPHA_CLONE_TAX = 0.25;
 
 /**
  * Structure type tooltip content for EVE Online structures.
- *
- * Provides helpful information about different structure types
- * and their corresponding EVE Online structure names.
  *
  * @type {JSX.Element}
  */
@@ -668,9 +547,6 @@ export const structureTypeTooltip = (
 /**
  * Set of ancient relic type IDs in EVE Online.
  *
- * Contains the type IDs for all ancient relics that can be found
- * in EVE Online. Used for identification and filtering purposes.
- *
  * @type {Set<number>}
  */
 export const ancientRelicIDs = new Set([
@@ -680,9 +556,6 @@ export const ancientRelicIDs = new Set([
 
 /**
  * Station ID range for EVE Online stations.
- *
- * Defines the valid range of station IDs in EVE Online.
- * Used for validation and identification of station locations.
  *
  * @type {Object}
  * @property {number} low - Lower bound of station ID range
@@ -696,9 +569,6 @@ export const STATIONID_RANGE = {
 /**
  * System ID range for EVE Online solar systems.
  *
- * Defines the valid range of system IDs in EVE Online.
- * Used for validation and identification of solar system locations.
- *
  * @type {Object}
  * @property {number} low - Lower bound of system ID range
  * @property {number} high - Upper bound of system ID range
@@ -710,9 +580,6 @@ export const SYSTEMID_RANGE = {
 
 /**
  * Citadel ID range for EVE Online citadels.
- *
- * Defines the valid range of citadel IDs in EVE Online.
- * Used for validation and identification of citadel locations.
  *
  * @type {Object}
  * @property {number} low - Lower bound of citadel ID range
@@ -726,16 +593,12 @@ export const CITADELID_RANGE = {
 /**
  * Small text format configuration for Material-UI Typography.
  *
- * Defines the responsive text sizing for small text elements.
- *
  * @type {Object}
  * @property {string} xs - Extra small screen text size
  */
 export const SMALL_TEXT_FORMAT = { xs: "caption" };
 /**
  * Standard text format configuration for Material-UI Typography.
- *
- * Defines the responsive text sizing for standard text elements.
  *
  * @type {Object}
  * @property {string} xs - Extra small screen text size
@@ -744,8 +607,6 @@ export const SMALL_TEXT_FORMAT = { xs: "caption" };
 export const STANDARD_TEXT_FORMAT = { xs: "caption", sm: "body2" };
 /**
  * Large text format configuration for Material-UI Typography.
- *
- * Defines the responsive text sizing for large text elements.
  *
  * @type {Object}
  * @property {string} xs - Extra small screen text size
@@ -756,22 +617,15 @@ export const LARGE_TEXT_FORMAT = { xs: "caption", sm: "body1" };
 /**
  * Meta levels that require invention costs in EVE Online.
  *
- * Defines which meta levels require invention costs to be calculated.
- * Used for determining when invention costs should be applied to items.
- *
  * @type {Set<number>}
  */
 export const META_LEVELS_THAT_REQUIRE_INVENTION_COSTS = new Set([2, 14, 53]);
 /**
  * Type IDs to ignore for invention costs in EVE Online.
  *
- * Defines which type IDs should be excluded from invention cost calculations.
- * Currently empty but available for future exclusions.
- *
  * @type {Set<number>}
  */
 export const TYPE_IDS_TO_IGNORE_FOR_INVENTION_COSTS = new Set([]);
-
 
 /**
  * Reprocessing implant options (RX series).
@@ -817,19 +671,12 @@ export const Implants = {
 /**
  * Static data cache version identifier.
  *
- * Defines the version string for static data caching to ensure
- * proper cache invalidation when data structures change.
- *
  * @type {string}
  */
 export const STATIC_DATA_CACHE = "static-data-cache-v2";
 
 /**
  * Cached data file names for EVE Industry Planner.
- *
- * Defines the filenames for cached data files used by the application.
- * These files contain compressed JSON data for various EVE Online
- * game data including items, recipes, and reprocessing information.
  *
  * @type {Object}
  * @property {string} SEARCH_INDEX - Search index file name
@@ -849,9 +696,6 @@ export const CACHED_DATA_FILES = {
 /**
  * Default reprocessing calculation settings for EVE Online.
  *
- * Defines the default preferences and multipliers used in reprocessing
- * calculations to optimise ore selection and mineral output.
- *
  * @type {Object}
  * @property {boolean} preferCompressed - Whether to prefer compressed ores
  * @property {number} compressionBonusMultiplier - Bonus multiplier for compressed ores
@@ -869,10 +713,6 @@ export const DEFAULT_REPROCESSING_CALCULATION_SETTINGS = {
 
 /**
  * ESI Rate Limit Groups configuration for EVE Online API.
- *
- * Defines the rate limiting configuration for different ESI endpoint groups
- * based on EVE Online's ESI rate limiting rollout schedule. Each group has
- * specific token limits and window sizes for API requests.
  *
  * @type {Object}
  * @property {Object} character - Character data endpoints
@@ -892,19 +732,6 @@ export const DEFAULT_REPROCESSING_CALCULATION_SETTINGS = {
  * @property {Object} wars - War data endpoints
  * @property {Object} assets - Asset and inventory endpoints
  * @property {Object} contracts - Contract and trading endpoints
- *
- * @example
- * {
- *   character: {
- *     name: 'character',
- *     disabled: true,
- *     maxTokens: 150,
- *     windowSize: 15 * 60 * 1000,
- *     description: 'Character data endpoints'
- *   }
- * }
- *
- * Based on EVE Online's ESI rate limiting rollout schedule
  */
 export const ESI_RATE_LIMIT_GROUPS = {
   // 13 October 2025 rollout
@@ -1056,13 +883,6 @@ export const ESI_RATE_LIMIT_GROUPS = {
  * @property {Object} [jobTypes.reaction] - Reaction activity configuration
  * @property {number} [jobTypes.reaction].id - Job type ID for reactions
  * @property {string} [jobTypes.reaction].label - Display name for reactions
- *
- * @example
- * {
- *   1: { id: 1, label: "Manufacturing" },
- *   2: { id: 2, label: "Reaction" }
- *   4: { id: 4, label: "Invention" }
- * }
  */
 export const systemIndexTypes = {
   [jobTypeMapping[jobTypes.manufacturing]]: {

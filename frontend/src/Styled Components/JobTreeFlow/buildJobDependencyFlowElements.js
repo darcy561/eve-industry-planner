@@ -254,10 +254,7 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
     const startX = -rowW / 2;
     row.forEach((job, i) => {
       const { x: nx, y: ny } = positionNudge(job.jobID, i, lv);
-      const esiCount =
-        job.apiJobs && typeof job.apiJobs.size === "number"
-          ? job.apiJobs.size
-          : 0;
+      const esiCount = job.esiJobIDs.size;
       const readyToBuild = job.isReadyToStart;
       rowNodes.push({
         id: job.jobID,

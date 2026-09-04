@@ -93,6 +93,7 @@ async function deleteCloudStoredEsiRefreshTokens(characterHashes) {
 
 /**
  * Loads linked character hashes for cloud accounts (`refreshTokens[].characterHash`; no OAuth secrets).
+ *
  * @returns {Promise<{refreshTokens: Array}|null>}
  */
 async function getCloudStoredEsiRefreshTokens() {

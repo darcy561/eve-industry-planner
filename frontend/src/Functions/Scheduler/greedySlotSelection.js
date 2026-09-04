@@ -93,10 +93,9 @@ export function selectSlotGreedyStrategy({
             const availableSlots = activitySlots.filter(slot => slot <= startTime).length;
             const hasMultipleFreeSlots = availableSlots > 1;
 
-            // Check if this slot is already in use (has tasks scheduled)
-            // A slot is "in use" if its free time is greater than 0 (the global start time)
-            // This means the slot has been used for previous tasks, so we're packing into it
-            // We prefer packing into used slots to minimise the total number of slots used
+            // Free time past the global start means earlier tasks have used the
+            // slot. Packing into a used slot is preferred, because it keeps the
+            // total number of slots down.
             const slotInUse = slotFreeTime > 0;
 
             const candidate = {

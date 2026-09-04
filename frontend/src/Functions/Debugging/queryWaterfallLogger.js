@@ -1,7 +1,7 @@
 /**
  * Utility for logging and exporting React Query waterfall data
  * Helps visualise when queries start and complete to identify sequential vs parallel execution
- * 
+ *
  * Set ENABLE_QUERY_WATERFALL_LOGGING to false to disable all tracking and logging
  */
 
@@ -100,6 +100,7 @@ if (typeof window !== 'undefined' && ENABLE_QUERY_WATERFALL_LOGGING) {
 
 /**
  * Start tracking a query
+ *
  * @param {string} queryName - Name of the query being tracked
  * @param {string} [characterHash] - Optional character hash for uniqueness
  * @returns {Function} Function to call when query completes
@@ -161,6 +162,7 @@ export function startQueryTracking(queryName, characterHash = '') {
 
 /**
  * Get all query timings
+ *
  * @returns {Array} Array of query timing objects
  */
 export function getQueryTimings() {
@@ -170,6 +172,7 @@ export function getQueryTimings() {
 
 /**
  * Clear all query timings
+ *
  * @param {boolean} force - If true, clears even if queries might still be in progress
  */
 export function clearQueryTimings(force = false) {
@@ -213,6 +216,7 @@ export function clearQueryTimings(force = false) {
 
 /**
  * Export query timings as JSON
+ *
  * @returns {string} JSON string of query timings
  */
 export function exportQueryTimingsAsJSON() {
@@ -222,6 +226,7 @@ export function exportQueryTimingsAsJSON() {
 
 /**
  * Export query timings as CSV
+ *
  * @returns {string} CSV string of query timings
  */
 export function exportQueryTimingsAsCSV() {
@@ -416,6 +421,7 @@ export function logWaterfall() {
 
 /**
  * Download query timings as a file
+ *
  * @param {string} format - 'json' or 'csv'
  */
 export function downloadQueryTimings(format = 'json') {

@@ -31,9 +31,9 @@ export function ArchiveJobButton({ state }) {
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),
       transactionsToAdd: new Set(),
-      ordersToRemove: state.activeJob.apiOrders,
-      jobsToRemove: state.activeJob.apiJobs,
-      transactionsToRemove: state.activeJob.apiTransactions,
+      ordersToRemove: state.activeJob.esiOrderIDs,
+      jobsToRemove: state.activeJob.esiJobIDs,
+      transactionsToRemove: state.activeJob.esiTransactionIDs,
     });
 
     const archivedOk = await saveArchivedJobs([state.activeJob]);

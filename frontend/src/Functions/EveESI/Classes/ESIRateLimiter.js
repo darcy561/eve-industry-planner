@@ -48,6 +48,7 @@ class ESIRateLimiter {
   /**
    * Get or create a rate limit bucket for a specific group and userID
    * Dynamically creates buckets for any group (no need to pre-configure)
+   *
    * @param {string} group - Rate limit group (e.g., 'market', 'character', or dynamically discovered)
    * @param {string} userID - User identifier (applicationID:characterID or sourceIP)
    * @returns {Object} Bucket object
@@ -78,6 +79,7 @@ class ESIRateLimiter {
 
   /**
    * Extract group name from X-Ratelimit-Group header
+   *
    * @param {Headers} headers - Response headers
    * @returns {string|null} Group name or null if not present
    */
@@ -88,6 +90,7 @@ class ESIRateLimiter {
 
   /**
    * Parse token limit from X-Ratelimit-Limit header (format: "150/15m" or "600/15m")
+   *
    * @param {string} limitStr - Limit header value
    * @returns {Object|null} Object with maxTokens and windowSize, or null if parsing fails
    */
@@ -107,6 +110,7 @@ class ESIRateLimiter {
 
   /**
    * Update bucket limits from ESI response headers and discover group dynamically
+   *
    * @param {string} url - Request URL (for path-to-group mapping)
    * @param {string} initialGroup - Initial group (from cache or 'default')
    * @param {string} userID - User identifier
@@ -170,6 +174,7 @@ class ESIRateLimiter {
 
   /**
    * Get group for a URL (from cache or return default)
+   *
    * @param {string} url - Request URL
    * @param {string} fallbackGroup - Fallback group if not cached
    * @returns {string} Group name
@@ -180,6 +185,7 @@ class ESIRateLimiter {
 
   /**
    * Parse window size string (e.g., "15m", "1h")
+   *
    * @param {string} windowStr - Window size string
    * @returns {number} Window size in milliseconds
    */
@@ -195,6 +201,7 @@ class ESIRateLimiter {
 
   /**
    * Consume tokens from a bucket
+   *
    * @param {Object} bucket - Rate limit bucket
    * @param {number} tokens - Number of tokens to consume
    */
@@ -217,6 +224,7 @@ class ESIRateLimiter {
 
   /**
    * Clean up old token consumption records based on floating window
+   *
    * @param {Object} bucket - Rate limit bucket
    * @param {number} now - Current timestamp
    */
@@ -239,6 +247,7 @@ class ESIRateLimiter {
 
   /**
    * Calculate token cost based on response status
+   *
    * @param {number} status - HTTP status code
    * @returns {number} Token cost
    */
@@ -251,6 +260,7 @@ class ESIRateLimiter {
 
   /**
    * Check if a request can be made without hitting rate limits
+   *
    * @param {string} group - Rate limit group
    * @param {string} userID - User identifier
    * @param {number} requiredTokens - Tokens required for the request
@@ -284,6 +294,7 @@ class ESIRateLimiter {
 
   /**
    * Queue a request for processing
+   *
    * @param {Function} requestFn - Function to execute
    * @param {Array} args - Arguments for the function
    * @param {string} group - Initial rate limit group (may be updated from headers)
@@ -366,6 +377,7 @@ class ESIRateLimiter {
   /**
    * Process a group of requests for the same (group, userID) in parallel
    * Each bucket has its own token pool and rate limit - no artificial concurrency cap
+   *
    * @param {Array} requests - Array of request objects with same group and userID
    */
   async processRequestGroup(requests) {
@@ -419,6 +431,7 @@ class ESIRateLimiter {
 
   /**
    * Execute a single request and handle token consumption
+   *
    * @param {Object} request - Request object
    * @param {string} group - Initial rate limit group
    * @param {string} userID - User identifier
@@ -465,6 +478,7 @@ class ESIRateLimiter {
 
   /**
    * Sleep for a specified number of milliseconds
+   *
    * @param {number} ms - Milliseconds to sleep
    */
   sleep(ms) {
@@ -473,6 +487,7 @@ class ESIRateLimiter {
 
   /**
    * Check if a group is disabled
+   *
    * @param {string} group - Rate limit group to check
    * @returns {boolean} True if group is disabled
    */
@@ -482,6 +497,7 @@ class ESIRateLimiter {
 
   /**
    * Get current rate limit status for a bucket
+   *
    * @param {string} group - Rate limit group
    * @param {string} userID - User identifier
    * @returns {Object} Current status

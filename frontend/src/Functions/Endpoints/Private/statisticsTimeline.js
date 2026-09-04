@@ -105,10 +105,6 @@ async function readStatistics(url, requestName) {
  *
  * @param {{from?: string, to?: string, range?: "all", typeID?: string|number}} [options]
  * @returns {Promise<{period: Object, totals: Object, months: Object[]}|null>}
- *
- * @example
- * const timeline = await getAccountTimeline();
- * const [previous, current] = timeline?.months ?? [];
  */
 export async function getAccountTimeline(options = {}) {
   const { from, to } = options;

@@ -204,6 +204,7 @@ export function appShellSliderSx(theme) {
 
 /**
  * Dense market order tables: app-shell primary (blue) trim — same for sell and buy sides.
+ *
  * @param {import("@mui/material/styles").Theme} theme
  */
 export function appShellMarketDataGridSx(theme) {

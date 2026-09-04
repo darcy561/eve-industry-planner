@@ -3,6 +3,7 @@ package archivedjobs
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"eve-industry-planner/shared/jobidentity"
@@ -116,36 +117,37 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 	return restoreResult{RestoredJobIDs: jobIDs, Jobs: req.Jobs, Conflicts: conflicts, Groups: groups}, nil
 }
 
-func conflictIndex(conflicts []esiConflict) map[esiLinkKind]map[int]struct{} {
-	out := map[esiLinkKind]map[int]struct{}{}
+func conflictIndex(conflicts []esiConflict) map[esiLinkKind]map[int64]struct{} {
+	out := map[esiLinkKind]map[int64]struct{}{}
 	for _, c := range conflicts {
 		if out[c.Kind] == nil {
-			out[c.Kind] = map[int]struct{}{}
+			out[c.Kind] = map[int64]struct{}{}
 		}
 		out[c.Kind][c.ID] = struct{}{}
 	}
 	return out
 }
 
-// stripConflictedLinks removes ids another job holds from a restored job.
-func stripConflictedLinks(job *models.Job, conflicted map[esiLinkKind]map[int]struct{}) {
-	job.APIOrders = keepUnconflicted(job.APIOrders, conflicted[esiLinkOrder])
-	job.APIJobs = keepUnconflicted(job.APIJobs, conflicted[esiLinkJob])
-	job.APITransactions = keepUnconflicted(job.APITransactions, conflicted[esiLinkTransaction])
+// stripConflictedLinks removes what another job holds from a restored job. A job
+// holds an ESI id by carrying its row, so the row itself goes.
+func stripConflictedLinks(job *models.Job, conflicted map[esiLinkKind]map[int64]struct{}) {
+	if orders := conflicted[esiLinkOrder]; len(orders) > 0 {
+		job.Build.Sale.MarketOrders = slices.DeleteFunc(job.Build.Sale.MarketOrders,
+			func(order models.MarketOrder) bool { return taken(orders, int64(order.OrderID)) })
+	}
+	if jobs := conflicted[esiLinkJob]; len(jobs) > 0 {
+		job.Build.Costs.LinkedJobs = slices.DeleteFunc(job.Build.Costs.LinkedJobs,
+			func(linked models.LinkedESIJob) bool { return taken(jobs, int64(linked.JobID)) })
+	}
+	if transactions := conflicted[esiLinkTransaction]; len(transactions) > 0 {
+		job.Build.Sale.Transactions = slices.DeleteFunc(job.Build.Sale.Transactions,
+			func(transaction models.Transaction) bool { return taken(transactions, transaction.TransactionID) })
+	}
 }
 
-func keepUnconflicted(ids []int, taken map[int]struct{}) []int {
-	if len(taken) == 0 {
-		return ids
-	}
-	out := make([]int, 0, len(ids))
-	for _, id := range ids {
-		if _, gone := taken[id]; gone {
-			continue
-		}
-		out = append(out, id)
-	}
-	return out
+func taken(ids map[int64]struct{}, id int64) bool {
+	_, held := ids[id]
+	return held
 }
 
 func deleteArchivedJobs(ctx context.Context, scope archiveScope, jobIDs []string, now time.Time, sessionID, wsClientID string) error {

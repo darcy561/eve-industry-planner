@@ -9,7 +9,7 @@ const { MARKET_OPTIONS, DEFAULT_REGION } = GLOBAL_CONFIG;
 /**
  * An icon button component that opens the price history dialogue for a specific item.
  * Displays historical pricing data and charts for the given item and region.
- * 
+ *
  * @param {Object} props - Component props
  * @param {number} props.itemTypeID - EVE Online type ID of the item to view price history for
  * @param {string|Object} [props.regionID] - Market hub `id` from `MARKET_OPTIONS` or row object. If not provided, uses default market or `MARKET_OPTIONS` row where `regionID` is `DEFAULT_REGION` (The Forge).
@@ -18,13 +18,6 @@ const { MARKET_OPTIONS, DEFAULT_REGION } = GLOBAL_CONFIG;
  * @param {string} [props.tooltipText="Item Price History"] - Text to display in the tooltip
  * @param {string} [props.tooltipPlacement="top"] - Placement of the tooltip relative to the button
  * @returns {JSX.Element} Market history icon button component
- * 
- * @example
- * <MarketHistoryIconButton 
- *   itemTypeID={34}
- *   regionID="the_forge"
- *   tooltipText="View Tritanium Price History"
- * />
  */
 function MarketHistoryIconButton({
   itemTypeID,

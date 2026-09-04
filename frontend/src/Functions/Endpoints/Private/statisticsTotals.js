@@ -57,10 +57,6 @@ function emptyTotals(typeID) {
  *
  * @param {string|number} typeID - EVE item type ID
  * @returns {Promise<Object|null>} Stats object (`jobType`, `typeID`, running totals, `history`, `breakdown`) or `null` if unauthenticated or request failed
- *
- * @example
- * const totals = await getAccountTotalsByTypeID(activeJob.itemID);
- * if (totals?.history?.buildCount) { ... }
  */
 async function getAccountTotalsByTypeID(typeID) {
   if (typeID == null || typeID === "") {

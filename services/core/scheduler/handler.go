@@ -115,7 +115,6 @@ func (s *TaskScheduler) scheduleCronJob(cronExpr string, taskType string) error 
 
 // Start begins listening for scheduling requests and starts the scheduler
 func (s *TaskScheduler) Start() error {
-	// Start the gocron scheduler
 	s.scheduler.Start()
 
 	// Deferred runs arrive as schedules firing on the schedule stream.

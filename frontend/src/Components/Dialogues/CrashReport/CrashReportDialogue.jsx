@@ -61,6 +61,7 @@ function CrashReportSubmitButton() {
 
 /**
  * Full dialogue + form; mounted only when a crash session is active.
+ *
  * @param {{ eventId: string, hint: string, onDismiss: () => void }} props
  */
 function CrashReportSession({ eventId, hint, onDismiss }) {

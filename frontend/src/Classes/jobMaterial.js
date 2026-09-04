@@ -11,8 +11,6 @@ import uuid from "react-uuid";
  * which the job resolves for the material.
  *
  * @class Material
- * @example
- * const material = new Material({ typeID: 34, name: "Tritanium" }, 100);
  */
 class Material {
   /**
@@ -60,7 +58,6 @@ class Material {
   get quantityRemaining() {
     return Math.max(0, this.quantity - this.quantityPurchased);
   }
-
 
   /**
    * Records a purchase against the material, taking what the job still needs.

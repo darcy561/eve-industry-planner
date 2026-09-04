@@ -346,9 +346,9 @@ func TestAtomic_RequestAccessRace(t *testing.T) {
 	}
 }
 
-// TestAtomic_ExtendCycle walks the extend state machine to prove the new
-// Lua-backed Extend preserves the old behaviour: 3 free renewals, then
-// either cycle-reset (no waitlist) or probe-set (alive head).
+// TestAtomic_ExtendCycle walks the extend state machine: three free renewals,
+// then either a cycle reset when nothing is waiting, or a probe set against a
+// live head.
 func TestAtomic_ExtendCycle(t *testing.T) {
 	t.Parallel()
 	svc, rdb, _ := concurrencyTestService(t)

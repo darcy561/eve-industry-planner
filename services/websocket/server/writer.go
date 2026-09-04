@@ -57,9 +57,8 @@ func (s *Server) writer(c *Client) {
 			}
 
 			if err := c.writeFrame(websocket.TextMessage, msg, config.WriteWait); err != nil {
-				// Log write error but continue running
-				// The writer should only exit when Send channel is closed
-				// The reader will detect connection closure and close the Send channel
+				// The writer exits only when Send closes, which the reader does once it
+				// sees the connection go.
 				logs.WarnCtx(ctx, "websocket write error (continuing)", "client_id", c.id, "error", err)
 				// Don't return - continue running and let the Send channel closure signal exit
 			}

@@ -5,19 +5,12 @@ import { getSystemTypeFromID } from "../../Functions/Helper/getStructureInfo";
 /**
  * A select component for choosing implants based on job type.
  * Displays available implants for the specified job type from the Implants configuration.
- * 
+ *
  * @param {Object} props - Component props
  * @param {number} [props.value=0] - Currently selected implant ID
  * @param {number} [props.jobType=1] - Job type to determine which implants to show
  * @param {Function} props.onChange - Callback function called when selection changes. Receives the implant object.
  * @returns {JSX.Element} Implant select component
- * 
- * @example
- * <ImplantSelect 
- *   value={selectedImplantId}
- *   jobType={1}
- *   onChange={(implant) => setImplant(implant)}
- * />
  */
 function ImplantSelect({
   value = 0,

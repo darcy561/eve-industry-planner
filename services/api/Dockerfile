@@ -3,7 +3,6 @@ FROM golang:1.27.0-alpine AS builder
 
 WORKDIR /app
 
-# Copy source code
 COPY . .
 
 # Sentry: same model as frontend (Dockerfile ARG → baked into binary). Empty/unset for local dev.
@@ -13,7 +12,6 @@ ARG APP_VERSION
 # Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
 ARG SENTRY_TRACES_SAMPLE_RATE=
 
-# Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
@@ -25,10 +23,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -trimpath \
     -o api-service ./api
 
-# Final stage - minimal Alpine image
 FROM alpine:3.20
 
-# Build arguments (only non-secret values)
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
 ARG APP_VERSION
 ARG FRONTEND_APP_VERSION
@@ -37,7 +33,6 @@ ARG APP_FEATURE_FLAGS_JSON="{}"
 # Defaults to empty string for local builds. Can be set via build arg or overridden at runtime via env var
 ARG FEEDBACK_DISCORD_WEBHOOK_URL=""
 
-# Install only essential packages (including su-exec for user switching and bash for exec -a)
 # wget: Swarm healthcheck probes :19100/ready
 RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
     addgroup -g 1001 -S appuser && \
@@ -45,13 +40,10 @@ RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
 
 WORKDIR /app
 
-# Copy the binary from builder stage
 COPY --from=builder /app/api-service /app/api-service
 
-# Copy entrypoint script
 COPY api/entrypoint.sh /entrypoint.sh
 
-# Create data directory and set permissions
 RUN mkdir -p /data && \
     chmod +x /entrypoint.sh && \
     chown -R appuser:appuser /app

@@ -9,7 +9,7 @@ export default function findOrderTransactions(
   temporaryTransactionsToRemove = []
 ) {
   const transactionData = [];
-  const matchedTransactionIDs = new Set([...inputJob.apiTransactions]);
+  const matchedTransactionIDs = inputJob.esiTransactionIDs;
 
   inputJob.build.sale.marketOrders.forEach((order) => {
     const itemTransactions = findTransactionsForMarketOrders(

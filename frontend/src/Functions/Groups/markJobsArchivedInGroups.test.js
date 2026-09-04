@@ -21,9 +21,9 @@ function job(jobID, groupID, itemID = 587, parents = []) {
     itemID,
     name: jobID,
     parentJobs: parents,
-    apiJobs: new Set(),
-    apiOrders: new Set(),
-    apiTransactions: new Set(),
+    esiJobIDs: new Set(),
+    esiOrderIDs: new Set(),
+    esiTransactionIDs: new Set(),
     build: { materials: [] },
   };
 }

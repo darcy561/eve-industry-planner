@@ -1,11 +1,5 @@
 /**
  * Core Jobs Management for EVE Industry Planner.
- *
- * Contains the default state configuration and core actions for managing
- * job-related data including state initialisation and basic job operations.
- *
- * @fileoverview Core jobs management state and actions
- * @author EVE Industry Planner Team
  */
 
 import { requestJobDocumentsByIdsFromApi } from "../../Functions/Endpoints/Private/requestJobDocumentsByIds.js";
@@ -14,9 +8,6 @@ import separateGroupAndJobIDs from "../../Functions/Helper/separateGroupAndJobID
 
 /**
  * Default state configuration for jobs data.
- *
- * Defines the initial state values for all job-related data including
- * job arrays, group arrays, selection state, and watchlist data.
  *
  * @returns {Object} Default jobs state
  * @property {Array} multiSelect - Array of selected job/group IDs
@@ -53,8 +44,6 @@ export const stateDefault = () => ({
 /**
  * Core actions for jobs management.
  *
- * Provides essential actions for managing job state including resetting state.
- *
  * @param {Function} set - Zustand set function for updating state
  * @param {Function} get - Zustand get function for accessing current state
  * @returns {Object} Core jobs management actions
@@ -68,9 +57,6 @@ export const coreActions = (set, get) => ({
    * while preserving the actions object.
    *
    * @param {*} data - Unused parameter (kept for compatibility)
-   *
-   * @example
-   * store.getState().jobData.actions.resetJobDataStore();
    */
   resetJobDataStore: (data) => {
     set(
@@ -89,9 +75,6 @@ export const coreActions = (set, get) => ({
 
   /**
    * Clears the job array (sets it to empty array).
-   *
-   * @example
-   * store.getState().jobData.actions.clearJobArray();
    */
   clearJobArray: () => {
     set(
@@ -112,9 +95,6 @@ export const coreActions = (set, get) => ({
    *
    * @param {Array} jobArray - New job array
    * @param {{ fromServer?: boolean }} [opts] - `fromServer`: full REST sync (clears pending job-document writes).
-   *
-   * @example
-   * store.getState().jobData.actions.replaceJobArray(newJobArray);
    */
   replaceJobArray: (jobArray, opts = {}) => {
     const fromServer = opts.fromServer === true;
@@ -136,9 +116,6 @@ export const coreActions = (set, get) => ({
    * Adds retrieved jobs to the job array (avoiding duplicates).
    *
    * @param {Array} jobs - Array of job objects to add
-   *
-   * @example
-   * store.getState().jobData.actions.addRetrievedJobsToJobArray(jobs);
    */
   addRetrievedJobsToJobArray: (jobs) => {
     const state = get().jobData;
@@ -162,9 +139,6 @@ export const coreActions = (set, get) => ({
    * Adds jobs to the job array (avoiding duplicates).
    *
    * @param {Array|Object} jobs - Job object(s) to add
-   *
-   * @example
-   * store.getState().jobData.actions.addJobsToJobArray(jobs);
    */
   addJobsToJobArray: (jobs) => {
     const state = get().jobData;
@@ -189,9 +163,6 @@ export const coreActions = (set, get) => ({
    * Replaces or adds jobs to the job array.
    *
    * @param {Array|Object} jobs - Job object(s) to replace or add
-   *
-   * @example
-   * store.getState().jobData.actions.updateOrAddJobsToJobArray(jobs);
    */
   updateOrAddJobsToJobArray: (jobs) => {
     const inputArray = Array.isArray(jobs) ? jobs : [jobs];
@@ -233,9 +204,6 @@ export const coreActions = (set, get) => ({
    *
    * @param {Array|Object} jobsToAdd - Job object(s) to add
    * @param {Array|string} jobIDsToRemove - Job ID(s) to remove
-   *
-   * @example
-   * store.getState().jobData.actions.mergeAndRemoveJobsFromJobArray(jobsToAdd, jobIDsToRemove);
    */
   mergeAndRemoveJobsFromJobArray: (jobsToAdd, jobIDsToRemove) => {
     const inputJobs = Array.isArray(jobsToAdd) ? jobsToAdd : [jobsToAdd];
@@ -273,9 +241,6 @@ export const coreActions = (set, get) => ({
    * Removes jobs from the job array by job IDs.
    *
    * @param {Array|string} jobIDs - Job ID(s) to remove
-   *
-   * @example
-   * store.getState().jobData.actions.removeJobsFromJobArray(['job-123', 'job-456']);
    */
   removeJobsFromJobArray: (jobIDs) => {
     const jobIDsToRemove = Array.isArray(jobIDs) ? jobIDs : [jobIDs];
@@ -303,9 +268,6 @@ export const coreActions = (set, get) => ({
    *
    * @param {string} jobID - Job ID to find
    * @returns {Object|null} Job object or null if not found
-   *
-   * @example
-   * const job = store.getState().jobData.actions.findJobInJobArray('job-123');
    */
   findJobInJobArray: (jobID) => {
     const state = get().jobData;

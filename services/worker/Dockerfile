@@ -3,7 +3,6 @@ FROM golang:1.27.0-alpine AS builder
 
 WORKDIR /app
 
-# Copy source code
 COPY . .
 
 ARG SENTRY_DSN=""
@@ -12,7 +11,6 @@ ARG APP_VERSION
 # Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
 ARG SENTRY_TRACES_SAMPLE_RATE=
 
-# Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
@@ -26,13 +24,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     mkdir -p /app/worker && \
     printf '%s\n' "${APP_VERSION}" > /app/worker/VERSION
 
-# Final stage - minimal Alpine image
 FROM alpine:3.20
 
 # Build argument for image source (for GitHub Container Registry linking)
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
 
-# Install only essential packages (including su-exec for user switching and bash for exec -a)
 # wget: Swarm healthcheck probes :19100/ready
 RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
     addgroup -g 1001 -S appuser && \
@@ -40,16 +36,13 @@ RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
 
 WORKDIR /app
 
-# Copy the binary from builder stage
 COPY --from=builder /app/worker-service /app/worker-service
 
 # Plain-text build label for archive import normalization (see archiveimport.ResolveCanonicalBuildVer)
 COPY --from=builder /app/worker/VERSION /app/worker/VERSION
 
-# Copy entrypoint script
 COPY worker/entrypoint.sh /entrypoint.sh
 
-# Create data directory and set permissions
 RUN mkdir -p /data && \
     chmod +x /entrypoint.sh && \
     chown -R appuser:appuser /app

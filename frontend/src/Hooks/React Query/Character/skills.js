@@ -7,21 +7,16 @@ const characterSkillsQueryKey = "characterSkills";
 
 /**
  * React Query configuration for fetching character skills from EVE ESI API.
- * 
+ *
  * This query handles character skill data fetching with:
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimised for skill data
- * - Error handling with descriptive messages
- * - Single-page data fetching (skills are not paginated)
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for character group
  * 2. Fetches all character skills in a single request
  * 3. Returns skill data with levels and training information
  * 4. Handles rate limiting errors with appropriate wait times
  * 5. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -33,13 +28,6 @@ const characterSkillsQueryKey = "characterSkills";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: skills, isLoading, error } = useQuery(characterSkillsQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading skills...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Skills: {Object.keys(skills).length} skills loaded</div>;
  */
 function characterSkillsQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

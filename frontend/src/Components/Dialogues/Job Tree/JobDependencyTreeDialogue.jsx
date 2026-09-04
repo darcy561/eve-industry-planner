@@ -32,8 +32,6 @@ const defaultState = () => ({
 
 /**
  * Global dialogue: interactive job dependency tree ({@link JobDependencyTreeFlow}).
- * - `openJobDependencyTreeDialogue` — pass job ids, group, highlights, etc.
- * - `openJobLinkTreeFromEditPage` — pass only the edited job id and route search; resolution lives here.
  */
 export default function JobDependencyTreeDialogue() {
   const [messageData, , resetDialogue] = useDialogueEventState(
