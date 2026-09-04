@@ -36,8 +36,18 @@ Three facts shape everything below.
 **Alloy stores nothing either.** It has `prometheus.receive_http` and `prometheus.remote_write` —
 an inlet and an outlet — and no storage or query component. It is a pipe.
 
-**Traces are collected and thrown away.** Applications already emit them; `config.alloy` ends that
-pipeline at `otelcol.exporter.debug "discard_traces"`.
+**The traces pipeline exists and nothing feeds it.** `config.alloy` accepts OTLP traces and ends the
+pipeline at `otelcol.exporter.debug "discard_traces"`, but no application sends any: `telemetry.go`
+exports traces through `sentryotlp.NewTraceExporter` to the Sentry DSN, and only metrics and logs go
+to the collector. Its own comment says so — *"App OTLP remains for metrics and logs to the collector"*
+— and so does Alloy's — *"app traces go to Sentry, not Alloy"*. The SPA emits none either.
+
+Tracing is also currently off at source: `SENTRY_TRACES_SAMPLE_RATE=0` installs a noop tracer
+provider, so spans are created and discarded before export.
+
+**The instrumentation is not Sentry-coupled.** Span creation is the plain OTel API, propagation is
+W3C TraceContext, and the auto-instrumentation is `otelhttp` / `redisotel` / `otelmongo`. Only the
+exporter names Sentry, so pointing traces at the collector is an exporter swap, not a re-instrumenting.
 
 ## One collector, one backend
 
@@ -158,11 +168,47 @@ Three things to get right:
 
 ### Stage D — traces stop being discarded
 
-Repoint `otelcol.exporter.debug "discard_traces"` at the backend. The applications already emit
-traces, so this is a routing change that turns on distributed tracing across api, worker and
-websocket.
+Two changes, not one. **This stage was scoped as config-only and is not.**
+
+- **In the applications:** add an OTLP trace exporter alongside or instead of the Sentry one, and
+  raise `SENTRY_TRACES_SAMPLE_RATE` above zero so spans are sampled at all. `telemetry.go` already
+  resolves the collector endpoint for metrics and logs, so this is roughly ten lines against a
+  vendor-neutral instrumentation. Whether Sentry keeps receiving traces as well is a decision: one
+  provider can carry two exporters.
+- **In Alloy:** repoint `otelcol.exporter.debug "discard_traces"` at the backend.
+
+Doing only the second produces an empty traces view.
 
 Held until after Stage B because it only pays off on a backend that stores traces.
+
+### Stage H — the spans say what a trace needs
+
+Turning tracing on is worth little if the spans carry nothing. Three faults, found while rebuilding
+the worker and none of them structural:
+
+**The task execution span has no span kind.** `worker/asynq` starts `asynq.task` without
+`trace.WithSpanKind`, so it defaults to `Internal` — a queue consumer rendered as an internal call.
+The publish and bridge spans both set theirs. Backends key their consumer views off it.
+
+**What matters about a task is on log lines, not on the span.** The execution span carries only
+`asynq.task.type`; delivery count and sequence go into `debug_steps` in the log. A trace therefore
+cannot answer "which attempt is this?" — the question a trace is best placed to answer.
+`taskrun.Current(ctx)` now yields the task id, queue, retries used and retries allowed, so putting
+them on the span is a few lines.
+
+**The bridge is in the trace but not in the causal chain.** `Enqueue` builds the Asynq headers from
+the *inbound* NATS headers, so the execution span inherits the publisher's context and becomes a
+sibling of the bridge span rather than its child. Time waiting in Redis shows only as a gap between
+siblings. **To decide:** make execution a child of the bridge, so queue latency is a duration, or
+give it a span link to the producer as the messaging conventions suggest. It is currently neither by
+accident rather than by choice.
+
+Span names (`nats.publish_task`, `nats.enqueue_task`, `asynq.task`) are bespoke rather than the
+`{destination} {operation}` the conventions use. Worth a sweep alongside the decision above, since
+conventions are what make a trace render in whichever backend Stage B picks.
+
+**Verification needs tracing on.** None of this is observable while the sample rate is zero, so this
+stage follows D rather than preceding it.
 
 ### Stage E — the remaining dashboards
 
@@ -198,8 +244,11 @@ Promote the overlay into live SoT under [`stack/`](../../stack/contents.md) and
 - **`job` labels.** Both the exporter collapse and any change to the write path can rewrite them,
   and every infrastructure dashboard filters on them.
 
-**Additive:** traces becoming queryable; the applications are unchanged throughout, because they
-only ever talk to Alloy.
+**Additive:** traces becoming queryable.
+
+The applications are unchanged for metrics and logs, which do only ever talk to Alloy. **Traces are
+the exception:** Stage D changes their exporter and Stage H changes what the spans carry, so the
+claim that this project never touches application code holds for every stage but those two.
 
 ## Cutover and rollback
 
@@ -226,7 +275,12 @@ than Prometheus on the panels that matter, or single-node ingestion falling behi
 
 1. **Are traces actually wanted?** The only answer that would send this back to SigNoz. OpenObserve
    stores traces, so the question is whether dedicated APM tooling is worth five containers rather
-   than whether tracing is possible.
+   than whether tracing is possible. A "no" retires Stages D and H rather than deferring them, and
+   the instrumentation would then be carrying a cost with no consumer — worth deciding deliberately,
+   because it is portable and one exporter away from working.
+6. **Does Sentry keep receiving traces?** One tracer provider can export to both. Sentry ties a trace
+   to the error it already captures; the collector puts traces beside the metrics and logs. Deciding
+   this is part of Stage D, not after it.
 2. **How much history matters?** Decides how long the parallel run lasts, since nothing migrates.
 3. **Does anyone but the operator need dashboards?** SSO and advanced RBAC are Enterprise in
    OpenObserve; Grafana OSS gives more here. Irrelevant for a single operator, decisive if not.
@@ -245,6 +299,10 @@ than Prometheus on the panels that matter, or single-node ingestion falling behi
 | B — decision gate (ESI dashboard, PromQL verification) | Not started |
 | C — exporters become components | Not started |
 | D — traces stop being discarded | Not started |
+| H — the spans say what a trace needs | Not started |
 | E — remaining dashboards | Not started |
 | F — cutover | Not started |
 | G — promote and delete | Not started |
+
+Lettering follows when a stage was written, not when it runs: H was added after G existed and runs
+straight after D, while G stays last.
