@@ -23,3 +23,4 @@ it wants run.
 | See why the trace rides in headers only | [plan.md](./plan.md) § The envelope carried the trace twice |
 | Change how the operator CLI names tasks | [plan.md](./plan.md) § Stage C |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
+| Promote this into live documentation | [promotion.md](./promotion.md) |
