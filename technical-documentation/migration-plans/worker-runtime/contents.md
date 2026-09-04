@@ -27,3 +27,4 @@ handlers share live, and how a handler is wired to its definition.
 | Wire handlers from task definitions | [plan.md](./plan.md) § Stage D |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | Read how a part works after a stage landed | [overlay.md](./overlay.md) |
+| Promote this into live documentation | [promotion.md](./promotion.md) |
