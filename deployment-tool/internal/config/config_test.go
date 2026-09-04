@@ -173,9 +173,17 @@ func TestSyncEnvStable(t *testing.T) {
 			t.Fatalf("missing %q in:\n%s", want, joined)
 		}
 	}
+	if !strings.Contains(joined, "EIP_OBSERVABILITY_ENABLED=false") {
+		t.Fatalf("observability flag missing in:\n%s", joined)
+	}
 	if strings.Contains(joined, "env_backup") || strings.Contains(joined, "EIP_CLI") {
 		t.Fatalf("cli leaked into SyncEnv:\n%s", joined)
 	}
+	cfg.Addons.Observability.Enabled = true
+	if !strings.Contains(strings.Join(cfg.SyncEnv(), "\n"), "EIP_OBSERVABILITY_ENABLED=true") {
+		t.Fatal("observability flag must follow addons.observability.enabled")
+	}
+
 	cfg.Paths.Grafana = "/ops"
 	cfg.Addons.Observability.Grafana.BaseURL = "https://ops.example.com"
 	joined = strings.Join(cfg.SyncEnv(), "\n")

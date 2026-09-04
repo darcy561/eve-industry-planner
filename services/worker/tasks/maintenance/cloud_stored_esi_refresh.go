@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipnats "eve-industry-planner/shared/nats"
-	esicore "eve-industry-planner/worker/esi"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -51,19 +51,31 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 		abandonMonths = defaultAbandonAfterLoginMonths
 	}
 
+	// SSO goes down with everything else, so a rotation attempted during an
+	// outage just fails. The fleet's view of availability is therefore worth
+	// asking — but this holds no bucket and spends no token, because it talks to
+	// login.eveonline.com rather than to ESI.
+	if deps.ESI != nil {
+		availability, err := deps.ESI.Availability(ctx)
+		if err != nil {
+			logs.DebugCtx(ctx, "could not read availability; proceeding", "error", err)
+		} else if availability.Gated {
+			logs.InfoCtx(ctx, "cloud esi refresh maintenance deferred: servers are not answering",
+				"account_id", accountID, "next_probe", availability.NextProbe)
+			return &esiclient.RateLimitError{
+				Kind:       esiclient.KindDowntime,
+				RetryAfter: availability.NextProbe,
+				Reason:     "SSO token rotation deferred while the servers are away",
+			}
+		}
+	}
+
 	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		return err
 	}
 	if cfg.Keys.Keyring == nil {
 		return fmt.Errorf("refresh token keyring is not configured")
-	}
-
-	if deps.ESIClient != nil && deps.Redis != nil {
-		statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-		if err := esitasks.HandleStatusCheckResult(ctx, statusResult, "cloud stored esi refresh maintenance"); err != nil {
-			return err
-		}
 	}
 
 	now := time.Now().UTC()
@@ -108,6 +120,19 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 	}
 
 	stats, err := maintainAccountCloudRefreshTokens(ctx, mongo.Users, accountID, &cfg)
+	// A rotation that reached SSO is evidence the servers are up; one that failed
+	// every row it tried is evidence they are not. Same signal an ESI call gives,
+	// from a caller that pays nothing for it.
+	//
+	// A pass that rotated nothing says nothing either way, so it is not reported.
+	if deps.ESI != nil {
+		switch {
+		case stats.RowsRefreshed > 0 || stats.RowsKeyRotate > 0:
+			_ = deps.ESI.Observe(ctx, "evesso", true)
+		case stats.RowsFailed > 0:
+			_ = deps.ESI.Observe(ctx, "evesso", false)
+		}
+	}
 	if err != nil {
 		if errors.Is(err, errCloudEsiMaintUserNotFound) {
 			logs.InfoCtx(ctx, "cloud esi refresh maintenance: user not found", "account_id", accountID)

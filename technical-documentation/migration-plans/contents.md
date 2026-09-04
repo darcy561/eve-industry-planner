@@ -24,3 +24,4 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Service import boundaries (stop services importing each other) | [service-import-boundaries/contents.md](./service-import-boundaries/contents.md) |
 | Task dispatch (task type authority, envelope collapse, operator CLI) | [task-dispatch/contents.md](./task-dispatch/contents.md) |
 | ESI rate limiting (shared `esiclient`, bucket model, budget-aware scheduling) | [esi-rate-limiting/contents.md](./esi-rate-limiting/contents.md) |
+| Observability consolidation (one collector, one backend; exporter collapse, dashboard rebuild) | [observability-consolidation/contents.md](./observability-consolidation/contents.md) |

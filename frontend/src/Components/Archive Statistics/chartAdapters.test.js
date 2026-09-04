@@ -9,6 +9,7 @@ import {
   toCostComponentRows,
   toCostComponentTotalRows,
   toBuildCostPerUnitRows,
+  toQuantityRows,
   BUILD_COST_COMPONENTS,
   sumTimelineMeasures,
 } from "./chartAdapters";
@@ -37,6 +38,37 @@ describe("toTimelineRows", () => {
     expect(row.profitLoss).toBe(0);
     expect(row.jobCostTotal).toBe(0);
     expect(row.salesTotal).toBe(0);
+  });
+});
+
+describe("toQuantityRows", () => {
+  it("takes what sold off what was built", () => {
+    const rows = toQuantityRows({
+      months: [{ year: 2026, month: 7, quantityProduced: 10, quantitySold: 4 }],
+    });
+
+    expect(rows[0].quantityKept).toBe(6);
+  });
+
+  // A sale can settle against a build from an earlier month, so a month really
+  // can report more sold than it produced. Kept is a holding, and a negative
+  // holding is not a thing to plot.
+  it("floors kept at nothing rather than going negative", () => {
+    const rows = toQuantityRows({
+      months: [{ year: 2026, month: 7, quantityProduced: 2, quantitySold: 9 }],
+    });
+
+    expect(rows[0].quantityKept).toBe(0);
+  });
+
+  it("reads a month with neither as zero rather than a gap", () => {
+    const rows = toQuantityRows({ months: [{ year: 2026, month: 7 }] });
+
+    expect(rows[0]).toMatchObject({
+      quantityProduced: 0,
+      quantitySold: 0,
+      quantityKept: 0,
+    });
   });
 });
 

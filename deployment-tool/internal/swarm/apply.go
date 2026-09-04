@@ -3,7 +3,9 @@ package swarm
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +30,9 @@ func ApplyConfigs(ctx context.Context, home, stackPrefix string, dryRun bool, st
 	}
 
 	var mounts []stack.ConfigMount
+	// Target paths the fragments still declare, per service: anything else mounted
+	// from an eip_-namespaced config is a key that left the fragment.
+	wanted := map[string]map[string]bool{}
 	for _, f := range stackFiles {
 		p, err := resolveStackPath(home, f)
 		if err != nil {
@@ -42,6 +47,12 @@ func ApplyConfigs(ctx context.Context, home, stackPrefix string, dryRun bool, st
 			return err
 		}
 		mounts = append(mounts, ms...)
+		for _, m := range ms {
+			if wanted[m.Service] == nil {
+				wanted[m.Service] = map[string]bool{}
+			}
+			wanted[m.Service][m.Target] = true
+		}
 	}
 
 	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
@@ -107,8 +118,68 @@ func ApplyConfigs(ctx context.Context, home, stackPrefix string, dryRun bool, st
 		updated++
 	}
 
-	msg.Line(fmt.Sprintf("config sync apply: updated=%d unchanged=%d not_deployed=%d", updated, skipped, missing))
+	dropped := 0
+	for _, svc := range slices.Sorted(maps.Keys(wanted)) {
+		n, err := dropUnwantedConfigMounts(ctx, apiClient, stackPrefix+"_"+svc, wanted[svc], dryRun)
+		if err != nil {
+			return err
+		}
+		dropped += n
+	}
+
+	msg.Line(fmt.Sprintf("config sync apply: updated=%d unchanged=%d not_deployed=%d dropped=%d", updated, skipped, missing, dropped))
 	return nil
+}
+
+// dropUnwantedConfigMounts removes eip_-namespaced config mounts the fragments no
+// longer declare. Grafana provisions one dashboard per mount, so a definition
+// deleted upstream keeps rendering until its reference leaves the service spec.
+func dropUnwantedConfigMounts(ctx context.Context, apiClient *client.Client, swarmSvc string, wanted map[string]bool, dryRun bool) (int, error) {
+	service, err := apiClient.ServiceInspect(ctx, swarmSvc, client.ServiceInspectOptions{})
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("inspect service %s: %w", swarmSvc, err)
+	}
+	spec := service.Service.Spec
+	container := spec.TaskTemplate.ContainerSpec
+	if container == nil {
+		return 0, nil
+	}
+
+	keep := make([]*swarmtypes.ConfigReference, 0, len(container.Configs))
+	var drop []string
+	for _, ref := range container.Configs {
+		if ref == nil {
+			continue
+		}
+		unmanaged := !strings.HasPrefix(ref.ConfigName, "eip_")
+		if unmanaged || ref.File == nil || wanted[ref.File.Name] {
+			keep = append(keep, ref)
+			continue
+		}
+		drop = append(drop, ref.ConfigName)
+	}
+	if len(drop) == 0 {
+		return 0, nil
+	}
+
+	for _, name := range drop {
+		msg.Line(fmt.Sprintf("plan %s: drop config mount %s", swarmSvc, name))
+	}
+	if dryRun {
+		return len(drop), nil
+	}
+	container.Configs = keep
+	if _, err := apiClient.ServiceUpdate(ctx, service.Service.ID, client.ServiceUpdateOptions{
+		Version: service.Service.Version,
+		Spec:    spec,
+	}); err != nil {
+		return 0, fmt.Errorf("drop config mounts on %s: %w", swarmSvc, err)
+	}
+	msg.Line(fmt.Sprintf("dropped %d config mount(s) from %s", len(drop), swarmSvc))
+	return len(drop), nil
 }
 
 func pruneOldConfigs(ctx context.Context, apiClient *client.Client, key, keep string) {

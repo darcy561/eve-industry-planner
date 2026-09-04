@@ -1,548 +1,299 @@
-package tasks
+package tasks_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"io"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	esitypes "eve-industry-planner/shared/core/esi/types"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
+	rediscore "eve-industry-planner/shared/core/redis"
+	"eve-industry-planner/shared/esiclient"
+	"eve-industry-planner/testing/redisfake"
+	tasks "eve-industry-planner/worker/tasks/esi"
 
+	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 )
 
-// Helper to create a test adjusted prices JSON response
-func createAdjustedPricesJSON(prices []ESIAdjustedPrice) []byte {
-	data, _ := json.Marshal(prices)
-	return data
+// These run the handler end to end — a real HTTP origin, a real Redis, the real
+// task — and assert on what it leaves behind.
+
+const pricesPath = "/markets/prices/"
+
+// priceOrigin answers /markets/prices/ the way ESI does, headers included, and
+// counts what it was asked.
+type priceOrigin struct {
+	server   *httptest.Server
+	requests atomic.Int64
+	etag     string
+	body     string
+	notMod   atomic.Bool
 }
 
-// Helper to create a test adjusted price
-func createTestAdjustedPrice(typeID int32, adjustedPrice, averagePrice float64) ESIAdjustedPrice {
-	return ESIAdjustedPrice{
-		TypeID:        typeID,
-		AdjustedPrice: adjustedPrice,
-		AveragePrice:  averagePrice,
+func newPriceOrigin(t *testing.T, rows int) *priceOrigin {
+	t.Helper()
+
+	var b strings.Builder
+	b.WriteByte('[')
+	for i := range rows {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		fmt.Fprintf(&b, `{"type_id":%d,"adjusted_price":%d.5,"average_price":%d.25}`, 34+i, i+1, i+2)
 	}
+	b.WriteByte(']')
+
+	o := &priceOrigin{etag: `"prices-v1"`, body: b.String()}
+	o.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		o.requests.Add(1)
+		w.Header().Set("X-Ratelimit-Group", "market-order")
+		w.Header().Set("X-Ratelimit-Limit", "12000/15m")
+		w.Header().Set("X-Ratelimit-Remaining", "11000")
+		w.Header().Set("ETag", o.etag)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+
+		if o.notMod.Load() && r.Header.Get("If-None-Match") == o.etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(o.body))
+	}))
+	t.Cleanup(o.server.Close)
+	return o
 }
 
-func TestStreamAdjustedPrices_NilESIClient(t *testing.T) {
-	ctx := context.Background()
-	var cacheSeconds int
+// snapshot is every key the task wrote, with the volatile parts normalised.
+func snapshot(t *testing.T, client *redis.Client) map[string]string {
+	t.Helper()
+	ctx := t.Context()
 
-	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, "", func(m esitypes.AdjustedPrice) error {
-		return nil
-	}, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error when ESI client is nil")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-	if bytesRead != 0 {
-		t.Error("expected bytesRead to be 0 on error")
-	}
-	if !strings.Contains(err.Error(), "nil") {
-		t.Errorf("expected error to mention nil, got: %v", err)
-	}
-}
-
-func TestStreamAdjustedPrices_NilCallback(t *testing.T) {
-	ctx := context.Background()
-	esiClient := &mockESIClientForStreaming{}
-	var cacheSeconds int
-
-	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, "", nil, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error when callback is nil")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-	if bytesRead != 0 {
-		t.Error("expected bytesRead to be 0 on error")
-	}
-	if !strings.Contains(err.Error(), "nil") {
-		t.Errorf("expected error to mention nil, got: %v", err)
-	}
-}
-
-func TestStreamAdjustedPrices_304NotModified(t *testing.T) {
-	ctx := context.Background()
-	etag := "test-etag-123"
-	newETag := "test-etag-456"
-	var cacheSeconds int
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			// Verify If-None-Match header is set
-			if headers["If-None-Match"] != etag {
-				t.Errorf("expected If-None-Match header to be %s, got %s", etag, headers["If-None-Match"])
+	out := map[string]string{}
+	var cursor uint64
+	for {
+		keys, next, err := client.Scan(ctx, cursor, "*", 500).Result()
+		if err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		for _, key := range keys {
+			// The limiter's own bookkeeping is not what the task produced.
+			if strings.HasPrefix(key, "esi:group:") || strings.HasPrefix(key, "esi:b:") ||
+				strings.HasPrefix(key, "esi:errors:") || strings.HasPrefix(key, "esi:path:") ||
+				key == "esi:downtime" || strings.HasPrefix(key, "esi:primary_group:") ||
+				strings.HasSuffix(key, ":refresh_lock") {
+				continue
 			}
-
-			resp := &http.Response{
-				StatusCode: http.StatusNotModified,
-				Status:     "304 Not Modified",
-				Header:     make(http.Header),
-				Body:       http.NoBody,
+			value, err := client.Get(ctx, key).Result()
+			if err != nil {
+				continue
 			}
-			resp.Header.Set("ETag", newETag)
-			resp.Header.Set("Cache-Control", "max-age=300")
-			return resp, nil
-		},
+			out[key] = normalise(key, value)
+		}
+		if next == 0 {
+			break
+		}
+		cursor = next
 	}
+	return out
+}
 
-	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, etag, func(m esitypes.AdjustedPrice) error {
-		t.Error("callback should not be called for 304 response")
-		return nil
-	}, &cacheSeconds)
+// normalise strips the parts of a value that are a function of when the run
+// happened rather than of what it fetched.
+func normalise(key, value string) string {
+	// next_refresh is when to come back, not stored data — a 304 carries a fresh
+	// max-age and is expected to move it.
+	if strings.Contains(key, "last_updated") || strings.Contains(key, "lastUpdated") ||
+		strings.HasSuffix(key, ":next_refresh") {
+		return "<timestamp>"
+	}
+	var row esitypes.AdjustedPrice
+	if err := json.Unmarshal([]byte(value), &row); err == nil && row.TypeID != 0 {
+		row.LastUpdated = 0
+		normalised, _ := json.Marshal(row)
+		return string(normalised)
+	}
+	return value
+}
 
+// esiFor builds the client the task uses, pointed at a test origin.
+func esiFor(t *testing.T, baseURL string, client *redis.Client) esiclient.API {
+	t.Helper()
+	cfg := esiclient.DefaultConfig()
+	cfg.BaseURL = baseURL
+	api, stop, err := esiclient.New(client, cfg)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Fatalf("esiclient: %v", err)
 	}
-	if !notModified {
-		t.Error("expected notModified to be true for 304 response")
+	t.Cleanup(stop)
+	return api
+}
+
+func runPrices(t *testing.T, origin *priceOrigin) (map[string]string, *redis.Client) {
+	t.Helper()
+	fake := redisfake.New(t)
+	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	if err := tasks.RefreshAdjustedPrices(t.Context(), asynq.NewTask("refreshAdjustedPrices", nil), deps); err != nil {
+		t.Fatalf("task: %v", err)
 	}
-	if returnedETag != newETag {
-		t.Errorf("expected ETag %s, got %s", newETag, returnedETag)
+	return snapshot(t, fake.Client), fake.Client
+}
+
+func TestAdjustedPricesStoresEveryRow(t *testing.T) {
+	origin := newPriceOrigin(t, 250)
+
+	written, client := runPrices(t, origin)
+	if len(written) == 0 {
+		t.Fatal("the task wrote nothing")
 	}
-	if bytesRead != 0 {
-		t.Errorf("expected bytesRead to be 0 for 304, got %d", bytesRead)
+
+	// Only the adjusted price is kept; ESI's average price is not stored.
+	var row esitypes.AdjustedPrice
+	if err := rediscore.GetMarketPrice(t.Context(), client, 34, &row); err != nil {
+		t.Fatalf("reading type 34: %v", err)
 	}
-	if cacheSeconds != 300 {
-		t.Errorf("expected cacheSeconds to be 300, got %d", cacheSeconds)
+	if row.AdjustedPrice != 1.5 {
+		t.Errorf("adjusted price = %v, want 1.5", row.AdjustedPrice)
+	}
+	if row.LastUpdated == 0 {
+		t.Error("a stored row should carry when it was fetched")
+	}
+	if stored := written["esi:market_prices:34"]; strings.Contains(stored, "2.25") {
+		t.Errorf("the average price was stored too: %s", stored)
+	}
+
+	etag, err := rediscore.GetMarketPricesETag(t.Context(), client)
+	if err != nil || etag != origin.etag {
+		t.Errorf("stored ETag = %q (err %v), want %q", etag, err, origin.etag)
 	}
 }
 
-func TestStreamAdjustedPrices_Non200Status(t *testing.T) {
-	ctx := context.Background()
-	var cacheSeconds int
+func TestAdjustedPricesMakesNoStatusPreflight(t *testing.T) {
+	origin := newPriceOrigin(t, 10)
 
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Status:     "500 Internal Server Error",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader("Internal Server Error")),
-			}
-			resp.Header.Set("ETag", "error-etag")
-			return resp, nil
-		},
-	}
+	runPrices(t, origin)
 
-	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		t.Error("callback should not be called for non-200 response")
-		return nil
-	}, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error for non-200 status code")
+	// Availability comes from the call the task was making anyway, so the price
+	// endpoint is the only thing asked.
+	if made := origin.requests.Load(); made != 1 {
+		t.Errorf("the task made %d requests; one fetch and no pre-flight is expected", made)
 	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-	if returnedETag != "error-etag" {
-		t.Errorf("expected ETag to be extracted even on error, got %s", returnedETag)
-	}
-	_ = bytesRead // bytesRead is 0 on error
 }
 
-func TestStreamAdjustedPrices_SuccessfulStreaming(t *testing.T) {
-	ctx := context.Background()
-	prices := []ESIAdjustedPrice{
-		createTestAdjustedPrice(34, 100.5, 99.2),
-		createTestAdjustedPrice(35, 200.75, 198.5),
-		createTestAdjustedPrice(36, 50.25, 49.8),
-	}
-	jsonData := createAdjustedPricesJSON(prices)
-	var cacheSeconds int
-	var processedItems []esitypes.AdjustedPrice
+func TestAdjustedPricesLeavesStoredRowsAloneOnNotModified(t *testing.T) {
+	origin := newPriceOrigin(t, 20)
+	fake := redisfake.New(t)
+	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	task := asynq.NewTask("refreshAdjustedPrices", nil)
 
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(jsonData)),
-			}
-			resp.Header.Set("ETag", "success-etag")
-			resp.Header.Set("Cache-Control", "max-age=600")
-			return resp, nil
-		},
+	if err := tasks.RefreshAdjustedPrices(t.Context(), task, deps); err != nil {
+		t.Fatalf("first pass: %v", err)
 	}
+	first := snapshot(t, fake.Client)
 
-	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		processedItems = append(processedItems, m)
-		return nil
-	}, &cacheSeconds)
+	origin.notMod.Store(true)
+	if err := tasks.RefreshAdjustedPrices(t.Context(), task, deps); err != nil {
+		t.Fatalf("second pass: %v", err)
+	}
+	second := snapshot(t, fake.Client)
 
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if len(first) != len(second) {
+		t.Errorf("a 304 changed the stored key count from %d to %d", len(first), len(second))
 	}
-	if notModified {
-		t.Error("expected notModified to be false for successful streaming")
-	}
-	if returnedETag != "success-etag" {
-		t.Errorf("expected ETag %s, got %s", "success-etag", returnedETag)
-	}
-	if len(processedItems) != 3 {
-		t.Errorf("expected 3 items to be processed, got %d", len(processedItems))
-	}
-	if bytesRead == 0 {
-		t.Error("expected bytesRead to be greater than 0")
-	}
-	if cacheSeconds != 600 {
-		t.Errorf("expected cacheSeconds to be 600, got %d", cacheSeconds)
-	}
-
-	// Verify first price
-	if processedItems[0].TypeID != 34 {
-		t.Errorf("expected first type ID 34, got %d", processedItems[0].TypeID)
-	}
-	if processedItems[0].AdjustedPrice != 100.5 {
-		t.Errorf("expected adjusted price 100.5, got %f", processedItems[0].AdjustedPrice)
-	}
-
-	// Verify second price
-	if processedItems[1].TypeID != 35 {
-		t.Errorf("expected second type ID 35, got %d", processedItems[1].TypeID)
-	}
-	if processedItems[1].AdjustedPrice != 200.75 {
-		t.Errorf("expected adjusted price 200.75, got %f", processedItems[1].AdjustedPrice)
-	}
-
-	// Verify third price
-	if processedItems[2].TypeID != 36 {
-		t.Errorf("expected third type ID 36, got %d", processedItems[2].TypeID)
-	}
-	if processedItems[2].AdjustedPrice != 50.25 {
-		t.Errorf("expected adjusted price 50.25, got %f", processedItems[2].AdjustedPrice)
-	}
-
-	// Verify all have LastUpdated set
-	for i, item := range processedItems {
-		if item.LastUpdated == 0 {
-			t.Errorf("expected LastUpdated to be set for item %d", i)
+	for key, want := range first {
+		if second[key] != want {
+			t.Errorf("%s changed on a 304:\n before: %s\n after:  %s", key, want, second[key])
 		}
 	}
 }
 
-func TestStreamAdjustedPrices_GzipCompression(t *testing.T) {
-	ctx := context.Background()
-	prices := []ESIAdjustedPrice{
-		createTestAdjustedPrice(34, 100.5, 99.2),
+func TestAdjustedPricesHandlesAnEmptyList(t *testing.T) {
+	origin := newPriceOrigin(t, 0)
+
+	if _, client := runPrices(t, origin); client == nil {
+		t.Fatal("no client")
 	}
-	jsonData := createAdjustedPricesJSON(prices)
-	gzippedData, err := createGzippedBody(jsonData)
+}
+
+func TestAdjustedPricesRejectsANilTask(t *testing.T) {
+	fake := redisfake.New(t)
+	deps := &tasks.TaskDependencies{Redis: fake.Client}
+	if err := tasks.RefreshAdjustedPrices(t.Context(), nil, deps); err == nil {
+		t.Error("a nil task should be reported, not dereferenced")
+	}
+}
+
+func TestAdjustedPricesSkipsWhenTheLockIsHeld(t *testing.T) {
+	origin := newPriceOrigin(t, 5)
+	fake := redisfake.New(t)
+
+	// A second worker holding the lock means someone else is already doing this.
+	if err := fake.Client.Set(t.Context(), "esi:market_prices:refresh_lock", "held", time.Minute).Err(); err != nil {
+		t.Fatalf("seeding the lock: %v", err)
+	}
+
+	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	if err := tasks.RefreshAdjustedPrices(t.Context(), asynq.NewTask("refreshAdjustedPrices", nil), deps); err != nil {
+		t.Fatalf("a held lock is not an error: %v", err)
+	}
+	if made := origin.requests.Load(); made != 0 {
+		t.Errorf("the task called ESI %d times while another pass held the lock", made)
+	}
+}
+
+func TestAdjustedPricesReportsAServerThatIsAway(t *testing.T) {
+	origin := newPriceOrigin(t, 5)
+	origin.server.Close()
+
+	fake := redisfake.New(t)
+	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := tasks.RefreshAdjustedPrices(ctx, asynq.NewTask("refreshAdjustedPrices", nil), deps); err == nil {
+		t.Fatal("a task that could not reach ESI should report it, so asynq retries")
+	}
+}
+
+func TestAdjustedPricesRecordsWhenToComeBack(t *testing.T) {
+	origin := newPriceOrigin(t, 5)
+	fake := redisfake.New(t)
+	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: esiFor(t, origin.server.URL, fake.Client)}
+	task := asynq.NewTask("refreshAdjustedPrices", nil)
+
+	before := time.Now()
+	if err := tasks.RefreshAdjustedPrices(t.Context(), task, deps); err != nil {
+		t.Fatalf("task: %v", err)
+	}
+
+	// The origin advertises max-age=300, and that is what decides the next run
+	// rather than a cron interval chosen here.
+	due, err := rediscore.NextRefresh(t.Context(), fake.Client, rediscore.DatasetMarketPrices)
 	if err != nil {
-		t.Fatalf("failed to create gzipped data: %v", err)
+		t.Fatalf("reading next refresh: %v", err)
+	}
+	if due.IsZero() {
+		t.Fatal("nothing recorded when to come back, so the scheduler has only the cron cycle")
+	}
+	if wait := due.Sub(before); wait < 4*time.Minute || wait > 6*time.Minute {
+		t.Errorf("next refresh due in %v, want about the advertised 5 minutes", wait)
 	}
 
-	var processedItems []esitypes.AdjustedPrice
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(gzippedData)),
-			}
-			resp.Header.Set("ETag", "gzip-etag")
-			resp.Header.Set("Content-Encoding", "gzip")
-			return resp, nil
-		},
+	// A 304 is ESI restating how long the answer stays good, so it must move.
+	origin.notMod.Store(true)
+	if err := tasks.RefreshAdjustedPrices(t.Context(), task, deps); err != nil {
+		t.Fatalf("second pass: %v", err)
 	}
-
-	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		processedItems = append(processedItems, m)
-		return nil
-	}, nil)
-
-	_ = bytesRead // bytesRead is checked in other tests
-
+	after, err := rediscore.NextRefresh(t.Context(), fake.Client, rediscore.DatasetMarketPrices)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Fatalf("reading next refresh: %v", err)
 	}
-	if notModified {
-		t.Error("expected notModified to be false")
+	if !after.After(due) {
+		t.Errorf("a 304 left the next refresh at %s; its max-age should have pushed it past %s", after, due)
 	}
-	if len(processedItems) != 1 {
-		t.Errorf("expected 1 item to be processed, got %d", len(processedItems))
-	}
-	if processedItems[0].TypeID != 34 {
-		t.Errorf("expected type ID 34, got %d", processedItems[0].TypeID)
-	}
-	if processedItems[0].AdjustedPrice != 100.5 {
-		t.Errorf("expected adjusted price 100.5, got %f", processedItems[0].AdjustedPrice)
-	}
-}
-
-func TestStreamAdjustedPrices_InvalidJSON(t *testing.T) {
-	ctx := context.Background()
-	var cacheSeconds int
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader("invalid json")),
-			}
-			resp.Header.Set("ETag", "invalid-etag")
-			return resp, nil
-		},
-	}
-
-	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		t.Error("callback should not be called for invalid JSON")
-		return nil
-	}, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error for invalid JSON")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-}
-
-func TestStreamAdjustedPrices_NotArray(t *testing.T) {
-	ctx := context.Background()
-	var cacheSeconds int
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(`{"not": "an array"}`)),
-			}
-			resp.Header.Set("ETag", "not-array-etag")
-			return resp, nil
-		},
-	}
-
-	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		t.Error("callback should not be called for non-array JSON")
-		return nil
-	}, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error for non-array JSON")
-	}
-	if !strings.Contains(err.Error(), "array") {
-		t.Errorf("expected error to mention array, got: %v", err)
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-}
-
-func TestStreamAdjustedPrices_CallbackError(t *testing.T) {
-	ctx := context.Background()
-	prices := []ESIAdjustedPrice{
-		createTestAdjustedPrice(34, 100.5, 99.2),
-	}
-	jsonData := createAdjustedPricesJSON(prices)
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(jsonData)),
-			}
-			resp.Header.Set("ETag", "callback-error-etag")
-			return resp, nil
-		},
-	}
-
-	callbackErr := errors.New("callback error")
-	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		return callbackErr
-	}, nil)
-
-	if err == nil {
-		t.Error("expected error when callback returns error")
-	}
-	if err != callbackErr {
-		t.Errorf("expected callback error, got: %v", err)
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-}
-
-func TestStreamAdjustedPrices_RetryOnError(t *testing.T) {
-	ctx := context.Background()
-	prices := []ESIAdjustedPrice{
-		createTestAdjustedPrice(34, 100.5, 99.2),
-	}
-	jsonData := createAdjustedPricesJSON(prices)
-	attemptCount := 0
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			attemptCount++
-			if attemptCount < 3 {
-				return nil, errors.New("temporary error")
-			}
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(jsonData)),
-			}
-			resp.Header.Set("ETag", "retry-success-etag")
-			return resp, nil
-		},
-	}
-
-	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		return nil
-	}, nil)
-
-	if err != nil {
-		t.Errorf("unexpected error after retries: %v", err)
-	}
-	if notModified {
-		t.Error("expected notModified to be false")
-	}
-	if attemptCount != 3 {
-		t.Errorf("expected 3 attempts, got %d", attemptCount)
-	}
-}
-
-func TestStreamAdjustedPrices_RateLimitError(t *testing.T) {
-	ctx := context.Background()
-	rateLimitErr := &esiratelimiter.RateLimitError{
-		Retryable:  true,
-		RetryAfter: time.Now().Add(30 * time.Second),
-		Reason:     "insufficient tokens",
-	}
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			return nil, rateLimitErr
-		},
-	}
-
-	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		t.Error("callback should not be called on rate limit error")
-		return nil
-	}, nil)
-
-	if err == nil {
-		t.Error("expected error for rate limit")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-	// Should stop retrying immediately on rate limit error
-	if !esiratelimiter.IsRateLimitError(err) {
-		t.Errorf("expected rate limit error, got: %v", err)
-	}
-}
-
-func TestStreamAdjustedPrices_OnlyAdjustedPriceSaved(t *testing.T) {
-	ctx := context.Background()
-	// Create a price with both adjusted_price and average_price
-	prices := []ESIAdjustedPrice{
-		createTestAdjustedPrice(34, 100.5, 99.2), // average_price should be ignored
-	}
-	jsonData := createAdjustedPricesJSON(prices)
-	var processedItems []esitypes.AdjustedPrice
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(jsonData)),
-			}
-			resp.Header.Set("ETag", "adjusted-only-etag")
-			return resp, nil
-		},
-	}
-
-	_, _, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
-		processedItems = append(processedItems, m)
-		return nil
-	}, nil)
-
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if len(processedItems) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(processedItems))
-	}
-
-	// Verify only adjusted_price is saved (average_price should not be in AdjustedPrice struct)
-	if processedItems[0].AdjustedPrice != 100.5 {
-		t.Errorf("expected adjusted price 100.5, got %f", processedItems[0].AdjustedPrice)
-	}
-	// AdjustedPrice struct doesn't have AveragePrice field, which is correct
-}
-
-func TestRefreshAdjustedPrices_NilTask(t *testing.T) {
-	ctx := context.Background()
-	redisClient := redis.NewClient(&redis.Options{
-		Addr: "invalid:6379",
-	})
-
-	deps := &TaskDependencies{
-		Redis:     redisClient,
-		ESIClient: &mockESIClientForStreaming{},
-	}
-
-	// Should return error when task is nil
-	err := RefreshAdjustedPrices(ctx, nil, deps)
-	if err == nil {
-		t.Error("expected error when task is nil")
-	}
-}
-
-func TestRefreshAdjustedPrices_LockAcquisitionFailure(t *testing.T) {
-	// This test would require mocking AcquireRefreshLock
-	// Since it's in a different package, this is better tested in integration tests
-	t.Skip("Requires mocking AcquireRefreshLock - better suited for integration tests")
-}
-
-func TestRefreshAdjustedPrices_StatusCheckFailure(t *testing.T) {
-	// This test would require mocking CheckServerStatus
-	// Since it's in a different package, this is better tested in integration tests
-	t.Skip("Requires mocking CheckServerStatus - better suited for integration tests")
-}
-
-func TestRefreshAdjustedPrices_NotModified(t *testing.T) {
-	// This test requires full integration with Redis, ESI client, and status checks
-	t.Skip("Requires full integration setup - better suited for integration tests")
-}
-
-func TestRefreshAdjustedPrices_SuccessfulRefresh(t *testing.T) {
-	// This test requires full integration with Redis, ESI client, and status checks
-	t.Skip("Requires full integration setup - better suited for integration tests")
-}
-
-func TestRefreshAdjustedPrices_ETagSaveFailure(t *testing.T) {
-	t.Skip("Requires full integration setup - better suited for integration tests")
-}
-
-func TestRefreshAdjustedPrices_StreamError(t *testing.T) {
-	t.Skip("Requires full integration setup - better suited for integration tests")
 }

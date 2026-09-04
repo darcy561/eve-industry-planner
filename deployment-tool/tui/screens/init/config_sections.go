@@ -105,6 +105,16 @@ func PersistConfig(s *builder.Session) error {
 	return nil
 }
 
+// ObservabilityEnabled reports addons.observability.enabled from the on-disk config,
+// false when it is missing or unreadable.
+func ObservabilityEnabled() bool {
+	home, err := kit.Home()
+	if err != nil {
+		return false
+	}
+	return loadConfigOrDefault(home).Addons.Observability.Enabled
+}
+
 // WriteConfigDefaults writes DefaultConfig preserving CLI from the on-disk file
 // (or DefaultConfig CLI when the file is missing).
 func WriteConfigDefaults() error {

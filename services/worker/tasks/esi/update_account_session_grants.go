@@ -4,16 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/esiclient"
+	"eve-industry-planner/shared/httpclient"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	esicore "eve-industry-planner/worker/esi"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/hibiken/asynq"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,14 +24,6 @@ import (
 
 // ESI allows at most this many character IDs per POST /characters/affiliation/ request.
 const maxCharacterAffiliationBatch = 1000
-
-// CharacterAffiliation is one entry from POST /characters/affiliation/
-// (see https://developers.eveonline.com/api-explorer#/operations/PostCharactersAffiliation).
-type CharacterAffiliation struct {
-	CharacterID   int `json:"character_id"`
-	CorporationID int `json:"corporation_id"`
-	AllianceID    int `json:"alliance_id"`
-}
 
 // RefreshAccountSessionGrants validates a batch of EVE SSO tokens, resolves character IDs,
 // queries ESI POST /characters/affiliation/ (batched), aggregates unique corporation and
@@ -117,77 +111,20 @@ func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *Ta
 	processedCount := 0
 
 	if len(characterIDs) > 0 {
-		affiliationPath := "/characters/affiliation/?datasource=tranquility"
-		headers := map[string]string{
-			"Content-Type":         "application/json",
-			"X-Compatibility-Date": esicore.CompatibilityDate,
+		affiliations, batchFailures, err := fetchCharacterAffiliations(ctx, deps.ESI, request.AccountID, characterIDs)
+		if err != nil {
+			return err
 		}
-		groupDesignation := esiratelimiter.GroupDesignation{}
+		failedCount += batchFailures
 
-		for start := 0; start < len(characterIDs); start += maxCharacterAffiliationBatch {
-			end := min(start+maxCharacterAffiliationBatch, len(characterIDs))
-			chunk := characterIDs[start:end]
-
-			payload, err := json.Marshal(chunk)
-			if err != nil {
-				logs.ErrorCtx(ctx, "failed to marshal character ID batch for affiliation",
-					"account_id", request.AccountID,
-					"batch_size", len(chunk),
-					"error", err)
-				failedCount += len(chunk)
-				continue
+		for _, row := range affiliations {
+			if row.CorporationID > 0 {
+				corpSet[int64(row.CorporationID)] = true
+				processedCount++
 			}
-
-			body, resp, err := DoEsiPostWithRetry(ctx, deps.ESIClient, 4, affiliationPath, headers, payload, groupDesignation)
-			if err != nil {
-				logs.ErrorCtx(ctx, "failed to fetch character affiliation from ESI API",
-					"account_id", request.AccountID,
-					"batch_size", len(chunk),
-					"error", err)
-
-				if esiratelimiter.IsRetryableRateLimitError(err) {
-					logs.WarnCtx(ctx, "retryable rate limit error, returning error for retry",
-						"account_id", request.AccountID,
-						"error", err)
-					return fmt.Errorf("rate limited: %w", err)
-				}
-
-				failedCount += len(chunk)
-				continue
-			}
-
-			if resp == nil || resp.StatusCode != 200 {
-				statusCode := 0
-				if resp != nil {
-					statusCode = resp.StatusCode
-				}
-				logs.WarnCtx(ctx, "ESI API returned non-200 status for affiliation",
-					"account_id", request.AccountID,
-					"status_code", statusCode,
-					"batch_size", len(chunk))
-				failedCount += len(chunk)
-				continue
-			}
-
-			var affiliations []CharacterAffiliation
-			if err := json.Unmarshal(body, &affiliations); err != nil {
-				logs.ErrorCtx(ctx, "failed to parse affiliation response",
-					"account_id", request.AccountID,
-					"batch_size", len(chunk),
-					"error", err)
-				failedCount += len(chunk)
-				continue
-			}
-
-			for _, row := range affiliations {
-				if row.CorporationID > 0 {
-					corpSet[int64(row.CorporationID)] = true
-					processedCount++
-				}
-				if row.AllianceID > 0 {
-					allianceSet[int64(row.AllianceID)] = true
-					processedCount++
-				}
+			if row.AllianceID > 0 {
+				allianceSet[int64(row.AllianceID)] = true
+				processedCount++
 			}
 		}
 	}
@@ -233,4 +170,93 @@ func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *Ta
 		"unique_corporations", len(allCorporations),
 		"unique_alliances", len(allAlliances))
 	return nil
+}
+
+// fetchCharacterAffiliations resolves character IDs to their corporation and
+// alliance in batches, because ESI takes up to a thousand at a time.
+//
+// A batch that fails is counted and skipped rather than abandoning the rest: a
+// partial answer still narrows what a session may see. A rate-limit refusal is
+// the exception — it means come back later, so it stops the pass.
+//
+// This is backend work: a login sets it off, but nothing is waiting on the
+// answer, so it takes the background lane and yields early under contention.
+func fetchCharacterAffiliations(
+	ctx context.Context,
+	client esiclient.API,
+	accountID string,
+	characterIDs []int,
+) ([]esiclient.CharacterAffiliation, int, error) {
+	if client == nil {
+		return nil, 0, fmt.Errorf("ESI client is nil")
+	}
+
+	var out []esiclient.CharacterAffiliation
+	failed := 0
+
+	for start := 0; start < len(characterIDs); start += maxCharacterAffiliationBatch {
+		end := min(start+maxCharacterAffiliationBatch, len(characterIDs))
+		chunk := characterIDs[start:end]
+
+		payload, err := json.Marshal(chunk)
+		if err != nil {
+			logs.ErrorCtx(ctx, "failed to marshal character ID batch for affiliation",
+				"account_id", accountID, "batch_size", len(chunk), "error", err)
+			failed += len(chunk)
+			continue
+		}
+
+		resp, err := client.Do(ctx, esiclient.Request{
+			Method: http.MethodPost,
+			Path:   "/characters/affiliation/",
+			Query:  url.Values{"datasource": {"tranquility"}},
+			Body:   payload,
+			Class:  esiclient.ClassBackground,
+			// A repeated affiliation lookup reads the same rows again; it changes
+			// nothing, so it is safe to send twice.
+			Retry: retryAffiliation(),
+		})
+		if err != nil {
+			logs.ErrorCtx(ctx, "failed to fetch character affiliation from ESI API",
+				"account_id", accountID, "batch_size", len(chunk), "error", err)
+
+			// A rate-limit refusal means come back later, and it carries when.
+			// Everything else costs this batch and no more.
+			if esiclient.IsRateLimit(err) {
+				logs.WarnCtx(ctx, "retryable rate limit error, returning error for retry",
+					"account_id", accountID, "error", err)
+				return nil, failed, fmt.Errorf("rate limited: %w", err)
+			}
+
+			failed += len(chunk)
+			continue
+		}
+
+		if resp.Status != http.StatusOK {
+			logs.WarnCtx(ctx, "ESI API returned non-200 status for affiliation",
+				"account_id", accountID, "status_code", resp.Status, "batch_size", len(chunk))
+			failed += len(chunk)
+			continue
+		}
+
+		var affiliations []esiclient.CharacterAffiliation
+		if err := json.Unmarshal(resp.Body, &affiliations); err != nil {
+			logs.ErrorCtx(ctx, "failed to parse affiliation response",
+				"account_id", accountID, "batch_size", len(chunk), "error", err)
+			failed += len(chunk)
+			continue
+		}
+		out = append(out, affiliations...)
+	}
+
+	return out, failed, nil
+}
+
+// retryAffiliation repeats a batch that produced no answer. The lookup is a
+// read, so sending it again is safe despite being a POST.
+func retryAffiliation() httpclient.Retry {
+	policy := httpclient.DefaultRetry()
+	policy.Attempts = 4
+	policy.NonIdempotent = true
+	return policy
 }

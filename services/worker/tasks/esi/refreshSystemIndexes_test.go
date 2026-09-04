@@ -1,547 +1,226 @@
-package tasks
+package tasks_test
 
 import (
-	"bytes"
-	"compress/gzip"
-	"context"
 	"encoding/json"
-	"errors"
-	"io"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
-	"time"
 
 	esitypes "eve-industry-planner/shared/core/esi/types"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
+	"eve-industry-planner/shared/esiclient"
+	"eve-industry-planner/testing/redisfake"
+	tasks "eve-industry-planner/worker/tasks/esi"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/hibiken/asynq"
 )
 
-// mockESIClientForStreaming extends mockESIClient to support DoRequest for streaming
-type mockESIClientForStreaming struct {
-	doRequestFunc func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error)
-	doFunc        func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error)
+// ESI sends a list of activities per system and the application stores them as
+// named fields. That flattening is where a mistake hides quietly — a mistyped
+// activity name loses one number per system and nothing complains — so these
+// assert on the stored rows rather than on the request.
+
+// systemsOrigin answers /industry/systems/ the way ESI does.
+type systemsOrigin struct {
+	server         *httptest.Server
+	requests       atomic.Int64
+	statusRequests atomic.Int64
+	etag           string
+	body           string
 }
 
-func (m *mockESIClientForStreaming) Do(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-	if m.doFunc != nil {
-		return m.doFunc(ctx, method, path, headers, body, groupDesignation)
-	}
-	return nil, nil, errors.New("doFunc not set")
-}
+func newSystemsOrigin(t *testing.T, systems int) *systemsOrigin {
+	t.Helper()
 
-func (m *mockESIClientForStreaming) DoRequest(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-	if m.doRequestFunc != nil {
-		return m.doRequestFunc(ctx, method, path, headers, groupDesignation)
+	activities := []string{
+		"manufacturing", "researching_time_efficiency", "researching_material_efficiency",
+		"copying", "invention", "reaction",
 	}
-	return nil, errors.New("doRequestFunc not set")
-}
 
-// Helper to create a test industry systems JSON response
-func createIndustrySystemsJSON(systems []ESIIndustrySystem) []byte {
-	data, _ := json.Marshal(systems)
-	return data
-}
-
-// Helper to create a gzipped response body
-func createGzippedBody(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	w := gzip.NewWriter(&buf)
-	if _, err := w.Write(data); err != nil {
-		return nil, err
-	}
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-// Helper to create a test system index
-func createTestSystemIndex(systemID int32, activities map[string]float64) ESIIndustrySystem {
-	costIndices := make([]ESICostIndice, 0, len(activities))
-	for activity, costIndex := range activities {
-		costIndices = append(costIndices, ESICostIndice{
-			Activity:  activity,
-			CostIndex: costIndex,
-		})
-	}
-	return ESIIndustrySystem{
-		SolarSystemID: systemID,
-		CostIndices:   costIndices,
-	}
-}
-
-func TestStreamIndustrySystems_NilESIClient(t *testing.T) {
-	ctx := context.Background()
-	var cacheSeconds int
-
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, "", func(s esitypes.SystemIndexes) error {
-		return nil
-	}, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error when ESI client is nil")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-	if bytesRead != 0 {
-		t.Error("expected bytesRead to be 0 on error")
-	}
-	if !strings.Contains(err.Error(), "nil") {
-		t.Errorf("expected error to mention nil, got: %v", err)
-	}
-}
-
-func TestStreamIndustrySystems_NilCallback(t *testing.T) {
-	ctx := context.Background()
-	esiClient := &mockESIClientForStreaming{}
-	var cacheSeconds int
-
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, "", nil, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error when callback is nil")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-	if bytesRead != 0 {
-		t.Error("expected bytesRead to be 0 on error")
-	}
-	if !strings.Contains(err.Error(), "nil") {
-		t.Errorf("expected error to mention nil, got: %v", err)
-	}
-}
-
-func TestStreamIndustrySystems_304NotModified(t *testing.T) {
-	ctx := context.Background()
-	etag := "test-etag-123"
-	newETag := "test-etag-456"
-	var cacheSeconds int
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			// Verify If-None-Match header is set
-			if headers["If-None-Match"] != etag {
-				t.Errorf("expected If-None-Match header to be %s, got %s", etag, headers["If-None-Match"])
+	var b strings.Builder
+	b.WriteByte('[')
+	for i := range systems {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		fmt.Fprintf(&b, `{"solar_system_id":%d,"cost_indices":[`, 30000142+i)
+		for j, activity := range activities {
+			if j > 0 {
+				b.WriteByte(',')
 			}
-
-			resp := &http.Response{
-				StatusCode: http.StatusNotModified,
-				Status:     "304 Not Modified",
-				Header:     make(http.Header),
-				Body:       http.NoBody,
-			}
-			resp.Header.Set("ETag", newETag)
-			resp.Header.Set("Cache-Control", "max-age=300")
-			return resp, nil
-		},
+			// Distinct value per system and activity, so a field written into
+			// the wrong slot shows up rather than colliding with a duplicate.
+			fmt.Fprintf(&b, `{"activity":%q,"cost_index":0.0%d%d}`, activity, i%9+1, j+1)
+		}
+		b.WriteString(`]}`)
 	}
+	b.WriteByte(']')
 
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, etag, func(s esitypes.SystemIndexes) error {
-		t.Error("callback should not be called for 304 response")
-		return nil
-	}, &cacheSeconds)
+	o := &systemsOrigin{etag: `"systems-v1"`, body: b.String()}
+	o.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/status") {
+			o.statusRequests.Add(1)
+			w.Header().Set("X-Ratelimit-Group", "status")
+			w.Header().Set("X-Ratelimit-Limit", "600/15m")
+			w.Header().Set("X-Ratelimit-Remaining", "590")
+			w.Header().Set("ETag", `"status-v1"`)
+			_, _ = w.Write([]byte(`{"players":28451,"server_version":"2748291","start_time":"2026-09-04T11:02:00Z"}`))
+			return
+		}
 
+		o.requests.Add(1)
+		w.Header().Set("X-Ratelimit-Group", "industry")
+		w.Header().Set("X-Ratelimit-Limit", "150/15m")
+		w.Header().Set("X-Ratelimit-Remaining", "140")
+		w.Header().Set("ETag", o.etag)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(o.body))
+	}))
+	t.Cleanup(o.server.Close)
+	return o
+}
+
+func snapshotSystems(t *testing.T, fake *redisfake.Redis) map[string]string {
+	t.Helper()
+	raw := snapshot(t, fake.Client)
+
+	out := make(map[string]string, len(raw))
+	for key, value := range raw {
+		if !strings.HasPrefix(key, "esi:industry_systems:") {
+			out[key] = value
+			continue
+		}
+		var row esitypes.SystemIndexes
+		if err := json.Unmarshal([]byte(value), &row); err != nil {
+			out[key] = value
+			continue
+		}
+		row.LastUpdated = 0
+		normalised, _ := json.Marshal(row)
+		out[key] = string(normalised)
+	}
+	return out
+}
+
+func runSystems(t *testing.T, origin *systemsOrigin) map[string]string {
+	t.Helper()
+	fake := redisfake.New(t)
+
+	cfg := esiclient.DefaultConfig()
+	cfg.BaseURL = origin.server.URL
+	next, stop, err := esiclient.New(fake.Client, cfg)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Fatalf("esiclient: %v", err)
 	}
-	if !notModified {
-		t.Error("expected notModified to be true for 304 response")
+	t.Cleanup(stop)
+
+	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: next}
+	if err := tasks.RefreshSystemIndexes(t.Context(), asynq.NewTask("refreshSystemIndexes", nil), deps); err != nil {
+		t.Fatalf("task: %v", err)
 	}
-	if returnedETag != newETag {
-		t.Errorf("expected ETag %s, got %s", newETag, returnedETag)
+	return snapshotSystems(t, fake)
+}
+
+func TestSystemIndexesStoresEverySystem(t *testing.T) {
+	origin := newSystemsOrigin(t, 40)
+
+	written := runSystems(t, origin)
+
+	if len(written) == 0 {
+		t.Fatal("the task wrote nothing")
 	}
-	if bytesRead != 0 {
-		t.Errorf("expected bytesRead to be 0 for 304, got %d", bytesRead)
+	if made := origin.requests.Load(); made != 1 {
+		t.Errorf("the task made %d requests; one fetch and no pre-flight is expected", made)
 	}
-	if cacheSeconds != 300 {
-		t.Errorf("expected cacheSeconds to be 300, got %d", cacheSeconds)
+	if origin.statusRequests.Load() != 0 {
+		t.Error("availability comes from the call the task was making, not a pre-flight")
 	}
 }
 
-func TestStreamIndustrySystems_Non200Status(t *testing.T) {
-	ctx := context.Background()
-	var cacheSeconds int
+func TestSystemIndexesFlattenEveryActivity(t *testing.T) {
+	origin := newSystemsOrigin(t, 1)
+	fake := redisfake.New(t)
 
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Status:     "500 Internal Server Error",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader("Internal Server Error")),
-			}
-			resp.Header.Set("ETag", "error-etag")
-			return resp, nil
-		},
-	}
-
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
-		t.Error("callback should not be called for non-200 response")
-		return nil
-	}, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error for non-200 status code")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-	if returnedETag != "error-etag" {
-		t.Errorf("expected ETag to be extracted even on error, got %s", returnedETag)
-	}
-	_ = bytesRead // bytesRead is 0 on error
-}
-
-func TestStreamIndustrySystems_SuccessfulStreaming(t *testing.T) {
-	ctx := context.Background()
-	systems := []ESIIndustrySystem{
-		createTestSystemIndex(30000142, map[string]float64{
-			"manufacturing": 0.1,
-			"copying":       0.05,
-		}),
-		createTestSystemIndex(30000144, map[string]float64{
-			"invention":     0.15,
-			"reaction":      0.2,
-			"manufacturing": 0.12,
-		}),
-	}
-	jsonData := createIndustrySystemsJSON(systems)
-	var cacheSeconds int
-	var processedItems []esitypes.SystemIndexes
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(jsonData)),
-			}
-			resp.Header.Set("ETag", "success-etag")
-			resp.Header.Set("Cache-Control", "max-age=600")
-			return resp, nil
-		},
-	}
-
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
-		processedItems = append(processedItems, s)
-		return nil
-	}, &cacheSeconds)
-
+	cfg := esiclient.DefaultConfig()
+	cfg.BaseURL = origin.server.URL
+	next, stop, err := esiclient.New(fake.Client, cfg)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Fatalf("esiclient: %v", err)
 	}
-	if notModified {
-		t.Error("expected notModified to be false for successful streaming")
-	}
-	if returnedETag != "success-etag" {
-		t.Errorf("expected ETag %s, got %s", "success-etag", returnedETag)
-	}
-	if len(processedItems) != 2 {
-		t.Errorf("expected 2 items to be processed, got %d", len(processedItems))
-	}
-	if bytesRead == 0 {
-		t.Error("expected bytesRead to be greater than 0")
-	}
-	if cacheSeconds != 600 {
-		t.Errorf("expected cacheSeconds to be 600, got %d", cacheSeconds)
+	t.Cleanup(stop)
+
+	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: next}
+	if err := tasks.RefreshSystemIndexes(t.Context(), asynq.NewTask("refreshSystemIndexes", nil), deps); err != nil {
+		t.Fatalf("task: %v", err)
 	}
 
-	// Verify first system
-	if processedItems[0].SolarSystemID != 30000142 {
-		t.Errorf("expected first system ID 30000142, got %d", processedItems[0].SolarSystemID)
-	}
-	if processedItems[0].Manufacturing != 0.1 {
-		t.Errorf("expected manufacturing 0.1, got %f", processedItems[0].Manufacturing)
-	}
-	if processedItems[0].Copying != 0.05 {
-		t.Errorf("expected copying 0.05, got %f", processedItems[0].Copying)
+	var stored esitypes.SystemIndexes
+	if err := rediscoreGetSystem(t, fake, 30000142, &stored); err != nil {
+		t.Fatalf("read back the stored system: %v", err)
 	}
 
-	// Verify second system
-	if processedItems[1].SolarSystemID != 30000144 {
-		t.Errorf("expected second system ID 30000144, got %d", processedItems[1].SolarSystemID)
+	// Every activity ESI sent must land somewhere. A mistyped name in the
+	// flattening loses one number silently, which is exactly the kind of thing a
+	// key-count comparison would miss.
+	fields := map[string]float64{
+		"Manufacturing":    stored.Manufacturing,
+		"ResearchTime":     stored.ResearchTime,
+		"ResearchMaterial": stored.ResearchMaterial,
+		"Copying":          stored.Copying,
+		"Invention":        stored.Invention,
+		"Reaction":         stored.Reaction,
 	}
-	if processedItems[1].Invention != 0.15 {
-		t.Errorf("expected invention 0.15, got %f", processedItems[1].Invention)
-	}
-	if processedItems[1].Reaction != 0.2 {
-		t.Errorf("expected reaction 0.2, got %f", processedItems[1].Reaction)
+	for name, value := range fields {
+		if value == 0 {
+			t.Errorf("%s was not filled in; the activity name it maps from is wrong", name)
+		}
 	}
 }
 
-func TestStreamIndustrySystems_GzipCompression(t *testing.T) {
-	ctx := context.Background()
-	systems := []ESIIndustrySystem{
-		createTestSystemIndex(30000142, map[string]float64{
-			"manufacturing": 0.1,
-		}),
-	}
-	jsonData := createIndustrySystemsJSON(systems)
-	gzippedData, err := createGzippedBody(jsonData)
+func TestSystemIndexesIgnoreAnUnknownActivity(t *testing.T) {
+	// ESI adding an activity should not fail a refresh; the rest of the row is
+	// still worth storing.
+	fake := redisfake.New(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Ratelimit-Group", "industry")
+		w.Header().Set("X-Ratelimit-Limit", "150/15m")
+		w.Header().Set("ETag", `"systems-v2"`)
+		_, _ = w.Write([]byte(`[{"solar_system_id":30000142,"cost_indices":[
+			{"activity":"manufacturing","cost_index":0.05},
+			{"activity":"something_ccp_added","cost_index":0.99}]}]`))
+	}))
+	t.Cleanup(server.Close)
+
+	cfg := esiclient.DefaultConfig()
+	cfg.BaseURL = server.URL
+	next, stop, err := esiclient.New(fake.Client, cfg)
 	if err != nil {
-		t.Fatalf("failed to create gzipped data: %v", err)
+		t.Fatalf("esiclient: %v", err)
+	}
+	t.Cleanup(stop)
+
+	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: next}
+	if err := tasks.RefreshSystemIndexes(t.Context(), asynq.NewTask("refreshSystemIndexes", nil), deps); err != nil {
+		t.Fatalf("an unknown activity should not fail the pass: %v", err)
 	}
 
-	var processedItems []esitypes.SystemIndexes
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(gzippedData)),
-			}
-			resp.Header.Set("ETag", "gzip-etag")
-			resp.Header.Set("Content-Encoding", "gzip")
-			return resp, nil
-		},
+	var stored esitypes.SystemIndexes
+	if err := rediscoreGetSystem(t, fake, 30000142, &stored); err != nil {
+		t.Fatalf("read back: %v", err)
 	}
+	if stored.Manufacturing != 0.05 {
+		t.Errorf("Manufacturing = %v, want the value that was sent", stored.Manufacturing)
+	}
+}
 
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
-		processedItems = append(processedItems, s)
-		return nil
-	}, nil)
-
-	_ = bytesRead // bytesRead is checked in other tests
-
+func rediscoreGetSystem(t *testing.T, fake *redisfake.Redis, systemID int32, target *esitypes.SystemIndexes) error {
+	t.Helper()
+	value, err := fake.Client.Get(t.Context(), fmt.Sprintf("esi:industry_systems:%d", systemID)).Result()
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		return err
 	}
-	if notModified {
-		t.Error("expected notModified to be false")
-	}
-	if len(processedItems) != 1 {
-		t.Errorf("expected 1 item to be processed, got %d", len(processedItems))
-	}
-	if processedItems[0].SolarSystemID != 30000142 {
-		t.Errorf("expected system ID 30000142, got %d", processedItems[0].SolarSystemID)
-	}
-}
-
-func TestStreamIndustrySystems_InvalidJSON(t *testing.T) {
-	ctx := context.Background()
-	var cacheSeconds int
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader("invalid json")),
-			}
-			resp.Header.Set("ETag", "invalid-etag")
-			return resp, nil
-		},
-	}
-
-	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
-		t.Error("callback should not be called for invalid JSON")
-		return nil
-	}, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error for invalid JSON")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-}
-
-func TestStreamIndustrySystems_NotArray(t *testing.T) {
-	ctx := context.Background()
-	var cacheSeconds int
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(`{"not": "an array"}`)),
-			}
-			resp.Header.Set("ETag", "not-array-etag")
-			return resp, nil
-		},
-	}
-
-	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
-		t.Error("callback should not be called for non-array JSON")
-		return nil
-	}, &cacheSeconds)
-
-	if err == nil {
-		t.Error("expected error for non-array JSON")
-	}
-	if !strings.Contains(err.Error(), "array") {
-		t.Errorf("expected error to mention array, got: %v", err)
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-}
-
-func TestStreamIndustrySystems_CallbackError(t *testing.T) {
-	ctx := context.Background()
-	systems := []ESIIndustrySystem{
-		createTestSystemIndex(30000142, map[string]float64{
-			"manufacturing": 0.1,
-		}),
-	}
-	jsonData := createIndustrySystemsJSON(systems)
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(jsonData)),
-			}
-			resp.Header.Set("ETag", "callback-error-etag")
-			return resp, nil
-		},
-	}
-
-	callbackErr := errors.New("callback error")
-	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
-		return callbackErr
-	}, nil)
-
-	if err == nil {
-		t.Error("expected error when callback returns error")
-	}
-	if err != callbackErr {
-		t.Errorf("expected callback error, got: %v", err)
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-}
-
-func TestStreamIndustrySystems_RetryOnError(t *testing.T) {
-	ctx := context.Background()
-	systems := []ESIIndustrySystem{
-		createTestSystemIndex(30000142, map[string]float64{
-			"manufacturing": 0.1,
-		}),
-	}
-	jsonData := createIndustrySystemsJSON(systems)
-	attemptCount := 0
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			attemptCount++
-			if attemptCount < 3 {
-				return nil, errors.New("temporary error")
-			}
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader(jsonData)),
-			}
-			resp.Header.Set("ETag", "retry-success-etag")
-			return resp, nil
-		},
-	}
-
-	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
-		return nil
-	}, nil)
-
-	if err != nil {
-		t.Errorf("unexpected error after retries: %v", err)
-	}
-	if notModified {
-		t.Error("expected notModified to be false")
-	}
-	if attemptCount != 3 {
-		t.Errorf("expected 3 attempts, got %d", attemptCount)
-	}
-}
-
-func TestStreamIndustrySystems_RateLimitError(t *testing.T) {
-	ctx := context.Background()
-	rateLimitErr := &esiratelimiter.RateLimitError{
-		Retryable:  true,
-		RetryAfter: time.Now().Add(30 * time.Second),
-		Reason:     "insufficient tokens",
-	}
-
-	esiClient := &mockESIClientForStreaming{
-		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-			return nil, rateLimitErr
-		},
-	}
-
-	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
-		t.Error("callback should not be called on rate limit error")
-		return nil
-	}, nil)
-
-	if err == nil {
-		t.Error("expected error for rate limit")
-	}
-	if notModified {
-		t.Error("expected notModified to be false on error")
-	}
-	// Should stop retrying immediately on rate limit error
-	if !esiratelimiter.IsRateLimitError(err) {
-		t.Errorf("expected rate limit error, got: %v", err)
-	}
-}
-
-func TestRefreshSystemIndexes_NilTask(t *testing.T) {
-	ctx := context.Background()
-	redisClient := redis.NewClient(&redis.Options{
-		Addr: "invalid:6379",
-	})
-
-	deps := &TaskDependencies{
-		Redis:     redisClient,
-		ESIClient: &mockESIClientForStreaming{},
-	}
-
-	// Should return error when task is nil
-	err := RefreshSystemIndexes(ctx, nil, deps)
-	if err == nil {
-		t.Error("expected error when task is nil")
-	}
-}
-
-func TestRefreshSystemIndexes_LockAcquisitionFailure(t *testing.T) {
-	// This test would require mocking AcquireRefreshLock
-	// Since it's in a different package, this is better tested in integration tests
-	t.Skip("Requires mocking AcquireRefreshLock - better suited for integration tests")
-}
-
-func TestRefreshSystemIndexes_StatusCheckFailure(t *testing.T) {
-	// This test would require mocking CheckServerStatus
-	// Since it's in a different package, this is better tested in integration tests
-	t.Skip("Requires mocking CheckServerStatus - better suited for integration tests")
-}
-
-func TestRefreshSystemIndexes_NotModified(t *testing.T) {
-	// This test requires full integration with Redis, ESI client, and status checks
-	t.Skip("Requires full integration setup - better suited for integration tests")
-}
-
-func TestRefreshSystemIndexes_SuccessfulRefresh(t *testing.T) {
-	// This test requires full integration with Redis, ESI client, and status checks
-	t.Skip("Requires full integration setup - better suited for integration tests")
-}
-
-func TestRefreshSystemIndexes_ETagSaveFailure(t *testing.T) {
-	t.Skip("Requires full integration setup - better suited for integration tests")
-}
-
-func TestRefreshSystemIndexes_StreamError(t *testing.T) {
-	t.Skip("Requires full integration setup - better suited for integration tests")
+	return json.Unmarshal([]byte(value), target)
 }

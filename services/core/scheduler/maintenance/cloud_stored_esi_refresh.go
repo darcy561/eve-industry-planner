@@ -32,8 +32,8 @@ const (
 
 // ScheduleCloudStoredEsiRefreshMaintenance publishes per-account tasks to rotate encrypted cloud ESI
 // refresh tokens. Eligible users: cloud mode, non-empty refreshTokens, last login in [now−6mo, now−25d).
-// Uses dynamic batch sizing, EVE downtime deferral (like industry indexes), downtime publish caps
-// (like market prices), and micro-batch staggering across the cron window.
+// Uses dynamic batch sizing, deferral while ESI is not answering, and micro-batch
+// staggering across the cron window.
 func CloudStoredEsiRefreshMaintenance(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	task := eipnats.CloudStoredEsiRefreshMaintenance
 	return func(ctx context.Context, data json.RawMessage) error {
@@ -41,7 +41,7 @@ func CloudStoredEsiRefreshMaintenance(deps contract.Dependencies, jobName string
 		publish := func(pctx context.Context) error {
 			return publishCloudEsiRefreshMaintenanceBatch(pctx, deps, task)
 		}
-		if deferred, err := schedesi.DeferPublicationUntilAfterDowntime(ctx, deps.NATS, jobName, time.Now()); err != nil || deferred {
+		if deferred, err := schedesi.DeferPublicationUntilAfterDowntime(ctx, deps.NATS, jobName, deps.ESI); err != nil || deferred {
 			return err
 		}
 		return publish(ctx)
@@ -155,26 +155,6 @@ func computeCloudEsiPublishBatchSize(ctx context.Context, deps contract.Dependen
 	target := int(math.Ceil(float64(total) / runsPerDayCloudEsi))
 	const buffer = 1.12
 	batch := min(max(int(math.Ceil(float64(target)*buffer)), minCloudEsiAccountsBatch), maxCloudEsiAccountsAbsolute)
-
-	inDT, downtimeEnd := schedesi.IsInEVEDowntime(now)
-	if inDT {
-		windowEnd := now.Add(microBatchPublishWindow)
-		availableAfter := max(windowEnd.Sub(downtimeEnd), 0)
-		downtimeCap := int(math.Floor(float64(batch) * availableAfter.Seconds() / microBatchPublishWindow.Seconds()))
-		if downtimeCap < batch && downtimeCap >= 0 {
-			if downtimeCap < 1 {
-				downtimeCap = 1
-			}
-			logs.InfoCtx(ctx, "cloud esi refresh batch size reduced by downtime window",
-				"component", schedulerLogComponent,
-				"original_batch_size", batch,
-				"downtime_capped_batch_size", downtimeCap,
-				"available_after_downtime_seconds", int(availableAfter.Seconds()),
-				"publish_window_seconds", int(microBatchPublishWindow.Seconds()),
-				"downtime_end_utc", downtimeEnd.Format(time.RFC3339))
-			batch = downtimeCap
-		}
-	}
 
 	return batch, nil
 }

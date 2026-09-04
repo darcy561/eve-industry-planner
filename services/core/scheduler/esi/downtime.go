@@ -5,17 +5,19 @@ import (
 	"fmt"
 	"time"
 
+	esimetrics "eve-industry-planner/core/metrics/esi"
+	rediscore "eve-industry-planner/shared/core/redis"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
+
+	redislib "github.com/redis/go-redis/v9"
 )
 
+// Both margins put a deferred run just past the moment it is waiting on, so it
+// does not arrive a tick early and race the thing it was deferred for.
 const (
-	eveDowntimeStartHourUTC = 11
-	eveDowntimeStartMinUTC  = 0
-	eveDowntimeEndHourUTC   = 11
-	eveDowntimeEndMinUTC    = 15
-	// downtimeScheduleMargin keeps a deferred run clear of the window's closing edge, so a
-	// schedule firing on the server's clock does not land while ESI is still refusing requests.
-	downtimeScheduleMargin = 2 * time.Second
+	downtimeScheduleMargin  = 2 * time.Second
+	freshnessScheduleMargin = 2 * time.Second
 )
 
 // publicationScheduler defers a run to a later time under an id that identifies it.
@@ -25,50 +27,89 @@ type publicationScheduler interface {
 	ScheduleAt(ctx context.Context, id string, at time.Time, payload []byte) error
 }
 
-// IsInEVEDowntime reports whether now falls in the daily EVE maintenance window (UTC).
-func IsInEVEDowntime(now time.Time) (bool, time.Time) {
-	return isInEVEDowntime(now)
-}
-
-func isInEVEDowntime(now time.Time) (bool, time.Time) {
-	utc := now.UTC()
-	start := time.Date(utc.Year(), utc.Month(), utc.Day(), eveDowntimeStartHourUTC, eveDowntimeStartMinUTC, 0, 0, time.UTC)
-	end := time.Date(utc.Year(), utc.Month(), utc.Day(), eveDowntimeEndHourUTC, eveDowntimeEndMinUTC, 0, 0, time.UTC)
-
-	if !utc.Before(start) && utc.Before(end) {
-		return true, end
+// DeferPublicationUntilAfterDowntime schedules jobName for the limiter's next
+// probe while ESI is not answering, and reports whether it did. While the
+// servers answer it reports false and the caller publishes as normal.
+//
+// A deferral that cannot be scheduled is an error rather than a publication
+// into an outage; the next cron tick retries it.
+func DeferPublicationUntilAfterDowntime(ctx context.Context, sched publicationScheduler, jobName string, esi esiclient.API) (bool, error) {
+	if esi == nil {
+		return false, nil
 	}
-	return false, time.Time{}
-}
 
-// DeferPublicationUntilAfterDowntime schedules jobName to run once the current EVE downtime
-// window has passed, and reports whether it did. Outside the window it reports false and the
-// caller publishes as normal.
-//
-// The schedule delivers to the schedule runner, which runs the handler registered under
-// jobName — the same handler the cron fires — so the deferred run repeats this check and
-// publishes, downtime now being over.
-//
-// A deferral that cannot be scheduled is an error rather than a publication during downtime;
-// the next cron tick retries it.
-func DeferPublicationUntilAfterDowntime(ctx context.Context, sched publicationScheduler, jobName string, now time.Time) (bool, error) {
-	inDowntime, downtimeEnd := isInEVEDowntime(now)
-	if !inDowntime {
+	state, err := esi.Availability(ctx)
+	if err != nil {
+		// Nothing is known about availability, so the call itself is the test.
+		logs.WarnCtx(ctx, "could not read ESI availability, publishing anyway",
+			"component", schedulerLogComponent, "job", jobName, "error", err)
+		return false, nil
+	}
+	if !state.Gated {
 		return false, nil
 	}
 	if sched == nil {
-		return false, fmt.Errorf("defer %s until after downtime: scheduler is required", jobName)
+		return false, fmt.Errorf("defer %s until ESI answers: scheduler is required", jobName)
 	}
 
-	runAt := downtimeEnd.Add(downtimeScheduleMargin)
+	// The probe time is often already past — it says a probe is due, not that one
+	// has happened — so the run is floored at the margin rather than booked into
+	// the past, where it would fire straight back into the closed gate.
+	runAt := state.NextProbe.Add(downtimeScheduleMargin)
+	if soonest := time.Now().Add(downtimeScheduleMargin); runAt.Before(soonest) {
+		runAt = soonest
+	}
 	if err := sched.ScheduleAt(ctx, jobName, runAt, nil); err != nil {
-		return false, fmt.Errorf("defer %s until after downtime: %w", jobName, err)
+		return false, fmt.Errorf("defer %s until ESI answers: %w", jobName, err)
 	}
 
-	logs.InfoCtx(ctx, "deferred publication until after EVE downtime",
+	esimetrics.RecordPublicationSkipped(ctx, jobName, esimetrics.SkipDowntime)
+	logs.InfoCtx(ctx, "deferred publication until ESI answers again",
 		"component", schedulerLogComponent,
 		"job", jobName,
-		"downtime_end_utc", downtimeEnd.Format(time.RFC3339),
+		"failures", state.Failures,
+		"next_probe_utc", state.NextProbe.UTC().Format(time.RFC3339),
+		"runs_at_utc", runAt.UTC().Format(time.RFC3339))
+	return true, nil
+}
+
+// DeferPublicationUntilStale schedules jobName for the moment ESI says a
+// dataset stops being current, and reports whether it did. A dataset already
+// stale — or one nothing has fetched yet — reports false and the caller
+// publishes now.
+//
+// A repeat pass inside the window still costs a token even answering 304, so
+// the cheapest call is the one not made. The cron schedule remains the backstop
+// for a dataset with no recorded freshness.
+func DeferPublicationUntilStale(ctx context.Context, sched publicationScheduler, jobName, dataset string, client *redislib.Client, now time.Time) (bool, error) {
+	if client == nil {
+		return false, nil
+	}
+
+	due, err := rediscore.NextRefresh(ctx, client, dataset)
+	if err != nil {
+		logs.WarnCtx(ctx, "could not read dataset freshness, publishing anyway",
+			"component", schedulerLogComponent, "job", jobName, "dataset", dataset, "error", err)
+		return false, nil
+	}
+	if due.IsZero() || !due.After(now) {
+		return false, nil
+	}
+	if sched == nil {
+		return false, fmt.Errorf("defer %s until %s is stale: scheduler is required", jobName, dataset)
+	}
+
+	runAt := due.Add(freshnessScheduleMargin)
+	if err := sched.ScheduleAt(ctx, jobName, runAt, nil); err != nil {
+		return false, fmt.Errorf("defer %s until %s is stale: %w", jobName, dataset, err)
+	}
+
+	esimetrics.RecordPublicationSkipped(ctx, jobName, esimetrics.SkipFresh)
+	logs.DebugCtx(ctx, "deferred publication until the data goes stale",
+		"component", schedulerLogComponent,
+		"job", jobName,
+		"dataset", dataset,
+		"stale_at_utc", due.UTC().Format(time.RFC3339),
 		"runs_at_utc", runAt.UTC().Format(time.RFC3339))
 	return true, nil
 }

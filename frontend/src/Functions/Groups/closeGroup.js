@@ -40,8 +40,8 @@ export default async function closeActiveGroup(groupJobs) {
   const updatedGroupJobs = groupJobsInStore.map((job) => {
     if (!activeGroup.includedJobIDs.has(job.jobID)) return job;
 
-    job.removeParentJobsNotIncludedInInput(activeGroup.includedJobIDs);
-    job.removeChildJobsNotIncludedInInputFromAllMaterials(
+    job.keepOnlyParentJobs(activeGroup.includedJobIDs);
+    job.keepOnlyChildJobs(
       activeGroup.includedJobIDs
     );
 

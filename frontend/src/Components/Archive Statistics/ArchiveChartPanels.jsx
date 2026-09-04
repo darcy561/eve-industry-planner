@@ -20,10 +20,12 @@ import {
   toExtrasRows,
   toExtrasTotalRows,
   toItemShareRows,
+  toQuantityRows,
   toSegmentRows,
   toTimelineRows,
 } from "./chartAdapters";
 import { monthLabel, NoData } from "./panelParts";
+import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import { timelineWindow, useArchiveTimeline } from "./useArchiveTimeline";
 import { useItemNames } from "../../Hooks/useItemNames";
 
@@ -239,6 +241,52 @@ export function ArchiveCostBreakdownPanel({ from, to, range }) {
           categoryKey="month"
           formatCategory={monthLabel(rows)}
           series={series}
+        />
+      )}
+    </AppShellPanel>
+  );
+}
+
+// Counts are whole things, so they carry no decimals.
+const COUNT = (value) =>
+  formatNumberForLocale(Number(value ?? 0), { min: 0, max: 0 });
+
+/**
+ * How much of what was built has no sale recorded against it.
+ *
+ * Derived rather than tracked: nothing can match a stack in a hangar to the job
+ * that built it, so this is what the archive knows — produced, less what sold —
+ * frozen at the point each job was archived. Output consumed by a parent build
+ * is not counted, because the timeline sums direct buckets unless an item view
+ * asks for the chain.
+ */
+export function ArchiveStockPanel({ from, to, range }) {
+  const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
+  const rows = useMemo(() => toQuantityRows(data), [data]);
+  const kept = rows.some((row) => row.quantityKept > 0);
+
+  return (
+    <AppShellPanel
+      title="Kept as stock"
+      componentName="Archive Stock Panel"
+      isLoading={isLoading}
+      isError={isError}
+    >
+      {rows.length === 0 ? (
+        <NoData>No archived jobs in this period.</NoData>
+      ) : !kept ? (
+        <NoData>Everything built in this period sold.</NoData>
+      ) : (
+        <TimeSeriesChart
+          rows={rows}
+          categoryKey="month"
+          formatCategory={monthLabel(rows)}
+          formatValue={COUNT}
+          series={[
+            { key: "quantityProduced", label: "Produced", type: "bar" },
+            { key: "quantitySold", label: "Sold", type: "bar" },
+            { key: "quantityKept", label: "Kept", type: "line" },
+          ]}
         />
       )}
     </AppShellPanel>

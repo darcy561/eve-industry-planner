@@ -118,10 +118,14 @@ func JobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
 // is not evidence of anything.
 //
 // Everything left over is stock. Falling the other way — treating "not a chain
-// step and not flagged" as sold — put every unsold build under Market with
-// nothing but zeros for sales and fees, which read as a market sale that had
-// somehow earned nothing. RetainedStockBuild still routes a job here explicitly,
-// so a user marking output as kept is honoured whether or not it ever sold.
+// step" as sold — put every unsold build under Market with nothing but zeros for
+// sales and fees, which read as a market sale that had somehow earned nothing.
+//
+// Stock here means the whole job left no sale behind, which is a different
+// question from how much of what a job produced is still held: a job that sold
+// most of a run counts entirely as a sale. That quantity is derived from
+// QuantityProduced and QuantitySold rather than classified here, because nothing
+// can match a stack in a hangar to the job that built it.
 
 // JobSegment names the segment a job is credited to.
 //
@@ -132,7 +136,7 @@ func JobSegment(row models.ArchivedJobStats) string {
 	switch {
 	case row.IsProductionChain:
 		return models.ArchiveSegmentProductionChain
-	case hasRecordedMarketActivity(row) && !row.RetainedStockBuild:
+	case hasRecordedMarketActivity(row):
 		return models.ArchiveSegmentStandaloneRecordedSale
 	default:
 		return models.ArchiveSegmentRetainedStock
@@ -149,7 +153,7 @@ func addSegment(breakdown *models.ProductionTotalsBreakdown, row models.Archived
 	switch {
 	case row.IsProductionChain:
 		breakdown.ProductionChain = breakdown.ProductionChain.Plus(segment)
-	case hasRecordedMarketActivity(row) && !row.RetainedStockBuild:
+	case hasRecordedMarketActivity(row):
 		breakdown.StandaloneRecordedSale = breakdown.StandaloneRecordedSale.Plus(segment)
 	default:
 		breakdown.RetainedStock = breakdown.RetainedStock.Plus(segment)

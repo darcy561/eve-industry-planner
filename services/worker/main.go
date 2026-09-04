@@ -7,8 +7,8 @@ import (
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/stackservices"
 
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/hibiken/asynq"
@@ -17,7 +17,7 @@ import (
 // WorkerDependencies holds all dependencies needed by worker subscribers.
 type WorkerDependencies struct {
 	*stackservices.Clients
-	ESIClient    esiratelimiter.ClientInterface
+	ESI          esiclient.API
 	AsynqClient  *asynq.Client
 	EntityCipher *entityid.Cipher
 }
@@ -26,8 +26,8 @@ func (d *WorkerDependencies) GetClients() *stackservices.Clients {
 	return d.Clients
 }
 
-func (d *WorkerDependencies) GetESIClient() esiratelimiter.ClientInterface {
-	return d.ESIClient
+func (d *WorkerDependencies) GetESI() esiclient.API {
+	return d.ESI
 }
 
 func (d *WorkerDependencies) GetEntityCipher() *entityid.Cipher {

@@ -114,6 +114,7 @@ func stackRedeploy(ctx context.Context, home string, src Source, cfg config.Conf
 	}
 
 	swarm.PruneStale(ctx, expanded.Secrets)
+	swarm.PruneStaleConfigs(ctx, expanded.Configs)
 	msg.Step("%s done (%s).", label, src)
 	return nil
 }

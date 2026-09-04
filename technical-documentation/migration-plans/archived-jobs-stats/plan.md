@@ -350,8 +350,8 @@ build-stats read once nothing calls it.
 |------|-------|---------|
 | ~~`Functions/Endpoints/Private/buildStats.js`~~ | ~~`GET /statistics/build-stats?typeID=`~~ | **done** — now `statisticsTotals.js`, reading `totals`, unwrapping `items[0]` and supplying the zeroed row the endpoint no longer returns |
 | ~~`Hooks/React Query/Backend/buildStats.js`~~ | ~~query key `["backend","buildStats",id]`, invalidation helpers~~ | **done** — `invalidateStatisticsQueries` replaced the per-type and build-stats-only helpers; `statisticsTimeline.js` adds the timeline hooks; the module and key were then renamed to `totals`, see § The SPA's statistics modules are named for their views |
-| `Components/Dialogues/Blueprint Archive/hasMeaningfulBuildStats.js` | `dataSnapshots.length > 0` | unchanged in meaning; the field still ships |
-| `.../Archive Jobs Panel/archiveJobsPanel.jsx` | `archiveData?.dataSnapshots` | unchanged — still renders the per-job rows from the embedded snapshots |
+| ~~`Components/Dialogues/Blueprint Archive/hasMeaningfulBuildStats.js`~~ | ~~`dataSnapshots.length > 0`~~ | **done** — now `hasMeaningfulTotals.js`, reading the totals row's own measures |
+| ~~`.../Archive Jobs Panel/archiveJobsPanel.jsx`~~ | ~~`archiveData?.dataSnapshots`~~ | **done** — reads `totals.history`, the build history marks J1 put on the row |
 | ~~`.../Button Panel/archiveJobButton.jsx`, `Groups/Side Menu/Buttons/buttonFunctions.jsx`~~ | ~~invalidate after archiving~~ | **done** — both call `invalidateStatisticsQueries` |
 
 #### Order
@@ -561,8 +561,9 @@ Three things the archive did are not reversed by simply copying the document bac
 ids, or the planner receives a job whose identities it cannot read. The conversion is owned by
 [entity-id-encryption](../entity-id-encryption/plan.md); this stage only calls it.
 
-**ESI links were released.** Archiving removes the job's `apiOrders`, `apiJobs` and
-`apiTransactions` from the account's linked-ESI set, so those entries became available to other jobs
+**ESI links were released.** Archiving removes the job's linked runs, orders and transactions
+(`Job.LinkedESIJobIDs`, `LinkedOrderIDs`, `LinkedTransactionIDs`) from the account's linked-ESI set,
+so those entries became available to other jobs
 and may since have been claimed. Restore **re-links what is still free and reports what is not**:
 the response names each entry another job now holds, along with the job holding it, and the restored
 job comes back without it. Blocking the whole restore on a single claimed order would strand a user
@@ -2163,7 +2164,7 @@ whichever work touches SSO next rather than widened into this stage.
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries three tabs: statistics (metric cards, eight charts, item table), per-item history over the same windowed reads, and the jobs list with its three row shapes and restore. Chart primitives are shared and the price-history dialogue moved onto them. Neither later tab is queried until it is opened, and all three carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
 | J — incremental statistics and the build history panel | **Complete bar one placement decision.** J1 replaced the stored snapshot array with a query, added the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row and `includeProductionChain` on the timeline read, rebuilt the Build History panel on the chart primitives, and removed the `archive_and_stats` change-stream group. J2 made a job's figures a delta — folded in on archive, taken back on restore — guarded by `contributedAt` on the row and a claim bump that stands a fold down when a rebuild has taken the owner on. J3 made the drain a dispatcher over one task per owner. J4 reconciles every owner once a day, oldest stamp first, rewriting aggregates from the rows and reporting drift without acting on it. J5 gave realtime messages a `type`/`subtype` vocabulary, notifies an account when its figures move, reports the recalculating and failed states on every statistics response, and shows them above the page's tabs. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
-| Owner block — owed to shared planners | **Item 4 done, items 1 to 3 not started** — the ownership inference Stage C was blocked on is removed; the owner field, the collection renames and the owner-shaped route and query key are still owed. See § Owner block — owed to shared planners |
+| Owner block — owed to shared planners | **Items 3 and 4 done, items 1 and 2 not started** — the ownership inference Stage C was blocked on is removed, and the statistics route and query key take an owner handle. The owner field on the row and the collection renames are still owed, and ride with the shared-planners backfill. See § Owner block — owed to shared planners |
 
 ## Done when
 
@@ -2250,7 +2251,10 @@ it is not. A group another session holds refuses the restore. Behaviour →
 three rules that had drifted — name truncation, blank output names, and id ordering — now agree.
 Behaviour → [overlay.md](./overlay.md) § Stage I.
 
-**Stage J is complete.** Archiving a job
+**Stage J is complete, and its overlay is written.** [overlay.md](./overlay.md) § Stage J covers the
+delta and its stamp, the claim that decides who may write, the per-owner dispatcher, the reconcile
+rota, the build history marks and the realtime vocabulary; § What "kept as stock" means covers the
+segment rule and the derived quantity beside it. Archiving a job
 folds its figures in and restoring takes them back out, so what an archive costs no longer depends on
 how much the archive holds; a wholesale rebuild is what the rota and the tasks CLI run. The
 statistics row is built in the archive request itself rather than by the work that follows it — the
@@ -2300,10 +2304,9 @@ designed against a database where every corporation ref is empty would be guessi
 None of these is development work. They are commands run against a database, and they are needed
 before Stage C can be designed against representative data.
 
-**Steps 2 and 3 have been run on dev.** The rebuild covered all 227 owners and the resume token is
-deleted. They remain listed because they are still owed against live, and because `tasks
-prepareArchivedJobStatistics` performs all of them in one command — which is how a deploy should run
-them rather than one at a time.
+**Dev has had the rebuild and the resume-token drop.** The rebuild covered all 227 owners. Both are
+still listed because they are owed against live, and because a deploy should reach them through
+`tasks prepareArchivedJobStatistics` rather than one at a time.
 
 **Order matters: identity conversion first, then the rebuild.** The rebuild derives statistics from
 job documents, so converting identities first means it sees refs where they exist. The other order
@@ -2312,8 +2315,16 @@ just means the corporation data arrives a rebuild late.
 | Step | Command | Why |
 |------|---------|-----|
 | 1. Convert stored entity ids | `tasks encodeJobIdentity` (`-dry-run` first) | On dev, `protected.spec` is null on all 9,130 archived jobs and 834 still hold a raw `corporation_id` on their linked jobs. Those are the only corporation ids in the database, and `archivestats` reads refs, so until they are converted the aggregation sees nothing. It is also the first thing that would give `character_ref` any value at all. Owned by [entity-id-encryption](../entity-id-encryption/plan.md); this project only depends on it |
-| 2. Rebuild statistics | `tasks queueArchivedJobStatsRebuild -all` (`-dry-run` first) | Recomputes every account's three collections. Idempotent, and safe to re-run. Owed again after J1: every bucket gains `quantityProduced` and `isProductionChain`, and every total gains `history` |
-| 3. Drop the retired resume token | `DEL eip:core:handoff:v1:cs:resume:archive_and_stats` in Redis | J1 removes the `archive_and_stats` change-stream group. Resume tokens are written with no expiry, so its key would sit there forever. One key, deleted once — a startup sweep to enumerate and prune stale group ids is more machinery than a single stale key earns |
+| 2. Everything the statistics documents owe | `tasks prepareArchivedJobStatistics` (`-dry-run` first) | One command, four steps in the order they have to happen — see `archivedJobStatisticsRelease`. A step with nothing to do reports zero, so re-running against a current environment is safe |
+
+The four steps inside that command, and why each is owed:
+
+| Step | Why |
+|------|-----|
+| Drop retired statistics fields | `dataSnapshots` and `buildRows` left `ProductionTotalsRow` in J1, but the rebuild upserts with `$set` and never replaces, so a document written before then keeps whichever it had |
+| Drop retired change stream resume tokens | J1 removed the `archive_and_stats` change-stream group. Resume tokens are written with no expiry, so a retired group's key would sit there forever. The registry says which groups exist, so anything else under the prefix is retired by definition |
+| Drop unaddressable rebuild queue entries | A queue entry whose id names no owner is skipped by every dispatch and cleared by none, so it would never leave the queue |
+| Queue every account for rebuild | Recomputes every account's three collections. Idempotent, and safe to re-run. Owed again after J1: every bucket gains `quantityProduced` and `isProductionChain`, and every total gains `history`. The rebuild runs when the drain next fires, or on `tasks drainAccountStatsRebuildQueue` |
 
 These must also run against **live** when this work ships — with the caveat that live carries no
 statistics collections yet, so step 2 there is a first population rather than a catch-up. Whether
@@ -2328,8 +2339,20 @@ step 1 has already run against live was not checked; do not assume live matches 
    on every bucket. Existing rows keep the old figures until a rebuild rewrites them; the rota
    corrects them owner by owner over a week without one. Behaviour →
    [overlay.md](./overlay.md) § Corrections to figures already served.
-2. **`retainedStockBuild` is dead in the UI.** Nothing in `frontend/src` writes it, so Stock means
-   "no recorded sale" rather than "deliberately kept". Wiring it would separate the two.
+2. ~~**`retainedStockBuild` is dead in the UI.**~~ **Removed, not wired.** Kept output cannot be
+   verified: ESI reports what a character holds, but nothing attributes a stack in a hangar to the
+   job that built it, so a stored flag would present a guess as a record. The field is off
+   `models.Job` and `ArchivedJobStats`, and both classifier branches lose the override — Stock now
+   means exactly what the evidence supports, "the job left no sale behind".
+
+   What a user can be shown instead is a quantity: **`quantityProduced − quantitySold`**, both
+   already on every bucket since J1, so it needs no stored field and no backfill. The **Kept as
+   stock** panel plots it per month on the statistics tab, floored at zero because a month can
+   settle a sale against an earlier month's build. Chain output is excluded, because the timeline
+   sums direct buckets unless an item view asks for the chain.
+
+   The two questions stay separate: the segment breakdown answers "how many builds never sold at
+   all", which a job selling most of a run does not, and the panel answers "how much was kept".
 3. ~~**The lifetime-totals module still says `buildStats`.**~~ **Done** — see § The SPA's statistics
    modules are named for their views.
 4. **`extrasTotal` is recomputed only on add and remove.** Editing a row's value in place, or
@@ -2338,11 +2361,9 @@ step 1 has already run against live was not checked; do not assume live matches 
 5. **The dev database holds 110 `testfixture-` jobs** from month-duplication testing. Harmless,
    removable whenever.
 6. ~~**The worker's end-to-end composition still has no live test.**~~ **Closed** — see Open
-   question 1. `ReconcileAccountStatistics` is driven over seeded jobs against stack Mongo, as are
-   the archive → fold → restore → fold cycle and the recovery of an archived job whose row was never
-   folded. `RebuildAccountStatistics` itself is still only exercised by the rota against real data,
-   which now matters less: the reconcile and the rebuild derive and write aggregates through the same
-   pair of functions, so a test of one covers the half they share.
+   question 1. `ReconcileAccountStatistics` and `RebuildAccountStatistics` are both driven over
+   seeded jobs against stack Mongo, as are the archive → fold → restore → fold cycle and the
+   recovery of an archived job whose row was never folded.
 
 7. ~~**Nothing links into the item tab.**~~ **Done** — a breakdown row's item name is a link that
    opens the item tab on that item.
@@ -2364,10 +2385,13 @@ step 1 has already run against live was not checked; do not assume live matches 
    endpoints, which is where a shared-meaning change between two units shows up. What they cannot see
    is the route, the real query client and a real response together. Deliberately deferred.
 
-**`dataSnapshots` is the one shape still carried for compatibility.** The totals row holds an
-unbounded per-job array that duplicates `account_archived_job_stats`, kept so the two panels reading
-it did not have to change with the endpoint. Replacing it with a per-job view is a Stage E decision
-once those panels are being touched anyway.
+~~**`dataSnapshots` is the one shape still carried for compatibility.**~~ **Done in J1.** The
+unbounded per-job array is off `ProductionTotalsRow`, which now carries `BuildHistoryMarks` instead —
+the marks a panel actually reads, derived from the rows rather than duplicating them. Both readers
+moved with it: `hasMeaningfulBuildStats.js` is `hasMeaningfulTotals.js`, and the Archive Jobs Panel
+reads `totals.history`. Documents written before J1 keep the field, because the rebuild upserts with
+`$set` and never replaces; `tasks prepareArchivedJobStatistics` unsets it — see § Operational steps
+owed.
 
 ### Archive dates: what the sources actually hold
 
@@ -2416,7 +2440,7 @@ knowing rather than manufacturing a date.
 
 ### Open questions
 
-1. **Live coverage.** Narrowed to one gap; the Mongo helpers themselves are covered.
+1. ~~**Live coverage.**~~ **Closed.** Every path named here is driven against stack Mongo.
 
    **Confirmed against stack Mongo**, all passing:
 
@@ -2434,10 +2458,11 @@ knowing rather than manufacturing a date.
    starting figures, and `live_new_job_rows_test.go` proves the rota recovers an archived job whose
    statistics row was never folded. The `models.Job` fixtures that were the obstacle exist now.
 
-   **Still open, and smaller than it was:** `RebuildAccountStatistics` itself is driven only by the
-   rota against real data. The reconcile derives and writes an owner's aggregates through the same
-   pair of functions the rebuild uses, so what is untested is the row load and revoke either side of
-   them, not the arithmetic between.
+   **The last gap is closed.** `RebuildAccountStatistics` was reachable only through the rota
+   against real data; `live_skipped_rows_test.go` now drives it directly over seeded jobs, five
+   times across three tests — a job the reduction cannot read keeps its figures and is stamped, the
+   stamp clears once the job reads again, and stamping moves no aggregate. Each pass runs the whole
+   function, so the row load and revoke either side of the shared arithmetic are covered too.
 
    **The revoke idempotency assertion is deliberately awkward.** It passes a *later* timestamp on
    the second pass, because `$set` writes `revokedAt` as well as `revoked`: with the same

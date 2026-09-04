@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"eve-industry-planner/shared/esiclient"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
 
@@ -17,6 +18,9 @@ type Dependencies struct {
 	NATS  *eipnats.NATS
 	Redis *redislib.Client
 	Mongo *eipmongo.Mongo
+	// ESI answers what the rate limiter knows: whether the servers are
+	// answering, and whether a run's token cost can be absorbed.
+	ESI esiclient.API
 }
 
 // TaskHandler defines a function that triggers a task

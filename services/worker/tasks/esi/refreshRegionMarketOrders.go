@@ -8,9 +8,9 @@ import (
 	"time"
 
 	rediscore "eve-industry-planner/shared/core/redis"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	esicore "eve-industry-planner/worker/esi"
 
 	"github.com/hibiken/asynq"
 )
@@ -60,11 +60,6 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 	}
 	defer cleanup()
 
-	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-	if err := HandleStatusCheckResult(ctx, statusResult, eipnats.TaskNameRegionMarketOrdersRefresh); err != nil {
-		return err
-	}
-
 	start := time.Now()
 
 	prevETags, err := rediscore.GetRegionMarketOrdersETags(ctx, deps.Redis, request.RegionID)
@@ -74,7 +69,7 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 	}
 
 	accumulators := make(map[int32]*typePriceAccumulator)
-	onOrder := func(order ESIMarketOrder) error {
+	onOrder := func(order esiclient.MarketOrder) error {
 		// The region endpoint returns every station in the region; only the hub station counts.
 		if order.LocationID != request.StationID {
 			return nil
@@ -92,10 +87,15 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 		return nil
 	}
 
-	fetchResult, err := FetchRegionMarketOrders(ctx, deps.ESIClient, deps.Redis, request.RegionID, prevETags, onOrder)
+	fetchResult, err := FetchRegionMarketOrders(ctx, deps.ESI, deps.Redis, request.RegionID, prevETags, onOrder)
 	if err != nil {
 		return HandleStreamError(ctx, err, eipnats.TaskNameRegionMarketOrdersRefresh)
 	}
+
+	// The first page's max-age speaks for the book: a region's pages are
+	// generated together and expire together.
+	recordNextRefresh(ctx, deps.Redis, rediscore.RegionMarketOrdersDataset(request.RegionID),
+		time.Duration(fetchResult.CacheSeconds)*time.Second)
 
 	now := time.Now().UnixMilli()
 

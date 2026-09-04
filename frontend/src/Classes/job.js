@@ -4,6 +4,7 @@ import Setup from "./jobSetup";
 import Material from "./jobMaterial";
 import LinkedESIJob from "./linkedESIJob";
 import BrokerFee from "./brokerFee";
+import asIDList from "../Functions/Helper/asIDList";
 import MarketOrder from "./marketOrder";
 import Transaction from "./transaction";
 import useUsersStore from "../Zustand/usersStore";
@@ -725,10 +726,7 @@ class Job {
       return;
     }
 
-    const childrenToRemove =
-      Array.isArray(childIDToRemove) || childIDToRemove instanceof Set
-        ? [...childIDToRemove]
-        : [childIDToRemove];
+    const childrenToRemove = asIDList(childIDToRemove);
 
     this.build.childJobs[materialTypeID] = childLocation.filter(
       (i) => !childrenToRemove.includes(i),
@@ -736,20 +734,17 @@ class Job {
   }
 
   /**
-   * Removes child jobs that are not included in the provided job IDs from all materials.
+   * Keeps only the given child jobs, on every material.
    *
    * @param {string|Array<string>|Set<string>} includedJobIDs - Job IDs to keep
    */
-  removeChildJobsNotIncludedInInputFromAllMaterials(includedJobIDs) {
+  keepOnlyChildJobs(includedJobIDs) {
     if (!includedJobIDs) {
       console.error("Missing Input IDs");
       return;
     }
 
-    const childrenToKeep =
-      Array.isArray(includedJobIDs) || includedJobIDs instanceof Set
-        ? [...includedJobIDs]
-        : [includedJobIDs];
+    const childrenToKeep = asIDList(includedJobIDs);
 
     Object.entries(this.build.childJobs).forEach(([key, value]) => {
       this.build.childJobs[key] = value.filter((i) =>
@@ -777,10 +772,7 @@ class Job {
     }
     const childLocation = this.build.childJobs[materialTypeID];
 
-    const childrenToAdd =
-      Array.isArray(childIDToAdd) || childIDToAdd instanceof Set
-        ? [...childIDToAdd]
-        : [childIDToAdd];
+    const childrenToAdd = asIDList(childIDToAdd);
 
     this.build.childJobs[materialTypeID] = [
       ...new Set([...childLocation, ...childrenToAdd]),
@@ -798,10 +790,7 @@ class Job {
       return;
     }
 
-    const parentsToAdd =
-      Array.isArray(parentJobID) || parentJobID instanceof Set
-        ? [...parentJobID]
-        : [parentJobID];
+    const parentsToAdd = asIDList(parentJobID);
 
     if (parentsToAdd.length === 0) return;
 
@@ -819,10 +808,7 @@ class Job {
       return;
     }
 
-    const parentsToRemove =
-      Array.isArray(parentJobID) || parentJobID instanceof Set
-        ? [...parentJobID]
-        : [parentJobID];
+    const parentsToRemove = asIDList(parentJobID);
 
     if (parentsToRemove.length === 0) return;
 
@@ -832,20 +818,17 @@ class Job {
   }
 
   /**
-   * Removes parent jobs that are not included in the provided job IDs.
+   * Keeps only the given parent jobs.
    *
    * @param {string|Array<string>|Set<string>} includedJobIDs - Job IDs to keep
    */
-  removeParentJobsNotIncludedInInput(includedJobIDs) {
+  keepOnlyParentJobs(includedJobIDs) {
     if (!includedJobIDs) {
       console.error("Missing Input IDs");
       return;
     }
 
-    const parentsToKeep =
-      Array.isArray(includedJobIDs) || includedJobIDs instanceof Set
-        ? [...includedJobIDs]
-        : [includedJobIDs];
+    const parentsToKeep = asIDList(includedJobIDs);
 
     this.parentJobs = this.parentJobs.filter((id) =>
       parentsToKeep.includes(id),
