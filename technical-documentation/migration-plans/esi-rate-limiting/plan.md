@@ -1457,21 +1457,22 @@ surface and is not being pulled in.
   region page cache, ETags, refresh times and cursor, none of which the limiter owns. Retiring the
   file outright was the wrong target; retiring its coupling to the limiter was the right one.
 
-## Staleness escalation was not needed
+## Staleness escalation was dropped
 
 `Config.StaleSoft` and `StaleHard` were designed as escalation thresholds: how far past an
 advertised expiry a refresh stops being deferrable, first competing with external work and then
-running regardless. Stage G built the deferral and not the escalation, and the fields are read by
-nothing.
+running regardless. Stage G built the deferral and not the escalation, and the fields have been
+removed rather than wired.
 
-They address starvation that the class floors already prevent. A background refresh is refused only
+They addressed starvation that the class floors already prevent. A background refresh is refused only
 when its class headroom cannot cover the whole run, and the 0.30 floor guarantees background 3,600
 tokens of a 12,000 allowance — more than twice the 1,674 a full four-hub cycle costs. For the
 refusal to persist the bucket has to be genuinely depleted, which resolves on its own as the
 floating window ages charges out.
 
 A second mechanism forcing a run through would therefore fire only in a state the floors make
-unreachable, and would do so by overriding the budget check that stops a 429.
+unreachable, and would do so by overriding the budget check that stops a 429. Config that nothing
+reads is worse than no config: it reads as a tuning surface that does not exist.
 
 ## Stage status
 
@@ -1532,7 +1533,7 @@ alongside the first caller that needs a different value.
    real figures rather than guessed: a full four-hub cycle is 837 pages and 1,674 tokens, so the
    background floor of 0.30 (3,600 tokens) covers two complete cycles inside one window, and
    `MaxShare` of 0.6 on market orders leaves ample room for the other endpoints sharing that group.
-   `StaleSoft` and `StaleHard` are read by nothing — see § Staleness escalation was not needed.
+   The `StaleSoft` and `StaleHard` thresholds were dropped — see § Staleness escalation was dropped.
 5. **Burst ceiling per endpoint.** `MinSpacing` is the fastest we will drive an endpoint with a full
    bank. It is a politeness and blast-radius choice rather than a limit ESI imposes, so it wants a
    deliberate value per endpoint at Stage C rather than one number copied across the table.

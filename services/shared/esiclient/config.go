@@ -85,11 +85,6 @@ type Config struct {
 	// ProbeTTL is how long one discovery request holds a bucket before another
 	// caller may probe.
 	ProbeTTL time.Duration
-	// StaleSoft and StaleHard are how far past an advertised expiry a refresh
-	// stops being deferrable, first competing with external work and then
-	// running regardless.
-	StaleSoft time.Duration
-	StaleHard time.Duration
 
 	Endpoints []EndpointPolicy
 }
@@ -131,8 +126,6 @@ func DefaultConfig() Config {
 		GlideFrom:      0.3,
 		ErrorLimitStop: 80,
 		ProbeTTL:       15 * time.Second,
-		StaleSoft:      10 * time.Minute,
-		StaleHard:      time.Hour,
 		Endpoints:      DefaultEndpointPolicies(),
 	}
 }
