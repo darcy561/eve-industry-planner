@@ -27,6 +27,7 @@ rebuild, the trace pipeline that is currently discarded, and the parallel-run cu
 | Know what would send us back to a different backend | [plan.md](./plan.md) § Stage B — the decision gate |
 | See how the exporters fold into the collector | [plan.md](./plan.md) § Stage C — exporters become components |
 | Understand what happens to traces | [plan.md](./plan.md) § Stage D — traces stop being discarded |
+| Make the spans worth querying once tracing is on | [plan.md](./plan.md) § Stage H — the spans say what a trace needs |
 | Know what breaks when the backend changes | [plan.md](./plan.md) § Wire compatibility |
 | Roll back | [plan.md](./plan.md) § Cutover and rollback |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
