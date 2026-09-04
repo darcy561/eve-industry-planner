@@ -12,9 +12,8 @@ import (
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -25,16 +24,9 @@ const (
 )
 
 // SchemaVersionMaintenanceBatch upgrades a bounded number of outdated docs for one collection.
-func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func SchemaVersionMaintenanceBatch(ctx context.Context, payload eipnats.SchemaVersionMaintenanceBatchRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
-	}
-	payload, err := esitasks.UnmarshalTaskPayload[eipnats.SchemaVersionMaintenanceBatchRequest](task)
-	if err != nil {
-		return fmt.Errorf("invalid payload: %w", err)
 	}
 	payload.Collection = strings.TrimSpace(payload.Collection)
 	if payload.Collection == "" {

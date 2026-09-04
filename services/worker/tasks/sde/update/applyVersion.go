@@ -10,24 +10,14 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
 // ApplySDEVersion downloads/builds/persists a specific SDE build and locks the environment to it.
-func ApplySDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
-
+func ApplySDEVersion(ctx context.Context, req eipnats.SDEApplyVersionRequest, deps *taskrun.Dependencies) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	req, err := esitasks.UnmarshalTaskPayload[eipnats.SDEApplyVersionRequest](task)
-	if err != nil {
-		return fmt.Errorf("failed to parse applySDEVersion payload: %w", err)
-	}
 	if req.BuildNumber <= 0 {
 		return fmt.Errorf("invalid build_number: %d", req.BuildNumber)
 	}

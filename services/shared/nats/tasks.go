@@ -6,9 +6,6 @@ import (
 	"time"
 )
 
-// DefaultWorkerTaskTimeout is used when a task type has no DefaultTimeout set or is unknown.
-var DefaultWorkerTaskTimeout = 60 * time.Second
-
 // Priority queue names for task routing. Use with Publish to override a task's default.
 const (
 	Priority1 = "priority_1" // Reserved for future critical tasks
@@ -349,9 +346,11 @@ func PublishMigrateFirestoreWatchlistToMongo(ctx context.Context, n *NATS, accou
 	return publish(ctx, n, MigrateFirestoreWatchlistToMongo, MigrateFirestoreWatchlistToMongoRequest{AccountID: accountID})
 }
 
-// PublishRollbackSDEVersion rolls the live Static Data Export back to a build.
-func PublishRollbackSDEVersion(ctx context.Context, n *NATS, buildNumber int) error {
-	return publish(ctx, n, RollbackSDEVersion, SDEApplyVersionRequest{BuildNumber: buildNumber})
+// TriggerRollbackSDEVersion rolls the live Static Data Export back to the most
+// recent previous build. Which build that is comes from the store, not from the
+// caller, so there is nothing to send.
+func TriggerRollbackSDEVersion(ctx context.Context, n *NATS) error {
+	return trigger(ctx, n, RollbackSDEVersion)
 }
 
 // PublishApplySDEVersion builds and locks the live Static Data Export to a build.
@@ -359,9 +358,10 @@ func PublishApplySDEVersion(ctx context.Context, n *NATS, buildNumber int) error
 	return publish(ctx, n, ApplySDEVersion, SDEApplyVersionRequest{BuildNumber: buildNumber})
 }
 
-// PublishRebuildCurrentSDEVersion rebuilds the Static Data Export already locked in.
-func PublishRebuildCurrentSDEVersion(ctx context.Context, n *NATS, buildNumber int) error {
-	return publish(ctx, n, RebuildCurrentSDEVersion, SDEApplyVersionRequest{BuildNumber: buildNumber})
+// TriggerRebuildCurrentSDEVersion rebuilds the Static Data Export already locked
+// in. The build to rebuild is the one the store says is current.
+func TriggerRebuildCurrentSDEVersion(ctx context.Context, n *NATS) error {
+	return trigger(ctx, n, RebuildCurrentSDEVersion)
 }
 
 // Definition is what a task is: the handler key, the subject it travels on, and
@@ -375,7 +375,10 @@ type Definition struct {
 	DefaultTimeout  time.Duration
 }
 
-var taskRegistry = map[string]Definition{}
+var (
+	taskRegistry          = map[string]Definition{}
+	taskRegistryBySubject = map[string]Definition{}
+)
 
 // defineTask registers a task and returns it.
 func defineTask(d Definition) Definition {
@@ -385,13 +388,28 @@ func defineTask(d Definition) Definition {
 	if _, exists := taskRegistry[d.Name]; exists {
 		panic("nats: duplicate task name " + d.Name)
 	}
+	if _, exists := taskRegistryBySubject[d.Subject]; exists {
+		panic("nats: duplicate task subject " + d.Subject)
+	}
 	taskRegistry[d.Name] = d
+	taskRegistryBySubject[d.Subject] = d
 	return d
 }
 
 // LookupTask returns the definition registered under name.
 func LookupTask(name string) (Definition, bool) {
 	d, ok := taskRegistry[name]
+	return d, ok
+}
+
+// TaskBySubject returns the task a subject names.
+//
+// The subject is a task's identity on the wire, so resolving it is a lookup
+// rather than a parse: a subject no definition claims names no task, and the
+// worker can say so instead of inventing a name from the last segment and
+// running it on whatever queue the defaults suggest.
+func TaskBySubject(subject string) (Definition, bool) {
+	d, ok := taskRegistryBySubject[subject]
 	return d, ok
 }
 

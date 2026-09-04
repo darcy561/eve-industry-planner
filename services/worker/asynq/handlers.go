@@ -2,23 +2,22 @@ package asynq
 
 import (
 	"context"
-	eipnats "eve-industry-planner/shared/nats"
-	"eve-industry-planner/shared/stackservices"
 	"time"
 
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
-	archivedjobtasks "eve-industry-planner/worker/tasks/archivedjobs"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-	jobidentitytasks "eve-industry-planner/worker/tasks/jobidentity"
-	maintenancetasks "eve-industry-planner/worker/tasks/maintenance"
-	migrationtasks "eve-industry-planner/worker/tasks/migration"
+	"eve-industry-planner/worker/taskrun"
+	"eve-industry-planner/worker/tasks/archivedjobs"
+	"eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/tasks/jobidentity"
+	"eve-industry-planner/worker/tasks/maintenance"
+	"eve-industry-planner/worker/tasks/migration"
 	sderollbacktasks "eve-industry-planner/worker/tasks/sde/rollback"
 	sdetasks "eve-industry-planner/worker/tasks/sde/update"
 
-	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/hibiken/asynq"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,17 +25,47 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// WorkerDependencies holds dependencies needed by task handlers
-type WorkerDependencies interface {
-	GetClients() *stackservices.Clients
-	GetESI() esiclient.API
-	GetEntityCipher() *entityid.Cipher
+// SetupHandlers puts every task's handler on the mux, checked against the
+// registry: a task with no handler, or a handler for no task, stops the worker
+// starting rather than going unnoticed until work quietly does not happen.
+func SetupHandlers(mux *asynq.ServeMux, taskDeps *taskrun.Dependencies) error {
+	installTaskMiddleware(mux)
+
+	handlers := map[string]asynq.HandlerFunc{}
+	handleTrigger(handlers, eipnats.RefreshSystemIndexes, taskDeps, esi.RefreshSystemIndexes)
+	handleTrigger(handlers, eipnats.RefreshAdjustedPrices, taskDeps, esi.RefreshAdjustedPrices)
+	handle(handlers, eipnats.RefreshRegionMarketOrders, taskDeps, esi.RefreshRegionMarketOrders)
+	handleTrigger(handlers, eipnats.CheckSDEUpdates, taskDeps, sdetasks.CheckSDEUpdates)
+	handleTrigger(handlers, eipnats.RollbackSDEVersion, taskDeps, sderollbacktasks.RollbackSDEVersion)
+	handle(handlers, eipnats.ApplySDEVersion, taskDeps, sdetasks.ApplySDEVersion)
+	handleTrigger(handlers, eipnats.RebuildCurrentSDEVersion, taskDeps, sdetasks.RebuildCurrentSDEVersion)
+	handle(handlers, eipnats.UpdateAccountSessionGrants, taskDeps, esi.RefreshAccountSessionGrants)
+	handle(handlers, eipnats.MigrateUserDocumentToMongo, taskDeps, migration.MigrateUserDocumentToMongo)
+	handle(handlers, eipnats.EncryptCloudRefreshTokensBatch, taskDeps, migration.EncryptCloudRefreshTokensBatch)
+	handle(handlers, eipnats.MigrateUserCloudAccountsToUserDoc, taskDeps, migration.MigrateUserCloudAccountsToUserDoc)
+	handle(handlers, eipnats.MigrateFirestoreWatchlistToMongo, taskDeps, migration.MigrateFirestoreWatchlistToMongo)
+	handle(handlers, eipnats.ImportArchivedJobToMongo, taskDeps, migration.ImportArchivedJobToMongo)
+	handle(handlers, eipnats.ImportUserJobDocumentsForAccount, taskDeps, migration.ImportUserJobDocumentsForAccount)
+	handleTrigger(handlers, eipnats.DrainAccountStatsRebuildQueue, taskDeps, archivedjobs.DrainAccountStatsRebuildQueue)
+	handle(handlers, eipnats.RebuildOwnerStatistics, taskDeps, archivedjobs.RebuildOwnerStatistics)
+	handle(handlers, eipnats.ApplyOwnerStatisticsDelta, taskDeps, archivedjobs.ApplyOwnerStatisticsDelta)
+	handleTrigger(handlers, eipnats.DispatchStatisticsReconciles, taskDeps, archivedjobs.DispatchStatisticsReconciles)
+	handle(handlers, eipnats.ReconcileOwnerStatistics, taskDeps, archivedjobs.ReconcileOwnerStatistics)
+	handle(handlers, eipnats.RotateRefreshTokenKeys, taskDeps, maintenance.RotateRefreshTokenKeys)
+	handle(handlers, eipnats.EncodeJobIdentity, taskDeps, jobidentity.EncodeJobIdentity)
+	handle(handlers, eipnats.SchemaVersionMaintenanceBatch, taskDeps, maintenance.SchemaVersionMaintenanceBatch)
+	handle(handlers, eipnats.InactiveAccountPlannerCleanup, taskDeps, maintenance.InactiveAccountPlannerCleanup)
+	handle(handlers, eipnats.CloudStoredEsiRefreshMaintenance, taskDeps, maintenance.CloudStoredEsiRefreshMaintenance)
+	handleTrigger(handlers, eipnats.PruneExpiredAccountSessions, taskDeps, maintenance.PruneExpiredAccountSessions)
+
+	return mount(mux, handlers)
 }
 
-// SetupHandlers registers all task handlers (both ESI and regular) on the given mux
-func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
-	// Restore trace from NATS/asynq headers, start a span for this task; record OTel metrics only on success or real failure (not rate-limit re-queues).
-	// Handlers should pass ctx to NATS PublishTask / DB calls so child work stays on the same trace.
+// installTaskMiddleware wraps every handler with the context, span and outcome
+// reporting a task runs under, so a handler opens none of it for itself.
+func installTaskMiddleware(mux *asynq.ServeMux) {
+	// A handler passes this ctx to its own publishes and queries, which is what
+	// keeps child work on the trace the task arrived on.
 	tracer := otel.Tracer("eve-industry-planner/worker")
 	mux.Use(func(h asynq.Handler) asynq.Handler {
 		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
@@ -52,7 +81,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 				"task_type": taskType,
 			})
 			start := time.Now()
-			err := h.ProcessTask(ctx, t)
+			err := terminalAsSkipRetry(h.ProcessTask(ctx, t))
 			elapsed := time.Since(start)
 			outcomeDetail := map[string]any{
 				"task_type":   taskType,
@@ -86,96 +115,6 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 			span.End()
 			return err
 		})
-	})
-
-	// Create task dependencies once
-	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESI(), deps.GetEntityCipher())
-
-	// Register task handlers
-	handle(mux, eipnats.RefreshSystemIndexes, func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshSystemIndexes(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.RefreshAdjustedPrices, func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshAdjustedPrices(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.RefreshRegionMarketOrders, func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshRegionMarketOrders(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.CheckSDEUpdates, func(ctx context.Context, t *asynq.Task) error {
-		return sdetasks.CheckSDEUpdates(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.RollbackSDEVersion, func(ctx context.Context, t *asynq.Task) error {
-		return sderollbacktasks.RollbackSDEVersion(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.ApplySDEVersion, func(ctx context.Context, t *asynq.Task) error {
-		return sdetasks.ApplySDEVersion(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.RebuildCurrentSDEVersion, func(ctx context.Context, t *asynq.Task) error {
-		return sdetasks.RebuildCurrentSDEVersion(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.UpdateAccountSessionGrants, func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshAccountSessionGrants(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.MigrateUserDocumentToMongo, func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.MigrateUserDocumentToMongo(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.EncryptCloudRefreshTokensBatch, func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.EncryptCloudRefreshTokensBatch(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.MigrateUserCloudAccountsToUserDoc, func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.MigrateUserCloudAccountsToUserDoc(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.MigrateFirestoreWatchlistToMongo, func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.MigrateFirestoreWatchlistToMongo(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.ImportArchivedJobToMongo, func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.ImportArchivedJobToMongo(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.ImportUserJobDocumentsForAccount, func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.ImportUserJobDocumentsForAccount(ctx, t, taskDeps)
-	})
-
-	handle(mux, eipnats.DrainAccountStatsRebuildQueue, func(ctx context.Context, t *asynq.Task) error {
-		return archivedjobtasks.DrainAccountStatsRebuildQueue(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.RebuildOwnerStatistics, func(ctx context.Context, t *asynq.Task) error {
-		return archivedjobtasks.RebuildOwnerStatistics(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.ApplyOwnerStatisticsDelta, func(ctx context.Context, t *asynq.Task) error {
-		return archivedjobtasks.ApplyOwnerStatisticsDelta(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.DispatchStatisticsReconciles, func(ctx context.Context, t *asynq.Task) error {
-		return archivedjobtasks.DispatchStatisticsReconciles(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.ReconcileOwnerStatistics, func(ctx context.Context, t *asynq.Task) error {
-		return archivedjobtasks.ReconcileOwnerStatistics(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.RotateRefreshTokenKeys, func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.RotateRefreshTokenKeys(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.EncodeJobIdentity, func(ctx context.Context, t *asynq.Task) error {
-		return jobidentitytasks.EncodeJobIdentity(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.SchemaVersionMaintenanceBatch, func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.SchemaVersionMaintenanceBatch(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.InactiveAccountPlannerCleanup, func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.InactiveAccountPlannerCleanup(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.CloudStoredEsiRefreshMaintenance, func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.CloudStoredEsiRefreshMaintenance(ctx, t, taskDeps)
-	})
-	handle(mux, eipnats.PruneExpiredAccountSessions, func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.PruneExpiredAccountSessions(ctx, t, taskDeps)
 	})
 }
 

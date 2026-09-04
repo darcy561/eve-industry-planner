@@ -1,16 +1,25 @@
-// Package queuescale holds the asynq queue weights and the scale-up pressure
-// they feed. It is shared because the worker sizes its queues from these and the
-// capacity controller decides replica counts from them; neither service may
-// import the other.
+// Package queuescale holds the worker's queue set and the thresholds at which
+// pending work on those queues becomes pressure to add replicas.
+//
+// It is shared because both sides of that decision need the same figures: the
+// worker runs the queues and the capacity controller reads their depth, and
+// neither service may import the other.
+//
+// It does not hold how often the server polls each queue. Those weights are the
+// worker's own and live with its server config.
 package queuescale
 
-import "maps"
+import (
+	"maps"
 
-import eipnats "eve-industry-planner/shared/nats"
+	eipnats "eve-industry-planner/shared/nats"
+)
 
-// DefaultQueueScaleUpPendingPct is the fraction of worker slots (concurrency×running)
-// of pending work on that queue that triggers capacity scale-up pressure.
-// Separate from Asynq poll weights in the worker server config.
+// DefaultQueueScaleUpPendingPct is how much pending work on a queue, as a
+// fraction of worker slots (concurrency×running), counts as pressure to scale up.
+//
+// A lower fraction means less patience: priority_1 pushes for another replica at
+// a tenth of capacity, priority_5 not until it is twice over.
 var DefaultQueueScaleUpPendingPct = map[string]float64{
 	eipnats.Priority1: 0.10,
 	eipnats.Priority2: 0.25,
@@ -19,7 +28,7 @@ var DefaultQueueScaleUpPendingPct = map[string]float64{
 	eipnats.Priority5: 2.0,
 }
 
-// PriorityQueueNames is the ordered worker queue set.
+// PriorityQueueNames is the worker queue set, highest priority first.
 var PriorityQueueNames = []string{eipnats.Priority1, eipnats.Priority2, eipnats.Priority3, eipnats.Priority4, eipnats.Priority5}
 
 // MergeQueueScaleUpPendingPct copies defaults, then overlays operator values.

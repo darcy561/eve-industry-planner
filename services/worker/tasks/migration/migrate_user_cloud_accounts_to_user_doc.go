@@ -9,31 +9,19 @@ import (
 
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // MigrateUserCloudAccountsToUserDoc copies userCloudAccounts from application_settings
 // to users, then removes the legacy settings field.
-func MigrateUserCloudAccountsToUserDoc(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func MigrateUserCloudAccountsToUserDoc(ctx context.Context, p eipnats.MigrateUserCloudAccountsToUserDocRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 
-	var p eipnats.MigrateUserCloudAccountsToUserDocRequest
-	if len(task.Payload()) > 0 {
-		payload, err := esitasks.UnmarshalTaskPayload[eipnats.MigrateUserCloudAccountsToUserDocRequest](task)
-		if err != nil {
-			return fmt.Errorf("invalid payload: %w", err)
-		}
-		p = payload
-	}
 	p.AccountID = strings.TrimSpace(p.AccountID)
 	if p.AccountID == "" {
 		return fmt.Errorf("account_id is required")

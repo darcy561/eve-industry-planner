@@ -11,9 +11,8 @@ import (
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -22,16 +21,9 @@ const defaultInactivePlannerStaleYears = 2
 
 // InactiveAccountPlannerCleanup deletes live planner job documents and groups for an account when the
 // users document still indicates last login older than the stale-age threshold (re-checked here).
-func InactiveAccountPlannerCleanup(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func InactiveAccountPlannerCleanup(ctx context.Context, payload eipnats.InactiveAccountPlannerCleanupRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
-	}
-	payload, err := esitasks.UnmarshalTaskPayload[eipnats.InactiveAccountPlannerCleanupRequest](task)
-	if err != nil {
-		return fmt.Errorf("invalid payload: %w", err)
 	}
 	accountID := strings.TrimSpace(payload.AccountID)
 	if accountID == "" {
@@ -47,7 +39,7 @@ func InactiveAccountPlannerCleanup(ctx context.Context, task *asynq.Task, deps *
 	usersCol := mongo.Users.Collection()
 
 	var userDoc models.UserAccountDocument
-	err = usersCol.FindOne(ctx, bson.M{"_id": accountID}).Decode(&userDoc)
+	err := usersCol.FindOne(ctx, bson.M{"_id": accountID}).Decode(&userDoc)
 	if errors.Is(err, mongodriver.ErrNoDocuments) {
 		logs.InfoCtx(ctx, "inactive account planner cleanup: user missing; skipping",
 			"account_id", accountID)

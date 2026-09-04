@@ -2,7 +2,6 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -36,13 +35,7 @@ func Terminate(format string, args ...any) error {
 // consumer context, the span, the outcome log and the acknowledgement.
 func Handle(tracerName, spanName string, handler Handler) MessageProcessor {
 	return func(msg jetstream.Msg) {
-		envelope, hasEnvelope := decodeEnvelope(msg.Data())
-		var carrier *Message
-		if hasEnvelope {
-			carrier = &envelope
-		}
-
-		ctx, endSpan := BeginConsumerContext(context.Background(), tracerName, spanName, msg, carrier)
+		ctx, endSpan := BeginConsumerContext(context.Background(), tracerName, spanName, msg)
 		defer endSpan()
 
 		subject := msg.Subject()
@@ -60,7 +53,7 @@ func Handle(tracerName, spanName string, handler Handler) MessageProcessor {
 				FinishNATSConsumerOperation(ctx, "debug", spanName+" handled", detail)
 			}
 
-		case isTerminal(err):
+		case IsTerminal(err):
 			detail["reason"] = err.Error()
 			AcknowledgeMessage(ctx, msg, err.Error(), deliveryCount)
 			FinishNATSConsumerOperation(ctx, "warn", spanName+" rejected", detail)
@@ -73,18 +66,10 @@ func Handle(tracerName, spanName string, handler Handler) MessageProcessor {
 	}
 }
 
-func isTerminal(err error) bool {
+// IsTerminal reports work that must not be retried, wherever in an error's chain
+// that was decided. The worker's task engine asks the same question of a task's
+// error as the consumer asks of a message's, so both are answered here.
+func IsTerminal(err error) bool {
 	var t terminal
 	return errors.As(err, &t)
-}
-
-// decodeEnvelope reads the shared envelope when a message carries one. It holds
-// the trace context that lets a consumer span join the publisher's trace when
-// JetStream delivers without user headers.
-func decodeEnvelope(data []byte) (Message, bool) {
-	var envelope Message
-	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Type == "" {
-		return Message{}, false
-	}
-	return envelope, true
 }

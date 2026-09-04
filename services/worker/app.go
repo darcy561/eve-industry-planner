@@ -14,20 +14,26 @@ import (
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
 	asynqpkg "eve-industry-planner/worker/asynq"
+	"eve-industry-planner/worker/taskrun"
 
 	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/hibiken/asynq"
 )
 
-const shutdownTimeout = 5 * time.Second
+// shutdownTimeout is the budget for one cleanup step. Derived from the drain
+// rather than chosen, because draining in-flight tasks is the one step that can
+// use its whole allowance and a budget shorter than it would not be enforced —
+// asynq's shutdown does not take a context.
+const shutdownTimeout = asynqpkg.DrainTimeout + 5*time.Second
 
 type app struct {
-	g        lifecycle.Group
-	stopDeps func(context.Context)
-	clients  *stackservices.Clients
-	deps     *WorkerDependencies
-	redisOpt asynq.RedisClientOpt
-	initErr  error
+	g           lifecycle.Group
+	stopDeps    func(context.Context)
+	clients     *stackservices.Clients
+	taskDeps    *taskrun.Dependencies
+	asynqClient *asynq.Client
+	redisOpt    asynq.RedisClientOpt
+	initErr     error
 }
 
 func (a *app) cleanups() []func(context.Context) {
@@ -96,17 +102,13 @@ func (a *app) prepare(ctx context.Context) error {
 	}
 	a.g.Add(lifecycle.FromStop("esi-metrics", func() { _ = stopESIMetrics() }))
 
-	a.deps = &WorkerDependencies{
-		Clients:      a.clients,
-		ESI:          esi,
-		AsynqClient:  asynqClient,
-		EntityCipher: entityCipher,
-	}
+	a.asynqClient = asynqClient
+	a.taskDeps = taskrun.FromClients(a.clients, esi, entityCipher)
 	return nil
 }
 
 func (a *app) startAsynq(context.Context) error {
-	serverCleanup, err := asynqpkg.SetupServer(a.redisOpt, a.deps)
+	serverCleanup, err := asynqpkg.SetupServer(a.redisOpt, a.taskDeps)
 	if err != nil {
 		return a.fail(err)
 	}
@@ -115,7 +117,7 @@ func (a *app) startAsynq(context.Context) error {
 }
 
 func (a *app) startSubscribers(context.Context) error {
-	scheduledTasksCleanup, err := SubscribeScheduledTasks(a.deps)
+	scheduledTasksCleanup, err := SubscribeScheduledTasks(a.clients.NATS, a.asynqClient)
 	if err != nil {
 		return a.fail(err)
 	}

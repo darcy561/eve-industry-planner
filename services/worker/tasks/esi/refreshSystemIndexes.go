@@ -1,7 +1,8 @@
-package tasks
+package esi
 
 import (
 	"context"
+	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"net/http"
 	"time"
@@ -11,17 +12,11 @@ import (
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/httpclient"
 	"eve-industry-planner/shared/logs"
-
-	"github.com/hibiken/asynq"
 )
 
 // RefreshSystemIndexes stores each solar system's industry cost indices,
 // skipping the write entirely when the ETag says nothing changed.
-func RefreshSystemIndexes(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
-
+func RefreshSystemIndexes(ctx context.Context, deps *taskrun.Dependencies) error {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 

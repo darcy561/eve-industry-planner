@@ -15,12 +15,14 @@ import (
 
 // BeginConsumerContext builds ctx for NATS message handling: remote trace, request identity,
 // operation debug-step store, consumer span, and a scoped logger when identity is present.
-// envelope may be nil when the payload is not a [Message] wrapper.
+//
+// Trace and request identity come from the message's headers, which is where the
+// publisher put them and where they arrive — the body carries the message, not
+// how to correlate it.
 func BeginConsumerContext(
 	parent context.Context,
 	tracerName, spanName string,
 	msg jetstream.Msg,
-	envelope *Message,
 ) (context.Context, func()) {
 	ctx := parent
 	if ctx == nil {
@@ -29,21 +31,6 @@ func BeginConsumerContext(
 
 	ctx = natsprop.Extract(ctx, msg.Headers())
 	ctx = natsprop.BindLogContextFromHeaders(ctx, msg.Headers())
-
-	if envelope != nil {
-		if envelope.TraceCarrierTraceparent != "" || envelope.TraceCarrierTracestate != "" {
-			hdr := MergeTraceCarrierIntoHeaders(nil,
-				envelope.TraceCarrierTraceparent, envelope.TraceCarrierTracestate)
-			ctx = natsprop.ExtractFromStringMap(ctx, hdr)
-		}
-		if envelope.LogContext != nil {
-			ctx = natsprop.BindLogContext(ctx,
-				envelope.LogContext.RequestID,
-				envelope.LogContext.AccountID,
-				envelope.LogContext.SessionID,
-			)
-		}
-	}
 
 	ctx = logs.BeginOperationContext(ctx)
 	ctx = logs.EnsureOperationLogger(ctx)

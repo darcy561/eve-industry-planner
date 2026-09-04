@@ -8,9 +8,7 @@ import (
 	"eve-industry-planner/shared/logs"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
 // rebuildDebounce is how long an owner waits before its rebuild is dispatched.
@@ -37,7 +35,7 @@ type DispatchResult struct {
 // cancelled context, a pass that ran out of time cleared nothing and the next
 // pass started from the same place. One task per owner rebuilds in parallel and
 // each clears its own, so progress is per owner rather than per pass.
-func DrainAccountStatsRebuildQueue(ctx context.Context, _ *asynq.Task, deps *esitasks.TaskDependencies) error {
+func DrainAccountStatsRebuildQueue(ctx context.Context, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}

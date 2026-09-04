@@ -1,15 +1,9 @@
 package nats
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"eve-industry-planner/shared/logs"
-
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 // Message type constants for the Message.Type field
@@ -37,91 +31,6 @@ type Message struct {
 	// without one keeps the meaning its Type already carries.
 	Subtype string          `json:"subtype,omitempty"`
 	Data    json.RawMessage `json:"data,omitempty"` // Optional JSON-encoded payload data
-
-	// TraceCarrierTraceparent and TraceCarrierTracestate duplicate W3C trace context in the JSON body
-	// (same values as NATS headers from natsprop.Inject) so Asynq workers still correlate when headers
-	// are missing on the JetStream-delivered message.
-	TraceCarrierTraceparent string `json:"trace_carrier_traceparent,omitempty"`
-	TraceCarrierTracestate  string `json:"trace_carrier_tracestate,omitempty"`
-
-	// LogContext duplicates request identity in the JSON body when JetStream omits user headers.
-	LogContext *MessageLogContext `json:"log_context,omitempty"`
-}
-
-// MessageLogContext carries HTTP request identity for log correlation across NATS consumers.
-type MessageLogContext struct {
-	RequestID string `json:"request_id,omitempty"`
-	AccountID string `json:"account_id,omitempty"`
-	SessionID string `json:"session_id,omitempty"`
-}
-
-// EnrichTraceCarrierFromContext sets TraceCarrier* fields from ctx via the global TextMapPropagator.
-func (m *Message) EnrichTraceCarrierFromContext(ctx context.Context) {
-	if ctx == nil || m == nil {
-		return
-	}
-	carrier := make(map[string]string)
-	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(carrier))
-	if v := carrier["traceparent"]; v != "" {
-		m.TraceCarrierTraceparent = v
-	}
-	if v := carrier["tracestate"]; v != "" {
-		m.TraceCarrierTracestate = v
-	}
-}
-
-// EnrichLogContextFromContext sets LogContext from ctx (request_id, account_id, session_id).
-func (m *Message) EnrichLogContextFromContext(ctx context.Context) {
-	if ctx == nil || m == nil {
-		return
-	}
-	rid := logs.RequestIDFromContext(ctx)
-	aid := logs.RequestAccountIDFromContext(ctx)
-	sid := logs.RequestSessionIDFromContext(ctx)
-	if rid == "" && aid == "" && sid == "" {
-		return
-	}
-	if m.LogContext == nil {
-		m.LogContext = &MessageLogContext{}
-	}
-	if rid != "" {
-		m.LogContext.RequestID = rid
-	}
-	if aid != "" {
-		m.LogContext.AccountID = aid
-	}
-	if sid != "" {
-		m.LogContext.SessionID = sid
-	}
-}
-
-// MergeTraceCarrierIntoHeaders fills missing traceparent/tracestate in headers from JSON envelope fields.
-func MergeTraceCarrierIntoHeaders(headers map[string]string, traceparent, tracestate string) map[string]string {
-	if traceparent == "" && tracestate == "" {
-		return headers
-	}
-	if headers == nil {
-		headers = make(map[string]string)
-	}
-	if traceparent != "" {
-		if _, ok := headers["traceparent"]; !ok {
-			headers["traceparent"] = traceparent
-		}
-	}
-	if tracestate != "" {
-		if _, ok := headers["tracestate"]; !ok {
-			headers["tracestate"] = tracestate
-		}
-	}
-	return headers
-}
-
-// TaskMessage is the payload of a "task" message: which task, and its data. The
-// queue and deadline come from the task's definition, resolved by name in the
-// worker.
-type TaskMessage struct {
-	TaskType string          `json:"task_type"`
-	Data     json.RawMessage `json:"data,omitempty"`
 }
 
 // HealthPing is an optional payload on health.command.ping (raw or Message.Data).

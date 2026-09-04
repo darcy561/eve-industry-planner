@@ -1,7 +1,8 @@
-package tasks_test
+package esi_test
 
 import (
 	"encoding/json"
+	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +13,7 @@ import (
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/testing/redisfake"
-	tasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	esi "eve-industry-planner/worker/tasks/esi"
 )
 
 // ESI sends a list of activities per system and the application stores them as
@@ -117,8 +116,8 @@ func runSystems(t *testing.T, origin *systemsOrigin) map[string]string {
 	}
 	t.Cleanup(stop)
 
-	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: next}
-	if err := tasks.RefreshSystemIndexes(t.Context(), asynq.NewTask("refreshSystemIndexes", nil), deps); err != nil {
+	deps := &taskrun.Dependencies{Redis: fake.Client, ESI: next}
+	if err := esi.RefreshSystemIndexes(t.Context(), deps); err != nil {
 		t.Fatalf("task: %v", err)
 	}
 	return snapshotSystems(t, fake)
@@ -152,8 +151,8 @@ func TestSystemIndexesFlattenEveryActivity(t *testing.T) {
 	}
 	t.Cleanup(stop)
 
-	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: next}
-	if err := tasks.RefreshSystemIndexes(t.Context(), asynq.NewTask("refreshSystemIndexes", nil), deps); err != nil {
+	deps := &taskrun.Dependencies{Redis: fake.Client, ESI: next}
+	if err := esi.RefreshSystemIndexes(t.Context(), deps); err != nil {
 		t.Fatalf("task: %v", err)
 	}
 
@@ -202,8 +201,8 @@ func TestSystemIndexesIgnoreAnUnknownActivity(t *testing.T) {
 	}
 	t.Cleanup(stop)
 
-	deps := &tasks.TaskDependencies{Redis: fake.Client, ESI: next}
-	if err := tasks.RefreshSystemIndexes(t.Context(), asynq.NewTask("refreshSystemIndexes", nil), deps); err != nil {
+	deps := &taskrun.Dependencies{Redis: fake.Client, ESI: next}
+	if err := esi.RefreshSystemIndexes(t.Context(), deps); err != nil {
 		t.Fatalf("an unknown activity should not fail the pass: %v", err)
 	}
 

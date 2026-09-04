@@ -1,7 +1,8 @@
-package tasks
+package esi
 
 import (
 	"context"
+	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"math"
 	"slices"
@@ -11,8 +12,6 @@ import (
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-
-	"github.com/hibiken/asynq"
 )
 
 // Percentile prices trim outlying quotes from each side of the book. Below
@@ -37,18 +36,11 @@ type typePriceAccumulator struct {
 //
 // Orders are filtered to the requested station as they stream, so types traded elsewhere in the
 // region produce no entry. Returns an error so asynq retries; a failed pass writes nothing.
-func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarketOrdersRequest, deps *taskrun.Dependencies) error {
 	if deps == nil {
 		return fmt.Errorf("task dependencies are nil")
 	}
 
-	request, err := UnmarshalTaskPayload[eipnats.RegionMarketOrdersRequest](task)
-	if err != nil {
-		return err
-	}
 	if request.RegionID == 0 || request.StationID == 0 {
 		return fmt.Errorf("region market orders refresh requires region_id and station_id")
 	}

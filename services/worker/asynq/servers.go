@@ -10,6 +10,8 @@ import (
 
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/worker/taskrun"
 
 	"github.com/hibiken/asynq"
 )
@@ -17,8 +19,32 @@ import (
 // MaxConcurrency is the hard per-process Asynq pool cap.
 const MaxConcurrency = 50
 
+// DrainTimeout is how long a stopping worker waits for the tasks already running
+// to finish. What overruns it is pushed back to Redis and runs again elsewhere,
+// so this trades a slower stop against repeating work — and every task can
+// already run twice, since both the queue and the stream redeliver.
+//
+// It is stated rather than left to the library's 8s default because it has to sit
+// inside the stack's stop grace alongside the other cleanups, and because a
+// replica rolled mid-task should get a fair chance to finish it.
+const DrainTimeout = 25 * time.Second
+
 // DefaultConcurrency is the per-process default when unset.
 const DefaultConcurrency = 50
+
+// pollWeights is how often the server checks each queue relative to the others,
+// and it is the worker's own: the fractions the capacity controller scales on
+// live in shared/queuescale and answer a different question.
+//
+// Declared once because it is both what the server is configured with and what
+// the startup log reports; two copies drift the moment a weight is retuned.
+var pollWeights = map[string]int{
+	eipnats.Priority1: 20, // reserved for future critical tasks
+	eipnats.Priority2: 15, // urgent, user-impacting
+	eipnats.Priority3: 10, // default, steady throughput
+	eipnats.Priority4: 5,  // high-volume background
+	eipnats.Priority5: 1,  // reserved / bulk
+}
 
 // ServerConfig holds configuration for an asynq server
 type ServerConfig struct {
@@ -53,26 +79,20 @@ func ConcurrencyFromEnv() int {
 	return ResolveConcurrency(n)
 }
 
-// setupServer creates and starts an asynq server that handles all tasks.
-// Uses a 5-tier priority queue system to ensure proper task scheduling.
-// handlerFunc is called to set up the task handlers (mux.HandleFunc calls).
-// Concurrency is the worker pool size - controls how many tasks run concurrently.
-// Returns a cleanup function to shut down the server.
-func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(context.Context), error) {
+// setupServer creates and starts an asynq server across the five priority
+// queues. handlerFunc wires the mux and is allowed to refuse: nothing starts if
+// the handlers do not cover the registry. Returns a cleanup that stops the
+// server.
+func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux) error) (func(context.Context), error) {
 	// Concurrency IS the worker pool — hard-capped by MaxConcurrency (#7).
 	concurrency := ResolveConcurrency(config.Concurrency)
 
 	srv := asynq.NewServer(
 		config.RedisOpt,
 		asynq.Config{
-			Concurrency: concurrency,
-			Queues: map[string]int{
-				"priority_1": 20, // Reserved for future critical tasks
-				"priority_2": 15, // Urgent, user-impacting tasks
-				"priority_3": 10, // Default, steady throughput tasks
-				"priority_4": 5,  // High-volume background tasks
-				"priority_5": 1,  // Reserved / bulk tasks
-			},
+			Concurrency:     concurrency,
+			ShutdownTimeout: DrainTimeout,
+			Queues:          pollWeights,
 			// An ESI refusal carries when to come back, so it sets the delay;
 			// anything else backs off exponentially. Both are spread so replicas
 			// that failed together do not return together.
@@ -113,11 +133,10 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 		},
 	)
 
-	// Create mux for routing tasks to handlers
 	mux := asynq.NewServeMux()
-
-	// Set up handlers via callback function
-	handlerFunc(mux)
+	if err := handlerFunc(mux); err != nil {
+		return nil, err
+	}
 
 	// Start server in background
 	go func() {
@@ -129,15 +148,13 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 
 	logs.DebugCtx(context.Background(), "asynq server started",
 		"concurrency", concurrency,
-		"queues", map[string]int{
-			"priority_1": 20,
-			"priority_2": 15,
-			"priority_3": 10,
-			"priority_4": 5,
-			"priority_5": 1,
-		})
+		"queues", pollWeights)
 
 	cleanup := func(ctx context.Context) {
+		// Stop before Shutdown: Stop ends the fetch loop, so the drain that
+		// follows is finite work rather than a race with a queue still handing out
+		// tasks. Shutdown alone would do both at once.
+		srv.Stop()
 		srv.Shutdown()
 		logs.InfoCtx(ctx, "asynq server shut down")
 	}
@@ -169,7 +186,7 @@ func spread(delay time.Duration, percent int, t *asynq.Task) time.Duration {
 // Returns a cleanup function for the server.
 func SetupServer(
 	redisOpt asynq.RedisClientOpt,
-	deps WorkerDependencies,
+	taskDeps *taskrun.Dependencies,
 ) (func(context.Context), error) {
 	// Per-process concurrency: default/cap 50 (#7). Operator YAML field is
 	// services.worker.concurrency (#19); until make swarm-sync, WORKER_ASYNQ_CONCURRENCY is the bridge.
@@ -177,8 +194,8 @@ func SetupServer(
 		RedisOpt:    redisOpt,
 		Concurrency: ConcurrencyFromEnv(),
 	}
-	cleanup, err := setupServer(serverConfig, func(mux *asynq.ServeMux) {
-		SetupHandlers(mux, deps)
+	cleanup, err := setupServer(serverConfig, func(mux *asynq.ServeMux) error {
+		return SetupHandlers(mux, taskDeps)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup asynq server: %w", err)

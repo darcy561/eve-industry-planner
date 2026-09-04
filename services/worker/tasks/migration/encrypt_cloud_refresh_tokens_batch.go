@@ -11,31 +11,19 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // EncryptCloudRefreshTokensBatch encrypts legacy plaintext `refreshTokens[].rToken` rows
 // for one account that has cloud storage enabled. Intended for fan-out backfill (asynq).
-func EncryptCloudRefreshTokensBatch(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func EncryptCloudRefreshTokensBatch(ctx context.Context, p eipnats.EncryptCloudRefreshTokensRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 
-	var p eipnats.EncryptCloudRefreshTokensRequest
-	if len(task.Payload()) > 0 {
-		payload, err := esitasks.UnmarshalTaskPayload[eipnats.EncryptCloudRefreshTokensRequest](task)
-		if err != nil {
-			return fmt.Errorf("invalid payload: %w", err)
-		}
-		p = payload
-	}
 	p.AccountID = strings.TrimSpace(p.AccountID)
 	if p.AccountID == "" {
 		return fmt.Errorf("account_id is required")

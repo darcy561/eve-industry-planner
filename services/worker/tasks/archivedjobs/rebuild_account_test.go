@@ -2,15 +2,13 @@ package archivedjobs
 
 import (
 	"encoding/json"
-	eipnats "eve-industry-planner/shared/nats"
-	"github.com/hibiken/asynq"
 	"slices"
 	"testing"
 	"time"
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 )
 
 func TestRebuildAccountStatisticsRequiresHandleAndAccount(t *testing.T) {
@@ -101,48 +99,11 @@ func TestNoJobsKeepsNothing(t *testing.T) {
 func TestDrainAccountStatsRebuildQueueTaskRequiresDependencies(t *testing.T) {
 	t.Parallel()
 
-	if err := DrainAccountStatsRebuildQueue(t.Context(), nil, nil); err == nil {
+	if err := DrainAccountStatsRebuildQueue(t.Context(), nil); err == nil {
 		t.Fatal("expected an error without task dependencies")
 	}
-	if err := DrainAccountStatsRebuildQueue(t.Context(), nil, &esitasks.TaskDependencies{}); err == nil {
+	if err := DrainAccountStatsRebuildQueue(t.Context(), &taskrun.Dependencies{}); err == nil {
 		t.Fatal("expected an error without a mongo client")
-	}
-}
-
-// The payload travels inside the task envelope, so a handler reading the raw
-// bytes sees the wrapper rather than its own fields — and an owner decoded as
-// empty fails validation with a message that says nothing about why.
-func TestRebuildOwnerPayloadDecodesThroughTheEnvelope(t *testing.T) {
-	t.Parallel()
-
-	want := eipnats.RebuildOwnerStatisticsRequest{
-		OwnerKind: string(models.StatsOwnerAccount),
-		OwnerID:   "acct-1",
-		Claim:     7,
-	}
-	inner, err := json.Marshal(eipnats.TaskMessage{
-		TaskType: eipnats.RebuildOwnerStatistics.Name,
-		Data:     mustJSON(t, want),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	envelope, err := json.Marshal(struct {
-		TaskType string          `json:"task_type"`
-		Data     json.RawMessage `json:"data"`
-	}{TaskType: eipnats.RebuildOwnerStatistics.Name, Data: inner})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := esitasks.UnmarshalTaskPayload[eipnats.RebuildOwnerStatisticsRequest](
-		asynq.NewTask(eipnats.RebuildOwnerStatistics.Name, envelope),
-	)
-	if err != nil {
-		t.Fatalf("UnmarshalTaskPayload: %v", err)
-	}
-	if got != want {
-		t.Fatalf("decoded %+v, want %+v", got, want)
 	}
 }
 

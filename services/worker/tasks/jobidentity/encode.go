@@ -14,26 +14,17 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/protectedfields"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
 // EncodeJobIdentity converts one account's job documents onto the current field
 // set. Re-running is safe: conversion is idempotent and a document already on the
 // current spec with no raw ids is not selected.
-func EncodeJobIdentity(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func EncodeJobIdentity(ctx context.Context, payload eipnats.EncodeJobIdentityRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 
-	payload, err := esitasks.UnmarshalTaskPayload[eipnats.EncodeJobIdentityRequest](task)
-	if err != nil {
-		return fmt.Errorf("invalid payload: %w", err)
-	}
 	payload.AccountID = strings.TrimSpace(payload.AccountID)
 	payload.Collection = strings.TrimSpace(payload.Collection)
 	if payload.AccountID == "" {

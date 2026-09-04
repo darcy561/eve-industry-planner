@@ -55,29 +55,6 @@ func LogContextFromContext(ctx context.Context) map[string]string {
 	return m
 }
 
-// MergeLogContextIntoHeaders fills missing log-context headers from envelope or explicit values.
-func MergeLogContextIntoHeaders(headers map[string]string, requestID, accountID, sessionID string) map[string]string {
-	if requestID == "" && accountID == "" && sessionID == "" {
-		return headers
-	}
-	if headers == nil {
-		headers = make(map[string]string)
-	}
-	setIfMissing := func(key, value string) {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			return
-		}
-		if _, ok := headers[key]; !ok {
-			headers[key] = value
-		}
-	}
-	setIfMissing(HeaderRequestID, requestID)
-	setIfMissing(HeaderLogAccountID, accountID)
-	setIfMissing(HeaderLogSessionID, sessionID)
-	return headers
-}
-
 func logContextFromHeaders(h natslib.Header) (requestID, accountID, sessionID string) {
 	if len(h) == 0 {
 		return "", "", ""

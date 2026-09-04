@@ -5,10 +5,10 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 )
 
-func pushCoreSDEBuildUpdate(ctx context.Context, deps *esitasks.TaskDependencies, build int, version string) {
+func pushCoreSDEBuildUpdate(ctx context.Context, deps *taskrun.Dependencies, build int, version string) {
 	if deps == nil || deps.NATS == nil || build <= 0 {
 		return
 	}

@@ -7,14 +7,14 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	eipmongo "eve-industry-planner/shared/mongo"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 )
 
 const blueprintsBulkWriteBatchSize = 500
 
 // runSDEBlueprintsMongoStageAsync saves recipeList docs into Mongo in a separate goroutine.
 // Each recipe is upserted into the "blueprints" collection with _id=itemID.
-func runSDEBlueprintsMongoStageAsync(_ context.Context, conversionResult *sdeConversionResult, deps *esitasks.TaskDependencies) {
+func runSDEBlueprintsMongoStageAsync(_ context.Context, conversionResult *sdeConversionResult, deps *taskrun.Dependencies) {
 	if deps == nil || deps.Mongo == nil || conversionResult == nil || len(conversionResult.RecipeList) == 0 {
 		return
 	}

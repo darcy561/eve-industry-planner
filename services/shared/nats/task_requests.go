@@ -11,7 +11,6 @@ import (
 
 // RegionMarketOrdersRequest represents the JSON data payload for a region market orders refresh task.
 // One request covers every order in the region, so no type filter is carried.
-// The JSON representation of this struct is embedded in TaskMessage.Data.
 type RegionMarketOrdersRequest struct {
 	RegionID  int32 `json:"region_id"`  // Region ID for the market endpoint
 	StationID int64 `json:"station_id"` // Station ID to filter orders (matches order.LocationID)
@@ -25,7 +24,6 @@ type SDEApplyVersionRequest struct {
 
 // AccountSessionGrantsRequest is the worker payload for resolving corporation and alliance IDs
 // from ESI character affiliation using the supplied EVE SSO access tokens.
-// Embedded in TaskMessage.Data when publishing task.auth.updateAccountSessionGrants.
 type AccountSessionGrantsRequest struct {
 	AccountID string   `json:"account_id"`
 	Tokens    []string `json:"tokens"` // EVE SSO JWT access tokens (one per character)

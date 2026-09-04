@@ -78,3 +78,34 @@ func definitionVarName(source, taskName string) string {
 	}
 	return m[1]
 }
+
+// A subject is a task's identity on the wire, so the worker resolves it by
+// lookup rather than by reading the last segment. Anything the registry does not
+// claim names no task, and is refused rather than run on guessed settings.
+func TestTaskBySubjectResolvesEveryTask(t *testing.T) {
+	for _, d := range Tasks() {
+		got, ok := TaskBySubject(d.Subject)
+		if !ok {
+			t.Errorf("%s: subject %q resolves to no task", d.Name, d.Subject)
+			continue
+		}
+		if got.Name != d.Name {
+			t.Errorf("subject %q resolves to %s, want %s", d.Subject, got.Name, d.Name)
+		}
+	}
+}
+
+func TestTaskBySubjectRefusesWhatItDoesNotKnow(t *testing.T) {
+	for _, subject := range []string{
+		"",
+		"task.",
+		"task.migration.somethingRetired",
+		// A real task's name on a subject it does not live on: reading the last
+		// segment would have accepted this one.
+		"task.wrongarea." + RefreshRegionMarketOrders.Name,
+	} {
+		if got, ok := TaskBySubject(subject); ok {
+			t.Errorf("subject %q resolved to %s", subject, got.Name)
+		}
+	}
+}
