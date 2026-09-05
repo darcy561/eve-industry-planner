@@ -315,7 +315,7 @@ to fill the database.
 | Surface | Today | After |
 |---------|-------|-------|
 | `models.MetaData` | **done** — one `Owner` block; scope fields gone | — |
-| `jobs` indexes | **none declared** — two callers filter it on the owner and would collection-scan once it holds documents | an owner-led spec, like every other scoped collection |
+| `jobs` | **not built** — the collection layout below splits a job's record from its body, but neither live nor dev holds a `jobs` collection and nothing writes one. Every job lives in `job_documents` | the split performed, `jobs` populated, and an owner-led index spec — it has none |
 | Websocket delivery branch | account, corporation and alliance owners deliver; a `planner` owner has no branch and is logged | a planner branch, so a planner's documents reach its members |
 | Changestream routing | reads named `_meta` scope fields | reads `_meta.owner` generically |
 | `models.ArchivedJobStats` | **done** — carries a root `Owner` | — |
@@ -415,8 +415,21 @@ which is logarithmic — one extra level of page reads between a hundred thousan
 hundred million. What costs real time is scanning documents that are then discarded, and an owner-led
 index never does it.
 
-`jobs` is already a collection holding every account's jobs. This design does not introduce
-multi-tenant storage; it generalises who the tenant is.
+`job_documents` already holds every account's jobs in one collection. This design does not introduce
+multi-tenant storage; it generalises who the tenant is. (`jobs` appears in the layout below and in
+`knownCollections`, but no environment holds it and nothing writes one — see § What each surface owes.)
+
+**Two callers already read `jobs`, and get nothing.** `websocket/sync`'s `QueryAllJobsForAccount` reads
+it for the planner sync and the worker's inactive-account cleanup deletes from it. Neither errors: the
+sync guards on `len(allJobs) > 0` and omits the key, and the cleanup's earlier delete against
+`job_documents` has already done the work. So the sync payload silently carries no jobs — which no user
+sees, because the SPA fetches them over REST from `GET /api/v1/job-documents/planner`, and that reads
+the right collection.
+
+That is a defect today rather than something the split introduces, and it is worth settling before the
+split: whichever collection ends up holding a job's record, both callers must name it, and a query that
+returns empty because it is pointed at an unbuilt collection is indistinguishable from an account with
+no jobs.
 
 A per-kind split would also miss its target. Account-kind documents are the overwhelming majority, so
 splitting the other three kinds out shrinks the small collections and leaves the large one untouched.
