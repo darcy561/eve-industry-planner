@@ -9,6 +9,7 @@ import (
 	"eve-industry-planner/shared/lifecycle"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
+	"eve-industry-planner/shared/telemetry/wsroutermetrics"
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -94,8 +95,11 @@ func (a *app) startHTTP(context.Context) error {
 		place: a.place,
 	}
 
+	if err := wsroutermetrics.Register(srv.snapshot); err != nil {
+		return a.fail(err)
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/metrics", srv.handleMetrics)
 	mux.HandleFunc("/", srv.handleProxy)
 
 	httpRunner, err := lifecycle.HTTPServer("ws-router-http", &http.Server{

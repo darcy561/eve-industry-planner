@@ -10,6 +10,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/metric"
+
+	"eve-industry-planner/shared/telemetry"
 )
 
 const (
@@ -61,7 +63,7 @@ func RegisterAuthSessionDistinctGauges(rdb *redis.Client) {
 		if rdb == nil {
 			return
 		}
-		m := apiMeter()
+		m := telemetry.Meter("api")
 		g24, err := m.Float64ObservableGauge("api.auth_sessions.distinct_accounts_last_24h",
 			metric.WithUnit("{accounts}"),
 			metric.WithDescription("Approximate distinct account IDs that started auth sessions in the rolling prior 24 UTC hours (Redis HLL merge)."),

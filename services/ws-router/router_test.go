@@ -193,12 +193,15 @@ func TestResolveBackendPlaceHitAndMiss(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req.AddCookie(&http.Cookie{Name: wsplacement.AffinityCookie, Value: "alliance:9"})
-	id, setSticky, err := r.resolveBackend(req.Context(), req)
+	id, setSticky, result, err := r.resolveBackend(req.Context(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if setSticky {
 		t.Fatal("place path should not set sticky")
+	}
+	if result != "miss" {
+		t.Fatalf("result=%q want miss", result)
 	}
 	if id != "bbb222222222" {
 		t.Fatalf("miss pick want lowest clients, got %s", id)
@@ -212,12 +215,15 @@ func TestResolveBackendPlaceHitAndMiss(t *testing.T) {
 
 	req2 := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req2.AddCookie(&http.Cookie{Name: wsplacement.AffinityCookie, Value: "alliance:9"})
-	id2, _, err := r.resolveBackend(req2.Context(), req2)
+	id2, _, result2, err := r.resolveBackend(req2.Context(), req2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if id2 != "bbb222222222" {
 		t.Fatalf("hit got %s", id2)
+	}
+	if result2 != "hit" {
+		t.Fatalf("result=%q want hit", result2)
 	}
 	if r.placeHit.Load() != 1 {
 		t.Fatalf("hit=%d", r.placeHit.Load())
@@ -241,7 +247,7 @@ func TestResolveBackendReassignsFullHome(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req.AddCookie(&http.Cookie{Name: wsplacement.AffinityCookie, Value: "account:1"})
-	id, _, err := r.resolveBackend(req.Context(), req)
+	id, _, _, err := r.resolveBackend(req.Context(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,12 +276,15 @@ func TestResolveBackendReassignsDrainingHome(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req.AddCookie(&http.Cookie{Name: wsplacement.AffinityCookie, Value: "account:2"})
-	id, _, err := r.resolveBackend(req.Context(), req)
+	id, _, result, err := r.resolveBackend(req.Context(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if id != "bbb222222222" {
 		t.Fatalf("got %s", id)
+	}
+	if result != "reassigned" {
+		t.Fatalf("result=%q want reassigned", result)
 	}
 	if r.placeReassign.Load() != 1 || r.placeDrain.Load() != 1 {
 		t.Fatalf("reassign=%d drain=%d", r.placeReassign.Load(), r.placeDrain.Load())

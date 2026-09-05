@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/websocket/server/doclocklogic"
 
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -16,7 +16,7 @@ type wsMessageIDKey struct{}
 
 const wsTracerName = "eve-industry-planner/websocket"
 
-var wsTracer = otel.Tracer(wsTracerName)
+var wsTracer = telemetry.Tracer("websocket")
 
 func wsMessageIDFromContext(ctx context.Context) string {
 	if ctx == nil {

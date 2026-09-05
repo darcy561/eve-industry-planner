@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
 
+	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
 
@@ -58,7 +58,7 @@ func (p *placementStore) applyMsg(msg *natslib.Msg) {
 	}
 	state, err := eipnats.ParsePlacementState(msg.Data)
 	if err != nil {
-		log.Printf("placement nats parse: %v", err)
+		logs.WarnCtx(context.Background(), "ws-router: placement state parse failed", "error", err)
 		return
 	}
 	p.applyState(state)
@@ -167,12 +167,12 @@ func (p *placementStore) reconcileStatuses(ctx context.Context, cfg config, http
 			defer wg.Done()
 			state, err := fetchPlacementStatus(ctx, httpClient, cfg.BackendPort, be)
 			if err != nil {
-				log.Printf("placement status reconcile container_id=%s: %v", be.ContainerID, err)
+				logs.WarnCtx(ctx, "ws-router: placement status reconcile failed", "container_id", be.ContainerID, "error", err)
 				ch <- result{}
 				return
 			}
 			if cid := strings.TrimSpace(state.ContainerID); cid != "" && cid != be.ContainerID {
-				log.Printf("placement status container_id mismatch discovery=%s body=%s", be.ContainerID, cid)
+				logs.WarnCtx(ctx, "ws-router: placement status container_id mismatch", "discovery_container_id", be.ContainerID, "body_container_id", cid)
 			}
 			ch <- result{id: be.ContainerID, state: state, ok: true}
 		}(be)

@@ -6,13 +6,25 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
-// DebugStepsLogKey is the structured field name on consolidated access logs (stripped in Alloy when not debugging).
+// DebugStepsLogKey is the structured field name on consolidated access logs.
 const DebugStepsLogKey = "debug_steps"
 
 // MaxDebugSteps caps how many steps are retained per operation (HTTP request, job, etc.).
 const MaxDebugSteps = 50
+
+// DebugStepsField returns the debug_steps field for an access log line, and [zap.Skip] unless
+// LOG_LEVEL is debug. Steps are collected regardless so that raising the level needs no code path
+// of its own; only the emitted line changes.
+func DebugStepsField(steps []DebugStep) zap.Field {
+	if len(steps) == 0 || !debugLevelEnabled() {
+		return zap.Skip()
+	}
+	return zap.Any(DebugStepsLogKey, DebugStepsForLog(steps))
+}
 
 // DebugStep is one diagnostic step collected during an operation for deferred logging on the outcome line.
 type DebugStep struct {

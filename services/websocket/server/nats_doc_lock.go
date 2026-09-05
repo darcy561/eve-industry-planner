@@ -28,7 +28,7 @@ func (s *Server) subscribeToDocLockNotifications() {
 
 	docLockDurable, consumerConfig := natslogic.DocLockConsumerConfig()
 
-	processor := eipnats.Handle("eve-industry-planner/websocket/nats", "nats.doc_lock_notification",
+	processor := eipnats.Handle("websocket/nats", "nats.doc_lock_notification",
 		func(ctx context.Context, msg jetstream.Msg) error {
 			subject := msg.Subject()
 			accountID, err := eipnats.ExtractIDFromSubject(subject, eipnats.SubjectDocLock)

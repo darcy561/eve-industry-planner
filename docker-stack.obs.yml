@@ -16,6 +16,14 @@ x-common-dns: &common-dns
   - 8.8.4.4
   - 1.1.1.1
 
+# Stdout is the only copy of a container's logs when the observability addon is off, so every
+# service rotates. Uniform on purpose: a service that outgrows this is a logging bug, not a tuning one.
+x-log-rotate: &log-rotate
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 x-obs-deploy: &obs-deploy
   replicas: 1
   update_config:
@@ -34,6 +42,7 @@ services:
   # Metrics TSDB — observability addon only (capacity controller does not query Prom).
   prometheus:
     image: prom/prometheus:v3.2.1
+    logging: *log-rotate
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -63,6 +72,7 @@ services:
 
   loki:
     image: grafana/loki:3.7.2
+    logging: *log-rotate
     command: ["-config.file=/etc/loki/config.yaml"]
     networks:
       eip-obs:
@@ -80,37 +90,49 @@ services:
 
   alloy-docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.4.2
+    logging: *log-rotate
     networks: [eip-docker-alloy]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       CONTAINERS: "1"
+      # discovery.docker computes network labels, so removing NETWORKS silently empties the
+      # Docker log scrape: targets stop refreshing and Alloy still reports healthy.
+      NETWORKS: "1"
       EVENTS: "1"
       POST: "0"
     deploy:
       <<: *obs-deploy
 
   alloy:
-    image: grafana/alloy:v1.16.1
+    image: grafana/alloy:v1.19.2
+    logging: *log-rotate
     command:
       - run
       - /etc/alloy/config.alloy
       - --storage.path=/var/lib/alloy
       - --server.http.listen-addr=0.0.0.0:12345
       - --stability.level=experimental
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      MONGO_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     networks:
       eip-obs:
         aliases: [alloy]
       eip-core: {}
       eip-docker-alloy: {}
     dns: *common-dns
-    environment:
-      LOG_LEVEL: ${LOG_LEVEL:-info}
     configs:
       - source: alloy_config
         target: /etc/alloy/config.alloy
     volumes:
       - alloy_data:/var/lib/alloy
+      # Host rootfs for prometheus.exporter.unix; also where its procfs/sysfs paths resolve.
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
     deploy:
       <<: *obs-deploy
       labels:
@@ -118,6 +140,7 @@ services:
 
   grafana:
     image: grafana/grafana:13.0.1
+    logging: *log-rotate
     networks:
       eip-obs:
         aliases: [grafana]
@@ -198,6 +221,7 @@ services:
 
   asynqmon:
     image: hibiken/asynqmon:latest
+    logging: *log-rotate
     command:
       - "--redis-addr=redis:6379"
       - "--redis-password=${REDIS_PASSWORD}"
@@ -214,6 +238,7 @@ services:
 
   nats-exporter:
     image: natsio/prometheus-nats-exporter:0.20.1
+    logging: *log-rotate
     command:
       [
         "-varz",
@@ -229,59 +254,6 @@ services:
         aliases: [nats-exporter]
       eip-core: {}
     dns: *common-dns
-    deploy:
-      <<: *obs-deploy
-
-  redis-exporter:
-    image: oliver006/redis_exporter:v1.87.0
-    networks:
-      eip-obs:
-        aliases: [redis-exporter]
-      eip-core: {}
-    dns: *common-dns
-    environment:
-      REDIS_ADDR: redis://redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-    deploy:
-      <<: *obs-deploy
-
-  mongodb-exporter:
-    image: percona/mongodb_exporter:0.51.0
-    command:
-      [
-        "--collect-all",
-        "--compatible-mode",
-        "--no-mongodb.direct-connect",
-        "--web.listen-address=:9216",
-      ]
-    networks:
-      eip-obs:
-        aliases: [mongodb-exporter]
-      eip-core: {}
-    dns: *common-dns
-    environment:
-      MONGODB_USER: ${MONGO_ROOT_USERNAME}
-      MONGODB_PASSWORD: ${MONGO_ROOT_PASSWORD}
-      MONGODB_URI: mongodb://mongo:27017/admin?authSource=admin&replicaSet=rs0
-    deploy:
-      <<: *obs-deploy
-
-  node_exporter:
-    image: prom/node-exporter:latest
-    command:
-      - --path.rootfs=/host
-      - --no-collector.kernel_hung
-    networks:
-      eip-obs:
-        aliases: [node-exporter, node_exporter]
-      eip-core: {}
-    dns: *common-dns
-    pid: host
-    volumes:
-      - type: bind
-        source: /
-        target: /host
-        read_only: true
     deploy:
       <<: *obs-deploy
 

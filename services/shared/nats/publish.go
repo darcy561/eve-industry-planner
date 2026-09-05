@@ -8,9 +8,10 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/natsprop"
 
+	"eve-industry-planner/shared/telemetry"
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"go.opentelemetry.io/otel"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -137,7 +138,7 @@ func payloadSpanAttrs(payload any) []attribute.KeyValue {
 
 // startPublishTaskSpan starts a producer span for a JetStream task publish.
 func startPublishTaskSpan(ctx context.Context, subject, taskType string, taskDataAttrs []attribute.KeyValue) (context.Context, trace.Span) {
-	tracer := otel.Tracer(otelTracerNameNATS)
+	tracer := telemetry.Tracer("shared/nats")
 	opts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(

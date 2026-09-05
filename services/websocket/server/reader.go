@@ -33,8 +33,7 @@ func isBenignWebSocketDisconnect(err error) bool {
 	if err == nil {
 		return false
 	}
-	var ce *websocket.CloseError
-	if errors.As(err, &ce) {
+	if ce, ok := errors.AsType[*websocket.CloseError](err); ok {
 		switch ce.Code {
 		case websocket.CloseNormalClosure,
 			websocket.CloseGoingAway,

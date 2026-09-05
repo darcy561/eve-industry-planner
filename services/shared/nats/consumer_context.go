@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/shared/telemetry/natsprop"
 
 	"github.com/nats-io/nats.go/jetstream"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -21,7 +21,7 @@ import (
 // how to correlate it.
 func BeginConsumerContext(
 	parent context.Context,
-	tracerName, spanName string,
+	component, spanName string,
 	msg jetstream.Msg,
 ) (context.Context, func()) {
 	ctx := parent
@@ -42,7 +42,7 @@ func BeginConsumerContext(
 	}
 	deliveryCount, sequence := GetMessageMetadata(msg)
 
-	tracer := otel.Tracer(tracerName)
+	tracer := telemetry.Tracer(component)
 	attrs := []attribute.KeyValue{
 		attribute.String("messaging.system", "nats"),
 	}

@@ -3,14 +3,24 @@ package main
 import (
 	"context"
 	"errors"
-	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync/atomic"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
+
+	"eve-industry-planner/shared/telemetry/wsroutermetrics"
+	"go.opentelemetry.io/otel"
 )
+
+var routerTracer = telemetry.Tracer("ws-router")
 
 type Router struct {
 	cfg   config
@@ -28,41 +38,19 @@ type Router struct {
 	proxyErr      atomic.Uint64
 }
 
-func (r *Router) handleMetrics(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	_, _ = io.WriteString(w, "# HELP eip_ws_router_upgrades_total WebSocket upgrade attempts\n")
-	_, _ = io.WriteString(w, "# TYPE eip_ws_router_upgrades_total counter\n")
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_upgrades_total", r.upgrades.Load()))
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_placement_hit_total", r.placeHit.Load()))
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_placement_miss_total", r.placeMiss.Load()))
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_placement_reassign_total", r.placeReassign.Load()))
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_placement_full_skip_total", r.placeFull.Load()))
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_placement_drain_skip_total", r.placeDrain.Load()))
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_sticky_fallback_total", r.stickyFB.Load()))
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_proxy_error_total", r.proxyErr.Load()))
-	_, _ = io.WriteString(w, "# TYPE eip_ws_router_active_proxies gauge\n")
-	_, _ = io.WriteString(w, metricLine("eip_ws_router_active_proxies", uint64(r.activeProxies.Load())))
-	_, _ = io.WriteString(w, "# HELP ws_router_containers Running websocket containers known to the placement registry\n")
-	_, _ = io.WriteString(w, "# TYPE ws_router_containers gauge\n")
-	_, _ = io.WriteString(w, metricLine("ws_router_containers", uint64(r.be.count())))
-}
-
-func metricLine(name string, v uint64) string {
-	return name + " " + itoa(v) + "\n"
-}
-
-func itoa(v uint64) string {
-	if v == 0 {
-		return "0"
+// snapshot reads the running totals for [wsroutermetrics.Register].
+func (r *Router) snapshot() wsroutermetrics.Placement {
+	return wsroutermetrics.Placement{
+		Upgrades:        r.upgrades.Load(),
+		Hits:            r.placeHit.Load(),
+		Misses:          r.placeMiss.Load(),
+		Reassignments:   r.placeReassign.Load(),
+		StickyFallbacks: r.stickyFB.Load(),
+		SkippedFull:     r.placeFull.Load(),
+		SkippedDraining: r.placeDrain.Load(),
+		ProxyErrors:     r.proxyErr.Load(),
+		ActiveProxies:   r.activeProxies.Load(),
 	}
-	var b [20]byte
-	i := len(b)
-	for v > 0 {
-		i--
-		b[i] = byte('0' + v%10)
-		v /= 10
-	}
-	return string(b[i:])
 }
 
 func (r *Router) handleProxy(w http.ResponseWriter, req *http.Request) {
@@ -71,13 +59,24 @@ func (r *Router) handleProxy(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	r.upgrades.Add(1)
-	ctx := req.Context()
-	id, setSticky, err := r.resolveBackend(ctx, req)
+	// Continue whatever trace reached the edge: Traefik and the browser both propagate W3C
+	// traceparent, and the span ends at the upgrade rather than covering the connection's life.
+	ctx := otel.GetTextMapPropagator().Extract(req.Context(), propagation.HeaderCarrier(req.Header))
+	ctx, span := routerTracer.Start(ctx, req.Method+" /ws", trace.WithSpanKind(trace.SpanKindServer))
+	defer span.End()
+	req = req.WithContext(ctx)
+
+	id, setSticky, result, err := r.resolveBackend(ctx, req)
+	span.SetAttributes(
+		attribute.String("wsrouter.placement.result", result),
+		attribute.Bool("wsrouter.sticky.cookie_set", setSticky),
+	)
 	if err != nil {
 		r.proxyErr.Add(1)
 		http.Error(w, "no backend available", http.StatusBadGateway)
 		return
 	}
+	span.SetAttributes(attribute.String("wsrouter.backend.container_id", id))
 	be, ok := r.be.get(id)
 	if !ok {
 		r.proxyErr.Add(1)
@@ -99,17 +98,19 @@ func (r *Router) handleProxy(w http.ResponseWriter, req *http.Request) {
 	defer r.activeProxies.Add(-1)
 	if err := proxyWebSocketUpgrade(w, req, target); err != nil {
 		r.proxyErr.Add(1)
-		log.Printf("proxy error container_id=%s: %v", id, err)
+		logs.WarnCtx(req.Context(), "ws-router: proxy error", "container_id", id, "error", err)
 		if !errors.Is(err, errProxyClientWritten) {
 			http.Error(w, "backend proxy error", http.StatusBadGateway)
 		}
 	}
 }
 
-func (r *Router) resolveBackend(_ context.Context, req *http.Request) (id string, setSticky bool, err error) {
+// resolveBackend picks the backend for an upgrade and reports which path chose it, so the span
+// and the metrics agree on why a client landed where it did.
+func (r *Router) resolveBackend(_ context.Context, req *http.Request) (id string, setSticky bool, result string, err error) {
 	ready := r.be.sortedIDs()
 	if len(ready) == 0 {
-		return "", false, errors.New("no backends")
+		return "", false, "no_backends", errors.New("no backends")
 	}
 
 	full := r.place.loadFull(ready)
@@ -143,11 +144,12 @@ func (r *Router) resolveBackend(_ context.Context, req *http.Request) (id string
 	}
 
 	if aff != "" {
+		reassigned := false
 		if placed, ok := r.place.getPlace(aff); ok {
 			// Place hit sticks even when the home backend is soft.
 			if _, ok := preferredSet[placed]; ok {
 				r.placeHit.Add(1)
-				return placed, false, nil
+				return placed, false, "hit", nil
 			}
 			// Stale place (dead/full/draining/old bake) → reassign onto preferred.
 			if _, ok := eligibleSet[placed]; !ok {
@@ -159,25 +161,29 @@ func (r *Router) resolveBackend(_ context.Context, req *http.Request) (id string
 				}
 			}
 			r.placeReassign.Add(1)
+			reassigned = true
 		} else {
 			r.placeMiss.Add(1)
 		}
 		id = r.pickBackend(pickFrom)
 		if id == "" {
-			return "", false, errors.New("no backend pick")
+			return "", false, "no_pick", errors.New("no backend pick")
 		}
 		r.place.setPlace(aff, id)
-		return id, false, nil
+		if reassigned {
+			return id, false, "reassigned", nil
+		}
+		return id, false, "miss", nil
 	}
 	return r.stickyFallback(req, preferred, preferredSet, pickFrom)
 }
 
-func (r *Router) stickyFallback(req *http.Request, preferred []string, preferredSet map[string]struct{}, pickFrom []string) (string, bool, error) {
+func (r *Router) stickyFallback(req *http.Request, preferred []string, preferredSet map[string]struct{}, pickFrom []string) (string, bool, string, error) {
 	r.stickyFB.Add(1)
 	if c, err := req.Cookie(r.cfg.StickyCookie); err == nil && c != nil {
 		v := strings.TrimSpace(c.Value)
 		if _, ok := preferredSet[v]; ok {
-			return v, false, nil
+			return v, false, "sticky_cookie", nil
 		}
 	}
 	if len(pickFrom) == 0 {
@@ -185,9 +191,9 @@ func (r *Router) stickyFallback(req *http.Request, preferred []string, preferred
 	}
 	id := r.pickBackend(pickFrom)
 	if id == "" {
-		return "", false, errors.New("no backend pick")
+		return "", false, "no_pick", errors.New("no backend pick")
 	}
-	return id, true, nil
+	return id, true, "sticky_new", nil
 }
 
 // pickBackend chooses the backend with the lowest live client count among ready.

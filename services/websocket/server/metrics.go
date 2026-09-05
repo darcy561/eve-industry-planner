@@ -6,15 +6,12 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
+	"eve-industry-planner/websocket/server/config"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
-
-var websocketMeter = sync.OnceValue(func() metric.Meter {
-	return otel.Meter("eve-industry-planner/websocket")
-})
 
 type websocketMetrics struct {
 	upgradeDurationMs      metric.Float64Histogram
@@ -33,28 +30,28 @@ var (
 
 func getWebsocketMetrics() *websocketMetrics {
 	websocketMetricsOnce.Do(func() {
-		m := websocketMeter()
+		m := telemetry.Meter("websocket")
 		websocketMetricsInst = &websocketMetrics{
-			upgradeDurationMs: mustWSHist(m.Float64Histogram("ws.upgrade.duration_milliseconds",
+			upgradeDurationMs: telemetry.Must(m.Float64Histogram("ws.upgrade.duration_milliseconds",
 				metric.WithUnit("ms"),
 				metric.WithDescription("Latency of websocket upgrade requests in milliseconds."),
 			)),
-			upgradeRequestsTotal: mustWSCounter(m.Int64Counter("ws.upgrade.requests_total",
+			upgradeRequestsTotal: telemetry.Must(m.Int64Counter("ws.upgrade.requests_total",
 				metric.WithDescription("Total websocket upgrade requests."),
 			)),
-			upgradeSuccessesTotal: mustWSCounter(m.Int64Counter("ws.upgrade.successes_total",
+			upgradeSuccessesTotal: telemetry.Must(m.Int64Counter("ws.upgrade.successes_total",
 				metric.WithDescription("Successful websocket upgrades."),
 			)),
-			upgradeErrorsTotal: mustWSCounter(m.Int64Counter("ws.upgrade.errors_total",
+			upgradeErrorsTotal: telemetry.Must(m.Int64Counter("ws.upgrade.errors_total",
 				metric.WithDescription("Websocket upgrade errors by reason."),
 			)),
-			connectionsOpenedTotal: mustWSCounter(m.Int64Counter("ws.connections.opened_total",
+			connectionsOpenedTotal: telemetry.Must(m.Int64Counter("ws.connections.opened_total",
 				metric.WithDescription("Websocket connections opened by account."),
 			)),
-			connectionsClosedTotal: mustWSCounter(m.Int64Counter("ws.connections.closed_total",
+			connectionsClosedTotal: telemetry.Must(m.Int64Counter("ws.connections.closed_total",
 				metric.WithDescription("Websocket connections closed by account."),
 			)),
-			docUpdatesSentTotal: mustWSCounter(m.Int64Counter("ws.document_updates.sent_total",
+			docUpdatesSentTotal: telemetry.Must(m.Int64Counter("ws.document_updates.sent_total",
 				metric.WithDescription("Document updates sent to websocket clients by account/document."),
 			)),
 		}
@@ -62,70 +59,78 @@ func getWebsocketMetrics() *websocketMetrics {
 	return websocketMetricsInst
 }
 
-func mustWSCounter(c metric.Int64Counter, err error) metric.Int64Counter {
-	if err != nil {
-		panic("wsmetrics: Int64Counter: " + err.Error())
-	}
-	return c
-}
-
-func mustWSHist(h metric.Float64Histogram, err error) metric.Float64Histogram {
-	if err != nil {
-		panic("wsmetrics: Float64Histogram: " + err.Error())
-	}
-	return h
-}
-
 func (s *Server) initMetrics() {
 	s.metrics = getWebsocketMetrics()
 	s.registerGaugeCallbacks()
+	s.registerPlacementGauges()
+}
+
+// registerPlacementGauges reports the load state the routers place clients from: the flags a
+// backend advertises, and the thresholds those flags are derived against. Without the thresholds a
+// client count says nothing about headroom, since they are per-deployment environment values.
+func (s *Server) registerPlacementGauges() {
+	m := telemetry.Meter("websocket")
+
+	flag := telemetry.Must(m.Int64ObservableGauge("ws.placement.flag",
+		metric.WithDescription("Load-management flags this backend advertises, 1 when set: draining (stopping or kicking), cordoned (accepting no new homes), soft (past target clients), full (past the cutoff)."),
+	))
+	targetClients := telemetry.Must(m.Int64ObservableGauge("ws.placement.target_clients",
+		metric.WithUnit("{clients}"),
+		metric.WithDescription("Client count above which this backend reports soft."),
+	))
+	clientCutoff := telemetry.Must(m.Int64ObservableGauge("ws.placement.client_cutoff",
+		metric.WithUnit("{clients}"),
+		metric.WithDescription("Client count above which this backend reports full and routers stop placing on it."),
+	))
+
+	_, err := m.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		state := s.CurrentPlacementSnapshot()
+		for name, set := range map[string]bool{
+			"draining": s.IsDraining(),
+			"cordoned": s.IsCordoned(),
+			"soft":     state.Soft,
+			"full":     state.Full,
+		} {
+			var v int64
+			if set {
+				v = 1
+			}
+			o.ObserveInt64(flag, v, metric.WithAttributes(attribute.String("flag", name)))
+		}
+		o.ObserveInt64(targetClients, int64(config.TargetClients()))
+		o.ObserveInt64(clientCutoff, int64(config.ClientCutoff()))
+		return nil
+	}, flag, targetClients, clientCutoff)
+	if err != nil {
+		logs.ErrorCtx(context.Background(), "wsmetrics: register placement gauge callback failed", "error", err)
+	}
 }
 
 func (s *Server) registerGaugeCallbacks() {
-	m := websocketMeter()
+	m := telemetry.Meter("websocket")
 
-	connectedClientsGauge, err := m.Int64ObservableGauge("ws.connected_clients",
+	connectedClientsGauge := telemetry.Must(m.Int64ObservableGauge("ws.connected_clients",
 		metric.WithUnit("{clients}"),
 		metric.WithDescription("Current number of connected websocket clients."),
-	)
-	if err != nil {
-		logs.ErrorCtx(context.Background(), "wsmetrics: connected_clients gauge create failed", "error", err)
-		return
-	}
-	connectedAccountsGauge, err := m.Int64ObservableGauge("ws.connected_accounts",
+	))
+	connectedAccountsGauge := telemetry.Must(m.Int64ObservableGauge("ws.connected_accounts",
 		metric.WithUnit("{accounts}"),
 		metric.WithDescription("Current number of accounts with at least one websocket client."),
-	)
-	if err != nil {
-		logs.ErrorCtx(context.Background(), "wsmetrics: connected_accounts gauge create failed", "error", err)
-		return
-	}
-	accountClientsGauge, err := m.Int64ObservableGauge("ws.account_connected_clients",
+	))
+	accountClientsGauge := telemetry.Must(m.Int64ObservableGauge("ws.account_connected_clients",
 		metric.WithUnit("{clients}"),
 		metric.WithDescription("Current connected websocket clients per account."),
-	)
-	if err != nil {
-		logs.ErrorCtx(context.Background(), "wsmetrics: account_connected_clients gauge create failed", "error", err)
-		return
-	}
-	clientDocsGauge, err := m.Int64ObservableGauge("ws.client_subscribed_documents",
+	))
+	clientDocsGauge := telemetry.Must(m.Int64ObservableGauge("ws.client_subscribed_documents",
 		metric.WithUnit("{documents}"),
 		metric.WithDescription("Current subscribed document count per client."),
-	)
-	if err != nil {
-		logs.ErrorCtx(context.Background(), "wsmetrics: client_subscribed_documents gauge create failed", "error", err)
-		return
-	}
-	docSubscribersGauge, err := m.Int64ObservableGauge("ws.document_subscribers",
+	))
+	docSubscribersGauge := telemetry.Must(m.Int64ObservableGauge("ws.document_subscribers",
 		metric.WithUnit("{clients}"),
 		metric.WithDescription("Current subscriber count per document."),
-	)
-	if err != nil {
-		logs.ErrorCtx(context.Background(), "wsmetrics: document_subscribers gauge create failed", "error", err)
-		return
-	}
+	))
 
-	_, err = m.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+	_, err := m.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
 		// Per-container split uses OTel resource service.instance.id (Prom:
 		// service_instance_id via Alloy resource_to_telemetry_conversion).
 
