@@ -1,5 +1,4 @@
 import { customStructureLocationMap } from "../Context/defaultValues";
-import uuid from "react-uuid";
 import GLOBAL_CONFIG from "../global-config-app";
 import DOMPurify from "dompurify";
 import coerceFiniteNumber from "../Functions/Helper/coerceFiniteNumber";
@@ -37,7 +36,7 @@ class CustomStructure {
       existingValue?.id ??
       `${
         customStructureLocationMap[existingValue?.jobType ?? jobType]
-      }-${uuid()}`;
+      }-${crypto.randomUUID()}`;
     this.jobType = existingValue?.jobType ?? jobType ?? 0;
     this.name = existingValue?.name ?? "";
     this.systemType = existingValue?.systemType ?? 0;

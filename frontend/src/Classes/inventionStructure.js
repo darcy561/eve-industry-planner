@@ -1,11 +1,10 @@
 import { jobTypes } from "../Context/defaultValues";
 import { customStructureLocationMap } from "../Context/defaultValues";
-import uuid from "react-uuid";
 import DOMPurify from "dompurify";
 
 export default class InventionStructure {
     constructor(existingValue) {
-        this.id = existingValue?.id ?? `${customStructureLocationMap[jobTypes.invention]}-${uuid()}`;
+        this.id = existingValue?.id ?? `${customStructureLocationMap[jobTypes.invention]}-${crypto.randomUUID()}`;
         this.jobType = jobTypes.invention;
         this.name = existingValue?.name ?? "";
         this.structureType = existingValue?.structureType ?? 0;

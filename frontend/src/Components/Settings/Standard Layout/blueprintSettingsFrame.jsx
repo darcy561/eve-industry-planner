@@ -14,7 +14,6 @@ import {
 } from "@mui/material";
 import { saveApplicationSettings } from "../../../Functions/Endpoints/Private/userDocument";
 import { blueprintOptions } from "../../../Context/defaultValues";
-import uuid from "react-uuid";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import { useCachedData } from "../../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../../Context/defaultValues";
@@ -70,7 +69,7 @@ function BlueprintSettingsFrame() {
               }}
             >
               {blueprintOptions.me.map((i) => (
-                <MenuItem key={uuid()} value={i.value}>
+                <MenuItem key={i.value} value={i.value}>
                   {i.label}
                 </MenuItem>
               ))}

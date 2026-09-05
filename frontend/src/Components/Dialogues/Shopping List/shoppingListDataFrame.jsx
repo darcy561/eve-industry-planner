@@ -1,7 +1,6 @@
 import { Typography, Grid } from "@mui/material";
 
 import { STANDARD_TEXT_FORMAT } from "../../../Context/defaultValues";
-import uuid from "react-uuid";
 import { ShoppingListItem_ShoppingListDialogue } from "./shoppingListItem";
 
 export function ListDataFrame_ShoppingListDialogue({

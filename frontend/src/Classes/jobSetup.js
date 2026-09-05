@@ -1,4 +1,3 @@
-import uuid from "react-uuid";
 import {
   requirements,
   systemStructureRequirements,
@@ -50,7 +49,7 @@ class Setup {
    * @param {boolean} [setupInstructions.useAlternativeSystemIndexValue] - Whether to use alternative index
    */
   constructor(setupInstructions) {
-    this.id = setupInstructions?.id || uuid();
+    this.id = setupInstructions?.id || crypto.randomUUID();
     this.runCount = setupInstructions?.runCount || 1;
     this.jobCount = setupInstructions?.jobCount || 1;
     this.ME = setupInstructions?.ME || 0;

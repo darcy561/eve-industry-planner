@@ -18,7 +18,6 @@ import {
   showSnackbarError,
 } from "../../../../../../Events/snackbarEvents";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import uuid from "react-uuid";
 import ExtrasCategoriesSelect from "../../../../../../Styled Components/Select/extrasCategories";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import DOMPurify from "dompurify";
@@ -64,7 +63,7 @@ export function ExtrasPanel({ state, actions }) {
 
     state.activeJob.addExtrasCost(
       new ExtraCost({
-        id: uuid(),
+        id: crypto.randomUUID(),
         category,
         categoryLabel: lookUpCategoryLabel(category),
         extraText: sanitizedText,

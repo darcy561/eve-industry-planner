@@ -11,7 +11,6 @@ import { AssetEntry_Selector } from "./displaySelector";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { useState } from "react";
-import uuid from "react-uuid";
 import GLOBAL_CONFIG from "../../../../../global-config-app";
 
 export function AssetEntry_Parent({
@@ -168,7 +167,7 @@ function ExpandedAssetDisplay({
       {matchedAssets.map((asset, index) => {
         return (
           <AssetEntry_Selector
-            key={uuid()}
+            key={asset.item_id}
             assetObject={asset}
             assetLocations={assetLocations}
             topLevelAssets={topLevelAssets}

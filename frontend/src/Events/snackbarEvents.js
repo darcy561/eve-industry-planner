@@ -1,4 +1,3 @@
-import uuid from "react-uuid";
 import { eventEmitter } from "../utils/EventSystem";
 
 /**
@@ -28,7 +27,7 @@ export function showSnackbar(
     anchorOrigin: { vertical: "bottom", horizontal: "center" },
     direction: "up",
     variant: "filled",
-    key: uuid(),
+    key: crypto.randomUUID(),
     action,
     ...extra,
   });
