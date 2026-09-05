@@ -315,7 +315,7 @@ to fill the database.
 | Surface | Today | After |
 |---------|-------|-------|
 | `models.MetaData` | **done** — one `Owner` block; scope fields gone | — |
-| `jobs` | **not built** — the collection layout below splits a job's record from its body, but neither live nor dev holds a `jobs` collection and nothing writes one. Every job lives in `job_documents` | the split performed, `jobs` populated, and an owner-led index spec — it has none |
+| `jobs` | **not built** — the layout below splits a job's record from its body, but no environment holds a `jobs` collection and nothing writes one. Every job lives in `job_documents`, and both readers now name it | the split performed, `jobs` populated, an owner-led index spec, and both readers moved together |
 | Websocket delivery branch | account, corporation and alliance owners deliver; a `planner` owner has no branch and is logged | a planner branch, so a planner's documents reach its members |
 | Changestream routing | reads named `_meta` scope fields | reads `_meta.owner` generically |
 | `models.ArchivedJobStats` | **done** — carries a root `Owner` | — |
@@ -419,17 +419,24 @@ index never does it.
 multi-tenant storage; it generalises who the tenant is. (`jobs` appears in the layout below and in
 `knownCollections`, but no environment holds it and nothing writes one — see § What each surface owes.)
 
-**Two callers already read `jobs`, and get nothing.** `websocket/sync`'s `QueryAllJobsForAccount` reads
-it for the planner sync and the worker's inactive-account cleanup deletes from it. Neither errors: the
-sync guards on `len(allJobs) > 0` and omits the key, and the cleanup's earlier delete against
-`job_documents` has already done the work. So the sync payload silently carries no jobs — which no user
-sees, because the SPA fetches them over REST from `GET /api/v1/job-documents/planner`, and that reads
-the right collection.
+**The sync read `jobs` and got nothing; it now reads `job_documents`.** `QueryAllJobsForAccount` named
+the unbuilt collection, so every sync payload omitted its jobs key — the caller guards on
+`len(allJobs) > 0`, and an account with no jobs looks identical, so nothing reported it. No user saw it,
+because the SPA fetches planner jobs over `GET /api/v1/job-documents/planner`, which reads the right
+collection. The sync and that handler now build the same filter against the same collection, and two
+live tests hold them to it.
 
-That is a defect today rather than something the split introduces, and it is worth settling before the
-split: whichever collection ends up holding a job's record, both callers must name it, and a query that
-returns empty because it is pointed at an unbuilt collection is indistinguishable from an account with
-no jobs.
+The filter also carried an `$or` over a legacy `isIncludedOnPlanner`. No document holds that field and
+no Go model declares it, so the branch matched nothing; it is gone, and the filter is the one the HTTP
+read uses.
+
+The worker's inactive-account cleanup still deletes from `jobs` as well as `job_documents`. That is a
+no-op today and correct after the split, so it stays.
+
+**When the split happens, both callers move together.** Whichever collection ends up holding a job's
+record, the sync and the planner read must name it — and the failure mode to design against is this
+one: a query pointed at an unbuilt collection returns empty, which is indistinguishable from an account
+with no jobs.
 
 A per-kind split would also miss its target. Account-kind documents are the overwhelming majority, so
 splitting the other three kinds out shrinks the small collections and leaves the large one untouched.

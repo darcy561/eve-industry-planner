@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"eve-industry-planner/shared/logs"
@@ -368,9 +369,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 					}
 				}
 				collectionData := syncData[collectionName]
-				for docID, docData := range documents {
-					collectionData.Updates[docID] = docData
-				}
+				maps.Copy(collectionData.Updates, documents)
 				syncData[collectionName] = collectionData
 
 				// Track missing documents for delete notifications

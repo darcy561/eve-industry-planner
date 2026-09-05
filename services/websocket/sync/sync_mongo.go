@@ -247,15 +247,14 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 		return nil, fmt.Errorf("invalid MongoDB client type")
 	}
 
-	collection := mongo.Jobs.Collection()
+	// Job documents, the same collection the planner read serves over HTTP. A
+	// sync naming another one returns no jobs and reports nothing, because an
+	// account with none looks identical.
+	collection := mongo.JobDocuments.Collection()
 
-	// Build query filter: jobs shown on planner (displayOnPlanner or legacy isIncludedOnPlanner).
 	filter := bson.M{
 		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
-		"$or": []bson.M{
-			{"displayOnPlanner": true},
-			{"isIncludedOnPlanner": true},
-		},
+		"displayOnPlanner": true,
 	}
 
 	// Use retry logic from mongo core package
