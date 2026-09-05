@@ -94,10 +94,10 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		}
 		if job.MetaData.Owner.ID != "" && job.MetaData.Owner.ID != accountID {
 			metrics.Error("account_mismatch")
-			helper.RespondEndpointError(w, r, http.StatusForbidden, fmt.Sprintf("Invalid job at index %d: _meta.accountID does not match the authenticated account", i), "archived jobs put: _meta.accountID does not match token", "archived_jobs_put_account_mismatch", "archived_jobs_put", nil, map[string]any{
-				"index":               i,
-				"job_id":              job.JobID,
-				"job_meta_account_id": job.MetaData.Owner.ID,
+			helper.RespondEndpointError(w, r, http.StatusForbidden, fmt.Sprintf("Invalid job at index %d: _meta.owner does not match the authenticated account", i), "archived jobs put: _meta.owner does not match token", "archived_jobs_put_account_mismatch", "archived_jobs_put", nil, map[string]any{
+				"index":          i,
+				"job_id":         job.JobID,
+				"job_meta_owner": job.MetaData.Owner.Key(),
 			})
 			return
 		}

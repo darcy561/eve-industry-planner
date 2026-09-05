@@ -73,6 +73,9 @@ var releases = []release{{
 		// and a fallback missing the fields the previous release read is not one.
 		{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
 		{name: "queue every account for rebuild", run: queueEveryAccountForRebuild},
+		// Last: the window's gate. A document with no owner is unreachable, so the
+		// release fails rather than reporting success over it.
+		{name: "verify every document carries an owner", run: verifyMetaOwner},
 	},
 }}
 

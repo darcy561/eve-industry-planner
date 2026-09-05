@@ -39,6 +39,10 @@ var unstampedMetaOwner = bson.M{
 	"_meta.owner":     bson.M{"$exists": false},
 }
 
+// missingMetaOwner selects documents with no owner at all, whether or not one
+// could have been derived. It is what the release is verified against.
+var missingMetaOwner = bson.M{"_meta.owner": bson.M{"$exists": false}}
+
 // stampMetaOwner writes `_meta.owner` on documents that carry an account id and
 // no owner.
 //
@@ -108,4 +112,32 @@ func stampMetaOwner(ctx context.Context, clients *stackservices.Clients, dryRun 
 		reports = append(reports, fmt.Sprintf("%d total", total))
 	}
 	return strings.Join(reports, "; "), nil
+}
+
+// verifyMetaOwner fails the release if any document is left without an owner.
+//
+// The stamp reports documents it could not derive an owner for rather than
+// failing on them, so a run can finish having left some behind. Nothing reads a
+// document with no owner and no later save adds one, so the check is what turns
+// that from silent loss into a failed release.
+func verifyMetaOwner(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
+	var offenders []string
+	var total int64
+	for _, name := range metaOwnerCollections {
+		count, err := clients.Mongo.Coll(name).CountDocuments(ctx, missingMetaOwner)
+		if err != nil {
+			return "", fmt.Errorf("count %s: %w", name, err)
+		}
+		if count > 0 {
+			offenders = append(offenders, fmt.Sprintf("%s: %d", name, count))
+			total += count
+		}
+	}
+	if total == 0 {
+		return "every document carries an owner", nil
+	}
+	if dryRun {
+		return fmt.Sprintf("%d document(s) would still have no owner (%s)", total, strings.Join(offenders, ", ")), nil
+	}
+	return "", fmt.Errorf("%d document(s) have no owner and are unreachable: %s", total, strings.Join(offenders, ", "))
 }
