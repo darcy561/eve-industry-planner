@@ -2657,8 +2657,17 @@ other is the work, and this table is what stops it being re-derived under time p
 | § Current behaviour (before this project), §§ Stage C, Generated archive data for development | **nowhere** | Before-and-after framing, a stage never built, and a dev convenience |
 
 **Two topic docs do not exist yet** — the worker's statistics pipeline and the archive API — so promotion
-writes them rather than folding into something. That is the bulk of the work, and it is why the map
-names them now.
+writes them rather than folding into something. Both are **drafted** in [promote/](./promote/), in the
+live voice, so promotion moves a file rather than composing one:
+
+| Draft | Becomes |
+|-------|---------|
+| [promote/worker-statistics.md](./promote/worker-statistics.md) | `backend/worker/statistics.md`, with a row in that folder's `contents.md` |
+| [promote/archive-api.md](./promote/archive-api.md) | `backend/api/archive.md`, with a row in that folder's `contents.md` |
+
+Each draft carries a header saying it is not live SoT and naming its destination. Moving one means
+deleting that header, moving the file, and adding the `contents.md` row — the reshaping from stage to
+topic is already done.
 
 **The folder is not deleted on promote.** The rule's test names three active projects citing it:
 [shared-planners](../shared-planners/plan.md) links to this plan's owner-block design and to the

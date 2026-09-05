@@ -6,6 +6,9 @@ Plan, stage notes, and behaviour overlays for rebuilding archived-job build stat
 
 Also owns the salvage decisions for `feature/archived-jobs-redesign` — which parts of that branch are carried forward, reimplemented, or dropped.
 
+And the [promote/](./promote/) drafts: the live topic docs this project will add, written in the live
+voice and waiting on go-ahead. They are not live SoT until they are moved.
+
 ## Does not own
 
 - Live archived-jobs behaviour → [backend/contents.md](../../backend/contents.md) (promoted only when this project closes)
@@ -20,6 +23,7 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 |------------|------|
 | Understand the goal, stages, and done-when | [plan.md](./plan.md) |
 | Promote this project into live documentation | [plan.md](./plan.md) § Promote map |
+| Read the drafted live topic docs | [promote/worker-statistics.md](./promote/worker-statistics.md), [promote/archive-api.md](./promote/archive-api.md) |
 | Know why the folder is not deleted on promote | [plan.md](./plan.md) § Promote map |
 | See what this project owes the shared-planners owner block | [plan.md](./plan.md) § Owner block — owed to shared planners |
 | See why the existing branch is not merged | [plan.md](./plan.md) § Starting position |
