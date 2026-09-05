@@ -44,13 +44,15 @@ field. A caller reaches a collection by name on the handle rather than by string
 |-------|------------|-------|
 | `Users` | `accounts` | the account record, keyed by the EVE main character hash |
 | `ApplicationSettings` | `account_settings` | per-account application settings |
-| `JobDocuments` | `account_job_documents` | planner job documents — the hot API path |
-| `Jobs` | `account_jobs` | job records, distinct from the job-documents API above |
-| `Groups` | `account_job_groups` | job groups |
-| `TemplateCatalog` / `TemplatePayloads` | `account_group_template_catalog` / `…_payloads` | group templates, split so a listing does not load every payload |
-| `ArchivedJobs` | `account_archived_jobs` | jobs moved out of the planner |
-| `AccountProductionTotals` | `account_production_totals` | per-account build totals |
-| `WatchlistDeprecated` | `account_watchlist_deprecated` | the watchlist in its original stored shape |
+| `JobDocuments` | `job_documents` | planner job documents — the hot API path |
+| `Jobs` | `jobs` | job records, distinct from the job-documents API above |
+| `Groups` | `job_groups` | job groups |
+| `TemplateCatalog` / `TemplatePayloads` | `group_template_catalog` / `…_payloads` | group templates, split so a listing does not load every payload |
+| `ArchivedJobs` | `archived_jobs` | jobs moved out of the planner |
+| `StatisticsRows` | `statistics_rows` | one archived job reduced to its figures |
+| `StatisticsTimeline` / `StatisticsTotals` | `statistics_timeline` / `statistics_totals` | monthly and lifetime figures per item, derived from the rows |
+| `StatisticsRebuildQueue` / `StatisticsReconcileRota` | `statistics_rebuild_queue` / `statistics_reconcile_rota` | outstanding statistics work, and whose turn it is to be checked |
+| `WatchlistDeprecated` | `watchlist_deprecated` | the watchlist in its original stored shape |
 | `Blueprints` | `shared_blueprints` | blueprint reference data, rebuilt from the SDE |
 | `CitadelNames` | `shared_citadel_names` | station and structure names users have submitted |
 
@@ -59,13 +61,12 @@ field. A caller reaches a collection by name on the handle rather than by string
 
 ## What a document carries
 
-Every account-scoped document carries a `_meta` subdocument. Knowing its shape is usually the fastest
-way to work out why a document did not reach a client, because the changestream routes on it.
+Every scoped document carries a `_meta` subdocument. Knowing its shape is usually the fastest way to
+work out why a document did not reach a client, because the changestream routes on it.
 
 | Field | Meaning |
 |-------|---------|
-| `_meta.accountID` | who owns it — every collection above filters on this |
-| `_meta.corporationRef` / `_meta.allianceRef` | org ownership, for documents that are not account scoped; the changestream routes on these when `accountID` is absent |
+| `_meta.owner` | who owns it — a `{kind, id}` pair; every scoped query filters on both |
 | `_meta.sessionID` / `_meta.clientID` | which session and browser tab made the change, so the writer's own tab can be excluded from the fan-out |
 | `_meta.lastModified` | stamped on every write |
 
@@ -74,6 +75,30 @@ shapes: `UpsertStructWithMeta` writes the metadata from the struct, and `UpsertS
 keeps what is already stored and bumps `lastModified` — the second is what a partial update wants.
 
 Documents also carry a `schemaVersion`, upgraded in batches by a maintenance task rather than on read.
+
+### The owner
+
+One pair states ownership everywhere: `{kind, id}`, where kind is `account`, `corporation`, `alliance`
+or `planner`. `Owner.Key()` serialises it as `kind:id`, which is also the tenant string the NATS
+subjects and websocket pools use, so a document's owner and its routing key are the same value.
+
+| Constant | Path | For |
+|----------|------|-----|
+| `FieldMetaOwnerKind` | `_meta.owner.kind` | filtering |
+| `FieldMetaOwnerID` | `_meta.owner.id` | filtering |
+| `FieldMetaOwner` | `_meta.owner` | grouping on the pair, which only means something together |
+
+**Spell the path from those constants, never inline.** These are string keys in a `bson.M`: a filter
+naming a path no document carries matches nothing, returns no error, and the compiler cannot see it. A
+test scans every non-test file for retired paths and fails on one.
+
+For the org kinds the id is an **entity ref**, never a raw EVE id. `CorporationOwner` and
+`AllianceOwner` refuse a raw id at construction, and `Owner.Validate` holds an owner read back from
+storage to the same rule — so a value that addresses nothing fails visibly rather than routing
+silently.
+
+The owner does not go on the wire. `Owner` carries `json:"-"`, and the websocket strips the routing
+key before a payload reaches a browser.
 
 ## Reading and writing
 
@@ -118,7 +143,7 @@ noun rather than a prefix on one. Everything else an account owns reads as `acco
 
 The planner has four tiers and they are not interchangeable. An account is the login, derived from
 the EVE main character hash; it attaches **several** in-game characters. So `character_` is
-deliberately unused — every collection today filters on `_meta.accountID`, and `characterHash`
+deliberately unused — every scoped collection filters on `_meta.owner`, and `characterHash`
 appears only as a field inside job documents, never as a collection key. Naming an account-scoped
 collection `character_*` would assert a scope the data does not have. The prefix is reserved for
 collections that are genuinely character-keyed, which would be new collections rather than renamed

@@ -2026,42 +2026,4 @@ migrated nothing.
 Drafts for documentation that should exist but does not, written here first and promoted when the
 project closes.
 
-### Live Mongo tests — draft for `testing/harness.md`
-
-`testing/mongolive` is absent from that topic's coverage map, and how to run a gated test is written
-down nowhere. Promote this into [testing/harness.md](../../testing/harness.md) — a row in the
-**Entrypoints** table, a row in the **Coverage map**, and the section below.
-
-**Coverage map row.** `testing/mongolive` — **ops** (live stack) — the gate
-(`EIP_MONGO_PARITY_LIVE`), the two connections a live test can want, and `ScratchAccount`, which clears
-an account's archive, statistics and planner documents at both ends of a test.
-
-**Entrypoints row.** Live Mongo tests — `./scripts/testing/live-mongo.sh [package] [pattern]` — needs a
-live stack.
-
-**Section.** Tests gated on `EIP_MONGO_PARITY_LIVE=1` run against the stack's own database. They connect
-through `testing/mongolive`, which owns the gate and both client shapes so no test spells either itself:
-
-| Helper | Use |
-|--------|-----|
-| `Require(t)` | The ordinary client. Skips when the gate is closed, pings before returning, disconnects on cleanup |
-| `RequireWatch(t, streams)` | The change stream client, built without a client-wide operation timeout — a long-lived awaitable cursor would otherwise be ended by it. `streams` sizes the pool |
-| `Enabled()` | For a test with something to do either way: live documents when reachable, fixtures when not |
-| `Skip(t)` | The gate alone, for a test that reaches live data by its own path |
-| `ScratchAccount(t, m, id)` | Clears an account's documents now and at test end, so a run that died before cleanup cannot poison the next |
-| `OwnerMeta(owner)` / `OwnerDoc(owner)` | The `_meta` block, and the owner block inside it, for a fixture writing BSON directly. They take an `models.Owner` so a caller cannot supply an id without a kind, and do not validate — a test asserting what an unreadable owner does has to be able to write one |
-
-**They run in a container, not on the host.** The Mongo URL carries `replicaSet=`, so the driver treats
-the host it is given as a seed, asks the replica set for its members, and connects to the name they
-advertise — `mongo:27017`. That name resolves on the stack network and nowhere else, whatever
-`MONGO_HOST` says. `scripts/testing/live-mongo.sh` builds a linux test binary and runs it on `eip-core`,
-taking credentials from the running stack's secrets:
-
-```bash
-./scripts/testing/live-mongo.sh                              # shared/mongo
-./scripts/testing/live-mongo.sh ./core/commands              # another package
-./scripts/testing/live-mongo.sh ./shared/mongo Watchlist     # one test
-```
-
-Running inside the network rather than mapping `mongo` to loopback in a developer's hosts file is
-deliberate: it needs no per-machine setup and works the same way in CI.
+_All drafts promoted._

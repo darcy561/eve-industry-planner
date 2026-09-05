@@ -9,6 +9,7 @@ Live SoT for cross-cutting **ops soak / harness packages** under [`testing/`](..
 | Harness unit | From `testing/`: `go test ./...` | No Docker for `keys` / `wait` / `httpfake` / `redisfake` / `natsfake` / plan / cohort / fanout helpers |
 | Ops soak CLI | From `testing/`: `go build -o ../.tmp/ws_soak ./ws_soak` then docker on `eip-core` | Needs live stack — [services/websocket.md](./services/websocket.md) § Ops soak |
 | Capacity soak CLI | From `testing/`: `go build -o ../.tmp/capacity_soak ./capacity_soak` | Live stack — [services/capacity-controller.md](./services/capacity-controller.md) § Ops soak |
+| Live Mongo tests | `./scripts/testing/live-mongo.sh [package] [pattern]` | Needs a live stack — see § Live Mongo |
 | CI | `shared testing library` job in [test.yml](../../.github/workflows/test.yml) | Separate module — outside the `services` suite |
 
 ## Coverage map
@@ -16,6 +17,7 @@ Live SoT for cross-cutting **ops soak / harness packages** under [`testing/`](..
 | Package | Depth | What it covers |
 |---------|-------|----------------|
 | `testing/harness` | **Tested** (unit) | Shared `ConnectNATS`, `AsynqRedisOpt` / `CapacitySoakNoop` |
+| `testing/mongolive` | **ops** (live stack) | The gate (`EIP_MONGO_PARITY_LIVE`), the two connections a live test can want — `Require` for ordinary work and `RequireWatch` for change streams — `ScratchAccount`, and the `OwnerMeta` / `OwnerDoc` fixture builders |
 | `testing/keys` | **Tested** (unit) | Shared test key material: `EntityID` plus `EntityCipher` / `SetEntityID` for entity refs |
 | `testing/wait` | **Tested** (unit) | `For` (test form, fails with the last detail) and `Until` (long-running form, returns an error and reports progress) |
 | `testing/httpfake` | **Tested** (unit) | In-memory stand-in for an HTTP dependency a package calls out to: canned and queued replies, custom handlers, recorded calls |
@@ -25,6 +27,38 @@ Live SoT for cross-cutting **ops soak / harness packages** under [`testing/`](..
 | `testing/ws_soak` | CLI | Thin `main.go` → `soaklib.Run` (flags only) |
 | `testing/capacity_soak/lib` (`capsoak`) | **Tested** (unit) / **ops** (live stack) | Worker Asynq via harness; websocket/api hold via soaklib (`Accounts==Clients`) + Docker/NATS Observer; `-phase all\|up\|down` |
 | `testing/capacity_soak` | CLI | Thin `main.go` → parse profile/phase → `capsoak.Run` |
+
+## Live Mongo
+
+Tests gated on `EIP_MONGO_PARITY_LIVE=1` run against the stack's own database. They connect through
+`testing/mongolive`, which owns the gate and both client shapes so no test spells either itself:
+
+| Helper | Use |
+|--------|-----|
+| `Require(t)` | The ordinary client. Skips when the gate is closed, pings before returning, disconnects on cleanup |
+| `RequireWatch(t, streams)` | The change stream client, built without a client-wide operation timeout — a long-lived awaitable cursor would otherwise be ended by it. `streams` sizes the pool |
+| `Enabled()` | For a test with something to do either way: live documents when reachable, fixtures when not |
+| `Skip(t)` | The gate alone, for a test that reaches live data by its own path |
+| `ScratchAccount(t, m, id)` | Clears an account's documents now and at test end, so a run that died before cleanup cannot poison the next |
+| `OwnerMeta(owner)` / `OwnerDoc(owner)` | The `_meta` block, and the owner block inside it, for a fixture writing BSON directly. They take a `models.Owner`, so a caller cannot supply an id without a kind |
+
+**They run in a container, not on the host.** The Mongo URL carries `replicaSet=`, so the driver treats
+the host it is given as a seed, asks the replica set for its members, and connects to the name they
+advertise — `mongo:27017`. That name resolves on the stack network and nowhere else, whatever
+`MONGO_HOST` says. `scripts/testing/live-mongo.sh` builds a linux test binary and runs it on
+`eip-core`, taking credentials from the running stack's secrets:
+
+```bash
+./scripts/testing/live-mongo.sh                              # shared/mongo
+./scripts/testing/live-mongo.sh ./core/commands              # another package
+./scripts/testing/live-mongo.sh ./shared/mongo Watchlist     # one test
+```
+
+Running inside the network rather than mapping `mongo` to loopback in a developer's hosts file is
+deliberate: it needs no per-machine setup and works the same way in CI.
+
+**An owner is a pair.** `models.AccountOwner` is the only construction that fills both kind and id;
+setting `Owner.ID` alone compiles, looks right, and matches no owner-scoped read.
 
 ## Topic-only detail
 

@@ -1,12 +1,5 @@
 # Archive and statistics API
 
-**Draft, not live SoT.** Promoted into `technical-documentation/backend/api/archive.md` when
-[archived-jobs-stats](../plan.md) closes, with a row added to
-[backend/api/contents.md](../../../backend/api/contents.md). Written in the live voice — current
-behaviour only. Provenance: [overlay.md](../overlay.md) §§ Stage D, Stage F, Stage G, Stage I.
-
----
-
 Reading the archive, and the figures derived from it. An archived job leaves the planner and becomes
 two things: a stored document that can be read back or restored, and a row of figures that folds into
 per-item totals. This topic covers the routes over both.
@@ -23,7 +16,7 @@ The system spans:
   derivation.
 
 Read alongside: the worker statistics topic (how figures are produced, queued and reconciled) and
-[shared/mongo.md](../../../backend/shared/mongo.md) (owner block, index rules).
+[shared/mongo.md](../shared/mongo.md) (owner block, index rules).
 
 ## Vocabulary
 
@@ -232,5 +225,5 @@ Read from the owner's queue entry. The worker writes it; the API only reports it
 ## Topic-only detail
 
 How figures are produced, queued, folded and reconciled → the worker statistics topic. Owner block,
-index rules and collection naming → [shared/mongo.md](../../../backend/shared/mongo.md). The pages that
-read these routes → [frontend/](../../../frontend/contents.md).
+index rules and collection naming → [shared/mongo.md](../shared/mongo.md). The pages that
+read these routes → [frontend/](../../frontend/contents.md).

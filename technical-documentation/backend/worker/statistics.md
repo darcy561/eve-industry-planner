@@ -1,13 +1,5 @@
 # Archived job statistics
 
-**Draft, not live SoT.** Promoted into `technical-documentation/backend/worker/statistics.md` when
-[archived-jobs-stats](../plan.md) closes, with a row added to
-[backend/worker/contents.md](../../../backend/worker/contents.md). Written in the live voice — current
-behaviour only — so promotion is a move rather than a rewrite. Provenance:
-[overlay.md](../overlay.md) §§ Stage B, Stage J.
-
----
-
 How an archived job becomes figures a user can read: the reduction that turns one job into a row, the
 two paths that fold rows into aggregates, and the rota that corrects them.
 
@@ -23,7 +15,7 @@ The system spans three services and the SPA:
 - **`frontend/src`** — reads the figures over HTTP and the notification over the websocket.
 
 Read alongside: the archive API topic (routes, what a period cost), and
-[shared/mongo.md](../../../backend/shared/mongo.md) (owner block, index rules).
+[shared/mongo.md](../shared/mongo.md) (owner block, index rules).
 
 ## Vocabulary
 
@@ -289,6 +281,6 @@ hand means now.
 
 ## Topic-only detail
 
-Owner block, index rules and collection naming → [shared/mongo.md](../../../backend/shared/mongo.md).
+Owner block, index rules and collection naming → [shared/mongo.md](../shared/mongo.md).
 Routes, what a list row carries, restore's order → the archive API topic. The pages that read the
-figures → [frontend/](../../../frontend/contents.md).
+figures → [frontend/](../../frontend/contents.md).

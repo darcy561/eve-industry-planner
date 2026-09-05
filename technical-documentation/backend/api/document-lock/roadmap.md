@@ -20,7 +20,7 @@ This is the **shipped** product today. Multi-tenant work (**#30–#37**) must **
 |--|--|
 | **Partition** | Redis / JetStream keyed by **account** (`accountID` in keys and `doc.lock.{accountID}`) |
 | **Competitors** | Tabs / sessions of **that same account** only (`sessionID` = JWT claim) |
-| **Documents** | Personal Mongo collections: `account_job_documents`, `account_job_groups` |
+| **Documents** | Personal Mongo collections: `job_documents`, `job_groups` |
 | **Not yet** | Corp/alliance docs, cross-account holders on one Redis row |
 
 One Redis lock row = one `(accountID, collection, docID)`. Two browsers on the same account fight; two different accounts never share a personal-doc lease.

@@ -2035,9 +2035,15 @@ reduction is in a position to notice. A mutation test found this guard untested 
 ## Owner block — owed to shared planners
 
 [shared-planners](../shared-planners/plan.md) makes the planner an explicit thing a user works in, and
-replaces the per-scope fields on stored documents with a single owner. Four items land **here**,
-because they are cheap only while this project is still open and touching live data. The shapes below
+replaces the per-scope fields on stored documents with a single owner. Four items landed **here**,
+because they were cheap only while this project was still open and touching live data. The shapes below
 are settled; the reasoning for each lives in that plan.
+
+**This work is finished and has been handed over.** The owner block is now owned by
+[shared-planners](../shared-planners/plan.md): its plan carries the design and the cutover window, and
+its [overlay](../shared-planners/overlay.md) § Stage A carries how a document states its owner today.
+The sections here record what this project built and why, and are not the place to read current
+behaviour from. Nothing further is owed.
 
 | Item | Status |
 |------|--------|
@@ -2595,7 +2601,7 @@ this work's surface, so it landed here rather than waiting. Nothing else in eith
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries three tabs: statistics (metric cards, eight charts, item table), per-item history over the same windowed reads, and the jobs list with its three row shapes and restore. Chart primitives are shared and the price-history dialogue moved onto them. Neither later tab is queried until it is opened, and all three carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
 | J — incremental statistics and the build history panel | **Complete bar one placement decision.** J1 replaced the stored snapshot array with a query, added the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row and `includeProductionChain` on the timeline read, rebuilt the Build History panel on the chart primitives, and removed the `archive_and_stats` change-stream group. J2 made a job's figures a delta — folded in on archive, taken back on restore — guarded by `contributedAt` on the row and a claim bump that stands a fold down when a rebuild has taken the owner on. J3 made the drain a dispatcher over one task per owner. J4 reconciles every owner once a day, oldest stamp first, rewriting aggregates from the rows and reporting drift without acting on it. J5 gave realtime messages a `type`/`subtype` vocabulary, notifies an account when its figures move, reports the recalculating and failed states on every statistics response, and shows them above the page's tabs. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
-| Owner block — owed to shared planners | **All four items done, and shared-planners Stage A implemented with them.** The ownership inference Stage C was blocked on is removed, the statistics route and query key take an owner handle, and the collections carry the names they hold. The owner block then went in whole: `_meta.owner` is the single ownership statement on every scoped document, `models.Owner` is the only vocabulary, and the stamp is a `prepareRelease` step. The renames turned out **not** to be coupled to that plan's Stage B window — live holds none of the statistics collections — so they ship as `CollectionRenames` version 1 on their own. See § Owner block — owed to shared planners and § The owner block landed as one cutover |
+| Owner block — owed to shared planners | **All four items done, shared-planners Stage A implemented with them, and ownership handed over — nothing further owed.** The ownership inference Stage C was blocked on is removed, the statistics route and query key take an owner handle, and the collections carry the names they hold. The owner block then went in whole: `_meta.owner` is the single ownership statement on every scoped document, `models.Owner` is the only vocabulary, and the stamp is a `prepareRelease` step. The renames turned out **not** to be coupled to that plan's Stage B window — live holds none of the statistics collections — so they ship as `CollectionRenames` version 1 on their own. See § Owner block — owed to shared planners and § The owner block landed as one cutover |
 
 ## Done when
 
@@ -2656,18 +2662,17 @@ other is the work, and this table is what stops it being re-derived under time p
 | § Corrections to figures already served | **nowhere** | A record of what changed and why a rebuild was owed. Migration history: it goes with the folder |
 | § Current behaviour (before this project), §§ Stage C, Generated archive data for development | **nowhere** | Before-and-after framing, a stage never built, and a dev convenience |
 
-**Two topic docs do not exist yet** — the worker's statistics pipeline and the archive API — so promotion
-writes them rather than folding into something. Both are **drafted** in [promote/](./promote/), in the
-live voice, so promotion moves a file rather than composing one:
+**Promoted.** The two topic docs that did not exist are written:
+[backend/worker/statistics.md](../../backend/worker/statistics.md) and
+[backend/api/archive.md](../../backend/api/archive.md), each with rows in its folder's `contents.md`.
+The owner block folded into [backend/shared/mongo.md](../../backend/shared/mongo.md), the changestream
+half into [backend/core/core.md](../../backend/core/core.md), and the live-Mongo harness into
+[testing/harness.md](../../testing/harness.md).
 
-| Draft | Becomes |
-|-------|---------|
-| [promote/worker-statistics.md](./promote/worker-statistics.md) | `backend/worker/statistics.md`, with a row in that folder's `contents.md` |
-| [promote/archive-api.md](./promote/archive-api.md) | `backend/api/archive.md`, with a row in that folder's `contents.md` |
-
-Each draft carries a header saying it is not live SoT and naming its destination. Moving one means
-deleting that header, moving the file, and adding the `contents.md` row — the reshaping from stage to
-topic is already done.
+Folding also corrected live docs the renames had left behind: `mongo.md`'s handle table named
+`account_job_documents` and the other pre-rename collections, its `_meta` section described the
+per-scope fields the owner replaced, `core.md` described a payload carrying three route fields, and
+four document-lock topics named collections that no longer exist.
 
 **The folder is not deleted on promote.** The rule's test names three active projects citing it:
 [shared-planners](../shared-planners/plan.md) links to this plan's owner-block design and to the
