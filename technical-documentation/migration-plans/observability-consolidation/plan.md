@@ -525,6 +525,11 @@ not fail loudly. They filter on a log shape that gets rewritten before it lands:
 unless `LOG_LEVEL=debug` (at the source, since Stage A), the `code.*` and `telemetry.sdk.*`
 attributes scrubbed by Alloy, and scope name blanked.
 
+**Grafana's provisioning had to be corrected first.** The provider allowed UI updates, so Grafana
+held its own copy of all twenty dashboards and a shipped file change did not necessarily reach the
+served dashboard. The Deployment Tool's embedded kit is where dashboards come from, so the provider
+now treats the file as authoritative. Detail in the overlay.
+
 **One dashboard is genuinely new.** SeaweedFS has never been dashboarded because it was never
 collected before Stage B. It matters more than it sounds: storage growth is where retention problems
 show up first.

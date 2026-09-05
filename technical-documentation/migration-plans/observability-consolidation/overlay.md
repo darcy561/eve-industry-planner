@@ -130,6 +130,18 @@ Two panels changed subject rather than name, because the metric they described n
 still available, `percentunit`) and `seconds_until_open` (seconds until a refusing bucket admits
 again).
 
+**The dashboard files are the source of truth, and Grafana now honours that.** The provisioning
+provider ran with `allowUiUpdates: true`, which lets Grafana keep its own database copy of a
+dashboard: the file seeds it once, and a later edit to that file no longer reaches the dashboard.
+Every one of the twenty reported `provisioned: false` as a result, so a shipped change could land in
+the container and still not be what Grafana served.
+
+It now runs `allowUiUpdates: false` with `editable: false`. Measured against `grafana/grafana:13.0.1`
+before the change: with the flag off a dashboard reports `provisioned: true`, keeps the `refresh`
+value its file sets, and picks up a file edit automatically within `updateIntervalSeconds` — no
+restart and no `eip sync`. The comment that justified the flag warned that provisioned auto-refresh
+would be ignored; that does not happen on this version.
+
 **`mongodb.json`** reads oplog size from `mongodb_oplog_stats_storageStats_size`. It previously
 selected `mongodb_oplog_stats_size`, which the exporter has never emitted. Every one of the eleven
 metrics this dashboard queries now resolves against the store.
