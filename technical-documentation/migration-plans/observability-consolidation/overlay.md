@@ -130,7 +130,11 @@ Two panels changed subject rather than name, because the metric they described n
 still available, `percentunit`) and `seconds_until_open` (seconds until a refusing bucket admits
 again).
 
-**Every panel aggregates with `max by (group, scope)`.** Bucket state belongs to the fleet and is
+**`mongodb.json`** reads oplog size from `mongodb_oplog_stats_storageStats_size`. It previously
+selected `mongodb_oplog_stats_size`, which the exporter has never emitted. Every one of the eleven
+metrics this dashboard queries now resolves against the store.
+
+**Every panel of `core-esi-limits.json` aggregates with `max by (group, scope)`.** Bucket state belongs to the fleet and is
 reported once by core — [backend/shared/esi.md](../../backend/shared/esi.md) § What it reports — but
 `resource_to_telemetry_conversion` promotes `service_instance_id` onto each series, so a restarted
 container leaves its own copy behind until it goes stale. Selecting the raw series draws one line

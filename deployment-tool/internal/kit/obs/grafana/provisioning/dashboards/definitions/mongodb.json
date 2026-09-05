@@ -1061,7 +1061,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "mongodb_oplog_stats_size{instance=~\"$env\"}",
+          "expr": "mongodb_oplog_stats_storageStats_size{instance=~\"$env\"}",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 2,

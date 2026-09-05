@@ -508,9 +508,9 @@ scope a rebuild found them, and they are real today:
 | Dashboard | What it queries | What exists |
 |---|---|---|
 | `api-otel-metrics.json` | ten panels on `api_static_data_*_requests_total` and `_duration_milliseconds_bucket` | Nothing. Those endpoints call `LogRequestMetrics`, which despite its name emits **log lines**, not instruments |
-| `mongodb.json` | one panel on `mongodb_oplog_stats_size` | `mongodb_oplog_stats_storageStats_size` |
 
-**`core-esi-limits.json` is fixed** — see the overlay. Eleven dead series remain across the other two. Confirmed against the live store: the `core_esi_group_*`
+**`core-esi-limits.json` and `mongodb.json` are fixed** — see the overlay. Ten dead series remain, all
+of them in `api-otel-metrics.json`. Confirmed against the live store: the `core_esi_group_*`
 names are in the index with no current samples and nothing has written them since the limiter was
 renamed.
 
