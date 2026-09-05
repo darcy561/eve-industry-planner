@@ -57,48 +57,66 @@ reconcile can rewrite aggregates without reading a single job.
 ## High-level architecture
 
 ```mermaid
-flowchart TB
-  subgraph API["api (archive request)"]
-    Arch["PUT /archived-jobs"]
-    Rest["POST .../restore"]
-    Reduce["shared/statistics<br/>RowFromFigures"]
-    Arch --> Reduce
+flowchart LR
+  subgraph API["services/api (archivedjobs)"]
+    direction TB
+    Archive["PUT /archived-jobs"]
+    Restore["POST .../restore"]
+    Reduce["shared/statistics<br/>one job → one row"]
+    Archive --> Reduce
   end
 
-  subgraph Store["Mongo"]
-    Rows[("statistics_rows")]
-    Agg[("statistics_timeline<br/>statistics_totals")]
-    Queue[("statistics_rebuild_queue")]
-    Rota[("statistics_reconcile_rota")]
+  Rows[("statistics_rows<br/>one row per archived job")]
+  Queue[("statistics_rebuild_queue<br/>one entry per owner")]
+  Agg[("statistics_timeline<br/>statistics_totals")]
+  Rota[("statistics_reconcile_rota")]
+  WS["services/websocket"]
+  Browser["browser tabs"]
+
+  subgraph Core["services/core (scheduler)"]
+    direction TB
+    Drain["cron */2<br/>dispatchStatisticsRebuilds"]
+    Sweep["cron */15<br/>dispatchStatisticsReconciles"]
   end
 
-  subgraph Core["core (scheduler)"]
-    C1["cron */2<br/>dispatchStatisticsRebuilds"]
-    C2["cron */15<br/>dispatchStatisticsReconciles"]
+  subgraph Worker["services/worker (archivedjobs)"]
+    direction TB
+    Delta["applyOwnerStatisticsDelta<br/>folds uncounted rows"]
+    Build["rebuildOwnerStatistics<br/>recomputes from the archive"]
+    Recon["reconcileOwnerStatistics<br/>rewrites from the rows"]
   end
 
-  subgraph Worker["worker"]
-    Delta["applyOwnerStatisticsDelta"]
-    Build["rebuildOwnerStatistics"]
-    Recon["reconcileOwnerStatistics"]
-    Notify["notify the owner"]
-  end
+  Reduce -->|"write, uncounted"| Rows
+  Archive -->|"queue delta"| Queue
+  Restore -->|"queue delta"| Queue
 
-  Reduce --> Rows
-  Arch -->|queue delta| Queue
-  Rest -->|queue delta| Queue
-  C1 -->|one task per owner| Delta
-  C1 --> Build
-  C2 --> Recon
-  Rows --> Delta --> Agg
-  Build --> Rows
+  Queue --> Drain
+  Rota --> Sweep
+  Drain -->|"one task per owner"| Delta
+  Drain --> Build
+  Sweep --> Recon
+
+  Rows --> Delta
+  Rows --> Recon
+  Delta --> Agg
   Build --> Agg
-  Rota --> C2
   Recon --> Agg
-  Delta --> Notify
-  Build --> Notify
-  Notify -->|NATS| SPA["browser"]
+
+  Delta -->|"notify.{ownerKey}"| WS
+  Build --> WS
+  WS --> Browser
 ```
+
+**One sentence:** the API writes a row when a job is archived and queues the owner, two crons read the
+queue and the rota to dispatch one task per owner, the worker folds those rows into the aggregates —
+or recomputes them outright — and tells the owner's tabs the figures moved.
+
+Everything between the API and the worker is a **collection**, not a call. Nothing here talks to
+anything else directly: the queue is the handover, which is what lets a failed fold be retried and a
+busy owner be folded once rather than per job.
+
+Two writes are left off to keep the flow one-directional. A rebuild also **writes** `statistics_rows`,
+reducing each archived job afresh, and a reconcile **stamps** the rota with the turn it just took.
 
 ## The two paths
 
