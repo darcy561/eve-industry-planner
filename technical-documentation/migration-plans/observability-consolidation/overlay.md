@@ -148,6 +148,41 @@ value its file sets, and picks up a file edit automatically within `updateInterv
 restart and no `eip sync`. The comment that justified the flag warned that provisioned auto-refresh
 would be ignored; that does not happen on this version.
 
+**`api-otel-metrics.json`** was reorganised rather than repaired. Its queries were sound, but two
+panels carried sixteen series each — auth flows, static file serving and CRUD endpoints sharing one
+axis despite differing by orders of magnitude in both rate and latency. It now opens with four stat
+tiles (requests, errors, slowest endpoint, market data gaps), then a `topk(5)` pair naming the
+busiest and slowest endpoints, then a row per concern: auth and SSO, content endpoints, lookup and
+static data, and errors. Each row's panels carry three to nine related series.
+
+The `topk` panels label their series with `label_replace`, because the underlying instruments are
+separate metric names rather than one metric with an `endpoint` label. Their legends are tables on
+the right: the per-series `mean` and `max` columns push the endpoint name out of a legend placed
+underneath.
+
+**A per-container row breaks the same figures down by replica.** The capacity controller runs one to
+five API replicas, and `resource_to_telemetry_conversion` puts `service_instance_id` on every series,
+so request rate, error rate and p96 latency each group by it. An uneven spread means traffic is not
+landing evenly; one replica erroring alone points at that container rather than at the endpoint.
+
+Those three panels join their metrics with `or`, not `+`. Addition requires the instance label to be
+present on both sides, so a single endpoint with no traffic empties the whole panel; `or` unions the
+series instead. A replica that has stopped reporting leaves NaN buckets behind, which is why the
+latency panel can show a dead container until its samples age out.
+
+**Static-data endpoints stay folded into the main panels.** They are registered and correct; they
+simply see no traffic on a stack with no users, which is why they read empty.
+
+**`app-activity.json`** was nineteen tiles in an undifferentiated grid with no rows at all. It now
+reads in four themed bands — engagement, users, usage shape, and build and configuration — and the
+new-users trend chart sits with the new-user tiles it explains rather than orphaned below everything
+else. Only positions changed; every query, unit and threshold is as it was.
+
+**`mongodb.json`** was also the last dashboard built on the retired renderers: thirteen `graph` and
+three `singlestat` panels on schema version 27, both deprecated in Grafana 13. They are now
+`timeseries` and `stat` on schema 39, each carrying forward the unit its old y-axis declared.
+Titles, positions, queries and legend formats are unchanged — only the rendering moved.
+
 **`mongodb.json`** reads oplog size from `mongodb_oplog_stats_storageStats_size`. It previously
 selected `mongodb_oplog_stats_size`, which the exporter has never emitted. Every one of the eleven
 metrics this dashboard queries now resolves against the store.

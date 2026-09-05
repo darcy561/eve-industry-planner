@@ -260,10 +260,10 @@ partial filter added for the new collections follows the same pattern.
 
 Corporation queries are held back deliberately, though not for the reason first recorded here.
 
-The **field exists**: `models.MetaData` — embedded in `JobMetaData` — declares `CorporationRef` and
-`AllianceRef`, stored as `_meta.corporationRef` / `_meta.allianceRef`, and the changestream already
-routes on them. It arrived with the entity-ref work. The spelling is `corporationRef`, not
-`corpRef`.
+The **document says who owns it**: `models.MetaData` — embedded in `JobMetaData` — declares one
+`Owner`, stored at `_meta.owner`, and the changestream routes on it. A corporation-owned job is one
+whose owner kind is `corporation` and whose id is a corp ref; there is no separate per-scope field to
+set. See § The owner block.
 
 What is missing is the second half of a **producer**. A stored job now records the corporation and
 character ids ESI supplied for its lines — see § Ingest — entity ids on stored jobs — but nothing
@@ -339,7 +339,7 @@ its costs in March, and `processDate` says April.
 **Ownership is not decided here.** A job belongs to one archive — personal or corporation — and
 every line it carries is counted for that archive's owner. The transformation therefore reads no
 corporation at all: it aggregates the jobs it is given. Which archive a job lands in is a scoping
-decision made at ingest from `_meta.corporationRef`, described in
+decision made when the job is created, described in
 [plan.md § What may scope a job to a corporation](./plan.md#what-may-scope-a-job-to-a-corporation).
 
 **What a bucket counts.** Sale lines land in the month they occurred; costs land in the job's cost
@@ -523,12 +523,16 @@ What the cron still exercises without a live test is the worker's end-to-end com
 helpers over real archived jobs. See [plan.md](./plan.md) § Open questions for that gap and for how
 to run a live test against the overlay.
 
-## Stage C — corporation statistics pipeline
+## What a non-account owner needs before its statistics can be served
 
-_Not landed._
+There is no separate corporation pipeline, and none is owed: the reduction, the rebuild, the queue,
+the delta and the rota all take an owner, and the storage keys on one. A corporation is a kind, not a
+second implementation.
 
-Fill in: how member jobs roll into corporation figures, which identity a job is attributed to,
-pruning rules, and how this differs from account aggregation.
+What is not open is the statistics route, which parses an owner and answers 403 for any kind but the
+account's own — deliberately, until [shared-planners](../shared-planners/plan.md) makes that a grant
+lookup. The rest of this section is the contract a non-account document has to meet for a change on it
+to reach a browser, traced through machinery that is built and carrying account traffic today.
 
 ### What a corporation document has to supply
 
@@ -537,19 +541,19 @@ not exist yet, and the machinery was written ahead of them deliberately. Traced 
 the pieces below are in place and correct; what follows is the contract the eventual document
 has to meet for a change on it to reach a browser.
 
-**Already built.** `deliverOutboundDocUpdate` routes on `Route.CorporationRef` before falling
-through to explicit subscribers, matching it against `Server.corpRefToClients`, which is
-populated from each client's `Scopes.CorporationRefs` when it sends `upgrade_scopes`.
-`wsplacement.TenantKeyCorporation` guards the tenant key, `models.MetaData` declares
-`CorporationRef` / `AllianceRef`, and `outgoinglogic.ClientPayload` strips the routing
-metadata and restores ids in the body.
+**Already built.** `deliverOutboundDocUpdate` switches on the owner's kind, and a `corporation` owner
+goes to `broadcastToCorporationScope`, which matches the ref against `Server.corpRefToClients` —
+populated from each client's `Scopes.CorporationRefs` when it sends `upgrade_scopes` — and then refuses
+any client whose granted scopes no longer hold that ref. `Owner.Key()` is the tenant key,
+`_meta.owner` states the owner on the document, and `outgoinglogic.ClientPayload` strips the routing
+metadata and restores ids in the body. See § How a change reaches the right clients.
 
 **What the producer must add.**
 
 | Piece | Where | Why |
 |---|---|---|
 | The collection itself | `shared/mongo` | Nothing stores corporation-owned documents today |
-| A `CollectionGroup` entry | `core/changestream/collection_groups.go` | The four groups — account, planner, archive_and_stats, blueprints — are all account scoped, so no corporation collection is watched |
+| A `CollectionGroup` entry | `core/changestream/collection_groups.go` | The three groups — account, planner, blueprints — watch collections every kind shares, so a new collection needs a home |
 | `_meta.owner` naming a corporation | the write path | The watcher routes on the owner a document states; without one it has nothing to route on |
 | `scopes` where delivery must narrow under the org root | the write path | Optional; absent means full fan-out under the root |
 
@@ -896,8 +900,8 @@ the wire format's parser beside `String`, its inverse.
 ### Indexes
 
 Three specs in the Deployment Tool (`internal/dataplane/mongo/index_specs.go`), matching the
-filters: `_meta.accountID` with `_meta.archivedAt` descending for the default ordering and the range
-filter, and account-scoped indexes on `itemID` and `groupID` for the other two. Index ownership sits
+filters: the owner with `_meta.archivedAt` descending for the default ordering and the range
+filter, and owner-led indexes on `itemID` and `groupID` for the other two. Index ownership sits
 there rather than in `services/`, per the salvage decision.
 
 ### Tests
@@ -1089,7 +1093,7 @@ itself.
 
 Lookup is one query per kind, not per id: a job's ids go in together with `$in`, so a job linking a
 hundred transactions costs one round trip. Three indexes in the Deployment Tool serve it —
-`_meta.accountID` with each of `build.sale.marketOrders.order_id`,
+the owner with each of `build.sale.marketOrders.order_id`,
 `build.costs.linkedJobs.job_id` and `build.sale.transactions.transaction_id`.
 
 ### Groups are rebuilt from their jobs
@@ -1153,17 +1157,18 @@ what a corporation group means. Both are Stage C questions about behaviour, not 
 
 ### Restored documents reach clients through the existing fan-out
 
-No subscription step is owed. Delivery is account-routed, not per document: the change stream reads
-`_meta.accountID` off the written document into the message's `AccountID`, which becomes
-`Route.AccountID` on the outbound payload, and `deliverOutboundDocUpdate` hands anything carrying one
-to `broadcastToAccountClients` — every connection for that account. Explicit per-document
-subscribers are only the fallback for a payload with no account, corporation or alliance route.
+No subscription step is owed. Delivery is owner-routed, not per document: the change stream reads
+`_meta.owner` off the written document into the message's `ownerKey`, the websocket parses it back into
+an owner, and an `account` kind goes to `broadcastToAccountClients` — every connection for that
+account. Explicit per-document subscribers are only the fallback for a payload stating no readable
+owner.
 
 The JetStream filter is `doc.update.{tenant}.>`, a wildcard across the tenant, so a document that did
 not exist when a client connected still arrives. All four collections a restore touches are watched:
 `job_documents` and `job_groups` in the `planner` group, `accounts` in `account`, and
-`archived_jobs` in `archive_and_stats`. `BulkUpsertJobs` and `BulkUpsertGroups` stamp
-`_meta.accountID` themselves, so the routing metadata is always present on what restore writes.
+`archived_jobs` is no longer watched at all — J1 removed its group. `BulkUpsertJobs` and
+`BulkUpsertGroups` write `_meta.owner` themselves, so the routing metadata is always present on what
+restore writes.
 
 Two things this depends on, both of which would fail quietly:
 
@@ -1567,9 +1572,9 @@ converts every populated id to a ref while clearing the id. What was missing was
 alone, so the conversion is pinned for every field the SPA can now fill.
 
 This is a **producer** change only. It records which corporation a line's money moved through; it
-does not decide that a job belongs to a corporation. That decision, and the `_meta.corporationRef`
-it would stamp, is still Stage C's and still unbuilt — so every stored job remains personal and the
-personal archive still counts them all.
+does not decide that a job belongs to a corporation. That decision is the owner written when the job
+is created, which [shared-planners](../shared-planners/plan.md) owns — so every stored job is owned by
+an account today and the account's archive counts them all.
 
 Historical jobs are unaffected. On dev no stored job carries a character on any line and none
 carries a corporation on a sale line, so there is nothing to convert; ESI's wallet endpoints serve

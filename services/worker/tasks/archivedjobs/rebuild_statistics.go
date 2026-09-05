@@ -227,7 +227,7 @@ func (a *ownerRows) add(job models.Job) {
 		if a.skipReason == "" {
 			a.skipReason = err.Error()
 		}
-		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(job.MetaData.Owner.ID), job.JobID))
+		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(job.MetaData.Owner, job.JobID))
 		return
 	}
 	// The rebuild writes the aggregates from these rows in the same pass, so they

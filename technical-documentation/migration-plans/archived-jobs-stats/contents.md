@@ -19,6 +19,8 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | I need to… | Read |
 |------------|------|
 | Understand the goal, stages, and done-when | [plan.md](./plan.md) |
+| Promote this project into live documentation | [plan.md](./plan.md) § Promote map |
+| Know why the folder is not deleted on promote | [plan.md](./plan.md) § Promote map |
 | See what this project owes the shared-planners owner block | [plan.md](./plan.md) § Owner block — owed to shared planners |
 | See why the existing branch is not merged | [plan.md](./plan.md) § Starting position |
 | Know what the statistics surface looks like after each stage | [overlay.md](./overlay.md) |

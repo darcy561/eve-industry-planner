@@ -104,7 +104,7 @@ Decided at Stage B close, and unchanged by the simplification above.
 | Already built | Where |
 |---------------|-------|
 | The persisted shapes | `models.CorpProductionTotalsRow`, `CorpTimelineMonthBucket` |
-| The org-scoped delivery path — routing, tenant key, scope matching, payload stripping | Traced end to end in [overlay.md](./overlay.md) § Stage C |
+| The org-scoped delivery path — routing, tenant key, scope matching, payload stripping | Traced end to end in [overlay.md](./overlay.md) § What a non-account owner needs before its statistics can be served |
 | The scope field itself | `models.MetaData.CorporationRef` → `_meta.corporationRef` |
 
 What is missing is a **producer**: no write path in `services/` assigns `_meta.corporationRef`, so
@@ -2587,7 +2587,7 @@ this work's surface, so it landed here rather than waiting. Nothing else in eith
 | Phase 1 — project docs | Complete |
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, its schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
-| C — corporation statistics pipeline | **Superseded in part** — its ownership question is answered by [shared-planners](../shared-planners/plan.md): a job's owner is the planner it was created in, so the half-built inference producer that would decide corporation scope from recorded ids is dropped. What remains of C is aggregation over a non-account owner, which the owner block makes additive. See § Owner block — owed to shared planners |
+| C — corporation statistics pipeline | **Never needed, and not built.** The pipeline, the queue, the delta, the rota and the storage are all owner-generic, so a corporation is a kind the statistics route authorises rather than a second pipeline to build. [shared-planners](../shared-planners/plan.md) decides a job's owner at creation and turns that route's kind check into a grant lookup; the inference producer that would have guessed a scope from recorded ids is gone. Nothing is owed here. See § Owner block — owed to shared planners |
 | D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. Months carry the six components of a period's cost and its extras by category; `totals?summary=1` folds the archive into one row. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
 | E — frontend | **Complete for the account scope** — the SPA reads `totals`, `timeline` and `timeline/items`; build-stats is deleted; the dashboard carries the month-on-month comparison and the item breakdown; the archive dialogue is split into its four segment blocks. Corporation scope waits for Stage C |
 | F — archived jobs read API | **Complete** — `GET /api/v1/archived-jobs` serves a paged, filtered list of summaries and `GET /api/v1/archived-jobs/{jobID}` one full document. Rows report group and related-set membership, figures come from the shared `archivestats` reduction, and the query parsing both this and the statistics views use moved to `api/helper`. Indexes landed in the Deployment Tool |
@@ -2599,8 +2599,12 @@ this work's surface, so it landed here rather than waiting. Nothing else in eith
 
 ## Done when
 
-- Account and corporation statistics are produced by the new pipeline, with timelines and snapshots
-  persisted and served.
+- Statistics are produced by the new pipeline for **any owner**, with timelines and snapshots
+  persisted and served. The pipeline, the queue, the delta, the rota and the storage are owner-generic;
+  the statistics route parses an owner and currently authorises only the account kind, which
+  [shared-planners](../shared-planners/plan.md) opens into a grant lookup. Corporation statistics are
+  therefore a kind that plan authorises, not a pipeline this one still owes — which is why Stage C was
+  never built.
 - The frontend reads the new endpoints and the previous flat aggregate has no remaining callers.
 - Tests ship with each stage, not as a later wave.
 - Archived jobs can be listed, read, and restored — a job on its own, a group rebuilt from the jobs
@@ -2627,6 +2631,44 @@ this work's surface, so it landed here rather than waiting. Nothing else in eith
 - The archive surfaces have tests that render the page against its endpoints, so a change of meaning
   between two units is caught where a user would see it rather than in neither unit's tests.
 - Overlays in this folder describe the landed behaviour, ready to promote into live SoT.
+
+## Promote map
+
+Where each part of [overlay.md](./overlay.md) goes when promotion is approved. The overlay is arranged
+by **stage**, which is a migration shape; live docs are arranged by **topic**. Reshaping one into the
+other is the work, and this table is what stops it being re-derived under time pressure.
+
+| Overlay section | Live home | Note |
+|-----------------|-----------|------|
+| § The owner block | [backend/shared/mongo.md](../../backend/shared/mongo.md) § What a document carries | The owner is how every scoped document states ownership; that topic already describes `_meta` |
+| § One place names the owner block… | same | Beside it: the field-path constants and why a query that groups needs the block |
+| § Stage A — Mongo layer, § Indexes | [backend/shared/mongo.md](../../backend/shared/mongo.md) §§ Reading and writing, Collection naming | Owner-led index rule, the two upsert contracts, retired-index and hint-name pairing |
+| § Stage B — the transformation | new topic under [backend/worker/](../../backend/worker/) | The reduction, the rebuild, the claim protocol |
+| § Stage J — delta, claim, dispatcher, rota | same new topic | The incremental path and reconciliation |
+| § Stage D — statistics API, § The window, § The aggregation | new topic under [backend/api/](../../backend/api/) | Routes, the owner handle, the window, what a period cost |
+| § Stage F — archived jobs read API, § Stage G — restore | same new topic | List, read, restore; the order and why it holds |
+| § Group membership while a job is archived | same | Belongs with restore |
+| § Stage I — group derivation | that API topic, cross-linked to the frontend | The corpus is shared with the SPA |
+| § How a change reaches the right clients, § What the publish log reports | [backend/core/core.md](../../backend/core/core.md) § Changestream → JetStream and [backend/websocket/](../../backend/websocket/) | Producer half to core, delivery half to websocket |
+| § Stage E, § Stage H — frontend | [frontend/](../../frontend/contents.md) | The pages, charts and query keys |
+| § Ingest — entity ids on stored jobs | [entity-id-encryption](../entity-id-encryption/plan.md) | That project owns refs; check before folding |
+| § Live Mongo tests — draft for `testing/harness.md` | [testing/harness.md](../../testing/harness.md) | Already written as a draft, ready to lift |
+| § Corrections to figures already served | **nowhere** | A record of what changed and why a rebuild was owed. Migration history: it goes with the folder |
+| § Current behaviour (before this project), §§ Stage C, Generated archive data for development | **nowhere** | Before-and-after framing, a stage never built, and a dev convenience |
+
+**Two topic docs do not exist yet** — the worker's statistics pipeline and the archive API — so promotion
+writes them rather than folding into something. That is the bulk of the work, and it is why the map
+names them now.
+
+**The folder is not deleted on promote.** The rule's test names three active projects citing it:
+[shared-planners](../shared-planners/plan.md) links to this plan's owner-block design and to the
+overlay's delivery section, [entity-id-encryption](../entity-id-encryption/plan.md) cites the ingest
+overlay, and [collection-naming](../collection-naming/plan.md) cites the renames. The folder goes when
+the last of those closes.
+
+**Promotion is gated on the window, not on more work.** Live docs must describe what runs, and live has
+not had `tasks encodeJobIdentity` or `tasks prepareRelease` — see § Operational steps owed. Promoting
+first would document behaviour production is not yet on.
 
 ## Handoff status
 

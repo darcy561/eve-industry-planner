@@ -507,10 +507,16 @@ scope a rebuild found them, and they are real today:
 
 | Dashboard | What it queries | What exists |
 |---|---|---|
-| `api-otel-metrics.json` | ten panels on `api_static_data_*_requests_total` and `_duration_milliseconds_bucket` | Nothing. Those endpoints call `LogRequestMetrics`, which despite its name emits **log lines**, not instruments |
 
-**`core-esi-limits.json` and `mongodb.json` are fixed** — see the overlay. Ten dead series remain, all
-of them in `api-otel-metrics.json`. Confirmed against the live store: the `core_esi_group_*`
+**`core-esi-limits.json` and `mongodb.json` are fixed** — see the overlay.
+
+**`api-otel-metrics.json` had no defect.** The audit recorded its static-data panels as querying
+nothing, on the grounds that those endpoints call `LogRequestMetrics`, which emits log lines. That
+function does only log, but the instruments are registered separately through
+`apimetrics.GetAPIStaticData()` and recorded in the same handlers — the audit matched the wrong
+symbol. Every metric the dashboard queries is registered; the ones absent from the store are error
+and write counters that nothing has triggered on an idle stack. The dashboard was reorganised for
+legibility instead. Confirmed against the live store: the `core_esi_group_*`
 names are in the index with no current samples and nothing has written them since the limiter was
 renamed.
 

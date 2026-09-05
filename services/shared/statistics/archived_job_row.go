@@ -163,7 +163,7 @@ func earliestTransactionDate(transactions []models.Transaction, fallback time.Ti
 // that merely creates the row leaves it outstanding for the next fold.
 func RowFromFigures(job models.Job, snap models.JobFigures, now time.Time) models.ArchivedJobStats {
 	doc := buildRow(job, snap, now)
-	doc.Owner = models.AccountOwner(job.MetaData.Owner.ID)
+	doc.Owner = job.MetaData.Owner
 	doc.ID = eipmongo.ArchivedJobStatsDocumentID(doc.Owner, job.JobID)
 	return doc
 }
