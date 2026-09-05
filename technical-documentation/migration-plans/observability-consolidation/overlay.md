@@ -125,6 +125,12 @@ _Empty until Stage F and Stage G land._
 `.seconds_until_open`. It previously selected a `core_esi_group_*` spelling that nothing has
 written since the limiter was renamed, so every panel was empty.
 
+The layout leads with three radial gauges — allowance still available, tokens remaining, and seconds
+until a refusing bucket admits again — over a time series of tokens remaining and the two snapshot
+tables. Current state is what the limiter is usually consulted for; the trend underneath keeps the
+history a gauge alone would lose. The allowance gauge runs 0–1 with thresholds that redden as it
+drains, and the wait gauge treats any non-zero value as the interesting case.
+
 Two panels changed subject rather than name, because the metric they described no longer exists:
 `seconds_into_window` and `seconds_until_reset` were replaced by `fill` (share of the allowance
 still available, `percentunit`) and `seconds_until_open` (seconds until a refusing bucket admits
