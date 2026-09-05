@@ -138,7 +138,7 @@ var envFields = []EnvField{
 
 	{
 		Key: "LOG_LEVEL", Section: "Runtime", Label: "Log level",
-		Help: "Alloy → Loki ingest floor for Go OTLP logs: debug | info | warn | error.",
+		Help: "Floor each Go service logs at, on stdout and OTLP alike: debug | info | warn | error.",
 		Type: FieldText, Required: true, Default: "info",
 	},
 	{

@@ -14,7 +14,7 @@ import (
 // build.costs.extrasCosts. Statistics rows are not among them: they are derived,
 // so the rebuild queued later in the release regenerates their labels from the
 // jobs this step stamps.
-var jobCollectionsHoldingExtras = []string{eipmongo.CollectionAccountJobs, eipmongo.CollectionAccountArchivedJobs}
+var jobCollectionsHoldingExtras = []string{eipmongo.CollectionJobs, eipmongo.CollectionArchivedJobs}
 
 // stampExtrasCategoryLabels writes each extra cost's category name onto the job
 // that holds it.

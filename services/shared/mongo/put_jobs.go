@@ -34,7 +34,7 @@ func (d *Docs) BulkUpsertJobs(ctx context.Context, accountID string, jobs []mode
 			SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": accountID}).
 			SetUpdate(bson.M{
 				"$set":   job,
-				"$unset": UserJobDocumentsUpsertUnset,
+				"$unset": JobDocumentsUpsertUnset,
 			}).
 			SetUpsert(true))
 	}

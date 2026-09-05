@@ -1,4 +1,4 @@
-package archivestats
+package statistics
 
 import (
 	"fmt"
@@ -8,17 +8,17 @@ import (
 	"eve-industry-planner/shared/models"
 )
 
-const buildStatRoundEps = 1e-9
+const figureRoundEps = 1e-9
 
-func roundBuildStatMoney(x float64) float64 {
-	return math.Round((x+buildStatRoundEps)*100) / 100
+func roundFigureMoney(x float64) float64 {
+	return math.Round((x+figureRoundEps)*100) / 100
 }
 
-// BuildStatSnapshotFor mirrors frontend/functions archivedJobs.js reducers and arithmetic.
-func BuildStatSnapshotFor(job models.Job) (models.BuildStatSnapshot, error) {
+// JobFiguresFor reduces one archived job to the figures its statistics row needs.
+func JobFiguresFor(job models.Job) (models.JobFigures, error) {
 	totalProduced := float64(job.TotalQuantityProduced())
 	if totalProduced <= 0 {
-		return models.BuildStatSnapshot{}, fmt.Errorf("the setups produce nothing (jobID=%s)", job.JobID)
+		return models.JobFigures{}, fmt.Errorf("the setups produce nothing (jobID=%s)", job.JobID)
 	}
 
 	totalSale := 0.0
@@ -31,11 +31,11 @@ func BuildStatSnapshotFor(job models.Job) (models.BuildStatSnapshot, error) {
 	cost := job.CostParts()
 	materialCostPerItem := cost.Materials / totalProduced
 	totalJobCost := cost.Total()
-	totalCostPerItem := roundBuildStatMoney(totalJobCost / totalProduced)
+	totalCostPerItem := roundFigureMoney(totalJobCost / totalProduced)
 
 	averageSalePrice := 0.0
 	if averageQuantity > 0 {
-		averageSalePrice = roundBuildStatMoney(totalSale / averageQuantity)
+		averageSalePrice = roundFigureMoney(totalSale / averageQuantity)
 	}
 
 	profitLoss := 0.0
@@ -43,7 +43,7 @@ func BuildStatSnapshotFor(job models.Job) (models.BuildStatSnapshot, error) {
 		profitLoss = totalSale - totalJobCost
 	}
 
-	return models.BuildStatSnapshot{
+	return models.JobFigures{
 		TypeID:              job.ItemID,
 		JobID:               job.JobID,
 		JobType:             job.JobType,
@@ -65,17 +65,17 @@ func BuildStatSnapshotFor(job models.Job) (models.BuildStatSnapshot, error) {
 }
 
 // NewRow derives the statistics row for one archived job, computing the snapshot
-// it reduces. [RowFromSnapshot] is the same reduction where one is already to hand.
+// it reduces. [RowFromFigures] is the same reduction where one is already to hand.
 //
 // The row is the unit everything above it is folded from, and it is derived from
 // the job alone — so it can be written wherever the job is, rather than found
 // again later by a reader that has to work out which jobs lack one.
 //
-// Returned uncounted: see [RowFromSnapshot].
+// Returned uncounted: see [RowFromFigures].
 func NewRow(job models.Job, now time.Time) (models.ArchivedJobStats, error) {
-	snap, err := BuildStatSnapshotFor(job)
+	snap, err := JobFiguresFor(job)
 	if err != nil {
 		return models.ArchivedJobStats{}, err
 	}
-	return RowFromSnapshot(job, snap, now), nil
+	return RowFromFigures(job, snap, now), nil
 }

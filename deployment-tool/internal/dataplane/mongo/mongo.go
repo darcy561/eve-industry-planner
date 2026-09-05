@@ -16,10 +16,11 @@ import (
 )
 
 const (
-	serviceName = "mongo"
-	keyFileName = "mongo-keyfile"
-	appDatabase = "eve_industry_planner"
-	envCollMod  = "EIP_COLLMOD_COLL_NAME"
+	serviceName      = "mongo"
+	keyFileName      = "mongo-keyfile"
+	appDatabase      = "eve_industry_planner"
+	envCollMod       = "EIP_COLLMOD_COLL_NAME"
+	envRenameSources = "EIP_COLLMOD_RENAME_SOURCES"
 )
 
 type creds struct {

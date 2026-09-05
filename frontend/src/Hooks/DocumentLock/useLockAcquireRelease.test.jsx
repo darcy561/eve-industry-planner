@@ -61,7 +61,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     const { rerender, unmount } = renderHook(
       ({ lockHeld, readOnly }) =>
         useLockAcquireRelease({
-          collection: "account_job_documents",
+          collection: "job_documents",
           docID: "j1",
           enabled: true,
           lockHeld,
@@ -93,7 +93,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
 
   it("mount acquire clears suppressVacancyAcquire from a prior voluntary leave", async () => {
     const h = buildHarness();
-    mockLockScopes[docLockScopeKey("account_job_groups", "g1")] = {
+    mockLockScopes[docLockScopeKey("job_groups", "g1")] = {
       readOnly: false,
       lockHeld: false,
       suppressVacancyAcquire: true,
@@ -101,7 +101,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
 
     const { unmount } = renderHook(() =>
       useLockAcquireRelease({
-        collection: "account_job_groups",
+        collection: "job_groups",
         docID: "g1",
         enabled: true,
         lockHeld: false,
@@ -121,7 +121,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
       await Promise.resolve();
     });
 
-    expect(acquireDocumentLock).toHaveBeenCalledWith("account_job_groups", "g1");
+    expect(acquireDocumentLock).toHaveBeenCalledWith("job_groups", "g1");
     expect(h.patch).toHaveBeenCalledWith(
       expect.objectContaining({ suppressVacancyAcquire: false })
     );
@@ -130,7 +130,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
 
   it("does not self-heal acquire when suppressVacancyAcquire is set (voluntary leave)", async () => {
     const h = buildHarness();
-    const key = docLockScopeKey("account_job_documents", "j1");
+    const key = docLockScopeKey("job_documents", "j1");
     mockLockScopes[key] = {
       readOnly: false,
       lockHeld: true,
@@ -140,7 +140,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     const { rerender, unmount } = renderHook(
       ({ lockHeld, readOnly }) =>
         useLockAcquireRelease({
-          collection: "account_job_documents",
+          collection: "job_documents",
           docID: "j1",
           enabled: true,
           lockHeld,
@@ -174,7 +174,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     const h = buildHarness();
     const { unmount } = renderHook(() =>
       useLockAcquireRelease({
-        collection: "account_job_documents",
+        collection: "job_documents",
         docID: "j1",
         enabled: true,
         lockHeld: false,
@@ -211,7 +211,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     const h = buildHarness();
     const { unmount } = renderHook(() =>
       useLockAcquireRelease({
-        collection: "account_job_documents",
+        collection: "job_documents",
         docID: "j1",
         enabled: true,
         lockHeld: false,
@@ -241,7 +241,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     const h = buildHarness();
     const { unmount } = renderHook(() =>
       useLockAcquireRelease({
-        collection: "account_job_documents",
+        collection: "job_documents",
         docID: "j1",
         enabled: true,
         lockHeld: true,
@@ -260,7 +260,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
       await Promise.resolve();
     });
     h.heldRef.current = false;
-    mockLockScopes[docLockScopeKey("account_job_documents", "j1")] = {
+    mockLockScopes[docLockScopeKey("job_documents", "j1")] = {
       lockHeld: true,
       readOnly: false,
     };
@@ -273,7 +273,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     });
 
     expect(releaseDocumentLock).toHaveBeenCalledWith(
-      "account_job_documents",
+      "job_documents",
       "j1"
     );
   });
@@ -281,14 +281,14 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
   it("does not release on unmount when releaseOnUnmount is false", async () => {
     const h = buildHarness();
     h.heldRef.current = true;
-    mockLockScopes[docLockScopeKey("account_job_documents", "j1")] = {
+    mockLockScopes[docLockScopeKey("job_documents", "j1")] = {
       lockHeld: true,
       readOnly: false,
     };
 
     const { unmount } = renderHook(() =>
       useLockAcquireRelease({
-        collection: "account_job_documents",
+        collection: "job_documents",
         docID: "j1",
         enabled: true,
         lockHeld: true,

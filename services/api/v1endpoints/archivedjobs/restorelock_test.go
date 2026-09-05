@@ -55,7 +55,7 @@ func archivedMemberOf(jobID, groupID string) models.Job {
 func TestRestoreIsRefusedWhileAnotherSessionHoldsTheGroup(t *testing.T) {
 	t.Parallel()
 	rdb := redisfake.New(t).Client
-	seedLock(t, rdb, eipmongo.CollectionAccountJobGroups, "group-1", lockTestOther)
+	seedLock(t, rdb, eipmongo.CollectionJobGroups, "group-1", lockTestOther)
 	h := handlersWithRedis(t, rdb)
 
 	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
@@ -64,7 +64,7 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lock gate: %v", err)
 	}
-	if collection != eipmongo.CollectionAccountJobGroups {
+	if collection != eipmongo.CollectionJobGroups {
 		t.Fatalf("collection = %q, want the group named", collection)
 	}
 	if len(rejects) != 1 || rejects[0].DocID != "group-1" {
@@ -80,7 +80,7 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheGroup(t *testing.T) {
 func TestRestoreProceedsWhenTheRestoringSessionHoldsTheGroup(t *testing.T) {
 	t.Parallel()
 	rdb := redisfake.New(t).Client
-	seedLock(t, rdb, eipmongo.CollectionAccountJobGroups, "group-1", lockTestSession)
+	seedLock(t, rdb, eipmongo.CollectionJobGroups, "group-1", lockTestSession)
 	h := handlersWithRedis(t, rdb)
 
 	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
@@ -96,7 +96,7 @@ func TestRestoreProceedsWhenTheRestoringSessionHoldsTheGroup(t *testing.T) {
 func TestRestoreIsRefusedWhenAnyGroupInTheSetIsHeld(t *testing.T) {
 	t.Parallel()
 	rdb := redisfake.New(t).Client
-	seedLock(t, rdb, eipmongo.CollectionAccountJobGroups, "group-2", lockTestOther)
+	seedLock(t, rdb, eipmongo.CollectionJobGroups, "group-2", lockTestOther)
 	h := handlersWithRedis(t, rdb)
 
 	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession, []models.Job{
@@ -107,7 +107,7 @@ func TestRestoreIsRefusedWhenAnyGroupInTheSetIsHeld(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lock gate: %v", err)
 	}
-	if collection != eipmongo.CollectionAccountJobGroups || len(rejects) != 1 || rejects[0].DocID != "group-2" {
+	if collection != eipmongo.CollectionJobGroups || len(rejects) != 1 || rejects[0].DocID != "group-2" {
 		t.Fatalf("collection=%q rejects=%+v, want group-2 refused", collection, rejects)
 	}
 }
@@ -117,7 +117,7 @@ func TestRestoreIsRefusedWhenAnyGroupInTheSetIsHeld(t *testing.T) {
 func TestRestoreIsRefusedWhileAnotherSessionHoldsTheJob(t *testing.T) {
 	t.Parallel()
 	rdb := redisfake.New(t).Client
-	seedLock(t, rdb, eipmongo.CollectionAccountJobDocuments, "job-a", lockTestOther)
+	seedLock(t, rdb, eipmongo.CollectionJobDocuments, "job-a", lockTestOther)
 	h := handlersWithRedis(t, rdb)
 
 	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
@@ -126,7 +126,7 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lock gate: %v", err)
 	}
-	if collection != eipmongo.CollectionAccountJobDocuments || len(rejects) != 1 || rejects[0].DocID != "job-a" {
+	if collection != eipmongo.CollectionJobDocuments || len(rejects) != 1 || rejects[0].DocID != "job-a" {
 		t.Fatalf("collection=%q rejects=%+v, want job-a refused", collection, rejects)
 	}
 }
@@ -136,7 +136,7 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheJob(t *testing.T) {
 func TestAGroupedJobIsGatedOnItsGroupNotItself(t *testing.T) {
 	t.Parallel()
 	rdb := redisfake.New(t).Client
-	seedLock(t, rdb, eipmongo.CollectionAccountJobDocuments, "job-a", lockTestOther)
+	seedLock(t, rdb, eipmongo.CollectionJobDocuments, "job-a", lockTestOther)
 	h := handlersWithRedis(t, rdb)
 
 	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
@@ -151,7 +151,7 @@ func TestAGroupedJobIsGatedOnItsGroupNotItself(t *testing.T) {
 func TestTheGroupHolderMayRestoreItsMembers(t *testing.T) {
 	t.Parallel()
 	rdb := redisfake.New(t).Client
-	seedLock(t, rdb, eipmongo.CollectionAccountJobGroups, "group-1", lockTestSession)
+	seedLock(t, rdb, eipmongo.CollectionJobGroups, "group-1", lockTestSession)
 	h := handlersWithRedis(t, rdb)
 
 	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,

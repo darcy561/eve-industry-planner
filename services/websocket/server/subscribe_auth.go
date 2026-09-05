@@ -19,10 +19,10 @@ const docSubscribeMongoTimeout = 3 * time.Second
 // in the form "{collection}.{mongoDocumentID}".
 //
 // Singleton collections (document id must equal accountID):
-//   - users, application_settings, user_watchlist_deprecated — singleton per account; _id matches accountID (same invariant as login).
+//   - accounts, account_settings, watchlist_deprecated — singleton per account; _id matches accountID (same invariant as login).
 //
 // Mongo ownership (_id + _meta.accountID == accountID):
-//   - jobs, user_job_documents, archivedJobs, groups, build_stats
+//   - jobs, job_documents, archived_jobs, groups, production_totals
 //
 // All other collection names are denied (fail closed). Public/static collections (e.g. blueprints) must not
 // be subscribed via this realtime channel.
@@ -37,10 +37,10 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, accountID st
 	collection, id := parts[0], parts[1]
 
 	switch collection {
-	case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionAccountWatchlistDeprecated:
+	case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionWatchlistDeprecated:
 		return id == accountID
 
-	case eipmongo.CollectionAccountJobs, eipmongo.CollectionAccountJobDocuments, eipmongo.CollectionAccountJobGroups:
+	case eipmongo.CollectionJobs, eipmongo.CollectionJobDocuments, eipmongo.CollectionJobGroups:
 		if s.Stack == nil || s.Stack.Mongo == nil {
 			logs.WarnCtx(context.Background(), "subscribe auth denied: mongo client unavailable",
 				"collection", collection, "doc_id", id)

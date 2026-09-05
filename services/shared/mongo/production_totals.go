@@ -19,13 +19,13 @@ import (
 // key, so a document says who owns it in its own name and a kind added later
 // needs no new id format.
 
-// ProductionTotalsDocumentID is the _id for account_production_totals:
+// ProductionTotalsDocumentID is the _id for production_totals:
 // {ownerKey}|typeID. One document per item type an owner has built.
 func ProductionTotalsDocumentID(owner models.Owner, typeID int) string {
 	return fmt.Sprintf("%s|%d", owner.Key(), typeID)
 }
 
-// TimelineMonthDocumentID is the _id for account_timeline_months:
+// TimelineMonthDocumentID is the _id for timeline_months:
 // {ownerKey}|typeID|YYYY-MM, with a |chain segment on the production-chain bucket.
 func TimelineMonthDocumentID(owner models.Owner, typeID, year, month int, isProductionChain bool) string {
 	id := fmt.Sprintf("%s|%d|%04d-%02d", owner.Key(), typeID, year, month)
@@ -35,7 +35,7 @@ func TimelineMonthDocumentID(owner models.Owner, typeID, year, month int, isProd
 	return id
 }
 
-// ArchivedJobStatsDocumentID is the _id for account_archived_job_stats:
+// ArchivedJobStatsDocumentID is the _id for archived_job_stats:
 // {ownerKey}|jobID.
 func ArchivedJobStatsDocumentID(owner models.Owner, jobID string) string {
 	return fmt.Sprintf("%s|%s", owner.Key(), jobID)
@@ -86,13 +86,13 @@ func (m *Mongo) EachOwnerArchivedJob(ctx context.Context, owner models.Owner, fn
 // including revoked ones, so a rebuild can tell a job it has already seen from
 // one it has not.
 func (m *Mongo) LoadArchivedJobStats(ctx context.Context, owner models.Owner, opts ...RetryOption) ([]models.ArchivedJobStats, error) {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return nil, err
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return nil, err
 	}
@@ -118,13 +118,13 @@ func (m *Mongo) LoadArchivedJobStats(ctx context.Context, owner models.Owner, op
 // one it has never processed, and so a job restored from the archive keeps its
 // history.
 func (m *Mongo) RevokeArchivedJobStats(ctx context.Context, owner models.Owner, keepDocIDs []string, now time.Time, opts ...RetryOption) (int64, error) {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return 0, err
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return 0, err
 	}
@@ -156,13 +156,13 @@ func (m *Mongo) RevokeArchivedJobStats(ctx context.Context, owner models.Owner, 
 // produce. A wholesale rebuild replaces the whole set, so a month that no longer
 // has activity has to disappear rather than keep its previous totals.
 func (m *Mongo) PruneTimelineMonths(ctx context.Context, owner models.Owner, keepDocIDs []string, opts ...RetryOption) (int64, error) {
-	if m == nil || m.AccountTimelineMonths == nil {
+	if m == nil || m.StatisticsTimeline == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return 0, err
 	}
-	coll, err := m.AccountTimelineMonths.requireColl()
+	coll, err := m.StatisticsTimeline.requireColl()
 	if err != nil {
 		return 0, err
 	}
@@ -198,13 +198,13 @@ func (m *Mongo) PruneTimelineMonths(ctx context.Context, owner models.Owner, kee
 // jobs has nothing left to say. The per-job rows keep their revoked marker,
 // which is where a removed job's history survives.
 func (m *Mongo) PruneProductionTotals(ctx context.Context, owner models.Owner, keepDocIDs []string, opts ...RetryOption) (int64, error) {
-	if m == nil || m.ProductionTotals == nil {
+	if m == nil || m.StatisticsTotals == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return 0, err
 	}
-	coll, err := m.ProductionTotals.requireColl()
+	coll, err := m.StatisticsTotals.requireColl()
 	if err != nil {
 		return 0, err
 	}
@@ -238,13 +238,13 @@ func (m *Mongo) PruneProductionTotals(ctx context.Context, owner models.Owner, k
 // typeID narrows to a single item when non-zero, which is the read the archive
 // dialogue makes for one blueprint.
 func (m *Mongo) LoadProductionTotals(ctx context.Context, owner models.Owner, typeID int, opts ...RetryOption) ([]models.ProductionTotalsRow, error) {
-	if m == nil || m.ProductionTotals == nil {
+	if m == nil || m.StatisticsTotals == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return nil, err
 	}
-	coll, err := m.ProductionTotals.requireColl()
+	coll, err := m.StatisticsTotals.requireColl()
 	if err != nil {
 		return nil, err
 	}
@@ -273,13 +273,13 @@ func (m *Mongo) LoadProductionTotals(ctx context.Context, owner models.Owner, ty
 // LoadTimelineMonths reads an owner's stored monthly buckets, the
 // documents a reconcile compares its fold against.
 func (m *Mongo) LoadTimelineMonths(ctx context.Context, owner models.Owner, opts ...RetryOption) ([]models.TimelineMonthBucket, error) {
-	if m == nil || m.AccountTimelineMonths == nil {
+	if m == nil || m.StatisticsTimeline == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return nil, err
 	}
-	coll, err := m.AccountTimelineMonths.requireColl()
+	coll, err := m.StatisticsTimeline.requireColl()
 	if err != nil {
 		return nil, err
 	}

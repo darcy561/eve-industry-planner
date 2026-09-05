@@ -30,7 +30,7 @@ func TestKnownTaskPassesTheNameGuard(t *testing.T) {
 
 	// Fails on connecting to NATS rather than on the name, which is enough to
 	// show the guard let it through.
-	err := runTrigger(t.Context(), []string{"drainAccountStatsRebuildQueue"})
+	err := runTrigger(t.Context(), []string{"dispatchStatisticsRebuilds"})
 	if err != nil && strings.Contains(err.Error(), "unknown command or task") {
 		t.Fatalf("a listed task was rejected by the name guard: %v", err)
 	}

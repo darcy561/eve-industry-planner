@@ -30,9 +30,9 @@ func ReportSchemaVersionLag(ctx context.Context, mongoHandle *eipmongo.Mongo) {
 	}{
 		{eipmongo.CollectionAccounts, models.UserAccountDocumentSchemaCurrent},
 		{eipmongo.CollectionAccountSettings, models.ApplicationSettingsSchemaCurrent},
-		{eipmongo.CollectionAccountJobDocuments, models.JobSchemaCurrent},
-		{eipmongo.CollectionAccountJobGroups, models.GroupSchemaCurrent},
-		{eipmongo.CollectionAccountJobs, models.JobSchemaCurrent},
+		{eipmongo.CollectionJobDocuments, models.JobSchemaCurrent},
+		{eipmongo.CollectionJobGroups, models.GroupSchemaCurrent},
+		{eipmongo.CollectionJobs, models.JobSchemaCurrent},
 	}
 
 	for _, t := range targets {

@@ -43,27 +43,15 @@ type CollectionRename struct {
 // collection groups and the websocket subscribe allow-list before adding one.
 var CollectionRenames = []CollectionRename{
 	{
-		From:    "user_archived_job_stats",
-		To:      "account_archived_job_stats",
-		Why:     "scope prefix: the rows are scoped by account, not by character",
-		Version: 1,
-	},
-	{
 		From:    "user_group_template_catalog",
-		To:      "account_group_template_catalog",
+		To:      "group_template_catalog",
 		Why:     "scope prefix: the rows are scoped by account, not by character",
 		Version: 1,
 	},
 	{
 		From:    "user_group_template_payloads",
-		To:      "account_group_template_payloads",
+		To:      "group_template_payloads",
 		Why:     "scope prefix: the rows are scoped by account, not by character",
-		Version: 1,
-	},
-	{
-		From:    "stats_rebuild_queue_accounts",
-		To:      "account_stats_rebuild_queue",
-		Why:     "scope prefix leads the name, matching every other account collection",
 		Version: 1,
 	},
 	{
@@ -80,7 +68,7 @@ var CollectionRenames = []CollectionRename{
 	},
 	{
 		From:    "user_watchlist_deprecated",
-		To:      "account_watchlist_deprecated",
+		To:      "watchlist_deprecated",
 		Why:     "scope prefix: the rows are scoped by account, not by character; the deprecated suffix describes the feature, not the scope",
 		Version: 1,
 	},
@@ -97,39 +85,21 @@ var CollectionRenames = []CollectionRename{
 		Version: 1,
 	},
 	{
-		From:    "jobs",
-		To:      "account_jobs",
-		Why:     "scope prefix: the rows are scoped by account, not by character",
-		Version: 1,
-	},
-	{
 		From:    "user_job_documents",
-		To:      "account_job_documents",
+		To:      "job_documents",
 		Why:     "scope prefix: the rows are scoped by account, not by character",
 		Version: 1,
 	},
 	{
 		From:    "user_job_groups",
-		To:      "account_job_groups",
+		To:      "job_groups",
 		Why:     "scope prefix: the rows are scoped by account, not by character",
 		Version: 1,
 	},
 	{
 		From:    "archivedJobs",
-		To:      "account_archived_jobs",
+		To:      "archived_jobs",
 		Why:     "scope prefix: the rows are scoped by account, not by character; also the only camelCase name, snake_cased by the same move",
-		Version: 1,
-	},
-	{
-		From:    "user_rollup_buckets",
-		To:      "account_timeline_months",
-		Why:     "scope prefix: the rows are scoped by account, not by character; months is what the documents hold, and timeline is the wire vocabulary",
-		Version: 1,
-	},
-	{
-		From:    "build_stats",
-		To:      "account_production_totals",
-		Why:     "scope prefix: the rows are scoped by account, not by character; production totals says what is measured rather than naming a category",
 		Version: 1,
 	},
 }
@@ -253,4 +223,17 @@ func ensureRenamesWith(ctx context.Context, cid string, c creds, run mongoshRoot
 		return schemaVersionWrite(ctx, cid, c, run, current)
 	}
 	return nil
+}
+
+// renameSourcesFor lists the names a collection is reached from by a pending
+// rename, so a step that would otherwise create it can tell an absent
+// collection apart from one that has not been renamed yet.
+func renameSourcesFor(target string) []string {
+	var sources []string
+	for _, r := range CollectionRenames {
+		if r.To == target {
+			sources = append(sources, r.From)
+		}
+	}
+	return sources
 }

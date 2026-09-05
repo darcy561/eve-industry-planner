@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/stackservices"
@@ -14,9 +15,9 @@ import (
 // derivedStatisticsCollections hold nothing that is not computed from the
 // archived jobs.
 var derivedStatisticsCollections = []string{
-	eipmongo.CollectionArchivedJobStats,
-	eipmongo.CollectionAccountTimelineMonths,
-	eipmongo.CollectionAccountProductionTotals,
+	eipmongo.CollectionStatisticsRows,
+	eipmongo.CollectionStatisticsTimeline,
+	eipmongo.CollectionStatisticsTotals,
 }
 
 // preReleaseSnapshotSuffix names a copy of a collection as it stood before this
@@ -43,24 +44,17 @@ func snapshotDerivedStatistics(ctx context.Context, clients *stackservices.Clien
 	reports := make([]string, 0, len(derivedStatisticsCollections))
 
 	for _, name := range derivedStatisticsCollections {
-		report, err := snapshotThenEmpty(ctx, clients, name, dryRun)
+		report, err := snapshotCollection(ctx, clients, name, dryRun)
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", name, err)
 		}
 		reports = append(reports, report)
 	}
 
-	out := ""
-	for i, r := range reports {
-		if i > 0 {
-			out += "; "
-		}
-		out += r
-	}
-	return out, nil
+	return strings.Join(reports, "; "), nil
 }
 
-func snapshotThenEmpty(ctx context.Context, clients *stackservices.Clients, name string, dryRun bool) (string, error) {
+func snapshotCollection(ctx context.Context, clients *stackservices.Clients, name string, dryRun bool) (string, error) {
 	source := clients.Mongo.Coll(name)
 	target := name + preReleaseSnapshotSuffix
 

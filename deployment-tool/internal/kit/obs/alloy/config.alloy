@@ -95,37 +95,8 @@ otelcol.receiver.otlp "apps" {
 
 	output {
 		metrics = [otelcol.processor.batch.apps.input]
-		logs    = [otelcol.processor.filter.loki_min_level.input]
+		logs    = [otelcol.processor.transform.scrub_otlp_boilerplate.input]
 		traces  = [otelcol.processor.batch.traces.input]
-	}
-}
-
-// Drop logs below Alloy LOG_LEVEL before Loki (apps export debug; filter here). Restart alloy after LOG_LEVEL changes.
-otelcol.processor.filter "loki_min_level" {
-	error_mode = "ignore"
-
-	logs {
-		log_record = [
-			"severity_number < " + coalesce(
-				{
-					"debug"   = "SEVERITY_NUMBER_DEBUG",
-					"DEBUG"   = "SEVERITY_NUMBER_DEBUG",
-					"info"    = "SEVERITY_NUMBER_INFO",
-					"INFO"    = "SEVERITY_NUMBER_INFO",
-					"warn"    = "SEVERITY_NUMBER_WARN",
-					"WARN"    = "SEVERITY_NUMBER_WARN",
-					"warning" = "SEVERITY_NUMBER_WARN",
-					"WARNING" = "SEVERITY_NUMBER_WARN",
-					"error"   = "SEVERITY_NUMBER_ERROR",
-					"ERROR"   = "SEVERITY_NUMBER_ERROR",
-				}[coalesce(env("LOG_LEVEL"), "info")],
-				"SEVERITY_NUMBER_INFO",
-			),
-		]
-	}
-
-	output {
-		logs = [otelcol.processor.transform.scrub_otlp_boilerplate.input]
 	}
 }
 
@@ -160,37 +131,6 @@ otelcol.processor.transform "scrub_otlp_boilerplate" {
 		context = "scope"
 		statements = [
 			`set(name, "")`,
-		]
-	}
-
-	output {
-		// debug: keep debug_steps on access logs; otherwise strip before Loki.
-		logs = coalesce(
-			{
-				"debug"   = [otelcol.processor.batch.logs.input],
-				"DEBUG"   = [otelcol.processor.batch.logs.input],
-				"info"    = [otelcol.processor.transform.strip_debug_steps.input],
-				"INFO"    = [otelcol.processor.transform.strip_debug_steps.input],
-				"warn"    = [otelcol.processor.transform.strip_debug_steps.input],
-				"WARN"    = [otelcol.processor.transform.strip_debug_steps.input],
-				"warning" = [otelcol.processor.transform.strip_debug_steps.input],
-				"WARNING" = [otelcol.processor.transform.strip_debug_steps.input],
-				"error"   = [otelcol.processor.transform.strip_debug_steps.input],
-				"ERROR"   = [otelcol.processor.transform.strip_debug_steps.input],
-			}[coalesce(env("LOG_LEVEL"), "info")],
-			[otelcol.processor.transform.strip_debug_steps.input],
-		)
-	}
-}
-
-// Remove debug_steps from access logs before Loki (skipped when LOG_LEVEL=debug via routing above).
-otelcol.processor.transform "strip_debug_steps" {
-	error_mode = "ignore"
-
-	log_statements {
-		context = "log"
-		statements = [
-			`delete_key(attributes, "debug_steps")`,
 		]
 	}
 

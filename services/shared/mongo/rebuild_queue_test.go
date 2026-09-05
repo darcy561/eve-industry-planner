@@ -18,9 +18,9 @@ func TestNewMongoBindsStatisticsCollections(t *testing.T) {
 		docs *Docs
 		want string
 	}{
-		{"ArchivedJobStats", m.ArchivedJobStats, CollectionArchivedJobStats},
-		{"AccountTimelineMonths", m.AccountTimelineMonths, CollectionAccountTimelineMonths},
-		{"AccountRebuildQueue", m.AccountRebuildQueue, CollectionAccountRebuildQueue},
+		{"ArchivedJobStats", m.StatisticsRows, CollectionStatisticsRows},
+		{"AccountTimelineMonths", m.StatisticsTimeline, CollectionStatisticsTimeline},
+		{"AccountRebuildQueue", m.StatisticsRebuildQueue, CollectionStatisticsRebuildQueue},
 	} {
 		if tc.docs == nil || tc.docs.Collection() == nil {
 			t.Fatalf("%s: handle not bound", tc.name)
@@ -73,7 +73,7 @@ func TestDocsReadHelpersValidateInput(t *testing.T) {
 	}
 
 	m := testMongo(t)
-	if _, err := m.ArchivedJobStats.DistinctStrings(t.Context(), "", nil); err == nil {
+	if _, err := m.StatisticsRows.DistinctStrings(t.Context(), "", nil); err == nil {
 		t.Fatal("expected an error for an empty field name")
 	}
 }

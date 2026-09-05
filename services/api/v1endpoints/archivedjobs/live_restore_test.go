@@ -67,7 +67,7 @@ func contributedRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jo
 		CostMonth:     models.CalendarMonth{Year: at.Year(), Month: int(at.Month())},
 		ContributedAt: &at,
 	}
-	if _, err := mongo.ArchivedJobStats.UpsertStructPreservingMeta(ctx, row, row.ID); err != nil {
+	if _, err := mongo.StatisticsRows.UpsertStructPreservingMeta(ctx, row, row.ID); err != nil {
 		t.Fatalf("seed stats row for %s: %v", jobID, err)
 	}
 }
@@ -124,7 +124,7 @@ func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 	}
 
 	var row models.ArchivedJobStats
-	if err := mongo.ArchivedJobStats.Collection().FindOne(ctx,
+	if err := mongo.StatisticsRows.Collection().FindOne(ctx,
 		bson.M{"_id": eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(restoreScratchAccount), "job-restore-1")},
 	).Decode(&row); err != nil {
 		t.Fatalf("statistics row: %v", err)
@@ -138,7 +138,7 @@ func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 	var entry struct {
 		Work string `bson:"work"`
 	}
-	if err := mongo.AccountRebuildQueue.Collection().FindOne(ctx,
+	if err := mongo.StatisticsRebuildQueue.Collection().FindOne(ctx,
 		bson.M{"_id": models.AccountOwner(restoreScratchAccount).Key()},
 	).Decode(&entry); err != nil {
 		t.Fatalf("no statistics work queued: %v", err)

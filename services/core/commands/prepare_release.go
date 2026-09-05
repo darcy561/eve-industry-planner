@@ -50,6 +50,10 @@ type release struct {
 var releases = []release{{
 	version: "0.9.0",
 	steps: []releaseStep{
+		// First: later steps stamp the current schema version onto documents they
+		// touch, so anything still owing an earlier upgrade has to run it now or
+		// be recorded as current without ever having done so.
+		{name: "complete outstanding schema maintenance", run: completeSchemaMaintenance},
 		{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
 		{name: "drop retired change stream resume tokens", run: dropRetiredResumeTokens},
 		{name: "drop unaddressable rebuild queue entries", run: dropUnaddressableQueueEntries},
@@ -80,7 +84,7 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 		}
 		fmt.Fprintf(fs.Output(), "\nSafe to re-run: a step that has nothing to do reports zero.\n")
 		fmt.Fprintf(fs.Output(), "The rebuild runs when the drain next fires; trigger it now with\n")
-		fmt.Fprintf(fs.Output(), "  tasks drainAccountStatsRebuildQueue\n\n")
+		fmt.Fprintf(fs.Output(), "  tasks dispatchStatisticsRebuilds\n\n")
 		fs.PrintDefaults()
 	}
 	dryRun := fs.Bool("dry-run", false, "report what each step would change; write nothing")
@@ -125,7 +129,7 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 	}
 
 	if !*dryRun {
-		fmt.Println("run `tasks drainAccountStatsRebuildQueue` to rebuild now, or wait for the drain")
+		fmt.Println("run `tasks dispatchStatisticsRebuilds` to rebuild now, or wait for the scheduled pass")
 	}
 	return nil
 }
@@ -138,7 +142,7 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 var retiredStatisticsFields = []string{"dataSnapshots", "buildRows"}
 
 func dropRetiredStatisticsFields(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
-	coll := clients.Mongo.ProductionTotals.Collection()
+	coll := clients.Mongo.StatisticsTotals.Collection()
 
 	unset := bson.M{}
 	or := make([]bson.M, 0, len(retiredStatisticsFields))
@@ -209,7 +213,7 @@ func dropRetiredResumeTokens(ctx context.Context, clients *stackservices.Clients
 // never be dispatched and never cleared. They are dropped rather than converted
 // because the step that follows queues every account anyway.
 func dropUnaddressableQueueEntries(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
-	coll := clients.Mongo.AccountRebuildQueue.Collection()
+	coll := clients.Mongo.StatisticsRebuildQueue.Collection()
 
 	var stored []string
 	if err := coll.Distinct(ctx, "_id", bson.M{}).Decode(&stored); err != nil {

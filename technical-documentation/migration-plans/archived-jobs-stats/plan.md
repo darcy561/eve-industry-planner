@@ -226,8 +226,7 @@ Every measure is additive, which is what makes the group valid.
 **`timeline/items` groups by `typeID`** over the same window and sorts server-side, because ranking
 by profit or revenue cannot be done on a page of arbitrary rows. Default ordering is descending
 `profitLoss`; `sort` selects another measure, `limit` / `offset` page it. `typeID` on either view
-narrows to one item, which is a covered filter on the existing
-`accountID, year, month, typeID` index.
+narrows to one item, which is a covered filter on the owner-and-type index the timeline reads use.
 
 This needs an aggregation helper on `Docs`, which has none today — reads there are `Find`-shaped.
 Add it to the shared surface with a `RetryOption` and an operation name, the way `DistinctStrings`
@@ -1499,7 +1498,7 @@ keyed by owner and claim — `{kind}:{id}:{claim}` is a natural deduplication ke
 it correct rather than merely deduplicating, because a re-queued owner is a genuinely different piece
 of work.
 
-`drainAccountStatsRebuildQueue` stops rebuilding and becomes a **dispatcher**: read the eligible
+`dispatchStatisticsRebuilds` stops rebuilding and becomes a **dispatcher**: read the eligible
 owners, publish one task each, return. It carries no per-owner work, so it cannot meaningfully time
 out, and each task clears its own owner on completion — which makes progress incremental by
 construction and removes the stall above without a separate fix.
@@ -1567,7 +1566,7 @@ derivable from the allowlist, so they are derived from it in this slice rather t
 one-source-of-truth rule applies to a command table as much as to a data model.
 
 **Wire compatibility: additive.** Three new task names and subjects — delta, reconcile and rebuild;
-`drainAccountStatsRebuildQueue` keeps its name and subject and changes what it does, so nothing that
+`dispatchStatisticsRebuilds` keeps its name and subject and changes what it does, so nothing that
 publishes it needs to know.
 
 **Tests:** the eligibility filter against a fixed clock — a rebuild entry inside the window is not
@@ -1586,7 +1585,7 @@ derivation makes a property rather than a list to check.
    replace the account-shaped API, and every producer names the owner and the work it wants. The
    `kind:id` key is the only copy of the owner: a stored duplicate of it was written for a while and
    never read, so it is gone.
-3. **`drainAccountStatsRebuildQueue` dispatches and no longer rebuilds.** It publishes one
+3. **`dispatchStatisticsRebuilds` dispatches and no longer rebuilds.** It publishes one
    `rebuildOwnerStatistics` task (`priority_5`) per eligible owner, each carrying the claim its entry
    held. Each task rebuilds its owner and clears its own entry on its own claim, so there is no
    batch clear left to fail on a cancelled context and progress is per owner rather than per pass.
@@ -2042,8 +2041,8 @@ are settled; the reasoning for each lives in that plan.
 
 | Item | Status |
 |------|--------|
-| 1. `ArchivedJobStats` takes an owner | **Done.** All three statistics documents are owner-keyed: `AccountID` and `CorpRef` are off the row, the aggregates carry an `Owner` in their place, the three document ids lead with the owner key, every query filters on `owner.kind`/`owner.id`, and the five index specs match. `models.StatsOwner` is `models.Owner`, the row gained `ArchivedBy` and `SchemaVersion`, and the dead `Version` field is gone |
-| 2. Collection and document-id renames | **Not started.** The five collections still carry their `account_` names |
+| 1. `ArchivedJobStats` takes an owner | **Done.** All three statistics documents are owner-keyed: `AccountID` and `CorpRef` are off the row, the aggregates carry an `Owner` in their place, the three document ids lead with the owner key, every query filters on `owner.kind`/`owner.id`, and the five index specs are keyed on what those queries actually filter and sort by. `models.StatsOwner` is `models.Owner`, the row gained `ArchivedBy` and `SchemaVersion`, and the dead `Version` field is gone |
+| 2. Collection and document-id renames | **Done.** Every collection carries the name it holds rather than who owns it, and the three statistics document ids lead with the owner key. The renames ship as `CollectionRenames` version 1 in the Deployment Tool — ten entries, one per collection live holds and still needs; `build_stats` is left behind because the recalculation reproduces it into `statistics_totals` |
 | 3. Route and query key take an owner | **Done.** The route is `/api/v1/statistics/{owner}/{view}` with the owner as a handle, and every statistics query key carries the owner under the shared root |
 | 4. Stage C's ownership inference is dropped | **Done.** `corpinference`, the per-line corporation fields and the lane on the corporation bucket are gone; nothing in `services/` or the SPA infers a scope |
 
@@ -2053,9 +2052,11 @@ files referencing that type are this project's own code and it is already openin
 `ArchivedJobStats` carries flat fields rather than embedding `MetaData`, so it does not wait on that
 split. Shared-planners Stage A **consumes** `models.Owner` and starts after item 1 lands.
 
-Item 2's *code* is likewise this project's to write. Only its **deployment** is coupled: the rename
-entries ship in the same `CollectionRenames` version as shared-planners' own, in the single
-maintenance window that plan's Stage B describes.
+Item 2's *code* is likewise this project's to write, and its deployment turned out not to be coupled
+to shared-planners after all. Live holds no statistics collections, so the three entries that would
+have renamed them had a source that exists nowhere and were dropped: what live owes is ten renames
+over the collections it does hold, none of which the owner backfill touches. The entries are therefore
+version 1 on their own rather than sharing a version with that plan's Stage B.
 
 ### 1. `ArchivedJobStats` takes an owner
 
@@ -2082,6 +2083,36 @@ The collection does **not** join `SchemaMaintainedCollections()`. That list driv
 batch that rewrites documents a user owns; a statistics row is derived, so the way to bring one to
 the current shape on disk is the rebuild that already exists.
 
+#### The indexes are keyed from the queries, not from the document
+
+Owner-keying the documents was not enough to make the indexes right: the first set carried fields
+the code never filters on, and missed the ones it does. What they are now, and why:
+
+| Collection | Keys | Why |
+|------------|------|-----|
+| `statistics_rows` | `owner.kind`, `owner.id`, `revoked`, `contributedAt` | The delta fold's two reads — the rows not yet counted, and the revoked rows still counted — are the owner's rows narrowed by exactly these |
+| `statistics_rows` | `owner.kind`, `owner.id`, `typeID`, `revoked` | Rebuilding one item type reads that type's live rows |
+| `statistics_timeline` | `owner.kind`, `owner.id`, `isProductionChain`, `typeID` | The timeline excludes production-chain buckets unless asked for them |
+| `statistics_timeline` | `owner.kind`, `owner.id`, `typeID` | The same views with the chain included |
+| `statistics_totals` | `owner.kind`, `owner.id`, `typeID` | The lifetime totals read, whole-owner and single-type, and the `typeID` ordering it returns in |
+
+Three fields came **off** the earlier specs. `year` and `month` cannot serve the timeline's range: it
+is bound on a month ordinal computed in an `$addFields` stage, which no index reaches, so the tail was
+carried and never used. `archivedAt` and `isProductionChain` are filtered on the month buckets and set
+on the rows, never filtered on a row. `contributedAt` went on because it is what the fold actually
+selects by and no index held it.
+
+**An index a query uses is not the same as an index that fits it.** Mongo will take an index for its
+leading prefix and scan everything after it as a residual filter, so `explain` naming an index proves
+nothing on its own; the tell is a `SORT` stage in the winning plan, or `totalDocsExamined` far above
+`nReturned`. Each spec above was confirmed by creating it, re-running `explain`, and checking it won
+its query before it was written down.
+
+**Ensure only ever adds an index, so a reshaped one has to be retired by name.** A replacement with
+different keys under a different name conflicts with nothing, and both would survive — the old one
+maintained on every write and chosen by no query. `RetiredIndexes` in the Deployment Tool names them,
+runs before the specs are created, and treats an index already gone as done.
+
 ### The names followed the keying
 
 Once the documents were keyed by owner, everything named for the account was describing the old model.
@@ -2102,10 +2133,14 @@ is `NewRow`, and each now says how it differs from the other.
 still what they carry, and the user-document reads are account-scoped in fact. Renaming those would
 have made the code less true, not more consistent.
 
-**`DrainAccountStatsRebuildQueue` is left alone deliberately.** Its Go symbol is paired with a wire task
-name and a subject, so renaming the symbol alone would desync the two. The queue is keyed by owner now,
-so the name is owed a change — but it is a cross-process rename, cheapest during this release's
-downtime when no message is in flight, and worth taking as its own decision rather than as a tidy-up.
+**`DrainAccountStatsRebuildQueue` was renamed, in the window it was waiting for.** Its Go symbol was
+paired with a wire task name and a subject, so renaming one alone would desync them — which is why it
+was parked for a downtime with no message in flight. It is now `dispatchStatisticsRebuilds`, pairing
+with `dispatchStatisticsReconciles`: the two do the same job for the two kinds of work, and the task
+dispatches rather than drains — it publishes one task per owner and performs no rebuild itself.
+
+Six surfaces moved together, which is the reason it could not be done piecemeal: the Go symbol, the
+task name, the NATS subject, the publisher, the cron id, and the command an operator types.
 
 **Two documents were dead and are gone.** `CorpProductionTotalsRow` and `CorpTimelineMonthBucket` were
 parallel corporation shapes from the design the owner replaced. Nothing outside their own definitions
@@ -2250,17 +2285,60 @@ owner, which is why those tags are asserted rather than trusted.
 every document. `Key()`, `ParseOwnerKey`, `Validate` and `IsZero` carry over unchanged, and the
 `account` kind resolves to exactly the key this project already uses.
 
-### 2. Collection and document-id renames ride with the backfill
+### 2. Collection and document-id renames
 
 The renames this plan parked as "the expensive part of a scope change" happen, because every kind
-shares one collection under the owner model. The entire cost of a rename is touching live data, which
-the owner backfill is doing anyway; splitting them pays that cost twice over the same collections.
+shares one collection under the owner model.
+
+They were planned to ride with the owner backfill, on the reasoning that the whole cost of a rename is
+touching live data. That turned out not to apply: a same-database `renameCollection` is a metadata
+operation that does not touch a document, so a rename costs a moment's exclusive lock rather than a
+pass over the data, and there is nothing to share a window with.
 
 Names are chosen per collection rather than by swapping one prefix for another: `account_archived_jobs`
-becomes `archived_jobs`, `account_archived_job_stats` becomes `archived_job_stats`, and so on. The
+becomes `archived_jobs`, `account_archived_job_stats` becomes `statistics_rows`, and so on. The
 owner block on the document states ownership, so a name that also encodes it says the same thing
 twice. Document ids take the owner key in place of the account id —
 `ArchivedJobStatsDocumentID` becomes `{ownerKey}|{jobID}`.
+
+**Live owes ten renames, not fourteen.** It holds no statistics collections at all, so the entries for
+those had a source that exists nowhere; carrying them would have described a migration no database
+performs. What ships is one entry per collection live actually holds **and still needs**:
+
+| From | To |
+|------|----|
+| `users` | `accounts` |
+| `application_settings` | `account_settings` |
+| `archivedJobs` | `archived_jobs` |
+| `user_job_documents` | `job_documents` |
+| `user_job_groups` | `job_groups` |
+| `user_group_template_catalog` | `group_template_catalog` |
+| `user_group_template_payloads` | `group_template_payloads` |
+| `user_watchlist_deprecated` | `watchlist_deprecated` |
+| `blueprints` | `shared_blueprints` |
+| `citadel_names` | `shared_citadel_names` |
+
+`statistics_rows`, `statistics_timeline`, `statistics_totals`, `statistics_rebuild_queue` and
+`statistics_reconcile_rota` are created under their final names by the code that writes them, so
+live's first population is already correct.
+
+**These five were renamed to the statistics vocabulary the API and SPA already use** — the route is
+`/api/v1/statistics/{owner}/{view}`, its views are `timeline` and `totals`, and the code calls the
+per-job figures *rows* throughout. `archived_job_stats` said what it was derived from while
+`production_totals` said what it held, which is two conventions for one subsystem. The rename cost
+nothing but a constant: live has never held any of them, so there is no `CollectionRenames` entry
+and no migration step — a freedom that ends the moment live holds them.
+
+`build_stats` is the one collection live holds that is **not** renamed forward. Its documents are
+derived, and the recalculation reproduces every one of them into `statistics_totals` under the new
+shape — a rename would carry rows that the rebuild is about to replace, and that no query can match
+anyway once every filter leads with the owner. It is left in place for an operator to drop, the same
+treatment the other pre-release statistics collections get.
+
+The rename path was proven by putting dev back to live's exact names and running `eip ensure-mongo`
+once: every entry fired and every count came back identical. Ensure applies renames **before** the two
+steps that create a collection when its name is absent — preimages and indexes — because either
+running first would leave the rename facing a name that now exists at both ends, which it refuses.
 
 ### 3. The statistics route and query key take an owner
 
@@ -2307,11 +2385,14 @@ reaches `Public`. Item 4 is a reduction in scope.
 rather than embedding `MetaData`, so it is untouched by the metadata split shared-planners Stage A
 performs. That stage **consumes** `models.Owner` and therefore starts after item 1 lands.
 
-What is coupled is the renames' **deployment**, not their code: `CollectionRenames` is version-gated,
-a database skips every entry at or below the version it records, so this project's entries take the
-same next version as shared-planners' own and both apply in the single maintenance window that plan's
-Stage B describes. The expand → backfill → switch → contract sequence, and the task that performs it,
-belong to [shared-planners](../shared-planners/plan.md) § Stage B.
+The renames' **deployment** was expected to be coupled to shared-planners' own, sharing one
+`CollectionRenames` version in that plan's Stage B window. It is not: live holds none of the
+statistics collections, so the renames it owes are over collections the owner backfill never touches,
+and they ship as version 1 by themselves. `CollectionRenames` is version-gated — a database skips
+every entry at or below the version it records — so an entry added to a version already applied would
+never run; a later batch takes the next version. The wider owner migration,
+and the task that performs it, belong to [shared-planners](../shared-planners/plan.md) § Stage A,
+which is now a single cutover inside the deployment window rather than a gradual switch.
 
 ## Go modernization in scope
 
@@ -2350,7 +2431,7 @@ whichever work touches SSO next rather than widened into this stage.
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries three tabs: statistics (metric cards, eight charts, item table), per-item history over the same windowed reads, and the jobs list with its three row shapes and restore. Chart primitives are shared and the price-history dialogue moved onto them. Neither later tab is queried until it is opened, and all three carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
 | J — incremental statistics and the build history panel | **Complete bar one placement decision.** J1 replaced the stored snapshot array with a query, added the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row and `includeProductionChain` on the timeline read, rebuilt the Build History panel on the chart primitives, and removed the `archive_and_stats` change-stream group. J2 made a job's figures a delta — folded in on archive, taken back on restore — guarded by `contributedAt` on the row and a claim bump that stands a fold down when a rebuild has taken the owner on. J3 made the drain a dispatcher over one task per owner. J4 reconciles every owner once a day, oldest stamp first, rewriting aggregates from the rows and reporting drift without acting on it. J5 gave realtime messages a `type`/`subtype` vocabulary, notifies an account when its figures move, reports the recalculating and failed states on every statistics response, and shows them above the page's tabs. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
-| Owner block — owed to shared planners | **Items 3 and 4 done, item 1 expanded, item 2 open** — the ownership inference Stage C was blocked on is removed, and the statistics route and query key take an owner handle. The owner on the row and the collection renames are still owed; both are this project's code to write, and shared-planners Stage A waits on item 1 rather than the other way round. Only the renames' **deployment** is coupled, to that plan's Stage B window. See § Owner block — owed to shared planners |
+| Owner block — owed to shared planners | **All four items done** — the ownership inference Stage C was blocked on is removed, the statistics route and query key take an owner handle, the three statistics documents are owner-keyed with ids leading on the owner key, and the collections carry the names they hold. Shared-planners Stage A waits on item 1 rather than the other way round, and it is still un-started. The renames turned out **not** to be coupled to that plan's Stage B window: live holds none of the statistics collections, so what it owes is ten renames the owner backfill never touches, shipping as `CollectionRenames` version 1 on their own. See § Owner block — owed to shared planners |
 
 ## Done when
 
@@ -2395,7 +2476,7 @@ stage touched. The one outstanding `go fix` suggestion in scope is `shared/tasks
 than swept in.
 
 **Stage B is closed.** The account pipeline runs end to end: `PUT /archived-jobs` queues an account,
-`ScheduleDrainAccountStatsRebuildQueue` publishes on its cron, the worker dispatches, and the claim
+`ScheduleDispatchStatisticsRebuilds` publishes on its cron, the worker dispatches, and the claim
 protocol decides what stays queued. Behaviour → [overlay.md](./overlay.md) § Stage B.
 
 **Stage E is closed for the account scope.** The SPA reads `totals`, `timeline` and
@@ -2500,9 +2581,22 @@ designed against a database where every corporation ref is empty would be guessi
 None of these is development work. They are commands run against a database, and they are needed
 before Stage C can be designed against representative data.
 
-**Dev has had the rebuild and the resume-token drop.** The rebuild covered all 227 owners. Both are
-still listed because they are owed against live, and because a deploy should reach them through
+**Dev has had the whole of `prepareRelease`, end to end.** All six steps ran: the snapshots came out
+at 10,338 / 4,074 / 7,652 documents against sources of the same size, 351 archived jobs carry stamped
+extras labels, and 227 owners were queued and rebuilt. The three collections now hold owner-keyed
+documents alongside the originals — 9,531 statistics rows, 4,074 totals and 7,670 buckets. The steps
+stay listed because they are owed against live, and because a deploy should reach them through
 `tasks prepareRelease` rather than one at a time.
+
+The row count fell from 10,338 to 9,531 and that is the archived-job count exactly: the old set carried
+807 revoked rows for jobs since restored, and a rebuild derives from live archived jobs, so it produces
+one row per job and no revoked residue. The timeline gained 18 buckets over the same data, which is
+worth a spot check on live before the figures are trusted — it is the one total that moved in a
+direction the job count does not explain.
+
+**The queue sits for five minutes before anything happens.** `rebuildDebounce` bounds the longest an
+owner waits rather than sliding with each re-queue, so a drain firing in that window reports
+`eligible: 0` against a full queue. That is the debounce working, not a stall.
 
 **Order matters: identity conversion first, then the rebuild.** The rebuild derives statistics from
 job documents, so converting identities first means it sees refs where they exist. The other order
@@ -2511,20 +2605,51 @@ just means the corporation data arrives a rebuild late.
 | Step | Command | Why |
 |------|---------|-----|
 | 1. Convert stored entity ids | `tasks encodeJobIdentity` (`-dry-run` first) | On dev, `protected.spec` is null on all 9,130 archived jobs and 834 still hold a raw `corporation_id` on their linked jobs. Those are the only corporation ids in the database, and `archivestats` reads refs, so until they are converted the aggregation sees nothing. It is also the first thing that would give `character_ref` any value at all. Owned by [entity-id-encryption](../entity-id-encryption/plan.md); this project only depends on it |
-| 2. Everything the release owes the database | `tasks prepareRelease` (`-dry-run` first) | One command. It runs every release's steps, oldest first — see `releases` in `core/commands/prepare_release.go`; these four are 0.9.0. A step with nothing to do reports zero, so re-running against a current environment is safe, and an environment several versions behind catches up in one pass |
+| 2. Everything the release owes the database | `tasks prepareRelease` (`-dry-run` first) | One command. It runs every release's steps, oldest first — see `releases` in `core/commands/prepare_release.go`; these six are 0.9.0. A step with nothing to do reports zero, so re-running against a current environment is safe, and an environment several versions behind catches up in one pass |
 
-The four steps inside that command, and why each is owed:
+The six steps inside that command, and why each is owed:
 
 | Step | Why |
 |------|-----|
 | Drop retired statistics fields | `dataSnapshots` and `buildRows` left `ProductionTotalsRow` in J1, but the rebuild upserts with `$set` and never replaces, so a document written before then keeps whichever it had |
 | Drop retired change stream resume tokens | J1 removed the `archive_and_stats` change-stream group. Resume tokens are written with no expiry, so a retired group's key would sit there forever. The registry says which groups exist, so anything else under the prefix is retired by definition |
 | Drop unaddressable rebuild queue entries | A queue entry whose id names no owner is skipped by every dispatch and cleared by none, so it would never leave the queue |
-| Queue every account for rebuild | Recomputes every account's three collections. Idempotent, and safe to re-run. Owed again after J1: every bucket gains `quantityProduced` and `isProductionChain`, and every total gains `history`. The rebuild runs when the drain next fires, or on `tasks drainAccountStatsRebuildQueue` |
+| Stamp extras category labels onto jobs | Before the rebuild, which derives each row's category names from the jobs. Settings retain a deleted category, so the name is recoverable now and not later — on dev this recovered 65 extras naming *Retired Courier Contract* out of 659 across 12 accounts, with none left unnamed |
+| Copy the statistics documents before the rebuild | After the jobs are stamped and before the rebuild, which writes these three collections back in the owner-keyed shape. `$out` to `{name}_pre_0_9_0`, server-side and count-verified. Nothing is deleted: the old documents carry no owner and every query filters on one, so they are inert until an operator removes them |
+| Queue every account for rebuild | Recomputes every account's three collections. Idempotent, and safe to re-run. Owed again after J1: every bucket gains `quantityProduced` and `isProductionChain`, and every total gains `history`. The rebuild runs when the drain next fires, or on `tasks dispatchStatisticsRebuilds` |
 
 These must also run against **live** when this work ships — with the caveat that live carries no
 statistics collections yet, so step 2 there is a first population rather than a catch-up. Whether
 step 1 has already run against live was not checked; do not assume live matches dev.
+
+They run inside the deployment's maintenance window rather than against a serving system. The window,
+its order, and the backup the cutover relies on instead of a rollback path are
+[shared-planners](../shared-planners/plan.md) § Stage A's; this plan owns only which commands are owed
+and why.
+
+A third command is owed in the same window but belongs to
+[shared-planners](../shared-planners/plan.md): `tasks backfillMetaOwner` stamps `_meta.owner` on the
+documents that carry an account id, writing the owner block ahead of any code that reads it. It wants
+to run alongside step 1 rather than after step 2, because the rebuild derives from job documents and
+there is no reason to have it read them twice. It has run on dev — 9,591 documents across six
+collections, every stamped owner carrying the id its `_meta.accountID` already held.
+
+**The stamp is not durable until the model carries the field.** Four write paths `$set` a whole
+marshalled struct rather than named fields — `BulkUpsertJobs`, `BulkUpsertGroups`, the archive
+`putHandler`, and the job upsert behind them — and `$set` on a subdocument replaces it.
+`models.MetaData` has no `Owner` field, so a document those paths rewrite comes back **without** the
+owner it was stamped with: not stale, erased. Accounts and settings keep theirs, because the user
+write patches named fields instead.
+
+On dev that makes the run a demonstration of the transform and nothing more, and those 9,591 stamps
+last only until something saves a job.
+
+**On live it is no longer a cross-release problem.** The deployment takes the stack down, so every
+data step in this release and in shared-planners rides one window with nothing serving and nothing
+writing — see [shared-planners](../shared-planners/plan.md) § Stage A for the window and its order.
+The constraint that survives is only the order inside it: the images carrying `Owner` on `MetaData`
+are deployed before `tasks backfillMetaOwner` runs, and no job is saved in between because no traffic
+is being served. What was a hazard spanning two releases becomes a step order in one.
 
 ### Left open, none blocking
 

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/statistics"
 	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -31,10 +31,10 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
 		scope := bson.M{"accountID": rearchiveScratchAccount}
-		_, _ = mongo.ArchivedJobStats.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountTimelineMonths.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.ProductionTotals.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountRebuildQueue.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
+		_, _ = mongo.StatisticsRows.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsTimeline.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsTotals.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsRebuildQueue.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
 	}
 	clean()
 	t.Cleanup(clean)
@@ -55,7 +55,7 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 
 	writeRow := func(t *testing.T, j models.Job) models.ArchivedJobStats {
 		t.Helper()
-		row, err := archivestats.NewRow(j, now)
+		row, err := statistics.NewRow(j, now)
 		if err != nil {
 			t.Fatalf("NewRow: %v", err)
 		}
@@ -67,7 +67,7 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 	stored := func(t *testing.T, id string) models.ArchivedJobStats {
 		t.Helper()
 		var out models.ArchivedJobStats
-		if err := mongo.ArchivedJobStats.Collection().FindOne(ctx, bson.M{"_id": id}).Decode(&out); err != nil {
+		if err := mongo.StatisticsRows.Collection().FindOne(ctx, bson.M{"_id": id}).Decode(&out); err != nil {
 			t.Fatalf("read row: %v", err)
 		}
 		return out
@@ -124,10 +124,10 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
 		scope := bson.M{"accountID": account}
-		_, _ = mongo.ArchivedJobStats.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountTimelineMonths.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.ProductionTotals.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountRebuildQueue.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
+		_, _ = mongo.StatisticsRows.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsTimeline.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsTotals.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsRebuildQueue.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
 	}
 	clean()
 	t.Cleanup(clean)
@@ -146,7 +146,7 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 	job.MetaData.AccountID = account
 	job.MetaData.ArchivedAt = now
 
-	row, err := archivestats.NewRow(job, now)
+	row, err := statistics.NewRow(job, now)
 	if err != nil {
 		t.Fatalf("NewRow: %v", err)
 	}

@@ -14,11 +14,11 @@ type Mongo struct {
 
 	// Named collection handles (bound in NewMongo).
 	Users               *Docs
-	JobDocuments        *Docs // CollectionAccountJobDocuments — planner job docs API (hot path)
-	Jobs                *Docs // CollectionAccountJobs — distinct from JobDocuments; not the user job-docs API
+	JobDocuments        *Docs // CollectionJobDocuments — planner job docs API (hot path)
+	Jobs                *Docs // CollectionJobs — distinct from JobDocuments; not the user job-docs API
 	Groups              *Docs
 	ArchivedJobs        *Docs
-	ProductionTotals    *Docs
+	StatisticsTotals    *Docs
 	TemplateCatalog     *Docs
 	TemplatePayloads    *Docs
 	ApplicationSettings *Docs
@@ -26,10 +26,10 @@ type Mongo struct {
 	CitadelNames        *Docs
 	WatchlistDeprecated *Docs
 
-	ArchivedJobStats      *Docs // per-archived-job figures the statistics pipelines read
-	AccountTimelineMonths *Docs // pre-aggregated calendar months per account and item type
-	AccountRebuildQueue   *Docs // accounts whose statistics need recalculating
-	AccountReconcileRota  *Docs // when each owner was last reconciled against its rows
+	StatisticsRows          *Docs // per-archived-job figures the statistics pipelines read
+	StatisticsTimeline      *Docs // pre-aggregated calendar months per owner and item type
+	StatisticsRebuildQueue  *Docs // owners whose statistics need recalculating
+	StatisticsReconcileRota *Docs // when each owner was last reconciled against its rows
 }
 
 // NewMongo pins DatabaseName and binds named Docs fields. client must be non-nil.
@@ -42,21 +42,21 @@ func NewMongo(client *mongo.Client) (*Mongo, error) {
 		DB:     client.Database(DatabaseName),
 	}
 	m.Users = m.Docs(CollectionAccounts)
-	m.JobDocuments = m.Docs(CollectionAccountJobDocuments)
-	m.Jobs = m.Docs(CollectionAccountJobs)
-	m.Groups = m.Docs(CollectionAccountJobGroups)
-	m.ArchivedJobs = m.Docs(CollectionAccountArchivedJobs)
-	m.ProductionTotals = m.Docs(CollectionAccountProductionTotals)
-	m.TemplateCatalog = m.Docs(CollectionAccountGroupTemplateCatalog)
-	m.TemplatePayloads = m.Docs(CollectionAccountGroupTemplatePayloads)
+	m.JobDocuments = m.Docs(CollectionJobDocuments)
+	m.Jobs = m.Docs(CollectionJobs)
+	m.Groups = m.Docs(CollectionJobGroups)
+	m.ArchivedJobs = m.Docs(CollectionArchivedJobs)
+	m.StatisticsTotals = m.Docs(CollectionStatisticsTotals)
+	m.TemplateCatalog = m.Docs(CollectionGroupTemplateCatalog)
+	m.TemplatePayloads = m.Docs(CollectionGroupTemplatePayloads)
 	m.ApplicationSettings = m.Docs(CollectionAccountSettings)
 	m.Blueprints = m.Docs(CollectionSharedBlueprints)
 	m.CitadelNames = m.Docs(CollectionSharedCitadelNames)
-	m.WatchlistDeprecated = m.Docs(CollectionAccountWatchlistDeprecated)
-	m.ArchivedJobStats = m.Docs(CollectionArchivedJobStats)
-	m.AccountTimelineMonths = m.Docs(CollectionAccountTimelineMonths)
-	m.AccountRebuildQueue = m.Docs(CollectionAccountRebuildQueue)
-	m.AccountReconcileRota = m.Docs(CollectionAccountReconcileRota)
+	m.WatchlistDeprecated = m.Docs(CollectionWatchlistDeprecated)
+	m.StatisticsRows = m.Docs(CollectionStatisticsRows)
+	m.StatisticsTimeline = m.Docs(CollectionStatisticsTimeline)
+	m.StatisticsRebuildQueue = m.Docs(CollectionStatisticsRebuildQueue)
+	m.StatisticsReconcileRota = m.Docs(CollectionStatisticsReconcileRota)
 	return m, nil
 }
 

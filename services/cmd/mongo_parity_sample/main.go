@@ -63,12 +63,12 @@ func run() error {
 	}
 
 	collections := []string{
-		eipmongo.CollectionAccountJobDocuments,
-		eipmongo.CollectionAccountJobGroups,
-		eipmongo.CollectionAccountArchivedJobs,
-		eipmongo.CollectionAccountProductionTotals,
-		eipmongo.CollectionAccountGroupTemplateCatalog,
-		eipmongo.CollectionAccountGroupTemplatePayloads,
+		eipmongo.CollectionJobDocuments,
+		eipmongo.CollectionJobGroups,
+		eipmongo.CollectionArchivedJobs,
+		eipmongo.CollectionStatisticsTotals,
+		eipmongo.CollectionGroupTemplateCatalog,
+		eipmongo.CollectionGroupTemplatePayloads,
 		eipmongo.CollectionAccountSettings,
 		eipmongo.CollectionAccounts,
 		eipmongo.CollectionSharedBlueprints,

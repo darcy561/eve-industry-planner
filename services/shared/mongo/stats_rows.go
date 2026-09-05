@@ -29,7 +29,7 @@ var statsRowLifecycleFields = []string{"contributedAt", "revokedAt", "skippedAt"
 // carries one and removed when it does not, which makes the stored row say
 // exactly what the written row says.
 func (m *Mongo) WriteStatsRows(ctx context.Context, rows []models.ArchivedJobStats, batchSize int) error {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
 	if len(rows) == 0 {
@@ -38,7 +38,7 @@ func (m *Mongo) WriteStatsRows(ctx context.Context, rows []models.ArchivedJobSta
 	if batchSize <= 0 {
 		batchSize = len(rows)
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (m *Mongo) WriteStatsRows(ctx context.Context, rows []models.ArchivedJobSta
 // Existing rows only. A row carrying no figures would fold as a contributor of
 // nothing, adding a count to every bucket it touched.
 func (m *Mongo) StampSkippedStatsRows(ctx context.Context, owner models.Owner, jobIDs []string, reason string, now time.Time) (stamped int64, err error) {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
@@ -104,7 +104,7 @@ func (m *Mongo) StampSkippedStatsRows(ctx context.Context, owner models.Owner, j
 	if len(jobIDs) == 0 {
 		return 0, nil
 	}
-	coll, cerr := m.ArchivedJobStats.requireColl()
+	coll, cerr := m.StatisticsRows.requireColl()
 	if cerr != nil {
 		return 0, cerr
 	}

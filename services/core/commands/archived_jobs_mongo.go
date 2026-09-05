@@ -29,7 +29,7 @@ func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 		fmt.Fprintf(fs.Output(), "Queues accounts holding archived jobs for a statistics rebuild.\n")
 		fmt.Fprintf(fs.Output(), "Reads archived jobs; writes only the rebuild queue.\n\n")
 		fmt.Fprintf(fs.Output(), "The rebuild runs when the drain next fires; trigger it now with\n")
-		fmt.Fprintf(fs.Output(), "  tasks drainAccountStatsRebuildQueue\n\n")
+		fmt.Fprintf(fs.Output(), "  tasks dispatchStatisticsRebuilds\n\n")
 		fmt.Fprintf(fs.Output(), "Scope: use -account to limit to one account, or omit -account / pass -all for every account.\n\n")
 		fs.PrintDefaults()
 	}
@@ -102,7 +102,7 @@ func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 		return fmt.Errorf("queueArchivedJobStatsRebuild: %d/%d accounts failed to queue", len(queueErrs), len(accounts))
 	}
 
-	fmt.Println("run `tasks drainAccountStatsRebuildQueue` to rebuild now, or wait for the hourly drain")
+	fmt.Println("run `tasks dispatchStatisticsRebuilds` to rebuild now, or wait for the scheduled pass")
 	return nil
 }
 
@@ -110,6 +110,6 @@ func archivedJobsEmptyHint(scopeDesc string) string {
 	return fmt.Sprintf(
 		"note: no documents matched in %s.%s (scope: %s). "+
 			"If you expected rows here, confirm MONGO_URL points at the right cluster.\n",
-		eipmongo.DatabaseName, eipmongo.CollectionAccountArchivedJobs, scopeDesc,
+		eipmongo.DatabaseName, eipmongo.CollectionArchivedJobs, scopeDesc,
 	)
 }

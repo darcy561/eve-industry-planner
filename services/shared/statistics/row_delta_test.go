@@ -1,4 +1,4 @@
-package archivestats
+package statistics
 
 import (
 	"math"
@@ -200,14 +200,14 @@ func TestABuiltRowIsUncountedUntilAWriterSaysOtherwise(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC)
-	row := RowFromSnapshot(models.Job{
+	row := RowFromFigures(models.Job{
 		JobID:               "job-1",
 		ItemID:              34,
 		ItemsProducedPerRun: 4,
 		Build: models.JobBuild{
 			Setup: map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}},
 		},
-	}, models.BuildStatSnapshot{TotalProduced: 4}, now)
+	}, models.JobFigures{TotalProduced: 4}, now)
 
 	if row.ContributedAt != nil {
 		t.Fatal("a freshly built row claims to be counted; a new job's figures would never be folded in")

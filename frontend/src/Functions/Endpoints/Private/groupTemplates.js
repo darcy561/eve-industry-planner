@@ -1,5 +1,5 @@
 /**
- * Account-scoped group templates (`account_group_template_catalog` + payloads).
+ * Account-scoped group templates (`group_template_catalog` + payloads).
  */
 import {
   requestWithPrivateHeaders,

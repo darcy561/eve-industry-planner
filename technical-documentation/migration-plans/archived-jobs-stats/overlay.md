@@ -138,9 +138,12 @@ collection name travels as a string:
 
 | Collection | Handle | Holds |
 |------------|--------|-------|
-| `account_archived_job_stats` | `ArchivedJobStats` | per-archived-job figures the pipelines read |
-| `account_timeline_months` | `AccountTimelineMonths` | pre-aggregated calendar months per account and item type |
-| `account_stats_rebuild_queue` | `AccountRebuildQueue` | accounts whose statistics need recalculating |
+| `statistics_rows` | `ArchivedJobStats` | per-archived-job figures the pipelines read |
+| `statistics_timeline` | `AccountTimelineMonths` | pre-aggregated calendar months per owner and item type |
+| `statistics_rebuild_queue` | `AccountRebuildQueue` | owners whose statistics need recalculating |
+
+A collection is named for what it holds. Ownership lives in the document's owner block, so a name
+that also encoded it would state the same fact twice and go stale the moment another kind exists.
 
 **Rebuild queue.** Queues are named for the work they trigger rather than the state of the data.
 One entry per owner, keyed `kind:id`, carrying the work it is waiting for — `delta` or `rebuild`.
@@ -163,36 +166,55 @@ Both take `RetryOption`, so every read carries an operation name in its logs the
 helpers already do. `DistinctUnprocessedArchivedAccountIDs` now goes through `DistinctStrings`
 instead of reaching for `Collection()` and hand-decoding `[]any`, and gains retry it did not have.
 
-**Document `_id` builders** live beside `BuildStatsDocumentID` in `build_stats.go` — the contract
-between the workers that write and the API that reads. `AccountTimelineMonthDocumentID` zero-pads the
-month (`acct|1234|2026-08`) so `_id` ordering matches calendar ordering.
+**Document `_id` builders** live beside `ProductionTotalsDocumentID` in `production_totals.go` — the
+contract between the workers that write and the API that reads. Each takes an owner and leads the id
+with its key: a statistics row is `{ownerKey}|{jobID}`, and `TimelineMonthDocumentID` zero-pads the
+month (`account:1234|1234|2026-08`) so `_id` ordering matches calendar ordering.
 
 ### Indexes
 
 Index ownership is the Deployment Tool's: `internal/dataplane/mongo/index_specs.go` is the
-declarative source of truth and `eip ensure-mongo` applies it. Seven specs join the list:
+declarative source of truth and `eip ensure-mongo` applies it. Nine specs join the list:
 
 | Collection | Index | Serves |
 |------------|-------|--------|
-| `account_archived_job_stats` | `accountID, typeID, isProductionChain, revoked` | per-account, per-type reads that exclude chain intermediates and revoked rows |
-| `account_archived_job_stats` | `accountID, archivedAt, revoked` | account rebuild scans in archive order |
-| `account_timeline_months` | `accountID, year, month, typeID` | timeline reads over a month range, all types or one |
-| `account_job_documents` | `build.costs.linkedJobs.corporation_id` | finding documents that still hold a raw entity id |
-| `account_job_documents` | `protected.spec` | finding documents written under an older field set |
-| `account_archived_jobs` | `build.costs.linkedJobs.corporation_id` | as above, for archives |
-| `account_archived_jobs` | `protected.spec` | as above, for archives |
+| `statistics_rows` | `owner.kind, owner.id, revoked, contributedAt` | the delta fold's two reads: rows not yet counted, and revoked rows still counted |
+| `statistics_rows` | `owner.kind, owner.id, typeID, revoked` | rebuilding one item type from its live rows |
+| `statistics_timeline` | `owner.kind, owner.id, isProductionChain, typeID` | timeline reads excluding chain intermediates |
+| `statistics_timeline` | `owner.kind, owner.id, typeID` | the same views with the chain included |
+| `statistics_totals` | `owner.kind, owner.id, typeID` | lifetime totals, whole-owner and single-type, in the `typeID` order returned |
+| `job_documents` | `build.costs.linkedJobs.corporation_id` | finding documents that still hold a raw entity id |
+| `job_documents` | `protected.spec` | finding documents written under an older field set |
+| `archived_jobs` | `build.costs.linkedJobs.corporation_id` | as above, for archives |
+| `archived_jobs` | `protected.spec` | as above, for archives |
+
+Every statistics filter leads with the owner's kind and id, so an owner kind added later needs no new
+index — it is another value in the same leading fields.
 
 The last four serve the conversion backfill. Both are selective — the raw-id index covers
 1,404 documents out of ~41,500 and shrinks to nothing as the backlog drains, since writes
 convert before persisting.
 
-`account_stats_rebuild_queue` gets no spec. Its documents are keyed by account ID alone and
-`ListQueuedAccounts` reads the whole collection unordered, so the automatic `_id` index covers it.
-A `queuedAt` index only becomes worth adding if draining moves to oldest-first, which would also
-need a sort on that read.
+**`year` and `month` are deliberately absent from the timeline specs.** The month range is bound on an
+ordinal computed in an `$addFields` stage, which no index can serve, so those fields were carried and
+never used. `archivedAt` and `isProductionChain` are likewise off the row specs: the first is never
+filtered or sorted on a row, and the second is filtered on the month buckets. `contributedAt` is on,
+because it is what the fold actually selects by.
+
+`statistics_rebuild_queue` gets no spec. Its documents are keyed by owner key alone and `ListQueuedOwners`
+reads the whole collection unordered, so the automatic `_id` index covers it. A `queuedAt` index only
+becomes worth adding if draining moves to oldest-first, which would also need a sort on that read.
+
+**Retiring a spec is its own declaration.** Ensure only ever adds an index, so a reshaped one leaves
+its predecessor behind — different keys under a different name conflict with nothing, and both
+survive, the old one maintained on every write and chosen by no query. `RetiredIndexes` names those,
+runs before the specs are created, and treats an index already gone as done. A conflict on an
+identical key pattern under a different name is reconciled rather than passed over, which is what a
+collection rename produces: renaming carries the indexes across under the names they had before.
 
 No preimage entry is needed: `PreimageCollections` covers the user-document collections the
-changestream syncs to clients, which is why `account_archived_jobs` and `account_production_totals` are absent from it too.
+changestream syncs to clients, which is why `archived_jobs` and `statistics_totals` are absent from it
+too.
 
 **No partial indexes were added.** The branch carried them over an "active snapshot" filter, and the
 deferral existed so the filter could be written against a real query rather than guessed at. With
@@ -200,18 +222,22 @@ the Stage D handlers written, none of them filters on a subset: every read is sc
 and optionally `typeID`, both of which every document carries. A partial filter would exclude
 nothing, so it would add a constraint to keep in step across two modules and buy no selectivity.
 
-**The single-type question resolved as yes.** `atm_accountID_year_month_typeID_1` leads with year and
-month, so a query naming one item type over a range of months can only use its `accountID` prefix and
-scans the account's whole window. `atm_accountID_typeID_year_month_1` puts `typeID` second, which the
-archive dialogue's per-blueprint read needs. Both are kept: the first is still the better index when
-no type is named.
+**The single-type question resolved as yes, then the month fields came off both specs.** The pair was
+originally `atm_accountID_year_month_typeID_1` and `atm_accountID_typeID_year_month_1`, on the
+reasoning that a query naming one item type over a range of months needed `typeID` ahead of the month
+fields. The reasoning was sound and the premise was not: the range is bound on an ordinal computed in
+an `$addFields` stage, so no index reaches `year` or `month` at all and both tails were dead weight.
+What the two specs actually distinguish is whether production-chain buckets are excluded, so that is
+what they lead with now — `atm_owner_isProductionChain_typeID_1` for the default views and
+`atm_owner_typeID_1` for the same views with the chain included.
 
-`account_production_totals` gained `apt_accountID_typeID_1`, which serves the lifetime read in both
-its forms. It had no index of its own before — the collection was previously reached only by `_id`.
+`statistics_totals` gained `apt_owner_typeID_1`, which serves the lifetime read in both its forms and
+the `typeID` order it returns in. It had no index of its own before — the collection was previously
+reached only by `_id`.
 
 ### Schema maintenance
 
-`account_archived_jobs` joined the schema-maintenance rotation, because it carries `schemaVersion` like the
+`archived_jobs` joined the schema-maintenance rotation, because it carries `schemaVersion` like the
 planner collections and would otherwise never reach the current version. The rotation now visits
 five collections rather than four, so each is scanned every fifth hourly tick.
 
@@ -258,12 +284,12 @@ These are **new** collections, so they take the convention in
 [collection-naming](../collection-naming/plan.md) from the start rather than being renamed later.
 Corporation-scoped data is the case the `<scope>_` prefix exists for, and it is the first
 collection set that is not account scoped. The names also follow the Stage D vocabulary — see
-[§ Naming](./plan.md#naming) — so `production_totals` and `timeline_months` rather than
-`account_production_totals` and `account_timeline_months`.
+[§ Naming](./plan.md#naming) — so `statistics_totals` and `statistics_timeline` rather than
+`statistics_totals` and `statistics_timeline`.
 
 Index definitions do **not** land in `services/`. Development has no index-creation code there at
 all; `deployment-tool/internal/dataplane/mongo/index_specs.go` is the declared source of truth,
-applied by `eip ensure-mongo`, and it already carries an `account_archived_jobs` entry. The new collections
+applied by `eip ensure-mongo`, and it already carries an `archived_jobs` entry. The new collections
 get `IndexSpec` entries there — an operator-surface change, not a services one.
 
 ## Stage B — account statistics pipeline
@@ -272,13 +298,13 @@ _Landed._ The transformation, the worker rebuild, the drain, its task and handle
 producer and the hourly schedule are all committed, so queue → publish → drain runs end to end — see
 [The schedule](#the-schedule).
 
-### The transformation — `shared/archivestats`
+### The transformation — `shared/statistics`
 
 Pure: no Mongo, no clock, no key material, so the attribution rules are testable apart from the
 worker that applies them. `now` is a parameter, which is what makes a rebuild reproducible.
 
-`BuildAccountSnapshot` reduces one archived job to its `account_archived_job_stats` row.
-`AccumulateAccountBuckets` and `AccountBuckets` fold those rows into `account_timeline_months`.
+`BuildAccountSnapshot` reduces one archived job to its `statistics_rows` row.
+`AccumulateAccountBuckets` and `AccountBuckets` fold those rows into `statistics_timeline`.
 
 **Cost attribution.** A job's costs are attributed to the month production started — the earliest
 linked industry job, falling back to the earliest sale, then the archive date. A build spanning a
@@ -414,7 +440,7 @@ cannot double-count and no flag is needed.
 
 #### Verified against the retired pipeline's output
 
-The rename left 4,039 `account_production_totals` documents written by the old `$inc` worker, which
+The rename left 4,039 `statistics_totals` documents written by the old `$inc` worker, which
 is the only comparison available for the fold that replaced it. Two things were confirmed against
 them rather than reasoned about:
 
@@ -444,7 +470,7 @@ re-queues the account.
 
 ### The drain task
 
-`DrainAccountStatsRebuildQueue` (`task.scheduled.drainAccountStatsRebuildQueue`, Priority4, 15
+`DispatchStatisticsRebuilds` (`task.scheduled.dispatchStatisticsRebuilds`, Priority4, 15
 minute timeout) is the worker entrypoint over `DrainAccountRebuildQueue`. It is declared in
 `shared/tasks/types.go` and registered on the asynq mux in `worker/asynq/handlers.go`.
 
@@ -466,12 +492,12 @@ The count is attached as a handler caveat instead, and `Requeued` stays distingu
 
 The asynq mux keys handlers by a bare string, so a handler key that does not match its task name
 registers cleanly and is never routed to — the queue would fill with nothing draining it and no
-error anywhere to say so. `TestDrainAccountStatsRebuildQueue_TaskNameIsRegistered` pins the name,
+error anywhere to say so. `TestDispatchStatisticsRebuilds_TaskNameIsRegistered` pins the name,
 the `ByName` row and the resolved timeout together.
 
 ### The schedule
 
-`ScheduleDrainAccountStatsRebuildQueue` publishes one drain task per tick, registered in
+`ScheduleDispatchStatisticsRebuilds` publishes one drain task per tick, registered in
 `core/scheduler/registry.go` alongside the build stats fan-out.
 
 **Hourly at minute 30** (`30 * * * *`), deliberately offset from
@@ -666,8 +692,8 @@ sum of the three build components, written beside them and read by nothing once 
 the truth — and holding both is what let two versions of the cost calculation exist. `JobCostParts`
 answers the same question with `Build()`. Documents written before this keep the field inertly; the
 driver ignores what the struct no longer declares. It sits on the
-model rather than in `archivestats` because it is arithmetic over one document's own fields, the same
-reason the `Plus` methods live there. What belongs in `archivestats` is the interpretation — which
+model rather than in `statistics` because it is arithmetic over one document's own fields, the same
+reason the `Plus` methods live there. What belongs in `statistics` is the interpretation — which
 components a bucket counts, which segment a job falls in, what dates it.
 
 A bucket's own `jobCostTotal` is deliberately narrower — the cost of building, without the two fees. Buckets carry each fee as its own measure in the month it fell and subtract it from profit
@@ -779,17 +805,17 @@ used.
 
 `services/shared/` is for code more than one service runs. Nothing outside the API will call these:
 no other service serves an HTTP list. What stays shared is what more than one service depends on —
-the store handles and `Docs` plumbing, `models.*`, `archivestats`, and, most importantly here, the
+the store handles and `Docs` plumbing, `models.*`, `statistics`, and, most importantly here, the
 **filter helper and the id builders**:
 
 | Shared | Why |
 |--------|-----|
 | `ArchivedJobAccountFilter` | the API list and the worker rebuild must agree on what owning an archived job means |
 | `ArchivedJobStatsDocumentID` | the worker writes these ids and the API reads them |
-| `models.*`, `archivestats` | shapes and arithmetic three services persist and compute |
+| `models.*`, `statistics` | shapes and arithmetic three services persist and compute |
 
 That is the seam that matters: **filters and id builders are the contract, the queries built from
-them are not.** Three services already query `account_archived_jobs` directly — the API, the worker's
+them are not.** Three services already query `archived_jobs` directly — the API, the worker's
 migration import, and `core/commands` — each with its own query over the same shared filter.
 
 Two pre-existing cases sit the other way and are **not** fixed here, being outside this stage:
@@ -806,7 +832,7 @@ by the rebuild, so its absence means the job has not been folded yet — which i
 from a job that earned nothing, and a zeroed row would state the wrong one. Revoked rows are skipped
 for the same reason: they describe a job the rebuild has superseded.
 
-**The figures come from `archivestats.JobMeasures` and `archivestats.JobSegment`**, exported for
+**The figures come from `statistics.JobMeasures` and `statistics.JobSegment`**, exported for
 this endpoint rather than restated in it. The arithmetic has two rules that are easy to get wrong
 and were got wrong while writing this — `jobCostTotal` already contains both fee totals, and
 `profitLoss` is zero rather than negative when nothing sold — so the list reads the same reduction
@@ -1123,7 +1149,7 @@ resolve and the write when it is false — the alternative, running the re-link 
 ref, would search the wrong owner's job documents.
 
 Two things a corporation scope will still have to decide, which no seam can settle in advance: where
-a restored corporation job is written, since `BulkUpsertJobs` targets `account_job_documents`, and
+a restored corporation job is written, since `BulkUpsertJobs` targets `job_documents`, and
 what a corporation group means. Both are Stage C questions about behaviour, not about plumbing.
 
 ### Restored documents reach clients through the existing fan-out
@@ -1136,8 +1162,8 @@ subscribers are only the fallback for a payload with no account, corporation or 
 
 The JetStream filter is `doc.update.{tenant}.>`, a wildcard across the tenant, so a document that did
 not exist when a client connected still arrives. All four collections a restore touches are watched:
-`account_job_documents` and `account_job_groups` in the `planner` group, `accounts` in `account`, and
-`account_archived_jobs` in `archive_and_stats`. `BulkUpsertJobs` and `BulkUpsertGroups` stamp
+`job_documents` and `job_groups` in the `planner` group, `accounts` in `account`, and
+`archived_jobs` in `archive_and_stats`. `BulkUpsertJobs` and `BulkUpsertGroups` stamp
 `_meta.accountID` themselves, so the routing metadata is always present on what restore writes.
 
 Two things this depends on, both of which would fail quietly:
@@ -1320,7 +1346,7 @@ which jobs lack one.
 
 | Step | What happens |
 |------|--------------|
-| Archive | `archivestats.NewAccountRow` builds the row beside the job, written **uncounted**, and the owner is queued for a fold |
+| Archive | `statistics.NewAccountRow` builds the row beside the job, written **uncounted**, and the owner is queued for a fold |
 | Fold | Every row for the owner with no `contributedAt` is folded into the aggregates and stamped in the same write |
 | Restore | The rows are marked revoked, keeping their stamp, and the next fold subtracts exactly what they added |
 
@@ -1332,7 +1358,7 @@ unstamped for the next run, and a row cannot be applied twice because it is stam
 applies it.
 
 Removal is the same arithmetic negated — `SalesMeasures.Negated` — rather than a second
-implementation that could disagree with the addition. `archivestats.ContributionOf` calls the same
+implementation that could disagree with the addition. `statistics.ContributionOf` calls the same
 folds a rebuild calls, for the same reason.
 
 **Emptiness is decided on a count, never on money.** Subtracting `float64` leaves a residue rather
@@ -1366,7 +1392,7 @@ One queue carries both, because the claim protocol, the wait and the dispatcher 
 way. A rebuild supersedes a delta and never the reverse — it already accounts for whatever the
 deltas would have applied.
 
-`cron.drainAccountStatsRebuildQueue` runs every two minutes and **dispatches only**: one task per
+`cron.dispatchStatisticsRebuilds` runs every two minutes and **dispatches only**: one task per
 owner whose wait is up, each clearing its own entry. Rebuilding inside the dispatcher put every owner
 behind one serial pass inside one task timeout, so a queue larger than that window could not finish —
 and because the clear ran after the loop on the same cancelled context, a pass that ran out of time
@@ -1708,7 +1734,7 @@ trusts the cached field fails. Removing invention from either side's build cost 
 positive. Every measure showed blank. It reads `summary=1` now.
 
 **A statistics rebuild applies all three.** `tasks queueArchivedJobStatsRebuild -account <id>` then
-`tasks drainAccountStatsRebuildQueue`, or wait for the hourly drain.
+`tasks dispatchStatisticsRebuilds`, or wait for the hourly drain.
 
 ## Missing live SoT found during this work
 

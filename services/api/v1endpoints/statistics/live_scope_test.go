@@ -52,7 +52,7 @@ func seedFigures(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, accou
 	month.JobCostTotal = amount / 2
 	month.ProfitLoss = amount / 2
 	month.ContributingRows = 1
-	if _, err := mongo.AccountTimelineMonths.UpsertStructPreservingMeta(ctx, month, month.ID); err != nil {
+	if _, err := mongo.StatisticsTimeline.UpsertStructPreservingMeta(ctx, month, month.ID); err != nil {
 		t.Fatalf("seed month for %s: %v", accountID, err)
 	}
 
@@ -63,7 +63,7 @@ func seedFigures(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, accou
 	}
 	totals.TotalJobs = 1
 	totals.SalesTotal = amount
-	if _, err := mongo.ProductionTotals.UpsertStructPreservingMeta(ctx, totals, totals.ID); err != nil {
+	if _, err := mongo.StatisticsTotals.UpsertStructPreservingMeta(ctx, totals, totals.ID); err != nil {
 		t.Fatalf("seed totals for %s: %v", accountID, err)
 	}
 }

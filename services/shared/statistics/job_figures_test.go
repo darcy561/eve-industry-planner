@@ -1,4 +1,4 @@
-package archivestats
+package statistics
 
 import (
 	"testing"
@@ -46,7 +46,7 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 		},
 	}
 
-	snap, err := BuildStatSnapshotFor(job)
+	snap, err := JobFiguresFor(job)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 }
 
 func TestComputeBuildStatSnapshot_noSetupsErrors(t *testing.T) {
-	_, err := BuildStatSnapshotFor(models.Job{JobID: "x"})
+	_, err := JobFiguresFor(models.Job{JobID: "x"})
 	if err == nil {
 		t.Fatal("expected error")
 	}

@@ -37,10 +37,10 @@ func TestATaskTimeoutIsClamped(t *testing.T) {
 // The asynq mux keys handlers by a bare string. A drain task whose handler key
 // does not match its task name is registered but never routed to — the queue
 // would fill with nothing draining it and no error anywhere to say so.
-func TestDrainAccountStatsRebuildQueue_TaskNameIsRegistered(t *testing.T) {
-	task := eipnats.DrainAccountStatsRebuildQueue
+func TestDispatchStatisticsRebuilds_TaskNameIsRegistered(t *testing.T) {
+	task := eipnats.DispatchStatisticsRebuilds
 
-	if task.Name != "drainAccountStatsRebuildQueue" {
+	if task.Name != "dispatchStatisticsRebuilds" {
 		t.Fatalf("task name = %q; the asynq handler key in handlers.go must be updated to match", task.Name)
 	}
 

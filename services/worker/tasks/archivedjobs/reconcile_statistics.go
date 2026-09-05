@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/statistics"
 )
 
 // ReconcileResult reports one reconcile: what it wrote, and what it found wrong
@@ -26,8 +26,8 @@ type ReconcileResult struct {
 	// SkippedJobs counts archived jobs whose figures could not be computed, so
 	// they still have no row and are offered again next time.
 	SkippedJobs int
-	BucketDrift archivestats.Drift
-	TotalDrift  archivestats.Drift
+	BucketDrift statistics.Drift
+	TotalDrift  statistics.Drift
 }
 
 // Drifted reports whether either collection disagreed with the rows.
@@ -35,7 +35,7 @@ func (r ReconcileResult) Drifted() bool {
 	return r.BucketDrift.Any() || r.TotalDrift.Any()
 }
 
-// ReconcileStatistics rewrites an account's aggregates from its stored
+// ReconcileStatistics rewrites an owner's aggregates from its stored
 // rows, and reports what they disagreed about first.
 //
 // It does not re-derive anything from job documents: rows are written whole,
@@ -96,8 +96,8 @@ func ReconcileStatistics(
 	if err != nil {
 		return out, fmt.Errorf("load stored production totals: %w", err)
 	}
-	out.BucketDrift = archivestats.CompareBuckets(storedBuckets, folded.Buckets)
-	out.TotalDrift = archivestats.CompareTotals(storedTotals, folded.Totals)
+	out.BucketDrift = statistics.CompareBuckets(storedBuckets, folded.Buckets)
+	out.TotalDrift = statistics.CompareTotals(storedTotals, folded.Totals)
 
 	written, err := writeAggregates(ctx, mongo, folded)
 	if err != nil {

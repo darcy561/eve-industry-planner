@@ -32,7 +32,7 @@ const bucketRowCountField = "contributingRows"
 // twice: whatever else happens, a stamped row is never offered as outstanding
 // work again.
 func (m *Mongo) ApplyStatsDelta(ctx context.Context, owner models.Owner, delta models.StatsDelta, rowIDs []string, now time.Time) error {
-	if m == nil || m.AccountTimelineMonths == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsTimeline == nil || m.StatisticsRows == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
@@ -55,7 +55,7 @@ func (m *Mongo) incrementBuckets(ctx context.Context, owner models.Owner, delta 
 	if len(delta.Buckets) == 0 {
 		return nil
 	}
-	coll, err := m.AccountTimelineMonths.requireColl()
+	coll, err := m.StatisticsTimeline.requireColl()
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func (m *Mongo) incrementTotals(ctx context.Context, owner models.Owner, delta m
 	if len(delta.Totals) == 0 {
 		return nil
 	}
-	coll, err := m.ProductionTotals.requireColl()
+	coll, err := m.StatisticsTotals.requireColl()
 	if err != nil {
 		return err
 	}
@@ -146,10 +146,10 @@ func (m *Mongo) incrementTotals(ctx context.Context, owner models.Owner, delta m
 // average — so recomputing them is cheaper than any scheme for maintaining them
 // in place.
 func (m *Mongo) SetBuildHistoryMarks(ctx context.Context, owner models.Owner, typeID int, marks models.BuildHistoryMarks) error {
-	if m == nil || m.ProductionTotals == nil {
+	if m == nil || m.StatisticsTotals == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.ProductionTotals.requireColl()
+	coll, err := m.StatisticsTotals.requireColl()
 	if err != nil {
 		return err
 	}
@@ -169,10 +169,10 @@ func (m *Mongo) SetBuildHistoryMarks(ctx context.Context, owner models.Owner, ty
 // The filter is [models.ArchivedJobStats.AwaitsContribution] expressed as a
 // query; the two have to keep saying the same thing.
 func (m *Mongo) LoadUncountedStatsRows(ctx context.Context, owner models.Owner) ([]models.ArchivedJobStats, error) {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return nil, err
 	}
@@ -204,10 +204,10 @@ func (m *Mongo) LoadUncountedStatsRows(ctx context.Context, owner models.Owner) 
 // happens where the job is restored, the second where statistics are written, and
 // the stamp is what carries the work between them.
 func (m *Mongo) LoadRevokedContributedRows(ctx context.Context, owner models.Owner) ([]models.ArchivedJobStats, error) {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (m *Mongo) ClearContributedStamp(ctx context.Context, rowIDs []string) erro
 	if len(rowIDs) == 0 {
 		return nil
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return err
 	}
@@ -254,13 +254,13 @@ func (m *Mongo) ClearContributedStamp(ctx context.Context, rowIDs []string) erro
 // "never seen", and so the figures they contributed can be found and taken back
 // out.
 func (m *Mongo) RevokeStatsRowsForJobs(ctx context.Context, owner models.Owner, jobIDs []string, now time.Time) (int64, error) {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
 	if len(jobIDs) == 0 {
 		return 0, nil
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return 0, err
 	}
@@ -291,10 +291,10 @@ func (m *Mongo) RevokeStatsRowsForJobs(ctx context.Context, owner models.Owner, 
 // LoadTypeStatsRows reads one item type's statistics rows, the input the marks
 // are recomputed from.
 func (m *Mongo) LoadTypeStatsRows(ctx context.Context, owner models.Owner, typeID int) ([]models.ArchivedJobStats, error) {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +339,7 @@ func (m *Mongo) StampContributed(ctx context.Context, rowIDs []string, now time.
 	if len(rowIDs) == 0 {
 		return nil
 	}
-	coll, err := m.ArchivedJobStats.requireColl()
+	coll, err := m.StatisticsRows.requireColl()
 	if err != nil {
 		return err
 	}
@@ -364,10 +364,10 @@ func (m *Mongo) StampContributed(ctx context.Context, rowIDs []string, now time.
 // cannot answer it: subtracting float64 leaves a residue rather than zero, so a
 // row that should be gone would never match.
 func (m *Mongo) PruneEmptyTotals(ctx context.Context, owner models.Owner) (int64, error) {
-	if m == nil || m.ProductionTotals == nil {
+	if m == nil || m.StatisticsTotals == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.ProductionTotals.requireColl()
+	coll, err := m.StatisticsTotals.requireColl()
 	if err != nil {
 		return 0, err
 	}
@@ -396,10 +396,10 @@ func (m *Mongo) PruneEmptyTotals(ctx context.Context, owner models.Owner) (int64
 // makes a bucket empty, and that is only known once every row's removal has been
 // applied.
 func (m *Mongo) PruneEmptyBuckets(ctx context.Context, owner models.Owner) (int64, error) {
-	if m == nil || m.AccountTimelineMonths == nil {
+	if m == nil || m.StatisticsTimeline == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.AccountTimelineMonths.requireColl()
+	coll, err := m.StatisticsTimeline.requireColl()
 	if err != nil {
 		return 0, err
 	}

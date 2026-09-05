@@ -91,7 +91,7 @@ func loadLiveSampleDocs(t *testing.T) []bson.M {
 		mongo.JobDocuments,
 		mongo.Groups,
 		mongo.ArchivedJobs,
-		mongo.ProductionTotals,
+		mongo.StatisticsTotals,
 		mongo.TemplateCatalog,
 		mongo.TemplatePayloads,
 		mongo.Blueprints,

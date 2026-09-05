@@ -18,7 +18,7 @@ describe("useLockViewerPresence", () => {
     renderHook(() =>
       useLockViewerPresence({
         enabled: true,
-        collection: "account_job_documents",
+        collection: "job_documents",
         docID: "job-1",
         readOnly: false,
         waitingInHandoffQueue: true,
@@ -26,7 +26,7 @@ describe("useLockViewerPresence", () => {
     );
 
     expect(postDocumentLockViewerArrived).toHaveBeenCalledWith(
-      "account_job_documents",
+      "job_documents",
       "job-1"
     );
     expect(postDocumentLockViewerDeparted).not.toHaveBeenCalled();
@@ -38,7 +38,7 @@ describe("useLockViewerPresence", () => {
       {
         initialProps: {
           enabled: true,
-          collection: "account_job_documents",
+          collection: "job_documents",
           docID: "job-1",
           readOnly: true,
           waitingInHandoffQueue: true,
@@ -51,7 +51,7 @@ describe("useLockViewerPresence", () => {
 
     rerender({
       enabled: true,
-      collection: "account_job_documents",
+      collection: "job_documents",
       docID: "job-1",
       readOnly: false,
       waitingInHandoffQueue: true,
@@ -62,7 +62,7 @@ describe("useLockViewerPresence", () => {
 
     unmount();
     expect(postDocumentLockViewerDeparted).toHaveBeenCalledWith(
-      "account_job_documents",
+      "job_documents",
       "job-1"
     );
   });

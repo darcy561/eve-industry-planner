@@ -21,7 +21,7 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	coll := mongo.AccountRebuildQueue.Collection()
+	coll := mongo.StatisticsRebuildQueue.Collection()
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
 		defer c()
@@ -112,7 +112,7 @@ func TestLive_rebuildQueue_claimCurrencyGuardsAFold(t *testing.T) {
 	defer cancel()
 
 	owner := models.AccountOwner(rebuildQueueScratchAccount)
-	coll := mongo.AccountRebuildQueue.Collection()
+	coll := mongo.StatisticsRebuildQueue.Collection()
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
 		defer c()

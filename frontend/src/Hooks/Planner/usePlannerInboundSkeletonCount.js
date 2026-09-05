@@ -1,7 +1,7 @@
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * Inbound `account_job_documents` upserts queued before flush — see `pendingInboundNewJobSkeletonByJobId`
+ * Inbound `job_documents` upserts queued before flush — see `pendingInboundNewJobSkeletonByJobId`
  * in the jobs slice and `Functions/Debounce/inboundJobDocumentsCoalesce.js`.
  *
  * @param {number|string} stageId

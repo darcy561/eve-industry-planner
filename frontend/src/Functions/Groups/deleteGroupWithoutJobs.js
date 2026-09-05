@@ -10,7 +10,7 @@ import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
  * Deletes a group and returns jobs to normal planner snapshots (local + cloud when logged in).
- * When logged in, removes the `account_job_groups` document on the server first (respects doc locks).
+ * When logged in, removes the `job_groups` document on the server first (respects doc locks).
  *
  * @param {string} inputGroupID
  */

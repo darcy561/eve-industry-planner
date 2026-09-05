@@ -32,7 +32,7 @@ func TestLive_reconcileRota_dueTimeDecidesTurn(t *testing.T) {
 		TypeID:    34,
 		CostMonth: models.CalendarMonth{Year: 2026, Month: 5},
 	}
-	if _, err := mongo.ArchivedJobStats.UpsertStructPreservingMeta(ctx, row, row.ID); err != nil {
+	if _, err := mongo.StatisticsRows.UpsertStructPreservingMeta(ctx, row, row.ID); err != nil {
 		t.Fatalf("seed row: %v", err)
 	}
 
@@ -85,7 +85,7 @@ func TestLive_reconcileRota_neverReconciledOutranksAStampedOwner(t *testing.T) {
 			TypeID:    34,
 			CostMonth: models.CalendarMonth{Year: 2026, Month: 5},
 		}
-		if _, err := mongo.ArchivedJobStats.UpsertStructPreservingMeta(ctx, row, row.ID); err != nil {
+		if _, err := mongo.StatisticsRows.UpsertStructPreservingMeta(ctx, row, row.ID); err != nil {
 			t.Fatalf("seed row for %s: %v", id, err)
 		}
 	}

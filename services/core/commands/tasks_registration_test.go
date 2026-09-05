@@ -108,21 +108,20 @@ func TestADispatchNeedingAVersionRefusesWithoutOne(t *testing.T) {
 	}
 }
 
-// queueArchivedJobStatsRebuild tells an operator to run the drain by name. A
-// drain that is not triggerable leaves those accounts waiting for the next cron
-// tick with no way to hurry it, and that advice names a command that does not
-// exist.
-func TestDrainTaskIsTriggerable(t *testing.T) {
+// queueArchivedJobStatsRebuild tells an operator to run this by name. A dispatch
+// that is not triggerable leaves those owners waiting for the next cron tick with
+// no way to hurry it, and that advice names a command that does not exist.
+func TestDispatchStatisticsRebuildsIsTriggerable(t *testing.T) {
 	t.Parallel()
 
-	d, ok := dispatchLookup()["drainaccountstatsrebuildqueue"]
+	d, ok := dispatchLookup()["dispatchstatisticsrebuilds"]
 	if !ok {
-		t.Fatal("drainAccountStatsRebuildQueue is not dispatchable; queueArchivedJobStatsRebuild tells operators to run it")
+		t.Fatal("dispatchStatisticsRebuilds is not dispatchable; queueArchivedJobStatsRebuild tells operators to run it")
 	}
-	if d.task.Name != eipnats.DrainAccountStatsRebuildQueue.Name {
-		t.Fatalf("resolves to %q, want %q", d.task.Name, eipnats.DrainAccountStatsRebuildQueue.Name)
+	if d.task.Name != eipnats.DispatchStatisticsRebuilds.Name {
+		t.Fatalf("resolves to %q, want %q", d.task.Name, eipnats.DispatchStatisticsRebuilds.Name)
 	}
-	if d.command != "drainAccountStatsRebuildQueue" {
+	if d.command != "dispatchStatisticsRebuilds" {
 		t.Fatalf("command is %q, want the name the usage text prints", d.command)
 	}
 }

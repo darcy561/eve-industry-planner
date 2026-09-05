@@ -75,14 +75,14 @@ describe("documentLockSlice", () => {
   });
 
   it("patchDocumentLockForScope merges into existing scope", () => {
-    const k = docLockScopeKey("account_job_documents", "j1");
+    const k = docLockScopeKey("job_documents", "j1");
     useStore.getState().documentLock.actions.patchDocumentLockForScope(
-      "account_job_documents",
+      "job_documents",
       "j1",
       { readOnly: true, lockHeld: false }
     );
     useStore.getState().documentLock.actions.patchDocumentLockForScope(
-      "account_job_documents",
+      "job_documents",
       "j1",
       { viewerCount: 3 }
     );
@@ -92,9 +92,9 @@ describe("documentLockSlice", () => {
   });
 
   it("patchDocumentLockForScope initialises missing scope from defaults", () => {
-    const k = docLockScopeKey("account_job_documents", "new");
+    const k = docLockScopeKey("job_documents", "new");
     useStore.getState().documentLock.actions.patchDocumentLockForScope(
-      "account_job_documents",
+      "job_documents",
       "new",
       { lockHeld: true }
     );
@@ -116,32 +116,32 @@ describe("documentLockSlice", () => {
   it("patchManyDocumentLockScopes applies multiple keys in one update", () => {
     const patches = [
       {
-        collection: "account_job_documents",
+        collection: "job_documents",
         docID: "a",
         partial: { readOnly: true },
       },
       {
-        collection: "account_job_documents",
+        collection: "job_documents",
         docID: "b",
         partial: { lockHeld: true },
       },
     ];
     useStore.getState().documentLock.actions.patchManyDocumentLockScopes(patches);
     const scopes = useStore.getState().documentLock.scopes;
-    expect(scopes[docLockScopeKey("account_job_documents", "a")].readOnly).toBe(true);
-    expect(scopes[docLockScopeKey("account_job_documents", "b")].lockHeld).toBe(true);
+    expect(scopes[docLockScopeKey("job_documents", "a")].readOnly).toBe(true);
+    expect(scopes[docLockScopeKey("job_documents", "b")].lockHeld).toBe(true);
   });
 
   it("patchManyDocumentLockScopes skips invalid rows", () => {
     useStore.getState().documentLock.actions.patchManyDocumentLockScopes([
       null,
       { collection: "", docID: "x", partial: { readOnly: true } },
-      { collection: "account_job_documents", docID: "ok", partial: { readOnly: true } },
-      { collection: "account_job_documents", docID: "bad", partial: null },
+      { collection: "job_documents", docID: "ok", partial: { readOnly: true } },
+      { collection: "job_documents", docID: "bad", partial: null },
     ]);
     const scopes = useStore.getState().documentLock.scopes;
     expect(Object.keys(scopes).length).toBe(1);
-    expect(scopes[docLockScopeKey("account_job_documents", "ok")].readOnly).toBe(true);
+    expect(scopes[docLockScopeKey("job_documents", "ok")].readOnly).toBe(true);
   });
 
   it("patchManyDocumentLockScopes no-ops on empty or non-array", () => {
@@ -154,12 +154,12 @@ describe("documentLockSlice", () => {
 
   it("resetDocumentLockForScope removes one scope", () => {
     useStore.getState().documentLock.actions.patchDocumentLockForScope(
-      "account_job_documents",
+      "job_documents",
       "j1",
       { readOnly: true }
     );
     useStore.getState().documentLock.actions.resetDocumentLockForScope(
-      "account_job_documents",
+      "job_documents",
       "j1"
     );
     expect(useStore.getState().documentLock.scopes).toEqual({});
@@ -167,7 +167,7 @@ describe("documentLockSlice", () => {
 
   it("resetAllDocumentLocks clears every scope", () => {
     useStore.getState().documentLock.actions.patchDocumentLockForScope(
-      "account_job_documents",
+      "job_documents",
       "j1",
       { readOnly: true }
     );
@@ -193,7 +193,7 @@ describe("documentLockSlice — async lock flows (regression)", () => {
     vi.restoreAllMocks();
   });
 
-  const collection = "account_job_documents";
+  const collection = "job_documents";
   const docID = "job-regression-1";
   const scopeKey = docLockScopeKey(collection, docID);
 
@@ -237,7 +237,7 @@ describe("documentLockSlice — async lock flows (regression)", () => {
 
   it("requestAccess: group member job calls POST /request on the group lock", async () => {
     mockResolveDocumentLockApiTarget.mockReturnValueOnce({
-      collection: "account_job_groups",
+      collection: "job_groups",
       docID: "group-1",
     });
     requestDocumentLockAccess.mockResolvedValue({
@@ -247,17 +247,17 @@ describe("documentLockSlice — async lock flows (regression)", () => {
     });
 
     await useStore.getState().documentLock.actions.requestAccess(
-      "account_job_documents",
+      "job_documents",
       "job-in-group"
     );
 
     expect(requestDocumentLockAccess).toHaveBeenCalledWith(
-      "account_job_groups",
+      "job_groups",
       "group-1"
     );
     expect(
       useStore.getState().documentLock.scopes[
-        docLockScopeKey("account_job_groups", "group-1")
+        docLockScopeKey("job_groups", "group-1")
       ]?.waitingInHandoffQueue
     ).toBe(true);
   });

@@ -114,7 +114,7 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 
 	if promoted {
 		StripPassiveViewerOnHolderGrant(ctx, d, accountID, collection, docID, newHolder, true)
-		if collection == eipmongo.CollectionAccountJobGroups {
+		if collection == eipmongo.CollectionJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, d, accountID, docID, newHolder)
 		}
 	}

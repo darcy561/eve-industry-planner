@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/statistics"
 	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -65,7 +65,7 @@ func rowFor(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jobID stri
 	if err != nil {
 		t.Fatalf("reload archived job: %v", err)
 	}
-	row, err := archivestats.NewRow(job, time.Now().UTC())
+	row, err := statistics.NewRow(job, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("reduce archived job: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestLive_filingMovesBothSidesOfAHandEnteredJob(t *testing.T) {
 	var entry struct {
 		Work string `bson:"work"`
 	}
-	if err := mongo.AccountRebuildQueue.Collection().FindOne(ctx,
+	if err := mongo.StatisticsRebuildQueue.Collection().FindOne(ctx,
 		bson.M{"_id": models.AccountOwner(filingScratchAccount).Key()}).Decode(&entry); err != nil {
 		t.Fatalf("no work queued: %v", err)
 	}

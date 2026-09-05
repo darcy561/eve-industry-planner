@@ -69,7 +69,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case eipmongo.CollectionAccountJobs:
+	case eipmongo.CollectionJobs:
 		var jobs []models.Job
 		if err := cursor.All(ctx, &jobs); err != nil {
 			return nil, fmt.Errorf("failed to decode jobs: %w", err)
@@ -86,7 +86,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case eipmongo.CollectionAccountJobGroups:
+	case eipmongo.CollectionJobGroups:
 		var groups []models.Group
 		if err := cursor.All(ctx, &groups); err != nil {
 			return nil, fmt.Errorf("failed to decode groups: %w", err)
@@ -193,12 +193,12 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 		"_id": bson.M{"$in": documentIDs},
 	}
 
-	// Account scoping: jobs, users, application_settings, and user_watchlist_deprecated use _meta.accountID (see models.Job, UserAccountDocument).
+	// Account scoping: jobs, accounts, account_settings, and watchlist_deprecated use _meta.accountID (see models.Job, UserAccountDocument).
 	// Other collections use root accountID.
-	if collectionName == eipmongo.CollectionAccountJobs ||
+	if collectionName == eipmongo.CollectionJobs ||
 		collectionName == eipmongo.CollectionAccounts ||
 		collectionName == eipmongo.CollectionAccountSettings ||
-		collectionName == eipmongo.CollectionAccountWatchlistDeprecated {
+		collectionName == eipmongo.CollectionWatchlistDeprecated {
 		filter["_meta.accountID"] = accountID
 	} else {
 		filter["accountID"] = accountID
@@ -294,7 +294,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	}
 
 	logs.DebugCtx(ctx, "queried all jobs for account",
-		"collection", eipmongo.CollectionAccountJobs,
+		"collection", eipmongo.CollectionJobs,
 		"account_id", accountID,
 		"found", len(results))
 
@@ -364,7 +364,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	}
 
 	logs.DebugCtx(ctx, "queried all groups for account",
-		"collection", eipmongo.CollectionAccountJobGroups,
+		"collection", eipmongo.CollectionJobGroups,
 		"account_id", accountID,
 		"found", len(results))
 
