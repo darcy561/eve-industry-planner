@@ -50,7 +50,7 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 			Costs: models.JobCosts{LinkedJobs: []models.LinkedESIJob{{JobID: 1, Cost: 1000}}},
 		},
 	}
-	job.MetaData.AccountID = rearchiveScratchAccount
+	job.MetaData.Owner.ID = rearchiveScratchAccount
 	job.MetaData.ArchivedAt = now
 
 	writeRow := func(t *testing.T, j models.Job) models.ArchivedJobStats {
@@ -143,7 +143,7 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 			Costs: models.JobCosts{LinkedJobs: []models.LinkedESIJob{{JobID: 2, Cost: 750}}},
 		},
 	}
-	job.MetaData.AccountID = account
+	job.MetaData.Owner.ID = account
 	job.MetaData.ArchivedAt = now
 
 	row, err := statistics.NewRow(job, now)

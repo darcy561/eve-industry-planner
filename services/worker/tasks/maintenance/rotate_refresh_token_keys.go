@@ -41,7 +41,7 @@ func RotateRefreshTokenKeys(ctx context.Context, p eipnats.RotateRefreshTokenKey
 
 	mongo := deps.Mongo
 	var userDoc models.UserAccountDocument
-	if err := mongo.Users.Collection().FindOne(ctx, bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID}).Decode(&userDoc); err != nil {
+	if err := mongo.Users.Collection().FindOne(ctx, bson.M{"_id": p.AccountID, eipmongo.FieldMetaOwnerID: p.AccountID}).Decode(&userDoc); err != nil {
 		return fmt.Errorf("load user for key rotation %s: %w", p.AccountID, err)
 	}
 

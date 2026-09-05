@@ -92,11 +92,11 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 
 	documentschema.Upgrader{}.ApplicationSettings(&settingsDoc, accountID, time.Now().UTC())
 
-	if settingsDoc.MetaData.AccountID != "" && settingsDoc.MetaData.AccountID != accountID {
+	if settingsDoc.MetaData.Owner.ID != "" && settingsDoc.MetaData.Owner.ID != accountID {
 		metrics.Error("account_id_mismatch")
 		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on application settings save", "app_settings_account_mismatch", "eve_token_login", nil, map[string]any{
 			"token_account_id": accountID,
-			"doc_account_id":   settingsDoc.MetaData.AccountID,
+			"doc_account_id":   settingsDoc.MetaData.Owner.ID,
 		})
 		return
 	}

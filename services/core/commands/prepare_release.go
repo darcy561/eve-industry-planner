@@ -21,11 +21,16 @@ import (
 )
 
 // releaseStep is one piece of cutover work. Steps report what they did so a
-// dry-run and a real run print the same shape, and each is independent of the
-// others so a failure names itself rather than stopping the release.
+// dry-run and a real run print the same shape.
+//
+// Most steps are independent, so a failure names itself and the release carries
+// on. A step marked required is one the steps after it read the output of: if it
+// fails they do not fail, they succeed against documents it never prepared and
+// report having done nothing. That is worse than stopping, so it stops.
 type releaseStep struct {
-	name string
-	run  func(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error)
+	name     string
+	required bool
+	run      func(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error)
 }
 
 // release groups the steps one app version owes the database.
@@ -53,8 +58,10 @@ var releases = []release{{
 		// First: later steps stamp the current schema version onto documents they
 		// touch, so anything still owing an earlier upgrade has to run it now or
 		// be recorded as current without ever having done so.
-		{name: "complete outstanding schema maintenance", run: completeSchemaMaintenance},
-		{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
+		{name: "complete outstanding schema maintenance", required: true, run: completeSchemaMaintenance},
+		// After maintenance, before anything owner-scoped: the steps below filter
+		// on the owner, and nothing reads a document that has not got one.
+		{name: "stamp the owner onto every scoped document", required: true, run: stampMetaOwner},
 		{name: "drop retired change stream resume tokens", run: dropRetiredResumeTokens},
 		{name: "drop unaddressable rebuild queue entries", run: dropUnaddressableQueueEntries},
 		// Before the rebuild: it derives each row's category names from the jobs.
@@ -62,6 +69,9 @@ var releases = []release{{
 		// After the jobs are stamped and before the rebuild: the rebuild is what
 		// writes these collections back, in the owner-keyed shape.
 		{name: "copy the statistics documents before the rebuild", run: snapshotDerivedStatistics},
+		// After the copy, not before: the copy is what an operator falls back to,
+		// and a fallback missing the fields the previous release read is not one.
+		{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
 		{name: "queue every account for rebuild", run: queueEveryAccountForRebuild},
 	},
 }}
@@ -116,6 +126,10 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 			if err != nil {
 				failures = append(failures, fmt.Errorf("%s: %w", label, err))
 				fmt.Fprintf(os.Stderr, "  %s: failed: %v\n", label, err)
+				if step.required {
+					fmt.Fprintf(os.Stderr, "  stopping: the steps after this one read what it writes\n")
+					return fmt.Errorf("prepareRelease: %w", failures[len(failures)-1])
+				}
 				continue
 			}
 			fmt.Printf("%s%s: %s\n", prefix, label, result)
@@ -123,8 +137,8 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 	}
 
 	if len(failures) > 0 {
-		// Steps do not depend on each other, so the ones that succeeded stand and
-		// the release can be re-run for the rest.
+		// Every step is idempotent and reports zero when it has nothing to do, so
+		// the ones that succeeded stand and the release can be re-run for the rest.
 		return fmt.Errorf("prepareRelease: %d/%d step(s) failed", len(failures), total)
 	}
 
@@ -242,11 +256,22 @@ func dropUnaddressableQueueEntries(ctx context.Context, clients *stackservices.C
 
 func queueEveryAccountForRebuild(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
 	mongo := clients.Mongo
-	accounts, err := mongo.ArchivedJobs.DistinctStrings(ctx, "_meta.accountID", bson.M{})
+	accounts, err := mongo.ArchivedJobs.DistinctStrings(ctx, eipmongo.FieldMetaOwnerID, bson.M{})
 	if err != nil {
 		return "", fmt.Errorf("distinct archived job accounts: %w", err)
 	}
 	if len(accounts) == 0 {
+		// An empty owner list has two causes that read identically here and could
+		// not be more different: there are no archived jobs, or there are and the
+		// owner stamp did not reach them. The second one queues nothing, rebuilds
+		// nothing, and would otherwise end the release on a green line.
+		held, countErr := mongo.ArchivedJobs.Collection().CountDocuments(ctx, bson.M{})
+		if countErr != nil {
+			return "", fmt.Errorf("count archived jobs: %w", countErr)
+		}
+		if held > 0 {
+			return "", fmt.Errorf("%d archived job(s) name no owner: the owner stamp has not run", held)
+		}
 		return "no accounts hold archived jobs", nil
 	}
 	if dryRun {

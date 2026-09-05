@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	natslib "github.com/nats-io/nats.go"
+
+	"eve-industry-planner/shared/models"
 )
 
 // SubjectNotify is the subject prefix for client notifications.
@@ -51,7 +53,7 @@ type Notification struct {
 // It saves a client from waiting for that request, which is all it should be
 // trusted to do.
 func PublishAccountNotification(n *NATS, accountID, subtype string, body any) error {
-	return PublishNotification(n, accountTenantPrefix+strings.TrimSpace(accountID), subtype, body)
+	return PublishNotification(n, models.AccountOwner(accountID).Key(), subtype, body)
 }
 
 // PublishNotification sends a notification to one tenant's clients.
@@ -121,10 +123,9 @@ func parseNotificationSubject(subject string) (tenantString, subtype string, ok 
 // AccountIDFromTenantString returns the account a tenant string names, and
 // whether it names one at all.
 func AccountIDFromTenantString(tenantString string) (string, bool) {
-	id, found := strings.CutPrefix(tenantString, accountTenantPrefix)
-	id = strings.TrimSpace(id)
-	if !found || id == "" {
+	owner, err := models.ParseOwnerKey(strings.TrimSpace(tenantString))
+	if err != nil || owner.Kind != models.OwnerAccount {
 		return "", false
 	}
-	return id, true
+	return owner.ID, true
 }

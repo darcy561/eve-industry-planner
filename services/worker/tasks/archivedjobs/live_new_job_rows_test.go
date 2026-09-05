@@ -35,7 +35,7 @@ func TestLive_archivedJobWithoutARowIsRecoveredByTheRota(t *testing.T) {
 			Costs: models.JobCosts{LinkedJobs: []models.LinkedESIJob{{JobID: 1, Cost: 200}}},
 		},
 	}
-	job.MetaData.AccountID = newRowsScratchAccount
+	job.MetaData.Owner.ID = newRowsScratchAccount
 	job.MetaData.ArchivedAt = time.Date(2026, 8, 31, 12, 0, 0, 0, time.UTC)
 	if _, err := mongo.ArchivedJobs.UpsertStructPreservingMeta(ctx, job, job.JobID); err != nil {
 		t.Fatalf("archive a job: %v", err)

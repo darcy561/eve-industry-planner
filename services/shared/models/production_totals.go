@@ -80,12 +80,12 @@ func (b ProductionTotalsBreakdown) Plus(src ProductionTotalsBreakdown) Productio
 // ProductionTotalsRow is one document in production_totals, keyed by owner and item type.
 type ProductionTotalsRow struct {
 	ID string `bson:"_id" json:"-"`
-	// Owner scopes the document. The owner is also the leading segment of the
-	// _id, but a field lets a rebuild prune an owner's totals with an indexed
-	// match instead of a prefix scan over every owner's documents.
-	Owner         Owner `bson:"owner" json:"-"`
-	JobType       int   `bson:"jobType" json:"jobType"`
-	TypeID        int   `bson:"typeID" json:"typeID"`
+	// MetaData carries the owner. It is also the leading segment of the _id, but
+	// a field lets a rebuild prune an owner's totals with an indexed match
+	// instead of a prefix scan over every owner's documents.
+	MetaData      `bson:"_meta" json:"-"`
+	JobType       int `bson:"jobType" json:"jobType"`
+	TypeID        int `bson:"typeID" json:"typeID"`
 	BuildMeasures `bson:",inline"`
 	Breakdown     ProductionTotalsBreakdown `bson:"breakdown" json:"breakdown"`
 	History       BuildHistoryMarks         `bson:"history" json:"history"`

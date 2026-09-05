@@ -7,7 +7,6 @@ import (
 
 	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/models"
-
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -23,7 +22,7 @@ func (m *Mongo) LoadUserAccount(ctx context.Context, accountID string) (models.U
 	}
 	var doc models.UserAccountDocument
 	if err := Retry(ctx, "LoadUserAccount", func() error {
-		return coll.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&doc)
+		return coll.FindOne(ctx, bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&doc)
 	}); err != nil {
 		return models.UserAccountDocument{}, err
 	}
@@ -49,7 +48,7 @@ func (m *Mongo) LoadApplicationSettings(ctx context.Context, accountID string, n
 	}
 	var doc models.ApplicationSettings
 	if err := Retry(ctx, "LoadApplicationSettings", func() error {
-		return coll.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&doc)
+		return coll.FindOne(ctx, bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&doc)
 	}); err != nil {
 		return models.ApplicationSettings{}, err
 	}

@@ -13,6 +13,7 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
+	"eve-industry-planner/shared/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -60,8 +61,8 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 	})
 
 	filter := bson.M{
-		"_meta.accountID": accountID,
-		"_id":             bson.M{"$in": reqBody.JobIDs},
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
+		"_id": bson.M{"$in": reqBody.JobIDs},
 	}
 
 	now := time.Now().UTC()
@@ -83,8 +84,8 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 			}
 			collection := h.Mongo.JobDocuments.Collection()
 			cur, findErr := collection.Find(ctx, bson.M{
-				"_meta.accountID": accountID,
-				"_id":             bson.M{"$in": reqBody.JobIDs},
+				eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
+				"_id": bson.M{"$in": reqBody.JobIDs},
 			}, options.Find().SetProjection(bson.M{"groupID": 1, "includedInGroup": 1}))
 			if findErr != nil {
 				metrics.Error("lock_error")

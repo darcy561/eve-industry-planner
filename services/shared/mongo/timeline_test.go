@@ -108,7 +108,7 @@ func TestTimelineRangeFilterOmitsTypeWhenUnset(t *testing.T) {
 	if one["typeID"] != 34 {
 		t.Fatalf("typeID = %v, want 34", one["typeID"])
 	}
-	if one["owner.kind"] != models.OwnerAccount || one["owner.id"] != "acct-1" {
+	if one[FieldMetaOwnerKind] != models.OwnerAccount || one[FieldMetaOwnerID] != "acct-1" {
 		t.Fatal("the owner filter must survive alongside the type filter")
 	}
 }
@@ -260,11 +260,11 @@ func TestTimelineFilterNamesTheOwnerFields(t *testing.T) {
 
 	filter := timelineRangeFilter(TimelineQuery{Owner: models.AccountOwner("acct-1")})
 
-	if filter["owner.kind"] != models.OwnerAccount {
-		t.Errorf("owner.kind = %v, want the account kind", filter["owner.kind"])
+	if filter[FieldMetaOwnerKind] != models.OwnerAccount {
+		t.Errorf("owner.kind = %v, want the account kind", filter[FieldMetaOwnerKind])
 	}
-	if filter["owner.id"] != "acct-1" {
-		t.Errorf("owner.id = %v, want the account id", filter["owner.id"])
+	if filter[FieldMetaOwnerID] != "acct-1" {
+		t.Errorf("owner.id = %v, want the account id", filter[FieldMetaOwnerID])
 	}
 	if _, stale := filter["accountID"]; stale {
 		t.Error("the filter still names accountID, which no bucket carries")

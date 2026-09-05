@@ -121,11 +121,11 @@ func (h *Handlers) handleSaveUserDocument(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if userDoc.MetaData.AccountID != "" && userDoc.MetaData.AccountID != accountID {
+	if userDoc.MetaData.Owner.ID != "" && userDoc.MetaData.Owner.ID != accountID {
 		metrics.Error("account_id_mismatch")
 		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on user document save", "user_doc_account_mismatch", "eve_token_login", nil, map[string]any{
 			"token_account_id": accountID,
-			"doc_account_id":   userDoc.MetaData.AccountID,
+			"doc_account_id":   userDoc.MetaData.Owner.ID,
 		})
 		return
 	}

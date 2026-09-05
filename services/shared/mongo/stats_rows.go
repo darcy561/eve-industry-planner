@@ -52,9 +52,12 @@ func (m *Mongo) WriteStatsRows(ctx context.Context, rows []models.ArchivedJobSta
 		if derr != nil {
 			return fmt.Errorf("convert statistics row: %w", derr)
 		}
-		setDoc := buildSetDoc(doc, "_id", "_meta")
+		// The rebuild owns a statistics row outright, so `_meta` is written from
+		// the struct rather than preserved: an owner it had already written could
+		// otherwise never be corrected.
+		setDoc := buildSetDoc(doc, "_id")
 		setOnInsert := bson.M{"_id": row.ID}
-		applyLastModified(setDoc, setOnInsert, doc, true)
+		applyLastModified(setDoc, nil, nil, false)
 
 		unset := bson.M{}
 		for _, field := range statsRowLifecycleFields {
@@ -116,7 +119,7 @@ func (m *Mongo) StampSkippedStatsRows(ctx context.Context, owner models.Owner, j
 
 	err = Retry(ctx, applyRetryOptions("StampSkippedStatsRows", nil), func() error {
 		res, uerr := coll.UpdateMany(ctx,
-			bson.M{"_id": bson.M{"$in": ids}, "owner.kind": owner.Kind, "owner.id": owner.ID},
+			bson.M{"_id": bson.M{"$in": ids}, FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID},
 			bson.M{"$set": bson.M{"skippedAt": now.UTC(), "skipReason": reason}})
 		if uerr != nil {
 			return uerr

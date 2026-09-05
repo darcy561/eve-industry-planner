@@ -61,11 +61,11 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 			userMap, err := structToMap(users[i])
 			if err != nil {
 				logs.WarnCtx(ctx, "failed to convert user to map",
-					"account_id", users[i].MetaData.AccountID,
+					"account_id", users[i].MetaData.Owner.ID,
 					"error", err)
 				continue
 			}
-			results[users[i].MetaData.AccountID] = userMap
+			results[users[i].MetaData.Owner.ID] = userMap
 		}
 		return results, cursor.Err()
 
@@ -193,13 +193,13 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 		"_id": bson.M{"$in": documentIDs},
 	}
 
-	// Account scoping: jobs, accounts, account_settings, and watchlist_deprecated use _meta.accountID (see models.Job, UserAccountDocument).
+	// Account scoping: jobs, accounts, account_settings and watchlist_deprecated carry the owner on _meta; the rest name their account at the root.
 	// Other collections use root accountID.
 	if collectionName == eipmongo.CollectionJobs ||
 		collectionName == eipmongo.CollectionAccounts ||
 		collectionName == eipmongo.CollectionAccountSettings ||
 		collectionName == eipmongo.CollectionWatchlistDeprecated {
-		filter["_meta.accountID"] = accountID
+		filter[eipmongo.FieldMetaOwnerID] = accountID
 	} else {
 		filter["accountID"] = accountID
 	}
@@ -251,7 +251,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 
 	// Build query filter: jobs shown on planner (displayOnPlanner or legacy isIncludedOnPlanner).
 	filter := bson.M{
-		"_meta.accountID": accountID,
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
 		"$or": []bson.M{
 			{"displayOnPlanner": true},
 			{"isIncludedOnPlanner": true},
@@ -325,7 +325,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	collection := mongo.Groups.Collection()
 
 	filter := bson.M{
-		"_meta.accountID": accountID,
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
 	}
 
 	// Use retry logic from mongo core package

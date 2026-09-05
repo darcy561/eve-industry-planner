@@ -71,10 +71,10 @@ func ScratchAccount(t *testing.T, mongo *eipmongo.Mongo, accountID string) {
 			{mongo.StatisticsRows, scope},
 			{mongo.StatisticsTimeline, scope},
 			{mongo.StatisticsTotals, scope},
-			{mongo.ArchivedJobs, eipmongo.ArchivedJobAccountFilter(accountID)},
+			{mongo.ArchivedJobs, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID}},
 			// Restore writes back to the planner, so its targets are scratch too.
-			{mongo.JobDocuments, eipmongo.ArchivedJobAccountFilter(accountID)},
-			{mongo.Groups, eipmongo.ArchivedJobAccountFilter(accountID)},
+			{mongo.JobDocuments, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID}},
+			{mongo.Groups, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID}},
 			{mongo.StatisticsRebuildQueue, owner},
 			{mongo.StatisticsReconcileRota, owner},
 		} {

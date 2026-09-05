@@ -222,9 +222,9 @@ type TimelineTotals struct {
 // TimelineMonthBucket is a pre-aggregated calendar month for an account and item type.
 type TimelineMonthBucket struct {
 	ID                string `bson:"_id"`
-	Owner             Owner  `bson:"owner"`
-	TypeID            int    `bson:"typeID"`
-	IsProductionChain bool   `bson:"isProductionChain"`
+	MetaData          `bson:"_meta"`
+	TypeID            int  `bson:"typeID"`
+	IsProductionChain bool `bson:"isProductionChain"`
 	CalendarMonth     `bson:",inline"`
 	SalesMeasures     `bson:",inline"`
 	// ContributingRows counts the statistics rows folded into this bucket. It

@@ -40,7 +40,7 @@ func DefaultUserAccountDocument(accountID string, now time.Time) UserAccountDocu
 		RefreshTokens:              []RefreshToken{},
 		MetaData: UserMeta{
 			MetaData: MetaData{
-				AccountID:    accountID,
+				Owner:        AccountOwner(accountID),
 				LastModified: now,
 			},
 			CreatedAt:   now,

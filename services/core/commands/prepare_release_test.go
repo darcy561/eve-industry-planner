@@ -168,3 +168,80 @@ func TestNoCollectionIsItsOwnSnapshotTarget(t *testing.T) {
 		}
 	}
 }
+
+// stepIndex is the position of a named step, so an ordering test names what it
+// means rather than a number that moves when a step is inserted.
+func stepIndex(t *testing.T, version, name string) int {
+	t.Helper()
+	for _, rel := range releases {
+		if rel.version != version {
+			continue
+		}
+		for i, step := range rel.steps {
+			if step.name == name {
+				return i
+			}
+		}
+	}
+	t.Fatalf("release %s has no step %q", version, name)
+	return -1
+}
+
+// The owner stamp writes the field every step after it filters on. Those steps
+// do not fail without it — they match nothing, report zero, and let the release
+// finish green having migrated nothing.
+func TestOwnerStampRunsBeforeTheStepsThatFilterOnIt(t *testing.T) {
+	t.Parallel()
+
+	stamp := stepIndex(t, "0.9.0", "stamp the owner onto every scoped document")
+	for _, dependent := range []string{
+		"stamp extras category labels onto jobs",
+		"queue every account for rebuild",
+	} {
+		if at := stepIndex(t, "0.9.0", dependent); at < stamp {
+			t.Errorf("%q runs at %d, before the owner stamp at %d", dependent, at, stamp)
+		}
+	}
+}
+
+// Schema maintenance is first because the steps after it stamp the current
+// version onto documents they touch.
+func TestSchemaMaintenanceRunsFirst(t *testing.T) {
+	t.Parallel()
+
+	if at := stepIndex(t, "0.9.0", "complete outstanding schema maintenance"); at != 0 {
+		t.Errorf("schema maintenance runs at %d, want first", at)
+	}
+}
+
+// A step the rest read the output of must stop the release when it fails.
+// Carrying on is what turns one failed step into a green release that did
+// nothing.
+func TestStepsOthersDependOnAreRequired(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]bool{
+		"complete outstanding schema maintenance":    true,
+		"stamp the owner onto every scoped document": true,
+	}
+	for _, rel := range releases {
+		for _, step := range rel.steps {
+			if want[step.name] && !step.required {
+				t.Errorf("step %q is a prerequisite but is not marked required", step.name)
+			}
+		}
+	}
+}
+
+// The pre-release copy is what an operator falls back to, so it is taken while
+// the documents still hold everything the previous release read. Dropping the
+// retired fields first would copy documents already stripped of them.
+func TestRetiredFieldsAreDroppedAfterTheSnapshot(t *testing.T) {
+	t.Parallel()
+
+	snapshot := stepIndex(t, "0.9.0", "copy the statistics documents before the rebuild")
+	drop := stepIndex(t, "0.9.0", "drop retired statistics fields")
+	if drop < snapshot {
+		t.Errorf("retired fields are dropped at %d, before the snapshot at %d — the copy would miss them", drop, snapshot)
+	}
+}

@@ -20,17 +20,20 @@ func TestOwnerKeyRoundTrips(t *testing.T) {
 	}
 }
 
-// A ref can carry its own separator, so only the first one divides kind from id.
+// An id can carry the separator itself, so only the first colon divides kind from
+// id. An account id is not shape-constrained — nothing stops one containing a
+// colon — which is why the parse takes the whole remainder rather than splitting
+// on every separator.
 func TestOwnerKeyKeepsColonsInTheID(t *testing.T) {
 	t.Parallel()
 
-	owner := Owner{Kind: OwnerCorporation, ID: "corp:56:JxK"}
+	owner := AccountOwner("acct:56:JxK")
 
 	got, err := ParseOwnerKey(owner.Key())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ID != "corp:56:JxK" {
+	if got.ID != "acct:56:JxK" {
 		t.Fatalf("id = %q, want the whole remainder", got.ID)
 	}
 }

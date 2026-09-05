@@ -14,6 +14,7 @@ import (
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/worker/taskrun"
 
+	eipmongo "eve-industry-planner/shared/mongo"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -76,7 +77,7 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, payload eipnats.Cloud
 
 	mongo := deps.Mongo
 	var userDoc models.UserAccountDocument
-	if err := mongo.Users.Collection().FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
+	if err := mongo.Users.Collection().FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&userDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			logs.InfoCtx(ctx, "cloud esi refresh maintenance: user not found", "account_id", accountID)
 			return nil

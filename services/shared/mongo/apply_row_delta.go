@@ -69,8 +69,8 @@ func (m *Mongo) incrementBuckets(ctx context.Context, owner models.Owner, delta 
 		update := bson.M{
 			"$inc": inc,
 			"$setOnInsert": bson.M{
-				"owner.kind":        owner.Kind,
-				"owner.id":          owner.ID,
+				FieldMetaOwnerKind:  owner.Kind,
+				FieldMetaOwnerID:    owner.ID,
 				"typeID":            key.TypeID,
 				"isProductionChain": key.IsProductionChain,
 				"year":              key.Year,
@@ -124,7 +124,7 @@ func (m *Mongo) incrementTotals(ctx context.Context, owner models.Owner, delta m
 			SetUpdate(bson.M{
 				"$inc": inc,
 				"$setOnInsert": bson.M{
-					"owner.kind": owner.Kind, "owner.id": owner.ID,
+					FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID,
 					"typeID":  key.TypeID,
 					"jobType": total.JobType,
 				},
@@ -181,10 +181,10 @@ func (m *Mongo) LoadUncountedStatsRows(ctx context.Context, owner models.Owner) 
 	err = Retry(ctx, applyRetryOptions("LoadUncountedStatsRows", nil), func() error {
 		out = nil
 		cursor, ferr := coll.Find(ctx, bson.M{
-			"owner.kind":    owner.Kind,
-			"owner.id":      owner.ID,
-			"contributedAt": bson.M{"$exists": false},
-			"revoked":       bson.M{"$ne": true},
+			FieldMetaOwnerKind: owner.Kind,
+			FieldMetaOwnerID:   owner.ID,
+			"contributedAt":    bson.M{"$exists": false},
+			"revoked":          bson.M{"$ne": true},
 		})
 		if ferr != nil {
 			return ferr
@@ -216,10 +216,10 @@ func (m *Mongo) LoadRevokedContributedRows(ctx context.Context, owner models.Own
 	err = Retry(ctx, applyRetryOptions("LoadRevokedContributedRows", nil), func() error {
 		out = nil
 		cursor, ferr := coll.Find(ctx, bson.M{
-			"owner.kind":    owner.Kind,
-			"owner.id":      owner.ID,
-			"revoked":       true,
-			"contributedAt": bson.M{"$exists": true},
+			FieldMetaOwnerKind: owner.Kind,
+			FieldMetaOwnerID:   owner.ID,
+			"revoked":          true,
+			"contributedAt":    bson.M{"$exists": true},
 		})
 		if ferr != nil {
 			return ferr
@@ -302,7 +302,7 @@ func (m *Mongo) LoadTypeStatsRows(ctx context.Context, owner models.Owner, typeI
 	var out []models.ArchivedJobStats
 	err = Retry(ctx, applyRetryOptions("LoadTypeStatsRows", nil), func() error {
 		out = nil
-		cursor, ferr := coll.Find(ctx, bson.M{"owner.kind": owner.Kind, "owner.id": owner.ID, "typeID": typeID, "revoked": bson.M{"$ne": true}})
+		cursor, ferr := coll.Find(ctx, bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID, "typeID": typeID, "revoked": bson.M{"$ne": true}})
 		if ferr != nil {
 			return ferr
 		}
@@ -376,7 +376,7 @@ func (m *Mongo) PruneEmptyTotals(ctx context.Context, owner models.Owner) (int64
 	err = Retry(ctx, applyRetryOptions("PruneEmptyTotals", nil), func() error {
 		deleted = 0
 		res, derr := coll.DeleteMany(ctx, bson.M{
-			"owner.kind": owner.Kind, "owner.id": owner.ID,
+			FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID,
 			"totalJobs": bson.M{"$lte": 0},
 		})
 		if derr != nil {
@@ -408,8 +408,8 @@ func (m *Mongo) PruneEmptyBuckets(ctx context.Context, owner models.Owner) (int6
 	err = Retry(ctx, applyRetryOptions("PruneEmptyBuckets", nil), func() error {
 		deleted = 0
 		res, derr := coll.DeleteMany(ctx, bson.M{
-			"owner.kind":        owner.Kind,
-			"owner.id":          owner.ID,
+			FieldMetaOwnerKind:  owner.Kind,
+			FieldMetaOwnerID:    owner.ID,
 			bucketRowCountField: bson.M{"$lte": 0},
 		})
 		if derr != nil {
@@ -471,7 +471,7 @@ func (m *Mongo) EachArchivedJobWithoutStatsRow(ctx context.Context, owner models
 		return fmt.Errorf("a visitor is required")
 	}
 
-	jobIDs, err := m.ArchivedJobs.ListIDs(ctx, archivedJobsOwnedBy(owner))
+	jobIDs, err := m.ArchivedJobs.ListIDs(ctx, bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID})
 	if err != nil {
 		return fmt.Errorf("list archived jobs: %w", err)
 	}
@@ -490,7 +490,7 @@ func (m *Mongo) EachArchivedJobWithoutStatsRow(ctx context.Context, owner models
 	if err != nil {
 		return err
 	}
-	filter := archivedJobsOwnedBy(owner)
+	filter := bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID}
 	filter["_id"] = bson.M{"$in": missing}
 
 	cursor, err := coll.Find(ctx, filter)

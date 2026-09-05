@@ -98,7 +98,7 @@ sequenceDiagram
   end
 ```
 
-- **Authorization** for explicit document IDs: [`subscribe_auth.go`](../../../services/websocket/server/subscribe_auth.go) **`docSubscribeAuthorized`** (JWT singletons vs Mongo `_meta.accountID` for jobs/groups/etc.).
+- **Authorization** for explicit document IDs: [`subscribe_auth.go`](../../../services/websocket/server/subscribe_auth.go) **`docSubscribeAuthorized`** (JWT singletons vs Mongo `_meta.owner` for jobs/groups/etc.).
 - **Ordering:** inbound document work is serialised **per `docID`** (mutex / queue pattern in [`processor.go`](../../../services/websocket/server/processor.go)); **sync** uses the **pond** pool from [`server.go`](../../../services/websocket/server/server.go).
 
 ### Outbound flow (NATS → browsers)
@@ -229,7 +229,7 @@ Enforced in **`(*Server).docSubscribeAuthorized`** ([`subscribe_auth.go`](../../
 | Collections | Rule |
 |---------------|------|
 | `accounts`, `account_settings` | **Session account:** the Mongo document id segment after the first `.` must equal the connection’s **`accountID`** (singleton docs keyed by account). |
-| `account_jobs`, `account_job_documents`, `account_archived_jobs`, `groups`, `account_production_totals` | **Mongo:** document must exist with `_id` and **`_meta.accountID`** matching the session account (via `DocumentExistsByID`, 3s timeout). |
+| `account_jobs`, `account_job_documents`, `account_archived_jobs`, `groups`, `account_production_totals` | **Mongo:** document must exist with `_id` and **`_meta.owner`** matching the session account (via `DocumentExistsByID`, 3s timeout). |
 | **Any other collection** | **Denied** (fail closed). |
 
 If Mongo is unavailable, Mongo-backed subscriptions are denied. **Adding a new realtime collection:** extend the `switch` in `subscribe_auth.go` with the correct ownership rule.

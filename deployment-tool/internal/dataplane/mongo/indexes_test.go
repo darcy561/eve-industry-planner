@@ -12,30 +12,30 @@ func TestIndexSpecsCoverExpected(t *testing.T) {
 	t.Parallel()
 	specs := IndexSpecs()
 	want := map[string]bool{
-		"accounts.meta_accountID_1":                                      true,
-		"accounts.accounts_meta_lastLoginAt_1":                           true,
-		"account_settings.meta_accountID_1":                              true,
-		"job_groups.ajg_meta_accountID_1":                                true,
-		"watchlist_deprecated.awd_meta_accountID_1":                      true,
-		"job_documents.ajd_meta_accountID_displayOnPlanner_1":            true,
-		"job_documents.ajd_meta_accountID_groupID_1":                     true,
-		"job_documents.ajd_linkedJobs_corporation_id_1":                  true,
-		"job_documents.ajd_protected_spec_1":                             true,
-		"job_documents.ajd_meta_accountID_marketOrders_order_id_1":       true,
-		"job_documents.ajd_meta_accountID_linkedJobs_job_id_1":           true,
-		"job_documents.ajd_meta_accountID_transactions_transaction_id_1": true,
-		"archived_jobs.aj_linkedJobs_corporation_id_1":                   true,
-		"archived_jobs.aj_protected_spec_1":                              true,
-		"archived_jobs.aj_meta_accountID_archivedAt_jobID_1":             true,
-		"archived_jobs.aj_meta_accountID_name_jobID_1":                   true,
-		"archived_jobs.aj_meta_accountID_itemID_jobID_1":                 true,
-		"archived_jobs.aj_meta_accountID_jobType_jobID_1":                true,
-		"archived_jobs.aj_meta_accountID_groupID_1":                      true,
-		"statistics_rows.aajs_owner_revoked_contributedAt_1":             true,
-		"statistics_rows.aajs_owner_typeID_revoked_1":                    true,
-		"statistics_timeline.atm_owner_isProductionChain_typeID_1":       true,
-		"statistics_timeline.atm_owner_typeID_1":                         true,
-		"statistics_totals.apt_owner_typeID_1":                           true,
+		"accounts.meta_owner_1":                                      true,
+		"accounts.accounts_meta_lastLoginAt_1":                       true,
+		"account_settings.meta_owner_1":                              true,
+		"job_groups.ajg_meta_owner_1":                                true,
+		"watchlist_deprecated.awd_meta_owner_1":                      true,
+		"job_documents.ajd_meta_owner_displayOnPlanner_1":            true,
+		"job_documents.ajd_meta_owner_groupID_1":                     true,
+		"job_documents.ajd_linkedJobs_corporation_id_1":              true,
+		"job_documents.ajd_protected_spec_1":                         true,
+		"job_documents.ajd_meta_owner_marketOrders_order_id_1":       true,
+		"job_documents.ajd_meta_owner_linkedJobs_job_id_1":           true,
+		"job_documents.ajd_meta_owner_transactions_transaction_id_1": true,
+		"archived_jobs.aj_linkedJobs_corporation_id_1":               true,
+		"archived_jobs.aj_protected_spec_1":                          true,
+		"archived_jobs.aj_meta_owner_archivedAt_jobID_1":             true,
+		"archived_jobs.aj_meta_owner_name_jobID_1":                   true,
+		"archived_jobs.aj_meta_owner_itemID_jobID_1":                 true,
+		"archived_jobs.aj_meta_owner_jobType_jobID_1":                true,
+		"archived_jobs.aj_meta_owner_groupID_1":                      true,
+		"statistics_rows.aajs_owner_revoked_contributedAt_1":         true,
+		"statistics_rows.aajs_owner_typeID_revoked_1":                true,
+		"statistics_timeline.atm_owner_isProductionChain_typeID_1":   true,
+		"statistics_timeline.atm_owner_typeID_1":                     true,
+		"statistics_totals.apt_owner_typeID_1":                       true,
 	}
 	if len(specs) != len(want) {
 		t.Fatalf("len=%d want %d", len(specs), len(want))
@@ -232,6 +232,79 @@ func TestIndexSpecsPreimageCollectionsOverlap(t *testing.T) {
 	for _, spec := range IndexSpecs() {
 		if needPreimage[spec.Collection] && !pre[spec.Collection] {
 			t.Fatalf("indexed collection %s not in PreimageCollections", spec.Collection)
+		}
+	}
+}
+
+// No spec may key a field the documents no longer carry.
+//
+// An index on an absent field is built, maintained on every write, and chosen by
+// nothing — and it fails silently, because Ensure reports creating it exactly as
+// it reports one that works. The owner replaced the account id everywhere, so a
+// spec still naming the old path is a spec that was missed.
+func TestNoSpecKeysARetiredField(t *testing.T) {
+	t.Parallel()
+
+	retiredFields := []string{"_meta.accountID", "_meta.corporationRef", "_meta.allianceRef"}
+	for _, spec := range IndexSpecs() {
+		for _, key := range spec.Keys {
+			for _, retired := range retiredFields {
+				if key.Field == retired {
+					t.Errorf("%s.%s keys %s, which no document carries", spec.Collection, spec.Name, retired)
+				}
+			}
+		}
+	}
+}
+
+// An owner-scoped index leads with both halves of the owner, in order.
+//
+// The two fields are one key: a filter names kind and id together, so an index
+// carrying only one of them, or carrying them after another field, does not serve
+// it. Pinning the order here is what stops a later edit inserting a field above
+// them and quietly costing every scoped query its index.
+func TestOwnerScopedSpecsLeadWithTheWholeOwner(t *testing.T) {
+	t.Parallel()
+
+	for _, spec := range IndexSpecs() {
+		var mentionsOwner bool
+		for _, key := range spec.Keys {
+			if strings.HasPrefix(key.Field, "_meta.owner.") {
+				mentionsOwner = true
+			}
+		}
+		if !mentionsOwner {
+			continue
+		}
+		if len(spec.Keys) < 2 ||
+			spec.Keys[0].Field != "_meta.owner.kind" ||
+			spec.Keys[1].Field != "_meta.owner.id" {
+			t.Errorf("%s.%s names the owner but does not lead with kind then id: %+v",
+				spec.Collection, spec.Name, spec.Keys)
+		}
+	}
+}
+
+// A spec that changed shape must retire the name it replaced.
+//
+// Ensure only ever creates, and a reshaped index under a new name conflicts with
+// nothing — so without an entry in RetiredIndexes both survive, and the database
+// carries a full second set of indexes on a field that is gone.
+func TestReshapedOwnerSpecsRetireTheirPredecessor(t *testing.T) {
+	t.Parallel()
+
+	retired := map[string]bool{}
+	for _, r := range RetiredIndexes {
+		retired[r.Collection+"."+r.Name] = true
+	}
+	for _, spec := range IndexSpecs() {
+		if !strings.Contains(spec.Name, "meta_owner") {
+			continue
+		}
+		predecessor := spec.Collection + "." + strings.Replace(spec.Name, "meta_owner", "meta_accountID", 1)
+		if !retired[predecessor] {
+			t.Errorf("%s.%s replaced %s, which is not in RetiredIndexes — both would survive",
+				spec.Collection, spec.Name, predecessor)
 		}
 	}
 }

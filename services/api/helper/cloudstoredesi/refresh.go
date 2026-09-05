@@ -40,7 +40,7 @@ func RefreshStoredEsiForCharacter(ctx context.Context, mongo *eipmongo.Mongo, ac
 	}
 
 	var userDoc models.UserAccountDocument
-	if err := usersCol.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
+	if err := usersCol.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&userDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return nil, ErrUserNotFound
 		}

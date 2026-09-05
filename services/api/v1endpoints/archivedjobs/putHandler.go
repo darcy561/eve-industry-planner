@@ -32,7 +32,7 @@ const archivedJobStatsBatch = 200
 // only 408, 429 and 5xx.
 //
 //   - 400 — malformed JSON, empty batch, batch >100, empty jobID, duplicate jobIDs
-//   - 403 — a job's non-empty _meta.accountID is not the authenticated account
+//   - 403 — a job names an owner that is not the authenticated account
 //   - 500 — Mongo bulk write failure
 //   - 204 — success
 //
@@ -92,12 +92,12 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid batch: duplicate jobID %q", job.JobID), "archived jobs put: batch rejected (duplicate jobID)", "archived_jobs_put_duplicate_job_id", "archived_jobs_put", nil, map[string]any{"index": i, "job_id": job.JobID})
 			return
 		}
-		if job.MetaData.AccountID != "" && job.MetaData.AccountID != accountID {
+		if job.MetaData.Owner.ID != "" && job.MetaData.Owner.ID != accountID {
 			metrics.Error("account_mismatch")
 			helper.RespondEndpointError(w, r, http.StatusForbidden, fmt.Sprintf("Invalid job at index %d: _meta.accountID does not match the authenticated account", i), "archived jobs put: _meta.accountID does not match token", "archived_jobs_put_account_mismatch", "archived_jobs_put", nil, map[string]any{
 				"index":               i,
 				"job_id":              job.JobID,
-				"job_meta_account_id": job.MetaData.AccountID,
+				"job_meta_account_id": job.MetaData.Owner.ID,
 			})
 			return
 		}
@@ -175,7 +175,7 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		job.MetaData.ArchivedBy = accountID
 
 		bulkOps = append(bulkOps, mongodriver.NewUpdateOneModel().
-			SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": job.MetaData.AccountID}).
+			SetFilter(bson.M{"_id": job.JobID, eipmongo.FieldMetaOwnerID: job.MetaData.Owner.ID}).
 			SetUpdate(bson.M{"$set": job, "$unset": eipmongo.ArchivedJobsUpsertUnset}).
 			SetUpsert(true))
 

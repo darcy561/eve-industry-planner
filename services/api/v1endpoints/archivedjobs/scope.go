@@ -40,7 +40,7 @@ func accountArchiveScope(m *eipmongo.Mongo, accountID string) (archiveScope, err
 		OwnerID:     accountID,
 		jobs:        m.ArchivedJobs,
 		stats:       m.StatisticsRows,
-		ownerFilter: eipmongo.ArchivedJobAccountFilter,
+		ownerFilter: accountOwnerFilter,
 		statsDocumentID: func(ownerID, jobID string) string {
 			return eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(ownerID), jobID)
 		},
@@ -49,6 +49,11 @@ func accountArchiveScope(m *eipmongo.Mongo, accountID string) (archiveScope, err
 		},
 		relinksESI: true,
 	}, nil
+}
+
+// accountOwnerFilter scopes archived jobs to what one account owns.
+func accountOwnerFilter(accountID string) bson.M {
+	return bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID}
 }
 
 // filter returns a fresh ownership predicate for this archive.

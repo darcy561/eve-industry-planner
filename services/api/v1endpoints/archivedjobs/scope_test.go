@@ -14,11 +14,14 @@ import (
 func TestAccountScopeFiltersOnAccountOwnership(t *testing.T) {
 	scope := archiveScope{
 		OwnerID:     "account-1",
-		ownerFilter: eipmongo.ArchivedJobAccountFilter,
+		ownerFilter: accountOwnerFilter,
 	}
 	filter := scope.filter()
-	if got := filter["_meta.accountID"]; got != "account-1" {
-		t.Fatalf("filter = %v, want ownership by _meta.accountID", filter)
+	if got := filter["_meta.owner.id"]; got != "account-1" {
+		t.Fatalf("filter = %v, want ownership by _meta.owner", filter)
+	}
+	if got := filter["_meta.owner.kind"]; got != models.OwnerAccount {
+		t.Fatalf("filter = %v, want the account kind", filter)
 	}
 }
 
@@ -26,7 +29,7 @@ func TestAccountScopeFiltersOnAccountOwnership(t *testing.T) {
 func TestFilterDoesNotLeakBetweenCalls(t *testing.T) {
 	scope := archiveScope{
 		OwnerID:     "account-1",
-		ownerFilter: eipmongo.ArchivedJobAccountFilter,
+		ownerFilter: accountOwnerFilter,
 	}
 	first := scope.filter()
 	first["jobID"] = bson.M{"$in": []string{"job-1"}}
@@ -72,7 +75,7 @@ func TestOnlyTheAccountArchiveRelinksESI(t *testing.T) {
 		t.Fatal("the account archive reclaims ESI ids")
 	}
 
-	other := archiveScope{OwnerID: "corp-1", ownerFilter: eipmongo.ArchivedJobAccountFilter}
+	other := archiveScope{OwnerID: "corp-1", ownerFilter: accountOwnerFilter}
 	if other.relinksESI {
 		t.Fatal("an archive with no linked sets must not attempt a re-link")
 	}

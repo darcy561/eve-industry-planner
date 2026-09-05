@@ -44,13 +44,15 @@ monotonic version to hang invalidation on.
 `alliance:{allianceRef}` tenant strings, and `TenantStringFromRouting` picks between them. NATS
 subjects, hosted-tenant filters and the affinity cookie are all built from those strings.
 
-**Not owner-shaped.** Stored documents are the gap. `models.MetaData` carries `AccountID` plus
-optional `CorporationRef` and `AllianceRef` — one field per scope, with the changestream reading the
-field *names* (`MetaFieldCorporationRef`, `MetaFieldAllianceRef`) out of a raw `_meta` subdocument.
-`models.ArchivedJobStats` has the same shape a second time as `AccountID` plus `CorpRef`. Collections
-and document ids are named for the account kind (`account_jobs`, `account_archived_job_stats`,
-`ArchivedJobStatsDocumentID(accountID, jobID)`), and the statistics API is mounted under the literal
-prefix `/api/v1/statistics/account/`.
+**Not owner-shaped.** `models.MetaData` carries `AccountID` plus optional `CorporationRef` and
+`AllianceRef` — one field per scope, with the changestream reading the field *names*
+(`MetaFieldCorporationRef`, `MetaFieldAllianceRef`) out of a raw `_meta` subdocument. Every base
+document is scoped that way, and it is the whole of what Stage A changes.
+
+**Already landed since, under [archived-jobs-stats](../archived-jobs-stats/plan.md).** The statistics
+half is done: `models.Owner` exists, the three statistics documents carry a root owner with ids
+leading on the owner key, the collections took the names they hold, and the statistics API is
+`/api/v1/statistics/{owner}/{view}`. What remains is the `_meta` reshape above.
 
 **Not built at all.** There is no planner document, no membership, no invite, no notion of an active
 planner on the client, and no way for one account to see another's data by any path.
@@ -314,11 +316,11 @@ to fill the database.
 |---------|-------|-------|
 | `models.MetaData` | `AccountID` + optional `CorporationRef` / `AllianceRef` | one `Owner` block; scope fields gone |
 | Changestream routing | reads named `_meta` scope fields | reads `_meta.owner` generically |
-| `models.ArchivedJobStats` | `AccountID` + `CorpRef` | one embedded owner |
-| Collections | `account_jobs`, `account_archived_job_stats`, … | named for what they hold; ownership lives in the document |
-| Document ids | `ArchivedJobStatsDocumentID(accountID, jobID)` | owner key in place of the account id |
+| `models.ArchivedJobStats` | **done** — carries a root `Owner` | — |
+| Collections | **done** — `jobs`, `statistics_rows`, … | named for what they hold; ownership lives in the document |
+| Document ids | **done** — `{ownerKey}\|{jobID}` | — |
 | Rebuild queue / rota | owner-keyed already | unchanged; enumerates planners rather than accounts |
-| Statistics API | `/api/v1/statistics/account/…` | owner handle in the path |
+| Statistics API | **done** — `/api/v1/statistics/{owner}/{view}` | — |
 | `SessionGrants` | `CorporationRefs` + `AllianceRefs` | one list of owner keys, including the account's own |
 | `RealtimeScopes` | `CorporationRefs` + `AllianceRefs` | one list of owner keys |
 | `upgrade_scopes` / `scopes_ack` | corp and alliance id arrays | owner handles, one shape for every kind |
@@ -333,7 +335,8 @@ Two known gaps that this project inherits rather than creates.
 non-account owners is already deferred; it becomes visible once shared planners carry real traffic.
 And the `account_*` collection names are shared by every kind under this model, so the rename that
 [archived-jobs-stats](../archived-jobs-stats/plan.md) deliberately parked as "the expensive part"
-now definitely happens — see Stage B for why it is bundled rather than paid twice.
+now definitely happens. It has: [archived-jobs-stats](../archived-jobs-stats/plan.md) § 2 shipped ten
+`CollectionRenames` entries, one per collection live actually holds and still needs.
 
 ## Collection layout
 
@@ -364,17 +367,17 @@ prefix names the subject, not the owner.
 |------------|-------|-------|
 | `accounts` | user account documents | the account |
 | `account_settings` | application settings for an account | the account |
-| `group_template_catalog`, `group_template_payloads` | saved group templates | see open question below |
+| `group_template_catalog`, `group_template_payloads` | saved group templates | the account |
 | `planner_status_ids`, `planner_extras_categories` | the two shared id spaces (may live on the planner document) | the planner |
 | `jobs` | jobs on a planner | `_meta.owner` |
 | `job_documents` | the job document bodies | `_meta.owner` |
 | `job_groups` | groups of jobs | `_meta.owner` |
 | `archived_jobs` | archived job documents | `_meta.owner` |
-| `archived_job_stats` | one archived job reduced to its figures | `_meta.owner` |
-| `production_totals` | lifetime totals per item | `_meta.owner` |
-| `timeline_months` | monthly figures per item | `_meta.owner` |
-| `stats_rebuild_queue` | outstanding statistics work | owner key as `_id` |
-| `stats_reconcile_rota` | when each owner was last reconciled | owner key as `_id` |
+| `statistics_rows` | one archived job reduced to its figures | a root `owner` |
+| `statistics_timeline` | monthly figures per item | a root `owner` |
+| `statistics_totals` | lifetime totals per item | a root `owner` |
+| `statistics_rebuild_queue` | outstanding statistics work | owner key as `_id` |
+| `statistics_reconcile_rota` | when each owner was last reconciled | owner key as `_id` |
 | `planners` | the planner documents, every kind | — |
 | `planner_memberships` | who is in a planner, and as what | — |
 | `planner_invites` | outstanding invite tokens | — |
@@ -383,6 +386,15 @@ prefix names the subject, not the owner.
 The resulting set is deliberately ragged rather than uniform. A rename list that comes out
 pleasingly symmetrical is a sign the prefix is being applied as a sweep rather than chosen per
 collection.
+
+The `statistics_` prefix is the case where a prefix does earn its place. It names the **subject** —
+these five hold statistics — in the same way `planner_memberships` names what its collection is about,
+and it matches the vocabulary the API route and the SPA query keys already use. That is the opposite
+of an owner prefix, which would restate what the document's own owner field says.
+
+The statistics documents carry their owner at the **document root**, not under `_meta`: they are
+derived rows rather than documents a user owns, so they have no `_meta` block at all. Only the base
+collections carry `_meta.owner`.
 
 Two consequences. Every owner-scoped index leads with the owner. And document ids take the owner key
 in place of the account id — `ArchivedJobStatsDocumentID` becomes `{ownerKey}|{jobID}`, giving
@@ -394,14 +406,14 @@ key's own separator is `:`.
 Putting every owner's documents in one collection does not make queries slower, and splitting by kind
 would not make them faster.
 
-Every index in `index_specs.go` already leads with `_meta.accountID` or `accountID`; the owner key
-takes that leading position and the index shape is otherwise unchanged. An owner-led index seeks into
+Every owner-scoped index in `index_specs.go` leads with the owner key, which took the leading
+position the account id used to hold; the index shape is otherwise unchanged. An owner-led index seeks into
 a contiguous range of the B-tree and walks only that owner's entries, so growth costs tree depth,
 which is logarithmic — one extra level of page reads between a hundred thousand documents and a
 hundred million. What costs real time is scanning documents that are then discarded, and an owner-led
 index never does it.
 
-`account_jobs` is already a collection holding every account's jobs. This design does not introduce
+`jobs` is already a collection holding every account's jobs. This design does not introduce
 multi-tenant storage; it generalises who the tenant is.
 
 A per-kind split would also miss its target. Account-kind documents are the overwhelming majority, so
@@ -423,8 +435,9 @@ sharding on the owner key — not a per-kind split, which addresses the wrong ax
 
 **Group templates are an open question.** They are listed without an owner above, on the unresolved
 reading that a template library belongs to the person. A corporation planner wanting shared templates
-would make them owner-scoped instead. The decision is owed before Stage B, because it decides whether
-they carry an owner block.
+would make them owner-scoped instead. **Settled by what shipped:** the renames landed them as
+`group_template_catalog` and `group_template_payloads` with no owner prefix, and the owner backfill's
+collection list does not include them — so they are account-owned, as a personal library.
 
 ## Ownership is decided at creation
 
@@ -662,11 +675,10 @@ shared planner those separate, so it becomes two fields:
 ```go
 // MetaData is the core every scoped document shares.
 type MetaData struct {
-	SchemaVersion int       `bson:"schemaVersion,omitempty" json:"schemaVersion,omitempty"`
-	LastModified  time.Time `bson:"lastModified" json:"lastModified"`
-	Owner         Owner     `bson:"owner"`
-	ClientID      string    `bson:"clientID,omitempty" json:"clientID,omitempty"`
-	SessionID     string    `bson:"sessionID,omitempty" json:"sessionID,omitempty"`
+	LastModified time.Time `bson:"lastModified" json:"lastModified"`
+	Owner        Owner     `bson:"owner" json:"-"`
+	ClientID     string    `bson:"clientID,omitempty" json:"clientID,omitempty"`
+	SessionID    string    `bson:"sessionID,omitempty" json:"sessionID,omitempty"`
 }
 
 // AccountMeta is the `_meta` of a document owned by an account rather than held
@@ -678,10 +690,32 @@ type AccountMeta struct {
 // PlannerScopedMeta is the `_meta` of a document held in a planner, where more
 // than one account may write.
 type PlannerScopedMeta struct {
-	MetaData      `bson:",inline" json:",inline"`
-	LastUpdatedBy string `bson:"lastUpdatedBy,omitempty" json:"lastUpdatedBy,omitempty"`
+	MetaData         `bson:",inline" json:",inline"`
+	CreatedAt        time.Time `bson:"createdAt" json:"createdAt"`
+	LastUpdatedBy    string    `bson:"lastUpdatedBy" json:"lastUpdatedBy"`
+	ArchivedAt       time.Time `bson:"archivedAt,omitzero" json:"archivedAt,omitzero"`
+	ArchivedBy       string    `bson:"archivedBy,omitempty" json:"archivedBy,omitempty"`
+	ArchiveProcessed bool      `bson:"archiveProcessed,omitempty" json:"archiveProcessed,omitempty"`
+	DeletedAt        time.Time `bson:"deletedAt,omitzero" json:"deletedAt,omitzero"`
+	DeletedBy        string    `bson:"deletedBy,omitempty" json:"deletedBy,omitempty"`
 }
 ```
+
+**`MetaData` carries no `SchemaVersion`.** Every persisted model already has one at the document
+root — `job.go`, `group.go`, `user_account_document.go`, `accountDocuments.go` — and the maintenance
+batch selects on the root field. A second inside `_meta` would be two sources for one fact, and would
+not drive the rotation.
+
+**The owner does not go on the wire.** `_meta.accountID` is read in exactly one place in the SPA
+(`Classes/job.js`), nothing downstream reads it back, and the server overwrites whatever a client
+uploads. So the field is decorative and the client change is a deletion rather than a repoint — which
+also means no corporation or alliance ref can reach a browser through `_meta` at all.
+
+`PlannerScopedMeta` carries the archive and lifecycle fields because it replaces `JobMetaData`, which
+already holds them.
+
+`JobMetaData` already embeds `MetaData` and adds its own `LastUpdatedBy`, so this split follows a
+shape the tree already has rather than introducing one.
 
 Both families carry the owner — an account document's owner is `account:{id}`, which is true rather
 than a placeholder. They are separate types because `LastUpdatedBy` only means something where more
@@ -853,19 +887,32 @@ Three things this surfaces:
 
 **Every document embedding `MetaData` bumps, not only the planner-scoped ones.** `accounts` and
 `account_settings` embed it as well, so they carry the owner block too — their owner is
-`account:{id}`, which is true, and keeps one `MetaData` shape rather than splitting it into
-account-owned and planner-owned variants. Each of the four bumps needs a step that fills the owner
-from the old `accountID`, which is also what makes every read path correct before the backfill runs.
+`account:{id}`, which is true rather than a placeholder. All four are stamped by the same
+`prepareRelease` step, in the same window, so there is no interval in which some carry an owner and
+others do not.
 
 **`ArchivedJobStats` has no schema version today,** and its `Version` field is dead: nothing reads or
 writes it, and every stored row holds the zero value. It is deleted with the owner collapse. Whether
 the row wants a `SchemaVersion` is [archived-jobs-stats](../archived-jobs-stats/plan.md) § Owner block
 item 1 to decide — the row is derived and rebuilt wholesale, so an upgrade of one is a rebuild.
 
-**Shared embedded types carry their own version; single-parent ones do not.** `MetaData` is embedded
-in six document types and `Owner` in more, so without a version of their own the "fill owner from
-`accountID`" step would be written into six parent upgraders, each keyed to a different parent
-version. One version on the embedded type makes it a single shared function every parent calls.
+**`MetaData` takes no version of its own, and the cutover writes no upgrader — an approved
+deviation.** The rule above asks for a `vN → vN+1` step in `documentschema.Upgrader` beside every bump.
+That step cannot be written here: once `AccountID` is off `MetaData`, a decoded document carries
+nothing an upgrader could derive an owner from, and reading raw BSON to fake one is the second
+mechanism this cutover exists to remove. So the `prepareRelease` step sets the owner and the root
+`schemaVersion` together, and the version's job becomes **detection** — a document still at the old
+version after the window is one the step missed, which the maintenance batch's existing selector
+surfaces.
+
+Two consequences of that, both load-bearing rather than incidental:
+
+- The window's gate — **zero documents without `_meta.owner`** — is what makes the deviation safe. It
+  is not a formality.
+- `owner` is written by `$setOnInsert` only, because a document does not change owner as a side effect
+  of a save. So a document the step misses never gains one through ordinary use; the only repair is
+  re-running `prepareRelease`, which is idempotent.
+
 `JoinMethod`, `InviteJoin` and `ESIJoin` are only ever inside `PlannerMembership`, so its version
 gates them; versioning them separately would create two numbers that must agree with nothing keeping
 them in step.
@@ -887,62 +934,66 @@ this account.
 
 ## Stages
 
-### Stage A — The owner block
+### Stage A — The owner block, in one cutover
 
-Split `models.MetaData` into `AccountMeta` and `PlannerScopedMeta`, put the owner on both, and make
-the changestream read `_meta.owner` generically instead of named scope fields. Bump the affected
-document schema versions so a backfill can **select** unmigrated rows rather than guessing from field
-presence — the same reasoning `protectedfields.Spec` already uses for its field sets.
+**Landed, under [archived-jobs-stats](../archived-jobs-stats/plan.md).** The model, the vocabulary, the
+writers, the query filters, the index specs and the `prepareRelease` stamp are all implemented; what
+that plan still owes is `ChangeStreamMessage`, which decomposes the owner back into three route fields.
+Design as built → [archived-jobs-stats](../archived-jobs-stats/plan.md) § The owner block landed as one
+cutover. Behaviour → [archived-jobs-stats](../archived-jobs-stats/overlay.md) § The owner block. The
+window below is the operator sequence and remains owed against live.
 
-**`models.Owner` itself is not landed here.** The `StatsOwner` → `Owner` rename belongs to
-[archived-jobs-stats](../archived-jobs-stats/plan.md) § Owner block item 1: fifteen of the sixteen
-non-test files referencing the type are that project's own code, and it is already opening them to
-collapse the archive row's `AccountID` and `CorpRef`. This stage **consumes** the type, so it starts
-once that item lands. `models.ArchivedJobStats` is likewise theirs — it carries flat fields rather
-than embedding `MetaData`, so it is independent of the split above.
+The stack comes down for the next deployment, so the owner change goes in whole rather than as an
+expand/contract sequence: the model, the renames, the backfill and the reads all land inside one
+window, with nothing serving and nothing writing.
 
-Fill the owner from the account id in `documentschema.Upgrader` when it is absent. That upgrader
-already normalises documents in memory, idempotently, on read, so every **read** path is correct from
-the moment Stage A deploys — before the backfill has touched a single document. What an upgrader
-cannot fix is a **query filter**, because a filter runs over documents that have not been fetched
-yet. That is precisely what Stage B exists for, and stating the split plainly is what makes Stage A
-safe to ship on its own.
+That removes the machinery a gradual switch needs. `models.MetaData` drops `AccountID`,
+`CorporationRef` and `AllianceRef` outright rather than carrying them beside the owner; no write emits
+two shapes; and the upgrader needs no path filling an owner from an account id, because no document
+leaves the window without one.
 
-Writes emit both the owner block and the legacy `accountID` for now, so a rollback to the deployed
-`Public` code is possible at every point until Stage D.
+It also removes a hazard rather than sequencing around it. `BulkUpsertJobs`, `BulkUpsertGroups` and
+the archived-jobs `putHandler` each write `"$set": <the whole marshalled struct>`, and `$set` on
+`_meta` replaces that subdocument entire rather than patching its fields — so while `MetaData` has no
+`Owner`, any save erases one already stamped there. That would dictate the order of two releases under
+a gradual switch. With nothing writing it cannot happen, provided the order inside the window holds.
 
-### Stage B — Backfill, indexes and renames, in one pass
+The contrast is still worth knowing, because it is why some writes are harmless:
+`UpsertStructPreservingMeta` and `buildPreservingMetaUpsertModel` exclude `_meta` from the `$set` and
+patch it with dotted paths, which leaves unknown fields alone. Only the whole-struct writers destroy.
 
-One registered task under `services/core/commands`, run through `eip cli`, batched, idempotent and
-resumable — the same pattern as `backfill_archived_at.go` and `encrypt_cloud_refresh_tokens_migration.go`.
-It stamps `_meta.owner` on existing documents and collapses the archive rows' `AccountID` / `CorpRef`.
+**Order inside the window.** Implementation of this stage belongs to
+[archived-jobs-stats](../archived-jobs-stats/plan.md) — the `MetaData` reshape is inseparable from the
+writers, query filters and changestream work that plan owns, and the owner stamp is a
+`prepareRelease` step there rather than a task of its own, so an operator running the release command
+cannot silently skip it.
 
-The collection renames and the document-id change ride along **in the same pass**, declared in the
-Deployment Tool's `CollectionRenames` at the next version. The entire cost of a rename is touching
-live data; bundling it with a backfill that is already touching that data makes it nearly free, and
-splitting them means paying the expensive part twice over the same collections. The renames are
-chosen per collection, not derived by swapping one prefix for another — see § Collection layout.
+1. Stop user traffic, **and stop the worker**.
+2. Back up, with the restore already exercised.
+3. `eip ensure-mongo` — renames, index specs, retired indexes.
+4. `eip update` — the images carrying the owner block.
+5. `eip cli` → `tasks prepareRelease`, one command: outstanding schema maintenance first, then the
+   owner stamp, then the rest, with the rebuild queue last. The first two stop the run if they fail,
+   because every step after them reads what they write.
+6. **Gate:** zero documents without `_meta.owner`, and counts matching. Then worker up, traffic back.
 
-`renames.go` warns that renaming a collection the SPA subscribes to is a client-facing break rather
-than a storage change. That warning is at its cheapest right now: the subscriptions are account-based
-and cover only a handful of documents, so the changestream collection groups and the websocket
-subscribe allow-list move with the rename in this stage without difficulty. The cost only grows as
-more owner kinds and more collections come under subscription, which is a further reason to take the
-renames here rather than at the end.
+The tasks CLI execs into the running core service, so core stays up throughout: "stack down" means
+user traffic stopped, not every service stopped.
 
-New indexes on the owner are built alongside the existing account ones, not in place of them.
+**Why the worker is down between 4 and 5, and this is destructive rather than untidy.** Once the
+images filter on `_meta.owner` but before the stamp writes it, every owner-scoped read matches
+nothing. `PruneTimelineMonths` and `PruneProductionTotals` add their `_id: {$nin: keepDocIDs}` clause
+only when the keep list is non-empty, so an empty one leaves a filter of `owner.kind` + `owner.id`
+alone — matching **every** document for that owner. A rebuild firing in that gap reads zero archived
+jobs, produces no keep list, and deletes that owner's aggregates. `cron.dispatchStatisticsRebuilds`
+runs every two minutes, so the exposure is minutes wide rather than theoretical.
 
-### Stage C — Reads move to the owner
+**Rollback is a restore.** An expand/contract sequence keeps every intermediate state readable by the
+previous release; this does not. There is no forward-compatible shape to fall back to, so the window
+needs a database backup taken immediately before it and a restore that has been tried. That is the
+rollback plan, and it is what the simpler cutover costs.
 
-Switch query filters and index usage to the owner. Drop the account indexes. Legacy `accountID` is
-still written, so a rollback is still possible; it is the last stage at which that is true.
-
-### Stage D — Contract
-
-Stop writing `_meta.accountID`, unset it, and delete the compatibility path in the upgrader. Taken
-only once there is no intention of rolling back.
-
-### Stage E — Grants and scopes as owner lists
+### Stage B — Grants and scopes as owner lists
 
 `SessionGrants` becomes one list of owner keys including the account's own, so there is no special
 case and one `filterToAllowed` comparison covers everything. `RealtimeScopes` follows, and
@@ -952,7 +1003,7 @@ Session records live in Redis and expire, so this is a rolling deploy rather tha
 property worth using rather than working around. It does mean the API and websocket must tolerate both
 grant shapes for the length of one session lifetime.
 
-### Stage F — Planner and membership documents
+### Stage C — Planner and membership documents
 
 The planner document, the membership collection, and the code that keeps rows current for the `self`
 provider only. Every existing account is backfilled a planner whose `_id` is its owner key,
@@ -964,7 +1015,7 @@ request path — "which planners can this account see" on every session bootstra
 planner" on every roster read — so both need an index, and an embedded array would make the roster a
 hot-write contention point on the planner document itself.
 
-### Stage G — What a second member breaks
+### Stage D — What a second member breaks
 
 The work that has to land **before** any planner can hold two people, because getting it wrong writes
 bad figures into an archive that then needs rebuilding.
@@ -983,39 +1034,46 @@ reach a related job whose lock another member holds.
 
 Its test is exact: on a single-member planner, every figure must be identical before and after.
 
-### Stage H — Custom planners
+### Stage E — Custom planners
 
 Creation, invite tokens, the join path, the shared authoriser, the limits, and the revocation path.
 On the client: the active planner, its persistence, the planner switcher, and the owner in every
 scoped query key. Archiving names its destination planner in the UI, because a job archived into the
 wrong archive is tedious to unpick.
 
-### Stage I — ESI providers
+### Stage F — ESI providers
 
 Corporation and alliance reconcile membership rows from the ids ESI reports, at token refresh and
 only when the derived set differs from the stored one. Nothing else is needed: grants already derive
 from membership rows, so a new row is a new grant. That there is no other work is the measure of
 whether the abstraction held.
 
-## Live data, and why this is expand/contract
+## Live data, and the cutover window
 
-`Public` is deployed with real data, and deployed code reads `_meta.accountID`. The field and its
-readers cannot flip together, so Stages A–D are expand, migrate, switch, contract.
+`Public` is deployed with real data, and the next deployment takes the stack down. Every data change
+this project needs — the owner block, the collection renames, the statistics reshape — rides in that
+window rather than being sequenced around live traffic.
 
-The alternative is a flag day behind the maintenance middleware in `api/middleware/maintenance.go`.
-It is less code, and it is rejected: if the backfill fails partway through, the flag day leaves a
-mixed database in front of readers that only understand the new field, while expand/contract keeps
-every intermediate state readable by both. Workers are actively writing archive rows throughout, which
-makes a clean stop-the-world harder to guarantee than it looks.
+What makes that safe here, and would not for a rolling deploy, is that nothing reads or writes while
+it runs. A partly-finished backfill in front of live readers is the thing an expand/contract sequence
+exists to prevent; with traffic stopped the failure mode is instead that the window overruns, which is
+answered by rehearsing on a copy rather than by keeping two shapes readable.
+
+**Rehearsal is the substitute for reversibility.** The rename path has already been proven by putting
+dev back to live's exact collection names and running `eip ensure-mongo` once, with every count
+matching afterwards. The owner backfill and the statistics reshape want the same treatment before the
+window opens: run them against a restored copy of live, time them, and check the counts.
 
 ## Wire compatibility
 
 | Surface | Change |
 |---------|--------|
-| `_meta` owner block | **migrate-required** — Stages A–D, with rollback available until C |
-| `ArchivedJobStats` owner | **migrate-required** — same pass |
+| `_meta` owner block | **migrate-required** — one cutover; no forward-compatible shape, so rollback is a database restore |
+| `_meta` on the wire | **not breaking** — the owner never leaves the server, and `accountID` had one SPA reader that already falls back to the store, so the client change is a deletion |
+| `ChangeStreamMessage` scope fields | **breaking**, core to websocket only; internal, and both ship in the same window |
+| `ArchivedJobStats` owner | **migrate-required** — same window |
 | Collection names, document ids | **migrate-required**; client-facing via changestream groups and the subscribe allow-list, which are small and account-based today and move with the rename |
-| `SessionGrants` in Redis | rolling — records expire; both shapes tolerated for one session lifetime |
+| `SessionGrants` in Redis | records expire, and the window can clear them outright rather than tolerating two shapes |
 | `upgrade_scopes` / `scopes_ack` | **breaking in shape**, but every value is unchanged for corporation and alliance, so client and server cut together |
 | Statistics routes | **breaking** if deferred, additive if the owner handle lands while the account is still the only value — hence it is owed by archived-jobs-stats before it ships |
 | Planner, membership, invite endpoints | additive |
@@ -1040,7 +1098,7 @@ the first two are only cheap while that project is still open and touching live 
    creation, and the producer it was waiting on is not built.
 
 **[entity-id-encryption](../entity-id-encryption/plan.md)** — no change owed. This project consumes
-corporation and alliance refs as planner ids at Stage I and mints none. Stages A–H do not depend on it.
+corporation and alliance refs as planner ids at Stage F and mints none. Stages A–E do not depend on it.
 
 **[changestream-tenant-scale](../changestream-tenant-scale/contents.md)** and
 **[websocket-realtime](../websocket-realtime/contents.md)** — no change owed. Tenant strings keep
@@ -1053,7 +1111,7 @@ with the stage that touches each rather than as a sweep:
 
 | File | Suggestion |
 |------|------------|
-| `api/helper/auth/refresh_token.go` | drop `omitempty` on the `Grants` fields (Stage E edits this file) |
+| `api/helper/auth/refresh_token.go` | drop `omitempty` on the `Grants` fields (Stage B edits this file) |
 | `api/helper/sso/jwt.go` | same class |
 | `websocket/server/reader.go` | `errors.AsType` in place of `errors.As` |
 | `core/changestream/resume.go` | same class |
@@ -1079,8 +1137,8 @@ None of these block the plan. The scan is not a licence to modernise packages th
   See § Permissions are separate work, and must be pluggable.
 - **Who administers a corporation planner.** Nothing derives it, and the first member to appear is
   arbitrary. Falls out of the permissions decision above.
-- **Group templates: account-owned or planner-owned?** Owed before Stage B, because it decides which
-  collection family they are renamed into. Assumed account-owned — a personal library — until decided.
+- ~~Group templates: account-owned or planner-owned?~~ **Settled** — they shipped without an owner
+  prefix and take no owner block, so they are an account's personal library. See § Collection layout.
 - **Job status labels.** The set of status ids is planner-owned; whether the *labels* stay personal is
   undecided. See § Settings stay with the account.
 - **Blueprint ownership.** Whose blueprints — and whose ME/TE on them — apply on a shared planner is
@@ -1111,12 +1169,9 @@ None of these block the plan. The scan is not a licence to modernise packages th
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
-| A — the owner block | Not started |
-| B — backfill, indexes, renames | Not started |
-| C — reads move to the owner | Not started |
-| D — contract | Not started |
-| E — grants and scopes as owner lists | Not started |
-| F — planner and membership documents | Not started |
-| G — what a second member breaks | Not started |
-| H — custom planners | Not started |
-| I — ESI providers | Not started |
+| A — the owner block, in one cutover | Not started, and **implemented under [archived-jobs-stats](../archived-jobs-stats/plan.md)** rather than here: `models.Owner` and the collection renames already landed there, and the `MetaData` reshape is inseparable from the writers, filters and changestream work that plan owns. This plan records the design and the window; that one carries the code |
+| B — grants and scopes as owner lists | Not started |
+| C — planner and membership documents | Not started |
+| D — what a second member breaks | Not started |
+| E — custom planners | Not started |
+| F — ESI providers | Not started |

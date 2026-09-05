@@ -58,26 +58,26 @@ func TestLive_ResolveUserDocumentsForLogin(t *testing.T) {
 	if !first.FirstLogin {
 		t.Fatalf("expected FirstLogin=true on empty account")
 	}
-	if first.User.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("user accountID: got %q", first.User.MetaData.AccountID)
+	if first.User.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("user accountID: got %q", first.User.MetaData.Owner.ID)
 	}
-	if first.Settings.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("settings accountID: got %q", first.Settings.MetaData.AccountID)
+	if first.Settings.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("settings accountID: got %q", first.Settings.MetaData.Owner.ID)
 	}
 
 	loadedUser, err := m.LoadUserAccount(ctx, apiLiveScratchAccount)
 	if err != nil {
 		t.Fatalf("LoadUserAccount after first login: %v", err)
 	}
-	if loadedUser.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("persisted user accountID: got %q", loadedUser.MetaData.AccountID)
+	if loadedUser.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("persisted user accountID: got %q", loadedUser.MetaData.Owner.ID)
 	}
 	loadedSettings, err := m.LoadApplicationSettings(ctx, apiLiveScratchAccount, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("LoadApplicationSettings after first login: %v", err)
 	}
-	if loadedSettings.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("persisted settings accountID: got %q", loadedSettings.MetaData.AccountID)
+	if loadedSettings.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("persisted settings accountID: got %q", loadedSettings.MetaData.Owner.ID)
 	}
 
 	firstLoginAt := first.User.MetaData.LastLoginAt
@@ -124,8 +124,8 @@ func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
 	if got.JobID != job.JobID || got.Name != job.Name {
 		t.Fatalf("loaded job mismatch: id=%q name=%q", got.JobID, got.Name)
 	}
-	if got.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("loaded accountID: got %q", got.MetaData.AccountID)
+	if got.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("loaded accountID: got %q", got.MetaData.Owner.ID)
 	}
 	if got.MetaData.LastUpdatedBy != apiLiveScratchAccount {
 		t.Fatalf("loaded lastUpdatedBy: got %q", got.MetaData.LastUpdatedBy)
@@ -169,8 +169,8 @@ func TestLive_GroupsPutGetFlow(t *testing.T) {
 	if got.GroupID != group.GroupID || got.GroupName != group.GroupName {
 		t.Fatalf("loaded group mismatch: id=%q name=%q", got.GroupID, got.GroupName)
 	}
-	if got.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("loaded accountID: got %q", got.MetaData.AccountID)
+	if got.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("loaded accountID: got %q", got.MetaData.Owner.ID)
 	}
 	if got.MetaData.SessionID != "api-live-sess" || got.MetaData.ClientID != "api-live-client" {
 		t.Fatalf("session/client meta: sess=%q client=%q", got.MetaData.SessionID, got.MetaData.ClientID)
@@ -459,7 +459,7 @@ func scratchJob(jobID, name string) models.Job {
 		},
 		Skills: []models.Skill{},
 		MetaData: models.JobMetaData{
-			MetaData: models.MetaData{AccountID: apiLiveScratchAccount},
+			MetaData: models.MetaData{Owner: models.AccountOwner(apiLiveScratchAccount)},
 		},
 	}
 }
@@ -476,7 +476,7 @@ func scratchGroup(groupID, name string) models.Group {
 		LinkedOrderIDs:  []int64{},
 		LinkedTransIDs:  []int64{},
 		MetaData: models.GroupMetaData{
-			MetaData: models.MetaData{AccountID: apiLiveScratchAccount},
+			MetaData: models.MetaData{Owner: models.AccountOwner(apiLiveScratchAccount)},
 		},
 	}
 }

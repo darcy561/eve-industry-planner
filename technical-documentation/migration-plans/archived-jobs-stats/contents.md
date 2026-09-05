@@ -78,3 +78,12 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Find where a failed recalculation is recorded and read | [plan.md](./plan.md) § Telling the user when figures are known to be behind |
 | Show a user that their figures are being rebuilt, or are stale | [plan.md](./plan.md) § Where the client shows it |
 | Decide what a change invalidates in the SPA's caches | [plan.md](./plan.md) § One place decides what a change invalidates |
+| Find out how a document says who owns it | [overlay.md](./overlay.md) § The owner block |
+| Write a query scoped to an owner | [overlay.md](./overlay.md) § How code filters on it |
+| Know why a filter on the wrong field fails silently | [overlay.md](./overlay.md) § How code filters on it |
+| Choose between the two `_meta` upsert forms | [overlay.md](./overlay.md) § How `_meta` is written |
+| Add or reshape an owner-scoped index | [overlay.md](./overlay.md) § The indexes |
+| Understand why the owner block shipped as one cutover | [plan.md](./plan.md) § The owner block landed as one cutover |
+| See what the owner block still owes | [plan.md](./plan.md) § What is not done |
+| Run or extend the release migration | [plan.md](./plan.md) § Operational steps owed |
+| Know why two release steps stop the run when they fail | [plan.md](./plan.md) § Operational steps owed |

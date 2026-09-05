@@ -1,7 +1,6 @@
 package mongo
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -79,11 +78,20 @@ func TestApplyLastModified_metaAsBsonD(t *testing.T) {
 	}
 }
 
-func TestArchivedJobAccountFilter(t *testing.T) {
+// The ownership field paths are the contract between a stored document and every
+// query for it. A wrong path matches nothing and reports no error, so the values
+// are pinned here rather than trusted to review.
+//
+// Its counterpart is the owner block on models.MetaData: change one and this
+// fails, naming the other.
+func TestOwnershipFieldPaths(t *testing.T) {
 	t.Parallel()
-	got := ArchivedJobAccountFilter("acct-1")
-	want := bson.M{"_meta.accountID": "acct-1"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %#v want %#v", got, want)
+	for name, got := range map[string]string{
+		"_meta.owner.kind": FieldMetaOwnerKind,
+		"_meta.owner.id":   FieldMetaOwnerID,
+	} {
+		if got != name {
+			t.Fatalf("field path is %q, want %q", got, name)
+		}
 	}
 }

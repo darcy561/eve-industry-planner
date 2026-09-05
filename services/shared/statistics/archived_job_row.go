@@ -155,15 +155,15 @@ func earliestTransactionDate(transactions []models.Transaction, fallback time.Ti
 }
 
 // RowFromFigures reduces one archived job to its statistics row, given the
-// snapshot already computed for it. now stamps ProcessedAt and stands in for a
-// missing archive date, so callers control the clock.
+// figures already computed for it. now stands in for a missing archive date, so
+// callers control the clock.
 //
 // The row is returned uncounted. Whether its figures are in the aggregates is not
 // a property of the job, and only a caller that wrote them can say so — a caller
 // that merely creates the row leaves it outstanding for the next fold.
 func RowFromFigures(job models.Job, snap models.JobFigures, now time.Time) models.ArchivedJobStats {
 	doc := buildRow(job, snap, now)
-	doc.Owner = models.AccountOwner(job.MetaData.AccountID)
+	doc.Owner = models.AccountOwner(job.MetaData.Owner.ID)
 	doc.ID = eipmongo.ArchivedJobStatsDocumentID(doc.Owner, job.JobID)
 	return doc
 }
@@ -205,7 +205,6 @@ func buildRow(job models.Job, snap models.JobFigures, now time.Time) models.Arch
 		UnsoldCost:         unsoldQuantity * costPerItem,
 		TransactionLines:   transactionLines,
 		FeeLines:           feeLines,
-		ProcessedAt:        now,
 	}
 }
 

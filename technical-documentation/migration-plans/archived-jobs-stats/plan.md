@@ -2041,7 +2041,7 @@ are settled; the reasoning for each lives in that plan.
 
 | Item | Status |
 |------|--------|
-| 1. `ArchivedJobStats` takes an owner | **Done.** All three statistics documents are owner-keyed: `AccountID` and `CorpRef` are off the row, the aggregates carry an `Owner` in their place, the three document ids lead with the owner key, every query filters on `owner.kind`/`owner.id`, and the five index specs are keyed on what those queries actually filter and sort by. `models.StatsOwner` is `models.Owner`, the row gained `ArchivedBy` and `SchemaVersion`, and the dead `Version` field is gone |
+| 1. `ArchivedJobStats` takes an owner | **Done, and since extended to every scoped document.** The three statistics documents were owner-keyed first — `AccountID` and `CorpRef` off the row, `models.StatsOwner` became `models.Owner`, the ids lead with the owner key, the row gained `ArchivedBy` and `SchemaVersion`, and the dead `Version` field went. The owner then moved into `_meta` on all of them, so a statistics document and a job document now carry ownership in the same place. See § The owner block landed as one cutover |
 | 2. Collection and document-id renames | **Done.** Every collection carries the name it holds rather than who owns it, and the three statistics document ids lead with the owner key. The renames ship as `CollectionRenames` version 1 in the Deployment Tool — ten entries, one per collection live holds and still needs; `build_stats` is left behind because the recalculation reproduces it into `statistics_totals` |
 | 3. Route and query key take an owner | **Done.** The route is `/api/v1/statistics/{owner}/{view}` with the owner as a handle, and every statistics query key carries the owner under the shared root |
 | 4. Stage C's ownership inference is dropped | **Done.** `corpinference`, the per-line corporation fields and the lane on the corporation bucket are gone; nothing in `services/` or the SPA infers a scope |
@@ -2394,6 +2394,91 @@ never run; a later batch takes the next version. The wider owner migration,
 and the task that performs it, belong to [shared-planners](../shared-planners/plan.md) § Stage A,
 which is now a single cutover inside the deployment window rather than a gradual switch.
 
+## The owner block landed as one cutover
+
+Item 1 owner-keyed the three statistics documents. The rest of the database still said ownership a
+different way — `_meta.accountID` on every scoped document, with `_meta.corporationRef` and
+`_meta.allianceRef` beside it — so the same fact had two vocabularies and the statistics collections
+were the odd ones out. This closed that, following
+[shared-planners](../shared-planners/plan.md) § Stage A, whose design this implements.
+
+**One vocabulary.** `models.Owner` is the only way ownership is stated. The parallel tenant-key surface
+in `shared/wsplacement` — `TenantPrefixAccount`, `TenantKeyAccount/Corporation/Alliance`,
+`TenantStringFromRouting` — is deleted rather than wrapped, because `Owner.Key()` already produced a
+byte-identical string. What was worth keeping from it is the *validation*, and that moved onto
+construction: `CorporationOwner` and `AllianceOwner` refuse a raw EVE id, so a caller that has not
+converted fails visibly instead of routing on something that addresses nothing.
+`nats.AccountIDFromTenantString` was a second `ParseOwnerKey` and went the same way.
+
+**One place on the document.** `MetaData` carries `Owner` and no longer carries `AccountID`,
+`CorporationRef` or `AllianceRef`. The three statistics models embed `MetaData` rather than holding a
+root `Owner`, so every scoped document — stored or derived — states ownership at `_meta.owner`. That is
+what lets one pair of field-path constants cover the whole database.
+
+**`MetaData` gains no schema version.** Every persisted model already carries `schemaVersion` at the
+document root, and the maintenance batch selects on the root field; a second one inside `_meta` would be
+two sources for one fact and would silently not drive the rotation.
+
+**The owner does not go on the wire.** `Owner` carries `json:"-"`. The evidence supported deletion
+rather than migration: the SPA read `_meta.accountID` in one place, nothing downstream read it back, and
+the server overwrote whatever a client uploaded while taking real identity from the `X-Session-ID` and
+`X-WS-Client-ID` headers. So the SPA change was to stop reading it. Nothing about an owner — and so no
+corporation or alliance ref — can reach a client through `_meta`.
+
+### The failure this shape is built against
+
+A filter naming the wrong field path matches nothing and reports no error, and the compiler cannot see
+it, because these are string keys in a `bson.M`. Converting the queries proved it: the build stayed
+green with around twenty-five sites still filtering the field that had been removed, including the
+websocket subscribe authorisation. Two guards exist because of it:
+
+- `FieldMetaOwnerKind` and `FieldMetaOwnerID` in `shared/mongo` are the only spelling of those paths.
+- A test scans every non-test file in the module for the retired paths and fails on one, with an
+  allowlist naming the two migration commands that legitimately read the pre-stamp shape.
+
+### One way to write `_meta`
+
+`_meta` holds server-owned facts, and three writers used to `$set` it wholesale from a marshalled
+struct while the rest patched named fields. Having both is what made a stamped owner erasable by an
+ordinary save. All writers now patch named fields, so the class of bug is closed rather than the
+instance: `owner` is written on insert, the session and client fields per write, and the archive
+lifecycle fields by the path that owns them.
+
+The two upsert contracts are opposites and must not drift into each other, so both are pinned by tests.
+A derived document's writer owns its `_meta` outright and writes it on every upsert — putting it on
+insert only would let a rebuild write an owner once and never correct it, and a row whose owner is
+wrong matches no query and reports no error.
+
+### The indexes moved with the queries
+
+Every spec that led with the retired field now leads with `_meta.owner.kind` and `_meta.owner.id`,
+keeping its trailing keys, renamed from `meta_accountID` to `meta_owner`. Thirteen specs across
+`accounts`, `account_settings`, `job_groups`, `watchlist_deprecated`, `job_documents` and
+`archived_jobs` moved; the statistics specs had already been converted with item 1.
+
+All thirteen predecessors are named in `RetiredIndexes`. This is not tidiness: Ensure only ever creates,
+and a reshaped index under a new name conflicts with nothing, so both would survive — a full second set
+of indexes on a field no document carries, maintained on every write and chosen by no query. Ensure
+reports creating an index on an absent field exactly as it reports one that works, so nothing else would
+have said.
+
+**Still owed:** `job_documents`' seven specs have never been checked against real queries with
+`explain`, and this changed all of their leading keys. The statistics specs were each confirmed to win
+their query before being written down; these have not had that treatment.
+
+### What is not done
+
+`ChangeStreamMessage` still carries `AccountID`, `CorporationRef` and `AllianceRef`. The watcher reads
+`_meta.owner` correctly and then decomposes it back into those three fields, and `websocket/server`
+reassembles by testing which is non-empty. It works, but it is the second vocabulary surviving inside a
+message type — the thing this section otherwise removed. Collapsing them to one owner field is breaking
+between core and websocket, internal only, and both ship in the same window.
+
+`prepareRelease --dry-run` reports zero work for every owner-filtered step, because a dry run does not
+stamp. The operator's pre-flight check therefore cannot tell "nothing to do" from "the stamp has not run
+yet". Fixing it means either projecting those steps against the unstamped selector or stopping the dry
+run after the first required step; the choice is open.
+
 ## Go modernization in scope
 
 Per the planning gate, `go fix -diff` was run against the packages this project will touch
@@ -2408,6 +2493,12 @@ reported, in `shared/mongo/docs.go`: `errors.As` with a declared variable become
 `errors.AsType[mongo.BulkWriteException]`. That file is the archive read/write layer both stages
 extend, so land it with Stage F rather than as a separate sweep. No other package in their scope
 needs modernization first.
+
+Re-run for the owner block, against its touch surface (`shared/models/…`, `shared/mongo/…`,
+`shared/wsplacement/…`, `core/changestream/…`, `core/commands/…`, `shared/nats/…`, and
+`deployment-tool/internal/dataplane/mongo/…`). One suggestion was reported and landed with the work:
+a composite literal in `shared/mongo` setting an embedded struct's fields through the promoted names,
+which Go 1.27 allows. Nothing else in either module's scope needs modernization.
 
 Re-run for Stage J, against its touch surface (`shared/archivestats/…`, `shared/mongo/…`,
 `shared/models/…`, `core/scheduler/archivedjobs/…`, `worker/tasks/archivedjobs/…`,
@@ -2431,7 +2522,7 @@ whichever work touches SSO next rather than widened into this stage.
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries three tabs: statistics (metric cards, eight charts, item table), per-item history over the same windowed reads, and the jobs list with its three row shapes and restore. Chart primitives are shared and the price-history dialogue moved onto them. Neither later tab is queried until it is opened, and all three carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
 | J — incremental statistics and the build history panel | **Complete bar one placement decision.** J1 replaced the stored snapshot array with a query, added the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row and `includeProductionChain` on the timeline read, rebuilt the Build History panel on the chart primitives, and removed the `archive_and_stats` change-stream group. J2 made a job's figures a delta — folded in on archive, taken back on restore — guarded by `contributedAt` on the row and a claim bump that stands a fold down when a rebuild has taken the owner on. J3 made the drain a dispatcher over one task per owner. J4 reconciles every owner once a day, oldest stamp first, rewriting aggregates from the rows and reporting drift without acting on it. J5 gave realtime messages a `type`/`subtype` vocabulary, notifies an account when its figures move, reports the recalculating and failed states on every statistics response, and shows them above the page's tabs. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
-| Owner block — owed to shared planners | **All four items done** — the ownership inference Stage C was blocked on is removed, the statistics route and query key take an owner handle, the three statistics documents are owner-keyed with ids leading on the owner key, and the collections carry the names they hold. Shared-planners Stage A waits on item 1 rather than the other way round, and it is still un-started. The renames turned out **not** to be coupled to that plan's Stage B window: live holds none of the statistics collections, so what it owes is ten renames the owner backfill never touches, shipping as `CollectionRenames` version 1 on their own. See § Owner block — owed to shared planners |
+| Owner block — owed to shared planners | **All four items done, and shared-planners Stage A implemented with them.** The ownership inference Stage C was blocked on is removed, the statistics route and query key take an owner handle, and the collections carry the names they hold. The owner block then went in whole: `_meta.owner` is the single ownership statement on every scoped document, `models.Owner` is the only vocabulary, and the stamp is a `prepareRelease` step. The renames turned out **not** to be coupled to that plan's Stage B window — live holds none of the statistics collections — so they ship as `CollectionRenames` version 1 on their own. See § Owner block — owed to shared planners and § The owner block landed as one cutover |
 
 ## Done when
 
@@ -2548,21 +2639,34 @@ store mocks, chart capture and render helpers, and `testing/mongolive` holds the
 the scratch-account cleanup the Go live tests share. Browser-level coverage (Playwright) is a
 deliberate later decision, not an oversight.
 
-**What is open is the owner block, and Stage C behind it.** Every stage is complete for the account
-scope. Items 3 and 4 have landed and item 1 has expanded: the row carries an owner, the type is
-`models.Owner`, and the upgrader fills one from the account id on read.
+**The owner block is landed.** All four items are done and
+[shared-planners](../shared-planners/plan.md) § Stage A is implemented with them: `_meta.owner` is the
+single ownership statement on every scoped document, `models.Owner` is the only vocabulary, the index
+specs moved with the queries, and the stamp is a `prepareRelease` step rather than a task an operator
+can skip. Design and reasoning → § The owner block landed as one cutover. Behaviour →
+[overlay.md](./overlay.md) § The owner block.
 
-**Start here: finish item 1.** Its backfill and contract are what unblock everything else —
-shared-planners Stage A consumes `models.Owner`, item 2's renames ride the same window, and Stage C's
-remaining half is aggregation over a non-account owner, which the owner block makes additive.
+Three modules build, vet and test clean, and `go fix -diff` reports nothing on any package this work
+touched.
 
-**One decision is owed before the backfill is written.** The three statistics collections are
-derived: `RebuildAccountStatistics` reproduces every row, bucket and total from the archived jobs,
-and `tasks prepareRelease` already queues every owner for exactly that. So they can be dropped and
-rebuilt rather than migrated — which turns the id change and the filter switch into one change with
-no old-shaped data left to match, instead of 22,064 insert-and-delete pairs. What that loses is
-revoked rows, kept so a fold can tell "removed" from "never seen"; a wholesale rebuild does not read
-them, but confirm that before choosing.
+**The statistics collections are rebuilt, not migrated.** The decision that was owed is taken: they are
+derived, `tasks prepareRelease` already queues every owner, and the rebuild reproduces every row, bucket
+and total from the archived jobs. Old-shaped documents are left in place rather than deleted — they
+carry no owner and every query filters on one, so they are inert until an operator removes them. What
+this loses is revoked rows, which exist so a fold can tell "removed" from "never seen"; a wholesale
+rebuild does not read them, so nothing depends on them surviving it.
+
+**Start here: collapse `ChangeStreamMessage`'s three route fields.** It is the last piece of the second
+vocabulary, it is self-contained, and it is described in § The owner block landed as one cutover § What
+is not done. Settle the `--dry-run` honesty question first, because it changes what an operator can
+trust during the cutover itself.
+
+**Two verification gaps to close before the window.** The two live-Mongo owner tests
+(`shared/mongo/live_meta_owner_survives_test.go`) compile and skip but have never been executed — they
+need the stack's `MONGO_*` in the environment and
+`EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1`. And `job_documents`' seven index
+specs have never been confirmed against real queries with `explain`, which now matters because their
+leading keys all changed.
 
 **Stages H and I are independent of Stage C** and proceed while the corporation scope stays deferred;
 the page leaves the same corporation seams the archive dialogue does.
@@ -2605,18 +2709,25 @@ just means the corporation data arrives a rebuild late.
 | Step | Command | Why |
 |------|---------|-----|
 | 1. Convert stored entity ids | `tasks encodeJobIdentity` (`-dry-run` first) | On dev, `protected.spec` is null on all 9,130 archived jobs and 834 still hold a raw `corporation_id` on their linked jobs. Those are the only corporation ids in the database, and `archivestats` reads refs, so until they are converted the aggregation sees nothing. It is also the first thing that would give `character_ref` any value at all. Owned by [entity-id-encryption](../entity-id-encryption/plan.md); this project only depends on it |
-| 2. Everything the release owes the database | `tasks prepareRelease` (`-dry-run` first) | One command. It runs every release's steps, oldest first — see `releases` in `core/commands/prepare_release.go`; these six are 0.9.0. A step with nothing to do reports zero, so re-running against a current environment is safe, and an environment several versions behind catches up in one pass |
+| 2. Everything the release owes the database | `tasks prepareRelease` (`-dry-run` first) | One command. It runs every release's steps, oldest first — see `releases` in `core/commands/prepare_release.go`; these eight are 0.9.0. A step with nothing to do reports zero, so re-running against a current environment is safe, and an environment several versions behind catches up in one pass |
 
-The six steps inside that command, and why each is owed:
+The eight steps inside that command, in order, and why each is owed:
 
 | Step | Why |
 |------|-----|
-| Drop retired statistics fields | `dataSnapshots` and `buildRows` left `ProductionTotalsRow` in J1, but the rebuild upserts with `$set` and never replaces, so a document written before then keeps whichever it had |
+| Complete outstanding schema maintenance | **Required — a failure here stops the release.** The hourly rotation visits one collection per tick, so an environment can sit several versions behind indefinitely. That is fine while every read goes through the upgrader and not fine here, because later steps stamp the current version onto documents they touch: a document still owing an earlier upgrade would have that upgrade skipped and be recorded as current without ever running it |
+| Stamp the owner onto every scoped document | **Required — a failure here stops the release.** Derives `_meta.owner` from the account id on the same document, as a server-side pipeline, selecting on *owner absent* so a re-run reports zero. Everything after it filters on the owner. `_meta.accountID` is deliberately left behind for an operator to remove once the figures are checked |
 | Drop retired change stream resume tokens | J1 removed the `archive_and_stats` change-stream group. Resume tokens are written with no expiry, so a retired group's key would sit there forever. The registry says which groups exist, so anything else under the prefix is retired by definition |
 | Drop unaddressable rebuild queue entries | A queue entry whose id names no owner is skipped by every dispatch and cleared by none, so it would never leave the queue |
 | Stamp extras category labels onto jobs | Before the rebuild, which derives each row's category names from the jobs. Settings retain a deleted category, so the name is recoverable now and not later — on dev this recovered 65 extras naming *Retired Courier Contract* out of 659 across 12 accounts, with none left unnamed |
 | Copy the statistics documents before the rebuild | After the jobs are stamped and before the rebuild, which writes these three collections back in the owner-keyed shape. `$out` to `{name}_pre_0_9_0`, server-side and count-verified. Nothing is deleted: the old documents carry no owner and every query filters on one, so they are inert until an operator removes them |
-| Queue every account for rebuild | Recomputes every account's three collections. Idempotent, and safe to re-run. Owed again after J1: every bucket gains `quantityProduced` and `isProductionChain`, and every total gains `history`. The rebuild runs when the drain next fires, or on `tasks dispatchStatisticsRebuilds` |
+| Drop retired statistics fields | `dataSnapshots` and `buildRows` left `ProductionTotalsRow` in J1, but the rebuild upserts with `$set` and never replaces, so a document written before then keeps whichever it had. **After the copy, not before** — the copy is what an operator falls back to, and a fallback stripped of the fields the previous release read is not one |
+| Queue every account for rebuild | Recomputes every account's three collections. Idempotent, and safe to re-run. Owed again after J1: every bucket gains `quantityProduced` and `isProductionChain`, and every total gains `history`. The rebuild runs when the drain next fires, or on `tasks dispatchStatisticsRebuilds`. It reads distinct owners from the archived jobs, so an empty result with archived jobs present is an error rather than "nothing to do": that combination means the stamp did not reach them, and reporting it as success would end the release having queued nothing |
+
+**Two steps are marked required, and the rest are not.** A step the others read the output of does not
+make them fail when it fails — they succeed against documents it never prepared, report zero, and let
+the release finish green having migrated nothing. Those two stop the run; the rest name themselves and
+the release carries on, because every step is idempotent and a re-run picks up what failed.
 
 These must also run against **live** when this work ships — with the caveat that live carries no
 statistics collections yet, so step 2 there is a first population rather than a catch-up. Whether

@@ -24,8 +24,11 @@ func IndexSpecs() []IndexSpec {
 	return []IndexSpec{
 		{
 			Collection: "accounts",
-			Name:       "meta_accountID_1",
-			Keys:       []IndexKey{{Field: "_meta.accountID", Order: 1}},
+			Name:       "meta_owner_1",
+			Keys: []IndexKey{
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
+			},
 		},
 		{
 			Collection: "accounts",
@@ -34,32 +37,43 @@ func IndexSpecs() []IndexSpec {
 		},
 		{
 			Collection: "account_settings",
-			Name:       "meta_accountID_1",
-			Keys:       []IndexKey{{Field: "_meta.accountID", Order: 1}},
+			Name:       "meta_owner_1",
+			Keys: []IndexKey{
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
+			},
 		},
 		{
 			Collection: "job_groups",
-			Name:       "ajg_meta_accountID_1",
-			Keys:       []IndexKey{{Field: "_meta.accountID", Order: 1}},
+			Name:       "ajg_meta_owner_1",
+			Keys: []IndexKey{
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
+			},
 		},
 		{
 			Collection: "watchlist_deprecated",
-			Name:       "awd_meta_accountID_1",
-			Keys:       []IndexKey{{Field: "_meta.accountID", Order: 1}},
+			Name:       "awd_meta_owner_1",
+			Keys: []IndexKey{
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
+			},
 		},
 		{
 			Collection: "job_documents",
-			Name:       "ajd_meta_accountID_displayOnPlanner_1",
+			Name:       "ajd_meta_owner_displayOnPlanner_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "displayOnPlanner", Order: 1},
 			},
 		},
 		{
 			Collection: "job_documents",
-			Name:       "ajd_meta_accountID_groupID_1",
+			Name:       "ajd_meta_owner_groupID_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "groupID", Order: 1},
 			},
 		},
@@ -78,25 +92,28 @@ func IndexSpecs() []IndexSpec {
 			// hands one back. A job holds an id by carrying its row, so each
 			// linked series is searched by the id on the row within an account.
 			Collection: "job_documents",
-			Name:       "ajd_meta_accountID_marketOrders_order_id_1",
+			Name:       "ajd_meta_owner_marketOrders_order_id_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "build.sale.marketOrders.order_id", Order: 1},
 			},
 		},
 		{
 			Collection: "job_documents",
-			Name:       "ajd_meta_accountID_linkedJobs_job_id_1",
+			Name:       "ajd_meta_owner_linkedJobs_job_id_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "build.costs.linkedJobs.job_id", Order: 1},
 			},
 		},
 		{
 			Collection: "job_documents",
-			Name:       "ajd_meta_accountID_transactions_transaction_id_1",
+			Name:       "ajd_meta_owner_transactions_transaction_id_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "build.sale.transactions.transaction_id", Order: 1},
 			},
 		},
@@ -116,18 +133,20 @@ func IndexSpecs() []IndexSpec {
 		// page reads exactly as many documents as it returns.
 		{
 			Collection: "archived_jobs",
-			Name:       "aj_meta_accountID_archivedAt_jobID_1",
+			Name:       "aj_meta_owner_archivedAt_jobID_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "_meta.archivedAt", Order: -1},
 				{Field: "jobID", Order: 1},
 			},
 		},
 		{
 			Collection: "archived_jobs",
-			Name:       "aj_meta_accountID_name_jobID_1",
+			Name:       "aj_meta_owner_name_jobID_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "name", Order: 1},
 				{Field: "jobID", Order: 1},
 			},
@@ -135,18 +154,20 @@ func IndexSpecs() []IndexSpec {
 		{
 			// Also serves the list filtered to one item type.
 			Collection: "archived_jobs",
-			Name:       "aj_meta_accountID_itemID_jobID_1",
+			Name:       "aj_meta_owner_itemID_jobID_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "itemID", Order: 1},
 				{Field: "jobID", Order: 1},
 			},
 		},
 		{
 			Collection: "archived_jobs",
-			Name:       "aj_meta_accountID_jobType_jobID_1",
+			Name:       "aj_meta_owner_jobType_jobID_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "jobType", Order: 1},
 				{Field: "jobID", Order: 1},
 			},
@@ -154,9 +175,10 @@ func IndexSpecs() []IndexSpec {
 		{
 			// The group filter that restores a whole group.
 			Collection: "archived_jobs",
-			Name:       "aj_meta_accountID_groupID_1",
+			Name:       "aj_meta_owner_groupID_1",
 			Keys: []IndexKey{
-				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "groupID", Order: 1},
 			},
 		},
@@ -170,8 +192,8 @@ func IndexSpecs() []IndexSpec {
 			Collection: "statistics_rows",
 			Name:       "aajs_owner_revoked_contributedAt_1",
 			Keys: []IndexKey{
-				{Field: "owner.kind", Order: 1},
-				{Field: "owner.id", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "revoked", Order: 1},
 				{Field: "contributedAt", Order: 1},
 			},
@@ -181,8 +203,8 @@ func IndexSpecs() []IndexSpec {
 			Collection: "statistics_rows",
 			Name:       "aajs_owner_typeID_revoked_1",
 			Keys: []IndexKey{
-				{Field: "owner.kind", Order: 1},
-				{Field: "owner.id", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "typeID", Order: 1},
 				{Field: "revoked", Order: 1},
 			},
@@ -194,8 +216,8 @@ func IndexSpecs() []IndexSpec {
 			Collection: "statistics_timeline",
 			Name:       "atm_owner_isProductionChain_typeID_1",
 			Keys: []IndexKey{
-				{Field: "owner.kind", Order: 1},
-				{Field: "owner.id", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "isProductionChain", Order: 1},
 				{Field: "typeID", Order: 1},
 			},
@@ -205,8 +227,8 @@ func IndexSpecs() []IndexSpec {
 			Collection: "statistics_timeline",
 			Name:       "atm_owner_typeID_1",
 			Keys: []IndexKey{
-				{Field: "owner.kind", Order: 1},
-				{Field: "owner.id", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "typeID", Order: 1},
 			},
 		},
@@ -216,8 +238,8 @@ func IndexSpecs() []IndexSpec {
 			Collection: "statistics_totals",
 			Name:       "apt_owner_typeID_1",
 			Keys: []IndexKey{
-				{Field: "owner.kind", Order: 1},
-				{Field: "owner.id", Order: 1},
+				{Field: "_meta.owner.kind", Order: 1},
+				{Field: "_meta.owner.id", Order: 1},
 				{Field: "typeID", Order: 1},
 			},
 		},

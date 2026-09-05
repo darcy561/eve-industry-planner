@@ -75,7 +75,7 @@ func updateUserLastLoginMetadata(ctx context.Context, mongo *eipmongo.Mongo, acc
 	}
 	setDoc := bson.M{"_meta.lastLoginAt": at, "_meta.lastModified": at}
 	return eipmongo.Retry(ctx, fmt.Sprintf("touch last login %s", accountID), func() error {
-		_, err := usersCol.UpdateOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}, bson.M{"$set": setDoc})
+		_, err := usersCol.UpdateOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}, bson.M{"$set": setDoc})
 		return err
 	})
 }

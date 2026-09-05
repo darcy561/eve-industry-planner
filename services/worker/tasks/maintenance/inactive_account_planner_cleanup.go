@@ -62,7 +62,7 @@ func InactiveAccountPlannerCleanup(ctx context.Context, payload eipnats.Inactive
 		return nil
 	}
 
-	acctFilter := bson.M{"_meta.accountID": accountID}
+	acctFilter := bson.M{eipmongo.FieldMetaOwnerID: accountID}
 
 	jobDocsCol := mongo.JobDocuments.Collection()
 	jobsCol := mongo.Jobs.Collection()

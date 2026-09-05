@@ -32,7 +32,7 @@ func (d *Docs) UpsertUserAccount(ctx context.Context, accountID string, doc mode
 	)
 }
 
-// PatchUserAccountFields applies $set on users matching _id and _meta.accountID (no upsert).
+// PatchUserAccountFields applies $set on the account's own document (no upsert).
 func (d *Docs) PatchUserAccountFields(ctx context.Context, accountID string, set bson.M, opts ...RetryOption) error {
 	coll, err := d.requireColl()
 	if err != nil || accountID == "" {
@@ -44,7 +44,7 @@ func (d *Docs) PatchUserAccountFields(ctx context.Context, accountID string, set
 	opName := applyRetryOptions("PatchUserAccountFields", opts)
 	return Retry(ctx, opName, func() error {
 		_, err := coll.UpdateOne(ctx,
-			bson.M{"_id": accountID, "_meta.accountID": accountID},
+			bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": accountID},
 			bson.M{"$set": set},
 		)
 		return err
