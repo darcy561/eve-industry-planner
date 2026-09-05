@@ -13,18 +13,18 @@ type Mongo struct {
 	DB     *mongo.Database
 
 	// Named collection handles (bound in NewMongo).
-	Users                   *Docs
-	JobDocuments            *Docs // CollectionAccountJobDocuments — planner job docs API (hot path)
-	Jobs                    *Docs // CollectionAccountJobs — distinct from JobDocuments; not the user job-docs API
-	Groups                  *Docs
-	ArchivedJobs            *Docs
-	AccountProductionTotals *Docs
-	TemplateCatalog         *Docs
-	TemplatePayloads        *Docs
-	ApplicationSettings     *Docs
-	Blueprints              *Docs
-	CitadelNames            *Docs
-	WatchlistDeprecated     *Docs
+	Users               *Docs
+	JobDocuments        *Docs // CollectionAccountJobDocuments — planner job docs API (hot path)
+	Jobs                *Docs // CollectionAccountJobs — distinct from JobDocuments; not the user job-docs API
+	Groups              *Docs
+	ArchivedJobs        *Docs
+	ProductionTotals    *Docs
+	TemplateCatalog     *Docs
+	TemplatePayloads    *Docs
+	ApplicationSettings *Docs
+	Blueprints          *Docs
+	CitadelNames        *Docs
+	WatchlistDeprecated *Docs
 
 	ArchivedJobStats      *Docs // per-archived-job figures the statistics pipelines read
 	AccountTimelineMonths *Docs // pre-aggregated calendar months per account and item type
@@ -46,7 +46,7 @@ func NewMongo(client *mongo.Client) (*Mongo, error) {
 	m.Jobs = m.Docs(CollectionAccountJobs)
 	m.Groups = m.Docs(CollectionAccountJobGroups)
 	m.ArchivedJobs = m.Docs(CollectionAccountArchivedJobs)
-	m.AccountProductionTotals = m.Docs(CollectionAccountProductionTotals)
+	m.ProductionTotals = m.Docs(CollectionAccountProductionTotals)
 	m.TemplateCatalog = m.Docs(CollectionAccountGroupTemplateCatalog)
 	m.TemplatePayloads = m.Docs(CollectionAccountGroupTemplatePayloads)
 	m.ApplicationSettings = m.Docs(CollectionAccountSettings)

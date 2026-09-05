@@ -19,7 +19,7 @@ func ContributionOf(row models.ArchivedJobStats) models.StatsDelta {
 		Buckets: map[models.StatsBucketKey]models.StatsBucketDelta{},
 		Totals:  map[models.StatsTypeKey]models.StatsTypeDelta{},
 	}
-	maps.Copy(delta.Buckets, AccumulateAccountBuckets(one))
+	maps.Copy(delta.Buckets, AccumulateBuckets(one))
 
 	if row.Revoked {
 		// A revoked row describes a job that is no longer archived; the folds skip

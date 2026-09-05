@@ -343,10 +343,11 @@ func (m JobMaterial) PurchasedCost(requirement int) float64 {
 // ExtraValue is the ISK amount (numeric JSON/BSON). UnmarshalJSON/UnmarshalBSON coerce legacy scalars (numeric
 // category, type/label/cost aliases).
 type ExtraCost struct {
-	ID         string  `json:"id" bson:"id"`
-	Category   string  `json:"category" bson:"category"`
-	ExtraText  string  `json:"extraText" bson:"extraText"`
-	ExtraValue float64 `json:"extraValue" bson:"extraValue"` // ISK amount
+	ID            string  `json:"id" bson:"id"`
+	Category      string  `json:"category" bson:"category"`
+	CategoryLabel string  `json:"categoryLabel" bson:"categoryLabel"`
+	ExtraText     string  `json:"extraText" bson:"extraText"`
+	ExtraValue    float64 `json:"extraValue" bson:"extraValue"` // ISK amount
 }
 
 func isJSONNullOrEmpty(raw json.RawMessage) bool {

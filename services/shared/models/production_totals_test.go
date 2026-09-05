@@ -68,23 +68,15 @@ func TestSegmentTotalsPersistFlat(t *testing.T) {
 }
 
 func TestTimelineMonthBucketsPersistFlat(t *testing.T) {
-	user := AccountTimelineMonthBucket{
-		ID:        "acct|1234|2026|8",
-		AccountID: "acct",
-		TypeID:    1234,
-		Year:      2026, Month: 8,
+	user := TimelineMonthBucket{
+		ID:     "acct|1234|2026|8",
+		Owner:  AccountOwner("acct"),
+		TypeID: 1234,
+		Year:   2026, Month: 8,
 		TransactionCount: 2, SalesTotal: 50,
 	}
-	requireFlatKeys(t, user, "_id", "accountID", "typeID", "year", "month", "transactionCount", "salesTotal")
+	requireFlatKeys(t, user, "_id", "owner", "typeID", "year", "month", "transactionCount", "salesTotal")
 
-	corp := CorpTimelineMonthBucket{
-		ID:      "corpref|~|1234|2026|8",
-		CorpRef: "corpref",
-		TypeID:  1234,
-		Year:    2026, Month: 8,
-		TransactionCount: 2,
-	}
-	requireFlatKeys(t, corp, "_id", "corpRef", "year", "month", "transactionCount")
 }
 
 func TestArchivedJobLinesPersistFlat(t *testing.T) {
@@ -106,11 +98,11 @@ func TestArchivedJobLinesPersistFlat(t *testing.T) {
 func TestArchivedJobStatsPersistsFlat(t *testing.T) {
 	stats := ArchivedJobStats{
 		ID:            "acct|job-1",
-		AccountID:     "acct",
+		Owner:         AccountOwner("acct"),
 		JobID:         "job-1",
 		TotalProduced: 10, TotalMaterialCost: 500,
 	}
-	requireFlatKeys(t, stats, "_id", "accountID", "jobID", "totalProduced", "totalMaterialCost")
+	requireFlatKeys(t, stats, "_id", "owner", "jobID", "totalProduced", "totalMaterialCost")
 }
 
 func TestProductionTotalsRowJSONStaysFlat(t *testing.T) {
@@ -304,7 +296,6 @@ func TestZeroRowsStoreTheirStructFields(t *testing.T) {
 		want string
 	}{
 		{"ProductionTotalsRow", ProductionTotalsRow{ID: "acct|1"}, "breakdown"},
-		{"CorpProductionTotalsRow", CorpProductionTotalsRow{ID: "acct|1"}, "breakdown"},
 		{"ArchivedJobStats", ArchivedJobStats{}, "costMonth"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -327,9 +318,9 @@ func TestNoStructFieldClaimsOmitempty(t *testing.T) {
 	t.Parallel()
 
 	for _, doc := range []any{
-		ProductionTotalsRow{}, CorpProductionTotalsRow{}, ProductionTotalsBreakdown{}, ArchiveSegmentTotals{},
+		ProductionTotalsRow{}, ProductionTotalsBreakdown{}, ArchiveSegmentTotals{},
 		ArchivedJobStats{}, ArchivedJobLine{}, ArchivedJobTransactionLine{}, ArchivedJobFeeLine{},
-		TimelineTotals{}, ProductionTotalsTimelineBucket{}, AccountTimelineMonthBucket{},
+		TimelineTotals{}, ProductionTotalsTimelineBucket{}, TimelineMonthBucket{},
 	} {
 		checkNoStructOmitempty(t, reflect.TypeOf(doc))
 	}

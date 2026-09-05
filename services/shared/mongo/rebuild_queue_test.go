@@ -81,14 +81,14 @@ func TestDocsReadHelpersValidateInput(t *testing.T) {
 func TestStatisticsDocumentIDs(t *testing.T) {
 	t.Parallel()
 
-	if got := AccountProductionTotalsDocumentID("acct", 1234); got != "acct|1234" {
-		t.Fatalf("AccountProductionTotalsDocumentID = %q", got)
+	if got := ProductionTotalsDocumentID(models.AccountOwner("acct"), 1234); got != "account:acct|1234" {
+		t.Fatalf("ProductionTotalsDocumentID = %q", got)
 	}
-	if got := ArchivedJobStatsDocumentID("acct", "job-1"); got != "acct|job-1" {
+	if got := ArchivedJobStatsDocumentID(models.AccountOwner("acct"), "job-1"); got != "account:acct|job-1" {
 		t.Fatalf("ArchivedJobStatsDocumentID = %q", got)
 	}
-	if got := AccountTimelineMonthDocumentID("acct", 1234, 2026, 8, false); got != "acct|1234|2026-08" {
-		t.Fatalf("AccountTimelineMonthDocumentID = %q, want acct|1234|2026-08", got)
+	if got := TimelineMonthDocumentID(models.AccountOwner("acct"), 1234, 2026, 8, false); got != "account:acct|1234|2026-08" {
+		t.Fatalf("TimelineMonthDocumentID = %q, want account:acct|1234|2026-08", got)
 	}
 }
 
@@ -96,13 +96,13 @@ func TestStatisticsDocumentIDs(t *testing.T) {
 func TestAccountTimelineMonthDocumentIDPadsMonth(t *testing.T) {
 	t.Parallel()
 
-	if got := AccountTimelineMonthDocumentID("acct", 1, 2026, 12, false); got != "acct|1|2026-12" {
+	if got := TimelineMonthDocumentID(models.AccountOwner("acct"), 1, 2026, 12, false); got != "account:acct|1|2026-12" {
 		t.Fatalf("December = %q", got)
 	}
-	if got := AccountTimelineMonthDocumentID("acct", 1, 2026, 1, false); got != "acct|1|2026-01" {
+	if got := TimelineMonthDocumentID(models.AccountOwner("acct"), 1, 2026, 1, false); got != "account:acct|1|2026-01" {
 		t.Fatalf("January = %q, want a padded month", got)
 	}
-	if AccountTimelineMonthDocumentID("acct", 1, 2026, 1, false) >= AccountTimelineMonthDocumentID("acct", 1, 2026, 2, false) {
+	if TimelineMonthDocumentID(models.AccountOwner("acct"), 1, 2026, 1, false) >= TimelineMonthDocumentID(models.AccountOwner("acct"), 1, 2026, 2, false) {
 		t.Fatal("padded ids must sort in calendar order")
 	}
 }

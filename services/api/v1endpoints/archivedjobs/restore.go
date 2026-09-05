@@ -102,7 +102,7 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 	// Revoking their rows records that they should not be, and leaves the stamp
 	// that says they still are — which is what the statistics pass looks for to
 	// take them back out.
-	if _, revokeErr := h.Mongo.RevokeStatsRowsForJobs(ctx, req.Archive.OwnerID, jobIDs, now); revokeErr != nil {
+	if _, revokeErr := h.Mongo.RevokeStatsRowsForJobs(ctx, models.AccountOwner(req.Archive.OwnerID), jobIDs, now); revokeErr != nil {
 		return restoreResult{}, fmt.Errorf("revoke statistics rows: %w", revokeErr)
 	}
 

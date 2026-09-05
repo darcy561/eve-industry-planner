@@ -29,8 +29,8 @@ func TestMoneyMatchesIgnoresAFloatResidue(t *testing.T) {
 	}
 }
 
-func bucket(id string, rows int64, sales float64) models.AccountTimelineMonthBucket {
-	return models.AccountTimelineMonthBucket{
+func bucket(id string, rows int64, sales float64) models.TimelineMonthBucket {
+	return models.TimelineMonthBucket{
 		ID:               id,
 		ContributingRows: rows,
 		SalesTotal:       sales,
@@ -42,8 +42,8 @@ func bucket(id string, rows int64, sales float64) models.AccountTimelineMonthBuc
 func TestCompareBucketsReportsACountMismatch(t *testing.T) {
 	t.Parallel()
 
-	stored := []models.AccountTimelineMonthBucket{bucket("a", 2, 1000)}
-	folded := []models.AccountTimelineMonthBucket{bucket("a", 3, 1000)}
+	stored := []models.TimelineMonthBucket{bucket("a", 2, 1000)}
+	folded := []models.TimelineMonthBucket{bucket("a", 3, 1000)}
 
 	drift := CompareBuckets(stored, folded)
 	if drift.CountsOff != 1 {
@@ -60,8 +60,8 @@ func TestCompareBucketsReportsACountMismatch(t *testing.T) {
 func TestCompareBucketsSeparatesMissingFromExtra(t *testing.T) {
 	t.Parallel()
 
-	stored := []models.AccountTimelineMonthBucket{bucket("a", 1, 10), bucket("orphan", 1, 10)}
-	folded := []models.AccountTimelineMonthBucket{bucket("a", 1, 10), bucket("new", 1, 10)}
+	stored := []models.TimelineMonthBucket{bucket("a", 1, 10), bucket("orphan", 1, 10)}
+	folded := []models.TimelineMonthBucket{bucket("a", 1, 10), bucket("new", 1, 10)}
 
 	drift := CompareBuckets(stored, folded)
 	if drift.Missing != 1 {
@@ -77,7 +77,7 @@ func TestCompareBucketsSeparatesMissingFromExtra(t *testing.T) {
 func TestCompareBucketsReportsNoDriftWhenTheyAgree(t *testing.T) {
 	t.Parallel()
 
-	same := []models.AccountTimelineMonthBucket{bucket("a", 2, 1000), bucket("b", 5, 250.75)}
+	same := []models.TimelineMonthBucket{bucket("a", 2, 1000), bucket("b", 5, 250.75)}
 
 	if drift := CompareBuckets(same, same); drift.Any() {
 		t.Fatalf("identical documents reported drift: %+v", drift)

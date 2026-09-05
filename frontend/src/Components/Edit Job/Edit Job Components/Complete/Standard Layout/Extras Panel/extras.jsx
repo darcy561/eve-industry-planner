@@ -29,13 +29,15 @@ export function ExtrasPanel({ state, actions }) {
   const [extrasCategory, setExtrasCategory] = useState("0");
   const extrasCategories = useUsersStore((state) => state.applicationSettings.extrasCategories);
 
-  const getCategoryLabel = (categoryId) => {
+  // Consulted when an extra is added, to name the category it was filed under.
+  // A stored row already carries its name and does not come back here.
+  const lookUpCategoryLabel = (categoryId) => {
     const n = Number(ExtraCost.categoryOf(categoryId));
     const safeCategoryId = Number.isFinite(n) ? n : 0;
     const category = extrasCategories.find(
       (cat) => cat.id === safeCategoryId || String(cat.id) === String(categoryId)
     );
-    return category ? category.label : "Unassigned";
+    return category ? category.label : "";
   };
 
   function handleAddAction(formData) {
@@ -64,6 +66,7 @@ export function ExtrasPanel({ state, actions }) {
       new ExtraCost({
         id: uuid(),
         category,
+        categoryLabel: lookUpCategoryLabel(category),
         extraText: sanitizedText,
         extraValue,
       }),
@@ -106,7 +109,7 @@ export function ExtrasPanel({ state, actions }) {
                 >
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Chip
-                      label={getCategoryLabel(item.category)}
+                      label={item.categoryLabel}
                       size="small"
                       variant="filled"
                       color="secondary"

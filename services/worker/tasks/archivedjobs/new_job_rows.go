@@ -27,7 +27,7 @@ type newRowsResult struct {
 // The rows are written uncounted, so the fold that follows in the same task picks
 // them up. Writing them counted would file the job as already in the aggregates
 // it has not reached.
-func writeRowsForNewlyArchivedJobs(ctx context.Context, mongo *eipmongo.Mongo, accountID string, known []models.ArchivedJobStats, now time.Time) (newRowsResult, error) {
+func writeRowsForNewlyArchivedJobs(ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, known []models.ArchivedJobStats, now time.Time) (newRowsResult, error) {
 	var out newRowsResult
 
 	have := make(map[string]struct{}, len(known))
@@ -37,8 +37,8 @@ func writeRowsForNewlyArchivedJobs(ctx context.Context, mongo *eipmongo.Mongo, a
 		}
 	}
 
-	err := mongo.EachArchivedJobWithoutStatsRow(ctx, accountID, have, func(job models.Job) error {
-		row, rerr := archivestats.NewAccountRow(job, now)
+	err := mongo.EachArchivedJobWithoutStatsRow(ctx, owner, have, func(job models.Job) error {
+		row, rerr := archivestats.NewRow(job, now)
 		if rerr != nil {
 			// The job stays without a row and is offered again next pass. Failing
 			// here would strand every other new job behind one bad document.

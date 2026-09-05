@@ -31,21 +31,21 @@ func TestLive_accountRebuild_revokeAndPrune(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 
-	keptID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-kept")
-	goneID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-gone")
+	keptID := eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(rebuildStatsScratchAccount), "job-kept")
+	goneID := eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(rebuildStatsScratchAccount), "job-gone")
 	seedStatsRow(t, ctx, mongo, keptID)
 	seedStatsRow(t, ctx, mongo, goneID)
 
 	// A rebuild that still produces job-kept must revoke only job-gone.
-	revoked, err := mongo.RevokeAccountArchivedJobStats(ctx, rebuildStatsScratchAccount, []string{keptID}, now)
+	revoked, err := mongo.RevokeArchivedJobStats(ctx, models.AccountOwner(rebuildStatsScratchAccount), []string{keptID}, now)
 	if err != nil {
-		t.Fatalf("RevokeAccountArchivedJobStats: %v", err)
+		t.Fatalf("RevokeArchivedJobStats: %v", err)
 	}
 	if revoked != 1 {
 		t.Fatalf("revoked = %d rows, want 1 (only the job no longer archived)", revoked)
 	}
 	if isRevoked(t, ctx, mongo, keptID) {
-		t.Fatal("a job still in the keep-list was revoked; its history would be dropped from the account's totals")
+		t.Fatal("a job still in the keep-list was revoked; its history would be dropped from the owner's totals")
 	}
 	if !isRevoked(t, ctx, mongo, goneID) {
 		t.Fatal("a job absent from the keep-list was not revoked")
@@ -64,9 +64,9 @@ func TestLive_accountRebuild_revokeAndPrune(t *testing.T) {
 	// reports no modification when a write changes nothing.
 	revokedAtBefore := revokedAt(t, ctx, mongo, goneID)
 	later := now.Add(time.Hour)
-	again, err := mongo.RevokeAccountArchivedJobStats(ctx, rebuildStatsScratchAccount, []string{keptID}, later)
+	again, err := mongo.RevokeArchivedJobStats(ctx, models.AccountOwner(rebuildStatsScratchAccount), []string{keptID}, later)
 	if err != nil {
-		t.Fatalf("second RevokeAccountArchivedJobStats: %v", err)
+		t.Fatalf("second RevokeArchivedJobStats: %v", err)
 	}
 	if again != 0 {
 		t.Fatalf("second revoke modified %d rows, want 0 — the filter is not excluding already-revoked rows", again)
@@ -76,14 +76,14 @@ func TestLive_accountRebuild_revokeAndPrune(t *testing.T) {
 	}
 
 	// Pruning keeps the months the rebuild produced and drops the rest.
-	keptBucket := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8, false)
-	goneBucket := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 7, false)
+	keptBucket := eipmongo.TimelineMonthDocumentID(models.AccountOwner(rebuildStatsScratchAccount), scratchTypeID, 2026, 8, false)
+	goneBucket := eipmongo.TimelineMonthDocumentID(models.AccountOwner(rebuildStatsScratchAccount), scratchTypeID, 2026, 7, false)
 	seedBucket(t, ctx, mongo, keptBucket)
 	seedBucket(t, ctx, mongo, goneBucket)
 
-	pruned, err := mongo.PruneAccountTimelineMonths(ctx, rebuildStatsScratchAccount, []string{keptBucket})
+	pruned, err := mongo.PruneTimelineMonths(ctx, models.AccountOwner(rebuildStatsScratchAccount), []string{keptBucket})
 	if err != nil {
-		t.Fatalf("PruneAccountTimelineMonths: %v", err)
+		t.Fatalf("PruneTimelineMonths: %v", err)
 	}
 	if pruned != 1 {
 		t.Fatalf("pruned = %d buckets, want 1", pruned)
@@ -109,14 +109,14 @@ func TestLive_accountRebuild_emptyKeepListClearsTheAccount(t *testing.T) {
 
 	mongolive.ScratchAccount(t, mongo, rebuildStatsScratchAccount)
 
-	rowID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-only")
-	bucketID := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8, false)
+	rowID := eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(rebuildStatsScratchAccount), "job-only")
+	bucketID := eipmongo.TimelineMonthDocumentID(models.AccountOwner(rebuildStatsScratchAccount), scratchTypeID, 2026, 8, false)
 	seedStatsRow(t, ctx, mongo, rowID)
 	seedBucket(t, ctx, mongo, bucketID)
 
-	revoked, err := mongo.RevokeAccountArchivedJobStats(ctx, rebuildStatsScratchAccount, nil, time.Now().UTC())
+	revoked, err := mongo.RevokeArchivedJobStats(ctx, models.AccountOwner(rebuildStatsScratchAccount), nil, time.Now().UTC())
 	if err != nil {
-		t.Fatalf("RevokeAccountArchivedJobStats: %v", err)
+		t.Fatalf("RevokeArchivedJobStats: %v", err)
 	}
 	if revoked != 1 {
 		t.Fatalf("revoked = %d rows, want 1", revoked)
@@ -125,9 +125,9 @@ func TestLive_accountRebuild_emptyKeepListClearsTheAccount(t *testing.T) {
 		t.Fatal("an empty keep-list left a row unrevoked; the account's last removed job would keep counting")
 	}
 
-	pruned, err := mongo.PruneAccountTimelineMonths(ctx, rebuildStatsScratchAccount, nil)
+	pruned, err := mongo.PruneTimelineMonths(ctx, models.AccountOwner(rebuildStatsScratchAccount), nil)
 	if err != nil {
-		t.Fatalf("PruneAccountTimelineMonths: %v", err)
+		t.Fatalf("PruneTimelineMonths: %v", err)
 	}
 	if pruned != 1 {
 		t.Fatalf("pruned = %d buckets, want 1", pruned)
@@ -150,17 +150,17 @@ func TestLive_accountRebuild_writesBeforeRemoving(t *testing.T) {
 
 	mongolive.ScratchAccount(t, mongo, rebuildStatsScratchAccount)
 
-	staleID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-stale")
-	freshID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-fresh")
+	staleID := eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(rebuildStatsScratchAccount), "job-stale")
+	freshID := eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(rebuildStatsScratchAccount), "job-fresh")
 	seedStatsRow(t, ctx, mongo, staleID)
 
 	// The write half of a rebuild: the new row lands while the outgoing one is
 	// still present and unrevoked.
 	seedStatsRow(t, ctx, mongo, freshID)
 
-	rows, err := mongo.LoadAccountArchivedJobStats(ctx, rebuildStatsScratchAccount)
+	rows, err := mongo.LoadArchivedJobStats(ctx, models.AccountOwner(rebuildStatsScratchAccount))
 	if err != nil {
-		t.Fatalf("LoadAccountArchivedJobStats: %v", err)
+		t.Fatalf("LoadArchivedJobStats: %v", err)
 	}
 	if len(rows) != 2 {
 		t.Fatalf("mid-rebuild read saw %d rows, want both the outgoing and the incoming", len(rows))
@@ -172,15 +172,15 @@ func TestLive_accountRebuild_writesBeforeRemoving(t *testing.T) {
 	}
 
 	// Only now does the removal half run.
-	if _, err := mongo.RevokeAccountArchivedJobStats(ctx, rebuildStatsScratchAccount, []string{freshID}, time.Now().UTC()); err != nil {
-		t.Fatalf("RevokeAccountArchivedJobStats: %v", err)
+	if _, err := mongo.RevokeArchivedJobStats(ctx, models.AccountOwner(rebuildStatsScratchAccount), []string{freshID}, time.Now().UTC()); err != nil {
+		t.Fatalf("RevokeArchivedJobStats: %v", err)
 	}
 
-	// LoadAccountArchivedJobStats returns revoked rows too, so a later rebuild can
+	// LoadArchivedJobStats returns revoked rows too, so a later rebuild can
 	// tell a removed job from one it has never seen.
-	rows, err = mongo.LoadAccountArchivedJobStats(ctx, rebuildStatsScratchAccount)
+	rows, err = mongo.LoadArchivedJobStats(ctx, models.AccountOwner(rebuildStatsScratchAccount))
 	if err != nil {
-		t.Fatalf("LoadAccountArchivedJobStats after revoke: %v", err)
+		t.Fatalf("LoadArchivedJobStats after revoke: %v", err)
 	}
 	if len(rows) != 2 {
 		t.Fatalf("read after revoke saw %d rows, want 2 including the revoked one", len(rows))
@@ -190,8 +190,8 @@ func TestLive_accountRebuild_writesBeforeRemoving(t *testing.T) {
 func seedStatsRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID string) {
 	t.Helper()
 	row := models.ArchivedJobStats{
-		ID:        docID,
-		AccountID: rebuildStatsScratchAccount,
+		ID:    docID,
+		Owner: models.AccountOwner(rebuildStatsScratchAccount),
 	}
 	if _, err := mongo.ArchivedJobStats.UpsertStructsPreservingMetaBulk(ctx, []eipmongo.StructUpsertItem{{DocID: docID, Value: row}}, 10); err != nil {
 		t.Fatalf("seed stats row %s: %v", docID, err)
@@ -200,9 +200,9 @@ func seedStatsRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docI
 
 func seedBucket(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID string) {
 	t.Helper()
-	bucket := models.AccountTimelineMonthBucket{
-		ID:        docID,
-		AccountID: rebuildStatsScratchAccount,
+	bucket := models.TimelineMonthBucket{
+		ID:    docID,
+		Owner: models.AccountOwner(rebuildStatsScratchAccount),
 	}
 	if _, err := mongo.AccountTimelineMonths.UpsertStructsPreservingMetaBulk(ctx, []eipmongo.StructUpsertItem{{DocID: docID, Value: bucket}}, 10); err != nil {
 		t.Fatalf("seed bucket %s: %v", docID, err)

@@ -23,13 +23,13 @@ func CountsTowardBuildHistory(row models.ArchivedJobStats) bool {
 	return !row.Revoked
 }
 
-// AccountBuildHistory reduces one item type's rows to the marks a build history
+// BuildHistory reduces one item type's rows to the marks a build history
 // is read from.
 //
 // Ordered by cost month, the same basis the timeline plots. Archive dates order
 // rows by when they were written, which on imported history bears no relation to
 // when the builds happened.
-func AccountBuildHistory(rows []models.ArchivedJobStats) models.BuildHistoryMarks {
+func BuildHistory(rows []models.ArchivedJobStats) models.BuildHistoryMarks {
 	var (
 		out                                    models.BuildHistoryMarks
 		firstID, lastID, cheapestID, dearestID string

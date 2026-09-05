@@ -1600,9 +1600,10 @@ derivation makes a property rather than a list to check.
 6. **The CLI lookups are derived.** `enabledTasksLowerLookup` and `commandTaskName` are built from
    `enabledTasks` rather than being three lists that can disagree, with a test that every enabled task
    is findable under its command name and that none collide.
-7. **`prepareArchivedJobStatistics`** carries the release steps a deploy owes: dropping retired
-   statistics fields, retired change-stream resume tokens, and queue entries whose id names no owner,
-   then queueing every account. Steps accumulate in one list rather than becoming sibling commands.
+7. **`prepareRelease`** carries the release steps a deploy owes: dropping retired statistics fields,
+   retired change-stream resume tokens, and queue entries whose id names no owner, then queueing every
+   account. Steps are grouped by the app version that introduced them and accumulate there rather than
+   becoming sibling commands. These four are release **0.9.0**.
 
 ##### Carried to J2
 
@@ -2041,12 +2042,20 @@ are settled; the reasoning for each lives in that plan.
 
 | Item | Status |
 |------|--------|
-| 1. `ArchivedJobStats` takes an owner | **Not started.** The row still carries `AccountID` and `CorpRef`, and `Version` is not yet `RowVersion` |
+| 1. `ArchivedJobStats` takes an owner | **Done.** All three statistics documents are owner-keyed: `AccountID` and `CorpRef` are off the row, the aggregates carry an `Owner` in their place, the three document ids lead with the owner key, every query filters on `owner.kind`/`owner.id`, and the five index specs match. `models.StatsOwner` is `models.Owner`, the row gained `ArchivedBy` and `SchemaVersion`, and the dead `Version` field is gone |
 | 2. Collection and document-id renames | **Not started.** The five collections still carry their `account_` names |
 | 3. Route and query key take an owner | **Done.** The route is `/api/v1/statistics/{owner}/{view}` with the owner as a handle, and every statistics query key carries the owner under the shared root |
 | 4. Stage C's ownership inference is dropped | **Done.** `corpinference`, the per-line corporation fields and the lane on the corporation bucket are gone; nothing in `services/` or the SPA infers a scope |
 
-Shared-planners Stages A and B have not started either, so nothing here is holding that plan up.
+Nothing in [shared-planners](../shared-planners/plan.md) blocks items 1 or 2 — the dependency runs the
+other way. Item 1 includes the `StatsOwner` → `Owner` rename, because fifteen of the sixteen non-test
+files referencing that type are this project's own code and it is already opening them; and
+`ArchivedJobStats` carries flat fields rather than embedding `MetaData`, so it does not wait on that
+split. Shared-planners Stage A **consumes** `models.Owner` and starts after item 1 lands.
+
+Item 2's *code* is likewise this project's to write. Only its **deployment** is coupled: the rename
+entries ship in the same `CollectionRenames` version as shared-planners' own, in the single
+maintenance window that plan's Stage B describes.
 
 ### 1. `ArchivedJobStats` takes an owner
 
@@ -2054,9 +2063,174 @@ Shared-planners Stages A and B have not started either, so nothing here is holdi
 account that archived the job, so per-member contribution inside a shared planner is answerable
 without writing a second archive.
 
-The row has no schema version today. `SchemaVersion` is added, and the existing `Version` field — the
-row version the delta and rebuild path use — is renamed **`RowVersion`** in the same change, so two
-unrelated version fields cannot be confused.
+The row has no schema version today, and its existing `Version` field is **dead**: no code reads or
+writes it, and all 10,338 rows on dev hold the zero value it has always been written with. It is
+**deleted** in the same change rather than renamed — renaming it would carry the dead weight forward
+under a better name.
+
+**The row is schema versioned.** `SchemaVersion`, an `ArchivedJobStatsSchemaCurrent` constant and an
+upgrader entry land together, the same three parts every other persisted model carries. Being derived
+is not a reason to skip it: a rebuild only reaches rows whose owner is queued, so a row can sit at an
+older shape indefinitely, and a reader that cannot tell which shape it holds has to infer it from
+which fields are present — exactly the guessing the version exists to remove.
+
+The upgrader is what makes every read correct from the moment the code ships: it fills `Owner` from
+`AccountID` when the owner is absent, in memory, idempotently, so a stored row written before the
+backfill still answers as an owner-shaped one.
+
+The collection does **not** join `SchemaMaintainedCollections()`. That list drives the maintenance
+batch that rewrites documents a user owns; a statistics row is derived, so the way to bring one to
+the current shape on disk is the rebuild that already exists.
+
+### The names followed the keying
+
+Once the documents were keyed by owner, everything named for the account was describing the old model.
+`LoadAccountProductionTotals(owner)` reads as though an account is still the unit; a reader has to
+check the signature to find out otherwise.
+
+So the prefix came off wherever the thing genuinely takes or returns an owner:
+`models.AccountTimelineMonthBucket` is `TimelineMonthBucket`, the seven Mongo reads and prunes lost
+their `Account`, `AccountBuckets` is `TimelineBuckets`, `AccountBuildHistory` is `BuildHistory`,
+`RebuildAccountStatistics` is `RebuildStatistics`, and the two files behind those are named for what
+they hold rather than for the scope they used to have.
+
+Two names that were wrong before the owner existed were fixed with them. `BuildAccountSnapshot` did
+not build a snapshot — it reduced a job to a row *given* one — and is `RowFromSnapshot`; `NewAccountRow`
+is `NewRow`, and each now says how it differs from the other.
+
+**What kept its name.** `ArchivedJobAccountFilter` filters job documents on `_meta.accountID`, which is
+still what they carry, and the user-document reads are account-scoped in fact. Renaming those would
+have made the code less true, not more consistent.
+
+**`DrainAccountStatsRebuildQueue` is left alone deliberately.** Its Go symbol is paired with a wire task
+name and a subject, so renaming the symbol alone would desync the two. The queue is keyed by owner now,
+so the name is owed a change — but it is a cross-process rename, cheapest during this release's
+downtime when no message is in flight, and worth taking as its own decision rather than as a tidy-up.
+
+**Two documents were dead and are gone.** `CorpProductionTotalsRow` and `CorpTimelineMonthBucket` were
+parallel corporation shapes from the design the owner replaced. Nothing outside their own definitions
+and tests referred to either: an owner-keyed document already covers a corporation.
+
+### Extras categories name themselves
+
+An archived row recorded what a job's extras cost **per category id** and nothing else. The name was
+resolved when a chart was drawn, from `state.applicationSettings.extrasCategories` — the viewer's own
+current settings — falling back to `Category {id}`.
+
+That is a live defect before shared planners exist. On dev, 172 archived rows are keyed to category
+`90`, *Retired Courier Contract*, which has been deleted: those rows draw as **"Category 90"**, and
+the extras panel reports them as *Unassigned*, which is a different category rather than a missing
+name. Under a shared planner it is worse in a different way — a member has none of another member's
+categories, so a legend reads back a raw UUID.
+
+So the row stores the name beside the money:
+
+```go
+type ArchivedExtraCategory struct {
+	ID     string  `bson:"id"`
+	Label  string  `bson:"label,omitempty"`
+	Amount float64 `bson:"amount"`
+}
+```
+
+`ExtraCategoryTotals` becomes `ExtraCategories`, and the schema version goes to **2**. Nothing
+converts on read: the release moves every document to the new shape while the app is down, so the
+code only ever meets one shape. See § 0.9.0 converts rather than tolerates.
+
+**Where the name comes from matters.** A row is derived from its job and nothing else — that is what
+lets it be written wherever the job is archived, and every incremental path rests on it. Reading the
+account's settings to name a category would break it. So the name travels on the job instead:
+`models.ExtraCost` gains `CategoryLabel`, written by the SPA when the cost is added, and the archived
+row copies it. That also fixes the live job: the extras panel now prefers the stored name and only
+consults settings for a row that predates it.
+
+**Wire compatibility:** additive both ways. `categoryLabel` is omitted rather than written empty, so a
+row without one is the document it already was.
+
+**The names are recoverable, and only here.** A settings list keeps a deleted category rather than
+dropping it, so `tasks prepareRelease` reads each account's list and stamps the name onto every extra
+its jobs hold, before the rebuild that derives the rows from them. Measured against dev: 659 extras
+across 12 accounts, none unnamed, including the 65 that recover *Retired Courier Contract*.
+
+**The names reach the charts.** A bucket carries `extraCategoryLabels` beside its totals, filled by the
+fold from the rows and by the delta as a `$set` rather than an `$inc` — a name is not a quantity, so a
+removal takes back money and leaves the name. Neither map can be `$summed`, so the aggregation pushes
+and folds both, and `SalesMeasures.Plus` is where one id keeps one name: there is no rename, so
+whichever side names a category is right and the first stands.
+
+`toExtrasRows` and `toExtrasTotalRows` read the names off the response and no longer take a category
+list, so neither extras panel reads `applicationSettings`. A category with no stored name still falls
+back to its id, which is what every reader had before.
+
+### 0.9.0 converts rather than tolerates
+
+A shape change has two ways to reach stored documents: teach the code to read both and convert on
+read, or move every document to the new shape in one pass and have the code read only the new one.
+**0.9.0 takes the second**, and accepts a downtime window to do it.
+
+What that buys is the absence of a whole category of code — no dual-read branch, no field kept only so
+an old document still decodes, no expand-then-contract sequence spread over releases, and no question
+of which shape a given document is in. `SchemaVersion` stays, because it is what the script *selects*
+unmigrated documents by rather than guessing from field presence.
+
+It also buys correctness the read path cannot reach. A statistics row is derived from its job alone —
+the rule that lets it be written wherever the job is archived — so a derivation can never consult a
+settings document. A release step runs per account and can, which is the only reason the extras names
+above are recoverable at all.
+
+**What it costs is rollback.** Once documents are converted, the previous release cannot read them.
+The window is therefore: stop the app, back up, run `tasks prepareRelease`, deploy. Going back means
+restoring the backup, not redeploying.
+
+**Derived collections are not converted at all.** The three statistics collections are reproduced
+whole by a rebuild, and the release already queues every owner for one, so they are dropped and rebuilt
+rather than migrated — which is also what makes the document-id change free.
+
+### Sequencing item 1: expand now, contract with the backfill
+
+The stored shape changes, so the order matters and is worth stating before any of it is written:
+
+It landed as one change rather than the expand-then-contract sequence first planned, because 0.9.0
+converts during downtime — see § 0.9.0 converts rather than tolerates. There is no window in which an
+old-shaped document meets new code, so nothing needed a dual read.
+
+The three statistics collections are not converted at all, because they are **derived**: every row,
+bucket and total is reproduced whole from the archived jobs, and the release already queues every
+owner for a rebuild. Converting them would be work the rebuild overwrites minutes later.
+
+That an `_id` is immutable is a supporting cost, not the reason. Mongo refuses an update to `_id`
+outright, so a conversion would be an insert and a delete for each of 22,064 documents rather than a
+`$set` — which makes an unnecessary job an expensive one. Regenerable is why they are regenerated;
+unmodifiable is only why converting them would have been worse.
+
+**They are copied, and nothing is deleted.** The release copies each collection to
+`{name}_pre_0_9_0` with `$out` — server-side, documents unchanged, ids included — and stops there. The
+rebuild writes the new owner-keyed documents alongside the old ones, which an operator removes by hand
+once the figures have been checked.
+
+The old documents are inert in the meantime: every query filters on the owner, and a document written
+before this release has none, so nothing reads them. That is a property to keep rather than assume —
+`timelineRangeFilter` and `StatisticsOwners` both named `accountID` after the models had moved on, and
+neither would have failed. A filter that matches nothing returns an empty result, which is a valid
+answer to "what has this owner archived", so the rota would have quietly stopped reconciling and every
+timeline would have read empty. Both now name the owner, and a test pins the field names.
+
+Re-running is safe: a collection whose copy already holds documents has been through the step and is
+left alone, so a second run cannot overwrite a copy. A short copy is an error rather than a warning —
+it is the one outcome that would leave an operator believing there is a complete copy to fall back on.
+
+**The distinction matters for what follows.** Item 2's renames and the `_meta.owner` backfill touch
+`accounts`, `account_settings`, `account_archived_jobs` and the rest — user data, which nothing
+regenerates. Those get a real migration, and there the `_id` constraint is a design input rather than
+a footnote.
+
+One thing does still read an account: a job document names `_meta.accountID`, not an owner, so the two
+walks over the archive translate — an account owner reads its jobs, and any other kind is refused
+rather than matching nothing. That becomes `_meta.owner` in shared-planners Stage A.
+
+**Wire compatibility:** additive on the way in. The row's JSON is served to no client — every field
+on it is `json:"-"` or reached through a response type — so the added fields cross no public surface,
+and `Owner` deliberately carries no JSON tags at all.
 
 ```go
 type Owner struct {
@@ -2067,7 +2241,10 @@ type Owner struct {
 
 `Owner` carries **no JSON tags**. For the corporation and alliance kinds its `ID` is a ref, so a
 response serialising it directly would leak one; every response builds an owner handle explicitly
-instead, which turns a missed conversion into a compile error.
+instead. Note what that does and does not buy: an untagged struct still marshals, under Go field
+names, so an owner reaching a response emits conspicuous `"Kind"` / `"ID"` keys rather than failing
+to compile. What actually keeps a ref off the wire is the `json:"-"` on every field that holds an
+owner, which is why those tags are asserted rather than trusted.
 
 `models.StatsOwner` is renamed `models.Owner` — it stops being a statistics concept once it is on
 every document. `Key()`, `ParseOwnerKey`, `Validate` and `IsZero` carry over unchanged, and the
@@ -2123,9 +2300,18 @@ Items 1 and 2 are one change to live data and ship together, and Stage J widened
 statistics row is now written by `api/v1endpoints/archivedjobs` as well as the worker, so
 `ArchivedJobStatsDocumentID` and the row's field names have call sites in two services plus the live
 tests rather than one worker package. Item 3 is additive and can land any time before the route
-reaches `Public`. Item 4 is a reduction in scope. The wider expand → backfill →
-switch → contract sequence, and the task that performs it, belong to
-[shared-planners](../shared-planners/plan.md) § Stage B.
+reaches `Public`. Item 4 is a reduction in scope.
+
+**Neither 1 nor 2 waits on anything.** Both are this project's code: sixteen files reference
+`StatsOwner` and only `testing/mongolive` is not ours, and `ArchivedJobStats` carries flat fields
+rather than embedding `MetaData`, so it is untouched by the metadata split shared-planners Stage A
+performs. That stage **consumes** `models.Owner` and therefore starts after item 1 lands.
+
+What is coupled is the renames' **deployment**, not their code: `CollectionRenames` is version-gated,
+a database skips every entry at or below the version it records, so this project's entries take the
+same next version as shared-planners' own and both apply in the single maintenance window that plan's
+Stage B describes. The expand → backfill → switch → contract sequence, and the task that performs it,
+belong to [shared-planners](../shared-planners/plan.md) § Stage B.
 
 ## Go modernization in scope
 
@@ -2164,7 +2350,7 @@ whichever work touches SSO next rather than widened into this stage.
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries three tabs: statistics (metric cards, eight charts, item table), per-item history over the same windowed reads, and the jobs list with its three row shapes and restore. Chart primitives are shared and the price-history dialogue moved onto them. Neither later tab is queried until it is opened, and all three carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
 | J — incremental statistics and the build history panel | **Complete bar one placement decision.** J1 replaced the stored snapshot array with a query, added the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row and `includeProductionChain` on the timeline read, rebuilt the Build History panel on the chart primitives, and removed the `archive_and_stats` change-stream group. J2 made a job's figures a delta — folded in on archive, taken back on restore — guarded by `contributedAt` on the row and a claim bump that stands a fold down when a rebuild has taken the owner on. J3 made the drain a dispatcher over one task per owner. J4 reconciles every owner once a day, oldest stamp first, rewriting aggregates from the rows and reporting drift without acting on it. J5 gave realtime messages a `type`/`subtype` vocabulary, notifies an account when its figures move, reports the recalculating and failed states on every statistics response, and shows them above the page's tabs. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
-| Owner block — owed to shared planners | **Items 3 and 4 done, items 1 and 2 not started** — the ownership inference Stage C was blocked on is removed, and the statistics route and query key take an owner handle. The owner field on the row and the collection renames are still owed, and ride with the shared-planners backfill. See § Owner block — owed to shared planners |
+| Owner block — owed to shared planners | **Items 3 and 4 done, item 1 expanded, item 2 open** — the ownership inference Stage C was blocked on is removed, and the statistics route and query key take an owner handle. The owner on the row and the collection renames are still owed; both are this project's code to write, and shared-planners Stage A waits on item 1 rather than the other way round. Only the renames' **deployment** is coupled, to that plan's Stage B window. See § Owner block — owed to shared planners |
 
 ## Done when
 
@@ -2281,20 +2467,30 @@ store mocks, chart capture and render helpers, and `testing/mongolive` holds the
 the scratch-account cleanup the Go live tests share. Browser-level coverage (Playwright) is a
 deliberate later decision, not an oversight.
 
-**Two things are open: Stage C, and the owner block owed to shared planners.** Every stage is
-complete for the account scope. Of the owner block only item 4 has landed — item 3 is the
-one with a deadline rather than a dependency, because parameterising the statistics route by owner is
-additive today and breaking once the route is public.
+**What is open is the owner block, and Stage C behind it.** Every stage is complete for the account
+scope. Items 3 and 4 have landed and item 1 has expanded: the row carries an owner, the type is
+`models.Owner`, and the upgrader fills one from the account id on read.
 
-**Start here: Stage C.**
+**Start here: finish item 1.** Its backfill and contract are what unblock everything else —
+shared-planners Stage A consumes `models.Owner`, item 2's renames ride the same window, and Stage C's
+remaining half is aggregation over a non-account owner, which the owner block makes additive.
+
+**One decision is owed before the backfill is written.** The three statistics collections are
+derived: `RebuildAccountStatistics` reproduces every row, bucket and total from the archived jobs,
+and `tasks prepareRelease` already queues every owner for exactly that. So they can be dropped and
+rebuilt rather than migrated — which turns the id change and the filter switch into one change with
+no old-shaped data left to match, instead of 22,064 insert-and-delete pairs. What that loses is
+revoked rows, kept so a fold can tell "removed" from "never seen"; a wholesale rebuild does not read
+them, but confirm that before choosing.
 
 **Stages H and I are independent of Stage C** and proceed while the corporation scope stays deferred;
 the page leaves the same corporation seams the archive dialogue does.
 
-**Start here for Stage C: decide what scopes a job to a corporation.** That decision — and the
-`_meta.corporationRef` it stamps — is the only thing between here and a corporation archive with
-data in it. Everything downstream of it is either built or deliberately deferred. The frontend seams
-for the corporation scope are already open, see § The archive dialogue.
+**Stage C no longer starts with a decision.** What scopes a job to a corporation is answered: a job's
+owner is the planner it was created in, written once at creation and never inferred from a correlated
+field — see § Owner block item 4, which removed the half-built inference producer rather than
+finishing it. What remains of C is aggregation over a non-account owner, and it waits on the owner
+block. The frontend seams for the corporation scope are already open, see § The archive dialogue.
 
 Before designing the aggregation against real shapes, run the two data steps below; a pipeline
 designed against a database where every corporation ref is empty would be guessing.
@@ -2306,7 +2502,7 @@ before Stage C can be designed against representative data.
 
 **Dev has had the rebuild and the resume-token drop.** The rebuild covered all 227 owners. Both are
 still listed because they are owed against live, and because a deploy should reach them through
-`tasks prepareArchivedJobStatistics` rather than one at a time.
+`tasks prepareRelease` rather than one at a time.
 
 **Order matters: identity conversion first, then the rebuild.** The rebuild derives statistics from
 job documents, so converting identities first means it sees refs where they exist. The other order
@@ -2315,7 +2511,7 @@ just means the corporation data arrives a rebuild late.
 | Step | Command | Why |
 |------|---------|-----|
 | 1. Convert stored entity ids | `tasks encodeJobIdentity` (`-dry-run` first) | On dev, `protected.spec` is null on all 9,130 archived jobs and 834 still hold a raw `corporation_id` on their linked jobs. Those are the only corporation ids in the database, and `archivestats` reads refs, so until they are converted the aggregation sees nothing. It is also the first thing that would give `character_ref` any value at all. Owned by [entity-id-encryption](../entity-id-encryption/plan.md); this project only depends on it |
-| 2. Everything the statistics documents owe | `tasks prepareArchivedJobStatistics` (`-dry-run` first) | One command, four steps in the order they have to happen — see `archivedJobStatisticsRelease`. A step with nothing to do reports zero, so re-running against a current environment is safe |
+| 2. Everything the release owes the database | `tasks prepareRelease` (`-dry-run` first) | One command. It runs every release's steps, oldest first — see `releases` in `core/commands/prepare_release.go`; these four are 0.9.0. A step with nothing to do reports zero, so re-running against a current environment is safe, and an environment several versions behind catches up in one pass |
 
 The four steps inside that command, and why each is owed:
 
@@ -2390,7 +2586,7 @@ unbounded per-job array is off `ProductionTotalsRow`, which now carries `BuildHi
 the marks a panel actually reads, derived from the rows rather than duplicating them. Both readers
 moved with it: `hasMeaningfulBuildStats.js` is `hasMeaningfulTotals.js`, and the Archive Jobs Panel
 reads `totals.history`. Documents written before J1 keep the field, because the rebuild upserts with
-`$set` and never replaces; `tasks prepareArchivedJobStatistics` unsets it — see § Operational steps
+`$set` and never replaces; `tasks prepareRelease` unsets it — see § Operational steps
 owed.
 
 ### Archive dates: what the sources actually hold
@@ -2530,8 +2726,8 @@ knowing rather than manufacturing a date.
   transformation, B2 worker tasks, B3 scheduling and producers. This plan defines Stage B as one
   stage.
 
-**Recommended pickup order:** A → B → D → E. A and B are done; C is deferred until a producer for
-`_meta.corporationRef` exists. D depends on the Stage A models; E depends on D's response shapes.
+**Recommended pickup order:** owner block item 1 (backfill, then contract) → item 2 → Stage C.
+Stages A, B, D, E, F, G, H, I and J are done for the account scope.
 
 **Reference material:** `feature/archived-jobs-redesign` on origin. Read it for pipeline shapes and
 bucketing logic; do not merge or cherry-pick its Mongo-touching commits.

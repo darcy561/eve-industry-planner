@@ -20,8 +20,12 @@ type SalesMeasures struct {
 	InstallCostTotal    float64            `bson:"installCostTotal" json:"installCostTotal"`
 	ExtrasTotal         float64            `bson:"extrasTotal" json:"extrasTotal"`
 	ExtraCategoryTotals map[string]float64 `bson:"extraCategoryTotals,omitempty" json:"extraCategoryTotals,omitempty"`
-	TransactionFeeTotal float64            `bson:"transactionFeeTotal" json:"transactionFeeTotal"`
-	BrokersFeeTotal     float64            `bson:"brokersFeeTotal" json:"brokersFeeTotal"`
+	// ExtraCategoryLabels names those categories, so a reader does not resolve
+	// them against a settings document: one a deleted category has left, and one
+	// a second member of a shared planner does not share.
+	ExtraCategoryLabels map[string]string `bson:"extraCategoryLabels,omitempty" json:"extraCategoryLabels,omitempty"`
+	TransactionFeeTotal float64           `bson:"transactionFeeTotal" json:"transactionFeeTotal"`
+	BrokersFeeTotal     float64           `bson:"brokersFeeTotal" json:"brokersFeeTotal"`
 	// ProfitLoss is salesTotal − brokersFeeTotal − transactionFeeTotal − jobCostTotal.
 	ProfitLoss float64 `bson:"profitLoss" json:"profitLoss"`
 }
@@ -51,6 +55,19 @@ func (m SalesMeasures) Plus(src SalesMeasures) SalesMeasures {
 			merged[category] += value
 		}
 		m.ExtraCategoryTotals = merged
+	}
+
+	// A category's name never changes — there is no rename, only add and delete —
+	// so whichever side names one is right, and the first stands.
+	if len(m.ExtraCategoryLabels) > 0 || len(src.ExtraCategoryLabels) > 0 {
+		named := make(map[string]string, len(m.ExtraCategoryLabels)+len(src.ExtraCategoryLabels))
+		maps.Copy(named, m.ExtraCategoryLabels)
+		for category, label := range src.ExtraCategoryLabels {
+			if named[category] == "" {
+				named[category] = label
+			}
+		}
+		m.ExtraCategoryLabels = named
 	}
 	return m
 }
@@ -82,6 +99,8 @@ func (m SalesMeasures) Negated() SalesMeasures {
 		}
 		m.ExtraCategoryTotals = negated
 	}
+	// The labels are not negated: removing a contribution takes back its money,
+	// not the name of the category it was filed under.
 	return m
 }
 
@@ -200,10 +219,10 @@ type TimelineTotals struct {
 	SalesMeasures `bson:",inline"`
 }
 
-// AccountTimelineMonthBucket is a pre-aggregated calendar month for an account and item type.
-type AccountTimelineMonthBucket struct {
+// TimelineMonthBucket is a pre-aggregated calendar month for an account and item type.
+type TimelineMonthBucket struct {
 	ID                string `bson:"_id"`
-	AccountID         string `bson:"accountID"`
+	Owner             Owner  `bson:"owner"`
 	TypeID            int    `bson:"typeID"`
 	IsProductionChain bool   `bson:"isProductionChain"`
 	CalendarMonth     `bson:",inline"`
@@ -212,13 +231,4 @@ type AccountTimelineMonthBucket struct {
 	// decides emptiness, which a sum of float money cannot: subtraction leaves a
 	// residue rather than zero.
 	ContributingRows int64 `bson:"contributingRows"`
-}
-
-// CorpTimelineMonthBucket is a pre-aggregated calendar month for a corporation and item type.
-type CorpTimelineMonthBucket struct {
-	ID            string `bson:"_id"`
-	CorpRef       string `bson:"corpRef"`
-	TypeID        int    `bson:"typeID"`
-	CalendarMonth `bson:",inline"`
-	SalesMeasures `bson:",inline"`
 }

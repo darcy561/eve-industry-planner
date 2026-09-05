@@ -14,11 +14,11 @@ import (
 func TestRebuildAccountStatisticsRequiresHandleAndAccount(t *testing.T) {
 	t.Parallel()
 
-	if _, err := RebuildAccountStatistics(t.Context(), nil, "acct-1", time.Now()); err == nil {
+	if _, err := RebuildStatistics(t.Context(), nil, models.AccountOwner("acct-1"), time.Now()); err == nil {
 		t.Fatal("expected an error without a mongo handle")
 	}
 	var nilMongo *eipmongo.Mongo
-	if _, err := RebuildAccountStatistics(t.Context(), nilMongo, "", time.Now()); err == nil {
+	if _, err := RebuildStatistics(t.Context(), nilMongo, models.Owner{}, time.Now()); err == nil {
 		t.Fatal("expected an error for an empty accountID")
 	}
 }
@@ -52,7 +52,7 @@ func archivedJob(accountID, jobID string, produced int) models.Job {
 
 // A job whose snapshot cannot be computed is still archived. Leaving its id out
 // of the keep set would revoke its existing row, recording a job that is still
-// there as removed and dropping its history from the account's totals.
+// there as removed and dropping its history from the owner's totals.
 func TestSkippedJobsAreStillKeptFromRevocation(t *testing.T) {
 	t.Parallel()
 
@@ -62,7 +62,7 @@ func TestSkippedJobsAreStillKeptFromRevocation(t *testing.T) {
 		archivedJob("acct-1", "good-2", 5),
 	}
 
-	acc := &accountRows{now: time.Now().UTC()}
+	acc := &ownerRows{now: time.Now().UTC()}
 	for _, job := range jobs {
 		acc.add(job)
 	}
@@ -77,7 +77,7 @@ func TestSkippedJobsAreStillKeptFromRevocation(t *testing.T) {
 	if len(keepIDs) != 3 {
 		t.Fatalf("keepIDs = %v, want one per job including the skipped one", keepIDs)
 	}
-	if !slices.Contains(keepIDs, "acct-1|broken") {
+	if !slices.Contains(keepIDs, "account:acct-1|broken") {
 		t.Fatalf("the skipped job's row would be revoked; keepIDs = %v", keepIDs)
 	}
 }
@@ -87,7 +87,7 @@ func TestSkippedJobsAreStillKeptFromRevocation(t *testing.T) {
 func TestNoJobsKeepsNothing(t *testing.T) {
 	t.Parallel()
 
-	acc := &accountRows{now: time.Now().UTC()}
+	acc := &ownerRows{now: time.Now().UTC()}
 	rows, keepIDs, skipped := acc.rows, acc.keepIDs, acc.skipped
 	if len(rows) != 0 || len(keepIDs) != 0 || skipped != 0 {
 		t.Fatalf("rows=%d keep=%d skipped=%d, want all zero", len(rows), len(keepIDs), skipped)
@@ -123,7 +123,7 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 func TestARebuildLeavesNoOutstandingWork(t *testing.T) {
 	t.Parallel()
 
-	acc := &accountRows{now: time.Now().UTC()}
+	acc := &ownerRows{now: time.Now().UTC()}
 	for _, job := range []models.Job{
 		archivedJob("acct-1", "good-1", 10),
 		archivedJob("acct-1", "broken", 0), // unusable: contributes no row
@@ -150,7 +150,7 @@ func TestARebuildLeavesNoOutstandingWork(t *testing.T) {
 func TestSkippedJobsProduceNoOutstandingRow(t *testing.T) {
 	t.Parallel()
 
-	acc := &accountRows{now: time.Now().UTC()}
+	acc := &ownerRows{now: time.Now().UTC()}
 	acc.add(archivedJob("acct-1", "broken", 0))
 
 	if len(acc.rows) != 0 {

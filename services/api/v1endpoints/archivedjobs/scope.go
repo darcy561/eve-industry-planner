@@ -37,11 +37,13 @@ func accountArchiveScope(m *eipmongo.Mongo, accountID string) (archiveScope, err
 		return archiveScope{}, fmt.Errorf("accountID is required")
 	}
 	return archiveScope{
-		OwnerID:         accountID,
-		jobs:            m.ArchivedJobs,
-		stats:           m.ArchivedJobStats,
-		ownerFilter:     eipmongo.ArchivedJobAccountFilter,
-		statsDocumentID: eipmongo.ArchivedJobStatsDocumentID,
+		OwnerID:     accountID,
+		jobs:        m.ArchivedJobs,
+		stats:       m.ArchivedJobStats,
+		ownerFilter: eipmongo.ArchivedJobAccountFilter,
+		statsDocumentID: func(ownerID, jobID string) string {
+			return eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(ownerID), jobID)
+		},
 		queueRebuild: func(ctx context.Context, m *eipmongo.Mongo, ownerID string, now time.Time) error {
 			return m.QueueOwnerWork(ctx, models.AccountOwner(ownerID), eipmongo.StatsWorkDelta, now)
 		},

@@ -94,12 +94,12 @@ func (m *Mongo) WriteStatsRows(ctx context.Context, rows []models.ArchivedJobSta
 //
 // Existing rows only. A row carrying no figures would fold as a contributor of
 // nothing, adding a count to every bucket it touched.
-func (m *Mongo) StampSkippedStatsRows(ctx context.Context, accountID string, jobIDs []string, reason string, now time.Time) (stamped int64, err error) {
+func (m *Mongo) StampSkippedStatsRows(ctx context.Context, owner models.Owner, jobIDs []string, reason string, now time.Time) (stamped int64, err error) {
 	if m == nil || m.ArchivedJobStats == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
-	if accountID == "" {
-		return 0, fmt.Errorf("accountID is required")
+	if err := owner.Validate(); err != nil {
+		return 0, err
 	}
 	if len(jobIDs) == 0 {
 		return 0, nil
@@ -111,12 +111,12 @@ func (m *Mongo) StampSkippedStatsRows(ctx context.Context, accountID string, job
 
 	ids := make([]string, 0, len(jobIDs))
 	for _, jobID := range jobIDs {
-		ids = append(ids, ArchivedJobStatsDocumentID(accountID, jobID))
+		ids = append(ids, ArchivedJobStatsDocumentID(owner, jobID))
 	}
 
 	err = Retry(ctx, applyRetryOptions("StampSkippedStatsRows", nil), func() error {
 		res, uerr := coll.UpdateMany(ctx,
-			bson.M{"_id": bson.M{"$in": ids}, "accountID": accountID},
+			bson.M{"_id": bson.M{"$in": ids}, "owner.kind": owner.Kind, "owner.id": owner.ID},
 			bson.M{"$set": bson.M{"skippedAt": now.UTC(), "skipReason": reason}})
 		if uerr != nil {
 			return uerr

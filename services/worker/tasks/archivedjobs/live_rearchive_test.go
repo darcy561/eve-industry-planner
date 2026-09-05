@@ -33,7 +33,7 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 		scope := bson.M{"accountID": rearchiveScratchAccount}
 		_, _ = mongo.ArchivedJobStats.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.AccountTimelineMonths.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountProductionTotals.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.ProductionTotals.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.AccountRebuildQueue.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
 	}
 	clean()
@@ -55,9 +55,9 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 
 	writeRow := func(t *testing.T, j models.Job) models.ArchivedJobStats {
 		t.Helper()
-		row, err := archivestats.NewAccountRow(j, now)
+		row, err := archivestats.NewRow(j, now)
 		if err != nil {
-			t.Fatalf("NewAccountRow: %v", err)
+			t.Fatalf("NewRow: %v", err)
 		}
 		if err := mongo.WriteStatsRows(ctx, []models.ArchivedJobStats{row}, 100); err != nil {
 			t.Fatalf("WriteStatsRows: %v", err)
@@ -81,7 +81,7 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 
 	// Restored: the row is revoked while still carrying its contribution stamp,
 	// which is the state a re-archive arriving before the next fold lands on.
-	if _, err := mongo.RevokeStatsRowsForJobs(ctx, rearchiveScratchAccount, []string{job.JobID}, now); err != nil {
+	if _, err := mongo.RevokeStatsRowsForJobs(ctx, models.AccountOwner(rearchiveScratchAccount), []string{job.JobID}, now); err != nil {
 		t.Fatalf("RevokeStatsRowsForJobs: %v", err)
 	}
 	revoked := stored(t, row.ID)
@@ -126,7 +126,7 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 		scope := bson.M{"accountID": account}
 		_, _ = mongo.ArchivedJobStats.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.AccountTimelineMonths.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountProductionTotals.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.ProductionTotals.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.AccountRebuildQueue.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
 	}
 	clean()
@@ -146,9 +146,9 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 	job.MetaData.AccountID = account
 	job.MetaData.ArchivedAt = now
 
-	row, err := archivestats.NewAccountRow(job, now)
+	row, err := archivestats.NewRow(job, now)
 	if err != nil {
-		t.Fatalf("NewAccountRow: %v", err)
+		t.Fatalf("NewRow: %v", err)
 	}
 	if err := mongo.WriteStatsRows(ctx, []models.ArchivedJobStats{row}, 100); err != nil {
 		t.Fatalf("WriteStatsRows: %v", err)
@@ -176,7 +176,7 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 	}
 
 	fold(t)
-	totals, err := mongo.LoadAccountProductionTotals(ctx, account, 4321)
+	totals, err := mongo.LoadProductionTotals(ctx, models.AccountOwner(account), 4321)
 	if err != nil {
 		t.Fatalf("read totals: %v", err)
 	}
@@ -185,19 +185,19 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 	}
 
 	// Restored: the only job of this type is gone.
-	if _, err := mongo.RevokeStatsRowsForJobs(ctx, account, []string{job.JobID}, now); err != nil {
+	if _, err := mongo.RevokeStatsRowsForJobs(ctx, models.AccountOwner(account), []string{job.JobID}, now); err != nil {
 		t.Fatalf("RevokeStatsRowsForJobs: %v", err)
 	}
 	fold(t)
 
-	totals, err = mongo.LoadAccountProductionTotals(ctx, account, 4321)
+	totals, err = mongo.LoadProductionTotals(ctx, models.AccountOwner(account), 4321)
 	if err != nil {
 		t.Fatalf("read totals after restore: %v", err)
 	}
 	if len(totals) != 0 {
 		t.Fatalf("the type's totals survived the restore as %+v", totals[0])
 	}
-	buckets, err := mongo.LoadAccountTimelineMonths(ctx, account)
+	buckets, err := mongo.LoadTimelineMonths(ctx, models.AccountOwner(account))
 	if err != nil {
 		t.Fatalf("read buckets after restore: %v", err)
 	}

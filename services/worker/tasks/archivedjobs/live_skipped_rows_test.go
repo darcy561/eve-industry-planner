@@ -48,7 +48,7 @@ func loadStatsRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jobI
 	t.Helper()
 	var row models.ArchivedJobStats
 	err := mongo.ArchivedJobStats.Collection().FindOne(ctx,
-		bson.M{"_id": eipmongo.ArchivedJobStatsDocumentID(skippedScratchAccount, jobID)},
+		bson.M{"_id": eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(skippedScratchAccount), jobID)},
 	).Decode(&row)
 	if err != nil {
 		t.Fatalf("statistics row for %s: %v", jobID, err)
@@ -66,7 +66,7 @@ func TestLive_aJobThatCanNoLongerBeReadKeepsItsFiguresAndSaysSo(t *testing.T) {
 	job := buildableJob("job-skip-1", now)
 	seedArchivedJob(t, ctx, mongo, job)
 
-	if _, err := RebuildAccountStatistics(ctx, mongo, skippedScratchAccount, now); err != nil {
+	if _, err := RebuildStatistics(ctx, mongo, models.AccountOwner(skippedScratchAccount), now); err != nil {
 		t.Fatalf("first rebuild: %v", err)
 	}
 	before := loadStatsRow(t, ctx, mongo, "job-skip-1")
@@ -80,7 +80,7 @@ func TestLive_aJobThatCanNoLongerBeReadKeepsItsFiguresAndSaysSo(t *testing.T) {
 	broken.Build.Setup = nil
 	seedArchivedJob(t, ctx, mongo, broken)
 
-	result, err := RebuildAccountStatistics(ctx, mongo, skippedScratchAccount, now.Add(time.Minute))
+	result, err := RebuildStatistics(ctx, mongo, models.AccountOwner(skippedScratchAccount), now.Add(time.Minute))
 	if err != nil {
 		t.Fatalf("second rebuild: %v", err)
 	}
@@ -114,14 +114,14 @@ func TestLive_readingTheJobAgainClearsTheStamp(t *testing.T) {
 	now := time.Now().UTC()
 	job := buildableJob("job-skip-2", now)
 	seedArchivedJob(t, ctx, mongo, job)
-	if _, err := RebuildAccountStatistics(ctx, mongo, skippedScratchAccount, now); err != nil {
+	if _, err := RebuildStatistics(ctx, mongo, models.AccountOwner(skippedScratchAccount), now); err != nil {
 		t.Fatalf("first rebuild: %v", err)
 	}
 
 	broken := job
 	broken.Build.Setup = nil
 	seedArchivedJob(t, ctx, mongo, broken)
-	if _, err := RebuildAccountStatistics(ctx, mongo, skippedScratchAccount, now.Add(time.Minute)); err != nil {
+	if _, err := RebuildStatistics(ctx, mongo, models.AccountOwner(skippedScratchAccount), now.Add(time.Minute)); err != nil {
 		t.Fatalf("second rebuild: %v", err)
 	}
 	if !loadStatsRow(t, ctx, mongo, "job-skip-2").FiguresAreStale() {
@@ -129,7 +129,7 @@ func TestLive_readingTheJobAgainClearsTheStamp(t *testing.T) {
 	}
 
 	seedArchivedJob(t, ctx, mongo, job)
-	result, err := RebuildAccountStatistics(ctx, mongo, skippedScratchAccount, now.Add(2*time.Minute))
+	result, err := RebuildStatistics(ctx, mongo, models.AccountOwner(skippedScratchAccount), now.Add(2*time.Minute))
 	if err != nil {
 		t.Fatalf("third rebuild: %v", err)
 	}
@@ -157,28 +157,28 @@ func TestLive_stampingDoesNotMoveTheAggregates(t *testing.T) {
 	now := time.Now().UTC()
 	job := buildableJob("job-skip-3", now)
 	seedArchivedJob(t, ctx, mongo, job)
-	if _, err := RebuildAccountStatistics(ctx, mongo, skippedScratchAccount, now); err != nil {
+	if _, err := RebuildStatistics(ctx, mongo, models.AccountOwner(skippedScratchAccount), now); err != nil {
 		t.Fatalf("first rebuild: %v", err)
 	}
 
-	rows, err := mongo.LoadAccountArchivedJobStats(ctx, skippedScratchAccount)
+	rows, err := mongo.LoadArchivedJobStats(ctx, models.AccountOwner(skippedScratchAccount))
 	if err != nil {
 		t.Fatalf("load rows: %v", err)
 	}
-	wanted := archivestats.AccumulateAccountBuckets(rows)
+	wanted := archivestats.AccumulateBuckets(rows)
 
 	broken := job
 	broken.Build.Setup = nil
 	seedArchivedJob(t, ctx, mongo, broken)
-	if _, err := RebuildAccountStatistics(ctx, mongo, skippedScratchAccount, now.Add(time.Minute)); err != nil {
+	if _, err := RebuildStatistics(ctx, mongo, models.AccountOwner(skippedScratchAccount), now.Add(time.Minute)); err != nil {
 		t.Fatalf("second rebuild: %v", err)
 	}
 
-	after, err := mongo.LoadAccountArchivedJobStats(ctx, skippedScratchAccount)
+	after, err := mongo.LoadArchivedJobStats(ctx, models.AccountOwner(skippedScratchAccount))
 	if err != nil {
 		t.Fatalf("reload rows: %v", err)
 	}
-	got := archivestats.AccumulateAccountBuckets(after)
+	got := archivestats.AccumulateBuckets(after)
 	if len(got) != len(wanted) {
 		t.Fatalf("buckets went from %d to %d over a job that could not be read", len(wanted), len(got))
 	}

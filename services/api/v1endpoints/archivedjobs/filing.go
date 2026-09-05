@@ -135,13 +135,12 @@ func (h *Handlers) FileArchivedJobMonthsHandler(w http.ResponseWriter, r *http.R
 
 		// The rows are rewritten here so the archive list agrees at once; the
 		// rebuild below is what moves the aggregates.
-		row, rowErr := archivestats.NewAccountRow(*job, now)
+		row, rowErr := archivestats.NewRow(*job, now)
 		if rowErr != nil {
 			continue
 		}
-		row.ID = eipmongo.ArchivedJobStatsDocumentID(accountID, job.JobID)
-		row.AccountID = accountID
 		row.Owner = models.AccountOwner(accountID)
+		row.ID = eipmongo.ArchivedJobStatsDocumentID(row.Owner, job.JobID)
 		rows = append(rows, row)
 	}
 

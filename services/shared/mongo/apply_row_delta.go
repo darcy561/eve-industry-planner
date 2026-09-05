@@ -31,27 +31,27 @@ const bucketRowCountField = "contributingRows"
 // The stamp is written alongside the increments, so a row cannot be counted
 // twice: whatever else happens, a stamped row is never offered as outstanding
 // work again.
-func (m *Mongo) ApplyStatsDelta(ctx context.Context, accountID string, delta models.StatsDelta, rowIDs []string, now time.Time) error {
+func (m *Mongo) ApplyStatsDelta(ctx context.Context, owner models.Owner, delta models.StatsDelta, rowIDs []string, now time.Time) error {
 	if m == nil || m.AccountTimelineMonths == nil || m.ArchivedJobStats == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
-	if accountID == "" {
-		return fmt.Errorf("accountID is required")
+	if err := owner.Validate(); err != nil {
+		return err
 	}
 	if delta.IsZero() && len(rowIDs) == 0 {
 		return nil
 	}
 
-	if err := m.incrementBuckets(ctx, accountID, delta); err != nil {
+	if err := m.incrementBuckets(ctx, owner, delta); err != nil {
 		return err
 	}
-	if err := m.incrementTotals(ctx, accountID, delta); err != nil {
+	if err := m.incrementTotals(ctx, owner, delta); err != nil {
 		return err
 	}
 	return m.StampContributed(ctx, rowIDs, now)
 }
 
-func (m *Mongo) incrementBuckets(ctx context.Context, accountID string, delta models.StatsDelta) error {
+func (m *Mongo) incrementBuckets(ctx context.Context, owner models.Owner, delta models.StatsDelta) error {
 	if len(delta.Buckets) == 0 {
 		return nil
 	}
@@ -62,22 +62,30 @@ func (m *Mongo) incrementBuckets(ctx context.Context, accountID string, delta mo
 
 	writes := make([]mongo.WriteModel, 0, len(delta.Buckets))
 	for key, bucket := range delta.Buckets {
-		id := AccountTimelineMonthDocumentID(accountID, key.TypeID, key.Year, key.Month, key.IsProductionChain)
+		id := TimelineMonthDocumentID(owner, key.TypeID, key.Year, key.Month, key.IsProductionChain)
 		inc := measureIncrements(bucket.Measures)
 		inc[bucketRowCountField] = bucket.Rows
 
+		update := bson.M{
+			"$inc": inc,
+			"$setOnInsert": bson.M{
+				"owner.kind":        owner.Kind,
+				"owner.id":          owner.ID,
+				"typeID":            key.TypeID,
+				"isProductionChain": key.IsProductionChain,
+				"year":              key.Year,
+				"month":             key.Month,
+			},
+		}
+		// Names are set, not incremented — and a removal carries them too, so a
+		// bucket that keeps other contributions keeps their names with it.
+		if named := categoryLabelSets(bucket.Measures.ExtraCategoryLabels); len(named) > 0 {
+			update["$set"] = named
+		}
+
 		writes = append(writes, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": id}).
-			SetUpdate(bson.M{
-				"$inc": inc,
-				"$setOnInsert": bson.M{
-					"accountID":         accountID,
-					"typeID":            key.TypeID,
-					"isProductionChain": key.IsProductionChain,
-					"year":              key.Year,
-					"month":             key.Month,
-				},
-			}).
+			SetUpdate(update).
 			SetUpsert(true))
 	}
 
@@ -92,11 +100,11 @@ func (m *Mongo) incrementBuckets(ctx context.Context, accountID string, delta mo
 // The measures and the segment a row is credited to are incremented; the build
 // history marks are not, because a minimum and a maximum cannot be moved by
 // addition. They are recomputed by the caller, which can read the rows.
-func (m *Mongo) incrementTotals(ctx context.Context, accountID string, delta models.StatsDelta) error {
+func (m *Mongo) incrementTotals(ctx context.Context, owner models.Owner, delta models.StatsDelta) error {
 	if len(delta.Totals) == 0 {
 		return nil
 	}
-	coll, err := m.AccountProductionTotals.requireColl()
+	coll, err := m.ProductionTotals.requireColl()
 	if err != nil {
 		return err
 	}
@@ -112,13 +120,13 @@ func (m *Mongo) incrementTotals(ctx context.Context, accountID string, delta mod
 		}
 
 		writes = append(writes, mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"_id": AccountProductionTotalsDocumentID(accountID, key.TypeID)}).
+			SetFilter(bson.M{"_id": ProductionTotalsDocumentID(owner, key.TypeID)}).
 			SetUpdate(bson.M{
 				"$inc": inc,
 				"$setOnInsert": bson.M{
-					"accountID": accountID,
-					"typeID":    key.TypeID,
-					"jobType":   total.JobType,
+					"owner.kind": owner.Kind, "owner.id": owner.ID,
+					"typeID":  key.TypeID,
+					"jobType": total.JobType,
 				},
 			}).
 			SetUpsert(true))
@@ -137,17 +145,17 @@ func (m *Mongo) incrementTotals(ctx context.Context, accountID string, delta mod
 // a counter to recover the next one from. A type holds few rows — a couple on
 // average — so recomputing them is cheaper than any scheme for maintaining them
 // in place.
-func (m *Mongo) SetBuildHistoryMarks(ctx context.Context, accountID string, typeID int, marks models.BuildHistoryMarks) error {
-	if m == nil || m.AccountProductionTotals == nil {
+func (m *Mongo) SetBuildHistoryMarks(ctx context.Context, owner models.Owner, typeID int, marks models.BuildHistoryMarks) error {
+	if m == nil || m.ProductionTotals == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.AccountProductionTotals.requireColl()
+	coll, err := m.ProductionTotals.requireColl()
 	if err != nil {
 		return err
 	}
 	return Retry(ctx, applyRetryOptions("SetBuildHistoryMarks", nil), func() error {
 		_, uerr := coll.UpdateOne(ctx,
-			bson.M{"_id": AccountProductionTotalsDocumentID(accountID, typeID)},
+			bson.M{"_id": ProductionTotalsDocumentID(owner, typeID)},
 			bson.M{"$set": bson.M{"history": marks}},
 		)
 		return uerr
@@ -160,7 +168,7 @@ func (m *Mongo) SetBuildHistoryMarks(ctx context.Context, accountID string, type
 //
 // The filter is [models.ArchivedJobStats.AwaitsContribution] expressed as a
 // query; the two have to keep saying the same thing.
-func (m *Mongo) LoadUncountedStatsRows(ctx context.Context, accountID string) ([]models.ArchivedJobStats, error) {
+func (m *Mongo) LoadUncountedStatsRows(ctx context.Context, owner models.Owner) ([]models.ArchivedJobStats, error) {
 	if m == nil || m.ArchivedJobStats == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
@@ -173,7 +181,8 @@ func (m *Mongo) LoadUncountedStatsRows(ctx context.Context, accountID string) ([
 	err = Retry(ctx, applyRetryOptions("LoadUncountedStatsRows", nil), func() error {
 		out = nil
 		cursor, ferr := coll.Find(ctx, bson.M{
-			"accountID":     accountID,
+			"owner.kind":    owner.Kind,
+			"owner.id":      owner.ID,
 			"contributedAt": bson.M{"$exists": false},
 			"revoked":       bson.M{"$ne": true},
 		})
@@ -194,7 +203,7 @@ func (m *Mongo) LoadUncountedStatsRows(ctx context.Context, accountID string) ([
 // Revoking a row and taking its figures back out are separate steps: the first
 // happens where the job is restored, the second where statistics are written, and
 // the stamp is what carries the work between them.
-func (m *Mongo) LoadRevokedContributedRows(ctx context.Context, accountID string) ([]models.ArchivedJobStats, error) {
+func (m *Mongo) LoadRevokedContributedRows(ctx context.Context, owner models.Owner) ([]models.ArchivedJobStats, error) {
 	if m == nil || m.ArchivedJobStats == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
@@ -207,7 +216,8 @@ func (m *Mongo) LoadRevokedContributedRows(ctx context.Context, accountID string
 	err = Retry(ctx, applyRetryOptions("LoadRevokedContributedRows", nil), func() error {
 		out = nil
 		cursor, ferr := coll.Find(ctx, bson.M{
-			"accountID":     accountID,
+			"owner.kind":    owner.Kind,
+			"owner.id":      owner.ID,
 			"revoked":       true,
 			"contributedAt": bson.M{"$exists": true},
 		})
@@ -243,7 +253,7 @@ func (m *Mongo) ClearContributedStamp(ctx context.Context, rowIDs []string) erro
 // The rows are kept rather than deleted so a rebuild can tell "removed" from
 // "never seen", and so the figures they contributed can be found and taken back
 // out.
-func (m *Mongo) RevokeStatsRowsForJobs(ctx context.Context, accountID string, jobIDs []string, now time.Time) (int64, error) {
+func (m *Mongo) RevokeStatsRowsForJobs(ctx context.Context, owner models.Owner, jobIDs []string, now time.Time) (int64, error) {
 	if m == nil || m.ArchivedJobStats == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
@@ -257,7 +267,7 @@ func (m *Mongo) RevokeStatsRowsForJobs(ctx context.Context, accountID string, jo
 
 	ids := make([]string, 0, len(jobIDs))
 	for _, jobID := range jobIDs {
-		ids = append(ids, ArchivedJobStatsDocumentID(accountID, jobID))
+		ids = append(ids, ArchivedJobStatsDocumentID(owner, jobID))
 	}
 
 	var modified int64
@@ -280,7 +290,7 @@ func (m *Mongo) RevokeStatsRowsForJobs(ctx context.Context, accountID string, jo
 
 // LoadTypeStatsRows reads one item type's statistics rows, the input the marks
 // are recomputed from.
-func (m *Mongo) LoadTypeStatsRows(ctx context.Context, accountID string, typeID int) ([]models.ArchivedJobStats, error) {
+func (m *Mongo) LoadTypeStatsRows(ctx context.Context, owner models.Owner, typeID int) ([]models.ArchivedJobStats, error) {
 	if m == nil || m.ArchivedJobStats == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
@@ -292,7 +302,7 @@ func (m *Mongo) LoadTypeStatsRows(ctx context.Context, accountID string, typeID 
 	var out []models.ArchivedJobStats
 	err = Retry(ctx, applyRetryOptions("LoadTypeStatsRows", nil), func() error {
 		out = nil
-		cursor, ferr := coll.Find(ctx, bson.M{"accountID": accountID, "typeID": typeID, "revoked": bson.M{"$ne": true}})
+		cursor, ferr := coll.Find(ctx, bson.M{"owner.kind": owner.Kind, "owner.id": owner.ID, "typeID": typeID, "revoked": bson.M{"$ne": true}})
 		if ferr != nil {
 			return ferr
 		}
@@ -348,16 +358,16 @@ func (m *Mongo) StampContributed(ctx context.Context, rowIDs []string, now time.
 // Without it a restored job leaves a row of zeros behind, and an absent row and
 // an all-zero row mean different things: the totals read serves what it finds, so
 // the item keeps appearing — with nothing to show — in every view that lists what
-// an account has built.
+// an owner has built.
 //
 // Decided on the job count, which is an integer and exact. The money fields
 // cannot answer it: subtracting float64 leaves a residue rather than zero, so a
 // row that should be gone would never match.
-func (m *Mongo) PruneEmptyTotals(ctx context.Context, accountID string) (int64, error) {
-	if m == nil || m.AccountProductionTotals == nil {
+func (m *Mongo) PruneEmptyTotals(ctx context.Context, owner models.Owner) (int64, error) {
+	if m == nil || m.ProductionTotals == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.AccountProductionTotals.requireColl()
+	coll, err := m.ProductionTotals.requireColl()
 	if err != nil {
 		return 0, err
 	}
@@ -366,7 +376,7 @@ func (m *Mongo) PruneEmptyTotals(ctx context.Context, accountID string) (int64, 
 	err = Retry(ctx, applyRetryOptions("PruneEmptyTotals", nil), func() error {
 		deleted = 0
 		res, derr := coll.DeleteMany(ctx, bson.M{
-			"accountID": accountID,
+			"owner.kind": owner.Kind, "owner.id": owner.ID,
 			"totalJobs": bson.M{"$lte": 0},
 		})
 		if derr != nil {
@@ -385,7 +395,7 @@ func (m *Mongo) PruneEmptyTotals(ctx context.Context, accountID string) (int64, 
 // Run after a removal rather than during it: the count reaching zero is what
 // makes a bucket empty, and that is only known once every row's removal has been
 // applied.
-func (m *Mongo) PruneEmptyBuckets(ctx context.Context, accountID string) (int64, error) {
+func (m *Mongo) PruneEmptyBuckets(ctx context.Context, owner models.Owner) (int64, error) {
 	if m == nil || m.AccountTimelineMonths == nil {
 		return 0, fmt.Errorf("mongo handle is required")
 	}
@@ -398,7 +408,8 @@ func (m *Mongo) PruneEmptyBuckets(ctx context.Context, accountID string) (int64,
 	err = Retry(ctx, applyRetryOptions("PruneEmptyBuckets", nil), func() error {
 		deleted = 0
 		res, derr := coll.DeleteMany(ctx, bson.M{
-			"accountID":         accountID,
+			"owner.kind":        owner.Kind,
+			"owner.id":          owner.ID,
 			bucketRowCountField: bson.M{"$lte": 0},
 		})
 		if derr != nil {
@@ -441,26 +452,26 @@ func measureIncrements(m models.SalesMeasures) bson.M {
 	return inc
 }
 
-// EachArchivedJobWithoutStatsRow walks the account's archived jobs whose job id
+// EachArchivedJobWithoutStatsRow walks the owner's archived jobs whose job id
 // is not in have, handing each to fn.
 //
 // The caller supplies what it already knows about rather than this reading them
-// again: its only other caller has just loaded every row for the account, and
+// again: its only other caller has just loaded every row for the owner, and
 // two reads of one collection to answer one question is one too many. One
 // id-only read decides which jobs are missing, so a pass that finds nothing new
 // loads no job document at all.
-func (m *Mongo) EachArchivedJobWithoutStatsRow(ctx context.Context, accountID string, have map[string]struct{}, fn func(models.Job) error) error {
+func (m *Mongo) EachArchivedJobWithoutStatsRow(ctx context.Context, owner models.Owner, have map[string]struct{}, fn func(models.Job) error) error {
 	if m == nil || m.ArchivedJobs == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
-	if accountID == "" {
-		return fmt.Errorf("accountID is required")
+	if err := owner.Validate(); err != nil {
+		return err
 	}
 	if fn == nil {
 		return fmt.Errorf("a visitor is required")
 	}
 
-	jobIDs, err := m.ArchivedJobs.ListIDs(ctx, ArchivedJobAccountFilter(accountID))
+	jobIDs, err := m.ArchivedJobs.ListIDs(ctx, archivedJobsOwnedBy(owner))
 	if err != nil {
 		return fmt.Errorf("list archived jobs: %w", err)
 	}
@@ -479,7 +490,7 @@ func (m *Mongo) EachArchivedJobWithoutStatsRow(ctx context.Context, accountID st
 	if err != nil {
 		return err
 	}
-	filter := ArchivedJobAccountFilter(accountID)
+	filter := archivedJobsOwnedBy(owner)
 	filter["_id"] = bson.M{"$in": missing}
 
 	cursor, err := coll.Find(ctx, filter)
@@ -510,4 +521,20 @@ func upgradeStatsRows(rows []models.ArchivedJobStats) []models.ArchivedJobStats 
 		upgrader.ArchivedJobStats(&rows[i])
 	}
 	return rows
+}
+
+// categoryLabelSets renders the names as the $set paths that record them, keyed
+// per category so one name is written without disturbing another's.
+func categoryLabelSets(labels map[string]string) bson.M {
+	if len(labels) == 0 {
+		return nil
+	}
+	set := make(bson.M, len(labels))
+	for category, label := range labels {
+		if label == "" {
+			continue
+		}
+		set["extraCategoryLabels."+category] = label
+	}
+	return set
 }

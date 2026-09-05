@@ -126,3 +126,45 @@ func TestReleasesCatalogIsValid(t *testing.T) {
 		}
 	}
 }
+
+// The snapshot's name is derived from the live collection rather than written
+// out, so a collection rename carries its snapshot with it rather than leaving
+// one named after a collection that no longer exists.
+func TestSnapshotNamesFollowTheirCollections(t *testing.T) {
+	t.Parallel()
+
+	if len(derivedStatisticsCollections) == 0 {
+		t.Fatal("no derived statistics collections declared")
+	}
+	seen := map[string]bool{}
+	for _, name := range derivedStatisticsCollections {
+		if name == "" {
+			t.Error("a derived statistics collection has no name")
+			continue
+		}
+		snapshot := name + preReleaseSnapshotSuffix
+		if snapshot == name {
+			t.Errorf("%q would snapshot over itself", name)
+		}
+		if seen[snapshot] {
+			t.Errorf("%q shares a snapshot with another collection", name)
+		}
+		seen[snapshot] = true
+	}
+}
+
+// A snapshot must not be one of the collections being emptied, or the step would
+// set a collection aside into one it is about to clear.
+func TestNoCollectionIsItsOwnSnapshotTarget(t *testing.T) {
+	t.Parallel()
+
+	live := map[string]bool{}
+	for _, name := range derivedStatisticsCollections {
+		live[name] = true
+	}
+	for _, name := range derivedStatisticsCollections {
+		if live[name+preReleaseSnapshotSuffix] {
+			t.Errorf("%q snapshots into %q, which this step also empties", name, name+preReleaseSnapshotSuffix)
+		}
+	}
+}

@@ -175,40 +175,75 @@ describe("toSegmentRows", () => {
 
 describe("toExtrasRows", () => {
   const months = [
-    { year: 2026, month: 7, extraCategoryTotals: { 1: 500, 3: 200 } },
-    { year: 2026, month: 8, extraCategoryTotals: { 1: 100 } },
+    {
+      year: 2026,
+      month: 7,
+      extraCategoryTotals: { 1: 500, 3: 200 },
+      extraCategoryLabels: { 1: "Hauling Service", 3: "Blueprint Copies" },
+    },
+    {
+      year: 2026,
+      month: 8,
+      extraCategoryTotals: { 1: 100 },
+      extraCategoryLabels: { 1: "Hauling Service" },
+    },
   ];
 
   it("builds a series per category seen in the window", () => {
-    const { series } = toExtrasRows({ months }, [
-      { id: "1", label: "Hauling Service" },
-      { id: "3", label: "Blueprint Copies" },
-    ]);
+    const { series } = toExtrasRows({ months });
     expect(series.map((s) => s.label)).toEqual([
       "Hauling Service",
       "Blueprint Copies",
     ]);
   });
 
-  // A past cost belongs to the category it was filed under, so a category the
-  // user has since deleted must still resolve rather than showing a bare id.
-  it("names deleted categories", () => {
-    const { series } = toExtrasRows({ months: [months[0]] }, [
-      { id: "1", label: "Hauling Service", deleted: true },
-      { id: "3", label: "Blueprint Copies" },
-    ]);
-    expect(series.find((s) => s.key === "1").label).toBe("Hauling Service");
+  // A past cost belongs to the category it was filed under, and the name it was
+  // filed under is on the months themselves — so a category the user has since
+  // deleted still reads back, which a settings lookup could not do.
+  it("names a category the account no longer lists", () => {
+    const { series } = toExtrasRows({
+      months: [
+        {
+          year: 2026,
+          month: 7,
+          extraCategoryTotals: { 90: 500 },
+          extraCategoryLabels: { 90: "Retired Courier Contract" },
+        },
+      ],
+    });
+    expect(series.find((s) => s.key === "90").label).toBe(
+      "Retired Courier Contract",
+    );
   });
 
-  // A category missing from the list entirely still has to draw.
-  it("falls back to the id when a category is unknown", () => {
-    const { series } = toExtrasRows({ months: [months[0]] }, []);
+  // A month recorded before names were stored still has to draw.
+  it("falls back to the id when a category has no stored name", () => {
+    const { series } = toExtrasRows({
+      months: [{ year: 2026, month: 7, extraCategoryTotals: { 1: 500 } }],
+    });
     expect(series.find((s) => s.key === "1").label).toBe("Category 1");
+  });
+
+  // One month naming a category is enough for the window: the name does not
+  // change, so a month that recorded no name borrows it from one that did.
+  it("takes a name from whichever month carries it", () => {
+    const { series } = toExtrasRows({
+      months: [
+        { year: 2026, month: 7, extraCategoryTotals: { 1: 500 } },
+        {
+          year: 2026,
+          month: 8,
+          extraCategoryTotals: { 1: 100 },
+          extraCategoryLabels: { 1: "Hauling Service" },
+        },
+      ],
+    });
+    expect(series.find((s) => s.key === "1").label).toBe("Hauling Service");
   });
 
   // A month that used a category the others did not still contributes its bar.
   it("keeps a category used in only one month", () => {
-    const { rows, series } = toExtrasRows({ months }, []);
+    const { rows, series } = toExtrasRows({ months });
     expect(series.map((s) => s.key)).toEqual(["1", "3"]);
     expect(rows[0]["3"]).toBe(200);
     expect(rows[1]["3"]).toBeUndefined();
@@ -216,29 +251,28 @@ describe("toExtrasRows", () => {
 
   // Zero-valued entries are not activity and would add an empty series.
   it("ignores zero totals", () => {
-    const { series } = toExtrasRows(
-      { months: [{ year: 2026, month: 7, extraCategoryTotals: { 9: 0 } }] },
-      [],
-    );
+    const { series } = toExtrasRows({
+      months: [{ year: 2026, month: 7, extraCategoryTotals: { 9: 0 } }],
+    });
     expect(series).toEqual([]);
   });
 
   it("returns nothing for an absent response", () => {
-    expect(toExtrasRows(undefined, [])).toEqual({ rows: [], series: [] });
+    expect(toExtrasRows(undefined)).toEqual({ rows: [], series: [] });
   });
 });
 
+
 describe("toExtrasTotalRows", () => {
-  const categories = [
-    { id: "1", label: "Hauling Service" },
-    { id: "90", label: "Retired Courier Contract", deleted: true },
-  ];
+  const labels = { 1: "Hauling Service", 90: "Retired Courier Contract" };
 
   test("reads the window's own totals rather than re-summing months", () => {
-    const rows = toExtrasTotalRows(
-      { totals: { extraCategoryTotals: { 1: 300, 90: 700 } } },
-      categories,
-    );
+    const rows = toExtrasTotalRows({
+      totals: {
+        extraCategoryTotals: { 1: 300, 90: 700 },
+        extraCategoryLabels: labels,
+      },
+    });
 
     expect(rows).toEqual([
       { category: "Retired Courier Contract", value: 700 },
@@ -246,29 +280,50 @@ describe("toExtrasTotalRows", () => {
     ]);
   });
 
+  // The name is stored with the money, so a category the account has deleted
+  // still reads back — which is the whole reason it is stored.
   test("names a category the account no longer lists", () => {
-    const rows = toExtrasTotalRows(
-      { totals: { extraCategoryTotals: { 7: 10 } } },
-      categories,
-    );
+    const rows = toExtrasTotalRows({
+      totals: {
+        extraCategoryTotals: { 90: 700 },
+        extraCategoryLabels: { 90: "Retired Courier Contract" },
+      },
+    });
+
+    expect(rows).toEqual([{ category: "Retired Courier Contract", value: 700 }]);
+  });
+
+  // A total recorded before names were stored still has to draw.
+  test("falls back to the id when a category has no stored name", () => {
+    const rows = toExtrasTotalRows({ totals: { extraCategoryTotals: { 7: 10 } } });
 
     expect(rows).toEqual([{ category: "Category 7", value: 10 }]);
   });
 
+  // The totals row need not name a category a month already did.
+  test("borrows a name from the months when the totals omit it", () => {
+    const rows = toExtrasTotalRows({
+      totals: { extraCategoryTotals: { 1: 300 } },
+      months: [{ year: 2026, month: 7, extraCategoryLabels: labels }],
+    });
+
+    expect(rows).toEqual([{ category: "Hauling Service", value: 300 }]);
+  });
+
   test("drops categories with nothing in them, which a slice cannot show", () => {
-    const rows = toExtrasTotalRows(
-      { totals: { extraCategoryTotals: { 1: 0, 90: -5 } } },
-      categories,
-    );
+    const rows = toExtrasTotalRows({
+      totals: { extraCategoryTotals: { 1: 0, 90: -5 }, extraCategoryLabels: labels },
+    });
 
     expect(rows).toEqual([]);
   });
 
   test("survives a response with no totals", () => {
-    expect(toExtrasTotalRows(undefined, categories)).toEqual([]);
-    expect(toExtrasTotalRows({}, categories)).toEqual([]);
+    expect(toExtrasTotalRows(undefined)).toEqual([]);
+    expect(toExtrasTotalRows({})).toEqual([]);
   });
 });
+
 
 describe("cost components", () => {
   const data = {

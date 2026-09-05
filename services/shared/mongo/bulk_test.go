@@ -25,7 +25,7 @@ func testMongo(t *testing.T) *Mongo {
 func TestClientBulk_accumulatesOrderedPairs(t *testing.T) {
 	t.Parallel()
 	mongo := testMongo(t)
-	stats := mongo.AccountProductionTotals
+	stats := mongo.ProductionTotals
 	archived := mongo.ArchivedJobs
 
 	bulk := mongo.Bulk().

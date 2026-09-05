@@ -60,8 +60,8 @@ func archiveJobFor(t *testing.T, ctx context.Context, h *Handlers, job models.Jo
 func contributedRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jobID string, at time.Time) {
 	t.Helper()
 	row := models.ArchivedJobStats{
-		ID:            eipmongo.ArchivedJobStatsDocumentID(restoreScratchAccount, jobID),
-		AccountID:     restoreScratchAccount,
+		ID:            eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(restoreScratchAccount), jobID),
+		Owner:         models.AccountOwner(restoreScratchAccount),
 		JobID:         jobID,
 		TypeID:        34,
 		CostMonth:     models.CalendarMonth{Year: at.Year(), Month: int(at.Month())},
@@ -125,7 +125,7 @@ func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 
 	var row models.ArchivedJobStats
 	if err := mongo.ArchivedJobStats.Collection().FindOne(ctx,
-		bson.M{"_id": eipmongo.ArchivedJobStatsDocumentID(restoreScratchAccount, "job-restore-1")},
+		bson.M{"_id": eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(restoreScratchAccount), "job-restore-1")},
 	).Decode(&row); err != nil {
 		t.Fatalf("statistics row: %v", err)
 	}

@@ -69,9 +69,9 @@ func TestLive_archivedJobWithoutARowIsRecoveredByTheRota(t *testing.T) {
 	}
 
 	// The rota builds the row and folds it in the same pass.
-	result, err := ReconcileAccountStatistics(ctx, mongo, newRowsScratchAccount, now)
+	result, err := ReconcileStatistics(ctx, mongo, models.AccountOwner(newRowsScratchAccount), now)
 	if err != nil {
-		t.Fatalf("ReconcileAccountStatistics: %v", err)
+		t.Fatalf("ReconcileStatistics: %v", err)
 	}
 	if result.Created != 1 {
 		t.Fatalf("created %d rows for an archived job with none, want 1", result.Created)
@@ -80,7 +80,7 @@ func TestLive_archivedJobWithoutARowIsRecoveredByTheRota(t *testing.T) {
 		t.Fatalf("folded %d rows, want the row it just created", result.Rows)
 	}
 
-	buckets, err := mongo.LoadAccountTimelineMonths(ctx, newRowsScratchAccount)
+	buckets, err := mongo.LoadTimelineMonths(ctx, models.AccountOwner(newRowsScratchAccount))
 	if err != nil {
 		t.Fatalf("read buckets: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestLive_archivedJobWithoutARowIsRecoveredByTheRota(t *testing.T) {
 	}
 
 	// A second pass has nothing new: the row exists and is counted.
-	again, err := ReconcileAccountStatistics(ctx, mongo, newRowsScratchAccount, now.Add(time.Minute))
+	again, err := ReconcileStatistics(ctx, mongo, models.AccountOwner(newRowsScratchAccount), now.Add(time.Minute))
 	if err != nil {
 		t.Fatalf("second reconcile: %v", err)
 	}
