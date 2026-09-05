@@ -9,13 +9,13 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-// PutJobDocumentsHandler handles PUT /api/v1/job-documents — batch upsert into user_job_documents.
+// PutJobDocumentsHandler handles PUT /api/v1/job-documents — batch upsert into job_documents.
 func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
@@ -78,7 +78,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 				jobGroupBypass[j.JobID] = j.GroupID
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, jobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobDocuments, jobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -91,12 +91,21 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
 			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(jobIDs),
 		})
+	}
+
+	if err := h.encryptJobs(reqBody.Jobs); err != nil {
+		metrics.Error("entity_refs_failed")
+		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to convert entity ids to refs", "job_docs_entity_refs_failed", "job_documents", err, nil)
+		return
+	}
+	for i := range reqBody.Jobs {
+		reqBody.Jobs[i].SchemaVersion = models.JobSchemaCurrent
 	}
 
 	now := time.Now()

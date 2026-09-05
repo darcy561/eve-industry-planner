@@ -3,14 +3,13 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
 	"math"
 	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
 	schedesi "eve-industry-planner/core/scheduler/esi"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -18,11 +17,9 @@ import (
 )
 
 const (
-	cronCloudStoredEsiRefreshName     = "cron.cloudStoredEsiRefreshMaintenance"
-	cronCloudStoredEsiRefreshSchedule = "*/10 * * * *" // every 10 minutes
-	cloudEsiRefreshBookmarkKey        = "scheduler:maintenance:cloud_esi_refresh_user_bookmark"
-	defaultRotateAfterLoginDays       = 25
-	defaultAbandonAfterLoginMonths    = 6
+	cloudEsiRefreshBookmarkKey     = "scheduler:maintenance:cloud_esi_refresh_user_bookmark"
+	defaultRotateAfterLoginDays    = 25
+	defaultAbandonAfterLoginMonths = 6
 	// Fallback when CountDocuments fails or returns zero.
 	maxCloudEsiAccountsFallback = 25
 	maxCloudEsiAccountsAbsolute = 200
@@ -35,27 +32,23 @@ const (
 
 // ScheduleCloudStoredEsiRefreshMaintenance publishes per-account tasks to rotate encrypted cloud ESI
 // refresh tokens. Eligible users: cloud mode, non-empty refreshTokens, last login in [now−6mo, now−25d).
-// Uses dynamic batch sizing, EVE downtime deferral (like industry indexes), downtime publish caps
-// (like market prices), and micro-batch staggering across the cron window.
-func ScheduleCloudStoredEsiRefreshMaintenance(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	task := taskscore.CloudStoredEsiRefreshMaintenance
-	sched.RegisterHandler(cronCloudStoredEsiRefreshName, func(ctx context.Context, data json.RawMessage) error {
+// Uses dynamic batch sizing, deferral while ESI is not answering, and micro-batch
+// staggering across the cron window.
+func CloudStoredEsiRefreshMaintenance(deps contract.Dependencies, jobName string) contract.TaskHandler {
+	task := eipnats.CloudStoredEsiRefreshMaintenance
+	return func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		publish := func(pctx context.Context) error {
 			return publishCloudEsiRefreshMaintenanceBatch(pctx, deps, task)
 		}
-		if schedesi.DeferTaskPublicationUntilAfterDowntime(ctx, cronCloudStoredEsiRefreshName, task.Subject, publish) {
-			return nil
+		if deferred, err := schedesi.DeferPublicationUntilAfterDowntime(ctx, deps.NATS, jobName, deps.ESI); err != nil || deferred {
+			return err
 		}
 		return publish(ctx)
-	})
-	if err := sched.ScheduleCronJob(cronCloudStoredEsiRefreshSchedule, cronCloudStoredEsiRefreshName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }
 
-func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.Dependencies, task taskscore.Task) error {
+func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.Dependencies, task eipnats.Definition) error {
 	if deps.Mongo == nil {
 		logs.ErrorCtx(ctx, "cloud esi refresh maintenance: mongo client is nil", "component", schedulerLogComponent)
 		return nil
@@ -84,7 +77,7 @@ func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.D
 		SetProjection(bson.M{"_id": 1}).
 		SetSort(bson.D{{Key: "_id", Value: 1}}).
 		SetLimit(int64(effectiveCap)).
-		SetHint(usersMetaLastLoginAtIndexName)
+		SetHint(accountsMetaLastLoginAtIndexName)
 
 	mongo := deps.Mongo
 	col := mongo.Users.Collection()
@@ -151,7 +144,7 @@ func computeCloudEsiPublishBatchSize(ctx context.Context, deps contract.Dependen
 
 	mongo := deps.Mongo
 	col := mongo.Users.Collection()
-	total, err := col.CountDocuments(countCtx, filter, options.Count().SetHint(usersMetaLastLoginAtIndexName))
+	total, err := col.CountDocuments(countCtx, filter, options.Count().SetHint(accountsMetaLastLoginAtIndexName))
 	if err != nil {
 		return 0, err
 	}
@@ -162,26 +155,6 @@ func computeCloudEsiPublishBatchSize(ctx context.Context, deps contract.Dependen
 	target := int(math.Ceil(float64(total) / runsPerDayCloudEsi))
 	const buffer = 1.12
 	batch := min(max(int(math.Ceil(float64(target)*buffer)), minCloudEsiAccountsBatch), maxCloudEsiAccountsAbsolute)
-
-	inDT, downtimeEnd := schedesi.IsInEVEDowntime(now)
-	if inDT {
-		windowEnd := now.Add(microBatchPublishWindow)
-		availableAfter := max(windowEnd.Sub(downtimeEnd), 0)
-		downtimeCap := int(math.Floor(float64(batch) * availableAfter.Seconds() / microBatchPublishWindow.Seconds()))
-		if downtimeCap < batch && downtimeCap >= 0 {
-			if downtimeCap < 1 {
-				downtimeCap = 1
-			}
-			logs.InfoCtx(ctx, "cloud esi refresh batch size reduced by downtime window",
-				"component", schedulerLogComponent,
-				"original_batch_size", batch,
-				"downtime_capped_batch_size", downtimeCap,
-				"available_after_downtime_seconds", int(availableAfter.Seconds()),
-				"publish_window_seconds", int(microBatchPublishWindow.Seconds()),
-				"downtime_end_utc", downtimeEnd.Format(time.RFC3339))
-			batch = downtimeCap
-		}
-	}
 
 	return batch, nil
 }
@@ -196,7 +169,7 @@ func microBatchPlan(accountCount int) (plannedSlices int, requestsPerSlice int) 
 	return plannedSlices, requestsPerSlice
 }
 
-func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependencies, task taskscore.Task, accountIDs []string) int {
+func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependencies, task eipnats.Definition, accountIDs []string) int {
 	if len(accountIDs) == 0 {
 		return 0
 	}
@@ -206,22 +179,8 @@ func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependenc
 	for start := 0; start < len(accountIDs); start += requestsPerSlice {
 		end := min(start+requestsPerSlice, len(accountIDs))
 		for _, accountID := range accountIDs[start:end] {
-			payload := natscore.CloudStoredEsiRefreshMaintenanceRequest{
-				AccountID:               accountID,
-				RotateAfterLoginDays:    defaultRotateAfterLoginDays,
-				AbandonAfterLoginMonths: defaultAbandonAfterLoginMonths,
-			}
-			if err := natscore.PublishTask(
-				ctx,
-				deps.JSContext,
-				task.Subject,
-				task.Name,
-				payload,
-				deps.NATS,
-				task.DefaultPriority,
-			); err != nil {
-				logs.ErrorCtx(ctx, "cloud esi refresh maintenance: publish failed", "component", schedulerLogComponent,
-					"subject", task.Subject, "account_id", accountID, "error", err)
+			if err := eipnats.PublishCloudStoredEsiRefreshMaintenance(ctx, deps.NATS, accountID, defaultRotateAfterLoginDays, defaultAbandonAfterLoginMonths); err != nil {
+				logs.ErrorCtx(ctx, "cloud esi refresh maintenance: publish failed", "component", schedulerLogComponent, "account_id", accountID, "error", err)
 				continue
 			}
 			published++

@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/wait"
 )
 
 func TestIntegrationUpgradeScopesAckAndHosted(t *testing.T) {
@@ -30,14 +33,14 @@ func TestIntegrationUpgradeScopesAckAndHosted(t *testing.T) {
 		t.Fatalf("subscription=%v", sub)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if f.Server.HostsTenant("corporation:10") && f.Server.HostsTenant("alliance:99") {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("hosted=%v", f.Server.HostedTenants())
+	// Tenant keys are expressed in refs, so derive what the ids convert to.
+	corpTenant := "corporation:" + wsTestCorpRef(t, 10)
+	allianceTenant := "alliance:" + wsTestAllianceRef(t, 99)
+
+	wait.For(t, 2*time.Second, func() (bool, string) {
+		ok := f.Server.HostsTenant(corpTenant) && f.Server.HostsTenant(allianceTenant)
+		return ok, fmt.Sprintf("hosted=%v, want %s and %s", f.Server.HostedTenants(), corpTenant, allianceTenant)
+	})
 }
 
 func TestIntegrationSessionResumeRestoresScopes(t *testing.T) {
@@ -82,7 +85,10 @@ func TestIntegrationSessionResumeRestoresScopes(t *testing.T) {
 	if sub == nil || sub["corporation"] != true || sub["alliance"] != true {
 		t.Fatalf("scopes after resume=%v", scopes)
 	}
-	if !f.Server.HostsTenant("corporation:10") || !f.Server.HostsTenant("alliance:99") {
-		t.Fatalf("hosted after resume=%v", f.Server.HostedTenants())
+	// Tenant keys are expressed in refs, so derive what the ids convert to.
+	corpTenant := "corporation:" + wsTestCorpRef(t, 10)
+	allianceTenant := "alliance:" + wsTestAllianceRef(t, 99)
+	if !f.Server.HostsTenant(corpTenant) || !f.Server.HostsTenant(allianceTenant) {
+		t.Fatalf("hosted after resume=%v, want %s and %s", f.Server.HostedTenants(), corpTenant, allianceTenant)
 	}
 }

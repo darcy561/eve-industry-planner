@@ -11,7 +11,7 @@ function WatchlistContainerInner({
   updateGroupSettingsTrigger,
   groupSettingsContent,
   updateGroupSettingsContent,
-  setOpenDialog,
+  setOpenDialogue,
   updateWatchlistItemToEdit,
 }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
@@ -108,7 +108,7 @@ function WatchlistContainerInner({
             updateGroupSettingsTrigger={updateGroupSettingsTrigger}
             updateGroupSettingsContent={updateGroupSettingsContent}
             groupSettingsContent={groupSettingsContent}
-            setOpenDialog={setOpenDialog}
+            setOpenDialogue={setOpenDialogue}
             updateWatchlistItemToEdit={updateWatchlistItemToEdit}
           />
         );
@@ -120,7 +120,7 @@ function WatchlistContainerInner({
               key={item.id}
               item={item}
               index={index}
-              setOpenDialog={setOpenDialog}
+              setOpenDialogue={setOpenDialogue}
               updateWatchlistItemToEdit={updateWatchlistItemToEdit}
             />
           );

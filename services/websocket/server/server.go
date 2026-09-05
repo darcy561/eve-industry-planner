@@ -10,6 +10,7 @@ import (
 	"eve-industry-planner/websocket/server/config"
 	syncpkg "eve-industry-planner/websocket/sync"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
 )
@@ -32,9 +33,18 @@ func getMessageTypeName(messageType int) string {
 	}
 }
 
-// NewServer creates a new WebSocket server instance
-func NewServer(clients *stackservices.Clients) *Server {
-	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialization in processIncomingQueue.
+// NewServer creates a new WebSocket server instance.
+//
+// Scope upgrades convert the organisation ids a client sends into refs, so the
+// authz key is required: without it no client could ever widen its realtime scope,
+// which is a failure better surfaced at boot than as silently empty subscriptions.
+func NewServer(clients *stackservices.Clients) (*Server, error) {
+	entityCipher, err := entityid.NewFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("load authz hmac key for websocket scope upgrades: %w", err)
+	}
+
+	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialisation in processIncomingQueue.
 	syncPool := pond.NewPool(config.SyncPoolSize)
 
 	shardN := max(config.DocUpdateOutboundShardCount, 1)
@@ -44,6 +54,7 @@ func NewServer(clients *stackservices.Clients) *Server {
 	}
 
 	s := &Server{
+		entityCipher:            entityCipher,
 		Clients:                 make(map[string]*Client),
 		userConnections:         make(map[string]map[string]bool),
 		sessionHandoffs:         make(map[string]*sessionHandoffEntry),
@@ -51,8 +62,8 @@ func NewServer(clients *stackservices.Clients) *Server {
 		incomingQueues:          make(map[string]*IncomingDocQueue),
 		incomingSignals:         make(chan string, config.SignalChannelBuffer),
 		explicitDocSubscribers:  make(map[string]map[string]bool),
-		corpToClients:           make(map[string]map[string]bool),
-		allianceToClients:       make(map[string]map[string]bool),
+		corpRefToClients:        make(map[string]map[string]bool),
+		allianceRefToClients:    make(map[string]map[string]bool),
 		docUpdateOutboundShards: shards,
 		SyncQueues:              make(map[string]*syncpkg.SyncQueue),
 		SyncSignals:             make(chan string, config.SignalChannelBuffer),
@@ -68,7 +79,6 @@ func NewServer(clients *stackservices.Clients) *Server {
 
 	s.initMetrics()
 
-	// Start coordinator goroutines
 	s.startIncomingCoordinator()
 
 	// Start sync coordinator
@@ -83,17 +93,15 @@ func NewServer(clients *stackservices.Clients) *Server {
 	// Lock notifications (API → NATS doc.lock.{accountID} → all tabs)
 	s.subscribeToDocLockNotifications()
 
-	// Delay so both replicas have waiting pulls before orphan deletes run.
-	go func() {
-		time.Sleep(5 * time.Second)
-		s.reconcileDocUpdateFanoutConsumers()
-	}()
+	// Account notifications (worker → NATS notify.{tenant}.{subtype} → all tabs)
+	s.subscribeToNotifications()
 
-	// Start cleanup goroutine for idle queues
+	s.reconcileDocUpdateFanoutConsumers()
+
 	s.startCleanupGoroutine()
 
 	// Placement state publisher (exits when shutdownChan closes after drain/Shutdown).
 	s.startPlacementFlagMaintainer()
 
-	return s
+	return s, nil
 }

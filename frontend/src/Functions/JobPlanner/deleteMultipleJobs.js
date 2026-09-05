@@ -3,34 +3,24 @@ import Group from "../../Classes/group";
 import {
   deleteJobDocumentsFromApi,
   putJobDocumentsBatch,
-} from "../Endpoints/Pirivate/jobDocuments.js";
-import { putJobGroupsBatch } from "../Endpoints/Pirivate/groups.js";
+} from "../Endpoints/Private/jobDocuments.js";
+import { putJobGroupsBatch } from "../Endpoints/Private/groups.js";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import { saveUserAccountDocument } from "../Endpoints/Pirivate/userDocument";
+import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
+import { asIDList } from "../Helper/ids";
 
 /**
  * Deletes one or more jobs with clone-on-write safety and strict persistence ordering.
  *
  * Flow:
- * - Normalizes input IDs and resolves existing jobs.
- * - Rewrites parent/child links on cloned related jobs only.
- * - Recomputes touched groups once per group using a post-delete effective job array.
- * - (Logged-in) Persists changed job docs, changed group docs, account linked-ESI data, then
  *   deletes target job docs from the API.
- * - Commits local store updates only after persistence succeeds.
  *
  * If any logged-in persistence step fails, local linked-ESI account sets are restored from
  * snapshot and no local delete commit is applied.
  *
  * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to delete
  * @returns {Promise<void>} Promise that resolves when deletion is complete
- *
- * @example
- * await deleteMultipleJobs("job_123");
- *
- * @example
- * await deleteMultipleJobs(["job_123", "job_456", "job_789"]);
  */
 export default async function deleteMultipleJobs(inputJobIDs) {
   const { groupArray, jobArray } = useUsersStore.getState().jobData;
@@ -46,15 +36,12 @@ export default async function deleteMultipleJobs(inputJobIDs) {
   const linkedTransIdsToRemove = new Set();
   const jobsToSave = new Set();
   const touchedGroupIDs = new Set();
-  const normalizedInputIDs = Array.isArray(inputJobIDs)
-    ? inputJobIDs
-    : inputJobIDs instanceof Set
-      ? [...inputJobIDs]
-      : [inputJobIDs];
+  const normalizedInputIDs = asIDList(inputJobIDs);
   const selectedJobIDs = [...new Set(normalizedInputIDs.filter(Boolean))];
   const selectedJobIDSet = new Set(selectedJobIDs);
 
-  const findJobInJobArray = useUsersStore.getState().jobData.actions.findJobInJobArray;
+  const findJobInJobArray =
+    useUsersStore.getState().jobData.actions.findJobInJobArray;
   const jobsToDelete = selectedJobIDs
     .map((jobID) => findJobInJobArray(jobID))
     .filter(Boolean);
@@ -96,10 +83,12 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     jobArray.map((job) => workingJobsByID.get(job.jobID) ?? job);
 
   for (const inputJob of jobsToDelete) {
-    inputJob.apiJobs.forEach((jobID) => linkedJobIdsToRemove.add(jobID));
-    inputJob.apiOrders.forEach((orderID) => linkedOrderIdsToRemove.add(orderID));
-    inputJob.apiTransactions.forEach((transactionID) =>
-      linkedTransIdsToRemove.add(transactionID)
+    inputJob.esiJobIDs.forEach((jobID) => linkedJobIdsToRemove.add(jobID));
+    inputJob.esiOrderIDs.forEach((orderID) =>
+      linkedOrderIdsToRemove.add(orderID),
+    );
+    inputJob.esiTransactionIDs.forEach((transactionID) =>
+      linkedTransIdsToRemove.add(transactionID),
     );
 
     // Removes deleted job IDs from child jobs.
@@ -137,10 +126,14 @@ export default async function deleteMultipleJobs(inputJobIDs) {
   }
 
   const effectiveJobArrayWithoutDeleted = getEffectiveJobArray().filter(
-    (job) => !selectedJobIDSet.has(job.jobID)
+    (job) => !selectedJobIDSet.has(job.jobID),
   );
   for (const [groupID, groupJobsToDelete] of jobsToDeleteByGroupID.entries()) {
-    removeJobsFromGroup(groupID, groupJobsToDelete, effectiveJobArrayWithoutDeleted);
+    removeJobsFromGroup(
+      groupID,
+      groupJobsToDelete,
+      effectiveJobArrayWithoutDeleted,
+    );
   }
 
   const requiresUserAccountSave =
@@ -162,17 +155,23 @@ export default async function deleteMultipleJobs(inputJobIDs) {
 
   if (isLoggedIn) {
     const accountSnapshot = {
-      linkedOrders: new Set(useUsersStore.getState().account.linkedOrders ?? []),
+      linkedOrders: new Set(
+        useUsersStore.getState().account.linkedOrders ?? [],
+      ),
       linkedJobs: new Set(useUsersStore.getState().account.linkedJobs ?? []),
       linkedTrans: new Set(useUsersStore.getState().account.linkedTrans ?? []),
     };
-    useUsersStore.getState().account.actions.addLinkedEsiData(linkedEsiRemovalPatch);
+    useUsersStore
+      .getState()
+      .account.actions.addLinkedEsiData(linkedEsiRemovalPatch);
     try {
       if (jobsToPersist.length > 0) {
         await putJobDocumentsBatch(jobsToPersist);
       }
       if (groupsToPersist.length > 0) {
-        await putJobGroupsBatch(groupsToPersist.map((group) => group.toDocument()));
+        await putJobGroupsBatch(
+          groupsToPersist.map((group) => group.toDocument()),
+        );
       }
       if (requiresUserAccountSave) {
         await saveUserAccountDocument();
@@ -188,7 +187,7 @@ export default async function deleteMultipleJobs(inputJobIDs) {
         rateLimited
           ? "Too many requests — wait a moment and try again."
           : "Unable to delete jobs. No jobs were removed.",
-        5
+        5,
       );
       throw err;
     }
@@ -204,7 +203,9 @@ export default async function deleteMultipleJobs(inputJobIDs) {
   removeFromMultiSelect(jobsToDeleteIDs);
 
   if (!isLoggedIn && requiresUserAccountSave) {
-    useUsersStore.getState().account.actions.addLinkedEsiData(linkedEsiRemovalPatch);
+    useUsersStore
+      .getState()
+      .account.actions.addLinkedEsiData(linkedEsiRemovalPatch);
   }
 
   showSnackbarError(`${jobsToDeleteIDs.length} Job/Jobs Deleted`, 3);
@@ -217,8 +218,13 @@ export default async function deleteMultipleJobs(inputJobIDs) {
    * @param {Array<object>} effectiveJobArray
    * @private
    */
-  function removeJobsFromGroup(groupID, jobsInGroupToDelete, effectiveJobArray) {
-    if (!groupID || !jobsInGroupToDelete || jobsInGroupToDelete.length === 0) return;
+  function removeJobsFromGroup(
+    groupID,
+    jobsInGroupToDelete,
+    effectiveJobArray,
+  ) {
+    if (!groupID || !jobsInGroupToDelete || jobsInGroupToDelete.length === 0)
+      return;
     const group = getWorkingGroup(groupID);
     if (!group) return;
     group.removeJobsFromGroup(jobsInGroupToDelete, effectiveJobArray);
@@ -236,22 +242,22 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     if (!snapshot) return;
     const current = useUsersStore.getState().account;
     const ordersToAdd = [...snapshot.linkedOrders].filter(
-      (id) => !current.linkedOrders.has(id)
+      (id) => !current.linkedOrders.has(id),
     );
     const jobsToAdd = [...snapshot.linkedJobs].filter(
-      (id) => !current.linkedJobs.has(id)
+      (id) => !current.linkedJobs.has(id),
     );
     const transactionsToAdd = [...snapshot.linkedTrans].filter(
-      (id) => !current.linkedTrans.has(id)
+      (id) => !current.linkedTrans.has(id),
     );
     const ordersToRemove = [...current.linkedOrders].filter(
-      (id) => !snapshot.linkedOrders.has(id)
+      (id) => !snapshot.linkedOrders.has(id),
     );
     const jobsToRemove = [...current.linkedJobs].filter(
-      (id) => !snapshot.linkedJobs.has(id)
+      (id) => !snapshot.linkedJobs.has(id),
     );
     const transactionsToRemove = [...current.linkedTrans].filter(
-      (id) => !snapshot.linkedTrans.has(id)
+      (id) => !snapshot.linkedTrans.has(id),
     );
 
     useUsersStore.getState().account.actions.addLinkedEsiData({

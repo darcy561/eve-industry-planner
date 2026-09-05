@@ -12,23 +12,55 @@ import (
 	sharedcompression "eve-industry-planner/shared/compression"
 	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/websocket/server/config"
 	"eve-industry-planner/websocket/server/model"
 
 	"github.com/gorilla/websocket"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
-	CheckOrigin:     nil, // Disable origin checking - handled by Nginx/proxy in front
+	CheckOrigin:     checkOrigin,
 	// RFC 7692: negotiate permessage-deflate when the client offers it. Flate level is set
 	// after upgrade to match shared/compression.FlateDefaultLevel (API default HTTP tier).
 	EnableCompression: true,
 }
 
+// checkOrigin allows browser origins listed in config.AllowedOrigins. The proxy chain
+// rewrites Host to the backend address, so gorilla's same-origin default can never match.
+// A request with no Origin header is not browser-initiated and is allowed.
+func checkOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	origin = strings.TrimSuffix(strings.ToLower(origin), "/")
+	for _, allowed := range config.AllowedOrigins() {
+		if allowed == "*" || allowed == origin {
+			return true
+		}
+	}
+	return false
+}
+
 // HandleWS handles WebSocket requests from clients
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
+	// otelhttp cannot wrap this route (gorilla's Upgrade needs the ResponseWriter to be a
+	// Hijacker), so the server span is opened by hand. It covers the handshake only: a connection
+	// lives for hours and per-message spans are opened separately.
+	ctx, span := telemetry.Tracer("websocket").Start(
+		otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header)),
+		r.Method+" /ws",
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	reqCtx := r.Context()
 	s.recordUpgradeRequest(reqCtx)
 	upgradeStart, ok := logs.RequestStartTime(reqCtx)
@@ -184,19 +216,19 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	connCtx := context.WithoutCancel(r.Context())
 	connCtx = logs.BindRequestIdentity(connCtx, identity.AccountID, identity.SessionID)
 	client := &Client{
-		id:                 clientID,
-		conn:               conn,
-		connCtx:            connCtx,
-		Send:               make(chan []byte, 256),
-		explicitDocIDs:     make(map[string]bool),
-		AccountID:          identity.AccountID,
-		SessionID:          identity.SessionID,
-		Scopes:             model.RealtimeScopes{},
-		grantedCorpIDs:     stringSetFromSlice(int64SliceToStringIDs(identity.Session.Grants.CorporationIDs)),
-		grantedAllianceIDs: stringSetFromSlice(int64SliceToStringIDs(identity.Session.Grants.AllianceIDs)),
-		lastReset:          now,
-		connectedAt:        now,
-		lastActivity:       now,
+		id:                  clientID,
+		conn:                conn,
+		connCtx:             connCtx,
+		Send:                make(chan []byte, 256),
+		explicitDocIDs:      make(map[string]bool),
+		AccountID:           identity.AccountID,
+		SessionID:           identity.SessionID,
+		Scopes:              model.RealtimeScopes{},
+		grantedCorpRefs:     stringSetFromSlice(identity.Session.Grants.CorporationRefs),
+		grantedAllianceRefs: stringSetFromSlice(identity.Session.Grants.AllianceRefs),
+		lastReset:           now,
+		connectedAt:         now,
+		lastActivity:        now,
 	}
 
 	s.ClientsMu.Lock()

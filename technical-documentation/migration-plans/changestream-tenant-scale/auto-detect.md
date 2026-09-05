@@ -43,6 +43,8 @@ Phase B **per-tenant publish queues** isolate JetStream publish stalls. Dedicate
 ## Still open
 
 - Who decides: in-process core loop vs capacity controller (#18) consuming metrics
-- Exact `$match` field paths once corp/alliance document shapes exist
+- ~~Exact `$match` field paths once corp/alliance document shapes exist~~ **Settled:** every scoped
+  document states its owner at `_meta.owner`, so pinning a tenant matches on `_meta.owner.kind` and
+  `_meta.owner.id` regardless of kind. There is no separate corp/alliance shape to wait for
 - Resume key namespace finalization
 - Soak / chaos tests for promote during write storm

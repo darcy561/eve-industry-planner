@@ -1,6 +1,5 @@
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
-import { materialPriceObjectFactory } from "../JobPlanner/materialCosts";
 
 /**
  * Passes build costs from child jobs to their parent jobs.
@@ -9,10 +8,6 @@ import { materialPriceObjectFactory } from "../JobPlanner/materialCosts";
  *
  * @param {Array|Object} jobsToPass - Job object(s) to pass costs from
  * @returns {Promise<Object>} Promise that resolves to notification text
- *
- * @example
- * const result = await passBuildCostsToParentJobs([job1, job2]);
- * console.log(result.messageText); // "2 Costs Imported into 1 Job."
  */
 export async function passBuildCostsToParentJobs(jobsToPass) {
   const { jobsFromIdsOrObjects } = useUsersStore.getState().jobData.actions;
@@ -58,8 +53,8 @@ function collectMaterialsAndParentJobs(chosenJobs) {
 
   for (let job of chosenJobs) {
     const materialID = job.itemID;
-    const quantity = job.build.products.totalQuantity;
-    const itemCost = job.totalCostPerItem();
+    const quantity = job.totalQuantityProduced;
+    const itemCost = job.buildCostPerItem();
 
     if (!collectedMaterials[materialID]) {
       collectedMaterials[materialID] = {
@@ -70,19 +65,14 @@ function collectMaterialsAndParentJobs(chosenJobs) {
 
     collectedMaterials[materialID].totalQuantity += quantity;
 
-    const existingCostEntry = collectedMaterials[materialID].costs.find(
-      (i) => i.cost === itemCost
-    );
-
-    if (existingCostEntry) {
-      existingCostEntry.totalQuantity += quantity;
-    } else {
-      collectedMaterials[materialID].costs.push({
-        id: job.jobID,
-        cost: itemCost,
-        quantity,
-      });
-    }
+    // One entry per child job, never pooled by price: the entry's id is the
+    // child it came from, which is what the purchase row records and what stops
+    // a second import charging the same output twice.
+    collectedMaterials[materialID].costs.push({
+      id: job.jobID,
+      cost: itemCost,
+      quantity,
+    });
 
     for (const parentID of job.parentJobs) {
       if (!parentJobMap[materialID]) {
@@ -130,11 +120,6 @@ function findNeededParentJobs(parentMap) {
  * @returns {number} returns.successfulJobImportCount - Number of jobs that received costs
  * @returns {number} returns.priceItemsImportedCount - Number of price items imported
  * @returns {Set<string>} returns.modifiedJobIDs - Set of job IDs that were modified
- * @example
- * const result = distributeItemCostsBetweenJobs(collectedMaterials, jobSelection, materialIDMap);
- * console.log(result.successfulJobImportCount); // Number of jobs
- * console.log(result.priceItemsImportedCount); // Number of price items
- * console.log(result.modifiedJobIDs); // Set of modified job IDs
  */
 export function distributeItemCostsBetweenJobs(collectedMaterials, jobSelection, materialIDMap) {
 
@@ -151,38 +136,25 @@ export function distributeItemCostsBetweenJobs(collectedMaterials, jobSelection,
       const materialToImport = collectedMaterials[materialID];
       if (!materialToImport) continue;
 
-      let remainingQuantityToPurchase =
-        material.quantity - material.quantityPurchased;
-
       for (const costEntry of materialToImport.costs) {
-        if (remainingQuantityToPurchase <= 0) break;
+        if (material.quantityRemaining <= 0) break;
 
         if (costEntry.quantity <= 0) continue;
 
         if (isMaterialPurchased(material, costEntry.id, job)) continue;
 
-        const quantityAvailableToPurchase = Math.min(
-          remainingQuantityToPurchase,
-          costEntry.quantity
-        );
+        const { taken, leftOver } = job.importPurchaseToMaterial(materialIDNum, {
+          itemCount: costEntry.quantity,
+          itemCost: costEntry.cost,
+          childID: costEntry?.id || null,
+        });
 
-        if (quantityAvailableToPurchase > 0) {
-          const purchaseObject = materialPriceObjectFactory(
-            materialIDNum,
-            quantityAvailableToPurchase,
-            costEntry.cost,
-            costEntry?.id || null
-          );
-
-          job.addPurchaseCostToMaterial(materialIDNum, purchaseObject);
-
+        if (taken > 0) {
           modifiedJobIDs.add(job.jobID);
-
-          costEntry.quantity -= quantityAvailableToPurchase;
-          remainingQuantityToPurchase -= quantityAvailableToPurchase;
-
           priceItemsImportedCount++;
         }
+
+        costEntry.quantity = leftOver;
       }
     }
   }

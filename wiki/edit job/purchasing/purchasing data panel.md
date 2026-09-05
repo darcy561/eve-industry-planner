@@ -39,7 +39,7 @@ The Purchasing Data Panel provides:
 - **Type**: Toggle switch
 - **Location**: Top section of controls
 - **Function**: Hides materials that are marked as complete
-- **Behavior**: 
+- **Behaviour**: 
   - Saves preference to application settings
   - Updates display immediately
   - Persists across sessions
@@ -50,7 +50,7 @@ The Purchasing Data Panel provides:
 - **Visibility**: Only shown when not all materials are complete
 - **Function**: Opens the [Shopping List dialogue](../dialogues/shopping%20list) for remaining materials
 - **Tooltip**: "Displays a shopping list of the remaining materials needed."
-- **Behavior**: 
+- **Behaviour**: 
   - Generates shopping list for current job
   - Shows only materials that aren't complete
   - Opens in a dialogue window
@@ -60,7 +60,7 @@ The Purchasing Data Panel provides:
 - **Visibility**: Only shown when not all materials are complete
 - **Function**: Imports material costs from EVE Online multibuy clipboard data
 - **Tooltip**: "Imports costs copied from the multibuy page in game."
-- **Behavior**:
+- **Behaviour**:
   1. Reads clipboard data
   2. Parses multibuy format (item name and cost)
   3. Matches items to job materials by name
@@ -74,7 +74,7 @@ The Purchasing Data Panel provides:
 - **Location**: Right section of controls
 - **Function**: Selects the market region for price data
 - **Options**: Various EVE Online regions (The Forge, Domain, etc.)
-- **Behavior**: 
+- **Behaviour**: 
   - Saves selection to job layout preferences
   - Updates market price displays
   - Uses default market location if not previously set
@@ -83,7 +83,7 @@ The Purchasing Data Panel provides:
 - **Location**: Right section of controls
 - **Function**: Selects the type of market listing to use
 - **Options**: Typically "buy" or "sell" orders
-- **Behavior**: 
+- **Behaviour**: 
   - Saves selection to job layout preferences
   - Updates market price displays
   - Uses default listing type if not previously set

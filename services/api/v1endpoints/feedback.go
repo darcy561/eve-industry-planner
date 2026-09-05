@@ -89,14 +89,12 @@ func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	ctx = logs.BindRequestAccountID(ctx, accountID)
 	r = r.WithContext(ctx)
 
-	// Extract request body
 	reqBody, err := helper.ExtractRequestBody[FeedbackBody](r)
 	if err != nil {
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err), "failed to extract feedback body", "feedback_invalid_request", "feedback", err, nil)
 		return
 	}
 
-	// Trim whitespace and validate feedback content
 	feedbackContent := strings.TrimSpace(reqBody.Response)
 
 	contactName := strings.TrimSpace(reqBody.ContactName)
@@ -135,7 +133,6 @@ func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Validate feedback content length
 	if len(feedbackContent) < MinFeedbackLength {
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Feedback content is required", "feedback content too short", "feedback_content_too_short", "feedback", nil, map[string]any{"length": len(feedbackContent)})
 		return
@@ -158,7 +155,7 @@ func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sanitize content for Discord (remove control characters)
+	// Sanitise content for Discord (remove control characters)
 	sanitizedContent := sanitizeForDiscord(feedbackContent)
 
 	logs.AttachDebugStep(r, "feedback_validated", map[string]any{
@@ -238,7 +235,6 @@ func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 				Embeds:   embeds,
 			}
 
-			// Marshal payload to JSON
 			payloadJSON, err := json.Marshal(payload)
 			if err != nil {
 				helper.RespondEndpointServerError(w, r, "Internal server error", "failed to marshal Discord payload", "feedback_marshal_failed", "feedback", err, nil)

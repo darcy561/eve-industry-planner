@@ -43,7 +43,7 @@ func TestIntegrationDocLockFanoutBroadcastsToAccount(t *testing.T) {
 		t.Fatalf("requested event should not suppress, got %q", suppress)
 	}
 
-	outcome := f.Server.broadcastRawToAccount(accountID, wire, suppress)
+	outcome := f.Server.broadcastRawToAccount("doc_lock", accountID, wire, suppress)
 	if outcome.RecipientCount < 2 {
 		t.Fatalf("recipients=%d want >=2 outcome=%+v", outcome.RecipientCount, outcome)
 	}

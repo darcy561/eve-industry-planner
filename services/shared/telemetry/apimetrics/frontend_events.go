@@ -5,9 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"eve-industry-planner/shared/telemetry"
 )
 
 const (
@@ -16,10 +17,6 @@ const (
 	// FrontendAudienceAnonymous is recorded when there is no Bearer or the JWT is invalid/expired.
 	FrontendAudienceAnonymous = "anonymous"
 )
-
-var webMeter = sync.OnceValue(func() metric.Meter {
-	return otel.Meter("eve-industry-planner/web")
-})
 
 // WebFrontendEventsMetrics holds OTel counters for browser-originated product events (no per-user labels;
 // authenticated vs anonymous is recorded as label audience where applicable).
@@ -41,28 +38,28 @@ var (
 // GetWebFrontendEvents returns metrics for POST /api/v1/analytics/events.
 func GetWebFrontendEvents() *WebFrontendEventsMetrics {
 	webFrontendEventsOnce.Do(func() {
-		m := webMeter()
+		m := telemetry.Meter("web")
 		webFrontendEventsHolder = &WebFrontendEventsMetrics{
-			requests: mustHist(m.Float64Histogram("web.frontend_analytics.duration_milliseconds",
+			requests: telemetry.Must(m.Float64Histogram("web.frontend_analytics.duration_milliseconds",
 				metric.WithUnit("ms"),
 				metric.WithDescription("Latency of POST /api/v1/analytics/events requests in milliseconds (label audience)"),
 			)),
-			requestsCount: mustCounter(m.Int64Counter("web.frontend_analytics.requests_total",
+			requestsCount: telemetry.Must(m.Int64Counter("web.frontend_analytics.requests_total",
 				metric.WithDescription("Total POST /api/v1/analytics/events requests (label audience)"),
 			)),
-			successes: mustCounter(m.Int64Counter("web.frontend_analytics.successes_total",
+			successes: telemetry.Must(m.Int64Counter("web.frontend_analytics.successes_total",
 				metric.WithDescription("Successful POST /api/v1/analytics/events requests (label audience)"),
 			)),
-			events: mustCounter(m.Int64Counter("web.frontend_events_total",
+			events: telemetry.Must(m.Int64Counter("web.frontend_events_total",
 				metric.WithDescription("Product events submitted from the web app (allowlisted event keys; audience is authenticated vs anonymous only)"),
 			)),
-			jobCreates: mustCounter(m.Int64Counter("web.frontend_job_creates_total",
+			jobCreates: telemetry.Must(m.Int64Counter("web.frontend_job_creates_total",
 				metric.WithDescription("Jobs created from the web app by output item type ID (EVE type_id); audience is authenticated vs anonymous only"),
 			)),
-			itemTreeViews: mustCounter(m.Int64Counter("web.frontend_item_tree_item_views_total",
+			itemTreeViews: telemetry.Must(m.Int64Counter("web.frontend_item_tree_item_views_total",
 				metric.WithDescription("Item tree item views from the web app by item type ID (EVE type_id); audience is authenticated vs anonymous only"),
 			)),
-			invalidEvents: mustCounter(m.Int64Counter("web.frontend_analytics_invalid_total",
+			invalidEvents: telemetry.Must(m.Int64Counter("web.frontend_analytics_invalid_total",
 				metric.WithDescription("Rejected analytics event requests by reason and audience"),
 			)),
 		}

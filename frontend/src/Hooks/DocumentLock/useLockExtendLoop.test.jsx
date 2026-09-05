@@ -1,16 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { DOCUMENT_LOCK_RENEW_REQUEST_EVENT } from "../../Functions/DocumentLock/documentLockEvents.js";
-import { extendDocumentLock } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+import { extendDocumentLock } from "../../Functions/Endpoints/Private/documentLockClient.js";
 import { useLockExtendLoop } from "./useLockExtendLoop.js";
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   extendDocumentLock: vi.fn(),
 }));
 
 describe("useLockExtendLoop", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     extendDocumentLock.mockResolvedValue({
       ok: true,
       status: 200,

@@ -20,7 +20,7 @@ import {
 } from "../../Functions/Helper/blueprintFiltering";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
-import BlueprintArchiveDialog from "../Dialogues/Blueprint Archive";
+import BlueprintArchiveDialogue from "../Dialogues/Blueprint Archive";
 
 export default function BlueprintLibrary() {
   const enableCompactView = useUsersStore(
@@ -32,7 +32,7 @@ export default function BlueprintLibrary() {
 
   const { data: itemList } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
 
-  // Initialize URL params with defaults if they don't exist
+  // Initialise URL params with defaults if they don't exist
   useEffect(() => {
     const hasParams = search && Object.keys(search).length > 0;
     if (!hasParams) {
@@ -228,7 +228,7 @@ export default function BlueprintLibrary() {
           </Grid>
         </Box>
       </DefaultPageLayout>
-      <BlueprintArchiveDialog />
+      <BlueprintArchiveDialogue />
     </>
   );
 }

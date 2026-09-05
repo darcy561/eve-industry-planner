@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"maps"
 	"net"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/orchestrationprobes"
 )
 
@@ -96,7 +96,7 @@ func (b *backendRegistry) pollLoop(ctx context.Context) {
 func (b *backendRegistry) refresh(ctx context.Context) {
 	running, err := b.fetchRunning(ctx)
 	if err != nil {
-		log.Printf("backend refresh: %v", err)
+		logs.WarnCtx(ctx, "ws-router: backend refresh failed", "error", err)
 		return
 	}
 	ready := b.filterProbeReady(ctx, running)
@@ -331,7 +331,7 @@ func (b *backendRegistry) dockerGET(ctx context.Context, path string) ([]byte, e
 func firstIP(addresses [][]string) string {
 	for _, group := range addresses {
 		for _, addr := range group {
-			raw := strings.Split(addr, "/")[0]
+			raw, _, _ := strings.Cut(addr, "/")
 			if ip := net.ParseIP(raw); ip != nil {
 				return ip.String()
 			}

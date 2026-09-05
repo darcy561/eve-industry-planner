@@ -14,7 +14,7 @@ import KeyboardDoubleArrowRightOutlinedIcon from "@mui/icons-material/KeyboardDo
 import KeyboardDoubleArrowLeftOutlinedIcon from "@mui/icons-material/KeyboardDoubleArrowLeftOutlined";
 import { SidemenuButtonTemplate_Default } from "./defaultButtonTemplate";
 
-function LeftCollapseableMenuDrawer({
+function LeftCollapsibleMenuDrawer({
   inputDrawerButtons,
   AlternativeButtonTemplate,
 }) {
@@ -153,4 +153,4 @@ function LeftCollapseableMenuDrawer({
   );
 }
 
-export default memo(LeftCollapseableMenuDrawer);
+export default memo(LeftCollapsibleMenuDrawer);

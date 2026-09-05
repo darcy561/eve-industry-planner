@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // wsProxyCopyBuf is the per-direction io.Copy buffer for upgraded WebSockets.
@@ -37,7 +40,7 @@ func isWebSocketUpgrade(req *http.Request) bool {
 	if !strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
 		return false
 	}
-	for _, v := range strings.Split(req.Header.Get("Connection"), ",") {
+	for v := range strings.SplitSeq(req.Header.Get("Connection"), ",") {
 		if strings.EqualFold(strings.TrimSpace(v), "upgrade") {
 			return true
 		}
@@ -86,6 +89,9 @@ func proxyWebSocketUpgrade(w http.ResponseWriter, req *http.Request, target *url
 	removeWSHopHeaders(outReq.Header)
 	outReq.Header.Set("Connection", "Upgrade")
 	outReq.Header.Set("Upgrade", "websocket")
+	// The clone still carries the caller's inbound traceparent, which would make the backend a
+	// sibling of this router rather than its child. Overwrite it with the routing span.
+	otel.GetTextMapPropagator().Inject(outReq.Context(), propagation.HeaderCarrier(outReq.Header))
 
 	if err := outReq.Write(backend); err != nil {
 		return fmt.Errorf("write backend request: %w", err)

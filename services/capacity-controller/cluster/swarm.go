@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/queuescale"
 	"fmt"
 	"os"
 	"strings"
@@ -12,13 +13,11 @@ import (
 	"github.com/hibiken/asynq"
 	swarmtypes "github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/client"
-	natslib "github.com/nats-io/nats.go"
 	redislib "github.com/redis/go-redis/v9"
 
 	"eve-industry-planner/capacity-controller/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
-	"eve-industry-planner/shared/tasks"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 const (
@@ -35,7 +34,7 @@ func CooldownRedisKey(svc Service) string {
 type SwarmOptions struct {
 	Docker *client.Client
 	Redis  *redislib.Client
-	NATS   *natslib.Conn
+	NATS   *eipnats.NATS
 	Asynq  *asynq.Inspector // optional; nil → QueueDepthKnown=false
 	Stack  string           // Swarm stack name prefix, e.g. "eip"
 	Cfg    func() config.Config
@@ -149,7 +148,7 @@ func (s *Swarm) loadCooldown(ctx context.Context, svc Service) CooldownState {
 	return cd
 }
 
-func (s *Swarm) observeService(ctx context.Context, svc Service, cfg config.Config, health []natscore.HealthStatus) (ServiceState, error) {
+func (s *Swarm) observeService(ctx context.Context, svc Service, cfg config.Config, health []eipnats.HealthStatus) (ServiceState, error) {
 	spec := cfg.Services[string(svc)]
 	ss := ServiceState{
 		Managed:         spec.CapacityControllerManaged,
@@ -161,7 +160,7 @@ func (s *Swarm) observeService(ctx context.Context, svc Service, cfg config.Conf
 		Cooldown:        s.loadCooldown(ctx, svc),
 	}
 	if svc == ServiceWorker {
-		ss.QueueScaleUpPct = tasks.MergeQueueScaleUpPendingPct(spec.QueueScaleUpPct)
+		ss.QueueScaleUpPct = queuescale.MergeQueueScaleUpPendingPct(spec.QueueScaleUpPct)
 	}
 
 	name := s.swarmServiceName(svc)
@@ -254,7 +253,7 @@ func (s *Swarm) stampPressure(svc Service, ss *ServiceState) {
 	case ServiceWorker:
 		if ss.QueueDepthKnown && ss.Concurrency > 0 && ss.Running > 0 {
 			slots := ss.Concurrency * ss.Running
-			if tasks.ScaleUpPressure(ss.QueuePending, slots, ss.QueueScaleUpPct) {
+			if queuescale.ScaleUpPressure(ss.QueuePending, slots, ss.QueueScaleUpPct) {
 				up = true
 			}
 		}
@@ -295,7 +294,7 @@ func (s *Swarm) linkAPIPressureFromWS(st *State) {
 		return
 	}
 	up, down := wsClientPressure(ws)
-	// Scale-down for api is plain Scale when underutilized (no WS drain gate).
+	// Scale-down for api is plain Scale when underutilised (no WS drain gate).
 	if !up && wsClientUnderutilized(ws) && api.DesiredReplicas > api.Min {
 		down = true
 	}
@@ -377,59 +376,19 @@ func (s *Swarm) applyPressure(svc Service, ss *ServiceState, now time.Time, up, 
 	}
 }
 
-func (s *Swarm) pingHealth(ctx context.Context) (map[string][]natscore.HealthStatus, error) {
-	out := map[string][]natscore.HealthStatus{}
-	if s.opts.NATS == nil || !s.opts.NATS.IsConnected() {
+func (s *Swarm) pingHealth(ctx context.Context) (map[string][]eipnats.HealthStatus, error) {
+	out := map[string][]eipnats.HealthStatus{}
+	if s.opts.NATS == nil || !s.opts.NATS.Connected() {
 		return out, nil
 	}
-	inbox := natslib.NewInbox()
-	sub, err := s.opts.NATS.SubscribeSync(inbox)
+	statuses, err := eipnats.GatherHealth(ctx, s.opts.NATS, "", healthPingWait)
 	if err != nil {
 		return out, err
 	}
-	defer func() { _ = sub.Unsubscribe() }()
-
-	payload, _ := json.Marshal(natscore.HealthPing{})
-	if err := s.opts.NATS.PublishRequest(natscore.SubjectHealthCommandPing, inbox, payload); err != nil {
-		return out, err
-	}
-
-	deadline := time.Now().Add(healthPingWait)
-	for time.Now().Before(deadline) {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			break
-		}
-		msg, err := sub.NextMsg(remaining)
-		if err != nil {
-			break
-		}
-		st, ok := decodeHealthStatus(msg.Data)
-		if !ok {
-			continue
-		}
+	for _, st := range statuses {
 		out[st.Role] = append(out[st.Role], st)
 	}
 	return out, nil
-}
-
-func decodeHealthStatus(data []byte) (natscore.HealthStatus, bool) {
-	var env natscore.Message
-	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
-		var st natscore.HealthStatus
-		if len(env.Data) == 0 {
-			return st, false
-		}
-		if err := json.Unmarshal(env.Data, &st); err != nil {
-			return st, false
-		}
-		return st, true
-	}
-	var st natscore.HealthStatus
-	if err := json.Unmarshal(data, &st); err != nil {
-		return st, false
-	}
-	return st, st.Role != ""
 }
 
 // Scale updates Swarm desired replicas for the service.
@@ -463,44 +422,27 @@ func (s *Swarm) Scale(ctx context.Context, svc Service, desired int) error {
 
 // Cordon soft-stops a websocket backend via NATS ws.command.cordon.
 func (s *Swarm) Cordon(ctx context.Context, containerID string) error {
-	return s.wsCommand(ctx, natscore.SubjectWSCommandCordon, containerID, 5*time.Second)
+	return s.wsCommand(ctx, eipnats.SubjectWSCommandCordon, containerID, 5*time.Second)
 }
 
 // Drain kicks clients on a websocket backend via NATS ws.command.drain.
 // Wait budget follows websocket PlannedDrain (lifecycle.AppStopGrace) plus NATS RTT slack.
 func (s *Swarm) Drain(ctx context.Context, containerID string) error {
-	return s.wsCommand(ctx, natscore.SubjectWSCommandDrain, containerID, lifecycle.AppStopGrace+5*time.Second)
+	return s.wsCommand(ctx, eipnats.SubjectWSCommandDrain, containerID, lifecycle.AppStopGrace+5*time.Second)
 }
 
 // Uncordon clears planned soft-stop via NATS ws.command.uncordon.
 func (s *Swarm) Uncordon(ctx context.Context, containerID string) error {
-	return s.wsCommand(ctx, natscore.SubjectWSCommandUncordon, containerID, 5*time.Second)
+	return s.wsCommand(ctx, eipnats.SubjectWSCommandUncordon, containerID, 5*time.Second)
 }
 
 func (s *Swarm) wsCommand(ctx context.Context, subject, containerID string, timeout time.Duration) error {
-	if s.opts.NATS == nil || !s.opts.NATS.IsConnected() {
+	if s.opts.NATS == nil || !s.opts.NATS.Connected() {
 		return fmt.Errorf("%s: nats not connected", subject)
 	}
-	containerID = strings.TrimSpace(containerID)
-	if containerID == "" {
-		return fmt.Errorf("%s: empty container_id", subject)
-	}
-	raw, err := json.Marshal(natscore.WSCommand{ContainerID: containerID})
+	ack, err := eipnats.RequestWSCommand(ctx, s.opts.NATS, subject, containerID, timeout)
 	if err != nil {
 		return err
-	}
-	if timeout <= 0 {
-		timeout = 5 * time.Second
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	msg, err := s.opts.NATS.RequestWithContext(reqCtx, subject, raw)
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", subject, containerID, err)
-	}
-	ack, ok := decodeWSCommandAck(msg.Data)
-	if !ok {
-		return fmt.Errorf("%s %s: bad ack", subject, containerID)
 	}
 	if !ack.OK {
 		if ack.Error != "" {
@@ -509,23 +451,4 @@ func (s *Swarm) wsCommand(ctx context.Context, subject, containerID string, time
 		return fmt.Errorf("%s %s: not ok", subject, containerID)
 	}
 	return nil
-}
-
-func decodeWSCommandAck(data []byte) (natscore.WSCommandAck, bool) {
-	var env natscore.Message
-	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
-		var ack natscore.WSCommandAck
-		if len(env.Data) == 0 {
-			return ack, false
-		}
-		if err := json.Unmarshal(env.Data, &ack); err != nil {
-			return ack, false
-		}
-		return ack, true
-	}
-	var ack natscore.WSCommandAck
-	if err := json.Unmarshal(data, &ack); err != nil {
-		return ack, false
-	}
-	return ack, true
 }

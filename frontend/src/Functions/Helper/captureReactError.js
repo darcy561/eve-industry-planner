@@ -1,5 +1,5 @@
 import { captureException } from "@sentry/react";
-import { openSentryCrashReportDialog } from "../../Events/crashReportEvents";
+import { openSentryCrashReportDialogue } from "../../Events/crashReportEvents";
 
 const CAPTURED_REACT_ERROR = Symbol.for("eip.sentry.reactErrorCaptured");
 
@@ -12,7 +12,7 @@ export const EIP_IN_APP_CRASH_PROMPT_TAG = "eip_in_app_crash_prompt";
  *
  * @param {unknown} error
  * @param {import("@sentry/core").CaptureContext} [context]
- * @param {{ showCrashReportPrompt?: boolean }} [options] Pass `{ showCrashReportPrompt: false }` to skip the in-app crash report dialog.
+ * @param {{ showCrashReportPrompt?: boolean }} [options] Pass `{ showCrashReportPrompt: false }` to skip the in-app crash report dialogue.
  */
 export function captureReactErrorOnce(error, context = {}, options = {}) {
   if (!error || !import.meta.env.SENTRY_DSN) {
@@ -55,12 +55,12 @@ export function captureReactErrorOnce(error, context = {}, options = {}) {
     // Defer past the current commit so error-boundary fallbacks paint first.
     queueMicrotask(() => {
       try {
-        openSentryCrashReportDialog({
+        openSentryCrashReportDialogue({
           eventId,
           hint: hint.slice(0, 500),
         });
       } catch (e) {
-        console.warn("openSentryCrashReportDialog failed:", e);
+        console.warn("openSentryCrashReportDialogue failed:", e);
       }
     });
   }

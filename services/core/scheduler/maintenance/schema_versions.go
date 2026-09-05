@@ -3,71 +3,45 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
 	"fmt"
 	"strconv"
 
 	"eve-industry-planner/core/scheduler/contract"
-	eipmongo "eve-industry-planner/shared/mongo"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 const (
-	schedulerLogComponent                = "scheduler.maintenance"
-	cronSchemaVersionMaintenanceName     = "cron.schemaVersionMaintenance"
-	cronSchemaVersionMaintenanceSchedule = "0 * * * *"
-	schemaMaintenanceRedisKey            = "scheduler:maintenance:schema_version_collection_index"
-	defaultSchemaMaintenanceBatchSize    = 50
+	schedulerLogComponent             = "scheduler.maintenance"
+	schemaMaintenanceRedisKey         = "scheduler:maintenance:schema_version_collection_index"
+	defaultSchemaMaintenanceBatchSize = 200
 )
 
-var schemaMaintenanceCollections = []string{
-	eipmongo.CollectionUsers,
-	eipmongo.CollectionApplicationSettings,
-	eipmongo.CollectionUserJobDocuments,
-	eipmongo.CollectionUserJobGroups,
-}
+var schemaMaintenanceCollections = eipmongo.SchemaMaintainedCollections()
 
 // ScheduleSchemaVersionMaintenance schedules a low-frequency maintenance task that
 // upgrades legacy schema versions in small batches. It rotates one collection per run
 // to avoid touching all collections on every tick.
-func ScheduleSchemaVersionMaintenance(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	task := taskscore.SchemaVersionMaintenanceBatch
-	sched.RegisterHandler(cronSchemaVersionMaintenanceName, func(ctx context.Context, data json.RawMessage) error {
+func SchemaVersionMaintenance(deps contract.Dependencies, jobName string) contract.TaskHandler {
+	return func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		collection, err := nextSchemaMaintenanceCollection(ctx, deps)
 		if err != nil {
 			logs.ErrorCtx(ctx, "schema maintenance: failed to resolve next collection", "component", schedulerLogComponent, "error", err)
 			return err
 		}
-		payload := natscore.SchemaVersionMaintenanceBatchRequest{
-			Collection: collection,
-			BatchSize:  defaultSchemaMaintenanceBatchSize,
-		}
-		if err := natscore.PublishTask(
-			ctx,
-			deps.JSContext,
-			task.Subject,
-			task.Name,
-			payload,
-			deps.NATS,
-			task.DefaultPriority,
-		); err != nil {
-			logs.ErrorCtx(ctx, "schema maintenance: failed to publish task", "component", schedulerLogComponent, "subject", task.Subject, "collection", collection, "error", err)
+		if err := eipnats.PublishSchemaVersionMaintenanceBatch(ctx, deps.NATS, collection, defaultSchemaMaintenanceBatchSize); err != nil {
+			logs.ErrorCtx(ctx, "schema maintenance: failed to publish task", "component", schedulerLogComponent, "collection", collection, "error", err)
 			return err
 		}
 		logs.InfoCtx(ctx, "schema maintenance task queued",
 			"component", schedulerLogComponent,
-			"subject", task.Subject,
 			"collection", collection,
-			"batch_size", payload.BatchSize,
+			"batch_size", defaultSchemaMaintenanceBatchSize,
 		)
 		return nil
-	})
-	if err := sched.ScheduleCronJob(cronSchemaVersionMaintenanceSchedule, cronSchemaVersionMaintenanceName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }
 
 func nextSchemaMaintenanceCollection(ctx context.Context, deps contract.Dependencies) (string, error) {

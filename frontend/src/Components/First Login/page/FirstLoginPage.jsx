@@ -16,7 +16,7 @@ import DefaultPageLayout from "../../../Styled Components/defaultPageLayout";
 import {
   flushPendingUserDocumentSaves,
 } from "../../../Functions/Debounce/userDocumentsPersistSchedule";
-import { saveUserAccountDocument } from "../../../Functions/Endpoints/Pirivate/userDocument";
+import { saveUserAccountDocument } from "../../../Functions/Endpoints/Private/userDocument";
 import { LoadingBrandBackdrop } from "../../loadingBrand";
 import { FIRST_LOGIN_STEPS } from "./firstLoginConstants";
 import { FirstLoginWelcomeBanner } from "../welcome/FirstLoginWelcomeBanner";

@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -25,34 +25,12 @@ import (
 
 const apiLiveScratchAccount = "eip-api-live-account"
 
-func requireLiveMongo(t *testing.T) *eipmongo.Mongo {
-	t.Helper()
-	if os.Getenv("EIP_MONGO_PARITY_LIVE") != "1" {
-		t.Skip("set EIP_MONGO_PARITY_LIVE=1 to run against stack Mongo")
-	}
-	m, err := eipmongo.ConnectPrimary()
-	if err != nil {
-		t.Fatalf("ConnectPrimary: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		m.Disconnect(ctx)
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if err := m.Ping(ctx); err != nil {
-		t.Fatalf("ping: %v", err)
-	}
-	return m
-}
-
 func cleanupAPILiveAccount(t *testing.T, m *eipmongo.Mongo) {
 	t.Helper()
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		accountFilter := bson.M{"_meta.accountID": apiLiveScratchAccount}
+		accountFilter := bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: apiLiveScratchAccount}
 		idFilter := bson.M{"_id": apiLiveScratchAccount}
 		_, _ = m.JobDocuments.Collection().DeleteMany(ctx, accountFilter)
 		_, _ = m.Groups.Collection().DeleteMany(ctx, accountFilter)
@@ -63,7 +41,7 @@ func cleanupAPILiveAccount(t *testing.T, m *eipmongo.Mongo) {
 }
 
 func TestLive_ResolveUserDocumentsForLogin(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -80,26 +58,26 @@ func TestLive_ResolveUserDocumentsForLogin(t *testing.T) {
 	if !first.FirstLogin {
 		t.Fatalf("expected FirstLogin=true on empty account")
 	}
-	if first.User.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("user accountID: got %q", first.User.MetaData.AccountID)
+	if first.User.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("user accountID: got %q", first.User.MetaData.Owner.ID)
 	}
-	if first.Settings.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("settings accountID: got %q", first.Settings.MetaData.AccountID)
+	if first.Settings.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("settings accountID: got %q", first.Settings.MetaData.Owner.ID)
 	}
 
 	loadedUser, err := m.LoadUserAccount(ctx, apiLiveScratchAccount)
 	if err != nil {
 		t.Fatalf("LoadUserAccount after first login: %v", err)
 	}
-	if loadedUser.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("persisted user accountID: got %q", loadedUser.MetaData.AccountID)
+	if loadedUser.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("persisted user accountID: got %q", loadedUser.MetaData.Owner.ID)
 	}
 	loadedSettings, err := m.LoadApplicationSettings(ctx, apiLiveScratchAccount, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("LoadApplicationSettings after first login: %v", err)
 	}
-	if loadedSettings.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("persisted settings accountID: got %q", loadedSettings.MetaData.AccountID)
+	if loadedSettings.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("persisted settings accountID: got %q", loadedSettings.MetaData.Owner.ID)
 	}
 
 	firstLoginAt := first.User.MetaData.LastLoginAt
@@ -118,7 +96,7 @@ func TestLive_ResolveUserDocumentsForLogin(t *testing.T) {
 }
 
 func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -146,8 +124,8 @@ func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
 	if got.JobID != job.JobID || got.Name != job.Name {
 		t.Fatalf("loaded job mismatch: id=%q name=%q", got.JobID, got.Name)
 	}
-	if got.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("loaded accountID: got %q", got.MetaData.AccountID)
+	if got.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("loaded accountID: got %q", got.MetaData.Owner.ID)
 	}
 	if got.MetaData.LastUpdatedBy != apiLiveScratchAccount {
 		t.Fatalf("loaded lastUpdatedBy: got %q", got.MetaData.LastUpdatedBy)
@@ -167,7 +145,7 @@ func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
 }
 
 func TestLive_GroupsPutGetFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -191,8 +169,8 @@ func TestLive_GroupsPutGetFlow(t *testing.T) {
 	if got.GroupID != group.GroupID || got.GroupName != group.GroupName {
 		t.Fatalf("loaded group mismatch: id=%q name=%q", got.GroupID, got.GroupName)
 	}
-	if got.MetaData.AccountID != apiLiveScratchAccount {
-		t.Fatalf("loaded accountID: got %q", got.MetaData.AccountID)
+	if got.MetaData.Owner.ID != apiLiveScratchAccount {
+		t.Fatalf("loaded accountID: got %q", got.MetaData.Owner.ID)
 	}
 	if got.MetaData.SessionID != "api-live-sess" || got.MetaData.ClientID != "api-live-client" {
 		t.Fatalf("session/client meta: sess=%q client=%q", got.MetaData.SessionID, got.MetaData.ClientID)
@@ -200,7 +178,7 @@ func TestLive_GroupsPutGetFlow(t *testing.T) {
 }
 
 func TestLive_UserAndSettingsUpsertReload(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -261,7 +239,7 @@ func TestLive_UserAndSettingsUpsertReload(t *testing.T) {
 }
 
 func TestLive_WatchlistPutGetFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -290,8 +268,9 @@ func TestLive_WatchlistPutGetFlow(t *testing.T) {
 	if !ok {
 		t.Fatalf("watchlist _meta type: %T", raw["_meta"])
 	}
-	if meta["accountID"] != apiLiveScratchAccount {
-		t.Fatalf("watchlist accountID: got %#v", meta["accountID"])
+	owner, _ := meta["owner"].(bson.M)
+	if got, _ := owner["id"].(string); got != apiLiveScratchAccount {
+		t.Fatalf("watchlist _meta.owner.id: got %#v", meta["owner"])
 	}
 	if meta["sessionID"] != "api-live-sess" || meta["clientID"] != "api-live-client" {
 		t.Fatalf("watchlist session/client: %#v / %#v", meta["sessionID"], meta["clientID"])
@@ -305,7 +284,7 @@ func TestLive_WatchlistPutGetFlow(t *testing.T) {
 }
 
 func TestLive_JobDocumentsDeleteFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -318,8 +297,9 @@ func TestLive_JobDocumentsDeleteFlow(t *testing.T) {
 	}
 
 	filter := bson.M{
-		"_meta.accountID": apiLiveScratchAccount,
-		"_id":             bson.M{"$in": []string{job.JobID}},
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount,
+		eipmongo.FieldMetaOwnerID:   apiLiveScratchAccount,
+		"_id":                       bson.M{"$in": []string{job.JobID}},
 	}
 	deleted, err := m.JobDocuments.DeleteManyAfterStampingMeta(ctx, filter, now, "api-live-sess", "api-live-client",
 		eipmongo.WithOpName("api live delete job documents"))
@@ -339,7 +319,7 @@ func TestLive_JobDocumentsDeleteFlow(t *testing.T) {
 }
 
 func TestLive_GroupsDeleteFlow(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -352,8 +332,9 @@ func TestLive_GroupsDeleteFlow(t *testing.T) {
 	}
 
 	filter := bson.M{
-		"_meta.accountID": apiLiveScratchAccount,
-		"_id":             bson.M{"$in": []string{group.GroupID}},
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount,
+		eipmongo.FieldMetaOwnerID:   apiLiveScratchAccount,
+		"_id":                       bson.M{"$in": []string{group.GroupID}},
 	}
 	deleted, err := m.Groups.DeleteManyAfterStampingMeta(ctx, filter, now, "api-live-sess", "api-live-client",
 		eipmongo.WithOpName("api live delete groups"))
@@ -373,7 +354,7 @@ func TestLive_GroupsDeleteFlow(t *testing.T) {
 }
 
 func TestLive_JobsGroupsListFlows(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -392,8 +373,9 @@ func TestLive_JobsGroupsListFlows(t *testing.T) {
 	}
 
 	byIDs, err := m.JobDocuments.LoadJobsByFilter(ctx, apiLiveScratchAccount, bson.M{
-		"_meta.accountID": apiLiveScratchAccount,
-		"_id":             bson.M{"$in": []string{jobA.JobID, jobB.JobID}},
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount,
+		eipmongo.FieldMetaOwnerID:   apiLiveScratchAccount,
+		"_id":                       bson.M{"$in": []string{jobA.JobID, jobB.JobID}},
 	})
 	if err != nil {
 		t.Fatalf("LoadJobsByFilter: %v", err)
@@ -419,7 +401,7 @@ func TestLive_JobsGroupsListFlows(t *testing.T) {
 }
 
 func TestLive_GroupsMembershipDelta(t *testing.T) {
-	m := requireLiveMongo(t)
+	m := mongolive.Require(t)
 	cleanupAPILiveAccount(t, m)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -473,9 +455,6 @@ func scratchJob(jobID, name string) models.Job {
 		Name:             name,
 		ItemID:           34,
 		DisplayOnPlanner: true,
-		APIJobs:          []int{},
-		APIOrders:        []int{},
-		APITransactions:  []int{},
 		ParentJobs:       []string{},
 		Build: models.JobBuild{
 			Setup:     map[string]models.JobSetup{},
@@ -484,7 +463,7 @@ func scratchJob(jobID, name string) models.Job {
 		},
 		Skills: []models.Skill{},
 		MetaData: models.JobMetaData{
-			MetaData: models.MetaData{AccountID: apiLiveScratchAccount},
+			MetaData: models.MetaData{Owner: models.AccountOwner(apiLiveScratchAccount)},
 		},
 	}
 }
@@ -501,7 +480,7 @@ func scratchGroup(groupID, name string) models.Group {
 		LinkedOrderIDs:  []int64{},
 		LinkedTransIDs:  []int64{},
 		MetaData: models.GroupMetaData{
-			MetaData: models.MetaData{AccountID: apiLiveScratchAccount},
+			MetaData: models.MetaData{Owner: models.AccountOwner(apiLiveScratchAccount)},
 		},
 	}
 }

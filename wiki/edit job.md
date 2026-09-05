@@ -49,6 +49,6 @@ Jobs move through the following stages:
 ## Related Documentation
 
 - [Job Planner](job%20planner) - Overview of all jobs
-- [Groups](groups) - Organizing related jobs
+- [Groups](groups) - Organising related jobs
 - [Blueprint Library](blueprint%20library) - Managing blueprints
 

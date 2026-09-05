@@ -55,11 +55,11 @@ func StatusBatchResults(ctx context.Context, rdb *redis.Client, accountID string
 		return nil, nil, ErrStatusBatchTooMany
 	}
 
-	jobResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, eipmongo.CollectionUserJobDocuments, jobDocIDs)
+	jobResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, eipmongo.CollectionJobDocuments, jobDocIDs)
 	if err != nil {
 		return nil, nil, err
 	}
-	groupResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, eipmongo.CollectionUserJobGroups, groupDocIDs)
+	groupResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, eipmongo.CollectionJobGroups, groupDocIDs)
 	if err != nil {
 		return nil, nil, err
 	}

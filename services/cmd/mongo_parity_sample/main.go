@@ -63,16 +63,16 @@ func run() error {
 	}
 
 	collections := []string{
-		eipmongo.CollectionUserJobDocuments,
-		eipmongo.CollectionUserJobGroups,
+		eipmongo.CollectionJobDocuments,
+		eipmongo.CollectionJobGroups,
 		eipmongo.CollectionArchivedJobs,
-		eipmongo.CollectionBuildStats,
-		eipmongo.CollectionUserGroupTemplateCatalog,
-		eipmongo.CollectionUserGroupTemplatePayloads,
-		eipmongo.CollectionApplicationSettings,
-		eipmongo.CollectionUsers,
-		eipmongo.CollectionBlueprints,
-		eipmongo.CollectionCitadelNames,
+		eipmongo.CollectionStatisticsTotals,
+		eipmongo.CollectionGroupTemplateCatalog,
+		eipmongo.CollectionGroupTemplatePayloads,
+		eipmongo.CollectionAccountSettings,
+		eipmongo.CollectionAccounts,
+		eipmongo.CollectionSharedBlueprints,
+		eipmongo.CollectionSharedCitadelNames,
 	}
 
 	manifest := map[string]any{

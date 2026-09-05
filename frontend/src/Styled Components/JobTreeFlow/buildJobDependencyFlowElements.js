@@ -152,7 +152,7 @@ function assignEdgeRungYAvoidingNodes(nodes, edges, nodeW, nodeH) {
 }
 
 /**
- * Builds React Flow nodes and edges from jobs that expose `getAllChildJobs` / `getParentJobIds`.
+ * Builds React Flow nodes and edges from jobs that expose `childJobIDs` / `parentJobIDs`.
  *
  * @param {import("../../Classes/job").default[]} jobs
  * @param {ReadonlySet<string> | Set<string> | null | undefined} completeJobIds — optional “marked complete” ids
@@ -194,13 +194,13 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
   }
 
   for (const parentJob of jobs) {
-    for (const rawChildId of parentJob.getAllChildJobs()) {
+    for (const rawChildId of parentJob.childJobIDs) {
       addChildParentEdge(String(rawChildId), parentJob.jobID);
     }
   }
 
   for (const job of jobs) {
-    for (const pid of job.getParentJobIds()) {
+    for (const pid of job.parentJobIDs) {
       addChildParentEdge(job.jobID, String(pid));
     }
   }
@@ -219,7 +219,7 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
     guard += 1;
     for (const job of jobs) {
       const parents = job
-        .getParentJobIds()
+        .parentJobIDs
         .filter((p) => ids.has(p));
       if (parents.length === 0) continue;
       const next =
@@ -254,11 +254,8 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
     const startX = -rowW / 2;
     row.forEach((job, i) => {
       const { x: nx, y: ny } = positionNudge(job.jobID, i, lv);
-      const esiCount =
-        job.apiJobs && typeof job.apiJobs.size === "number"
-          ? job.apiJobs.size
-          : 0;
-      const readyToBuild = job.isJobTreeReadyToStartIndicator();
+      const esiCount = job.esiJobIDs.size;
+      const readyToBuild = job.isReadyToStart;
       rowNodes.push({
         id: job.jobID,
         type: "jobDependency",
@@ -303,21 +300,21 @@ export function relatedJobIdsInJobTree(emphasisId, jobs) {
   const rel = new Set([eid]);
   if (!focal) return rel;
 
-  for (const pid of focal.getParentJobIds()) {
+  for (const pid of focal.parentJobIDs) {
     const p = String(pid);
     if (idSet.has(p)) rel.add(p);
   }
-  for (const cid of focal.getAllChildJobs()) {
+  for (const cid of focal.childJobIDs) {
     const c = String(cid);
     if (idSet.has(c)) rel.add(c);
   }
   for (const j of jobs) {
     const jid = String(j.jobID);
-    const children = j.getAllChildJobs().map(String);
+    const children = j.childJobIDs.map(String);
     if (children.includes(eid)) {
       rel.add(jid);
     }
-    const parents = j.getParentJobIds().map(String);
+    const parents = j.parentJobIDs.map(String);
     if (parents.includes(eid)) {
       rel.add(jid);
     }

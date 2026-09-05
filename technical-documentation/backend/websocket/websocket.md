@@ -138,4 +138,4 @@ Traefik does not LB this service directly.
 
 ## Ops soak (optional)
 
-Against a live stack: `services/testing/ws_soak` — `hold` (reconnect endurance), `limits` / `pressure` (soft/full + divert after temporarily lowering synced thresholds), `fanout` (phased connect then JetStream → WS exact delivery; default via Traefik `/ws`). Place observation uses `connected.container_id` + NATS soft/full — not Redis placement keys. Not a substitute for unit/integration tests. How to run / read reports → [testing/services/websocket.md](../../testing/services/websocket.md) + [testing/harness.md](../../testing/harness.md).
+Against a live stack: `testing/ws_soak` — `hold` (reconnect endurance), `limits` / `pressure` (soft/full + divert after temporarily lowering synced thresholds), `fanout` (phased connect then JetStream → WS exact delivery; default via Traefik `/ws`). Place observation uses `connected.container_id` + NATS soft/full — not Redis placement keys. Not a substitute for unit/integration tests. How to run / read reports → [testing/services/websocket.md](../../testing/services/websocket.md) + [testing/harness.md](../../testing/harness.md).

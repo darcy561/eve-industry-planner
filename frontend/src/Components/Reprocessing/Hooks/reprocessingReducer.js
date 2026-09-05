@@ -1,22 +1,10 @@
 /**
  * Reprocessing Reducer for EVE Industry Planner.
- * 
- * Manages state transitions for the reprocessing page component, handling actions
- * for reprocessing calculations, skill management, structure configuration, market
- * settings, and ore filtering. This reducer provides centralized state management
- * for complex reprocessing operations.
- * 
- * @fileoverview Reducer for reprocessing page state management
- * @author EVE Industry Planner Team
  */
 
 /**
  * Action types for the reprocessing reducer.
- * 
- * Defines all possible action types that can be dispatched to modify
- * the reprocessing page state. Each action type corresponds to a specific
- * reprocessing operation or configuration change.
- * 
+ *
  * @constant {Object} REPROCESSING_ACTION_TYPES
  * @property {string} SET_REPROCESSING_OBJECTS - Set reprocessing calculation results
  * @property {string} SET_PROCESSED_INPUT - Set processed input data
@@ -66,12 +54,7 @@ export const REPROCESSING_ACTION_TYPES = {
 
 /**
  * Reducer function for managing reprocessing page state.
- * 
- * Handles state transitions based on action types, providing immutable
- * state updates for the reprocessing page component. Manages complex
- * reprocessing calculations, skill management, structure configuration,
- * market settings, and ore filtering operations.
- * 
+ *
  * @param {Object} state - Current state object
  * @param {Array} state.reprocessingObjects - Reprocessing calculation results
  * @param {Array} state.processedInput - Processed input data
@@ -94,12 +77,6 @@ export const REPROCESSING_ACTION_TYPES = {
  * @param {string} action.type - Action type from REPROCESSING_ACTION_TYPES
  * @param {*} [action.payload] - Action payload data
  * @returns {Object} New state object
- * 
- * @example
- * const newState = reprocessingReducer(currentState, {
- *   type: REPROCESSING_ACTION_TYPES.SET_SINGLE_SKILL,
- *   payload: { id: 3385, level: 5 }
- * });
  */
 export function reprocessingReducer(state, action) {
   switch (action.type) {

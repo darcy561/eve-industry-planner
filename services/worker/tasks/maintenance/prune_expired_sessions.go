@@ -5,17 +5,15 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/taskrun"
 
 	"eve-industry-planner/shared/logs"
-
-	"github.com/hibiken/asynq"
 )
 
 // PruneExpiredAccountSessions runs auth session maintenance: prune expired rows in
 // account_sessions, remove orphan session_index keys, and revoke refresh_token rows
 // whose session_id is missing from account_sessions.
-func PruneExpiredAccountSessions(ctx context.Context, _ *asynq.Task, deps *esitasks.TaskDependencies) error {
+func PruneExpiredAccountSessions(ctx context.Context, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Redis == nil {
 		return nil
 	}

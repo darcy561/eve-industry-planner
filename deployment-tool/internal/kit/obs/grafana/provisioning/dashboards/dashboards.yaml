@@ -5,12 +5,13 @@ providers:
     orgId: 1
     folder: ""
     type: file
-    # Source of truth is Git; file is re-applied every updateIntervalSeconds. allowUiUpdates must be
-    # true or Grafana often ignores provisioned auto-refresh (refresh stays Off until you pick 15s).
+    # The file is the source of truth and is re-read every updateIntervalSeconds. allowUiUpdates
+    # must stay false: with it on, Grafana keeps its own database copy and a changed file no longer
+    # reaches the dashboard.
     disableDeletion: true
-    editable: true
+    editable: false
     updateIntervalSeconds: 15
-    allowUiUpdates: true
+    allowUiUpdates: false
     options:
       # Swarm configs mount each file under provisioning/ (bytes from eip embed).
       path: /etc/grafana/provisioning/dashboards/definitions

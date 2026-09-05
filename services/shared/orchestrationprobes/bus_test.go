@@ -1,32 +1,28 @@
 package orchestrationprobes
 
 import (
-	"encoding/json"
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
-func TestParseHealthPingRole(t *testing.T) {
+// A ping naming another role is not this replica's to answer; an unnamed one is.
+func TestHealthStatusAnswersOwnRoleOnly(t *testing.T) {
 	t.Parallel()
-	role, ok := parseHealthPingRole(nil)
-	if !ok || role != "" {
-		t.Fatalf("nil: role=%q ok=%v", role, ok)
+	opts := BusOptions{Role: "worker", InstanceID: "w1"}
+
+	if _, answer := healthStatus(opts, eipnats.HealthPing{Role: "api"}); answer {
+		t.Fatal("answered a ping aimed at another role")
 	}
-	role, ok = parseHealthPingRole([]byte(`{"role":"api"}`))
-	if !ok || role != "api" {
-		t.Fatalf("raw: role=%q ok=%v", role, ok)
+	status, answer := healthStatus(opts, eipnats.HealthPing{})
+	if !answer {
+		t.Fatal("did not answer an unnamed ping")
 	}
-	env, err := json.Marshal(natscore.Message{
-		Type: natscore.MessageTypeHealth,
-		Data: []byte(`{"role":"worker"}`),
-	})
-	if err != nil {
-		t.Fatal(err)
+	if status.Role != "worker" || status.InstanceID != "w1" {
+		t.Fatalf("status=%+v", status)
 	}
-	role, ok = parseHealthPingRole(env)
-	if !ok || role != "worker" {
-		t.Fatalf("envelope: role=%q ok=%v", role, ok)
+	if status.Ready || status.Error == "" {
+		t.Fatalf("a bus with no ready check must report not ready: %+v", status)
 	}
 }
 

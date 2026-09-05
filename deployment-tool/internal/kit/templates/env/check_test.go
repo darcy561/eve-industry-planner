@@ -9,7 +9,7 @@ import (
 	"eve-industry-planner/deployment-tool/internal/kit"
 )
 
-func fillEVEOperatorSSO(t *testing.T, home string) {
+func fillOperatorRequired(t *testing.T, home string) {
 	t.Helper()
 	path := filepath.Join(home, kit.EnvFile)
 	m, err := kit.Map(path)
@@ -19,6 +19,7 @@ func fillEVEOperatorSSO(t *testing.T, home string) {
 	m["EVE_CLIENT_ID"] = "test-eve-client-id"
 	m["EVE_CLIENT_SECRET"] = "test-eve-client-secret"
 	m["EVE_CALLBACK_URL"] = "https://example.com/auth/callback"
+	m["EIP_ALLOWED_ORIGINS"] = "https://example.com"
 	if err := EmitEnvOpts(path, m, EmitOpts{SkipBackup: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +41,7 @@ func TestCheckUsableAfterWriteMissing(t *testing.T) {
 	if _, err := WriteMissing(home); err != nil {
 		t.Fatal(err)
 	}
-	fillEVEOperatorSSO(t, home)
+	fillOperatorRequired(t, home)
 	if err := CheckUsable(home); err != nil {
 		t.Fatal(err)
 	}
@@ -57,6 +58,8 @@ func TestCheckUsableRejectsLegacyEVEPlaceholders(t *testing.T) {
 		t.Fatal(err)
 	}
 	maps.Copy(m, rejectedPlaceholders)
+	// Set so the placeholder check is what fails, not the required-keys check.
+	m["EIP_ALLOWED_ORIGINS"] = "https://example.com"
 	if err := EmitEnvOpts(path, m, EmitOpts{SkipBackup: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +74,7 @@ func TestCheckUsableRejectsSentinel(t *testing.T) {
 	if _, err := WriteMissing(home); err != nil {
 		t.Fatal(err)
 	}
-	fillEVEOperatorSSO(t, home)
+	fillOperatorRequired(t, home)
 	path := filepath.Join(home, kit.EnvFile)
 	m, err := kit.Map(path)
 	if err != nil {
@@ -92,7 +95,7 @@ func TestCheckUsableRejectsBadLegacyJSON(t *testing.T) {
 	if _, err := WriteMissing(home); err != nil {
 		t.Fatal(err)
 	}
-	fillEVEOperatorSSO(t, home)
+	fillOperatorRequired(t, home)
 	path := filepath.Join(home, kit.EnvFile)
 	m, err := kit.Map(path)
 	if err != nil {
@@ -113,7 +116,7 @@ func TestCheckUsableSkipsPasswordStrength(t *testing.T) {
 	if _, err := WriteMissing(home); err != nil {
 		t.Fatal(err)
 	}
-	fillEVEOperatorSSO(t, home)
+	fillOperatorRequired(t, home)
 	path := filepath.Join(home, kit.EnvFile)
 	m, err := kit.Map(path)
 	if err != nil {

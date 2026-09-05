@@ -27,7 +27,7 @@ This README is the pointer; [interactions.md](./interactions.md) is the living l
 | What changed | Where to reflect it |
 |----------------|---------------------|
 | Org routing, `scopes`, `upgrade_scopes`, JWT org claims | [routing-and-scopes.md](./routing-and-scopes.md) + [implementation.md](./implementation.md) |
-| Behavior, paths, env vars, security rules | [implementation.md](./implementation.md) |
+| Behaviour, paths, env vars, security rules | [implementation.md](./implementation.md) |
 | Document lock HTTP routes and session-based identity semantics (`session_id`, `eip-document-lock`) | [implementation.md](./implementation.md) § Document locks; [interactions.md](./interactions.md) dated entry |
 | NATS subject prefixes (`doc.update`, `doc.lock`; legacy **`doc.subscribe`** / **`ws.doc.fanout`** / **`ws.doc.subscribe.fanout`** constants for decode/compat only) | [implementation.md](./implementation.md), contract table in [interactions.md](./interactions.md) |
 | **Docker / Traefik / Redis handoff / sticky `/ws`** | [implementation.md](./implementation.md) (**Deployment** + **Session resume**) |
@@ -61,7 +61,7 @@ This requirement is recorded in [interactions.md](./interactions.md) (dated entr
 - **Core:** Mongo change stream → **JetStream** `doc.update.{collection}.{docID}` with `ChangeStreamMessage` JSON (`accountID`, `sourceClientID`, …).
 - **Websocket:** JWT upgrade registers the connection for **account-scoped** delivery and stores **JWT org ceilings**; each replica consumes **`doc.update.>`** via **per-replica JetStream durable** → **`deliverOutboundDocUpdate`** (account path, then **corp/alliance pools** + optional **`scopes`**, then explicit-doc fallback). Browser **`upgrade_scopes`** joins org pools (see [routing-and-scopes.md](./routing-and-scopes.md)). Document locks unchanged (**JetStream** `doc.lock.>`). Optional explicit browser **`subscribe`** / **`subscribe_ack`** when the UI needs docs that are not account-scoped in the payload.
 - **API:** Shared internal JWT with websocket; **no** NATS subscription-envelope publish—per-document interest is **WebSocket-only** where needed.
-- **Frontend:** Module singleton `RealtimeClient` (**no baseline subscribe** after connect), `useAccountWebSocket`, **`applyRemoteMessage`** for **`users`**, **`application_settings`**, **`user_job_groups`**, and **`user_job_documents`** (monotonic `realtimeSync` + `_meta.lastModified` guards; tie-break uses **strict `<` on cursor** so equal timestamps are not dropped), plus handlers under `Realtime/handlers/` and [`inboundJobDocumentsCoalesce.js`](../../../frontend/src/Functions/Debounce/inboundJobDocumentsCoalesce.js).
+- **Frontend:** Module singleton `RealtimeClient` (**no baseline subscribe** after connect), `useAccountWebSocket`, **`applyRemoteMessage`** for **`accounts`**, **`account_settings`**, **`account_job_groups`**, and **`account_job_documents`** (monotonic `realtimeSync` + `_meta.lastModified` guards; tie-break uses **strict `<` on cursor** so equal timestamps are not dropped), plus handlers under `Realtime/handlers/` and [`inboundJobDocumentsCoalesce.js`](../../../frontend/src/Functions/Debounce/inboundJobDocumentsCoalesce.js).
 
 ## Implemented in repo (summary)
 
@@ -71,7 +71,7 @@ This requirement is recorded in [interactions.md](./interactions.md) (dated entr
 | **JetStream live path** | Websocket consumes **`doc.update.>`** (`doc-live-updates-<suffix>`) so **every** replica receives every update; outbound routing in **`dispatch.go`**. **`doc.lock`** uses **`doc-lock-<suffix>`**. Legacy **`doc.subscribe`** subject constants exist in shared NATS code for compatibility only; **nothing publishes or consumes them.** Per-replica suffix aligns OTel **`ws_instance_id`**. |
 | **WS worker model** | Inbound client→Mongo still uses coordinator + per-`docID` mutex; outbound NATS→browser is direct send from dispatch. Sync still uses `pond`. |
 | **Explicit doc subscribe** | Browser **`subscribe`** / **`unsubscribe`** updates **`explicitDocIDs`** when a screen needs IDs not covered by account-scoped delivery. |
-| **Subscribe ACL** | Fail closed; `users`/`application_settings` by JWT; `jobs`/`user_job_documents`/`archivedJobs`/`groups`/`build_stats` via Mongo `_meta.accountID`. See [implementation.md](./implementation.md). |
+| **Subscribe ACL** | Fail closed; `accounts`/`account_settings` by JWT; `account_jobs`/`account_job_documents`/`account_archived_jobs`/`groups`/`account_production_totals` via Mongo `_meta.owner`. See [implementation.md](./implementation.md). |
 | **JWT lifecycle (client)** | Reconnect when `accessToken` changes; **`stashRealtimeSessionResumeHint`** + **`session_resume` / `resume_ack`** may skip baseline GETs on rotation; timer ~90s before `accessTokenEXP`; **no reconnect** while JWT is expired; signout disconnects without stashing. |
 | **Deployment (VPS)** | Compose **`websocket.replicas: 2`**; Traefik **sticky cookie `eip_ws_affinity`** on `/ws`; **Redis** keys `ws:session_handoff:v1:…` for cross-replica handoff. See [implementation.md](./implementation.md). |
 | **Observability** | Websocket OpenTelemetry metrics for upgrade requests/errors, active accounts/clients/docs, and document updates sent (see [implementation.md](./implementation.md)). |

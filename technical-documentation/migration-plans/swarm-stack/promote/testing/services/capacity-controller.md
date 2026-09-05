@@ -28,7 +28,7 @@ go test ./testing/capacity_soak/lib/
 |------|----------------------|
 | `policy` | Worker scale up/hold/down; per-priority pending % thresholds; managed kill-switch; per-service cooldown hold; worker cooldown does not block websocket; WS reserve scale-up; draining empty → scale; missing queue signal; api Scale linked to WS client load |
 | `executor` | Scale skips unmanaged; managed Scale records via `clusterfake` |
-| `executor` management sim | Underutilized WS: cordon → drain → scale via shared helpers (mirrors websocket loop) |
+| `executor` management sim | Underutilised WS: cordon → drain → scale via shared helpers (mirrors websocket loop) |
 | `config` | Load / Validate mirror of operator YAML keys |
 | `testing/capacity_soak/lib` | Profile parse; EffectiveReplicas prefers desired |
 
@@ -48,9 +48,9 @@ go test ./testing/capacity_soak/lib/
 
 ## Ops soak
 
-`services/testing/capacity_soak` (`main.go` + `lib` / `capsoak`) against `eip up` / `eip dev` with capacity-controller running and **`capacity_controller_managed: true`** for the role under test.
+`testing/capacity_soak` (`main.go` + `lib` / `capsoak`) against `eip up` / `eip dev` with capacity-controller running and **`capacity_controller_managed: true`** for the role under test.
 
-Shared: [`testing/harness`](../../../services/testing/harness) (NATS / poll / Asynq Redis). WS clients: soaklib `ProfileHold` with **`Accounts == Clients`** (one account per connection — avoids per-user session cap pile-up).
+Shared: [`testing/harness`](../../../testing/harness) (NATS / poll / Asynq Redis). WS clients: soaklib `ProfileHold` with **`Accounts == Clients`** (one account per connection — avoids per-user session cap pile-up).
 
 ### Prerequisites
 
@@ -102,13 +102,13 @@ Default `-ws-url` is `ws://traefik:80/ws`. Auto `-ramp` (~25ms/client) and `-min
 |-------|---------|
 | Scale-up | Effective replicas (prefer **desired**) ≥ `-want` while load held |
 | Scale-down | After load idle, effective replicas ≤ `-min` (cordon→drain→scale) |
-| Worker | Paused pending triggers up; unpause drains; down underutilized |
+| Worker | Paused pending triggers up; unpause drains; down underutilised |
 | Websocket | Live clients ≥ `-min-live` before up wait; idle (~0) before down wait |
 | Api | Same client wait; asserts **api** desired/running |
 
 **Ops evidence:** managed websocket `-phase all` scale-up + scale-down verified on live stack (use lowered demo `target_clients` for the run).
 
-Shared conventions → [../harness.md](../harness.md) § Capacity soak. CLI header → `services/testing/capacity_soak/main.go`. Behaviour → [stack capacity-controller](../../stack/capacity-controller.md).
+Shared conventions → [../harness.md](../harness.md) § Capacity soak. CLI header → `testing/capacity_soak/main.go`. Behaviour → [stack capacity-controller](../../stack/capacity-controller.md).
 
 ## Topic-only detail
 

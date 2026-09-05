@@ -7,15 +7,9 @@ const corporationBlueprintsQueryKey = "corporationBlueprints";
 
 /**
  * React Query configuration for fetching corporation blueprints from EVE ESI API.
- * 
+ *
  * This query handles corporation blueprint data fetching with:
- * - Pagination support for large corporation blueprint collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation blueprint data
- * - Error handling with descriptive messages
- * - Corporation ID tracking for data organization
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for corporation group
  * 2. Fetches corporation blueprints page by page until all data is retrieved
@@ -23,7 +17,7 @@ const corporationBlueprintsQueryKey = "corporationBlueprints";
  * 4. Returns data with corporation ID for identification
  * 5. Handles rate limiting errors with appropriate wait times
  * 6. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -35,13 +29,6 @@ const corporationBlueprintsQueryKey = "corporationBlueprints";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: corpBlueprints, isLoading, error } = useQuery(corporationBlueprintsQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading corporation blueprints...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Corporation Blueprints: {corpBlueprints.data.length} items for corp {corpBlueprints.corporation_id}</div>;
  */
 function corporationBlueprintsQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

@@ -9,8 +9,29 @@ import (
 	"eve-industry-planner/deployment-tool/internal/msg"
 )
 
+// ensureStep is one idempotent stage of Ensure, named for its log line.
+type ensureStep struct {
+	name string
+	run  func(ctx context.Context, cid string, c creds) error
+}
+
+// ensureSteps run in order.
+//
+// Renames must precede preimages and indexes: both of those create a collection
+// when the name is absent, so running either first leaves the rename facing a
+// name that now exists at both ends, which it refuses. Order is asserted by
+// TestEnsureStepsRenameBeforeCreators.
+var ensureSteps = []ensureStep{
+	{name: "replica set", run: ensureReplicaSet},
+	{name: "users", run: ensureUsers},
+	{name: "collection names", run: ensureRenames},
+	{name: "preimage collections", run: ensurePreimages},
+	{name: "retired indexes", run: dropRetiredIndexes},
+	{name: "indexes", run: ensureIndexes},
+}
+
 // Ensure brings a running mongo task to desired state (idempotent):
-// keyfile SoT, replica set, root + app users, preimage collections, indexes, then Check.
+// keyfile SoT, then each ensureStep in order, then Check.
 // Callers should use dataplane.EnsureMongo (Ready / eip ensure-mongo / init).
 // Index builds are not short-timeout'd — progress via msg; cancel via parent ctx.
 func Ensure(ctx context.Context, stackName string) error {
@@ -31,22 +52,12 @@ func Ensure(ctx context.Context, stackName string) error {
 	if err := waitPing(ctx, cid, c, 120*time.Second); err != nil {
 		return err
 	}
-	if err := ensureReplicaSet(ctx, cid, c); err != nil {
-		return err
+	for _, step := range ensureSteps {
+		if err := step.run(ctx, cid, c); err != nil {
+			return err
+		}
+		msg.Line(step.name + " ok")
 	}
-	msg.Line("replica set ok")
-	if err := ensureUsers(ctx, cid, c); err != nil {
-		return err
-	}
-	msg.Line("users ok")
-	if err := ensurePreimages(ctx, cid, c); err != nil {
-		return err
-	}
-	msg.Line("preimage collections ok")
-	if err := ensureIndexes(ctx, cid, c); err != nil {
-		return err
-	}
-	msg.Line("indexes ok")
 	if err := Check(ctx, stackName); err != nil {
 		return err
 	}

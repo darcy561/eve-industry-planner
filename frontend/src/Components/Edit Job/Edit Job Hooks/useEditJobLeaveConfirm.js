@@ -11,7 +11,7 @@ import {
   registerEditJobReleaseRequestHandler,
   unregisterEditJobReleaseRequestHandler,
 } from "../../../Events/editJobReleaseRequestEvents";
-import { closeJobDependencyTreeDialog } from "../../../Events/jobDependencyTreeDialogEvents";
+import { closeJobDependencyTreeDialogue } from "../../../Events/jobDependencyTreeDialogueEvents";
 import { mergeEditJobNavigationSearch } from "./mergeEditJobNavigationSearch";
 import { buildGroupSearchAfterEditClose } from "../../../Functions/Groups/groupPageViewSearch";
 import { useActiveJobPersistGate } from "./useActiveJobDocumentLock";
@@ -20,14 +20,12 @@ import { yieldEditJobDocumentLocksOnLeave } from "../../../Functions/DocumentLoc
 /**
  * Registers two handlers while the edit-job page is mounted:
  *
- *   - {@link requestEditJobNavigation} so other UI (link tree dialog, parent
  *     chips, child job button) can request navigation to another job with the
  *     standard save / discard rules.
- *   - {@link requestEditJobReleaseConfirmation} so the document-lock slice can
  *     prompt for save / discard before handing the lock to a requesting tab,
  *     instead of dropping it to neutral.
  *
- * Both flows share the unsaved-changes dialog; `dialogMode` selects copy and
+ * Both flows share the unsaved-changes dialogue; `dialogueMode` selects copy and
  * routes the outcome to the right resolver.
  *
  * @param {{ backupJobRef: import("react").MutableRefObject<unknown>, state: object }} params
@@ -46,7 +44,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
   routeSearchRef.current = routeSearch;
 
   /**
-   * Tracked reactively so the dialog can grey out Save the moment a hand-over
+   * Tracked reactively so the dialogue can grey out Save the moment a hand-over
    * lands while it's already open; also guards the save handlers below from
    * firing `closeActiveJob` after the lock flipped to read-only.
    */
@@ -61,8 +59,8 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
   const pendingReleaseResolveRef = useRef(null);
   const pendingReleaseTargetRef = useRef(null);
 
-  /** Which flow currently owns the dialog (drives the copy + resolver) */
-  const [dialogMode, setDialogMode] = useState("navigation");
+  /** Which flow currently owns the dialogue (drives the copy + resolver) */
+  const [dialogueMode, setDialogueMode] = useState("navigation");
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [nextJobName, setNextJobName] = useState(null);
@@ -96,17 +94,17 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     navigate({ to: "/jobplanner" });
   }, [navigate]);
 
-  const closeDialogState = useCallback(() => {
+  const closeDialogueState = useCallback(() => {
     setNextJobName(null);
     setLeaveConfirmOpen(false);
   }, []);
 
   const handleLeaveCancel = useCallback(() => {
-    if (dialogMode === "release_request") {
+    if (dialogueMode === "release_request") {
       const resolve = pendingReleaseResolveRef.current;
       pendingReleaseResolveRef.current = null;
       pendingReleaseTargetRef.current = null;
-      closeDialogState();
+      closeDialogueState();
       // Cancelled handover → tell the slice to dismiss the snackbar / clear the
       // pendingAccessRequest flag (i.e. treat the request as denied).
       resolve?.("cancelled");
@@ -115,11 +113,11 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     pendingNavigationResolveRef.current?.("cancelled");
     pendingNavigationResolveRef.current = null;
     pendingNavRef.current = null;
-    closeDialogState();
-  }, [closeDialogState, dialogMode]);
+    closeDialogueState();
+  }, [closeDialogueState, dialogueMode]);
 
   const handleLeaveDiscard = useCallback(async () => {
-    if (dialogMode === "release_request") {
+    if (dialogueMode === "release_request") {
       const resolve = pendingReleaseResolveRef.current;
       const target = pendingReleaseTargetRef.current;
       if (!resolve || !target) return;
@@ -141,7 +139,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
       pendingReleaseTargetRef.current = null;
       setActiveJobID(null);
       navigateAfterRelease();
-      closeDialogState();
+      closeDialogueState();
       resolve("proceed");
       return;
     }
@@ -158,15 +156,15 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
       params: { jobID: pending.jobID },
       search: pending.search,
     });
-    closeJobDependencyTreeDialog();
+    closeJobDependencyTreeDialogue();
     pendingNavigationResolveRef.current = null;
     pendingNavRef.current = null;
-    closeDialogState();
+    closeDialogueState();
     resolve("navigated");
   }, [
     backupJobRef,
-    closeDialogState,
-    dialogMode,
+    closeDialogueState,
+    dialogueMode,
     navigate,
     navigateAfterRelease,
     setActiveJobID,
@@ -174,7 +172,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
   ]);
 
   const handleLeaveSave = useCallback(async () => {
-    if (dialogMode === "release_request") {
+    if (dialogueMode === "release_request") {
       const resolve = pendingReleaseResolveRef.current;
       const target = pendingReleaseTargetRef.current;
       if (!resolve || !target) return;
@@ -201,7 +199,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
         pendingReleaseResolveRef.current = null;
         pendingReleaseTargetRef.current = null;
         navigateAfterRelease();
-        closeDialogState();
+        closeDialogueState();
         resolve("proceed");
       } finally {
         setLeaveSaving(false);
@@ -212,8 +210,8 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     const resolve = pendingNavigationResolveRef.current;
     const pending = pendingNavRef.current;
     if (!resolve || !pending) return;
-    // Belt-and-braces: even though the dialog disables Save when locked, the
-    // lock can flip between dialog-open and the click (server-side cascade or
+    // Belt-and-braces: even though the dialogue disables Save when locked, the
+    // lock can flip between dialogue-open and the click (server-side cascade or
     // hand-over). Refuse to call `closeActiveJob` against a doc we don't own.
     if (!canPersistRef.current) return;
     setLeaveSaving(true);
@@ -233,17 +231,17 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
         params: { jobID: pending.jobID },
         search: pending.search,
       });
-      closeJobDependencyTreeDialog();
+      closeJobDependencyTreeDialogue();
       pendingNavigationResolveRef.current = null;
       pendingNavRef.current = null;
-      closeDialogState();
+      closeDialogueState();
       resolve("navigated");
     } finally {
       setLeaveSaving(false);
     }
   }, [
-    closeDialogState,
-    dialogMode,
+    closeDialogueState,
+    dialogueMode,
     navigate,
     navigateAfterRelease,
     queryClient,
@@ -283,7 +281,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
               params: { jobID: targetId },
               search: navSearch,
             });
-            closeJobDependencyTreeDialog();
+            closeJobDependencyTreeDialogue();
             resolve("navigated");
           })();
           return;
@@ -296,7 +294,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
 
         pendingNavigationResolveRef.current = resolve;
         pendingNavRef.current = { jobID: targetId, search: navSearch };
-        setDialogMode("navigation");
+        setDialogueMode("navigation");
         setLeaveConfirmOpen(true);
       });
     });
@@ -320,7 +318,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
           resolve("not-handled");
           return;
         }
-        // If we're already in the navigation dialog, deny the release request
+        // If we're already in the navigation dialogue, deny the release request
         // rather than hijack the user's open prompt — they can still try to
         // hand over after they finish their navigation choice.
         if (
@@ -330,7 +328,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
           resolve("cancelled");
           return;
         }
-        // No unsaved changes → no point opening the dialog; let the slice
+        // No unsaved changes → no point opening the dialogue; let the slice
         // proceed with the hand-over directly.
         if (!s.jobModified) {
           resolve("not-handled");
@@ -341,7 +339,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
           collection: payload.collection,
           docID: payload.docID,
         };
-        setDialogMode("release_request");
+        setDialogueMode("release_request");
         setNextJobName(null);
         setLeaveConfirmOpen(true);
       });
@@ -357,7 +355,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
   }, []);
 
   return {
-    leaveConfirmDialogProps: {
+    leaveConfirmDialogueProps: {
       open: leaveConfirmOpen,
       onClose: handleLeaveCancel,
       onDiscard: handleLeaveDiscard,
@@ -365,10 +363,10 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
       leaveSaving,
       currentJobName: state.activeJob?.name ?? "",
       nextJobName,
-      mode: dialogMode,
-      // Navigation mode is the only path that can hit the dialog on a read-only
+      mode: dialogueMode,
+      // Navigation mode is the only path that can hit the dialogue on a read-only
       // job (release_request implies we still hold the lock).
-      saveDisabled: dialogMode === "navigation" && !persistGate.canPersist,
+      saveDisabled: dialogueMode === "navigation" && !persistGate.canPersist,
     },
   };
 }

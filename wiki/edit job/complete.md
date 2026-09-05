@@ -1,11 +1,11 @@
 # Edit Job - Complete Stage
 
-The Complete stage is where you finalize build cost calculations after manufacturing is finished. This stage allows you to add any additional costs, review final build statistics, and prepare the job for sale or use in other jobs.
+The Complete stage is where you finalise build cost calculations after manufacturing is finished. This stage allows you to add any additional costs, review final build statistics, and prepare the job for sale or use in other jobs.
 
 ## Stage Purpose
 
 The Complete stage serves to:
-- **Finalize costs** by adding any extra costs not captured during purchasing or building
+- **Finalise costs** by adding any extra costs not captured during purchasing or building
 - **Review build statistics** by viewing total costs, quantities produced, and cost per item
 - **Prepare for sale** by marking jobs as ready for sale or passing costs to parent jobs
 - **Archive jobs** by storing job data for historical analysis while removing from active planning

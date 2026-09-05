@@ -10,6 +10,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/metric"
+
+	"eve-industry-planner/shared/telemetry"
 )
 
 const (
@@ -65,7 +67,7 @@ func RegisterSSORefreshDistinctGauges(rdb *redis.Client) {
 		if rdb == nil {
 			return
 		}
-		m := apiMeter()
+		m := telemetry.Meter("api")
 		g24, err := m.Float64ObservableGauge("api.eve_sso_token_refresh.distinct_characters_last_24h",
 			metric.WithUnit("{characters}"),
 			metric.WithDescription("Approximate distinct character hashes with ≥1 successful EVE OAuth token refresh in the rolling prior 24 UTC hours (Redis HLL merge)."),

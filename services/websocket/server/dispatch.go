@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 )
 
@@ -15,8 +16,8 @@ type outboundDeliveryOutcome struct {
 	RecipientCount                 int
 	CandidateCount                 int
 	AccountID                      string
-	CorporationID                  string
-	AllianceID                     string
+	CorporationRef                 string
+	AllianceRef                    string
 	SourceClientID                 string
 	SourceSessionID                string
 	SuppressSessionID              string
@@ -86,7 +87,8 @@ func (o *outboundDeliveryOutcome) hasSuppression() bool {
 }
 
 // deliverOutboundDocUpdate routes a NATS doc.update payload to local WebSocket clients.
-// Precedence: accountID → corporationID → allianceID → explicit doc subscribers.
+// The owner's kind selects the branch; a message stating no readable owner goes to
+// explicit doc subscribers.
 func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedDocID string, messageData []byte) outboundDeliveryOutcome {
 	decoded, err := outgoinglogic.DecodeOutboundMessage(messageData)
 	if err != nil {
@@ -96,27 +98,41 @@ func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedD
 		return outboundDeliveryOutcome{RouteKind: "invalid"}
 	}
 
-	if decoded.Route.AccountID != "" {
-		return s.broadcastToAccountClients(ctx, collectionScopedDocID, messageData, decoded.Route)
+	// Routing metadata names internal identities and the document body carries
+	// refs; rewrite once here rather than per recipient, after routing has been
+	// decided from the untouched message, so no ref reaches a browser.
+	clientData := outgoinglogic.ClientPayload(messageData, s.entityCipher)
+
+	switch decoded.Route.Owner.Kind {
+	case models.OwnerAccount:
+		return s.broadcastToAccountClients(ctx, collectionScopedDocID, clientData, decoded.Route)
+	case models.OwnerCorporation:
+		return s.broadcastToCorporationScope(ctx, collectionScopedDocID, clientData, decoded)
+	case models.OwnerAlliance:
+		return s.broadcastToAllianceScope(ctx, collectionScopedDocID, clientData, decoded)
+	case "":
+		// No readable owner: a delete without a preimage, or a message from a
+		// producer that stated none.
+	default:
+		// A kind the owner model accepts but this service cannot deliver to. Named
+		// rather than passed to explicit subscribers unremarked, which would report
+		// a near-empty fan-out as an ordinary one.
+		logs.WarnCtx(ctx, "outbound doc update: no delivery branch for owner kind",
+			"doc_id", collectionScopedDocID,
+			"owner_kind", string(decoded.Route.Owner.Kind))
 	}
-	if decoded.Route.CorporationID != "" {
-		return s.broadcastToCorporationScope(ctx, collectionScopedDocID, messageData, decoded)
-	}
-	if decoded.Route.AllianceID != "" {
-		return s.broadcastToAllianceScope(ctx, collectionScopedDocID, messageData, decoded)
-	}
-	return s.deliverToExplicitDocSubscribers(ctx, collectionScopedDocID, messageData, decoded.Route.SourceClientID, decoded.Route.SourceSessionID)
+	return s.deliverToExplicitDocSubscribers(ctx, collectionScopedDocID, clientData, decoded.Route.SourceClientID, decoded.Route.SourceSessionID)
 }
 
 // broadcastToAccountClients sends a payload to every connection for the account except the source client.
 func (s *Server) broadcastToAccountClients(ctx context.Context, docID string, messageData []byte, route outgoinglogic.RouteInfo) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "account",
-		AccountID:       route.AccountID,
+		AccountID:       route.Owner.ID,
 		SourceClientID:  route.SourceClientID,
 		SourceSessionID: route.SourceSessionID,
 	}
-	accountID := route.AccountID
+	accountID := route.Owner.ID
 	if accountID == "" {
 		logs.WarnCtx(ctx, "message missing accountID for account broadcast", "doc_id", docID)
 		return outboundDeliveryOutcome{RouteKind: "invalid"}
@@ -201,19 +217,19 @@ func copyClientIDSet(m map[string]bool) []string {
 func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "corporation",
-		CorporationID:   decoded.Route.CorporationID,
+		CorporationRef:  decoded.Route.Owner.ID,
 		SourceClientID:  decoded.Route.SourceClientID,
 		SourceSessionID: decoded.Route.SourceSessionID,
 	}
-	corporationID := decoded.Route.CorporationID
+	corporationRef := decoded.Route.Owner.ID
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
 	scopes := decoded.Scopes
 
-	s.corpIndexMu.RLock()
-	idsMap := s.corpToClients[corporationID]
+	s.corpRefIndexMu.RLock()
+	idsMap := s.corpRefToClients[corporationRef]
 	clientIDs := copyClientIDSet(idsMap)
-	s.corpIndexMu.RUnlock()
+	s.corpRefIndexMu.RUnlock()
 	out.CandidateCount = len(clientIDs)
 
 	if len(clientIDs) == 0 {
@@ -235,7 +251,7 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 		client.SyncMu.Lock()
 		syncing := client.SyncInProgress
 		client.SyncMu.Unlock()
-		if !outgoinglogic.ScopeContains(client.Scopes.CorporationIDs, corporationID) {
+		if !outgoinglogic.ScopeContains(client.Scopes.CorporationRefs, corporationRef) {
 			out.recordScopeSkip(clientID)
 			continue
 		}
@@ -254,7 +270,7 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 			out.recordSendBufferFull(clientID)
 			logs.WarnCtx(client.LogContext(), "corporation scope: send buffer full",
 				"client_id", client.id,
-				"corporation_id", corporationID)
+				"corporation_ref", corporationRef)
 		}
 	}
 	s.ClientsMu.RUnlock()
@@ -266,19 +282,19 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "alliance",
-		AllianceID:      decoded.Route.AllianceID,
+		AllianceRef:     decoded.Route.Owner.ID,
 		SourceClientID:  decoded.Route.SourceClientID,
 		SourceSessionID: decoded.Route.SourceSessionID,
 	}
-	allianceID := decoded.Route.AllianceID
+	allianceRef := decoded.Route.Owner.ID
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
 	scopes := decoded.Scopes
 
-	s.allianceIndexMu.RLock()
-	idsMap := s.allianceToClients[allianceID]
+	s.allianceRefIndexMu.RLock()
+	idsMap := s.allianceRefToClients[allianceRef]
 	clientIDs := copyClientIDSet(idsMap)
-	s.allianceIndexMu.RUnlock()
+	s.allianceRefIndexMu.RUnlock()
 	out.CandidateCount = len(clientIDs)
 
 	if len(clientIDs) == 0 {
@@ -293,7 +309,7 @@ func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, mes
 			out.recordNotConnectedSkip(clientID)
 			continue
 		}
-		corpScope := append([]string(nil), client.Scopes.CorporationIDs...)
+		corpScope := append([]string(nil), client.Scopes.CorporationRefs...)
 		if !outgoinglogic.AllianceRecipientMatchesDownward(corpScope, client.AccountID, scopes) {
 			out.recordScopeSkip(clientID)
 			continue
@@ -301,7 +317,7 @@ func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, mes
 		client.SyncMu.Lock()
 		syncing := client.SyncInProgress
 		client.SyncMu.Unlock()
-		if !outgoinglogic.ScopeContains(client.Scopes.AllianceIDs, allianceID) {
+		if !outgoinglogic.ScopeContains(client.Scopes.AllianceRefs, allianceRef) {
 			out.recordScopeSkip(clientID)
 			continue
 		}
@@ -320,7 +336,7 @@ func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, mes
 			out.recordSendBufferFull(clientID)
 			logs.WarnCtx(client.LogContext(), "alliance scope: send buffer full",
 				"client_id", client.id,
-				"alliance_id", allianceID)
+				"alliance_ref", allianceRef)
 		}
 	}
 	s.ClientsMu.RUnlock()
@@ -329,7 +345,8 @@ func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, mes
 	return out
 }
 
-// deliverToExplicitDocSubscribers delivers to clients that opted into this doc id (legacy / escape hatch).
+// deliverToExplicitDocSubscribers delivers to clients that subscribed to this
+// doc id by name, rather than reaching it through account or org scope.
 func (s *Server) deliverToExplicitDocSubscribers(ctx context.Context, docID string, messageData []byte, sourceClientID, sourceSessionID string) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "explicit",
@@ -402,11 +419,11 @@ func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) ma
 	if o.AccountID != "" {
 		detail["account_id"] = o.AccountID
 	}
-	if o.CorporationID != "" {
-		detail["corporation_id"] = o.CorporationID
+	if o.CorporationRef != "" {
+		detail["corporation_ref"] = o.CorporationRef
 	}
-	if o.AllianceID != "" {
-		detail["alliance_id"] = o.AllianceID
+	if o.AllianceRef != "" {
+		detail["alliance_ref"] = o.AllianceRef
 	}
 	if o.SourceClientID != "" {
 		detail["source_client_id"] = o.SourceClientID

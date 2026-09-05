@@ -1,4 +1,4 @@
-﻿package commands
+package commands
 
 import (
 	"context"
@@ -11,14 +11,10 @@ import (
 	"time"
 
 	clicommands "eve-industry-planner/core/commands/cli"
-	firestoreimport "eve-industry-planner/core/migration/firestoreimport"
-	archivedjobsched "eve-industry-planner/core/scheduler/archivedjobs"
-	"eve-industry-planner/core/scheduler/contract"
-	natscore "eve-industry-planner/shared/core/nats"
-	taskscore "eve-industry-planner/shared/tasks"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
-const usage = `Usage:
+const usageExamples = `Examples:
   tasks list
   tasks sdeVersion
   tasks sdeVersionHistory
@@ -27,92 +23,153 @@ const usage = `Usage:
   tasks workerQueues
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
-  tasks processArchivedBuildStats
-  tasks startArchivedJobProcessing
-  tasks forceSdeRebuild
-  tasks rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
-  tasks migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
-  tasks migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
-  tasks importArchivedJobsFromFirestore [flags]
-  tasks importUserAccountsFromFirestore [flags]
-  tasks importWatchlistFromFirestore [flags]
-  tasks importJobGroupsFromFirestore [flags]
-  tasks importUserJobDocumentsFromFirestore [flags]
-  tasks markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]
-  tasks resetBuildStats [-account id] [-dry-run]
-  tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
-
-Examples:
-  tasks list
-  tasks sdeVersion
-  tasks sdeVersionHistory
-  tasks esiRateLimitGroups
-  tasks resetEsiRateLimitGroups
-  tasks workerQueues
-  tasks purgeWorkerQueues
-  tasks unlockSdeVersion
-  tasks importArchivedJobsFromFirestore
-  tasks importArchivedJobsFromFirestore -credentials /app/adminSDK.json
-  tasks importArchivedJobsFromFirestore -reprocess -credentials /app/adminSDK.json
-  tasks importUserAccountsFromFirestore -dry-run -dev
-  tasks importUserAccountsFromFirestore -account <firebase_uid> -live
-  tasks importWatchlistFromFirestore -dry-run -dev
-  tasks importWatchlistFromFirestore -account <firebase_uid> -live
-  tasks importJobGroupsFromFirestore -dry-run -dev
-  tasks importJobGroupsFromFirestore -account <firebase_uid> -live
-  tasks importUserJobDocumentsFromFirestore -dry-run -dev
-  tasks importUserJobDocumentsFromFirestore -live
-  tasks importUserJobDocumentsFromFirestore -live -skip-auth-recency
-  tasks importUserJobDocumentsFromFirestore -account <firebase_uid> -live
-  tasks importUserJobDocumentsFromFirestore -account <firebase_uid> -enqueue -live
-  tasks importUserJobDocumentsFromFirestore -inline -live
-  tasks markArchivedJobsUnprocessed -all -dry-run
-  tasks markArchivedJobsUnprocessed -account <firebase_uid> -dry-run
-  tasks resetBuildStats -dry-run
-  tasks resetBuildStats -account <firebase_uid>
+  tasks queueArchivedJobStatsRebuild -all -dry-run
+  tasks queueArchivedJobStatsRebuild -account <account_id> -dry-run
   tasks checkSdeUpdates
   tasks applySdeVersion --version=12345
-  tasks processArchivedBuildStats
-  tasks startArchivedJobProcessing
-  tasks processArchivedBuildStats --data='{"account_id":"<firebase_uid>"}'
   tasks forceSdeRebuild
   tasks rotateRefreshTokenKeys --from=v1 --scan-batch-size=500
-  tasks migrateEncryptedCloudRefreshTokens --scan-batch-size=500
-  tasks migrateUserCloudAccountsToUserDoc --scan-batch-size=500
-`
+  tasks dispatchStatisticsReconciles`
 
-// Enabled task allowlist.
-// Add more tasks to this slice to expose them in `tasks`.
-// Matching is case-insensitive for user convenience.
-var enabledTasks = []taskscore.Task{
-	taskscore.CheckSDEUpdates,
-	taskscore.ApplySDEVersion,
-	taskscore.RebuildCurrentSDEVersion,
-	taskscore.ProcessArchivedBuildStats,
+// taskOptions carries what an operator typed alongside the task name.
+type taskOptions struct {
+	version    int
+	versionSet bool
 }
 
-func enabledTasksLowerLookup() map[string]taskscore.Task {
-	return map[string]taskscore.Task{
-		"checksdeupdates":           taskscore.CheckSDEUpdates,
-		"applysdeversion":           taskscore.ApplySDEVersion,
-		"forcesderebuild":           taskscore.RebuildCurrentSDEVersion,
-		"processarchivedbuildstats": taskscore.ProcessArchivedBuildStats,
-	}
+// dispatch is one task an operator may run: what they type, the definition it
+// names, and the call that publishes it.
+//
+// The publish is the task's own helper rather than a subject and a payload built
+// here, so a task reaches the operator surface by being listed and cannot be
+// published in a shape its handler does not take.
+type dispatch struct {
+	command string
+	task    eipnats.Definition
+	publish func(context.Context, *eipnats.NATS, taskOptions) error
 }
 
-func commandTaskName(task taskscore.Task) string {
-	switch task.Name {
-	case taskscore.CheckSDEUpdates.Name:
-		return "checkSdeUpdates"
-	case taskscore.ApplySDEVersion.Name:
-		return "applySdeVersion"
-	case taskscore.RebuildCurrentSDEVersion.Name:
-		return "forceSdeRebuild"
-	case taskscore.ProcessArchivedBuildStats.Name:
-		return "processArchivedBuildStats"
-	default:
-		return task.Name
+// dispatchTable is the allowlist. A task absent from it is not runnable from the
+// command line, whatever the registry holds.
+var dispatchTable = []dispatch{
+	{
+		command: "checkSdeUpdates",
+		task:    eipnats.CheckSDEUpdates,
+		publish: func(ctx context.Context, n *eipnats.NATS, _ taskOptions) error {
+			return eipnats.TriggerCheckSDEUpdates(ctx, n)
+		},
+	},
+	{
+		command: "applySdeVersion",
+		task:    eipnats.ApplySDEVersion,
+		publish: func(ctx context.Context, n *eipnats.NATS, o taskOptions) error {
+			if !o.versionSet {
+				return fmt.Errorf("task %q requires --version=<int> (example: tasks applySdeVersion --version=3272045)", "applySdeVersion")
+			}
+			if o.version <= 0 {
+				return fmt.Errorf("task %q requires --version to be a positive integer (> 0), got %d", "applySdeVersion", o.version)
+			}
+			return eipnats.PublishApplySDEVersion(ctx, n, o.version)
+		},
+	},
+	{
+		command: "forceSdeRebuild",
+		task:    eipnats.RebuildCurrentSDEVersion,
+		publish: func(ctx context.Context, n *eipnats.NATS, _ taskOptions) error {
+			return eipnats.TriggerRebuildCurrentSDEVersion(ctx, n)
+		},
+	},
+	{
+		command: "dispatchStatisticsRebuilds",
+		task:    eipnats.DispatchStatisticsRebuilds,
+		publish: func(ctx context.Context, n *eipnats.NATS, _ taskOptions) error {
+			// Run by hand means run now: an operator waiting on the queue is not the
+			// case the debounce exists for.
+			return eipnats.PublishDispatchStatisticsRebuilds(ctx, n, eipnats.DrainRebuildQueueRequest{IgnoreDebounce: true})
+		},
+	},
+	{
+		command: "dispatchStatisticsReconciles",
+		task:    eipnats.DispatchStatisticsReconciles,
+		publish: func(ctx context.Context, n *eipnats.NATS, _ taskOptions) error {
+			return eipnats.PublishDispatchStatisticsReconciles(ctx, n)
+		},
+	},
+}
+
+// dispatchLookup is derived from the table so a task cannot be runnable but
+// unfindable, or findable under a name the table does not offer. Matching is
+// case-insensitive for convenience.
+func dispatchLookup() map[string]dispatch {
+	lookup := make(map[string]dispatch, len(dispatchTable))
+	for _, d := range dispatchTable {
+		lookup[strings.ToLower(d.command)] = d
 	}
+	return lookup
+}
+
+// cliCommand is one command that runs in this process, as opposed to a task
+// published to the worker. Its args string is what follows the name in the usage
+// text, so a command's flags are described where it is declared.
+type cliCommand struct {
+	command string
+	aliases []string
+	args    string
+	run     func(ctx context.Context, args []string) error
+}
+
+// cliTable is the allowlist for in-process commands, mirroring dispatchTable.
+//
+// One table rather than a switch, a usage block and a printed list that must
+// agree: they had already drifted — encodeJobIdentity was runnable and in the
+// usage text but absent from `tasks list`, so an operator reading the list would
+// not know it existed.
+var cliTable = []cliCommand{
+	{command: "sdeVersion", run: func(context.Context, []string) error { return clicommands.RunSdeVersion() }},
+	{command: "sdeVersionHistory", run: func(context.Context, []string) error { return clicommands.RunSdeVersionHistory() }},
+	{command: "esiRateLimitGroups", run: func(context.Context, []string) error { return clicommands.RunEsiRateLimitGroups() }},
+	{command: "resetEsiRateLimitGroups", run: func(context.Context, []string) error { return clicommands.RunResetEsiRateLimitGroups() }},
+	{command: "workerQueues", run: func(context.Context, []string) error { return clicommands.RunWorkerQueues() }},
+	{command: "purgeWorkerQueues", run: func(context.Context, []string) error { return clicommands.RunPurgeWorkerQueues() }},
+	{command: "unlockSdeVersion", run: func(context.Context, []string) error { return clicommands.RunUnlockSdeVersion() }},
+	{command: "backfillArchivedAt", args: "[-dry-run]", run: runBackfillArchivedAt},
+	{command: "queueArchivedJobStatsRebuild", args: "[-all] [-account id] [-dry-run]", run: runQueueArchivedJobStatsRebuild},
+	{command: "prepareRelease", args: "[-dry-run]", run: runPrepareRelease},
+	{command: "rotateRefreshTokenKeys", args: "[--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]", run: runRotateRefreshTokenKeys},
+	{command: "encodeJobIdentity", args: "[-collection <name>] [-limit <n>] [-dry-run]", run: runEncodeJobIdentity},
+}
+
+// cliLookup is derived from the table, aliases included, so a command cannot be
+// runnable but unfindable. Matching is case-insensitive, as it is for tasks.
+func cliLookup() map[string]cliCommand {
+	lookup := make(map[string]cliCommand, len(cliTable))
+	for _, c := range cliTable {
+		lookup[strings.ToLower(c.command)] = c
+		for _, alias := range c.aliases {
+			lookup[strings.ToLower(alias)] = c
+		}
+	}
+	return lookup
+}
+
+// usageText is built from the two tables, so a command reaches the usage text by
+// being runnable rather than by being remembered.
+func usageText() string {
+	var b strings.Builder
+	b.WriteString("Usage:\n")
+	b.WriteString("  tasks list\n")
+	for _, c := range cliTable {
+		b.WriteString("  tasks " + c.command)
+		if c.args != "" {
+			b.WriteString(" " + c.args)
+		}
+		b.WriteString("\n")
+	}
+	for _, d := range dispatchTable {
+		b.WriteString("  tasks " + d.command + "\n")
+	}
+	b.WriteString("\n" + usageExamples)
+	return b.String()
 }
 
 // Handle runs command-mode task commands.
@@ -122,118 +179,58 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return false, nil
 	}
 	if len(args) == 1 {
-		return true, fmt.Errorf("%s", usage)
+		return true, fmt.Errorf("%s", usageText())
 	}
 
-	switch args[1] {
-	case "list":
+	if strings.EqualFold(args[1], "list") {
 		return true, runList()
-	case "sdeVersion":
-		return true, clicommands.RunSdeVersion()
-	case "sdeVersionHistory":
-		return true, clicommands.RunSdeVersionHistory()
-	case "esiRateLimitGroups":
-		return true, clicommands.RunEsiRateLimitGroups()
-	case "resetEsiRateLimitGroups":
-		return true, clicommands.RunResetEsiRateLimitGroups()
-	case "workerQueues":
-		return true, clicommands.RunWorkerQueues()
-	case "purgeWorkerQueues":
-		return true, clicommands.RunPurgeWorkerQueues()
-	case "unlockSdeVersion":
-		return true, clicommands.RunUnlockSdeVersion()
-	case "importArchivedJobsFromFirestore":
-		return true, runImportArchivedJobsFromFirestoreScan(ctx, args[2:])
-	case "importUserAccountsFromFirestore":
-		return true, runImportUserAccountsFromFirestoreScan(ctx, args[2:])
-	case "importWatchlistFromFirestore":
-		return true, firestoreimport.RunImportWatchlistFromFirestore(ctx, args[2:])
-	case "importJobGroupsFromFirestore":
-		return true, firestoreimport.RunImportJobGroupsFromFirestore(ctx, args[2:])
-	case "importUserJobDocumentsFromFirestore", "importUserJobDocuementsFromFirestore":
-		return true, firestoreimport.RunImportUserJobDocumentsFromFirestore(ctx, args[2:])
-	case "markArchivedJobsUnprocessed":
-		return true, runMarkArchivedJobsUnprocessed(ctx, args[2:])
-	case "resetBuildStats":
-		return true, runResetBuildStats(ctx, args[2:])
-	case "startArchivedJobProcessing":
-		if len(args) > 2 {
-			return true, fmt.Errorf("startArchivedJobProcessing: takes no arguments (remove %q)\n\n%s", strings.Join(args[2:], " "), usage)
-		}
-		return true, runFanOutArchivedBuildStats(ctx)
-	case "rotateRefreshTokenKeys":
-		return true, runRotateRefreshTokenKeys(ctx, args[2:])
-	case "migrateEncryptedCloudRefreshTokens":
-		return true, runEncryptCloudRefreshTokensMigration(ctx, args[2:])
-	case "migrateUserCloudAccountsToUserDoc":
-		return true, runMigrateUserCloudAccountsToUserDoc(ctx, args[2:])
-	default:
-		return true, runTrigger(ctx, args[1:])
 	}
+	if command, known := cliLookup()[strings.ToLower(args[1])]; known {
+		return true, command.run(ctx, args[2:])
+	}
+	return true, runTrigger(ctx, args[1:])
 }
 
 func runList() error {
 	fmt.Println("Available commands:")
 	fmt.Println("  CLI:")
 	fmt.Println("  - list")
-	fmt.Println("  - sdeVersion")
-	fmt.Println("  - sdeVersionHistory")
-	fmt.Println("  - esiRateLimitGroups")
-	fmt.Println("  - resetEsiRateLimitGroups")
-	fmt.Println("  - workerQueues")
-	fmt.Println("  - purgeWorkerQueues")
-	fmt.Println("  - unlockSdeVersion")
-	fmt.Println("  - importArchivedJobsFromFirestore [-unprocessed-only] [-reprocess] [-credentials path] [-firebase-project-id id]")
-	fmt.Println("  - importUserAccountsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
-	fmt.Println("  - importWatchlistFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
-	fmt.Println("  - importJobGroupsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
-	fmt.Println("  - importUserJobDocumentsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-inline] [-enqueue] [-skip-auth-recency]")
-	fmt.Println("  - markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]")
-	fmt.Println("  - resetBuildStats [-account id] [-dry-run]")
-	fmt.Println("  - startArchivedJobProcessing (same fan-out as hourly cron; enqueue per-account build_stats work now)")
-	fmt.Println("  - rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
-	fmt.Println("  - migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
-	fmt.Println("  - migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
+	for _, c := range cliTable {
+		if c.args == "" {
+			fmt.Printf("  - %s\n", c.command)
+			continue
+		}
+		fmt.Printf("  - %s %s\n", c.command, c.args)
+	}
 	fmt.Println()
 	fmt.Println("  Triggerable tasks:")
-	for _, task := range allTasks() {
-		fmt.Printf("  - %s (worker_task: %s, subject: %s, default_priority: %s)\n", commandTaskName(task), task.Name, task.Subject, task.DefaultPriority)
+	for _, d := range allTasks() {
+		fmt.Printf("  - %s (worker_task: %s, subject: %s, default_priority: %s)\n", d.command, d.task.Name, d.task.Subject, d.task.DefaultPriority)
 	}
-	return nil
-}
-
-// runFanOutArchivedBuildStats enqueues one ProcessArchivedBuildStats worker task per account that has
-// unprocessed archivedJobs rows (same behavior as the core hourly cron).
-func runFanOutArchivedBuildStats(ctx context.Context) error {
-	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{Mongo: true, NATS: true})
-	if err != nil {
-		return err
-	}
-	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
-		return fmt.Errorf("failed to ensure worker task stream: %w", err)
-	}
-	deps := contract.Dependencies{
-		JSContext: clients.JetStream,
-		NATS:      clients.NATS,
-		Mongo:     clients.Mongo,
-	}
-	if err := archivedjobsched.PublishProcessArchivedBuildStatsPerAccount(ctx, deps); err != nil {
-		return err
-	}
-	fmt.Println("Triggered archived build stats fan-out (per-account worker tasks published)")
 	return nil
 }
 
 func runTrigger(ctx context.Context, args []string) error {
+	// A name that is neither a CLI command nor a triggerable task reaches here,
+	// because dispatch falls through to the trigger path. Reject it up front:
+	// otherwise the loop below reads the name as the task and the next token as a
+	// stray argument, so a mistyped command is reported as a flag error and the
+	// name it failed on is never mentioned.
+	if len(args) > 0 {
+		first := strings.TrimSpace(args[0])
+		if first != "" && !strings.HasPrefix(first, "-") {
+			if _, known := dispatchLookup()[strings.ToLower(first)]; !known {
+				return fmt.Errorf("unknown command or task %q (use `tasks list`)\n\n%s", first, usageText())
+			}
+		}
+	}
+
 	// Support args in either order:
-	// - <task-name> [--priority=...] [--data=...]
-	// - --priority=... --data=... <task-name>
+	// - <task-name> [--version=...]
+	// - --version=... <task-name>
 	var (
-		priority      string
 		version       int
 		versionSet    bool
-		data          string
 		taskNameInput string
 	)
 
@@ -252,42 +249,6 @@ func runTrigger(ctx context.Context, args []string) error {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
-		case strings.HasPrefix(a, "priority="):
-			priority = strings.TrimPrefix(a, "priority=")
-		case a == "priority":
-			v, next, err := consumeValue(i)
-			if err != nil {
-				return err
-			}
-			priority = v
-			i = next
-		case strings.HasPrefix(a, "--priority="):
-			priority = strings.TrimPrefix(a, "--priority=")
-		case a == "--priority":
-			v, next, err := consumeValue(i)
-			if err != nil {
-				return err
-			}
-			priority = v
-			i = next
-		case strings.HasPrefix(a, "data="):
-			data = strings.TrimPrefix(a, "data=")
-		case a == "data":
-			v, next, err := consumeValue(i)
-			if err != nil {
-				return err
-			}
-			data = v
-			i = next
-		case strings.HasPrefix(a, "--data="):
-			data = strings.TrimPrefix(a, "--data=")
-		case a == "--data":
-			v, next, err := consumeValue(i)
-			if err != nil {
-				return err
-			}
-			data = v
-			i = next
 		case strings.HasPrefix(a, "version="), a == "version":
 			return fmt.Errorf("invalid version flag %q: use --version=<int> (example: tasks applySdeVersion --version=3272045)", a)
 		case strings.HasPrefix(a, "--version="):
@@ -311,35 +272,24 @@ func runTrigger(ctx context.Context, args []string) error {
 			versionSet = true
 			i = next
 		case strings.HasPrefix(a, "--"):
-			return fmt.Errorf("unknown flag %q\n\n%s", a, usage)
+			return fmt.Errorf("unknown flag %q\n\n%s", a, usageText())
 		default:
 			// First non-flag token is treated as the task name.
 			if taskNameInput == "" {
 				taskNameInput = a
 			} else {
-				return fmt.Errorf("unexpected extra argument %q\n\n%s", a, usage)
+				return fmt.Errorf("unexpected extra argument %q\n\n%s", a, usageText())
 			}
 		}
 	}
 
 	taskNameInput = strings.TrimSpace(taskNameInput)
 	if taskNameInput == "" {
-		return fmt.Errorf("expected exactly one <task-name>\n\n%s", usage)
+		return fmt.Errorf("expected exactly one <task-name>\n\n%s", usageText())
 	}
-	lookup := enabledTasksLowerLookup()
-	task, exists := lookup[strings.ToLower(taskNameInput)]
+	d, exists := dispatchLookup()[strings.ToLower(taskNameInput)]
 	if !exists {
 		return fmt.Errorf("unknown or disabled task %q (use `tasks list`)", taskNameInput)
-	}
-
-	payload, err := buildTaskPayload(task, versionSet, version, data)
-	if err != nil {
-		return err
-	}
-
-	// Fan-out: one worker task per account with unprocessed archived jobs (same as core cron).
-	if task.Name == taskscore.ProcessArchivedBuildStats.Name && payload == nil {
-		return runFanOutArchivedBuildStats(ctx)
 	}
 
 	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.NATS)
@@ -348,72 +298,27 @@ func runTrigger(ctx context.Context, args []string) error {
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if _, err := clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
-	publishPayload := payloadToInterface(payload)
-	if task.Name == taskscore.ProcessArchivedBuildStats.Name {
-		var req natscore.ProcessArchivedBuildStatsRequest
-		if err := json.Unmarshal(payload, &req); err != nil || req.AccountID == "" {
-			return fmt.Errorf("task %q requires --data='{\"account_id\":\"...\"}' or omit --data to fan out all accounts", commandTaskName(task))
-		}
-		publishPayload = req
+	if err := d.publish(ctx, clients.NATS, taskOptions{version: version, versionSet: versionSet}); err != nil {
+		return fmt.Errorf("failed to publish task %q: %w", d.task.Name, err)
 	}
 
-	if err := natscore.PublishTask(ctx, clients.JetStream, task.Subject, task.Name, publishPayload, clients.NATS, priority); err != nil {
-		return fmt.Errorf("failed to publish task %q: %w", task.Name, err)
-	}
-
-	fmt.Printf("Triggered task %q on subject %q", task.Name, task.Subject)
-	if priority != "" {
-		fmt.Printf(" with priority override %q", priority)
-	}
-	fmt.Println()
+	fmt.Printf("Triggered task %q on subject %q\n", d.task.Name, d.task.Subject)
 	return nil
 }
 
-func parseJSONRaw(data string) (json.RawMessage, error) {
-	trimmed := strings.TrimSpace(data)
-	if trimmed == "" {
-		return nil, nil
-	}
-	if !json.Valid([]byte(trimmed)) {
-		return nil, fmt.Errorf("must be valid JSON")
-	}
-	return json.RawMessage(trimmed), nil
-}
-
-func buildTaskPayload(task taskscore.Task, versionSet bool, version int, rawJSON string) (json.RawMessage, error) {
-	switch task.Name {
-	case taskscore.ApplySDEVersion.Name:
-		if !versionSet {
-			return nil, fmt.Errorf("task %q requires --version=<int> (example: tasks applySdeVersion --version=3272045)", commandTaskName(task))
-		}
-		if version <= 0 {
-			return nil, fmt.Errorf("task %q requires --version to be a positive integer (> 0), got %d", commandTaskName(task), version)
-		}
-		payload, err := json.Marshal(natscore.SDEApplyVersionRequest{
-			BuildNumber: version,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal apply-version payload: %w", err)
-		}
-		return json.RawMessage(payload), nil
-	default:
-		return parseJSONRaw(rawJSON)
-	}
-}
-
-func payloadToInterface(payload json.RawMessage) interface{} {
+func payloadToInterface(payload json.RawMessage) any {
 	if payload == nil {
 		return nil
 	}
-	// PublishTask marshals this value as JSON into TaskMessage.Data.
-	// json.RawMessage preserves the original JSON bytes when marshaled.
+	// json.RawMessage preserves the original JSON bytes when marshaled, so the
+	// operator's payload reaches the handler as they wrote it.
 	return payload
 }
 
-func allTasks() []taskscore.Task {
-	return enabledTasks
+func allTasks() []dispatch {
+	return dispatchTable
 }

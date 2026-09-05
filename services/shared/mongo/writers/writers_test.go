@@ -33,21 +33,21 @@ func TestDeleteGroupTemplate_requiresArgs(t *testing.T) {
 	}
 }
 
-func TestApplyBuildStatsArchiveBatch_emptyAndNil(t *testing.T) {
+func TestApplyProductionTotalsArchiveBatch_emptyAndNil(t *testing.T) {
 	t.Parallel()
-	if err := ApplyBuildStatsArchiveBatch(context.Background(), nil, "op", nil); err != nil {
+	if err := ApplyProductionTotalsArchiveBatch(context.Background(), nil, "op", nil); err != nil {
 		t.Fatalf("empty pairs should no-op: %v", err)
 	}
-	if err := ApplyBuildStatsArchiveBatch(context.Background(), nil, "op", []BuildStatsArchivePair{}); err != nil {
+	if err := ApplyProductionTotalsArchiveBatch(context.Background(), nil, "op", []ProductionTotalsArchivePair{}); err != nil {
 		t.Fatalf("empty pairs should no-op: %v", err)
 	}
-	pairs := []BuildStatsArchivePair{{
+	pairs := []ProductionTotalsArchivePair{{
 		StatsFilter: bson.M{"_id": "x"},
 		StatsUpdate: bson.M{"$set": bson.M{"a": 1}},
 		JobFilter:   bson.M{"_id": "j"},
 		JobUpdate:   bson.M{"$set": bson.M{"b": true}},
 	}}
-	if err := ApplyBuildStatsArchiveBatch(context.Background(), nil, "op", pairs); err == nil {
+	if err := ApplyProductionTotalsArchiveBatch(context.Background(), nil, "op", pairs); err == nil {
 		t.Fatal("expected error for nil mongo with non-empty pairs")
 	}
 }

@@ -16,7 +16,7 @@ import (
 )
 
 // processIncomingQueue processes events from an incoming queue (client → database)
-// Serialized per docID via queue mutex (TryLock); invoked from coordinator goroutines.
+// Serialised per docID via queue mutex (TryLock); invoked from coordinator goroutines.
 // Uses deduplication to reduce redundant database writes
 func (s *Server) processIncomingQueue(docID string) error {
 	// Get queue with read lock
@@ -28,34 +28,29 @@ func (s *Server) processIncomingQueue(docID string) error {
 		return nil // Queue was deleted
 	}
 
-	// Try to acquire exclusive lock
 	if !queue.mu.TryLock() {
 		return nil // Another worker is processing this queue
 	}
 	defer queue.mu.Unlock()
 
-	// 1. Drain all ready messages (non-blocking)
 	messages := make([]Event, 0)
 	for {
 		select {
 		case event := <-queue.ch:
 			messages = append(messages, event)
 		default:
-			// No more ready messages
 			goto drainComplete
 		}
 	}
 drainComplete:
 
-	// Update lastUse time
 	queue.lastUse = time.Now()
 
-	// If no messages, nothing to process
 	if len(messages) == 0 {
 		return nil
 	}
 
-	// 2. Handle subscribe messages separately (they don't need database writes)
+	// Subscribe and unsubscribe need no database write.
 	subscribeMessages := make([]Event, 0)
 	unsubscribeMessages := make([]Event, 0)
 	dbMessages := make([]Event, 0)
@@ -96,13 +91,13 @@ drainComplete:
 		return nil
 	}
 
-	// 3. Parse all database messages once (avoid parsing multiple times)
+	// Parsed once here and reused by every step below.
 	parsed := s.parseAllMessages(dbMessages)
 
-	// 4. Check for DELETE (terminal - discards all other messages)
+	// A DELETE is terminal: the document is gone, so every other message
+	// queued for it is discarded rather than applied to nothing.
 	for i := range parsed {
 		if parsed[i].valid && parsed[i].action == "DELETE" {
-			// Found first DELETE - process it and discard all other messages
 			if err := s.processParsedMessageToDatabase(parsed[i]); err != nil {
 				logs.ErrorCtx(logCtx, "failed to process delete event",
 					"doc_id", docID,
@@ -120,7 +115,7 @@ drainComplete:
 		}
 	}
 
-	// 5. Deduplicate messages (group by clientID, action) - uses already parsed data
+	// Deduplicated on (clientID, action).
 	parsedForDedupe := make([]incominglogic.ParsedEnvelope, len(parsed))
 	for i := range parsed {
 		parsedForDedupe[i] = incominglogic.ParsedEnvelope{
@@ -144,7 +139,6 @@ drainComplete:
 		return nil
 	}
 
-	// 6. Process each deduplicated message (using already-parsed data)
 	processed := 0
 	for _, parsedMsg := range messagesToProcess {
 		if err := s.processParsedMessageToDatabase(parsedMsg); err != nil {

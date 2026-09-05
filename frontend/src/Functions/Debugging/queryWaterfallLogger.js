@@ -1,7 +1,7 @@
 /**
  * Utility for logging and exporting React Query waterfall data
- * Helps visualize when queries start and complete to identify sequential vs parallel execution
- * 
+ * Helps visualise when queries start and complete to identify sequential vs parallel execution
+ *
  * Set ENABLE_QUERY_WATERFALL_LOGGING to false to disable all tracking and logging
  */
 
@@ -26,7 +26,7 @@ if (typeof window !== 'undefined' && ENABLE_QUERY_WATERFALL_LOGGING) {
 const queryTimings = [];
 let queryCounter = 0;
 
-// Load persisted data on module initialization
+// Load persisted data on module initialisation
 function loadPersistedData() {
   if (!ENABLE_QUERY_WATERFALL_LOGGING) return;
   
@@ -93,13 +93,14 @@ function persistData() {
   }
 }
 
-// Load persisted data on initialization
+// Load persisted data on initialisation
 if (typeof window !== 'undefined' && ENABLE_QUERY_WATERFALL_LOGGING) {
   loadPersistedData();
 }
 
 /**
  * Start tracking a query
+ *
  * @param {string} queryName - Name of the query being tracked
  * @param {string} [characterHash] - Optional character hash for uniqueness
  * @returns {Function} Function to call when query completes
@@ -161,6 +162,7 @@ export function startQueryTracking(queryName, characterHash = '') {
 
 /**
  * Get all query timings
+ *
  * @returns {Array} Array of query timing objects
  */
 export function getQueryTimings() {
@@ -170,6 +172,7 @@ export function getQueryTimings() {
 
 /**
  * Clear all query timings
+ *
  * @param {boolean} force - If true, clears even if queries might still be in progress
  */
 export function clearQueryTimings(force = false) {
@@ -213,6 +216,7 @@ export function clearQueryTimings(force = false) {
 
 /**
  * Export query timings as JSON
+ *
  * @returns {string} JSON string of query timings
  */
 export function exportQueryTimingsAsJSON() {
@@ -222,6 +226,7 @@ export function exportQueryTimingsAsJSON() {
 
 /**
  * Export query timings as CSV
+ *
  * @returns {string} CSV string of query timings
  */
 export function exportQueryTimingsAsCSV() {
@@ -242,7 +247,7 @@ export function exportQueryTimingsAsCSV() {
 }
 
 /**
- * Log waterfall visualization to console
+ * Log waterfall visualisation to console
  */
 export function logWaterfall() {
   if (!ENABLE_QUERY_WATERFALL_LOGGING) {
@@ -254,7 +259,7 @@ export function logWaterfall() {
     return;
   }
   
-  // Find the earliest start time to normalize
+  // Find the earliest start time to normalise
   const earliestStart = Math.min(...queryTimings.map(t => t.startTime));
   const latestEnd = Math.max(...queryTimings.map(t => t.endTime));
   const totalDuration = latestEnd - earliestStart;
@@ -416,6 +421,7 @@ export function logWaterfall() {
 
 /**
  * Download query timings as a file
+ *
  * @param {string} format - 'json' or 'csv'
  */
 export function downloadQueryTimings(format = 'json') {

@@ -67,8 +67,8 @@ func (info ServiceInfo) RunningImageDigest() string {
 
 func digestFromImageRef(ref string) string {
 	ref = strings.TrimSpace(ref)
-	if i := strings.LastIndex(ref, "@"); i >= 0 && i+1 < len(ref) {
-		return strings.TrimSpace(ref[i+1:])
+	if _, digest, ok := strings.CutLast(ref, "@"); ok && digest != "" {
+		return strings.TrimSpace(digest)
 	}
 	return ""
 }
@@ -301,11 +301,11 @@ func semverishImageTag(image string) string {
 		return ""
 	}
 	image, _, _ = strings.Cut(image, "@")
-	i := strings.LastIndex(image, ":")
-	if i < 0 || i == len(image)-1 {
+	_, tag, ok := strings.CutLast(image, ":")
+	if !ok || tag == "" {
 		return ""
 	}
-	tag := strings.TrimSpace(image[i+1:])
+	tag = strings.TrimSpace(tag)
 	if tag == "" || tag == "latest" {
 		return ""
 	}

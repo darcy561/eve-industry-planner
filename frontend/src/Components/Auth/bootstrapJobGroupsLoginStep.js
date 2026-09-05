@@ -1,4 +1,4 @@
-import { fetchJobGroupsFromApi } from "../../Functions/Endpoints/Pirivate/groups";
+import { fetchJobGroupsFromApi } from "../../Functions/Endpoints/Private/groups";
 import {
   emitLoginError,
   emitLoginStepComplete,

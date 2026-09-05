@@ -21,6 +21,42 @@ Rejecting leftover bad values in code is fine; **do not document or comment thos
 
 Same bar for live docs: [`documentation-rules.md`](./documentation-rules.md) § Document current behaviour only.
 
+## Comments earn their place
+
+**Applies all the time, to every language in the repo.** A comment is for what a reader cannot get
+from the code. Sparse is the house style: a file where the prose outweighs the statements is harder
+to read, not easier, and it goes stale in ways the code does not.
+
+| Comment this | Not this |
+|--------------|----------|
+| An invariant or rule the code cannot show: "both bounds travel together, the API rejects half a range" | A restatement of the next line, or narration of control flow |
+| A *why* that stops a plausible-looking change: "no cache options here — the layer below keys its own cache by version" | The design discussion behind the choice; that belongs in the plan or overlay |
+| A trap that has already cost something: a field that must be unset rather than omitted | A prose essay above a function, bulleted restatements of its steps, or `@example` blocks that re-type the call |
+| What a package or exported surface owns | Anything the name already says |
+
+### JSDoc: the types stay, the essay goes
+
+The SPA is plain JavaScript, so **JSDoc annotations are its only type surface** — they are not
+prose and this rule does not thin them out. Keep `@param`, `@returns`, `@type`, `@property` and the
+rest of the notation on exported functions, class members, and config objects, so a reader and an
+editor can still see what a member takes and gives back.
+
+What goes is the writing wrapped around them: multi-paragraph summaries of what the function does,
+bulleted retellings of its own control flow, `@example` blocks that only spell out the call,
+`@author` / `@fileoverview` boilerplate, and a description line that restates the member's name. A
+trimmed block is usually the tag lines plus at most a sentence that says something the name does
+not.
+
+Two habits that keep this honest:
+
+- **Write the code first, then decide what still needs saying.** Most comments drafted alongside the
+  code are explaining a decision the reader does not need to relive.
+- **Re-read a file whole after several edits.** Comments accumulate one reasonable line at a time,
+  and the bloat is only visible in aggregate.
+
+Naming is the first tool: a function or field named for what it holds needs less comment than one
+that needs a paragraph to excuse its name. Comment content also follows § Current behaviour only.
+
 ## Host ops (Deployment Tool)
 
 Operator surface is the **Deployment Tool** (CLI + TUI). Binary prefix **`eip`** / `eip.exe` — command examples only, not the product name.
@@ -37,7 +73,7 @@ Operator surface is the **Deployment Tool** (CLI + TUI). Binary prefix **`eip`**
 
 Verb behaviour → [`deployment/deployment-tool/cli/verbs.md`](./deployment/deployment-tool/cli/verbs.md). Bring-up → [`deploy.md`](./deployment/deployment-tool/cli/deploy.md). Task map → [`cli/contents.md`](./deployment/deployment-tool/cli/contents.md).
 
-Operator verbs stay in `deployment-tool/internal/catalog` and the TUI menu — do not invent parallel ship/release host commands.
+Operator verbs stay in `deployment-tool/internal/catalogue` and the TUI menu — do not invent parallel ship/release host commands.
 
 Day-2 app images: **`eip update`** (GHCR pull + digest-reconcile) or **`eip rebuild`** (local bake) for the **app fragment**. Fragments → [`stack/stack.md`](./stack/stack.md).
 
@@ -75,7 +111,7 @@ Applies to **SPA / frontend**, Go services, and Deployment Tool alike — not a 
   - Operator secrets / `.env` schema → `EnvFields` (Deployment Tool)
   - Capacity/addons/tunables → `yamldefaults.DefaultConfig` / `ConfigFields`
   - Stack membership → fragment YAML
-  - Expected Swarm services → catalog / stack discovery as appropriate
+  - Expected Swarm services → catalogue / stack discovery as appropriate
   - Frontend public runtime knobs → stack/`x-frontend-public-env` (and the owning template/emit path) — not a second hand-maintained list in the SPA
   - Product strings / theme tokens / menu catalogs → their existing single owners (kit, theme, ops) — do not fork copies into screens
 

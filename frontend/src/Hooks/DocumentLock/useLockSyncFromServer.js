@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { getDocumentLockState } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+import { getDocumentLockState } from "../../Functions/Endpoints/Private/documentLockClient.js";
 import { selectScopedDocumentLock } from "../../Functions/DocumentLock/documentLockSelectors.js";
 import { numberOrNull } from "../../Functions/DocumentLock/documentLockStatusFields.js";
 import { clearedHandoffState } from "./documentLockHookShared.js";

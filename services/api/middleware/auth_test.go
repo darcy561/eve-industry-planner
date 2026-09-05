@@ -6,21 +6,13 @@ import (
 	"testing"
 
 	"eve-industry-planner/shared/logs"
-
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestAuthConstructor_AttachesClientFailureDetail(t *testing.T) {
 	t.Parallel()
 
-	srv, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis.Run: %v", err)
-	}
-	t.Cleanup(srv.Close)
-	rdb := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	rdb := redisfake.New(t).Client
 
 	handler := AuthConstructor(rdb)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not run when auth fails")

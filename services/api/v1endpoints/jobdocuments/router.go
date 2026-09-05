@@ -7,7 +7,7 @@ import (
 	"eve-industry-planner/api/helper"
 )
 
-// Router routes /api/v1/job-documents (filtered reads + batch write/delete on user_job_documents).
+// Router routes /api/v1/job-documents (filtered reads + batch write/delete on job_documents).
 func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	method := r.Method

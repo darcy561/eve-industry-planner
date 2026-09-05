@@ -7,7 +7,7 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/deploy"
 	"eve-industry-planner/deployment-tool/internal/docker"
 	"eve-industry-planner/deployment-tool/internal/msg"
@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	if v, ok := catalog.ByID("status"); ok {
+	if v, ok := catalogue.ByID("status"); ok {
 		statusCmd.Short = v.Short
 	}
 	rootCmd.AddCommand(statusCmd)

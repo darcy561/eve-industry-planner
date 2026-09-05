@@ -35,7 +35,7 @@ services/api/v1endpoints/documentlocks/
   viewer_presence.go   /viewer-arrived /viewer-departed (delegates to documentlock.Handle…Ingress)
 
 services/core/singleton/service.go       Generic singleton-job runner used by core (Job + StartService)
-services/core/singleton/jobs.go          Catalog of registered singleton jobs (DoclockExpirySubscriberJob, allJobs, Start)
+services/core/singleton/jobs.go          Catalogue of registered singleton jobs (DoclockExpirySubscriberJob, allJobs, Start)
 services/core/main.go                    singleton.Start(clients) on core boot
 services/shared/core/redis/lease/lease.go Reusable single-leader primitive (SET NX + CAS renew)
 
@@ -137,9 +137,9 @@ nil, enforcement is skipped (same as earlier advisory behaviour).
 
 | Route | Lock collection checked |
 |---|---|
-| `PUT` / `DELETE` `/api/v1/groups` | `user_job_groups` |
-| `PUT` / `DELETE` `/api/v1/job-documents` | `user_job_documents` |
-| `PUT` `/api/v1/archived-jobs` | `user_job_documents` (live per-job locks) |
+| `PUT` / `DELETE` `/api/v1/groups` | `job_groups` |
+| `PUT` / `DELETE` `/api/v1/job-documents` | `job_documents` |
+| `PUT` `/api/v1/archived-jobs` | `job_documents` (live per-job locks) |
 
 Intentionally not gated: `POST /api/v1/document-locks/force-release` and other
 admin-style bypasses.
@@ -393,7 +393,7 @@ On each expired key:
    has exactly one winner.
 3. If promoted → publish `handoff_completed { reason: ttl_promotion }`.
    Otherwise → publish `expired { reason: ttl }`.
-4. If the collection is `user_job_groups` and a promotion happened, run
+4. If the collection is `job_groups` and a promotion happened, run
    `ReleaseStaleDependentJobLocksAfterGroupGrant` so per-job locks held by
    the dead holder don't linger.
 
@@ -645,7 +645,7 @@ func handleNewThing(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 ## Common pitfalls
 
 - **Forgetting the cascade on a new group-handoff path.** Any path that
-  transfers a `user_job_groups` lock must call one of the two cascade
+  transfers a `job_groups` lock must call one of the two cascade
   helpers, or per-job locks held by the old holder linger until their own
   TTL (5 min) fires.
 - **Touching the waitlist without a pulse refresh.** Both

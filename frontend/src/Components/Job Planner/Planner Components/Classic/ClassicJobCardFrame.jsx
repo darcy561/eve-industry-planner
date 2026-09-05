@@ -28,7 +28,7 @@ import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultip
 import useUsersStore from "../../../../Zustand/usersStore";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
-import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
+import { getJobTypeAccentColour } from "../../../../Functions/Helper/jobTypeDividerColour";
 import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 
 function DisplaySwitch({ job }) {
@@ -224,7 +224,7 @@ export function JobCardFrame({ job, previewStandalone = false }) {
             <Box
               sx={{
                 backgroundColor: (theme) =>
-                  getJobTypeAccentColor(theme, job.jobType),
+                  getJobTypeAccentColour(theme, job.jobType),
                 marginTop: 1,
                 width: "100%",
               }}

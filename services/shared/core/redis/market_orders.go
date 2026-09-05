@@ -1,4 +1,4 @@
-﻿package redis
+package redis
 
 import (
 	"context"
@@ -16,10 +16,6 @@ const (
 	regionRefreshTimesKey = "esi:market_orders:region_refresh_times"
 	// regionCronCursorKey tracks which region the refresh cron publishes next.
 	regionCronCursorKey = "esi:market_orders:region:cron_cursor"
-	// marketTokenLimitKey is the Redis key for market-order group token limit.
-	marketTokenLimitKey = "esi:group:market-order:token_limit"
-	// marketTokenUsedKey is the Redis key for market-order group rolling token usage.
-	marketTokenUsedKey = "esi:group:market-order:tokens:sum"
 )
 
 // MarketPriceEntry holds the prices derived from one region's order book for a single type.
@@ -209,49 +205,6 @@ func GetRegionMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client
 	}
 
 	return refreshTimes, nil
-}
-
-// GetMarketOrderTokenLimit retrieves current market-order group token limit from Redis.
-// Returns -1 when the key does not exist or cannot be parsed.
-func GetMarketOrderTokenLimit(ctx context.Context, client *redis.Client) (int64, error) {
-	val, err := client.Get(ctx, marketTokenLimitKey).Int64()
-	if err == redis.Nil {
-		return -1, nil
-	}
-	if err != nil {
-		return -1, err
-	}
-	return val, nil
-}
-
-// GetMarketOrderTokensUsed retrieves current rolling token usage for market-order group.
-// Returns 0 on cache miss.
-func GetMarketOrderTokensUsed(ctx context.Context, client *redis.Client) (float64, error) {
-	val, err := client.Get(ctx, marketTokenUsedKey).Float64()
-	if err == redis.Nil {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	return val, nil
-}
-
-// NextRegionCronIndex advances the region refresh cursor and returns the index to publish,
-// wrapped into [0, count). Regions are refreshed one per cron run so their paginations do not
-// compete for the shared market-order token budget.
-func NextRegionCronIndex(ctx context.Context, client *redis.Client, count int) (int, error) {
-	if count <= 0 {
-		return 0, nil
-	}
-
-	next, err := client.Incr(ctx, regionCronCursorKey).Result()
-	if err != nil {
-		return 0, err
-	}
-
-	// Incr returns the value after increment, so the first run yields index 0.
-	return int((next - 1) % int64(count)), nil
 }
 
 // regionETagsKey builds the per-region ETag hash key.

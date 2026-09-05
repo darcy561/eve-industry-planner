@@ -1,7 +1,8 @@
 // Package logs provides the process-wide logger.
 //
-// In Compose/production, [EnableOTLPExport] (from telemetry.Init) sends all log levels over OTLP;
-// Alloy drops below LOG_LEVEL before Loki and strips debug_steps unless LOG_LEVEL=debug.
+// In Compose/production, [EnableOTLPExport] (from telemetry.Init) switches the root to OTLP export.
+// LOG_LEVEL is the floor for everything the process emits, on stdout and over OTLP alike, so a
+// service logs what the operator asked for whether or not a collector is deployed.
 // Service identity (compose_service, service.name) comes from telemetry resource attributes, not logger env vars.
 // Stdout mirror: LOG_STDOUT=true|false overrides; when unset, enabled if
 // ENVIRONMENT / DEPLOYMENT_ENVIRONMENT is development|dev|local (Swarm + Compose).
@@ -59,6 +60,26 @@ func Sync() error {
 	return z.Sync()
 }
 
+// logLevel is the floor for everything this process emits. LOG_LEVEL is the single operator knob
+// for it — the collector does not filter again, and with the observability addon off there is no
+// collector to filter.
+func logLevel() zapcore.Level {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL"))) {
+	case "debug":
+		return zapcore.DebugLevel
+	case "warn", "warning":
+		return zapcore.WarnLevel
+	case "error":
+		return zapcore.ErrorLevel
+	default:
+		return zapcore.InfoLevel
+	}
+}
+
+func debugLevelEnabled() bool {
+	return logLevel() == zapcore.DebugLevel
+}
+
 func logStdoutEnabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_STDOUT"))) {
 	case "1", "true", "yes", "on":
@@ -82,8 +103,9 @@ func isDevelopmentEnv() bool {
 }
 
 func buildRoot() *zap.Logger {
-	// Export all levels over OTLP; Alloy filters by LOG_LEVEL and strips debug_steps before Loki (see observability/alloy/config.alloy).
-	level := zapcore.DebugLevel
+	// Cores accept everything; zap.IncreaseLevel applies the floor once, so stdout and OTLP
+	// never disagree about what this process emits.
+	const level = zapcore.DebugLevel
 
 	if useOTLPExport() {
 		otelCore := otelzap.NewCore(
@@ -91,7 +113,7 @@ func buildRoot() *zap.Logger {
 			otelzap.WithLoggerProvider(global.GetLoggerProvider()),
 		)
 		var core zapcore.Core = otelCore
-		zapOpts := []zap.Option{zap.AddStacktrace(zapcore.ErrorLevel)}
+		zapOpts := []zap.Option{zap.AddStacktrace(zapcore.ErrorLevel), zap.IncreaseLevel(logLevel())}
 		if logStdoutEnabled() {
 			encCfg := zap.NewProductionEncoderConfig()
 			encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
@@ -111,6 +133,7 @@ func buildRoot() *zap.Logger {
 	return zap.New(stdoutCore,
 		zap.AddCaller(),
 		zap.AddStacktrace(zapcore.ErrorLevel),
+		zap.IncreaseLevel(logLevel()),
 	)
 }
 

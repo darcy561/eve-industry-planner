@@ -25,7 +25,7 @@ func testMongo(t *testing.T) *Mongo {
 func TestClientBulk_accumulatesOrderedPairs(t *testing.T) {
 	t.Parallel()
 	mongo := testMongo(t)
-	stats := mongo.BuildStats
+	stats := mongo.StatisticsTotals
 	archived := mongo.ArchivedJobs
 
 	bulk := mongo.Bulk().
@@ -40,7 +40,7 @@ func TestClientBulk_accumulatesOrderedPairs(t *testing.T) {
 	if bulk.err != nil {
 		t.Fatal(bulk.err)
 	}
-	if bulk.writes[0].Collection != CollectionBuildStats || bulk.writes[1].Collection != CollectionArchivedJobs {
+	if bulk.writes[0].Collection != CollectionStatisticsTotals || bulk.writes[1].Collection != CollectionArchivedJobs {
 		t.Fatalf("pair order: %#v %#v", bulk.writes[0].Collection, bulk.writes[1].Collection)
 	}
 	u0, ok := bulk.writes[0].Model.(*mongodriver.ClientUpdateOneModel)

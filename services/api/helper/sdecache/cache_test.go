@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	sdecore "eve-industry-planner/shared/core/sde"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 func TestTryWarmOnce_setsReadyAndServesFromCache(t *testing.T) {
@@ -48,22 +48,16 @@ func TestTryWarmOnce_incompleteLiveNotReady(t *testing.T) {
 	}
 }
 
+// An update signals a rewarm. Undecodable messages never reach here: the shared
+// subscribe helper drops them.
 func TestSignalSDERewarm_triggersChannel(t *testing.T) {
 	rewarm := make(chan struct{}, 1)
-	payload, _ := json.Marshal(natscore.SDECurrentBuildUpdate{BuildNumber: 99, Version: "99_v1"})
-	signalSDERewarm(context.Background(), payload, rewarm)
+	signalSDERewarm(context.Background(), eipnats.SDECurrentBuildUpdate{BuildNumber: 99, Version: "99_v1"}, rewarm)
 
 	select {
 	case <-rewarm:
 	default:
 		t.Fatal("expected rewarm signal")
-	}
-
-	signalSDERewarm(context.Background(), []byte(`{`), rewarm)
-	select {
-	case <-rewarm:
-		t.Fatal("invalid payload should not signal")
-	default:
 	}
 }
 

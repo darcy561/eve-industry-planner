@@ -3,12 +3,12 @@ package commands
 import (
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/deploy"
 )
 
 func init() {
-	if v, ok := catalog.ByID("dev"); ok {
+	if v, ok := catalogue.ByID("dev"); ok {
 		devCmd.Short = v.Short
 	}
 	rootCmd.AddCommand(devCmd)

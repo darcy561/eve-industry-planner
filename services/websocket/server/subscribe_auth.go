@@ -2,15 +2,11 @@ package server
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
 	"eve-industry-planner/shared/logs"
 	eipmongo "eve-industry-planner/shared/mongo"
-
-	"go.mongodb.org/mongo-driver/v2/bson"
-	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const docSubscribeMongoTimeout = 3 * time.Second
@@ -19,10 +15,10 @@ const docSubscribeMongoTimeout = 3 * time.Second
 // in the form "{collection}.{mongoDocumentID}".
 //
 // Singleton collections (document id must equal accountID):
-//   - users, application_settings, user_watchlist_deprecated — singleton per account; _id matches accountID (same invariant as login).
+//   - accounts, account_settings, watchlist_deprecated — singleton per account; _id matches accountID (same invariant as login).
 //
-// Mongo ownership (_id + _meta.accountID == accountID):
-//   - jobs, user_job_documents, archivedJobs, groups, build_stats
+// Mongo ownership (_id, and _meta.owner is this account):
+//   - jobs, job_documents, archived_jobs, groups, production_totals
 //
 // All other collection names are denied (fail closed). Public/static collections (e.g. blueprints) must not
 // be subscribed via this realtime channel.
@@ -37,10 +33,10 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, accountID st
 	collection, id := parts[0], parts[1]
 
 	switch collection {
-	case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
+	case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionWatchlistDeprecated:
 		return id == accountID
 
-	case eipmongo.CollectionJobs, eipmongo.CollectionUserJobDocuments, eipmongo.CollectionArchivedJobs, eipmongo.CollectionUserJobGroups, eipmongo.CollectionBuildStats:
+	case eipmongo.CollectionJobs, eipmongo.CollectionJobDocuments, eipmongo.CollectionJobGroups:
 		if s.Stack == nil || s.Stack.Mongo == nil {
 			logs.WarnCtx(context.Background(), "subscribe auth denied: mongo client unavailable",
 				"collection", collection, "doc_id", id)
@@ -49,8 +45,7 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, accountID st
 		mongo := s.Stack.Mongo
 		mctx, cancel := context.WithTimeout(ctx, docSubscribeMongoTimeout)
 		defer cancel()
-		coll := mongo.Coll(collection)
-		ok, err := documentExistsByAccountID(mctx, coll, id, accountID)
+		ok, err := mongo.Docs(collection).ExistsByAccountID(mctx, id, accountID)
 		if err != nil {
 			logs.WarnCtx(context.Background(), "subscribe auth mongo lookup failed",
 				"error", err, "collection", collection, "doc_id", id, "account_id", accountID)
@@ -61,21 +56,4 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, accountID st
 	default:
 		return false
 	}
-}
-
-func documentExistsByAccountID(ctx context.Context, coll *mongodriver.Collection, docID, accountID string) (bool, error) {
-	if coll == nil {
-		return false, nil
-	}
-	err := coll.FindOne(ctx, bson.M{
-		"_id":             docID,
-		"_meta.accountID": accountID,
-	}).Err()
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, mongodriver.ErrNoDocuments) {
-		return false, nil
-	}
-	return false, err
 }

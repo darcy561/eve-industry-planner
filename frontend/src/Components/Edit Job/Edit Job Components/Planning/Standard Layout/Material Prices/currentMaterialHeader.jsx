@@ -105,7 +105,7 @@ export function CurrentMaterialHeader({
 
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
             {formatNumberForLocale(
-              itemPrice * state.activeJob.build.products.totalQuantity
+              itemPrice * state.activeJob.totalQuantityProduced
             )}
           </Typography>
         </Grid>

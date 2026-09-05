@@ -5,7 +5,6 @@ import {
 } from "../../../../Functions/Assets/assetHelpers";
 import { AssetsPage_Loading } from "../../Character Assets/Standard Layout/loadingPage";
 import { AssetEntry_TopLevel } from "../../Character Assets/Standard Layout/AssetFolders/topLevelFolder";
-import uuid from "react-uuid";
 import getWorldData from "../../../../Functions/EveESI/World/getWorldData";
 import getAssetLocationNames from "../../../../Functions/EveESI/World/getAssetLocationNames";
 import { getFullItemList } from "../../../../Functions/Helper/getCachedData";
@@ -131,7 +130,7 @@ export function AssetLocationFlagPage_Corporation({
         let depth = 1;
         return (
           <AssetEntry_TopLevel
-            key={uuid()}
+            key={locationID}
             locationID={locationID}
             assets={assets}
             assetLocations={assetLocations}

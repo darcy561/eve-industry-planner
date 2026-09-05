@@ -17,7 +17,7 @@ The Material Prices panel provides:
 - **Location**: Top-right corner of the panel
 - **Function**: Selects the market region for price calculations
 - **Options**: Various EVE Online regions (The Forge, Domain, etc.)
-- **Behavior**: 
+- **Behaviour**: 
   - Saves selection to job layout preferences
   - Updates all price calculations immediately
   - Uses default market location if not previously set
@@ -26,7 +26,7 @@ The Material Prices panel provides:
 - **Location**: Top-left area of the panel
 - **Function**: Selects the type of market listing to use for prices
 - **Options**: Typically "buy" or "sell" orders
-- **Behavior**: 
+- **Behaviour**: 
   - Saves selection to job layout preferences
   - Updates all price calculations immediately
   - Uses default listing type if not previously set

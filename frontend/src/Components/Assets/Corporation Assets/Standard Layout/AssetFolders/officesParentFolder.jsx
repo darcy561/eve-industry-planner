@@ -9,7 +9,6 @@ import {
 import { AssetEntry_Selector } from "../../../Character Assets/Standard Layout/AssetFolders/displaySelector";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import uuid from "react-uuid";
 import GLOBAL_CONFIG from "../../../../../global-config-app";
 
 export function AssetEntry_CorpOffices({
@@ -150,7 +149,7 @@ function ExpandedAssetDisplay({
       {hangarAssets.map((asset, index) => {
         return (
           <AssetEntry_Selector
-            key={uuid()}
+            key={asset.item_id}
             assetObject={asset}
             assetLocations={assetLocations}
             topLevelAssets={topLevelAssets}

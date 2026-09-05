@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/dataplane"
 	"eve-industry-planner/deployment-tool/internal/dataplane/mongo"
 	"eve-industry-planner/deployment-tool/internal/dataplane/s3"
@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	if v, ok := catalog.ByID("init"); ok {
+	if v, ok := catalogue.ByID("init"); ok {
 		initCmd.Short = v.Short
 	}
 	rootCmd.AddCommand(initCmd)
@@ -125,7 +125,7 @@ TUI Setup is the guided editor for the same files (may overwrite with backups).`
 			return fail(err)
 		}
 
-		chip := "already initialized"
+		chip := "already initialised"
 		if wroteEnv || wroteCfg || len(stackRes.Updated) > 0 {
 			chip = "defaults written"
 		}

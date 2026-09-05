@@ -2,7 +2,8 @@
 // and API affinity cookies. Not operator-overridable.
 //
 // Cookies live here. HTTP path: StatusPath.
-// NATS subject/payload SoT: shared/core/nats (SubjectWSPlacementState, PlacementState).
+// NATS subject/payload SoT: shared/nats (SubjectWSPlacementState, PlacementState).
+// Tenant strings are models.Owner.Key(); this package does not build them.
 package wsplacement
 
 const (

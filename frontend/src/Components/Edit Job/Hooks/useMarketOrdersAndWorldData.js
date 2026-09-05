@@ -2,51 +2,14 @@ import { useState, useEffect } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
 import getWorldData from "../../../Functions/EveESI/World/getWorldData";
 import findMarketOrdersForItem from "../../../Functions/MarketOrders/findMarketOrdersForItem";
+import applyLatestOrderData from "../../../Functions/MarketOrders/applyLatestOrderData";
 import { useGetAllCharacterMarketOrders } from "../../../Hooks/EveEsi/Character/useGetAllCharacterMarketOrders";
 import { useGetAllCharacterHistoricMarketOrders } from "../../../Hooks/EveEsi/Character/useGetAllCharacterHistoricMarketOrders";
 import { useGetAllCorporationMarketOrders } from "../../../Hooks/EveEsi/Corporation/useGetAllCorporationMarketOrders";
 import { useGetAllCorporationHistoricMarketOrders } from "../../../Hooks/EveEsi/Corporation/useGetAllCorporationHistoricMarketOrders";
 
 function updateLinkedMarketOrdersWithLatestData(allOrders, activeJob, actions) {
-  if (!allOrders || !activeJob) return;
-
-  let hasChanges = false;
-  activeJob.build.sale.marketOrders.forEach((order) => {
-    const matchingOrders = allOrders.filter(
-      (newOrder) => newOrder.order_id === order.order_id
-    );
-    if (matchingOrders.length === 0) return;
-    const latestOrderData =
-      matchingOrders.find((o) => o.is_corporation) || matchingOrders[0];
-    if (!latestOrderData) return;
-
-    if (!order.complete) {
-      const shouldBeComplete =
-        latestOrderData.volume_remain === 0 ||
-        latestOrderData.state === "expired" ||
-        latestOrderData.state === "cancelled";
-      const newState = latestOrderData.state ? latestOrderData.state : "active";
-
-      if (
-        order.volume_remain !== latestOrderData.volume_remain ||
-        Date.parse(order.issued) !== Date.parse(latestOrderData.issued) ||
-        shouldBeComplete ||
-        order?.state !== newState
-      ) {
-        order.duration = latestOrderData.duration;
-        order.item_price = latestOrderData.price;
-        order.range = latestOrderData.range;
-        order.volume_remain = latestOrderData.volume_remain;
-        order.issued = latestOrderData.issued;
-        order.timeStamps = [...(order.timeStamps || []), latestOrderData.issued];
-        order.complete = shouldBeComplete;
-        order.state = newState;
-        hasChanges = true;
-      }
-    }
-  });
-
-  if (hasChanges) {
+  if (applyLatestOrderData(activeJob, allOrders)) {
     actions.updateActiveJob(activeJob);
   }
 }

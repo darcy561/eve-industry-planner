@@ -1,6 +1,6 @@
 # Plan: Scoped alliance / corporation realtime routing
 
-**Status (2026-04-22):** Core server paths, JWT ceiling fields, changestream metadata, **`upgrade_scopes`**, reverse indexes, session handoff extensions, and documentation are **implemented**. Treat **[routing-and-scopes.md](./routing-and-scopes.md)** as the **canonical wire + behavior contract**; this file remains the phased design and backlog (optional lazy per-org workers, further publisher coverage, SPA wiring).
+**Status (2026-04-22):** Core server paths, JWT ceiling fields, changestream metadata, **`upgrade_scopes`**, reverse indexes, session handoff extensions, and documentation are **implemented**. Treat **[routing-and-scopes.md](./routing-and-scopes.md)** as the **canonical wire + behaviour contract**; this file remains the phased design and backlog (optional lazy per-org workers, further publisher coverage, SPA wiring).
 
 This document describes how to evolve the **current** websocket + NATS setup toward **alliance- and corporation-rooted** delivery with a **`scopes`** metadata field for **downward** fan-out (specific corporations within an alliance, specific accounts within a corporation), **progressive** client pools (account-first connect, upgrade when the UI needs org data), and optional **lazy per-org** workers. It is a **git-tracked implementation plan**; keep it updated as work lands.
 
@@ -11,7 +11,7 @@ This document describes how to evolve the **current** websocket + NATS setup tow
 ## Goals
 
 - Route each `doc.update` payload from JetStream to the correct **local** websocket clients on **each replica** (no cross-replica client map; sticky `/ws` remains client-only).
-- **Collection (or equivalent)** determines the **root** of routing: **alliance-rooted** vs **corporation-rooted** vs existing **account-rooted** behavior.
+- **Collection (or equivalent)** determines the **root** of routing: **alliance-rooted** vs **corporation-rooted** vs existing **account-rooted** behaviour.
 - **`scopes` in message metadata** narrows recipients **downward** from that root:
   - **Alliance-rooted:** optional lists of **corporation IDs** and/or **account IDs** under that alliance (sideways only *inside* the alliance).
   - **Corporation-rooted:** optional **account IDs** under that corporation.
@@ -48,18 +48,18 @@ This document describes how to evolve the **current** websocket + NATS setup tow
 
 ### Account-rooted documents (today)
 
-Keep existing behavior: `accountID` in payload → `userConnections` fan-out with source suppression and sync rules (`dispatch.go`).
+Keep existing behaviour: `accountID` in payload → `userConnections` fan-out with source suppression and sync rules (`dispatch.go`).
 
 ---
 
 ## Current baseline in repo (as of plan authoring)
 
-| Area | Location / behavior |
+| Area | Location / behaviour |
 |------|---------------------|
 | Account fan-out | `userConnections` + `broadcastToAccountClients` in `services/websocket/server/dispatch.go` |
 | Corp / alliance fan-out | `broadcastToCorporationScope` / `broadcastToAllianceScope` iterate **all** `s.Clients` and check `client.Scopes` from `services/websocket/server/model/scopes.go` |
 | Route parsing | `services/websocket/server/outgoinglogic/outgoing.go` — `RouteInfo` / `DecodeRouteInfo` (account, corporation, alliance, source ids); **no message-level `scopes`** yet |
-| Connect | `services/websocket/server/handler.go`: JWT via `internaljwt.ValidateInternalJWT`; claims include **`Corporations []int64`**; **`client.Scopes` initialized empty** |
+| Connect | `services/websocket/server/handler.go`: JWT via `internaljwt.ValidateInternalJWT`; claims include **`Corporations []int64`**; **`client.Scopes` initialised empty** |
 | Inbound WS JSON | `services/websocket/server/reader.go`: `session_resume`, `sync`, `subscribe`, `unsubscribe` — **no scope-upgrade message** |
 | NATS → local | `services/websocket/server/nats_subscriptions.go` → `deliverOutboundDocUpdate` |
 | Writers | Per-client `Send` channel + `writer` goroutine (`handler.go`, `writer.go`) |
@@ -72,7 +72,7 @@ Keep existing behavior: `accountID` in payload → `userConnections` fan-out wit
 
 1. **Specify wire format** for JetStream `doc.update` bodies (same JSON the browser receives). Include:
    - Root ids for alliance / corporation paths (align with existing `allianceId` / `corporationId` keys used in `DecodeRouteInfo`).
-   - **`scopes`** object: `corporationIDs`, `accountIDs` (string arrays; normalize EVE id types at parse boundary).
+   - **`scopes`** object: `corporationIDs`, `accountIDs` (string arrays; normalise EVE id types at parse boundary).
 2. **Extend `outgoinglogic`** (`outgoing.go`): add decoded `scopes` (and optionally a wrapper type such as `DecodedOutbound`) with **one** `json.Unmarshal` (or decode once into a struct) used by dispatch.
 3. **Refactor `dispatch.go`:** remove duplicate `DecodeRouteInfo` in the account broadcast path; pass the decoded struct through.
 
@@ -85,7 +85,7 @@ Keep existing behavior: `accountID` in payload → `userConnections` fan-out wit
 **Objective:** Server only adds clients to org pools for orgs the user is allowed to access.
 
 1. **`internaljwt.InternalClaims`** (`services/shared/core/internaljwt/jwt.go`): add **alliance IDs** (parallel to `Corporations`) wherever the API mints tokens; keep **`Corporations`** as the **ceiling** for corporation access.
-2. **Normalize IDs** when populating `model.RealtimeScopes` on `Client` (handler or small helper): JWT may use `int64`; indexes/maps should use a **single canonical string** (or int64 consistently) to avoid mismatch with JSON payloads.
+2. **Normalise IDs** when populating `model.RealtimeScopes` on `Client` (handler or small helper): JWT may use `int64`; indexes/maps should use a **single canonical string** (or int64 consistently) to avoid mismatch with JSON payloads.
 3. **Progressive connect:** on first connect, continue registering **`userConnections`** only; **leave corp/alliance `Scopes` empty** until upgrade so corp/alliance NATS traffic does not target those connections.
 
 ---
@@ -184,7 +184,7 @@ Phase 8  Metrics + tests
 | `services/websocket/server/outgoinglogic/broadcast.go` | New predicates if needed |
 | `services/websocket/server/dispatch.go` | Routing, indexes, scopes filter, remove double decode |
 | `services/websocket/server/types.go`, `server.go` | New maps + mutexes |
-| `services/websocket/server/handler.go` | Optional seed from JWT; normalize ids |
+| `services/websocket/server/handler.go` | Optional seed from JWT; normalise ids |
 | `services/websocket/server/reader.go` | New inbound message type |
 | `services/websocket/server/session_resume.go` | Scope / index consistency on resume |
 | `services/shared/core/internaljwt/jwt.go` (+ API minting) | Alliance claims; corp ceiling |
@@ -195,4 +195,4 @@ Phase 8  Metrics + tests
 
 ## Documentation maintenance
 
-When behavior or contracts change, update **[implementation.md](./implementation.md)**, append a dated note to **[interactions.md](./interactions.md)**, and adjust **[plan-todo-tracker.md](./plan-todo-tracker.md)** if you track tasks there. If this plan’s phases move, edit **this file** in the same PR when practical.
+When behaviour or contracts change, update **[implementation.md](./implementation.md)**, append a dated note to **[interactions.md](./interactions.md)**, and adjust **[plan-todo-tracker.md](./plan-todo-tracker.md)** if you track tasks there. If this plan’s phases move, edit **this file** in the same PR when practical.

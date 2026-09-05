@@ -16,6 +16,7 @@ import (
 
 	"eve-industry-planner/deployment-tool/internal/docker"
 	"eve-industry-planner/deployment-tool/internal/kit"
+	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/stack"
 )
 
@@ -73,6 +74,39 @@ func SyncConfigs(ctx context.Context, home string, stackFiles ...string) (map[st
 		keyToObj[t.Key] = obj
 	}
 	return keyToObj, nil
+}
+
+// PruneStaleConfigs removes eip_-namespaced config objects outside keyToObj, including
+// a whole addon's worth when it is switched off. Removal of an object a service still
+// references fails with a conflict, which is what keeps live configs out of the sweep.
+// Deploy paths only: sync must not remove objects it may still be mid-roll on.
+func PruneStaleConfigs(ctx context.Context, keyToObj map[string]string) {
+	if len(keyToObj) == 0 {
+		return
+	}
+	apiClient, err := docker.NewAPIClient()
+	if err != nil {
+		return
+	}
+	defer apiClient.Close()
+
+	configs, err := apiClient.ConfigList(ctx, client.ConfigListOptions{})
+	if err != nil {
+		return
+	}
+	keep := make(map[string]struct{}, len(keyToObj))
+	for _, obj := range keyToObj {
+		keep[obj] = struct{}{}
+	}
+	names := make([]string, 0, len(configs.Items))
+	for _, config := range configs.Items {
+		names = append(names, config.Spec.Name)
+	}
+	for _, name := range staleConfigNames(names, keep) {
+		if _, err := apiClient.ConfigRemove(ctx, name, client.ConfigRemoveOptions{}); err == nil {
+			msg.Line("pruned unused docker config " + name)
+		}
+	}
 }
 
 func resolveStackPath(home, f string) (string, error) {

@@ -31,12 +31,11 @@ export default function Step3JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.apiJobs.size, { max: 0 })}/
-            {job.totalJobCount()}
+            {formatNumberForLocale(job.esiJobIDs.size, { max: 0 })}/
+            {job.totalJobSlots}
           </Typography>
         </Box>
       </Box>
-
 
     </Box>
   );

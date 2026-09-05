@@ -4,7 +4,6 @@ import { AssetEntry_Selector } from "./displaySelector";
 import { useState } from "react";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import uuid from "react-uuid";
 import useUsersStore from "../../../../../Zustand/usersStore";
 
 export function AssetEntry_TopLevel({
@@ -108,7 +107,7 @@ function ExpandedAssetDisplay({
       {assets.map((asset, index) => {
         return (
           <AssetEntry_Selector
-            key={uuid()}
+            key={asset.item_id}
             assetObject={asset}
             assetLocations={assetLocations}
             topLevelAssets={topLevelAssets}

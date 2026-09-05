@@ -14,6 +14,11 @@ const sentryTracesSampleRateEnv = "SENTRY_TRACES_SAMPLE_RATE"
 // DefaultOTLPEndpoint is the gRPC host:port for Alloy (DNS alias on eip-core when obs addon is up).
 const DefaultOTLPEndpoint = "alloy:4317"
 
+// observabilityEnabledEnv gates OTLP export. The observability addon is optional, so Alloy is
+// absent unless the operator enabled it; dialling it anyway leaves every exporter retrying a name
+// that resolves to nothing. The Deployment Tool sets this from addons.observability.enabled.
+const observabilityEnabledEnv = "OBSERVABILITY_ENABLED"
+
 // DefaultMetricExportInterval is the OTLP metric reader period when [Config.MetricExportInterval] is zero.
 // Match Prometheus global scrape_interval for job otel_collector (see observability/prometheus/prometheus.yml)
 // so the collector’s :8889 exposition updates between scrapes instead of going stale for a full minute.
@@ -40,17 +45,28 @@ type Config struct {
 }
 
 // DefaultConfig returns OTLP settings for services running on the standard stack (Alloy as alloy:4317).
+// The endpoint is empty unless the observability addon is on, which leaves metrics and logs
+// unexported; Sentry is unaffected.
 func DefaultConfig(serviceName string) Config {
 	return Config{
 		ServiceName:            strings.TrimSpace(serviceName),
 		ServiceVersion:         resolveServiceVersion(),
-		OTLPEndpoint:           DefaultOTLPEndpoint,
+		OTLPEndpoint:           resolveOTLPEndpoint(),
 		OTLPInsecure:           true,
 		SentryDSN:              strings.TrimSpace(BakedSentryDSN),
 		SentryEnvironment:      resolveDeploymentEnvironment(),
 		SentryRelease:          strings.TrimSpace(BakedRelease),
 		SentryTracesSampleRate: resolveSentryTracesSampleRate(),
 	}
+}
+
+// resolveOTLPEndpoint returns the collector address when the observability addon is on, else "".
+func resolveOTLPEndpoint() string {
+	on, err := strconv.ParseBool(strings.TrimSpace(os.Getenv(observabilityEnabledEnv)))
+	if err != nil || !on {
+		return ""
+	}
+	return DefaultOTLPEndpoint
 }
 
 // resolveDeploymentEnvironment prefers runtime .env (Swarm env_file) over bake-time mode.

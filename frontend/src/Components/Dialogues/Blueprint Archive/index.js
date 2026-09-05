@@ -1,4 +1,6 @@
-export { default } from "./dialogFrame";
+export { default } from "./dialogueFrame";
 export { default as ArchiveStatsSummary } from "./ArchiveStatsSummary";
-export { default as ArchiveDialogBody } from "./ArchiveDialogBody";
-export { hasMeaningfulBuildStats } from "./hasMeaningfulBuildStats";
+export { default as ArchiveStatsBreakdown } from "./ArchiveStatsBreakdown";
+export { mapApiStatsToArchiveBreakdown } from "./mapApiStatsToArchiveBreakdown";
+export { default as ArchiveDialogueBody } from "./ArchiveDialogueBody";
+export { hasMeaningfulTotals } from "./hasMeaningfulTotals";

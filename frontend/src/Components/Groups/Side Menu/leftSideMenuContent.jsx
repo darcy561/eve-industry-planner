@@ -1,6 +1,5 @@
 import { List } from "@mui/material";
 import { useGroupPageSideMenuFunctions } from "./Buttons/buttonFunctions";
-import uuid from "react-uuid";
 import { SidemenuButtonTemplate_Default } from "../../SideMenu/defaultButtonTemplate";
 
 function SideMenuContent_GroupPage({

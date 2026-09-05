@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"eve-industry-planner/api/helper/sso"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
@@ -72,8 +72,7 @@ type EveTokenValidationResult struct {
 // ValidateEveTokenAndExtractHash validates an EVE SSO token and extracts relevant information.
 // Returns character hash, scopes, and character name if valid, or an error if invalid.
 func ValidateEveTokenAndExtractHash(ctx context.Context, tokenString, clientID string) (*EveTokenValidationResult, error) {
-	// Validate the EVE SSO token
-	claims, err := sso.ValidateEveSSOToken(tokenString, clientID)
+	claims, err := evesso.ValidateEveSSOToken(tokenString, clientID)
 	if err != nil {
 		return nil, err
 	}
@@ -204,10 +203,12 @@ func ExtractSessionIDFromSession(ctx context.Context, r *http.Request, redisClie
 	return identity.SessionID, nil
 }
 
-func ExtractSessionGrants(ctx context.Context, r *http.Request, redisClient *redis.Client) ([]int64, []int64, error) {
+// ExtractSessionGrants returns the corporation and alliance refs a session may
+// see. Callers compare refs; to test membership for an id, derive its ref first.
+func ExtractSessionGrants(ctx context.Context, r *http.Request, redisClient *redis.Client) (corporationRefs, allianceRefs []string, err error) {
 	identity, err := ExtractAccountSession(ctx, r, redisClient)
 	if err != nil {
 		return nil, nil, err
 	}
-	return identity.Session.Grants.CorporationIDs, identity.Session.Grants.AllianceIDs, nil
+	return identity.Session.Grants.CorporationRefs, identity.Session.Grants.AllianceRefs, nil
 }

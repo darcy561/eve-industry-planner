@@ -17,7 +17,7 @@ func StartUnderPrimary(ctx context.Context, clients *stackservices.Clients, stat
 		return nil, fmt.Errorf("changestream: clients required")
 	}
 	m := servicemanager.New("changestream", func(context.Context) (func(), error) {
-		if clients.Mongo == nil || clients.JetStream == nil || clients.NATS == nil {
+		if clients.Mongo == nil || clients.NATS == nil {
 			return nil, fmt.Errorf("changestream: mongo, jetstream, and nats required")
 		}
 		// Change streams need a client with no operation timeout; it lives only while primary.
@@ -26,7 +26,7 @@ func StartUnderPrimary(ctx context.Context, clients *stackservices.Clients, stat
 		if err != nil {
 			return nil, fmt.Errorf("changestream: watch client: %w", err)
 		}
-		stop, err := StartService(watchMongo, clients.JetStream, clients.NATS, clients.Redis)
+		stop, err := StartService(watchMongo, clients.NATS, clients.Redis)
 		if err != nil {
 			watchMongo.Disconnect(context.Background())
 			return nil, err

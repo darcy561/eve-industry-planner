@@ -190,7 +190,7 @@ flowchart TB
 |----|------|--------|------|
 | **#40** | **Exchange handler integration tests** — `POST /eve-sso/tokens/exchange`: invalid code, empty token, happy path mock CCP | open | M |
 | **#41** | **ESI refresh handler tests** — `POST /eve-sso/tokens/refresh`; `isSSOGrantClientError` mapping to 401 vs 503 | open | S |
-| **#42** | **Rate-limit / outage behavior** — document deferral when CCP token endpoint fails; align with Tranquility gate on SPA | open | S |
+| **#42** | **Rate-limit / outage behaviour** — document deferral when CCP token endpoint fails; align with Tranquility gate on SPA | open | S |
 
 **Where:** `services/api/v1endpoints/sso/*`, [README §6.1–6.4](./overview.md#6-end-to-end-flows).
 
@@ -358,4 +358,3 @@ One production failure mode that motivated **#2–#6** and **#20** — not the o
 
 - Internal JWT / JWKS — removed; [README §2](./overview.md#2-what-changed-compared-to-the-previous-system).
 - `technical-documentation/backend/api/session-esi.md` — may overlap; prefer `technical-documentation/backend/api/auth/*`.
-- `firebaseadmin` — migration/admin only, not request auth ([BACKEND §10](./sessions.md#10-servicessharedfirebaseadmin)).

@@ -5,9 +5,7 @@ import (
 	"testing"
 
 	"eve-industry-planner/shared/core/documentlock"
-
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestWaitlistPulseNilRedis(t *testing.T) {
@@ -20,9 +18,7 @@ func TestWaitlistPulseNilRedis(t *testing.T) {
 
 func TestWaitlistPulseOK(t *testing.T) {
 	t.Parallel()
-	mr := miniredis.RunT(t)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	rdb := redisfake.New(t).Client
 
 	out := WaitlistPulse(context.Background(), documentlock.Deps{Redis: rdb}, "acct", "sess", "jobs", "j1")
 	if !out.OK() {

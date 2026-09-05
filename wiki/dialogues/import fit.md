@@ -56,6 +56,6 @@ The Import Fit dialogue requires clipboard read permissions. You may need to gra
 ## Related Documentation
 
 - [Job Planner](job%20planner) - Managing imported jobs
-- [Groups](groups) - Organizing imported fits
+- [Groups](groups) - Organising imported fits
 - [Edit Job](edit%20job) - Configuring imported jobs
 

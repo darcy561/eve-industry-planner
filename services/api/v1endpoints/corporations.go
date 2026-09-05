@@ -3,17 +3,16 @@ package v1endpoints
 import (
 	"context"
 	"errors"
+	eipnats "eve-industry-planner/shared/nats"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -75,7 +74,7 @@ func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		claims, err := sso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
+		claims, err := evesso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
 		if err != nil {
 			skippedTokens++
 			continue
@@ -103,12 +102,7 @@ func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 		"skipped_tokens": skippedTokens,
 	})
 
-	taskRequest := natscore.AccountSessionGrantsRequest{
-		AccountID: accountID,
-		Tokens:    validTokens,
-	}
-
-	if err := natscore.PublishTask(ctx, a.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, a.NATS); err != nil {
+	if err := eipnats.PublishUpdateAccountSessionGrants(ctx, a.NATS, accountID, validTokens); err != nil {
 		metrics.Error("publish_error")
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]any{"token_count": len(validTokens)})
 		return

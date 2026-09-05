@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   acquireDocumentLock: vi.fn(),
   claimDocumentLockHandoff: vi.fn(),
   forceReleaseDocumentLockSameAccount: vi.fn(),
@@ -58,7 +58,7 @@ describe("useLockReadOnlyGrace", () => {
     const spy = vi.spyOn(readOnlyGrace, "endReadOnlyGraceIfApplicable");
     const { result } = renderHook(() => {
       const ref = useRef(null);
-      const grace = useLockReadOnlyGrace(ref, "user_job_documents", "job-grace");
+      const grace = useLockReadOnlyGrace(ref, "job_documents", "job-grace");
       return { grace, ref };
     });
     act(() => {
@@ -68,7 +68,7 @@ describe("useLockReadOnlyGrace", () => {
     act(() => {
       vi.advanceTimersByTime(LOCK_READONLY_GRACE_MS);
     });
-    expect(spy).toHaveBeenCalledWith("user_job_documents", "job-grace");
+    expect(spy).toHaveBeenCalledWith("job_documents", "job-grace");
     expect(result.current.ref.current).toBeNull();
     spy.mockRestore();
   });
@@ -77,7 +77,7 @@ describe("useLockReadOnlyGrace", () => {
     const spy = vi.spyOn(readOnlyGrace, "endReadOnlyGraceIfApplicable");
     const { result } = renderHook(() => {
       const ref = useRef(null);
-      const grace = useLockReadOnlyGrace(ref, "user_job_documents", "job-cancel");
+      const grace = useLockReadOnlyGrace(ref, "job_documents", "job-cancel");
       return { grace, ref };
     });
     act(() => {

@@ -8,9 +8,9 @@
 
 ## What changed
 
-_`eip sync` apply path (landed):_ Ephemeral SyncEnvMap; Moby `ServiceUpdate` for capacity-sync services; obs fragment merge on rematerialize (#34). Soft divert env from YAML is live.
+_`eip sync` apply path (landed):_ Ephemeral SyncEnvMap; Moby `ServiceUpdate` for capacity-sync services; obs fragment merge on rematerialise (#34). Soft divert env from YAML is live.
 
-_Phase B:_ DT materializes Swarm config **`eip_config_yaml`** from project-home `eip.config.yaml` (AppStackFile / SyncConfigs / InjectExternalConfigs); controller mounts `/etc/eip/eip.config.yaml` and reloads; Observe merges managed/min/max into RoleState.
+_Phase B:_ DT materialises Swarm config **`eip_config_yaml`** from project-home `eip.config.yaml` (AppStackFile / SyncConfigs / InjectExternalConfigs); controller mounts `/etc/eip/eip.config.yaml` and reloads; Observe merges managed/min/max into RoleState.
 
 ## How this part works after the change
 
@@ -26,8 +26,8 @@ Operators edit project-home `eip.config.yaml` and run **`eip sync`**. Secrets st
 | `services.websocket.client_cutoff` | `WS_CLIENT_CUTOFF` (hard full) |
 | `services.websocket.target_clients` | `WS_TARGET_CLIENTS` (soft divert) |
 | `ports.*` / `paths.*` / `proxy.*` | Traefik publish / labels / trust |
-| `addons.observability.*` | Fragment merge on rematerialize; grafana knobs via sync when running |
-| File configs labeled `eip.config.sync=1` | Hash-diff Swarm configs |
+| `addons.observability.*` | Fragment merge on rematerialise; grafana knobs via sync when running |
+| File configs labelled `eip.config.sync=1` | Hash-diff Swarm configs |
 | `eip_config_yaml` | Full `eip.config.yaml` → capacity-controller mount |
 
 ### Controller policy schema (validated; #18 consumes — pack locked)

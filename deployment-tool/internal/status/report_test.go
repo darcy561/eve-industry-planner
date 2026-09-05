@@ -78,6 +78,38 @@ func TestBuildIncludesObsWhenPresent(t *testing.T) {
 	}
 }
 
+func TestBuildIncludesObsWhenEnabledButUndeployed(t *testing.T) {
+	snap := docker.StackSnapshot{
+		Present:  true,
+		Name:     "eip",
+		Services: map[string]docker.ServiceInfo{"api": {Short: "api", Desired: 1, Running: 1}},
+	}
+	v := deploy.View{
+		StackName:  "eip",
+		Snapshot:   snap,
+		Fragments:  deploy.FragmentStates(snap),
+		ObsEnabled: true,
+	}
+	r := Build(v)
+	var obs *GroupSection
+	for i, g := range r.Groups {
+		if g.Title == "Observability" {
+			obs = &r.Groups[i]
+		}
+	}
+	if obs == nil {
+		t.Fatal("enabled addon must report its services, not hide the group")
+	}
+	for _, row := range obs.Rows {
+		if row.Signal == OK {
+			t.Fatalf("undeployed %s must not read OK", row.Short)
+		}
+	}
+	if r.OpsBad != len(obs.Rows) {
+		t.Fatalf("OpsBad=%d rows=%d", r.OpsBad, len(obs.Rows))
+	}
+}
+
 func TestReportJSONRoundTrip(t *testing.T) {
 	r := Report{
 		StackName:    "eip",

@@ -20,7 +20,7 @@ export function buildSetIsLoadingActionPayload(isLoading, loadingMessage) {
 }
 
 /**
- * Normalizes SET_IS_LOADING reducer payloads (legacy boolean or object form).
+ * Normalises SET_IS_LOADING reducer payloads (legacy boolean or object form).
  *
  * @param {boolean | { isLoading: boolean, loadingMessage?: string }} payload
  * @returns {{ isLoading: boolean, loadingMessage: string | undefined }}

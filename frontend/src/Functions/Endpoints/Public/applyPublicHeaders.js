@@ -20,13 +20,14 @@ const {
  * @property {number} size - Max items per HTTP request; must be >= 1.
  * @property {string} arrayKey - JSON body field to split.
  * @property {boolean} [mergeResponseJsonArrays] - Each JSON body is an array; results concatenated (strict: throws on !ok per chunk after retries).
- * @property {boolean} [mergeResponseJsonObjects] - Each JSON body is an object; merged with `Object.assign` in chunk order. **Lenient:** failed chunk responses are skipped (empty object) so partial results match legacy `fetchMarketPrices` / `fetchSystemIndexes` behavior.
+ * @property {boolean} [mergeResponseJsonObjects] - Each JSON body is an object; merged with `Object.assign` in chunk order. **Lenient:** failed chunk responses are skipped (empty object) so partial results match legacy `fetchMarketPrices` / `fetchSystemIndexes` behaviour.
  * @property {'first'|'aggregate'} [failure] - Used when neither merge flag is set; how to handle rejections in `allSettled` (default `aggregate`).
  * @property {string} [errorLabel] - For aggregate errors.
  */
 
 /**
  * Pulls `batch` from config.
+ *
  * @param {object} [config]
  * @returns {{ inner: object, batch?: PublicRequestBatchOptions }}
  */
@@ -47,16 +48,11 @@ const defaultHeaders = {
 
 /**
  * Apply public headers (default headers) to options
+ *
  * @param {Object} options - Fetch options
  * @param {Object} config - Configuration
  * @param {string} [config.requestName] - Optional name for the request (appears in network tab headers)
  * @returns {Object} Options with public headers applied
- *
- * @example
- * const options = applyPublicHeaders({
- *   method: 'GET',
- *   headers: { 'Content-Type': 'application/json' }
- * });
  */
 export function applyPublicHeaders(options = {}, config = {}) {
   const headers = {
@@ -268,11 +264,6 @@ async function executeBatchedPublicRequest(URL, options, innerConfig, batch) {
  * @param {false|true|object} [config.retry]
  * @param {PublicRequestBatchOptions} [config.batch]
  * @returns {Promise<Response>}
- *
- * @example
- * const response = await fetchWithPublicHeaders('/api/v1/systemindexes', {
- *   method: 'GET'
- * }, { requestName: 'fetchSystemIndexes' });
  */
 export async function fetchWithPublicHeaders(URL, options = {}, config = {}) {
   const { inner: innerConfig, batch } = stripBatchFromConfig(config);

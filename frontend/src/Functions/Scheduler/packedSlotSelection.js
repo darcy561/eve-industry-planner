@@ -14,10 +14,7 @@
  * 4. If parent not scheduled: Find first available space
  * 5. Ensure tasks with same parents finish together
  *
- * Key behaviors:
- * - Tasks for same material run in parallel (different slots)
- * - Fill gaps in existing slots when possible
- * - Child tasks finish just before parents start
+ * Key behaviours:
  */
 
 /**
@@ -74,7 +71,7 @@ export function selectSlotPackedStrategy({
     characterTasksByParentSet = {},
 }) {
     // We need to know the global start time to identify new slots
-    // Since slots are initialized with startTime, a slot is "new" if slotFreeTime equals the minimum value
+    // Since slots are initialised with startTime, a slot is "new" if slotFreeTime equals the minimum value
     // We'll find the minimum slot free time across all characters to determine what "new" means
     let minSlotFreeTime = Infinity;
     for (const characterHash of charOrder) {
@@ -269,10 +266,9 @@ export function selectSlotPackedStrategy({
                 // Candidate is better (allows parallel execution)
                 best = candidate;
             } else {
-                // Both have same sequential/parallel status
-                // SECONDARY: If parent is scheduled, prefer filling gaps in existing slots
-                // This minimizes slot usage by using gaps before parents start
-                // Note: earliestParentStart === 0 means no parent scheduled (treat as null)
+                // Tie broken by filling the gap before a scheduled parent starts,
+                // which keeps slot usage down. An earliestParentStart of 0 means
+                // no parent is scheduled, so it is treated as null.
                 if (earliestParentStart !== null && earliestParentStart > 0) {
                     if (candidate.fillsGap && !best.fillsGap) {
                         best = candidate;

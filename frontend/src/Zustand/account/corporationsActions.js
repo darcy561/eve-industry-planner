@@ -12,7 +12,7 @@ function sameCorporationId(a, b) {
 /** @param {Array} corporations @param {number|string} corporationID */
 function findCorporationIndex(corporations, corporationID) {
   return corporations.findIndex((c) =>
-    sameCorporationId(c.corporation_id, corporationID)
+    sameCorporationId(c.corporation_id, corporationID),
   );
 }
 
@@ -52,7 +52,7 @@ export const corporationsActions = (set, get) => ({
         };
       },
       false,
-      "account/corporations/addCorporation"
+      "account/corporations/addCorporation",
     );
   },
 
@@ -62,9 +62,7 @@ export const corporationsActions = (set, get) => ({
 
     for (let i = nextList.length - 1; i >= 0; i--) {
       const corp = nextList[i];
-      if (corp.members?.includes(characterHash)) {
-        corp.removeMember(characterHash);
-      }
+      corp.removeMember(characterHash);
       if (corp.members?.length === 0) {
         nextList.splice(i, 1);
       }
@@ -80,7 +78,7 @@ export const corporationsActions = (set, get) => ({
         },
       }),
       false,
-      "account/corporations/removeCharacterFromCorporations"
+      "account/corporations/removeCharacterFromCorporations",
     );
   },
 
@@ -98,13 +96,13 @@ export const corporationsActions = (set, get) => ({
         account: {
           ...s.account,
           corporations: s.account.corporations.map((c, i) =>
-            i === idx ? corp : c
+            i === idx ? corp : c,
           ),
           actions: s.account.actions,
         },
       }),
       false,
-      "account/corporations/setCorporationOffices"
+      "account/corporations/setCorporationOffices",
     );
   },
 });

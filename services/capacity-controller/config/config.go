@@ -13,8 +13,8 @@ import (
 
 // Config is the capacity-relevant slice of eip.config.yaml.
 type Config struct {
-	ScaleTiming ScaleTiming             `yaml:"scale_timing"`
-	Services    map[string]ServiceSpec  `yaml:"services"`
+	ScaleTiming ScaleTiming            `yaml:"scale_timing"`
+	Services    map[string]ServiceSpec `yaml:"services"`
 }
 
 // ScaleTiming paces Apply decisions.
@@ -26,9 +26,9 @@ type ScaleTiming struct {
 
 // ServiceSpec is one services.* block.
 type ServiceSpec struct {
-	CapacityControllerManaged bool     `yaml:"capacity_controller_managed"`
-	Min                       int      `yaml:"min"`
-	Max                       int      `yaml:"max"`
+	CapacityControllerManaged bool               `yaml:"capacity_controller_managed"`
+	Min                       int                `yaml:"min"`
+	Max                       int                `yaml:"max"`
 	Concurrency               int                `yaml:"concurrency"`
 	TargetClients             int                `yaml:"target_clients"`
 	ClientCutoff              int                `yaml:"client_cutoff"`

@@ -22,6 +22,7 @@ import {
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import DOMPurify from "dompurify";
+import InventionEntry from "../../../../../../Classes/inventionEntry";
 
 export function InventionCostsCard({ state, actions }) {
   function handleRemove(record) {
@@ -40,11 +41,9 @@ export function InventionCostsCard({ state, actions }) {
       return;
     }
 
-    state.activeJob.addInventionCost({
-      id: Date.now(),
-      itemName,
-      itemCost,
-    });
+    state.activeJob.addInventionCost(
+      InventionEntry.forItem(itemName, itemCost),
+    );
 
     actions.updateActiveJob(state.activeJob);
     showSnackbarSuccess("Success");
@@ -71,7 +70,7 @@ export function InventionCostsCard({ state, actions }) {
         <Grid container>
           <Grid align="center" size={12}>
             <Avatar
-              variant="cirular"
+              variant="circular"
               sx={{
                 bgcolor: "primary.main",
                 height: { xs: "32px", sm: "64px" },
@@ -103,9 +102,7 @@ export function InventionCostsCard({ state, actions }) {
             <Grid sx={{ marginTop: "5px", height: "4.5rem" }} size={12}>
               <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
                 Total Cost:{" "}
-                {formatNumberForLocale(
-                  state.activeJob.build.costs.inventionCosts
-                )}
+                {formatNumberForLocale(state.activeJob.totalInventionCost)}
               </Typography>
             </Grid>
           </Grid>

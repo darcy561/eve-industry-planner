@@ -18,6 +18,7 @@ import { startQueryTracking, logWaterfall, clearQueryTimings, ENABLE_QUERY_WATER
  * Creates a tracked query by wrapping the queryFn with tracking
  * This ensures queries are tracked even if React Query returns cached data immediately
  * Note: Tracking also happens at promise level to catch queries that fail before queryFn executes
+ *
  * @param {Function} queryFactory - Function that returns a query config object
  * @param {string} queryName - Name of the query for tracking
  * @param {string} characterHash - Character hash for tracking
@@ -41,6 +42,7 @@ const MAX_CONCURRENT_CHARACTERS = 3;
 
 /**
  * Process an array of items in batches with a maximum concurrency limit
+ *
  * @param {Array} items - Array of items to process
  * @param {Function} processor - Async function to process each item
  * @param {number} batchSize - Maximum number of items to process concurrently
@@ -62,35 +64,17 @@ async function processInBatches(items, processor, batchSize) {
 
 /**
  * Custom hook that provides character data prefetching functionality for EVE Online industry planning.
- * 
- * This hook manages React Query prefetching for all character and corporation data:
- * - Character data: Skills, standings, blueprints, industry jobs, journal, market orders, transactions
- * - Corporation data: Transactions, market orders, historic market orders, industry jobs, blueprints, journal
- * - Prefetching strategy: Loads data in background for improved user experience
- * - Rate limiting awareness: Respects ESI API rate limits during prefetching
- * 
+ *
  * The prefetching process:
  * 1. Character data prefetch: All character queries run in parallel (Skills, standings, blueprints, industry jobs, journal, market orders, transactions)
  * 2. Corporation data prefetch: All corporation queries run in parallel (Transactions, market orders, historic market orders, industry jobs, blueprints, journal)
  * 3. Combined prefetch: Triggers both character and corporation data prefetching in parallel
  * 4. Background loading: Data is loaded without blocking the UI
  * 5. Batch processing: Multiple characters are processed in batches to prevent overwhelming ESI endpoints
- * 
+ *
  * @returns {Object} Object containing character data prefetching functions
  * @returns {Function} returns.triggerCharacterDataPrefetch - Triggers prefetching for a single character's data
  * @returns {Function} returns.prefetchMultipleCharacters - Triggers prefetching for multiple characters in batches
- * 
- * @example
- * function CharacterDataManager() {
- *   const { triggerCharacterDataPrefetch } = useCharacterHooks();
- * 
- *   const handlePrefetchData = (queryClient, characterHash) => {
- *     triggerCharacterDataPrefetch(queryClient, characterHash);
- *     console.log("Character data prefetching started");
- *   };
- * 
- *   return <button onClick={() => handlePrefetchData(queryClient, hash)}>Prefetch Data</button>;
- * }
  */
 export function useCharacterHooks() {
 
@@ -106,10 +90,9 @@ export function useCharacterHooks() {
         const trackedMarketOrdersQuery = createTrackedQuery(characterMarketOrdersQuery, 'Character Market Orders', characterHash);
         const trackedTransactionsQuery = createTrackedQuery(characterTransactionsQuery, 'Character Transactions', characterHash);
 
-        // Start all prefetch calls immediately - tracking happens at promise level
-        // Use fetchQuery to force execution even if cached (unlike prefetchQuery which may skip)
-        // Override enabled flag to ensure execution for tracking purposes
-        // Track at promise level to catch all queries, even if they fail before queryFn executes
+        // fetchQuery rather than prefetchQuery, which skips a query that is
+        // already cached, and the enabled flag is overridden for the same reason.
+        // Tracking at the promise catches a query that fails before its queryFn runs.
         const queries = [];
         
         // Create all query configs with error handling
@@ -200,10 +183,9 @@ export function useCharacterHooks() {
         const trackedBlueprintsQuery = createTrackedQuery(corporationBlueprintsQuery, 'Corporation Blueprints', characterHash);
         const trackedJournalQuery = createTrackedQuery(corporationJournalQuery, 'Corporation Journal', characterHash);
 
-        // Start all prefetch calls immediately - tracking happens at promise level
-        // Use fetchQuery to force execution even if cached (unlike prefetchQuery which may skip)
-        // Override enabled flag to ensure execution for tracking purposes
-        // Track at promise level to catch all queries, even if they fail before queryFn executes
+        // fetchQuery rather than prefetchQuery, which skips a query that is
+        // already cached, and the enabled flag is overridden for the same reason.
+        // Tracking at the promise catches a query that fails before its queryFn runs.
         const queries = [];
         
         // Create all query configs with error handling
@@ -294,13 +276,13 @@ export function useCharacterHooks() {
             logWaterfall(); // Log the waterfall visualization
         }
     }
-    
 
     /**
      * Prefetch data for multiple characters in batches to avoid overwhelming ESI endpoints
+     *
      * @param {Object} queryClient - React Query client
      * @param {Array<string>} characterHashes - Array of character hashes to prefetch
-     * @param {boolean} shouldLog - Whether to log waterfall visualization
+     * @param {boolean} shouldLog - Whether to log waterfall visualisation
      * @returns {Promise<void>} Promise that resolves when all characters are processed
      */
     async function prefetchMultipleCharacters(queryClient, characterHashes, shouldLog = false) {

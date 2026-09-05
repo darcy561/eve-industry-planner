@@ -8,6 +8,7 @@ import (
 	"time"
 
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/redisfake"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -25,12 +26,12 @@ func seedLock(t *testing.T, rdb *redis.Client, accountID, collection, docID stri
 
 func TestStatusBatchFetch_AllUnheld(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	refs := []statusDocRef{
-		{Collection: eipmongo.CollectionUserJobDocuments, DocID: "job-a"},
-		{Collection: eipmongo.CollectionUserJobDocuments, DocID: "job-b"},
+		{Collection: eipmongo.CollectionJobDocuments, DocID: "job-a"},
+		{Collection: eipmongo.CollectionJobDocuments, DocID: "job-b"},
 	}
 	results, err := statusBatchFetch(ctx, rdb, testAccountID, refs)
 	if err != nil {
@@ -54,7 +55,7 @@ func TestStatusBatchFetch_AllUnheld(t *testing.T) {
 
 func TestStatusBatchFetch_HeldWithViewersAndWaitlist(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	docID := "doc-held"
@@ -116,7 +117,7 @@ func TestStatusBatchFetch_HeldWithViewersAndWaitlist(t *testing.T) {
 
 func TestStatusBatchFetch_ExpiredRecordReturnsUnheldAndDeletes(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	docID := "doc-expired"
@@ -152,7 +153,7 @@ func TestStatusBatchFetch_ExpiredRecordReturnsUnheldAndDeletes(t *testing.T) {
 
 func TestStatusBatchFetch_EmptyRefs(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	results, err := statusBatchFetch(ctx, rdb, testAccountID, nil)
@@ -166,7 +167,7 @@ func TestStatusBatchFetch_EmptyRefs(t *testing.T) {
 
 func TestStatusBatchFetch_PreservesInputOrder(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	refs := []statusDocRef{
@@ -197,7 +198,7 @@ func TestStatusBatchFetch_PreservesInputOrder(t *testing.T) {
 
 func TestStatusBatchResults_EmptyError(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	if _, _, err := StatusBatchResults(context.Background(), rdb, testAccountID, nil, nil); err != ErrStatusBatchEmpty {
 		t.Fatalf("expected ErrStatusBatchEmpty, got %v", err)
 	}
@@ -205,7 +206,7 @@ func TestStatusBatchResults_EmptyError(t *testing.T) {
 
 func TestStatusBatchResults_TooManyError(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	tooMany := make([]string, MaxStatusBatchDocs+1)
 	for i := range tooMany {
 		tooMany[i] = "id-" + strconv.Itoa(i)
@@ -224,18 +225,18 @@ func TestStatusBatchResults_NilRedisError(t *testing.T) {
 
 func TestStatusBatchResults_RoutesJobsAndGroupsIntoSeparateBuckets(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	jobID := "job-x"
 	groupID := "group-x"
 
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-job",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 	})
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobGroups, groupID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobGroups, groupID, LockRecord{
 		HolderSessionID: "sess-group",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
@@ -272,7 +273,7 @@ func TestStatusBatchResults_RoutesJobsAndGroupsIntoSeparateBuckets(t *testing.T)
 
 func TestStatusPayloadForDoc_MatchesBatchPath(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	docID := "doc-equiv"

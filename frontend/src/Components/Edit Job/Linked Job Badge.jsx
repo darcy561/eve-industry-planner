@@ -10,7 +10,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import ClearIcon from "@mui/icons-material/Clear";
-import { ParentJobDialog } from "./parentJobDialog";
+import { ParentJobDialogue } from "./parentJobDialogue";
 import useUsersStore from "../../Zustand/usersStore";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { showSnackbarError } from "../../Events/snackbarEvents";
@@ -20,7 +20,7 @@ import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock"
 export function LinkedJobBadge(props) {
   const { state, actions } = props;
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
-  const [dialogTrigger, updateDialogTrigger] = useState(false);
+  const [dialogueTrigger, updateDialogueTrigger] = useState(false);
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
   const jobLockReadOnly = useActiveJobReadOnly(state);
@@ -29,10 +29,10 @@ export function LinkedJobBadge(props) {
 
   return (
     <>
-      <ParentJobDialog
+      <ParentJobDialogue
         {...props}
-        dialogTrigger={dialogTrigger}
-        updateDialogTrigger={updateDialogTrigger}
+        dialogueTrigger={dialogueTrigger}
+        updateDialogueTrigger={updateDialogueTrigger}
       />
       <Stack
         direction="row"
@@ -50,7 +50,7 @@ export function LinkedJobBadge(props) {
               color="primary"
               sx={{ position: "absolute", top: "0px", right: "40px" }}
               onClick={() => {
-                updateDialogTrigger(true);
+                updateDialogueTrigger(true);
               }}
             >
               <AddIcon />

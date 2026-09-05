@@ -3,6 +3,7 @@ import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts
 
 /**
  * First matching job per ID (same as repeated `.find()` on a concatenated list).
+ *
  * @param {Array<{ jobID: unknown } | null | undefined>} jobs
  * @returns {Map<unknown, any>}
  */
@@ -32,7 +33,7 @@ function calculateJobUnitCost(inputJob, ctx) {
   }
 
   try {
-    let jobCost = inputJob.build.costs.extrasTotal;
+    let jobCost = inputJob.totalExtrasCost;
     jobCost += getJobInstallCostForPlanning(inputJob);
 
     for (const material of inputJob.build.materials) {
@@ -52,7 +53,7 @@ function calculateJobUnitCost(inputJob, ctx) {
       }
     }
 
-    return jobCost / inputJob.build.products.totalQuantity;
+    return jobCost / inputJob.totalQuantityProduced;
   } finally {
     if (jobID != null) {
       visiting.delete(jobID);

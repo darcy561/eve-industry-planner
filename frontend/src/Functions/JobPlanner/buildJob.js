@@ -1,6 +1,6 @@
 import Job from "../../Classes/job";
 import { showSnackbarError } from "../../Events/snackbarEvents";
-import { displayOutdatedAppVersionDialog } from "../../Events/notificationDialogEvents";
+import { displayOutdatedAppVersionDialogue } from "../../Events/notificationDialogueEvents";
 import getItemRecipes from "../Job Build/getItemRecipes";
 import { trackNewJobsCreated } from "../../analytics/trackNewJobsCreated";
 import {
@@ -71,7 +71,7 @@ export function jobBuildErrors(buildRequest, newJob) {
     } else if (newJob === "objectError") {
       showSnackbarError("Error building job object, please try again");
     } else if (newJob === "Outdated App Version") {
-      displayOutdatedAppVersionDialog();
+      displayOutdatedAppVersionDialogue();
     } else if (newJob === "Item Data Missing From Request") {
       showSnackbarError("Item Data Missing From Request");
     } else {
@@ -121,8 +121,6 @@ async function buildSetupOptions(inputJobObject, buildRequestObject, queryClient
     }
     const keys = Object.keys(inputJobObject.build.setup);
     inputJobObject.layout.setupToEdit = keys[0];
-    inputJobObject.recalculateTotalQuantityProduced();
-    inputJobObject.recalculateTotalMaterialQuantities();
 
     const target =
       typeof requiredQuantity === "number" && requiredQuantity > 0
@@ -130,7 +128,7 @@ async function buildSetupOptions(inputJobObject, buildRequestObject, queryClient
         : null;
     if (
       target != null &&
-      inputJobObject.build.products.totalQuantity !== target
+      inputJobObject.totalQuantityProduced !== target
     ) {
       recalculateJobForNewTotal(inputJobObject, target, queryClient);
     }

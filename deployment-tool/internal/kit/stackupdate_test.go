@@ -26,9 +26,9 @@ func TestUpdateStacksMissingOnly(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	// Point raw.githubusercontent base at the test server by overriding Repo + monkey… 
-	// UpdateStacks builds https://raw.githubusercontent.com/<repo>/refs/heads/<branch>/<file>.
-	// Use a custom HTTP client that rewrites the host to the test server.
+	// UpdateStacks builds https://raw.githubusercontent.com/<repo>/refs/heads/<branch>/<file>,
+	// so the transport rewrites the host to the stub server rather than the URL
+	// being made injectable.
 	client := &http.Client{
 		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			u := *req.URL

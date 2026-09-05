@@ -2,7 +2,7 @@ import { Grid } from "@mui/material";
 
 import { TutorialStep4 } from "../tutorialStep4";
 import { ExtrasPanel } from "./Extras Panel/extras";
-import { BuildStatsPanel } from "./Build Stats Panel/buildStats";
+import { JobCostSummaryPanel } from "./Job Cost Panel/jobCostSummary";
 import { Complete_ButtonPanel_EditJob } from "./Button Panel/buttonLayout";
 import TutorialTemplate from "../../../../Tutorials/tutorialTemplate";
 
@@ -22,7 +22,7 @@ export function Complete_StandardLayout_EditJob(props) {
           xs: 12,
           md: 6
         }}>
-        <BuildStatsPanel {...props} />
+        <JobCostSummaryPanel {...props} />
       </Grid>
       <Grid size={12}>
         <Complete_ButtonPanel_EditJob {...props} />

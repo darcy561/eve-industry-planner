@@ -9,7 +9,7 @@ import (
 
 func TestValidateCollectionGroups_ok(t *testing.T) {
 	groups := []CollectionGroup{
-		Group("a", eipmongo.CollectionUsers),
+		Group("a", eipmongo.CollectionAccounts),
 		Group("b", eipmongo.CollectionJobs),
 	}
 	if err := validateCollectionGroups(groups); err != nil {
@@ -19,11 +19,11 @@ func TestValidateCollectionGroups_ok(t *testing.T) {
 
 func TestValidateCollectionGroups_duplicateCollection(t *testing.T) {
 	groups := []CollectionGroup{
-		Group("a", eipmongo.CollectionUsers),
-		Group("b", eipmongo.CollectionUsers),
+		Group("a", eipmongo.CollectionAccounts),
+		Group("b", eipmongo.CollectionAccounts),
 	}
 	err := validateCollectionGroups(groups)
-	if err == nil || !strings.Contains(err.Error(), eipmongo.CollectionUsers) {
+	if err == nil || !strings.Contains(err.Error(), eipmongo.CollectionAccounts) {
 		t.Fatalf("expected duplicate collection error, got %v", err)
 	}
 }

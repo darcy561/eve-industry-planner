@@ -1,6 +1,6 @@
 import { AppEvent } from "../../analytics/appEventNames";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
-import { saveApplicationSettings } from "../Endpoints/Pirivate/userDocument";
+import { saveApplicationSettings } from "../Endpoints/Private/userDocument";
 import getSystemIndexes from "../../Functions/System Indexes/findSystemIndex";
 import { jobTypes } from "../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
@@ -9,21 +9,13 @@ import useUsersStore from "../../Zustand/usersStore";
 /**
  * Adds a custom structure to the application settings and updates system indexes.
  * Handles both reprocessing and non-reprocessing structures differently.
- * 
+ *
  * @param {Object} params - Parameters object
  * @param {Object} params.structure - Structure object to add
  * @param {Function} params.addCustomStructure - Function to add structure to store
  * @param {number} params.selectedJobType - Selected job type for analytics
  * @param {Function} params.setIsLoading - Function to set loading state
  * @returns {Promise<void>} Promise that resolves when structure is added
- * 
- * @example
- * await addCustomStructure({
- *   structure: customStructureObject,
- *   addCustomStructure: addToStore,
- *   selectedJobType: 1,
- *   setIsLoading: setLoading
- * });
  */
 export async function addCustomStructure({
   structure,

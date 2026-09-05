@@ -11,9 +11,7 @@
  */
 export function filterJobsForJobPlannerStage(jobArray, statusId) {
   return jobArray.filter(
-    (job) =>
-      job.displayOnPlanner &&
-      Number(job.jobStatus) === Number(statusId)
+    (job) => job.displayOnPlanner && Number(job.jobStatus) === Number(statusId),
   );
 }
 
@@ -26,24 +24,17 @@ export function filterJobsForJobPlannerStage(jobArray, statusId) {
  */
 export function filterGroupsForJobPlannerStage(groupArray, statusId) {
   return groupArray.filter(
-    (group) => Number(group.groupStatus) === Number(statusId)
+    (group) => Number(group.groupStatus) === Number(statusId),
   );
 }
 
 /**
- * Jobs for the active group that respect “hide completed” visibility.
+ * Jobs to show for the active group. Nothing is shown without one.
  *
  * @param {object[]} plannerJobs — jobs already scoped to the group + stage
  * @param {object|null} activeGroupObject
  * @returns {object[]}
  */
 export function filterJobsVisibleInActiveGroup(plannerJobs, activeGroupObject) {
-  if (!activeGroupObject) {
-    return [];
-  }
-  return plannerJobs.filter(
-    (job) =>
-      activeGroupObject.showComplete ||
-      !activeGroupObject.areComplete.has(job.jobID)
-  );
+  return activeGroupObject ? plannerJobs : [];
 }

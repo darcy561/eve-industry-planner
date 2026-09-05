@@ -6,11 +6,11 @@ import {
   redirectToFullEveLogin,
   redirectToFullEveLoginIfTerminal,
 } from "../../../Functions/Auth/plannerSessionRedirect.js";
+import { tryCompleteAdditionalAccountImportWindow } from "../additionalAccountImport.js";
 import {
   getAuthCallbackParams,
   storeOriginalPathFromOAuthState,
-  tryCompleteAdditionalAccountImportWindow,
-} from "../authCallbackParams.js";
+} from "../oauthUrlParams.js";
 import {
   getTabPlannerRefreshToken,
   hasResumablePlannerSession,
@@ -60,7 +60,7 @@ export function useAuthUrlLogin() {
 
     async function run() {
       const { authCode, state } = getAuthCallbackParams();
-      if (tryCompleteAdditionalAccountImportWindow(state, authCode)) {
+      if (await tryCompleteAdditionalAccountImportWindow(state, authCode)) {
         return;
       }
       storeOriginalPathFromOAuthState(state);

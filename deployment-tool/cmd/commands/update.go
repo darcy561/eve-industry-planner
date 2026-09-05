@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/config"
 	"eve-industry-planner/deployment-tool/internal/deploy"
 	"eve-industry-planner/deployment-tool/internal/images"
@@ -19,7 +19,7 @@ import (
 )
 
 func init() {
-	if v, ok := catalog.ByID("update"); ok {
+	if v, ok := catalogue.ByID("update"); ok {
 		updateCmd.Short = v.Short
 	}
 	updateCmd.Flags().Bool("dry-run", false, "resolve changes only; do not download or write")
@@ -176,8 +176,8 @@ func runImageUpdate(ctx context.Context, stacksChanged bool) error {
 		return err
 	}
 	if stacksChanged {
-		msg.Step("Rematerializing stack after YAML change…")
-		if err := deploy.Rematerialize(ctx, deploy.SourceLive); err != nil {
+		msg.Step("Rematerialising stack after YAML change…")
+		if err := deploy.Rematerialise(ctx, deploy.SourceLive); err != nil {
 			return err
 		}
 	}

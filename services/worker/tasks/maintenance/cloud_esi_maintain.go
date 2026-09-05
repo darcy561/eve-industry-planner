@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/evesso"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -25,6 +25,11 @@ type cloudEsiMaintainStats struct {
 	RowsFailed    int
 	RowsRemoved   int
 	RowsRetryNext int
+	// SSOAnswered and SSOSilent count only what the token endpoint did, so a
+	// keyring or decrypt failure — which never reaches EVE SSO — cannot be read
+	// as the servers being away.
+	SSOAnswered int
+	SSOSilent   int
 }
 
 var (
@@ -34,14 +39,6 @@ var (
 	errCloudEsiMaintNotCloud         = errors.New("cloud esi maintenance: cloud storage mode is not enabled")
 	errCloudEsiMaintPersist          = errors.New("cloud esi maintenance: failed to persist")
 )
-
-func isPermanentOAuthRefreshFailure(err error) bool {
-	if err == nil {
-		return false
-	}
-	s := err.Error()
-	return strings.Contains(s, "invalid_grant") || strings.Contains(s, "invalid_request")
-}
 
 // maintainAccountCloudRefreshTokens re-encrypts refresh rows to the active key version when needed,
 // exchanges each row with EVE SSO, updates encryption keys, and persists.
@@ -57,7 +54,7 @@ func maintainAccountCloudRefreshTokens(ctx context.Context, users *eipmongo.Docs
 
 	usersCol := users.Collection()
 	var userDoc models.UserAccountDocument
-	if err := usersCol.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
+	if err := usersCol.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&userDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return stats, errCloudEsiMaintUserNotFound
 		}
@@ -134,8 +131,13 @@ func maintainAccountCloudRefreshTokens(ctx context.Context, users *eipmongo.Docs
 		}
 
 		tok, err := evesso.RefreshEveSSOAccessToken(callCtx, cfg.SSO.ClientID, cfg.SSO.ClientSecret, plain)
+		if evesso.ServerAnswered(err) {
+			stats.SSOAnswered++
+		} else {
+			stats.SSOSilent++
+		}
 		if err != nil {
-			if isPermanentOAuthRefreshFailure(err) {
+			if evesso.IsPermanentRefreshFailure(err) {
 				stats.RowsRemoved++
 				dirty = true
 				logs.WarnCtx(callCtx, "cloud esi maintenance: removing row after permanent OAuth failure",

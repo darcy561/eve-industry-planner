@@ -2,11 +2,13 @@ package primarycontroller
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/wait"
+
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestStart_requiresRedis(t *testing.T) {
@@ -16,13 +18,7 @@ func TestStart_requiresRedis(t *testing.T) {
 }
 
 func TestSubscribe_notifiesOnAcquireAndStop(t *testing.T) {
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(mr.Close)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	rdb := redisfake.New(t).Client
 
 	s, err := Start(context.Background(), rdb)
 	if err != nil {
@@ -30,24 +26,18 @@ func TestSubscribe_notifiesOnAcquireAndStop(t *testing.T) {
 	}
 
 	ch := s.Subscribe()
-	deadline := time.Now().Add(3 * time.Second)
-	sawLeader := false
-	for time.Now().Before(deadline) {
-		select {
-		case st := <-ch:
-			if st.IsLeader {
-				sawLeader = true
+	wait.For(t, 3*time.Second, func() (bool, string) {
+		for {
+			select {
+			case st := <-ch:
+				if st.IsLeader {
+					return true, ""
+				}
+			default:
+				return false, "no IsLeader=true state published yet"
 			}
-		default:
-			time.Sleep(10 * time.Millisecond)
 		}
-		if sawLeader {
-			break
-		}
-	}
-	if !sawLeader {
-		t.Fatal("never saw IsLeader true")
-	}
+	})
 	if err := s.Ready(context.Background()); err != nil {
 		t.Fatalf("Ready: %v", err)
 	}
@@ -66,32 +56,26 @@ func TestSubscribe_notifiesOnAcquireAndStop(t *testing.T) {
 
 func waitLeaderPair(t *testing.T, a, b *Service, deadline time.Duration) (leader, standby *Service) {
 	t.Helper()
-	end := time.Now().Add(deadline)
-	for time.Now().Before(end) {
+	wait.For(t, deadline, func() (bool, string) {
 		aLead, bLead := a.IsLeader(), b.IsLeader()
 		switch {
 		case aLead && !bLead:
-			return a, b
+			leader, standby = a, b
+			return true, ""
 		case bLead && !aLead:
-			return b, a
+			leader, standby = b, a
+			return true, ""
 		case aLead && bLead:
 			t.Fatal("both replicas report IsLeader")
 		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for single leader (a=%v b=%v)", a.IsLeader(), b.IsLeader())
-	return nil, nil
+		return false, fmt.Sprintf("no single leader (a=%v b=%v)", aLead, bLead)
+	})
+	return leader, standby
 }
 
 // #28: exactly one primary; standby Ready OK without holding the lease; Stop→takeover.
 func TestDualReplica_singleLeaderStandbyReadyAndTakeover(t *testing.T) {
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(mr.Close)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	rdb := redisfake.New(t).Client
 
 	a, err := Start(context.Background(), rdb)
 	if err != nil {
@@ -121,15 +105,10 @@ func TestDualReplica_singleLeaderStandbyReadyAndTakeover(t *testing.T) {
 	prevStandby := standby
 	leader.Stop(context.Background())
 
-	deadline := time.Now().Add(12 * time.Second)
-	for time.Now().Before(deadline) {
-		if prevStandby.IsLeader() {
-			if err := prevStandby.Ready(context.Background()); err != nil {
-				t.Fatalf("new leader Ready: %v", err)
-			}
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
+	wait.For(t, 12*time.Second, func() (bool, string) {
+		return prevStandby.IsLeader(), "standby has not taken over after leader Stop"
+	})
+	if err := prevStandby.Ready(context.Background()); err != nil {
+		t.Fatalf("new leader Ready: %v", err)
 	}
-	t.Fatal("standby did not take over after leader Stop")
 }

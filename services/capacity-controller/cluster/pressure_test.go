@@ -20,7 +20,7 @@ func TestWsClientPressure_idleStartsDownWithoutDraining(t *testing.T) {
 		t.Fatalf("expected no up pressure when idle")
 	}
 	if !down {
-		t.Fatalf("expected down pressure when underutilized with desired>min (scale-in playbook start)")
+		t.Fatalf("expected down pressure when underutilised with desired>min (scale-in playbook start)")
 	}
 }
 

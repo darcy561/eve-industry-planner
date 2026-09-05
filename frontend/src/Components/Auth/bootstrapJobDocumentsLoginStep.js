@@ -1,4 +1,4 @@
-import { fetchPlannerJobDocumentsFromApi } from "../../Functions/Endpoints/Pirivate/jobDocuments.js";
+import { fetchPlannerJobDocumentsFromApi } from "../../Functions/Endpoints/Private/jobDocuments.js";
 import {
   emitLoginError,
   emitLoginStepComplete,

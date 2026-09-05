@@ -25,7 +25,7 @@ The Button Panel provides:
   - Only shown when job is NOT in a group
 - **Function**: Archives job for historical reference
 - **Tooltip**: "Removes the job from your planner but stores the data for later use in reporting and cost calculations. If you do not wish to store this job data then simply delete the job."
-- **Behavior**:
+- **Behaviour**:
   1. Creates job snapshot for archiving
   2. Removes ESI data links (orders, jobs, transactions)
   3. Archives job in Firebase database
@@ -85,7 +85,7 @@ When archiving:
 
 ### Cleanup
 - Archive completed jobs regularly
-- Keep active planner organized
+- Keep active planner organised
 - Remove finished jobs
 - Maintain clean workspace
 

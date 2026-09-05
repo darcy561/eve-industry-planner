@@ -115,4 +115,3 @@ func TestRotateToActive_FromLegacyKey(t *testing.T) {
 		t.Fatal("expected unchanged envelope when already active")
 	}
 }
-

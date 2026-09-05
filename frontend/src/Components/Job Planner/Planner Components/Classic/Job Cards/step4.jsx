@@ -23,7 +23,7 @@ export default function Step4JobCard({ job }) {
         </Box>
         <Box sx={{ flex: "0 0 50%", textAlign: "right", paddingRight: { xs: 2, md: 3 } }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.build.products.totalQuantity, { max: 0 })}
+            {formatNumberForLocale(job.totalQuantityProduced, { max: 0 })}
           </Typography>
         </Box>
       </Box>

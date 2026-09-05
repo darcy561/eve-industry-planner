@@ -2,19 +2,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, useMediaQuery, ToggleButtonGroup, ToggleButton } from "@mui/material";
 import useWarnBeforeUnload from "../../Hooks/GeneralHooks/useWarnBeforeUnload";
 import { SearchBar } from "../Job Planner/Planner Components/searchbar";
-import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
+import { ShoppingListDialogue } from "../Dialogues/Shopping List/ShoppingList";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import LeftCollapseableMenuDrawer from "../SideMenu/leftMenuDrawer";
-import CollapseableContentDrawer_Right from "../SideMenu/rightContentDrawer";
+import LeftCollapsibleMenuDrawer from "../SideMenu/leftMenuDrawer";
+import CollapsibleContentDrawer_Right from "../SideMenu/rightContentDrawer";
 import RightSideMenuContent_GroupPage from "./Side Menu/rightSideMenuContent";
 import GroupNameFrame from "./Group Name/groupNameFrame";
 import { useGroupPageSideMenuFunctions } from "./Side Menu/Buttons/buttonFunctions";
 import getMissingJobObjects from "../../Functions/Helper/getMissingJobObjects";
-import { PriceEntryDialog } from "../Dialogues/Price Entry/PriceEntry";
+import { PriceEntryDialogue } from "../Dialogues/Price Entry/PriceEntry";
 import { recalculateInstallCostsWithNewData } from "../../Functions/Installation Costs/installCosts";
 import getMissingESIData from "../../Functions/Shared/getMissingESIData";
-import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
-import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
+import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
+import MarketDataDialogue from "../Dialogues/Market Data/dialogueFrame";
 import useGroupPageReducer from "./Hooks/useGroupPageReducer";
 import useUsersStore from "../../Zustand/usersStore";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
@@ -28,8 +28,8 @@ import { useJobPlannerJobLockSync } from "../../Hooks/DocumentLock/useJobPlanner
 import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 import { AppEvent } from "../../analytics/appEventNames";
-import SaveGroupTemplateDialog from "../Dialogues/Group Templates/SaveGroupTemplateDialog";
-import ApplyGroupTemplateDialog from "../Dialogues/Group Templates/ApplyGroupTemplateDialog";
+import SaveGroupTemplateDialogue from "../Dialogues/Group Templates/SaveGroupTemplateDialogue";
+import ApplyGroupTemplateDialogue from "../Dialogues/Group Templates/ApplyGroupTemplateDialogue";
 
 function GroupPageFrame() {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
@@ -113,15 +113,18 @@ function GroupPageFrame() {
           throw new Error("Unable to find requested group");
         }
 
+        // Archived members have no job document to load until they are restored.
+        const liveMemberIDs = [
+          ...currentActiveGroupObject.includedJobIDs,
+        ].filter((jobID) => !currentActiveGroupObject.archivedJobIDs.has(jobID));
+
         hint("Loading jobs…");
-        await getMissingJobObjects(currentActiveGroupObject.includedJobIDs);
+        await getMissingJobObjects(liveMemberIDs);
 
         hint("Preparing job data…");
         const allJobObjects = await useUsersStore
           .getState()
-          .jobData.actions.jobsFromIdsOrObjects(
-            currentActiveGroupObject.includedJobIDs
-          );
+          .jobData.actions.jobsFromIdsOrObjects(liveMemberIDs);
 
         hint("Gathering market data…");
         const { requestedMarketData, requestedSystemIndexes } =
@@ -230,7 +233,7 @@ function GroupPageFrame() {
         />
       ) : (
         <>
-          <LeftCollapseableMenuDrawer inputDrawerButtons={buttonOptions} />
+          <LeftCollapsibleMenuDrawer inputDrawerButtons={buttonOptions} />
           <Box
             component="main"
             sx={{
@@ -311,7 +314,7 @@ function GroupPageFrame() {
             </Box>
           </Box>
           {deviceNotMobile && (
-            <CollapseableContentDrawer_Right
+            <CollapsibleContentDrawer_Right
               state={state}
               actions={actions}
               DrawerContent={
@@ -325,12 +328,12 @@ function GroupPageFrame() {
           )}
         </>
       )}
-      <ShoppingListDialog />
-      <PriceEntryDialog />
-      <PriceHistoryDialog />
-      <MarketDataDialog />
-      <ApplyGroupTemplateDialog />
-      <SaveGroupTemplateDialog />
+      <ShoppingListDialogue />
+      <PriceEntryDialogue />
+      <PriceHistoryDialogue />
+      <MarketDataDialogue />
+      <ApplyGroupTemplateDialogue />
+      <SaveGroupTemplateDialogue />
     </DefaultPageLayout>
   );
 }

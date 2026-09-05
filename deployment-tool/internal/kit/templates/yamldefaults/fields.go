@@ -54,8 +54,8 @@ func ConfigFields() []ConfigField {
 		},
 		{
 			Key: "addons.observability.grafana.public", Section: "Grafana", Label: "Access",
-			Help: "Public puts Grafana on your site (Base URL + Path) and exposes it via Traefik. Private keeps it internal only. Default private.",
-			Type: FieldBool,
+			Help:    "Public puts Grafana on your site (Base URL + Path) and exposes it via Traefik. Private keeps it internal only. Default private.",
+			Type:    FieldBool,
 			BoolYes: "Public",
 			BoolNo:  "Private",
 		},

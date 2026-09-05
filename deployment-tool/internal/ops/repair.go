@@ -10,7 +10,7 @@ import (
 
 	"github.com/moby/moby/client"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/dataplane"
 	"eve-industry-planner/deployment-tool/internal/deploy"
 	"eve-industry-planner/deployment-tool/internal/docker"
@@ -26,14 +26,17 @@ type RepairOpts struct {
 
 // RepairPlan is the heal actions derived from status + health (testable).
 type RepairPlan struct {
-	Rematerialize bool
+	Rematerialise bool
 	RematSource   deploy.Source
 	Ensure        []string // Swarm shorts with a registered dataplane ensure
-	ForceUpdate   []string // present + bad (catalog.OrderPrefer)
+	ForceUpdate   []string // present + bad (catalogue.OrderPrefer)
 	Missing       []string
+	// ObsUndeploy is the reverse of Missing: the addon is deployed but disabled,
+	// and only a redeploy without its fragment prunes it away.
+	ObsUndeploy bool
 }
 
-// Repair heals an already-deployed unhealthy stack: optional rematerialize for
+// Repair heals an already-deployed unhealthy stack: optional rematerialise for
 // missing membership, selective dataplane ensures (registry), force-update bad
 // services. No pull/bake/Ready/cold start. Refuse if Swarm inactive / no stack /
 // fully healthy.
@@ -66,11 +69,12 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 	}
 
 	view := deploy.View{
-		Home:      home,
-		StackName: snap.Name,
-		Snapshot:  snap,
-		Source:    deploy.ResolveSource(snap),
-		Fragments: deploy.FragmentStates(snap),
+		Home:       home,
+		StackName:  snap.Name,
+		Snapshot:   snap,
+		Source:     deploy.ResolveSource(snap),
+		Fragments:  deploy.FragmentStates(snap),
+		ObsEnabled: deploy.ObservabilityEnabled(home),
 	}
 	report := status.Build(view)
 	plan := BuildRepairPlan(report, snap, view.Source)
@@ -84,16 +88,23 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 		return nil
 	}
 
-	if plan.Rematerialize {
-		msg.Step("Rematerializing stack (%s) to restore missing services…", plan.RematSource)
-		if err := deploy.Rematerialize(ctx, plan.RematSource); err != nil {
+	if plan.Rematerialise {
+		why := "to restore missing services"
+		if plan.ObsUndeploy {
+			why = "to remove the disabled observability addon"
+			if len(plan.Missing) > 0 {
+				why = "to restore missing services and remove the disabled observability addon"
+			}
+		}
+		msg.Step("Rematerialising stack (%s) %s…", plan.RematSource, why)
+		if err := deploy.Rematerialise(ctx, plan.RematSource); err != nil {
 			return err
 		}
 		snap, err = docker.LoadStackSnapshotWithHealth(ctx, apiClient, stackName)
 		if err != nil {
 			return err
 		}
-		// Rematerialize returns before tasks are necessarily Running; wait so
+		// Rematerialise returns before tasks are necessarily Running; wait so
 		// RunEnsuresFor does not skip the services we just restored.
 		if err := waitForEnsureTasks(ctx, stackName, plan.Ensure); err != nil {
 			return err
@@ -109,7 +120,7 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 		}
 	}
 
-	// ForceUpdate is only shorts present at plan time; rematerialized
+	// ForceUpdate is only shorts present at plan time; rematerialised
 	// (formerly missing) services are not listed — remat already redeployed them.
 	for _, short := range plan.ForceUpdate {
 		info, ok := snap.Services[short]
@@ -148,13 +159,19 @@ func BuildRepairPlan(report status.Report, snap docker.StackSnapshot, src deploy
 	}
 
 	p := RepairPlan{}
+	if !report.ObsEnabled && obsOnStack(snap) {
+		p.Rematerialise = true
+		p.ObsUndeploy = true
+	}
 	if len(missing) > 0 {
-		p.Rematerialize = true
+		p.Rematerialise = true
+		p.Missing = slices.Sorted(maps.Keys(missing))
+	}
+	if p.Rematerialise {
 		p.RematSource = deploy.SourceLive
 		if src == deploy.SourceDev {
 			p.RematSource = deploy.SourceDev
 		}
-		p.Missing = slices.Sorted(maps.Keys(missing))
 	}
 
 	for _, e := range dataplane.ServiceEnsures() {
@@ -169,7 +186,17 @@ func BuildRepairPlan(report status.Report, snap docker.StackSnapshot, src deploy
 
 // Empty reports whether the plan has no heal work.
 func (p RepairPlan) Empty() bool {
-	return !p.Rematerialize && len(p.Ensure) == 0 && len(p.ForceUpdate) == 0
+	return !p.Rematerialise && len(p.Ensure) == 0 && len(p.ForceUpdate) == 0
+}
+
+// obsOnStack reports whether any observability addon service is deployed.
+func obsOnStack(snap docker.StackSnapshot) bool {
+	for _, short := range catalogue.ObsShorts() {
+		if _, ok := snap.Services[short]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func serviceHealthBad(info docker.ServiceInfo) bool {
@@ -189,11 +216,17 @@ func serviceHealthBad(info docker.ServiceInfo) bool {
 // task, or until ensureTaskWait elapses (then RunEnsuresFor may still skip).
 // Shorts are polled together so wall time ≈ max readiness, not the sum.
 func waitForEnsureTasks(ctx context.Context, stackName string, shorts []string) error {
+	return waitForEnsureTasksIn(ctx, stackName, shorts, dataplane.ServiceEnsures(), ensureTaskWait)
+}
+
+// waitForEnsureTasksIn is waitForEnsureTasks over an explicit registry and
+// budget, so tests can supply their own ensures.
+func waitForEnsureTasksIn(ctx context.Context, stackName string, shorts []string, registry []dataplane.ServiceEnsure, budget time.Duration) error {
 	if len(shorts) == 0 {
 		return nil
 	}
 	byShort := make(map[string]dataplane.ServiceEnsure, len(shorts))
-	for _, e := range dataplane.ServiceEnsures() {
+	for _, e := range registry {
 		byShort[e.Short] = e
 	}
 	pending := make([]dataplane.ServiceEnsure, 0, len(shorts))
@@ -206,7 +239,7 @@ func waitForEnsureTasks(ctx context.Context, stackName string, shorts []string) 
 		return nil
 	}
 
-	deadline := time.Now().Add(ensureTaskWait)
+	deadline := time.Now().Add(budget)
 	announced := map[string]bool{}
 	for len(pending) > 0 {
 		next := pending[:0]
@@ -250,16 +283,21 @@ func orderForceUpdate(bad map[string]bool, snap docker.StackSnapshot) []string {
 		}
 		cands[short] = struct{}{}
 	}
-	return catalog.OrderPrefer(cands)
+	return catalogue.OrderPrefer(cands)
 }
 
 func printRepairPlan(p RepairPlan) {
 	msg.Line("repair dry-run:")
-	if p.Rematerialize {
-		msg.Line(fmt.Sprintf("  rematerialize: yes (source=%s)", p.RematSource))
-		msg.Line(fmt.Sprintf("  missing: %s", strings.Join(p.Missing, ", ")))
+	if p.Rematerialise {
+		msg.Line(fmt.Sprintf("  rematerialise: yes (source=%s)", p.RematSource))
+		if len(p.Missing) > 0 {
+			msg.Line(fmt.Sprintf("  missing: %s", strings.Join(p.Missing, ", ")))
+		}
+		if p.ObsUndeploy {
+			msg.Line("  observability: disabled but deployed — will be pruned")
+		}
 	} else {
-		msg.Line("  rematerialize: no")
+		msg.Line("  rematerialise: no")
 	}
 	if len(p.Ensure) == 0 {
 		msg.Line("  ensure: (none)")

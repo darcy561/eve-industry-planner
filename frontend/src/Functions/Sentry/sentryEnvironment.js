@@ -1,10 +1,11 @@
 /**
- * Central place for Sentry behavior driven by the build-time `ENVIRONMENT` value
+ * Central place for Sentry behaviour driven by the build-time `ENVIRONMENT` value
  * and optional `SENTRY_*_SAMPLE_RATE` vars (see root `.env` / `frontend/vite.config.js` `define`).
  */
 
 /**
  * Parse a 0.0–1.0 sample rate from build-time env (string or number). Empty / invalid → default.
+ *
  * @param {unknown} raw
  * @param {number} defaultRate
  * @returns {number}

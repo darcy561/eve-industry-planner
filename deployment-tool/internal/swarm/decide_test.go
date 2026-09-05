@@ -40,3 +40,23 @@ func TestSupersededObjectNames(t *testing.T) {
 		t.Fatalf("got %#v want %#v", got, want)
 	}
 }
+
+func TestStaleConfigNames(t *testing.T) {
+	keep := map[string]struct{}{"eip_loki_yml_aaa": {}}
+	got := staleConfigNames([]string{
+		"eip_loki_yml_aaa",
+		"eip_loki_yml_bbb",
+		"eip_grafana_dash_gone_ccc",
+		"unrelated_config",
+		"  ",
+	}, keep)
+	want := []string{"eip_loki_yml_bbb", "eip_grafana_dash_gone_ccc"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v want %v", got, want)
+		}
+	}
+}

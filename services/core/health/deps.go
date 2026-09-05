@@ -34,7 +34,7 @@ func depsReady(clients *stackservices.Clients) func(context.Context) error {
 			return fmt.Errorf("mongo missing")
 		}
 		if clients.NATS != nil {
-			if !clients.NATS.IsConnected() {
+			if !clients.NATS.Connected() {
 				return fmt.Errorf("nats not connected")
 			}
 		} else {

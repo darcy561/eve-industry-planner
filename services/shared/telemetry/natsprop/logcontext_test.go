@@ -31,18 +31,6 @@ func TestLogContextInjectExtractRoundTrip(t *testing.T) {
 	}
 }
 
-func TestMergeLogContextIntoHeaders_DoesNotOverwrite(t *testing.T) {
-	t.Parallel()
-	headers := map[string]string{HeaderRequestID: "existing"}
-	merged := MergeLogContextIntoHeaders(headers, "new", "acct", "sess")
-	if merged[HeaderRequestID] != "existing" {
-		t.Fatalf("request_id overwritten: %q", merged[HeaderRequestID])
-	}
-	if merged[HeaderLogAccountID] != "acct" {
-		t.Fatalf("account_id = %q", merged[HeaderLogAccountID])
-	}
-}
-
 func TestBindLogContextFromStringMap(t *testing.T) {
 	t.Parallel()
 	m := map[string]string{

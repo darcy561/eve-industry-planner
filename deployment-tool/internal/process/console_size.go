@@ -18,7 +18,7 @@ const (
 // EnsureTUIConsoleSize grows the attached terminal when width or height is below
 // the defaults. Never shrinks a larger window.
 //
-// Uses xterm CSI 8 ; rows ; cols t. Honored by Windows Terminal, xterm, kitty,
+// Uses xterm CSI 8 ; rows ; cols t. Honoured by Windows Terminal, xterm, kitty,
 // wezterm, and many GTK/Qt terminals; ignored by hosts that disallow app resize
 // (some tmux/SSH setups, locked desktop profiles). Do not mix with Win32
 // SetConsoleScreenBufferSize / SetConsoleWindowInfo — that desyncs ConPTY.

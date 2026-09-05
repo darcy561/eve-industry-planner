@@ -7,11 +7,12 @@ import {
   sendFeedbackToSentry,
 } from "../../Sentry/feedbackSentry.js";
 
-/** Max JSON-serialized metadata size for the feedback API (matches backend). */
+/** Max JSON-serialised metadata size for the feedback API (matches backend). */
 const MAX_FEEDBACK_METADATA_JSON = 12000;
 
 /**
  * Application account id from client session (Mongo/Firebase), when logged in.
+ *
  * @returns {string}
  */
 function getClientAccountId() {

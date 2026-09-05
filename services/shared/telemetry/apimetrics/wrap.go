@@ -52,17 +52,3 @@ type labeledCounter struct {
 func (l *labeledCounter) Inc(ctx context.Context) {
 	l.c.Add(ctx, 1, metric.WithAttributes(l.kv))
 }
-
-func mustCounter(c metric.Int64Counter, err error) metric.Int64Counter {
-	if err != nil {
-		panic("apimetrics: Int64Counter: " + err.Error())
-	}
-	return c
-}
-
-func mustHist(h metric.Float64Histogram, err error) metric.Float64Histogram {
-	if err != nil {
-		panic("apimetrics: Float64Histogram: " + err.Error())
-	}
-	return h
-}

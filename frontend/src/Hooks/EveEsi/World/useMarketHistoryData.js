@@ -7,20 +7,11 @@ import useESIRateLimiting from "../../App/useESIRateLimiting";
 /**
  * Custom hook that fetches market history data for a specific item and region from EVE ESI API.
  *
- * This hook provides market history data fetching for EVE Online items:
- * - Fetches historical market data for specific items in specific regions
- * - Transforms data to match expected format (date, highest, lowest, average, volume)
- * - Integrates with ESI rate limiting system
- * - Provides loading, error, and success states
- * - Uses React Query for caching and background updates
- * - Supports manual refetching for real-time data
- * - Handles ETag support for efficient data updates
- *
  * The fetching process:
  * 1. Validates typeID and regionID parameters
  * 2. Checks ESI rate limits for market group
  * 3. Fetches market history data with ETag support
- * 4. Transforms data to standardized format
+ * 4. Transforms data to standardised format
  * 5. Handles rate limiting errors with appropriate wait times
  * 6. Retains inactive cache (gcTime) 30 minutes with 5-minute stale time
  *
@@ -32,25 +23,6 @@ import useESIRateLimiting from "../../App/useESIRateLimiting";
  * @returns {boolean} returns.isLoading - Whether the query is still loading
  * @returns {Error|null} returns.error - Error object if an error occurred
  * @returns {Function} returns.refetch - Function to manually refetch the data
- *
- * @example
- * function MarketHistoryDisplay() {
- *   const { marketHistory, isLoading, error, refetch } = useMarketHistoryData(typeID, { regionID: 10000002 });
- *
- *   if (isLoading) return <div>Loading market history...</div>;
- *   if (error) return <div>Error: {error.message}</div>;
- *   return (
- *     <div>
- *       <button onClick={refetch}>Refresh</button>
- *       <div>History Entries: {marketHistory.length}</div>
- *       {marketHistory.map(entry => (
- *         <div key={entry.date}>
- *           {entry.date}: Avg {entry.average}, Vol {entry.volume}
- *         </div>
- *       ))}
- *     </div>
- *   );
- * }
  */
 export function useMarketHistoryData(typeID, location) {
   const { isRateLimited, getWaitTime } = useESIRateLimiting();

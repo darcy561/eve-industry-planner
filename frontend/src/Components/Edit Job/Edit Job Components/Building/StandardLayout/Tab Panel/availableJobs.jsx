@@ -25,7 +25,7 @@ import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDoc
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 /**
- * ESI-job linking mutates `activeJob.apiJobs` (persisted on the job document),
+ * Linking an ESI job adds a run to `activeJob.build.costs.linkedJobs` (persisted),
  * so it follows the active job lock. Group locks already cascade into the
  * per-job lock, so `useActiveJobReadOnly` is the right single-source gate
  * (matches the save/delete-icon pattern, no need for the composite hook).
@@ -100,7 +100,7 @@ export function AvailableJobsTab(props) {
   // Show jobs if we have matches and haven't reached the job limit
   if (
     jobMatches.length !== 0 &&
-    state.activeJob.apiJobs.size < state.activeJob.totalJobCount()
+    state.activeJob.esiJobIDs.size < state.activeJob.totalJobSlots
   ) {
     return (
       <>

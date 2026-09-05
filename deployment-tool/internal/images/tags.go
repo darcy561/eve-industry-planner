@@ -14,7 +14,7 @@ import (
 )
 
 // TagsFromStack returns APP_VERSION + TAG_* from running Swarm service images
-// (dev bake tags). Used by rematerialize expand; does not bake.
+// (dev bake tags). Used by rematerialise expand; does not bake.
 func TagsFromStack(ctx context.Context, home string) (map[string]string, error) {
 	envMap, err := kit.Map(filepath.Join(home, kit.EnvFile))
 	if err != nil {
@@ -48,9 +48,12 @@ func TagsFromStack(ctx context.Context, home string) (map[string]string, error) 
 
 	out := map[string]string{"APP_VERSION": appVersion}
 	for role, repo := range devRoles {
-		tag := swarmLocalTag(repo, snap.Services[role].Image)
+		tag, err := roleTag(ctx, apiClient, repo, snap.Services[role].Image)
+		if err != nil {
+			return nil, err
+		}
 		if tag == "" {
-			return nil, fmt.Errorf("tags: no local bake tag on service %s (image=%q); use eip secrets --live if this is a live stack", role, snap.Services[role].Image)
+			return nil, fmt.Errorf("tags: no tag for %s — its service is not running (image=%q) and no local %s image is built; run eip rebuild, or eip secrets --live if this is a live stack", role, snap.Services[role].Image, repo)
 		}
 		out["TAG_"+roleEnvKey(role)] = tag
 	}

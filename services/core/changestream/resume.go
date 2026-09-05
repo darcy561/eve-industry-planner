@@ -85,8 +85,7 @@ func isInvalidResumeError(err error) bool {
 	if err == nil {
 		return false
 	}
-	var cmd mongo.CommandError
-	if errors.As(err, &cmd) {
+	if cmd, ok := errors.AsType[mongo.CommandError](err); ok {
 		// 286 ChangeStreamHistoryLost, 280 ChangeStreamFatalError, 260 NonResumableChangeStreamError
 		switch cmd.Code {
 		case 286, 280, 260:

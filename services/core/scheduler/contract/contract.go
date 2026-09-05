@@ -1,35 +1,28 @@
-// Package contract holds the scheduler interface and dependencies used by core/scheduler and core/scheduler/esi.
-// Kept in a separate package to avoid an import cycle between scheduler and esi.
+// Package contract holds the dependencies and handler type the job packages take.
+// Kept separate so those packages do not import core/scheduler, which declares them.
 package contract
 
 import (
 	"context"
 	"encoding/json"
 
+	"eve-industry-planner/shared/esiclient"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	redislib "github.com/redis/go-redis/v9"
-	"github.com/robfig/cron/v3"
 )
 
 // Dependencies contains all possible dependencies for schedulers
 type Dependencies struct {
-	Cron      *cron.Cron
-	NATS      *natslib.Conn
-	JSContext jetstream.JetStream
-	Redis     *redislib.Client
-	Mongo     *eipmongo.Mongo
+	NATS  *eipnats.NATS
+	Redis *redislib.Client
+	Mongo *eipmongo.Mongo
+	// ESI answers what the rate limiter knows: whether the servers are
+	// answering, and whether a run's token cost can be absorbed.
+	ESI esiclient.API
 }
 
 // TaskHandler defines a function that triggers a task
 // data is the optional JSON-encoded data passed in the schedule request
 type TaskHandler func(ctx context.Context, data json.RawMessage) error
-
-// Scheduler interface for dynamic task scheduling
-type Scheduler interface {
-	RegisterHandler(taskType string, handler TaskHandler)
-	HasScheduledJob(taskType string) bool
-	ScheduleCronJob(cronExpr string, taskType string) error
-}

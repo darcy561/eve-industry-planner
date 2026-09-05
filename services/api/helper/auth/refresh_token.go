@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -17,6 +18,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+
+	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/protectedfields"
 )
 
 var ErrRefreshTokenNotFound = errors.New("refresh token not found")
@@ -94,9 +98,11 @@ type SessionRecord struct {
 	LastSeenAt    time.Time `json:"last_seen_at"`
 }
 
+// SessionGrants holds the organisations a session may see, as deterministic refs.
+// Raw entity ids are converted at UpdateAccountSessionGrants and never persisted.
 type SessionGrants struct {
-	CorporationIDs []int64 `json:"corporation_ids,omitempty"`
-	AllianceIDs    []int64 `json:"alliance_ids,omitempty"`
+	CorporationRefs []string `json:"corporation_refs,omitempty"`
+	AllianceRefs    []string `json:"alliance_refs,omitempty"`
 }
 
 type AccountSession struct {
@@ -472,19 +478,19 @@ func findRefreshTokenBySessionIDScan(ctx context.Context, redisClient *redis.Cli
 	return "", nil
 }
 
-func normalizeIDs(ids []int64) []int64 {
-	if len(ids) == 0 {
-		return []int64{}
+func normalizeRefs(refs []string) []string {
+	if len(refs) == 0 {
+		return []string{}
 	}
-	m := make(map[int64]struct{}, len(ids))
-	for _, id := range ids {
-		if id > 0 {
-			m[id] = struct{}{}
+	m := make(map[string]struct{}, len(refs))
+	for _, r := range refs {
+		if r = strings.TrimSpace(r); r != "" {
+			m[r] = struct{}{}
 		}
 	}
-	out := make([]int64, 0, len(m))
-	for id := range m {
-		out = append(out, id)
+	out := make([]string, 0, len(m))
+	for r := range m {
+		out = append(out, r)
 	}
 	slices.Sort(out)
 	return out
@@ -707,10 +713,23 @@ func TouchAccountSession(ctx context.Context, redisClient *redis.Client, account
 	})
 }
 
-func UpdateAccountSessionGrants(ctx context.Context, redisClient *redis.Client, accountID string, corpIDs, allianceIDs []int64) error {
+// UpdateAccountSessionGrants is where organisation ids enter a session, and so is
+// where they are converted. Callers pass the ids they hold from ESI; only refs are
+// stored, and everything downstream — websocket scopes, tenant keys, logs — sees
+// refs alone.
+func UpdateAccountSessionGrants(ctx context.Context, redisClient *redis.Client, refs *entityid.Cipher, accountID string, corpIDs, allianceIDs []int64) error {
+	corpRefs, err := protectedfields.ValuesForIDs64(refs, protectedfields.KindCorp, corpIDs)
+	if err != nil {
+		return fmt.Errorf("derive corporation refs for session grants: %w", err)
+	}
+	allianceRefs, err := protectedfields.ValuesForIDs64(refs, protectedfields.KindAlliance, allianceIDs)
+	if err != nil {
+		return fmt.Errorf("derive alliance refs for session grants: %w", err)
+	}
+
 	nextGrants := SessionGrants{
-		CorporationIDs: normalizeIDs(corpIDs),
-		AllianceIDs:    normalizeIDs(allianceIDs),
+		CorporationRefs: normalizeRefs(slices.Collect(maps.Values(corpRefs))),
+		AllianceRefs:    normalizeRefs(slices.Collect(maps.Values(allianceRefs))),
 	}
 	return mutateAccountSessionsRecord(ctx, redisClient, accountID, func(rec *AccountSessionsRecord) error {
 		rec.Grants = nextGrants

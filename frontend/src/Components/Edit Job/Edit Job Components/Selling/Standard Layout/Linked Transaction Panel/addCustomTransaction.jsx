@@ -15,14 +15,15 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import DOMPurify from "dompurify";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
+import Transaction from "../../../../../../Classes/transaction";
 
 /**
- * The trigger for this dialog already gates on the active job lock, but we
- * keep a defensive guard on the Add button (mirrors how `parentJobDialog`
- * locks its internal AddIcon rows): if the dialog is mounted while the lock
+ * The trigger for this dialogue already gates on the active job lock, but we
+ * keep a defensive guard on the Add button (mirrors how `parentJobDialogue`
+ * locks its internal AddIcon rows): if the dialogue is mounted while the lock
  * flips to read-only, we still refuse to mutate the persisted job.
  */
-export function AddCustomTransactionDialog({
+export function AddCustomTransactionDialogue({
   state,
   actions,
   newTransactionTrigger,
@@ -36,7 +37,7 @@ export function AddCustomTransactionDialog({
     journal_ref_id: null,
     unit_price: 0,
     amount: 0,
-    transaction_id: createCustomTransactionID(),
+    transaction_id: Transaction.mintCustomID(),
     quantity: 0,
     date: new Date(),
     location_id: null,
@@ -217,7 +218,9 @@ export function AddCustomTransactionDialog({
               disabled={jobLockReadOnly}
               onClick={() => {
                 if (jobLockReadOnly) return;
-                state.activeJob.build.sale.transactions.push(transactionData);
+                state.activeJob.build.sale.transactions.push(
+                  new Transaction(transactionData),
+                );
                 actions.updateActiveJob(state.activeJob);
               }}
             >
@@ -230,11 +233,6 @@ export function AddCustomTransactionDialog({
   );
 }
 
-function createCustomTransactionID() {
-  const timestampPart = Date.now() * 1000;
-  const randomPart = Math.floor(Math.random() * 1000);
-  return -(timestampPart + randomPart);
-}
 
 function parseNonNegativeNumber(value) {
   const parsed = Number(value);

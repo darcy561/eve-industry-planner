@@ -19,7 +19,7 @@ Published by [`services/core/changestream/watcher.go`](../../../services/core/ch
 
 | Field | Purpose |
 |-------|---------|
-| `accountID` | Account-scoped routing (existing behavior). |
+| `accountID` | Account-scoped routing (existing behaviour). |
 | `corporationID` / `allianceID` | Org roots when **no** `accountID` is set on the payload (or when publishers omit account routing for org-wide docs). Extracted from document root or `_meta` (`corporationID` / `corporationId`, `allianceID` / `allianceId`). |
 | `scopes` | Optional object: `corporationIDs[]`, `accountIDs[]` (strings or JSON numbers coerced to string). **Empty or absent** → deliver to **all** clients in that org’s pool on the replica. **Alliance path:** union semantics — recipient matches if their **corp membership list** intersects `scopes.corporationIDs` **or** their `accountID` is in `scopes.accountIDs`. **Corporation path:** if `scopes.accountIDs` is set, only those accounts receive the message. |
 | `collection`, `docID`, `sourceClientID`, `sourceSessionID` | Unchanged. |

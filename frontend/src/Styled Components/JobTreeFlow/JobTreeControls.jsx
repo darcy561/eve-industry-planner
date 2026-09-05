@@ -5,7 +5,7 @@ import RemoveIcon from "@mui/icons-material/Remove";
 import ZoomOutMapIcon from "@mui/icons-material/ZoomOutMap";
 import { Tooltip } from "@mui/material";
 
-export default function JobTreeControls({ onOpenInDialog }) {
+export default function JobTreeControls({ onOpenInDialogue }) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   return (
@@ -37,9 +37,9 @@ export default function JobTreeControls({ onOpenInDialog }) {
           <ZoomOutMapIcon fontSize="small" />
         </Tooltip>
       </ControlButton>
-      {typeof onOpenInDialog === "function" ? (
-        <ControlButton onClick={onOpenInDialog}>
-          <Tooltip title="Open in dialog" placement="right" arrow>
+      {typeof onOpenInDialogue === "function" ? (
+        <ControlButton onClick={onOpenInDialogue}>
+          <Tooltip title="Open in dialogue" placement="right" arrow>
             <OpenInNewIcon fontSize="small" />
           </Tooltip>
         </ControlButton>

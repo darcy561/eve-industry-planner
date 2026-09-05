@@ -327,7 +327,7 @@ func (a *Handlers) refreshHandler(w http.ResponseWriter, r *http.Request, touchL
 		sessionMetrics.Continued.WithLabelValues(sessionFlow).Inc(ctx)
 	}
 	sessionMetrics.Stored.WithLabelValues(sessionFlow).Inc(ctx)
-	if err := auth.UpdateAccountSessionGrants(ctx, rdb, tokenData.AccountID, corporations, alliances); err != nil {
+	if err := auth.UpdateAccountSessionGrants(ctx, rdb, a.EntityCipher, tokenData.AccountID, corporations, alliances); err != nil {
 		logs.AttachHandlerCaveat(r, "account_session_grants_update_failed", "failed to update account session grants", map[string]any{
 			"error": err.Error(),
 		})

@@ -2,6 +2,7 @@ package leadership_test
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -9,9 +10,8 @@ import (
 	"eve-industry-planner/core/primarycontroller"
 	"eve-industry-planner/core/servicemanager"
 	"eve-industry-planner/shared/core/redis/lease"
-
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/redisfake"
+	"eve-industry-planner/testing/wait"
 )
 
 func fastLeaseOpts() lease.Options {
@@ -48,48 +48,39 @@ func fakePublisher(active, publishes *atomic.Int32, owner *atomic.Value, id stri
 
 func waitLeaderPair(t *testing.T, a, b *primarycontroller.Service, deadline time.Duration) (leader, standby *primarycontroller.Service) {
 	t.Helper()
-	end := time.Now().Add(deadline)
-	for time.Now().Before(end) {
+	wait.For(t, deadline, func() (bool, string) {
 		aLead, bLead := a.IsLeader(), b.IsLeader()
 		switch {
 		case aLead && !bLead:
-			return a, b
+			leader, standby = a, b
+			return true, ""
 		case bLead && !aLead:
-			return b, a
+			leader, standby = b, a
+			return true, ""
 		case aLead && bLead:
 			t.Fatal("both replicas report IsLeader")
 		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for single leader (a=%v b=%v)", a.IsLeader(), b.IsLeader())
-	return nil, nil
+		return false, fmt.Sprintf("no single leader (a=%v b=%v)", aLead, bLead)
+	})
+	return leader, standby
 }
 
 func waitManagedReady(t *testing.T, m *servicemanager.Managed, d time.Duration) {
 	t.Helper()
-	end := time.Now().Add(d)
-	for time.Now().Before(end) {
-		if err := m.Ready(context.Background()); err == nil {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("managed never Ready")
+	wait.For(t, d, func() (bool, string) {
+		err := m.Ready(context.Background())
+		return err == nil, fmt.Sprintf("managed not Ready: %v", err)
+	})
 }
 
 func waitActiveOwner(t *testing.T, active *atomic.Int32, owner *atomic.Value, want string, d time.Duration) {
 	t.Helper()
-	end := time.Now().Add(d)
-	for time.Now().Before(end) {
-		if active.Load() == 1 {
-			if v, ok := owner.Load().(string); ok && v == want {
-				return
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	got, _ := owner.Load().(string)
-	t.Fatalf("want active owner %q; got owner=%q active=%d", want, got, active.Load())
+	wait.For(t, d, func() (bool, string) {
+		got, _ := owner.Load().(string)
+		held := active.Load()
+		return held == 1 && got == want,
+			fmt.Sprintf("want active owner %q; got owner=%q active=%d", want, got, held)
+	})
 }
 
 func assertNoDualLeader(t *testing.T, a, b *primarycontroller.Service) {
@@ -131,13 +122,7 @@ func watchSustainedDualActive(active *atomic.Int32, maxOverlap time.Duration) (s
 // never dual IsLeader; steady-state exactly one armed publisher; Stop→takeover
 // moves the publisher; no sustained dual arming.
 func TestDualReplica_exactlyOnePublisherAndTakeover(t *testing.T) {
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(mr.Close)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	rdb := redisfake.New(t).Client
 
 	opts := fastLeaseOpts()
 	a, err := primarycontroller.StartWithOptions(context.Background(), rdb, opts)
@@ -205,34 +190,21 @@ func TestDualReplica_exactlyOnePublisherAndTakeover(t *testing.T) {
 	}
 	assertNoDualLeader(t, a, b)
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	wait.For(t, 2*time.Second, func() (bool, string) {
 		assertNoDualLeader(t, a, b)
 		if dualViolated.Load() {
 			t.Fatal("sustained dual armed publishers during handoff")
 		}
-		if active.Load() == 1 && publishes.Load() > pubBeforeStop {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if dualViolated.Load() {
-		t.Fatal("sustained dual armed publishers")
-	}
-	t.Fatalf("new leader did not publish after takeover (active=%d publishes=%d→%d)",
-		active.Load(), pubBeforeStop, publishes.Load())
+		return active.Load() == 1 && publishes.Load() > pubBeforeStop,
+			fmt.Sprintf("new leader has not published after takeover (active=%d publishes=%d→%d)",
+				active.Load(), pubBeforeStop, publishes.Load())
+	})
 }
 
 // Takeover SLA for clean Stop (lease released): standby arms within acquire
 // backoff budget. Crash/TTL path: lease.TestRunWhileHeld_TakeoverAfterLeaderDies.
 func TestDualReplica_takeoverBoundOnStop(t *testing.T) {
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(mr.Close)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	rdb := redisfake.New(t).Client
 
 	opts := fastLeaseOpts()
 	const takeoverBound = 2 * time.Second
@@ -254,13 +226,9 @@ func TestDualReplica_takeoverBoundOnStop(t *testing.T) {
 	leader.Stop(context.Background())
 
 	start := time.Now()
-	deadline := start.Add(takeoverBound)
-	for time.Now().Before(deadline) {
-		if standby.IsLeader() {
-			t.Logf("takeover after clean Stop in %s (bound %s)", time.Since(start), takeoverBound)
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("standby did not take over within %s after clean Stop", takeoverBound)
+	wait.For(t, takeoverBound, func() (bool, string) {
+		return standby.IsLeader(),
+			fmt.Sprintf("standby has not taken over after clean Stop (elapsed %s)", time.Since(start))
+	})
+	t.Logf("takeover after clean Stop in %s (bound %s)", time.Since(start), takeoverBound)
 }

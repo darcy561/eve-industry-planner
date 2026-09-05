@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
 
 	"eve-industry-planner/deployment-tool/internal/yamlutil"
@@ -90,14 +91,14 @@ type ScaleTiming struct {
 }
 
 type ServiceSpec struct {
-	CapacityControllerManaged bool    `yaml:"capacity_controller_managed"`
-	Min                       int     `yaml:"min"`
-	Max                       int     `yaml:"max"`
-	Concurrency               int                `yaml:"concurrency,omitempty"`                 // worker
-	TargetClients             int                `yaml:"target_clients,omitempty"`               // websocket
-	ClientCutoff              int                `yaml:"client_cutoff,omitempty"`                // websocket
-	ReserveCapacity           float64            `yaml:"reserve_capacity,omitempty"`             // websocket
-	QueueScaleUpPct           map[string]float64 `yaml:"queue_scale_up_pct,omitempty"`           // worker: scale-up pending fraction per priority queue
+	CapacityControllerManaged bool               `yaml:"capacity_controller_managed"`
+	Min                       int                `yaml:"min"`
+	Max                       int                `yaml:"max"`
+	Concurrency               int                `yaml:"concurrency,omitempty"`        // worker
+	TargetClients             int                `yaml:"target_clients,omitempty"`     // websocket
+	ClientCutoff              int                `yaml:"client_cutoff,omitempty"`      // websocket
+	ReserveCapacity           float64            `yaml:"reserve_capacity,omitempty"`   // websocket
+	QueueScaleUpPct           map[string]float64 `yaml:"queue_scale_up_pct,omitempty"` // worker: scale-up pending fraction per priority queue
 }
 
 // LoadYAML reads and validates operator config from path.
@@ -324,6 +325,8 @@ func (c Config) SyncEnvMap() map[string]string {
 		"EIP_API_REPLICAS":     itoa(api.Min),
 		"EIP_API_CAPACITY_MIN": itoa(api.Min),
 		"EIP_API_CAPACITY_MAX": itoa(api.Max),
+
+		"EIP_OBSERVABILITY_ENABLED": strconv.FormatBool(c.Addons.Observability.Enabled),
 
 		"EIP_HTTP_PORT":                   itoa(ports.HTTP),
 		"EIP_HTTPS_PORT":                  itoa(ports.HTTPS),

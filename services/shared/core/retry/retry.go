@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Config defines retry behavior for transient external failures.
+// Config defines retry behaviour for transient external failures.
 type Config struct {
 	MaxAttempts   int
 	InitialDelay  time.Duration
@@ -14,7 +14,7 @@ type Config struct {
 	OperationName string
 }
 
-// Option overrides default retry behavior. Pass zero or more to Do.
+// Option overrides default retry behaviour. Pass zero or more to Do.
 type Option func(*Config)
 
 // AttemptContext includes metadata for retry callbacks.

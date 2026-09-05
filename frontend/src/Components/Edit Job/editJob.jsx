@@ -20,24 +20,25 @@ import { LinkedJobBadge } from "./Linked Job Badge";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import SchemaIcon from "@mui/icons-material/Schema";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
+import { ShoppingListDialogue } from "../Dialogues/Shopping List/ShoppingList";
 import useWarnBeforeUnload from "../../Hooks/GeneralHooks/useWarnBeforeUnload";
 import StepErrorBoundary from "./StepErrorBoundary";
-import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
-import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
+import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
+import MarketDataDialogue from "../Dialogues/Market Data/dialogueFrame";
 import useUsersStore from "../../Zustand/usersStore";
-import { openJobLinkTreeFromEditPage } from "../../Events/jobDependencyTreeDialogEvents";
+import { openJobLinkTreeFromEditPage } from "../../Events/jobDependencyTreeDialogueEvents";
 import { useJobStatuses } from "../Job Planner/Hooks/useJobStatuses";
-import AssetsDialogue from "../Dialogues/Assets/dialogFrame";
+import AssetsDialogue from "../Dialogues/Assets/dialogueFrame";
 import useEditJobReducer from "./Edit Job Hooks/useEditJobReducer";
 import { useStripRedundantJobMarketHubOverrides } from "../../Hooks/Planner/useStripRedundantJobMarketHubOverrides.js";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
-import EditJobLeaveConfirmDialog from "./EditJobLeaveConfirmDialog";
+import EditJobLeaveConfirmDialogue from "./EditJobLeaveConfirmDialogue";
 import { useEditJobLeaveConfirm } from "./Edit Job Hooks/useEditJobLeaveConfirm";
 import EditJobStepContentSelector from "./EditJobStepContentSelector";
 import { useEditJobInitialState } from "./Edit Job Hooks/useEditJobInitialState";
 import { useEditJobDocumentLocks } from "./Edit Job Hooks/useEditJobDocumentLocks";
+import { useRefreshLinkedESIData } from "./Hooks/useRefreshLinkedESIData";
 import {
   canJumpToJobStep,
   canMoveJobBackward,
@@ -45,8 +46,6 @@ import {
   getLastStepIndex,
   isFinalStepLockedForJob,
 } from "../../Functions/Job/jobStepNavigation";
-
-
 
 export default function EditJob_New() {
   const { state, actions } = useEditJobReducer();
@@ -64,6 +63,7 @@ export default function EditJob_New() {
     state.activeJob,
     actions.updateActiveJob
   );
+  useRefreshLinkedESIData(state.activeJob, actions.updateActiveJob);
   useEditJobDocumentLocks({
     jobID,
     activeJob: state.activeJob,
@@ -72,7 +72,7 @@ export default function EditJob_New() {
 
   useWarnBeforeUnload();
 
-  const { leaveConfirmDialogProps } = useEditJobLeaveConfirm({
+  const { leaveConfirmDialogueProps } = useEditJobLeaveConfirm({
     backupJobRef: backupJob,
     state,
   });
@@ -447,19 +447,20 @@ export default function EditJob_New() {
           </Grid>
         )}
       </ContentPanel>
-      <ShoppingListDialog />
-      <PriceHistoryDialog />
-      <MarketDataDialog />
+      <ShoppingListDialogue />
+      <PriceHistoryDialogue />
+      <MarketDataDialogue />
       <AssetsDialogue />
-      <EditJobLeaveConfirmDialog {...leaveConfirmDialogProps} />
+      <EditJobLeaveConfirmDialogue {...leaveConfirmDialogueProps} />
     </DefaultPageLayout>
   );
 
   /**
- * Read `/editjob/$id` query params at call time (e.g. link-tree button) - avoids subscribing
- * to search on every render when the dialog is rarely opened.
- * @returns {{ activeGroup: string|undefined, pageView: string|undefined }}
- */
+   * Read `/editjob/$id` query params at call time (e.g. link-tree button) - avoids subscribing
+   * to search on every render when the dialogue is rarely opened.
+   *
+   * @returns {{ activeGroup: string|undefined, pageView: string|undefined }}
+   */
   function readEditJobUrlSearch() {
     if (typeof window === "undefined") {
       return { activeGroup: undefined, pageView: undefined };
@@ -473,5 +474,4 @@ export default function EditJob_New() {
     };
   }
 }
-
 

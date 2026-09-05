@@ -9,12 +9,12 @@ export function TabPanel_Building(props) {
   const { state, actions, jobMatches } = props;
   const [currentTab, updateTab] = useState(initialTab());
 
-  const totalJobCount = state.activeJob.totalJobCount();
+  const totalJobCount = state.activeJob.totalJobSlots;
 
   function initialTab() {
     if (state.activeJob.layout.esiJobTab) {
       return state.activeJob.layout.esiJobTab;
-    } else if (state.activeJob.apiJobs.size < state.activeJob.totalJobCount()) {
+    } else if (state.activeJob.esiJobIDs.size < state.activeJob.totalJobSlots) {
       return "0";
     } else {
       return "1";

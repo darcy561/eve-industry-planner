@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const yieldDocumentLockOnLeave = vi.fn();
 
@@ -15,14 +15,10 @@ vi.mock("../src/Zustand/usersStore.js", () => ({
 import { yieldEditJobDocumentLocksOnLeave } from "../src/Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 
 describe("yieldEditJobDocumentLocksOnLeave", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("yields solo job lock when no groupID", async () => {
     await yieldEditJobDocumentLocksOnLeave({ jobID: "job-1", groupID: null });
     expect(yieldDocumentLockOnLeave).toHaveBeenCalledWith(
-      "user_job_documents",
+      "job_documents",
       "job-1"
     );
   });

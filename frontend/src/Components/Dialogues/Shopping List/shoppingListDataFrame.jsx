@@ -1,10 +1,9 @@
 import { Typography, Grid } from "@mui/material";
 
 import { STANDARD_TEXT_FORMAT } from "../../../Context/defaultValues";
-import uuid from "react-uuid";
-import { ShoppingListItem_ShoppingListDialog } from "./shoppingListItem";
+import { ShoppingListItem_ShoppingListDialogue } from "./shoppingListItem";
 
-export function ListDataFrame_ShoppingListDialog({
+export function ListDataFrame_ShoppingListDialogue({
   state,
   actions,
 }) {
@@ -23,7 +22,7 @@ function ListItems({ state, actions }) {
     <Grid container>
       {visibleItems.map((item, index) => {
         return (
-          <ShoppingListItem_ShoppingListDialog
+          <ShoppingListItem_ShoppingListDialogue
             key={item.typeID}
             item={item}
             actions={actions}

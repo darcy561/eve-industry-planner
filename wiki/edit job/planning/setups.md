@@ -6,7 +6,7 @@ Job setups allow you to configure multiple manufacturing configurations for a si
 
 Setups are essential for:
 - **Splitting production** across multiple structures or locations
-- **Optimizing costs** by using different structures with varying tax rates
+- **Optimising costs** by using different structures with varying tax rates
 - **Managing capacity** by distributing jobs across multiple facilities
 - **Character assignment** for jobs that require specific skills or access
 
@@ -20,7 +20,7 @@ The Setup Panel displays all configured setups for the current job. Each setup i
 - **Location**: Top-left corner of the panel
 - **Icon**: Plus (+) icon
 - **Function**: Creates a new setup with default values
-- **Behavior**: Immediately adds the new setup to the job and displays a success notification
+- **Behaviour**: Immediately adds the new setup to the job and displays a success notification
 
 #### Menu Button
 - **Location**: Top-right corner of the panel
@@ -97,12 +97,12 @@ The Edit Setup Panel appears when you click on a setup card. It provides detaile
 #### Blueprint Runs
 - **Field**: Number input
 - **Function**: Sets how many blueprint runs this setup will execute
-- **Behavior**: Automatically recalculates job materials and costs when changed
+- **Behaviour**: Automatically recalculates job materials and costs when changed
 
 #### Job Slots
 - **Field**: Number input
 - **Function**: Sets how many job slots this setup will consume
-- **Behavior**: Automatically recalculates job materials and costs when changed
+- **Behaviour**: Automatically recalculates job materials and costs when changed
 
 ### Efficiency Settings (Manufacturing Only)
 
@@ -112,13 +112,13 @@ These fields only appear for manufacturing job types.
 - **Field**: Dropdown select
 - **Function**: Sets the material efficiency level (0-10)
 - **Impact**: Affects material consumption - higher ME reduces material requirements
-- **Behavior**: Automatically recalculates material requirements when changed
+- **Behaviour**: Automatically recalculates material requirements when changed
 
 #### Time Efficiency (TE)
 - **Field**: Dropdown select
 - **Function**: Sets the time efficiency level (0-20)
 - **Impact**: Affects job duration - higher TE reduces manufacturing time
-- **Behavior**: Automatically recalculates job time when changed
+- **Behaviour**: Automatically recalculates job time when changed
 
 ### Structure Configuration
 
@@ -128,7 +128,7 @@ You can choose between using a custom structure or manually configuring structur
 - **Field**: Dropdown select
 - **Availability**: Only visible when logged in
 - **Function**: Selects a pre-configured custom structure
-- **Behavior**: 
+- **Behaviour**: 
   - When selected, hides manual structure configuration fields
   - Automatically applies the custom structure's settings
   - Recalculates job parameters based on structure properties
@@ -141,18 +141,18 @@ These fields appear when no custom structure is selected:
 - **Field**: Dropdown select
 - **Function**: Selects the type of structure (e.g., Engineering Complex, Citadel)
 - **Options**: Filtered by job type
-- **Behavior**: Recalculates job parameters when changed
+- **Behaviour**: Recalculates job parameters when changed
 
 **Rig Type**
 - **Field**: Dropdown select
 - **Function**: Selects the rig configuration for the structure
 - **Options**: Filtered by job type and structure type
-- **Behavior**: Recalculates job parameters when changed
+- **Behaviour**: Recalculates job parameters when changed
 
 **System Type**
 - **Field**: Dropdown select
 - **Function**: Selects the security class of the system (Highsec, Lowsec, Nullsec, Wormhole)
-- **Behavior**: Recalculates job parameters when changed
+- **Behaviour**: Recalculates job parameters when changed
 
 **System Search**
 - **Field**: Autocomplete search
@@ -161,12 +161,12 @@ These fields appear when no custom structure is selected:
   - Virtualized list for performance with large datasets
   - Filters systems based on job type
   - Shows loading indicator while fetching system data
-- **Behavior**: Recalculates job parameters when changed
+- **Behaviour**: Recalculates job parameters when changed
 
 **Tax Percentage**
 - **Field**: Number input
 - **Function**: Sets the tax rate for this setup (0-100%)
-- **Behavior**: 
+- **Behaviour**: 
   - Updates on blur (when field loses focus)
   - Recalculates installation costs when changed
 
@@ -175,7 +175,7 @@ These fields appear when no custom structure is selected:
 #### Use Alternative System Index
 - **Field**: Checkbox
 - **Function**: Enables manual override of the system index value
-- **Behavior**: 
+- **Behaviour**: 
   - When checked, enables the System Index field
   - When unchecked, uses the default system index and disables manual entry
   - Automatically recalculates job parameters
@@ -184,7 +184,7 @@ These fields appear when no custom structure is selected:
 - **Field**: Number input
 - **Function**: Manually sets the system index percentage
 - **Availability**: Only enabled when "Use Alternative System Index" is checked
-- **Behavior**: Recalculates job parameters when changed
+- **Behaviour**: Recalculates job parameters when changed
 
 ### Character Assignment
 
@@ -196,7 +196,7 @@ These fields appear when no custom structure is selected:
   - Used for skill-based calculations
   - Affects material requirements and job time
   - Useful for tracking which character will run the job
-- **Behavior**: Recalculates job parameters based on character skills when changed
+- **Behaviour**: Recalculates job parameters based on character skills when changed
 
 ## Setup Management
 

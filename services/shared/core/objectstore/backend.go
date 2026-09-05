@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/core/retry"
+	"eve-industry-planner/shared/logs"
 )
 
 const (
@@ -86,12 +88,35 @@ func open(ctx context.Context, cfg dialConfig) (Backend, error) {
 	if strings.TrimSpace(cfg.Bucket) == "" {
 		return nil, fmt.Errorf("bucket name is required")
 	}
-	b, err := openS3(ctx, cfg)
+	b, err := dialS3(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
 	if cfg.KeyPrefix != "" {
 		return WithKeyPrefix(b, cfg.KeyPrefix), nil
+	}
+	return b, nil
+}
+
+// dialS3 retries the dial so a restarting object store does not fail service start-up.
+// The attempt budget spans a cold data-tier start, matching the other stack dependencies.
+func dialS3(ctx context.Context, cfg dialConfig) (*S3Backend, error) {
+	var b *S3Backend
+	err := retry.Do(ctx, func(ctx context.Context) error {
+		var err error
+		b, err = openS3(ctx, cfg)
+		return err
+	}, func(err error, a retry.AttemptContext) bool {
+		logs.WarnCtx(ctx, "object store dial failed", "attempt", a.Attempt, "max_attempts", a.MaxAttempts, "error", err)
+		return true
+	},
+		retry.WithMaxAttempts(12),
+		retry.WithInitialDelay(time.Second),
+		retry.WithMaxDelay(5*time.Second),
+		retry.WithOperationName("object store dial"),
+	)
+	if err != nil {
+		return nil, err
 	}
 	return b, nil
 }

@@ -2,7 +2,7 @@ import getAllRelatedJobs from "../../../Functions/Helper/getAllRelatedJobs";
 
 /**
  * Resolves the same data the edit job page would pass to
- * `openJobDependencyTreeDialog` — pool (group or planner), `getAllRelatedJobs`,
+ * `openJobDependencyTreeDialogue` — pool (group or planner), `getAllRelatedJobs`,
  * and edit-navigation hints — so callers can send only a job id + search hints.
  *
  * @param {string|number|undefined} jobId

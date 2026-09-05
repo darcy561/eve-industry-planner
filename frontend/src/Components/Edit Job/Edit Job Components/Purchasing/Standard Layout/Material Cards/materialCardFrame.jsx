@@ -7,8 +7,10 @@ import { TotalCost_Purchasing } from "./totalMaterialCost";
 import { MaterialCostsFrame_Purchasing } from "./materialCostsFrame";
 import { AddMaterialCost_Purchasing } from "./addMaterialCosts";
 import { MaterialCompleteBox_Purchasing } from "./materialCompleteBox";
+import { MaterialExcessBox_Purchasing } from "./materialExcessBox";
 import { AwaitingCostImportBox_Purchasing } from "./awaitingCostImportBox";
 import getCurrentLinkedChildJobIDsForMaterial from "./functions/getCurrentLinkedChildJobIDsForMaterial.js";
+import { childJobSupplyForMaterial } from "./functions/childJobSupplyForMaterial.js";
 import AssetsIconButton from "../../../../../../Styled Components/IconButton/assets";
 import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
 import useUsersStore from "../../../../../../Zustand/usersStore";
@@ -19,7 +21,7 @@ export function MaterialCardFrame_Purchasing(props) {
   const { state, material } = props;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { jobArray } = useUsersStore((state) => state.jobData);
-  const [childDialogTrigger, updateChildDialogTrigger] = useState(false);
+  const [childDialogueTrigger, updateChildDialogueTrigger] = useState(false);
 
   function calculateChildJobData() {
     let childJobs = [];
@@ -40,7 +42,7 @@ export function MaterialCardFrame_Purchasing(props) {
       if (!state.activeJob.includedInGroup) {
         childJobs = filterJobs(jobArray);
         childJobProductionTotal = childJobs.reduce(
-          (total, job) => total + job.build.products.totalQuantity,
+          (total, job) => total + job.totalQuantityProduced,
           0
         );
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -49,17 +51,17 @@ export function MaterialCardFrame_Purchasing(props) {
           );
 
           if (!matchingCostImport) {
-            return (total += job.build.products.totalQuantity);
+            return (total += job.totalQuantityProduced);
           }
           return total;
         }, 0);
       } else {
         childJobs = filterJobs([
           ...jobArray,
-          Object.entries(state.temporaryChildJobs),
+          ...Object.values(state.temporaryChildJobs),
         ]);
         childJobProductionTotal = childJobs.reduce((total, job) => {
-          return (total += job.build.products.totalQuantity);
+          return (total += job.totalQuantityProduced);
         }, 0);
 
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -68,7 +70,7 @@ export function MaterialCardFrame_Purchasing(props) {
           );
 
           if (!matchingCostImport) {
-            return (total += job.build.products.totalQuantity);
+            return (total += job.totalQuantityProduced);
           }
           return total;
         }, 0);
@@ -88,6 +90,12 @@ export function MaterialCardFrame_Purchasing(props) {
     childJobLocation,
     remainingTotalToBeImported,
   } = calculateChildJobData();
+
+  const childSupply = childJobSupplyForMaterial(
+    state.activeJob,
+    material,
+    childJobs,
+  );
 
   return (
     <Grid
@@ -194,7 +202,7 @@ export function MaterialCardFrame_Purchasing(props) {
             )}
             <ChildJobsAvatar_Purchasing
               {...props}
-              updateChildDialogTrigger={updateChildDialogTrigger}
+              updateChildDialogueTrigger={updateChildDialogueTrigger}
               childJobs={childJobs}
             />
           </Box>
@@ -211,7 +219,7 @@ export function MaterialCardFrame_Purchasing(props) {
           {childJobLocation.length > 0 ? (
             <MaterialQuantityInfoDoubleRow
               material={material}
-              childJobProductionTotal={childJobProductionTotal}
+              childSupply={childSupply}
               remainingTotalToBeImported={remainingTotalToBeImported}
             />
           ) : (
@@ -259,29 +267,32 @@ export function MaterialCardFrame_Purchasing(props) {
             <AwaitingCostImportBox_Purchasing
               {...props}
               childJobs={childJobs}
-              childJobProductionTotal={childJobProductionTotal}
+              childSupply={childSupply}
             />
+          </Box>
+          <Box sx={{ flexShrink: 0, display: "flex" }}>
+            <MaterialExcessBox_Purchasing material={material} />
           </Box>
           <Box sx={{ flexShrink: 0 }}>
             <MaterialCompleteBox_Purchasing
               material={material}
               childJobs={childJobs}
-              childJobProductionTotal={childJobProductionTotal}
+              childSupply={childSupply}
               remainingTotalToBeImported={remainingTotalToBeImported}
             />
           </Box>
           <Box sx={{ flexShrink: 0, marginTop: "auto" }}>
             <AddMaterialCost_Purchasing
               {...props}
-              childJobProductionTotal={childJobProductionTotal}
+              childSupply={childSupply}
               childJobs={childJobs}
             />
           </Box>
         </Box>
         <ChildJobDialogue
           {...props}
-          childDialogTrigger={childDialogTrigger}
-          updateChildDialogTrigger={updateChildDialogTrigger}
+          childDialogueTrigger={childDialogueTrigger}
+          updateChildDialogueTrigger={updateChildDialogueTrigger}
         />
       </ContentPanel>
     </Grid>

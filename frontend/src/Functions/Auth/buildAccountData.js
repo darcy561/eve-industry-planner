@@ -33,7 +33,7 @@ export async function hydrateLinkedCharactersFromAccessSessions(
       });
       await ch.getPublicCharacterData();
       await buildCorporationObjectFromUserObject(ch);
-      // Keep login progress UI behavior consistent with refresh-token hydration:
+      // Keep login progress UI behaviour consistent with refresh-token hydration:
       // surface each linked character as it finishes loading.
       emitUserDataUpdate({
         eveLoginComplete: true,
@@ -54,6 +54,7 @@ export async function hydrateLinkedCharactersFromAccessSessions(
 
 /**
  * `localStorage` key for per-main-character additional-account refresh token JSON.
+ *
  * @param {string} mainCharacterHash
  */
 export function getLocalAdditionalAccountsStorageKey(mainCharacterHash) {
@@ -62,7 +63,7 @@ export function getLocalAdditionalAccountsStorageKey(mainCharacterHash) {
 
 /**
  * Builds user data from a refresh token.
- * 
+ *
  * @param {Object} refreshToken - Refresh token object
  * @returns {Promise<Object>} Promise resolving to user object
  */
@@ -199,7 +200,7 @@ export async function buildUsersFromRefreshTokens(userData) {
         userData.settings?.userCloudAccounts ??
         userData.userCloudAccounts ??
         false;
-    // Normalize refreshTokens from database (characterHash -> CharacterHash) for internal use
+    // Normalise refreshTokens from database (characterHash -> CharacterHash) for internal use
     const refreshTokens = (userData.refreshTokens || []).map(token => ({
         CharacterHash: token.CharacterHash || token.characterHash,
         rToken: token.rToken,
@@ -272,7 +273,7 @@ export async function buildUsersFromRefreshTokens(userData) {
 
 /**
  * Extracts refresh tokens from localStorage for additional accounts.
- * 
+ *
  * @param {Object} userSettings - User settings object
  * @param {boolean} [userSettings.userCloudAccounts] - Whether cloud accounts are enabled
  * @returns {Array} Array of refresh token objects, or empty array if cloud accounts enabled or no tokens found
@@ -313,10 +314,10 @@ function extractLocalRefreshTokens(userSettings) {
 
 /**
  * Updates and filters cloud refresh tokens based on successfully built users.
- * 
+ *
  * Updates refresh tokens with new token values from users and filters to only
  * include tokens for additional characters (not the main character) that were successfully built.
- * 
+ *
  * @param {Array} refreshTokens - Array of refresh token objects with CharacterHash and rToken
  * @param {Array} newUsers - Array of successfully built user objects
  * @returns {Array} Filtered and updated array of refresh tokens
@@ -356,11 +357,10 @@ function updateCloudRefreshTokens(refreshTokens, newUsers) {
 }
 
 /**
- * Updates localStorage with refresh tokens for additional accounts.
- * 
- * Extracts refresh tokens from successfully built additional characters (not main) and
- * stores them in localStorage for local account management.
- * 
+ * Updates localStorage with refresh tokens for additional accounts. Only
+ * characters other than the main one are stored, keyed by the main character's
+ * hash.
+ *
  * @param {Array} newUsers - Array of successfully built user objects
  */
 export function updateLocalRefreshTokens(newUsers) {

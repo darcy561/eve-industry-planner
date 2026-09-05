@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/stackservices"
-
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/redisfake"
+	"eve-industry-planner/testing/wait"
 )
 
 func TestDrainForRollSetsDrainingAndEmptiesWait(t *testing.T) {
@@ -75,13 +74,9 @@ func TestDrainForRollReKicksWhileWaiting(t *testing.T) {
 		close(done)
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && !s.IsDraining() {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if !s.IsDraining() {
-		t.Fatal("drain did not start")
-	}
+	wait.For(t, 2*time.Second, func() (bool, string) {
+		return s.IsDraining(), "drain did not start"
+	})
 
 	s.ClientsMu.Lock()
 	s.Clients["late"] = &Client{id: "late"}
@@ -122,9 +117,7 @@ func TestHandleWSRefuseDraining(t *testing.T) {
 
 func TestHandleWSRefuseAtCutoff(t *testing.T) {
 	t.Setenv("WS_CLIENT_CUTOFF", "2")
-	mr := miniredis.RunT(t)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	rdb := redisfake.New(t).Client
 
 	s := &Server{
 		Clients: map[string]*Client{

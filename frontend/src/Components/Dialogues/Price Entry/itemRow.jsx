@@ -7,7 +7,6 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
-import uuid from "react-uuid";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import useUsersStore from "../../../Zustand/usersStore";
 import { numberToShortText, formatNumberForLocale } from "../../../Functions/Helper/numberParser";
@@ -37,7 +36,7 @@ export function ItemPriceRow({
   // Unconfirmed entries are held in component state only
   const confirmedEntries = item.priceEntries || [];
   
-  // Initialize unconfirmed entries - start with one entry if no confirmed entries exist
+  // Initialise unconfirmed entries - start with one entry if no confirmed entries exist
   const getInitialUnconfirmedEntries = () => {
     const confirmedQty = confirmedEntries.reduce((sum, e) => sum + (e.itemCount || 0), 0);
     const remainingQty = item.remainingQuantity - confirmedQty;
@@ -444,7 +443,7 @@ export function ItemPriceRow({
 export function itemPriceEntryFactory(typeID, itemCount, itemCost) {
   return {
     typeID,
-    id: uuid(),
+    id: crypto.randomUUID(),
     itemCount,
     itemCost,
   };

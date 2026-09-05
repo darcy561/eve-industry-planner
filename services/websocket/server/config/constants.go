@@ -100,3 +100,21 @@ func AtTargetClients(connected int) bool {
 	target := TargetClients()
 	return target > 0 && connected >= target
 }
+
+// AllowedOrigins returns the browser origins permitted to open a WebSocket, lowercased.
+// Set by the operator via EIP_ALLOWED_ORIGINS (comma-separated); a single "*" allows any
+// origin. Unset or empty returns nil, which refuses every browser origin.
+func AllowedOrigins() []string {
+	v := strings.TrimSpace(os.Getenv("EIP_ALLOWED_ORIGINS"))
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.ToLower(strings.TrimSpace(p)); p != "" {
+			out = append(out, strings.TrimSuffix(p, "/"))
+		}
+	}
+	return out
+}

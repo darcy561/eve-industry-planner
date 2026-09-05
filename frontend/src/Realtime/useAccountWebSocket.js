@@ -6,7 +6,7 @@ import {
   stashRealtimeSessionResumeHint,
 } from "./realtimeClient.js";
 import { scheduleDebouncedAccountDocumentsSync } from "../Functions/Debounce/accountSingletonsSyncSchedule.js";
-import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
+import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Private/jobDocuments.js";
 
 /**
  * Account-scoped WebSocket lifecycle: connect when the user has a valid app session

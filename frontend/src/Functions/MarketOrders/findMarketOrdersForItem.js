@@ -41,7 +41,13 @@ export default function findMarketOrdersForItem(
   const { data: corpHistoricMarketOrders } =
     getAllCachedCorporationHistoricMarketOrders(queryClient);
 
-  const matchingMarketOrders = [];
+  // One row per order. ESI reports the same order on the character wallet and
+  // the corporation wallet, and again in the historic list once it closes, so
+  // without this the panel offers it two or three times over.
+  //
+  // The corporation's reading owns a corporation order, whichever arrives
+  // first; otherwise the first reading wins, which is the live list.
+  const byOrderID = new Map();
 
   [
     ...Object.values(characterMarketOrders),
@@ -51,33 +57,15 @@ export default function findMarketOrdersForItem(
   ]
     .flat()
     .forEach((order) => {
-      if (orderCriteria(order)) {
-        // Check if this is a corporation order that should replace a character order
-        if (order.is_corporation) {
-          // Find and remove any existing character order with the same order_id
-          const existingIndex = matchingMarketOrders.findIndex(
-            existingOrder => existingOrder.order_id === order.order_id && !existingOrder.is_corporation
-          );
+      if (!orderCriteria(order)) return;
 
-          if (existingIndex !== -1) {
-            // Replace the character order with the corporation order
-            matchingMarketOrders[existingIndex] = order;
-          } else {
-            // Add the corporation order if no character order exists
-            matchingMarketOrders.push(order);
-          }
-        } else {
-          // For character orders, only add if no corporation order already exists
-          const hasCorpOrder = matchingMarketOrders.some(
-            existingOrder => existingOrder.order_id === order.order_id && existingOrder.is_corporation
-          );
-
-          if (!hasCorpOrder) {
-            matchingMarketOrders.push(order);
-          }
-        }
+      const held = byOrderID.get(order.order_id);
+      if (!held || (order.is_corporation && !held.is_corporation)) {
+        byOrderID.set(order.order_id, order);
       }
     });
+
+  const matchingMarketOrders = [...byOrderID.values()];
 
   /**
    * Determines if an order matches the criteria for the input job.

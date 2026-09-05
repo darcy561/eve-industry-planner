@@ -3,7 +3,6 @@ import { IconButton, Typography, useMediaQuery, Grid } from "@mui/material";
 import { useState } from "react";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import uuid from "react-uuid";
 import { AssetEntry_CorpOffices } from "./officesParentFolder";
 import useUsersStore from "../../../../../Zustand/usersStore";
 
@@ -94,7 +93,7 @@ function ExpandedAssetDisplay({
       {matchedCorporation.hangars.map((hangarObject, index) => {
         return (
           <AssetEntry_CorpOffices
-            key={uuid()}
+            key={hangarObject.assetLocationRef}
             hangarObject={hangarObject}
             assets={assets}
             assetLocations={assetLocations}

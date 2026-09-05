@@ -37,19 +37,19 @@ export default function ArchiveStatsSummary({ data }) {
             {formatNumberForLocale(data.itemBuildCount, { max: 0 })}
           </Typography>
         </StatRow>
-        <StatRow label="Average Item Cost:">
+        <StatRow label="Average Total Cost Per Item:">
           <Typography>{avgItemCost}</Typography>
         </StatRow>
-        <StatRow label="Job Cost Total:">
+        <StatRow label="Total Job Cost:">
           <Typography>{formatNumberForLocale(data.jobCostTotal)}</Typography>
         </StatRow>
-        <StatRow label="Sales Total:">
+        <StatRow label="Total Sales:">
           <Typography>{formatNumberForLocale(data.salesTotal)}</Typography>
         </StatRow>
-        <StatRow label="Brokers Fee Total:">
+        <StatRow label="Total Broker Fees:">
           <Typography>{formatNumberForLocale(data.brokersFeeTotal)}</Typography>
         </StatRow>
-        <StatRow label="Transaction Fee Total:">
+        <StatRow label="Total Transaction Fees:">
           <Typography>
             {formatNumberForLocale(data.transactionFeeTotal)}
           </Typography>

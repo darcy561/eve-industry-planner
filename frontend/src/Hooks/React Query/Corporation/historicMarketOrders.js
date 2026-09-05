@@ -8,21 +8,16 @@ const corporationHistoricMarketOrdersQueryKey = "corporationHistoricMarketOrders
 
 /**
  * React Query configuration for fetching corporation historic market orders from EVE ESI API.
- * 
+ *
  * This query handles corporation historic market order data fetching with:
- * - Pagination support for large corporation historic market order collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation historic market order data
- * - Error handling with descriptive messages
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for corporation group
  * 2. Fetches corporation historic market orders page by page until all data is retrieved
  * 3. Combines all pages into a single array
  * 4. Handles rate limiting errors with appropriate wait times
  * 5. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -34,13 +29,6 @@ const corporationHistoricMarketOrdersQueryKey = "corporationHistoricMarketOrders
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: corpHistoricOrders, isLoading, error } = useQuery(corporationHistoricMarketOrdersQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading corporation historic market orders...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Corporation Historic Orders: {corpHistoricOrders.length} completed orders</div>;
  */
 function corporationHistoricMarketOrdersQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

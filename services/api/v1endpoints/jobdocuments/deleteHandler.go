@@ -9,10 +9,11 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
+	"eve-industry-planner/shared/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -60,8 +61,8 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 	})
 
 	filter := bson.M{
-		"_meta.accountID": accountID,
-		"_id":             bson.M{"$in": reqBody.JobIDs},
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
+		"_id": bson.M{"$in": reqBody.JobIDs},
 	}
 
 	now := time.Now().UTC()
@@ -83,8 +84,8 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 			}
 			collection := h.Mongo.JobDocuments.Collection()
 			cur, findErr := collection.Find(ctx, bson.M{
-				"_meta.accountID": accountID,
-				"_id":             bson.M{"$in": reqBody.JobIDs},
+				eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
+				"_id": bson.M{"$in": reqBody.JobIDs},
 			}, options.Find().SetProjection(bson.M{"groupID": 1, "includedInGroup": 1}))
 			if findErr != nil {
 				metrics.Error("lock_error")
@@ -109,7 +110,7 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 				return
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, reqBody.JobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobDocuments, reqBody.JobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -122,7 +123,7 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
 			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{

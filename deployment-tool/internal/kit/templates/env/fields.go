@@ -1,7 +1,7 @@
 // Package env is the Go SoT for .env: EnvFields registry, emit/load, backup, autogen.
 package env
 
-// FieldType selects validation/generate behavior (Phase 3+) and emit shaping.
+// FieldType selects validation/generate behaviour (Phase 3+) and emit shaping.
 type FieldType int
 
 const (
@@ -107,14 +107,13 @@ var envFields = []EnvField{
 	},
 
 	{
-		Key: "AUTHZ_HMAC_KEY", Section: "Encryption", Label: "Authz HMAC key",
-		Help: "HMAC secret for deterministic authz refs. Autogen on first create; locked once set (roll later).",
+		Key: "ENTITY_ID_KEY", Section: "Encryption", Label: "Entity id key",
+		Help: "Secret protecting character, corporation and alliance ids at rest. Autogen on " +
+			"first create, then permanent: stored ids are encrypted under it and are the key " +
+			"every document, lock and routing lane is matched on, so rolling it would orphan " +
+			"them. Keep it out of database backups — it is the only thing standing between a " +
+			"leaked database and readable ids.",
 		Type: FieldHMAC, Required: true, Default: "", Autogen: true, Locked: true,
-	},
-	{
-		Key: "AUTHZ_HMAC_KEY_VERSION", Section: "Encryption", Label: "Authz HMAC version",
-		Help: "Active authz ref version (default v1). Stamped into every derived ref, so changing it invalidates stored refs until they are recomputed.",
-		Type: FieldText, Required: true, Default: "v1", Hidden: true,
 	},
 	{
 		Key: "REFRESH_TOKEN_AES_KEY", Section: "Encryption", Label: "Refresh token AES key",
@@ -139,12 +138,17 @@ var envFields = []EnvField{
 
 	{
 		Key: "LOG_LEVEL", Section: "Runtime", Label: "Log level",
-		Help: "Alloy → Loki ingest floor for Go OTLP logs: debug | info | warn | error.",
+		Help: "Floor each Go service logs at, on stdout and OTLP alike: debug | info | warn | error.",
 		Type: FieldText, Required: true, Default: "info",
 	},
 	{
 		Key: "LOG_STDOUT", Section: "Runtime", Label: "Log stdout",
 		Help: "Stdout mirror of structured logs. Unset + ENVIRONMENT=development → on.",
+		Type: FieldText, Required: false, Default: "",
+	},
+	{
+		Key: "TRACES_SAMPLE_RATE", Section: "Runtime", Label: "Trace sample rate",
+		Help: "0.0–1.0 head sampling at the edge. Traefik decides and the decision propagates, so this governs the whole request path. Empty → 0 (no tracing).",
 		Type: FieldText, Required: false, Default: "",
 	},
 	{
@@ -157,6 +161,13 @@ var envFields = []EnvField{
 		Help: "API maintenance mode when true-ish. Missing/empty → false.",
 		Type: FieldText, Required: false, Default: "",
 	},
+	{
+		Key: "EIP_ALLOWED_ORIGINS", Section: "Runtime", Label: "Allowed origins",
+		Help: "Comma-separated browser origins allowed to open the WebSocket and call the API " +
+			"(scheme + host + optional port, e.g. https://your-domain.com,http://localhost). " +
+			"Required: empty refuses every browser origin. Single \"*\" allows any origin.",
+		Type: FieldText, Required: true, Default: "",
+	},
 
 	{
 		Key: "SENTRY_DSN", Section: "Sentry", Label: "Sentry DSN",
@@ -165,7 +176,7 @@ var envFields = []EnvField{
 	},
 	{
 		Key: "SENTRY_ORG", Section: "Sentry", Label: "Sentry org",
-		Help: "Sentry organization slug.",
+		Help: "Sentry organisation slug.",
 		Type: FieldText, Required: false, Default: "",
 	},
 	{

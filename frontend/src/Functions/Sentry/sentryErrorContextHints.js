@@ -2,7 +2,7 @@ import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * Small JSON-safe hints for Sentry `extra` fields. Avoid attaching full Zustand
- * slices or edit-job state — `captureException` walks and normalizes `extra`,
+ * slices or edit-job state — `captureException` walks and normalises `extra`,
  * which blocked the main thread when those objects were large.
  */
 export function getSentryUsersStoreContextHints() {

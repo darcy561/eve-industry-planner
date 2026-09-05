@@ -1,6 +1,6 @@
 // Package ops is the home TUI menu SoT: plain-language titles, helpers, and
-// Docker/Health gating. Entry.Args keep real CLI verb ids from internal/catalog;
-// menus are not built mechanically from catalog.Verbs().
+// Docker/Health gating. Entry.Args keep real CLI verb ids from internal/catalogue;
+// menus are not built mechanically from catalogue.Verbs().
 package ops
 
 import (
@@ -20,9 +20,9 @@ import (
 type Special int
 
 const (
-	SpecialNone Special = iota
-	SpecialCommand // More → Command: host eip verbs + core tasks (cli …)
-	SpecialRestart // pick running service (or all), then child eip restart … -y
+	SpecialNone    Special = iota
+	SpecialCommand         // More → Command: host eip verbs + core tasks (cli …)
+	SpecialRestart         // pick running service (or all), then child eip restart … -y
 
 	SpecialLogs    // type → source pickers, then dump or follow window
 	SpecialSetup   // Setup: env builder → defaults/advanced config

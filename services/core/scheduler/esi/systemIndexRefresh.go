@@ -3,41 +3,36 @@ package esi
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
-	natscore "eve-industry-planner/shared/core/nats"
+	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
-)
-
-const (
-	cronIndustrySystemsRefresh  = "cron.industrySystemsRefresh"
-	cronIndustrySystemsSchedule = "50 * * * *"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 // ScheduleIndustrySystemsRefresh sets up a cron job for industry systems refresh (hourly).
 // When the cron fires, this handler runs and publishes to the worker task's NATS subject.
-func ScheduleIndustrySystemsRefresh(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	jsContext := deps.JSContext
-	natsConn := deps.NATS
-	task := taskscore.RefreshSystemIndexes
-	sched.RegisterHandler(cronIndustrySystemsRefresh, func(ctx context.Context, data json.RawMessage) error {
+func IndustrySystemsRefresh(deps contract.Dependencies, jobName string) contract.TaskHandler {
+	natsHandle := deps.NATS
+	esi := deps.ESI
+	redisClient := deps.Redis
+	return func(ctx context.Context, data json.RawMessage) error {
 		publish := func(publishCtx context.Context) error {
-			logs.DebugCtx(publishCtx, "publishing industry systems refresh trigger", "component", schedulerLogComponent, "subject", task.Subject)
-			if err := natscore.PublishEmpty(publishCtx, jsContext, task.Subject, natsConn); err != nil {
-				logs.ErrorCtx(publishCtx, "failed to publish industry systems refresh trigger", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
+			logs.DebugCtx(publishCtx, "publishing industry systems refresh trigger", "component", schedulerLogComponent)
+			if err := eipnats.TriggerRefreshSystemIndexes(publishCtx, natsHandle); err != nil {
+				logs.ErrorCtx(publishCtx, "failed to publish industry systems refresh trigger", "component", schedulerLogComponent, "error", err)
 				return err
 			}
-			logs.InfoCtx(publishCtx, "industry systems refresh triggered", "component", schedulerLogComponent, "subject", task.Subject)
+			logs.InfoCtx(publishCtx, "industry systems refresh triggered", "component", schedulerLogComponent)
 			return nil
 		}
-		if deferTaskPublicationUntilAfterDowntime(ctx, task.Name, task.Subject, publish) {
-			return nil
+		if deferred, err := DeferPublicationUntilAfterDowntime(ctx, natsHandle, jobName, esi); err != nil || deferred {
+			return err
+		}
+		if deferred, err := DeferPublicationUntilStale(ctx, natsHandle, jobName, rediscore.DatasetIndustrySystems, redisClient, time.Now()); err != nil || deferred {
+			return err
 		}
 		return publish(ctx)
-	})
-	if err := sched.ScheduleCronJob(cronIndustrySystemsSchedule, cronIndustrySystemsRefresh); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }

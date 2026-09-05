@@ -22,4 +22,7 @@
 | Learn document-lock system overview | [document-lock/overview.md](./document-lock/overview.md) |
 | Change lock HTTP/Redis/cascade | [document-lock/locks.md](./document-lock/locks.md) |
 | Plan multi-tenant / lock backlog | [document-lock/roadmap.md](./document-lock/roadmap.md) |
+| Read, restore or archive jobs | [archive.md](./archive.md) |
+| Change the statistics views or their owner gate | [archive.md](./archive.md) § The owner in the path |
+| Understand restore's order, or an ESI conflict | [archive.md](./archive.md) § End-to-end flows |
 | Session + ESI notes (narrow) | [session-esi.md](./session-esi.md) |

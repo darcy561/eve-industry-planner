@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   USER_JOB_GROUPS_COLLECTION,
   USER_JOBS_COLLECTION,
@@ -17,10 +17,6 @@ vi.mock("../src/Zustand/usersStore.js", () => ({
 }));
 
 describe("resolveDocumentLockApiTarget", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("redirects group member jobs to the group lock", () => {
     findJobInJobArray.mockReturnValue({
       jobID: "job-1",

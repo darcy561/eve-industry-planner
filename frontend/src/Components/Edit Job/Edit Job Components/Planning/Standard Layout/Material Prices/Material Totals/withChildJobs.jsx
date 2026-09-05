@@ -37,7 +37,7 @@ export function MaterialTotalsWithChildJobs_MaterialPrices({
         totalInstallCosts={totalInstallCosts}
         totalPrice={totalPrice}
         totalMarketPrice={totalMarketPrice}
-        totalQuantity={state.activeJob.build.products.totalQuantity}
+        totalQuantity={state.activeJob.totalQuantityProduced}
         totalPriceLabel="Total Estimated Cost With Child Jobs"
         totalPerItemLabel="Total Estimated Price Per Item With Child Jobs"
       />

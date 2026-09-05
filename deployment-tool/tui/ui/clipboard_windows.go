@@ -14,7 +14,7 @@ import (
 
 func writeClipboard(s string) error {
 	var last error
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := range 3 {
 		if attempt > 0 {
 			time.Sleep(time.Duration(attempt) * 25 * time.Millisecond)
 		}

@@ -1,0 +1,20 @@
+{
+  "why": "The vocabulary a realtime message uses to say what it is. Read by a Go test and a vitest test, so a kind added on one side without the other turns the other side red.",
+  "families": [
+    {
+      "type": "document",
+      "why": "A change to a document the account can see, carrying the document and its collection. A message that names no type is this family: every producer of document changes predates the field.",
+      "subtypes": []
+    },
+    {
+      "type": "notification",
+      "why": "Something happened that a client may want to react to. Carries no document and no collection, so it can never be routed by the document dispatch.",
+      "subtypes": [
+        {
+          "subtype": "archiveStatsProcessed",
+          "why": "An owner's archived-job statistics have been written. Carries the owner and a timestamp and no figures: the client refreshes what it is displaying rather than being sent figures it may not be showing."
+        }
+      ]
+    }
+  ]
+}

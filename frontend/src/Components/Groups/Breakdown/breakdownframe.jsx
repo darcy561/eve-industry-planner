@@ -15,26 +15,26 @@ export default function GroupBreakdownFrame({ groupJobs = [] }) {
     }, [groupJobs, groupObject]);
 
     const {
-        totalRawMaterialPurchaseCost,
+        totalBoughtMaterialCost,
         totalInstallCosts,
         totalExtrasCosts,
         totalInventionCosts,
         totalInvolvedCharacters,
     } = useMemo(() => {
-        let totalRawMaterialPurchaseCost = 0;
+        let totalBoughtMaterialCost = 0;
         let totalInstallCosts = 0;
         let totalExtrasCosts = 0;
         let totalInventionCosts = 0;
         let totalInvolvedCharacters = 0;
         for (const job of groupJobs) {
-            totalRawMaterialPurchaseCost += job.totalRawMaterialPurchaseCost();
-            totalInstallCosts += job.build.costs.installCosts;
-            totalExtrasCosts += job.build.costs.extrasTotal;
-            totalInventionCosts += job.build.costs.inventionCosts;
-            totalInvolvedCharacters += job.calculateTotalInvolvedCharacters().numberOfUniqueCharacters;
+            totalBoughtMaterialCost += job.totalBoughtMaterialCost;
+            totalInstallCosts += job.totalInstallCost;
+            totalExtrasCosts += job.totalExtrasCost;
+            totalInventionCosts += job.totalInventionCost;
+            totalInvolvedCharacters += job.involvedCharacters.size;
         }
         return {
-            totalRawMaterialPurchaseCost,
+            totalBoughtMaterialCost,
             totalInstallCosts,
             totalExtrasCosts,
             totalInventionCosts,
@@ -56,7 +56,7 @@ export default function GroupBreakdownFrame({ groupJobs = [] }) {
                         Total Output Jobs: {outputJobs.length}
                     </Typography>
                     <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-                        Total Raw Material Purchase Cost: {formatNumberForLocale(totalRawMaterialPurchaseCost)}
+                        Total Bought Material Cost: {formatNumberForLocale(totalBoughtMaterialCost)}
                     </Typography>
                     <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
                         Total Install Costs: {formatNumberForLocale(totalInstallCosts)}

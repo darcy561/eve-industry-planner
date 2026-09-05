@@ -32,7 +32,7 @@ init({
       if (sentryBeforeSendAllowsEventInDevMode(event)) {
         return event;
       }
-      // React error boundaries / root handlers tag these so we get an event id for the in-app crash dialog.
+      // React error boundaries / root handlers tag these so we get an event id for the in-app crash dialogue.
       if (event.tags?.[EIP_IN_APP_CRASH_PROMPT_TAG] === "1") {
         return event;
       }

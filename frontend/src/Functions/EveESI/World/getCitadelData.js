@@ -8,7 +8,7 @@ import {
   buildEsiStructureSubmission,
   queueCitadelStructureSubmission,
   resolveCitadelName,
-} from "../../Endpoints/Pirivate/citadelNames";
+} from "../../Endpoints/Private/citadelNames";
 
 async function getCitadelData(citadelID, character, config = {}) {
   try {

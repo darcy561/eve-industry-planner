@@ -11,8 +11,9 @@ import { corporationTransactionsQuery, corporationTransactionsQueryKey } from ".
 import { isQueryStateLoading } from "./queryLoadingState";
 
 /**
- * Empty character data model template for initializing character data structures.
+ * Empty character data model template for initialising character data structures.
  * Contains empty arrays and eTags objects for all character and corporation data types.
+ *
  * @constant {Object}
  * @private
  */
@@ -29,40 +30,20 @@ const emptyCharacterDataModel = {
 
 /**
  * Custom hook that fetches character orders and wallet data for specified characters.
- * 
- * This hook provides comprehensive financial data fetching for EVE Online characters:
- * - Character market orders (active and historic)
- * - Character transactions and journal entries
- * - Corporation market orders (active and historic)
- * - Corporation transactions and journal entries
- * - Multi-character support with parallel data fetching
- * - Structured data organization by character hash
- * - ETag support for efficient data updates
- * 
+ *
  * The fetching process:
  * 1. Validates character hashes and finds corresponding user objects
  * 2. Creates queries for all required data types (8 queries per character)
  * 3. Fetches data in parallel using React Query's useQueries
- * 4. Organizes data by character hash with structured data models
+ * 4. Organises data by character hash with structured data models
  * 5. Handles pagination and data flattening for consistent access
- * 
+ *
  * @param {string|Array<string>} characterHashes - Character hash(es) to fetch data for
  * @returns {Object} Object containing character orders and wallet data
  * @returns {Object} returns.data - Object with character hashes as keys and data structures as values
  * @returns {boolean} returns.isLoading - Whether any queries are still loading
  * @returns {boolean} returns.isError - Whether any queries have errors
  * @returns {Error|null} returns.error - First error encountered, if any
- * 
- * @example
- * function CharacterDataManager() {
- *   const { data, isLoading, isError, error } = useGetCharacterOrdersAndWalletData(characterHash);
- * 
- *   if (isLoading) return <div>Loading character data...</div>;
- *   if (isError) return <div>Error: {error.message}</div>;
- *   
- *   const characterData = data[characterHash];
- *   return <div>Market Orders: {characterData.characterMarketOrders.data.length}</div>;
- * }
  */
 export function useGetCharacterOrdersAndWalletData(characterHashes) {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
@@ -109,7 +90,7 @@ export function useGetCharacterOrdersAndWalletData(characterHashes) {
     queries: queryConfigs,
   });
 
-  // Initialize data structure for all characters
+  // Initialise data structure for all characters
   const characterData = requestedCharacters.reduce((acc, character) => {
     acc[character.CharacterHash] = { ...emptyCharacterDataModel };
     return acc;
@@ -146,7 +127,7 @@ export function useGetCharacterOrdersAndWalletData(characterHashes) {
 /**
  * Helper function to map query index to data key for character orders and wallet data.
  * Maps the index of a query function to its corresponding data key constant.
- * 
+ *
  * @param {number} index - Index of the query function in the requiredQueries array
  * @returns {string} Corresponding data key constant
  * 
@@ -168,21 +149,14 @@ function getDataKeyFromQueryIndex(index) {
 
 /**
  * Retrieves cached character orders and wallet data from React Query cache.
- * 
- * This function provides access to cached character financial data without triggering new queries:
- * - Checks loading states for all character and corporation queries
- * - Extracts cached data from React Query cache
- * - Organizes data by character hash with structured data models
- * - Handles pagination and data flattening for consistent access
- * - Returns appropriate loading, error, or success states
- * 
+ *
  * The caching process:
  * 1. Validates character hashes and finds corresponding user objects
  * 2. Checks query states for all required data types
  * 3. Determines overall loading and error states
  * 4. Extracts cached data from successful queries
- * 5. Organizes data by character hash with structured models
- * 
+ * 5. Organises data by character hash with structured models
+ *
  * @param {string|Array<string>} characterHashes - Character hash(es) to get cached data for
  * @param {Object} queryClient - React Query client instance
  * @returns {Object} Object containing cached character orders and wallet data
@@ -190,13 +164,6 @@ function getDataKeyFromQueryIndex(index) {
  * @returns {boolean} returns.isLoading - Whether any queries are still loading
  * @returns {boolean} returns.isError - Whether any queries have errors
  * @returns {Error|null} returns.error - First error encountered, if any
- * 
- * @example
- * const cachedData = fetchCachedCharacterOrdersAndWalletData(characterHash, queryClient);
- * if (!cachedData.isLoading && !cachedData.isError) {
- *   const characterData = cachedData.data[characterHash];
- *   console.log(`Cached orders: ${characterData.characterMarketOrders.data.length}`);
- * }
  */
 export function fetchCachedCharacterOrdersAndWalletData(
   characterHashes,

@@ -10,6 +10,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -19,7 +20,7 @@ import (
 // Requires EIP_MONGO_PARITY_LIVE=1.
 
 func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -34,14 +35,14 @@ func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 			label  string
 			filter bson.M
 		}{
-			{"planner", bson.M{"_meta.accountID": s.accountID, "displayOnPlanner": true}},
-			{"by_ids", bson.M{"_meta.accountID": s.accountID, "_id": bson.M{"$in": s.jobIDs}}},
+			{"planner", bson.M{eipmongo.FieldMetaOwnerID: s.accountID, "displayOnPlanner": true}},
+			{"by_ids", bson.M{eipmongo.FieldMetaOwnerID: s.accountID, "_id": bson.M{"$in": s.jobIDs}}},
 		}
 		if s.groupID != "" {
 			filters = append(filters, struct {
 				label  string
 				filter bson.M
-			}{"by_group", bson.M{"_meta.accountID": s.accountID, "groupID": s.groupID}})
+			}{"by_group", bson.M{eipmongo.FieldMetaOwnerID: s.accountID, "groupID": s.groupID}})
 		}
 
 		for _, fc := range filters {
@@ -53,8 +54,8 @@ func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 				if j.JobID == "" {
 					t.Fatalf("account %s %s: job missing jobID", s.accountID, fc.label)
 				}
-				if j.MetaData.AccountID != s.accountID {
-					t.Fatalf("account %s %s: leaked account %q", s.accountID, fc.label, j.MetaData.AccountID)
+				if j.MetaData.Owner.ID != s.accountID {
+					t.Fatalf("account %s %s: leaked account %q", s.accountID, fc.label, j.MetaData.Owner.ID)
 				}
 			}
 			checked++
@@ -68,7 +69,7 @@ func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 
 // LoadJobsByFilter merges accountID into the filter. Seeds scratch docs so identity is via jobID.
 func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -78,9 +79,9 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 	t.Cleanup(func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
-		_, _ = coll.DeleteMany(cctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountID, otherAccount}}})
+		_, _ = coll.DeleteMany(cctx, bson.M{eipmongo.FieldMetaOwnerID: bson.M{"$in": []string{accountID, otherAccount}}})
 	})
-	_, _ = coll.DeleteMany(ctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountID, otherAccount}}})
+	_, _ = coll.DeleteMany(ctx, bson.M{eipmongo.FieldMetaOwnerID: bson.M{"$in": []string{accountID, otherAccount}}})
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	jobID := fmt.Sprintf("eip-parity-scope-delta-%d", now.UnixNano())
@@ -104,10 +105,11 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 		t.Fatalf("id_only: got %v want only %s", jobIDsOf(gotID), jobID)
 	}
 
-	// Wrong account in filter, correct accountID param — merge forces accountID param.
+	// Wrong owner in the caller's filter, correct accountID param — the merge
+	// forces the parameter, so a filter naming another owner cannot widen the read.
 	wrongAccountFilter := bson.M{
-		"_meta.accountID": "eip-parity-wrong-account",
-		"_id":             jobID,
+		eipmongo.FieldMetaOwnerID: "eip-parity-wrong-account",
+		"_id":                     jobID,
 	}
 	gotWrong, err := mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, cloneFilter(wrongAccountFilter))
 	if err != nil {
@@ -124,8 +126,8 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 		t.Fatalf("planner_no_acct: %v", err)
 	}
 	for _, j := range gotBroad {
-		if j.MetaData.AccountID != accountID {
-			t.Fatalf("leaked account %q (want %q)", j.MetaData.AccountID, accountID)
+		if j.MetaData.Owner.ID != accountID {
+			t.Fatalf("leaked account %q (want %q)", j.MetaData.Owner.ID, accountID)
 		}
 	}
 	if len(gotBroad) != 1 || gotBroad[0].JobID != jobID {
@@ -198,10 +200,10 @@ func cloneFilter(in bson.M) bson.M {
 	return out
 }
 
-// Docs-layer slip: filter omits _meta.accountID. LoadJobsByFilter must still scope;
+// Docs-layer slip: the filter omits the owner. LoadJobsByFilter must still scope;
 // the same Find without merge returns both accounts (what happens if we don't merge).
 func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -211,9 +213,9 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	t.Cleanup(func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
-		_, _ = coll.DeleteMany(cctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountA, accountB}}})
+		_, _ = coll.DeleteMany(cctx, bson.M{eipmongo.FieldMetaOwnerID: bson.M{"$in": []string{accountA, accountB}}})
 	})
-	_, _ = coll.DeleteMany(ctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountA, accountB}}})
+	_, _ = coll.DeleteMany(ctx, bson.M{eipmongo.FieldMetaOwnerID: bson.M{"$in": []string{accountA, accountB}}})
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	jobA := scopeScratchJob(fmt.Sprintf("eip-parity-scope-a-%d", now.UnixNano()), accountA)
@@ -254,8 +256,8 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	if len(scoped) != 1 || scoped[0].JobID != jobA.JobID {
 		t.Fatalf("with merge: got %+v want only %s", jobIDsOf(scoped), jobA.JobID)
 	}
-	if scoped[0].MetaData.AccountID != accountA {
-		t.Fatalf("with merge: accountID=%q", scoped[0].MetaData.AccountID)
+	if scoped[0].MetaData.Owner.ID != accountA {
+		t.Fatalf("with merge: accountID=%q", scoped[0].MetaData.Owner.ID)
 	}
 	t.Logf("with merge: LoadJobsByFilter(accountA) returned only %s", jobA.JobID)
 }
@@ -266,9 +268,6 @@ func scopeScratchJob(jobID, accountID string) models.Job {
 		Name:             "eip-parity-scope",
 		ItemID:           34,
 		DisplayOnPlanner: true,
-		APIJobs:          []int{},
-		APIOrders:        []int{},
-		APITransactions:  []int{},
 		ParentJobs:       []string{},
 		Build: models.JobBuild{
 			Setup:     map[string]models.JobSetup{},
@@ -277,7 +276,7 @@ func scopeScratchJob(jobID, accountID string) models.Job {
 		},
 		Skills: []models.Skill{},
 		MetaData: models.JobMetaData{
-			MetaData: models.MetaData{AccountID: accountID},
+			MetaData: models.MetaData{Owner: models.AccountOwner(accountID)},
 		},
 	}
 }

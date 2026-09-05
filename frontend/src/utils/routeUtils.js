@@ -1,28 +1,18 @@
 /**
  * Utility functions for route management and validation with TanStack Router.
- * 
+ *
  * This module provides functions to:
- * - Extract protected routes from the TanStack Router route tree
- * - Check if a given path is a protected route
- * - Validate route accessibility based on authentication state
  */
 
 import { routeTree } from '../routeTree.gen.js';
 
 /**
  * Extracts all protected route paths from the TanStack Router route tree.
- * 
- * This function analyzes the actual route tree structure to identify routes that are
- * nested under the _protected layout, which indicates they require authentication.
- * 
+ *
  * The function dynamically extracts routes from the TanStack Router's generated route tree,
  * making it automatically update when new protected routes are added to the _protected folder.
- * 
+ *
  * @returns {string[]} Array of protected route paths (e.g., ['/dashboard', '/accounts'])
- * 
- * @example
- * const protectedRoutes = getProtectedRoutes();
- * console.log(protectedRoutes); // ['/dashboard', '/accounts', '/settings', ...]
  */
 export function getProtectedRoutes() {
   const protectedRoutes = [];
@@ -78,17 +68,9 @@ export function getProtectedRoutes() {
 
 /**
  * Checks if a given path is a protected route that requires authentication.
- * 
- * This function uses the TanStack Router route tree structure to determine if a path is protected,
- * making it maintainable and automatically updated when routes change.
- * 
+ *
  * @param {string} path - The path to check (e.g., '/dashboard', '/accounts')
  * @returns {boolean} True if the path is protected, false otherwise
- * 
- * @example
- * isProtectedRoute('/dashboard'); // true
- * isProtectedRoute('/jobplanner'); // false
- * isProtectedRoute('/'); // false
  */
 export function isProtectedRoute(path) {
   // Get statically defined protected routes from TanStack Router structure
@@ -117,20 +99,10 @@ export function isProtectedRoute(path) {
 
 /**
  * Determines the appropriate redirect path after authentication.
- * 
- * This function checks if the original path is safe to redirect to after login.
- * If the original path is a protected route, it returns the default dashboard path.
- * Otherwise, it returns the original path.
- * 
+ *
  * @param {string} originalPath - The original path the user was trying to access
  * @param {string} defaultPath - The default path to redirect to if original is protected (default: '/dashboard')
  * @returns {string} The path to redirect to after authentication
- * 
- * @example
- * getRedirectPathAfterAuth('/jobplanner'); // '/jobplanner'
- * getRedirectPathAfterAuth('/dashboard'); // '/dashboard' (default)
- * getRedirectPathAfterAuth('/accounts'); // '/dashboard' (default)
- * getRedirectPathAfterAuth('/settings'); // '/dashboard' (default)
  */
 export function getRedirectPathAfterAuth(originalPath, defaultPath = '/dashboard') {
   if (!originalPath) {

@@ -41,10 +41,10 @@ type catalogStored struct {
 	Templates      []models.TemplateCatalogEntry `bson:"templates"`
 }
 
-func loadCatalogDoc(ctx context.Context, catalog *eipmongo.Docs, accountID string) (*catalogStored, error) {
-	coll := catalog.Collection()
+func loadCatalogDoc(ctx context.Context, catalogue *eipmongo.Docs, accountID string) (*catalogStored, error) {
+	coll := catalogue.Collection()
 	var doc catalogStored
-	err := eipmongo.Retry(ctx, fmt.Sprintf("group_templates load catalog %s", accountID), func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("group_templates load catalogue %s", accountID), func() error {
 		return coll.FindOne(ctx, bson.M{"_id": accountID}).Decode(&doc)
 	})
 	if err != nil {
@@ -53,8 +53,8 @@ func loadCatalogDoc(ctx context.Context, catalog *eipmongo.Docs, accountID strin
 	return &doc, nil
 }
 
-func ensureCatalogDoc(ctx context.Context, catalog *eipmongo.Docs, accountID string) (*catalogStored, error) {
-	doc, err := loadCatalogDoc(ctx, catalog, accountID)
+func ensureCatalogDoc(ctx context.Context, catalogue *eipmongo.Docs, accountID string) (*catalogStored, error) {
+	doc, err := loadCatalogDoc(ctx, catalogue, accountID)
 	if err == nil {
 		return doc, nil
 	}
@@ -69,13 +69,13 @@ func ensureCatalogDoc(ctx context.Context, catalog *eipmongo.Docs, accountID str
 		CatalogVersion: 1,
 		Templates:      []models.TemplateCatalogEntry{},
 	}
-	err = eipmongo.Retry(ctx, fmt.Sprintf("group_templates ensure catalog %s", accountID), func() error {
-		_, insertErr := catalog.Collection().InsertOne(ctx, initial)
+	err = eipmongo.Retry(ctx, fmt.Sprintf("group_templates ensure catalogue %s", accountID), func() error {
+		_, insertErr := catalogue.Collection().InsertOne(ctx, initial)
 		return insertErr
 	})
 	if err != nil {
 		if mongodriver.IsDuplicateKeyError(err) {
-			return loadCatalogDoc(ctx, catalog, accountID)
+			return loadCatalogDoc(ctx, catalogue, accountID)
 		}
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (h *Handlers) GetCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to load templates", "group-templates catalog load", "group_templates_catalog_load_failed", "group_templates", err, nil)
+		helper.RespondEndpointServerError(w, r, "Failed to load templates", "group-templates catalogue load", "group_templates_catalog_load_failed", "group_templates", err, nil)
 		return
 	}
 	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
@@ -155,7 +155,7 @@ func (h *Handlers) GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to load catalog", "group templates catalog load by id", "group_templates_catalog_entry_failed", "group_templates", err, nil)
+		helper.RespondEndpointServerError(w, r, "Failed to load catalogue", "group templates catalogue load by id", "group_templates_catalog_entry_failed", "group_templates", err, nil)
 		return
 	}
 	idx := findTemplateIndex(doc.Templates, templateID)
@@ -236,7 +236,7 @@ func (h *Handlers) PostTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	cat, err := ensureCatalogDoc(ctx, h.Mongo.TemplateCatalog, accountID)
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "catalog error", "group templates catalog error", "group_templates_catalog_error", "group_templates", err, nil)
+		helper.RespondEndpointServerError(w, r, "catalogue error", "group templates catalogue error", "group_templates_catalog_error", "group_templates", err, nil)
 		return
 	}
 	if len(cat.Templates) >= models.MaxTemplatesPerAccount {
@@ -307,7 +307,7 @@ func (h *Handlers) PatchTemplateHandler(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "catalog error", "group templates patch catalog error", "group_templates_patch_catalog_error", "group_templates", err, nil)
+		helper.RespondEndpointServerError(w, r, "catalogue error", "group templates patch catalogue error", "group_templates_patch_catalog_error", "group_templates", err, nil)
 		return
 	}
 	idx := findTemplateIndex(doc.Templates, templateID)
@@ -354,7 +354,7 @@ func (h *Handlers) PatchTemplateHandler(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 	} else {
-		err = eipmongo.Retry(ctx, fmt.Sprintf("group_templates update catalog entry %s", templateID), func() error {
+		err = eipmongo.Retry(ctx, fmt.Sprintf("group_templates update catalogue entry %s", templateID), func() error {
 			_, updateErr := h.Mongo.TemplateCatalog.Collection().UpdateOne(ctx,
 				bson.M{"_id": accountID},
 				bson.M{
@@ -367,7 +367,7 @@ func (h *Handlers) PatchTemplateHandler(w http.ResponseWriter, r *http.Request, 
 		})
 		if err != nil {
 			metrics.Error("database_error")
-			helper.RespondEndpointServerError(w, r, "catalog save failed", "group templates catalog save failed", "group_templates_catalog_save_failed", "group_templates", err, nil)
+			helper.RespondEndpointServerError(w, r, "catalogue save failed", "group templates catalogue save failed", "group_templates_catalog_save_failed", "group_templates", err, nil)
 			return
 		}
 	}

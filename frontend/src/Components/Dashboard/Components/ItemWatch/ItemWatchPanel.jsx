@@ -6,16 +6,16 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
-import { AddWatchItemDialog } from "./AddItemDialog/dialogFrame";
+import { AddWatchItemDialogue } from "./AddItemDialogue/dialogueFrame";
 import { useState } from "react";
-import { AddGroupDialog } from "./addGroupDialog";
-import { GroupSettingsDialog } from "./groupSettings";
+import { AddGroupDialogue } from "./addGroupDialogue";
+import { GroupSettingsDialogue } from "./groupSettings";
 import { WatchlistContainer } from "./itemWatchContainer";
 import useUsersStore from "../../../../Zustand/usersStore";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 
 export function ItemWatchPanel() {
-  const [openDialog, setOpenDialog] = useState(false);
+  const [openDialogue, setOpenDialogue] = useState(false);
   const [watchlistItemToEdit, updateWatchlistItemToEdit] = useState(null);
   const [addNewGroupTrigger, updateAddNewGroupTrigger] = useState(false);
   const [groupSettingsTrigger, updateGroupSettingsTrigger] = useState(false);
@@ -25,17 +25,17 @@ export function ItemWatchPanel() {
 
   return (
     <ContentPanel title="Item Watchlist" componentName="Item Watchlist" paperSx={{ position: "relative" }}>
-      <AddWatchItemDialog
-        openDialog={openDialog}
-        setOpenDialog={setOpenDialog}
+      <AddWatchItemDialogue
+        openDialogue={openDialogue}
+        setOpenDialogue={setOpenDialogue}
         watchlistItemToEdit={watchlistItemToEdit}
         updateWatchlistItemToEdit={updateWatchlistItemToEdit}
       />
-      <AddGroupDialog
+      <AddGroupDialogue
         addNewGroupTrigger={addNewGroupTrigger}
         updateAddNewGroupTrigger={updateAddNewGroupTrigger}
       />
-      <GroupSettingsDialog
+      <GroupSettingsDialogue
         groupSettingsTrigger={groupSettingsTrigger}
         updateGroupSettingsTrigger={updateGroupSettingsTrigger}
         groupSettingsContent={groupSettingsContent}
@@ -56,7 +56,7 @@ export function ItemWatchPanel() {
             <IconButton
               color="primary"
               onClick={() => {
-                setOpenDialog(true);
+                setOpenDialogue(true);
               }}
             >
               <AddIcon />
@@ -68,7 +68,7 @@ export function ItemWatchPanel() {
             updateGroupSettingsTrigger={updateGroupSettingsTrigger}
             groupSettingsContent={groupSettingsContent}
             updateGroupSettingsContent={updateGroupSettingsContent}
-            setOpenDialog={setOpenDialog}
+            setOpenDialogue={setOpenDialogue}
             updateWatchlistItemToEdit={updateWatchlistItemToEdit}
           />
         </Grid>

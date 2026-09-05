@@ -12,22 +12,22 @@ go test ./internal/deploy/
 
 ## Coverage map
 
-**Depth:** Thin — guard rails and fragment state machine only. Full recipe/materialize orchestration and **`internal/engine` are largely untested**.
+**Depth:** Thin — guard rails and fragment state machine only. Full recipe/materialise orchestration and **`internal/engine` are largely untested**.
 
 ### Tested
 
 | Area | What the tests cover |
 |------|----------------------|
-| Source / obs | Source resolution; obs stack requirement; bad-source rejection on run/rematerialize |
+| Source / obs | Source resolution; obs stack requirement; bad-source rejection on run/rematerialise |
 | Fragments | Deploy fragment state machine; recipe-ready parent context |
 
 ### Thin
 
-- Obs run/rematerialize — rejection/guards, not happy-path two-pass deploy
+- Obs run/rematerialise — rejection/guards, not happy-path two-pass deploy
 
 ### Little / none
 
-- `materialize`, `inspect`, `labels`, full `recipe` orchestration
+- `materialise`, `inspect`, `labels`, full `recipe` orchestration
 - Entire `internal/engine` package
 
 ## Topic-only detail

@@ -8,8 +8,8 @@ import {
 } from "../queryLoadingState";
 
 /**
- * Utility function to extract market orders from query results and organize by character hash.
- * 
+ * Utility function to extract market orders from query results and organise by character hash.
+ *
  * @param {Array<Object>} results - Array of query result objects
  * @param {Array<Object>} characters - Array of user objects with CharacterHash
  * @returns {Object} Object with character hashes as keys and market order arrays as values
@@ -33,7 +33,7 @@ function extractMarketOrdersByCharacter(results, characters) {
 
 /**
  * Utility function to check loading state from query results.
- * 
+ *
  * @param {Array<Object>} results - Array of query result objects
  * @returns {boolean} True if any query is loading
  * 
@@ -45,7 +45,7 @@ function checkLoadingState(results) {
 
 /**
  * Utility function to find first error from query results.
- * 
+ *
  * @param {Array<Object>} results - Array of query result objects
  * @returns {Error|null} First error found, or null if none
  * 
@@ -57,7 +57,7 @@ function findFirstError(results) {
 
 /**
  * Utility function to create error object for character market orders queries.
- * 
+ *
  * @param {Error} error - Error object
  * @returns {Object} Error state object
  * 
@@ -74,7 +74,7 @@ function createErrorObject(error) {
 
 /**
  * Utility function to create loading object for character market orders queries.
- * 
+ *
  * @returns {Object} Loading state object
  * 
  * @private
@@ -90,7 +90,7 @@ function createLoadingObject() {
 
 /**
  * Utility function to create success object for character market orders queries.
- * 
+ *
  * @param {Object} data - Object with character hashes as keys and market order arrays as values
  * @returns {Object} Success state object
  * 
@@ -107,7 +107,7 @@ function createSuccessObject(data) {
 
 /**
  * Utility function to sort market orders by date (newest first).
- * 
+ *
  * @param {Array<Object>} marketOrders - Array of market order objects
  * @returns {Array<Object>} Sorted array of market order objects
  * 
@@ -119,35 +119,20 @@ function sortMarketOrdersByDate(marketOrders) {
 
 /**
  * Retrieves cached character market orders data from React Query cache for all users.
- * 
- * This function provides access to cached character market orders data without triggering new queries:
- * - Fetches market orders for all user characters
- * - Checks loading states for all character market order queries
- * - Extracts cached data from React Query cache
- * - Organizes data by character hash for easy access
- * - Returns appropriate loading, error, or success states
- * 
+ *
  * The caching process:
  * 1. Gets all user character hashes from the store
  * 2. Checks query states for all character market order queries
  * 3. Determines overall loading and error states
  * 4. Extracts cached data from successful queries
- * 5. Organizes data by character hash
- * 
+ * 5. Organises data by character hash
+ *
  * @param {Object} queryClient - React Query client instance
  * @returns {Object} Object containing cached character market orders data
  * @returns {Object} returns.data - Object with character hashes as keys and market order arrays as values
  * @returns {boolean} returns.isLoading - Whether any queries are still loading
  * @returns {boolean} returns.isError - Whether any queries have errors
  * @returns {Error|null} returns.error - First error encountered, if any
- * 
- * @example
- * const cachedOrders = getAllCachedCharacterMarketOrders(queryClient);
- * if (!cachedOrders.isLoading && !cachedOrders.isError) {
- *   Object.keys(cachedOrders.data).forEach(characterHash => {
- *     console.log(`Character ${characterHash}: ${cachedOrders.data[characterHash].length} market orders`);
- *   });
- * }
  */
 export function getAllCachedCharacterMarketOrders(queryClient) {
   const characters = useUsersStore.getState().account.characters;
@@ -178,7 +163,7 @@ export function getAllCachedCharacterMarketOrders(queryClient) {
     return createErrorObject(error);
   }
   
-  // Extract cached market orders and organize by character hash
+  // Extract cached market orders and organise by character hash
   const marketOrdersObject = {};
   queryStates.forEach(({ cachedData, CharacterHash }) => {
     const characterOrders = cachedData || [];
@@ -190,45 +175,19 @@ export function getAllCachedCharacterMarketOrders(queryClient) {
 
 /**
  * Custom hook that fetches character market orders for all user characters.
- * 
- * This hook provides comprehensive character market orders data fetching:
- * - Fetches market orders for all user characters in parallel
- * - Organizes orders by character hash for easy access
- * - Handles pagination automatically through the underlying query
- * - Provides loading, error, and success states
- * - Uses React Query's useQueries for parallel data fetching
- * - Supports active market order management and analysis
- * 
+ *
  * The fetching process:
  * 1. Gets all user character hashes from the store
  * 2. Creates queries for all character market order data
  * 3. Fetches data in parallel using React Query's useQueries
  * 4. Combines results using a custom combine function
- * 5. Organizes data by character hash for structured access
- * 
+ * 5. Organises data by character hash for structured access
+ *
  * @returns {Object} Object containing character market orders data and states
  * @returns {Object} returns.data - Object with character hashes as keys and market order arrays as values
  * @returns {boolean} returns.isLoading - Whether any queries are still loading
  * @returns {boolean} returns.isError - Whether any queries have errors
  * @returns {Error|null} returns.error - First error encountered, if any
- * 
- * @example
- * function CharacterMarketOrdersManager() {
- *   const { data: ordersByCharacter, isLoading, isError, error } = useGetAllCharacterMarketOrders();
- * 
- *   if (isLoading) return <div>Loading market orders...</div>;
- *   if (isError) return <div>Error: {error.message}</div>;
- *   
- *   return (
- *     <div>
- *       {Object.keys(ordersByCharacter).map(characterHash => (
- *         <div key={characterHash}>
- *           Character {characterHash}: {ordersByCharacter[characterHash].length} active orders
- *         </div>
- *       ))}
- *     </div>
- *   );
- * }
  */
 export function useGetAllCharacterMarketOrders() {
   const characters = useUsersStore((state) => state.account.characters);

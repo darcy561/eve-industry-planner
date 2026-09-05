@@ -2,13 +2,13 @@ import parseInputMineralString from "./parseMineralInput";
 import { reprocessingItemTypes } from "../../Context/defaultValues";
 import ReprocessingItem from "../../Classes/reprocessingItem";
 import getMarketData from "../MarketData/findMarketData";
-import oreSelector from "./oreSelecter";
+import oreSelector from "./oreSelector";
 import { getReprocessingData } from "../Helper/getCachedData";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * Processes mineral input string and finds optimal ore selection to produce those minerals.
- * Analyzes all available ores, calculates costs and yields, then selects the most
+ * Analyses all available ores, calculates costs and yields, then selects the most
  * efficient combination based on market prices and user preferences.
  *
  * @param {string} inputString - Input string containing mineral quantities and types
@@ -19,18 +19,6 @@ import useUsersStore from "../../Zustand/usersStore";
  * @param {Array<number>} oreIDsToBeIgnored - Array of ore IDs to exclude from selection
  * @param {Object} reprocessingCalculationSettings - Settings for ore selection algorithm
  * @returns {Promise<Object>} Promise that resolves to ore selection results
- *
- * @example
- * const result = await reprocessFromMinerals(
- *   "1000 Tritanium",
- *   { reprocessing: 5 },
- *   { reprocessingYield: 0.5 },
- *   "jita",
- *   "sell",
- *   [123, 456],
- *   { preferCompressed: true }
- * );
- * console.log(result.oreSelection); // Selected ores
  */
 async function reprocessFromMinerals(
   inputString,

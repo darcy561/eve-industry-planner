@@ -1,6 +1,6 @@
 import { useGetAllCharacterAssets } from "../../../Hooks/EveEsi/Character/useGetAllCharacterAssets";
 import { useGetSingleCorporationAssets } from "../../../Hooks/EveEsi/useGetSingleCorporationAssets";
-import { ShoppingListDialogContent } from "./ShoppingListDialogContent";
+import { ShoppingListDialogueContent } from "./ShoppingListDialogueContent";
 
 // Main content component that always renders the same structure
 // Hooks are always called (React rules) but queries are conditionally enabled
@@ -29,7 +29,7 @@ export function ShoppingListContent({ state, actions }) {
 
   // Always render the same component structure to prevent remounting
   return (
-    <ShoppingListDialogContent 
+    <ShoppingListDialogueContent 
       state={state} 
       actions={actions} 
       allCharacterAssetsLoading={allCharacterAssetsLoading}

@@ -2,18 +2,18 @@ package models
 
 import "time"
 
-// Group represents a group of jobs for organization and management
+// Group represents a group of jobs for organisation and management
 type Group struct {
 	SchemaVersion   int           `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
 	AccountID       string        `json:"accountID" bson:"accountID"`
 	GroupName       string        `json:"groupName" bson:"groupName"`
 	GroupID         string        `json:"groupID" bson:"groupID"`
 	IncludedJobIDs  []string      `json:"includedJobIDs" bson:"includedJobIDs"`
+	ArchivedJobIDs  []string      `json:"archivedJobIDs" bson:"archivedJobIDs"` // members held in the archive; still in IncludedJobIDs, absent from the derived sets
 	IncludedTypeIDs []int         `json:"includedTypeIDs" bson:"includedTypeIDs"`
 	MaterialIDs     []int         `json:"materialIDs" bson:"materialIDs"`
 	OutputJobCount  int           `json:"outputJobCount" bson:"outputJobCount"`
 	AreComplete     []string      `json:"areComplete" bson:"areComplete"`
-	ShowComplete    bool          `json:"showComplete" bson:"showComplete"`
 	GroupStatus     int           `json:"groupStatus" bson:"groupStatus"`
 	GroupType       int           `json:"groupType" bson:"groupType"`
 	LinkedJobIDs    []int64       `json:"linkedJobIDs" bson:"linkedJobIDs"`

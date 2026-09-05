@@ -1,5 +1,5 @@
 /**
- * When the edit job route is mounted, it registers a handler so other UI (link tree dialog,
+ * When the edit job route is mounted, it registers a handler so other UI (link tree dialogue,
  * parent chips, child job button) can request navigation to another job with the same
  * save/discard rules as leaving edit normally.
  *

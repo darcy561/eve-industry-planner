@@ -16,7 +16,7 @@ Eve Industry Planner is built as a microservices architecture with a React front
 ### UI Framework
 - **Material UI (MUI) 7.3** - Comprehensive React component library
 - **Emotion** - CSS-in-JS styling solution
-- **Recharts 3.2** - Charting library for data visualization
+- **Recharts 3.2** - Charting library for data visualisation
 
 ### Routing & State Management
 - **TanStack Router 1.133** - Type-safe routing with code splitting
@@ -49,7 +49,7 @@ The backend is split into three main services:
 
 #### Worker Service
 - Background job processing
-- ESI data synchronization
+- ESI data synchronisation
 
 #### Core Service
 - Business logic

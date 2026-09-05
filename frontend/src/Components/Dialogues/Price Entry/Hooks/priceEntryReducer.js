@@ -1,10 +1,5 @@
 /**
  * Price Entry Reducer for EVE Industry Planner.
- * 
- * Manages state transitions for the price entry dialog component, handling actions
- * for dialog visibility, price entry list building, and market/order display settings.
- * 
- * @fileoverview Reducer for price entry dialog state management
  */
 
 import { normalizeSetIsLoadingPayload } from "../../../../Functions/Helper/setIsLoadingAction";
@@ -24,7 +19,7 @@ export const PRICE_ENTRY_ACTION_TYPES = {
 };
 
 /**
- * Reducer function for managing price entry dialog state.
+ * Reducer function for managing price entry dialogue state.
  */
 export function priceEntryReducer(state, action, createInitialState) {
     switch (action.type) {

@@ -33,6 +33,85 @@ func TestRepairPlanEmptyHealthy(t *testing.T) {
 	}
 }
 
+func TestRepairPlanRematerialisesEnabledButUndeployedObs(t *testing.T) {
+	t.Parallel()
+	snap := docker.StackSnapshot{
+		Present: true,
+		Services: map[string]docker.ServiceInfo{
+			"api": {Short: "api", FullName: "eip_api", Desired: 1, Running: 1},
+		},
+	}
+	// The shape status.Build produces when the addon is on with nothing deployed.
+	report := status.Report{
+		StackPresent: true,
+		Groups: []status.GroupSection{{
+			Title: "Observability",
+			Rows: []status.ServiceRow{
+				{Short: "grafana", Signal: status.Down},
+				{Short: "alloy", Signal: status.Down},
+			},
+		}},
+	}
+	p := BuildRepairPlan(report, snap, deploy.SourceLive)
+	if !p.Rematerialise {
+		t.Fatal("enabled-but-undeployed addon must rematerialise")
+	}
+	if p.RematSource != deploy.SourceLive {
+		t.Fatalf("source=%v", p.RematSource)
+	}
+}
+
+func TestRepairPlanUndeploysDisabledObs(t *testing.T) {
+	t.Parallel()
+	snap := docker.StackSnapshot{
+		Present: true,
+		Services: map[string]docker.ServiceInfo{
+			"api":     {Short: "api", FullName: "eip_api", Desired: 1, Running: 1},
+			"grafana": {Short: "grafana", FullName: "eip_grafana", Desired: 1, Running: 1},
+		},
+	}
+	// Everything healthy: only the config disagreeing with the stack drives this.
+	report := status.Report{
+		StackPresent: true,
+		ObsEnabled:   false,
+		Groups: []status.GroupSection{{
+			Title: "Observability",
+			Rows:  []status.ServiceRow{{Short: "grafana", Signal: status.OK}},
+		}},
+	}
+	p := BuildRepairPlan(report, snap, deploy.SourceDev)
+	if !p.Rematerialise || !p.ObsUndeploy {
+		t.Fatalf("want undeploy remat, got %+v", p)
+	}
+	if p.RematSource != deploy.SourceDev {
+		t.Fatalf("source=%v", p.RematSource)
+	}
+	if p.Empty() {
+		t.Fatal("plan must not read as empty")
+	}
+}
+
+func TestRepairPlanLeavesEnabledObsDeployed(t *testing.T) {
+	t.Parallel()
+	snap := docker.StackSnapshot{
+		Present: true,
+		Services: map[string]docker.ServiceInfo{
+			"grafana": {Short: "grafana", FullName: "eip_grafana", Desired: 1, Running: 1},
+		},
+	}
+	report := status.Report{
+		StackPresent: true,
+		ObsEnabled:   true,
+		Groups: []status.GroupSection{{
+			Title: "Observability",
+			Rows:  []status.ServiceRow{{Short: "grafana", Signal: status.OK}},
+		}},
+	}
+	if p := BuildRepairPlan(report, snap, deploy.SourceLive); !p.Empty() {
+		t.Fatalf("enabled and healthy must be a no-op, got %+v", p)
+	}
+}
+
 func TestRepairPlanSelectiveEnsureAndForce(t *testing.T) {
 	t.Parallel()
 	snap := docker.StackSnapshot{
@@ -56,7 +135,7 @@ func TestRepairPlanSelectiveEnsureAndForce(t *testing.T) {
 		}},
 	}
 	p := BuildRepairPlan(report, snap, deploy.SourceLive)
-	if p.Rematerialize {
+	if p.Rematerialise {
 		t.Fatalf("unexpected remat: %+v", p)
 	}
 	if !slices.Contains(p.Ensure, "mongo") {
@@ -74,7 +153,7 @@ func TestRepairPlanSelectiveEnsureAndForce(t *testing.T) {
 	}
 }
 
-func TestRepairPlanMissingTriggersRematerialize(t *testing.T) {
+func TestRepairPlanMissingTriggersRematerialise(t *testing.T) {
 	t.Parallel()
 	snap := docker.StackSnapshot{
 		Present: true,
@@ -93,8 +172,8 @@ func TestRepairPlanMissingTriggersRematerialize(t *testing.T) {
 		}},
 	}
 	p := BuildRepairPlan(report, snap, deploy.SourceDev)
-	if !p.Rematerialize || p.RematSource != deploy.SourceDev {
-		t.Fatalf("want rematerialize dev: %+v", p)
+	if !p.Rematerialise || p.RematSource != deploy.SourceDev {
+		t.Fatalf("want rematerialise dev: %+v", p)
 	}
 	if len(p.Missing) != 2 {
 		t.Fatalf("missing=%v", p.Missing)

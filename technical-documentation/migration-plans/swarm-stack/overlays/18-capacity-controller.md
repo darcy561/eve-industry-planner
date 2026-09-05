@@ -8,7 +8,7 @@
 ## What changed
 
 - Phases A–D landed (controller, lease, Observe/Scale, `ws.command.*`, Evaluate, api←WS, `eip capacity`, Fake sim, promote).
-- **Soak hang root cause (2026-08-09):** `wsClientPressure` only stamped down when `drainingEmpty` — chicken-and-egg blocked cordon. Fixed to stamp down on underutilized + desired>min. Evidence: `capacity_soak -profile websocket -phase all` scale-up + scale-down OK.
+- **Soak hang root cause (2026-08-09):** `wsClientPressure` only stamped down when `drainingEmpty` — chicken-and-egg blocked cordon. Fixed to stamp down on underutilised + desired>min. Evidence: `capacity_soak -profile websocket -phase all` scale-up + scale-down OK.
 - **Pin/move scrapped for now.**
 
 ## How this part works after the change

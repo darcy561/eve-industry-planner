@@ -3,12 +3,11 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
 	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -16,19 +15,16 @@ import (
 )
 
 const (
-	cronInactiveAccountPlannerCleanupName     = "cron.inactiveAccountPlannerCleanup"
-	cronInactiveAccountPlannerCleanupSchedule = "0 8 * * 1" // Mondays 08:00 (typically UTC in containers)
-	inactiveAccountCleanupBookmarkKey         = "scheduler:maintenance:inactive_account_cleanup_user_bookmark"
-	defaultInactiveLoginStaleYears            = 2
-	maxAccountsPublishedPerCron = 40
+	inactiveAccountCleanupBookmarkKey = "scheduler:maintenance:inactive_account_cleanup_user_bookmark"
+	defaultInactiveLoginStaleYears    = 2
+	maxAccountsPublishedPerCron       = 40
 )
 
 // ScheduleInactiveAccountPlannerCleanup runs weekly: walks users whose last login is older than
 // the threshold (via Redis bookmark on user _id), and publishes one worker task per account to
 // delete that account's planner jobs and groups.
-func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	task := taskscore.InactiveAccountPlannerCleanup
-	sched.RegisterHandler(cronInactiveAccountPlannerCleanupName, func(ctx context.Context, data json.RawMessage) error {
+func InactiveAccountPlannerCleanup(deps contract.Dependencies, jobName string) contract.TaskHandler {
+	return func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		if deps.Mongo == nil {
 			logs.ErrorCtx(ctx, "inactive account planner cleanup: mongo client is nil", "component", schedulerLogComponent)
@@ -46,7 +42,7 @@ func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched con
 			SetProjection(bson.M{"_id": 1}).
 			SetSort(bson.D{{Key: "_id", Value: 1}}).
 			SetLimit(int64(maxAccountsPublishedPerCron)).
-			SetHint(usersMetaLastLoginAtIndexName)
+			SetHint(accountsMetaLastLoginAtIndexName)
 
 		mongo := deps.Mongo
 		col := mongo.Users.Collection()
@@ -76,21 +72,8 @@ func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched con
 
 		published := 0
 		for _, accountID := range batch {
-			payload := natscore.InactiveAccountPlannerCleanupRequest{
-				AccountID:     accountID,
-				StaleAgeYears: defaultInactiveLoginStaleYears,
-			}
-			if err := natscore.PublishTask(
-				ctx,
-				deps.JSContext,
-				task.Subject,
-				task.Name,
-				payload,
-				deps.NATS,
-				task.DefaultPriority,
-			); err != nil {
-				logs.ErrorCtx(ctx, "inactive account planner cleanup: publish failed", "component", schedulerLogComponent,
-					"subject", task.Subject, "account_id", accountID, "error", err)
+			if err := eipnats.PublishInactiveAccountPlannerCleanup(ctx, deps.NATS, accountID, defaultInactiveLoginStaleYears); err != nil {
+				logs.ErrorCtx(ctx, "inactive account planner cleanup: publish failed", "component", schedulerLogComponent, "account_id", accountID, "error", err)
 				continue
 			}
 			published++
@@ -113,11 +96,7 @@ func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched con
 			"login_cutoff_utc", cutoff.Format(time.RFC3339),
 		)
 		return nil
-	})
-	if err := sched.ScheduleCronJob(cronInactiveAccountPlannerCleanupSchedule, cronInactiveAccountPlannerCleanupName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }
 
 func inactiveLoginUserFilter(cutoff time.Time, afterID string) bson.M {

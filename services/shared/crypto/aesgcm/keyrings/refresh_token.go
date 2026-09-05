@@ -1,4 +1,4 @@
-﻿package keyrings
+package keyrings
 
 import (
 	"encoding/base64"
@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"eve-industry-planner/shared/crypto/aesgcm"
 	"eve-industry-planner/shared/core/swarmsecret"
+	"eve-industry-planner/shared/crypto/aesgcm"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )

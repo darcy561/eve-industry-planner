@@ -1,4 +1,4 @@
-import { getDocumentLockState } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+import { getDocumentLockState } from "../../Functions/Endpoints/Private/documentLockClient.js";
 import { applyDocumentLockStatusFromPayload } from "../../Functions/DocumentLock/applyDocumentLockStatusFromPayload.js";
 import {
   USER_JOBS_COLLECTION,

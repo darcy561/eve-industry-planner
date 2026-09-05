@@ -5,7 +5,6 @@ import {
 } from "../../../../Functions/Assets/assetHelpers";
 import { AssetEntry_TopLevel_CorporationOffices } from "./AssetFolders/topLevelFolderOffices";
 import { AssetsPage_Loading } from "../../Character Assets/Standard Layout/loadingPage";
-import uuid from "react-uuid";
 import getWorldData from "../../../../Functions/EveESI/World/getWorldData";
 import getAssetLocationNames from "../../../../Functions/EveESI/World/getAssetLocationNames";
 import { getFullItemList } from "../../../../Functions/Helper/getCachedData";
@@ -133,7 +132,7 @@ export function OfficesPage_Corporation({ selectedCorporation }) {
         let depth = 1;
         return (
           <AssetEntry_TopLevel_CorporationOffices
-            key={uuid()}
+            key={locationID}
             locationID={locationID}
             assets={assets}
             assetLocations={assetLocations}

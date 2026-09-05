@@ -6,11 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
-
-	natslib "github.com/nats-io/nats.go"
+	"eve-industry-planner/shared/telemetry/wsroutermetrics"
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -19,7 +18,7 @@ type app struct {
 	g        lifecycle.Group
 	stopDeps func(context.Context)
 	cfg      config
-	nc       *natslib.Conn
+	nats     *eipnats.NATS
 	place    *placementStore
 	be       *backendRegistry
 	initErr  error
@@ -41,17 +40,17 @@ func (a *app) fail(err error) error {
 	return err
 }
 
-func (a *app) connectDeps(context.Context) error {
+func (a *app) connectDeps(ctx context.Context) error {
 	a.cfg = loadConfig()
-	nc, err := natscore.Connect()
+	handle, err := eipnats.Open(ctx)
 	if err != nil {
 		return a.fail(fmt.Errorf("nats: %w", err))
 	}
-	a.nc = nc
+	a.nats = handle
 	a.place = newPlacementStore()
 	a.stopDeps = func(context.Context) {
-		if a.nc != nil {
-			a.nc.Close()
+		if a.nats != nil {
+			a.nats.Close()
 		}
 	}
 	return nil
@@ -63,8 +62,8 @@ func (a *app) startDiscovery(ctx context.Context) error {
 		// running = Swarm tasks still up (may include draining / not /ready).
 		a.place.reconcileStatuses(c, a.cfg, a.be.statusHTTP, running)
 	}
-	if _, err := a.nc.Subscribe(natscore.SubjectWSPlacementState, a.place.applyMsg); err != nil {
-		return a.fail(fmt.Errorf("nats subscribe %s: %w", natscore.SubjectWSPlacementState, err))
+	if _, err := eipnats.SubscribePlacementState(a.nats, a.place.applyState); err != nil {
+		return a.fail(fmt.Errorf("nats subscribe placement state: %w", err))
 	}
 	lifecycle.GoCtx(ctx, a.be.pollLoop)
 	return nil
@@ -73,7 +72,7 @@ func (a *app) startDiscovery(ctx context.Context) error {
 func (a *app) startProbes(ctx context.Context) error {
 	// Traefik + Swarm gate on this: router deps OK and ≥1 WS that passed orchestrationprobes /ready.
 	ready := func(c context.Context) error {
-		if a.nc == nil || !a.nc.IsConnected() {
+		if a.nats == nil || !a.nats.Connected() {
 			return fmt.Errorf("nats unavailable")
 		}
 		if a.be == nil || a.be.count() < 1 {
@@ -96,8 +95,11 @@ func (a *app) startHTTP(context.Context) error {
 		place: a.place,
 	}
 
+	if err := wsroutermetrics.Register(srv.snapshot); err != nil {
+		return a.fail(err)
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/metrics", srv.handleMetrics)
 	mux.HandleFunc("/", srv.handleProxy)
 
 	httpRunner, err := lifecycle.HTTPServer("ws-router-http", &http.Server{

@@ -49,7 +49,7 @@ func waitPrimary(ctx context.Context, cid string, c creds, timeout time.Duration
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("mongo: replica set initialized but PRIMARY not ready: %w", err)
+		return fmt.Errorf("mongo: replica set initialised but PRIMARY not ready: %w", err)
 	}
 	return nil
 }

@@ -11,7 +11,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useCachedData } from "../../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../../Context/defaultValues";
-import uuid from "react-uuid";
 import ClearIcon from "@mui/icons-material/Clear";
 import useUsersStore from "../../../Zustand/usersStore";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
@@ -125,7 +124,7 @@ export function SearchBar({ actions }) {
             {itemIDsToAdd.map((itemObj) => {
               const itemName = fullItemList[itemObj.itemID]?.name;
               return (
-                <Grid key={uuid()} size="auto">
+                <Grid key={itemObj.itemID} size="auto">
                   <Chip
                     label={itemName}
                     size="small"

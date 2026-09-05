@@ -1,7 +1,6 @@
 /**
  * EVE OAuth code or stored EVE refresh token -> planner session response, then
  * a single post-login client path.
- * @fileoverview
  */
 import {
   fetchServerSession,
@@ -16,13 +15,14 @@ import { runPostLoginAccountSync } from "../../Components/Auth/runPostLoginAccou
 import { bootstrapJobGroupsLoginStep } from "../../Components/Auth/bootstrapJobGroupsLoginStep";
 import { bootstrapJobDocumentsLoginStep } from "../../Components/Auth/bootstrapJobDocumentsLoginStep.js";
 import { bootstrapWatchlistLoginStep } from "../../Components/Auth/bootstrapWatchlistLoginStep.js";
-import { upsertCloudStoredEsiRefreshTokens } from "../Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
+import { upsertCloudStoredEsiRefreshTokens } from "../Endpoints/Private/cloudStoredEsiRefreshTokens.js";
 import { decodeJwt } from "jose";
 import Character from "../../Classes/character";
 import { getTabPlannerRefreshToken } from "./tabSessionStorage.js";
 
 /**
  * Stores main character ESI refresh in Mongo (encrypted) for cloud accounts and drops client-held material.
+ *
  * @param {import("../../Classes/character").default} character
  * @param {object} tokenResponse
  */

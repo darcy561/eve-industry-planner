@@ -16,7 +16,7 @@ func (d *Docs) LoadGroupsByAccount(ctx context.Context, accountID string) ([]mod
 	if err != nil || accountID == "" {
 		return nil, fmt.Errorf("LoadGroupsByAccount: invalid arguments")
 	}
-	filter := bson.M{"_meta.accountID": accountID}
+	filter := bson.M{FieldMetaOwnerID: accountID}
 	var cursor *mongo.Cursor
 	if err := Retry(ctx, "LoadGroupsByAccount", func() error {
 		var findErr error
@@ -39,7 +39,7 @@ func (d *Docs) LoadGroupByID(ctx context.Context, accountID, groupID string) (mo
 	if err != nil || accountID == "" || groupID == "" {
 		return models.Group{}, fmt.Errorf("LoadGroupByID: invalid arguments")
 	}
-	filter := bson.M{"_id": groupID, "_meta.accountID": accountID}
+	filter := bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": groupID}
 	var group models.Group
 	if err := Retry(ctx, "LoadGroupByID", func() error {
 		return coll.FindOne(ctx, filter).Decode(&group)

@@ -26,7 +26,7 @@ The Button Panel provides:
   - Only shown when job is in a group
   - Only shown when job has no parent jobs
 - **Function**: Toggles job's ready-for-sale status
-- **Behavior**:
+- **Behaviour**:
   - When marking ready: Advances job status and sets ready flag
   - When unmarking: Removes ready flag and removes from snapshot
 - **Tooltip**: "Sell"
@@ -36,7 +36,7 @@ The Button Panel provides:
 - **Label**: "Mark As Complete" or "Mark As Incomplete"
 - **Visibility**: Only shown when job is in a group
 - **Function**: Toggles completion status in group
-- **Behavior**:
+- **Behaviour**:
   - Adds job ID to group's complete set when marking complete
   - Removes job ID from group's complete set when marking incomplete
 - **Purpose**: Track completion status for group workflows
@@ -46,7 +46,7 @@ The Button Panel provides:
 - **Visibility**: Only shown when job has parent jobs
 - **Function**: Sends build costs to all parent jobs
 - **Tooltip**: "Sends the item build cost to all parent jobs."
-- **Behavior**:
+- **Behaviour**:
   1. Calculates build cost per item
   2. Sends cost to all parent jobs as material cost
   3. If in group, also marks job as complete
@@ -61,7 +61,7 @@ The Button Panel provides:
   - Only shown when job is NOT in a group
 - **Function**: Archives job for historical reference
 - **Tooltip**: "Removes the job from your planner but stores the data for later use in reporting and cost calculations. If you do not wish to store this job data then simply delete the job."
-- **Behavior**:
+- **Behaviour**:
   1. Creates job snapshot for archiving
   2. Removes ESI data links
   3. Archives job in Firebase
@@ -103,7 +103,7 @@ When job has parent jobs:
 
 ### Passing Build Costs
 1. Ensure job has parent jobs
-2. Verify all costs are finalized
+2. Verify all costs are finalised
 3. Click "Send Build Costs" button
 4. Costs are sent to all parent jobs
 5. Parent jobs update with new material costs
@@ -119,7 +119,7 @@ When job has parent jobs:
 ### Archiving Jobs
 1. Ensure you are logged in
 2. Verify job is not in a group
-3. Review all costs are finalized
+3. Review all costs are finalised
 4. Click "Archive Job" button
 5. Job is archived and removed from planner
 6. Data stored for historical analysis
@@ -133,7 +133,7 @@ When job has parent jobs:
 - Ensure no pending actions needed
 
 ### Cost Passing
-- Finalize all costs before passing
+- Finalise all costs before passing
 - Verify parent jobs are ready
 - Check costs are reasonable
 - Review parent job updates

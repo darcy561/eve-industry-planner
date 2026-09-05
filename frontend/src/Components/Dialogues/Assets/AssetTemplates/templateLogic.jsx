@@ -1,7 +1,7 @@
-import AssetTemplate_AssetDialogWindow from "./assetTemplate";
-import AssetContainerTemplate_AssetDialogWindow from "./containerTemplate";
+import AssetTemplate_AssetDialogueWindow from "./assetTemplate";
+import AssetContainerTemplate_AssetDialogueWindow from "./containerTemplate";
 
-export default function AssetLocationLogic_AssetDialogWindow(props) {
+export default function AssetLocationLogic_AssetDialogueWindow(props) {
   const { state, assetObject } = props;
   if (!assetObject) return null;
 
@@ -9,13 +9,13 @@ export default function AssetLocationLogic_AssetDialogWindow(props) {
 
   if (matchedAssets) {
     return (
-      <AssetContainerTemplate_AssetDialogWindow
+      <AssetContainerTemplate_AssetDialogueWindow
         {...props}
         matchedAssets={matchedAssets}
       />
     );
   } else {
-    return <AssetTemplate_AssetDialogWindow
+    return <AssetTemplate_AssetDialogueWindow
       {...props}
     />;
   }
