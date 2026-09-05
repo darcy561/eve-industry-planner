@@ -314,7 +314,8 @@ to fill the database.
 
 | Surface | Today | After |
 |---------|-------|-------|
-| `models.MetaData` | `AccountID` + optional `CorporationRef` / `AllianceRef` | one `Owner` block; scope fields gone |
+| `models.MetaData` | **done** — one `Owner` block; scope fields gone | — |
+| Websocket delivery branch | account, corporation and alliance owners deliver; a `planner` owner has no branch and is logged | a planner branch, so a planner's documents reach its members |
 | Changestream routing | reads named `_meta` scope fields | reads `_meta.owner` generically |
 | `models.ArchivedJobStats` | **done** — carries a root `Owner` | — |
 | Collections | **done** — `jobs`, `statistics_rows`, … | named for what they hold; ownership lives in the document |
@@ -1070,7 +1071,7 @@ window opens: run them against a restored copy of live, time them, and check the
 |---------|--------|
 | `_meta` owner block | **migrate-required** — one cutover; no forward-compatible shape, so rollback is a database restore |
 | `_meta` on the wire | **not breaking** — the owner never leaves the server, and `accountID` had one SPA reader that already falls back to the store, so the client change is a deletion |
-| `ChangeStreamMessage` scope fields | **breaking**, core to websocket only; internal, and both ship in the same window |
+| `ChangeStreamMessage` scope fields | **Landed** as one `ownerKey`, replacing the three. Breaking core to websocket only; internal, and both ship in the same window. JetStream holds `doc.update` for an hour, so the two shapes must not be split across deploys — see [archived-jobs-stats](../archived-jobs-stats/overlay.md) § How a change reaches the right clients |
 | `ArchivedJobStats` owner | **migrate-required** — same window |
 | Collection names, document ids | **migrate-required**; client-facing via changestream groups and the subscribe allow-list, which are small and account-based today and move with the rename |
 | `SessionGrants` in Redis | records expire, and the window can clear them outright rather than tolerating two shapes |
@@ -1100,9 +1101,16 @@ the first two are only cheap while that project is still open and touching live 
 **[entity-id-encryption](../entity-id-encryption/plan.md)** — no change owed. This project consumes
 corporation and alliance refs as planner ids at Stage F and mints none. Stages A–E do not depend on it.
 
-**[changestream-tenant-scale](../changestream-tenant-scale/contents.md)** and
-**[websocket-realtime](../websocket-realtime/contents.md)** — no change owed. Tenant strings keep
-their present values; a new kind is a new prefix, not a new routing model.
+**[websocket-realtime](../websocket-realtime/contents.md)** — no change owed. Tenant strings keep their
+present values; a new kind is a new prefix, not a new routing model.
+
+**[changestream-tenant-scale](../changestream-tenant-scale/contents.md)** — no code owed, but this
+project's § Collection layout **withdrew that plan's Phase C**, which had been waiting for separate
+corporation and alliance collections to register as their own change stream groups. One collection per
+document type means those groups never exist, so its per-tenant publish queues (Phase B) become the only
+thing isolating a busy planner from the tenants sharing its group cursor. Tenant strings themselves are
+unchanged. That plan records the withdrawal; nothing here blocks on it, but a shared planner carrying
+real traffic is what makes its Phase B matter.
 
 ## Go modernisation in scope
 
@@ -1114,7 +1122,7 @@ with the stage that touches each rather than as a sweep:
 | `api/helper/auth/refresh_token.go` | drop `omitempty` on the `Grants` fields (Stage B edits this file) |
 | `api/helper/sso/jwt.go` | same class |
 | `websocket/server/reader.go` | `errors.AsType` in place of `errors.As` |
-| `core/changestream/resume.go` | same class |
+| ~~`core/changestream/resume.go`~~ | **Applied** — `errors.AsType` landed with the watcher's routing-log fix under [archived-jobs-stats](../archived-jobs-stats/plan.md), which put that package in its touch surface |
 
 None of these block the plan. The scan is not a licence to modernise packages the stages do not touch.
 

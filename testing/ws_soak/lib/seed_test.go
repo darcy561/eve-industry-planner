@@ -1,10 +1,9 @@
 package soaklib
 
 import (
+	"eve-industry-planner/shared/models"
 	"strings"
 	"testing"
-
-	"eve-industry-planner/shared/wsplacement"
 )
 
 func TestParseAffinityMode(t *testing.T) {
@@ -30,7 +29,7 @@ func TestBuildIdentitiesAccountAffinity(t *testing.T) {
 	if ids[0].AccountID != "soak-acct-1" || ids[1].AccountID != "soak-acct-2" || ids[2].AccountID != "soak-acct-1" {
 		t.Fatalf("account distribution: %#v %#v %#v", ids[0].AccountID, ids[1].AccountID, ids[2].AccountID)
 	}
-	want := wsplacement.TenantKeyAccount("soak-acct-1")
+	want := models.AccountOwner("soak-acct-1").Key()
 	if ids[0].Affinity != want {
 		t.Fatalf("affinity=%q want %q", ids[0].Affinity, want)
 	}
@@ -47,7 +46,7 @@ func TestBuildIdentitiesCorpRequiresID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := wsplacement.TenantKeyCorporation(CorporationRef(99))
+	want := models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(99)}.Key()
 	if ids[0].Affinity != want || ids[1].Affinity != want {
 		t.Fatalf("corp affinity: %#v", ids)
 	}

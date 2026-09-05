@@ -91,9 +91,12 @@ func TestLive_schemaUpgrade_userAndSettings(t *testing.T) {
 	if got, _ := raw["userCloudAccounts"].(bool); !got {
 		t.Fatalf("persisted userCloudAccounts lost")
 	}
+	// The owner survives the upgrade write: an upgrade that dropped it would
+	// leave a document no owner-scoped read can find.
 	meta, _ := raw["_meta"].(bson.M)
-	if got, _ := meta["accountID"].(string); got != userID {
-		t.Fatalf("persisted _meta.accountID=%q", got)
+	owner, _ := meta["owner"].(bson.M)
+	if got, _ := owner["id"].(string); got != userID {
+		t.Fatalf("persisted _meta.owner.id=%q, want %q", got, userID)
 	}
 
 	// Idempotent: second load must not change schema again
@@ -139,8 +142,9 @@ func TestLive_schemaUpgrade_userAndSettings(t *testing.T) {
 		t.Fatalf("persisted displayHelpCards lost")
 	}
 	meta, _ = rawSet["_meta"].(bson.M)
-	if got, _ := meta["accountID"].(string); got != settingsID {
-		t.Fatalf("persisted _meta.accountID=%q", got)
+	owner, _ = meta["owner"].(bson.M)
+	if got, _ := owner["id"].(string); got != settingsID {
+		t.Fatalf("persisted _meta.owner.id=%q, want %q", got, settingsID)
 	}
 
 	t.Log("schema-upgrade user/settings ok")
@@ -168,7 +172,10 @@ func cloneAsScratchAccount(src bson.M, scratchID string) bson.M {
 	if existing, ok := out["_meta"].(bson.M); ok {
 		maps.Copy(meta, existing)
 	}
-	meta["accountID"] = scratchID
+	// The clone takes the scratch account's owner, not the one it was cloned
+	// from: every scoped read filters on the owner, so a copied one would leave
+	// the document owned by a real account and unreadable as this test's.
+	meta[models.MetaFieldOwner] = mongolive.OwnerDoc(models.AccountOwner(scratchID))
 	out["_meta"] = meta
 	return out
 }

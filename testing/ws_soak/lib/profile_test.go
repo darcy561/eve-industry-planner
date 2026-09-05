@@ -1,9 +1,8 @@
 package soaklib
 
 import (
+	"eve-industry-planner/shared/models"
 	"testing"
-
-	"eve-industry-planner/shared/wsplacement"
 )
 
 func TestParseProfile(t *testing.T) {
@@ -43,7 +42,7 @@ func TestBuildLimitsIdentitiesMixed(t *testing.T) {
 	if len(fill) != 4 {
 		t.Fatalf("fill=%d", len(fill))
 	}
-	wantFill := wsplacement.TenantKeyCorporation(CorporationRef(910001))
+	wantFill := models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(910001)}.Key()
 	seenAcct := map[string]bool{}
 	for _, id := range fill {
 		if id.Affinity != wantFill {
@@ -113,17 +112,17 @@ func TestLimitsEvidenceAssertDivert(t *testing.T) {
 
 func TestAssertNoColocSplits(t *testing.T) {
 	ok := map[string]map[string]uint64{
-		"corporation:1": {"c1": 10},
+		"corporation:corp_56_JxK": {"c1": 10},
 		"account:a":     {"c2": 2},
 	}
 	if err := assertSharedOrgAffinityColoc(map[string]map[string]uint64{
-		"corporation:1": {"a": 3, "b": 1},
+		"corporation:corp_56_JxK": {"a": 3, "b": 1},
 	}); err == nil {
 		t.Fatal("expected shared org coloc failure")
 	}
 	if err := assertSharedOrgAffinityColoc(map[string]map[string]uint64{
-		"corporation:1": {"a": 4},
-		"alliance:9":    {"a": 2},
+		"corporation:corp_56_JxK": {"a": 4},
+		"alliance:alliance_9_Qm":    {"a": 2},
 		"account:solo":  {"a": 1, "b": 1}, // ignored — not org key
 	}); err != nil {
 		t.Fatalf("shared org coloc ok: %v", err)
@@ -133,7 +132,7 @@ func TestAssertNoColocSplits(t *testing.T) {
 		t.Fatal(err)
 	}
 	bad := map[string]map[string]uint64{
-		"corporation:1": {"c1": 8, "c2": 2},
+		"corporation:corp_56_JxK": {"c1": 8, "c2": 2},
 	}
 	if err := assertNoColocSplits(bad); err == nil {
 		t.Fatal("want split error")
@@ -142,11 +141,11 @@ func TestAssertNoColocSplits(t *testing.T) {
 
 func TestRecordAffinityPlaceTracksSplits(t *testing.T) {
 	st := newStats()
-	st.recordAffinityPlace(cohortFill, "corporation:1", "c1")
-	st.recordAffinityPlace(cohortFill, "corporation:1", "c1")
-	st.recordAffinityPlace(cohortFill, "corporation:1", "c2")
+	st.recordAffinityPlace(cohortFill, "corporation:corp_56_JxK", "c1")
+	st.recordAffinityPlace(cohortFill, "corporation:corp_56_JxK", "c1")
+	st.recordAffinityPlace(cohortFill, "corporation:corp_56_JxK", "c2")
 	homes := st.affinityHomeSets()
-	if got := homes["corporation:1"]; len(got) != 2 || got["c1"] != 2 || got["c2"] != 1 {
+	if got := homes["corporation:corp_56_JxK"]; len(got) != 2 || got["c1"] != 2 || got["c2"] != 1 {
 		t.Fatalf("homes=%v", got)
 	}
 	if err := assertNoColocSplits(homes); err == nil {

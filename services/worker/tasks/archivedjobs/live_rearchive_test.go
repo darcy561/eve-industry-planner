@@ -30,7 +30,7 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
-		scope := bson.M{"accountID": rearchiveScratchAccount}
+		scope := bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: rearchiveScratchAccount}
 		_, _ = mongo.StatisticsRows.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.StatisticsTimeline.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.StatisticsTotals.Collection().DeleteMany(cctx, scope)
@@ -50,7 +50,7 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 			Costs: models.JobCosts{LinkedJobs: []models.LinkedESIJob{{JobID: 1, Cost: 1000}}},
 		},
 	}
-	job.MetaData.Owner.ID = rearchiveScratchAccount
+	job.MetaData.Owner = models.AccountOwner(rearchiveScratchAccount)
 	job.MetaData.ArchivedAt = now
 
 	writeRow := func(t *testing.T, j models.Job) models.ArchivedJobStats {
@@ -123,7 +123,7 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
-		scope := bson.M{"accountID": account}
+		scope := bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: account}
 		_, _ = mongo.StatisticsRows.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.StatisticsTimeline.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.StatisticsTotals.Collection().DeleteMany(cctx, scope)
@@ -143,7 +143,7 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 			Costs: models.JobCosts{LinkedJobs: []models.LinkedESIJob{{JobID: 2, Cost: 750}}},
 		},
 	}
-	job.MetaData.Owner.ID = account
+	job.MetaData.Owner = models.AccountOwner(account)
 	job.MetaData.ArchivedAt = now
 
 	row, err := statistics.NewRow(job, now)

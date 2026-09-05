@@ -25,6 +25,7 @@ var metaOwnerCollections = []string{
 	eipmongo.CollectionJobDocuments,
 	eipmongo.CollectionJobGroups,
 	eipmongo.CollectionArchivedJobs,
+	eipmongo.CollectionWatchlistDeprecated,
 }
 
 // unstampedMetaOwner selects documents holding a usable account id and no owner,

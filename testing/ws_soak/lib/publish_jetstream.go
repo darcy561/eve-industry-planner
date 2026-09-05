@@ -62,14 +62,10 @@ func marshalFanoutPayload(subject, coll, docID string, msg DocUpdate) ([]byte, e
 		"docID":         docID,
 		"operationType": "update",
 	}
-	if id := strings.TrimSpace(msg.AccountID); id != "" {
-		body["accountID"] = id
-	}
-	if id := strings.TrimSpace(msg.CorporationRef); id != "" {
-		body["corporationRef"] = id
-	}
-	if ref := strings.TrimSpace(msg.AllianceRef); ref != "" {
-		body["allianceRef"] = ref
+	// One owner key, as the watcher publishes it. Account takes precedence, then
+	// corporation, then alliance — the order the harness's own topology assigns.
+	if owner := msg.owner(); !owner.IsZero() {
+		body["ownerKey"] = owner.Key()
 	}
 	scopes := map[string]any{}
 	if len(msg.ScopeAccountIDs) > 0 {

@@ -77,6 +77,16 @@ func stampExtrasCategoryLabels(ctx context.Context, clients *stackservices.Clien
 		return "", fmt.Errorf("walk application settings: %w", err)
 	}
 
+	if dryRun && stamped == 0 {
+		unstamped, err := jobsAwaitingOwner(ctx, clients)
+		if err != nil {
+			return "", err
+		}
+		if unstamped > 0 {
+			return "", fmt.Errorf("%d job(s) name no owner: the owner stamp has not run", unstamped)
+		}
+	}
+
 	verb := "stamped"
 	if dryRun {
 		verb = "would stamp"
@@ -88,6 +98,25 @@ func stampExtrasCategoryLabels(ctx context.Context, clients *stackservices.Clien
 	// row keeps its id, which is what every reader had before this.
 	return fmt.Sprintf("%s %d extra(s) across %d account(s); %d name no category the account still lists",
 		verb, stamped, accounts, skipped), nil
+}
+
+// jobsAwaitingOwner counts documents this step reads that carry an account id
+// and no owner, so a dry run can tell "no work" from "the filter matches nothing
+// yet".
+func jobsAwaitingOwner(ctx context.Context, clients *stackservices.Clients) (int64, error) {
+	var total int64
+	for _, collection := range jobCollectionsHoldingExtras {
+		n, err := clients.Mongo.Coll(collection).CountDocuments(ctx, bson.M{
+			"_meta.accountID":           bson.M{"$type": "string", "$ne": ""},
+			eipmongo.FieldMetaOwnerKind: bson.M{"$exists": false},
+			"build.costs.extrasCosts.0": bson.M{"$exists": true},
+		})
+		if err != nil {
+			return 0, fmt.Errorf("count unstamped in %s: %w", collection, err)
+		}
+		total += n
+	}
+	return total, nil
 }
 
 func stampAccountExtras(

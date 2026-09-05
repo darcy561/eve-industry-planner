@@ -48,7 +48,7 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 	jobID := fmt.Sprintf("eip-parity-job-%d", now.UnixNano())
 	clone := sampleJob
 	clone.JobID = jobID
-	clone.MetaData.Owner.ID = parityScratchAccount
+	clone.MetaData.Owner = models.AccountOwner(parityScratchAccount)
 	clone.Name = "eip-parity-clone"
 
 	if _, failed, err := jobs.BulkUpsertJobs(ctx, parityScratchAccount, []models.Job{clone}, now, "parity-sess", "parity-client"); err != nil || failed != 0 {
@@ -76,7 +76,7 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 		g := sampleGroup
 		g.GroupID = groupID
 		g.AccountID = parityScratchAccount
-		g.MetaData.Owner.ID = parityScratchAccount
+		g.MetaData.Owner = models.AccountOwner(parityScratchAccount)
 		g.GroupName = "eip-parity-group"
 		g.IncludedJobIDs = []string{jobID, "eip-parity-extra-job"}
 

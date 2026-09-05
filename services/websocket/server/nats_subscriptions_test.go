@@ -4,7 +4,7 @@ import "testing"
 
 func TestCollectionScopedDocIDFromDocUpdatePrefersPayload(t *testing.T) {
 	t.Parallel()
-	payload := []byte(`{"collection":"jobs","docID":"d1","accountID":"a1"}`)
+	payload := []byte(`{"collection":"jobs","docID":"d1","ownerKey":"account:a1"}`)
 	subject := "doc.update.account:a1.jobs.d1"
 	got, err := collectionScopedDocIDFromDocUpdate(payload, subject)
 	if err != nil {

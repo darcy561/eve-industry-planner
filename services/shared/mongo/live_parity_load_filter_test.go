@@ -35,14 +35,14 @@ func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 			label  string
 			filter bson.M
 		}{
-			{"planner", bson.M{"_meta.accountID": s.accountID, "displayOnPlanner": true}},
-			{"by_ids", bson.M{"_meta.accountID": s.accountID, "_id": bson.M{"$in": s.jobIDs}}},
+			{"planner", bson.M{eipmongo.FieldMetaOwnerID: s.accountID, "displayOnPlanner": true}},
+			{"by_ids", bson.M{eipmongo.FieldMetaOwnerID: s.accountID, "_id": bson.M{"$in": s.jobIDs}}},
 		}
 		if s.groupID != "" {
 			filters = append(filters, struct {
 				label  string
 				filter bson.M
-			}{"by_group", bson.M{"_meta.accountID": s.accountID, "groupID": s.groupID}})
+			}{"by_group", bson.M{eipmongo.FieldMetaOwnerID: s.accountID, "groupID": s.groupID}})
 		}
 
 		for _, fc := range filters {
@@ -79,9 +79,9 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 	t.Cleanup(func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
-		_, _ = coll.DeleteMany(cctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountID, otherAccount}}})
+		_, _ = coll.DeleteMany(cctx, bson.M{eipmongo.FieldMetaOwnerID: bson.M{"$in": []string{accountID, otherAccount}}})
 	})
-	_, _ = coll.DeleteMany(ctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountID, otherAccount}}})
+	_, _ = coll.DeleteMany(ctx, bson.M{eipmongo.FieldMetaOwnerID: bson.M{"$in": []string{accountID, otherAccount}}})
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	jobID := fmt.Sprintf("eip-parity-scope-delta-%d", now.UnixNano())
@@ -105,10 +105,11 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 		t.Fatalf("id_only: got %v want only %s", jobIDsOf(gotID), jobID)
 	}
 
-	// Wrong account in filter, correct accountID param — merge forces accountID param.
+	// Wrong owner in the caller's filter, correct accountID param — the merge
+	// forces the parameter, so a filter naming another owner cannot widen the read.
 	wrongAccountFilter := bson.M{
-		"_meta.accountID": "eip-parity-wrong-account",
-		"_id":             jobID,
+		eipmongo.FieldMetaOwnerID: "eip-parity-wrong-account",
+		"_id":                     jobID,
 	}
 	gotWrong, err := mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, cloneFilter(wrongAccountFilter))
 	if err != nil {
@@ -199,7 +200,7 @@ func cloneFilter(in bson.M) bson.M {
 	return out
 }
 
-// Docs-layer slip: filter omits _meta.accountID. LoadJobsByFilter must still scope;
+// Docs-layer slip: the filter omits the owner. LoadJobsByFilter must still scope;
 // the same Find without merge returns both accounts (what happens if we don't merge).
 func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	mongo := mongolive.Require(t)
@@ -212,9 +213,9 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	t.Cleanup(func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
-		_, _ = coll.DeleteMany(cctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountA, accountB}}})
+		_, _ = coll.DeleteMany(cctx, bson.M{eipmongo.FieldMetaOwnerID: bson.M{"$in": []string{accountA, accountB}}})
 	})
-	_, _ = coll.DeleteMany(ctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountA, accountB}}})
+	_, _ = coll.DeleteMany(ctx, bson.M{eipmongo.FieldMetaOwnerID: bson.M{"$in": []string{accountA, accountB}}})
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	jobA := scopeScratchJob(fmt.Sprintf("eip-parity-scope-a-%d", now.UnixNano()), accountA)

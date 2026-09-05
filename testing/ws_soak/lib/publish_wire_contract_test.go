@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/testing/keys"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 )
@@ -26,8 +27,8 @@ func TestPublishedFanoutPayloadDecodesAsTheServerReadsIt(t *testing.T) {
 			name: "account",
 			msg:  DocUpdate{AccountID: "acct-1"},
 			want: func(t *testing.T, d outgoinglogic.DecodedOutbound) {
-				if d.Route.AccountID != "acct-1" {
-					t.Fatalf("accountID = %q", d.Route.AccountID)
+				if d.Route.Owner.Kind != models.OwnerAccount || d.Route.Owner.ID != "acct-1" {
+					t.Fatalf("owner = %+v", d.Route.Owner)
 				}
 			},
 		},
@@ -35,8 +36,8 @@ func TestPublishedFanoutPayloadDecodesAsTheServerReadsIt(t *testing.T) {
 			name: "corporation",
 			msg:  DocUpdate{CorporationRef: corpRef},
 			want: func(t *testing.T, d outgoinglogic.DecodedOutbound) {
-				if d.Route.CorporationRef != corpRef {
-					t.Fatalf("corporationRef = %q, want %q", d.Route.CorporationRef, corpRef)
+				if d.Route.Owner.Kind != models.OwnerCorporation || d.Route.Owner.ID != corpRef {
+					t.Fatalf("owner = %+v, want corporation %q", d.Route.Owner, corpRef)
 				}
 			},
 		},
@@ -44,8 +45,8 @@ func TestPublishedFanoutPayloadDecodesAsTheServerReadsIt(t *testing.T) {
 			name: "alliance",
 			msg:  DocUpdate{AllianceRef: allyRef},
 			want: func(t *testing.T, d outgoinglogic.DecodedOutbound) {
-				if d.Route.AllianceRef != allyRef {
-					t.Fatalf("allianceRef = %q, want %q", d.Route.AllianceRef, allyRef)
+				if d.Route.Owner.Kind != models.OwnerAlliance || d.Route.Owner.ID != allyRef {
+					t.Fatalf("owner = %+v, want alliance %q", d.Route.Owner, allyRef)
 				}
 			},
 		},

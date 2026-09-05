@@ -31,8 +31,9 @@ func TestParsePublishMode(t *testing.T) {
 }
 
 func TestMarshalFanoutPayloadOrg(t *testing.T) {
-	raw, err := marshalFanoutPayload("doc.update.corporation:1.soakFanout.d1", soakFanoutCollection, "d1", DocUpdate{
-		CorporationRef:  "1",
+	const corpRef = "corp_56_JxK"
+	raw, err := marshalFanoutPayload("doc.update.corporation:"+corpRef+".soakFanout.d1", soakFanoutCollection, "d1", DocUpdate{
+		CorporationRef:  corpRef,
 		ScopeAccountIDs: []string{"a", "b"},
 	})
 	if err != nil {
@@ -42,8 +43,14 @@ func TestMarshalFanoutPayloadOrg(t *testing.T) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
 	}
-	if m["corporationRef"] != "1" || m["accountID"] != nil {
+	// One owner key on the wire, as the watcher publishes it.
+	if m["ownerKey"] != "corporation:"+corpRef {
 		t.Fatalf("route=%v", m)
+	}
+	for _, retired := range []string{"accountID", "corporationRef", "allianceRef"} {
+		if _, ok := m[retired]; ok {
+			t.Fatalf("%s is still published: %v", retired, m)
+		}
 	}
 	scopes, _ := m["scopes"].(map[string]any)
 	ids, _ := scopes["accountIDs"].([]any)

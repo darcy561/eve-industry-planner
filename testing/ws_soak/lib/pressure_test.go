@@ -1,9 +1,8 @@
 package soaklib
 
 import (
+	"eve-industry-planner/shared/models"
 	"testing"
-
-	"eve-industry-planner/shared/wsplacement"
 )
 
 func TestParseProfilePressure(t *testing.T) {
@@ -78,7 +77,7 @@ func TestBuildPressureIdentitiesMixedGroups(t *testing.T) {
 		t.Fatalf("group kinds account=%d corp=%d alliance=%d", a, c, al)
 	}
 	fill := filterCohort(ids, cohortFill)
-	wantFill := wsplacement.TenantKeyCorporation(CorporationRef(910001))
+	wantFill := models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(910001)}.Key()
 	for _, id := range fill {
 		if id.Affinity != wantFill {
 			t.Fatalf("fill aff=%q", id.Affinity)

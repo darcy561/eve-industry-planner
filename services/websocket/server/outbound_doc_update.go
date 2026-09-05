@@ -22,21 +22,15 @@ type docUpdateWork struct {
 	subject               string
 }
 
-// outboundDocPartitionKey groups work by account, corporation, or alliance so ordering is
-// preserved per scope while unrelated scopes can be processed on different shard goroutines.
+// outboundDocPartitionKey groups work by owner so ordering is preserved per owner
+// while unrelated owners can be processed on different shard goroutines.
 func outboundDocPartitionKey(collectionScopedDocID string, payload []byte) string {
 	d, err := outgoinglogic.DecodeOutboundMessage(payload)
 	if err != nil {
 		return "err:" + collectionScopedDocID
 	}
-	if d.Route.AccountID != "" {
-		return "account:" + d.Route.AccountID
-	}
-	if d.Route.CorporationRef != "" {
-		return "corporation:" + d.Route.CorporationRef
-	}
-	if d.Route.AllianceRef != "" {
-		return "alliance:" + d.Route.AllianceRef
+	if !d.Route.Owner.IsZero() {
+		return d.Route.Owner.Key()
 	}
 	return "explicit:" + collectionScopedDocID
 }

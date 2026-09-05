@@ -77,7 +77,7 @@ func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.D
 		SetProjection(bson.M{"_id": 1}).
 		SetSort(bson.D{{Key: "_id", Value: 1}}).
 		SetLimit(int64(effectiveCap)).
-		SetHint(usersMetaLastLoginAtIndexName)
+		SetHint(accountsMetaLastLoginAtIndexName)
 
 	mongo := deps.Mongo
 	col := mongo.Users.Collection()
@@ -144,7 +144,7 @@ func computeCloudEsiPublishBatchSize(ctx context.Context, deps contract.Dependen
 
 	mongo := deps.Mongo
 	col := mongo.Users.Collection()
-	total, err := col.CountDocuments(countCtx, filter, options.Count().SetHint(usersMetaLastLoginAtIndexName))
+	total, err := col.CountDocuments(countCtx, filter, options.Count().SetHint(accountsMetaLastLoginAtIndexName))
 	if err != nil {
 		return 0, err
 	}

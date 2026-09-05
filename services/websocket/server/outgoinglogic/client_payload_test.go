@@ -16,8 +16,7 @@ func TestClientPayloadStripsRoutingRefs(t *testing.T) {
 	in := []byte(`{
 	  "collection":"user_job_documents",
 	  "docID":"job-1",
-	  "corporationRef":"corp_abc123",
-	  "allianceRef":"alliance_def456",
+	  "ownerKey":"corporation:corp_abc123",
 	  "scopes":{"corporationRefs":["corp_abc123"],"accountIDs":["acct-1"]},
 	  "sourceClientID":"c1",
 	  "sourceSessionID":"s1",
@@ -25,7 +24,7 @@ func TestClientPayloadStripsRoutingRefs(t *testing.T) {
 	}`)
 
 	got := string(ClientPayload(in, keys.EntityCipher(t)))
-	for _, leaked := range []string{"corporationRef", "allianceRef", "scopes", "corp_abc123", "alliance_def456", "sourceClientID", "sourceSessionID"} {
+	for _, leaked := range []string{"ownerKey", "scopes", "corp_abc123", "sourceClientID", "sourceSessionID"} {
 		if strings.Contains(got, leaked) {
 			t.Fatalf("%q survived into the client payload:\n%s", leaked, got)
 		}
@@ -42,15 +41,29 @@ func TestClientPayloadStripsRoutingRefs(t *testing.T) {
 	}
 }
 
-// The account-scoped path carries no routing metadata, so it must pass through
-// untouched rather than paying a re-encode.
+// A payload holding no routing metadata passes through untouched rather than
+// paying a re-encode.
 func TestClientPayloadPassesThroughWhenNothingToStrip(t *testing.T) {
 	t.Parallel()
-	in := []byte(`{"collection":"user_job_documents","docID":"job-1","accountID":"acct-1"}`)
+	in := []byte(`{"collection":"user_job_documents","docID":"job-1"}`)
 
 	got := ClientPayload(in, keys.EntityCipher(t))
 	if &got[0] != &in[0] {
 		t.Fatal("expected the original slice to be returned unchanged")
+	}
+}
+
+// The owner key names an internal identity for every kind, not only the org ones,
+// so an account-scoped message is stripped too. Nothing in the SPA reads it: the
+// server decides who a message reaches, and a client that has been sent one has
+// already been chosen.
+func TestClientPayloadStripsTheOwnerKeyOnAccountScope(t *testing.T) {
+	t.Parallel()
+	in := []byte(`{"collection":"user_job_documents","docID":"job-1","ownerKey":"account:acct-1"}`)
+
+	got := string(ClientPayload(in, keys.EntityCipher(t)))
+	if strings.Contains(got, "ownerKey") || strings.Contains(got, "acct-1") {
+		t.Fatalf("the owner key survived into the client payload:\n%s", got)
 	}
 }
 

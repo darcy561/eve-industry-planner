@@ -54,8 +54,8 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Know what the build history panel shows and where each figure comes from | [plan.md](./plan.md) § J1 |
 | Decide what the build history panel compares an item's history against | [plan.md](./plan.md) § Open — what the panel compares history against |
 | Apply a job's statistics as a delta instead of a rebuild | [plan.md](./plan.md) § J2 |
-| See what the delta path landed, and what it still owes | [plan.md](./plan.md) § What landed (J2) |
-| Know why a rebuilt row is stamped as already counted | [plan.md](./plan.md) § What landed (J2) |
+| See what the delta path landed, and what it still owes | [plan.md](./plan.md) § J2 — Statistics are applied as a delta |
+| Know why a rebuilt row is stamped as already counted | [plan.md](./plan.md) § J2 — Statistics are applied as a delta |
 | Find where the delta shape lives, and why it is not in either caller | [plan.md](./plan.md) § J2 |
 | Change how often archived-job statistics are recalculated | [plan.md](./plan.md) § J3 |
 | Understand why a long rebuild queue currently makes no progress | [plan.md](./plan.md) § J3 |
@@ -64,16 +64,16 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Scope statistics to something other than an account | [plan.md](./plan.md) § Owners, not accounts |
 | Stop a delta being overwritten by a rebuild running beside it | [plan.md](./plan.md) § A delta must never race a rebuild |
 | Know why an empty bucket is deleted on a count and not a total | [plan.md](./plan.md) § Subtracting to nothing |
-| Find out what happens when a statistics write keeps failing | [plan.md](./plan.md) § A delta that cannot be written |
+| Find out what happens when a statistics write keeps failing | [plan.md](./plan.md) § The delta is a task, and its work list is the rows themselves |
 | Detect and correct aggregates that disagree with their rows | [plan.md](./plan.md) § J4 |
 | Compare stored figures without float noise reading as drift | [plan.md](./plan.md) § Comparing figures that are floats |
 | Decide when an owner's turn to be reconciled comes round | [plan.md](./plan.md) § Scheduling |
-| See what reconciliation landed, and what it shares with the rebuild | [plan.md](./plan.md) § What landed (J4) |
+| See what reconciliation landed, and what it shares with the rebuild | [plan.md](./plan.md) § J4 — Reconciliation, and how drift is corrected |
 | Know why a bucket carries a row count, and why a rebuild once lost it | [plan.md](./plan.md) § The bucket's contributing-row count |
 | Know why archive and statistics documents are no longer fanned out | [plan.md](./plan.md) § The archive and statistics change streams are removed |
 | Tell the client its figures moved, or that a rebuild is outstanding | [plan.md](./plan.md) § J5 |
 | Add a realtime message kind, or a handler for one | [plan.md](./plan.md) § Messages gain a family and a kind |
-| See what the notification path landed, and who publishes one | [plan.md](./plan.md) § What landed (J5) |
+| See what the notification path landed, and who publishes one | [plan.md](./plan.md) § J5 — How the client learns the figures moved |
 | Know why archiving still invalidates its own caches | [plan.md](./plan.md) § Departed from: the notification does not replace call-site invalidation |
 | Find where a failed recalculation is recorded and read | [plan.md](./plan.md) § Telling the user when figures are known to be behind |
 | Show a user that their figures are being rebuilt, or are stale | [plan.md](./plan.md) § Where the client shows it |
@@ -86,4 +86,21 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Understand why the owner block shipped as one cutover | [plan.md](./plan.md) § The owner block landed as one cutover |
 | See what the owner block still owes | [plan.md](./plan.md) § What is not done |
 | Run or extend the release migration | [plan.md](./plan.md) § Operational steps owed |
+| Know what a dry run reports before the owner stamp has run | [overlay.md](./overlay.md) § The dry run tells an unstamped database from an idle one |
+| Decide whether a deprecated collection still needs the owner | [plan.md](./plan.md) § What is not done |
+| Retire an index on a collection that is also being renamed | [overlay.md](./overlay.md) § The indexes |
+| Read the account id off a change stream log line | [overlay.md](./overlay.md) § What the publish log reports |
+| Add a delivery branch, or change how a message is routed to clients | [overlay.md](./overlay.md) § How a change reaches the right clients |
+| See what covers the routing key, on both sides | [overlay.md](./overlay.md) § How a change reaches the right clients |
+| Check that one owner's documents cannot reach another | [overlay.md](./overlay.md) § How a change reaches the right clients |
+| Change how recipients are chosen for a broadcast | [overlay.md](./overlay.md) § How a change reaches the right clients |
+| Add a delivery path for a new owner kind | [overlay.md](./overlay.md) § How a change reaches the right clients |
+| Write a query that groups on the owner rather than filtering on it | [overlay.md](./overlay.md) § One place names the owner block, and one names its leaves |
+| Run the live-Mongo tests | [overlay.md](./overlay.md) § Live Mongo tests — draft for `testing/harness.md` |
+| Connect a test to the stack's Mongo | [overlay.md](./overlay.md) § Live Mongo tests — draft for `testing/harness.md` |
+| See how far live coverage reaches from Mongo to the browser | [overlay.md](./overlay.md) § How a change reaches the right clients |
+| Know why a routing field never reaches the browser | [overlay.md](./overlay.md) § How a change reaches the right clients |
+| Rename or retire an index a query hints | [overlay.md](./overlay.md) § The indexes |
+| Write `_meta` from a writer that replaces the whole document | [overlay.md](./overlay.md) § How `_meta` is written |
+| Add a release step that filters on the owner | [overlay.md](./overlay.md) § The dry run tells an unstamped database from an idle one |
 | Know why two release steps stop the run when they fail | [plan.md](./plan.md) § Operational steps owed |

@@ -11,7 +11,7 @@ var buildNow = time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
 
 func sampleJob() models.Job {
 	job := models.Job{JobID: "job-1", ItemID: 34, JobType: 1}
-	job.MetaData.Owner.ID = "acct-1"
+	job.MetaData.Owner = models.AccountOwner("acct-1")
 	job.MetaData.ArchivedAt = time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
 	job.Build.Sale.Transactions = []models.Transaction{
 		{TransactionID: 1, OrderID: 900, Quantity: 4, Amount: 400, Tax: 40, Date: "2026-06-01T00:00:00Z"},
@@ -414,7 +414,7 @@ func TestNewRowNamesItsOwnerAndSchema(t *testing.T) {
 
 	job := models.Job{JobID: "job-owned", ItemID: 34, ItemsProducedPerRun: 1}
 	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
-	job.MetaData.Owner.ID = "acct-1"
+	job.MetaData.Owner = models.AccountOwner("acct-1")
 	job.MetaData.ArchivedBy = "acct-2"
 
 	row, err := NewRow(job, time.Now().UTC())

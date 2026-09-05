@@ -222,7 +222,10 @@ func isRevoked(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID s
 
 func countStatsRows(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo) int64 {
 	t.Helper()
-	n, err := mongo.StatisticsRows.Collection().CountDocuments(ctx, bson.M{"accountID": rebuildStatsScratchAccount})
+	n, err := mongo.StatisticsRows.Collection().CountDocuments(ctx, bson.M{
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount,
+		eipmongo.FieldMetaOwnerID:   rebuildStatsScratchAccount,
+	})
 	if err != nil {
 		t.Fatalf("count stats rows: %v", err)
 	}

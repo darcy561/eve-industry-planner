@@ -29,6 +29,8 @@ var retiredFieldExceptions = map[string]string{
 	"core/commands/release_meta_owner.go":  "derives the owner from the account id it is replacing",
 	"cmd/mongo_driver_v2_smoke/main.go":    "writes and reads its own throwaway document shape",
 	"core/commands/job_identity_encode.go": "runs before the owner stamp in the cutover window, so the account id is all a document carries",
+	"core/commands/release_extras_labels.go": "counts documents the owner stamp has not reached, so a dry run can say so " +
+		"rather than reporting no work",
 }
 
 func TestNoQueryNamesARetiredField(t *testing.T) {

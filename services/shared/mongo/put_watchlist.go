@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"eve-industry-planner/shared/models"
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -17,8 +19,8 @@ func (d *Docs) UpsertWatchlistDeprecated(ctx context.Context, accountID string, 
 		return nil, fmt.Errorf("UpsertWatchlistDeprecated: invalid arguments")
 	}
 	meta := bson.M{
-		"accountID":    accountID,
-		"lastModified": now,
+		models.MetaFieldOwner: models.AccountOwner(accountID),
+		"lastModified":        now,
 	}
 	if sessionID != "" {
 		meta["sessionID"] = sessionID

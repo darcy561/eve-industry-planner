@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/models"
 )
 
 // DownwardScopes narrows delivery under an alliance or corporation root (message metadata).
@@ -30,9 +31,7 @@ func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
 	}
 	return DecodedOutbound{
 		Route: RouteInfo{
-			AccountID:       strings.TrimSpace(stringFromScalar(msgData["accountID"])),
-			CorporationRef:  stringFieldOrNumber(msgData, "corporationRef"),
-			AllianceRef:     stringFieldOrNumber(msgData, "allianceRef"),
+			Owner:           ownerFromKey(msgData["ownerKey"]),
 			SourceClientID:  asString(msgData["sourceClientID"]),
 			SourceSessionID: asString(msgData["sourceSessionID"]),
 		},
@@ -41,18 +40,22 @@ func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
 	}, nil
 }
 
-func stringFieldOrNumber(m map[string]any, keys ...string) string {
-	for _, k := range keys {
-		v, ok := m[k]
-		if !ok {
-			continue
-		}
-		s := strings.TrimSpace(stringFromScalar(v))
-		if s != "" {
-			return s
-		}
+// ownerFromKey parses the message's owner key, yielding the zero owner when it is
+// absent or unreadable.
+//
+// Parsed rather than split: an org kind whose id is not a ref would mean a raw EVE
+// id reached routing. A zero owner delivers to explicit subscribers only, so an
+// unreadable key under-delivers rather than fanning out to a scope.
+func ownerFromKey(v any) models.Owner {
+	key := strings.TrimSpace(stringFromScalar(v))
+	if key == "" {
+		return models.Owner{}
 	}
-	return ""
+	owner, err := models.ParseOwnerKey(key)
+	if err != nil {
+		return models.Owner{}
+	}
+	return owner
 }
 
 func parseScopes(v any) DownwardScopes {
@@ -168,8 +171,7 @@ func CorporationRecipientMatchesDownward(clientAccountID string, scopes Downward
 // internal identities — refs and source ids — and are stripped before a payload
 // reaches a browser, which has no use for them and should not learn them.
 var routingOnlyFields = []string{
-	"corporationRef",
-	"allianceRef",
+	"ownerKey",
 	"scopes",
 	"sourceClientID",
 	"sourceSessionID",

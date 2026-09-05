@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 )
 
@@ -86,7 +87,8 @@ func (o *outboundDeliveryOutcome) hasSuppression() bool {
 }
 
 // deliverOutboundDocUpdate routes a NATS doc.update payload to local WebSocket clients.
-// Precedence: accountID → corporationRef → allianceRef → explicit doc subscribers.
+// The owner's kind selects the branch; a message stating no readable owner goes to
+// explicit doc subscribers.
 func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedDocID string, messageData []byte) outboundDeliveryOutcome {
 	decoded, err := outgoinglogic.DecodeOutboundMessage(messageData)
 	if err != nil {
@@ -101,14 +103,23 @@ func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedD
 	// decided from the untouched message, so no ref reaches a browser.
 	clientData := outgoinglogic.ClientPayload(messageData, s.entityCipher)
 
-	if decoded.Route.AccountID != "" {
+	switch decoded.Route.Owner.Kind {
+	case models.OwnerAccount:
 		return s.broadcastToAccountClients(ctx, collectionScopedDocID, clientData, decoded.Route)
-	}
-	if decoded.Route.CorporationRef != "" {
+	case models.OwnerCorporation:
 		return s.broadcastToCorporationScope(ctx, collectionScopedDocID, clientData, decoded)
-	}
-	if decoded.Route.AllianceRef != "" {
+	case models.OwnerAlliance:
 		return s.broadcastToAllianceScope(ctx, collectionScopedDocID, clientData, decoded)
+	case "":
+		// No readable owner: a delete without a preimage, or a message from a
+		// producer that stated none.
+	default:
+		// A kind the owner model accepts but this service cannot deliver to. Named
+		// rather than passed to explicit subscribers unremarked, which would report
+		// a near-empty fan-out as an ordinary one.
+		logs.WarnCtx(ctx, "outbound doc update: no delivery branch for owner kind",
+			"doc_id", collectionScopedDocID,
+			"owner_kind", string(decoded.Route.Owner.Kind))
 	}
 	return s.deliverToExplicitDocSubscribers(ctx, collectionScopedDocID, clientData, decoded.Route.SourceClientID, decoded.Route.SourceSessionID)
 }
@@ -117,11 +128,11 @@ func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedD
 func (s *Server) broadcastToAccountClients(ctx context.Context, docID string, messageData []byte, route outgoinglogic.RouteInfo) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "account",
-		AccountID:       route.AccountID,
+		AccountID:       route.Owner.ID,
 		SourceClientID:  route.SourceClientID,
 		SourceSessionID: route.SourceSessionID,
 	}
-	accountID := route.AccountID
+	accountID := route.Owner.ID
 	if accountID == "" {
 		logs.WarnCtx(ctx, "message missing accountID for account broadcast", "doc_id", docID)
 		return outboundDeliveryOutcome{RouteKind: "invalid"}
@@ -206,11 +217,11 @@ func copyClientIDSet(m map[string]bool) []string {
 func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "corporation",
-		CorporationRef:  decoded.Route.CorporationRef,
+		CorporationRef:  decoded.Route.Owner.ID,
 		SourceClientID:  decoded.Route.SourceClientID,
 		SourceSessionID: decoded.Route.SourceSessionID,
 	}
-	corporationRef := decoded.Route.CorporationRef
+	corporationRef := decoded.Route.Owner.ID
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
 	scopes := decoded.Scopes
@@ -271,11 +282,11 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "alliance",
-		AllianceRef:     decoded.Route.AllianceRef,
+		AllianceRef:     decoded.Route.Owner.ID,
 		SourceClientID:  decoded.Route.SourceClientID,
 		SourceSessionID: decoded.Route.SourceSessionID,
 	}
-	allianceRef := decoded.Route.AllianceRef
+	allianceRef := decoded.Route.Owner.ID
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
 	scopes := decoded.Scopes

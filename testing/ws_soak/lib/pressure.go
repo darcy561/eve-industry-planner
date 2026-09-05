@@ -1,9 +1,8 @@
 package soaklib
 
 import (
+	"eve-industry-planner/shared/models"
 	"fmt"
-
-	"eve-industry-planner/shared/wsplacement"
 )
 
 const (
@@ -123,13 +122,13 @@ func buildPressureIdentities(p pressurePlan) ([]clientIdentity, error) {
 		var corpID, allianceID int64
 		switch g % 3 {
 		case 0:
-			aff = wsplacement.TenantKeyAccount(fmt.Sprintf("soak-group-acct-%d", g+1))
+			aff = models.AccountOwner(fmt.Sprintf("soak-group-acct-%d", g+1)).Key()
 		case 1:
 			corpID = groupCorpBase + int64(g+1)
-			aff = wsplacement.TenantKeyCorporation(CorporationRef(corpID))
+			aff = models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(corpID)}.Key()
 		default:
 			allianceID = groupAllianceBase + int64(g+1)
-			aff = wsplacement.TenantKeyAlliance(AllianceRef(allianceID))
+			aff = models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(allianceID)}.Key()
 		}
 		for i := range p.GroupSize {
 			member := fmt.Sprintf("soak-group-%d-m-%d", g+1, i+1)
@@ -137,7 +136,7 @@ func buildPressureIdentities(p pressurePlan) ([]clientIdentity, error) {
 		}
 	}
 
-	fillAff := wsplacement.TenantKeyCorporation(CorporationRef(p.FillCorpID))
+	fillAff := models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(p.FillCorpID)}.Key()
 	for i := range p.FillHolders {
 		acct := fmt.Sprintf("soak-fill-%d", i+1)
 		out = append(out, next(cohortFill, acct, fillAff, p.FillCorpID, 0))
@@ -148,13 +147,13 @@ func buildPressureIdentities(p pressurePlan) ([]clientIdentity, error) {
 			acct := fmt.Sprintf("%s-%d", acctPrefix, i+1)
 			switch i % 3 {
 			case 0:
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyAccount(acct), 0, 0))
+				out = append(out, next(cohort, acct, models.AccountOwner(acct).Key(), 0, 0))
 			case 1:
 				corp := corpBase + int64(i+1)
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyCorporation(CorporationRef(corp)), corp, 0))
+				out = append(out, next(cohort, acct, models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(corp)}.Key(), corp, 0))
 			default:
 				alliance := allianceBase + int64(i+1)
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyAlliance(AllianceRef(alliance)), 0, alliance))
+				out = append(out, next(cohort, acct, models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(alliance)}.Key(), 0, alliance))
 			}
 		}
 	}

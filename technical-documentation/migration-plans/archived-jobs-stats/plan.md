@@ -2466,18 +2466,63 @@ have said.
 `explain`, and this changed all of their leading keys. The statistics specs were each confirmed to win
 their query before being written down; these have not had that treatment.
 
+**Four predecessors survived the first pass, and are now retired.** Retirement matches an index by exact
+name, and an index keeps its name through a `renameCollection` — so on the three collections renamed from
+`user_*`, the predecessors were still spelled `ujg_`, `uwd_` and `ujd_` while the entries retiring them
+had been written with the post-rename `a` prefix. `job_groups`, `watchlist_deprecated` and
+`job_documents` each carried an index on a field no document holds, maintained on every write and chosen
+by no query — the exact outcome `RetiredIndexes` exists to prevent, hidden because Ensure reported the
+replacements as created and said nothing about what it had not dropped. Both spellings are now listed.
+
+**A query hint had drifted the same way, and was failing every run.** The `accounts` maintenance queries
+hint an index by name, and the hint still said `users_meta_lastLoginAt_1` while `IndexSpecs` creates
+`accounts_meta_lastLoginAt_1` — the `users` → `accounts` rename moved the spec and left the caller. A
+hint Mongo cannot resolve fails the query with `BadValue` rather than falling back to a scan, so
+`cloud esi refresh maintenance` errored on every scheduled run. The constant now matches the spec, and
+the name is pinned from both modules so the pair cannot drift again. Found while checking service logs
+after a rebuild, not by a test — which is why the pinning tests exist now. Behaviour →
+[overlay.md](./overlay.md) § The indexes.
+
 ### What is not done
 
-`ChangeStreamMessage` still carries `AccountID`, `CorporationRef` and `AllianceRef`. The watcher reads
-`_meta.owner` correctly and then decomposes it back into those three fields, and `websocket/server`
-reassembles by testing which is non-empty. It works, but it is the second vocabulary surviving inside a
-message type — the thing this section otherwise removed. Collapsing them to one owner field is breaking
-between core and websocket, internal only, and both ship in the same window.
+~~`ChangeStreamMessage` still carries `AccountID`, `CorporationRef` and `AllianceRef`.~~ **Done.** The
+message carries one `ownerKey`, and the second vocabulary is gone from the last type holding it.
+Behaviour → [overlay.md](./overlay.md) § How a change reaches the right clients.
 
-`prepareRelease --dry-run` reports zero work for every owner-filtered step, because a dry run does not
-stamp. The operator's pre-flight check therefore cannot tell "nothing to do" from "the stamp has not run
-yet". Fixing it means either projecting those steps against the unstamped selector or stopping the dry
-run after the first required step; the choice is open.
+**The deprecated watchlist was missed by the cutover, and has since been brought in.** It was absent from
+`metaOwnerCollections`, so the stamp never reached it, while its index spec and its retired predecessor
+had both been written as though it had been converted — an owner index over documents that carried no
+owner. `websocket/sync` already filtered it on `_meta.owner`, so a resync of a watchlist matched nothing
+and reported no error. Its writer replaces the whole document, so the fix is in the writer rather than
+only in the release: `UpsertWatchlistDeprecated` builds the owner, `LoadWatchlistDeprecated` filters on it
+the way every other singleton read does, and the collection is stamped by `prepareRelease`. Behaviour →
+[overlay.md](./overlay.md) § How `_meta` is written.
+
+The lesson generalises past this one collection: a deprecated surface is exempt from new features, not
+from a change of shape. The test is whether anything still **reads** it.
+
+Wire compatibility: **migrate-required**, under the same `_meta` owner block row as every other scoped
+collection — the document gains an owner and the reads filter on it, so the stamp and the images deploy
+in one window. **Not** client-facing: the GET handler projects `groups` and `items` and never returns
+`_meta`, and the realtime routing key is derived from the owner rather than from the retired field, so
+nothing on the wire changes shape. `_meta.accountID` is left on the document for an operator to remove,
+as everywhere else.
+
+**Settled: the dry run names the stamp rather than reporting zero.** The problem was narrower than
+written here. Of the eight steps, three do not filter on the owner at all, the schema-maintenance and
+owner-stamp steps read the pre-stamp shape correctly, and the statistics copy counts without an owner
+filter — so "reports zero work for every owner-filtered step" overstated it. Two steps were affected,
+and the rebuild queue already refused rather than reporting zero: it errors with "the owner stamp has
+not run" when an empty owner list meets archived jobs that are present.
+
+That left the extras-label step as the one place a dry run reported `would stamp 0` while real work was
+owed, and it now takes the same guard and the same wording. Stopping the dry run after the first
+required step was rejected: it would discard the honest reports from five steps and the existing hard
+guard to fix one misleading line.
+
+The contract is now consistent — **every owner-filtered step either reports real work or names the
+stamp as the reason its filter matched nothing.** Behaviour → [overlay.md](./overlay.md) § The dry run
+tells an unstamped database from an idle one.
 
 ## Go modernization in scope
 
@@ -2506,6 +2551,13 @@ Re-run for Stage J, against its touch surface (`shared/archivestats/…`, `share
 them. One is reported in `api/helper/sso/jwt.go` — an `interface{}` that becomes `any` — but that
 package is a dependency of the scan rather than part of Stage J's surface, so it is left for
 whichever work touches SSO next rather than widened into this stage.
+
+Re-run for the watchlist and dry-run work, against its touch surface (`shared/mongo/…`,
+`core/commands/…`, `core/changestream/…`, and `deployment-tool/internal/dataplane/mongo/…`). One
+suggestion, in `core/changestream/resume.go`: `errors.As` with a declared variable becomes
+`errors.AsType[mongo.CommandError]`. [shared-planners](../shared-planners/plan.md) § Go modernisation
+in scope had it listed against a stage that has not started; the routing-log fix put the package in
+this work's surface, so it landed here rather than waiting. Nothing else in either module's scope.
 
 ## Stage status
 
@@ -2656,17 +2708,67 @@ carry no owner and every query filters on one, so they are inert until an operat
 this loses is revoked rows, which exist so a fold can tell "removed" from "never seen"; a wholesale
 rebuild does not read them, so nothing depends on them surviving it.
 
-**Start here: collapse `ChangeStreamMessage`'s three route fields.** It is the last piece of the second
-vocabulary, it is self-contained, and it is described in § The owner block landed as one cutover § What
-is not done. Settle the `--dry-run` honesty question first, because it changes what an operator can
-trust during the cutover itself.
+**Start here: the two verification steps below, then the window.** The code this project owns is
+complete — the owner block, the `ChangeStreamMessage` collapse, the dry-run honesty fix and the
+watchlist are all landed, and the second ownership vocabulary is gone. What stands between here and
+promotion is evidence, not implementation:
 
-**Two verification gaps to close before the window.** The two live-Mongo owner tests
-(`shared/mongo/live_meta_owner_survives_test.go`) compile and skip but have never been executed — they
-need the stack's `MONGO_*` in the environment and
-`EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1`. And `job_documents`' seven index
-specs have never been confirmed against real queries with `explain`, which now matters because their
-leading keys all changed.
+1. **`explain` the seven `job_documents` index specs** against the queries they serve. Their leading
+   keys all changed with the owner block and none has been confirmed to win its query.
+2. ~~Look at the failing live tests.~~ **Done** — every gated package passes, and running them found the
+   reconcile rota reconciling nothing. See § Handoff status.
+
+Then the cutover window itself: § Operational steps owed lists the commands, and
+[shared-planners](../shared-planners/plan.md) § Stage A owns the order and the backup.
+
+**The live tests now run, and the owner tests pass.** `scripts/testing/live-mongo.sh` builds a test
+binary for linux and runs it in a container on the stack network, so `mongo` resolves and the credentials
+come from the running stack's secrets. `config.MongoURL` carries `replicaSet=`, so the driver discards the
+seed host and connects to the name the set advertises — `mongo:27017` — which is why a host-side run
+cannot work whatever `MONGO_HOST` says. Running inside the network was chosen over a hosts entry on the
+developer's machine because it needs no per-machine setup and works the same way in CI.
+
+All three `live_meta_owner_survives_test.go` cases pass, including the watchlist one, as does
+`core/commands`' dry-run refusal test and every `core/changestream` live test.
+
+**Running them found a live defect the owner block left behind.** `StatisticsOwners` — which every
+reconcile derives its owner list from — matched and grouped on a **root** `owner` field, while the owner
+block moved every statistics document's owner to `_meta.owner`. On dev that is 9,279 rows carrying
+`_meta.owner` and none carrying the root field, so the aggregation returned an empty list and
+**the daily reconcile rota reconciled nothing**. It reported success each night having done no work,
+which is the silent-filter failure this project exists to close, surviving in the one query that grouped
+on the block rather than filtering on a leaf.
+
+`shared/mongo/scope.go` now carries `FieldMetaOwner` for the block alongside the two leaf paths, so a
+query that groups on the owner spells it from the same source as one that filters on it.
+
+`mongolive.ScratchAccount` had the same fault: it cleaned statistics rows on a root `accountID`, so a
+live test's rows survived into the next run. Both are fixed, and the fix took the live failures from
+eight to four.
+
+**Every gated live test now passes**, across `shared/mongo`, `core/commands`, `core/changestream`,
+`worker/tasks/archivedjobs`, `api/v1endpoints/archivedjobs`, `api/v1endpoints/statistics` and
+`api/helper`. Getting there took one production fix and a sweep of the fixtures, all of the same shape:
+a filter or a seed still written against the pre-owner document.
+
+| Fault | Where |
+|-------|-------|
+| Cleanup filters on a retired field, so scratch documents survived and later runs hit duplicate `_id` | `mongolive.ScratchAccount` and five test files |
+| Assertions read `_meta.accountID`, which nothing writes | four test files |
+| A seed writes `_meta.accountID` and no owner, so the upsert cannot match it and inserts onto its own `_id` | `live_parity_docshape_test.go` |
+| A clone copies its source's owner, leaving the scratch document owned by a real account | `cloneAsScratchAccount` |
+| `job.MetaData.Owner.ID = x` sets the id and leaves the kind empty, so every owner-scoped read misses it | nine sites across seven files |
+
+The last one is worth keeping in mind when writing a fixture: an owner is a pair, and `models.AccountOwner`
+is the only construction that fills both. A half-set owner passes every compile-time check and matches
+nothing.
+
+Documents written by earlier runs of these tests had to be cleared by hand — they carry `owner.kind: ""`,
+which the fixed cleanup filters do not match. A live database that has run these tests before may hold
+them.
+
+**Still owed:** `job_documents`' seven index specs have never been confirmed against real queries with
+`explain`, which matters because their leading keys all changed.
 
 **Stages H and I are independent of Stage C** and proceed while the corporation scope stays deferred;
 the page leaves the same corporation seams the archive dialogue does.
@@ -2742,8 +2844,9 @@ A third command is owed in the same window but belongs to
 [shared-planners](../shared-planners/plan.md): `tasks backfillMetaOwner` stamps `_meta.owner` on the
 documents that carry an account id, writing the owner block ahead of any code that reads it. It wants
 to run alongside step 1 rather than after step 2, because the rebuild derives from job documents and
-there is no reason to have it read them twice. It has run on dev — 9,591 documents across six
-collections, every stamped owner carrying the id its `_meta.accountID` already held.
+there is no reason to have it read them twice. It has run on dev — every stamped owner carrying the id
+its `_meta.accountID` already held, across the seven collections `metaOwnerCollections` names.
+`watchlist_deprecated` is the seventh and was added after the first run: see § What is not done.
 
 **The stamp is not durable until the model carries the field.** Four write paths `$set` a whole
 marshalled struct rather than named fields — `BulkUpsertJobs`, `BulkUpsertGroups`, the archive

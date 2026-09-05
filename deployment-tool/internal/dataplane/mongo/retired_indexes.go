@@ -137,6 +137,29 @@ var RetiredIndexes = []RetiredIndex{
 		Name:       "ajd_meta_accountID_groupID_1",
 		Why:        "documents are keyed by owner",
 	},
+	// An index keeps its own name through a collection rename, and retirement
+	// matches by exact name: a collection renamed from `user_*` carries
+	// predecessors spelled for the name it had. Both spellings are listed.
+	{
+		Collection: "job_groups",
+		Name:       "ujg_meta_accountID_1",
+		Why:        "documents are keyed by owner; name predates the collection rename",
+	},
+	{
+		Collection: "watchlist_deprecated",
+		Name:       "uwd_meta_accountID_1",
+		Why:        "documents are keyed by owner; name predates the collection rename",
+	},
+	{
+		Collection: "job_documents",
+		Name:       "ujd_meta_accountID_displayOnPlanner_1",
+		Why:        "documents are keyed by owner; name predates the collection rename",
+	},
+	{
+		Collection: "job_documents",
+		Name:       "ujd_meta_accountID_groupID_1",
+		Why:        "documents are keyed by owner; name predates the collection rename",
+	},
 	{
 		Collection: "job_documents",
 		Name:       "ajd_meta_accountID_marketOrders_order_id_1",

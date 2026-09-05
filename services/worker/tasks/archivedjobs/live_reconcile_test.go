@@ -44,7 +44,7 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
-		scope := bson.M{"accountID": reconcileScratchAccount}
+		scope := bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: reconcileScratchAccount}
 		_, _ = mongo.StatisticsRows.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.StatisticsTimeline.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.StatisticsTotals.Collection().DeleteMany(cctx, scope)

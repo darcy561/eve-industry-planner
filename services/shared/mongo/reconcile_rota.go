@@ -24,18 +24,15 @@ func (m *Mongo) StatisticsOwners(ctx context.Context, opts ...RetryOption) ([]mo
 	if m == nil || m.StatisticsRows == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	// Grouped rather than distinct on a field: a kind and an id only mean
-	// something together, and two distinct calls would pair them by position.
-	//
-	// Rows written before the owner existed carry none and are skipped. They are
-	// left in place for an operator to remove, so an owner must not be invented
-	// from their absence.
+	// Rows carrying no owner are skipped rather than counted: they are left in
+	// place for an operator to remove, so an owner must not be invented from
+	// their absence.
 	var groups []struct {
 		Owner models.Owner `bson:"_id"`
 	}
 	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.M{"owner": bson.M{"$exists": true}}}},
-		bson.D{{Key: "$group", Value: bson.M{"_id": "$owner"}}},
+		bson.D{{Key: "$match", Value: bson.M{FieldMetaOwnerKind: bson.M{"$exists": true}}}},
+		bson.D{{Key: "$group", Value: bson.M{"_id": "$" + FieldMetaOwner}}},
 	}
 	if err := m.StatisticsRows.Aggregate(ctx, pipeline, &groups, append(opts, WithOpName("StatisticsOwners"))...); err != nil {
 		return nil, fmt.Errorf("list statistics owners: %w", err)

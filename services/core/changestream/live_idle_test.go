@@ -2,6 +2,7 @@ package changestream
 
 import (
 	"context"
+	"eve-industry-planner/testing/mongolive"
 	"fmt"
 	"sync"
 	"testing"
@@ -20,17 +21,7 @@ const liveIdleColl = "_eip_changestream_live_idle"
 // resume tests: EIP_MONGO_PARITY_LIVE=1.
 func requireLiveWatchMongo(t *testing.T) *eipmongo.Mongo {
 	t.Helper()
-	requireLiveChangestreamMongo(t)
-	m, err := eipmongo.ConnectWatch(uint64(len(CollectionGroups())))
-	if err != nil {
-		t.Fatalf("ConnectWatch: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		m.Disconnect(ctx)
-	})
-	return m
+	return mongolive.RequireWatch(t, len(CollectionGroups()))
 }
 
 // An idle stream on the watch client stays alive past the point a client-wide operation

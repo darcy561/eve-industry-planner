@@ -28,7 +28,7 @@ func TestLive_docShape_jobUpsert(t *testing.T) {
 	t.Cleanup(func() {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
-		_, _ = coll.DeleteMany(cctx, bson.M{"_meta.accountID": parityScratchAccount})
+		_, _ = coll.DeleteMany(cctx, bson.M{eipmongo.FieldMetaOwnerID: parityScratchAccount})
 	})
 
 	sample, ok := findOneJob(t, ctx, mongo)
@@ -53,10 +53,12 @@ func TestLive_docShape_jobUpsert(t *testing.T) {
 		"deleted":          true,
 		"deletedTimeStamp": now.Add(-time.Hour),
 		"_meta": bson.M{
-			"accountID":    parityScratchAccount,
-			"lastModified": now.Add(-time.Hour),
-			"sessionID":    "old-sess",
-			"clientID":     "old-client",
+			// The owner, because the upsert filters on it: a seed without one is
+			// not matched, and the write becomes an insert onto its own _id.
+			models.MetaFieldOwner: mongolive.OwnerDoc(models.AccountOwner(parityScratchAccount)),
+			"lastModified":        now.Add(-time.Hour),
+			"sessionID":           "old-sess",
+			"clientID":            "old-client",
 		},
 	}
 	if _, err := coll.ReplaceOne(ctx, bson.M{"_id": jobID}, seed, replaceUpsert()); err != nil {
@@ -88,8 +90,9 @@ func TestLive_docShape_jobUpsert(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: _meta missing or wrong type %T", label, raw["_meta"])
 		}
-		if got, _ := meta["accountID"].(string); got != parityScratchAccount {
-			t.Fatalf("%s _meta.accountID=%q", label, got)
+		owner, _ := meta["owner"].(bson.M)
+		if got, _ := owner["id"].(string); got != parityScratchAccount {
+			t.Fatalf("%s _meta.owner.id=%q", label, got)
 		}
 		if got, _ := meta["sessionID"].(string); got != wantSess {
 			t.Fatalf("%s _meta.sessionID=%q want %q", label, got, wantSess)
@@ -160,12 +163,12 @@ func TestLive_docShape_preservingMetaUserAndSettings(t *testing.T) {
 		"shareCitadelNames":          true,
 		"refreshTokens":              bson.A{},
 		"_meta": bson.M{
-			"accountID":    userID,
-			"lastModified": seedMod,
-			"sessionID":    "seed-sess",
-			"clientID":     "seed-client",
-			"createdAt":    createdAt,
-			"lastLoginAt":  createdAt,
+			models.MetaFieldOwner: mongolive.OwnerDoc(models.AccountOwner(userID)),
+			"lastModified":        seedMod,
+			"sessionID":           "seed-sess",
+			"clientID":            "seed-client",
+			"createdAt":           createdAt,
+			"lastLoginAt":         createdAt,
 		},
 	}
 	if _, err := usersColl.ReplaceOne(ctx, bson.M{"_id": userID}, seedUser, replaceUpsert()); err != nil {
@@ -202,10 +205,10 @@ func TestLive_docShape_preservingMetaUserAndSettings(t *testing.T) {
 		"defaultCitadelBrokersFee":       1.0,
 		"defaultMaterialEfficiencyValue": 10,
 		"_meta": bson.M{
-			"accountID":    settingsID,
-			"lastModified": seedMod,
-			"sessionID":    "settings-seed-sess",
-			"clientID":     "settings-seed-client",
+			models.MetaFieldOwner: mongolive.OwnerDoc(models.AccountOwner(settingsID)),
+			"lastModified":        seedMod,
+			"sessionID":           "settings-seed-sess",
+			"clientID":            "settings-seed-client",
 		},
 	}
 	if _, err := settingsColl.ReplaceOne(ctx, bson.M{"_id": settingsID}, seedSettings, replaceUpsert()); err != nil {
@@ -296,8 +299,9 @@ func assertPreservingUserShape(
 	if !ok {
 		t.Fatalf("_meta type %T", raw["_meta"])
 	}
-	if got, _ := meta["accountID"].(string); got != userID {
-		t.Fatalf("accountID=%q", got)
+	owner, _ := meta["owner"].(bson.M)
+	if got, _ := owner["id"].(string); got != userID {
+		t.Fatalf("_meta.owner.id=%q", got)
 	}
 	if got, _ := meta["sessionID"].(string); got != wantSess {
 		t.Fatalf("sessionID=%q want %q (must preserve seed)", got, wantSess)
@@ -330,8 +334,9 @@ func assertPreservingSettingsShape(
 	if !ok {
 		t.Fatalf("_meta type %T", raw["_meta"])
 	}
-	if got, _ := meta["accountID"].(string); got != accountID {
-		t.Fatalf("accountID=%q", got)
+	ownerBlock, _ := meta["owner"].(bson.M)
+	if got, _ := ownerBlock["id"].(string); got != accountID {
+		t.Fatalf("_meta.owner.id=%q", got)
 	}
 	if got, _ := meta["sessionID"].(string); got != wantSess {
 		t.Fatalf("sessionID=%q want %q", got, wantSess)
@@ -364,8 +369,15 @@ func assertWatchlistShape(t *testing.T, raw bson.M, accountID string, now time.T
 	if !ok {
 		t.Fatalf("_meta type %T", raw["_meta"])
 	}
-	if got, _ := meta["accountID"].(string); got != accountID {
-		t.Fatalf("accountID=%q", got)
+	owner, ok := meta["owner"].(bson.M)
+	if !ok {
+		t.Fatalf("_meta.owner type %T", meta["owner"])
+	}
+	if got, _ := owner["kind"].(string); got != string(models.OwnerAccount) {
+		t.Fatalf("owner.kind=%q", got)
+	}
+	if got, _ := owner["id"].(string); got != accountID {
+		t.Fatalf("owner.id=%q", got)
 	}
 	if got, _ := meta["sessionID"].(string); got != sess {
 		t.Fatalf("sessionID=%q", got)

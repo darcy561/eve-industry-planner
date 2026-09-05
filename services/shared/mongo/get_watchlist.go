@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"eve-industry-planner/shared/models"
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -15,7 +17,7 @@ func (d *Docs) LoadWatchlistDeprecated(ctx context.Context, accountID string) (b
 	}
 	var raw bson.M
 	if err := Retry(ctx, "LoadWatchlistDeprecated", func() error {
-		return coll.FindOne(ctx, bson.M{"_id": accountID}).Decode(&raw)
+		return coll.FindOne(ctx, bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&raw)
 	}); err != nil {
 		return nil, err
 	}

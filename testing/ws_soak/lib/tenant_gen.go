@@ -2,12 +2,11 @@ package soaklib
 
 import (
 	"context"
+	"eve-industry-planner/shared/models"
 	"fmt"
 	"math/rand/v2"
 	"sync/atomic"
 	"time"
-
-	"eve-industry-planner/shared/wsplacement"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -540,7 +539,7 @@ func (w *tenantWorld) addMembers(n int, corpID, allID int64, rng *rand.Rand, opt
 			SessionID:  fmt.Sprintf("soak-fanout-sess-%d", w.next),
 			CorpID:     corpID,
 			AllianceID: allID,
-			Affinity:   wsplacement.TenantKeyAccount(acct),
+			Affinity:   models.AccountOwner(acct).Key(),
 			Cohort:     cohortGroup,
 		}
 		if corpID != 0 || allID != 0 {
@@ -554,18 +553,18 @@ func (w *tenantWorld) addMembers(n int, corpID, allID int64, rng *rand.Rand, opt
 
 func pickOrgAffinity(rng *rand.Rand, mix float64, accountID string, corpID, allID int64) string {
 	if mix <= 0 || rng.Float64() >= mix {
-		return wsplacement.TenantKeyAccount(accountID)
+		return models.AccountOwner(accountID).Key()
 	}
 	if allID != 0 && rng.IntN(2) == 0 {
-		return wsplacement.TenantKeyAlliance(AllianceRef(allID))
+		return models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(allID)}.Key()
 	}
 	if corpID != 0 {
-		return wsplacement.TenantKeyCorporation(CorporationRef(corpID))
+		return models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(corpID)}.Key()
 	}
 	if allID != 0 {
-		return wsplacement.TenantKeyAlliance(AllianceRef(allID))
+		return models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(allID)}.Key()
 	}
-	return wsplacement.TenantKeyAccount(accountID)
+	return models.AccountOwner(accountID).Key()
 }
 
 func pickSize(rng *rand.Rand, sizes []int) int {

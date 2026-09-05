@@ -23,14 +23,17 @@ func TestChangeStreamDocFieldStatus(t *testing.T) {
 }
 
 // Mirrors watcher extraction when v2 decodes nested docs as bson.D without DefaultDocumentM.
-func TestFullDocumentAsBsonD_extractsAccountID(t *testing.T) {
+func TestFullDocumentAsBsonD_readsMetaFields(t *testing.T) {
 	t.Parallel()
 	changeEvent := bson.M{
 		"operationType": "insert",
 		"fullDocument": bson.D{
 			{Key: "_id", Value: "job-1"},
 			{Key: "_meta", Value: bson.D{
-				{Key: "accountID", Value: "acct-1"},
+				{Key: "owner", Value: bson.D{
+					{Key: "kind", Value: "account"},
+					{Key: "id", Value: "acct-1"},
+				}},
 				{Key: "clientID", Value: "client-1"},
 			}},
 		},
@@ -51,8 +54,8 @@ func TestFullDocumentAsBsonD_extractsAccountID(t *testing.T) {
 	if meta == nil {
 		t.Fatal("_meta map is nil")
 	}
-	if meta["accountID"] != "acct-1" {
-		t.Fatalf("accountID=%#v", meta["accountID"])
+	if owner := subDocumentToMap(meta["owner"]); owner == nil || owner["id"] != "acct-1" {
+		t.Fatalf("owner=%#v", meta["owner"])
 	}
 	if meta["clientID"] != "client-1" {
 		t.Fatalf("clientID=%#v", meta["clientID"])

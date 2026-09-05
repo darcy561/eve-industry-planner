@@ -45,7 +45,7 @@ func TestLive_savingAJob_keepsTheOwnerOnItsMeta(t *testing.T) {
 	owner := models.AccountOwner(metaOwnerScratchAccount)
 	if _, err := mongo.JobDocuments.Collection().UpdateOne(ctx,
 		bson.M{"_id": jobID},
-		bson.M{"$set": bson.M{"_meta.owner": bson.M{"kind": string(owner.Kind), "id": owner.ID}}},
+		bson.M{"$set": bson.M{eipmongo.FieldMetaOwner: mongolive.OwnerDoc(owner)}},
 	); err != nil {
 		t.Fatalf("stamp the owner: %v", err)
 	}
@@ -129,5 +129,57 @@ func TestLive_rewritingAStatisticsRow_keepsItFindableByOwner(t *testing.T) {
 	}
 	if rows[0].Owner != owner {
 		t.Fatalf("owner = %+v, want %+v", rows[0].Owner, owner)
+	}
+}
+
+// A saved watchlist must be findable by its owner afterwards.
+//
+// Deprecated means the collection takes no new features, not that nothing reads
+// it: the API serves it, the changestream carries it, and the websocket resync
+// filters it on `_meta.owner` — so a document without one is fetched by nothing
+// and reports no error. Its writer replaces the whole document, so the owner has
+// to be written on every save rather than stamped once.
+//
+// Requires EIP_MONGO_PARITY_LIVE=1.
+func TestLive_savingAWatchlist_keepsItFindableByOwner(t *testing.T) {
+	mongo := mongolive.Require(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	t.Cleanup(func() {
+		_, _ = mongo.WatchlistDeprecated.Collection().DeleteOne(
+			context.Background(), bson.M{"_id": metaOwnerScratchAccount})
+	})
+
+	now := time.Now().UTC()
+	if _, err := mongo.WatchlistDeprecated.UpsertWatchlistDeprecated(
+		ctx, metaOwnerScratchAccount, []any{}, []any{}, now, "", "",
+	); err != nil {
+		t.Fatalf("save the watchlist: %v", err)
+	}
+
+	// A second save replaces the document, which is where a stamped owner would
+	// be lost if the writer did not carry it.
+	if _, err := mongo.WatchlistDeprecated.UpsertWatchlistDeprecated(
+		ctx, metaOwnerScratchAccount, []any{}, []any{}, now, "", "",
+	); err != nil {
+		t.Fatalf("save the watchlist again: %v", err)
+	}
+
+	owner := models.AccountOwner(metaOwnerScratchAccount)
+	found, err := mongo.WatchlistDeprecated.Collection().CountDocuments(ctx, bson.M{
+		eipmongo.FieldMetaOwnerKind: owner.Kind,
+		eipmongo.FieldMetaOwnerID:   owner.ID,
+	})
+	if err != nil {
+		t.Fatalf("count by owner: %v", err)
+	}
+	if found != 1 {
+		t.Fatalf("owner-scoped count = %d, want 1 — the save left the document unfindable", found)
+	}
+
+	// The read path filters on the owner too, so it has to return the document.
+	if _, err := mongo.WatchlistDeprecated.LoadWatchlistDeprecated(ctx, metaOwnerScratchAccount); err != nil {
+		t.Fatalf("load the watchlist back: %v", err)
 	}
 }

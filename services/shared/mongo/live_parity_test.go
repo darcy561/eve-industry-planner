@@ -3,6 +3,7 @@ package mongo_test
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/testing/mongolive"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,7 +66,7 @@ func TestLive_realDocs_AsDocumentM_andUnmarshal(t *testing.T) {
 
 func loadParitySampleDocs(t *testing.T) []bson.M {
 	t.Helper()
-	if os.Getenv("EIP_MONGO_PARITY_LIVE") == "1" {
+	if mongolive.Enabled() {
 		return loadLiveSampleDocs(t)
 	}
 	return loadFixtureSampleDocs(t)
@@ -76,15 +77,7 @@ func loadLiveSampleDocs(t *testing.T) []bson.M {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	mongo, err := eipmongo.ConnectPrimary()
-	if err != nil {
-		t.Fatalf("live connect: %v", err)
-	}
-	t.Cleanup(func() { mongo.Disconnect(ctx) })
-
-	if err := mongo.Ping(ctx); err != nil {
-		t.Fatalf("ping: %v", err)
-	}
+	mongo := mongolive.Require(t)
 
 	limit := int64(20)
 	docsHandles := []*eipmongo.Docs{

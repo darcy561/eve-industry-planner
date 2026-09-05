@@ -42,7 +42,7 @@ func InactiveAccountPlannerCleanup(deps contract.Dependencies, jobName string) c
 			SetProjection(bson.M{"_id": 1}).
 			SetSort(bson.D{{Key: "_id", Value: 1}}).
 			SetLimit(int64(maxAccountsPublishedPerCron)).
-			SetHint(usersMetaLastLoginAtIndexName)
+			SetHint(accountsMetaLastLoginAtIndexName)
 
 		mongo := deps.Mongo
 		col := mongo.Users.Collection()

@@ -74,7 +74,7 @@ func contributedRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jo
 
 func seedJob(jobID string) models.Job {
 	job := models.Job{JobID: jobID, ItemID: 34, JobType: 1, Name: "Tritanium"}
-	job.MetaData.Owner.ID = restoreScratchAccount
+	job.MetaData.Owner = models.AccountOwner(restoreScratchAccount)
 	return job
 }
 
@@ -171,7 +171,7 @@ func TestLive_restoreReturnsTheJobToItsGroup(t *testing.T) {
 		IncludedJobIDs: []string{"job-restore-grouped"},
 		ArchivedJobIDs: []string{"job-restore-grouped"},
 	}
-	group.MetaData.Owner.ID = restoreScratchAccount
+	group.MetaData.Owner = models.AccountOwner(restoreScratchAccount)
 	if _, err := mongo.Groups.UpsertStructPreservingMeta(ctx, group, group.GroupID); err != nil {
 		t.Fatalf("seed group: %v", err)
 	}

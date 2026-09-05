@@ -2,11 +2,11 @@ package soaklib
 
 import (
 	"context"
+	"eve-industry-planner/shared/models"
 	"fmt"
 	"time"
 
 	apihelperauth "eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/shared/wsplacement"
 
 	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/redis/go-redis/v9"
@@ -64,17 +64,17 @@ func buildIdentities(clients, accounts int, mode affinityMode, corpID, allianceI
 		}
 		switch mode {
 		case affinityAccount:
-			id.Affinity = wsplacement.TenantKeyAccount(accountID)
+			id.Affinity = models.AccountOwner(accountID).Key()
 		case affinityCorp:
 			if corpID == 0 {
 				return nil, fmt.Errorf("affinity=corp requires -corp > 0")
 			}
-			id.Affinity = wsplacement.TenantKeyCorporation(CorporationRef(corpID))
+			id.Affinity = models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(corpID)}.Key()
 		case affinityAlliance:
 			if allianceID == 0 {
 				return nil, fmt.Errorf("affinity=alliance requires -alliance > 0")
 			}
-			id.Affinity = wsplacement.TenantKeyAlliance(AllianceRef(allianceID))
+			id.Affinity = models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(allianceID)}.Key()
 		}
 		out[i] = id
 	}

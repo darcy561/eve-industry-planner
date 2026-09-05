@@ -3,7 +3,7 @@ package soaklib
 import (
 	"fmt"
 
-	"eve-industry-planner/shared/wsplacement"
+	"eve-industry-planner/shared/models"
 )
 
 type cohortKind string
@@ -47,7 +47,7 @@ func buildLimitsIdentities(fillN, softDivertN, fullProbeN int, fillCorpID int64)
 		}
 	}
 
-	fillAff := wsplacement.TenantKeyCorporation(CorporationRef(fillCorpID))
+	fillAff := models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(fillCorpID)}.Key()
 	for i := range fillN {
 		acct := fmt.Sprintf("soak-fill-%d", i+1)
 		out = append(out, next(cohortFill, acct, fillAff, fillCorpID, 0))
@@ -58,13 +58,13 @@ func buildLimitsIdentities(fillN, softDivertN, fullProbeN int, fillCorpID int64)
 			acct := fmt.Sprintf("%s-%d", acctPrefix, i+1)
 			switch i % 3 {
 			case 0:
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyAccount(acct), 0, 0))
+				out = append(out, next(cohort, acct, models.AccountOwner(acct).Key(), 0, 0))
 			case 1:
 				corp := corpBase + int64(i+1)
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyCorporation(CorporationRef(corp)), corp, 0))
+				out = append(out, next(cohort, acct, models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(corp)}.Key(), corp, 0))
 			default:
 				alliance := allianceBase + int64(i+1)
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyAlliance(AllianceRef(alliance)), 0, alliance))
+				out = append(out, next(cohort, acct, models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(alliance)}.Key(), 0, alliance))
 			}
 		}
 	}
@@ -86,18 +86,18 @@ func filterCohort(ids []clientIdentity, cohort cohortKind) []clientIdentity {
 
 func countAffinityKinds(ids []clientIdentity) (accounts, corps, alliances int) {
 	for _, id := range ids {
-		switch {
-		case hasPrefix(id.Affinity, wsplacement.TenantPrefixAccount):
+		owner, err := models.ParseOwnerKey(id.Affinity)
+		if err != nil {
+			continue
+		}
+		switch owner.Kind {
+		case models.OwnerAccount:
 			accounts++
-		case hasPrefix(id.Affinity, wsplacement.TenantPrefixCorporation):
+		case models.OwnerCorporation:
 			corps++
-		case hasPrefix(id.Affinity, wsplacement.TenantPrefixAlliance):
+		case models.OwnerAlliance:
 			alliances++
 		}
 	}
 	return accounts, corps, alliances
-}
-
-func hasPrefix(s, prefix string) bool {
-	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }

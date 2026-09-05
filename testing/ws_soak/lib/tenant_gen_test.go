@@ -2,12 +2,11 @@ package soaklib
 
 import (
 	"context"
+	"eve-industry-planner/shared/models"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"eve-industry-planner/shared/wsplacement"
 )
 
 func TestTenantGenEventShapesAndCap(t *testing.T) {
@@ -192,7 +191,7 @@ func TestTenantGenAffinityMix(t *testing.T) {
 	var org, shared int
 	for _, id := range topo.All {
 		if id.CorpID == 0 && id.AllianceID == 0 {
-			if id.Affinity != wsplacement.TenantKeyAccount(id.AccountID) {
+			if id.Affinity != models.AccountOwner(id.AccountID).Key() {
 				t.Fatalf("solo affinity: %q", id.Affinity)
 			}
 			continue

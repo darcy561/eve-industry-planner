@@ -2,7 +2,9 @@ package soaklib
 
 import (
 	"context"
+	"eve-industry-planner/shared/models"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -29,6 +31,21 @@ type DocUpdate struct {
 	AllianceRef          string
 	ScopeAccountIDs      []string
 	ScopeCorporationRefs []string
+}
+
+// owner is the document owner these routing fields describe, in the precedence
+// the harness assigns. The wire carries one owner key, so the three fields are
+// resolved here rather than published side by side.
+func (d DocUpdate) owner() models.Owner {
+	switch {
+	case strings.TrimSpace(d.AccountID) != "":
+		return models.AccountOwner(d.AccountID)
+	case strings.TrimSpace(d.CorporationRef) != "":
+		return models.Owner{Kind: models.OwnerCorporation, ID: strings.TrimSpace(d.CorporationRef)}
+	case strings.TrimSpace(d.AllianceRef) != "":
+		return models.Owner{Kind: models.OwnerAlliance, ID: strings.TrimSpace(d.AllianceRef)}
+	}
+	return models.Owner{}
 }
 
 // Publisher injects doc.update traffic for fan-out soaks.

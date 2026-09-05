@@ -1,9 +1,8 @@
 package soaklib
 
 import (
+	"eve-industry-planner/shared/models"
 	"testing"
-
-	"eve-industry-planner/shared/wsplacement"
 )
 
 func TestBuildFanoutTopologyMixedGraph(t *testing.T) {
@@ -31,7 +30,7 @@ func TestBuildFanoutTopologyMixedGraph(t *testing.T) {
 		if id.CorpID != 0 || id.AllianceID != 0 {
 			t.Fatalf("solo has org: %+v", id)
 		}
-		if id.Affinity != wsplacement.TenantKeyAccount(id.AccountID) {
+		if id.Affinity != models.AccountOwner(id.AccountID).Key() {
 			t.Fatalf("solo aff=%q", id.Affinity)
 		}
 	}

@@ -40,7 +40,7 @@ func handEnteredJob(jobID string, soldOn time.Time) models.Job {
 		Amount:        5000,
 		Date:          soldOn.Format(time.RFC3339),
 	}}
-	job.MetaData.Owner.ID = filingScratchAccount
+	job.MetaData.Owner = models.AccountOwner(filingScratchAccount)
 	job.MetaData.ArchivedAt = soldOn
 	return job
 }

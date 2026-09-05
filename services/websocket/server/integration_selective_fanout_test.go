@@ -79,7 +79,7 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	payload, _ := json.Marshal(map[string]any{
 		"collection": "jobs",
 		"docID":      "j1",
-		"accountID":  "acct-host",
+		"ownerKey":   "account:acct-host",
 	})
 	subj := eipnats.DocUpdateSubject("account:acct-host", "jobs", "j1")
 	if _, err := js.Publish(ctx, subj, payload); err != nil {
@@ -88,7 +88,7 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	otherPayload, _ := json.Marshal(map[string]any{
 		"collection": "jobs",
 		"docID":      "j2",
-		"accountID":  "acct-other",
+		"ownerKey":   "account:acct-other",
 	})
 	if _, err := js.Publish(ctx, eipnats.DocUpdateSubject("account:acct-other", "jobs", "j2"), otherPayload); err != nil {
 		t.Fatal(err)

@@ -1406,6 +1406,17 @@ to the queue entry and the task stops, which is what lets a read tell the user t
 stale rather than showing a recalculation that never resolves. The entry stays queued, because the
 work is still outstanding.
 
+### One place names the owner block, and one names its leaves
+
+`shared/mongo/scope.go` holds three paths: `FieldMetaOwnerKind` and `FieldMetaOwnerID` for a filter, and
+`FieldMetaOwner` for the block itself. A query that groups on the owner needs the block, because a kind
+and an id only mean something together and grouping on one of them alone would pair them by position.
+
+The reason all three live in one file is that a wrong path here is invisible: it matches nothing, reports
+no error, and the compiler cannot see it. The reconcile rota was written against a root `owner` field and
+kept working right up until the owner moved into `_meta` — after which it returned an empty owner list
+every night and reported success. Nothing distinguishes "no owners are due" from "the path is wrong".
+
 ### The rota corrects drift without being asked
 
 `cron.dispatchStatisticsReconciles` runs every fifteen minutes and takes the owners whose last
@@ -1804,6 +1815,33 @@ The with-meta form must write on every upsert, not on insert: a rebuild would ot
 once and never correct it, and a row whose owner is wrong is invisible to every query and reports no
 error.
 
+**The deprecated watchlist is a third case, and it is a replace.** `UpsertWatchlistDeprecated` writes the
+whole document with `ReplaceOne`, so its `_meta` is built by the writer on every save rather than patched.
+It builds the owner from the account id it is given, which is what makes the stamp durable: a migration
+alone would have been undone by the next save. The document is a singleton whose `_id` **is** the account
+id, so the owner it writes always matches the id it is stored under.
+
+Deprecated meant "takes no new features", not "is not read". The API serves it, the changestream carries
+it, and the websocket resync filters it on `_meta.owner` — so before this it was fetched by a filter no
+document could satisfy, silently. A collection stops needing an owner when nothing reads it, which is a
+different test from whether anything still writes it.
+
+Two choices in this, both taken mid-implementation:
+
+**The writer converts, rather than the writer being converted to the preserving form.** Reshaping
+`UpsertWatchlistDeprecated` into an `UpsertStructPreservingMeta` caller would have matched the other
+job-shaped writers and removed the third case entirely. It was not done: the document has no Go model —
+the handler passes `groups` and `items` through as `any` and the reader returns a raw `bson.M` — so the
+preserving form would have meant inventing a model for a collection that takes no new features, to
+delete a `ReplaceOne` that is correct once it writes the owner. The cheaper change is the one that makes
+the shape right; modelling it is work the deprecation does not justify.
+
+**`LoadWatchlistDeprecated` gained the owner filter although `_id` alone was already sufficient.** The
+`_id` **is** the account id, so the filter adds no selectivity. It was added anyway, to match `accounts`
+and `account_settings`, which are the same singleton shape and already filter on both: a reader that is
+the sole exception is the one that gets missed when the rule changes. The cost is that the read depends
+on the stamp, which is safe only because both land in one window with nothing serving.
+
 ### What a client sees
 
 Nothing. `Owner` carries `json:"-"`, so no owner — and therefore no corporation or alliance ref — reaches
@@ -1821,15 +1859,204 @@ Superseded index names are listed in `RetiredIndexes` and dropped before the spe
 only ever creates, so a reshaped index under a new name conflicts with nothing and both would otherwise
 survive — the old one maintained on every write and chosen by no query.
 
-### Where ownership is still said twice
+**A retired entry names the index, not the collection it now sits in.** Retirement matches by exact
+name, and an index carries its own name through a `renameCollection`. So the predecessors on the three
+collections renamed from `user_*` arrived spelled `ujg_`, `uwd_` and `ujd_`, while their retired entries
+had been written with the post-rename `a` prefix: four entries that matched nothing, leaving
+`job_groups`, `watchlist_deprecated` and `job_documents` each carrying an index on a field no document
+holds. Both spellings are now listed. When a collection rename and an index reshape land together, the
+retired name is the one the index was created under.
 
-`ChangeStreamMessage` carries `AccountID`, `CorporationRef` and `AllianceRef`. The watcher reads
-`_meta.owner` and decomposes it into those three; `websocket/server` reassembles by testing which is
-non-empty. This is the one surface where the old vocabulary survives.
+**An index a query hints must exist, and the name is spelled in two modules.** `SetHint` names an index
+rather than describing one, and Mongo answers a hint it cannot resolve with `BadValue` — the query fails
+outright rather than falling back to a scan. The `accounts` maintenance queries hint
+`accounts_meta_lastLoginAt_1`, which `IndexSpecs` creates; services cannot import the Deployment Tool, so
+the name is repeated in `core/scheduler/maintenance/mongo_hints.go` and pinned from both sides by
+`TestHintNamesMatchTheIndexSpecs` and `TestIndexHintNamesAreSpelledAsSpecced`. Renaming or retiring a
+hinted index means changing both files together.
+
+### What the publish log reports
+
+`change stream event published to NATS` logs the `account_id` the message carries, which is derived from
+the document's owner by `routeField`. The watcher also keeps a locally recovered account id, read from a
+root `accountID` or the retired `_meta` field: that is a **fallback** for a delete with no preimage, where
+there is no document left to state an owner. Only the skip warning logs it, beside the owner, because
+there the question is why no tenant could be built.
+
+Logging the fallback on the success line would report empty for every document that carries an owner —
+which is now all of them — while the message published beside it carried the right value.
+
+### How a change reaches the right clients
+
+`ChangeStreamMessage` carries one `ownerKey` — the document's owner as `kind:id`, the same string the
+NATS subject already uses as its tenant. The watcher reads `_meta.owner`, and the key travels intact to
+`websocket/server`, which parses it back into an owner and switches on its **kind** to pick a delivery
+branch: account, corporation, alliance, or explicit subscribers when there is no readable owner.
+
+The key is parsed rather than split. `ParseOwnerKey` refuses an unknown kind, an empty id, and — for the
+org kinds — an id that is not an entity ref, so a raw EVE id arriving here yields the zero owner and
+routes to explicit subscribers instead of fanning out to a scope it should not reach. An unroutable
+message therefore under-delivers rather than over-delivers.
+
+The switch separates the two reasons a message reaches no scope. An **empty** kind is ordinary: a delete
+without a preimage states no owner. A kind the owner model accepts but this service has no branch for is
+**logged**, because it would otherwise report a near-empty fan-out as a normal one. `planner` is that
+case today — a valid kind with no delivery branch until shared planners add one — and it is the reason
+the branch exists rather than a `default` that silently swallows it.
+
+The owner key is routing metadata for every kind, so it is stripped from the client payload alongside
+the scopes and the source ids. Nothing in the SPA reads it: the server decides who a message reaches,
+and a client that has been handed one has already been chosen. `applyDocumentMessage` dispatches on
+`collection`, `operationType` and `docID` only.
+
+One consequence worth knowing: an account-scoped payload now re-encodes on its way to a client, where
+previously it passed through untouched because its routing field was the one that was not stripped.
+
+**Core and websocket are not a synchronous pair.** `doc-update-stream` keeps messages for an hour, so a
+message published by one shape can be consumed by the other long after the deploy that changed it. Both
+services therefore ship together, inside the window where nothing is serving — which is also why the
+short retention is safe: a replica absent that long has no clients waiting on its backlog. Rolling one
+service ahead of the other would leave the stream holding messages the consumer routes to nobody.
+
+**What covers it.** Both ends of the key are tested, on the property that matters rather than on the
+field: what a document's owner resolves to, and what a message's key routes to.
+
+| Test | Holds |
+|------|-------|
+| `TestAccountBroadcastReachesOnlyTheOwningAccount` | Every connection of the owning account receives it and no connection of any other does — the property the owner exists for |
+| `TestAccountBroadcastKeysOnTheOwnerNotTheDocument` | Two accounts holding the same document id stay apart |
+| `TestUnreadableOwnerDoesNotBroadcast` | An unroutable key delivers to explicit subscribers only, never a broadcast |
+| `TestAccountBroadcastRefusesAClientIndexedUnderAnotherAccount` | A stale index entry does not hand one account's document to another's socket |
+| `TestMixedOwnerKindsEachReachOnlyTheirOwn` | Account, corporation and alliance messages on one server: each reaches its own holders and no other kind's |
+| `TestOneClientHoldingSeveralKindsReceivesEach` | One connection holding an account, a corporation and an alliance receives all three and none it does not hold |
+| `TestCorporationScopeNarrowedToAccounts` | A corporation message narrowed to named accounts skips corporation members outside the list |
+| `TestCorporationScopeRefusesAClientLeftInThePool` | A client still pooled under a corporation it no longer holds is refused |
+| `TestOwnerFromDocument` | The producer's owner, including that an org kind carrying a raw EVE id is refused rather than routed |
+| `TestOwnerKeyMatchesTheSubjectTenant` | The message key and the subject tenant are the same string for every kind |
+| `TestGroupsRouteFromTheRootAccountID` | A group, which names its account at the root rather than in `_meta`, still routes |
+| `TestDecodeOutboundMessage_refusesAnOwnerKeyItCannotTrust` | The consumer refuses an unknown kind, an empty id, a key with no separator, and a raw id for an org kind |
+| `TestClientPayloadStripsTheOwnerKeyOnAccountScope` | The key does not reach a browser on any kind, not only the org ones |
+| `TestOutboundDocPartitionKey*` | One owner's messages share a shard and two owners do not, which is what preserves per-owner ordering |
+
+Each was confirmed to fail against the defect it describes before being kept: removing the owner
+validation, and partitioning by document instead of owner.
+
+**Every kind is delivered by an index and a second gate, and it takes both to leak.**
+
+| Kind | Recipients from | Second gate |
+|------|-----------------|-------------|
+| account | `userConnections[accountID]` | the client's own `AccountID` must match |
+| corporation | `corpRefToClients[ref]` | the ref must be in the client's granted `Scopes.CorporationRefs` |
+| alliance | `allianceRefToClients[ref]` | the same, against `Scopes.AllianceRefs` |
+
+The pairing is deliberate: an index is built when a client connects or its scopes change, so it can be
+stale by the time a message arrives, and the gate is what makes the stale entry harmless. Breaking
+either alone changes nothing a user sees — fanning the account branch out to every connected client
+still delivers nothing wrong, because the account match refuses the strangers. Only removing both
+leaks, which is worth knowing before treating either as redundant: deleting one leaves a system that
+still passes its tests while resting on a single check.
+
+The org gates need a test that makes the two disagree, because a client normally only lands in a ref's
+pool by holding that ref — `TestCorporationScopeRefusesAClientLeftInThePool` is that case, and the only
+one covering the granted-scope ceiling.
+
+**How far the live coverage reaches.** The path is covered in two halves, with a seam between them:
+
+| Segment | Covered by |
+|---------|-----------|
+| Mongo → change stream cursor | `core/changestream/live_*_test.go` — real inserts, a real `Watch`, resume tokens and idle survival |
+| Mongo → published message | `TestLive_Publish_ownerReachesTheSubscriberFromTheDocument` — a real insert, the running core's watcher, a real NATS subscriber |
+| NATS → browser | `websocket/server/integration_*_test.go` — real JetStream consumers, real sockets, real clients |
+
+The middle row closes a seam that was open until it was written. The websocket integration tests build
+their own payloads, so they assert against a shape they invent rather than one the watcher produced —
+which is why three of them still carried the pre-collapse field names and kept passing. The live publish
+test reads the message the watcher actually emitted and checks both the owner key and the subject
+against the owner the inserted document stated, so the two sides can no longer drift apart unnoticed.
+
+**It asserts on the stack's core, not a watcher it starts.** A test that starts its own watcher while
+core is running proves nothing: both watch the same collections, so the test passes on core's message
+whatever the second watcher produced. That was the first shape of this test, and it passed with the
+owner key blanked — which is the failure mode the test exists to catch.
+
+Live tests run through `scripts/testing/live-mongo.sh`, which builds for linux and runs the binary in a
+container on the stack network — `config.MongoURL` carries `replicaSet=`, so the driver connects to the
+name the replica set advertises and no host-side run can reach it.
+
+### The dry run tells an unstamped database from an idle one
+
+`tasks prepareRelease -dry-run` is the operator's pre-flight, and it is run at the *start* of the
+cutover window — before the owner stamp. Any step that filters on `_meta.owner` therefore matches
+nothing at that moment, and a report of zero means "the stamp has not run yet", not "there is nothing
+to do". The two read identically, and the second is the one an operator acts on.
+
+Every owner-filtered step now either reports real work or names the stamp as the reason it found none:
+
+| Step | Pre-stamp dry run |
+|------|-------------------|
+| complete outstanding schema maintenance | counts by `schemaVersion`; no owner filter, unaffected |
+| stamp the owner onto every scoped document | selects on the owner's *absence*, so it reports the true figure |
+| drop retired change stream resume tokens | Redis keys; no owner filter |
+| drop unaddressable rebuild queue entries | parses queue ids; no owner filter |
+| stamp extras category labels onto jobs | refuses: `N job(s) name no owner: the owner stamp has not run` |
+| copy the statistics documents before the rebuild | counts every document; "is empty" is true either way |
+| drop retired statistics fields | selects on field existence; no owner filter |
+| queue every account for rebuild | refuses: `N archived job(s) name no owner: the owner stamp has not run` |
+
+The two refusals share their wording deliberately. Both are the same fault — a step reading documents
+the stamp has not reached — and an operator who has seen one recognises the other.
+
+The check costs nothing on a healthy database. It runs only when a dry run has already found zero work,
+and asks whether any document the step reads carries an account id and no owner; on a stamped database
+that count is zero and the step reports as before. A real run is untouched: it happens after the stamp,
+where the filter matches.
+
+Reporting zero here is worse than failing, which is why these two stop rather than warn. The steps that
+follow do not fail when a step they depend on has silently done nothing — they succeed against
+documents it never prepared, report zero themselves, and end the release on a green line having
+migrated nothing.
 
 ## Missing live SoT found during this work
 
 Drafts for documentation that should exist but does not, written here first and promoted when the
 project closes.
 
-_None recorded yet._
+### Live Mongo tests — draft for `testing/harness.md`
+
+`testing/mongolive` is absent from that topic's coverage map, and how to run a gated test is written
+down nowhere. Promote this into [testing/harness.md](../../testing/harness.md) — a row in the
+**Entrypoints** table, a row in the **Coverage map**, and the section below.
+
+**Coverage map row.** `testing/mongolive` — **ops** (live stack) — the gate
+(`EIP_MONGO_PARITY_LIVE`), the two connections a live test can want, and `ScratchAccount`, which clears
+an account's archive, statistics and planner documents at both ends of a test.
+
+**Entrypoints row.** Live Mongo tests — `./scripts/testing/live-mongo.sh [package] [pattern]` — needs a
+live stack.
+
+**Section.** Tests gated on `EIP_MONGO_PARITY_LIVE=1` run against the stack's own database. They connect
+through `testing/mongolive`, which owns the gate and both client shapes so no test spells either itself:
+
+| Helper | Use |
+|--------|-----|
+| `Require(t)` | The ordinary client. Skips when the gate is closed, pings before returning, disconnects on cleanup |
+| `RequireWatch(t, streams)` | The change stream client, built without a client-wide operation timeout — a long-lived awaitable cursor would otherwise be ended by it. `streams` sizes the pool |
+| `Enabled()` | For a test with something to do either way: live documents when reachable, fixtures when not |
+| `Skip(t)` | The gate alone, for a test that reaches live data by its own path |
+| `ScratchAccount(t, m, id)` | Clears an account's documents now and at test end, so a run that died before cleanup cannot poison the next |
+| `OwnerMeta(owner)` / `OwnerDoc(owner)` | The `_meta` block, and the owner block inside it, for a fixture writing BSON directly. They take an `models.Owner` so a caller cannot supply an id without a kind, and do not validate — a test asserting what an unreadable owner does has to be able to write one |
+
+**They run in a container, not on the host.** The Mongo URL carries `replicaSet=`, so the driver treats
+the host it is given as a seed, asks the replica set for its members, and connects to the name they
+advertise — `mongo:27017`. That name resolves on the stack network and nowhere else, whatever
+`MONGO_HOST` says. `scripts/testing/live-mongo.sh` builds a linux test binary and runs it on `eip-core`,
+taking credentials from the running stack's secrets:
+
+```bash
+./scripts/testing/live-mongo.sh                              # shared/mongo
+./scripts/testing/live-mongo.sh ./core/commands              # another package
+./scripts/testing/live-mongo.sh ./shared/mongo Watchlist     # one test
+```
+
+Running inside the network rather than mapping `mongo` to loopback in a developer's hosts file is
+deliberate: it needs no per-machine setup and works the same way in CI.

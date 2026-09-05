@@ -42,9 +42,7 @@ type ChangeStreamMessage struct {
 	OperationType           string         `json:"operationType"`
 	SourceClientID          string         `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
 	SourceSessionID         string         `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
-	AccountID               string         `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
-	CorporationRef          string         `json:"corporationRef,omitempty"`  // Org routing when accountID is absent (see websocket dispatch)
-	AllianceRef             string         `json:"allianceRef,omitempty"`
+	OwnerKey                string         `json:"ownerKey,omitempty"`        // kind:id of the changed document's owner; the websocket routes on it
 	Scopes                  *ScopesPayload `json:"scopes,omitempty"`
 	Document                map[string]any `json:"document,omitempty"`
 	PreviousDocument        map[string]any `json:"previousDocument,omitempty"`
@@ -338,21 +336,17 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			}
 		}
 
-		// Prefer root accountID (e.g. groups), then _meta.accountID (jobs, groups).
+		// Groups name their account at the document root. Every other scoped
+		// document states an owner in _meta, which ownerFromDocument reads.
 		if accID, ok := docToExtract["accountID"].(string); ok && accID != "" {
 			accountID = accID
-		}
-		if accountID == "" && meta != nil {
-			if accID, ok := meta["accountID"].(string); ok && accID != "" {
-				accountID = accID
-			}
 		}
 	}
 
 	// DELETE events only populate fullDocumentBeforeChange when the collection has
-	// changeStreamPreAndPostImages (deployment-tool PreimageCollections / EnsureMongo). Without that,
-	// AccountID stays empty → websocket dispatch skips account broadcast (unless clients
-	// explicitly subscribed). Singleton account docs use Mongo _id === account id string.
+	// changeStreamPreAndPostImages (deployment-tool PreimageCollections / EnsureMongo). Without it a
+	// delete states no owner, so the message routes to explicit subscribers rather than the owner's
+	// clients. Singleton account documents recover it from the _id, which is the account id.
 	if accountID == "" && operationType == "delete" {
 		switch collection {
 		case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionWatchlistDeprecated:
@@ -360,8 +354,8 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		default:
 			if collection == eipmongo.CollectionJobGroups ||
 				collection == eipmongo.CollectionJobDocuments {
-				logs.WarnCtx(ctx, "delete missing accountID on collection (fullDocumentBeforeChange empty);"+
-					" websocket account fan-out skipped — enable changeStreamPreAndPostImages"+
+				logs.WarnCtx(ctx, "delete states no owner (fullDocumentBeforeChange empty);"+
+					" websocket owner fan-out skipped — enable changeStreamPreAndPostImages"+
 					" (eip ensure-mongo / deployment-tool PreimageCollections)",
 					"component", changestreamLogComponent,
 					"collection", collection,
@@ -431,9 +425,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		OperationType:           operationType,
 		SourceClientID:          sourceClientID,
 		SourceSessionID:         sourceSessionID,
-		AccountID:               routeField(docOwner, models.OwnerAccount),
-		CorporationRef:          routeField(docOwner, models.OwnerCorporation),
-		AllianceRef:             routeField(docOwner, models.OwnerAlliance),
+		OwnerKey:                tenantString,
 		Scopes:                  scopePayload,
 		Document:                document,
 		PreviousDocument:        previousDocument,
@@ -468,7 +460,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		"tenant", tenantString,
 		"source_client_id", sourceClientID,
 		"source_session_id", sourceSessionID,
-		"account_id", accountID,
+		"owner_key", message.OwnerKey,
 		"has_document", document != nil,
 		"has_previous_document", previousDocument != nil,
 		"full_document_status", changeStreamDocFieldStatus(changeEvent, "fullDocument"),
@@ -621,15 +613,6 @@ func stripUsersRefreshTokenFields(doc map[string]any) {
 	}
 	delete(doc, "refreshTokens")
 	delete(doc, "refresh_tokens")
-}
-
-// routeField spreads one owner across the message's three named route fields.
-// Collapsing them crosses a process boundary, so both sides move together.
-func routeField(owner models.Owner, kind models.OwnerKind) string {
-	if owner.Kind != kind {
-		return ""
-	}
-	return owner.ID
 }
 
 // ownerFromDocument reads the owner a document states, and the scopes it carries.

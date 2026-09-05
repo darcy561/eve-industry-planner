@@ -1,6 +1,7 @@
 package soaklib
 
 import (
+	"eve-industry-planner/shared/models"
 	"fmt"
 	"maps"
 	"sort"
@@ -8,8 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"eve-industry-planner/shared/wsplacement"
 )
 
 // stats aggregates soak counters for the final report.
@@ -158,8 +157,8 @@ func assertNoColocSplits(homeSets map[string]map[string]uint64) error {
 func assertSharedOrgAffinityColoc(homeSets map[string]map[string]uint64) error {
 	filtered := map[string]map[string]uint64{}
 	for aff, homes := range homeSets {
-		if !strings.HasPrefix(aff, wsplacement.TenantPrefixCorporation) &&
-			!strings.HasPrefix(aff, wsplacement.TenantPrefixAlliance) {
+		owner, err := models.ParseOwnerKey(aff)
+		if err != nil || (owner.Kind != models.OwnerCorporation && owner.Kind != models.OwnerAlliance) {
 			continue
 		}
 		var total uint64

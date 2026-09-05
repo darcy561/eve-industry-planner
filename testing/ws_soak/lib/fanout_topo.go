@@ -1,10 +1,9 @@
 package soaklib
 
 import (
+	"eve-industry-planner/shared/models"
 	"fmt"
 	"strings"
-
-	"eve-industry-planner/shared/wsplacement"
 )
 
 const (
@@ -184,7 +183,7 @@ func buildFanoutTopology(clients int, allianceBase, corpBase, standaloneBase int
 				SessionID:  fmt.Sprintf("soak-fanout-sess-%d", next),
 				CorpID:     corpID,
 				AllianceID: allID,
-				Affinity:   wsplacement.TenantKeyAccount(acct),
+				Affinity:   models.AccountOwner(acct).Key(),
 				Cohort:     cohortGroup,
 			}
 			out = append(out, id)
@@ -342,7 +341,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:           kind,
 			DocID:          docID,
 			Collection:     collection,
-			TenantString:   wsplacement.TenantKeyAccount(id.AccountID),
+			TenantString:   models.AccountOwner(id.AccountID).Key(),
 			AccountID:      id.AccountID,
 			ExpectAccounts: []string{id.AccountID},
 			Expect:         1,
@@ -355,7 +354,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:           kind,
 			DocID:          docID,
 			Collection:     collection,
-			TenantString:   wsplacement.TenantKeyCorporation(CorporationRef(corp.ID)),
+			TenantString:   models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(corp.ID)}.Key(),
 			CorporationRef: CorporationRef(corp.ID),
 			CorpID:         corp.ID,
 			ExpectAccounts: accts,
@@ -379,7 +378,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:            kind,
 			DocID:           docID,
 			Collection:      collection,
-			TenantString:    wsplacement.TenantKeyCorporation(CorporationRef(corp.ID)),
+			TenantString:    models.Owner{Kind: models.OwnerCorporation, ID: CorporationRef(corp.ID)}.Key(),
 			CorporationRef:  CorporationRef(corp.ID),
 			CorpID:          corp.ID,
 			ScopeAccountIDs: scope,
@@ -394,7 +393,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:           kind,
 			DocID:          docID,
 			Collection:     collection,
-			TenantString:   wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
+			TenantString:   models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(a.ID)}.Key(),
 			AllianceRef:    AllianceRef(a.ID),
 			AllianceID:     a.ID,
 			ExpectAccounts: accts,
@@ -413,7 +412,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:                 kind,
 			DocID:                docID,
 			Collection:           collection,
-			TenantString:         wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
+			TenantString:         models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(a.ID)}.Key(),
 			AllianceRef:          AllianceRef(a.ID),
 			AllianceID:           a.ID,
 			ScopeCorporationRefs: []string{CorporationRef(corp.ID)},
@@ -432,7 +431,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:            kind,
 			DocID:           docID,
 			Collection:      collection,
-			TenantString:    wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
+			TenantString:    models.Owner{Kind: models.OwnerAlliance, ID: AllianceRef(a.ID)}.Key(),
 			AllianceRef:     AllianceRef(a.ID),
 			AllianceID:      a.ID,
 			ScopeAccountIDs: scope,
