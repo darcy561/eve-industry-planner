@@ -88,9 +88,9 @@ func (m MonthKey) AddMonths(delta int) MonthKey {
 
 // TimelineQuery selects the bucket rows a timeline view reads.
 type TimelineQuery struct {
-	AccountID string
-	From      MonthKey
-	To        MonthKey
+	Owner models.Owner
+	From  MonthKey
+	To    MonthKey
 	// TypeID narrows to one item type when non-zero. Zero reads every type,
 	// which is what the month-total view sums over.
 	TypeID int
@@ -117,6 +117,7 @@ type TimelineMonthRow struct {
 type timelineMonthAggregateRow struct {
 	TimelineMonthRow    `bson:",inline"`
 	ExtraCategoryTotals []map[string]float64 `bson:"extraCategoryTotalsList"`
+	ExtraCategoryLabels []map[string]string  `bson:"extraCategoryLabelsList"`
 }
 
 // fold merges the collected maps into the row's own measures.
@@ -127,6 +128,12 @@ func (r timelineMonthAggregateRow) fold() TimelineMonthRow {
 			continue
 		}
 		row.SalesMeasures = row.SalesMeasures.Plus(models.SalesMeasures{ExtraCategoryTotals: extras})
+	}
+	for _, labels := range r.ExtraCategoryLabels {
+		if len(labels) == 0 {
+			continue
+		}
+		row.SalesMeasures = row.SalesMeasures.Plus(models.SalesMeasures{ExtraCategoryLabels: labels})
 	}
 	return row
 }
@@ -147,7 +154,7 @@ type TimelineItemRow struct {
 // January. The ordinal is computed in the pipeline so the stored documents keep
 // their plain year and month fields.
 func timelineRangeFilter(q TimelineQuery) bson.M {
-	filter := bson.M{"accountID": q.AccountID}
+	filter := bson.M{"owner.kind": q.Owner.Kind, "owner.id": q.Owner.ID}
 	if q.TypeID != 0 {
 		filter["typeID"] = q.TypeID
 	}
@@ -203,14 +210,22 @@ func sumMeasuresGroup(id any) bson.M {
 	return group
 }
 
-// extraCategoryTotalsField names the collected maps in a group that asks for them.
-const extraCategoryTotalsField = "extraCategoryTotalsList"
+// The collected maps, named in a group that asks for them.
+const (
+	extraCategoryTotalsField = "extraCategoryTotalsList"
+	extraCategoryLabelsField = "extraCategoryLabelsList"
+)
 
 // extraCategoryTotalsPush adds the per-category maps to a group stage. $push
 // skips documents where the field is missing, so buckets carrying no extras
 // collect nothing rather than a list of empty maps.
+//
+// The names ride with the amounts. Neither map can be $summed, so both are
+// collected and folded by [SalesMeasures.Plus] — which is also what decides that
+// one id keeps one name.
 func extraCategoryTotalsPush(group bson.M) bson.M {
 	group[extraCategoryTotalsField] = bson.M{"$push": "$extraCategoryTotals"}
+	group[extraCategoryLabelsField] = bson.M{"$push": "$extraCategoryLabels"}
 	return group
 }
 
@@ -240,8 +255,8 @@ func (m *Mongo) TimelineMonths(ctx context.Context, q TimelineQuery, opts ...Ret
 	if m == nil || m.AccountTimelineMonths == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	if q.AccountID == "" {
-		return nil, fmt.Errorf("accountID is required")
+	if err := q.Owner.Validate(); err != nil {
+		return nil, err
 	}
 	if !q.AllTime && q.To.Before(q.From) {
 		return nil, fmt.Errorf("timeline range ends before it starts: %s to %s", q.From, q.To)
@@ -286,8 +301,8 @@ func (m *Mongo) TimelineItems(ctx context.Context, q TimelineQuery, sortField st
 	if m == nil || m.AccountTimelineMonths == nil {
 		return page, fmt.Errorf("mongo handle is required")
 	}
-	if q.AccountID == "" {
-		return page, fmt.Errorf("accountID is required")
+	if err := q.Owner.Validate(); err != nil {
+		return page, err
 	}
 	if !q.AllTime && q.To.Before(q.From) {
 		return page, fmt.Errorf("timeline range ends before it starts: %s to %s", q.From, q.To)

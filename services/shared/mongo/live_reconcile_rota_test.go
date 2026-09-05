@@ -26,8 +26,8 @@ func TestLive_reconcileRota_dueTimeDecidesTurn(t *testing.T) {
 
 	// The rota is driven by who has rows, so the owner has to have one.
 	row := models.ArchivedJobStats{
-		ID:        eipmongo.ArchivedJobStatsDocumentID(rotaScratchAccount, "job-rota-1"),
-		AccountID: rotaScratchAccount,
+		ID:        eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(rotaScratchAccount), "job-rota-1"),
+		Owner:     models.AccountOwner(rotaScratchAccount),
 		JobID:     "job-rota-1",
 		TypeID:    34,
 		CostMonth: models.CalendarMonth{Year: 2026, Month: 5},
@@ -79,8 +79,8 @@ func TestLive_reconcileRota_neverReconciledOutranksAStampedOwner(t *testing.T) {
 
 	for _, id := range []string{fresh, stamped} {
 		row := models.ArchivedJobStats{
-			ID:        eipmongo.ArchivedJobStatsDocumentID(id, "job-rota-order"),
-			AccountID: id,
+			ID:        eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(id), "job-rota-order"),
+			Owner:     models.AccountOwner(id),
 			JobID:     "job-rota-order",
 			TypeID:    34,
 			CostMonth: models.CalendarMonth{Year: 2026, Month: 5},

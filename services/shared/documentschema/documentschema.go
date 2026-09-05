@@ -97,9 +97,6 @@ func (u Upgrader) ArchivedJobStats(doc *models.ArchivedJobStats) {
 	if doc == nil {
 		return
 	}
-	if doc.Owner.IsZero() && doc.AccountID != "" {
-		doc.Owner = models.AccountOwner(doc.AccountID)
-	}
 	if doc.SchemaVersion <= 0 {
 		doc.SchemaVersion = models.ArchivedJobStatsSchemaCurrent
 	}

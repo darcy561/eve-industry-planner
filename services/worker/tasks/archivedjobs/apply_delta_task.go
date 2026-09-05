@@ -78,13 +78,13 @@ func ApplyOwnerStatisticsDelta(ctx context.Context, req eipnats.RebuildOwnerStat
 // applyOwnerDelta folds the owner's uncounted rows and clears its queue entry.
 func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo.QueuedOwner, now time.Time) (DeltaResult, bool, error) {
 	var out DeltaResult
-	accountID := queued.Owner.ID
+	owner := queued.Owner
 
-	added, err := mongo.LoadUncountedStatsRows(ctx, accountID)
+	added, err := mongo.LoadUncountedStatsRows(ctx, owner)
 	if err != nil {
 		return out, false, fmt.Errorf("load uncounted rows: %w", err)
 	}
-	removed, err := mongo.LoadRevokedContributedRows(ctx, accountID)
+	removed, err := mongo.LoadRevokedContributedRows(ctx, owner)
 	if err != nil {
 		return out, false, fmt.Errorf("load revoked rows still counted: %w", err)
 	}
@@ -115,7 +115,7 @@ func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo
 
 	if len(added) > 0 {
 		delta, ids := accumulate(added, false, types)
-		if err := mongo.ApplyStatsDelta(ctx, accountID, delta, ids, now); err != nil {
+		if err := mongo.ApplyStatsDelta(ctx, owner, delta, ids, now); err != nil {
 			return out, false, err
 		}
 	}
@@ -125,7 +125,7 @@ func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo
 		// exactly what comes back out. The stamp is cleared rather than set, since
 		// the row is no longer counted.
 		delta, ids := accumulate(removed, true, types)
-		if err := mongo.ApplyStatsDelta(ctx, accountID, delta, nil, now); err != nil {
+		if err := mongo.ApplyStatsDelta(ctx, owner, delta, nil, now); err != nil {
 			return out, false, err
 		}
 		if err := mongo.ClearContributedStamp(ctx, ids); err != nil {
@@ -138,16 +138,16 @@ func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo
 	// addition, and removing the cheapest leaves nothing in a counter to recover
 	// the next one from — so each touched type's are recomputed from its rows.
 	for typeID := range types {
-		typeRows, terr := mongo.LoadTypeStatsRows(ctx, accountID, typeID)
+		typeRows, terr := mongo.LoadTypeStatsRows(ctx, owner, typeID)
 		if terr != nil {
 			return out, false, fmt.Errorf("load rows for type %d: %w", typeID, terr)
 		}
-		if merr := mongo.SetBuildHistoryMarks(ctx, accountID, typeID, archivestats.AccountBuildHistory(typeRows)); merr != nil {
+		if merr := mongo.SetBuildHistoryMarks(ctx, owner, typeID, archivestats.BuildHistory(typeRows)); merr != nil {
 			return out, false, fmt.Errorf("set marks for type %d: %w", typeID, merr)
 		}
 	}
 
-	pruned, err := mongo.PruneEmptyBuckets(ctx, accountID)
+	pruned, err := mongo.PruneEmptyBuckets(ctx, owner)
 	if err != nil {
 		return out, false, fmt.Errorf("prune empty buckets: %w", err)
 	}
@@ -155,7 +155,7 @@ func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo
 
 	// The same emptiness, one document up. A type whose last job was restored has
 	// no month left and no lifetime figures either.
-	prunedTotals, err := mongo.PruneEmptyTotals(ctx, accountID)
+	prunedTotals, err := mongo.PruneEmptyTotals(ctx, owner)
 	if err != nil {
 		return out, false, fmt.Errorf("prune empty totals: %w", err)
 	}

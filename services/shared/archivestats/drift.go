@@ -50,9 +50,9 @@ func (d Drift) Any() bool {
 }
 
 // CompareBuckets reports how stored monthly buckets differ from a fresh fold.
-func CompareBuckets(stored, folded []models.AccountTimelineMonthBucket) Drift {
+func CompareBuckets(stored, folded []models.TimelineMonthBucket) Drift {
 	var d Drift
-	byID := make(map[string]models.AccountTimelineMonthBucket, len(stored))
+	byID := make(map[string]models.TimelineMonthBucket, len(stored))
 	for _, doc := range stored {
 		byID[doc.ID] = doc
 	}
@@ -116,7 +116,7 @@ func (d *Drift) compareMoney(have, want map[string]float64) bool {
 	return matched
 }
 
-func bucketMeasures(b models.AccountTimelineMonthBucket) map[string]float64 {
+func bucketMeasures(b models.TimelineMonthBucket) map[string]float64 {
 	return map[string]float64{
 		"salesTotal":        b.SalesTotal,
 		"jobCostTotal":      b.JobCostTotal,

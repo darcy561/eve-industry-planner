@@ -8,7 +8,7 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// AccumulateAccountBuckets folds an account's statistics rows into monthly buckets
+// AccumulateBuckets folds an owner's statistics rows into monthly buckets
 // keyed by item type and calendar month.
 //
 // A row contributes to more than one month when its sales and its costs fall
@@ -25,7 +25,7 @@ import (
 // item types reads the direct buckets alone; a view scoped to one item reads
 // both, which is the whole history for an item only ever built as an
 // intermediate.
-func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[models.StatsBucketKey]models.StatsBucketDelta {
+func AccumulateBuckets(docs []models.ArchivedJobStats) map[models.StatsBucketKey]models.StatsBucketDelta {
 	buckets := make(map[models.StatsBucketKey]models.StatsBucketDelta)
 	var touched map[models.StatsBucketKey]struct{}
 
@@ -81,7 +81,8 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[models.StatsBu
 			InventionCostTotal:  doc.TotalInventionCost,
 			InstallCostTotal:    doc.TotalInstallCost,
 			ExtrasTotal:         doc.TotalExtras,
-			ExtraCategoryTotals: maps.Clone(doc.ExtraCategoryTotals),
+			ExtraCategoryTotals: extraCategoryAmounts(doc.ExtraCategories),
+			ExtraCategoryLabels: extraCategoryNames(doc.ExtraCategories),
 		})
 	}
 
@@ -98,10 +99,10 @@ func costMonthOf(doc models.ArchivedJobStats) models.CalendarMonth {
 	return monthOf(doc.ArchivedAt)
 }
 
-// AccountBuckets renders the folded measures as the documents to persist, sorted
+// TimelineBuckets renders the folded measures as the documents to persist, sorted
 // by identity so a rebuild writes them in a stable order.
-func AccountBuckets(accountID string, docs []models.ArchivedJobStats) []models.AccountTimelineMonthBucket {
-	folded := AccumulateAccountBuckets(docs)
+func TimelineBuckets(owner models.Owner, docs []models.ArchivedJobStats) []models.TimelineMonthBucket {
+	folded := AccumulateBuckets(docs)
 	if len(folded) == 0 {
 		return nil
 	}
@@ -126,17 +127,49 @@ func AccountBuckets(accountID string, docs []models.ArchivedJobStats) []models.A
 		return 1
 	})
 
-	out := make([]models.AccountTimelineMonthBucket, 0, len(keys))
+	out := make([]models.TimelineMonthBucket, 0, len(keys))
 	for _, key := range keys {
-		out = append(out, models.AccountTimelineMonthBucket{
-			ID:                eipmongo.AccountTimelineMonthDocumentID(accountID, key.TypeID, key.Year, key.Month, key.IsProductionChain),
-			AccountID:         accountID,
+		out = append(out, models.TimelineMonthBucket{
+			ID:                eipmongo.TimelineMonthDocumentID(owner, key.TypeID, key.Year, key.Month, key.IsProductionChain),
+			Owner:             owner,
 			TypeID:            key.TypeID,
 			IsProductionChain: key.IsProductionChain,
 			CalendarMonth:     key.CalendarMonth,
 			SalesMeasures:     folded[key].Measures,
 			ContributingRows:  folded[key].Rows,
 		})
+	}
+	return out
+}
+
+// extraCategoryAmounts reduces a row's extras entries to the id-to-amount map the
+// monthly buckets sum.
+func extraCategoryAmounts(entries []models.ArchivedExtraCategory) map[string]float64 {
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make(map[string]float64, len(entries))
+	for _, entry := range entries {
+		out[entry.ID] += entry.Amount
+	}
+	return out
+}
+
+// extraCategoryNames carries the names off a row and into the bucket, so a month
+// can be read without the settings document its ids would otherwise need.
+//
+// An entry with no name contributes none rather than an empty one, which would
+// claim the category is called nothing.
+func extraCategoryNames(entries []models.ArchivedExtraCategory) map[string]string {
+	var out map[string]string
+	for _, entry := range entries {
+		if entry.Label == "" {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string, len(entries))
+		}
+		out[entry.ID] = entry.Label
 	}
 	return out
 }

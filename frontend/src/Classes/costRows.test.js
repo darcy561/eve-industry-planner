@@ -25,10 +25,27 @@ describe("ExtraCost", () => {
     expect(new ExtraCost({}).label).toBe("");
   });
 
+  // The name a category had when the cost was added travels with it: the id
+  // alone only means something against the account's settings list, and a
+  // category deleted from there leaves the row naming an id nobody can read.
+  it("carries the category label it was given", () => {
+    const row = new ExtraCost({
+      id: "extra-1",
+      category: "90",
+      categoryLabel: "Retired Courier Contract",
+      extraText: "courier",
+      extraValue: 5,
+    });
+
+    expect(row.categoryLabel).toBe("Retired Courier Contract");
+    expect(row.toDocument().categoryLabel).toBe("Retired Courier Contract");
+  });
+
   it("keeps every stored key on the way out", () => {
     const row = {
       id: "extra-1",
       category: "3",
+      categoryLabel: "Blueprint Copies",
       extraText: "Courier",
       extraValue: 1500000,
     };
@@ -40,6 +57,7 @@ describe("ExtraCost", () => {
     expect(new ExtraCost({ id: "extra-1", extraValue: 10 }).toDocument()).toEqual({
       id: "extra-1",
       category: "0",
+      categoryLabel: "",
       extraText: "",
       extraValue: 10,
     });
@@ -160,8 +178,8 @@ describe("extra costs on a job", () => {
 
     const document = activeJob.toDocument();
     expect(document.build.costs.extrasCosts).toEqual([
-      { id: "extra-1", category: "3", extraText: "Courier", extraValue: 10 },
-      { id: "extra-2", category: "0", extraText: "", extraValue: 5 },
+      { id: "extra-1", category: "3", categoryLabel: "", extraText: "Courier", extraValue: 10 },
+      { id: "extra-2", category: "0", categoryLabel: "", extraText: "", extraValue: 5 },
     ]);
     expect(new Job(document).totalExtrasCost).toBe(15);
   });

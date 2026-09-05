@@ -8,8 +8,8 @@ import (
 
 func jobRow(jobID string, typeID int, buildCosts, produced float64) models.ArchivedJobStats {
 	return models.ArchivedJobStats{
-		ID:                "acct-1|" + jobID,
-		AccountID:         "acct-1",
+		ID:                "account:acct-1|" + jobID,
+		Owner:             models.AccountOwner("acct-1"),
 		JobID:             jobID,
 		TypeID:            typeID,
 		JobType:           1,
@@ -42,7 +42,7 @@ func TestJobCostTotalIncludesFeesAndProfitSubtractsThemOnce(t *testing.T) {
 
 	row := withFee(withSale(jobRow("job-1", 34, 1000, 10), 2000, 50, 10), 30)
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{row})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{row})
 	if len(totals) != 1 {
 		t.Fatalf("got %d totals, want 1", len(totals))
 	}
@@ -67,7 +67,7 @@ func TestJobCostTotalIncludesFeesAndProfitSubtractsThemOnce(t *testing.T) {
 func TestUnsoldJobHasZeroProfitNotNegative(t *testing.T) {
 	t.Parallel()
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{jobRow("job-1", 34, 1000, 10)})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{jobRow("job-1", 34, 1000, 10)})
 	if len(totals) != 1 {
 		t.Fatalf("got %d totals, want 1", len(totals))
 	}
@@ -88,7 +88,7 @@ func TestRevokedRowsAreExcludedFromTotals(t *testing.T) {
 	dead := withSale(jobRow("job-2", 34, 500, 5), 900, 0, 5)
 	dead.Revoked = true
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{live, dead})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{live, dead})
 	if len(totals) != 1 {
 		t.Fatalf("got %d totals, want 1", len(totals))
 	}
@@ -109,7 +109,7 @@ func TestTotalsGroupByItemType(t *testing.T) {
 		withSale(jobRow("job-3", 35, 200, 1), 900, 0, 1),
 	}
 
-	totals := AccountProductionTotals("acct-1", rows)
+	totals := ProductionTotals(models.AccountOwner("acct-1"), rows)
 	if len(totals) != 2 {
 		t.Fatalf("got %d totals, want one per item type", len(totals))
 	}
@@ -135,7 +135,7 @@ func TestBreakdownCreditsEachJobToOneSegment(t *testing.T) {
 	retained := jobRow("job-2", 34, 200, 2)
 	sold := withSale(jobRow("job-3", 34, 300, 3), 900, 0, 3)
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{chain, retained, sold})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{chain, retained, sold})
 	if len(totals) != 1 {
 		t.Fatalf("got %d totals, want 1", len(totals))
 	}
@@ -167,7 +167,7 @@ func TestUnsoldBuildIsStockRatherThanMarket(t *testing.T) {
 
 	unsold := jobRow("job-1", 34, 228_579_115.40, 200)
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{unsold})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{unsold})
 	b := totals[0].Breakdown
 
 	if b.StandaloneRecordedSale.TotalJobs != 0 {
@@ -197,7 +197,7 @@ func TestSaleRecordedByHandCountsAsMarket(t *testing.T) {
 		Amount:        2000,
 	})
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{contract})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{contract})
 	b := totals[0].Breakdown
 
 	if b.StandaloneRecordedSale.TotalJobs != 1 {
@@ -222,7 +222,7 @@ func TestBrokerFeeAloneCountsAsMarket(t *testing.T) {
 
 	listed := withFee(jobRow("job-1", 34, 1000, 10), 25)
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{listed})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{listed})
 	b := totals[0].Breakdown
 
 	if b.StandaloneRecordedSale.TotalJobs != 1 {
@@ -247,7 +247,7 @@ func TestZeroValuedLinesAreNotMarketEvidence(t *testing.T) {
 
 	placeholder := withFee(withSale(jobRow("job-1", 34, 1000, 10), 0, 0, 0), 0)
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{placeholder})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{placeholder})
 	b := totals[0].Breakdown
 
 	if b.StandaloneRecordedSale.TotalJobs != 0 {
@@ -266,7 +266,7 @@ func TestAPartialSaleIsStillASale(t *testing.T) {
 
 	partial := withSale(jobRow("job-1", 34, 1000, 10), 2000, 0, 4)
 
-	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{partial})
+	totals := ProductionTotals(models.AccountOwner("acct-1"), []models.ArchivedJobStats{partial})
 	b := totals[0].Breakdown
 
 	if b.StandaloneRecordedSale.TotalJobs != 1 {
@@ -283,11 +283,11 @@ func TestAPartialSaleIsStillASale(t *testing.T) {
 func TestNoRowsProducesNoTotals(t *testing.T) {
 	t.Parallel()
 
-	if got := AccountProductionTotals("acct-1", nil); got != nil {
+	if got := ProductionTotals(models.AccountOwner("acct-1"), nil); got != nil {
 		t.Fatalf("got %d totals for an account with no rows, want none", len(got))
 	}
-	if got := AccountProductionTotals("", []models.ArchivedJobStats{jobRow("job-1", 34, 1, 1)}); got != nil {
-		t.Fatal("an empty accountID must produce nothing rather than documents keyed on an empty account")
+	if got := ProductionTotals(models.Owner{}, []models.ArchivedJobStats{jobRow("job-1", 34, 1, 1)}); got != nil {
+		t.Fatal("an owner naming nothing must produce nothing rather than documents keyed on it")
 	}
 }
 

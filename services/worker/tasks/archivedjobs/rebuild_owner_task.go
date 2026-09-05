@@ -64,14 +64,14 @@ func RebuildOwnerStatistics(ctx context.Context, req eipnats.RebuildOwnerStatist
 
 // rebuildOwner recomputes an owner and clears its entry on the claim it was
 // dispatched with.
-func rebuildOwner(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo.QueuedOwner, now time.Time) (AccountRebuildResult, bool, error) {
+func rebuildOwner(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo.QueuedOwner, now time.Time) (RebuildResult, bool, error) {
 	if queued.Owner.Kind != models.OwnerAccount {
 		// Corporation and alliance archives are not built yet, so there is nothing
 		// to read for them. Retrying will not change that, so it stops.
-		return AccountRebuildResult{}, false, fmt.Errorf("owner kind %q has no archive to rebuild: %w", queued.Owner.Kind, eipnats.Terminate("no archive for this owner kind"))
+		return RebuildResult{}, false, fmt.Errorf("owner kind %q has no archive to rebuild: %w", queued.Owner.Kind, eipnats.Terminate("no archive for this owner kind"))
 	}
 
-	result, err := RebuildAccountStatistics(ctx, mongo, queued.Owner.ID, now)
+	result, err := RebuildStatistics(ctx, mongo, queued.Owner, now)
 	if err != nil {
 		return result, false, err
 	}

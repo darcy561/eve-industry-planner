@@ -139,11 +139,15 @@ func IndexSpecs() []IndexSpec {
 				{Field: "groupID", Order: 1},
 			},
 		},
+		// The three statistics collections are keyed by owner, so every filter
+		// leads with the owner's kind and id. An owner kind added later needs no
+		// new index: it is another value in the same leading fields.
 		{
 			Collection: "account_archived_job_stats",
-			Name:       "aajs_accountID_typeID_isProductionChain_revoked_1",
+			Name:       "aajs_owner_typeID_isProductionChain_revoked_1",
 			Keys: []IndexKey{
-				{Field: "accountID", Order: 1},
+				{Field: "owner.kind", Order: 1},
+				{Field: "owner.id", Order: 1},
 				{Field: "typeID", Order: 1},
 				{Field: "isProductionChain", Order: 1},
 				{Field: "revoked", Order: 1},
@@ -151,18 +155,20 @@ func IndexSpecs() []IndexSpec {
 		},
 		{
 			Collection: "account_archived_job_stats",
-			Name:       "aajs_accountID_archivedAt_revoked_1",
+			Name:       "aajs_owner_archivedAt_revoked_1",
 			Keys: []IndexKey{
-				{Field: "accountID", Order: 1},
+				{Field: "owner.kind", Order: 1},
+				{Field: "owner.id", Order: 1},
 				{Field: "archivedAt", Order: 1},
 				{Field: "revoked", Order: 1},
 			},
 		},
 		{
 			Collection: "account_timeline_months",
-			Name:       "atm_accountID_year_month_typeID_1",
+			Name:       "atm_owner_year_month_typeID_1",
 			Keys: []IndexKey{
-				{Field: "accountID", Order: 1},
+				{Field: "owner.kind", Order: 1},
+				{Field: "owner.id", Order: 1},
 				{Field: "year", Order: 1},
 				{Field: "month", Order: 1},
 				{Field: "typeID", Order: 1},
@@ -171,23 +177,25 @@ func IndexSpecs() []IndexSpec {
 		{
 			// Serves the timeline views narrowed to one item type. The index
 			// above leads with year and month, so a query naming a type but a
-			// range of months can only use its accountID prefix; this one puts
-			// typeID second so both are used.
+			// range of months can only use its owner prefix; this one puts
+			// typeID next so both are used.
 			Collection: "account_timeline_months",
-			Name:       "atm_accountID_typeID_year_month_1",
+			Name:       "atm_owner_typeID_year_month_1",
 			Keys: []IndexKey{
-				{Field: "accountID", Order: 1},
+				{Field: "owner.kind", Order: 1},
+				{Field: "owner.id", Order: 1},
 				{Field: "typeID", Order: 1},
 				{Field: "year", Order: 1},
 				{Field: "month", Order: 1},
 			},
 		},
 		{
-			// Serves the lifetime totals read, whole-account and single-type.
+			// Serves the lifetime totals read, whole-owner and single-type.
 			Collection: "account_production_totals",
-			Name:       "apt_accountID_typeID_1",
+			Name:       "apt_owner_typeID_1",
 			Keys: []IndexKey{
-				{Field: "accountID", Order: 1},
+				{Field: "owner.kind", Order: 1},
+				{Field: "owner.id", Order: 1},
 				{Field: "typeID", Order: 1},
 			},
 		},

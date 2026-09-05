@@ -562,8 +562,21 @@ documents**, so a per-account id space makes a shared document ambiguous.
 
 | Setting | Where its ids are stored | Consequence |
 |---------|--------------------------|-------------|
-| `ExtrasCategories` | `build.costs.extrasCosts`, and the keys of `ArchivedJobStats.ExtraCategoryTotals` | Two members' category `6` mean different things, and archive totals are keyed to whoever's list was in effect |
+| `ExtrasCategories` | `build.costs.extrasCosts`, and `ArchivedJobStats.ExtraCategories` | A shared planner offers its own categories, so a member does not file a shared job under a category personal to them |
 | `JobStatuses` | `job.jobStatus`, a stored integer index | A planner with six stages for one member and five for another hides jobs at the sixth from the second |
+
+**The extras ids do not collide, and never did.** A new category is created with
+`addExtrasCategory({ id: uuid(), ... })`, so its id is globally unique; ids `0`–`5` are the frozen
+defaults every account shares with identical labels; and there is no rename — the only actions are
+add, mark-deleted and unmark-deleted. Two members cannot mean different things by one id. What a
+shared planner needs is therefore **scoping which categories are offered**, so a member does not file
+a shared job under a category personal to them — not a migration of the id space.
+
+**Names are stored, not looked up.** An archived row carries what each category was called when the
+job was archived (`models.ArchivedExtraCategory`), because the id alone only resolves against a
+settings document: one the archive cannot reach, that a second member does not share, and that loses
+the name entirely when a category is deleted. See
+[archived-jobs-stats](../archived-jobs-stats/plan.md) § Extras categories name themselves.
 
 For `JobStatuses` only the **set of ids** must be the planner's. Labels could stay personal without
 harming anything, since they name a column rather than identify it; whether that is worth the
@@ -633,8 +646,10 @@ const (
 
 // Owner carries no JSON tags. For the two ESI kinds its ID is a ref, so a
 // response that serialised it directly would leak one. Every response builds an
-// owner handle explicitly instead, which makes a missed conversion a compile
-// error rather than a silent leak.
+// owner handle explicitly instead. Untagged is not the same as unserialisable —
+// it marshals under Go field names, so a missed conversion is conspicuous rather
+// than impossible; the `json:"-"` on every field holding an owner is what keeps
+// the ref off the wire.
 type Owner struct {
 	Kind OwnerKind `bson:"kind"`
 	ID   string    `bson:"id"`
@@ -678,8 +693,8 @@ its own lifecycle fields.
 
 `ArchivedJobStats` collapses its `AccountID` and `CorpRef` into the same `Owner`, and gains
 `ArchivedBy` — the account that archived the job — so per-member contribution is answerable without
-writing a second archive. Its existing `Version` field, the row version the delta and rebuild path
-use, is renamed `RowVersion` so it cannot be confused with the `SchemaVersion` landing beside it.
+writing a second archive. Its existing `Version` field is dead — nothing reads or writes it — and is
+deleted rather than renamed.
 
 ### The planner
 
@@ -703,8 +718,9 @@ rebuild queue already uses when it parses an owner out of `row.ID`.
 
 An owner key is **not serialisable to a client**: for the two ESI kinds it contains a ref. So the id
 fields carry `json:"-"` and the response layer emits the owner *handle* instead, converting at the
-same last hop as every other ref. Giving `Owner` no JSON tags at all is worth considering, so that a
-missed conversion fails to compile rather than leaking silently.
+same last hop as every other ref. `Owner` itself carries no JSON tags, which makes a missed
+conversion conspicuous — it emits Go field names — but not impossible; the `json:"-"` tags are the
+guard, and are asserted in `models.planner_test.go`.
 
 Neither the capability set nor the provider is stored; both derive from the kind. `AccessModels` is
 the named place a permission model attaches, empty until one exists and eligible by kind.
@@ -841,9 +857,10 @@ Three things this surfaces:
 account-owned and planner-owned variants. Each of the four bumps needs a step that fills the owner
 from the old `accountID`, which is also what makes every read path correct before the backfill runs.
 
-**`ArchivedJobStats` has no schema version today.** Its `Version` field is the row version the delta
-and rebuild path use — a different thing. `SchemaVersion` is added with the owner collapse, and the
-existing field is renamed `RowVersion` in the same change so the two cannot be confused.
+**`ArchivedJobStats` has no schema version today,** and its `Version` field is dead: nothing reads or
+writes it, and every stored row holds the zero value. It is deleted with the owner collapse. Whether
+the row wants a `SchemaVersion` is [archived-jobs-stats](../archived-jobs-stats/plan.md) § Owner block
+item 1 to decide — the row is derived and rebuilt wholesale, so an upgrade of one is a rebuild.
 
 **Shared embedded types carry their own version; single-parent ones do not.** `MetaData` is embedded
 in six document types and `Owner` in more, so without a version of their own the "fill owner from
@@ -872,10 +889,17 @@ this account.
 
 ### Stage A — The owner block
 
-Introduce the owner on `models.MetaData` and `models.ArchivedJobStats`, and make the changestream
-read `_meta.owner` generically instead of named scope fields. Bump the affected document schema
-versions so a backfill can **select** unmigrated rows rather than guessing from field presence — the
-same reasoning `protectedfields.Spec` already uses for its field sets.
+Split `models.MetaData` into `AccountMeta` and `PlannerScopedMeta`, put the owner on both, and make
+the changestream read `_meta.owner` generically instead of named scope fields. Bump the affected
+document schema versions so a backfill can **select** unmigrated rows rather than guessing from field
+presence — the same reasoning `protectedfields.Spec` already uses for its field sets.
+
+**`models.Owner` itself is not landed here.** The `StatsOwner` → `Owner` rename belongs to
+[archived-jobs-stats](../archived-jobs-stats/plan.md) § Owner block item 1: fifteen of the sixteen
+non-test files referencing the type are that project's own code, and it is already opening them to
+collapse the archive row's `AccountID` and `CorpRef`. This stage **consumes** the type, so it starts
+once that item lands. `models.ArchivedJobStats` is likewise theirs — it carries flat fields rather
+than embedding `MetaData`, so it is independent of the split above.
 
 Fill the owner from the account id in `documentschema.Upgrader` when it is absent. That upgrader
 already normalises documents in memory, idempotently, on read, so every **read** path is correct from
@@ -1004,8 +1028,11 @@ plan as § Owner block — owed to shared planners. Nothing built needs redoing;
 already keyed the queue, the delta, the rota and the tasks on `StatsOwner`. Four changes, of which
 the first two are only cheap while that project is still open and touching live data:
 
-1. Collapse `ArchivedJobStats.AccountID` / `CorpRef` into the embedded owner now. It is the row the
-   backfill rewrites; doing it later means two migrations over one collection.
+1. Collapse `ArchivedJobStats.AccountID` / `CorpRef` into the embedded owner now, and land the
+   `StatsOwner` → `Owner` rename with it. It is the row the backfill rewrites, so doing it later means
+   two migrations over one collection — and the rename is theirs because all but one of the type's
+   non-test call sites are their own code. **Stage A here consumes `models.Owner`, so it waits on this
+   item rather than the other way round.**
 2. Take the collection and document-id renames in the same pass, for the same reason.
 3. Put the owner handle in the statistics route and the owner in the SPA query key, while the account
    is still the only value and the change is additive.

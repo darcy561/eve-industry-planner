@@ -32,7 +32,7 @@ func ApplyProductionTotalsArchiveBatch(ctx context.Context, m *eipmongo.Mongo, o
 	}
 	bulk := m.Bulk()
 	for _, p := range pairs {
-		bulk.UpdateOne(m.AccountProductionTotals, p.StatsFilter, p.StatsUpdate, eipmongo.Upsert())
+		bulk.UpdateOne(m.ProductionTotals, p.StatsFilter, p.StatsUpdate, eipmongo.Upsert())
 		bulk.UpdateOne(m.ArchivedJobs, p.JobFilter, p.JobUpdate)
 	}
 	_, err := RunOrdered(ctx, opName, bulk)

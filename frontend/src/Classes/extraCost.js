@@ -9,7 +9,6 @@
  * can arrive with it missing, empty or numeric. It is settled as the row is
  * built, so nothing downstream has to ask again: no category is `"0"`, which
  * means unassigned.
- *
  * @class ExtraCost
  */
 class ExtraCost {
@@ -19,6 +18,7 @@ class ExtraCost {
   constructor(row) {
     this.id = row?.id ?? null;
     this.category = ExtraCost.categoryOf(row?.category);
+    this.categoryLabel = row?.categoryLabel ?? "";
     this.extraText = row?.extraText ?? "";
     this.extraValue = row?.extraValue ?? 0;
   }
@@ -61,6 +61,7 @@ class ExtraCost {
     return {
       id: this.id,
       category: this.category,
+      categoryLabel: this.categoryLabel,
       extraText: this.extraText,
       extraValue: this.extraValue,
     };

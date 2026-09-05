@@ -35,17 +35,34 @@ func parseLineDate(raw string, fallback time.Time) time.Time {
 // extraCategoryTotals folds a job's extra costs by category. An extra with no
 // category is counted under "0" rather than dropped, so the categories always sum
 // to the job's extras total.
-func extraCategoryTotals(extras []models.ExtraCost) map[string]float64 {
+// extraCategories sums a job's extras per category, carrying the name each was
+// added under.
+//
+// Order follows first appearance rather than the map iteration it replaced, so a
+// row written twice from the same job is the same document. An extra with no
+// label leaves it empty: a reader shows the id, which is what it could do before,
+// rather than the row inventing a name.
+func extraCategories(extras []models.ExtraCost) []models.ArchivedExtraCategory {
 	if len(extras) == 0 {
 		return nil
 	}
-	out := make(map[string]float64, len(extras))
+	out := make([]models.ArchivedExtraCategory, 0, len(extras))
+	at := make(map[string]int, len(extras))
 	for _, e := range extras {
 		category := strings.TrimSpace(e.Category)
 		if category == "" {
 			category = "0"
 		}
-		out[category] += e.ExtraValue
+		i, seen := at[category]
+		if !seen {
+			at[category] = len(out)
+			out = append(out, models.ArchivedExtraCategory{ID: category, Label: strings.TrimSpace(e.CategoryLabel)})
+			i = len(out) - 1
+		}
+		out[i].Amount += e.ExtraValue
+		if out[i].Label == "" {
+			out[i].Label = strings.TrimSpace(e.CategoryLabel)
+		}
 	}
 	return out
 }
@@ -137,18 +154,17 @@ func earliestTransactionDate(transactions []models.Transaction, fallback time.Ti
 	return earliest, found
 }
 
-// BuildAccountSnapshot reduces one archived job to the account-scoped statistics
-// row for it. now stamps ProcessedAt and stands in for a missing archive date, so
-// callers control the clock.
+// RowFromSnapshot reduces one archived job to its statistics row, given the
+// snapshot already computed for it. now stamps ProcessedAt and stands in for a
+// missing archive date, so callers control the clock.
 //
 // The row is returned uncounted. Whether its figures are in the aggregates is not
 // a property of the job, and only a caller that wrote them can say so — a caller
 // that merely creates the row leaves it outstanding for the next fold.
-func BuildAccountSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time) models.ArchivedJobStats {
+func RowFromSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time) models.ArchivedJobStats {
 	doc := buildSnapshot(job, snap, now)
-	doc.AccountID = job.MetaData.AccountID
-	doc.Owner = models.AccountOwner(doc.AccountID)
-	doc.ID = eipmongo.ArchivedJobStatsDocumentID(doc.AccountID, job.JobID)
+	doc.Owner = models.AccountOwner(job.MetaData.AccountID)
+	doc.ID = eipmongo.ArchivedJobStatsDocumentID(doc.Owner, job.JobID)
 	return doc
 }
 
@@ -174,22 +190,22 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		IsProductionChain: len(job.ParentJobs) > 0,
 		// Who archived it, which inside a shared planner is a different question
 		// from who owns the row.
-		ArchivedBy:          job.MetaData.ArchivedBy,
-		ArchivedAt:          archivedAt,
-		CostMonth:           costMonthFor(job, archivedAt),
-		MonthsFiled:         job.FilesItsOwnMonths(),
-		TotalProduced:       snap.TotalProduced,
-		TotalMaterialCost:   snap.TotalMaterialCost,
-		TotalInstallCost:    snap.TotalInstallCost,
-		TotalExtras:         snap.TotalExtras,
-		TotalInventionCost:  snap.TotalInventionCost,
-		TotalCostPerItem:    snap.TotalCostPerItem,
-		ExtraCategoryTotals: extraCategoryTotals(job.Build.Costs.ExtrasCosts),
-		UnsoldQuantity:      unsoldQuantity,
-		UnsoldCost:          unsoldQuantity * costPerItem,
-		TransactionLines:    transactionLines,
-		FeeLines:            feeLines,
-		ProcessedAt:         now,
+		ArchivedBy:         job.MetaData.ArchivedBy,
+		ArchivedAt:         archivedAt,
+		CostMonth:          costMonthFor(job, archivedAt),
+		MonthsFiled:        job.FilesItsOwnMonths(),
+		TotalProduced:      snap.TotalProduced,
+		TotalMaterialCost:  snap.TotalMaterialCost,
+		TotalInstallCost:   snap.TotalInstallCost,
+		TotalExtras:        snap.TotalExtras,
+		TotalInventionCost: snap.TotalInventionCost,
+		TotalCostPerItem:   snap.TotalCostPerItem,
+		ExtraCategories:    extraCategories(job.Build.Costs.ExtrasCosts),
+		UnsoldQuantity:     unsoldQuantity,
+		UnsoldCost:         unsoldQuantity * costPerItem,
+		TransactionLines:   transactionLines,
+		FeeLines:           feeLines,
+		ProcessedAt:        now,
 	}
 }
 

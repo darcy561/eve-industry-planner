@@ -71,7 +71,7 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 
 	recalc := recalculationFor(ctx, h.Mongo, accountID)
 
-	rows, err := h.Mongo.LoadAccountProductionTotals(ctx, accountID, typeID)
+	rows, err := h.Mongo.LoadProductionTotals(ctx, models.AccountOwner(accountID), typeID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve statistics", "totals get: query failed", "statistics_totals_query_failed", "statistics_totals", err, map[string]any{"type_id": typeID})

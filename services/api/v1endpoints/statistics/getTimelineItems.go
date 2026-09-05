@@ -95,11 +95,11 @@ func (h *Handlers) GetTimelineItemsHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	page, err := h.Mongo.TimelineItems(ctx, eipmongo.TimelineQuery{
-		AccountID: accountID,
-		From:      window.From,
-		To:        window.To,
-		AllTime:   window.All,
-		TypeID:    typeID,
+		Owner:   models.AccountOwner(accountID),
+		From:    window.From,
+		To:      window.To,
+		AllTime: window.All,
+		TypeID:  typeID,
 	}, paging.Sort, paging.Ascending, paging.Limit, paging.Offset)
 	if err != nil {
 		metrics.Error("database_error")

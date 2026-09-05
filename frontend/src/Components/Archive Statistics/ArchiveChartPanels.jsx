@@ -317,13 +317,7 @@ export function ArchiveCostTotalsPanel({ from, to, range }) {
 /** Extras spend for the whole period, split by category. */
 export function ArchiveExtrasTotalsPanel({ from, to, range }) {
   const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
-  const categories = useUsersStore(
-    (state) => state.applicationSettings.extrasCategories,
-  );
-  const rows = useMemo(
-    () => toExtrasTotalRows(data, categories),
-    [data, categories],
-  );
+  const rows = useMemo(() => toExtrasTotalRows(data), [data]);
 
   return (
     <AppShellPanel
@@ -349,13 +343,7 @@ export function ArchiveExtrasTotalsPanel({ from, to, range }) {
  */
 export function ArchiveExtrasPanel({ from, to, range }) {
   const { data, isLoading, isError } = useArchiveTimeline({ from, to, range });
-  const categories = useUsersStore(
-    (state) => state.applicationSettings.extrasCategories,
-  );
-  const { rows, series } = useMemo(
-    () => toExtrasRows(data, categories),
-    [data, categories],
-  );
+  const { rows, series } = useMemo(() => toExtrasRows(data), [data]);
 
   return (
     <AppShellPanel

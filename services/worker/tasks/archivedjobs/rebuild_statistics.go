@@ -10,10 +10,10 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// AccountRebuildResult reports what one rebuild produced, for logging and for the
+// RebuildResult reports what one rebuild produced, for logging and for the
 // drain to summarise a pass.
-type AccountRebuildResult struct {
-	AccountID      string
+type RebuildResult struct {
+	Owner          models.Owner
 	ArchivedJobs   int
 	StatsRows      int
 	TimelineMonths int
@@ -21,10 +21,10 @@ type AccountRebuildResult struct {
 	PrunedBuckets  int64
 	// ProductionTotals counts the lifetime per-item aggregates written.
 	ProductionTotals int
-	// PrunedTotals counts item types the account no longer has any job for.
+	// PrunedTotals counts item types the owner no longer has any job for.
 	PrunedTotals int64
 	// SkippedJobs counts archived jobs whose snapshot could not be computed. They
-	// are absent from the totals, so a non-zero count means the account's figures
+	// are absent from the totals, so a non-zero count means the owner's figures
 	// are incomplete rather than wrong.
 	SkippedJobs int
 	// StaleRows counts the skipped jobs that already had a row, now stamped as
@@ -32,38 +32,38 @@ type AccountRebuildResult struct {
 	StaleRows int
 }
 
-// rebuildUpsertBatch bounds one bulk write. Large enough that a typical account
+// rebuildUpsertBatch bounds one bulk write. Large enough that a typical owner
 // is a single round trip, small enough that an outlier does not build a request
 // Mongo rejects.
 const rebuildUpsertBatch = 200
 
-// RebuildAccountStatistics recomputes an account's statistics from its archived
+// RebuildStatistics recomputes an owner's statistics from its archived
 // jobs, wholesale.
 //
 // Wholesale rather than incremental because the rebuild queue records only that
-// an account changed, not which jobs — and because recomputing everything is
+// an owner changed, not which jobs — and because recomputing everything is
 // idempotent, which is what lets a rebuild be retried or run concurrently with a
 // re-queue without corrupting totals.
 //
 // Order matters. Rows and buckets are written before anything is removed, so a
 // reader that arrives mid-rebuild sees the previous complete set or the new
 // complete set, never a gap where a month has been pruned and not yet rewritten.
-func RebuildAccountStatistics(
+func RebuildStatistics(
 	ctx context.Context,
 	mongo *eipmongo.Mongo,
-	accountID string,
+	owner models.Owner,
 	now time.Time,
-) (AccountRebuildResult, error) {
-	out := AccountRebuildResult{AccountID: accountID}
+) (RebuildResult, error) {
+	out := RebuildResult{Owner: owner}
 	if mongo == nil {
 		return out, fmt.Errorf("mongo handle is required")
 	}
-	if accountID == "" {
-		return out, fmt.Errorf("accountID is required")
+	if err := owner.Validate(); err != nil {
+		return out, err
 	}
 	now = now.UTC()
 
-	acc, err := buildAccountRows(ctx, mongo, accountID, now)
+	acc, err := buildRows(ctx, mongo, owner, now)
 	if err != nil {
 		return out, fmt.Errorf("load archived jobs: %w", err)
 	}
@@ -78,14 +78,14 @@ func RebuildAccountStatistics(
 
 	// After the write, so a job that can be read again has already cleared the
 	// stamp its previous row carried.
-	stamped, err := mongo.StampSkippedStatsRows(ctx, accountID, acc.skippedJobIDs, acc.skipReason, now)
+	stamped, err := mongo.StampSkippedStatsRows(ctx, owner, acc.skippedJobIDs, acc.skipReason, now)
 	if err != nil {
 		return out, err
 	}
 	out.StaleRows = int(stamped)
 
-	folded := foldAccountAggregates(accountID, rows)
-	written, err := writeAccountAggregates(ctx, mongo, folded)
+	folded := foldAggregates(owner, rows)
+	written, err := writeAggregates(ctx, mongo, folded)
 	if err != nil {
 		return out, err
 	}
@@ -94,7 +94,7 @@ func RebuildAccountStatistics(
 
 	// Anything the rebuild did not produce describes a job that is no longer
 	// archived.
-	revoked, err := mongo.RevokeAccountArchivedJobStats(ctx, accountID, keepRowIDs, now)
+	revoked, err := mongo.RevokeArchivedJobStats(ctx, owner, keepRowIDs, now)
 	if err != nil {
 		return out, fmt.Errorf("revoke removed statistics rows: %w", err)
 	}
@@ -113,27 +113,27 @@ type aggregateWrite struct {
 	PrunedTotals  int64
 }
 
-// accountAggregates is one owner's two aggregate collections, folded from its
+// ownerAggregates is one owner's two aggregate collections, folded from its
 // rows and not yet written.
-type accountAggregates struct {
-	AccountID string
-	Buckets   []models.AccountTimelineMonthBucket
-	Totals    []models.ProductionTotalsRow
+type ownerAggregates struct {
+	Owner   models.Owner
+	Buckets []models.TimelineMonthBucket
+	Totals  []models.ProductionTotalsRow
 }
 
-// foldAccountAggregates derives both collections from the rows.
+// foldAggregates derives both collections from the rows.
 //
 // Separate from the write so a caller that wants to compare what is stored
 // against what should be there folds once and uses the result for both.
-func foldAccountAggregates(accountID string, rows []models.ArchivedJobStats) accountAggregates {
-	return accountAggregates{
-		AccountID: accountID,
-		Buckets:   archivestats.AccountBuckets(accountID, rows),
-		Totals:    archivestats.AccountProductionTotals(accountID, rows),
+func foldAggregates(owner models.Owner, rows []models.ArchivedJobStats) ownerAggregates {
+	return ownerAggregates{
+		Owner:   owner,
+		Buckets: archivestats.TimelineBuckets(owner, rows),
+		Totals:  archivestats.ProductionTotals(owner, rows),
 	}
 }
 
-// writeAccountAggregates writes a fold whole, removing anything it did not
+// writeAggregates writes a fold whole, removing anything it did not
 // produce.
 //
 // Absolute rather than incremental: the result depends only on the rows, so two
@@ -143,9 +143,9 @@ func foldAccountAggregates(accountID string, rows []models.ArchivedJobStats) acc
 // Order matters. Documents are written before anything is removed, so a reader
 // arriving mid-write sees the previous complete set or the new one, never a gap
 // where a month has been pruned and not yet rewritten.
-func writeAccountAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded accountAggregates) (aggregateWrite, error) {
+func writeAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded ownerAggregates) (aggregateWrite, error) {
 	var out aggregateWrite
-	accountID, buckets, totals := folded.AccountID, folded.Buckets, folded.Totals
+	owner, buckets, totals := folded.Owner, folded.Buckets, folded.Totals
 
 	bucketItems := make([]eipmongo.StructUpsertItem, 0, len(buckets))
 	keepBucketIDs := make([]string, 0, len(buckets))
@@ -173,18 +173,18 @@ func writeAccountAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded a
 	out.Totals = len(totals)
 
 	if len(totalItems) > 0 {
-		if _, err := mongo.AccountProductionTotals.UpsertStructsPreservingMetaBulk(ctx, totalItems, rebuildUpsertBatch); err != nil {
+		if _, err := mongo.ProductionTotals.UpsertStructsPreservingMetaBulk(ctx, totalItems, rebuildUpsertBatch); err != nil {
 			return out, fmt.Errorf("upsert production totals: %w", err)
 		}
 	}
 
-	pruned, err := mongo.PruneAccountTimelineMonths(ctx, accountID, keepBucketIDs)
+	pruned, err := mongo.PruneTimelineMonths(ctx, owner, keepBucketIDs)
 	if err != nil {
 		return out, fmt.Errorf("prune timeline months: %w", err)
 	}
 	out.PrunedBuckets = pruned
 
-	prunedTotals, err := mongo.PruneAccountProductionTotals(ctx, accountID, keepTotalIDs)
+	prunedTotals, err := mongo.PruneProductionTotals(ctx, owner, keepTotalIDs)
 	if err != nil {
 		return out, fmt.Errorf("prune production totals: %w", err)
 	}
@@ -193,14 +193,14 @@ func writeAccountAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded a
 	return out, nil
 }
 
-// accountRows accumulates the rows a rebuild writes, and the row ids it must not
+// ownerRows accumulates the rows a rebuild writes, and the row ids it must not
 // revoke, one job at a time.
 //
 // Separate from the read so the reduction can be exercised without a database,
 // and so a rebuild holds one job at a time: a row is far smaller than the job it
 // came from, which keeps memory proportional to what is written rather than to
 // the archive read.
-type accountRows struct {
+type ownerRows struct {
 	now      time.Time
 	rows     []models.ArchivedJobStats
 	keepIDs  []string
@@ -216,18 +216,18 @@ type accountRows struct {
 //
 // A job whose snapshot cannot be computed is skipped but its id is still kept:
 // the job is still archived, so revoking its existing row would record it as
-// removed and drop its history from the account's totals. The previous row
+// removed and drop its history from the owner's totals. The previous row
 // stands, stamped as stale, until the job can be read again.
-func (a *accountRows) add(job models.Job) {
+func (a *ownerRows) add(job models.Job) {
 	a.jobCount++
-	row, err := archivestats.NewAccountRow(job, a.now)
+	row, err := archivestats.NewRow(job, a.now)
 	if err != nil {
 		a.skipped++
 		a.skippedJobIDs = append(a.skippedJobIDs, job.JobID)
 		if a.skipReason == "" {
 			a.skipReason = err.Error()
 		}
-		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(job.MetaData.AccountID, job.JobID))
+		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(job.MetaData.AccountID), job.JobID))
 		return
 	}
 	// The rebuild writes the aggregates from these rows in the same pass, so they
@@ -238,10 +238,10 @@ func (a *accountRows) add(job models.Job) {
 	a.keepIDs = append(a.keepIDs, row.ID)
 }
 
-// buildAccountRows walks an account's archived jobs into the rows to write.
-func buildAccountRows(ctx context.Context, mongo *eipmongo.Mongo, accountID string, now time.Time) (*accountRows, error) {
-	acc := &accountRows{now: now}
-	if err := mongo.EachAccountArchivedJob(ctx, accountID, func(job models.Job) error {
+// buildRows walks an owner's archived jobs into the rows to write.
+func buildRows(ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, now time.Time) (*ownerRows, error) {
+	acc := &ownerRows{now: now}
+	if err := mongo.EachOwnerArchivedJob(ctx, owner, func(job models.Job) error {
 		acc.add(job)
 		return nil
 	}); err != nil {

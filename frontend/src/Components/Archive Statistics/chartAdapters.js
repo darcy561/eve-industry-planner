@@ -109,6 +109,27 @@ export function toSegmentRows(row, measure = "jobCostTotal") {
 }
 
 /**
+ * What each extras category was called, read from the months themselves.
+ *
+ * The name is stored with the money rather than looked up in the account's
+ * settings: a category deleted there would otherwise leave its history labelled
+ * with a bare id, and a member of a shared planner has none of another member's
+ * categories to look up at all.
+ *
+ * @param {Array<Object>} rows - Timeline months, or anything carrying extraCategoryLabels
+ * @returns {Map<string, string>} Category id to the name it was archived under
+ */
+function extraCategoryNames(rows = []) {
+  const labels = new Map();
+  for (const row of rows) {
+    for (const [id, label] of Object.entries(row?.extraCategoryLabels ?? {})) {
+      if (label && !labels.has(id)) labels.set(id, label);
+    }
+  }
+  return labels;
+}
+
+/**
  * Extras spend per month, split by category.
  *
  * The API returns bare category ids. Names come from the account's own category
@@ -286,11 +307,9 @@ export function toCostComponentTotalRows(data) {
  * @param {Object} data
  * @param {Array<{id: string, label: string}>} categories
  */
-export function toExtrasTotalRows(data, categories = []) {
+export function toExtrasTotalRows(data) {
   const totals = data?.totals?.extraCategoryTotals ?? {};
-  const labels = new Map(
-    categories.map((category) => [String(category.id), category.label]),
-  );
+  const labels = extraCategoryNames([data?.totals, ...(data?.months ?? [])]);
 
   return Object.entries(totals)
     .map(([id, amount]) => ({
@@ -301,11 +320,9 @@ export function toExtrasTotalRows(data, categories = []) {
     .sort((a, b) => b.value - a.value);
 }
 
-export function toExtrasRows(data, categories = []) {
+export function toExtrasRows(data) {
   const months = data?.months ?? [];
-  const labels = new Map(
-    categories.map((category) => [String(category.id), category.label]),
-  );
+  const labels = extraCategoryNames(months);
 
   const seen = new Set();
   const rows = months.map((row) => {

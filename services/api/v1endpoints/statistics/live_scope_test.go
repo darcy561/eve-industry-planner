@@ -41,12 +41,12 @@ func asAccount(t *testing.T, accountID, path string) *http.Request {
 // distinctive enough that a leak is unmistakable in a diff.
 func seedFigures(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, accountID string, amount float64) {
 	t.Helper()
-	month := models.AccountTimelineMonthBucket{
-		ID:        accountID + "|34|2026-08",
-		AccountID: accountID,
-		TypeID:    34,
-		Year:      2026,
-		Month:     8,
+	month := models.TimelineMonthBucket{
+		ID:     accountID + "|34|2026-08",
+		Owner:  models.AccountOwner(accountID),
+		TypeID: 34,
+		Year:   2026,
+		Month:  8,
 	}
 	month.SalesTotal = amount
 	month.JobCostTotal = amount / 2
@@ -57,13 +57,13 @@ func seedFigures(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, accou
 	}
 
 	totals := models.ProductionTotalsRow{
-		ID:        accountID + "|34",
-		AccountID: accountID,
-		TypeID:    34,
+		ID:     accountID + "|34",
+		Owner:  models.AccountOwner(accountID),
+		TypeID: 34,
 	}
 	totals.TotalJobs = 1
 	totals.SalesTotal = amount
-	if _, err := mongo.AccountProductionTotals.UpsertStructPreservingMeta(ctx, totals, totals.ID); err != nil {
+	if _, err := mongo.ProductionTotals.UpsertStructPreservingMeta(ctx, totals, totals.ID); err != nil {
 		t.Fatalf("seed totals for %s: %v", accountID, err)
 	}
 }

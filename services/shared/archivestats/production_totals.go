@@ -8,16 +8,16 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// AccountProductionTotals folds an account's per-job rows into one lifetime
+// ProductionTotals folds an owner's per-job rows into one lifetime
 // aggregate per item type.
 //
 // These are the documents the lifetime totals read serves. A wholesale rebuild
 // recomputes every total from the rows, so running it twice cannot double-count.
-func AccountProductionTotals(
-	accountID string,
+func ProductionTotals(
+	owner models.Owner,
 	rows []models.ArchivedJobStats,
 ) []models.ProductionTotalsRow {
-	if accountID == "" || len(rows) == 0 {
+	if owner.IsZero() || len(rows) == 0 {
 		return nil
 	}
 
@@ -34,9 +34,9 @@ func AccountProductionTotals(
 		total, ok := byType[row.TypeID]
 		if !ok {
 			total = &models.ProductionTotalsRow{
-				ID:        eipmongo.AccountProductionTotalsDocumentID(accountID, row.TypeID),
-				AccountID: accountID,
-				TypeID:    row.TypeID,
+				ID:     eipmongo.ProductionTotalsDocumentID(owner, row.TypeID),
+				Owner:  owner,
+				TypeID: row.TypeID,
 			}
 			byType[row.TypeID] = total
 		}
@@ -53,7 +53,7 @@ func AccountProductionTotals(
 	out := make([]models.ProductionTotalsRow, 0, len(byType))
 	for _, typeID := range slices.Sorted(maps.Keys(byType)) {
 		total := byType[typeID]
-		total.History = AccountBuildHistory(marksRows[typeID])
+		total.History = BuildHistory(marksRows[typeID])
 		out = append(out, *total)
 	}
 	return out

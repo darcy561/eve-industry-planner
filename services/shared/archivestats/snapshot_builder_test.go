@@ -30,7 +30,7 @@ func sampleSnap() models.BuildStatSnapshot {
 func TestTransactionLinesProrateCostAndProfit(t *testing.T) {
 	t.Parallel()
 
-	doc := BuildAccountSnapshot(sampleJob(), sampleSnap(), buildNow)
+	doc := RowFromSnapshot(sampleJob(), sampleSnap(), buildNow)
 	if len(doc.TransactionLines) != 1 {
 		t.Fatalf("lines = %d, want 1", len(doc.TransactionLines))
 	}
@@ -52,7 +52,7 @@ func TestTransactionLinesProrateCostAndProfit(t *testing.T) {
 func TestUnsoldQuantityAndCost(t *testing.T) {
 	t.Parallel()
 
-	doc := BuildAccountSnapshot(sampleJob(), sampleSnap(), buildNow)
+	doc := RowFromSnapshot(sampleJob(), sampleSnap(), buildNow)
 	if doc.UnsoldQuantity != 6 { // 10 produced − 4 sold
 		t.Fatalf("unsoldQuantity = %v, want 6", doc.UnsoldQuantity)
 	}
@@ -62,13 +62,13 @@ func TestUnsoldQuantityAndCost(t *testing.T) {
 }
 
 // Selling more than the snapshot recorded as produced must not report negative
-// stock, which would subtract from the account's totals.
+// stock, which would subtract from the owner's totals.
 func TestOversoldJobDoesNotReportNegativeUnsold(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
 	job.Build.Sale.Transactions[0].Quantity = 25
-	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
 
 	if doc.UnsoldQuantity != 0 {
 		t.Fatalf("unsoldQuantity = %v, want 0", doc.UnsoldQuantity)
@@ -81,7 +81,7 @@ func TestOversoldJobDoesNotReportNegativeUnsold(t *testing.T) {
 func TestZeroProducedDoesNotDivideByZero(t *testing.T) {
 	t.Parallel()
 
-	doc := BuildAccountSnapshot(sampleJob(), models.BuildStatSnapshot{TotalJobCost: 500}, buildNow)
+	doc := RowFromSnapshot(sampleJob(), models.BuildStatSnapshot{TotalJobCost: 500}, buildNow)
 	if doc.TransactionLines[0].ProratedCost != 0 {
 		t.Fatalf("proratedCost = %v, want 0", doc.TransactionLines[0].ProratedCost)
 	}
@@ -101,7 +101,7 @@ func TestCostMonthComesFromTheEarliestLinkedJob(t *testing.T) {
 		{JobID: 2, StartDate: "2026-03-05T00:00:00Z"},
 	}
 
-	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
 	if doc.CostMonth.Year != 2026 || doc.CostMonth.Month != 3 {
 		t.Fatalf("costMonth = %+v, want 2026-3", doc.CostMonth)
 	}
@@ -111,13 +111,13 @@ func TestCostMonthFallsBackThroughSalesToArchiveDate(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob() // no linked jobs; earliest transaction is June
-	if got := BuildAccountSnapshot(job, sampleSnap(), buildNow).CostMonth; got.Month != 6 {
+	if got := RowFromSnapshot(job, sampleSnap(), buildNow).CostMonth; got.Month != 6 {
 		t.Fatalf("costMonth = %+v, want the earliest sale month 6", got)
 	}
 
 	job.Build.Sale.Transactions = nil
 	job.MetaData.ArchivedAt = time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
-	if got := BuildAccountSnapshot(job, sampleSnap(), buildNow).CostMonth; got.Month != 2 {
+	if got := RowFromSnapshot(job, sampleSnap(), buildNow).CostMonth; got.Month != 2 {
 		t.Fatalf("costMonth = %+v, want the archive month 2", got)
 	}
 }
@@ -129,7 +129,7 @@ func TestUnparsableLineDateFallsBackToTheArchiveDate(t *testing.T) {
 	job := sampleJob()
 	job.Build.Sale.Transactions[0].Date = "not a date"
 
-	line := BuildAccountSnapshot(job, sampleSnap(), buildNow).TransactionLines[0]
+	line := RowFromSnapshot(job, sampleSnap(), buildNow).TransactionLines[0]
 	if line.Year != 2026 || line.Month != 6 {
 		t.Fatalf("line month = %d-%d, want the archive month 2026-6", line.Year, line.Month)
 	}
@@ -140,17 +140,31 @@ func TestExtraCategoryTotalsFoldByCategory(t *testing.T) {
 
 	job := sampleJob()
 	job.Build.Costs.ExtrasCosts = []models.ExtraCost{
-		{Category: "shipping", ExtraValue: 10},
-		{Category: "shipping", ExtraValue: 5},
+		{Category: "shipping", CategoryLabel: "Hauling Service", ExtraValue: 10},
+		{Category: "shipping", CategoryLabel: "Hauling Service", ExtraValue: 5},
 		{Category: "", ExtraValue: 3},
 	}
 
-	totals := BuildAccountSnapshot(job, sampleSnap(), buildNow).ExtraCategoryTotals
-	if totals["shipping"] != 15 {
-		t.Fatalf("shipping = %v, want 15", totals["shipping"])
+	got := map[string]models.ArchivedExtraCategory{}
+	for _, entry := range RowFromSnapshot(job, sampleSnap(), buildNow).ExtraCategories {
+		got[entry.ID] = entry
 	}
-	if totals["0"] != 3 {
-		t.Fatalf("uncategorised = %v, want 3 under \"0\"", totals["0"])
+
+	if got["shipping"].Amount != 15 {
+		t.Fatalf("shipping = %v, want 15", got["shipping"].Amount)
+	}
+	// The name travels with the money: the archive cannot reach the settings
+	// document the id would otherwise be read against.
+	if got["shipping"].Label != "Hauling Service" {
+		t.Fatalf("shipping label = %q, want the name it was added under", got["shipping"].Label)
+	}
+	if got["0"].Amount != 3 {
+		t.Fatalf("uncategorised = %v, want 3 under \"0\"", got["0"].Amount)
+	}
+	// An extra added with no label leaves it empty rather than the row inventing
+	// one; a reader falls back to showing the id, as it could before.
+	if got["0"].Label != "" {
+		t.Fatalf("uncategorised label = %q, want none", got["0"].Label)
 	}
 }
 
@@ -166,9 +180,9 @@ func TestBuildIsDeterministic(t *testing.T) {
 	}
 	job.Build.Costs.ExtrasCosts = []models.ExtraCost{{Category: "x", ExtraValue: 1}}
 
-	first := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	first := RowFromSnapshot(job, sampleSnap(), buildNow)
 	for range 8 {
-		again := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+		again := RowFromSnapshot(job, sampleSnap(), buildNow)
 		if again.ID != first.ID || again.CostMonth != first.CostMonth {
 			t.Fatal("identity or cost month changed between rebuilds")
 		}
@@ -181,12 +195,12 @@ func TestBuildIsDeterministic(t *testing.T) {
 func TestSnapshotCarriesAccountIdentityAndStamps(t *testing.T) {
 	t.Parallel()
 
-	doc := BuildAccountSnapshot(sampleJob(), sampleSnap(), buildNow)
-	if doc.AccountID != "acct-1" {
-		t.Fatalf("accountID = %q", doc.AccountID)
+	doc := RowFromSnapshot(sampleJob(), sampleSnap(), buildNow)
+	if doc.Owner != models.AccountOwner("acct-1") {
+		t.Fatalf("owner = %+v, want the job's account", doc.Owner)
 	}
-	if doc.ID != "acct-1|job-1" {
-		t.Fatalf("_id = %q, want acct-1|job-1", doc.ID)
+	if doc.ID != "account:acct-1|job-1" {
+		t.Fatalf("_id = %q, want account:acct-1|job-1 — the id leads with the owner key", doc.ID)
 	}
 	if !doc.ProcessedAt.Equal(buildNow) {
 		t.Fatalf("processedAt = %v, want the supplied clock %v", doc.ProcessedAt, buildNow)
@@ -216,7 +230,7 @@ func TestMissingArchiveDateFallsBackToDocumentTimestamps(t *testing.T) {
 	job.Build.Sale.BrokersFee = nil
 	job.Build.Costs.LinkedJobs = nil
 
-	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
 	if !doc.ArchivedAt.Equal(lastModified) {
 		t.Fatalf("archivedAt = %v, want lastModified %v", doc.ArchivedAt, lastModified)
 	}
@@ -240,7 +254,7 @@ func TestMissingArchiveAndModifiedDatesFallBackToCreated(t *testing.T) {
 	job.Build.Sale.BrokersFee = nil
 	job.Build.Costs.LinkedJobs = nil
 
-	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
 	if !doc.ArchivedAt.Equal(created) {
 		t.Fatalf("archivedAt = %v, want createdAt %v", doc.ArchivedAt, created)
 	}
@@ -261,8 +275,8 @@ func TestCostMonthDoesNotMoveWithTheRebuildClock(t *testing.T) {
 	job.Build.Sale.BrokersFee = nil
 	job.Build.Costs.LinkedJobs = nil
 
-	first := BuildAccountSnapshot(job, sampleSnap(), buildNow)
-	later := BuildAccountSnapshot(job, sampleSnap(), buildNow.AddDate(0, 5, 0))
+	first := RowFromSnapshot(job, sampleSnap(), buildNow)
+	later := RowFromSnapshot(job, sampleSnap(), buildNow.AddDate(0, 5, 0))
 
 	if first.CostMonth != later.CostMonth {
 		t.Fatalf("costMonth moved between rebuilds: %+v then %+v", first.CostMonth, later.CostMonth)
@@ -282,7 +296,7 @@ func TestJobWithNoTimestampsStillGetsAMonth(t *testing.T) {
 	job.Build.Sale.BrokersFee = nil
 	job.Build.Costs.LinkedJobs = nil
 
-	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
 	if doc.CostMonth.Year == 0 {
 		t.Fatal("costMonth is unset; the row would count in totals but no month")
 	}
@@ -360,9 +374,9 @@ func TestMarketSalesIgnoreAFiledSalesMonth(t *testing.T) {
 		Date:          "2026-08-10T00:00:00Z",
 	}}
 
-	row, err := NewAccountRow(job, time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC))
+	row, err := NewRow(job, time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC))
 	if err != nil {
-		t.Fatalf("NewAccountRow: %v", err)
+		t.Fatalf("NewRow: %v", err)
 	}
 	if got := row.TransactionLines[0].CalendarMonth; got != (models.CalendarMonth{Year: 2026, Month: 8}) {
 		t.Fatalf("market sale filed under %+v, want the month the money arrived", got)
@@ -383,9 +397,9 @@ func TestHandEnteredSalesFollowAFiledSalesMonth(t *testing.T) {
 	}}
 	job.Build.Sale.BrokersFee = []models.BrokerFee{{ID: -1, Amount: 5, Date: "2026-08-09T00:00:00Z"}}
 
-	row, err := NewAccountRow(job, time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC))
+	row, err := NewRow(job, time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC))
 	if err != nil {
-		t.Fatalf("NewAccountRow: %v", err)
+		t.Fatalf("NewRow: %v", err)
 	}
 	if got := row.TransactionLines[0].CalendarMonth; got != filed {
 		t.Fatalf("hand-entered sale filed under %+v, want %+v", got, filed)
@@ -406,16 +420,16 @@ func TestNewRowNamesItsOwnerAndSchema(t *testing.T) {
 	job.MetaData.AccountID = "acct-1"
 	job.MetaData.ArchivedBy = "acct-2"
 
-	row, err := NewAccountRow(job, time.Now().UTC())
+	row, err := NewRow(job, time.Now().UTC())
 	if err != nil {
-		t.Fatalf("NewAccountRow: %v", err)
+		t.Fatalf("NewRow: %v", err)
 	}
 
 	if row.Owner != models.AccountOwner("acct-1") {
 		t.Fatalf("owner = %+v, want the job's account", row.Owner)
 	}
-	if row.AccountID != "acct-1" {
-		t.Fatalf("accountID = %q — still written until the rows are backfilled", row.AccountID)
+	if row.Owner != models.AccountOwner("acct-1") {
+		t.Fatalf("owner = %+v, want the job's account", row.Owner)
 	}
 	// Who archived it is not who owns it: inside a shared planner a member
 	// archives into a planner they do not own.

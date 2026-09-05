@@ -80,53 +80,10 @@ func TestUpgradesTolerateNilDocuments(t *testing.T) {
 	upgrader.ArchivedJobStats(nil)
 }
 
-// Rows stored before the owner existed carry only an account id. Every read goes
-// through here, so a row that keeps an empty owner reads as one nobody owns.
-func TestArchivedJobStatsGainsAnOwnerFromItsAccount(t *testing.T) {
-	t.Parallel()
-
-	row := &models.ArchivedJobStats{AccountID: "acct-1"}
-	Upgrader{}.ArchivedJobStats(row)
-
-	if row.Owner != models.AccountOwner("acct-1") {
-		t.Fatalf("owner = %+v, want the account it already named", row.Owner)
-	}
-	if row.SchemaVersion != models.ArchivedJobStatsSchemaCurrent {
-		t.Fatalf("schemaVersion = %d", row.SchemaVersion)
-	}
-}
-
-// A backfilled row already says who owns it, and that answer outranks the
-// account id beside it — under a shared planner the two differ.
-func TestArchivedJobStatsKeepsAnOwnerItAlreadyHas(t *testing.T) {
-	t.Parallel()
-
-	owner := models.Owner{Kind: models.OwnerCorporation, ID: "corp-ref"}
-	row := &models.ArchivedJobStats{Owner: owner, AccountID: "acct-1"}
-	Upgrader{}.ArchivedJobStats(row)
-
-	if row.Owner != owner {
-		t.Fatalf("owner = %+v, want the stored corporation owner", row.Owner)
-	}
-}
-
-// A row with neither is not given a nonsense owner: an account id of "" would
-// key documents nothing can find again.
-func TestArchivedJobStatsWithNoAccountGetsNoOwner(t *testing.T) {
-	t.Parallel()
-
-	row := &models.ArchivedJobStats{}
-	Upgrader{}.ArchivedJobStats(row)
-
-	if !row.Owner.IsZero() {
-		t.Fatalf("owner = %+v, want none", row.Owner)
-	}
-}
-
 func TestArchivedJobStatsClampsFutureVersions(t *testing.T) {
 	t.Parallel()
 
-	row := &models.ArchivedJobStats{AccountID: "acct-1", SchemaVersion: 99}
+	row := &models.ArchivedJobStats{Owner: models.AccountOwner("acct-1"), SchemaVersion: 99}
 	Upgrader{}.ArchivedJobStats(row)
 
 	if row.SchemaVersion != models.ArchivedJobStatsSchemaCurrent {
@@ -136,4 +93,20 @@ func TestArchivedJobStatsClampsFutureVersions(t *testing.T) {
 
 func testTime() time.Time {
 	return time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
+}
+
+// A row already at the current version keeps the labels it holds.
+func TestArchivedJobStatsUpgradeKeepsLabelsItAlreadyHas(t *testing.T) {
+	t.Parallel()
+
+	row := &models.ArchivedJobStats{
+		Owner:           models.AccountOwner("acct-1"),
+		SchemaVersion:   models.ArchivedJobStatsSchemaCurrent,
+		ExtraCategories: []models.ArchivedExtraCategory{{ID: "90", Label: "Retired Courier Contract", Amount: 5}},
+	}
+	Upgrader{}.ArchivedJobStats(row)
+
+	if row.ExtraCategories[0].Label != "Retired Courier Contract" {
+		t.Fatalf("label = %q, want the name the row was archived under", row.ExtraCategories[0].Label)
+	}
 }

@@ -18,8 +18,8 @@ const reconcileScratchAccount = "eip-parity-reconcile-account"
 // collection so a reconcile has something authoritative to fold.
 func scratchRow(jobID string, typeID int, costMonth models.CalendarMonth, sale float64) models.ArchivedJobStats {
 	return models.ArchivedJobStats{
-		ID:                 eipmongo.ArchivedJobStatsDocumentID(reconcileScratchAccount, jobID),
-		AccountID:          reconcileScratchAccount,
+		ID:                 eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(reconcileScratchAccount), jobID),
+		Owner:              models.AccountOwner(reconcileScratchAccount),
 		JobID:              jobID,
 		TypeID:             typeID,
 		CostMonth:          costMonth,
@@ -47,7 +47,7 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 		scope := bson.M{"accountID": reconcileScratchAccount}
 		_, _ = mongo.ArchivedJobStats.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.AccountTimelineMonths.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountProductionTotals.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.ProductionTotals.Collection().DeleteMany(cctx, scope)
 		_, _ = mongo.AccountReconcileRota.Collection().DeleteMany(cctx,
 			bson.M{"_id": models.AccountOwner(reconcileScratchAccount).Key()})
 		_, _ = mongo.AccountRebuildQueue.Collection().DeleteMany(cctx,
@@ -70,18 +70,18 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	first, err := ReconcileAccountStatistics(ctx, mongo, reconcileScratchAccount, now)
+	first, err := ReconcileStatistics(ctx, mongo, models.AccountOwner(reconcileScratchAccount), now)
 	if err != nil {
 		t.Fatalf("first reconcile: %v", err)
 	}
 	if first.Buckets == 0 || first.Totals == 0 {
 		t.Fatalf("first reconcile wrote nothing: %+v", first)
 	}
-	baselineBuckets, err := mongo.LoadAccountTimelineMonths(ctx, reconcileScratchAccount)
+	baselineBuckets, err := mongo.LoadTimelineMonths(ctx, models.AccountOwner(reconcileScratchAccount))
 	if err != nil {
 		t.Fatalf("read baseline buckets: %v", err)
 	}
-	baselineTotals, err := mongo.LoadAccountProductionTotals(ctx, reconcileScratchAccount, 0)
+	baselineTotals, err := mongo.LoadProductionTotals(ctx, models.AccountOwner(reconcileScratchAccount), 0)
 	if err != nil {
 		t.Fatalf("read baseline totals: %v", err)
 	}
@@ -97,13 +97,13 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 		t.Fatalf("delete a bucket: %v", err)
 	}
 	orphan := baselineBuckets[0]
-	orphan.ID = eipmongo.AccountTimelineMonthDocumentID(reconcileScratchAccount, 99999, 2019, 1, false)
+	orphan.ID = eipmongo.TimelineMonthDocumentID(models.AccountOwner(reconcileScratchAccount), 99999, 2019, 1, false)
 	orphan.TypeID, orphan.Year, orphan.Month = 99999, 2019, 1
 	if _, err := mongo.AccountTimelineMonths.UpsertStructPreservingMeta(ctx, orphan, orphan.ID); err != nil {
 		t.Fatalf("insert an orphan bucket: %v", err)
 	}
 
-	second, err := ReconcileAccountStatistics(ctx, mongo, reconcileScratchAccount, now.Add(time.Minute))
+	second, err := ReconcileStatistics(ctx, mongo, models.AccountOwner(reconcileScratchAccount), now.Add(time.Minute))
 	if err != nil {
 		t.Fatalf("second reconcile: %v", err)
 	}
@@ -125,11 +125,11 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 	}
 
 	// Reporting is not the point; the documents have to be right again.
-	repairedBuckets, err := mongo.LoadAccountTimelineMonths(ctx, reconcileScratchAccount)
+	repairedBuckets, err := mongo.LoadTimelineMonths(ctx, models.AccountOwner(reconcileScratchAccount))
 	if err != nil {
 		t.Fatalf("read repaired buckets: %v", err)
 	}
-	repairedTotals, err := mongo.LoadAccountProductionTotals(ctx, reconcileScratchAccount, 0)
+	repairedTotals, err := mongo.LoadProductionTotals(ctx, models.AccountOwner(reconcileScratchAccount), 0)
 	if err != nil {
 		t.Fatalf("read repaired totals: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 	}
 
 	// A reconcile over correct aggregates writes the same values and says so.
-	third, err := ReconcileAccountStatistics(ctx, mongo, reconcileScratchAccount, now.Add(2*time.Minute))
+	third, err := ReconcileStatistics(ctx, mongo, models.AccountOwner(reconcileScratchAccount), now.Add(2*time.Minute))
 	if err != nil {
 		t.Fatalf("third reconcile: %v", err)
 	}
@@ -152,11 +152,11 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 
 // compareBucketSets reports the first difference between two sets of buckets, or
 // an empty string when they hold the same documents with the same figures.
-func compareBucketSets(want, got []models.AccountTimelineMonthBucket) string {
+func compareBucketSets(want, got []models.TimelineMonthBucket) string {
 	if len(want) != len(got) {
 		return "document counts differ"
 	}
-	byID := make(map[string]models.AccountTimelineMonthBucket, len(got))
+	byID := make(map[string]models.TimelineMonthBucket, len(got))
 	for _, doc := range got {
 		byID[doc.ID] = doc
 	}

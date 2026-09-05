@@ -3,6 +3,7 @@ package archivedjobs
 import (
 	"testing"
 
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -39,10 +40,12 @@ func TestFilterDoesNotLeakBetweenCalls(t *testing.T) {
 // The scope builds the id, so a different keying scheme changes no callers.
 func TestScopeBuildsStatsDocumentID(t *testing.T) {
 	scope := archiveScope{
-		OwnerID:         "account-1",
-		statsDocumentID: eipmongo.ArchivedJobStatsDocumentID,
+		OwnerID: "account-1",
+		statsDocumentID: func(ownerID, jobID string) string {
+			return eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(ownerID), jobID)
+		},
 	}
-	if got := scope.statsID("job-1"); got != "account-1|job-1" {
+	if got := scope.statsID("job-1"); got != "account:account-1|job-1" {
 		t.Fatalf("statsID = %q", got)
 	}
 }

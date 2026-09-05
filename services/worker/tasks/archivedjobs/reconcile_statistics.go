@@ -13,7 +13,7 @@ import (
 // ReconcileResult reports one reconcile: what it wrote, and what it found wrong
 // on the way.
 type ReconcileResult struct {
-	AccountID     string
+	Owner         models.Owner
 	Rows          int
 	Buckets       int
 	Totals        int
@@ -35,7 +35,7 @@ func (r ReconcileResult) Drifted() bool {
 	return r.BucketDrift.Any() || r.TotalDrift.Any()
 }
 
-// ReconcileAccountStatistics rewrites an account's aggregates from its stored
+// ReconcileStatistics rewrites an account's aggregates from its stored
 // rows, and reports what they disagreed about first.
 //
 // It does not re-derive anything from job documents: rows are written whole,
@@ -47,22 +47,22 @@ func (r ReconcileResult) Drifted() bool {
 // The write is unconditional. Comparing happens only to report, so a fault in
 // the comparison cannot stop the correction — the alternative, "detect then
 // queue a repair", is silent exactly when detection is the broken part.
-func ReconcileAccountStatistics(
+func ReconcileStatistics(
 	ctx context.Context,
 	mongo *eipmongo.Mongo,
-	accountID string,
+	owner models.Owner,
 	now time.Time,
 ) (ReconcileResult, error) {
-	out := ReconcileResult{AccountID: accountID}
+	out := ReconcileResult{Owner: owner}
 	if mongo == nil {
 		return out, fmt.Errorf("mongo handle is required")
 	}
-	if accountID == "" {
-		return out, fmt.Errorf("accountID is required")
+	if err := owner.Validate(); err != nil {
+		return out, err
 	}
 	now = now.UTC()
 
-	rows, err := mongo.LoadAccountArchivedJobStats(ctx, accountID)
+	rows, err := mongo.LoadArchivedJobStats(ctx, owner)
 	if err != nil {
 		return out, fmt.Errorf("load statistics rows: %w", err)
 	}
@@ -71,7 +71,7 @@ func ReconcileAccountStatistics(
 	// what everything below reads. Building them here is what makes the rota a
 	// backstop for a missed row write rather than only for arithmetic that
 	// drifted. The rows just read say which jobs already have one.
-	fresh, err := writeRowsForNewlyArchivedJobs(ctx, mongo, accountID, rows, now)
+	fresh, err := writeRowsForNewlyArchivedJobs(ctx, mongo, owner, rows, now)
 	if err != nil {
 		return out, err
 	}
@@ -82,25 +82,24 @@ func ReconcileAccountStatistics(
 	// A fold in flight is holding rows this reconcile is about to account for.
 	// Bumping the claim is what tells it to stand down rather than adding them a
 	// second time on top of what is written below.
-	owner := models.AccountOwner(accountID)
 	if err := mongo.BumpOwnerClaim(ctx, owner); err != nil {
 		return out, fmt.Errorf("invalidate work in flight: %w", err)
 	}
 
-	folded := foldAccountAggregates(accountID, rows)
+	folded := foldAggregates(owner, rows)
 
-	storedBuckets, err := mongo.LoadAccountTimelineMonths(ctx, accountID)
+	storedBuckets, err := mongo.LoadTimelineMonths(ctx, owner)
 	if err != nil {
 		return out, fmt.Errorf("load stored timeline months: %w", err)
 	}
-	storedTotals, err := mongo.LoadAccountProductionTotals(ctx, accountID, 0)
+	storedTotals, err := mongo.LoadProductionTotals(ctx, owner, 0)
 	if err != nil {
 		return out, fmt.Errorf("load stored production totals: %w", err)
 	}
 	out.BucketDrift = archivestats.CompareBuckets(storedBuckets, folded.Buckets)
 	out.TotalDrift = archivestats.CompareTotals(storedTotals, folded.Totals)
 
-	written, err := writeAccountAggregates(ctx, mongo, folded)
+	written, err := writeAggregates(ctx, mongo, folded)
 	if err != nil {
 		return out, err
 	}

@@ -36,7 +36,7 @@ func TestSummedContributionsEqualAWholesaleFold(t *testing.T) {
 		}(),
 	}
 
-	wholesale := AccumulateAccountBuckets(rows)
+	wholesale := AccumulateBuckets(rows)
 
 	summed := map[models.StatsBucketKey]models.StatsBucketDelta{}
 	for _, row := range rows {
@@ -200,7 +200,7 @@ func TestABuiltRowIsUncountedUntilAWriterSaysOtherwise(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC)
-	row := BuildAccountSnapshot(models.Job{
+	row := RowFromSnapshot(models.Job{
 		JobID:               "job-1",
 		ItemID:              34,
 		ItemsProducedPerRun: 4,

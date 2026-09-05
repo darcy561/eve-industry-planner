@@ -10,6 +10,7 @@ import (
 	"eve-industry-planner/shared/models"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
@@ -23,13 +24,29 @@ func (m *Mongo) StatisticsOwners(ctx context.Context, opts ...RetryOption) ([]mo
 	if m == nil || m.ArchivedJobStats == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	ids, err := m.ArchivedJobStats.DistinctStrings(ctx, "accountID", nil, opts...)
-	if err != nil {
+	// Grouped rather than distinct on a field: a kind and an id only mean
+	// something together, and two distinct calls would pair them by position.
+	//
+	// Rows written before the owner existed carry none and are skipped. They are
+	// left in place for an operator to remove, so an owner must not be invented
+	// from their absence.
+	var groups []struct {
+		Owner models.Owner `bson:"_id"`
+	}
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$match", Value: bson.M{"owner": bson.M{"$exists": true}}}},
+		bson.D{{Key: "$group", Value: bson.M{"_id": "$owner"}}},
+	}
+	if err := m.ArchivedJobStats.Aggregate(ctx, pipeline, &groups, append(opts, WithOpName("StatisticsOwners"))...); err != nil {
 		return nil, fmt.Errorf("list statistics owners: %w", err)
 	}
-	out := make([]models.Owner, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, models.AccountOwner(id))
+
+	out := make([]models.Owner, 0, len(groups))
+	for _, group := range groups {
+		if group.Owner.Validate() != nil {
+			continue
+		}
+		out = append(out, group.Owner)
 	}
 	return out, nil
 }

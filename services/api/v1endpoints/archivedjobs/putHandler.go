@@ -187,7 +187,7 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		//
 		// It is written uncounted: the fold queued below is what puts its figures
 		// into the aggregates.
-		row, rowErr := archivestats.NewAccountRow(*job, now)
+		row, rowErr := archivestats.NewRow(*job, now)
 		if rowErr != nil {
 			unbuildable++
 			continue

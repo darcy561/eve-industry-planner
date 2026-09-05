@@ -38,17 +38,11 @@ type ArchivedJobFeeLine struct {
 
 // ArchivedJobStats is one archived job reduced to the figures the statistics
 // pipelines read.
-//
-// Owner is who the row belongs to. AccountID and CorpRef say the same thing in
-// the shape that predates it, and are still what every query filters on until
-// the stored rows carry an owner; a row read before then is given one by
-// [documentschema.Upgrader.ArchivedJobStats].
 type ArchivedJobStats struct {
 	ID            string `bson:"_id" json:"-"`
 	SchemaVersion int    `bson:"schemaVersion,omitempty" json:"-"`
-	Owner         Owner  `bson:"owner" json:"-"`
-	AccountID     string `bson:"accountID" json:"accountID"`
-	CorpRef       string `bson:"corpRef,omitempty" json:"corpRef,omitempty"`
+	// Owner is who the row belongs to, and what every query for it filters on.
+	Owner Owner `bson:"owner" json:"-"`
 	// ArchivedBy is the account that archived the job, which inside a shared
 	// planner is not the same question as who owns the row.
 	ArchivedBy        string    `bson:"archivedBy,omitempty" json:"-"`
@@ -61,13 +55,15 @@ type ArchivedJobStats struct {
 	// Workers fall back to ArchivedAt when it is zero.
 	CostMonth             CalendarMonth `bson:"costMonth" json:"costMonth,omitzero"`
 	ArchivedJobCostTotals `bson:",inline"`
-	ExtraCategoryTotals   map[string]float64           `bson:"extraCategoryTotals,omitempty" json:"extraCategoryTotals,omitempty"`
-	UnsoldQuantity        float64                      `bson:"unsoldQuantity" json:"unsoldQuantity"`
-	UnsoldCost            float64                      `bson:"unsoldCost" json:"unsoldCost"`
-	TransactionLines      []ArchivedJobTransactionLine `bson:"transactionLines" json:"transactionLines"`
-	FeeLines              []ArchivedJobFeeLine         `bson:"feeLines" json:"feeLines"`
-	Protected             *FieldProtection             `bson:"protected,omitempty" json:"-"`
-	ProcessedAt           time.Time                    `bson:"processedAt" json:"processedAt"`
+	// ExtraCategories is what the job's extras cost, per category, each carrying
+	// the name it was archived under.
+	ExtraCategories  []ArchivedExtraCategory      `bson:"extraCategories,omitempty" json:"extraCategories,omitempty"`
+	UnsoldQuantity   float64                      `bson:"unsoldQuantity" json:"unsoldQuantity"`
+	UnsoldCost       float64                      `bson:"unsoldCost" json:"unsoldCost"`
+	TransactionLines []ArchivedJobTransactionLine `bson:"transactionLines" json:"transactionLines"`
+	FeeLines         []ArchivedJobFeeLine         `bson:"feeLines" json:"feeLines"`
+	Protected        *FieldProtection             `bson:"protected,omitempty" json:"-"`
+	ProcessedAt      time.Time                    `bson:"processedAt" json:"processedAt"`
 	// ContributedAt records that this row's figures have been added to the
 	// aggregates above it. It is both the guard against adding them twice and the
 	// list of what is still outstanding: the rows without one are the work.
@@ -134,4 +130,17 @@ func (s ArchivedJobStats) SalesTotal() float64 {
 		sales += line.Amount
 	}
 	return sales
+}
+
+// ArchivedExtraCategory is one extras category's share of a job's costs, with the
+// name it carried at the time.
+//
+// The name is stored rather than looked up because the list it would be looked up
+// in is a per-account setting: a category deleted there leaves the archive naming
+// an id nobody can read, and a member of a shared planner has none of another
+// member's categories in their own list.
+type ArchivedExtraCategory struct {
+	ID     string  `bson:"id" json:"id"`
+	Label  string  `bson:"label" json:"label"`
+	Amount float64 `bson:"amount" json:"amount"`
 }

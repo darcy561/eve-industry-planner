@@ -105,7 +105,7 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	includeChain := resolveProductionChainScope(r, typeID)
 
 	rows, err := h.Mongo.TimelineMonths(ctx, eipmongo.TimelineQuery{
-		AccountID:              accountID,
+		Owner:                  models.AccountOwner(accountID),
 		From:                   window.From,
 		To:                     window.To,
 		AllTime:                window.All,

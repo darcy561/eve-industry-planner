@@ -65,7 +65,7 @@ func rowFor(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jobID stri
 	if err != nil {
 		t.Fatalf("reload archived job: %v", err)
 	}
-	row, err := archivestats.NewAccountRow(job, time.Now().UTC())
+	row, err := archivestats.NewRow(job, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("reduce archived job: %v", err)
 	}

@@ -30,9 +30,9 @@ func TestNewMongo_andColl(t *testing.T) {
 	if mongo.DB == nil || mongo.DB.Name() != DatabaseName {
 		t.Fatalf("DB=%v want name %q", mongo.DB, DatabaseName)
 	}
-	docs := mongo.AccountProductionTotals
+	docs := mongo.ProductionTotals
 	if docs == nil || docs.Collection() == nil || docs.Collection().Name() != CollectionAccountProductionTotals {
-		t.Fatalf("AccountProductionTotals=%v", docs)
+		t.Fatalf("ProductionTotals=%v", docs)
 	}
 	if docs.Collection().Database().Name() != DatabaseName {
 		t.Fatalf("coll db=%q", docs.Collection().Database().Name())

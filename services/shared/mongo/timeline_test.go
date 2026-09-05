@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"eve-industry-planner/shared/models"
 	"fmt"
 	"testing"
 	"time"
@@ -98,17 +99,17 @@ func TestMonthKeyBefore(t *testing.T) {
 func TestTimelineRangeFilterOmitsTypeWhenUnset(t *testing.T) {
 	t.Parallel()
 
-	all := timelineRangeFilter(TimelineQuery{AccountID: "acct-1"})
+	all := timelineRangeFilter(TimelineQuery{Owner: models.AccountOwner("acct-1")})
 	if _, ok := all["typeID"]; ok {
 		t.Fatal("typeID must be absent when unset, or the month view would read one type instead of summing every type")
 	}
 
-	one := timelineRangeFilter(TimelineQuery{AccountID: "acct-1", TypeID: 34})
+	one := timelineRangeFilter(TimelineQuery{Owner: models.AccountOwner("acct-1"), TypeID: 34})
 	if one["typeID"] != 34 {
 		t.Fatalf("typeID = %v, want 34", one["typeID"])
 	}
-	if one["accountID"] != "acct-1" {
-		t.Fatal("the account filter must survive alongside the type filter")
+	if one["owner.kind"] != models.OwnerAccount || one["owner.id"] != "acct-1" {
+		t.Fatal("the owner filter must survive alongside the type filter")
 	}
 }
 
@@ -200,7 +201,7 @@ func TestTimelineQueriesRejectBadInput(t *testing.T) {
 	var nilMongo *Mongo
 	ctx := t.Context()
 
-	if _, err := nilMongo.TimelineMonths(ctx, TimelineQuery{AccountID: "acct-1"}); err == nil {
+	if _, err := nilMongo.TimelineMonths(ctx, TimelineQuery{Owner: models.AccountOwner("acct-1")}); err == nil {
 		t.Fatal("expected an error without a mongo handle")
 	}
 
@@ -209,7 +210,7 @@ func TestTimelineQueriesRejectBadInput(t *testing.T) {
 		t.Fatal("expected an error without an accountID")
 	}
 
-	backwards := TimelineQuery{AccountID: "acct-1", From: MonthKey{2026, 8}, To: MonthKey{2026, 6}}
+	backwards := TimelineQuery{Owner: models.AccountOwner("acct-1"), From: MonthKey{2026, 8}, To: MonthKey{2026, 6}}
 	if _, err := m.TimelineMonths(ctx, backwards); err == nil {
 		t.Fatal("expected an error when the range ends before it starts")
 	}
@@ -224,7 +225,7 @@ func TestTimelineItemsRejectsUnknownSortField(t *testing.T) {
 	t.Parallel()
 
 	m := &Mongo{}
-	q := TimelineQuery{AccountID: "acct-1", From: MonthKey{2026, 7}, To: MonthKey{2026, 8}}
+	q := TimelineQuery{Owner: models.AccountOwner("acct-1"), From: MonthKey{2026, 7}, To: MonthKey{2026, 8}}
 
 	if _, err := m.TimelineItems(t.Context(), q, "_id", false, 10, 0); err == nil {
 		t.Fatal("expected an error for a field outside the sortable set")
@@ -240,12 +241,32 @@ func TestTimelineItemsRejectsBadPaging(t *testing.T) {
 	t.Parallel()
 
 	m := &Mongo{}
-	q := TimelineQuery{AccountID: "acct-1", From: MonthKey{2026, 7}, To: MonthKey{2026, 8}}
+	q := TimelineQuery{Owner: models.AccountOwner("acct-1"), From: MonthKey{2026, 7}, To: MonthKey{2026, 8}}
 
 	if _, err := m.TimelineItems(t.Context(), q, "", false, 0, 0); err == nil {
 		t.Fatal("expected an error for a non-positive limit: an unbounded page is the payload this view exists to avoid")
 	}
 	if _, err := m.TimelineItems(t.Context(), q, "", false, 10, -1); err == nil {
 		t.Fatal("expected an error for a negative offset")
+	}
+}
+
+// The buckets are keyed by owner, so a filter naming an account field matches
+// nothing — and an empty result is a valid answer to "what has this owner
+// archived", which is what makes the mistake silent. This pins the field names
+// the filter actually uses.
+func TestTimelineFilterNamesTheOwnerFields(t *testing.T) {
+	t.Parallel()
+
+	filter := timelineRangeFilter(TimelineQuery{Owner: models.AccountOwner("acct-1")})
+
+	if filter["owner.kind"] != models.OwnerAccount {
+		t.Errorf("owner.kind = %v, want the account kind", filter["owner.kind"])
+	}
+	if filter["owner.id"] != "acct-1" {
+		t.Errorf("owner.id = %v, want the account id", filter["owner.id"])
+	}
+	if _, stale := filter["accountID"]; stale {
+		t.Error("the filter still names accountID, which no bucket carries")
 	}
 }

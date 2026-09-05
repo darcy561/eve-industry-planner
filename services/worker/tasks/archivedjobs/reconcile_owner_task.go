@@ -38,7 +38,7 @@ func ReconcileOwnerStatistics(ctx context.Context, req eipnats.ReconcileOwnerSta
 		return fmt.Errorf("owner kind %q has no rows to reconcile: %w", owner.Kind, eipnats.Terminate("no archive for this owner kind"))
 	}
 
-	result, err := ReconcileAccountStatistics(ctx, deps.Mongo, owner.ID, time.Now().UTC())
+	result, err := ReconcileStatistics(ctx, deps.Mongo, owner, time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("reconcile %s statistics: %w", owner.Kind, err)
 	}

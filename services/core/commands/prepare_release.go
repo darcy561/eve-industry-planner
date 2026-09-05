@@ -53,6 +53,11 @@ var releases = []release{{
 		{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
 		{name: "drop retired change stream resume tokens", run: dropRetiredResumeTokens},
 		{name: "drop unaddressable rebuild queue entries", run: dropUnaddressableQueueEntries},
+		// Before the rebuild: it derives each row's category names from the jobs.
+		{name: "stamp extras category labels onto jobs", run: stampExtrasCategoryLabels},
+		// After the jobs are stamped and before the rebuild: the rebuild is what
+		// writes these collections back, in the owner-keyed shape.
+		{name: "copy the statistics documents before the rebuild", run: snapshotDerivedStatistics},
 		{name: "queue every account for rebuild", run: queueEveryAccountForRebuild},
 	},
 }}
@@ -133,7 +138,7 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 var retiredStatisticsFields = []string{"dataSnapshots", "buildRows"}
 
 func dropRetiredStatisticsFields(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
-	coll := clients.Mongo.AccountProductionTotals.Collection()
+	coll := clients.Mongo.ProductionTotals.Collection()
 
 	unset := bson.M{}
 	or := make([]bson.M, 0, len(retiredStatisticsFields))
