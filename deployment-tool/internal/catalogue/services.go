@@ -126,9 +126,6 @@ func Groups() []Group {
 				{Short: "alloy-docker-proxy", Label: "Alloy helper"},
 				{Short: "asynqmon", Label: "Job monitor"},
 				{Short: "nats-exporter", Label: "NATS exporter"},
-				{Short: "redis-exporter", Label: "Redis exporter"},
-				{Short: "mongodb-exporter", Label: "Mongo exporter"},
-				{Short: "node_exporter", Label: "Node exporter"},
 			},
 		},
 	}

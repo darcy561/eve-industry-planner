@@ -7,6 +7,7 @@ import (
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
 	"eve-industry-planner/worker/taskrun"
@@ -18,7 +19,6 @@ import (
 	sdetasks "eve-industry-planner/worker/tasks/sde/update"
 
 	"github.com/hibiken/asynq"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -59,7 +59,7 @@ func SetupHandlers(mux *asynq.ServeMux, taskDeps *taskrun.Dependencies) error {
 func installTaskMiddleware(mux *asynq.ServeMux) {
 	// A handler passes this ctx to its own publishes and queries, which is what
 	// keeps child work on the trace the task arrived on.
-	tracer := otel.Tracer("eve-industry-planner/worker")
+	tracer := telemetry.Tracer("worker")
 	mux.Use(func(h asynq.Handler) asynq.Handler {
 		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
 			ctx = natsprop.ExtractFromStringMap(ctx, t.Headers())

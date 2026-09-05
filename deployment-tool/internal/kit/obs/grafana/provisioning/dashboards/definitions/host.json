@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Host metrics from prom/node-exporter (Compose job=node).",
+  "description": "Host metrics from Alloy's embedded unix exporter (job=node).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,

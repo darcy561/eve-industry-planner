@@ -3,12 +3,13 @@ package common
 import (
 	"sync"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
+
+	"eve-industry-planner/shared/telemetry"
 )
 
 var coreMeter = sync.OnceValue(func() metric.Meter {
-	return otel.Meter("eve-industry-planner/coreesi")
+	return telemetry.Meter("coreesi")
 })
 
 // Meter returns the shared core service OpenTelemetry meter.

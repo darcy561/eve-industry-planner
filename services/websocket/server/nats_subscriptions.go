@@ -34,7 +34,7 @@ func (s *Server) subscribeToDocUpdates() {
 
 	s.startOutboundDocUpdateShardWorkers()
 
-	processor := eipnats.Handle("eve-industry-planner/websocket/nats", "nats.doc_update",
+	processor := eipnats.Handle("websocket/nats", "nats.doc_update",
 		func(ctx context.Context, msg jetstream.Msg) error {
 			subject := msg.Subject()
 			docID, err := collectionScopedDocIDFromDocUpdate(msg.Data(), subject)

@@ -8,18 +8,18 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/nats-io/nats.go/jetstream"
 	redislib "github.com/redis/go-redis/v9"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/shared/telemetry"
 
 	"eve-industry-planner/core/scheduler/contract"
 )
 
-const otelTracerName = "eve-industry-planner/core"
+const otelTracerName = "core"
 
 // TaskScheduler manages static cron jobs and one-time scheduled tasks
 type TaskScheduler struct {
@@ -75,7 +75,7 @@ func (s *TaskScheduler) scheduleCronJob(cronExpr string, taskType string) error 
 		logs.DebugCtx(jobCtx, "cron job triggered", "component", schedulerLogComponent,
 			"job_id", jobID, "task_type", taskType, "cron_expr", cronExpr)
 
-		tracer := otel.Tracer(otelTracerName)
+		tracer := telemetry.Tracer("core")
 		ctx, span := tracer.Start(jobCtx, "scheduler.run",
 			trace.WithSpanKind(trace.SpanKindProducer),
 			trace.WithAttributes(

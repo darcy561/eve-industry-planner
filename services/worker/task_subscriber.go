@@ -13,7 +13,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-const workerNatsTracerName = "eve-industry-planner/worker/nats"
+const workerNatsTracerName = "worker/nats"
 
 // MaxConcurrentEnqueues bounds how many task messages are enqueued to asynq at
 // once, so a burst does not overwhelm the asynq client.

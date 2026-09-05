@@ -33,9 +33,9 @@ func Terminate(format string, args ...any) error {
 
 // Handle turns a [Handler] into a processor for [Consume], taking care of the
 // consumer context, the span, the outcome log and the acknowledgement.
-func Handle(tracerName, spanName string, handler Handler) MessageProcessor {
+func Handle(component, spanName string, handler Handler) MessageProcessor {
 	return func(msg jetstream.Msg) {
-		ctx, endSpan := BeginConsumerContext(context.Background(), tracerName, spanName, msg)
+		ctx, endSpan := BeginConsumerContext(context.Background(), component, spanName, msg)
 		defer endSpan()
 
 		subject := msg.Subject()

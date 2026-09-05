@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"eve-industry-planner/shared/telemetry"
 )
 
 // Metrics for the ESI budget and the queues in front of it.
@@ -17,10 +18,6 @@ import (
 // character, so that would grow a new time series per player — the group is the
 // useful dimension and scope says whether the budget is the shared address one
 // or a character's own.
-
-var esiMeter = sync.OnceValue(func() metric.Meter {
-	return otel.Meter("eve-industry-planner/esiclient")
-})
 
 var (
 	metricsOnce sync.Once
@@ -38,48 +35,27 @@ type esiInstruments struct {
 	wireBytes  metric.Int64Histogram
 }
 
-func mustCounter(c metric.Int64Counter, err error) metric.Int64Counter {
-	if err != nil {
-		panic("esiclient metrics: Int64Counter: " + err.Error())
-	}
-	return c
-}
-
-func mustHist(h metric.Float64Histogram, err error) metric.Float64Histogram {
-	if err != nil {
-		panic("esiclient metrics: Float64Histogram: " + err.Error())
-	}
-	return h
-}
-
-func mustIntHist(h metric.Int64Histogram, err error) metric.Int64Histogram {
-	if err != nil {
-		panic("esiclient metrics: Int64Histogram: " + err.Error())
-	}
-	return h
-}
-
 func esiMetrics() *esiInstruments {
 	metricsOnce.Do(func() {
-		m := esiMeter()
+		m := telemetry.Meter("esiclient")
 		instruments = &esiInstruments{
-			requests: mustCounter(m.Int64Counter("esi.requests_total",
+			requests: telemetry.Must(m.Int64Counter("esi.requests_total",
 				metric.WithDescription("ESI requests that reached the network, by group, class and status class."))),
-			tokens: mustCounter(m.Int64Counter("esi.tokens_spent_total",
+			tokens: telemetry.Must(m.Int64Counter("esi.tokens_spent_total",
 				metric.WithDescription("Rate-limit tokens charged by ESI, by group and class. This is the budget actually consumed."))),
-			yields: mustCounter(m.Int64Counter("esi.yields_total",
+			yields: telemetry.Must(m.Int64Counter("esi.yields_total",
 				metric.WithDescription("Calls turned away before reaching ESI, by group, class and reason (queued|decelerating|gated|error_limit|downtime|discovering)."))),
-			probes: mustCounter(m.Int64Counter("esi.probes_total",
+			probes: telemetry.Must(m.Int64Counter("esi.probes_total",
 				metric.WithDescription("Discovery requests made to learn a bucket's allowance, by group."))),
-			gates: mustCounter(m.Int64Counter("esi.gate_closures_total",
+			gates: telemetry.Must(m.Int64Counter("esi.gate_closures_total",
 				metric.WithDescription("Times a bucket was gated by a Retry-After, by group. Each one stops every replica."))),
-			waitMs: mustHist(m.Float64Histogram("esi.queue_wait_milliseconds",
+			waitMs: telemetry.Must(m.Float64Histogram("esi.queue_wait_milliseconds",
 				metric.WithUnit("ms"),
 				metric.WithDescription("How long a caller waited in process for a slot, by group and class."))),
-			durationMs: mustHist(m.Float64Histogram("esi.request_duration_milliseconds",
+			durationMs: telemetry.Must(m.Float64Histogram("esi.request_duration_milliseconds",
 				metric.WithUnit("ms"),
 				metric.WithDescription("Wall time of one ESI request, by group and status class."))),
-			wireBytes: mustIntHist(m.Int64Histogram("esi.request_wire_bytes",
+			wireBytes: telemetry.Must(m.Int64Histogram("esi.request_wire_bytes",
 				metric.WithUnit("By"),
 				metric.WithDescription("Compressed bytes received from ESI, by group."))),
 		}
@@ -224,7 +200,7 @@ func (d *Dispatcher) Snapshot(ctx context.Context) []Snapshot {
 //
 // Returns a function that stops observing.
 func RegisterMetrics(d *Dispatcher) (func() error, error) {
-	m := esiMeter()
+	m := telemetry.Meter("esiclient")
 
 	waiting, err := m.Int64ObservableGauge("esi.queue.waiting",
 		metric.WithDescription("Callers parked in process for a slot on this bucket."))

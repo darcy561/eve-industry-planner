@@ -1,5 +1,5 @@
 // Docker logs → Loki for non-Go Swarm tasks (frontend/nginx, edge, data, obs infra).
-// Go apps (api/core/worker/websocket) use OTLP below — dropped from docker scrape.
+// The six Go services use OTLP below — dropped from the docker scrape.
 // Docker API via allowlisted alloy-docker-proxy (eip-docker-alloy only).
 //
 // #15: Swarm com.docker.swarm.service.name → compose_service (strip eip_ prefix) for LogQL.
@@ -55,9 +55,11 @@ discovery.relabel "docker" {
 		replacement   = "$1"
 	}
 
+	// Every Go service exports its logs over OTLP, so scraping their stdout as well would file
+	// each line twice under two label sets whenever the stdout mirror is on.
 	rule {
 		source_labels = ["compose_service"]
-		regex         = "(api|core|worker|websocket)"
+		regex         = "(api|core|worker|websocket|ws-router|capacity-controller)"
 		action        = "drop"
 	}
 
@@ -187,6 +189,8 @@ otelcol.exporter.prometheus "apps" {
 }
 
 // Prometheus scrape used job="otel_collector"; preserve that label for dashboards that filter on it.
+// Traefik pushes OTLP down this same path, so the second rule takes it back out of that bucket —
+// rules apply in order, and it would otherwise lose its identity to the stamp above.
 prometheus.relabel "otel_collector" {
 	forward_to = [prometheus.remote_write.local.receiver]
 
@@ -195,6 +199,117 @@ prometheus.relabel "otel_collector" {
 		target_label = "job"
 		replacement  = "otel_collector"
 	}
+
+	rule {
+		action        = "replace"
+		source_labels = ["service_name"]
+		regex         = "traefik"
+		target_label  = "job"
+		replacement   = "traefik"
+	}
+}
+
+// Embedded redis_exporter. Scraped straight into remote_write: the otel_collector relabel below
+// stamps job=otel_collector on everything crossing it, which would erase job="redis".
+prometheus.exporter.redis "redis" {
+	redis_addr     = "redis://redis:6379"
+	redis_password = sys.env("REDIS_PASSWORD")
+}
+
+// The exporter's targets carry job="integrations/redis"; target labels beat the scrape's job_name,
+// so the rewrite has to happen here or the Redis dashboard's job="redis" filter matches nothing.
+discovery.relabel "redis" {
+	targets = prometheus.exporter.redis.redis.targets
+
+	rule {
+		action       = "replace"
+		target_label = "job"
+		replacement  = "redis"
+	}
+}
+
+prometheus.scrape "redis" {
+	targets         = discovery.relabel.redis.output
+	forward_to      = [prometheus.remote_write.local.receiver]
+	scrape_interval = "15s"
+}
+
+// Embedded node_exporter. Alloy runs in a container, so the collectors are pointed at the host's
+// procfs and sysfs through the read-only rootfs bind rather than the container's own.
+prometheus.exporter.unix "host" {
+	rootfs_path        = "/host"
+	procfs_path        = "/host/proc"
+	sysfs_path         = "/host/sys"
+	disable_collectors = ["kernel_hung"]
+}
+
+discovery.relabel "node" {
+	targets = prometheus.exporter.unix.host.targets
+
+	rule {
+		action       = "replace"
+		target_label = "job"
+		replacement  = "node"
+	}
+}
+
+prometheus.scrape "node" {
+	targets         = discovery.relabel.node.output
+	forward_to      = [prometheus.remote_write.local.receiver]
+	scrape_interval = "15s"
+}
+
+// Embedded mongodb_exporter. collect_all, compatible_mode and direct_connect already default to
+// what the standalone exporter was run with, so only the URI is set here.
+//
+// The URI is the component's only way to take credentials, and it is safe to interpolate them
+// unescaped only because EnvFields generates and validates FieldPassword against the url-safe
+// base64 alphabet (A-Z a-z 0-9 _ -). Widening that alphabet would need percent-encoding here.
+prometheus.exporter.mongodb "mongo" {
+	mongodb_uri = "mongodb://" + sys.env("MONGO_ROOT_USERNAME") + ":" + sys.env("MONGO_ROOT_PASSWORD") + "@mongo:27017/admin?authSource=admin&replicaSet=rs0"
+}
+
+discovery.relabel "mongodb" {
+	targets = prometheus.exporter.mongodb.mongo.targets
+
+	rule {
+		action       = "replace"
+		target_label = "job"
+		replacement  = "mongodb"
+	}
+}
+
+prometheus.scrape "mongodb" {
+	targets         = discovery.relabel.mongodb.output
+	forward_to      = [prometheus.remote_write.local.receiver]
+	scrape_interval = "15s"
+}
+
+// nats-exporter stays a container: Alloy has no NATS exporter component, so this is a scrape
+// rather than an embed. Static target because the exporter is a fixed service alias on eip-obs.
+prometheus.scrape "nats" {
+	targets         = [{ __address__ = "nats-exporter:7777" }]
+	forward_to      = [prometheus.remote_write.local.receiver]
+	job_name        = "nats"
+	scrape_interval = "15s"
+}
+
+// asynqmon publishes Prometheus exposition and nothing else, so it is scraped rather than embedded.
+// Every panel on the Asynq dashboard filters job="asynqmon".
+prometheus.scrape "asynqmon" {
+	targets         = [{ __address__ = "asynqmon:8080" }]
+	forward_to      = [prometheus.remote_write.local.receiver]
+	job_name        = "asynqmon"
+	scrape_interval = "15s"
+}
+
+// SeaweedFS exposes master, filer, volume server and admin metrics on one port under `mini`; the
+// separate -s3.metricsPort does not listen in that mode, so there is nothing else to scrape.
+prometheus.scrape "seaweedfs" {
+	targets         = [{ __address__ = "seaweedfs:9327" }]
+	forward_to      = [prometheus.remote_write.local.receiver]
+	job_name        = "seaweedfs"
+	scrape_interval = "15s"
 }
 
 prometheus.remote_write "local" {

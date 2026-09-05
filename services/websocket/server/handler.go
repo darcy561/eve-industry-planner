@@ -12,10 +12,14 @@ import (
 	sharedcompression "eve-industry-planner/shared/compression"
 	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/websocket/server/config"
 	"eve-industry-planner/websocket/server/model"
 
 	"github.com/gorilla/websocket"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var upgrader = websocket.Upgrader{
@@ -46,6 +50,17 @@ func checkOrigin(r *http.Request) bool {
 
 // HandleWS handles WebSocket requests from clients
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
+	// otelhttp cannot wrap this route (gorilla's Upgrade needs the ResponseWriter to be a
+	// Hijacker), so the server span is opened by hand. It covers the handshake only: a connection
+	// lives for hours and per-message spans are opened separately.
+	ctx, span := telemetry.Tracer("websocket").Start(
+		otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header)),
+		r.Method+" /ws",
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	reqCtx := r.Context()
 	s.recordUpgradeRequest(reqCtx)
 	upgradeStart, ok := logs.RequestStartTime(reqCtx)

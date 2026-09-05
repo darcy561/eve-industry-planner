@@ -147,6 +147,11 @@ var envFields = []EnvField{
 		Type: FieldText, Required: false, Default: "",
 	},
 	{
+		Key: "TRACES_SAMPLE_RATE", Section: "Runtime", Label: "Trace sample rate",
+		Help: "0.0–1.0 head sampling at the edge. Traefik decides and the decision propagates, so this governs the whole request path. Empty → 0 (no tracing).",
+		Type: FieldText, Required: false, Default: "",
+	},
+	{
 		Key: "ENVIRONMENT", Section: "Runtime", Label: "Environment",
 		Help: "SPA bake mode, Go Sentry environment tag, default LOG_STDOUT when unset.",
 		Type: FieldText, Required: false, Default: "",

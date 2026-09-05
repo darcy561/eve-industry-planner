@@ -36,9 +36,7 @@ func wsEmitOperationLog(ctx context.Context, client *Client, level, msg string, 
 		}
 	}
 	fields = append(fields, logs.AccessLogDetailFields(detail)...)
-	if len(steps) > 0 {
-		fields = append(fields, zap.Any(logs.DebugStepsLogKey, logs.DebugStepsForLog(steps)))
-	}
+	fields = append(fields, logs.DebugStepsField(steps))
 	if len(caveats) > 0 {
 		fields = append(fields, zap.Any("caveats", logs.HandlerCaveatsForLog(caveats)))
 	}
