@@ -120,7 +120,22 @@ _Empty until Stage F and Stage G land._
 
 ## Dashboards
 
-_Empty until Stage H lands._
+**`core-esi-limits.json`** reads the five bucket gauges `services/core/metrics/esi` registers:
+`core_esi_bucket_token_limit`, `.token_used`, `.token_remaining`, `.fill` and
+`.seconds_until_open`. It previously selected a `core_esi_group_*` spelling that nothing has
+written since the limiter was renamed, so every panel was empty.
+
+Two panels changed subject rather than name, because the metric they described no longer exists:
+`seconds_into_window` and `seconds_until_reset` were replaced by `fill` (share of the allowance
+still available, `percentunit`) and `seconds_until_open` (seconds until a refusing bucket admits
+again).
+
+**Every panel aggregates with `max by (group, scope)`.** Bucket state belongs to the fleet and is
+reported once by core — [backend/shared/esi.md](../../backend/shared/esi.md) § What it reports — but
+`resource_to_telemetry_conversion` promotes `service_instance_id` onto each series, so a restarted
+container leaves its own copy behind until it goes stale. Selecting the raw series draws one line
+per container id that has ever reported. `max` collapses them without summing, which would double
+a fleet-wide figure.
 
 ## Operating the observability stack
 

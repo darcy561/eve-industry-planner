@@ -507,11 +507,10 @@ scope a rebuild found them, and they are real today:
 
 | Dashboard | What it queries | What exists |
 |---|---|---|
-| `core-esi-limits.json` | `core_esi_group_token_limit`, `_token_used`, `_token_remaining`, `_seconds_into_window`, `_seconds_until_reset` — all five panels | `core.esi.bucket.token_limit`, `.token_used`, `.token_remaining`, `.fill`, `.seconds_until_open` |
 | `api-otel-metrics.json` | ten panels on `api_static_data_*_requests_total` and `_duration_milliseconds_bucket` | Nothing. Those endpoints call `LogRequestMetrics`, which despite its name emits **log lines**, not instruments |
 | `mongodb.json` | one panel on `mongodb_oplog_stats_size` | `mongodb_oplog_stats_storageStats_size` |
 
-Sixteen dead series across three dashboards. Confirmed against the live store: the `core_esi_group_*`
+**`core-esi-limits.json` is fixed** — see the overlay. Eleven dead series remain across the other two. Confirmed against the live store: the `core_esi_group_*`
 names are in the index with no current samples and nothing has written them since the limiter was
 renamed.
 
