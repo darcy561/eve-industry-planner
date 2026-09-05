@@ -66,7 +66,7 @@ flowchart LR
     Archive --> Reduce
   end
 
-  Rows[("statistics_rows<br/>one row per archived job")]
+  Rows[("statistics_rows<br/>the source the aggregates<br/>are derived from")]
   Queue[("statistics_rebuild_queue<br/>one entry per owner")]
   Agg[("statistics_timeline<br/>statistics_totals")]
   Rota[("statistics_reconcile_rota")]
@@ -96,8 +96,9 @@ flowchart LR
   Drain --> Build
   Sweep --> Recon
 
-  Rows --> Delta
-  Rows --> Recon
+  Rows <-->|"read, then stamp counted"| Delta
+  Rows <-->|"read, write any that are missing"| Recon
+  Build -->|"rewrite every row from the archive"| Rows
   Delta --> Agg
   Build --> Agg
   Recon --> Agg
@@ -115,8 +116,20 @@ Everything between the API and the worker is a **collection**, not a call. Nothi
 anything else directly: the queue is the handover, which is what lets a failed fold be retried and a
 busy owner be folded once rather than per job.
 
-Two writes are left off to keep the flow one-directional. A rebuild also **writes** `statistics_rows`,
-reducing each archived job afresh, and a reconcile **stamps** the rota with the turn it just took.
+**Rows are read and written by all three tasks**, which is why those edges run both ways:
+
+| Task | Reads rows | Writes rows |
+|------|-----------|-------------|
+| `applyOwnerStatisticsDelta` | the uncounted ones — they are its work list | stamps each `contributedAt` once folded |
+| `rebuildOwnerStatistics` | — it derives from `archived_jobs` instead | rewrites every row, stamped as already counted |
+| `reconcileOwnerStatistics` | every row for the owner | writes one for any archived job that has none |
+
+That last one is the recovery path: a job archived while its row write failed has no figures anywhere,
+and no fold can find it, because a fold's work list is rows. The reconcile is what notices the job and
+builds the row it never got.
+
+The reconcile also stamps the rota with the turn it just took; that edge is left off to keep the flow
+one-directional.
 
 ## The two paths
 
