@@ -8,18 +8,17 @@ after each landed stage lives in [overlay.md](./overlay.md).
 
 1. Read [plan.md](./plan.md) § Stage status for what is done, then § Decisions taken — those four
    are settled and are not to be reopened without a reason.
-2. **The code does not travel with these docs.** Everything through Stage C is uncommitted working
-   tree, so a fresh checkout of `Development` has none of it. See § What exists only in the working
-   tree below before assuming a machine is current.
+2. **The code is committed** as `dd0454b9` on `feature/archived-jobs-stats`, docs included. That
+   branch is where the work lives; it is not on `Development`. A machine without it needs the branch
+   fetched, and the commit is not yet pushed at the time of writing — check before assuming.
 3. Stages A, B and C are written and A and B are verified against a running stack. **Stage C has not
    been deployed**, so its behaviour is unverified — see § Landed but unverified.
 4. Next work is Stage D. Nothing in D depends on C being deployed first, but deploying C first keeps
    the two verifications separable.
 
-## What exists only in the working tree
+## Where the code is
 
-The project's code is spread across three areas and is **not committed**. On a machine that has not
-carried this tree, none of it is present.
+The project's code spans three areas, all in one commit so the branch builds at every point.
 
 | Area | Files |
 |---|---|
@@ -27,13 +26,13 @@ carried this tree, none of it is present.
 | Embedded kit | `kit/obs/alloy/config.alloy`, `kit/obs/prometheus/prometheus.yml`, three dashboard definitions, `kit/templates/env/fields.go`, `catalogue/services.go` |
 | Services | `shared/logs`, `shared/telemetry` (including new `scope.go` and `wsroutermetrics/`), `shared/nats`, `shared/esiclient`, `core/metrics/common`, `core/scheduler`, `websocket/server`, `worker/asynq`, `ws-router`, `api/middleware` |
 
-**One constraint on any commit made from that tree:** `shared/telemetry/scope.go` is untracked and
-defines `Must`, `Meter` and `Tracer`; fifteen tracked files call them. Staging those files without
-`scope.go` produces a branch that cannot build. Treat `scope.go`, `scope_test.go`,
-`wsroutermetrics/` and the converted call sites as one atomic change.
+`shared/telemetry/scope.go` defines `Must`, `Meter` and `Tracer`, and fifteen files call them, so
+they travel together — splitting them across commits leaves the branch unable to build.
 
-The same tree also carries unrelated work from other sessions. Stage paths explicitly; never
-`git add -A`.
+The working tree is shared with other sessions and carries unrelated work. Stage paths explicitly;
+never `git add -A`. Staging for this commit picked up two files a peer had already staged (a
+deletion under `core/commands`), which had to be removed from the index first — worth checking
+`git diff --cached --name-only` before every commit here.
 
 ## Landed but unverified
 
