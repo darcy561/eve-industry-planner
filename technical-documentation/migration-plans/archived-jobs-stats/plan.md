@@ -2478,15 +2478,14 @@ the filters the callers actually build rather than invented ones:
 No spec examines more than it returns, which is what the check was for: an index that has stopped
 winning its query still returns the right answer, just slowly, and reports nothing.
 
-**The check found one gap it was not looking for: `jobs` has no index specs at all.** It is a known
-collection, and two callers filter it on the owner — `websocket/sync`'s planner read and the worker's
-inactive-account cleanup. Dev does not hold the collection yet, so neither query can be explained and
-neither is slow today. When it is populated both would collection-scan, and the read is on the
-websocket sync path.
+**The check found something it was not looking for: `jobs` is not a built collection.** It is named in
+`knownCollections` and in [shared-planners](../shared-planners/plan.md) § Collection layout, which
+splits a job's record from its body — but no environment holds it, nothing writes one, and every job
+lives in `job_documents`. That is why it has no index specs: there is nothing to index yet.
 
-The owner-led shape is already settled by every other collection, so this is a missing spec rather than
-an open question. It is not this project's to add — `jobs` is [shared-planners](../shared-planners/plan.md)'
-surface, whose § Collection layout names it — but it should not reach live unindexed.
+The one caller reading it was the websocket planner sync, which returned nothing and reported nothing;
+it now reads `job_documents` alongside the HTTP planner handler. The split, the collection and its
+index specs are shared-planners' to build, and that plan records what they owe.
 
 **Four predecessors survived the first pass, and are now retired.** Retirement matches an index by exact
 name, and an index keeps its name through a `renameCollection` — so on the three collections renamed from
@@ -2735,8 +2734,9 @@ complete — the owner block, the `ChangeStreamMessage` collapse, the dry-run ho
 watchlist are all landed, and the second ownership vocabulary is gone. What stands between here and
 promotion is evidence, not implementation:
 
-1. ~~`explain` the seven `job_documents` index specs.~~ **Done** — all seven win their query, and the
-   check turned up `jobs` carrying no index specs at all. See § The indexes moved with the queries.
+1. ~~`explain` the seven `job_documents` index specs.~~ **Done** — all seven win their query. The check
+   also found that `jobs` is not a built collection at all, which is [shared-planners](../shared-planners/plan.md)'
+   to settle. See § The indexes moved with the queries.
 2. ~~Look at the failing live tests.~~ **Done** — every gated package passes, and running them found the
    reconcile rota reconciling nothing. See § Handoff status.
 
@@ -2809,18 +2809,19 @@ designed against a database where every corporation ref is empty would be guessi
 None of these is development work. They are commands run against a database, and they are needed
 before Stage C can be designed against representative data.
 
-**Dev has had the whole of `prepareRelease`, end to end.** All six steps ran: the snapshots came out
-at 10,338 / 4,074 / 7,652 documents against sources of the same size, 351 archived jobs carry stamped
-extras labels, and 227 owners were queued and rebuilt. The three collections now hold owner-keyed
-documents alongside the originals — 9,531 statistics rows, 4,074 totals and 7,670 buckets. The steps
-stay listed because they are owed against live, and because a deploy should reach them through
+**Dev has had the whole of `prepareRelease`, end to end, and has since been rebuilt from scratch.** The
+collections were dropped and repopulated to put dev on live's exact starting names, so the current
+figures are what a first population produces rather than a catch-up: 9,270 archived jobs, 9,271
+statistics rows, 4,039 totals and 7,273 timeline buckets, with 227 owners queued and rebuilt. The
+`_pre_0_9_0` snapshots hold what the copy step took.
+
+The one row without an archived job is a restored `testfixture-` job whose row is revoked rather than
+deleted, which is the fold taking a job's figures back out while keeping its history. The steps stay
+listed because they are owed against live, and because a deploy should reach them through
 `tasks prepareRelease` rather than one at a time.
 
-The row count fell from 10,338 to 9,531 and that is the archived-job count exactly: the old set carried
-807 revoked rows for jobs since restored, and a rebuild derives from live archived jobs, so it produces
-one row per job and no revoked residue. The timeline gained 18 buckets over the same data, which is
-worth a spot check on live before the figures are trusted — it is the one total that moved in a
-direction the job count does not explain.
+`statistics_reconcile_rota` holds 138 owners, which is the first evidence the rota runs at all — it
+returned an empty owner list until `StatisticsOwners` was pointed at `_meta.owner`.
 
 **The queue sits for five minutes before anything happens.** `rebuildDebounce` bounds the longest an
 owner waits rather than sliding with each re-queue, so a drain firing in that window reports
