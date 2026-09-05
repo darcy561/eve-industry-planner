@@ -43,7 +43,10 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | See the document shapes and why each field exists | [plan.md](./plan.md) § Data models |
 | See the stages and their order | [plan.md](./plan.md) §§ Stage A – Stage F |
 | Know how the live data migration runs | [plan.md](./plan.md) § Live data, and the cutover window |
+| Know where the grants list is filled from, and when that changes | [plan.md](./plan.md) § Grants, § Stage B |
+| Find the planner types that exist but are wired to nothing | [plan.md](./plan.md) § Data models |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See what other projects must change before they close | [plan.md](./plan.md) § What the other projects owe |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
+| Know how a document states its owner today | [overlay.md](./overlay.md) § Stage A — The owner block cutover |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |

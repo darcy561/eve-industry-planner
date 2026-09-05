@@ -8,11 +8,47 @@ behaviour is undocumented.
 
 ## Stage A — The owner block cutover
 
-*Not landed.*
+*Code landed; the window has not been run.* This project owns the owner block, having taken it over
+from [archived-jobs-stats](../archived-jobs-stats/plan.md), which built it while shaping the statistics
+documents.
 
-Owed here: the shape of `_meta.owner` and the two meta families, which documents carry it, what the
-collection renames left behind, the order the window ran in, what the backfill and the statistics
-reshape each reported, and the counts that were checked before traffic came back.
+**One statement of ownership.** Every scoped document carries `_meta.owner`, a `{kind, id}` pair.
+`models.Owner` is the only vocabulary: `Key()` renders `kind:id`, `ParseOwnerKey` reads it back, and
+`Validate` refuses an unknown kind and holds the corporation and alliance kinds to an entity ref
+rather than a raw EVE id — on read as well as construction, so an owner recovered from storage is
+held to the same rule. `MetaData` carries no per-scope field; `_meta.accountID`, `_meta.corporationRef`
+and `_meta.allianceRef` are gone.
+
+**The owner is server-decided.** `PopulateRequestMeta` sets it from the authenticated account, and the
+whole-struct writers — `BulkUpsertJobs`, `BulkUpsertGroups` and the archived-jobs `putHandler` — set it
+on the struct immediately before their `$set`. Nothing a client sends reaches the stored owner. The
+archived-jobs handler additionally refuses a batch whose job names an owner other than the caller's.
+
+**Reads and indexes.** Query filters name `_meta.owner.kind` and `_meta.owner.id` through the
+`FieldMetaOwnerKind` / `FieldMetaOwnerID` constants; every account-scoped index was respecified to lead
+on the owner pair, and the account-scoped ones it replaced are in the retired list.
+
+**A retired field cannot come back unnoticed.** `TestNoQueryNamesARetiredField` walks the module for
+any quoted use of the three retired `_meta` paths, with a named exception per migration step that
+legitimately reads the old shape. This exists because these paths live in `bson.M` as strings, where a
+filter naming a dead field matches nothing and reports no error.
+
+**Delivery.** `ChangeStreamMessage` carries one `OwnerKey` in place of the three route fields, and the
+websocket parses it back into an owner for routing and hosted-tenant filtering.
+
+**On the wire.** The owner does not leave the server: it is `json:"-"` on `MetaData`, and the SPA
+strips `_meta.owner` from anything it sends, which a client-side test pins.
+
+**The release path.** `tasks prepareRelease` carries every step this release owes, oldest version
+first, and is safe to re-run: a step with nothing to do reports zero. Schema maintenance and the owner
+stamp are marked required, so a failure in either stops the run rather than letting later steps succeed
+against documents they never prepared. The stamp derives each owner from the account id on the same
+document, server-side, and leaves a document with no usable account id unstamped rather than giving it
+an owner addressing nothing. The final step counts documents still without an owner across all seven
+collections and fails the release if any remain — which is what stops that reporting as success.
+
+Still owed here once the window runs: the order it ran in, what the backfill and the statistics
+reshape each reported, and the counts checked before traffic came back.
 
 ## Stage B — Grants and scopes
 
@@ -21,12 +57,24 @@ reshape each reported, and the counts that were checked before traffic came back
 Owed here: the grant list shape, how the ceiling is computed per provider, the owner handle to owner
 key conversion points, and the `upgrade_scopes` and `scopes_ack` message shapes.
 
+Until it lands, grants are two lists. `auth.SessionGrants` carries `CorporationRefs` and
+`AllianceRefs` on the account's session record in Redis, filled from ESI at token refresh by
+`UpdateAccountSessionGrants`, which converts raw ids to refs on the way in. The websocket copies them
+onto a connection and `filterToAllowed` compares each list separately. The account's own access is
+implicit rather than a grant. `models.SessionGrants` exists with the owner-key shape but nothing reads
+it.
+
 ## Stage C — Planners and membership
 
 *Not landed.*
 
 Owed here: the planner document, the membership document, their indexes, how a roster is kept current
-per provider, how the account planner is created, and what the roster endpoints refuse.
+per provider, how the account planner is created, what the roster endpoints refuse, and where the
+grants list is filled from once membership rows replace the ESI source.
+
+The Go types exist already — `Planner`, `PlannerMembership`, `PlannerInvite` and `JoinMethod` in
+`services/shared/models/planner.go` — but no collection, index, repository or caller uses them, so
+nothing here describes live behaviour yet.
 
 ## Stage D — What a second member breaks
 
@@ -91,4 +139,6 @@ Kept here so a later reader finds the reasoning without reconstructing it from t
 | No upgrader for the owner — an approved deviation | Once `AccountID` is off `MetaData` nothing remains to derive an owner from, so the release step sets owner and root version together and the version's job becomes detection, gated on zero documents without an owner |
 | The owner never goes on the wire | `_meta.accountID` had one SPA reader that already falls back to the store, so the client change is a deletion and no ref can reach a browser through `_meta` |
 | One cutover in the deployment window, not expand/contract | The stack is coming down anyway, so nothing reads or writes while the migration runs; that removes the dual-write machinery and the erase hazard, at the cost of rollback being a database restore |
+| The grant list's shape moves before its source | Converting while the values are still ESI-derived means the tolerate-both-shapes work ships against behaviour that can be checked; changing shape and source together would leave nothing to compare the result to |
+| The release verifies the owner gate itself | The stamp cannot derive an owner for a document with no account id, so it reports those and returns success; without a step that fails on any ownerless document, a release finishes green over documents nothing can read and no later save repairs |
 | Renames bundled with the backfill | The entire cost of a rename is touching live data, which the backfill is doing anyway, and the SPA subscriptions that a rename breaks are small and account-based today |

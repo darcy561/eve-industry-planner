@@ -44,18 +44,20 @@ monotonic version to hang invalidation on.
 `alliance:{allianceRef}` tenant strings, and `TenantStringFromRouting` picks between them. NATS
 subjects, hosted-tenant filters and the affinity cookie are all built from those strings.
 
-**Not owner-shaped.** `models.MetaData` carries `AccountID` plus optional `CorporationRef` and
-`AllianceRef` — one field per scope, with the changestream reading the field *names*
-(`MetaFieldCorporationRef`, `MetaFieldAllianceRef`) out of a raw `_meta` subdocument. Every base
-document is scoped that way, and it is the whole of what Stage A changes.
+**Now owner-shaped.** `models.MetaData` carried `AccountID` plus optional `CorporationRef` and
+`AllianceRef` — one field per scope, with the changestream reading the field *names* out of a raw
+`_meta` subdocument. Stage A replaced all three with a single `Owner`, and that code is in: see § Stage A
+for what landed and [overlay.md](./overlay.md) § Stage A for how a document states its owner today. The
+cutover window against live has not been run.
 
 **Already landed since, under [archived-jobs-stats](../archived-jobs-stats/plan.md).** The statistics
 half is done: `models.Owner` exists, the three statistics documents carry a root owner with ids
 leading on the owner key, the collections took the names they hold, and the statistics API is
 `/api/v1/statistics/{owner}/{view}`. What remains is the `_meta` reshape above.
 
-**Not built at all.** There is no planner document, no membership, no invite, no notion of an active
-planner on the client, and no way for one account to see another's data by any path.
+**Not built at all.** There is no planner collection, no membership, no invite, no notion of an active
+planner on the client, and no way for one account to see another's data by any path. The Go types for
+the first three exist but are wired to nothing — see § Data models.
 
 **Live.** The `Public` branch is deployed with real data, so every storage change in this project is a
 migration against a running system, not a reseed.
@@ -323,7 +325,7 @@ to fill the database.
 | Document ids | **done** — `{ownerKey}\|{jobID}` | — |
 | Rebuild queue / rota | owner-keyed already | unchanged; enumerates planners rather than accounts |
 | Statistics API | **done** — `/api/v1/statistics/{owner}/{view}` | — |
-| `SessionGrants` | `CorporationRefs` + `AllianceRefs` | one list of owner keys, including the account's own |
+| `SessionGrants` | `CorporationRefs` + `AllianceRefs`, filled from ESI at token refresh | one list of owner keys, including the account's own; shape in Stage B, filled from membership rows in Stage C |
 | `RealtimeScopes` | `CorporationRefs` + `AllianceRefs` | one list of owner keys |
 | `upgrade_scopes` / `scopes_ack` | corp and alliance id arrays | owner handles, one shape for every kind |
 | SPA query keys | rooted at `statistics` | owner in every scoped key |
@@ -664,6 +666,27 @@ binding is described in § Access lists differ from the other ESI providers but 
 modelled yet — it adds a join type, a binding on the planner and a poll schedule, none of which the
 core needs to be correct.
 
+**Most of these types already exist, unwired.** `services/shared/models/planner.go` holds `Planner`,
+`PlannerMembership`, `PlannerInvite`, `JoinMethod` and its three branches, the two meta families, and
+`models.SessionGrants` — landed alongside the owner work rather than with the stages that use them.
+Nothing outside that file and its test refers to any of it: there is no collection, no index, no
+repository and no caller. Stage C is where it gets wired in, and two things need settling when it does.
+
+`models.SessionGrants` sits beside the live `auth.SessionGrants` with neither aware of the other, so
+Stage B has to decide which package the owner-key list belongs in rather than leaving two.
+
+The bigger one is the meta families. `AccountMeta`, `PlannerScopedMeta` and `PlannerMeta` have no
+references at all, not even from the test, and `PlannerScopedMeta` as written carries only
+`LastUpdatedBy` — not the seven lifecycle fields this section gives it. The document that would use it,
+a job, already embeds `JobMetaData`, which carries `MetaData` plus exactly those seven. `Group` has its
+own `GroupMetaData` on the same pattern, and `UserAccountDocument` a `UserMeta`.
+
+So the split this section describes is already present in the tree under different names, arrived at
+per-document rather than per-family. Stage C should either rename those to the two families and collapse
+the duplicates, or drop the family types and record that per-document meta structs are the shape — but
+not leave both. The three unused types are the part to remove either way; the live behaviour is
+whatever `JobMetaData`, `GroupMetaData` and `UserMeta` do today.
+
 ### The owner, and what it replaces
 
 `models.StatsOwner` becomes `models.Owner`: it stops being a statistics concept the moment it is on
@@ -927,6 +950,13 @@ mechanism this cutover exists to remove. So the `prepareRelease` step sets the o
 version after the window is one the step missed, which the maintenance batch's existing selector
 surfaces.
 
+**As built, the stamp writes the owner alone, and the constants do not move.** The owner is not a
+shape a document can be upgraded into: once `AccountID` is off `MetaData`, a decoded document carries
+nothing an upgrader could derive one from, which is the whole reason this cutover exists. So there is
+no `v1 → v2` step to write, the four `*SchemaCurrent` constants stay where they are, and the
+`documentschema` methods remain the normalisers they already were. The window's gate is the detector,
+as the deviation below intends — not a substitute for one that was skipped.
+
 Two consequences of that, both load-bearing rather than incidental:
 
 - The window's gate — **zero documents without `_meta.owner`** — is what makes the deviation safe. It
@@ -954,16 +984,28 @@ One list covering every kind, including the account's own key, so nothing downst
 account. It is filled by one query at session bootstrap: the owner keys of every membership row for
 this account.
 
+That fill is the end state, reached in two steps. Stage B changes the shape while the list is still
+filled from ESI at token refresh, which is where corporation and alliance ids enter a session today.
+Stage C repoints it at membership rows once they exist. The shape does not change again between those
+two, and no reader distinguishes which filled it — which is the point of converting the shape first.
+
 ## Stages
 
 ### Stage A — The owner block, in one cutover
 
-**Landed, under [archived-jobs-stats](../archived-jobs-stats/plan.md).** The model, the vocabulary, the
-writers, the query filters, the index specs and the `prepareRelease` stamp are all implemented; what
-that plan still owes is `ChangeStreamMessage`, which decomposes the owner back into three route fields.
-Design as built → [archived-jobs-stats](../archived-jobs-stats/plan.md) § The owner block landed as one
-cutover. Behaviour → [archived-jobs-stats](../archived-jobs-stats/overlay.md) § The owner block. The
-window below is the operator sequence and remains owed against live.
+**Code complete; the cutover window has not been run.** The owner block was built under
+[archived-jobs-stats](../archived-jobs-stats/plan.md), which was already shaping it for the statistics
+documents. That work is finished, so this stage and everything the owner block touches are **owned
+here** from now on: this plan carries the design, this project's overlay carries the behaviour, and
+that plan is no longer the place to look.
+
+What is implemented: `models.Owner` with all four kinds, `MetaData` carrying `Owner` and nothing else
+scope-shaped, every query filter and index spec on `_meta.owner.kind` / `_meta.owner.id`, the
+collection renames, the retired index list, `ChangeStreamMessage.OwnerKey` in place of the three route
+fields, the websocket routing that parses it, and the `prepareRelease` owner stamp. The SPA already
+strips `_meta.owner` on the way out.
+
+What remains is the operator sequence below, run against live.
 
 The stack comes down for the next deployment, so the owner change goes in whole rather than as an
 expand/contract sequence: the model, the renames, the backfill and the reads all land inside one
@@ -980,15 +1022,16 @@ the archived-jobs `putHandler` each write `"$set": <the whole marshalled struct>
 `Owner`, any save erases one already stamped there. That would dictate the order of two releases under
 a gradual switch. With nothing writing it cannot happen, provided the order inside the window holds.
 
+As built, all three set the owner on the struct immediately before the write, from the authenticated
+account rather than from anything the client sent, so the whole-struct `$set` now writes the owner
+rather than erasing it. That is what makes the hazard a window-ordering concern only.
+
 The contrast is still worth knowing, because it is why some writes are harmless:
 `UpsertStructPreservingMeta` and `buildPreservingMetaUpsertModel` exclude `_meta` from the `$set` and
 patch it with dotted paths, which leaves unknown fields alone. Only the whole-struct writers destroy.
 
-**Order inside the window.** Implementation of this stage belongs to
-[archived-jobs-stats](../archived-jobs-stats/plan.md) — the `MetaData` reshape is inseparable from the
-writers, query filters and changestream work that plan owns, and the owner stamp is a
-`prepareRelease` step there rather than a task of its own, so an operator running the release command
-cannot silently skip it.
+**Order inside the window.** The owner stamp is a `prepareRelease` step rather than a task of its
+own, so an operator running the release command cannot silently skip it.
 
 1. Stop user traffic, **and stop the worker**.
 2. Back up, with the restore already exercised.
@@ -997,7 +1040,11 @@ cannot silently skip it.
 5. `eip cli` → `tasks prepareRelease`, one command: outstanding schema maintenance first, then the
    owner stamp, then the rest, with the rebuild queue last. The first two stop the run if they fail,
    because every step after them reads what they write.
-6. **Gate:** zero documents without `_meta.owner`, and counts matching. Then worker up, traffic back.
+6. **Gate:** the last `prepareRelease` step counts documents without `_meta.owner` across all seven
+   collections and fails the run if any remain, so the gate cannot be skipped by an operator reading
+   past it. It is a real gate rather than a formality: the stamp leaves a document with no usable
+   account id unstamped and only names it in its summary, so without this the release would report
+   success over documents nothing can read. Check the counts, then worker up and traffic back.
 
 The tasks CLI execs into the running core service, so core stays up throughout: "stack down" means
 user traffic stopped, not every service stopped.
@@ -1025,10 +1072,41 @@ Session records live in Redis and expire, so this is a rolling deploy rather tha
 property worth using rather than working around. It does mean the API and websocket must tolerate both
 grant shapes for the length of one session lifetime.
 
+**The shape changes here; the source changes in Stage C.** § Grants describes the list as filled by one
+query over the account's membership rows, but no membership row exists until Stage C. Today the list is
+filled from ESI: the account's corporation and alliance ids arrive at token refresh and
+`UpdateAccountSessionGrants` converts them to refs and writes them onto the session record and every
+session under it.
+
+So this stage converts the **shape** and leaves the **source** alone — the ESI fill keeps writing the
+same values, expressed as `account:`, `corporation:` and `alliance:` owner keys. Stage C then repoints
+the fill at membership rows without touching the shape again.
+
+Taken the other way round — folding the conversion into Stage C so shape and source move together — the
+tolerate-both-shapes work would land at the same moment the values themselves start coming from
+somewhere new, with nothing to check the result against. Splitting them means the risky half ships
+while every grant is still a value today's behaviour can be compared to, and the second half is a change
+of source under a shape already proven. The cost is touching the fill path twice, which is one function.
+
+**Surfaces.** `auth.SessionGrants` and the compare-and-set record that carries `GrantsVersion`;
+`UpdateAccountSessionGrants` and its three callers (authenticate, refresh, and the worker's ESI task);
+`ExtractSessionGrants`; the websocket's `grantedCorpRefs` / `grantedAllianceRefs` on the client, the
+reverse indexes over them, `filterToAllowed`, `replaceScopesWithinSessionGrants` and the resume path;
+`model.RealtimeScopes`; and the `upgrade_scopes` / `scopes_ack` message shapes, which the SPA cuts with.
+
+**Go modernisation, per § Go modernisation in scope:** the session record's `time.Time` fields in
+`api/helper/auth/refresh_token.go` want `omitzero` rather than `omitempty`, which this stage's edits to
+that file are the moment to apply.
+
+**Done when** one owner-key list covers every kind, `filterToAllowed` compares once, a session carrying
+the previous shape is still served for its remaining lifetime, and no downstream reader names a
+corporation or alliance field.
+
 ### Stage C — Planner and membership documents
 
 The planner document, the membership collection, and the code that keeps rows current for the `self`
-provider only. Every existing account is backfilled a planner whose `_id` is its owner key,
+provider only. This stage also repoints the grants fill from ESI onto membership rows, the source half
+of the split described in Stage B; the owner-key shape it writes into is already in place by then. Every existing account is backfilled a planner whose `_id` is its owner key,
 `account:{accountID}`, and one membership row. Purely additive: no existing document's owner value
 changes, because the owner id inside that key is the account id those documents already carry.
 
@@ -1081,10 +1159,11 @@ it runs. A partly-finished backfill in front of live readers is the thing an exp
 exists to prevent; with traffic stopped the failure mode is instead that the window overruns, which is
 answered by rehearsing on a copy rather than by keeping two shapes readable.
 
-**Rehearsal is the substitute for reversibility.** The rename path has already been proven by putting
-dev back to live's exact collection names and running `eip ensure-mongo` once, with every count
-matching afterwards. The owner backfill and the statistics reshape want the same treatment before the
-window opens: run them against a restored copy of live, time them, and check the counts.
+**Rehearsal is the substitute for reversibility, and it has been done.** The rename path was proven by
+putting dev back to live's exact collection names and running `eip ensure-mongo` once, with every count
+matching afterwards. The owner backfill and the statistics reshape have since had the same treatment
+against a restored copy of live. `prepareRelease` carries every step this release owes, so the database
+is ready for the window.
 
 ## Wire compatibility
 
@@ -1135,17 +1214,18 @@ real traffic is what makes its Phase B matter.
 
 ## Go modernisation in scope
 
-`go fix -diff` over the packages this plan names reports suggestions in four files, to be applied
-with the stage that touches each rather than as a sweep:
+`go fix -diff` over the packages this plan names, re-run against the tree as it stands, reports one
+remaining suggestion. It is applied with the stage that touches the file rather than as a sweep:
 
 | File | Suggestion |
 |------|------------|
-| `api/helper/auth/refresh_token.go` | drop `omitempty` on the `Grants` fields (Stage B edits this file) |
-| `api/helper/sso/jwt.go` | same class |
-| `websocket/server/reader.go` | `errors.AsType` in place of `errors.As` |
+| `api/helper/auth/refresh_token.go` | `omitzero` in place of `omitempty` on the `time.Time` fields of the session record — `session_start` and `session_seen_at`. `omitempty` never omits a struct, so those keys are written even when zero. Stage B edits this file. `go fix` reports it but declines to apply it, because dropping a key a reader may expect is a behaviour change; the session record is internal to this service and expires, so the change is safe here, but it is a deliberate edit rather than a mechanical one |
+| ~~`api/helper/sso/jwt.go`~~ | **Gone** — the file no longer exists; the SSO code lives under `api/v1endpoints/sso`, which the scan reports nothing for |
+| ~~`websocket/server/reader.go`~~ | **Applied** — `reader.go` uses `errors.AsType` |
 | ~~`core/changestream/resume.go`~~ | **Applied** — `errors.AsType` landed with the watcher's routing-log fix under [archived-jobs-stats](../archived-jobs-stats/plan.md), which put that package in its touch surface |
 
-None of these block the plan. The scan is not a licence to modernise packages the stages do not touch.
+The remaining item does not block the plan. The scan is not a licence to modernise packages the stages
+do not touch.
 
 ## Open questions
 
@@ -1198,9 +1278,9 @@ None of these block the plan. The scan is not a licence to modernise packages th
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
-| A — the owner block, in one cutover | Not started, and **implemented under [archived-jobs-stats](../archived-jobs-stats/plan.md)** rather than here: `models.Owner` and the collection renames already landed there, and the `MetaData` reshape is inseparable from the writers, filters and changestream work that plan owns. This plan records the design and the window; that one carries the code |
-| B — grants and scopes as owner lists | Not started |
-| C — planner and membership documents | Not started |
+| A — the owner block, in one cutover | **Ready to run.** Built under [archived-jobs-stats](../archived-jobs-stats/plan.md) and now owned here. Model, vocabulary, writers, filters, index specs, renames, `ChangeStreamMessage.OwnerKey`, the `prepareRelease` stamp and its gate are all in, and the rehearsal against a restored copy of live is done. Outstanding: the window itself |
+| B — grants and scopes as owner lists | **Not started; next.** The shape change only — the ESI fill keeps writing the same values as owner keys, and Stage C repoints the source. Rolling deploy: both grant shapes must be read for one session lifetime. Carries the one remaining § Go modernisation item |
+| C — planner and membership documents | Not started. Also repoints the grants fill from ESI onto membership rows. `services/shared/models/planner.go` already holds this stage's types — see § Data models |
 | D — what a second member breaks | Not started |
 | E — custom planners | Not started |
 | F — ESI providers | Not started |
