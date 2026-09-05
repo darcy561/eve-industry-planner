@@ -25,7 +25,7 @@ func PopulateRequestMeta(r *http.Request, meta *models.MetaData, accountID strin
 	if meta == nil {
 		return
 	}
-	meta.AccountID = accountID
+	meta.Owner = models.AccountOwner(accountID)
 	if sessionID := auth.SessionIDFromContext(r.Context()); sessionID != "" {
 		meta.SessionID = sessionID
 	}

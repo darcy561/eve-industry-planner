@@ -28,10 +28,10 @@ func (d *Docs) BulkUpsertJobs(ctx context.Context, accountID string, jobs []mode
 		}
 		job.MetaData.LastModified = now
 		job.MetaData.LastUpdatedBy = accountID
-		job.MetaData.AccountID = accountID
+		job.MetaData.Owner = models.AccountOwner(accountID)
 		ApplyMetaSessionClient(&job.MetaData.MetaData, sessionID, wsClientID)
 		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": accountID}).
+			SetFilter(bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": job.JobID}).
 			SetUpdate(bson.M{
 				"$set":   job,
 				"$unset": JobDocumentsUpsertUnset,

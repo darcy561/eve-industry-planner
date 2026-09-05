@@ -131,14 +131,14 @@ class Job {
       resourceDisplayType: itemJson?.layout?.resourceDisplayType || null,
       materialPriceOverrides,
     };
-    const accountID =
-      itemJson?._meta?.accountID ||
-      useUsersStore.getState().account.accountID ||
-      "";
+    // `_meta` names who owns the document, and the server states that: it owns
+    // the block, overwrites whatever is uploaded, and takes identity from the
+    // request headers. So nothing here carries an account id — the store is the
+    // only place the SPA reads its own.
+    const accountID = useUsersStore.getState().account.accountID || "";
     this._meta = {
       lastModified: itemJson?._meta?.lastModified || new Date().toISOString(),
       createdAt: itemJson?._meta?.createdAt || new Date().toISOString(),
-      accountID,
       lastUpdatedBy: itemJson?._meta?.lastUpdatedBy || accountID || "",
     };
   }

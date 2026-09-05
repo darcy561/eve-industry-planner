@@ -8,14 +8,13 @@ import (
 	"testing"
 
 	"eve-industry-planner/api/helper"
-	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 // testScope needs no Mongo: parameter parsing never reaches a collection.
 func testScope(ownerID string) archiveScope {
 	return archiveScope{
 		OwnerID:     ownerID,
-		ownerFilter: eipmongo.ArchivedJobAccountFilter,
+		ownerFilter: accountOwnerFilter,
 	}
 }
 

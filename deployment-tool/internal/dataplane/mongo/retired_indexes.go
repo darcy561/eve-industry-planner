@@ -104,6 +104,79 @@ var RetiredIndexes = []RetiredIndex{
 		Name:       "apt_accountID_typeID_1",
 		Why:        "totals are keyed by owner",
 	},
+	// _meta.accountID is not a field any document carries now, so these index
+	// nothing and are chosen by no query. Each has a replacement under the
+	// matching _meta_owner name leading with the owner's kind and id.
+	{
+		Collection: "accounts",
+		Name:       "meta_accountID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "account_settings",
+		Name:       "meta_accountID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "job_groups",
+		Name:       "ajg_meta_accountID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "watchlist_deprecated",
+		Name:       "awd_meta_accountID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "job_documents",
+		Name:       "ajd_meta_accountID_displayOnPlanner_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "job_documents",
+		Name:       "ajd_meta_accountID_groupID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "job_documents",
+		Name:       "ajd_meta_accountID_marketOrders_order_id_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "job_documents",
+		Name:       "ajd_meta_accountID_linkedJobs_job_id_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "job_documents",
+		Name:       "ajd_meta_accountID_transactions_transaction_id_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "archived_jobs",
+		Name:       "aj_meta_accountID_archivedAt_jobID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "archived_jobs",
+		Name:       "aj_meta_accountID_name_jobID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "archived_jobs",
+		Name:       "aj_meta_accountID_itemID_jobID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "archived_jobs",
+		Name:       "aj_meta_accountID_jobType_jobID_1",
+		Why:        "documents are keyed by owner",
+	},
+	{
+		Collection: "archived_jobs",
+		Name:       "aj_meta_accountID_groupID_1",
+		Why:        "documents are keyed by owner",
+	},
 }
 
 // renderDropIndexJS drops one index, treating an absent index or collection as

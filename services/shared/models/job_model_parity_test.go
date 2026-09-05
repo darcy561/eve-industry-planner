@@ -51,7 +51,6 @@ func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 		},
 		"_meta": {
 			"lastModified": "1970-01-01T00:00:01Z",
-			"accountID": "",
 			"createdAt": "1970-01-01T00:00:01Z",
 			"lastUpdatedBy": "",
 			"archiveProcessed": false,
@@ -146,7 +145,7 @@ func TestJob_JSON_MongoLike_ShapeRoundTripMeta(t *testing.T) {
 		MetaData: JobMetaData{
 			MetaData: MetaData{
 				LastModified: time.Unix(1000, 0).UTC(),
-				AccountID:    "acc-1",
+				Owner:        AccountOwner("acc-1"),
 			},
 			CreatedAt:        time.Unix(500, 0).UTC(),
 			LastUpdatedBy:    "acc-1",
@@ -161,7 +160,21 @@ func TestJob_JSON_MongoLike_ShapeRoundTripMeta(t *testing.T) {
 	if err := json.Unmarshal(b, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.MetaData.AccountID != orig.MetaData.AccountID {
+	// The owner deliberately does not travel: for the two org kinds its id is a
+	// ref, so nothing that reaches a client should be able to carry one. Everything
+	// else on _meta round-trips.
+	if !decoded.MetaData.Owner.IsZero() {
+		t.Fatalf("the owner reached the wire: %+v", decoded.MetaData.Owner)
+	}
+	if !bytes.Contains(b, []byte(`"lastModified"`)) {
+		t.Fatal("lastModified should still be on the wire")
+	}
+	for _, leaked := range []string{`"owner"`, `"accountID"`, `"corporationRef"`, `"allianceRef"`} {
+		if bytes.Contains(b, []byte(leaked)) {
+			t.Fatalf("%s must not appear in a job's JSON", leaked)
+		}
+	}
+	if decoded.MetaData.LastUpdatedBy != orig.MetaData.LastUpdatedBy {
 		t.Fatalf("round-trip meta mismatch: %+v", decoded.MetaData)
 	}
 }
@@ -266,7 +279,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 		},
 		"_meta": {
 			"lastModified": "1970-01-01T00:00:00Z",
-			"accountID": "",
 			"createdAt": "1970-01-01T00:00:00Z",
 			"lastUpdatedBy": ""
 		}
@@ -339,7 +351,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 		"layout": {},
 		"_meta": {
 			"lastModified": "1970-01-01T00:00:00Z",
-			"accountID": "",
 			"createdAt": "1970-01-01T00:00:00Z",
 			"lastUpdatedBy": ""
 		}
@@ -480,7 +491,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 		"_meta": {
 			"lastModified": "2026-04-05T08:26:44.017Z",
 			"createdAt": "2026-04-05T08:26:44.017Z",
-			"accountID": "8XGnAtq8QEEQ76LfinJaI8MA6T4",
 			"lastUpdatedBy": "8XGnAtq8QEEQ76LfinJaI8MA6T4"
 		}
 	}`
@@ -560,7 +570,6 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 		"layout": {},
 		"_meta": {
 			"lastModified": "1970-01-01T00:00:00Z",
-			"accountID": "",
 			"createdAt": "1970-01-01T00:00:00Z",
 			"lastUpdatedBy": ""
 		}

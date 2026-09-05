@@ -13,6 +13,8 @@ import (
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
 
+	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -58,7 +60,7 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 	}
 	findOpts := options.Find().
 		SetBatchSize(int32(opts.scanBatch)).
-		SetProjection(bson.M{"_id": 1, "_meta.accountID": 1}).
+		SetProjection(bson.M{"_id": 1, eipmongo.FieldMetaOwnerID: 1}).
 		SetSort(bson.D{{Key: "_id", Value: 1}})
 	if opts.limit > 0 {
 		findOpts.SetLimit(int64(opts.limit))
@@ -74,13 +76,13 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 		var row struct {
 			ID       string `bson:"_id"`
 			MetaData struct {
-				AccountID string `bson:"accountID"`
+				Owner models.Owner `bson:"owner"`
 			} `bson:"_meta"`
 		}
 		if err := cur.Decode(&row); err != nil {
 			return fmt.Errorf("decode user id for rotation fan-out: %w", err)
 		}
-		accountID := strings.TrimSpace(row.MetaData.AccountID)
+		accountID := strings.TrimSpace(row.MetaData.Owner.ID)
 		if accountID == "" {
 			accountID = strings.TrimSpace(row.ID)
 		}

@@ -154,7 +154,7 @@ type TimelineItemRow struct {
 // January. The ordinal is computed in the pipeline so the stored documents keep
 // their plain year and month fields.
 func timelineRangeFilter(q TimelineQuery) bson.M {
-	filter := bson.M{"owner.kind": q.Owner.Kind, "owner.id": q.Owner.ID}
+	filter := bson.M{FieldMetaOwnerKind: q.Owner.Kind, FieldMetaOwnerID: q.Owner.ID}
 	if q.TypeID != 0 {
 		filter["typeID"] = q.TypeID
 	}

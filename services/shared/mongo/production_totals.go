@@ -64,7 +64,7 @@ func (m *Mongo) EachOwnerArchivedJob(ctx context.Context, owner models.Owner, fn
 		return err
 	}
 
-	cursor, err := coll.Find(ctx, archivedJobsOwnedBy(owner))
+	cursor, err := coll.Find(ctx, bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID})
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (m *Mongo) LoadArchivedJobStats(ctx context.Context, owner models.Owner, op
 	var out []models.ArchivedJobStats
 	err = Retry(ctx, applyRetryOptions("LoadArchivedJobStats", opts), func() error {
 		out = nil
-		cursor, findErr := coll.Find(ctx, bson.M{"owner.kind": owner.Kind, "owner.id": owner.ID})
+		cursor, findErr := coll.Find(ctx, bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID})
 		if findErr != nil {
 			return findErr
 		}
@@ -129,7 +129,7 @@ func (m *Mongo) RevokeArchivedJobStats(ctx context.Context, owner models.Owner, 
 		return 0, err
 	}
 
-	filter := bson.M{"owner.kind": owner.Kind, "owner.id": owner.ID, "revoked": bson.M{"$ne": true}}
+	filter := bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID, "revoked": bson.M{"$ne": true}}
 	if len(keepDocIDs) > 0 {
 		filter["_id"] = bson.M{"$nin": keepDocIDs}
 	}
@@ -167,7 +167,7 @@ func (m *Mongo) PruneTimelineMonths(ctx context.Context, owner models.Owner, kee
 		return 0, err
 	}
 
-	filter := bson.M{"owner.kind": owner.Kind, "owner.id": owner.ID}
+	filter := bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID}
 	if len(keepDocIDs) > 0 {
 		filter["_id"] = bson.M{"$nin": keepDocIDs}
 	}
@@ -209,7 +209,7 @@ func (m *Mongo) PruneProductionTotals(ctx context.Context, owner models.Owner, k
 		return 0, err
 	}
 
-	filter := bson.M{"owner.kind": owner.Kind, "owner.id": owner.ID}
+	filter := bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID}
 	if len(keepDocIDs) > 0 {
 		filter["_id"] = bson.M{"$nin": keepDocIDs}
 	}
@@ -249,7 +249,7 @@ func (m *Mongo) LoadProductionTotals(ctx context.Context, owner models.Owner, ty
 		return nil, err
 	}
 
-	filter := bson.M{"owner.kind": owner.Kind, "owner.id": owner.ID}
+	filter := bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID}
 	if typeID != 0 {
 		filter["typeID"] = typeID
 	}
@@ -287,7 +287,7 @@ func (m *Mongo) LoadTimelineMonths(ctx context.Context, owner models.Owner, opts
 	var out []models.TimelineMonthBucket
 	err = Retry(ctx, applyRetryOptions("LoadTimelineMonths", opts), func() error {
 		out = nil
-		cursor, findErr := coll.Find(ctx, bson.M{"owner.kind": owner.Kind, "owner.id": owner.ID})
+		cursor, findErr := coll.Find(ctx, bson.M{FieldMetaOwnerKind: owner.Kind, FieldMetaOwnerID: owner.ID})
 		if findErr != nil {
 			return findErr
 		}
@@ -302,13 +302,3 @@ func (m *Mongo) LoadTimelineMonths(ctx context.Context, owner models.Owner, opts
 
 // archivedJobsOwnedBy filters the archived jobs an owner holds.
 //
-// A job document names its account rather than an owner: the owner block on
-// _meta is shared-planners Stage A, and until it lands only an account can hold
-// one. A kind that cannot own a job document is refused here rather than
-// matching nothing, which reads as an owner with an empty archive.
-func archivedJobsOwnedBy(owner models.Owner) bson.M {
-	if owner.Kind != models.OwnerAccount {
-		return bson.M{"_meta.accountID": nil, "_id": bson.M{"$exists": false}}
-	}
-	return ArchivedJobAccountFilter(owner.ID)
-}

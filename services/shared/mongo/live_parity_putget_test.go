@@ -48,7 +48,7 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 	jobID := fmt.Sprintf("eip-parity-job-%d", now.UnixNano())
 	clone := sampleJob
 	clone.JobID = jobID
-	clone.MetaData.AccountID = parityScratchAccount
+	clone.MetaData.Owner.ID = parityScratchAccount
 	clone.Name = "eip-parity-clone"
 
 	if _, failed, err := jobs.BulkUpsertJobs(ctx, parityScratchAccount, []models.Job{clone}, now, "parity-sess", "parity-client"); err != nil || failed != 0 {
@@ -76,7 +76,7 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 		g := sampleGroup
 		g.GroupID = groupID
 		g.AccountID = parityScratchAccount
-		g.MetaData.AccountID = parityScratchAccount
+		g.MetaData.Owner.ID = parityScratchAccount
 		g.GroupName = "eip-parity-group"
 		g.IncludedJobIDs = []string{jobID, "eip-parity-extra-job"}
 
@@ -201,8 +201,8 @@ func assertJobRoundtrip(t *testing.T, wantSeed, got models.Job, now time.Time, a
 	if got.Name != wantSeed.Name {
 		t.Fatalf("name: got %q want %q", got.Name, wantSeed.Name)
 	}
-	if got.MetaData.AccountID != accountID {
-		t.Fatalf("accountID: got %q", got.MetaData.AccountID)
+	if got.MetaData.Owner.ID != accountID {
+		t.Fatalf("accountID: got %q", got.MetaData.Owner.ID)
 	}
 	if got.MetaData.SessionID != sessionID || got.MetaData.ClientID != clientID {
 		t.Fatalf("session/client: got %q/%q want %q/%q", got.MetaData.SessionID, got.MetaData.ClientID, sessionID, clientID)
@@ -223,8 +223,8 @@ func assertGroupRoundtrip(t *testing.T, wantSeed, got models.Group, now time.Tim
 	if got.GroupName != wantSeed.GroupName {
 		t.Fatalf("groupName: got %q want %q", got.GroupName, wantSeed.GroupName)
 	}
-	if got.MetaData.AccountID != accountID || got.AccountID != accountID {
-		t.Fatalf("account fields: meta=%q root=%q", got.MetaData.AccountID, got.AccountID)
+	if got.MetaData.Owner.ID != accountID || got.AccountID != accountID {
+		t.Fatalf("account fields: meta=%q root=%q", got.MetaData.Owner.ID, got.AccountID)
 	}
 	if got.MetaData.SessionID != sessionID || got.MetaData.ClientID != clientID {
 		t.Fatalf("session/client mismatch")

@@ -33,7 +33,7 @@ func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 		fmt.Fprintf(fs.Output(), "Scope: use -account to limit to one account, or omit -account / pass -all for every account.\n\n")
 		fs.PrintDefaults()
 	}
-	account := fs.String("account", "", "only the account with this _meta.accountID (omit or use -all for every account)")
+	account := fs.String("account", "", "only this account's documents (omit or use -all for every account)")
 	markAll := fs.Bool("all", false, "explicitly queue every account (same as omitting -account); cannot combine with -account")
 	dryRun := fs.Bool("dry-run", false, "print the accounts that would be queued; do not queue them")
 	if err := fs.Parse(args); err != nil {
@@ -54,8 +54,9 @@ func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 	filter := bson.M{}
 	scopeDesc := "all accounts"
 	if accountTrim != "" {
-		filter["_meta.accountID"] = accountTrim
-		scopeDesc = fmt.Sprintf("_meta.accountID=%s", accountTrim)
+		filter[eipmongo.FieldMetaOwnerKind] = models.OwnerAccount
+		filter[eipmongo.FieldMetaOwnerID] = accountTrim
+		scopeDesc = fmt.Sprintf("owner=account:%s", accountTrim)
 	}
 
 	mongo := clients.Mongo
@@ -63,7 +64,7 @@ func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
 	ctxRun, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	accounts, err := mongo.ArchivedJobs.DistinctStrings(ctxRun, "_meta.accountID", filter)
+	accounts, err := mongo.ArchivedJobs.DistinctStrings(ctxRun, eipmongo.FieldMetaOwnerID, filter)
 	if err != nil {
 		return fmt.Errorf("distinct archived job accounts: %w", err)
 	}

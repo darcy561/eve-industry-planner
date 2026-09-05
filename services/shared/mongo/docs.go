@@ -7,6 +7,7 @@ import (
 	"maps"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -46,7 +47,7 @@ func (d *Docs) GetPublicByIDs(ctx context.Context, docIDs []string) ([]bson.M, e
 	return d.getByIDs(ctx, docIDs, nil)
 }
 
-// ExistsByAccountID reports whether _id + _meta.accountID exist.
+// ExistsByAccountID reports whether the account owns a document with this _id.
 func (d *Docs) ExistsByAccountID(ctx context.Context, docID, accountID string) (bool, error) {
 	coll, err := d.requireColl()
 	if err != nil {
@@ -58,7 +59,7 @@ func (d *Docs) ExistsByAccountID(ctx context.Context, docID, accountID string) (
 	if accountID == "" {
 		return false, fmt.Errorf("accountID is required")
 	}
-	filter := bson.M{"_id": docID, "_meta.accountID": accountID}
+	filter := bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": docID}
 	err = coll.FindOne(ctx, filter).Err()
 	if err == nil {
 		return true, nil
@@ -67,33 +68,6 @@ func (d *Docs) ExistsByAccountID(ctx context.Context, docID, accountID string) (
 		return false, nil
 	}
 	return false, err
-}
-
-// UpsertStructWithMeta upserts by _id writing full metadata from the struct.
-func (d *Docs) UpsertStructWithMeta(ctx context.Context, v any, docID string) (*mongo.UpdateResult, error) {
-	coll, err := d.requireColl()
-	if err != nil {
-		return nil, err
-	}
-	if docID == "" {
-		return nil, fmt.Errorf("docID is required")
-	}
-	doc, err := StructToMongoDoc(v, docID)
-	if err != nil {
-		return nil, fmt.Errorf("convert struct to BSON: %w", err)
-	}
-	setDoc := buildSetDoc(doc, "_id")
-	applyLastModified(setDoc, nil, nil, false)
-	result, err := coll.UpdateOne(
-		ctx,
-		bson.M{"_id": docID},
-		bson.M{"$set": setDoc, "$setOnInsert": bson.M{"_id": docID}},
-		options.UpdateOne().SetUpsert(true),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("upsert document: %w", err)
-	}
-	return result, nil
 }
 
 // UpsertStructPreservingMeta upserts by _id preserving existing _meta (bumps lastModified).
@@ -154,8 +128,30 @@ type BulkUpsertSummary struct {
 	Failed  int
 }
 
-// UpsertStructsPreservingMetaBulk upserts many structs (unordered collection BulkWrite).
+// UpsertStructsPreservingMetaBulk upserts many structs, leaving each document's
+// existing `_meta` in place.
+//
+// For documents a client and the server both write: `_meta` carries the writing
+// tab and session, which a server-side rewrite must not clobber.
 func (d *Docs) UpsertStructsPreservingMetaBulk(ctx context.Context, items []StructUpsertItem, batchSize int) (BulkUpsertSummary, error) {
+	return d.upsertStructsBulk(ctx, items, batchSize, buildPreservingMetaUpsertModel)
+}
+
+// UpsertStructsWithMetaBulk upserts many structs, writing `_meta` from the struct.
+//
+// For documents one writer wholly owns — the derived statistics rows, which are
+// reproduced from the archived jobs on every rebuild. Preserving `_meta` there
+// would mean a rebuild could never correct an owner it had already written.
+func (d *Docs) UpsertStructsWithMetaBulk(ctx context.Context, items []StructUpsertItem, batchSize int) (BulkUpsertSummary, error) {
+	return d.upsertStructsBulk(ctx, items, batchSize, buildWithMetaUpsertModel)
+}
+
+func (d *Docs) upsertStructsBulk(
+	ctx context.Context,
+	items []StructUpsertItem,
+	batchSize int,
+	build func(docID string, doc bson.M) mongo.WriteModel,
+) (BulkUpsertSummary, error) {
 	summary := BulkUpsertSummary{Total: len(items)}
 	coll, err := d.requireColl()
 	if err != nil {
@@ -191,7 +187,7 @@ func (d *Docs) UpsertStructsPreservingMetaBulk(ctx context.Context, items []Stru
 			summary.Failed++
 			continue
 		}
-		models = append(models, buildPreservingMetaUpsertModel(item.DocID, doc))
+		models = append(models, build(item.DocID, doc))
 		if len(models) >= batchSize {
 			if err := flush(); err != nil {
 				return summary, err
@@ -442,6 +438,16 @@ func ensureMetaMap(metaRaw any) bson.M {
 		return meta
 	}
 	return bson.M{}
+}
+
+// buildWithMetaUpsertModel writes the whole document, `_meta` included.
+func buildWithMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
+	setDoc := buildSetDoc(doc, "_id")
+	applyLastModified(setDoc, nil, nil, false)
+	return mongo.NewUpdateOneModel().
+		SetFilter(bson.M{"_id": docID}).
+		SetUpdate(bson.M{"$set": setDoc, "$setOnInsert": bson.M{"_id": docID}}).
+		SetUpsert(true)
 }
 
 func buildPreservingMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {

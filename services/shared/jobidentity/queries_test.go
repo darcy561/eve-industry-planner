@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
@@ -37,8 +38,11 @@ func TestAccountWorkFilterCoversBothConditions(t *testing.T) {
 	t.Parallel()
 	filter := AccountWorkFilter("acct-1")
 
-	if got := filter["_meta.accountID"]; got != "acct-1" {
-		t.Fatalf("accountID = %v", got)
+	if got := filter[eipmongo.FieldMetaOwnerID]; got != "acct-1" {
+		t.Fatalf("owner id = %v", got)
+	}
+	if got := filter[eipmongo.FieldMetaOwnerKind]; got != models.OwnerAccount {
+		t.Fatalf("owner kind = %v", got)
 	}
 	or, ok := filter["$or"].([]any)
 	if !ok || len(or) != 2 {

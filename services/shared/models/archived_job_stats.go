@@ -41,8 +41,8 @@ type ArchivedJobFeeLine struct {
 type ArchivedJobStats struct {
 	ID            string `bson:"_id" json:"-"`
 	SchemaVersion int    `bson:"schemaVersion,omitempty" json:"-"`
-	// Owner is who the row belongs to, and what every query for it filters on.
-	Owner Owner `bson:"owner" json:"-"`
+	// MetaData carries the owner, the same block every scoped document uses.
+	MetaData `bson:"_meta" json:"-"`
 	// ArchivedBy is the account that archived the job, which inside a shared
 	// planner is not the same question as who owns the row.
 	ArchivedBy        string    `bson:"archivedBy,omitempty" json:"-"`
@@ -63,7 +63,6 @@ type ArchivedJobStats struct {
 	TransactionLines []ArchivedJobTransactionLine `bson:"transactionLines" json:"transactionLines"`
 	FeeLines         []ArchivedJobFeeLine         `bson:"feeLines" json:"feeLines"`
 	Protected        *FieldProtection             `bson:"protected,omitempty" json:"-"`
-	ProcessedAt      time.Time                    `bson:"processedAt" json:"processedAt"`
 	// ContributedAt records that this row's figures have been added to the
 	// aggregates above it. It is both the guard against adding them twice and the
 	// list of what is still outstanding: the rows without one are the work.

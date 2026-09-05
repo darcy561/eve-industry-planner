@@ -7,6 +7,7 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/stackservices"
 
+	"eve-industry-planner/shared/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -97,7 +98,7 @@ func stampAccountExtras(
 	dryRun bool,
 ) (stamped, unnamed int, err error) {
 	coll := clients.Mongo.Coll(collection)
-	filter := bson.M{"_meta.accountID": accountID, "build.costs.extrasCosts.0": bson.M{"$exists": true}}
+	filter := bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "build.costs.extrasCosts.0": bson.M{"$exists": true}}
 
 	cursor, err := coll.Find(ctx, filter, nil)
 	if err != nil {

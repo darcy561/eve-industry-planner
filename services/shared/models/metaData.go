@@ -2,24 +2,20 @@ package models
 
 import "time"
 
-// MetaData is the shared `_meta` account/ownership block for private account documents
-// (accounts, account_settings, job_groups, jobs, etc.). ClientID is the WebSocket
-// tab id (X-WS-Client-ID) for the write that last touched the document, for changestream
-// / WS echo suppression.
+// MetaData is the shared `_meta` block every scoped document carries.
+//
+// ClientID is the WebSocket tab id (X-WS-Client-ID) of the write that last
+// touched the document, for changestream / WS echo suppression.
+//
+// Owner has no JSON tag deliberately: for the org kinds its id is a ref, so a
+// response naming an owner builds a handle instead.
 type MetaData struct {
 	LastModified time.Time `bson:"lastModified" json:"lastModified"`
-	AccountID    string    `bson:"accountID" json:"accountID"`
+	Owner        Owner     `bson:"owner" json:"-"`
 	ClientID     string    `bson:"clientID,omitempty" json:"clientID,omitempty"`
 	SessionID    string    `bson:"sessionID,omitempty" json:"sessionID,omitempty"`
-	// Org ownership for documents that are not account scoped. The changestream
-	// routes on these when AccountID is absent.
-	CorporationRef string `bson:"corporationRef,omitempty" json:"-"`
-	AllianceRef    string `bson:"allianceRef,omitempty" json:"-"`
 }
 
-// Field names the changestream reads out of a raw _meta subdocument, where it has
-// no struct to decode into.
-const (
-	MetaFieldCorporationRef = "corporationRef"
-	MetaFieldAllianceRef    = "allianceRef"
-)
+// MetaFieldOwner is the `_meta` key holding the owner, for the changestream,
+// which reads a raw subdocument with no struct to decode into.
+const MetaFieldOwner = "owner"

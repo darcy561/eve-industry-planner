@@ -78,7 +78,7 @@ func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSett
 		MetaData: ApplicationSettingsMeta{
 			MetaData: MetaData{
 				LastModified: now,
-				AccountID:    accountID,
+				Owner:        AccountOwner(accountID),
 			},
 		},
 	}

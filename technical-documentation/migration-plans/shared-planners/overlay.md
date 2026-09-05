@@ -6,51 +6,29 @@ file is silent; where it speaks, it wins for the duration of the project.
 Sections are added as stages land. An empty section means the stage has not landed — not that the
 behaviour is undocumented.
 
-## Stage A — The owner on a document
+## Stage A — The owner block cutover
 
 *Not landed.*
 
-Owed here when it does: the shape of `_meta.owner`, which documents carry it, what the schema version
-bump selects, how the changestream reads it, what `documentschema.Upgrader` fills in and when that
-compatibility path is removed.
+Owed here: the shape of `_meta.owner` and the two meta families, which documents carry it, what the
+collection renames left behind, the order the window ran in, what the backfill and the statistics
+reshape each reported, and the counts that were checked before traffic came back.
 
-## Stage B — Backfill, indexes and renames
-
-*Not landed.*
-
-Owed here: the task name and how an operator runs it, what it does per batch and how it resumes, the
-rename entries and their version, the new indexes, and what the changestream collection groups and
-websocket subscribe allow-list look like afterwards.
-
-## Stage C — Reading by owner
-
-*Not landed.*
-
-Owed here: which filters changed, which indexes serve them, and the point after which a rollback is no
-longer available.
-
-## Stage D — Contract
-
-*Not landed.*
-
-Owed here: what was removed, and confirmation that no reader remains for the legacy field.
-
-## Stage E — Grants and scopes
+## Stage B — Grants and scopes
 
 *Not landed.*
 
 Owed here: the grant list shape, how the ceiling is computed per provider, the owner handle to owner
-key conversion points, the `upgrade_scopes` and `scopes_ack` message shapes, and how the two grant
-shapes coexist for one session lifetime.
+key conversion points, and the `upgrade_scopes` and `scopes_ack` message shapes.
 
-## Stage F — Planners and membership
+## Stage C — Planners and membership
 
 *Not landed.*
 
-Owed here: the planner document, the membership document, their indexes, the provider interface, how
-the account planner is created, and what the roster endpoints refuse on each provider.
+Owed here: the planner document, the membership document, their indexes, how a roster is kept current
+per provider, how the account planner is created, and what the roster endpoints refuse.
 
-## Stage G — What a second member breaks
+## Stage D — What a second member breaks
 
 *Not landed.*
 
@@ -58,7 +36,7 @@ Owed here: where the extras category ids and the job status id set live once the
 what recalculation now preserves and how a job's build context survives another member editing it,
 and what the close cascade's persist gate covers.
 
-## Stage H — Custom planners
+## Stage E — Custom planners
 
 *Not landed.*
 
@@ -67,7 +45,7 @@ what a request for a planner without a membership row returns, the shared author
 path end to end, and the client's active planner — where it is held, how it persists, and how a scoped
 query key is built from it.
 
-## Stage I — ESI providers
+## Stage F — ESI providers
 
 *Not landed.*
 
@@ -106,6 +84,11 @@ Kept here so a later reader finds the reasoning without reconstructing it from t
 | Settings stay account-owned; only two shared id spaces move | A job stores its own results, so settings are write-time inputs the job records rather than render-time values, and the alternative was a document split with dozens of call-site moves |
 | Recalculation preserves a job's build context | It currently clears `build.setup` and re-derives structure, ME and character from whoever triggered it; a lock cannot fix this because the write is legitimately authorised and only its content is wrong |
 | The persist gate covers every document a close writes | The close cascade writes the whole parent/child tree but gates on the edited job's lock alone |
+| The owner backfill runs after the model change, never before | The job, group and archived-job writers `$set` a whole marshalled struct, and `$set` replaces `_meta` wholesale — so until `MetaData` carries an `Owner`, every save erases a stamped one |
 | Owner decided at creation, never inferred | Attribution derived from a correlated field is wrong exactly where it is hardest to notice |
-| Expand/contract over a maintenance window | A failed backfill leaves a mixed database; expand/contract keeps every intermediate state readable |
+| The worker stops between the image roll and the stamp | Both statistics prunes drop their `$nin` clause when the keep list is empty, so an owner-scoped read that matches nothing deletes every aggregate for that owner; the drain cron runs every two minutes |
+| `MetaData` takes no `SchemaVersion` | Every persisted model already carries one at the document root, and the maintenance batch selects on that; a second inside `_meta` would be two sources for one fact |
+| No upgrader for the owner — an approved deviation | Once `AccountID` is off `MetaData` nothing remains to derive an owner from, so the release step sets owner and root version together and the version's job becomes detection, gated on zero documents without an owner |
+| The owner never goes on the wire | `_meta.accountID` had one SPA reader that already falls back to the store, so the client change is a deletion and no ref can reach a browser through `_meta` |
+| One cutover in the deployment window, not expand/contract | The stack is coming down anyway, so nothing reads or writes while the migration runs; that removes the dual-write machinery and the erase hazard, at the cost of rollback being a database restore |
 | Renames bundled with the backfill | The entire cost of a rename is touching live data, which the backfill is doing anyway, and the SPA subscriptions that a rename breaks are small and account-based today |

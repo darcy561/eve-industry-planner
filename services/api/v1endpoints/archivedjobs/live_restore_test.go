@@ -44,7 +44,7 @@ func archiveJob(t *testing.T, ctx context.Context, h *Handlers, job models.Job, 
 // leaves it: entity ids as refs, and the stamps that say it is archived.
 func archiveJobFor(t *testing.T, ctx context.Context, h *Handlers, job models.Job, accountID string, at time.Time) {
 	t.Helper()
-	job.MetaData.AccountID = accountID
+	job.MetaData.Owner = models.AccountOwner(accountID)
 	job.MetaData.ArchivedAt = at
 	job.MetaData.ArchivedBy = accountID
 	if err := jobidentity.Encrypt(&job, h.EntityCipher); err != nil {
@@ -74,7 +74,7 @@ func contributedRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jo
 
 func seedJob(jobID string) models.Job {
 	job := models.Job{JobID: jobID, ItemID: 34, JobType: 1, Name: "Tritanium"}
-	job.MetaData.AccountID = restoreScratchAccount
+	job.MetaData.Owner.ID = restoreScratchAccount
 	return job
 }
 
@@ -171,7 +171,7 @@ func TestLive_restoreReturnsTheJobToItsGroup(t *testing.T) {
 		IncludedJobIDs: []string{"job-restore-grouped"},
 		ArchivedJobIDs: []string{"job-restore-grouped"},
 	}
-	group.MetaData.AccountID = restoreScratchAccount
+	group.MetaData.Owner.ID = restoreScratchAccount
 	if _, err := mongo.Groups.UpsertStructPreservingMeta(ctx, group, group.GroupID); err != nil {
 		t.Fatalf("seed group: %v", err)
 	}

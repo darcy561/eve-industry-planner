@@ -54,8 +54,8 @@ func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 				if j.JobID == "" {
 					t.Fatalf("account %s %s: job missing jobID", s.accountID, fc.label)
 				}
-				if j.MetaData.AccountID != s.accountID {
-					t.Fatalf("account %s %s: leaked account %q", s.accountID, fc.label, j.MetaData.AccountID)
+				if j.MetaData.Owner.ID != s.accountID {
+					t.Fatalf("account %s %s: leaked account %q", s.accountID, fc.label, j.MetaData.Owner.ID)
 				}
 			}
 			checked++
@@ -125,8 +125,8 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 		t.Fatalf("planner_no_acct: %v", err)
 	}
 	for _, j := range gotBroad {
-		if j.MetaData.AccountID != accountID {
-			t.Fatalf("leaked account %q (want %q)", j.MetaData.AccountID, accountID)
+		if j.MetaData.Owner.ID != accountID {
+			t.Fatalf("leaked account %q (want %q)", j.MetaData.Owner.ID, accountID)
 		}
 	}
 	if len(gotBroad) != 1 || gotBroad[0].JobID != jobID {
@@ -255,8 +255,8 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	if len(scoped) != 1 || scoped[0].JobID != jobA.JobID {
 		t.Fatalf("with merge: got %+v want only %s", jobIDsOf(scoped), jobA.JobID)
 	}
-	if scoped[0].MetaData.AccountID != accountA {
-		t.Fatalf("with merge: accountID=%q", scoped[0].MetaData.AccountID)
+	if scoped[0].MetaData.Owner.ID != accountA {
+		t.Fatalf("with merge: accountID=%q", scoped[0].MetaData.Owner.ID)
 	}
 	t.Logf("with merge: LoadJobsByFilter(accountA) returned only %s", jobA.JobID)
 }
@@ -275,7 +275,7 @@ func scopeScratchJob(jobID, accountID string) models.Job {
 		},
 		Skills: []models.Skill{},
 		MetaData: models.JobMetaData{
-			MetaData: models.MetaData{AccountID: accountID},
+			MetaData: models.MetaData{Owner: models.AccountOwner(accountID)},
 		},
 	}
 }

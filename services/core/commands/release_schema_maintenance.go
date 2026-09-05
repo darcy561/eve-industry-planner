@@ -31,12 +31,12 @@ func completeSchemaMaintenance(ctx context.Context, clients *stackservices.Clien
 
 	for _, name := range eipmongo.SchemaMaintainedCollections() {
 		docs := clients.Mongo.Docs(name)
+		current, err := schemamaint.CurrentVersion(name)
+		if err != nil {
+			return "", err
+		}
 
 		if dryRun {
-			current, err := schemamaint.CurrentVersion(name)
-			if err != nil {
-				return "", err
-			}
 			behind, err := docs.Collection().CountDocuments(ctx, map[string]any{"$or": []map[string]any{
 				{"schemaVersion": map[string]any{"$lt": current}},
 				{"schemaVersion": map[string]any{"$exists": false}},
@@ -57,11 +57,14 @@ func completeSchemaMaintenance(ctx context.Context, clients *stackservices.Clien
 			return "", fmt.Errorf("%s: %w", name, err)
 		}
 		// Remaining above zero means the drain stopped making progress with
-		// documents still behind — they are named rather than passed over,
-		// because a later step would stamp them as current regardless.
+		// documents still behind. That fails the step rather than reporting it:
+		// this runs first so the steps after it meet one shape, and they stamp
+		// the current version onto what they touch — so carrying on records a
+		// document as current that never ran its upgrade.
 		switch {
 		case summary.Remaining > 0:
-			reports = append(reports, fmt.Sprintf("%s: %d upgraded, %d STILL BEHIND", name, summary.Upgraded, summary.Remaining))
+			return "", fmt.Errorf("%s: %d upgraded, %d still below v%d that the upgrader cannot move",
+				name, summary.Upgraded, summary.Remaining, current)
 		case summary.Upgraded == 0:
 			reports = append(reports, fmt.Sprintf("%s: already current", name))
 		default:

@@ -3,6 +3,8 @@ package models
 import (
 	"fmt"
 	"strings"
+
+	"eve-industry-planner/shared/crypto/entityid"
 )
 
 // OwnerKind names what a stored document belongs to.
@@ -35,8 +37,32 @@ type Owner struct {
 }
 
 // AccountOwner addresses what an account owns.
+//
+// The id is trimmed: an owner is a storage key, and " acct" keying documents
+// apart from "acct" is a fault nothing downstream could detect.
 func AccountOwner(accountID string) Owner {
-	return Owner{Kind: OwnerAccount, ID: accountID}
+	return Owner{Kind: OwnerAccount, ID: strings.TrimSpace(accountID)}
+}
+
+// CorporationOwner addresses what a corporation owns, given its ref.
+//
+// A raw EVE id yields a zero owner, so a caller that has not converted fails
+// where it is used rather than routing on an id that means something else.
+func CorporationOwner(corporationRef string) Owner {
+	return orgOwner(OwnerCorporation, corporationRef)
+}
+
+// AllianceOwner addresses what an alliance owns, given its ref.
+func AllianceOwner(allianceRef string) Owner {
+	return orgOwner(OwnerAlliance, allianceRef)
+}
+
+func orgOwner(kind OwnerKind, ref string) Owner {
+	owner := Owner{Kind: kind, ID: strings.TrimSpace(ref)}
+	if owner.Validate() != nil {
+		return Owner{}
+	}
+	return owner
 }
 
 // Key identifies the owner in a single string, for a document id or a
@@ -73,7 +99,27 @@ func (o Owner) Validate() error {
 	if strings.TrimSpace(o.ID) == "" {
 		return fmt.Errorf("owner of kind %q needs an id", o.Kind)
 	}
+	// The org kinds hold a ref, never a raw EVE id. Checked here rather than only
+	// at construction, so an owner read back from storage is held to it too.
+	if want, ok := orgEntityKind(o.Kind); ok {
+		kind, parsed := entityid.ParseKind(o.ID)
+		if !parsed || kind != want || !entityid.ValidShape(o.ID) {
+			return fmt.Errorf("owner of kind %q needs a %s ref, got %q", o.Kind, want, o.ID)
+		}
+	}
 	return nil
+}
+
+// orgEntityKind maps an org owner kind to the entity ref kind its id must be.
+func orgEntityKind(kind OwnerKind) (string, bool) {
+	switch kind {
+	case OwnerCorporation:
+		return entityid.KindCorp, true
+	case OwnerAlliance:
+		return entityid.KindAlliance, true
+	default:
+		return "", false
+	}
 }
 
 // IsZero reports whether the owner is unset.

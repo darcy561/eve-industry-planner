@@ -37,14 +37,14 @@ func Batch(ctx context.Context, docs *eipmongo.Docs, collection string, batchSiz
 		return runBatch(ctx, docs, batchSize, models.UserAccountDocumentSchemaCurrent,
 			func(d *models.UserAccountDocument) { documentschema.Upgrader{}.UserAccountDocument(d) },
 			func(d models.UserAccountDocument) int { return d.SchemaVersion },
-			func(d models.UserAccountDocument) string { return d.MetaData.AccountID })
+			func(d models.UserAccountDocument) string { return d.MetaData.Owner.ID })
 	case eipmongo.CollectionAccountSettings:
 		return runBatch(ctx, docs, batchSize, models.ApplicationSettingsSchemaCurrent,
 			func(d *models.ApplicationSettings) {
-				documentschema.Upgrader{}.ApplicationSettings(d, d.MetaData.AccountID, time.Now().UTC())
+				documentschema.Upgrader{}.ApplicationSettings(d, d.MetaData.Owner.ID, time.Now().UTC())
 			},
 			func(d models.ApplicationSettings) int { return d.SchemaVersion },
-			func(d models.ApplicationSettings) string { return d.MetaData.AccountID })
+			func(d models.ApplicationSettings) string { return d.MetaData.Owner.ID })
 	case eipmongo.CollectionJobDocuments, eipmongo.CollectionJobs, eipmongo.CollectionArchivedJobs:
 		return runBatch(ctx, docs, batchSize, models.JobSchemaCurrent,
 			func(d *models.Job) { documentschema.Upgrader{}.Job(d) },

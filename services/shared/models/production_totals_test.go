@@ -75,7 +75,8 @@ func TestTimelineMonthBucketsPersistFlat(t *testing.T) {
 		Year:   2026, Month: 8,
 		TransactionCount: 2, SalesTotal: 50,
 	}
-	requireFlatKeys(t, user, "_id", "owner", "typeID", "year", "month", "transactionCount", "salesTotal")
+	requireFlatKeys(t, user, "_id", "_meta", "typeID", "year", "month", "transactionCount", "salesTotal")
+	requireOwnerUnderMeta(t, user, AccountOwner("acct"))
 
 }
 
@@ -102,7 +103,8 @@ func TestArchivedJobStatsPersistsFlat(t *testing.T) {
 		JobID:         "job-1",
 		TotalProduced: 10, TotalMaterialCost: 500,
 	}
-	requireFlatKeys(t, stats, "_id", "owner", "jobID", "totalProduced", "totalMaterialCost")
+	requireFlatKeys(t, stats, "_id", "_meta", "jobID", "totalProduced", "totalMaterialCost")
+	requireOwnerUnderMeta(t, stats, AccountOwner("acct"))
 }
 
 func TestProductionTotalsRowJSONStaysFlat(t *testing.T) {
@@ -351,5 +353,27 @@ func TestPlusDropsBuildHistoryMarks(t *testing.T) {
 
 	if got := a.Plus(b).History; got != (BuildHistoryMarks{}) {
 		t.Fatalf("a folded row carried marks from one of its types: %+v", got)
+	}
+}
+
+// The owner lives under _meta, the same place every scoped document keeps it, so
+// one filter shape covers the whole database. A row that persisted it at the root
+// would be queried by a filter that never matches.
+func requireOwnerUnderMeta(t *testing.T, v any, want Owner) {
+	t.Helper()
+	b, err := bson.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var doc struct {
+		Meta struct {
+			Owner Owner `bson:"owner"`
+		} `bson:"_meta"`
+	}
+	if err := bson.Unmarshal(b, &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if doc.Meta.Owner != want {
+		t.Fatalf("_meta.owner = %+v, want %+v", doc.Meta.Owner, want)
 	}
 }

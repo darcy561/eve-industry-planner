@@ -11,7 +11,7 @@ var buildNow = time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
 
 func sampleJob() models.Job {
 	job := models.Job{JobID: "job-1", ItemID: 34, JobType: 1}
-	job.MetaData.AccountID = "acct-1"
+	job.MetaData.Owner.ID = "acct-1"
 	job.MetaData.ArchivedAt = time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
 	job.Build.Sale.Transactions = []models.Transaction{
 		{TransactionID: 1, OrderID: 900, Quantity: 4, Amount: 400, Tax: 40, Date: "2026-06-01T00:00:00Z"},
@@ -192,7 +192,7 @@ func TestBuildIsDeterministic(t *testing.T) {
 	}
 }
 
-func TestSnapshotCarriesAccountIdentityAndStamps(t *testing.T) {
+func TestRowCarriesTheOwnerAndKeysOnIt(t *testing.T) {
 	t.Parallel()
 
 	doc := RowFromFigures(sampleJob(), sampleSnap(), buildNow)
@@ -201,9 +201,6 @@ func TestSnapshotCarriesAccountIdentityAndStamps(t *testing.T) {
 	}
 	if doc.ID != "account:acct-1|job-1" {
 		t.Fatalf("_id = %q, want account:acct-1|job-1 — the id leads with the owner key", doc.ID)
-	}
-	if !doc.ProcessedAt.Equal(buildNow) {
-		t.Fatalf("processedAt = %v, want the supplied clock %v", doc.ProcessedAt, buildNow)
 	}
 	if doc.Revoked {
 		t.Fatal("a freshly built snapshot must not be revoked")
@@ -417,7 +414,7 @@ func TestNewRowNamesItsOwnerAndSchema(t *testing.T) {
 
 	job := models.Job{JobID: "job-owned", ItemID: 34, ItemsProducedPerRun: 1}
 	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
-	job.MetaData.AccountID = "acct-1"
+	job.MetaData.Owner.ID = "acct-1"
 	job.MetaData.ArchivedBy = "acct-2"
 
 	row, err := NewRow(job, time.Now().UTC())

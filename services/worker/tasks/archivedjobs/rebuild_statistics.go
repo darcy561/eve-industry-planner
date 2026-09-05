@@ -156,7 +156,7 @@ func writeAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded ownerAgg
 	out.Buckets = len(buckets)
 
 	if len(bucketItems) > 0 {
-		if _, err := mongo.StatisticsTimeline.UpsertStructsPreservingMetaBulk(ctx, bucketItems, rebuildUpsertBatch); err != nil {
+		if _, err := mongo.StatisticsTimeline.UpsertStructsWithMetaBulk(ctx, bucketItems, rebuildUpsertBatch); err != nil {
 			return out, fmt.Errorf("upsert timeline months: %w", err)
 		}
 	}
@@ -173,7 +173,7 @@ func writeAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded ownerAgg
 	out.Totals = len(totals)
 
 	if len(totalItems) > 0 {
-		if _, err := mongo.StatisticsTotals.UpsertStructsPreservingMetaBulk(ctx, totalItems, rebuildUpsertBatch); err != nil {
+		if _, err := mongo.StatisticsTotals.UpsertStructsWithMetaBulk(ctx, totalItems, rebuildUpsertBatch); err != nil {
 			return out, fmt.Errorf("upsert production totals: %w", err)
 		}
 	}
@@ -227,7 +227,7 @@ func (a *ownerRows) add(job models.Job) {
 		if a.skipReason == "" {
 			a.skipReason = err.Error()
 		}
-		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(job.MetaData.AccountID), job.JobID))
+		a.keepIDs = append(a.keepIDs, eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(job.MetaData.Owner.ID), job.JobID))
 		return
 	}
 	// The rebuild writes the aggregates from these rows in the same pass, so they

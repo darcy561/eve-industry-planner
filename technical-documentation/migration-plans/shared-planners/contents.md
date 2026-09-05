@@ -41,8 +41,8 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | Know how a job's owner is decided | [plan.md](./plan.md) § Ownership is decided at creation |
 | Know which schema versions change and what each upgrade step does | [plan.md](./plan.md) § Schema versioning |
 | See the document shapes and why each field exists | [plan.md](./plan.md) § Data models |
-| See the stages and their order | [plan.md](./plan.md) §§ Stage A – Stage I |
-| Migrate live data without a flag day | [plan.md](./plan.md) § Live data, and why this is expand/contract |
+| See the stages and their order | [plan.md](./plan.md) §§ Stage A – Stage F |
+| Know how the live data migration runs | [plan.md](./plan.md) § Live data, and the cutover window |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See what other projects must change before they close | [plan.md](./plan.md) § What the other projects owe |
 | Check what has landed | [plan.md](./plan.md) § Stage status |

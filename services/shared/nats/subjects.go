@@ -3,11 +3,9 @@ package nats
 import (
 	"fmt"
 	"strings"
-)
 
-// accountTenantPrefix must stay identical to wsplacement.TenantPrefixAccount.
-// nats cannot import wsplacement (import cycle via PlacementState).
-const accountTenantPrefix = "account:"
+	"eve-industry-planner/shared/models"
+)
 
 // DocUpdateSubject builds doc.update.{tenantString}.{collection}.{docID}.
 // Returns "" if any segment is empty after trim.
@@ -52,15 +50,11 @@ func DocUpdateFiltersForHostedTenants(tenants []string) []string {
 func DocLockFiltersForHostedTenants(tenants []string) []string {
 	out := make([]string, 0, len(tenants))
 	for _, t := range tenants {
-		t = strings.TrimSpace(t)
-		if !strings.HasPrefix(t, accountTenantPrefix) {
+		owner, err := models.ParseOwnerKey(strings.TrimSpace(t))
+		if err != nil || owner.Kind != models.OwnerAccount {
 			continue
 		}
-		id := strings.TrimSpace(strings.TrimPrefix(t, accountTenantPrefix))
-		if id == "" {
-			continue
-		}
-		out = append(out, fmt.Sprintf("%s.%s", SubjectDocLock, id))
+		out = append(out, fmt.Sprintf("%s.%s", SubjectDocLock, owner.ID))
 	}
 	out = NormalizeFilterSubjects(out)
 	if len(out) == 0 {

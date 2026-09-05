@@ -133,7 +133,6 @@ var cliTable = []cliCommand{
 	{command: "purgeWorkerQueues", run: func(context.Context, []string) error { return clicommands.RunPurgeWorkerQueues() }},
 	{command: "unlockSdeVersion", run: func(context.Context, []string) error { return clicommands.RunUnlockSdeVersion() }},
 	{command: "backfillArchivedAt", args: "[-dry-run]", run: runBackfillArchivedAt},
-	{command: "backfillMetaOwner", args: "[-dry-run]", run: runBackfillMetaOwner},
 	{command: "queueArchivedJobStatsRebuild", args: "[-all] [-account id] [-dry-run]", run: runQueueArchivedJobStatsRebuild},
 	{command: "prepareRelease", args: "[-dry-run]", run: runPrepareRelease},
 	{command: "rotateRefreshTokenKeys", args: "[--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]", run: runRotateRefreshTokenKeys},

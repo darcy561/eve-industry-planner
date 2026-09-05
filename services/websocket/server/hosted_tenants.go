@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"eve-industry-planner/shared/wsplacement"
+	"eve-industry-planner/shared/models"
 )
 
 // Hosted-tenant helpers are a read-only view over connection indexes already maintained
@@ -24,33 +24,24 @@ func (s *Server) HostsTenant(tenantKey string) bool {
 	if s == nil {
 		return false
 	}
-	key := strings.TrimSpace(tenantKey)
-	switch {
-	case strings.HasPrefix(key, wsplacement.TenantPrefixAccount):
-		id := strings.TrimSpace(strings.TrimPrefix(key, wsplacement.TenantPrefixAccount))
-		if id == "" {
-			return false
-		}
+	owner, err := models.ParseOwnerKey(strings.TrimSpace(tenantKey))
+	if err != nil {
+		return false
+	}
+	switch owner.Kind {
+	case models.OwnerAccount:
 		s.userConnMu.RLock()
-		hosted := len(s.userConnections[id]) > 0
+		hosted := len(s.userConnections[owner.ID]) > 0
 		s.userConnMu.RUnlock()
 		return hosted
-	case strings.HasPrefix(key, wsplacement.TenantPrefixCorporation):
-		id := strings.TrimSpace(strings.TrimPrefix(key, wsplacement.TenantPrefixCorporation))
-		if id == "" {
-			return false
-		}
+	case models.OwnerCorporation:
 		s.corpRefIndexMu.RLock()
-		hosted := len(s.corpRefToClients[id]) > 0
+		hosted := len(s.corpRefToClients[owner.ID]) > 0
 		s.corpRefIndexMu.RUnlock()
 		return hosted
-	case strings.HasPrefix(key, wsplacement.TenantPrefixAlliance):
-		id := strings.TrimSpace(strings.TrimPrefix(key, wsplacement.TenantPrefixAlliance))
-		if id == "" {
-			return false
-		}
+	case models.OwnerAlliance:
 		s.allianceRefIndexMu.RLock()
-		hosted := len(s.allianceRefToClients[id]) > 0
+		hosted := len(s.allianceRefToClients[owner.ID]) > 0
 		s.allianceRefIndexMu.RUnlock()
 		return hosted
 	default:
@@ -72,24 +63,24 @@ func (s *Server) HostedTenants() []string {
 		if len(clients) == 0 {
 			continue
 		}
-		if k := wsplacement.TenantKeyAccount(id); k != "" {
-			out = append(out, k)
+		if owner := models.AccountOwner(id); owner.Validate() == nil {
+			out = append(out, owner.Key())
 		}
 	}
 	for id, clients := range s.corpRefToClients {
 		if len(clients) == 0 {
 			continue
 		}
-		if k := wsplacement.TenantKeyCorporation(id); k != "" {
-			out = append(out, k)
+		if owner := models.CorporationOwner(id); owner.Validate() == nil {
+			out = append(out, owner.Key())
 		}
 	}
 	for id, clients := range s.allianceRefToClients {
 		if len(clients) == 0 {
 			continue
 		}
-		if k := wsplacement.TenantKeyAlliance(id); k != "" {
-			out = append(out, k)
+		if owner := models.AllianceOwner(id); owner.Validate() == nil {
+			out = append(out, owner.Key())
 		}
 	}
 	s.allianceRefIndexMu.RUnlock()

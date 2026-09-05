@@ -550,12 +550,11 @@ metadata and restores ids in the body.
 |---|---|---|
 | The collection itself | `shared/mongo` | Nothing stores corporation-owned documents today |
 | A `CollectionGroup` entry | `core/changestream/collection_groups.go` | The four groups — account, planner, archive_and_stats, blueprints — are all account scoped, so no corporation collection is watched |
-| `_meta.corporationRef` on the stored document | the write path | `extractOrgRoutingFromDocument` reads it; without it `Route.CorporationRef` is empty and dispatch never takes the corporation branch |
-| `_meta.allianceRef` where alliance fan-out is wanted | the write path | Same, for the alliance lane |
+| `_meta.owner` naming a corporation | the write path | The watcher routes on the owner a document states; without one it has nothing to route on |
 | `scopes` where delivery must narrow under the org root | the write path | Optional; absent means full fan-out under the root |
 
-An account-scoped document needs none of this — `_meta.accountID` alone routes it, which is
-the path job documents take today.
+An account-scoped document needs none of this — `_meta.owner` routes it whatever its kind, which is
+the path job documents take today. See § The owner block.
 
 **Confirm when they land.**
 
@@ -1735,6 +1734,98 @@ positive. Every measure showed blank. It reads `summary=1` now.
 
 **A statistics rebuild applies all three.** `tasks queueArchivedJobStatsRebuild -account <id>` then
 `tasks dispatchStatisticsRebuilds`, or wait for the hourly drain.
+
+## The owner block
+
+**What changed.** Ownership used to be stated two ways: `_meta.accountID` (with
+`_meta.corporationRef` and `_meta.allianceRef` beside it) on stored documents, and a root `Owner` on
+the three statistics documents. It is now stated one way, in one place, on both.
+
+### How a document says who owns it
+
+Every scoped document carries `_meta.owner`, an `{kind, id}` pair:
+
+```
+_meta: {
+  lastModified: ISODate(...),
+  owner: { kind: "account", id: "<account id>" },
+  clientID: "...",   // optional
+  sessionID: "..."   // optional
+}
+```
+
+`kind` is one of `account`, `planner`, `corporation` or `alliance`. For the organisation kinds the `id`
+is an entity ref (`corp_…`, `alliance_…`), never a raw EVE id — `CorporationOwner` and `AllianceOwner`
+refuse one, so a caller that has not converted fails at construction rather than routing on something
+that addresses nothing.
+
+The statistics documents embed `MetaData` like everything else, so a derived row and a job document are
+read and filtered identically. The document id still leads with the owner key (`kind:id|typeID|…`); the
+field exists beside it so a rebuild can prune an owner's rows with an indexed match rather than a prefix
+scan over every owner's documents.
+
+### How code filters on it
+
+Two constants, and nothing else:
+
+```go
+mongo.FieldMetaOwnerKind  // "_meta.owner.kind"
+mongo.FieldMetaOwnerID    // "_meta.owner.id"
+```
+
+```go
+filter := bson.M{
+    mongo.FieldMetaOwnerKind: models.OwnerAccount,
+    mongo.FieldMetaOwnerID:   accountID,
+}
+```
+
+These are string keys in a `bson.M`, so the compiler cannot check them: a filter naming a path no
+document carries matches nothing and reports no error. That is why the constants exist and why a test
+scans the module for the retired paths — during the conversion the build stayed green with around
+twenty-five sites still filtering the removed field, the websocket subscribe authorisation among them.
+
+`models.Owner` is also the only tenant vocabulary. `Owner.Key()` produces `kind:id`, which is what NATS
+subjects and websocket placement route on; `ParseOwnerKey` reads one back.
+
+### How `_meta` is written
+
+Named fields, always. No writer replaces the subdocument, because `$set` on `_meta` replaces it entire —
+which is how a stamped owner could be erased by an ordinary save.
+
+Two upsert contracts, deliberately opposite:
+
+| Form | `_meta` handling | Used by |
+|------|------------------|---------|
+| Preserving | excluded from `$set`, patched by dotted path | documents a client and the server both write — jobs, groups, archived jobs |
+| With-meta | written in `$set` on every upsert | derived documents, whose writer owns `_meta` outright |
+
+The with-meta form must write on every upsert, not on insert: a rebuild would otherwise write an owner
+once and never correct it, and a row whose owner is wrong is invisible to every query and reports no
+error.
+
+### What a client sees
+
+Nothing. `Owner` carries `json:"-"`, so no owner — and therefore no corporation or alliance ref — reaches
+a client through `_meta`. The SPA does not read ownership off a document at all: it takes the account
+from its own store, and the server takes real identity from the `X-Session-ID` and `X-WS-Client-ID`
+headers, overwriting whatever a client uploads.
+
+### The indexes
+
+Every owner-scoped index leads with `_meta.owner.kind` then `_meta.owner.id`, in that order, and keeps
+whatever trailing keys its query needs. The two fields are one key: a filter names both together, so an
+index carrying only one, or carrying them below another field, does not serve it.
+
+Superseded index names are listed in `RetiredIndexes` and dropped before the specs are created. Ensure
+only ever creates, so a reshaped index under a new name conflicts with nothing and both would otherwise
+survive — the old one maintained on every write and chosen by no query.
+
+### Where ownership is still said twice
+
+`ChangeStreamMessage` carries `AccountID`, `CorporationRef` and `AllianceRef`. The watcher reads
+`_meta.owner` and decomposes it into those three; `websocket/server` reassembles by testing which is
+non-empty. This is the one surface where the old vocabulary survives.
 
 ## Missing live SoT found during this work
 

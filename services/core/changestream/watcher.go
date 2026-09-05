@@ -14,7 +14,6 @@ import (
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
-	"eve-industry-planner/shared/wsplacement"
 
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -402,9 +401,16 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		previousDocument = nil
 	}
 
-	corpID, allianceRef, scopePayload := extractOrgRoutingFromDocument(docToExtract)
-
-	tenantString := wsplacement.TenantStringFromRouting(accountID, corpID, allianceRef)
+	// A document states its owner. A delete without a preimage has none to read,
+	// leaving only the account id recovered above.
+	docOwner, scopePayload := ownerFromDocument(docToExtract)
+	if docOwner.IsZero() && accountID != "" {
+		docOwner = models.AccountOwner(accountID)
+	}
+	var tenantString string
+	if !docOwner.IsZero() {
+		tenantString = docOwner.Key()
+	}
 	subject := eipnats.DocUpdateSubject(tenantString, collection, docID)
 	if subject == "" {
 		logs.WarnCtx(ctx, "change stream event skipped: no tenant for doc.update subject",
@@ -413,8 +419,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			"collection", collection,
 			"doc_id", docID,
 			"account_id", accountID,
-			"corporation_ref", corpID,
-			"alliance_ref", allianceRef)
+			"owner", docOwner.Key())
 		return nil
 	}
 
@@ -426,9 +431,9 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		OperationType:           operationType,
 		SourceClientID:          sourceClientID,
 		SourceSessionID:         sourceSessionID,
-		AccountID:               accountID,
-		CorporationRef:          corpID,
-		AllianceRef:             allianceRef,
+		AccountID:               routeField(docOwner, models.OwnerAccount),
+		CorporationRef:          routeField(docOwner, models.OwnerCorporation),
+		AllianceRef:             routeField(docOwner, models.OwnerAlliance),
 		Scopes:                  scopePayload,
 		Document:                document,
 		PreviousDocument:        previousDocument,
@@ -618,17 +623,39 @@ func stripUsersRefreshTokenFields(doc map[string]any) {
 	delete(doc, "refresh_tokens")
 }
 
-func extractOrgRoutingFromDocument(doc bson.M) (corpID, allianceRef string, scopes *ScopesPayload) {
+// routeField spreads one owner across the message's three named route fields.
+// Collapsing them crosses a process boundary, so both sides move together.
+func routeField(owner models.Owner, kind models.OwnerKind) string {
+	if owner.Kind != kind {
+		return ""
+	}
+	return owner.ID
+}
+
+// ownerFromDocument reads the owner a document states, and the scopes it carries.
+//
+// One field, whatever the kind. This replaced reading a corporation ref and an
+// alliance ref and inferring the scope from which was set — a shape that could
+// not answer "who owns this" without knowing the answer first.
+func ownerFromDocument(doc bson.M) (models.Owner, *ScopesPayload) {
 	if doc == nil {
-		return "", "", nil
+		return models.Owner{}, nil
 	}
 	meta := subDocumentToMap(doc["_meta"])
-	corpID = docFieldString(doc, meta, models.MetaFieldCorporationRef)
-	allianceRef = docFieldString(doc, meta, models.MetaFieldAllianceRef)
+	var owner models.Owner
+	if raw := subDocumentToMap(meta[models.MetaFieldOwner]); raw != nil {
+		kind, _ := raw["kind"].(string)
+		id, _ := raw["id"].(string)
+		owner = models.Owner{Kind: models.OwnerKind(kind), ID: id}
+		if owner.Validate() != nil {
+			owner = models.Owner{}
+		}
+	}
+	var scopes *ScopesPayload
 	if sp := scopesFromDocOrMeta(doc, meta); sp != nil && (len(sp.CorporationRefs) > 0 || len(sp.AccountIDs) > 0) {
 		scopes = sp
 	}
-	return corpID, allianceRef, scopes
+	return owner, scopes
 }
 
 func docFieldString(doc, meta bson.M, keys ...string) string {

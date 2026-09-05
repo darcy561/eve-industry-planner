@@ -32,7 +32,7 @@ func buildableJob(jobID string, at time.Time) models.Job {
 	job.Build.Costs.ExtrasCosts = []models.ExtraCost{
 		{ID: "extra-1", Category: "0", ExtraText: "Courier", ExtraValue: 5000},
 	}
-	job.MetaData.AccountID = skippedScratchAccount
+	job.MetaData.Owner.ID = skippedScratchAccount
 	job.MetaData.ArchivedAt = at
 	return job
 }

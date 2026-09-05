@@ -17,7 +17,7 @@ func (d *Docs) LoadJobByID(ctx context.Context, accountID, jobID string) (models
 	if err != nil || accountID == "" || jobID == "" {
 		return models.Job{}, fmt.Errorf("LoadJobByID: invalid arguments")
 	}
-	filter := bson.M{"_meta.accountID": accountID, "_id": jobID}
+	filter := bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": jobID}
 	var doc models.Job
 	if err := Retry(ctx, "LoadJobByID", func() error {
 		return coll.FindOne(ctx, filter).Decode(&doc)
@@ -28,13 +28,13 @@ func (d *Docs) LoadJobByID(ctx context.Context, accountID, jobID string) (models
 }
 
 // LoadJobsByFilter finds jobs for accountID matching filter, sorted by _meta.lastModified desc.
-// Always scopes to _meta.accountID=accountID (merged into filter).
+// Always scopes to the account's ownership (merged into filter).
 func (d *Docs) LoadJobsByFilter(ctx context.Context, accountID string, filter bson.M) ([]models.Job, error) {
 	coll, err := d.requireColl()
 	if err != nil || accountID == "" || filter == nil {
 		return nil, fmt.Errorf("LoadJobsByFilter: invalid arguments")
 	}
-	scoped := mergeFilters(filter, bson.M{"_meta.accountID": accountID})
+	scoped := mergeFilters(filter, bson.M{FieldMetaOwnerID: accountID})
 	var cursor *mongo.Cursor
 	if err := Retry(ctx, "LoadJobsByFilter", func() error {
 		var findErr error
