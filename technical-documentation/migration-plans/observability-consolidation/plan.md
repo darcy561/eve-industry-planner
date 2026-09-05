@@ -647,8 +647,8 @@ than Prometheus on the panels that matter, or single-node ingestion falling behi
 
 ## Stage status
 
-Picking this up on a different machine, or after a gap, starts at [handoff.md](./handoff.md) — the
-code through Stage C is uncommitted working tree and does not travel with these docs.
+Picking this up on a different machine, or after a gap, starts at [handoff.md](./handoff.md).
+Stages A to C are committed as `dd0454b9` on `feature/archived-jobs-stats`.
 
 | Stage | Status |
 |-------|--------|
