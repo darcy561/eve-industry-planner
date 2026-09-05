@@ -139,7 +139,7 @@ services:
         - "eip.config.sync=1"
 
   grafana:
-    image: grafana/grafana:13.0.1
+    image: grafana/grafana:13.2.1
     logging: *log-rotate
     networks:
       eip-obs:

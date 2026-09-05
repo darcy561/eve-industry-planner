@@ -10,10 +10,218 @@
   "liveNow": false,
   "panels": [
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Overview",
+      "type": "row"
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Every instrumented API endpoint combined.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "mappings": [],
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "id": 101,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(rate(api_eve_token_login_requests_total[$__rate_interval])) + sum(rate(api_session_refresh_requests_total[$__rate_interval])) + sum(rate(api_eve_sso_code_exchange_requests_total[$__rate_interval])) + sum(rate(api_eve_sso_token_refresh_requests_total[$__rate_interval])) + sum(rate(api_cloud_stored_esi_refresh_tokens_requests_total[$__rate_interval])) + sum(rate(api_jobs_requests_total[$__rate_interval])) + sum(rate(api_groups_requests_total[$__rate_interval])) + sum(rate(api_archived_jobs_requests_total[$__rate_interval])) + sum(rate(api_statistics_requests_total[$__rate_interval])) + sum(rate(api_citadel_names_requests_total[$__rate_interval])) + sum(rate(api_market_prices_requests_total[$__rate_interval])) + sum(rate(api_system_indexes_requests_total[$__rate_interval])) + sum(rate(api_app_config_requests_total[$__rate_interval])) + sum(rate(api_static_data_recipe_list_requests_total[$__rate_interval])) + sum(rate(api_static_data_search_index_requests_total[$__rate_interval])) + sum(rate(api_static_data_full_item_list_requests_total[$__rate_interval])) + sum(rate(api_static_data_reprocessing_requests_total[$__rate_interval])) + sum(rate(api_static_data_meta_requests_total[$__rate_interval])) + sum(rate(api_static_data_invention_modifiers_requests_total[$__rate_interval]))) or vector(0)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Requests / s",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Every endpoint that reports an error counter.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "mappings": [],
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "id": 102,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(rate(api_eve_token_login_errors_total[$__rate_interval])) + sum(rate(api_session_refresh_errors_total[$__rate_interval])) + sum(rate(api_eve_sso_code_exchange_errors_total[$__rate_interval])) + sum(rate(api_eve_sso_token_refresh_errors_total[$__rate_interval])) + sum(rate(api_cloud_stored_esi_refresh_tokens_errors_total[$__rate_interval])) + sum(rate(api_jobs_errors_total[$__rate_interval])) + sum(rate(api_groups_errors_total[$__rate_interval])) + sum(rate(api_archived_jobs_errors_total[$__rate_interval])) + sum(rate(api_statistics_errors_total[$__rate_interval])) + sum(rate(api_citadel_names_errors_total[$__rate_interval])) + sum(rate(api_market_prices_errors_total[$__rate_interval])) + sum(rate(api_system_indexes_errors_total[$__rate_interval])) + sum(rate(api_app_config_errors_total[$__rate_interval])) + sum(rate(api_static_data_errors_total[$__rate_interval]))) or vector(0)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Errors / s",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Highest 96th-percentile latency across all endpoints.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 2000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "id": 103,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max((label_replace(histogram_quantile(0.96, sum(rate(api_eve_token_login_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"EVE token login\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_session_refresh_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Session refresh\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_eve_sso_code_exchange_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"SSO code exchange\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_eve_sso_token_refresh_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"SSO token refresh\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_cloud_stored_esi_refresh_tokens_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Stored refresh tokens\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Jobs\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_groups_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Groups\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_archived_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Archived jobs\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_statistics_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Statistics\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_citadel_names_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Citadel names\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_market_prices_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Market prices\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_system_indexes_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"System indexes\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_app_config_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"App config\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_recipe_list_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Recipe list\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_search_index_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Search index\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_full_item_list_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Full item list\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_reprocessing_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Reprocessing\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_meta_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Meta\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_invention_modifiers_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Invention modifiers\", \"\", \"\")))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Slowest endpoint (p96)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 110,
+      "panels": [],
+      "title": "Traffic",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Top five endpoints by request rate. Per-group detail is in the rows below.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -21,26 +229,13 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -51,23 +246,23 @@
               "mode": "off"
             }
           },
-          "decimals": 2,
-          "unit": "reqps"
+          "unit": "reqps",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 24,
+        "h": 9,
+        "w": 12,
         "x": 0,
-        "y": 0
+        "y": 7
       },
-      "id": 2,
+      "id": 111,
       "options": {
         "legend": {
           "calcs": [
             "mean",
-            "lastNotNull"
+            "max"
           ],
           "displayMode": "table",
           "placement": "right",
@@ -84,147 +279,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(api_system_indexes_requests_total[$__rate_interval]))",
-          "legendFormat": "system_indexes",
+          "expr": "topk(5, (label_replace(sum(rate(api_eve_token_login_requests_total[$__rate_interval])), \"endpoint\", \"EVE token login\", \"\", \"\") or label_replace(sum(rate(api_session_refresh_requests_total[$__rate_interval])), \"endpoint\", \"Session refresh\", \"\", \"\") or label_replace(sum(rate(api_eve_sso_code_exchange_requests_total[$__rate_interval])), \"endpoint\", \"SSO code exchange\", \"\", \"\") or label_replace(sum(rate(api_eve_sso_token_refresh_requests_total[$__rate_interval])), \"endpoint\", \"SSO token refresh\", \"\", \"\") or label_replace(sum(rate(api_cloud_stored_esi_refresh_tokens_requests_total[$__rate_interval])), \"endpoint\", \"Stored refresh tokens\", \"\", \"\") or label_replace(sum(rate(api_jobs_requests_total[$__rate_interval])), \"endpoint\", \"Jobs\", \"\", \"\") or label_replace(sum(rate(api_groups_requests_total[$__rate_interval])), \"endpoint\", \"Groups\", \"\", \"\") or label_replace(sum(rate(api_archived_jobs_requests_total[$__rate_interval])), \"endpoint\", \"Archived jobs\", \"\", \"\") or label_replace(sum(rate(api_statistics_requests_total[$__rate_interval])), \"endpoint\", \"Statistics\", \"\", \"\") or label_replace(sum(rate(api_citadel_names_requests_total[$__rate_interval])), \"endpoint\", \"Citadel names\", \"\", \"\") or label_replace(sum(rate(api_market_prices_requests_total[$__rate_interval])), \"endpoint\", \"Market prices\", \"\", \"\") or label_replace(sum(rate(api_system_indexes_requests_total[$__rate_interval])), \"endpoint\", \"System indexes\", \"\", \"\") or label_replace(sum(rate(api_app_config_requests_total[$__rate_interval])), \"endpoint\", \"App config\", \"\", \"\") or label_replace(sum(rate(api_static_data_recipe_list_requests_total[$__rate_interval])), \"endpoint\", \"Recipe list\", \"\", \"\") or label_replace(sum(rate(api_static_data_search_index_requests_total[$__rate_interval])), \"endpoint\", \"Search index\", \"\", \"\") or label_replace(sum(rate(api_static_data_full_item_list_requests_total[$__rate_interval])), \"endpoint\", \"Full item list\", \"\", \"\") or label_replace(sum(rate(api_static_data_reprocessing_requests_total[$__rate_interval])), \"endpoint\", \"Reprocessing\", \"\", \"\") or label_replace(sum(rate(api_static_data_meta_requests_total[$__rate_interval])), \"endpoint\", \"Meta\", \"\", \"\") or label_replace(sum(rate(api_static_data_invention_modifiers_requests_total[$__rate_interval])), \"endpoint\", \"Invention modifiers\", \"\", \"\")))",
+          "legendFormat": "{{endpoint}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_market_prices_requests_total[$__rate_interval]))",
-          "legendFormat": "market_prices",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_eve_token_login_requests_total[$__rate_interval]))",
-          "legendFormat": "eve_token_login",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_session_refresh_requests_total[$__rate_interval]))",
-          "legendFormat": "session_refresh",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_eve_sso_code_exchange_requests_total[$__rate_interval]))",
-          "legendFormat": "eve_sso_code_exchange",
-          "refId": "F"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_eve_sso_token_refresh_requests_total[$__rate_interval]))",
-          "legendFormat": "eve_sso_token_refresh",
-          "refId": "G"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_jobs_requests_total[$__rate_interval]))",
-          "legendFormat": "jobs (requests_total)",
-          "refId": "H"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_groups_requests_total[$__rate_interval]))",
-          "legendFormat": "groups (requests_total)",
-          "refId": "I"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_static_data_recipe_list_requests_total[$__rate_interval]))",
-          "legendFormat": "static_data recipe_list",
-          "refId": "J"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_static_data_search_index_requests_total[$__rate_interval]))",
-          "legendFormat": "static_data search_index",
-          "refId": "K"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_static_data_full_item_list_requests_total[$__rate_interval]))",
-          "legendFormat": "static_data full_item_list",
-          "refId": "L"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_static_data_reprocessing_requests_total[$__rate_interval]))",
-          "legendFormat": "static_data reprocessing",
-          "refId": "M"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_static_data_meta_requests_total[$__rate_interval]))",
-          "legendFormat": "static_data meta",
-          "refId": "N"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_app_config_requests_total[$__rate_interval]))",
-          "legendFormat": "app_config (GET /api/v1/app-config)",
-          "refId": "O"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_archived_jobs_requests_total[$__rate_interval]))",
-          "legendFormat": "archived_jobs (requests_total)",
-          "refId": "P"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_cloud_stored_esi_refresh_tokens_requests_total[$__rate_interval]))",
-          "legendFormat": "user cloud_stored_esi_refresh_tokens (GET/PUT/DELETE)",
-          "refId": "Q"
         }
       ],
-      "title": "Request rate (apimetrics · *_requests_total)",
+      "title": "Busiest endpoints",
       "type": "timeseries"
     },
     {
@@ -232,6 +292,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Top five endpoints by 96th-percentile duration.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -239,26 +300,13 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -269,26 +317,430 @@
               "mode": "off"
             }
           },
-          "decimals": 2,
-          "unit": "ms"
+          "unit": "ms",
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 10
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 7
       },
-      "id": 3,
+      "id": 112,
       "options": {
         "legend": {
           "calcs": [
-            "mean",
-            "lastNotNull"
+            "max"
           ],
           "displayMode": "table",
           "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(5, (label_replace(histogram_quantile(0.96, sum(rate(api_eve_token_login_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"EVE token login\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_session_refresh_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Session refresh\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_eve_sso_code_exchange_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"SSO code exchange\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_eve_sso_token_refresh_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"SSO token refresh\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_cloud_stored_esi_refresh_tokens_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Stored refresh tokens\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Jobs\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_groups_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Groups\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_archived_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Archived jobs\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_statistics_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Statistics\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_citadel_names_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Citadel names\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_market_prices_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Market prices\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_system_indexes_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"System indexes\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_app_config_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"App config\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_recipe_list_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Recipe list\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_search_index_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Search index\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_full_item_list_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Full item list\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_reprocessing_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Reprocessing\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_meta_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Meta\", \"\", \"\") or label_replace(histogram_quantile(0.96, sum(rate(api_static_data_invention_modifiers_duration_milliseconds_bucket[$__rate_interval])) by (le)), \"endpoint\", \"Invention modifiers\", \"\", \"\")))",
+          "legendFormat": "{{endpoint}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Slowest endpoints (p96)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 160,
+      "panels": [],
+      "title": "Per container",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Each API replica's own request rate. The capacity controller runs one to five of them, so an uneven spread here means traffic is not landing evenly.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "insertNulls": false
+          },
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      },
+      "id": 161,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_instance_id) (rate(api_eve_token_login_requests_total[$__rate_interval]) or rate(api_session_refresh_requests_total[$__rate_interval]) or rate(api_eve_sso_code_exchange_requests_total[$__rate_interval]) or rate(api_eve_sso_token_refresh_requests_total[$__rate_interval]) or rate(api_cloud_stored_esi_refresh_tokens_requests_total[$__rate_interval]) or rate(api_jobs_requests_total[$__rate_interval]) or rate(api_groups_requests_total[$__rate_interval]) or rate(api_archived_jobs_requests_total[$__rate_interval]) or rate(api_statistics_requests_total[$__rate_interval]) or rate(api_citadel_names_requests_total[$__rate_interval]) or rate(api_market_prices_requests_total[$__rate_interval]) or rate(api_system_indexes_requests_total[$__rate_interval]) or rate(api_app_config_requests_total[$__rate_interval]) or rate(api_static_data_recipe_list_requests_total[$__rate_interval]) or rate(api_static_data_search_index_requests_total[$__rate_interval]) or rate(api_static_data_full_item_list_requests_total[$__rate_interval]) or rate(api_static_data_reprocessing_requests_total[$__rate_interval]) or rate(api_static_data_meta_requests_total[$__rate_interval]) or rate(api_static_data_invention_modifiers_requests_total[$__rate_interval]))",
+          "legendFormat": "{{service_instance_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Requests / s per container",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Errors attributed to the replica that served the request. One replica erroring alone points at that container rather than at the endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "insertNulls": false
+          },
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 17
+      },
+      "id": 162,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_instance_id) (rate(api_eve_token_login_errors_total[$__rate_interval]) or rate(api_session_refresh_errors_total[$__rate_interval]) or rate(api_eve_sso_code_exchange_errors_total[$__rate_interval]) or rate(api_eve_sso_token_refresh_errors_total[$__rate_interval]) or rate(api_cloud_stored_esi_refresh_tokens_errors_total[$__rate_interval]) or rate(api_jobs_errors_total[$__rate_interval]) or rate(api_groups_errors_total[$__rate_interval]) or rate(api_archived_jobs_errors_total[$__rate_interval]) or rate(api_statistics_errors_total[$__rate_interval]) or rate(api_citadel_names_errors_total[$__rate_interval]) or rate(api_market_prices_errors_total[$__rate_interval]) or rate(api_system_indexes_errors_total[$__rate_interval]) or rate(api_app_config_errors_total[$__rate_interval]) or rate(api_static_data_errors_total[$__rate_interval]))",
+          "legendFormat": "{{service_instance_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Errors / s per container",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "96th percentile duration per replica, across every instrumented endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "insertNulls": false
+          },
+          "unit": "ms",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      },
+      "id": 163,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum by (service_instance_id, le) (rate(api_jobs_duration_milliseconds_bucket[$__rate_interval]) or rate(api_groups_duration_milliseconds_bucket[$__rate_interval]) or rate(api_archived_jobs_duration_milliseconds_bucket[$__rate_interval]) or rate(api_statistics_duration_milliseconds_bucket[$__rate_interval]) or rate(api_citadel_names_duration_milliseconds_bucket[$__rate_interval]) or rate(api_market_prices_duration_milliseconds_bucket[$__rate_interval]) or rate(api_system_indexes_duration_milliseconds_bucket[$__rate_interval]) or rate(api_app_config_duration_milliseconds_bucket[$__rate_interval]) or rate(api_eve_token_login_duration_milliseconds_bucket[$__rate_interval]) or rate(api_session_refresh_duration_milliseconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{service_instance_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency p96 per container",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 120,
+      "panels": [],
+      "title": "Auth and EVE SSO",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Sign-in, session refresh and EVE SSO exchanges.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      },
+      "id": 121,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_eve_token_login_requests_total[$__rate_interval]))",
+          "legendFormat": "EVE token login",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_session_refresh_requests_total[$__rate_interval]))",
+          "legendFormat": "Session refresh",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_eve_sso_code_exchange_requests_total[$__rate_interval]))",
+          "legendFormat": "SSO code exchange",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_eve_sso_token_refresh_requests_total[$__rate_interval]))",
+          "legendFormat": "SSO token refresh",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_cloud_stored_esi_refresh_tokens_requests_total[$__rate_interval]))",
+          "legendFormat": "Stored refresh tokens",
+          "refId": "E"
+        }
+      ],
+      "title": "Request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "96th percentile duration per auth endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "ms",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 26
+      },
+      "id": 122,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -303,7 +755,7 @@
             "uid": "prometheus"
           },
           "expr": "histogram_quantile(0.96, sum(rate(api_eve_token_login_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "eve_token_login p96",
+          "legendFormat": "EVE token login",
           "refId": "A"
         },
         {
@@ -312,26 +764,8 @@
             "uid": "prometheus"
           },
           "expr": "histogram_quantile(0.96, sum(rate(api_session_refresh_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "session_refresh p96",
+          "legendFormat": "Session refresh",
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_system_indexes_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "system_indexes p96",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_market_prices_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "market_prices p96",
-          "refId": "E"
         },
         {
           "datasource": {
@@ -339,8 +773,8 @@
             "uid": "prometheus"
           },
           "expr": "histogram_quantile(0.96, sum(rate(api_eve_sso_code_exchange_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "eve_sso_code_exchange p96",
-          "refId": "F"
+          "legendFormat": "SSO code exchange",
+          "refId": "C"
         },
         {
           "datasource": {
@@ -348,89 +782,8 @@
             "uid": "prometheus"
           },
           "expr": "histogram_quantile(0.96, sum(rate(api_eve_sso_token_refresh_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "eve_sso_token_refresh p96",
-          "refId": "G"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "jobs p96",
-          "refId": "H"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_groups_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "groups p96",
-          "refId": "I"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_recipe_list_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "static_data recipe_list p96",
-          "refId": "J"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_search_index_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "static_data search_index p96",
-          "refId": "K"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_full_item_list_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "static_data full_item_list p96",
-          "refId": "L"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_reprocessing_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "static_data reprocessing p96",
-          "refId": "M"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_meta_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "static_data meta p96",
-          "refId": "N"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_app_config_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "app_config p96",
-          "refId": "O"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_archived_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "archived_jobs p96",
-          "refId": "P"
+          "legendFormat": "SSO token refresh",
+          "refId": "D"
         },
         {
           "datasource": {
@@ -438,11 +791,11 @@
             "uid": "prometheus"
           },
           "expr": "histogram_quantile(0.96, sum(rate(api_cloud_stored_esi_refresh_tokens_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "cloud_stored_esi_refresh_tokens p96",
-          "refId": "Q"
+          "legendFormat": "Stored refresh tokens",
+          "refId": "E"
         }
       ],
-      "title": "Latency p96 (duration histograms · milliseconds)",
+      "title": "Latency p96",
       "type": "timeseries"
     },
     {
@@ -450,6 +803,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Completions per second.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -457,26 +811,13 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -487,26 +828,23 @@
               "mode": "off"
             }
           },
-          "decimals": 3,
-          "unit": "ops"
+          "unit": "reqps",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 22
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 26
       },
-      "id": 5,
+      "id": 123,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -520,18 +858,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(api_eve_token_login_successes_total[$__rate_interval])) + sum(rate(api_session_refresh_successes_total[$__rate_interval]))",
-          "legendFormat": "App JWT session (EVE login + session refresh)",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "expr": "sum(rate(api_eve_token_login_successes_total[$__rate_interval]))",
-          "legendFormat": "EVE token login (POST /auth/login)",
-          "refId": "B"
+          "legendFormat": "EVE token login",
+          "refId": "A"
         },
         {
           "datasource": {
@@ -539,8 +868,8 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(api_session_refresh_successes_total[$__rate_interval]))",
-          "legendFormat": "Session refresh (POST /auth/refresh · app + EVE token)",
-          "refId": "C"
+          "legendFormat": "Session refresh",
+          "refId": "B"
         },
         {
           "datasource": {
@@ -548,8 +877,8 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(api_eve_sso_code_exchange_successes_total[$__rate_interval]))",
-          "legendFormat": "EVE SSO code exchange (auth code → EVE tokens)",
-          "refId": "D"
+          "legendFormat": "SSO code exchange",
+          "refId": "C"
         },
         {
           "datasource": {
@@ -557,18 +886,41 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(api_eve_sso_token_refresh_successes_total[$__rate_interval]))",
-          "legendFormat": "EVE OAuth token refresh (EVE refresh → EVE tokens)",
+          "legendFormat": "SSO token refresh",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_cloud_stored_esi_refresh_tokens_successes_total[$__rate_interval]))",
+          "legendFormat": "Stored refresh tokens",
           "refId": "E"
         }
       ],
-      "title": "Auth & EVE SSO success rates (successes_total)",
+      "title": "Successes / s",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 130,
+      "panels": [],
+      "title": "Content endpoints",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Jobs, groups, archived jobs, statistics and citadel names.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -576,26 +928,13 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -606,26 +945,23 @@
               "mode": "off"
             }
           },
-          "decimals": 3,
-          "unit": "ops"
+          "unit": "reqps",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 8,
         "x": 0,
-        "y": 31
+        "y": 35
       },
-      "id": 7,
+      "id": 131,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -639,8 +975,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(api_jobs_successes_total[$__rate_interval]))",
-          "legendFormat": "jobs successes",
+          "expr": "sum(rate(api_jobs_requests_total[$__rate_interval]))",
+          "legendFormat": "Jobs",
           "refId": "A"
         },
         {
@@ -648,9 +984,208 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(api_jobs_saved_total[$__rate_interval]))",
-          "legendFormat": "jobs saved (count/s)",
+          "expr": "sum(rate(api_groups_requests_total[$__rate_interval]))",
+          "legendFormat": "Groups",
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_archived_jobs_requests_total[$__rate_interval]))",
+          "legendFormat": "Archived jobs",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_statistics_requests_total[$__rate_interval]))",
+          "legendFormat": "Statistics",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_citadel_names_requests_total[$__rate_interval]))",
+          "legendFormat": "Citadel names",
+          "refId": "E"
+        }
+      ],
+      "title": "Request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "96th percentile duration per content endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "ms",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 35
+      },
+      "id": 132,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Jobs",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_groups_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Groups",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_archived_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Archived jobs",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_statistics_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Statistics",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_citadel_names_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Citadel names",
+          "refId": "E"
+        }
+      ],
+      "title": "Latency p96",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Saves and deletes. Documents archived moves in batch size rather than once per request.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 35
+      },
+      "id": 133,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_jobs_saved_total[$__rate_interval]))",
+          "legendFormat": "Jobs saved",
+          "refId": "A"
         },
         {
           "datasource": {
@@ -658,100 +1193,8 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(api_jobs_deleted_total[$__rate_interval]))",
-          "legendFormat": "jobs deleted (count/s)",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_jobs_items_per_request_sum[$__rate_interval])) / sum(rate(api_jobs_items_per_request_count[$__rate_interval]))",
-          "legendFormat": "jobs avg items / request (histogram)",
-          "refId": "D"
-        }
-      ],
-      "title": "Jobs",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "decimals": 3,
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 8,
-        "y": 31
-      },
-      "id": 8,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_groups_successes_total[$__rate_interval]))",
-          "legendFormat": "groups successes",
-          "refId": "A"
+          "legendFormat": "Jobs deleted",
+          "refId": "B"
         },
         {
           "datasource": {
@@ -759,16 +1202,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(api_groups_saved_total[$__rate_interval]))",
-          "legendFormat": "groups saved (count/s)",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_groups_deleted_total[$__rate_interval]))",
-          "legendFormat": "groups deleted (count/s)",
+          "legendFormat": "Groups saved",
           "refId": "C"
         },
         {
@@ -776,12 +1210,183 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(api_groups_items_per_request_sum[$__rate_interval])) / sum(rate(api_groups_items_per_request_count[$__rate_interval]))",
-          "legendFormat": "groups avg items / request (histogram)",
+          "expr": "sum(rate(api_groups_deleted_total[$__rate_interval]))",
+          "legendFormat": "Groups deleted",
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_archived_jobs_saved_total[$__rate_interval]))",
+          "legendFormat": "Archived saved",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_archived_jobs_individual_jobs_archived_total[$__rate_interval]))",
+          "legendFormat": "Documents archived",
+          "refId": "F"
         }
       ],
-      "title": "Groups",
+      "title": "Writes / s",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 140,
+      "panels": [],
+      "title": "Lookup and static data",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Market prices, system indexes, app config and the static JSON files.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 141,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_market_prices_requests_total[$__rate_interval]))",
+          "legendFormat": "Market prices",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_system_indexes_requests_total[$__rate_interval]))",
+          "legendFormat": "System indexes",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_app_config_requests_total[$__rate_interval]))",
+          "legendFormat": "App config",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_static_data_recipe_list_requests_total[$__rate_interval]))",
+          "legendFormat": "Recipe list",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_static_data_search_index_requests_total[$__rate_interval]))",
+          "legendFormat": "Search index",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_static_data_full_item_list_requests_total[$__rate_interval]))",
+          "legendFormat": "Full item list",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_static_data_reprocessing_requests_total[$__rate_interval]))",
+          "legendFormat": "Reprocessing",
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_static_data_meta_requests_total[$__rate_interval]))",
+          "legendFormat": "Meta",
+          "refId": "H"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_static_data_invention_modifiers_requests_total[$__rate_interval]))",
+          "legendFormat": "Invention modifiers",
+          "refId": "I"
+        }
+      ],
+      "title": "Request rate",
       "type": "timeseries"
     },
     {
@@ -789,7 +1394,159 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Same layout as **Jobs** / **Groups**. `individual_jobs_archived_total` increases by **batch size** (one per archived job document per batch row), not by 1 per HTTP request.",
+      "description": "96th percentile duration. The static files are served from object storage, so they sit above the database-backed endpoints.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "ms",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "id": 142,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_market_prices_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Market prices",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_system_indexes_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "System indexes",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_app_config_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "App config",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_recipe_list_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Recipe list",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_search_index_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Search index",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_full_item_list_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Full item list",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_reprocessing_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Reprocessing",
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_meta_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Meta",
+          "refId": "H"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_static_data_invention_modifiers_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "Invention modifiers",
+          "refId": "I"
+        }
+      ],
+      "title": "Latency p96",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      },
+      "id": 150,
+      "panels": [],
+      "title": "Errors",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -834,186 +1591,9 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 8,
-        "x": 16,
-        "y": 31
-      },
-      "id": 15,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_archived_jobs_successes_total[$__rate_interval]))",
-          "legendFormat": "archived_jobs successes",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_archived_jobs_saved_total[$__rate_interval]))",
-          "legendFormat": "archived_jobs saved (count/s)",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_archived_jobs_individual_jobs_archived_total[$__rate_interval]))",
-          "legendFormat": "archived_jobs documents / s (batch rows)",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(api_archived_jobs_items_per_request_sum[$__rate_interval])) / sum(rate(api_archived_jobs_items_per_request_count[$__rate_interval]))",
-          "legendFormat": "archived_jobs avg items / request (histogram)",
-          "refId": "D"
-        }
-      ],
-      "title": "Archived jobs",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Cumulative count of successful market-prices POSTs where at least one requested type had no orders at any trade hub (`requests_with_missing_prices_total`). Resets only on process restart.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "orange",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
         "w": 24,
         "x": 0,
-        "y": 40
-      },
-      "id": 9,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum(api_market_prices_requests_with_missing_prices_total)",
-          "instant": true,
-          "legendFormat": "Requests with ≥1 missing type (cumulative)",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Market prices · requests with missing data (cumulative)",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "decimals": 3,
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 45
+        "y": 54
       },
       "id": 12,
       "options": {
@@ -1042,7 +1622,7 @@
           "refId": "A"
         }
       ],
-      "title": "Errors / s (by reason · filter by source)",
+      "title": "Errors / s by reason",
       "type": "timeseries"
     }
   ],

@@ -10,16 +10,28 @@
   "liveNow": false,
   "panels": [
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 700,
+      "panels": [],
+      "title": "Now",
+      "type": "row"
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Live websocket connections across every backend.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
           "decimals": 0,
+          "mappings": [],
           "unit": "short"
         },
         "overrides": []
@@ -28,12 +40,12 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 0
+        "y": 1
       },
-      "id": 1,
+      "id": 701,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -43,7 +55,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "value_and_name"
+        "textMode": "value"
       },
       "targets": [
         {
@@ -51,12 +63,10 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "editorMode": "code",
           "expr": "sum(ws_connected_clients)",
-          "instant": true,
-          "legendFormat": "connected clients",
-          "range": false,
-          "refId": "A"
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Connected clients",
@@ -67,12 +77,11 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Distinct accounts holding at least one connection.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
           "decimals": 0,
+          "mappings": [],
           "unit": "short"
         },
         "overrides": []
@@ -81,12 +90,12 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 0
+        "y": 1
       },
-      "id": 2,
+      "id": 702,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -96,7 +105,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "value_and_name"
+        "textMode": "value"
       },
       "targets": [
         {
@@ -104,12 +113,10 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "editorMode": "code",
           "expr": "sum(ws_connected_accounts)",
-          "instant": true,
-          "legendFormat": "connected accounts",
-          "range": false,
-          "refId": "A"
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Connected accounts",
@@ -120,13 +127,28 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Backends the router currently has in its routing registry: running, probe-ready and not hard-skipped.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
+          "decimals": 0,
+          "mappings": [],
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
           },
-          "decimals": 3,
-          "unit": "ops"
+          "color": {
+            "mode": "thresholds"
+          }
         },
         "overrides": []
       },
@@ -134,12 +156,12 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 0
+        "y": 1
       },
-      "id": 3,
+      "id": 703,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -149,7 +171,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "value_and_name"
+        "textMode": "value"
       },
       "targets": [
         {
@@ -157,15 +179,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "editorMode": "code",
-          "expr": "sum(rate(ws_upgrade_successes_total[$__rate_interval]))",
-          "instant": true,
-          "legendFormat": "upgrades / s",
-          "range": false,
-          "refId": "A"
+          "expr": "max(wsrouter_active_proxies)",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true
         }
       ],
-      "title": "Upgrade success rate",
+      "title": "Websocket backends",
       "type": "stat"
     },
     {
@@ -173,13 +193,32 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Failed websocket upgrades per second, across all backends.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
           "decimals": 3,
-          "unit": "ops"
+          "mappings": [],
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
         },
         "overrides": []
       },
@@ -187,12 +226,12 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 0
+        "y": 1
       },
-      "id": 4,
+      "id": 704,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -202,7 +241,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "value_and_name"
+        "textMode": "value"
       },
       "targets": [
         {
@@ -210,22 +249,34 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "editorMode": "code",
-          "expr": "sum(rate(ws_upgrade_errors_total[$__rate_interval]))",
-          "instant": true,
-          "legendFormat": "upgrade errors / s",
-          "range": false,
-          "refId": "A"
+          "expr": "sum(rate(ws_upgrade_errors_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true
         }
       ],
-      "title": "Upgrade error rate",
+      "title": "Upgrade errors / s",
       "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 710,
+      "panels": [],
+      "title": "Placement — ws-router",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "How the router resolved each upgrade. A hit reused the tenant's existing home; reassigned moved it; sticky_fallback used the affinity cookie; miss had no prior placement.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -233,26 +284,149 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "fillOpacity": 35,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
             },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 7
+      },
+      "id": 711,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (result) (rate(wsrouter_placement_decisions_total[$__rate_interval]))",
+          "legendFormat": "{{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Placement decisions / s",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Times the tenant's existing home was passed over. Full and draining are hard skips — the backend is out of the eligible set entirely.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 35,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 7
+      },
+      "id": 712,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (reason) (rate(wsrouter_placement_home_skipped_total[$__rate_interval]))",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Home skipped / s",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Upgrades the router proxied, against errors reaching a backend.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -263,26 +437,278 @@
               "mode": "off"
             }
           },
-          "decimals": 3,
-          "unit": "ops"
+          "unit": "reqps",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 5
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 7
       },
-      "id": 5,
+      "id": 713,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(wsrouter_upgrades_total[$__rate_interval]))",
+          "legendFormat": "upgrades",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(wsrouter_proxy_errors_total[$__rate_interval]))",
+          "legendFormat": "proxy errors",
+          "refId": "B"
+        }
+      ],
+      "title": "Router throughput and errors / s",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 720,
+      "panels": [],
+      "title": "Capacity and placement flags",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Connected clients per backend against the two thresholds it publishes. At or above target the backend goes soft and new homes divert elsewhere; at or above cutoff it goes full and is hard-skipped.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 16
+      },
+      "id": 721,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_instance_id) (ws_connected_clients{service_name=\"websocket\"})",
+          "legendFormat": "{{service_instance_id}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(ws_placement_target_clients)",
+          "legendFormat": "target (soft)",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(ws_placement_client_cutoff)",
+          "legendFormat": "cutoff (full)",
+          "refId": "C"
+        }
+      ],
+      "title": "Clients against the capacity ladder",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Backends currently publishing each flag. Soft slows growth of new homes; full and draining remove a backend from the eligible set; cordoned is operator-set.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 35,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "id": 722,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (flag) (ws_placement_flag)",
+          "legendFormat": "{{flag}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Placement flags raised",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 730,
+      "panels": [],
+      "title": "Upgrades — websocket",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Upgrade requests against the successes and errors they resolved into.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 25
+      },
+      "id": 731,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -297,7 +723,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(ws_upgrade_requests_total[$__rate_interval]))",
-          "legendFormat": "requests_total",
+          "legendFormat": "requests",
           "refId": "A"
         },
         {
@@ -306,7 +732,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(ws_upgrade_successes_total[$__rate_interval]))",
-          "legendFormat": "successes_total",
+          "legendFormat": "successes",
           "refId": "B"
         },
         {
@@ -315,11 +741,11 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(ws_upgrade_errors_total[$__rate_interval]))",
-          "legendFormat": "errors_total",
+          "legendFormat": "errors",
           "refId": "C"
         }
       ],
-      "title": "Upgrade request flow (rate)",
+      "title": "Upgrade flow / s",
       "type": "timeseries"
     },
     {
@@ -327,6 +753,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Why upgrades failed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -334,56 +761,40 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "fillOpacity": 35,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "none"
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
             }
           },
-          "decimals": 3,
-          "unit": "ops"
+          "unit": "reqps",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 5
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 25
       },
-      "id": 6,
+      "id": 732,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -402,7 +813,7 @@
           "refId": "A"
         }
       ],
-      "title": "Upgrade errors by reason (rate)",
+      "title": "Upgrade errors by reason / s",
       "type": "timeseries"
     },
     {
@@ -410,6 +821,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "How long the upgrade handshake took.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -417,26 +829,13 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -447,26 +846,23 @@
               "mode": "off"
             }
           },
-          "decimals": 1,
-          "unit": "ms"
+          "unit": "ms",
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 15
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 25
       },
-      "id": 7,
+      "id": 733,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -503,14 +899,28 @@
           "refId": "C"
         }
       ],
-      "title": "Upgrade latency (histogram quantiles)",
+      "title": "Upgrade latency",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 740,
+      "panels": [],
+      "title": "Connections and fanout",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Connections opened against closed. A sustained gap means connections are accumulating or draining.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -518,26 +928,13 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -548,26 +945,23 @@
               "mode": "off"
             }
           },
-          "decimals": 3,
-          "unit": "ops"
+          "unit": "reqps",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 15
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 34
       },
-      "id": 8,
+      "id": 741,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -582,7 +976,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(ws_connections_opened_total[$__rate_interval]))",
-          "legendFormat": "connections opened / s",
+          "legendFormat": "opened",
           "refId": "A"
         },
         {
@@ -591,20 +985,11 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(ws_connections_closed_total[$__rate_interval]))",
-          "legendFormat": "connections closed / s",
+          "legendFormat": "closed",
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(ws_document_updates_sent_total[$__rate_interval]))",
-          "legendFormat": "update recipients sent / s",
-          "refId": "C"
         }
       ],
-      "title": "Connection and fanout rates",
+      "title": "Connection churn / s",
       "type": "timeseries"
     },
     {
@@ -612,6 +997,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Update messages delivered to clients, in total and by account.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -619,26 +1005,13 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
+            "gradientMode": "opacity",
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -649,108 +1022,23 @@
               "mode": "off"
             }
           },
-          "decimals": 0,
-          "unit": "short"
+          "unit": "reqps",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 25
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 34
       },
-      "id": 9,
+      "id": 742,
       "options": {
         "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(ws_account_connected_clients) by (account_id)",
-          "legendFormat": "account {{account_id}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Connected clients per account",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "decimals": 3,
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 35
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -765,7 +1053,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(ws_document_updates_sent_total[$__rate_interval]))",
-          "legendFormat": "messages sent / s (total)",
+          "legendFormat": "total",
           "refId": "A"
         },
         {
@@ -778,7 +1066,7 @@
           "refId": "B"
         }
       ],
-      "title": "Messages sent per second",
+      "title": "Document updates sent / s",
       "type": "timeseries"
     },
     {
@@ -786,6 +1074,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Documents each client is subscribed to. A client with an outsized subscription set costs fanout work on every update.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -793,53 +1082,341 @@
           },
           "custom": {
             "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
+            "fillOpacity": 10,
             "gradientMode": "opacity",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
             "lineInterpolation": "smooth",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
             }
           },
-          "decimals": 0,
-          "min": 0,
           "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "id": 743,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (client_id) (ws_client_subscribed_documents)",
+          "legendFormat": "{{client_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Subscribed documents per client",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 42
       },
-      "id": 11,
+      "id": 750,
+      "panels": [],
+      "title": "Per backend and per account",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "How evenly the router has spread connections. A backend well above the others will go soft, then full.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "id": 751,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_instance_id) (ws_connected_clients{service_name=\"websocket\"})",
+          "legendFormat": "{{service_instance_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Connected clients per backend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Connections held per account.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 43
+      },
+      "id": 752,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (account_id) (ws_account_connected_clients)",
+          "legendFormat": "account {{account_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Connected clients per account",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "id": 760,
+      "panels": [],
+      "title": "Owners — who is connected and where",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Distinct owners with at least one connected client, split by kind. An owner is whatever a document belongs to: an account, a planner, a corporation or an alliance.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 52
+      },
+      "id": 761,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (owner_kind) (count by (owner_kind, owner_id) (ws_owner_connected_clients))",
+          "legendFormat": "{{owner_kind}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(ws_connected_owners)",
+          "legendFormat": "all owners",
+          "refId": "B"
+        }
+      ],
+      "title": "Connected owners",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Connected clients per owner, largest first. A large group shows up here regardless of its kind — no panel needs to know which kinds exist.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 52
+      },
+      "id": 762,
       "options": {
         "legend": {
           "calcs": [
-            "lastNotNull"
+            "max"
           ],
           "displayMode": "table",
           "placement": "right",
@@ -856,14 +1433,215 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "editorMode": "code",
-          "expr": "ws_connected_clients{service_name=\"websocket\"}",
-          "legendFormat": "{{service_instance_id}}",
-          "range": true,
+          "expr": "topk(10, sum by (owner_kind, owner_id) (ws_owner_connected_clients))",
+          "legendFormat": "{{owner_kind}} {{owner_id}}",
           "refId": "A"
         }
       ],
-      "title": "Connected clients by websocket instance (service_instance_id)",
+      "title": "Clients per owner",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Total connected clients attributed to each kind of owner.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 35,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 52
+      },
+      "id": 763,
+      "options": {
+        "legend": {
+          "calcs": [
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (owner_kind) (ws_owner_connected_clients)",
+          "legendFormat": "{{owner_kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Clients by owner kind",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Where each owner's clients are placed. One backend holding most of a large owner means the group is concentrated rather than spread, which is what pushes that backend over its capacity thresholds first.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 35,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 60
+      },
+      "id": 764,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, sum by (owner_kind, owner_id, service_instance_id) (ws_owner_connected_clients))",
+          "legendFormat": "{{owner_kind}} {{owner_id}} on {{service_instance_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Owner spread across backends",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "The biggest single owner sitting on each backend. A backend whose largest owner dwarfs the others is carrying a concentration the router could not split.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 35,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 60
+      },
+      "id": 765,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (service_instance_id) (ws_owner_connected_clients)",
+          "legendFormat": "{{service_instance_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Largest owner per backend",
       "type": "timeseries"
     }
   ],
@@ -898,8 +1676,9 @@
     ]
   },
   "timezone": "browser",
-  "title": "WebSocket · metrics",
+  "title": "WebSocket · delivery and placement",
   "uid": "websocket-otel-metrics",
   "version": 4,
-  "weekStart": ""
+  "weekStart": "",
+  "description": "The websocket backends and the router that places tenants on them. Placement decisions and the capacity ladder come from ws-router; upgrades, connections and fanout come from the websocket service."
 }

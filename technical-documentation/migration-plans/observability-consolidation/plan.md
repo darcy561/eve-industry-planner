@@ -12,6 +12,43 @@ Go surfaces are in scope — `services/shared/logs`, `services/shared/telemetry`
 packages only, before the slice that touches them and again after.
 Live SoT will not be edited until this project is complete and promotion is approved.
 
+## Picking this up
+
+1. Read § Stage status below for what is done, then § Decisions taken — those four are settled and
+   are not to be reopened without a reason.
+2. **The code is committed** as `dd0454b9` on `feature/archived-jobs-stats`, docs included. That
+   branch is where the work lives; it is not on `Development`. A machine without it needs the branch
+   fetched.
+3. Stages A, B and C are written and all three are verified against a running stack.
+4. **The stack keeps Grafana, Prometheus and Loki.** A single-node OpenObserve was built, deployed,
+   measured and removed — § Choosing the backend has the numbers. Do not reopen that without new
+   information; the deciding figure was 1.2 GB idle on a stack with no users, against 466 MB for the
+   three services it would have replaced, on a 2-core/8 GB host.
+5. Stage E is dropped and Stage I is retired with it.
+6. Stage H is part done — § Where this stage has got to lists what is left.
+7. Stage F needs a decision on whether traces get a store before any of it can be written.
+
+### Where the code is
+
+The project's code spans three areas, all in one commit so the branch builds at every point.
+
+| Area | Files |
+|---|---|
+| Stack fragments | `docker-stack.yml`, `docker-stack.data.yml`, `docker-stack.obs.yml` |
+| Embedded kit | `kit/obs/alloy/config.alloy`, `kit/obs/prometheus/prometheus.yml`, the dashboard definitions, `kit/templates/env/fields.go`, `catalogue/services.go` |
+| Services | `shared/logs`, `shared/telemetry` (including `scope.go` and `wsroutermetrics/`), `shared/nats`, `shared/esiclient`, `core/metrics/common`, `core/scheduler`, `websocket/server`, `worker/asynq`, `ws-router`, `api/middleware` |
+
+`shared/telemetry/scope.go` defines `Must`, `Meter` and `Tracer`, and fifteen files call them, so
+they travel together — splitting them across commits leaves the branch unable to build.
+
+The working tree is shared with other sessions and carries unrelated work. Stage paths explicitly,
+never `git add -A`, and check `git diff --cached --name-only` before every commit here.
+
+### Defects found in passing, not owned by this project
+
+`go fix` suggests `interface{}` → `any` in `core/metrics/appconfig`, a package this project has not
+otherwise touched.
+
 ## The shape of the change
 
 **Everything that produces telemetry sends it to Alloy. Alloy sends it to Prometheus and Loki.**
@@ -422,6 +459,19 @@ tries harder than it should be.
 
 Like Stage B, this is worth doing on its own terms, and it survived the backend evaluation intact.
 
+### Stage C — verified
+
+Deployed and checked against the running stack. What held:
+
+- Application series names survived the fifteen-file instrument scaffolding refactor, the change
+  with the widest blast radius. `api_*`, `core_*`, `worker_*` and `ws_*` all still register under
+  their existing names. There is **no bare `esi_*` prefix** — the limiter's series are `core_esi_*`,
+  so a check written against `esi_*` proves nothing.
+- `ws-router` appears in Loki's `compose_service` values, so it reports over OTLP for the first time.
+- All three `ws_placement_*` gauges are live: `flag`, `target_clients`, `client_cutoff`.
+
+Still inert by design: Traefik tracing flags and `TRACES_SAMPLE_RATE`, while the rate is 0.
+
 ### Stage D — backend evaluation (closed, backend not adopted)
 
 A single-node OpenObserve was added to `docker-stack.obs.yml` on the existing SeaweedFS S3, Alloy's
@@ -531,6 +581,31 @@ not fail loudly. They filter on a log shape that gets rewritten before it lands:
 unless `LOG_LEVEL=debug` (at the source, since Stage A), the `code.*` and `telemetry.sdk.*`
 attributes scrubbed by Alloy, and scope name blanked.
 
+### Where this stage has got to
+
+Done:
+
+- `core-esi-limits.json` — the five panels selected a metric name nothing had written since the
+  limiter was renamed. Repointed, aggregated so a restarted container does not draw a second line,
+  and led with gauges for the state an operator checks first.
+- `mongodb.json` — the oplog panel selected a name the exporter never emits; and the whole dashboard
+  was the last one built on the retired `graph` and `singlestat` renderers, now converted.
+- `api-otel-metrics.json` — no defect, but two panels carried sixteen series each. Regrouped into
+  rows by concern with a per-container row added, since the capacity controller runs up to five API
+  replicas and nothing showed their split.
+- `app-activity.json` — nineteen tiles in one undifferentiated grid, now three themed bands with
+  each metric's rolling windows collapsed into a single panel.
+- `websocket-otel-metrics.json` — combined with the ws-router metrics Stage C added, which were
+  being collected and displayed nowhere, and given owner-keyed connection reporting.
+
+Left:
+
+- `redis`, `traefik`, `host` and `frontend-events-otel-metrics` each carry ten or more panels with no
+  rows at all.
+- `asynq-queues` and `worker-tasks` cover one pipeline — queue state and task execution — split
+  across two dashboards.
+- The SeaweedFS dashboard named below still does not exist.
+
 **Grafana's provisioning had to be corrected first.** The provider allowed UI updates, so Grafana
 held its own copy of all twenty dashboards and a shipped file change did not necessarily reach the
 served dashboard. The Deployment Tool's embedded kit is where dashboards come from, so the provider
@@ -635,9 +710,14 @@ and both were undone in one pass with the old stores never having been deleted. 
 
 ## Stage status
 
-Picking this up on a different machine, or after a gap, starts at [handoff.md](./handoff.md).
 Stages A to C are committed as `dd0454b9` on `feature/archived-jobs-stats`; the backend evaluation
 and its removal followed on the same branch.
+
+Stage H is under way rather than finished. The two live defects are fixed, every dashboard has been
+audited against the store, and five of the twenty have been reworked for legibility. What remains is
+layout on the rest — `redis`, `traefik`, `host` and `frontend-events` each carry ten or more panels
+with no rows, and `asynq-queues` and `worker-tasks` are one pipeline split across two dashboards
+that would read better combined.
 
 | Stage | Status |
 |-------|--------|
@@ -649,7 +729,7 @@ and its removal followed on the same branch.
 | E — query gate | Dropped with the backend |
 | F — traces stop being discarded | Not started — needs a trace store decided first |
 | G — the spans say what a trace needs | Not started |
-| H — fix the dashboards | Not started |
+| H — fix the dashboards | Partial — defects fixed, layout work continuing |
 | I — cutover | Retired — nothing to cut over |
 | J — promote and delete | Not started |
 

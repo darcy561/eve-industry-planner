@@ -142,6 +142,11 @@ dashboard: the file seeds it once, and a later edit to that file no longer reach
 Every one of the twenty reported `provisioned: false` as a result, so a shipped change could land in
 the container and still not be what Grafana served.
 
+**Grafana runs 13.2.1.** The pin had sat at 13.0.1 while the line had moved on by eight patch
+releases, and the browse page was failing in a way that looked version-related at the time. It was
+not — that fault turned out to be client-side, and is recorded under § The Grafana dashboards browse page — but
+the upgrade is worth keeping on its own terms and every dashboard came through it unchanged.
+
 It now runs `allowUiUpdates: false` with `editable: false`. Measured against `grafana/grafana:13.0.1`
 before the change: with the flag off a dashboard reports `provisioned: true`, keeps the `refresh`
 value its file sets, and picks up a file edit automatically within `updateIntervalSeconds` — no
@@ -173,10 +178,67 @@ latency panel can show a dead container until its samples age out.
 **Static-data endpoints stay folded into the main panels.** They are registered and correct; they
 simply see no traffic on a stack with no users, which is why they read empty.
 
+**`websocket-otel-metrics.json`** now covers the router as well as the backends, and is titled
+"WebSocket · delivery and placement" for it. The five `wsrouter_*` instruments Stage C added were
+being collected and shown nowhere, as were the three `ws_placement_*` gauges — between them the
+placement decision that puts a tenant on a backend, and the capacity ladder that decides when a
+backend stops accepting new ones.
+
+Six rows: what is connected now; the router's placement decisions, home skips and proxy errors;
+connected clients plotted against the soft and full thresholds they are measured by, with the flags
+each backend is publishing; the upgrade handshake; connection churn and fanout; and the per-backend
+and per-account breakdowns.
+
+**Who is connected is reported per owner, not per kind.** The websocket server already kept
+`userConnections`, `corpRefToClients` and `allianceRefToClients` to route document updates by scope,
+but nothing observed them, so there was no way to see which groups were connected or where the
+router had put them. `services/websocket/server/metrics.go` now registers
+`ws.owner_connected_clients`, labelled `owner_kind` and `owner_id`, with `ws.connected_owners` as
+the total.
+
+One instrument rather than one per kind, because `models.OwnerKind` is the thing that decides what
+an owner can be, and it already carries four values — a planner is an owner too, and a metric named
+for corporations and alliances would have missed it. A kind added there is picked up by extending
+the callback, and the dashboards split on the label rather than on a metric name.
+
+The maps are read under the existing `corpRefIndexMu` / `allianceRefIndexMu` locks, in the order
+`types.go` sets out. Cardinality is bounded by owners with someone connected, which is at most the
+account cardinality `ws.account_connected_clients` already carries plus the groups those accounts
+belong to.
+
+Two of those panels break each owner down by `service_instance_id`. That is the question a large
+group raises: not how many clients it has, but whether they all landed on one backend. An owner
+concentrated on a single backend is what drives that backend to soft and then full while its peers
+sit idle.
+
+The placement panels stack their series, because the question there is the mix — a rising share of
+`reassigned` or `sticky_fallback` against `hit` means tenants are being moved rather than staying
+put. What each result means, and the soft/full/cutoff ladder, is
+[backend/ws-router/ws-router.md](../../backend/ws-router/ws-router.md) § Placement.
+
 **`app-activity.json`** was nineteen tiles in an undifferentiated grid with no rows at all. It now
-reads in four themed bands — engagement, users, usage shape, and build and configuration — and the
-new-users trend chart sits with the new-user tiles it explains rather than orphaned below everything
-else. Only positions changed; every query, unit and threshold is as it was.
+reads in three bands — usage and growth, usage shape, and build and configuration — across twelve
+tiles.
+
+**A metric measured over several windows is one panel, not one panel per window.** Distinct
+characters, distinct logged-in accounts, new users and jobs archived each collapsed from separate
+24h/7d/30d tiles into a single panel carrying the windows as series. That removed seven tiles and
+let the remaining bands divide the grid evenly, where the per-window tiles had left panels stretched
+across whatever width was left over.
+
+Who is using the app and how that is growing now read together in one band, with the new-users trend
+chart beside the tile it explains rather than orphaned at the foot of the dashboard.
+
+Elsewhere the stat panels rendered `value_and_name`, which reprinted the series name inside the box
+directly beneath the panel title that already said it; those show the value alone, and the legend
+strings that fed them are gone. The consolidated panels keep `value_and_name`, because there the
+name is the window label and it is the only thing distinguishing the figures.
+
+Two panels were saying less than they appeared to. **Registered accounts** — formerly "Total users ·
+Mongo" — counts documents in the users collection, meaning every account ever registered rather than
+anything live. **SDE build** reports 0 with version `unknown` until an import calls
+`SetCurrentVersion`, so a value of 0 now renders as "not imported" rather than as a bare zero that
+reads like a fault.
 
 **`mongodb.json`** was also the last dashboard built on the retired renderers: thirteen `graph` and
 three `singlestat` panels on schema version 27, both deprecated in Grafana 13. They are now
@@ -196,7 +258,111 @@ a fleet-wide figure.
 
 ## Operating the observability stack
 
-_Empty until Stage I lands._
+### How a change actually reaches the stack
+
+The observability configuration is **embedded in the `eip` binary** (`//go:embed obs/**` in
+`kit/obs.go`), materialised to disk and shipped as a Swarm config object. Stack fragments are read
+from disk. The two halves therefore land at different times:
+
+```
+edit kit/obs/**            → rebuild the binary, then deploy
+edit docker-stack*.yml     → deploy
+```
+
+Deploying a kit change without rebuilding the binary applies the stack half only. During Stage B
+that removed an exporter container while leaving its replacement absent — Redis had no collector at
+all until the next build. Check before deploying:
+
+```bash
+grep -a -c 'prometheus.exporter.redis' eip.exe   # 0 means the binary predates the kit edit
+```
+
+A **dashboard-only** change does not need `eip dev`: rebuild the binary so the embedded kit carries
+the edit, then `eip sync`, which is a targeted config update rather than a bake of seven application
+images. Grafana then re-reads its provisioned files on a fifteen-second cycle — the config object is
+replaced immediately, but the API serves the previous dashboard until that cycle runs, so wait for
+the panel count to change rather than concluding the deploy failed.
+
+### Verification commands
+
+Run from the repo root; `eip-obs` is the observability overlay.
+
+```bash
+# every collection job, with real sample ages
+docker run --rm --network eip-obs curlimages/curl:8.11.1 -s --data-urlencode \
+  'query=timestamp({__name__=~"redis_up|node_load1|mongodb_up|asynq_queue_size"})' \
+  'http://prometheus:9090/api/v1/query'
+
+# which containers Alloy is tailing (should exclude the six Go services and four proxies)
+cid=$(docker ps --format '{{.ID}} {{.Names}}' | grep 'eip_alloy\.1' | awk '{print $1}')
+docker run --rm --network container:$cid curlimages/curl:8.11.1 -s \
+  'http://localhost:12345/api/v0/web/components/loki.source.docker.docker'
+
+# what a metric's labels actually are, including per-container identity
+docker run --rm --network eip-obs curlimages/curl:8.11.1 -s \
+  'http://prometheus:9090/api/v1/query?query=ws_connected_clients'
+
+# which services reach Loki
+docker run --rm --network eip-obs curlimages/curl:8.11.1 -s \
+  'http://loki:3100/loki/api/v1/label/compose_service/values'
+
+# Alloy's own view (component health, and its error log)
+docker run --rm --network container:$cid curlimages/curl:8.11.1 -s \
+  'http://localhost:12345/api/v0/web/components'
+```
+
+### Traps this stack has already cost time on
+
+**`alloy validate` needs the stack's stability level.** Without `--stability.level=experimental` it
+rejects `otelcol.exporter.debug`, which the config uses. Validate against the pinned image:
+
+```bash
+docker run --rm -v "$PWD/deployment-tool/internal/kit/obs/alloy/config.alloy":/c.alloy:ro \
+  grafana/alloy:v1.19.2 validate --stability.level=experimental /c.alloy
+```
+
+**Docker refuses bind mounts from some host paths.** Mounting a probe file from a scratch directory
+fails with "mounts denied", and a check that greps the output for a validation error reads that
+failure as a pass. Write probe configs inside the container or mount from under the repo, and assert
+on exit codes.
+
+**Prometheus instant queries stamp the evaluation time, not the sample time.** Two series both
+looked 0.3s old when one had been stale for five minutes. Use `timestamp(<metric>)` when the question
+is whether something is still being written — but note `timestamp(<metric>) < N` can return empty
+even while data arrives, so confirm with `count({__name__=~".+"})` or a known series before
+concluding a store is not receiving.
+
+**Alloy's component health is not a failure signal.** During the `discovery.docker` outage every
+component reported healthy while the Docker log scrape collected nothing. Trust the error log and the
+data in the store. Its reload burst misleads too: after a config change Alloy logs a few hundred
+"node exited without error" lines, which arrive unlabelled and read as a broken drop rule.
+
+**Loki indexes OTLP resource attributes as structured metadata, not stream labels.** A log arriving
+by the OTLP path carries `compose_service` in `loki_attribute_labels`, and `{compose_service="x"}`
+matches nothing. Check a label is queryable against
+`/loki/api/v1/label/compose_service/values` before assuming a log path works.
+
+**`strings` is not installed in this environment.** A staleness probe using it returns 0 with an
+error on stderr whether or not the binary is current. Use `grep -a -c '<marker>' eip.exe`.
+
+**`build-host.sh` fails on Windows/Git Bash.** It assigns `mktemp`'s output to `TMP`, already the
+Windows temp-directory variable Go reads for its build work dir, so `go build` tries to `mkdir`
+inside a file. Invoke `go build` directly with the script's ldflags and `-trimpath`, then copy the
+result over `eip.exe`.
+
+### The Grafana dashboards browse page
+
+The dashboards **list** page can fail in a normal browser with
+`TypeError: Cannot use 'in' operator to search for 'parentUID' in <!DOCTYPE html>`, while every
+individual dashboard opens fine and the same page works in a private window. It is client-side
+state, not the stack: a request loses the `/grafana` prefix, lands on the SPA's catch-all at the
+document root, and Grafana parses the HTML it gets back as JSON.
+
+Ruled out by measurement, so do not spend time on them again: the dashboard definitions (a blank
+Grafana with a fresh database fails identically), the provisioning settings, `base_url`, and the
+Grafana version. The likeliest remaining cause is a service worker registered by an older frontend
+build — `5f0021418` removed the PWA artifacts, and a browser that visited before that still has one
+installed. Unregistering it under devtools → Application → Service Workers is the thing to try.
 
 ## Missing live SoT to draft here
 

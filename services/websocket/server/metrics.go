@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/websocket/server/config"
 
@@ -129,6 +130,14 @@ func (s *Server) registerGaugeCallbacks() {
 		metric.WithUnit("{clients}"),
 		metric.WithDescription("Current subscriber count per document."),
 	))
+	ownerClientsGauge := telemetry.Must(m.Int64ObservableGauge("ws.owner_connected_clients",
+		metric.WithUnit("{clients}"),
+		metric.WithDescription("Current connected websocket clients per owner, on this backend."),
+	))
+	connectedOwnersGauge := telemetry.Must(m.Int64ObservableGauge("ws.connected_owners",
+		metric.WithUnit("{owners}"),
+		metric.WithDescription("Current number of owners with at least one websocket client."),
+	))
 
 	_, err := m.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
 		// Per-container split uses OTel resource service.instance.id (Prom:
@@ -162,6 +171,31 @@ func (s *Server) registerGaugeCallbacks() {
 		}
 		s.userConnMu.RUnlock()
 
+		// Keyed by owner rather than by kind: a kind added to models.OwnerKind is picked up
+		// by adding it here, and dashboards split on the label instead of on a metric name.
+		// Lock order is corpRefIndexMu before allianceRefIndexMu (see types.go).
+		type ownerKey struct{ kind, id string }
+		ownerCounts := make(map[ownerKey]int64)
+		for accountID, count := range accountCounts {
+			ownerCounts[ownerKey{string(models.OwnerAccount), accountID}] = count
+		}
+
+		s.corpRefIndexMu.RLock()
+		for ref, clients := range s.corpRefToClients {
+			if len(clients) > 0 {
+				ownerCounts[ownerKey{string(models.OwnerCorporation), ref}] = int64(len(clients))
+			}
+		}
+		s.corpRefIndexMu.RUnlock()
+
+		s.allianceRefIndexMu.RLock()
+		for ref, clients := range s.allianceRefToClients {
+			if len(clients) > 0 {
+				ownerCounts[ownerKey{string(models.OwnerAlliance), ref}] = int64(len(clients))
+			}
+		}
+		s.allianceRefIndexMu.RUnlock()
+
 		s.explicitDocSubMu.RLock()
 		docSubscriberCounts := make(map[string]int64, len(s.explicitDocSubscribers))
 		for docID, subs := range s.explicitDocSubscribers {
@@ -188,8 +222,16 @@ func (s *Server) registerGaugeCallbacks() {
 				attribute.String("doc_id", docID),
 			))
 		}
+		o.ObserveInt64(connectedOwnersGauge, int64(len(ownerCounts)))
+		for key, count := range ownerCounts {
+			o.ObserveInt64(ownerClientsGauge, count, metric.WithAttributes(
+				attribute.String("owner_kind", key.kind),
+				attribute.String("owner_id", key.id),
+			))
+		}
 		return nil
-	}, connectedClientsGauge, connectedAccountsGauge, accountClientsGauge, clientDocsGauge, docSubscribersGauge)
+	}, connectedClientsGauge, connectedAccountsGauge, accountClientsGauge, clientDocsGauge, docSubscribersGauge,
+		ownerClientsGauge, connectedOwnersGauge)
 	if err != nil {
 		logs.ErrorCtx(context.Background(), "wsmetrics: register gauge callback failed", "error", err)
 	}

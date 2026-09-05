@@ -20,7 +20,7 @@ currently discarded.
 
 | I need to… | Read |
 |------------|------|
-| Pick this work up on another machine, or after a break | [handoff.md](./handoff.md) |
+| Pick this work up on another machine, or after a break | [plan.md](./plan.md) § Picking this up |
 | Understand the change in one sentence, and why it is not one change | [plan.md](./plan.md) § The shape of the change |
 | See how a Go service logs, and what happens with the layer off | [plan.md](./plan.md) § How a Go service actually logs |
 | See every producer and where its telemetry goes today | [plan.md](./plan.md) § What runs today |
@@ -38,3 +38,5 @@ currently discarded.
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | Find the shared-scaffolding cleanup for instruments | [plan.md](./plan.md) § Stage C — the application tier all speaks OTLP |
 | See how a part behaves after a landed stage | [overlay.md](./overlay.md) |
+| Get a change into the running stack, and verify it | [overlay.md](./overlay.md) § Operating the observability stack |
+| Check a trap before losing time to it | [overlay.md](./overlay.md) § Traps this stack has already cost time on |
