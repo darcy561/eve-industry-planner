@@ -191,10 +191,10 @@ export function AvailableTransactionsPanel({
                       <Avatar
                         src={
                           tData.is_corp
-                            ? corpData !== undefined
+                            ? corpData
                               ? `https://images.evetech.net/corporations/${corpData.corporation_id}/logo`
                               : ""
-                            : charData !== undefined
+                            : charData
                               ? `https://images.evetech.net/characters/${charData.CharacterID}/portrait`
                               : ""
                         }
