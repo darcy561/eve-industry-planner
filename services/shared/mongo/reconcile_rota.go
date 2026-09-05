@@ -21,7 +21,7 @@ import (
 // aggregate documents have gone missing entirely, which reading the aggregates
 // instead would never find.
 func (m *Mongo) StatisticsOwners(ctx context.Context, opts ...RetryOption) ([]models.Owner, error) {
-	if m == nil || m.ArchivedJobStats == nil {
+	if m == nil || m.StatisticsRows == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
 	// Grouped rather than distinct on a field: a kind and an id only mean
@@ -37,7 +37,7 @@ func (m *Mongo) StatisticsOwners(ctx context.Context, opts ...RetryOption) ([]mo
 		bson.D{{Key: "$match", Value: bson.M{"owner": bson.M{"$exists": true}}}},
 		bson.D{{Key: "$group", Value: bson.M{"_id": "$owner"}}},
 	}
-	if err := m.ArchivedJobStats.Aggregate(ctx, pipeline, &groups, append(opts, WithOpName("StatisticsOwners"))...); err != nil {
+	if err := m.StatisticsRows.Aggregate(ctx, pipeline, &groups, append(opts, WithOpName("StatisticsOwners"))...); err != nil {
 		return nil, fmt.Errorf("list statistics owners: %w", err)
 	}
 
@@ -96,13 +96,13 @@ func (m *Mongo) OwnersDueForReconcile(ctx context.Context, dueBefore time.Time, 
 // from its rows, which is what takes it out of the due set until the window has
 // passed again.
 func (m *Mongo) StampOwnerReconciled(ctx context.Context, owner models.Owner, now time.Time, opts ...RetryOption) error {
-	if m == nil || m.AccountReconcileRota == nil {
+	if m == nil || m.StatisticsReconcileRota == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return err
 	}
-	coll, err := m.AccountReconcileRota.requireColl()
+	coll, err := m.StatisticsReconcileRota.requireColl()
 	if err != nil {
 		return err
 	}
@@ -118,10 +118,10 @@ func (m *Mongo) StampOwnerReconciled(ctx context.Context, owner models.Owner, no
 
 // reconcileStamps reads when each owner was last reconciled.
 func (m *Mongo) reconcileStamps(ctx context.Context, opts ...RetryOption) (map[string]time.Time, error) {
-	if m == nil || m.AccountReconcileRota == nil {
+	if m == nil || m.StatisticsReconcileRota == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.AccountReconcileRota.requireColl()
+	coll, err := m.StatisticsReconcileRota.requireColl()
 	if err != nil {
 		return nil, err
 	}

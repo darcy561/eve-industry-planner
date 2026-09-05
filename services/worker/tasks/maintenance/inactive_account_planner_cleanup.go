@@ -79,7 +79,7 @@ func InactiveAccountPlannerCleanup(ctx context.Context, payload eipnats.Inactive
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("delete user_job_documents for %s: %w", accountID, err)
+		return fmt.Errorf("delete job_documents for %s: %w", accountID, err)
 	}
 
 	err = eipmongo.Retry(ctx, fmt.Sprintf("inactive planner cleanup jobs %s", accountID), func() error {
@@ -103,7 +103,7 @@ func InactiveAccountPlannerCleanup(ctx context.Context, payload eipnats.Inactive
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("delete user_job_groups for %s: %w", accountID, err)
+		return fmt.Errorf("delete job_groups for %s: %w", accountID, err)
 	}
 
 	lastLoginLog := ""
@@ -112,9 +112,9 @@ func InactiveAccountPlannerCleanup(ctx context.Context, payload eipnats.Inactive
 	}
 	logs.InfoCtx(ctx, "inactive account planner cleanup complete",
 		"account_id", accountID,
-		"deleted_user_job_documents", jobsDocDeleted,
+		"deleted_job_documents", jobsDocDeleted,
 		"deleted_jobs", jobsDeleted,
-		"deleted_user_job_groups", groupsDeleted,
+		"deleted_job_groups", groupsDeleted,
 		"last_login_at", lastLoginLog,
 		"cutoff_utc", cutoff.Format(time.RFC3339),
 	)

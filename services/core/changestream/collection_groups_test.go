@@ -10,7 +10,7 @@ import (
 func TestValidateCollectionGroups_ok(t *testing.T) {
 	groups := []CollectionGroup{
 		Group("a", eipmongo.CollectionAccounts),
-		Group("b", eipmongo.CollectionAccountJobs),
+		Group("b", eipmongo.CollectionJobs),
 	}
 	if err := validateCollectionGroups(groups); err != nil {
 		t.Fatal(err)

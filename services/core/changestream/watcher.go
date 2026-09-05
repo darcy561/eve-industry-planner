@@ -356,11 +356,11 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	// explicitly subscribed). Singleton account docs use Mongo _id === account id string.
 	if accountID == "" && operationType == "delete" {
 		switch collection {
-		case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionAccountWatchlistDeprecated:
+		case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionWatchlistDeprecated:
 			accountID = docID
 		default:
-			if collection == eipmongo.CollectionAccountJobGroups ||
-				collection == eipmongo.CollectionAccountJobDocuments {
+			if collection == eipmongo.CollectionJobGroups ||
+				collection == eipmongo.CollectionJobDocuments {
 				logs.WarnCtx(ctx, "delete missing accountID on collection (fullDocumentBeforeChange empty);"+
 					" websocket account fan-out skipped — enable changeStreamPreAndPostImages"+
 					" (eip ensure-mongo / deployment-tool PreimageCollections)",
@@ -379,7 +379,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	switch collection {
-	case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionAccountWatchlistDeprecated:
+	case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionWatchlistDeprecated:
 		if operationType == "update" || operationType == "replace" {
 			if previousDocToExtract != nil {
 				previousDocument = make(map[string]any, len(previousDocToExtract))

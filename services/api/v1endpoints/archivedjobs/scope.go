@@ -39,7 +39,7 @@ func accountArchiveScope(m *eipmongo.Mongo, accountID string) (archiveScope, err
 	return archiveScope{
 		OwnerID:     accountID,
 		jobs:        m.ArchivedJobs,
-		stats:       m.ArchivedJobStats,
+		stats:       m.StatisticsRows,
 		ownerFilter: eipmongo.ArchivedJobAccountFilter,
 		statsDocumentID: func(ownerID, jobID string) string {
 			return eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(ownerID), jobID)

@@ -2,7 +2,7 @@ import useUsersStore from "../Zustand/usersStore.js";
 
 /**
  * @typedef {Object} HeaderDocumentLockUIRegistration
- * @property {string} collection — e.g. `account_job_groups` (see documentLockCollections)
+ * @property {string} collection — e.g. `job_groups` (see documentLockCollections)
  * @property {string} docID
  * @property {boolean} [enabled=true] — when false, this row is skipped for the primary header control
  * @property {string} [readOnlyMessage] — copy for read-only popover; default in the control if omitted

@@ -3,7 +3,7 @@ package models
 import "time"
 
 // MetaData is the shared `_meta` account/ownership block for private account documents
-// (users, application_settings, user_job_groups, jobs, etc.). ClientID is the WebSocket
+// (accounts, account_settings, job_groups, jobs, etc.). ClientID is the WebSocket
 // tab id (X-WS-Client-ID) for the write that last touched the document, for changestream
 // / WS echo suppression.
 type MetaData struct {

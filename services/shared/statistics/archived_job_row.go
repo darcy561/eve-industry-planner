@@ -1,8 +1,8 @@
-// Package archivestats turns an archived job into the figures the statistics
+// Package statistics turns an archived job into the figures the statistics
 // pipelines read. Everything here is a pure transformation: no Mongo, no clock,
 // no key material, so the rules are testable in isolation from the worker that
 // applies them.
-package archivestats
+package statistics
 
 import (
 	"strings"
@@ -154,21 +154,21 @@ func earliestTransactionDate(transactions []models.Transaction, fallback time.Ti
 	return earliest, found
 }
 
-// RowFromSnapshot reduces one archived job to its statistics row, given the
+// RowFromFigures reduces one archived job to its statistics row, given the
 // snapshot already computed for it. now stamps ProcessedAt and stands in for a
 // missing archive date, so callers control the clock.
 //
 // The row is returned uncounted. Whether its figures are in the aggregates is not
 // a property of the job, and only a caller that wrote them can say so — a caller
 // that merely creates the row leaves it outstanding for the next fold.
-func RowFromSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time) models.ArchivedJobStats {
-	doc := buildSnapshot(job, snap, now)
+func RowFromFigures(job models.Job, snap models.JobFigures, now time.Time) models.ArchivedJobStats {
+	doc := buildRow(job, snap, now)
 	doc.Owner = models.AccountOwner(job.MetaData.AccountID)
 	doc.ID = eipmongo.ArchivedJobStatsDocumentID(doc.Owner, job.JobID)
 	return doc
 }
 
-func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time) models.ArchivedJobStats {
+func buildRow(job models.Job, snap models.JobFigures, now time.Time) models.ArchivedJobStats {
 	now = now.UTC()
 	archivedAt := archiveDateFor(job, now)
 

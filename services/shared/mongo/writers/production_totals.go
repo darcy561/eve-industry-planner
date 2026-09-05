@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// ProductionTotalsArchivePair is one ordered pair: upsert/update build_stats then mark archivedJobs.
+// ProductionTotalsArchivePair is one ordered pair: upsert/update production_totals then mark archived_jobs.
 // Callers prepare filters/updates (including $inc / $push); this package only runs the bulk.
 type ProductionTotalsArchivePair struct {
 	StatsFilter bson.M
@@ -28,11 +28,11 @@ func ApplyProductionTotalsArchiveBatch(ctx context.Context, m *eipmongo.Mongo, o
 		return fmt.Errorf("ApplyProductionTotalsArchiveBatch: mongo is required")
 	}
 	if opName == "" {
-		opName = "build_stats archive batch"
+		opName = "production_totals archive batch"
 	}
 	bulk := m.Bulk()
 	for _, p := range pairs {
-		bulk.UpdateOne(m.ProductionTotals, p.StatsFilter, p.StatsUpdate, eipmongo.Upsert())
+		bulk.UpdateOne(m.StatisticsTotals, p.StatsFilter, p.StatsUpdate, eipmongo.Upsert())
 		bulk.UpdateOne(m.ArchivedJobs, p.JobFilter, p.JobUpdate)
 	}
 	_, err := RunOrdered(ctx, opName, bulk)

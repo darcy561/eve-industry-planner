@@ -10,9 +10,11 @@ package enginetest
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -41,6 +43,92 @@ type Engine struct {
 	// ContainerList is the GET /containers/json queue: each call pops the
 	// next entry, and the last entry repeats once drained. Empty → [].
 	ContainerList []Response
+
+	// ImageList is the GET /images/json response. Empty → [].
+	ImageList Response
+
+	// ServiceList and TaskList are the GET /services and GET /tasks queues: each
+	// call pops the next entry and the last repeats once drained. Empty → [].
+	ServiceList []Response
+	TaskList    []Response
+
+	// NetworkList is the GET /networks response. Empty → [].
+	NetworkList Response
+	// NetworkRemoveFailures maps a network id to how many DELETE attempts should
+	// fail before one succeeds, so a retry can be told from a single attempt.
+	NetworkRemoveFailures map[string]int
+	// NetworkRemoves records every DELETE /networks/{id}, oldest first.
+	NetworkRemoves []string
+
+	taskListCalls int
+}
+
+// SetServiceList queues GET /services responses, one per call.
+func (e *Engine) SetServiceList(counts ...int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ServiceList = nil
+	for _, n := range counts {
+		e.ServiceList = append(e.ServiceList, Response{Status: http.StatusOK, Body: swarmItemsJSON("svc", n)})
+	}
+}
+
+// SetTaskList queues GET /tasks responses, one per call.
+func (e *Engine) SetTaskList(counts ...int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.TaskList = nil
+	for _, n := range counts {
+		e.TaskList = append(e.TaskList, Response{Status: http.StatusOK, Body: swarmItemsJSON("task", n)})
+	}
+}
+
+// SetNetworkList serves these id/name pairs from GET /networks.
+func (e *Engine) SetNetworkList(idToName map[string]string) {
+	entries := make([]string, 0, len(idToName))
+	for id, name := range idToName {
+		entries = append(entries, fmt.Sprintf(`{"Id":%q,"Name":%q}`, id, name))
+	}
+	sort.Strings(entries)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.NetworkList = Response{Status: http.StatusOK, Body: "[" + strings.Join(entries, ",") + "]"}
+}
+
+func swarmItemsJSON(prefix string, n int) string {
+	items := make([]string, 0, n)
+	for i := range n {
+		items = append(items, fmt.Sprintf(`{"ID":"%s-%d"}`, prefix, i))
+	}
+	return "[" + strings.Join(items, ",") + "]"
+}
+
+// popResponse takes the next queued response, repeating the last once drained.
+func popResponse(queue *[]Response) string {
+	if len(*queue) == 0 {
+		return "[]"
+	}
+	body := (*queue)[0].Body
+	if len(*queue) > 1 {
+		*queue = (*queue)[1:]
+	}
+	if body == "" {
+		return "[]"
+	}
+	return body
+}
+
+// SetImageList serves these repo:tag pairs from GET /images/json, each with the
+// given creation time so a caller picking the newest has something to order on.
+func (e *Engine) SetImageList(tagged map[string]int64) {
+	summaries := make([]string, 0, len(tagged))
+	for repoTag, created := range tagged {
+		summaries = append(summaries, fmt.Sprintf(`{"Id":"sha256:%x","RepoTags":["%s"],"Created":%d}`, len(repoTag), repoTag, created))
+	}
+	sort.Strings(summaries)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ImageList = Response{Status: http.StatusOK, Body: "[" + strings.Join(summaries, ",") + "]"}
 }
 
 // ServiceUpdateCall is one captured ServiceUpdate request.
@@ -176,6 +264,60 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
+	case r.Method == http.MethodGet && path == "/services":
+		e.mu.Lock()
+		body := popResponse(&e.ServiceList)
+		e.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, body)
+		return
+	case r.Method == http.MethodGet && path == "/tasks":
+		e.mu.Lock()
+		e.taskListCalls++
+		body := popResponse(&e.TaskList)
+		e.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, body)
+		return
+	case r.Method == http.MethodGet && path == "/networks":
+		e.mu.Lock()
+		body := e.NetworkList.Body
+		e.mu.Unlock()
+		if body == "" {
+			body = "[]"
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, body)
+		return
+	case r.Method == http.MethodDelete && strings.HasPrefix(path, "/networks/"):
+		id := strings.TrimPrefix(path, "/networks/")
+		e.mu.Lock()
+		e.NetworkRemoves = append(e.NetworkRemoves, id)
+		remaining := e.NetworkRemoveFailures[id]
+		if remaining > 0 {
+			e.NetworkRemoveFailures[id] = remaining - 1
+		}
+		e.mu.Unlock()
+		if remaining > 0 {
+			http.Error(w, `{"message":"network `+id+` has active endpoints"}`, http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	case r.Method == http.MethodGet && path == "/images/json":
+		e.mu.Lock()
+		body := e.ImageList.Body
+		e.mu.Unlock()
+		if body == "" {
+			body = "[]"
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, body)
+		return
 	case r.Method == http.MethodGet && (path == "/_ping" || path == "/ping"):
 		w.Header().Set("API-Version", client.MaxAPIVersion)
 		w.WriteHeader(http.StatusOK)
@@ -267,4 +409,18 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, `{"message":"enginetest: unhandled `+r.Method+` `+path+`"}`, http.StatusNotImplemented)
 	}
+}
+
+// TaskListCalls reports how many GET /tasks requests have been served.
+func (e *Engine) TaskListCalls() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.taskListCalls
+}
+
+// NetworkRemoveCalls returns every DELETE /networks/{id} seen, oldest first.
+func (e *Engine) NetworkRemoveCalls() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string(nil), e.NetworkRemoves...)
 }

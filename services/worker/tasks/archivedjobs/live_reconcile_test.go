@@ -45,12 +45,12 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
 		defer c()
 		scope := bson.M{"accountID": reconcileScratchAccount}
-		_, _ = mongo.ArchivedJobStats.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountTimelineMonths.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.ProductionTotals.Collection().DeleteMany(cctx, scope)
-		_, _ = mongo.AccountReconcileRota.Collection().DeleteMany(cctx,
+		_, _ = mongo.StatisticsRows.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsTimeline.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsTotals.Collection().DeleteMany(cctx, scope)
+		_, _ = mongo.StatisticsReconcileRota.Collection().DeleteMany(cctx,
 			bson.M{"_id": models.AccountOwner(reconcileScratchAccount).Key()})
-		_, _ = mongo.AccountRebuildQueue.Collection().DeleteMany(cctx,
+		_, _ = mongo.StatisticsRebuildQueue.Collection().DeleteMany(cctx,
 			bson.M{"_id": models.AccountOwner(reconcileScratchAccount).Key()})
 	}
 	clean()
@@ -65,7 +65,7 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 	for _, row := range rows {
 		items = append(items, eipmongo.StructUpsertItem{DocID: row.ID, Value: row})
 	}
-	if _, err := mongo.ArchivedJobStats.UpsertStructsPreservingMetaBulk(ctx, items, 100); err != nil {
+	if _, err := mongo.StatisticsRows.UpsertStructsPreservingMetaBulk(ctx, items, 100); err != nil {
 		t.Fatalf("seed rows: %v", err)
 	}
 
@@ -88,7 +88,7 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 
 	// Break the aggregates in each of the ways a delta can: money off, a count
 	// off, a document that should exist gone, and one that should not, left.
-	bucketColl := mongo.AccountTimelineMonths.Collection()
+	bucketColl := mongo.StatisticsTimeline.Collection()
 	if _, err := bucketColl.UpdateOne(ctx, bson.M{"_id": baselineBuckets[0].ID},
 		bson.M{"$inc": bson.M{"salesTotal": 12345.67, "contributingRows": 4}}); err != nil {
 		t.Fatalf("corrupt a bucket: %v", err)
@@ -99,7 +99,7 @@ func TestLive_reconcile_restoresAggregatesAndReportsTheDrift(t *testing.T) {
 	orphan := baselineBuckets[0]
 	orphan.ID = eipmongo.TimelineMonthDocumentID(models.AccountOwner(reconcileScratchAccount), 99999, 2019, 1, false)
 	orphan.TypeID, orphan.Year, orphan.Month = 99999, 2019, 1
-	if _, err := mongo.AccountTimelineMonths.UpsertStructPreservingMeta(ctx, orphan, orphan.ID); err != nil {
+	if _, err := mongo.StatisticsTimeline.UpsertStructPreservingMeta(ctx, orphan, orphan.ID); err != nil {
 		t.Fatalf("insert an orphan bucket: %v", err)
 	}
 

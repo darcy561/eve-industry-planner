@@ -39,7 +39,7 @@ func SetupHandlers(mux *asynq.ServeMux, taskDeps *taskrun.Dependencies) error {
 	handle(handlers, eipnats.ApplySDEVersion, taskDeps, sdetasks.ApplySDEVersion)
 	handleTrigger(handlers, eipnats.RebuildCurrentSDEVersion, taskDeps, sdetasks.RebuildCurrentSDEVersion)
 	handle(handlers, eipnats.UpdateAccountSessionGrants, taskDeps, esi.RefreshAccountSessionGrants)
-	handleTrigger(handlers, eipnats.DrainAccountStatsRebuildQueue, taskDeps, archivedjobs.DrainAccountStatsRebuildQueue)
+	handle(handlers, eipnats.DispatchStatisticsRebuilds, taskDeps, archivedjobs.DispatchStatisticsRebuilds)
 	handle(handlers, eipnats.RebuildOwnerStatistics, taskDeps, archivedjobs.RebuildOwnerStatistics)
 	handle(handlers, eipnats.ApplyOwnerStatisticsDelta, taskDeps, archivedjobs.ApplyOwnerStatisticsDelta)
 	handleTrigger(handlers, eipnats.DispatchStatisticsReconciles, taskDeps, archivedjobs.DispatchStatisticsReconciles)

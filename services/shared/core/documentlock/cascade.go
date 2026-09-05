@@ -101,9 +101,9 @@ func ReleaseStaleDependentJobLocksOnGroupMembershipAdded(
 		return
 	}
 	_ = PublishLockEvent(ctx, d.NATS, accountID, BuildGroupCascadePayload(
-		eipmongo.CollectionAccountJobGroups,
+		eipmongo.CollectionJobGroups,
 		groupID,
-		eipmongo.CollectionAccountJobDocuments,
+		eipmongo.CollectionJobDocuments,
 		releases,
 		LockReleaseReasonGroupMembershipAdded,
 	))
@@ -158,9 +158,9 @@ func cascadeReleaseDependentJobLocks(
 		return
 	}
 	_ = PublishLockEvent(ctx, d.NATS, accountID, BuildGroupCascadePayload(
-		eipmongo.CollectionAccountJobGroups,
+		eipmongo.CollectionJobGroups,
 		groupID,
-		eipmongo.CollectionAccountJobDocuments,
+		eipmongo.CollectionJobDocuments,
 		releases,
 		cascadeReason,
 	))

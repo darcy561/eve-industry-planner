@@ -1,4 +1,4 @@
-package archivestats
+package statistics
 
 import (
 	"eve-industry-planner/shared/models"

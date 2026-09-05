@@ -193,7 +193,7 @@ func seedStatsRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docI
 		ID:    docID,
 		Owner: models.AccountOwner(rebuildStatsScratchAccount),
 	}
-	if _, err := mongo.ArchivedJobStats.UpsertStructsPreservingMetaBulk(ctx, []eipmongo.StructUpsertItem{{DocID: docID, Value: row}}, 10); err != nil {
+	if _, err := mongo.StatisticsRows.UpsertStructsPreservingMetaBulk(ctx, []eipmongo.StructUpsertItem{{DocID: docID, Value: row}}, 10); err != nil {
 		t.Fatalf("seed stats row %s: %v", docID, err)
 	}
 }
@@ -204,7 +204,7 @@ func seedBucket(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID 
 		ID:    docID,
 		Owner: models.AccountOwner(rebuildStatsScratchAccount),
 	}
-	if _, err := mongo.AccountTimelineMonths.UpsertStructsPreservingMetaBulk(ctx, []eipmongo.StructUpsertItem{{DocID: docID, Value: bucket}}, 10); err != nil {
+	if _, err := mongo.StatisticsTimeline.UpsertStructsPreservingMetaBulk(ctx, []eipmongo.StructUpsertItem{{DocID: docID, Value: bucket}}, 10); err != nil {
 		t.Fatalf("seed bucket %s: %v", docID, err)
 	}
 }
@@ -214,7 +214,7 @@ func isRevoked(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID s
 	var stored struct {
 		Revoked bool `bson:"revoked"`
 	}
-	if err := mongo.ArchivedJobStats.Collection().FindOne(ctx, bson.M{"_id": docID}).Decode(&stored); err != nil {
+	if err := mongo.StatisticsRows.Collection().FindOne(ctx, bson.M{"_id": docID}).Decode(&stored); err != nil {
 		t.Fatalf("read stats row %s: %v", docID, err)
 	}
 	return stored.Revoked
@@ -222,7 +222,7 @@ func isRevoked(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID s
 
 func countStatsRows(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo) int64 {
 	t.Helper()
-	n, err := mongo.ArchivedJobStats.Collection().CountDocuments(ctx, bson.M{"accountID": rebuildStatsScratchAccount})
+	n, err := mongo.StatisticsRows.Collection().CountDocuments(ctx, bson.M{"accountID": rebuildStatsScratchAccount})
 	if err != nil {
 		t.Fatalf("count stats rows: %v", err)
 	}
@@ -231,7 +231,7 @@ func countStatsRows(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo) in
 
 func bucketExists(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID string) bool {
 	t.Helper()
-	n, err := mongo.AccountTimelineMonths.Collection().CountDocuments(ctx, bson.M{"_id": docID})
+	n, err := mongo.StatisticsTimeline.Collection().CountDocuments(ctx, bson.M{"_id": docID})
 	if err != nil {
 		t.Fatalf("count bucket %s: %v", docID, err)
 	}
@@ -243,7 +243,7 @@ func revokedAt(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID s
 	var stored struct {
 		RevokedAt time.Time `bson:"revokedAt"`
 	}
-	if err := mongo.ArchivedJobStats.Collection().FindOne(ctx, bson.M{"_id": docID}).Decode(&stored); err != nil {
+	if err := mongo.StatisticsRows.Collection().FindOne(ctx, bson.M{"_id": docID}).Decode(&stored); err != nil {
 		t.Fatalf("read revokedAt %s: %v", docID, err)
 	}
 	return stored.RevokedAt

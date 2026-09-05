@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/statistics"
 	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -47,7 +47,7 @@ func seedArchivedJob(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, j
 func loadStatsRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jobID string) models.ArchivedJobStats {
 	t.Helper()
 	var row models.ArchivedJobStats
-	err := mongo.ArchivedJobStats.Collection().FindOne(ctx,
+	err := mongo.StatisticsRows.Collection().FindOne(ctx,
 		bson.M{"_id": eipmongo.ArchivedJobStatsDocumentID(models.AccountOwner(skippedScratchAccount), jobID)},
 	).Decode(&row)
 	if err != nil {
@@ -165,7 +165,7 @@ func TestLive_stampingDoesNotMoveTheAggregates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load rows: %v", err)
 	}
-	wanted := archivestats.AccumulateBuckets(rows)
+	wanted := statistics.AccumulateBuckets(rows)
 
 	broken := job
 	broken.Build.Setup = nil
@@ -178,7 +178,7 @@ func TestLive_stampingDoesNotMoveTheAggregates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload rows: %v", err)
 	}
-	got := archivestats.AccumulateBuckets(after)
+	got := statistics.AccumulateBuckets(after)
 	if len(got) != len(wanted) {
 		t.Fatalf("buckets went from %d to %d over a job that could not be read", len(wanted), len(got))
 	}

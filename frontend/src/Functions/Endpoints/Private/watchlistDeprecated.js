@@ -1,11 +1,11 @@
 /**
- * Legacy Firestore-shaped watchlist: `account_watchlist_deprecated` (private API).
+ * Legacy Firestore-shaped watchlist: `watchlist_deprecated` (private API).
  */
 import useUsersStore from "../../../Zustand/usersStore.js";
 import { requestWithPrivateHeaders } from "./applyPrivateHeaders.js";
 
 /** Must match `mongocore.CollectionUserWatchlistDeprecated` / changestream `collection` field. */
-export const USER_WATCHLIST_DEPRECATED_COLLECTION = "account_watchlist_deprecated";
+export const USER_WATCHLIST_DEPRECATED_COLLECTION = "watchlist_deprecated";
 
 /**
  * Fetches watchlist groups/items for the account and applies them to Zustand.

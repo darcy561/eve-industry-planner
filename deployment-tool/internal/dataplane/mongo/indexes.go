@@ -10,7 +10,7 @@ import (
 
 type mongoshRootFn func(ctx context.Context, cid string, c creds, eval string, env []string) (string, error)
 
-// ensureIndexes creates IndexSpecs via mongosh (idempotent; ignore already-exists).
+// ensureIndexes creates IndexSpecs via mongosh (idempotent; conflicts reconciled).
 // Streams progress with msg so CLI/TUI stay live; no short timeout — waits for builds.
 func ensureIndexes(ctx context.Context, cid string, c creds) error {
 	return ensureIndexesWith(ctx, cid, c, mongoshRoot)
@@ -37,6 +37,11 @@ func ensureIndexesWith(ctx context.Context, cid string, c creds, run mongoshRoot
 		out, err := run(ctx, cid, c, eval, nil)
 		if err != nil {
 			return wrapMongoshErr(err, out, "mongo: index %s.%s", spec.Collection, spec.Name)
+		}
+		for line := range strings.SplitSeq(out, "\n") {
+			if strings.Contains(line, "reconciled index ") {
+				msg.Line(strings.TrimRight(line, "\r"))
+			}
 		}
 		msg.Line(fmt.Sprintf("  index %s.%s ok", spec.Collection, spec.Name))
 	}
@@ -76,7 +81,16 @@ func renderIndexOptsObj(spec IndexSpec) string {
 	return fmt.Sprintf(`{ name: %q }`, spec.Name)
 }
 
-// renderCreateIndexJS builds mongosh --eval that createIndexes one spec (fail-closed except already-exists).
+// renderCreateIndexJS builds mongosh --eval that createIndexes one spec.
+//
+// A conflict is reconciled rather than ignored. Renaming a collection carries
+// its indexes over under their old names, so a spec routinely meets an index
+// with its exact keys under a name from before the rename; treating that as
+// "already done" leaves the spec list describing indexes the database does not
+// have, and Ensure reporting success for work it skipped. Dropping the
+// conflicting index and recreating it under the specced name costs a brief
+// unindexed window inside a maintenance operation, and buys a database that
+// matches its declaration.
 func renderCreateIndexJS(spec IndexSpec) (string, error) {
 	if err := validateIndexSpec(spec); err != nil {
 		return "", err
@@ -84,16 +98,28 @@ func renderCreateIndexJS(spec IndexSpec) (string, error) {
 	return fmt.Sprintf(`
 const appDb = db.getSiblingDB(%q);
 const coll = appDb.getCollection(%q);
+const keys = %s;
+const opts = %s;
+const wantKeys = JSON.stringify(keys);
 try {
-  coll.createIndex(%s, %s);
+  coll.createIndex(keys, opts);
 } catch (e) {
   const code = e.code;
-  const msg = String(e.message || e).toLowerCase();
-  if (code === 85 || code === 86 || msg.includes("already exists") || msg.includes("duplicate key")) {
-    // idempotent
-  } else {
+  // 85 IndexOptionsConflict: these keys already exist under another name.
+  // 86 IndexKeySpecsConflict: this name already exists over other keys.
+  if (code !== 85 && code !== 86) {
     throw e;
   }
+  const clashes = coll.getIndexes().filter(function (ix) {
+    if (ix.name === "_id_") return false;
+    return ix.name === opts.name || JSON.stringify(ix.key) === wantKeys;
+  });
+  clashes.forEach(function (ix) {
+    coll.dropIndex(ix.name);
+    print("  reconciled index " + coll.getName() + ": dropped " + ix.name);
+  });
+  coll.createIndex(keys, opts);
+  print("  reconciled index " + coll.getName() + ": created " + opts.name);
 }
 true;
 `, appDatabase, spec.Collection, renderIndexKeysObj(spec.Keys), renderIndexOptsObj(spec)), nil

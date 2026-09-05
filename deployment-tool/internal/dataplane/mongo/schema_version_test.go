@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -86,7 +87,7 @@ func (r *recorder) run(_ context.Context, _ string, _ creds, eval string, _ []st
 // version rather than asking the database about each rename in turn.
 func TestEnsureRenamesSkipsAtCurrentVersion(t *testing.T) {
 	t.Parallel()
-	rec := &recorder{version: "1"}
+	rec := &recorder{version: fmt.Sprint(schemaVersionCurrent())}
 	if err := ensureRenamesWith(t.Context(), "cid", creds{}, rec.run); err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,7 @@ func TestEnsureRenamesAppliesAndRecords(t *testing.T) {
 	if !strings.Contains(last, "updateOne") || !strings.Contains(last, deployStateCollection) {
 		t.Fatalf("last call did not record the version: %s", last)
 	}
-	if !strings.Contains(last, "version: 1") {
+	if !strings.Contains(last, fmt.Sprintf("version: %d", schemaVersionCurrent())) {
 		t.Fatalf("recorded version is not the current one: %s", last)
 	}
 }

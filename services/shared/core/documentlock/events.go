@@ -141,7 +141,7 @@ func BuildHandoffCompletedPayload(
 //   - `reason`    — wire tag (e.g. LockReleaseReasonGroupHandoffCascade,
 //     LockReleaseReasonGroupMembershipAdded); empty string defaults to handoff.
 //
-// The collection on every release is always `user_job_documents`; the
+// The collection on every release is always `job_documents`; the
 // envelope's top-level `collection` field repeats it so receivers can
 // filter the event without scanning the array.
 func BuildGroupCascadePayload(groupCollection, groupID, cascadedCollection string, releases []CascadeRelease, reason string) map[string]any {

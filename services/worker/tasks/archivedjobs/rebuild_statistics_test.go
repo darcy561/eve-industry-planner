@@ -8,6 +8,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/worker/taskrun"
 )
 
@@ -26,7 +27,7 @@ func TestRebuildAccountStatisticsRequiresHandleAndAccount(t *testing.T) {
 func TestDispatchRequiresHandles(t *testing.T) {
 	t.Parallel()
 
-	if _, err := DispatchQueuedRebuilds(t.Context(), nil, nil, time.Now()); err == nil {
+	if _, err := DispatchQueuedRebuilds(t.Context(), nil, nil, time.Now(), false); err == nil {
 		t.Fatal("expected an error without a mongo handle")
 	}
 }
@@ -96,13 +97,13 @@ func TestNoJobsKeepsNothing(t *testing.T) {
 
 // The task carries no payload, so a nil task is valid input — the queue names
 // the work. Missing dependencies are not.
-func TestDrainAccountStatsRebuildQueueTaskRequiresDependencies(t *testing.T) {
+func TestDispatchStatisticsRebuildsTaskRequiresDependencies(t *testing.T) {
 	t.Parallel()
 
-	if err := DrainAccountStatsRebuildQueue(t.Context(), nil); err == nil {
+	if err := DispatchStatisticsRebuilds(t.Context(), eipnats.DrainRebuildQueueRequest{}, nil); err == nil {
 		t.Fatal("expected an error without task dependencies")
 	}
-	if err := DrainAccountStatsRebuildQueue(t.Context(), &taskrun.Dependencies{}); err == nil {
+	if err := DispatchStatisticsRebuilds(t.Context(), eipnats.DrainRebuildQueueRequest{}, &taskrun.Dependencies{}); err == nil {
 		t.Fatal("expected an error without a mongo client")
 	}
 }

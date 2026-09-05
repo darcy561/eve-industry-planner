@@ -26,7 +26,7 @@ type DispatchResult struct {
 	Failed     int
 }
 
-// DrainAccountStatsRebuildQueue dispatches a rebuild for every owner whose wait
+// DispatchStatisticsRebuilds dispatches a rebuild for every owner whose wait
 // is up.
 //
 // It performs no rebuild itself. Rebuilding in the dispatcher put every owner
@@ -35,7 +35,7 @@ type DispatchResult struct {
 // cancelled context, a pass that ran out of time cleared nothing and the next
 // pass started from the same place. One task per owner rebuilds in parallel and
 // each clears its own, so progress is per owner rather than per pass.
-func DrainAccountStatsRebuildQueue(ctx context.Context, deps *taskrun.Dependencies) error {
+func DispatchStatisticsRebuilds(ctx context.Context, req eipnats.DrainRebuildQueueRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
@@ -43,7 +43,7 @@ func DrainAccountStatsRebuildQueue(ctx context.Context, deps *taskrun.Dependenci
 		return fmt.Errorf("nats client is required")
 	}
 
-	result, err := DispatchQueuedRebuilds(ctx, deps.Mongo, deps.NATS, time.Now().UTC())
+	result, err := DispatchQueuedRebuilds(ctx, deps.Mongo, deps.NATS, time.Now().UTC(), req.IgnoreDebounce)
 	if err != nil {
 		return fmt.Errorf("dispatch queued rebuilds: %w", err)
 	}
@@ -51,6 +51,7 @@ func DrainAccountStatsRebuildQueue(ctx context.Context, deps *taskrun.Dependenci
 	logs.InfoCtx(ctx, "statistics rebuilds dispatched",
 		"component", "archivedjobs",
 		"eligible", result.Eligible,
+		"ignore_debounce", req.IgnoreDebounce,
 		"dispatched", result.Dispatched,
 		"failed", result.Failed,
 	)
@@ -69,7 +70,22 @@ func DrainAccountStatsRebuildQueue(ctx context.Context, deps *taskrun.Dependenci
 }
 
 // DispatchQueuedRebuilds publishes one rebuild task per eligible owner.
-func DispatchQueuedRebuilds(ctx context.Context, mongo *eipmongo.Mongo, nats *eipnats.NATS, now time.Time) (DispatchResult, error) {
+// dispatchable reports whether an entry goes on this pass.
+//
+// A delta is what a user is waiting on, so it always goes. A rebuild waits out
+// the debounce — unless the caller is an operator who asked for the drain by
+// hand, who is waiting on the queue rather than being protected from it.
+func dispatchable(entry eipmongo.QueuedOwner, now time.Time, ignoreDebounce bool) bool {
+	if entry.Work != eipmongo.StatsWorkRebuild {
+		return true
+	}
+	if ignoreDebounce {
+		return true
+	}
+	return !entry.QueuedAt.After(now.Add(-rebuildDebounce))
+}
+
+func DispatchQueuedRebuilds(ctx context.Context, mongo *eipmongo.Mongo, nats *eipnats.NATS, now time.Time, ignoreDebounce bool) (DispatchResult, error) {
 	var out DispatchResult
 	if mongo == nil {
 		return out, fmt.Errorf("mongo handle is required")
@@ -89,7 +105,7 @@ func DispatchQueuedRebuilds(ctx context.Context, mongo *eipmongo.Mongo, nats *ei
 		if err := ctx.Err(); err != nil {
 			break
 		}
-		if entry.Work == eipmongo.StatsWorkRebuild && entry.QueuedAt.After(now.Add(-rebuildDebounce)) {
+		if !dispatchable(entry, now, ignoreDebounce) {
 			continue
 		}
 		publish := eipnats.PublishRebuildOwnerStatistics

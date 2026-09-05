@@ -77,7 +77,7 @@ func (b ProductionTotalsBreakdown) Plus(src ProductionTotalsBreakdown) Productio
 	return b
 }
 
-// ProductionTotalsRow is one document in account_production_totals, keyed by account and item type.
+// ProductionTotalsRow is one document in production_totals, keyed by owner and item type.
 type ProductionTotalsRow struct {
 	ID string `bson:"_id" json:"-"`
 	// Owner scopes the document. The owner is also the leading segment of the
@@ -127,9 +127,9 @@ func (r ProductionTotalsRow) Plus(src ProductionTotalsRow) ProductionTotalsRow {
 	return r
 }
 
-// BuildStatSnapshot is one archived job reduced to the figures its statistics row
+// JobFigures is one archived job reduced to the figures its statistics row
 // is built from.
-type BuildStatSnapshot struct {
+type JobFigures struct {
 	TypeID              int     `json:"typeID" bson:"typeID"`
 	JobID               string  `json:"jobID" bson:"jobID"`
 	JobType             int     `json:"jobType" bson:"jobType"`

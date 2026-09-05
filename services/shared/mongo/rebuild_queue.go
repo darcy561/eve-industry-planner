@@ -44,13 +44,13 @@ type QueuedOwner struct {
 // Upgrading an entry is therefore lossless, and the reverse never happens — a
 // delta arriving against a queued rebuild leaves the rebuild in place.
 func (m *Mongo) QueueOwnerWork(ctx context.Context, owner models.Owner, work StatsWork, now time.Time, opts ...RetryOption) error {
-	if m == nil || m.AccountRebuildQueue == nil {
+	if m == nil || m.StatisticsRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return err
 	}
-	coll, err := m.AccountRebuildQueue.requireColl()
+	coll, err := m.StatisticsRebuildQueue.requireColl()
 	if err != nil {
 		return err
 	}
@@ -83,10 +83,10 @@ func (m *Mongo) QueueOwnerWork(ctx context.Context, owner models.Owner, work Sta
 // sliding one, so an owner changing continuously is still rebuilt on schedule. A
 // zero time reads everything waiting.
 func (m *Mongo) ListQueuedOwners(ctx context.Context, eligibleBefore time.Time, opts ...RetryOption) ([]QueuedOwner, error) {
-	if m == nil || m.AccountRebuildQueue == nil {
+	if m == nil || m.StatisticsRebuildQueue == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	coll, err := m.AccountRebuildQueue.requireColl()
+	coll, err := m.StatisticsRebuildQueue.requireColl()
 	if err != nil {
 		return nil, err
 	}
@@ -144,13 +144,13 @@ func (m *Mongo) ListQueuedOwners(ctx context.Context, eligibleBefore time.Time, 
 // while the work ran and keeps its place, so the request that arrived is not
 // lost.
 func (m *Mongo) ClearQueuedOwner(ctx context.Context, queued QueuedOwner, opts ...RetryOption) (bool, error) {
-	if m == nil || m.AccountRebuildQueue == nil {
+	if m == nil || m.StatisticsRebuildQueue == nil {
 		return false, fmt.Errorf("mongo handle is required")
 	}
 	if err := queued.Owner.Validate(); err != nil {
 		return false, err
 	}
-	coll, err := m.AccountRebuildQueue.requireColl()
+	coll, err := m.StatisticsRebuildQueue.requireColl()
 	if err != nil {
 		return false, err
 	}
@@ -181,13 +181,13 @@ func (m *Mongo) ClearQueuedOwner(ctx context.Context, queued QueuedOwner, opts .
 // re-queued, upgraded to a rebuild, or swept by one, and whatever took it on
 // accounts for the same rows.
 func (m *Mongo) OwnerClaimIsCurrent(ctx context.Context, queued QueuedOwner, opts ...RetryOption) (bool, error) {
-	if m == nil || m.AccountRebuildQueue == nil {
+	if m == nil || m.StatisticsRebuildQueue == nil {
 		return false, fmt.Errorf("mongo handle is required")
 	}
 	if err := queued.Owner.Validate(); err != nil {
 		return false, err
 	}
-	coll, err := m.AccountRebuildQueue.requireColl()
+	coll, err := m.StatisticsRebuildQueue.requireColl()
 	if err != nil {
 		return false, err
 	}
@@ -220,13 +220,13 @@ func (m *Mongo) OwnerClaimIsCurrent(ctx context.Context, queued QueuedOwner, opt
 // else took this owner on". There is no upsert: with no entry there is no work
 // in flight to invalidate, and creating one would invent work nothing asked for.
 func (m *Mongo) BumpOwnerClaim(ctx context.Context, owner models.Owner, opts ...RetryOption) error {
-	if m == nil || m.AccountRebuildQueue == nil {
+	if m == nil || m.StatisticsRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return err
 	}
-	coll, err := m.AccountRebuildQueue.requireColl()
+	coll, err := m.StatisticsRebuildQueue.requireColl()
 	if err != nil {
 		return err
 	}
@@ -270,13 +270,13 @@ const ownerWorkFailureCeiling = 1
 // stored on any statistics document — nothing has to remember to keep it in step
 // with the queue, because it is read from the queue.
 func (m *Mongo) OwnerRecalculationState(ctx context.Context, owner models.Owner, opts ...RetryOption) (RecalculationState, error) {
-	if m == nil || m.AccountRebuildQueue == nil {
+	if m == nil || m.StatisticsRebuildQueue == nil {
 		return RecalculationCurrent, fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return RecalculationCurrent, err
 	}
-	coll, err := m.AccountRebuildQueue.requireColl()
+	coll, err := m.StatisticsRebuildQueue.requireColl()
 	if err != nil {
 		return RecalculationCurrent, err
 	}
@@ -318,13 +318,13 @@ func (m *Mongo) OwnerRecalculationState(ctx context.Context, owner models.Owner,
 // retries: without a count, a permanently failing owner is dispatched, fails,
 // and is dispatched again for as long as it exists.
 func (m *Mongo) RecordOwnerWorkFailure(ctx context.Context, owner models.Owner, reason string, now time.Time, opts ...RetryOption) error {
-	if m == nil || m.AccountRebuildQueue == nil {
+	if m == nil || m.StatisticsRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return err
 	}
-	coll, err := m.AccountRebuildQueue.requireColl()
+	coll, err := m.StatisticsRebuildQueue.requireColl()
 	if err != nil {
 		return err
 	}
@@ -344,13 +344,13 @@ func (m *Mongo) RecordOwnerWorkFailure(ctx context.Context, owner models.Owner, 
 // belong to a run that has since worked, and leaving them would report a failed
 // recalculation for work that is merely outstanding.
 func (m *Mongo) ClearOwnerWorkFailure(ctx context.Context, owner models.Owner, opts ...RetryOption) error {
-	if m == nil || m.AccountRebuildQueue == nil {
+	if m == nil || m.StatisticsRebuildQueue == nil {
 		return fmt.Errorf("mongo handle is required")
 	}
 	if err := owner.Validate(); err != nil {
 		return err
 	}
-	coll, err := m.AccountRebuildQueue.requireColl()
+	coll, err := m.StatisticsRebuildQueue.requireColl()
 	if err != nil {
 		return err
 	}

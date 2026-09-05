@@ -59,7 +59,7 @@ describe("useLockSyncHeartbeat", () => {
       useLockSyncHeartbeat({
         enabled: false,
         docID: "j1",
-        collection: "account_job_documents",
+        collection: "job_documents",
         syncLockFromServer,
         flushExtendLease,
       })
@@ -76,7 +76,7 @@ describe("useLockSyncHeartbeat", () => {
       useLockSyncHeartbeat({
         enabled: true,
         docID: "j1",
-        collection: "account_job_documents",
+        collection: "job_documents",
         syncLockFromServer,
         flushExtendLease,
       })

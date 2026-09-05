@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/shared/statistics"
 	"eve-industry-planner/worker/taskrun"
 )
 
@@ -142,7 +142,7 @@ func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo
 		if terr != nil {
 			return out, false, fmt.Errorf("load rows for type %d: %w", typeID, terr)
 		}
-		if merr := mongo.SetBuildHistoryMarks(ctx, owner, typeID, archivestats.BuildHistory(typeRows)); merr != nil {
+		if merr := mongo.SetBuildHistoryMarks(ctx, owner, typeID, statistics.BuildHistory(typeRows)); merr != nil {
 			return out, false, fmt.Errorf("set marks for type %d: %w", typeID, merr)
 		}
 	}
@@ -178,13 +178,13 @@ func accumulate(rows []models.ArchivedJobStats, negate bool, types map[int]struc
 	ids := make([]string, 0, len(rows))
 
 	for _, row := range rows {
-		contribution := archivestats.ContributionOf(row)
+		contribution := statistics.ContributionOf(row)
 		if negate {
 			// A revoked row contributes nothing when folded, so the figures to
 			// reverse are the ones it would contribute if it were not revoked.
 			live := row
 			live.Revoked = false
-			contribution = archivestats.ContributionOf(live).Negated()
+			contribution = statistics.ContributionOf(live).Negated()
 		}
 		for key, bucket := range contribution.Buckets {
 			held := delta.Buckets[key]

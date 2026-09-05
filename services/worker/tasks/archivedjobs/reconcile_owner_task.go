@@ -49,8 +49,8 @@ func ReconcileOwnerStatistics(ctx context.Context, req eipnats.ReconcileOwnerSta
 		"rows", result.Rows,
 		"created", result.Created,
 		"skipped_jobs", result.SkippedJobs,
-		"timeline_months", result.Buckets,
-		"production_totals", result.Totals,
+		"statistics_timeline", result.Buckets,
+		"statistics_totals", result.Totals,
 		"pruned_buckets", result.PrunedBuckets,
 		"pruned_totals", result.PrunedTotals,
 	)

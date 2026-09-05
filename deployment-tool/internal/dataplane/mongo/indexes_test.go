@@ -12,28 +12,30 @@ func TestIndexSpecsCoverExpected(t *testing.T) {
 	t.Parallel()
 	specs := IndexSpecs()
 	want := map[string]bool{
-		"accounts.meta_accountID_1":                                                true,
-		"accounts.accounts_meta_lastLoginAt_1":                                     true,
-		"account_settings.meta_accountID_1":                                        true,
-		"account_job_groups.ajg_meta_accountID_1":                                  true,
-		"account_watchlist_deprecated.awd_meta_accountID_1":                        true,
-		"account_job_documents.ajd_meta_accountID_displayOnPlanner_1":              true,
-		"account_job_documents.ajd_meta_accountID_groupID_1":                       true,
-		"account_job_documents.ajd_linkedJobs_corporation_id_1":                    true,
-		"account_job_documents.ajd_protected_spec_1":                               true,
-		"account_job_documents.ajd_meta_accountID_marketOrders_order_id_1":         true,
-		"account_job_documents.ajd_meta_accountID_linkedJobs_job_id_1":             true,
-		"account_job_documents.ajd_meta_accountID_transactions_transaction_id_1":   true,
-		"account_archived_jobs.aj_linkedJobs_corporation_id_1":                     true,
-		"account_archived_jobs.aj_protected_spec_1":                                true,
-		"account_archived_jobs.aj_meta_accountID_archivedAt_1":                     true,
-		"account_archived_jobs.aj_meta_accountID_itemID_1":                         true,
-		"account_archived_jobs.aj_meta_accountID_groupID_1":                        true,
-		"account_archived_job_stats.aajs_owner_typeID_isProductionChain_revoked_1": true,
-		"account_archived_job_stats.aajs_owner_archivedAt_revoked_1":               true,
-		"account_timeline_months.atm_owner_year_month_typeID_1":                    true,
-		"account_timeline_months.atm_owner_typeID_year_month_1":                    true,
-		"account_production_totals.apt_owner_typeID_1":                             true,
+		"accounts.meta_accountID_1":                                      true,
+		"accounts.accounts_meta_lastLoginAt_1":                           true,
+		"account_settings.meta_accountID_1":                              true,
+		"job_groups.ajg_meta_accountID_1":                                true,
+		"watchlist_deprecated.awd_meta_accountID_1":                      true,
+		"job_documents.ajd_meta_accountID_displayOnPlanner_1":            true,
+		"job_documents.ajd_meta_accountID_groupID_1":                     true,
+		"job_documents.ajd_linkedJobs_corporation_id_1":                  true,
+		"job_documents.ajd_protected_spec_1":                             true,
+		"job_documents.ajd_meta_accountID_marketOrders_order_id_1":       true,
+		"job_documents.ajd_meta_accountID_linkedJobs_job_id_1":           true,
+		"job_documents.ajd_meta_accountID_transactions_transaction_id_1": true,
+		"archived_jobs.aj_linkedJobs_corporation_id_1":                   true,
+		"archived_jobs.aj_protected_spec_1":                              true,
+		"archived_jobs.aj_meta_accountID_archivedAt_jobID_1":             true,
+		"archived_jobs.aj_meta_accountID_name_jobID_1":                   true,
+		"archived_jobs.aj_meta_accountID_itemID_jobID_1":                 true,
+		"archived_jobs.aj_meta_accountID_jobType_jobID_1":                true,
+		"archived_jobs.aj_meta_accountID_groupID_1":                      true,
+		"statistics_rows.aajs_owner_revoked_contributedAt_1":             true,
+		"statistics_rows.aajs_owner_typeID_revoked_1":                    true,
+		"statistics_timeline.atm_owner_isProductionChain_typeID_1":       true,
+		"statistics_timeline.atm_owner_typeID_1":                         true,
+		"statistics_totals.apt_owner_typeID_1":                           true,
 	}
 	if len(specs) != len(want) {
 		t.Fatalf("len=%d want %d", len(specs), len(want))
@@ -70,9 +72,10 @@ func TestIndexSpecsRenderAll(t *testing.T) {
 			fmt.Sprintf(`getCollection(%q)`, spec.Collection),
 			fmt.Sprintf(`name: %q`, spec.Name),
 			`createIndex`,
-			`code === 85`,
-			`code === 86`,
-			`already exists`,
+			`code !== 85`,
+			`code !== 86`,
+			`dropIndex`,
+			`reconciled index `,
 			renderIndexKeysObj(spec.Keys),
 		}
 		for _, frag := range need {
@@ -98,7 +101,7 @@ func TestIndexSpecsRenderAll(t *testing.T) {
 func TestRenderCreateIndexJSEmitsPartialFilter(t *testing.T) {
 	t.Parallel()
 	spec := IndexSpec{
-		Collection:        "account_archived_jobs",
+		Collection:        "archived_jobs",
 		Name:              "test_partial_1",
 		Keys:              []IndexKey{{Field: "_meta.accountID", Order: 1}},
 		PartialFilterJSON: `{"revoked": false}`,
@@ -110,7 +113,7 @@ func TestRenderCreateIndexJSEmitsPartialFilter(t *testing.T) {
 	for _, frag := range []string{
 		"partialFilterExpression",
 		`"revoked": false`,
-		`"account_archived_jobs"`,
+		`"archived_jobs"`,
 		`"_meta.accountID": 1`,
 	} {
 		if !strings.Contains(js, frag) {
@@ -211,11 +214,11 @@ func TestIndexSpecsPreimageCollectionsOverlap(t *testing.T) {
 	t.Parallel()
 	// Collections that need delete fullDocumentBeforeChange must stay in PreimageCollections.
 	needPreimage := map[string]bool{
-		"account_job_groups":           true,
-		"account_job_documents":        true,
-		"accounts":                     true,
-		"account_settings":             true,
-		"account_watchlist_deprecated": true,
+		"job_groups":           true,
+		"job_documents":        true,
+		"accounts":             true,
+		"account_settings":     true,
+		"watchlist_deprecated": true,
 	}
 	pre := map[string]bool{}
 	for _, name := range PreimageCollections {

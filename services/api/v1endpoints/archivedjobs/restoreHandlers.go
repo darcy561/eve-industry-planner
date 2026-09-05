@@ -153,12 +153,12 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, accountID, sessionID 
 
 	groupIDs, _ := groupJobsByGroupID(jobs)
 	if len(groupIDs) > 0 {
-		rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionAccountJobGroups, groupIDs, nil)
+		rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobGroups, groupIDs, nil)
 		if err != nil {
 			return "", nil, err
 		}
 		if len(rejects) > 0 {
-			return eipmongo.CollectionAccountJobGroups, rejects, nil
+			return eipmongo.CollectionJobGroups, rejects, nil
 		}
 	}
 
@@ -172,12 +172,12 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, accountID, sessionID 
 	if len(loose) == 0 {
 		return "", nil, nil
 	}
-	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionAccountJobDocuments, loose, nil)
+	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobDocuments, loose, nil)
 	if err != nil {
 		return "", nil, err
 	}
 	if len(rejects) > 0 {
-		return eipmongo.CollectionAccountJobDocuments, rejects, nil
+		return eipmongo.CollectionJobDocuments, rejects, nil
 	}
 	return "", nil, nil
 }

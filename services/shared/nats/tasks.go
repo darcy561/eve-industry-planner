@@ -34,12 +34,12 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  15 * time.Minute,
 	})
-	// DrainAccountStatsRebuildQueue reads the statistics queue and publishes one
+	// DispatchStatisticsRebuilds reads the statistics queue and publishes one
 	// task per owner whose wait is up. It dispatches only, so its timeout covers a
 	// queue read and a fan-out rather than any owner's work.
-	DrainAccountStatsRebuildQueue = defineTask(Definition{
-		Name:            "drainAccountStatsRebuildQueue",
-		Subject:         "task.scheduled.drainAccountStatsRebuildQueue",
+	DispatchStatisticsRebuilds = defineTask(Definition{
+		Name:            "dispatchStatisticsRebuilds",
+		Subject:         "task.scheduled.dispatchStatisticsRebuilds",
 		DefaultPriority: Priority4,
 		DefaultTimeout:  15 * time.Minute,
 	})
@@ -154,10 +154,20 @@ var (
 // names what it is asking for rather than assembling a payload first. A zero
 // value means the worker's default, exactly as the omitted JSON field does.
 
-// PublishDrainAccountStatsRebuildQueue asks the worker to dispatch a rebuild for
+// PublishDispatchStatisticsRebuilds asks the worker to dispatch a rebuild for
 // every owner waiting in the queue.
-func PublishDrainAccountStatsRebuildQueue(ctx context.Context, n *NATS) error {
-	return publish(ctx, n, DrainAccountStatsRebuildQueue, struct{}{})
+func PublishDispatchStatisticsRebuilds(ctx context.Context, n *NATS, req DrainRebuildQueueRequest) error {
+	return publish(ctx, n, DispatchStatisticsRebuilds, req)
+}
+
+// DrainRebuildQueueRequest carries whether the debounce applies to this pass.
+//
+// The scheduled pass leaves it false: the debounce bounds how often an owner is
+// rebuilt while the system serves traffic. An operator running the drain by hand
+// is not that case — they are usually inside a maintenance window waiting on the
+// queue — so the command sets it and every waiting owner goes at once.
+type DrainRebuildQueueRequest struct {
+	IgnoreDebounce bool `json:"ignoreDebounce,omitempty"`
 }
 
 // PublishApplyOwnerStatisticsDelta asks the worker to fold one owner's uncounted

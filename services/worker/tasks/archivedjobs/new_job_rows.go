@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/statistics"
 )
 
 // newRowsResult reports what one pass over newly archived jobs produced.
@@ -38,7 +38,7 @@ func writeRowsForNewlyArchivedJobs(ctx context.Context, mongo *eipmongo.Mongo, o
 	}
 
 	err := mongo.EachArchivedJobWithoutStatsRow(ctx, owner, have, func(job models.Job) error {
-		row, rerr := archivestats.NewRow(job, now)
+		row, rerr := statistics.NewRow(job, now)
 		if rerr != nil {
 			// The job stays without a row and is offered again next pass. Failing
 			// here would strand every other new job behind one bad document.

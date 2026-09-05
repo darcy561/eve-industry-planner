@@ -34,10 +34,8 @@ func TestServiceUpdateCapture(t *testing.T) {
 	eng := enginetest.New(t)
 	api := eng.APIClient()
 	eng.SetServiceOK("eip_svc", swarmtypes.Service{
-		ID: "svc-id",
-		Meta: swarmtypes.Meta{
-			Version: swarmtypes.Version{Index: 4},
-		},
+		ID:      "svc-id",
+		Version: swarmtypes.Version{Index: 4},
 		Spec: swarmtypes.ServiceSpec{
 			Annotations: swarmtypes.Annotations{
 				Name:   "eip_svc",

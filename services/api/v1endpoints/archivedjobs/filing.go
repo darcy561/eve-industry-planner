@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/statistics"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -135,7 +135,7 @@ func (h *Handlers) FileArchivedJobMonthsHandler(w http.ResponseWriter, r *http.R
 
 		// The rows are rewritten here so the archive list agrees at once; the
 		// rebuild below is what moves the aggregates.
-		row, rowErr := archivestats.NewRow(*job, now)
+		row, rowErr := statistics.NewRow(*job, now)
 		if rowErr != nil {
 			continue
 		}

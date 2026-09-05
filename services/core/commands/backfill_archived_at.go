@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/stackservices"
+	"eve-industry-planner/shared/statistics"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
@@ -107,7 +107,7 @@ func runBackfillArchivedAt(ctx context.Context, args []string) error {
 		}
 		scanned++
 
-		archivedAt, ok := archivestats.EvidencedArchiveDate(job)
+		archivedAt, ok := statistics.EvidencedArchiveDate(job)
 		if !ok {
 			unevidence++
 			continue

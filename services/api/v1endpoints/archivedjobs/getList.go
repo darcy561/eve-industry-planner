@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	"eve-industry-planner/shared/statistics"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -220,16 +220,16 @@ func (h *Handlers) GetArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 // archivedAtFormat is the wire form for an archive timestamp.
 const archivedAtFormat = "2006-01-02T15:04:05Z"
 
-// measuresFromStats reduces a statistics row through archivestats.JobMeasures,
+// measuresFromStats reduces a statistics row through statistics.JobMeasures,
 // the same reduction the totals are folded from.
 func measuresFromStats(row models.ArchivedJobStats) *listMeasures {
-	measures := archivestats.JobMeasures(row)
+	measures := statistics.JobMeasures(row)
 	return &listMeasures{
 		ItemsProduced: measures.ItemBuildCount,
 		JobCostTotal:  measures.JobCostTotal,
 		SalesTotal:    measures.SalesTotal,
 		ProfitLoss:    measures.ProfitLoss,
-		Segment:       archivestats.JobSegment(row),
+		Segment:       statistics.JobSegment(row),
 	}
 }
 

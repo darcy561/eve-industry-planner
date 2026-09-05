@@ -245,14 +245,14 @@ func rangeMatchStages(q TimelineQuery) []bson.D {
 	)
 }
 
-// TimelineMonths sums an account's bucket rows into one entry per calendar
+// TimelineMonths sums an owner's bucket rows into one entry per calendar
 // month, ascending.
 //
 // The sum happens here rather than in the caller because an account can hold
 // buckets for thousands of item types in a single month; shipping them to be
 // folded client-side is the payload this view exists to avoid.
 func (m *Mongo) TimelineMonths(ctx context.Context, q TimelineQuery, opts ...RetryOption) ([]TimelineMonthRow, error) {
-	if m == nil || m.AccountTimelineMonths == nil {
+	if m == nil || m.StatisticsTimeline == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
 	if err := q.Owner.Validate(); err != nil {
@@ -269,7 +269,7 @@ func (m *Mongo) TimelineMonths(ctx context.Context, q TimelineQuery, opts ...Ret
 	))
 
 	var rows []timelineMonthAggregateRow
-	if err := m.AccountTimelineMonths.Aggregate(ctx, pipeline, &rows, append([]RetryOption{WithOpName("TimelineMonths")}, opts...)...); err != nil {
+	if err := m.StatisticsTimeline.Aggregate(ctx, pipeline, &rows, append([]RetryOption{WithOpName("TimelineMonths")}, opts...)...); err != nil {
 		return nil, err
 	}
 
@@ -287,7 +287,7 @@ type TimelineItemsPage struct {
 	TotalItems int
 }
 
-// TimelineItems groups an account's bucket rows by item type across the whole
+// TimelineItems groups an owner's bucket rows by item type across the whole
 // window, ranked.
 //
 // Ranking is server-side because it cannot be done anywhere else: ordering item
@@ -298,7 +298,7 @@ type TimelineItemsPage struct {
 // profitLoss descending, the ordering the dashboard reads.
 func (m *Mongo) TimelineItems(ctx context.Context, q TimelineQuery, sortField string, ascending bool, limit, offset int, opts ...RetryOption) (TimelineItemsPage, error) {
 	var page TimelineItemsPage
-	if m == nil || m.AccountTimelineMonths == nil {
+	if m == nil || m.StatisticsTimeline == nil {
 		return page, fmt.Errorf("mongo handle is required")
 	}
 	if err := q.Owner.Validate(); err != nil {
@@ -349,7 +349,7 @@ func (m *Mongo) TimelineItems(ctx context.Context, q TimelineQuery, sortField st
 			Count int `bson:"count"`
 		} `bson:"total"`
 	}
-	if err := m.AccountTimelineMonths.Aggregate(ctx, mongo.Pipeline(stages), &faceted, append([]RetryOption{WithOpName("TimelineItems")}, opts...)...); err != nil {
+	if err := m.StatisticsTimeline.Aggregate(ctx, mongo.Pipeline(stages), &faceted, append([]RetryOption{WithOpName("TimelineItems")}, opts...)...); err != nil {
 		return page, err
 	}
 	if len(faceted) == 0 {

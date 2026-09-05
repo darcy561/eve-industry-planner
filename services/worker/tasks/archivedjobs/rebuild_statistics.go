@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/statistics"
 )
 
 // RebuildResult reports what one rebuild produced, for logging and for the
@@ -128,8 +128,8 @@ type ownerAggregates struct {
 func foldAggregates(owner models.Owner, rows []models.ArchivedJobStats) ownerAggregates {
 	return ownerAggregates{
 		Owner:   owner,
-		Buckets: archivestats.TimelineBuckets(owner, rows),
-		Totals:  archivestats.ProductionTotals(owner, rows),
+		Buckets: statistics.TimelineBuckets(owner, rows),
+		Totals:  statistics.ProductionTotals(owner, rows),
 	}
 }
 
@@ -156,7 +156,7 @@ func writeAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded ownerAgg
 	out.Buckets = len(buckets)
 
 	if len(bucketItems) > 0 {
-		if _, err := mongo.AccountTimelineMonths.UpsertStructsPreservingMetaBulk(ctx, bucketItems, rebuildUpsertBatch); err != nil {
+		if _, err := mongo.StatisticsTimeline.UpsertStructsPreservingMetaBulk(ctx, bucketItems, rebuildUpsertBatch); err != nil {
 			return out, fmt.Errorf("upsert timeline months: %w", err)
 		}
 	}
@@ -173,7 +173,7 @@ func writeAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded ownerAgg
 	out.Totals = len(totals)
 
 	if len(totalItems) > 0 {
-		if _, err := mongo.ProductionTotals.UpsertStructsPreservingMetaBulk(ctx, totalItems, rebuildUpsertBatch); err != nil {
+		if _, err := mongo.StatisticsTotals.UpsertStructsPreservingMetaBulk(ctx, totalItems, rebuildUpsertBatch); err != nil {
 			return out, fmt.Errorf("upsert production totals: %w", err)
 		}
 	}
@@ -220,7 +220,7 @@ type ownerRows struct {
 // stands, stamped as stale, until the job can be read again.
 func (a *ownerRows) add(job models.Job) {
 	a.jobCount++
-	row, err := archivestats.NewRow(job, a.now)
+	row, err := statistics.NewRow(job, a.now)
 	if err != nil {
 		a.skipped++
 		a.skippedJobIDs = append(a.skippedJobIDs, job.JobID)

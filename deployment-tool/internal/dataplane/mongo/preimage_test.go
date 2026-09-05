@@ -8,11 +8,11 @@ import (
 func TestPreimageCollections(t *testing.T) {
 	t.Parallel()
 	want := []string{
-		"account_job_groups",
-		"account_job_documents",
+		"job_groups",
+		"job_documents",
 		"accounts",
 		"account_settings",
-		"account_watchlist_deprecated",
+		"watchlist_deprecated",
 	}
 	if len(PreimageCollections) != len(want) {
 		t.Fatalf("len=%d want %d: %#v", len(PreimageCollections), len(want), PreimageCollections)

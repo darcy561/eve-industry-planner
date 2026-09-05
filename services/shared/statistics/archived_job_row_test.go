@@ -1,4 +1,4 @@
-package archivestats
+package statistics
 
 import (
 	"testing"
@@ -21,8 +21,8 @@ func sampleJob() models.Job {
 	return job
 }
 
-func sampleSnap() models.BuildStatSnapshot {
-	return models.BuildStatSnapshot{TotalProduced: 10, TotalJobCost: 500}
+func sampleSnap() models.JobFigures {
+	return models.JobFigures{TotalProduced: 10, TotalJobCost: 500}
 }
 
 // Cost per item prorates the job's cost across what actually sold, and profit is
@@ -30,7 +30,7 @@ func sampleSnap() models.BuildStatSnapshot {
 func TestTransactionLinesProrateCostAndProfit(t *testing.T) {
 	t.Parallel()
 
-	doc := RowFromSnapshot(sampleJob(), sampleSnap(), buildNow)
+	doc := RowFromFigures(sampleJob(), sampleSnap(), buildNow)
 	if len(doc.TransactionLines) != 1 {
 		t.Fatalf("lines = %d, want 1", len(doc.TransactionLines))
 	}
@@ -52,7 +52,7 @@ func TestTransactionLinesProrateCostAndProfit(t *testing.T) {
 func TestUnsoldQuantityAndCost(t *testing.T) {
 	t.Parallel()
 
-	doc := RowFromSnapshot(sampleJob(), sampleSnap(), buildNow)
+	doc := RowFromFigures(sampleJob(), sampleSnap(), buildNow)
 	if doc.UnsoldQuantity != 6 { // 10 produced − 4 sold
 		t.Fatalf("unsoldQuantity = %v, want 6", doc.UnsoldQuantity)
 	}
@@ -68,7 +68,7 @@ func TestOversoldJobDoesNotReportNegativeUnsold(t *testing.T) {
 
 	job := sampleJob()
 	job.Build.Sale.Transactions[0].Quantity = 25
-	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromFigures(job, sampleSnap(), buildNow)
 
 	if doc.UnsoldQuantity != 0 {
 		t.Fatalf("unsoldQuantity = %v, want 0", doc.UnsoldQuantity)
@@ -81,7 +81,7 @@ func TestOversoldJobDoesNotReportNegativeUnsold(t *testing.T) {
 func TestZeroProducedDoesNotDivideByZero(t *testing.T) {
 	t.Parallel()
 
-	doc := RowFromSnapshot(sampleJob(), models.BuildStatSnapshot{TotalJobCost: 500}, buildNow)
+	doc := RowFromFigures(sampleJob(), models.JobFigures{TotalJobCost: 500}, buildNow)
 	if doc.TransactionLines[0].ProratedCost != 0 {
 		t.Fatalf("proratedCost = %v, want 0", doc.TransactionLines[0].ProratedCost)
 	}
@@ -101,7 +101,7 @@ func TestCostMonthComesFromTheEarliestLinkedJob(t *testing.T) {
 		{JobID: 2, StartDate: "2026-03-05T00:00:00Z"},
 	}
 
-	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromFigures(job, sampleSnap(), buildNow)
 	if doc.CostMonth.Year != 2026 || doc.CostMonth.Month != 3 {
 		t.Fatalf("costMonth = %+v, want 2026-3", doc.CostMonth)
 	}
@@ -111,13 +111,13 @@ func TestCostMonthFallsBackThroughSalesToArchiveDate(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob() // no linked jobs; earliest transaction is June
-	if got := RowFromSnapshot(job, sampleSnap(), buildNow).CostMonth; got.Month != 6 {
+	if got := RowFromFigures(job, sampleSnap(), buildNow).CostMonth; got.Month != 6 {
 		t.Fatalf("costMonth = %+v, want the earliest sale month 6", got)
 	}
 
 	job.Build.Sale.Transactions = nil
 	job.MetaData.ArchivedAt = time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
-	if got := RowFromSnapshot(job, sampleSnap(), buildNow).CostMonth; got.Month != 2 {
+	if got := RowFromFigures(job, sampleSnap(), buildNow).CostMonth; got.Month != 2 {
 		t.Fatalf("costMonth = %+v, want the archive month 2", got)
 	}
 }
@@ -129,7 +129,7 @@ func TestUnparsableLineDateFallsBackToTheArchiveDate(t *testing.T) {
 	job := sampleJob()
 	job.Build.Sale.Transactions[0].Date = "not a date"
 
-	line := RowFromSnapshot(job, sampleSnap(), buildNow).TransactionLines[0]
+	line := RowFromFigures(job, sampleSnap(), buildNow).TransactionLines[0]
 	if line.Year != 2026 || line.Month != 6 {
 		t.Fatalf("line month = %d-%d, want the archive month 2026-6", line.Year, line.Month)
 	}
@@ -146,7 +146,7 @@ func TestExtraCategoryTotalsFoldByCategory(t *testing.T) {
 	}
 
 	got := map[string]models.ArchivedExtraCategory{}
-	for _, entry := range RowFromSnapshot(job, sampleSnap(), buildNow).ExtraCategories {
+	for _, entry := range RowFromFigures(job, sampleSnap(), buildNow).ExtraCategories {
 		got[entry.ID] = entry
 	}
 
@@ -180,9 +180,9 @@ func TestBuildIsDeterministic(t *testing.T) {
 	}
 	job.Build.Costs.ExtrasCosts = []models.ExtraCost{{Category: "x", ExtraValue: 1}}
 
-	first := RowFromSnapshot(job, sampleSnap(), buildNow)
+	first := RowFromFigures(job, sampleSnap(), buildNow)
 	for range 8 {
-		again := RowFromSnapshot(job, sampleSnap(), buildNow)
+		again := RowFromFigures(job, sampleSnap(), buildNow)
 		if again.ID != first.ID || again.CostMonth != first.CostMonth {
 			t.Fatal("identity or cost month changed between rebuilds")
 		}
@@ -195,7 +195,7 @@ func TestBuildIsDeterministic(t *testing.T) {
 func TestSnapshotCarriesAccountIdentityAndStamps(t *testing.T) {
 	t.Parallel()
 
-	doc := RowFromSnapshot(sampleJob(), sampleSnap(), buildNow)
+	doc := RowFromFigures(sampleJob(), sampleSnap(), buildNow)
 	if doc.Owner != models.AccountOwner("acct-1") {
 		t.Fatalf("owner = %+v, want the job's account", doc.Owner)
 	}
@@ -230,7 +230,7 @@ func TestMissingArchiveDateFallsBackToDocumentTimestamps(t *testing.T) {
 	job.Build.Sale.BrokersFee = nil
 	job.Build.Costs.LinkedJobs = nil
 
-	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromFigures(job, sampleSnap(), buildNow)
 	if !doc.ArchivedAt.Equal(lastModified) {
 		t.Fatalf("archivedAt = %v, want lastModified %v", doc.ArchivedAt, lastModified)
 	}
@@ -254,7 +254,7 @@ func TestMissingArchiveAndModifiedDatesFallBackToCreated(t *testing.T) {
 	job.Build.Sale.BrokersFee = nil
 	job.Build.Costs.LinkedJobs = nil
 
-	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromFigures(job, sampleSnap(), buildNow)
 	if !doc.ArchivedAt.Equal(created) {
 		t.Fatalf("archivedAt = %v, want createdAt %v", doc.ArchivedAt, created)
 	}
@@ -275,8 +275,8 @@ func TestCostMonthDoesNotMoveWithTheRebuildClock(t *testing.T) {
 	job.Build.Sale.BrokersFee = nil
 	job.Build.Costs.LinkedJobs = nil
 
-	first := RowFromSnapshot(job, sampleSnap(), buildNow)
-	later := RowFromSnapshot(job, sampleSnap(), buildNow.AddDate(0, 5, 0))
+	first := RowFromFigures(job, sampleSnap(), buildNow)
+	later := RowFromFigures(job, sampleSnap(), buildNow.AddDate(0, 5, 0))
 
 	if first.CostMonth != later.CostMonth {
 		t.Fatalf("costMonth moved between rebuilds: %+v then %+v", first.CostMonth, later.CostMonth)
@@ -296,7 +296,7 @@ func TestJobWithNoTimestampsStillGetsAMonth(t *testing.T) {
 	job.Build.Sale.BrokersFee = nil
 	job.Build.Costs.LinkedJobs = nil
 
-	doc := RowFromSnapshot(job, sampleSnap(), buildNow)
+	doc := RowFromFigures(job, sampleSnap(), buildNow)
 	if doc.CostMonth.Year == 0 {
 		t.Fatal("costMonth is unset; the row would count in totals but no month")
 	}

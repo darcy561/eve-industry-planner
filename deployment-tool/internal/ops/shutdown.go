@@ -43,12 +43,17 @@ func Shutdown(ctx context.Context, yes bool) error {
 		msg.Step("  no Swarm services for stack %s", stackName)
 	}
 
-	nNet, err := docker.RemoveStackNetworks(ctx, apiClient, stackName)
+	nNet, stuckNets, err := docker.RemoveStackNetworks(ctx, apiClient, stackName)
 	if err != nil {
 		return err
 	}
 	if nNet > 0 {
 		msg.Step("  removed %d stack network(s)", nNet)
+	}
+	// A network left behind here is the one that blocks the next deploy, so it is
+	// named rather than counted silently.
+	for _, n := range stuckNets {
+		msg.Line("warning: stack network not removed: " + n)
 	}
 
 	c, n, err := docker.RemoveComposeProject(ctx, apiClient, kit.ComposeProjectName)

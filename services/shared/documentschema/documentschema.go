@@ -54,7 +54,7 @@ func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID
 	}
 }
 
-// Group normalises legacy user_job_groups documents in memory. Idempotent.
+// Group normalises legacy job_groups documents in memory. Idempotent.
 func (u Upgrader) Group(doc *models.Group) {
 	if doc == nil {
 		return

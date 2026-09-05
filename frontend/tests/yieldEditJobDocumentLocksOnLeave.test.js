@@ -18,7 +18,7 @@ describe("yieldEditJobDocumentLocksOnLeave", () => {
   it("yields solo job lock when no groupID", async () => {
     await yieldEditJobDocumentLocksOnLeave({ jobID: "job-1", groupID: null });
     expect(yieldDocumentLockOnLeave).toHaveBeenCalledWith(
-      "account_job_documents",
+      "job_documents",
       "job-1"
     );
   });

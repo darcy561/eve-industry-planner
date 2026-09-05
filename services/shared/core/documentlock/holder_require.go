@@ -124,7 +124,7 @@ type JobGroupBypass map[string]string
 // Empty result means the batch may proceed. Nil rdb returns nil, nil (no enforcement).
 // Empty requesterSessionID returns (nil, errNonEmptySession) — callers must require session when enforcing.
 //
-// jobGroupBypass is only consulted for eipmongo.CollectionAccountJobDocuments; pass nil otherwise.
+// jobGroupBypass is only consulted for eipmongo.CollectionJobDocuments; pass nil otherwise.
 func CollectLockHeldElsewhereRejects(
 	ctx context.Context,
 	rdb *redis.Client,
@@ -156,7 +156,7 @@ func CollectLockHeldElsewhereRejects(
 	}
 
 	now := time.Now().Unix()
-	useGroupBypass := collection == eipmongo.CollectionAccountJobDocuments && len(jobGroupBypass) > 0
+	useGroupBypass := collection == eipmongo.CollectionJobDocuments && len(jobGroupBypass) > 0
 	groupHeldByRequester := map[string]bool{}
 	if useGroupBypass {
 		seenGroups := make(map[string]struct{})
@@ -169,7 +169,7 @@ func CollectLockHeldElsewhereRejects(
 				continue
 			}
 			seenGroups[gid] = struct{}{}
-			check, err := RequireHolder(ctx, rdb, accountID, requesterSessionID, eipmongo.CollectionAccountJobGroups, gid)
+			check, err := RequireHolder(ctx, rdb, accountID, requesterSessionID, eipmongo.CollectionJobGroups, gid)
 			if err != nil {
 				return nil, err
 			}

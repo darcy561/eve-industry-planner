@@ -26,7 +26,7 @@ func TestLive_recalculationState_readsTheQueueEntry(t *testing.T) {
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
 		defer c()
-		_, _ = mongo.AccountRebuildQueue.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
+		_, _ = mongo.StatisticsRebuildQueue.Collection().DeleteMany(cctx, bson.M{"_id": owner.Key()})
 	}
 	clean()
 	t.Cleanup(clean)

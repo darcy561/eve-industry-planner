@@ -1,4 +1,4 @@
-package archivestats
+package statistics
 
 import (
 	"testing"
