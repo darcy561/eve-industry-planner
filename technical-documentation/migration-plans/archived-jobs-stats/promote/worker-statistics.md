@@ -1,17 +1,45 @@
-# Archived job statistics (draft for `backend/worker/statistics.md`)
+# Archived job statistics
 
 **Draft, not live SoT.** Promoted into `technical-documentation/backend/worker/statistics.md` when
 [archived-jobs-stats](../plan.md) closes, with a row added to
-[backend/worker/contents.md](../../../backend/worker/contents.md). Written in the live voice —
-current behaviour only — so promotion is a move rather than a rewrite. Provenance:
+[backend/worker/contents.md](../../../backend/worker/contents.md). Written in the live voice — current
+behaviour only — so promotion is a move rather than a rewrite. Provenance:
 [overlay.md](../overlay.md) §§ Stage B, Stage J.
 
 ---
 
-Live SoT for how an archived job becomes figures a user can read. Code:
-[`services/worker/tasks/archivedjobs`](../../../../services/worker/tasks/archivedjobs/),
-[`services/shared/statistics`](../../../../services/shared/statistics/). Storage →
-[shared/mongo.md](../../../backend/shared/mongo.md).
+How an archived job becomes figures a user can read: the reduction that turns one job into a row, the
+two paths that fold rows into aggregates, and the rota that corrects them.
+
+The system spans three services and the SPA:
+
+- **`services/shared/statistics`** — the reduction. One archived job in, one statistics row out. Pure,
+  and shared so the API and the worker cannot disagree about what a job cost.
+- **`services/api/v1endpoints/archivedjobs`** — writes the row in the archive request itself, then
+  queues the fold. Restore queues the fold that takes it back.
+- **`services/worker/tasks/archivedjobs`** — the folds, the rebuilds, the reconcile rota, and the
+  notification.
+- **`services/core/scheduler`** — two crons that dispatch, nothing more.
+- **`frontend/src`** — reads the figures over HTTP and the notification over the websocket.
+
+Read alongside: the archive API topic (routes, what a period cost), and
+[shared/mongo.md](../../../backend/shared/mongo.md) (owner block, index rules).
+
+## Vocabulary
+
+| Term | Meaning |
+|------|---------|
+| **Owner** | `{kind, id}` — who a document belongs to. Every collection here keys on it; nothing branches on the kind. |
+| **Row** | One archived job reduced to its figures, in `statistics_rows`. `_id` is `{ownerKey}\|{jobID}`. |
+| **Aggregates** | The two derived collections a row folds into: `statistics_timeline` (per item, per month) and `statistics_totals` (per item, lifetime). |
+| **Fold** | Adding a row's figures to the aggregates, or subtracting them. The unit of a delta. |
+| **`contributedAt`** | The stamp saying a row's figures are already in the aggregates. Its absence is what makes a row a fold's work. |
+| **Revoked** | A row whose job has been restored. Kept, not deleted, so a fold can tell "removed" from "never seen". |
+| **Claim** | A counter on the queue entry deciding who may write. A rebuild raises it; a fold that finds it moved stands down. |
+| **Delta** | Work proportional to what changed. Queued by archive and restore. |
+| **Rebuild** | Work proportional to the whole archive. Recomputes one owner from its archived jobs. |
+| **Rota** | `statistics_reconcile_rota` — when each owner was last reconciled, oldest first. |
+| **Skipped** | A row whose job the reduction can no longer read. Stamped `skippedAt` with a reason; keeps its figures, because dropping them would take real history out of the totals. |
 
 ## What holds the figures
 
@@ -23,79 +51,185 @@ Live SoT for how an archived job becomes figures a user can read. Code:
 | `statistics_rebuild_queue` | outstanding work, one entry per owner | owner key as `_id` |
 | `statistics_reconcile_rota` | when each owner was last reconciled | owner key as `_id` |
 
-Every one of these is keyed on an **owner**, never an account id. The pipeline reads `_meta.owner` off
-the documents it reduces and writes it back on the rows it produces; nothing in it branches on the
-owner's kind.
+Rows are the source; the other two are derived from them and can be rebuilt at any time. That is why a
+reconcile can rewrite aggregates without reading a single job.
 
-## The two kinds of work
+## High-level architecture
 
-A queue entry names an owner and a `work` value. Both are dispatched by cron, and both are idempotent.
+```mermaid
+flowchart TB
+  subgraph API["api (archive request)"]
+    Arch["PUT /archived-jobs"]
+    Rest["POST .../restore"]
+    Reduce["shared/statistics<br/>RowFromFigures"]
+    Arch --> Reduce
+  end
 
-| Work | Costs | Runs when |
-|------|-------|-----------|
-| `delta` | proportional to the jobs that changed | a job is archived or restored |
-| `rebuild` | proportional to the whole archive | the archive's shape changed, or a reconcile found drift |
+  subgraph Store["Mongo"]
+    Rows[("statistics_rows")]
+    Agg[("statistics_timeline<br/>statistics_totals")]
+    Queue[("statistics_rebuild_queue")]
+    Rota[("statistics_reconcile_rota")]
+  end
 
-**A delta is the normal path.** Archiving a job writes its statistics row in the archive request
-itself, then queues a fold; the fold adds the row's figures to the aggregates and stamps it
-`contributedAt`. Restoring takes them back out and revokes the row rather than deleting it, so the
-history survives a job that comes back.
+  subgraph Core["core (scheduler)"]
+    C1["cron */2<br/>dispatchStatisticsRebuilds"]
+    C2["cron */15<br/>dispatchStatisticsReconciles"]
+  end
 
-Rows are the fold's work list, which is why the row is written by the request rather than by the work
-that follows it: a fold whose work list is rows cannot see the job that queued it.
+  subgraph Worker["worker"]
+    Delta["applyOwnerStatisticsDelta"]
+    Build["rebuildOwnerStatistics"]
+    Recon["reconcileOwnerStatistics"]
+    Notify["notify the owner"]
+  end
 
-**A rebuild recomputes everything for one owner** from its archived jobs, writes the aggregates, and
-prunes buckets and totals that the new keep-list no longer names. It stamps the rows it writes as
-already counted, so a fold arriving behind it does not add them twice.
+  Reduce --> Rows
+  Arch -->|queue delta| Queue
+  Rest -->|queue delta| Queue
+  C1 -->|one task per owner| Delta
+  C1 --> Build
+  C2 --> Recon
+  Rows --> Delta --> Agg
+  Build --> Rows
+  Build --> Agg
+  Rota --> C2
+  Recon --> Agg
+  Delta --> Notify
+  Build --> Notify
+  Notify -->|NATS| SPA["browser"]
+```
 
-## Ordering
+## The two paths
 
-A claim on the queue entry decides who may write. `BumpOwnerClaim` raises it, and a fold that finds the
-claim has moved stands down rather than writing over a rebuild that has taken the owner on. The rule is
-that a rebuild always wins: it computed from the whole archive, and a delta computed from part of it.
+| | Delta | Rebuild |
+|---|-------|---------|
+| Costs | the rows that changed | the whole archive |
+| Queued by | archive, restore | a reconcile finding drift, an operator, a release |
+| Task | `applyOwnerStatisticsDelta` | `rebuildOwnerStatistics` |
+| Priority / timeout | `Priority3` / 5 min | `Priority5` / 15 min |
+| Reads | `statistics_rows` | `archived_jobs` |
 
-## Dispatch
+The delta outranks the rebuild deliberately: a user waits on the figures they just archived, and nobody
+waits on a bulk recompute.
 
-| Cron | Every | Dispatches |
-|------|-------|-----------|
-| `cron.dispatchStatisticsRebuilds` | 2 minutes | one task per eligible owner in the queue |
-| `cron.dispatchStatisticsReconciles` | 15 minutes | owners whose rota stamp is older than the window |
+**Archiving costs the same whether the archive holds ten jobs or ten thousand.** That is the property
+the delta exists for, and the reason the row is written by the archive request rather than by the work
+that follows it — a fold whose work list is rows cannot see the job that queued it.
 
-The dispatcher hands out one task per owner rather than draining the queue in the loop, so a long
-queue makes progress across ticks instead of one worker holding it.
+## Task and subject map
 
-**An owner waits up to five minutes before its work is dispatched.** `rebuildDebounce` bounds the
-longest wait rather than sliding with each re-queue, so an owner archiving several jobs is folded once.
-A drain firing inside that window reports `eligible: 0` against a full queue — that is the debounce, not
-a stall. `tasks dispatchStatisticsRebuilds` ignores it, because an operator running it by hand means now.
+| Task | Subject | Priority | Timeout | Does |
+|------|---------|----------|---------|------|
+| `applyOwnerStatisticsDelta` | `task.scheduled.applyOwnerStatisticsDelta` | 3 | 5 min | folds one owner's uncounted rows |
+| `rebuildOwnerStatistics` | `task.scheduled.rebuildOwnerStatistics` | 5 | 15 min | recomputes one owner from its archived jobs |
+| `reconcileOwnerStatistics` | `task.scheduled.reconcileOwnerStatistics` | 5 | 15 min | rewrites one owner's aggregates from its rows |
+| `dispatchStatisticsRebuilds` | `task.scheduled.dispatchStatisticsRebuilds` | 4 | 15 min | reads the queue, publishes one task per eligible owner |
+| `dispatchStatisticsReconciles` | `task.scheduled.dispatchStatisticsReconciles` | 5 | 5 min | publishes a reconcile for every owner whose turn has come |
 
-## Reconciliation
+The two dispatchers only dispatch, so their timeout covers a queue read and a fan-out rather than any
+owner's work. Dispatching one task per owner is what lets a long queue make progress across ticks
+instead of one worker holding it.
 
-Every owner is reconciled on a rota, oldest stamp first, on a `reconcileWindow` of 24 hours. It rewrites
-the aggregates from the rows beneath them and reports what disagreed without acting on it, so drift is
-visible before it is corrected.
+## End-to-end flows
 
-The owner list comes from `StatisticsOwners`, which groups `statistics_rows` on `_meta.owner`. A row
-carrying no owner is skipped rather than counted: rows written before the owner existed are left for an
-operator to remove, and an owner must not be invented from their absence.
+### Archiving a job
+
+1. `PUT /api/v1/archived-jobs` writes the archived document.
+2. The same request reduces the job through `shared/statistics` and writes its row, uncounted — no
+   `contributedAt`.
+3. It queues `delta` for the owner.
+4. Up to five minutes later (`rebuildDebounce`) the drain dispatches `applyOwnerStatisticsDelta`.
+5. The fold reads every uncounted row, adds their figures to the aggregates, and stamps each
+   `contributedAt`.
+6. The owner is notified.
+
+### Restoring a job
+
+The mirror, in reverse order: the fold subtracts the row's figures and the row is **revoked** rather
+than deleted. A bucket that reaches zero on a *count* is removed; one that reaches zero on a *total* is
+kept, because a real month with no net value is not the same as a month that never happened.
+
+### A rebuild
+
+1. Read every archived job for the owner.
+2. Reduce each to a row and write it, stamped as already counted — a fold arriving behind must not add
+   them twice.
+3. Write the aggregates from those rows.
+4. Prune buckets and totals the new keep-list does not name.
+
+A rebuild that cannot finish in one pass still makes progress: the queue entry survives, and the next
+dispatch picks it up.
+
+### Reconciliation
+
+Every owner comes round on a 24-hour `reconcileWindow`, oldest stamp first. It rewrites the aggregates
+from the rows beneath them, reports what disagreed, and stamps the rota. **Drift is reported, not acted
+on** — a correction that hides its own cause makes the next one harder to find.
+
+Float comparison uses a tolerance: two figures that differ in the last bits of a float are equal, or
+every reconcile would report drift that is not there.
+
+## Ordering: the claim
+
+Two writers can want the same owner — a fold and a rebuild queued moments apart. The claim decides:
+
+```text
+rebuild starts  → BumpOwnerClaim raises the claim
+fold finishes   → claim it captured ≠ current claim → stand down, write nothing
+```
+
+A rebuild always wins, because it computed from the whole archive and the delta computed from part of
+it. The fold's work is not lost: its rows stay uncounted, and the rebuild stamps them as counted when it
+writes them.
 
 ## Failure
 
-A failed delta fails its task and is retried. Once the retries are exhausted the failure is recorded on
-the queue entry — `failures`, `lastError`, `lastFailedAt` — and the task stops rather than looping. That
-entry is what tells a user their figures are stale.
+A failed delta fails its task and is retried. Once retries are exhausted the failure is recorded on the
+queue entry and the task stops rather than looping:
 
-Failure is handled by the task rather than by the request, which keeps a broken statistics write from
-failing an archive that actually succeeded.
+| Field | Holds |
+|-------|-------|
+| `failures` | how many times this owner's work has failed |
+| `lastError` | the reason, verbatim |
+| `lastFailedAt` | when |
+
+That entry is what the API reads to tell a user their figures are stale. Failure is handled by the task
+rather than by the request, which keeps a broken statistics write from failing an archive that actually
+succeeded.
+
+A job the reduction cannot read is **skipped**, not dropped: the row keeps its figures and gains
+`skippedAt` with a reason, the archive list reports `figuresStale`, and the stamp clears the moment the
+job can be read again.
 
 ## What the client is told
 
-A realtime message carries a `type` and a `subtype`. When an owner's figures move, the worker publishes
-one, and every statistics response reports whether a recalculation is outstanding or has failed. A
-client showing stale numbers as current is the failure this exists to prevent.
+| | |
+|---|---|
+| Subject | `notify.{ownerKey}` — `account:{id}` today |
+| Subtype | `archiveStatsProcessed` |
+| Body | `{ownerKind, accountID, processedAt}` |
 
-Archiving still invalidates its own caches at the call site. The notification tells other sessions; it
+Published after a fold or a rebuild writes. Only an owner kind that has clients is worth a message.
+
+Every statistics response also reports whether a recalculation is outstanding or has failed, so the SPA
+can show that figures are moving rather than presenting stale numbers as current.
+
+Archiving still invalidates its own caches at the call site. The notification tells *other* sessions; it
 does not replace the invalidation the acting session already does.
+
+## Constants
+
+| Constant | Value | Where | Why |
+|----------|-------|-------|-----|
+| `rebuildDebounce` | 5 min | `worker/tasks/archivedjobs/dispatch_rebuilds.go` | Bounds the longest an owner waits, rather than sliding with each re-queue |
+| `reconcileWindow` | 24 h | `worker/tasks/archivedjobs/reconcile_owner_task.go` | How often an owner's turn comes round |
+| `cron.dispatchStatisticsRebuilds` | `*/2 * * * *` | `core/scheduler/jobs.go` | |
+| `cron.dispatchStatisticsReconciles` | `*/15 * * * *` | `core/scheduler/jobs.go` | |
+
+**A drain firing inside the debounce reports `eligible: 0` against a full queue.** That is the debounce
+working, not a stall. `eip cli dispatchStatisticsRebuilds` ignores it, because an operator running it by
+hand means now.
 
 ## Operator surface
 
@@ -105,8 +239,25 @@ does not replace the invalidation the acting session already does.
 | Reconcile now | `eip cli dispatchStatisticsReconciles` |
 | Queue every owner | `eip cli -- prepareRelease` (its last step) |
 
+## Where every file lives
+
+| Path | Holds |
+|------|-------|
+| `shared/statistics/archived_job_row.go` | the reduction: one job → one row |
+| `shared/statistics/job_figures.go` | what a job cost, and how each figure is derived |
+| `shared/mongo/rebuild_queue.go` | the queue, the claim, the failure fields |
+| `shared/mongo/reconcile_rota.go` | `StatisticsOwners`, the rota, who is due |
+| `shared/mongo/apply_row_delta.go` | the fold's writes, and the prune |
+| `worker/tasks/archivedjobs/apply_delta_task.go` | the delta task |
+| `worker/tasks/archivedjobs/rebuild_statistics.go` | the rebuild |
+| `worker/tasks/archivedjobs/reconcile_statistics.go` | the reconcile |
+| `worker/tasks/archivedjobs/dispatch_rebuilds.go` | the drain and its debounce |
+| `worker/tasks/archivedjobs/failure.go` | recording a failure on the queue entry |
+| `worker/tasks/archivedjobs/notify.go` | the notification |
+| `core/scheduler/jobs.go` | the two crons |
+
 ## Topic-only detail
 
-Storage shapes, the owner block and index rules → [shared/mongo.md](../../../backend/shared/mongo.md).
-The read API → the archive API topic. What a period cost, and how a job's figures are computed → the
-same.
+Owner block, index rules and collection naming → [shared/mongo.md](../../../backend/shared/mongo.md).
+Routes, what a list row carries, restore's order → the archive API topic. The pages that read the
+figures → [frontend/](../../../frontend/contents.md).
