@@ -315,6 +315,7 @@ to fill the database.
 | Surface | Today | After |
 |---------|-------|-------|
 | `models.MetaData` | **done** — one `Owner` block; scope fields gone | — |
+| `jobs` indexes | **none declared** — two callers filter it on the owner and would collection-scan once it holds documents | an owner-led spec, like every other scoped collection |
 | Websocket delivery branch | account, corporation and alliance owners deliver; a `planner` owner has no branch and is logged | a planner branch, so a planner's documents reach its members |
 | Changestream routing | reads named `_meta` scope fields | reads `_meta.owner` generically |
 | `models.ArchivedJobStats` | **done** — carries a root `Owner` | — |

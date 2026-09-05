@@ -89,6 +89,7 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Know what a dry run reports before the owner stamp has run | [overlay.md](./overlay.md) § The dry run tells an unstamped database from an idle one |
 | Decide whether a deprecated collection still needs the owner | [plan.md](./plan.md) § What is not done |
 | Retire an index on a collection that is also being renamed | [overlay.md](./overlay.md) § The indexes |
+| See which index each job-document query wins on | [plan.md](./plan.md) § The indexes moved with the queries |
 | Read the account id off a change stream log line | [overlay.md](./overlay.md) § What the publish log reports |
 | Add a delivery branch, or change how a message is routed to clients | [overlay.md](./overlay.md) § How a change reaches the right clients |
 | See what covers the routing key, on both sides | [overlay.md](./overlay.md) § How a change reaches the right clients |

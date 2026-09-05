@@ -2462,9 +2462,31 @@ of indexes on a field no document carries, maintained on every write and chosen 
 reports creating an index on an absent field exactly as it reports one that works, so nothing else would
 have said.
 
-**Still owed:** `job_documents`' seven specs have never been checked against real queries with
-`explain`, and this changed all of their leading keys. The statistics specs were each confirmed to win
-their query before being written down; these have not had that treatment.
+**Checked with `explain`, and all seven win their query.** Run against dev's 9,336 job documents, using
+the filters the callers actually build rather than invented ones:
+
+| Spec | Query | Plan |
+|------|-------|------|
+| `ajd_meta_owner_displayOnPlanner_1` | the planner read in `jobdocuments/getHandlers.go` | `IXSCAN`, 10 examined for 10 returned |
+| `ajd_meta_owner_groupID_1` | the by-group read | `IXSCAN` |
+| `ajd_meta_owner_marketOrders_order_id_1` | `esilinks.go`, one kind each | `IXSCAN` |
+| `ajd_meta_owner_linkedJobs_job_id_1` | the same | `IXSCAN` |
+| `ajd_meta_owner_transactions_transaction_id_1` | the same | `IXSCAN` |
+| `ajd_linkedJobs_corporation_id_1` | the corporation-id lookup | `IXSCAN` |
+| `ajd_protected_spec_1` | `jobidentity`'s `$ne` scan for unconverted jobs | `IXSCAN`, 9,336 examined for 9,336 returned — a migration scan meant to find every job |
+
+No spec examines more than it returns, which is what the check was for: an index that has stopped
+winning its query still returns the right answer, just slowly, and reports nothing.
+
+**The check found one gap it was not looking for: `jobs` has no index specs at all.** It is a known
+collection, and two callers filter it on the owner — `websocket/sync`'s planner read and the worker's
+inactive-account cleanup. Dev does not hold the collection yet, so neither query can be explained and
+neither is slow today. When it is populated both would collection-scan, and the read is on the
+websocket sync path.
+
+The owner-led shape is already settled by every other collection, so this is a missing spec rather than
+an open question. It is not this project's to add — `jobs` is [shared-planners](../shared-planners/plan.md)'
+surface, whose § Collection layout names it — but it should not reach live unindexed.
 
 **Four predecessors survived the first pass, and are now retired.** Retirement matches an index by exact
 name, and an index keeps its name through a `renameCollection` — so on the three collections renamed from
@@ -2713,12 +2735,12 @@ complete — the owner block, the `ChangeStreamMessage` collapse, the dry-run ho
 watchlist are all landed, and the second ownership vocabulary is gone. What stands between here and
 promotion is evidence, not implementation:
 
-1. **`explain` the seven `job_documents` index specs** against the queries they serve. Their leading
-   keys all changed with the owner block and none has been confirmed to win its query.
+1. ~~`explain` the seven `job_documents` index specs.~~ **Done** — all seven win their query, and the
+   check turned up `jobs` carrying no index specs at all. See § The indexes moved with the queries.
 2. ~~Look at the failing live tests.~~ **Done** — every gated package passes, and running them found the
    reconcile rota reconciling nothing. See § Handoff status.
 
-Then the cutover window itself: § Operational steps owed lists the commands, and
+**Both verification steps are closed, so what remains is the window.** § Operational steps owed lists the commands, and
 [shared-planners](../shared-planners/plan.md) § Stage A owns the order and the backup.
 
 **The live tests now run, and the owner tests pass.** `scripts/testing/live-mongo.sh` builds a test
