@@ -1,4 +1,3 @@
-import uuid from "react-uuid";
 import DOMPurify from "dompurify";
 import getAllRelatedJobs from "../Functions/Helper/getAllRelatedJobs";
 import { getRealtimeClientID } from "../Realtime/wsClientIdentity.js";
@@ -41,7 +40,7 @@ class Group {
    */
   constructor(data) {
     this.groupName = data?.groupName || "Untitled Group";
-    this.groupID = data?.groupID || `group-${uuid()}`;
+    this.groupID = data?.groupID || `group-${crypto.randomUUID()}`;
     this.includedJobIDs = asStringIDSet(data?.includedJobIDs);
     this.archivedJobIDs = asStringIDSet(data?.archivedJobIDs);
     this.includedTypeIDs = asNumberIDSet(data?.includedTypeIDs);

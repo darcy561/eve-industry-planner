@@ -1,5 +1,4 @@
 import { Card, Grid, Skeleton } from "@mui/material";
-import uuid from "react-uuid";
 
 const gridItemSize = {
   xs: 12,
@@ -19,9 +18,9 @@ export function PlannerClassicJobSkeletonGrid({ count }) {
   }
   return (
     <>
-      {Array.from({ length: count }).map(() => (
+      {Array.from({ length: count }).map((_, index) => (
         <Grid
-          key={uuid()}
+          key={index}
           sx={{ minHeight: 200, width: "100%" }}
           size={gridItemSize}
         >
@@ -54,8 +53,8 @@ export function PlannerCompactJobSkeletonList({ count }) {
   }
   return (
     <>
-      {Array.from({ length: count }).map(() => (
-        <Card key={uuid()} sx={compactRowSx}>
+      {Array.from({ length: count }).map((_, index) => (
+        <Card key={index} sx={compactRowSx}>
           <Skeleton
             variant="rectangular"
             animation="wave"

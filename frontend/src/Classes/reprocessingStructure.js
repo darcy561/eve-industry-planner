@@ -3,7 +3,6 @@ import {
   getRigInfoFromID,
   getStructureInfoFromID,
 } from "../Functions/Helper/getStructureInfo";
-import uuid from "react-uuid";
 import { customStructureLocationMap } from "../Context/defaultValues";
 import DOMPurify from "dompurify";
 import coerceFiniteNumber from "../Functions/Helper/coerceFiniteNumber";
@@ -33,7 +32,7 @@ class ReprocessingStructure {
   constructor(existingValue) {
     this.id =
       existingValue?.id ??
-      `${customStructureLocationMap[jobTypes.reprocessing]}-${uuid()}`;
+      `${customStructureLocationMap[jobTypes.reprocessing]}-${crypto.randomUUID()}`;
     this.jobType = jobTypes.reprocessing;
     this.name = existingValue?.name ?? "";
     this.structureType = existingValue?.structureType ?? 0;

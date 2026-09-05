@@ -1,4 +1,3 @@
-import uuid from "react-uuid";
 import { jobTypes } from "../Context/defaultValues";
 import Setup from "./jobSetup";
 import Material from "./jobMaterial";
@@ -59,7 +58,7 @@ class Job {
     this.metaLevel = itemJson?.metaLevel ?? itemJson?.metaGroup ?? null;
     this.jobType = itemJson.jobType;
     this.name = itemJson.name;
-    this.jobID = itemJson?.jobID || `job-${uuid()}`;
+    this.jobID = itemJson?.jobID || `job-${crypto.randomUUID()}`;
     this.jobStatus = itemJson?.jobStatus || 0;
     this.volume = itemJson.volume;
     this.itemID = itemJson.itemID;

@@ -13,7 +13,6 @@ import { ImportNewJob_WatchlistDialogue } from "./importNewJob";
 import { FailedImport_WatchlistDialogue } from "./failedImport";
 import { LoadingDisplay_WatchlistDialogue } from "./loadingDisplay";
 import { EditItemDisplay_WatchlistDialogue } from "./mainDisplay";
-import uuid from "react-uuid";
 import { showSnackbarSuccess } from "../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../Zustand/usersStore";
 
@@ -51,7 +50,7 @@ export function AddWatchItemDialogue({
       const job = materialJobs[mat.typeID];
 
       mainJobMaterials.push({
-        id: uuid(),
+        id: crypto.randomUUID(),
         typeID: mat.typeID,
         name: mat.name,
         quantity: mat.quantity,

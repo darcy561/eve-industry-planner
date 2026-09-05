@@ -1,4 +1,3 @@
-import uuid from "react-uuid";
 import { eventEmitter } from "../utils/EventSystem";
 
 /**
@@ -15,7 +14,7 @@ export function displayNotificationDialogue(
   title = "",
   body = "",
   buttonText = "Close",
-  id = uuid()
+  id = crypto.randomUUID()
 ) {
   eventEmitter.emit("notificationDialogue", {
     isOpen: true,

@@ -7,7 +7,6 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
-import uuid from "react-uuid";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import useUsersStore from "../../../Zustand/usersStore";
 import { numberToShortText, formatNumberForLocale } from "../../../Functions/Helper/numberParser";
@@ -444,7 +443,7 @@ export function ItemPriceRow({
 export function itemPriceEntryFactory(typeID, itemCount, itemCost) {
   return {
     typeID,
-    id: uuid(),
+    id: crypto.randomUUID(),
     itemCount,
     itemCost,
   };

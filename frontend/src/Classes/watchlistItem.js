@@ -1,4 +1,3 @@
-import uuid from "react-uuid";
 
 /**
  * WatchlistItem class for tracking items in EVE Online industry watchlists.
@@ -20,7 +19,7 @@ class WatchlistItem {
    * @param {number} data.quantity - Quantity to track
    */
   constructor(data) {
-    this.id = data?.id || uuid();
+    this.id = data?.id || crypto.randomUUID();
     this.version = data?.version || 2;
     this.typeID = data?.typeID;
     this.watchlistGroup = data?.watchlistGroup || 0;

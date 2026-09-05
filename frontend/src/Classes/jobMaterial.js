@@ -1,4 +1,3 @@
-import uuid from "react-uuid";
 
 /**
  * A material a job is built from: what the job needs, what has been bought
@@ -98,7 +97,7 @@ class Material {
       this.purchasing = [
         ...this.purchasing.filter(isValidPurchase),
         {
-          id: purchase.id ?? uuid(),
+          id: purchase.id ?? crypto.randomUUID(),
           typeID: this.typeID,
           childID,
           childJobImport: Boolean(childID),

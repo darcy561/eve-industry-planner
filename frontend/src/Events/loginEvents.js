@@ -1,5 +1,4 @@
 import { eventEmitter } from "../utils/EventSystem";
-import uuid from "react-uuid";
 
 /**
  * Login step constants for tracking authentication progress.
