@@ -56,6 +56,7 @@ func TestHealthyHandler_alwaysOK(t *testing.T) {
 //   - /healthy (and /health) must stay 200 while SDE is missing so a container
 //     is not killed during cold start / object-store lag.
 //   - /ready must stay 503 until the cache is warm so Traefik does not send traffic.
+//
 // Production api ready (app.startProbes) also Pings Mongo; this mux isolates the SDE check only.
 func TestProbes_livenessVsReadinessDocumentsSDEContract(t *testing.T) {
 	sdecache.ResetForTest()

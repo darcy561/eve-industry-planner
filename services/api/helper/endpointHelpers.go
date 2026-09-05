@@ -8,7 +8,7 @@ import (
 )
 
 // RequireMethodAndAccountID validates request method and extracts accountID.
-// It records standardized metric labels when the checks fail.
+// It records standardised metric labels when the checks fail.
 func RequireMethodAndAccountID(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -24,7 +24,7 @@ func RequireMethodAndAccountID(
 	return auth.AccountIDFromContext(r.Context()), true
 }
 
-// DecodeJSONOrBadRequest decodes JSON body into target and writes standardized 400 on failure.
+// DecodeJSONOrBadRequest decodes JSON body into target and writes standardised 400 on failure.
 func DecodeJSONOrBadRequest(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -57,7 +57,7 @@ func DecodeJSONOrBadRequest(
 	return true
 }
 
-// RespondNotFound writes a 404 response and records standardized metric label.
+// RespondNotFound writes a 404 response and records standardised metric label.
 func RespondNotFound(w http.ResponseWriter, r *http.Request, metrics *RequestMetricsTracker) {
 	if metrics != nil {
 		metrics.Error("not_found")

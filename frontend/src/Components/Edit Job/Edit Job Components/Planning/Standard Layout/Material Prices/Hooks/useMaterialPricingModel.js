@@ -74,13 +74,13 @@ export function useMaterialPricingModel({ state, actions }) {
 
     const totalMarketPrice =
       getMarketPriceForType(activeJob.itemID, marketSelect, listingSelect) *
-      activeJob.build.products.totalQuantity;
+      activeJob.totalQuantityProduced;
     const { childJobCount } = findAllChildJobCountOrIDs(
       activeJob.build.childJobs,
       state.temporaryChildJobs,
       state.parentChildToEdit.childJobs
     );
-    const totalExtras = activeJob.build.costs.extrasTotal;
+    const totalExtras = activeJob.totalExtrasCost;
     const totalMarketCost = totalMaterialCost + totalInstallCosts + totalExtras;
     const totalChildJobCost = totalBuildCost + totalInstallCosts + totalExtras;
 

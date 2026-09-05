@@ -3,7 +3,7 @@ import checkJobTypeIsBuildable from "../../../../../../Functions/Helper/checkJob
 
 export function ChildJobsAvatar_Purchasing({
   material,
-  updateChildDialogTrigger,
+  updateChildDialogueTrigger,
   childJobs,
 }) {
   const displayItem = checkJobTypeIsBuildable(material.jobType);
@@ -27,7 +27,7 @@ export function ChildJobsAvatar_Purchasing({
           boxShadow: 4,
         }}
         onClick={() => {
-          updateChildDialogTrigger((prev) => !prev);
+          updateChildDialogueTrigger((prev) => !prev);
         }}
       >
         {childJobs.length}

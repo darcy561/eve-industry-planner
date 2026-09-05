@@ -4,7 +4,7 @@ import {
   postDocumentLockViewerArrived,
   postDocumentLockViewerDeparted,
   sendDocumentLockViewerDepartedBeacon,
-} from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+} from "../../Functions/Endpoints/Private/documentLockClient.js";
 import { selectScopedDocumentLock } from "../../Functions/DocumentLock/documentLockSelectors.js";
 
 /**

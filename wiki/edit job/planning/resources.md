@@ -19,7 +19,7 @@ The Resources Panel provides:
 - **Options**:
   - **Display All Setups**: Shows total quantities across all setups
   - **Display Selected Setup**: Shows quantities for the currently active setup only
-- **Behavior**: 
+- **Behaviour**: 
   - Saves selection to job layout preferences
   - Updates all material quantities immediately
   - Affects volume calculations
@@ -41,7 +41,7 @@ The Resources Panel provides:
 
 **Create All Child Jobs**
 - Automatically creates child jobs for all buildable materials
-- **Behavior**:
+- **Behaviour**:
   - Only creates jobs for materials that can be produced (manufacturing/reaction)
   - Skips materials that already have child jobs
   - Links new jobs to the current job as parent

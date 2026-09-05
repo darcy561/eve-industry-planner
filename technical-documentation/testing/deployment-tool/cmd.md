@@ -19,7 +19,7 @@ go test ./cmd/...
 |------|----------------------|
 | Root | Version/help/unknown; global flag wiring |
 | Registration | Commands present (repair, ensure mongo/s3, restore keyfile, rekey, update, …) |
-| Ensure cmds | Ensure mongo/s3 delegate + catalog text |
+| Ensure cmds | Ensure mongo/s3 delegate + catalogue text |
 | Init / update / restart | Init ensure dataplane paths; update/restart TUI message and continue args |
 
 ### Thin

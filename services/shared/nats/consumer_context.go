@@ -1,0 +1,109 @@
+package nats
+
+import (
+	"context"
+	"time"
+
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
+	"eve-industry-planner/shared/telemetry/natsprop"
+
+	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+)
+
+// BeginConsumerContext builds ctx for NATS message handling: remote trace, request identity,
+// operation debug-step store, consumer span, and a scoped logger when identity is present.
+//
+// Trace and request identity come from the message's headers, which is where the
+// publisher put them and where they arrive — the body carries the message, not
+// how to correlate it.
+func BeginConsumerContext(
+	parent context.Context,
+	component, spanName string,
+	msg jetstream.Msg,
+) (context.Context, func()) {
+	ctx := parent
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	ctx = natsprop.Extract(ctx, msg.Headers())
+	ctx = natsprop.BindLogContextFromHeaders(ctx, msg.Headers())
+
+	ctx = logs.BeginOperationContext(ctx)
+	ctx = logs.EnsureOperationLogger(ctx)
+	ctx = withOutcomeTracking(ctx)
+
+	subject := ""
+	if msg != nil {
+		subject = msg.Subject()
+	}
+	deliveryCount, sequence := GetMessageMetadata(msg)
+
+	tracer := telemetry.Tracer(component)
+	attrs := []attribute.KeyValue{
+		attribute.String("messaging.system", "nats"),
+	}
+	if subject != "" {
+		attrs = append(attrs, attribute.String("messaging.destination.name", subject))
+	}
+	ctx, span := tracer.Start(ctx, spanName,
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(attrs...),
+	)
+
+	stepDetail := map[string]any{
+		"subject":        subject,
+		"delivery_count": deliveryCount,
+		"sequence":       sequence,
+	}
+	if rid := logs.RequestIDFromContext(ctx); rid != "" {
+		stepDetail["request_id"] = rid
+	}
+	logs.AttachDebugStepCtx(ctx, "nats_message_received", stepDetail)
+
+	return ctx, func() { span.End() }
+}
+
+// outcomeReported marks a context whose message has already had its outcome
+// reported, so a handler that reports something the generic outcome cannot
+// express is not followed by a second, blander log line for the same message.
+type outcomeReported struct{ done bool }
+
+type outcomeReportedKey struct{}
+
+// withOutcomeTracking returns a context that remembers whether the outcome has
+// been reported.
+func withOutcomeTracking(ctx context.Context) context.Context {
+	return context.WithValue(ctx, outcomeReportedKey{}, &outcomeReported{})
+}
+
+// outcomeAlreadyReported reports whether something already logged this message's outcome.
+func outcomeAlreadyReported(ctx context.Context) bool {
+	state, ok := ctx.Value(outcomeReportedKey{}).(*outcomeReported)
+	return ok && state.done
+}
+
+// FinishNATSConsumerOperation records a terminal debug step and emits one access-shaped outcome log.
+func FinishNATSConsumerOperation(ctx context.Context, level, msg string, detail map[string]any) {
+	if state, ok := ctx.Value(outcomeReportedKey{}).(*outcomeReported); ok {
+		state.done = true
+	}
+	if detail == nil {
+		detail = make(map[string]any)
+	}
+	if start, ok := logs.RequestStartTime(ctx); ok {
+		detail["duration_ms"] = time.Since(start).Milliseconds()
+	}
+	if rid := logs.RequestIDFromContext(ctx); rid != "" {
+		if _, ok := detail["request_id"]; !ok {
+			detail["request_id"] = rid
+		}
+	}
+	logs.AttachDebugStepCtx(ctx, "nats_message_completed", detail)
+	steps := logs.DebugStepsFromContext(ctx)
+	caveats := logs.HandlerCaveatsFromContext(ctx)
+	logs.EmitAccessShapedLog(ctx, level, msg, detail, steps, caveats)
+}

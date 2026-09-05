@@ -99,7 +99,11 @@ func Bake(ctx context.Context, home string, extraArgs ...string) (map[string]str
 		if slices.Contains(roles, role) {
 			continue
 		}
-		if tag := swarmLocalTag(repo, snap.Services[role].Image); tag != "" {
+		tag, terr := roleTag(ctx, apiClient, repo, snap.Services[role].Image)
+		if terr != nil {
+			return nil, terr
+		}
+		if tag != "" {
 			tags[role] = tag
 		}
 	}
@@ -151,10 +155,12 @@ func Bake(ctx context.Context, home string, extraArgs ...string) (map[string]str
 	for role, tag := range tags {
 		out["TAG_"+roleEnvKey(role)] = tag
 	}
-	for _, role := range roles {
+	// Every role the stack file names needs a tag, not only the rebuilt ones: a
+	// role left without one expands to an image reference with an empty tag.
+	for role := range devRoles {
 		key := "TAG_" + roleEnvKey(role)
 		if out[key] == "" {
-			return nil, fmt.Errorf("bake: missing tag for %s", role)
+			return nil, fmt.Errorf("bake: no tag for %s — it was not rebuilt, its service is not running, and no local image is built; rebuild it with eip rebuild %s", role, role)
 		}
 	}
 	return out, nil

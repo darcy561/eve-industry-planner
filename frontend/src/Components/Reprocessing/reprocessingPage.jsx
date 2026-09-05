@@ -2,15 +2,15 @@ import { Box, Fade } from "@mui/material";
 import TextInputFrame from "./textInputFrame";
 import ReprocessingStructurePanel from "./reprocessingStructurePanel";
 import BasicMineralOutput from "./basicMineralOutput";
-import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
-import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
+import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
+import MarketDataDialogue from "../Dialogues/Market Data/dialogueFrame";
 import DisplayLoadingPanel from "./loadingPanel";
 import OptionsPanel from "./optionsPanel";
 import PlaceholderPanel from "./placeholderPanel";
 import AdvancedMineralOutput from "./advancedMineralOutput";
 import useReprocessingReducer from "./Hooks/useReprocessingReducer";
 import useAutoRecalculation from "./Hooks/useAutoRecalculation";
-import AssetsDialogue from "../Dialogues/Assets/dialogFrame";
+import AssetsDialogue from "../Dialogues/Assets/dialogueFrame";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 
@@ -140,8 +140,8 @@ function ReprocessingPage() {
           </Box>
         </Box>
       </ContentPanel>
-      <PriceHistoryDialog />
-      <MarketDataDialog />
+      <PriceHistoryDialogue />
+      <MarketDataDialogue />
       <AssetsDialogue />
     </DefaultPageLayout>
   );

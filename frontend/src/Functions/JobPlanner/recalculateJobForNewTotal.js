@@ -34,6 +34,4 @@ export default function recalculateJobForNewTotal(
     }
   });
 
-  inputJob.recalculateTotalMaterialQuantities();
-  inputJob.recalculateTotalQuantityProduced();
 }

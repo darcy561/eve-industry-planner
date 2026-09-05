@@ -11,9 +11,9 @@ import {
 } from "@mui/material";
 import { useRef, useState } from "react";
 import {
-  FEEDBACK_DIALOG_EVENT,
-  openFeedbackDialog,
-} from "../../../Events/feedbackDialogEvents";
+  FEEDBACK_DIALOGUE_EVENT,
+  openFeedbackDialogue,
+} from "../../../Events/feedbackDialogueEvents";
 import { useFormStatus } from "react-dom";
 import DOMPurify from "dompurify";
 import submitFeedback from "../../../Functions/Endpoints/Public/feedback";
@@ -28,15 +28,15 @@ import {
 } from "../../../Events/snackbarEvents";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import { buildScreenshotAdditions } from "./feedbackScreenshotHelpers.js";
-import ContentDialog, {
-  useDialogEventState,
-} from "../../../Styled Components/Dialog/ContentDialog";
+import ContentDialogue, {
+  useDialogueEventState,
+} from "../../../Styled Components/Dialogue/ContentDialogue";
 
 const { DEFAULT_DISCORD_INVITE } = GLOBAL_CONFIG;
 
 export function FeedbackIcon() {
-  const [messageData, , resetDialog] = useDialogEventState(
-    FEEDBACK_DIALOG_EVENT,
+  const [messageData, , resetDialogue] = useDialogueEventState(
+    FEEDBACK_DIALOGUE_EVENT,
     () => ({ isOpen: false }),
   );
   const [formKey, setFormKey] = useState(0);
@@ -50,7 +50,7 @@ export function FeedbackIcon() {
   }
 
   function handleClose() {
-    resetDialog();
+    resetDialogue();
     setFeedbackText("");
     clearScreenshots();
     setFormKey((k) => k + 1);
@@ -129,16 +129,16 @@ export function FeedbackIcon() {
           right: "5px",
           zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
-        onClick={() => openFeedbackDialog()}
+        onClick={() => openFeedbackDialogue()}
       >
         Feedback
       </Fab>
 
-      <ContentDialog
+      <ContentDialogue
         open={messageData.isOpen}
         onClose={handleClose}
         title="Feedback"
-        componentName="FeedbackDialog"
+        componentName="FeedbackDialogue"
         maxWidth="sm"
         fullWidth
         formKey={formKey}
@@ -146,7 +146,7 @@ export function FeedbackIcon() {
           action: feedbackFormAction,
           noValidate: true,
         }}
-        dialogContentSx={{ textAlign: "left" }}
+        dialogueContentSx={{ textAlign: "left" }}
         actions={
           <>
             <Button type="button" onClick={handleClose}>
@@ -276,7 +276,7 @@ export function FeedbackIcon() {
             ) : null}
           </Stack>
         </Stack>
-      </ContentDialog>
+      </ContentDialogue>
     </>
   );
 }

@@ -8,21 +8,16 @@ const corporationMarketOrdersQueryKey = "corporationMarketOrders";
 
 /**
  * React Query configuration for fetching corporation market orders from EVE ESI API.
- * 
+ *
  * This query handles corporation market order data fetching with:
- * - Pagination support for large corporation market order collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation market order data
- * - Error handling with descriptive messages
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for corporation group
  * 2. Fetches corporation market orders page by page until all data is retrieved
  * 3. Combines all pages into a single array
  * 4. Handles rate limiting errors with appropriate wait times
- * 5. Caches data for 1 hour with 30-minute stale time
- * 
+ * 5. Caches data for 1 hour with 30-minute stale time, refetching on mount once stale
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -33,14 +28,7 @@ const corporationMarketOrdersQueryKey = "corporationMarketOrders";
  * @returns {number} returns.retry - Number of retry attempts (3)
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
- * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: corpMarketOrders, isLoading, error } = useQuery(corporationMarketOrdersQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading corporation market orders...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Corporation Market Orders: {corpMarketOrders.length} active orders</div>;
+ * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (true, subject to staleTime)
  */
 function corporationMarketOrdersQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;
@@ -98,7 +86,10 @@ function corporationMarketOrdersQuery(characterHash) {
       return Math.min(1000 * 2 ** attemptIndex, 30000);
     },
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    // Linked orders are stored on a job, so a stale reading is written into the
+    // document and frozen when the job is archived. Mounting a panel that shows
+    // them refetches once the data passes staleTime.
+    refetchOnMount: true,
   };
 }
 

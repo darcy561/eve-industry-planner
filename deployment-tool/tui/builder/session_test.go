@@ -271,7 +271,7 @@ func TestCtrlRPendingRollKeepsBuffer(t *testing.T) {
 	secs := []Section{{
 		ID: "secrets", Title: "Secrets",
 		Fields: []Field{{
-			ID: "AUTHZ_HMAC_KEY", Label: "HMAC", Kind: KindReadonly,
+			ID: "ENTITY_ID_KEY", Label: "HMAC", Kind: KindReadonly,
 			Value: "keep-this-until-save", AllowRoll: true,
 		}},
 	}}
@@ -290,10 +290,10 @@ func TestCtrlRPendingRollKeepsBuffer(t *testing.T) {
 		t.Fatal("PendingRoll should clear AutogenOn")
 	}
 	vals, gen := s.Collect()
-	if vals["AUTHZ_HMAC_KEY"] != "keep-this-until-save" {
-		t.Fatalf("Collect value=%q", vals["AUTHZ_HMAC_KEY"])
+	if vals["ENTITY_ID_KEY"] != "keep-this-until-save" {
+		t.Fatalf("Collect value=%q", vals["ENTITY_ID_KEY"])
 	}
-	if !gen["AUTHZ_HMAC_KEY"] {
+	if !gen["ENTITY_ID_KEY"] {
 		t.Fatal("Collect generate should be true when PendingRoll")
 	}
 }

@@ -1,5 +1,5 @@
 /**
- * Coalesces rapid `user_job_documents` WS deliveries into fewer Zustand updates.
+ * Coalesces rapid `job_documents` WS deliveries into fewer Zustand updates.
  */
 
 import Job from "../../Classes/job.js";
@@ -57,7 +57,7 @@ function flush() {
     actions.clearPendingJobDocumentWrites(ids);
     const now = Date.now();
     rs.setCursorMsBatch(
-      ids.map((jobID) => [`user_job_documents.${jobID}`, now])
+      ids.map((jobID) => [`job_documents.${jobID}`, now])
     );
   }
 
@@ -71,7 +71,7 @@ function flush() {
     for (const [jobID, doc] of entries) {
       const ms = metaLastModifiedMs(doc);
       if (ms != null) {
-        cursorPairs.push([`user_job_documents.${jobID}`, ms]);
+        cursorPairs.push([`job_documents.${jobID}`, ms]);
       }
     }
     if (cursorPairs.length > 0) {

@@ -2,6 +2,10 @@ package auth
 
 import (
 	"context"
+	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/testing/keys"
+	"eve-industry-planner/testing/redisfake"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -10,7 +14,7 @@ import (
 func TestSaveAccountSessionsRecord_CASRejectsStaleWrite(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const accountID = "acct-cas-stale"
 	now := time.Now().UTC()
@@ -30,7 +34,7 @@ func TestSaveAccountSessionsRecord_CASRejectsStaleWrite(t *testing.T) {
 	}
 	staleCAS := accountSessionsCASFromRecord(loaded, exists)
 
-	if err := UpdateAccountSessionGrants(ctx, rdb, accountID, []int64{1}, nil); err != nil {
+	if err := UpdateAccountSessionGrants(ctx, rdb, keys.EntityCipher(t), accountID, []int64{1}, nil); err != nil {
 		t.Fatalf("grants bump: %v", err)
 	}
 
@@ -51,8 +55,9 @@ func TestSaveAccountSessionsRecord_CASRejectsStaleWrite(t *testing.T) {
 	if _, ok := reloaded.Sessions["s1"]; !ok {
 		t.Fatal("expected stale write not to remove session row")
 	}
-	if len(reloaded.Grants.CorporationIDs) != 1 || reloaded.Grants.CorporationIDs[0] != 1 {
-		t.Fatalf("grants = %v, want [1]", reloaded.Grants.CorporationIDs)
+	wantCorp := testCorpRef(t, 1)
+	if len(reloaded.Grants.CorporationRefs) != 1 || reloaded.Grants.CorporationRefs[0] != wantCorp {
+		t.Fatalf("grants = %v, want [%s]", reloaded.Grants.CorporationRefs, wantCorp)
 	}
 }
 
@@ -62,7 +67,7 @@ func TestSaveAccountSessionsRecord_CASRejectsStaleWrite(t *testing.T) {
 func TestConcurrentGrantsUpdatesAreNotLost(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-cas-lost-update"
@@ -90,7 +95,7 @@ func TestConcurrentGrantsUpdatesAreNotLost(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start
-				errCh <- UpdateAccountSessionGrants(ctx, rdb, accountID, []int64{corp}, nil)
+				errCh <- UpdateAccountSessionGrants(ctx, rdb, keys.EntityCipher(t), accountID, []int64{corp}, nil)
 			}()
 		}
 
@@ -117,7 +122,7 @@ func TestConcurrentGrantsUpdatesAreNotLost(t *testing.T) {
 func TestConcurrentUpsertAndGrantsPreservesSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-cas-concurrent"
@@ -143,7 +148,7 @@ func TestConcurrentUpsertAndGrantsPreservesSession(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		time.Sleep(2 * time.Millisecond)
-		errCh <- UpdateAccountSessionGrants(ctx, rdb, accountID, []int64{100}, []int64{200})
+		errCh <- UpdateAccountSessionGrants(ctx, rdb, keys.EntityCipher(t), accountID, []int64{100}, []int64{200})
 	}()
 
 	wg.Wait()
@@ -165,13 +170,57 @@ func TestConcurrentUpsertAndGrantsPreservesSession(t *testing.T) {
 	if sess.CharacterHash != "main-hash" {
 		t.Fatalf("session hash = %q, want main-hash", sess.CharacterHash)
 	}
-	if len(rec.Grants.CorporationIDs) != 1 || rec.Grants.CorporationIDs[0] != 100 {
-		t.Fatalf("grants corps = %v, want [100]", rec.Grants.CorporationIDs)
+	wantCorp := testCorpRef(t, 100)
+	wantAlliance := testAllianceRef(t, 200)
+	if len(rec.Grants.CorporationRefs) != 1 || rec.Grants.CorporationRefs[0] != wantCorp {
+		t.Fatalf("grants corps = %v, want [%s]", rec.Grants.CorporationRefs, wantCorp)
 	}
-	if len(rec.Grants.AllianceIDs) != 1 || rec.Grants.AllianceIDs[0] != 200 {
-		t.Fatalf("grants alliances = %v, want [200]", rec.Grants.AllianceIDs)
+	if len(rec.Grants.AllianceRefs) != 1 || rec.Grants.AllianceRefs[0] != wantAlliance {
+		t.Fatalf("grants alliances = %v, want [%s]", rec.Grants.AllianceRefs, wantAlliance)
 	}
-	if sess.Grants.CorporationIDs[0] != 100 {
+	if sess.Grants.CorporationRefs[0] != wantCorp {
 		t.Fatal("expected session-level grants to match account grants")
+	}
+}
+
+func testCorpRef(t *testing.T, id int64) string {
+	t.Helper()
+	r, err := keys.EntityCipher(t).Corporation(id)
+	if err != nil {
+		t.Fatalf("RefFromCorporationID: %v", err)
+	}
+	return r
+}
+
+func testAllianceRef(t *testing.T, id int64) string {
+	t.Helper()
+	r, err := keys.EntityCipher(t).Alliance(id)
+	if err != nil {
+		t.Fatalf("RefFromAllianceID: %v", err)
+	}
+	return r
+}
+
+// Grants must never persist a raw entity id: the ref is what is stored.
+func TestSessionGrantsStoreRefsNotIDs(t *testing.T) {
+	ctx := context.Background()
+	rdb := redisfake.New(t).Client
+
+	const accountID = "acct-refs"
+	if err := UpdateAccountSessionGrants(ctx, rdb, keys.EntityCipher(t), accountID, []int64{98765432}, []int64{99000001}); err != nil {
+		t.Fatalf("UpdateAccountSessionGrants: %v", err)
+	}
+
+	rec, err := GetAccountSessionsRecord(ctx, rdb, accountID)
+	if err != nil {
+		t.Fatalf("GetAccountSessionsRecord: %v", err)
+	}
+	for _, got := range append(rec.Grants.CorporationRefs, rec.Grants.AllianceRefs...) {
+		if !entityid.ValidShape(got) {
+			t.Fatalf("grant %q is not a well formed ref", got)
+		}
+		if strings.Contains(got, "98765432") || strings.Contains(got, "99000001") {
+			t.Fatalf("grant %q leaks the raw entity id", got)
+		}
 	}
 }

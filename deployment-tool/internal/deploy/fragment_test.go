@@ -3,7 +3,7 @@ package deploy
 import (
 	"testing"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/docker"
 )
 
@@ -20,13 +20,13 @@ func TestFragmentStates(t *testing.T) {
 	for _, s := range states {
 		by[s.ID] = s
 	}
-	if by[catalog.FragmentApp].OnStack < 1 || by[catalog.FragmentData].OnStack < 1 {
+	if by[catalogue.FragmentApp].OnStack < 1 || by[catalogue.FragmentData].OnStack < 1 {
 		t.Fatalf("%+v", states)
 	}
-	if by[catalog.FragmentObs].Present() {
+	if by[catalogue.FragmentObs].Present() {
 		t.Fatal("obs should be absent")
 	}
-	if !by[catalog.FragmentObs].Optional {
+	if !by[catalogue.FragmentObs].Optional {
 		t.Fatal("obs should be optional")
 	}
 }

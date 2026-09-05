@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
 )
 
@@ -87,8 +87,8 @@ func TestCompareSemverXYZ(t *testing.T) {
 func TestPickBackendPrefersLowerClients(t *testing.T) {
 	t.Parallel()
 	place := newPlacementStore()
-	place.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 5})
-	place.applyState(natscore.PlacementState{ContainerID: "bbb222222222", Clients: 1})
+	place.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 5})
+	place.applyState(eipnats.PlacementState{ContainerID: "bbb222222222", Clients: 1})
 	r := &Router{place: place}
 	got := r.pickBackend([]string{"aaa111111111", "bbb222222222"})
 	if got != "bbb222222222" {
@@ -162,7 +162,7 @@ func TestShortContainerID(t *testing.T) {
 func TestPlacementStoreApplyAndPlace(t *testing.T) {
 	t.Parallel()
 	p := newPlacementStore()
-	p.applyState(natscore.PlacementState{
+	p.applyState(eipnats.PlacementState{
 		ContainerID: "aaa111111111", Clients: 3, Soft: true, Full: false, Draining: true,
 	})
 	f := p.flagsOf("aaa111111111")
@@ -179,8 +179,8 @@ func TestPlacementStoreApplyAndPlace(t *testing.T) {
 func TestResolveBackendPlaceHitAndMiss(t *testing.T) {
 	t.Parallel()
 	place := newPlacementStore()
-	place.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 10})
-	place.applyState(natscore.PlacementState{ContainerID: "bbb222222222", Clients: 1})
+	place.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 10})
+	place.applyState(eipnats.PlacementState{ContainerID: "bbb222222222", Clients: 1})
 	be := &backendRegistry{byID: map[string]backend{
 		"aaa111111111": {ContainerID: "aaa111111111", IP: "10.0.0.1", AppVersion: "0.8.26"},
 		"bbb222222222": {ContainerID: "bbb222222222", IP: "10.0.0.2", AppVersion: "0.8.26"},
@@ -193,12 +193,15 @@ func TestResolveBackendPlaceHitAndMiss(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req.AddCookie(&http.Cookie{Name: wsplacement.AffinityCookie, Value: "alliance:9"})
-	id, setSticky, err := r.resolveBackend(req.Context(), req)
+	id, setSticky, result, err := r.resolveBackend(req.Context(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if setSticky {
 		t.Fatal("place path should not set sticky")
+	}
+	if result != "miss" {
+		t.Fatalf("result=%q want miss", result)
 	}
 	if id != "bbb222222222" {
 		t.Fatalf("miss pick want lowest clients, got %s", id)
@@ -212,12 +215,15 @@ func TestResolveBackendPlaceHitAndMiss(t *testing.T) {
 
 	req2 := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req2.AddCookie(&http.Cookie{Name: wsplacement.AffinityCookie, Value: "alliance:9"})
-	id2, _, err := r.resolveBackend(req2.Context(), req2)
+	id2, _, result2, err := r.resolveBackend(req2.Context(), req2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if id2 != "bbb222222222" {
 		t.Fatalf("hit got %s", id2)
+	}
+	if result2 != "hit" {
+		t.Fatalf("result=%q want hit", result2)
 	}
 	if r.placeHit.Load() != 1 {
 		t.Fatalf("hit=%d", r.placeHit.Load())
@@ -227,8 +233,8 @@ func TestResolveBackendPlaceHitAndMiss(t *testing.T) {
 func TestResolveBackendReassignsFullHome(t *testing.T) {
 	t.Parallel()
 	place := newPlacementStore()
-	place.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 1, Full: true})
-	place.applyState(natscore.PlacementState{ContainerID: "bbb222222222", Clients: 5})
+	place.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 1, Full: true})
+	place.applyState(eipnats.PlacementState{ContainerID: "bbb222222222", Clients: 5})
 	place.setPlace("account:1", "aaa111111111")
 	be := &backendRegistry{byID: map[string]backend{
 		"aaa111111111": {ContainerID: "aaa111111111", IP: "10.0.0.1", AppVersion: "0.8.26"},
@@ -241,7 +247,7 @@ func TestResolveBackendReassignsFullHome(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req.AddCookie(&http.Cookie{Name: wsplacement.AffinityCookie, Value: "account:1"})
-	id, _, err := r.resolveBackend(req.Context(), req)
+	id, _, _, err := r.resolveBackend(req.Context(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,8 +262,8 @@ func TestResolveBackendReassignsFullHome(t *testing.T) {
 func TestResolveBackendReassignsDrainingHome(t *testing.T) {
 	t.Parallel()
 	place := newPlacementStore()
-	place.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 1, Draining: true})
-	place.applyState(natscore.PlacementState{ContainerID: "bbb222222222", Clients: 5})
+	place.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 1, Draining: true})
+	place.applyState(eipnats.PlacementState{ContainerID: "bbb222222222", Clients: 5})
 	place.setPlace("account:2", "aaa111111111")
 	be := &backendRegistry{byID: map[string]backend{
 		"aaa111111111": {ContainerID: "aaa111111111", IP: "10.0.0.1", AppVersion: "0.8.26"},
@@ -270,12 +276,15 @@ func TestResolveBackendReassignsDrainingHome(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req.AddCookie(&http.Cookie{Name: wsplacement.AffinityCookie, Value: "account:2"})
-	id, _, err := r.resolveBackend(req.Context(), req)
+	id, _, result, err := r.resolveBackend(req.Context(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if id != "bbb222222222" {
 		t.Fatalf("got %s", id)
+	}
+	if result != "reassigned" {
+		t.Fatalf("result=%q want reassigned", result)
 	}
 	if r.placeReassign.Load() != 1 || r.placeDrain.Load() != 1 {
 		t.Fatalf("reassign=%d drain=%d", r.placeReassign.Load(), r.placeDrain.Load())

@@ -101,6 +101,15 @@ export function SideMenu({ open, setOpen }) {
                   <ListItemText primary={"Blueprint Library"} />
                 </ListItemButton>
                 <Divider />
+                <ListItemButton
+                  onClick={() => {
+                    navigate({ to: "/archived-jobs" });
+                    setOpen(false);
+                  }}
+                >
+                  <ListItemText primary={"Archived Jobs"} />
+                </ListItemButton>
+                <Divider />
               </>
             )}
 

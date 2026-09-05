@@ -20,7 +20,7 @@ export function WatchlistGroup({
   index,
   updateGroupSettingsTrigger,
   updateGroupSettingsContent,
-  setOpenDialog,
+  setOpenDialogue,
   updateWatchlistItemToEdit,
 }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
@@ -97,7 +97,7 @@ export function WatchlistGroup({
                   key={item.id}
                   item={item}
                   index={index}
-                  setOpenDialog={setOpenDialog}
+                  setOpenDialogue={setOpenDialogue}
                   updateWatchlistItemToEdit={updateWatchlistItemToEdit}
                 />
               );

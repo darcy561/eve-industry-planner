@@ -19,5 +19,6 @@ Application behaviour for Go services under `services/` (API contracts, workers,
 | Worker concurrency / capacity | [worker/contents.md](./worker/contents.md) |
 | Core primary lease / handoff | [core/contents.md](./core/contents.md) |
 | ws-router placement / affinity / Redis keys | [ws-router/contents.md](./ws-router/contents.md) |
-| Shared library docs | [shared/contents.md](./shared/contents.md) ([mongo.md](./shared/mongo.md)) |
+| Messaging — streams, subjects, publishing, consuming, schedules | [shared/nats.md](./shared/nats.md) |
+| Shared library docs | [shared/contents.md](./shared/contents.md) ([mongo.md](./shared/mongo.md), [nats.md](./shared/nats.md)) |
 | Swarm topology / Traefik / probes / rolls | [stack/](../stack/contents.md) |

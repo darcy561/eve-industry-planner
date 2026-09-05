@@ -204,7 +204,7 @@ const (
 
 // GrafanaApplySurfaceFromDoc reads services.grafana path templates from the obs
 func GrafanaApplySurfaceFromDoc(doc Doc) (GrafanaApplySurface, error) {
-	const grafanaShort = "grafana" // compose services key (catalog.ServiceGrafana)
+	const grafanaShort = "grafana" // compose services key (catalogue.ServiceGrafana)
 	svc, ok := doc.Services[grafanaShort]
 	if !ok {
 		return GrafanaApplySurface{}, fmt.Errorf("stack has no grafana service")
@@ -271,8 +271,8 @@ func HasEnvironmentKey(svc Service, key string) bool {
 
 // Capacity-sync env keys (applied only when the stack service declares them).
 const (
-	EnvWSClientCutoff  = "WS_CLIENT_CUTOFF"
-	EnvWSTargetClients = "WS_TARGET_CLIENTS"
+	EnvWSClientCutoff         = "WS_CLIENT_CUTOFF"
+	EnvWSTargetClients        = "WS_TARGET_CLIENTS"
 	EnvWorkerAsynqConcurrency = "WORKER_ASYNQ_CONCURRENCY"
 )
 

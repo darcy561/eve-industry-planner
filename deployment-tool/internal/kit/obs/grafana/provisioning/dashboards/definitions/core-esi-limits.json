@@ -14,7 +14,184 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Tokens left in the rolling window before the limit is hit (limit − consumed when enforced).",
+      "description": "Share of the allowance still available (0–1), which is what sets pacing.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "mappings": [],
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (group, scope) (core_esi_bucket_fill{job=\"otel_collector\"})",
+          "legendFormat": "{{group}} ({{scope}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Allowance still available",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Tokens left before the bucket refuses.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (group, scope) (core_esi_bucket_token_remaining{job=\"otel_collector\"})",
+          "legendFormat": "{{group}} ({{scope}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Tokens remaining",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Seconds until a refusing bucket admits again. 0 when it is not refusing.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (group, scope) (core_esi_bucket_seconds_until_open{job=\"otel_collector\"})",
+          "legendFormat": "{{group}} ({{scope}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Seconds until a refusing bucket admits again",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Tokens left before the bucket refuses, over the selected range.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -58,12 +235,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 11,
+        "h": 9,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 8
       },
-      "id": 2,
+      "id": 7,
       "options": {
         "legend": {
           "calcs": [],
@@ -82,12 +259,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "core_esi_group_token_remaining{job=\"otel_collector\"}",
-          "legendFormat": "{{group}}",
+          "expr": "max by (group, scope) (core_esi_bucket_token_remaining{job=\"otel_collector\"})",
+          "legendFormat": "{{group}} ({{scope}})",
           "refId": "A"
         }
       ],
-      "title": "Tokens remaining (by group)",
+      "title": "Tokens remaining over time",
       "type": "timeseries"
     },
     {
@@ -95,7 +272,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Current consumed count in the rolling window (instant snapshot per scrape).",
+      "description": "Tokens spent inside the bucket's window.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -124,10 +301,10 @@
         ]
       },
       "gridPos": {
-        "h": 5,
+        "h": 6,
         "w": 12,
         "x": 0,
-        "y": 11
+        "y": 17
       },
       "id": 4,
       "options": {
@@ -150,7 +327,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "core_esi_group_token_used{job=\"otel_collector\"}",
+          "expr": "max by (group, scope) (core_esi_bucket_token_used{job=\"otel_collector\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -158,7 +335,7 @@
           "refId": "A"
         }
       ],
-      "title": "Tokens consumed (snapshot)",
+      "title": "Tokens spent in window (snapshot)",
       "transformations": [
         {
           "id": "labelsToFields",
@@ -199,7 +376,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "X-Ratelimit-Limit style allowance per group (from ESI). Rarely changes; shown as a snapshot, not a time series.",
+      "description": "Token allowance ESI disclosed for this bucket.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -228,10 +405,10 @@
         ]
       },
       "gridPos": {
-        "h": 5,
+        "h": 6,
         "w": 12,
         "x": 12,
-        "y": 11
+        "y": 17
       },
       "id": 3,
       "options": {
@@ -254,7 +431,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "core_esi_group_token_limit{job=\"otel_collector\"}",
+          "expr": "max by (group, scope) (core_esi_bucket_token_limit{job=\"otel_collector\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -262,7 +439,7 @@
           "refId": "A"
         }
       ],
-      "title": "Configured token limit (snapshot)",
+      "title": "Token allowance (snapshot)",
       "transformations": [
         {
           "id": "labelsToFields",
@@ -297,176 +474,6 @@
         }
       ],
       "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Elapsed time since oldest consumption in the rolling window (0–900s = 15m).",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "opacity",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "decimals": 0,
-          "max": 900,
-          "min": 0,
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 11,
-        "w": 24,
-        "x": 0,
-        "y": 16
-      },
-      "id": 5,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "core_esi_group_seconds_into_window{job=\"otel_collector\"}",
-          "legendFormat": "{{group}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Seconds into rolling 15m window",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "When the bucket is exhausted: seconds until the oldest consumption ages out of the 15m window (next token available). Zero when tokens remain or not waiting.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "decimals": 0,
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 27
-      },
-      "id": 6,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "core_esi_group_seconds_until_reset{job=\"otel_collector\"}",
-          "legendFormat": "{{group}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Exhausted: seconds until oldest request leaves 15m window (next token; 0 = not waiting)",
-      "type": "timeseries"
     }
   ],
   "refresh": "15s",

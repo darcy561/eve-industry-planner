@@ -53,14 +53,14 @@ func normalizeAccountSessionsRecord(rec *AccountSessionsRecord, accountID string
 	if rec.Sessions == nil {
 		rec.Sessions = map[string]AccountSession{}
 	}
-	if rec.Grants.CorporationIDs == nil {
-		rec.Grants.CorporationIDs = []int64{}
+	if rec.Grants.CorporationRefs == nil {
+		rec.Grants.CorporationRefs = []string{}
 	}
-	if rec.Grants.AllianceIDs == nil {
-		rec.Grants.AllianceIDs = []int64{}
+	if rec.Grants.AllianceRefs == nil {
+		rec.Grants.AllianceRefs = []string{}
 	}
-	rec.Grants.CorporationIDs = normalizeIDs(rec.Grants.CorporationIDs)
-	rec.Grants.AllianceIDs = normalizeIDs(rec.Grants.AllianceIDs)
+	rec.Grants.CorporationRefs = normalizeRefs(rec.Grants.CorporationRefs)
+	rec.Grants.AllianceRefs = normalizeRefs(rec.Grants.AllianceRefs)
 }
 
 func loadAccountSessionsRecordRaw(ctx context.Context, redisClient *redis.Client, accountID string) (*AccountSessionsRecord, bool, error) {
@@ -78,8 +78,8 @@ func loadAccountSessionsRecordRaw(ctx context.Context, redisClient *redis.Client
 		rec = AccountSessionsRecord{
 			AccountID: acc,
 			Grants: SessionGrants{
-				CorporationIDs: []int64{},
-				AllianceIDs:    []int64{},
+				CorporationRefs: []string{},
+				AllianceRefs:    []string{},
 			},
 			Sessions: map[string]AccountSession{},
 		}

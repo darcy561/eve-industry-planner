@@ -7,10 +7,10 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import useUsersStore from "../../../../Zustand/usersStore";
-import { putWatchlistDeprecatedToApi } from "../../../../Functions/Endpoints/Pirivate/watchlistDeprecated.js";
+import { putWatchlistDeprecatedToApi } from "../../../../Functions/Endpoints/Private/watchlistDeprecated.js";
 import DOMPurify from "dompurify";
 
-export function GroupSettingsDialog({
+export function GroupSettingsDialogue({
   groupSettingsTrigger,
   updateGroupSettingsTrigger,
   groupSettingsContent,

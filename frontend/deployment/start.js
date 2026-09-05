@@ -21,7 +21,15 @@ try {
   generateRuntimeConfig(DIST_DIR);
 
   // Start custom server with compression support
-  createServer(DIST_DIR, PORT);
+  const server = createServer(DIST_DIR, PORT);
+
+  // Node is PID 1 here, so the process only stops on a signal it handles itself.
+  const shutdown = () => {
+    server.close(() => process.exit(0));
+    server.closeIdleConnections();
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 } catch (error) {
   console.error(`Startup failed: ${error.message}`);
   process.exit(1);

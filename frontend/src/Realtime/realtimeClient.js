@@ -3,8 +3,8 @@
  * Does not live in Zustand — connect/disconnect are explicit from auth lifecycle.
  */
 
-import { getSessionIDFromStore } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
-import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
+import { getSessionIDFromStore } from "../Functions/Endpoints/Private/applyPrivateHeaders.js";
+import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Private/jobDocuments.js";
 import {
   considerRemoteAppVersion,
   isClientAppVersionOutdated,
@@ -36,9 +36,10 @@ let manualClose = false;
 const PING_MS = 45_000;
 
 /**
- * Normalizes doc.lock fan-out into the `eip-document-lock` detail shape.
+ * Normalises doc.lock fan-out into the `eip-document-lock` detail shape.
  * The server always emits the flat envelope `{ type: "document_lock", event, …fields }`
  * (see `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`).
+ *
  * @param {Record<string, unknown>} parsed
  * @returns {Record<string, unknown>|null}
  */
@@ -68,6 +69,7 @@ const WS_CLOSE_NORMAL = 1000;
 
 /**
  * Reconnect backoff: must stay aligned with `services/websocket/server/realtime_timing.go` (wsReconnect* / handoff TTL).
+ *
  * @see services/websocket/server/realtime_timing.go
  */
 export const WS_RECONNECT_BASE_MS = 750;
@@ -75,6 +77,7 @@ export const WS_RECONNECT_BASE_MS = 750;
 export const WS_RECONNECT_MAX_MS = 20_000;
 /**
  * Server handoff TTL = WS_RECONNECT_MAX_MS + this (ms). Handoff should outlive one max-delay retry.
+ *
  * @see services/websocket/server/realtime_timing.go (wsSessionHandoffSlackMS)
  */
 export const WS_SESSION_HANDOFF_SLACK_MS = 5_000;

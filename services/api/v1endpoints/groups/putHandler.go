@@ -9,9 +9,9 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -75,7 +75,7 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 				groupIDs = append(groupIDs, g.GroupID)
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobGroups, groupIDs, nil)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobGroups, groupIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -88,7 +88,7 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobGroups, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobGroups, rejects)
 			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
@@ -116,7 +116,7 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			if len(delta.AddedJobIDs) == 0 {
 				continue
 			}
-			held, herr := documentlock.LockHeldBySession(ctx, h.locks.Redis, accountID, eipmongo.CollectionUserJobGroups, delta.GroupID, sessionID)
+			held, herr := documentlock.LockHeldBySession(ctx, h.locks.Redis, accountID, eipmongo.CollectionJobGroups, delta.GroupID, sessionID)
 			if herr != nil {
 				logs.AttachHandlerCaveat(r, "group_lock_cascade_check_failed", "group membership cascade: group lock check failed", map[string]any{
 					"error":    herr.Error(),

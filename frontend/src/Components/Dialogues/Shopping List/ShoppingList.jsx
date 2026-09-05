@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { ShoppingListContent } from "./DataProviders";
 import useShoppingListReducer from "./Hooks/useShoppingListReducer";
-import { useSyncedDialogEventState } from "../../../Styled Components/Dialog/ContentDialog";
+import { useSyncedDialogueEventState } from "../../../Styled Components/Dialogue/ContentDialogue";
 
 function serializeShoppingListEvent(messageData) {
   return JSON.stringify({
@@ -10,12 +10,12 @@ function serializeShoppingListEvent(messageData) {
   });
 }
 
-export function ShoppingListDialog() {
+export function ShoppingListDialogue() {
   const { state, actions } = useShoppingListReducer();
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  useSyncedDialogEventState(
+  useSyncedDialogueEventState(
     "shoppingList",
     () => ({
       isOpen: false,

@@ -1,0 +1,189 @@
+import { useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import {
+  Area,
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  chartAxisProps,
+  chartGridStroke,
+  chartLegendProps,
+  chartMargins,
+  chartTooltipProps,
+  formatAxisValue,
+  formatTooltipValue,
+  resolveSeriesColour,
+  timeSeriesSurfaceStyle,
+} from "./chartTheme";
+
+/**
+ * Draws rows against a category axis. Takes data and a series description, never
+ * a query result, so the same component draws profit by month, cost by item, or
+ * extras by category.
+ *
+ * @param {Object} props
+ * @param {Array<Object>} props.rows
+ * @param {string} props.categoryKey - row field for the category axis
+ * @param {Array<{key: string, label: string, type?: 'bar'|'line'|'area', colour?: string, axis?: 'left'|'right', fillOpacity?: number}>} props.series
+ * @param {(value: any) => string} [props.formatCategory]
+ * @param {(value: any) => string} [props.formatValue]
+ * @param {(value: any) => string} [props.formatCategoryLabel] - tooltip heading
+ * @param {(value: any) => string} [props.formatAxisTick] - axis ticks; defaults to short text
+ * @param {string} [props.leftAxisLabel]
+ * @param {[number, number]} [props.leftDomain] - defaults to recharts' own scaling
+ * @param {[number, number]} [props.rightDomain]
+ * @param {number} [props.categoryAngle] - rotate category labels when they are long
+ * @param {boolean} [props.showGrid] - grid lines; on by default
+ * @param {Object} [props.tooltipProps] - merged over the app-shell tooltip
+ * @param {Object} [props.axisProps] - merged over the app-shell axis styling
+ * @param {Object} [props.style] - CSS sizing; defaults to full width at a fixed
+ *   aspect ratio, so the chart follows the width of the page it is on
+ * @param {string} [props.rightAxisLabel]
+ */
+export function TimeSeriesChart({
+  rows = [],
+  categoryKey,
+  series = [],
+  formatCategory,
+  formatValue = formatTooltipValue,
+  formatCategoryLabel,
+  formatAxisTick = formatAxisValue,
+  leftAxisLabel,
+  rightAxisLabel,
+  leftDomain,
+  rightDomain,
+  categoryAngle,
+  showGrid = true,
+  tooltipProps,
+  axisProps: axisPropsOverride,
+  style,
+  width,
+  height,
+}) {
+  const theme = useTheme();
+  const deviceNotMobile = useMediaQuery(theme.breakpoints.up("sm"));
+  const axisProps = { ...chartAxisProps(theme), ...axisPropsOverride };
+  const hasRightAxis = series.some((s) => s.axis === "right");
+
+  return (
+    <ComposedChart
+      responsive
+      {...(width ? { width } : {})}
+      {...(height ? { height } : {})}
+      data={rows}
+      margin={chartMargins(rows, categoryKey, {
+        formatCategory,
+        angle: categoryAngle,
+      })}
+      style={{
+        ...timeSeriesSurfaceStyle(deviceNotMobile),
+        ...style,
+      }}
+    >
+      {showGrid && (
+        <CartesianGrid stroke={chartGridStroke(theme)} vertical={false} />
+      )}
+      <XAxis
+        dataKey={categoryKey}
+        tickFormatter={formatCategory}
+        interval="preserveStartEnd"
+        {...(categoryAngle ? { angle: categoryAngle, textAnchor: "end" } : {})}
+        {...axisProps}
+      />
+      <YAxis
+        width="auto"
+        tickFormatter={formatAxisTick}
+        domain={leftDomain}
+        label={
+          leftAxisLabel
+            ? { value: leftAxisLabel, position: "top", offset: 15 }
+            : undefined
+        }
+        {...axisProps}
+      />
+      {hasRightAxis && (
+        <YAxis
+          yAxisId="right"
+          orientation="right"
+          width="auto"
+          tickFormatter={formatAxisTick}
+          domain={rightDomain}
+          label={
+            rightAxisLabel
+              ? { value: rightAxisLabel, position: "top", offset: 12 }
+              : undefined
+          }
+          {...axisProps}
+        />
+      )}
+      <Tooltip
+        {...chartTooltipProps(theme)}
+        {...tooltipProps}
+        formatter={(value, name) => [formatValue(value), name]}
+        labelFormatter={formatCategoryLabel ?? formatCategory}
+      />
+      {series.length > 1 && (
+        <Legend position="top" {...chartLegendProps(theme)} />
+      )}
+      {series.map((s, index) => {
+        const colour = resolveSeriesColour(theme, s, index);
+        const shared = {
+          dataKey: s.key,
+          name: s.label,
+          ...(s.axis === "right" ? { yAxisId: "right" } : {}),
+          // Stacked bars total to their height, which suits composition but not
+          // comparison — so it is per series, not chart-wide.
+          ...(s.stackId ? { stackId: s.stackId } : {}),
+        };
+        if (s.type === "line") {
+          // A sparse series has categories with no reading at all — a month
+          // nothing sold in has no average price, which is not zero. Gaps are
+          // bridged so the trend reads, and the real readings are dotted so the
+          // bridge is not mistaken for data. Without dots a reading with gaps
+          // either side draws nothing at all.
+          const sparse = s.sparse === true;
+          return (
+            <Line
+              key={s.key}
+              {...shared}
+              type="monotone"
+              stroke={colour}
+              connectNulls={sparse}
+              dot={sparse ? { r: 2.5, fill: colour, strokeWidth: 0 } : false}
+              activeDot
+            />
+          );
+        }
+        if (s.type === "area") {
+          return (
+            <Area
+              key={s.key}
+              {...shared}
+              type="monotone"
+              stroke={colour}
+              fill={colour}
+              fillOpacity={s.fillOpacity ?? 0.2}
+            />
+          );
+        }
+        return (
+          <Bar
+            key={s.key}
+            {...shared}
+            fill={colour}
+            fillOpacity={s.fillOpacity ?? 0.85}
+          />
+        );
+      })}
+    </ComposedChart>
+  );
+}
+
+export default TimeSeriesChart;

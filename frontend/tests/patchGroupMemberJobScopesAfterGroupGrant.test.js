@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 import { USER_JOBS_COLLECTION } from "../src/Functions/DocumentLock/documentLockCollections.js";
 import { patchGroupMemberJobScopesAfterGroupGrant } from "../src/Functions/DocumentLock/patchGroupMemberJobScopesAfterGroupGrant.js";
@@ -26,10 +26,6 @@ const useTestStore = create(() => ({
 }));
 
 describe("patchGroupMemberJobScopesAfterGroupGrant", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("patches every included job to editable-under-group shape", () => {
     patchGroupMemberJobScopesAfterGroupGrant("g1");
 

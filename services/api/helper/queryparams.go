@@ -1,0 +1,148 @@
+package helper
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+)
+
+// Query parameter parsing shared by the endpoints that page and filter reads.
+
+// ParamError is a bad request carrying its failure class and metric label.
+type ParamError struct {
+	Code    string
+	Metric  string
+	Message string
+}
+
+func (e ParamError) Error() string { return e.Message }
+
+// BadParam builds a [ParamError] with a formatted message.
+func BadParam(code, metric, format string, args ...any) ParamError {
+	return ParamError{Code: code, Metric: metric, Message: fmt.Sprintf(format, args...)}
+}
+
+// RespondParamError writes the 400 a rejected parameter earns.
+func RespondParamError(w http.ResponseWriter, r *http.Request, metrics *RequestMetricsTracker, component string, err error) {
+	if pErr, ok := errors.AsType[ParamError](err); ok {
+		metrics.Error(pErr.Metric)
+		RespondEndpointError(w, r, http.StatusBadRequest, pErr.Message, component+": "+pErr.Message, pErr.Code, component, nil, nil)
+		return
+	}
+	metrics.Error("invalid_request")
+	RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", component+": invalid request", component+"_invalid_request", component, err, nil)
+}
+
+// ParseTypeID reads the optional typeID filter. Zero means every item type.
+func ParseTypeID(r *http.Request, codePrefix string) (int, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("typeID"))
+	if raw == "" {
+		return 0, nil
+	}
+	typeID, err := strconv.Atoi(raw)
+	if err != nil || typeID <= 0 {
+		return 0, BadParam(codePrefix+"_invalid_type_id", "invalid_type_id",
+			"typeID must be a positive integer, got %q", raw)
+	}
+	return typeID, nil
+}
+
+// BoolParam reads a flag-style query parameter. Anything but a truthy spelling
+// is off, so an unrecognised value cannot silently switch a response shape.
+func BoolParam(r *http.Request, name string) bool {
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get(name))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+// Paging is a resolved ordering and page.
+type Paging struct {
+	Sort      string
+	Ascending bool
+	Limit     int
+	Offset    int
+}
+
+// Order renders the direction as its wire value.
+func (p Paging) Order() string {
+	if p.Ascending {
+		return "asc"
+	}
+	return "desc"
+}
+
+// PagingRules describe what a view accepts.
+type PagingRules struct {
+	// Sortable keeps caller input out of the $sort key; SortableFields lists the
+	// accepted values for the rejection message.
+	Sortable       func(string) bool
+	SortableFields func() []string
+	DefaultLimit   int
+	MaxLimit       int
+	// DefaultAscending gives the direction a field reads in when the caller names
+	// none. A date wants newest first; a name wants A to Z. Nil means descending
+	// for every field, which suits a view whose measures are all quantities.
+	DefaultAscending func(sort string) bool
+	// CodePrefix namespaces this view's failure classes.
+	CodePrefix string
+}
+
+// ResolvePaging reads sort, order, limit and offset against a view's rules.
+func ResolvePaging(r *http.Request, rules PagingRules) (Paging, error) {
+	q := r.URL.Query()
+	out := Paging{Limit: rules.DefaultLimit}
+
+	if sort := strings.TrimSpace(q.Get("sort")); sort != "" {
+		if rules.Sortable == nil || !rules.Sortable(sort) {
+			var valid string
+			if rules.SortableFields != nil {
+				valid = strings.Join(rules.SortableFields(), ", ")
+			}
+			return out, BadParam(rules.CodePrefix+"_invalid_sort", "invalid_sort",
+				"sort must be one of %s, got %q", valid, sort)
+		}
+		out.Sort = sort
+	}
+
+	switch order := strings.TrimSpace(q.Get("order")); order {
+	case "":
+		if rules.DefaultAscending != nil {
+			out.Ascending = rules.DefaultAscending(out.Sort)
+		}
+	case "desc":
+	case "asc":
+		out.Ascending = true
+	default:
+		return out, BadParam(rules.CodePrefix+"_invalid_order", "invalid_order",
+			"order must be asc or desc, got %q", order)
+	}
+
+	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
+		limit, err := strconv.Atoi(raw)
+		if err != nil || limit <= 0 {
+			return out, BadParam(rules.CodePrefix+"_invalid_limit", "invalid_limit",
+				"limit must be a positive integer, got %q", raw)
+		}
+		if limit > rules.MaxLimit {
+			return out, BadParam(rules.CodePrefix+"_limit_too_large", "limit_too_large",
+				"limit %d exceeds the maximum of %d", limit, rules.MaxLimit)
+		}
+		out.Limit = limit
+	}
+
+	if raw := strings.TrimSpace(q.Get("offset")); raw != "" {
+		offset, err := strconv.Atoi(raw)
+		if err != nil || offset < 0 {
+			return out, BadParam(rules.CodePrefix+"_invalid_offset", "invalid_offset",
+				"offset must be zero or a positive integer, got %q", raw)
+		}
+		out.Offset = offset
+	}
+
+	return out, nil
+}

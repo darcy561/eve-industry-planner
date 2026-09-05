@@ -4,8 +4,8 @@
 // OTel service.instance.id, JetStream durable suffixes, placement keys, leases,
 // and probes. Do not read OTEL_SERVICE_INSTANCE_ID — that env is not identity SoT.
 //
-// Depends on ContainerSpec.Hostname / --hostname not being overridden; if it is,
-// revisit this package.
+// Depends on ContainerSpec.Hostname / --hostname not being overridden — an
+// overridden hostname is no longer the container id.
 package container
 
 import (
@@ -16,7 +16,7 @@ import (
 
 var idSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
-// ID returns the sanitized short container id for this process.
+// ID returns the sanitised short container id for this process.
 //
 // Priority: HOSTNAME env → os.Hostname() → "local". Max 64 chars.
 func ID() string {

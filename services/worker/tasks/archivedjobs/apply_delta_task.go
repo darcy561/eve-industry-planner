@@ -1,0 +1,206 @@
+package archivedjobs
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/shared/statistics"
+	"eve-industry-planner/worker/taskrun"
+)
+
+// DeltaResult summarises one pass of delta application.
+type DeltaResult struct {
+	Added         int
+	Removed       int
+	TypesTouched  int
+	BucketsPruned int64
+	TotalsPruned  int64
+	// Deferred means the fold found the owner taken on by something else and
+	// wrote nothing, leaving its rows outstanding.
+	Deferred bool
+}
+
+// ApplyOwnerStatisticsDelta folds an owner's uncounted rows into its aggregates.
+//
+// The task carries no list of jobs. Its work is every row for the owner with no
+// `contributedAt`, so the stamp that keeps a row from being counted twice is also
+// what describes what is outstanding. The rows themselves are written where the
+// job is archived, which is what keeps this pass proportional to what changed
+// rather than to the size of the archive. Three properties follow: archiving twenty
+// jobs is one task rather than twenty, a task that dies leaves its unreached rows
+// still unstamped for the next run, and a row cannot be applied twice because it
+// is stamped in the same call that applies it.
+func ApplyOwnerStatisticsDelta(ctx context.Context, req eipnats.RebuildOwnerStatisticsRequest, deps *taskrun.Dependencies) error {
+	if deps == nil || deps.Mongo == nil {
+		return fmt.Errorf("mongo client is required")
+	}
+
+	owner := models.Owner{Kind: models.OwnerKind(req.OwnerKind), ID: req.OwnerID}
+	if err := owner.Validate(); err != nil {
+		return fmt.Errorf("apply owner statistics delta: %w: %w", err, eipnats.Terminate("a request cannot be corrected by retrying it"))
+	}
+	if owner.Kind != models.OwnerAccount {
+		return fmt.Errorf("owner kind %q has no archive to read: %w", owner.Kind, eipnats.Terminate("no archive for this owner kind"))
+	}
+
+	queued := eipmongo.QueuedOwner{Owner: owner, Work: eipmongo.StatsWorkDelta, Claim: req.Claim}
+	result, cleared, err := applyOwnerDelta(ctx, deps.Mongo, queued, time.Now().UTC())
+	if err != nil {
+		return stopIfOutOfAttempts(ctx, deps.Mongo, owner, fmt.Errorf("apply statistics delta: %w", err))
+	}
+	forgetFailuresIfStillQueued(ctx, deps.Mongo, owner, cleared)
+
+	logs.InfoCtx(ctx, "owner statistics delta applied",
+		"component", "archivedjobs",
+		"owner_kind", owner.Kind,
+		"added", result.Added,
+		"removed", result.Removed,
+		"types_touched", result.TypesTouched,
+		"buckets_pruned", result.BucketsPruned,
+		"totals_pruned", result.TotalsPruned,
+		"deferred", result.Deferred,
+		"cleared", cleared,
+	)
+
+	if result.Added > 0 || result.Removed > 0 {
+		// A pass that folded nothing changed nothing, so there is nothing to tell
+		// a client about.
+		notifyStatisticsProcessed(ctx, deps.NATS, owner, time.Now().UTC())
+	}
+	return nil
+}
+
+// applyOwnerDelta folds the owner's uncounted rows and clears its queue entry.
+func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo.QueuedOwner, now time.Time) (DeltaResult, bool, error) {
+	var out DeltaResult
+	owner := queued.Owner
+
+	added, err := mongo.LoadUncountedStatsRows(ctx, owner)
+	if err != nil {
+		return out, false, fmt.Errorf("load uncounted rows: %w", err)
+	}
+	removed, err := mongo.LoadRevokedContributedRows(ctx, owner)
+	if err != nil {
+		return out, false, fmt.Errorf("load revoked rows still counted: %w", err)
+	}
+	out.Added, out.Removed = len(added), len(removed)
+
+	if len(added) > 0 || len(removed) > 0 {
+		// The rows were read before this point, so a rebuild finishing in between
+		// would have counted them already and the increments below would count
+		// them a second time. A fold may only write while its claim is the current
+		// one; anything else holding the owner accounts for these rows itself.
+		current, cerr := mongo.OwnerClaimIsCurrent(ctx, queued)
+		if cerr != nil {
+			return out, false, fmt.Errorf("check owner claim: %w", cerr)
+		}
+		if !current {
+			// Re-queueing rather than clearing keeps the rows outstanding, and the
+			// bumped claim invalidates the clear of whatever superseded this fold,
+			// so the owner is worked again rather than being left half applied.
+			if qerr := mongo.QueueOwnerWork(ctx, queued.Owner, eipmongo.StatsWorkDelta, now); qerr != nil {
+				return out, false, fmt.Errorf("re-queue deferred delta: %w", qerr)
+			}
+			out.Deferred = true
+			return out, false, nil
+		}
+	}
+
+	types := map[int]struct{}{}
+
+	if len(added) > 0 {
+		delta, ids := accumulate(added, false, types)
+		if err := mongo.ApplyStatsDelta(ctx, owner, delta, ids, now); err != nil {
+			return out, false, err
+		}
+	}
+
+	if len(removed) > 0 {
+		// Removing is the same arithmetic negated, so the figures a row put in are
+		// exactly what comes back out. The stamp is cleared rather than set, since
+		// the row is no longer counted.
+		delta, ids := accumulate(removed, true, types)
+		if err := mongo.ApplyStatsDelta(ctx, owner, delta, nil, now); err != nil {
+			return out, false, err
+		}
+		if err := mongo.ClearContributedStamp(ctx, ids); err != nil {
+			return out, false, fmt.Errorf("clear contribution stamp: %w", err)
+		}
+	}
+	out.TypesTouched = len(types)
+
+	// Marks cannot be incremented — a cheapest and a dearest do not move by
+	// addition, and removing the cheapest leaves nothing in a counter to recover
+	// the next one from — so each touched type's are recomputed from its rows.
+	for typeID := range types {
+		typeRows, terr := mongo.LoadTypeStatsRows(ctx, owner, typeID)
+		if terr != nil {
+			return out, false, fmt.Errorf("load rows for type %d: %w", typeID, terr)
+		}
+		if merr := mongo.SetBuildHistoryMarks(ctx, owner, typeID, statistics.BuildHistory(typeRows)); merr != nil {
+			return out, false, fmt.Errorf("set marks for type %d: %w", typeID, merr)
+		}
+	}
+
+	pruned, err := mongo.PruneEmptyBuckets(ctx, owner)
+	if err != nil {
+		return out, false, fmt.Errorf("prune empty buckets: %w", err)
+	}
+	out.BucketsPruned = pruned
+
+	// The same emptiness, one document up. A type whose last job was restored has
+	// no month left and no lifetime figures either.
+	prunedTotals, err := mongo.PruneEmptyTotals(ctx, owner)
+	if err != nil {
+		return out, false, fmt.Errorf("prune empty totals: %w", err)
+	}
+	out.TotalsPruned = prunedTotals
+
+	cleared, err := mongo.ClearQueuedOwner(ctx, queued)
+	if err != nil {
+		return out, false, fmt.Errorf("clear queue entry: %w", err)
+	}
+	return out, cleared, nil
+}
+
+// accumulate folds a set of rows into one delta, negated when the rows are being
+// taken back out, and records which item types it touched.
+func accumulate(rows []models.ArchivedJobStats, negate bool, types map[int]struct{}) (models.StatsDelta, []string) {
+	delta := models.StatsDelta{
+		Buckets: map[models.StatsBucketKey]models.StatsBucketDelta{},
+		Totals:  map[models.StatsTypeKey]models.StatsTypeDelta{},
+	}
+	ids := make([]string, 0, len(rows))
+
+	for _, row := range rows {
+		contribution := statistics.ContributionOf(row)
+		if negate {
+			// A revoked row contributes nothing when folded, so the figures to
+			// reverse are the ones it would contribute if it were not revoked.
+			live := row
+			live.Revoked = false
+			contribution = statistics.ContributionOf(live).Negated()
+		}
+		for key, bucket := range contribution.Buckets {
+			held := delta.Buckets[key]
+			held.Measures = held.Measures.Plus(bucket.Measures)
+			held.Rows += bucket.Rows
+			delta.Buckets[key] = held
+		}
+		for key, total := range contribution.Totals {
+			held := delta.Totals[key]
+			held.JobType = total.JobType
+			held.Measures = held.Measures.Plus(total.Measures)
+			held.SoldQty += total.SoldQty
+			delta.Totals[key] = held
+			types[key.TypeID] = struct{}{}
+		}
+		ids = append(ids, row.ID)
+	}
+	return delta, ids
+}

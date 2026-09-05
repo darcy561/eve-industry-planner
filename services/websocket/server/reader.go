@@ -33,8 +33,7 @@ func isBenignWebSocketDisconnect(err error) bool {
 	if err == nil {
 		return false
 	}
-	var ce *websocket.CloseError
-	if errors.As(err, &ce) {
+	if ce, ok := errors.AsType[*websocket.CloseError](err); ok {
 		switch ce.Code {
 		case websocket.CloseNormalClosure,
 			websocket.CloseGoingAway,
@@ -217,7 +216,7 @@ func (s *Server) reader(client *Client) {
 		msgStr := string(msg)
 		if msgStr == "ping" {
 			// Send pong response through writer goroutine (frontend expects plain string "pong" as returnMessage)
-			// Must use Send channel to avoid concurrent writes (gorilla/websocket requires serialized writes)
+			// Must use Send channel to avoid concurrent writes (gorilla/websocket requires serialised writes)
 			select {
 			case client.Send <- []byte("pong"):
 			default:
@@ -236,7 +235,6 @@ func (s *Server) reader(client *Client) {
 		if len(msg) > 0 && msg[0] == '{' {
 			var msgData map[string]any
 			if err := json.Unmarshal(msg, &msgData); err != nil {
-				// Not valid JSON
 				logs.WarnCtx(ctx, "websocket message is not valid JSON",
 					"client_id", client.id,
 					"account_id", client.AccountID,
@@ -296,7 +294,6 @@ func (s *Server) reader(client *Client) {
 				continue
 
 			default:
-				// Unknown type or no type field
 				logs.WarnCtx(ctx, "websocket message with unknown or missing type field",
 					"client_id", client.id,
 					"account_id", client.AccountID,

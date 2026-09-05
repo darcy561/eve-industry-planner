@@ -29,12 +29,12 @@ import {
 } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {
   upsertCloudStoredEsiRefreshTokens,
-} from "../../Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
+} from "../../Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js";
 import {
-  clearAdditionalUserAuthCode,
-  EVE_SSO_ADDITIONAL_ACCOUNT_STATE,
-  subscribeToAdditionalUserAuthCodeFromStorage,
-} from "../Auth/authCallbackParams.js";
+  buildAdditionalAccountState,
+  subscribeToAdditionalUserAuthCode,
+  watchForClosedImportPopup,
+} from "../Auth/additionalAccountImport.js";
 import { getEveSsoAuthorizeUrl } from "../Auth/Functions/eveSSORedirect";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../Context/defaultValues";
@@ -82,11 +82,11 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
   const [skeletonVisible, toggleSkeleton] = useState(false);
   const queryClient = useQueryClient();
   const { triggerCharacterDataPrefetch } = useCharacterHooks();
-  const detachStorageListenerRef = useRef(null);
+  const detachImportListenerRef = useRef(null);
 
   useEffect(
     () => () => {
-      const d = detachStorageListenerRef.current;
+      const d = detachImportListenerRef.current;
       if (typeof d === "function") d();
     },
     [],
@@ -172,7 +172,6 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
           newUser.CharacterHash,
         )
       ) {
-        clearAdditionalUserAuthCode();
         showSnackbarError("Duplicate Account", 3);
         return;
       }
@@ -180,14 +179,13 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
       await newUser.getPublicCharacterData();
       await buildCorporationObjectFromUserObject(newUser);
       addCharacter(newUser);
-      clearAdditionalUserAuthCode();
 
       await applyImportedAdditionalUser(newUser);
     } catch (err) {
-      clearAdditionalUserAuthCode();
       console.error(err);
       showSnackbarError(`${err.message}`, 3);
     } finally {
+      detachImportListenerRef.current = null;
       toggleSkeleton(false);
       setIsProcessing(false);
     }
@@ -197,24 +195,40 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
     if (isProcessing) return;
     setIsProcessing(true);
     toggleSkeleton(true);
-    const prevDetach = detachStorageListenerRef.current;
+
+    const prevDetach = detachImportListenerRef.current;
     if (typeof prevDetach === "function") {
       prevDetach();
     }
-    detachStorageListenerRef.current =
-      subscribeToAdditionalUserAuthCodeFromStorage({
-        onAuthCode: (code) => {
-          void importAdditionalAccountFromAuthCode(code);
-        },
-        onTimeout: () => {
-          toggleSkeleton(false);
-          setIsProcessing(false);
-        },
-      });
-    window.open(
-      getEveSsoAuthorizeUrl(EVE_SSO_ADDITIONAL_ACCOUNT_STATE),
+
+    const nonce = crypto.randomUUID();
+    let cancelPopupWatch = () => {};
+    const stopWaiting = () => {
+      cancelPopupWatch();
+      detachImportListenerRef.current = null;
+      toggleSkeleton(false);
+      setIsProcessing(false);
+    };
+
+    const detach = subscribeToAdditionalUserAuthCode({
+      nonce,
+      onAuthCode: (code) => {
+        cancelPopupWatch();
+        void importAdditionalAccountFromAuthCode(code);
+      },
+      onTimeout: stopWaiting,
+    });
+    detachImportListenerRef.current = detach;
+
+    const popup = window.open(
+      getEveSsoAuthorizeUrl(buildAdditionalAccountState(nonce)),
       "_blank",
     );
+    cancelPopupWatch = watchForClosedImportPopup(popup, () => {
+      detach();
+      stopWaiting();
+      showSnackbarInfo("Import Cancelled", 3);
+    });
   };
 
   const setCloudMode = async (nextCloudEnabled) => {

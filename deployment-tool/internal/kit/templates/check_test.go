@@ -9,7 +9,7 @@ import (
 	"eve-industry-planner/deployment-tool/internal/kit/templates/env"
 )
 
-func fillEVEOperatorSSO(t *testing.T, home string) {
+func fillOperatorRequired(t *testing.T, home string) {
 	t.Helper()
 	path := filepath.Join(home, kit.EnvFile)
 	m, err := kit.Map(path)
@@ -20,6 +20,7 @@ func fillEVEOperatorSSO(t *testing.T, home string) {
 	m["EVE_CLIENT_ID"] = "test-eve-client-id"
 	m["EVE_CLIENT_SECRET"] = "test-eve-client-secret"
 	m["EVE_CALLBACK_URL"] = "https://example.com/auth/callback"
+	m["EIP_ALLOWED_ORIGINS"] = "https://example.com"
 	if err := env.EmitEnvOpts(path, m, env.EmitOpts{SkipBackup: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +31,7 @@ func TestCheckOperatorDocsHappy(t *testing.T) {
 	if _, err := WriteMissingEnv(home); err != nil {
 		t.Fatal(err)
 	}
-	fillEVEOperatorSSO(t, home)
+	fillOperatorRequired(t, home)
 	if _, err := WriteMissingConfig(home); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestCheckOperatorDocsMissingConfig(t *testing.T) {
 	if _, err := WriteMissingEnv(home); err != nil {
 		t.Fatal(err)
 	}
-	fillEVEOperatorSSO(t, home)
+	fillOperatorRequired(t, home)
 	err := CheckOperatorDocs(home)
 	if err == nil || !strings.Contains(err.Error(), "eip.config.yaml") {
 		t.Fatalf("got %v", err)

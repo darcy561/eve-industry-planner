@@ -1,12 +1,5 @@
 /**
  * World Data Slice for EVE Industry Planner.
- * 
- * Manages world-related data including market data, universe IDs, and system indexes.
- * This slice provides centralized state
- * management for all EVE Online world data that is shared across the application.
- * 
- * @fileoverview World data state management slice for EVE Industry Planner
- * @author EVE Industry Planner Team
  */
 
 import {
@@ -19,19 +12,10 @@ import {
 
 /**
  * World Data Slice for Zustand Store.
- * 
- * Creates the world data slice with state and actions for managing EVE Online
- * world data including market data, universe IDs, and system indexes.
- * Provides methods for updating and retrieving world data throughout the application.
- * 
+ *
  * @param {Function} set - Zustand set function for updating state
  * @param {Function} get - Zustand get function for accessing current state
  * @returns {Object} World data slice with state and actions
- * 
- * @example
- * const useWorldData = create((set, get) => ({
- *   ...worldDataSlice(set, get)
- * }));
  */
 const worldDataSlice = (set, get) => ({
   worldData: {

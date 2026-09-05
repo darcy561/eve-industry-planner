@@ -21,7 +21,7 @@ go test ./tui/...
 | `screens/init` | Session view; builder first-create vs day-2; sections from registry; persist env/config/backup/AES roll/locked mongo; config persist preserving CLI |
 | `builder` | Session lifecycle (nav/form, autogen, AES roll, locked fields, copy/paste, resize); mouse back/finish/nav/wheel; field zones; click-to-focus; nav keys |
 | `ui` | Panel split/render/viewport; progress/marquee/zones; textinput styling/paste; cursor; list pagination; clipboard (Windows); progress fraction |
-| `ops` / `exec` / `status` / `pane` / `output` | Menu order/gating/setup visibility; start/stop args; apply gate; CLI arg normalize; stdout demux/scan/wait; status bar render + event apply; output buffer; status text render |
+| `ops` / `exec` / `status` / `pane` / `output` | Menu order/gating/setup visibility; start/stop args; apply gate; CLI arg normalise; stdout demux/scan/wait; status bar render + event apply; output buffer; status text render |
 
 ### Thin
 

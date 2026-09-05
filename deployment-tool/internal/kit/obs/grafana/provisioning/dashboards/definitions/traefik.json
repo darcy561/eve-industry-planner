@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Traefik v3 native Prometheus metrics (job=traefik, :8082 on Swarm `eip_traefik` / alias `traefik`).",
+  "description": "Traefik v3 OTLP metrics via Alloy (job=traefik).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,

@@ -319,8 +319,8 @@ func shortImageLabel(ref string, max int) string {
 	if utf8.RuneCountInString(ref) <= max {
 		return ref
 	}
-	if i := strings.LastIndex(ref, "/"); i >= 0 && i+1 < len(ref) {
-		ref = ref[i+1:]
+	if _, base, ok := strings.CutLast(ref, "/"); ok && base != "" {
+		ref = base
 	}
 	return truncateRunes(ref, max)
 }

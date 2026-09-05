@@ -1,8 +1,9 @@
-﻿package commands
+package commands
 
 import (
 	"context"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"strconv"
@@ -11,9 +12,9 @@ import (
 
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
-	natscore "eve-industry-planner/shared/core/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
+	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -37,7 +38,7 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if _, err := clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 	rt, err := config.LoadCloudStoredESIKeys()
@@ -59,7 +60,7 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 	}
 	findOpts := options.Find().
 		SetBatchSize(int32(opts.scanBatch)).
-		SetProjection(bson.M{"_id": 1, "_meta.accountID": 1}).
+		SetProjection(bson.M{"_id": 1, eipmongo.FieldMetaOwnerID: 1}).
 		SetSort(bson.D{{Key: "_id", Value: 1}})
 	if opts.limit > 0 {
 		findOpts.SetLimit(int64(opts.limit))
@@ -75,13 +76,13 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 		var row struct {
 			ID       string `bson:"_id"`
 			MetaData struct {
-				AccountID string `bson:"accountID"`
+				Owner models.Owner `bson:"owner"`
 			} `bson:"_meta"`
 		}
 		if err := cur.Decode(&row); err != nil {
 			return fmt.Errorf("decode user id for rotation fan-out: %w", err)
 		}
-		accountID := strings.TrimSpace(row.MetaData.AccountID)
+		accountID := strings.TrimSpace(row.MetaData.Owner.ID)
 		if accountID == "" {
 			accountID = strings.TrimSpace(row.ID)
 		}
@@ -89,20 +90,7 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 			continue
 		}
 
-		payload := natscore.RotateRefreshTokenKeysRequest{
-			AccountID:   accountID,
-			FromVersion: opts.fromVersion,
-			DryRun:      opts.dryRun,
-		}
-		if err := natscore.PublishTask(
-			ctx,
-			clients.JetStream,
-			taskscore.RotateRefreshTokenKeys.Subject,
-			taskscore.RotateRefreshTokenKeys.Name,
-			payload,
-			clients.NATS,
-			taskscore.RotateRefreshTokenKeys.DefaultPriority,
-		); err != nil {
+		if err := eipnats.PublishRotateRefreshTokenKeys(ctx, clients.NATS, accountID, opts.fromVersion, opts.dryRun); err != nil {
 			return fmt.Errorf("publish rotateRefreshTokenKeys for %s: %w", accountID, err)
 		}
 		queued++
@@ -113,8 +101,8 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 
 	fmt.Printf("Queued %d rotateRefreshTokenKeys tasks on subject %q (priority=%s)\n",
 		queued,
-		taskscore.RotateRefreshTokenKeys.Subject,
-		taskscore.RotateRefreshTokenKeys.DefaultPriority,
+		eipnats.RotateRefreshTokenKeys.Subject,
+		eipnats.RotateRefreshTokenKeys.DefaultPriority,
 	)
 	return nil
 }

@@ -7,22 +7,16 @@ const characterIndustryJobsQueryKey = "characterIndustryJobs";
 
 /**
  * React Query configuration for fetching character industry jobs from EVE ESI API.
- * 
+ *
  * This query handles character industry job data fetching with:
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimized for industry job data
- * - Error handling with descriptive messages
- * - ETag support for efficient data updates
- * - Single-page data fetching (industry jobs are not paginated)
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for industry group
  * 2. Fetches all character industry jobs in a single request
  * 3. Returns industry job data with production information
  * 4. Handles rate limiting errors with appropriate wait times
  * 5. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -34,13 +28,6 @@ const characterIndustryJobsQueryKey = "characterIndustryJobs";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: industryJobs, isLoading, error } = useQuery(characterIndustryJobsQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading industry jobs...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Industry Jobs: {industryJobs.data.length} active jobs</div>;
  */
 function characterIndustryJobsQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

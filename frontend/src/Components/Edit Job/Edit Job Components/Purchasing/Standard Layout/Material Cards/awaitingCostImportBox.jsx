@@ -3,7 +3,7 @@ import { Box, Typography } from "@mui/material";
 export function AwaitingCostImportBox_Purchasing({
   material,
   childJobs,
-  childJobProductionTotal,
+  childSupply,
 }) {
   if (childJobs.length === 0) return null;
 
@@ -23,19 +23,10 @@ export function AwaitingCostImportBox_Purchasing({
 
   if (!awaitingCostImport) return null;
 
-  // Determine if we should show the box
-  let shouldShow = false;
-
-  if (childJobProductionTotal >= material.quantity) {
-    // Child jobs produce enough to cover the requirement
-    shouldShow = true;
-  } else {
-    // Child jobs don't cover the requirement, only show if the shortfall has been purchased
-    const shortfall = material.quantity - childJobProductionTotal;
-    shouldShow = material.quantityPurchased >= shortfall;
-  }
-
-  if (!shouldShow) return null;
+  // Whatever the child jobs cannot be counted on for has to be bought first,
+  // otherwise the card would say a cost is on its way for units nobody is making
+  // for this job.
+  if (material.quantityRemaining > childSupply.min) return null;
 
   return (
     <Box

@@ -1,11 +1,17 @@
 package outgoinglogic
 
-import "slices"
+import (
+	"slices"
 
+	"eve-industry-planner/shared/models"
+)
+
+// RouteInfo is the routing metadata carried by a doc.update payload.
+//
+// Owner is the document's owner, parsed from the message's owner key. Its kind
+// selects the delivery branch and its id names the scope within that kind.
 type RouteInfo struct {
-	AccountID       string
-	CorporationID   string
-	AllianceID      string
+	Owner           models.Owner
 	SourceClientID  string
 	SourceSessionID string
 }

@@ -5,23 +5,11 @@ import { formatNumberForLocale, formatTimeRemaining } from "../../../../../Funct
 
 export default function GroupStep3JobCard({ job }) {
   let timeRemaining = useMemo(() => {
-    let tempJobs = [...job.build.costs.linkedJobs];
-    if (tempJobs.length === 0) {
-      return null;
-    }
-    tempJobs.sort((a, b) => {
-      if (Date.parse(a.end_date) > Date.parse(b.end_date)) {
-        return 1;
-      }
-      if (Date.parse(a.end_date) < Date.parse(b.end_date)) {
-        return -1;
-      }
-      return 0;
-    });
-    return formatTimeRemaining(Date.parse(tempJobs[0].end_date));
+    const next = job.nextRunToFinish;
+    return next ? formatTimeRemaining(next.finishesAt) : null;
   }, [job]);
 
-  const totalJobCount = job.totalJobCount();
+  const totalJobCount = job.totalJobSlots;
 
   return (
     <Box
@@ -42,13 +30,13 @@ export default function GroupStep3JobCard({ job }) {
         </Box>
         <Box sx={{ flex: "0 0 16.666%", textAlign: "right", paddingRight: { xs: 2, md: 3 } }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.apiJobs.size, { max: 0 })}/
+            {formatNumberForLocale(job.esiJobIDs.size, { max: 0 })}/
             {totalJobCount}
           </Typography>
         </Box>
       </Box>
 
-      {job.apiJobs.size > 0 ? (
+      {job.esiJobIDs.size > 0 ? (
         timeRemaining === "Complete" ? (
           <Box sx={{ width: "100%" }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>

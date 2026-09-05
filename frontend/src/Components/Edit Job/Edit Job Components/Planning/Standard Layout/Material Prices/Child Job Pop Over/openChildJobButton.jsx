@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { requestEditJobNavigation } from "../../../../../../../Events/editJobNavigationEvents";
 import closeActiveJob from "../../../../../../../Functions/JobPlanner/closeActiveJob";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
-import EditJobLeaveConfirmDialog from "../../../../../EditJobLeaveConfirmDialog";
+import EditJobLeaveConfirmDialogue from "../../../../../EditJobLeaveConfirmDialogue";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { useActiveJobPersistGate } from "../../../../../Edit Job Hooks/useActiveJobDocumentLock";
 
@@ -24,7 +24,7 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
   const { setActiveJobID } = useUsersStore.getState().jobData.actions;
   const persist = useActiveJobPersistGate(state);
 
-  const closeFallbackDialog = () => {
+  const closeFallbackDialogue = () => {
     if (leaveSaving) return;
     setFallbackOpen(false);
     setPendingNav(null);
@@ -79,9 +79,9 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
       >
         Open Child Job
       </Button>
-      <EditJobLeaveConfirmDialog
+      <EditJobLeaveConfirmDialogue
         open={fallbackOpen}
-        onClose={closeFallbackDialog}
+        onClose={closeFallbackDialogue}
         onDiscard={async () => {
           setActiveJobID(null);
           await navigateToPendingJob();

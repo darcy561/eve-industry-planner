@@ -11,6 +11,8 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
+	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -31,7 +33,7 @@ func (h *Handlers) GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.
 	accountID := helper.AuthenticatedAccountID(r)
 
 	filter := bson.M{
-		"_meta.accountID":  accountID,
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
 		"displayOnPlanner": true,
 	}
 	findJobs(ctx, w, r, h, filter, accountID, start, "planner jobs", metrics)
@@ -53,8 +55,8 @@ func (h *Handlers) GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.
 	accountID := helper.AuthenticatedAccountID(r)
 
 	filter := bson.M{
-		"_meta.accountID": accountID,
-		"groupID":         groupID,
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
+		"groupID": groupID,
 	}
 	findJobs(ctx, w, r, h, filter, accountID, start, "jobs by group", metrics)
 }
@@ -89,6 +91,12 @@ func (h *Handlers) GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Requ
 	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"job_id": jobID,
 	})
+
+	if err := h.decryptJob(&doc); err != nil {
+		metrics.Error("entity_decrypt_error")
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to restore entity ids on job document", "job_doc_decrypt_failed", "job_documents", err, map[string]any{"job_id": jobID})
+		return
+	}
 
 	if err := helper.EncodeJSON(w, doc); err != nil {
 		metrics.Error("encode_error")
@@ -156,8 +164,8 @@ func (h *Handlers) GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Re
 	}
 
 	filter := bson.M{
-		"_meta.accountID": accountID,
-		"_id":             bson.M{"$in": uniqueIDs},
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
+		"_id": bson.M{"$in": uniqueIDs},
 	}
 	findJobs(ctx, w, r, h, filter, accountID, start, "jobs by ids", metrics)
 }
@@ -186,6 +194,12 @@ func findJobs(
 		"kind":      label,
 		"job_count": len(jobs),
 	})
+
+	if err := h.decryptJobs(jobs); err != nil {
+		metrics.Error("entity_decrypt_error")
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to restore entity ids on job documents", "job_docs_decrypt_failed", "job_documents", err, map[string]any{"kind": label})
+		return
+	}
 
 	if err := helper.EncodeJSON(w, jobs); err != nil {
 		metrics.Error("encode_error")

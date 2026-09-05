@@ -2,26 +2,19 @@ package rollback
 
 import (
 	"context"
-	"encoding/json"
 	objectstore "eve-industry-planner/shared/core/objectstore"
 	sdecore "eve-industry-planner/shared/core/sde"
 	"fmt"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/worker/taskrun"
 	sdepublish "eve-industry-planner/worker/tasks/sde/publish"
-
-	"github.com/hibiken/asynq"
 )
 
 // RollbackSDEVersion rolls live_data back to the most recent previous version.
-func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
-
+func RollbackSDEVersion(ctx context.Context, deps *taskrun.Dependencies) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
@@ -55,12 +48,9 @@ func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.Ta
 		"build_number", rollbackVersion.BuildNumber,
 	)
 	if deps != nil && deps.NATS != nil && rollbackVersion.BuildNumber > 0 {
-		payload, err := json.Marshal(natscore.SDECurrentBuildUpdate{BuildNumber: rollbackVersion.BuildNumber, Version: rollbackVersion.Version})
-		if err == nil {
-			if err := deps.NATS.Publish(natscore.SubjectCoreSDEBuildUpdated, payload); err != nil {
-				logs.WarnCtx(ctx, "failed to publish core SDE build update after rollback",
-					"build_number", rollbackVersion.BuildNumber, "error", err)
-			}
+		if err := eipnats.PublishSDEBuildUpdated(deps.NATS, rollbackVersion.BuildNumber, rollbackVersion.Version); err != nil {
+			logs.WarnCtx(ctx, "failed to publish core SDE build update after rollback",
+				"build_number", rollbackVersion.BuildNumber, "error", err)
 		}
 	}
 

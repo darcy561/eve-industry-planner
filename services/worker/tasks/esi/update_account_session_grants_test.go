@@ -1,545 +1,252 @@
-package tasks
+package esi
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
+	"eve-industry-planner/shared/esiclient"
+	"eve-industry-planner/testing/redisfake"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/hibiken/asynq"
-	"github.com/redis/go-redis/v9"
 )
 
-// mockESIClient implements ClientInterface for testing
-type mockESIClient struct {
-	doFunc func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error)
+type affiliationOrigin struct {
+	server   *httptest.Server
+	requests atomic.Int64
+	// batches records the size of each batch the caller sent.
+	batches []int
+	// failBatch always fails the nth batch, whatever it is retried.
+	failBatch int
+	// failOnce fails the nth batch only the first time it is seen.
+	failOnce  int
+	seenBatch map[int]int
+	status    int
 }
 
-func (m *mockESIClient) Do(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-	if m.doFunc != nil {
-		return m.doFunc(ctx, method, path, headers, body, groupDesignation)
-	}
-	return nil, nil, errors.New("doFunc not set")
-}
-
-func (m *mockESIClient) DoRequest(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-	return nil, errors.New("not implemented")
-}
-
-// setupAccountSessionGrantsTestEnv configures Eve SSO env for token validation and returns
-// an in-memory Redis client so [RefreshAccountSessionGrants] can persist grants without a real Redis.
-func setupAccountSessionGrantsTestEnv(t *testing.T) *redis.Client {
+func newAffiliationOrigin(t *testing.T) *affiliationOrigin {
 	t.Helper()
-	t.Setenv("EVE_CLIENT_ID", "test-eve-client-id")
 
-	srv, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
+	o := &affiliationOrigin{status: http.StatusOK, seenBatch: map[int]int{}}
+	o.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/status") {
+			w.Header().Set("X-Ratelimit-Group", "status")
+			w.Header().Set("X-Ratelimit-Limit", "600/15m")
+			_, _ = w.Write([]byte(`{"players":1,"server_version":"1","start_time":"2026-09-04T11:02:00Z"}`))
+			return
+		}
+
+		var ids []int
+		_ = json.NewDecoder(r.Body).Decode(&ids)
+
+		o.requests.Add(1)
+		o.batches = append(o.batches, len(ids))
+
+		// Identify the batch by its contents, not by request order, so a retry
+		// is recognised as the same batch rather than counted as a new one.
+		batch := 0
+		if len(ids) > 0 {
+			batch = (ids[0] - 91000000) / maxCharacterAffiliationBatch
+		}
+		o.seenBatch[batch]++
+
+		w.Header().Set("X-Ratelimit-Group", "characters")
+		w.Header().Set("X-Ratelimit-Limit", "600/15m")
+		w.Header().Set("X-Ratelimit-Remaining", "590")
+
+		if o.failBatch > 0 && batch == o.failBatch {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if o.failOnce > 0 && batch == o.failOnce && o.seenBatch[batch] == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if o.status != http.StatusOK {
+			w.WriteHeader(o.status)
+			return
+		}
+
+		var b strings.Builder
+		b.WriteByte('[')
+		for i, id := range ids {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			// Every third character has no alliance, so the alliance handling is
+			// exercised rather than assumed.
+			alliance := 99000000 + id%5
+			if id%3 == 0 {
+				alliance = 0
+			}
+			fmt.Fprintf(&b, `{"character_id":%d,"corporation_id":%d,"alliance_id":%d}`,
+				id, 98000000+id%7, alliance)
+		}
+		b.WriteByte(']')
+		_, _ = w.Write([]byte(b.String()))
+	}))
+	t.Cleanup(o.server.Close)
+	return o
+}
+
+func characterIDs(n int) []int {
+	ids := make([]int, n)
+	for i := range n {
+		ids[i] = 91000000 + i
 	}
-	t.Cleanup(func() { srv.Close() })
-	rdb := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
-	return rdb
+	return ids
 }
 
-// Helper to create a test affiliation POST response (character_id, corporation_id, alliance_id).
-func createAffiliationJSON(corporationID, allianceID int) []byte {
-	row := CharacterAffiliation{CharacterID: 1, CorporationID: corporationID, AllianceID: allianceID}
-	data, _ := json.Marshal([]CharacterAffiliation{row})
-	return data
+// resolved renders affiliations as comparable strings.
+func resolved(rows []esiclient.CharacterAffiliation) []string {
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, fmt.Sprintf("%d:%d:%d", row.CharacterID, row.CorporationID, row.AllianceID))
+	}
+	slices.Sort(out)
+	return out
 }
 
-// Helper to create a mock asynq.Task for testing
+// affiliationClient builds the ESI client the lookup uses, pointed at a test origin.
+func affiliationClient(t *testing.T, baseURL string) esiclient.API {
+	t.Helper()
+	fake := redisfake.New(t)
+	cfg := esiclient.DefaultConfig()
+	cfg.BaseURL = baseURL
+	api, stop, err := esiclient.New(fake.Client, cfg)
+	if err != nil {
+		t.Fatalf("esiclient: %v", err)
+	}
+	t.Cleanup(stop)
+	return api
+}
+
+func TestAffiliationResolvesEveryCharacter(t *testing.T) {
+	for _, count := range []int{1, 250, 2500} {
+		t.Run(fmt.Sprintf("%d characters", count), func(t *testing.T) {
+			ids := characterIDs(count)
+			origin := newAffiliationOrigin(t)
+
+			rows, failed, err := fetchCharacterAffiliations(t.Context(), affiliationClient(t, origin.server.URL), "acct-1", ids)
+			if err != nil {
+				t.Fatalf("lookup: %v", err)
+			}
+
+			if failed != 0 {
+				t.Errorf("%d characters went unresolved against a healthy origin", failed)
+			}
+			if len(rows) != count {
+				t.Errorf("resolved %d of %d characters", len(rows), count)
+			}
+
+			// The batch size decides how many calls a login costs, which is the
+			// figure the rate limiter has to accommodate.
+			wantBatches := (count + maxCharacterAffiliationBatch - 1) / maxCharacterAffiliationBatch
+			if len(origin.batches) != wantBatches {
+				t.Errorf("sent %v batches, want %d of at most %d",
+					origin.batches, wantBatches, maxCharacterAffiliationBatch)
+			}
+			for _, size := range origin.batches {
+				if size > maxCharacterAffiliationBatch {
+					t.Errorf("a batch of %d exceeds what ESI accepts", size)
+				}
+			}
+		})
+	}
+}
+
+func TestAffiliationKeepsGoingWhenABatchNeverAnswers(t *testing.T) {
+	ids := characterIDs(2500)
+	origin := newAffiliationOrigin(t)
+	origin.failBatch = 1
+
+	rows, failed, err := fetchCharacterAffiliations(t.Context(), affiliationClient(t, origin.server.URL), "acct-1", ids)
+	if err != nil {
+		t.Fatalf("a failing batch should not fail the pass: %v", err)
+	}
+
+	// A batch that cannot be had costs that batch and no more — the rest of the
+	// login's characters still resolve, because a partial answer still narrows
+	// what a session may see.
+	if failed != maxCharacterAffiliationBatch {
+		t.Errorf("one dead batch cost %d characters, want %d", failed, maxCharacterAffiliationBatch)
+	}
+	if len(rows) == 0 {
+		t.Fatal("a failing batch should not abandon the ones that worked")
+	}
+	if len(rows) != len(ids)-failed {
+		t.Errorf("resolved %d characters, want the %d that were not in the dead batch",
+			len(rows), len(ids)-failed)
+	}
+	if got := resolved(rows); len(got) != len(rows) {
+		t.Errorf("rendered %d rows from %d", len(got), len(rows))
+	}
+}
+
+func TestAffiliationRecoversFromABatchThatFailsOnce(t *testing.T) {
+	// A 5xx costs no tokens and may well succeed on a second ask, so the batch is
+	// retried rather than written off — one blip would otherwise lose a thousand
+	// characters.
+	ids := characterIDs(2500)
+	origin := newAffiliationOrigin(t)
+	origin.failOnce = 1
+
+	rows, failed, err := fetchCharacterAffiliations(t.Context(), affiliationClient(t, origin.server.URL), "acct-1", ids)
+	if err != nil {
+		t.Fatalf("lookup: %v", err)
+	}
+
+	if failed != 0 {
+		t.Errorf("%d characters were lost to a blip the retry should have covered", failed)
+	}
+	if len(rows) != len(ids) {
+		t.Errorf("resolved %d of %d characters after one transient failure", len(rows), len(ids))
+	}
+}
+
+// createMockTask builds the asynq payload envelope a handler unwraps.
 func createMockTask(taskType string, data any) *asynq.Task {
-	// Create the task payload structure
 	var payloadData json.RawMessage
 	if data != nil {
-		dataBytes, _ := json.Marshal(data)
-		// Wrap data in TaskMessage structure
-		taskMsg := natscore.TaskMessage{
-			TaskType: taskType,
-			Data:     dataBytes,
-		}
-		taskMsgBytes, _ := json.Marshal(taskMsg)
-		payloadData = taskMsgBytes
+		payloadData, _ = json.Marshal(data)
 	}
-
-	// Wrap in taskPayload structure
-	taskPayload := struct {
+	payloadBytes, _ := json.Marshal(struct {
 		TaskType string          `json:"task_type"`
 		Data     json.RawMessage `json:"data"`
-	}{
-		TaskType: taskType,
-		Data:     payloadData,
-	}
-
-	payloadBytes, _ := json.Marshal(taskPayload)
+	}{TaskType: taskType, Data: payloadData})
 	return asynq.NewTask(taskType, payloadBytes)
 }
 
-func TestRefreshAccountSessionGrants_NilTask(t *testing.T) {
-	ctx := context.Background()
-	deps := &TaskDependencies{
-		ESIClient: &mockESIClient{},
+func TestStreamErrorSeparatesTimingFromFaults(t *testing.T) {
+	// asynq re-queues on any returned error, but a rate-limit refusal is the
+	// limiter saying "later" rather than the task being broken, so it must not
+	// be logged as a failure.
+	refusal := &esiclient.RateLimitError{
+		Kind:       esiclient.KindQueued,
+		RetryAfter: time.Now().Add(30 * time.Second),
+		Reason:     "queued behind other work",
 	}
 
-	err := RefreshAccountSessionGrants(ctx, nil, deps)
-	if err == nil {
-		t.Error("expected error when task is nil")
+	if got := HandleStreamError(t.Context(), refusal, "a task"); !errors.Is(got, error(refusal)) {
+		t.Errorf("a refusal was not returned unchanged: %v", got)
 	}
-}
-
-func TestRefreshAccountSessionGrants_InvalidJSON(t *testing.T) {
-	ctx := context.Background()
-	// Create a task with invalid JSON payload
-	invalidPayload := struct {
-		TaskType string          `json:"task_type"`
-		Data     json.RawMessage `json:"data"`
-	}{
-		TaskType: "updateAccountSessionGrants",
-		Data:     []byte("invalid json"),
-	}
-	payloadBytes, _ := json.Marshal(invalidPayload)
-	task := asynq.NewTask("updateAccountSessionGrants", payloadBytes)
-
-	deps := &TaskDependencies{
-		ESIClient: &mockESIClient{},
+	if !esiclient.IsRateLimit(HandleStreamError(t.Context(), refusal, "a task")) {
+		t.Error("the returned error lost its rate-limit identity, so asynq would count it as a failure")
 	}
 
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	if err == nil {
-		t.Error("expected error when JSON is invalid")
-	}
-}
-
-func TestRefreshAccountSessionGrants_MissingAccountID(t *testing.T) {
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "",
-		Tokens:    []string{"token1"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: &mockESIClient{},
+	fault := errors.New("connection reset")
+	if got := HandleStreamError(t.Context(), fault, "a task"); !errors.Is(got, fault) {
+		t.Errorf("a real fault was not returned unchanged: %v", got)
 	}
 
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	if err == nil {
-		t.Fatal("expected error when account_id is missing")
+	if got := HandleStreamError(t.Context(), nil, "a task"); got != nil {
+		t.Errorf("success became an error: %v", got)
 	}
-	if err.Error() != "missing account_id" {
-		t.Fatalf("expected missing account_id error, got: %v", err)
-	}
-}
-
-func TestRefreshAccountSessionGrants_EmptyTokens(t *testing.T) {
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: &mockESIClient{},
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	if err == nil {
-		t.Fatal("expected error when no tokens provided")
-	}
-	if err.Error() != "no tokens provided" {
-		t.Fatalf("expected no tokens provided error, got: %v", err)
-	}
-}
-
-func TestRefreshAccountSessionGrants_TokenValidationFailure(t *testing.T) {
-	// Invalid tokens yield no character IDs; the task still stores empty corp/alliance lists and exits cleanly.
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"invalid-token-that-will-fail-validation"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		Redis: setupAccountSessionGrantsTestEnv(t),
-
-		ESIClient: &mockESIClient{},
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	if err != nil {
-		t.Fatalf("expected nil after skipping invalid tokens (empty grants persisted): %v", err)
-	}
-}
-
-// TestRefreshAccountSessionGrants_MissingCharacterID tests the case where
-// a token validates but has no character ID. This requires a valid token structure
-// which is difficult to create without proper JWT signing, so this test is
-// more suited for integration testing with real tokens.
-// For unit testing, we verify the logic path exists in the code.
-func TestRefreshAccountSessionGrants_MissingCharacterID(t *testing.T) {
-	t.Skip("Requires valid JWT token structure - better suited for integration tests")
-}
-
-// TestRefreshAccountSessionGrants_InvalidCharacterIDFormat tests the case where
-// character ID is not a valid integer. This requires a valid token structure
-// which is difficult to create without proper JWT signing, so this test is
-// more suited for integration testing with real tokens.
-func TestRefreshAccountSessionGrants_InvalidCharacterIDFormat(t *testing.T) {
-	t.Skip("Requires valid JWT token structure - better suited for integration tests")
-}
-
-func TestRefreshAccountSessionGrants_ESIRetryableRateLimitError(t *testing.T) {
-	// Note: This test would require a valid SSO token to pass validation.
-	// For unit testing purposes, we test the ESI error handling path.
-	// In a real scenario, you'd use integration tests with valid tokens.
-	t.Skip("Requires valid SSO token - testing ESI error handling is better done in integration tests")
-
-	// The following code shows the expected behavior:
-	// When ESI returns a retryable rate limit error, the message should be nacked
-	/*
-		request := natscore.AccountSessionGrantsRequest{
-			AccountID: "test-account-123",
-			Tokens:    []string{"valid-token"},
-		}
-		data, _ := json.Marshal(request)
-
-		msg := &mockMessage{
-			data:          data,
-			deliveryCount: 1,
-		}
-
-		esiClient := &mockESIClient{
-			doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-				return nil, nil, &esiratelimiter.RateLimitError{
-					Retryable:  true,
-					RetryAfter: time.Now().Add(30 * time.Second),
-					Reason:     "insufficient tokens",
-				}
-			},
-		}
-
-		deps := &TaskDependencies{
-			ESIClient:      esiClient,
-		}
-
-		RefreshAccountSessionGrants(msg, deps)
-
-		if !msg.nakCalled {
-			t.Error("expected message to be nacked for retryable rate limit error")
-		}
-	*/
-}
-
-func TestRefreshAccountSessionGrants_ESINonRetryableError(t *testing.T) {
-	// Note: This test would require a valid SSO token to pass validation.
-	// For unit testing purposes, we test the ESI error handling path.
-	t.Skip("Requires valid SSO token - testing ESI error handling is better done in integration tests")
-
-	// Mock ESI client to return non-retryable error
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			return nil, nil, errors.New("network error")
-		},
-	}
-
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: esiClient,
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should succeed even if ESI call fails (non-retryable) - continues with other tokens
-	_ = err // May succeed or fail depending on token validation
-}
-
-func TestRefreshAccountSessionGrants_ESINon200Status(t *testing.T) {
-	// Note: This test would require a valid SSO token to pass validation.
-	t.Skip("Requires valid SSO token - testing ESI status codes is better done in integration tests")
-
-	// Mock ESI client to return 404 status
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			resp := &http.Response{
-				StatusCode: 404,
-				Status:     "404 Not Found",
-			}
-			return nil, resp, nil
-		},
-	}
-
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: esiClient,
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should succeed even if ESI returns non-200 - continues with other tokens
-	_ = err // May succeed or fail depending on token validation
-}
-
-func TestRefreshAccountSessionGrants_InvalidJSONResponse(t *testing.T) {
-	// Note: This test would require a valid SSO token to pass validation.
-	t.Skip("Requires valid SSO token - testing JSON parsing is better done in integration tests")
-
-	// Mock ESI client to return invalid JSON
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			resp := &http.Response{
-				StatusCode: 200,
-				Status:     "200 OK",
-			}
-			return []byte("invalid json"), resp, nil
-		},
-	}
-
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: esiClient,
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should succeed even if JSON parsing fails - continues with other tokens
-	_ = err // May succeed or fail depending on token validation
-}
-
-func TestRefreshAccountSessionGrants_SuccessfulProcessing(t *testing.T) {
-	// Note: This test requires valid SSO tokens which is complex to create in unit tests.
-	// This is better suited for integration tests with real tokens.
-	t.Skip("Requires valid SSO tokens - better suited for integration tests")
-
-	ctx := context.Background()
-	// Mock ESI client to return successful responses
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			// POST /characters/affiliation/ with JSON array body (integration-style mock)
-			_ = body
-			var corpID int
-			switch path {
-			case "/characters/affiliation/?datasource=tranquility":
-				corpID = 1001
-			default:
-				corpID = 1003
-			}
-
-			resp := &http.Response{
-				StatusCode: 200,
-				Status:     "200 OK",
-			}
-			return createAffiliationJSON(corpID, 0), resp, nil
-		},
-	}
-
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1", "token2", "token3"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: esiClient,
-	}
-
-	// We need to mock StoreCorporations - but it's in a different package
-	// For now, we'll test that the function completes successfully
-	// In a real scenario, you might want to use dependency injection or a test helper
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should succeed on success
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestRefreshAccountSessionGrants_DuplicateCorporations(t *testing.T) {
-	// Note: This test requires valid SSO tokens.
-	t.Skip("Requires valid SSO tokens - better suited for integration tests")
-
-	// Mock ESI client to return same corporation ID for all
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			resp := &http.Response{
-				StatusCode: 200,
-				Status:     "200 OK",
-			}
-			return createAffiliationJSON(1001, 0), resp, nil
-		},
-	}
-
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1", "token2", "token3"}, // All same character
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: esiClient,
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should succeed (deduplication happens in the function)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestRefreshAccountSessionGrants_ZeroCorporationID(t *testing.T) {
-	// Note: This test requires valid SSO tokens.
-	t.Skip("Requires valid SSO tokens - better suited for integration tests")
-
-	// Mock ESI client to return corporation ID of 0 (should be skipped)
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			resp := &http.Response{
-				StatusCode: 200,
-				Status:     "200 OK",
-			}
-			return createAffiliationJSON(0, 0), resp, nil
-		},
-	}
-
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: esiClient,
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should succeed (zero corp ID is skipped)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestRefreshAccountSessionGrants_MixedSuccessAndFailure(t *testing.T) {
-	// Note: This test requires valid SSO tokens.
-	t.Skip("Requires valid SSO tokens - better suited for integration tests")
-
-	// Mock ESI client to succeed for first call
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			resp := &http.Response{
-				StatusCode: 200,
-				Status:     "200 OK",
-			}
-			return createAffiliationJSON(1001, 0), resp, nil
-		},
-	}
-
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1", "token2"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: esiClient,
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should succeed even if some tokens fail (partial success)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-// Integration-style test with real Redis mock (if needed)
-// This would require a more sophisticated Redis mock or testcontainers
-func TestRefreshAccountSessionGrants_RedisStorageFailure(t *testing.T) {
-	// This test would require mocking StoreCorporations or using dependency injection.
-	// Since StoreCorporations is in a different package and uses Redis directly,
-	// this is better tested with integration tests or by refactoring to use an interface.
-	t.Skip("Requires valid SSO tokens and Redis mocking - better suited for integration tests")
-
-	ctx := context.Background()
-	// Mock ESI client to succeed
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			resp := &http.Response{
-				StatusCode: 200,
-				Status:     "200 OK",
-			}
-			return createAffiliationJSON(1001, 0), resp, nil
-		},
-	}
-
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	// Use nil Redis to trigger storage error
-	deps := &TaskDependencies{
-		Redis: nil, // This will cause StoreCorporations to fail,
-
-		ESIClient: esiClient,
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should return error if storage fails
-	if err == nil {
-		t.Error("expected error when Redis storage fails")
-	}
-}
-
-// Test helper to verify the function handles nil response
-func TestRefreshAccountSessionGrants_NilResponse(t *testing.T) {
-	// Note: This test requires valid SSO tokens.
-	t.Skip("Requires valid SSO tokens - better suited for integration tests")
-
-	// Mock ESI client to return nil response
-	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			return []byte("test"), nil, nil // nil response
-		},
-	}
-
-	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
-		AccountID: "test-account-123",
-		Tokens:    []string{"token1"},
-	}
-	task := createMockTask("updateAccountSessionGrants", request)
-
-	deps := &TaskDependencies{
-		ESIClient: esiClient,
-	}
-
-	err := RefreshAccountSessionGrants(ctx, task, deps)
-	// Should succeed when response is nil - continues with other tokens
-	_ = err // May succeed or fail depending on token validation
 }

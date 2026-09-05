@@ -7,7 +7,7 @@
 
 ## What changed
 
-Day-2 ship is **`eip update`** (binary → kit stack YAML → pull `LiveImageRefs` → digest-reconcile) and **`eip rebuild`** (app bake + rematerialize). **#22** closed as the same update path for data pins (no separate playbook).
+Day-2 ship is **`eip update`** (binary → kit stack YAML → pull `LiveImageRefs` → digest-reconcile) and **`eip rebuild`** (app bake + rematerialise). **#22** closed as the same update path for data pins (no separate playbook).
 
 ## How this part works after the change
 

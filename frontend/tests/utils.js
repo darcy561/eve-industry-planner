@@ -134,36 +134,6 @@ export function createTestWrapper(store) {
 }
 
 /**
- * Mocks Firebase functions for testing
- * 
- * Provides common Firebase mocks that can be reused across tests.
- * 
- * @returns {Object} Mock Firebase functions
- */
-export function createFirebaseMocks() {
-  return {
-    auth: {
-      signInWithPopup: vi.fn(),
-      signOut: vi.fn(),
-      onAuthStateChanged: vi.fn(),
-    },
-    firestore: {
-      collection: vi.fn(),
-      doc: vi.fn(),
-      getDoc: vi.fn(),
-      getDocs: vi.fn(),
-      setDoc: vi.fn(),
-      updateDoc: vi.fn(),
-      deleteDoc: vi.fn(),
-      onSnapshot: vi.fn(),
-    },
-    functions: {
-      httpsCallable: vi.fn(),
-    },
-  };
-}
-
-/**
  * Creates test data for common entities
  * 
  * Provides factory functions to create test data for users, jobs, etc.

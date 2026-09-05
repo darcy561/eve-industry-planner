@@ -1,14 +1,15 @@
 import applyParentChildChanges from "../../Components/Edit Job/functions/applyParentChildChanges";
 import repairMissingParentChildRelationships from "../Shared/repairParentChildRelationships";
-import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships.js";
+import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
 import materialTreeShaker from "../Helper/materialTreeShaker";
 import getAllRelatedJobs from "../Helper/getAllRelatedJobs";
 import { canPersistJobClose } from "../DocumentLock/canPersistDocumentEditClose.js";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { showSnackbarInfo } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import { saveUserAccountDocument } from "../Endpoints/Pirivate/userDocument";
+import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
+import { closeAdjustmentSummary } from "./closeAdjustmentSummary";
 
 export default async function closeActiveJob(
   inputJob,
@@ -43,6 +44,7 @@ export default async function closeActiveJob(
   }
 
   let recalculatedJobIds = new Set();
+  const adjustments = [];
   const tempJobsSource = tempJobsToAdd ?? {};
   const tempJobs = Object.values(tempJobsSource);
   const IDsOfNewJobs = new Set(
@@ -58,7 +60,7 @@ export default async function closeActiveJob(
     tempJobs
   );
   const allRelatedJobs = getAllRelatedJobs(inputJob.jobID);
-  const normalizedJobIDs = normalizeParentChildRelationships([
+  const normalizedJobIDs = normaliseParentChildRelationships([
     inputJob,
     ...tempJobs,
     ...allRelatedJobs,
@@ -74,8 +76,14 @@ export default async function closeActiveJob(
 
     recalculatedJobIds = materialTreeShaker(
       allRelatedJobs,
-      (job, requiredQuantity) =>
-        recalculateJobForNewTotal(job, requiredQuantity, queryClient)
+      (job, requiredQuantity) => {
+        const before = job.totalQuantityProduced;
+        recalculateJobForNewTotal(job, requiredQuantity, queryClient);
+        const after = job.totalQuantityProduced;
+        if (before !== after) {
+          adjustments.push({ jobID: job.jobID, name: job.name, before, after });
+        }
+      }
     );
   }
 
@@ -175,6 +183,6 @@ export default async function closeActiveJob(
   updateOrAddJobsToJobArray([inputJob, ...tempJobs, ...batchUpdates]);
   setActiveJobID(null);
   if (persistToServer) {
-    showSnackbarInfo(`${inputJob.name} Updated`);
+    showSnackbarInfo(closeAdjustmentSummary(inputJob, adjustments), 5);
   }
 }

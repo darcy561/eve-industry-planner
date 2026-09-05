@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestVerifyAccountSessionPersisted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-verify-persist"
@@ -45,7 +47,7 @@ func TestVerifyAccountSessionPersisted(t *testing.T) {
 func TestUpsertFailureLeavesNoDurableSessionForVerify(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const accountID = "acct-no-upsert"
 	err := VerifyAccountSessionPersisted(ctx, rdb, accountID, "never-written")
@@ -57,7 +59,7 @@ func TestUpsertFailureLeavesNoDurableSessionForVerify(t *testing.T) {
 func TestRevokeRefreshTokensForLogout(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-logout-revoke"

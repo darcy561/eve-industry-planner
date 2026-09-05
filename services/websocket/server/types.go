@@ -6,17 +6,23 @@ import (
 	"sync/atomic"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/model"
 	syncpkg "eve-industry-planner/websocket/sync"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
 type Server struct {
+	// entityCipher converts organisation ids a client asks for into the refs that
+	// session grants, realtime indexes and tenant keys are expressed in. It is the
+	// only place a raw id enters this service.
+	entityCipher *entityid.Cipher
+
 	// Client management
 	// Exported for use by sync package
 	Clients   map[string]*Client
@@ -31,9 +37,8 @@ type Server struct {
 	sessionHandoffs   map[string]*sessionHandoffEntry
 	sessionHandoffsMu sync.Mutex
 
-	// Active subscriptions (client_id -> map[docID]timestamp)
-	// Track subscriptions per client to preserve across reconnects
-	// Timestamp tracks last activity (connection/subscription) for cleanup of stale subscriptions
+	// client_id -> docID -> last activity. Kept per client so subscriptions
+	// survive a reconnect; the timestamp is what stale-subscription cleanup reads.
 	activeSubscriptions map[string]map[string]time.Time
 	activeSubsMu        sync.RWMutex
 
@@ -49,19 +54,17 @@ type Server struct {
 	// Reverse indexes for corporation / alliance realtime pools (populated after upgrade_scopes).
 	// Also the corporation: / alliance: side of HostedTenants.
 	// Two mutexes reduce contention: corp broadcasts do not block alliance index updates and vice versa.
-	// When both locks are required, always take corpIndexMu before allianceIndexMu.
-	corpToClients     map[string]map[string]bool // corporation id -> client_id set
-	allianceToClients map[string]map[string]bool // alliance id -> client_id set
-	corpIndexMu       sync.RWMutex
-	allianceIndexMu   sync.RWMutex
+	// When both locks are required, always take corpRefIndexMu before allianceRefIndexMu.
+	corpRefToClients     map[string]map[string]bool // corporation id -> client_id set
+	allianceRefToClients map[string]map[string]bool // alliance id -> client_id set
+	corpRefIndexMu       sync.RWMutex
+	allianceRefIndexMu   sync.RWMutex
 
 	// JetStream doc.update fan-out: one FIFO per shard (see outbound_doc_update.go).
 	docUpdateOutboundShards []chan docUpdateWork
 	outboundInFlight        atomic.Int64 // work currently inside a shard worker
 
-	// Sync queues (client_id -> sync queue)
-	// One sync per client at a time (enforced by queue)
-	// Uses types from sync package
+	// client_id -> sync queue. The queue is what enforces one sync per client.
 	SyncQueues  map[string]*syncpkg.SyncQueue
 	SyncSignals chan string // Channel signaling sync work available (clientID)
 	SyncMu      sync.RWMutex
@@ -82,13 +85,13 @@ type Server struct {
 	shutdownChan    chan struct{}
 	stopConsumeOnce sync.Once   // closes shutdownChan (workers / coordinators)
 	shutdownOnce    sync.Once   // sync pool + durable delete (after stopConsume)
-	draining      atomic.Bool // SIGTERM roll / planned kick — Ready fails + refuse upgrades
-	plannedCordon atomic.Bool // planned evacuate soft-stop — refuse upgrades + placement draining; Ready stays OK
+	draining        atomic.Bool // SIGTERM roll / planned kick — Ready fails + refuse upgrades
+	plannedCordon   atomic.Bool // planned evacuate soft-stop — refuse upgrades + placement draining; Ready stays OK
 
 	// Placement state publish (NATS SubjectWSPlacementState); optional override for tests.
-	placementPublishFn func(subject string, data []byte) error
+	placementPublishFn func(state eipnats.PlacementState) error
 	placementMu        sync.Mutex
-	lastPlacementState natscore.PlacementState
+	lastPlacementState eipnats.PlacementState
 	hasLastPlacement   bool
 
 	// Selective JetStream fan-out: debounced FilterSubjects from HostedTenants.
@@ -106,9 +109,9 @@ type Client struct {
 	SessionID string          // Session ID from validated app session
 	Scopes    model.RealtimeScopes
 
-	// grantedCorpIDs / grantedAllianceIDs are org id ceilings from the server session (never trust the browser alone).
-	grantedCorpIDs     map[string]struct{}
-	grantedAllianceIDs map[string]struct{}
+	// grantedCorpRefs / grantedAllianceRefs are org id ceilings from the server session (never trust the browser alone).
+	grantedCorpRefs     map[string]struct{}
+	grantedAllianceRefs map[string]struct{}
 
 	// Explicit collection-scoped doc subscriptions (subscribe / unsubscribe JSON). Account-scoped
 	// realtime does not require entries here.
@@ -160,7 +163,6 @@ func (s *Server) GetSyncMu() interface {
 }
 
 func (s *Server) GetClients() map[string]syncpkg.SyncClient {
-	// Convert map[string]*Client to map[string]syncpkg.SyncClient
 	result := make(map[string]syncpkg.SyncClient, len(s.Clients))
 	for k, v := range s.Clients {
 		result[k] = v

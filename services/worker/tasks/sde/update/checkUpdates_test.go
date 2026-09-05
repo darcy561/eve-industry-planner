@@ -9,9 +9,7 @@ import (
 	"testing"
 
 	objectstore "eve-industry-planner/shared/core/objectstore"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
 func withStageMocks(t *testing.T, mocks map[string]any) {
@@ -34,10 +32,10 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 		stageDownload = orig["stageDownload"].(func(context.Context, *sdeVersionCheckResult) (*sdeDownloadResult, error))
 		stageMapBuild = orig["stageMapBuild"].(func(*sdeDownloadResult) (*sdeMapBuildResult, error))
 		stageConversion = orig["stageConversion"].(func(*sdeMapBuildResult) (*sdeConversionResult, error))
-		stageBlueprintsSync = orig["stageBlueprintsSync"].(func(context.Context, *sdeConversionResult, *esitasks.TaskDependencies))
+		stageBlueprintsSync = orig["stageBlueprintsSync"].(func(context.Context, *sdeConversionResult, *taskrun.Dependencies))
 		stagePersist = orig["stagePersist"].(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		stagePersistReplace = orig["stagePersistReplace"].(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
-		stageRecipeDiff = orig["stageRecipeDiff"].(func(context.Context, *sdePersistResult, *esitasks.TaskDependencies) error)
+		stageRecipeDiff = orig["stageRecipeDiff"].(func(context.Context, *sdePersistResult, *taskrun.Dependencies) error)
 		stagePrunePrevious = orig["stagePrunePrevious"].(func() error)
 	})
 
@@ -52,13 +50,13 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 		case "stageConversion":
 			stageConversion = v.(func(*sdeMapBuildResult) (*sdeConversionResult, error))
 		case "stageBlueprintsSync":
-			stageBlueprintsSync = v.(func(context.Context, *sdeConversionResult, *esitasks.TaskDependencies))
+			stageBlueprintsSync = v.(func(context.Context, *sdeConversionResult, *taskrun.Dependencies))
 		case "stagePersist":
 			stagePersist = v.(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		case "stagePersistReplace":
 			stagePersistReplace = v.(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		case "stageRecipeDiff":
-			stageRecipeDiff = v.(func(context.Context, *sdePersistResult, *esitasks.TaskDependencies) error)
+			stageRecipeDiff = v.(func(context.Context, *sdePersistResult, *taskrun.Dependencies) error)
 		case "stagePrunePrevious":
 			stagePrunePrevious = v.(func() error)
 		default:
@@ -68,7 +66,7 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 }
 
 func TestCheckSDEUpdates_nilTask(t *testing.T) {
-	err := CheckSDEUpdates(context.Background(), nil, nil)
+	err := CheckSDEUpdates(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -94,7 +92,7 @@ func TestCheckSDEUpdates_versionCheckError_shortCircuits(t *testing.T) {
 		},
 	})
 
-	err := CheckSDEUpdates(context.Background(), asynq.NewTask("checkSDEUpdates", nil), (*esitasks.TaskDependencies)(nil))
+	err := CheckSDEUpdates(context.Background(), (*taskrun.Dependencies)(nil))
 	if !errors.Is(err, errSentinel) {
 		t.Fatalf("expected %v, got %v", errSentinel, err)
 	}
@@ -130,14 +128,14 @@ func TestCheckSDEUpdates_noUpdate_skipsPersistAndPrune(t *testing.T) {
 			calls = append(calls, "conversion")
 			return &sdeConversionResult{Files: map[string][]byte{}}, nil
 		},
-		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *esitasks.TaskDependencies) {
+		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) {
 			calls = append(calls, "blueprintsSync")
 		},
 		"stagePersist": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
 			calls = append(calls, "persist")
 			return nil, nil
 		},
-		"stageRecipeDiff": func(_ context.Context, _ *sdePersistResult, _ *esitasks.TaskDependencies) error {
+		"stageRecipeDiff": func(_ context.Context, _ *sdePersistResult, _ *taskrun.Dependencies) error {
 			calls = append(calls, "recipeDiff")
 			return errSentinel
 		},
@@ -147,7 +145,7 @@ func TestCheckSDEUpdates_noUpdate_skipsPersistAndPrune(t *testing.T) {
 		},
 	})
 
-	err := CheckSDEUpdates(context.Background(), asynq.NewTask("checkSDEUpdates", nil), (*esitasks.TaskDependencies)(nil))
+	err := CheckSDEUpdates(context.Background(), (*taskrun.Dependencies)(nil))
 	if !errors.Is(err, errSentinel) {
 		t.Fatalf("expected %v from recipeDiff mock, got %v", errSentinel, err)
 	}
@@ -180,7 +178,7 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 			calls = append(calls, "conversion")
 			return &sdeConversionResult{Files: map[string][]byte{"output/recipeList.json": []byte(`[]`)}}, nil
 		},
-		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *esitasks.TaskDependencies) {
+		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) {
 			calls = append(calls, "blueprintsSync")
 		},
 		"stagePersist": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
@@ -191,7 +189,7 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 				PreviousRecipeBytes: []byte(`[]`),
 			}, nil
 		},
-		"stageRecipeDiff": func(_ context.Context, p *sdePersistResult, _ *esitasks.TaskDependencies) error {
+		"stageRecipeDiff": func(_ context.Context, p *sdePersistResult, _ *taskrun.Dependencies) error {
 			calls = append(calls, "recipeDiff")
 			if p == nil || !p.HasPreviousVersion {
 				t.Fatalf("expected previous version in persist result")
@@ -204,7 +202,7 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 		},
 	})
 
-	err := CheckSDEUpdates(context.Background(), asynq.NewTask("checkSDEUpdates", nil), (*esitasks.TaskDependencies)(nil))
+	err := CheckSDEUpdates(context.Background(), (*taskrun.Dependencies)(nil))
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -231,14 +229,14 @@ func TestRunSDEUpdatePipelineReplacingCurrent_skipsDiffAndPrune(t *testing.T) {
 			calls = append(calls, "conversion")
 			return &sdeConversionResult{Files: map[string][]byte{"output/recipeList.json": []byte(`[]`)}}, nil
 		},
-		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *esitasks.TaskDependencies) {
+		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) {
 			calls = append(calls, "blueprintsSync")
 		},
 		"stagePersistReplace": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
 			calls = append(calls, "persistReplace")
 			return &sdePersistResult{HasPreviousVersion: false, CurrentRecipeBytes: []byte(`[]`)}, nil
 		},
-		"stageRecipeDiff": func(_ context.Context, _ *sdePersistResult, _ *esitasks.TaskDependencies) error {
+		"stageRecipeDiff": func(_ context.Context, _ *sdePersistResult, _ *taskrun.Dependencies) error {
 			calls = append(calls, "recipeDiff")
 			return nil
 		},

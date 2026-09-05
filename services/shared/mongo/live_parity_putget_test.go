@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
@@ -22,7 +22,7 @@ const parityScratchAccount = "eip-parity-account"
 // Requires EIP_MONGO_PARITY_LIVE=1. Scratch docs use eip-parity-account and are deleted in cleanup.
 
 func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
-	mongo := requireLiveMongo(t)
+	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -48,7 +48,7 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 	jobID := fmt.Sprintf("eip-parity-job-%d", now.UnixNano())
 	clone := sampleJob
 	clone.JobID = jobID
-	clone.MetaData.AccountID = parityScratchAccount
+	clone.MetaData.Owner = models.AccountOwner(parityScratchAccount)
 	clone.Name = "eip-parity-clone"
 
 	if _, failed, err := jobs.BulkUpsertJobs(ctx, parityScratchAccount, []models.Job{clone}, now, "parity-sess", "parity-client"); err != nil || failed != 0 {
@@ -76,7 +76,7 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 		g := sampleGroup
 		g.GroupID = groupID
 		g.AccountID = parityScratchAccount
-		g.MetaData.AccountID = parityScratchAccount
+		g.MetaData.Owner = models.AccountOwner(parityScratchAccount)
 		g.GroupName = "eip-parity-group"
 		g.IncludedJobIDs = []string{jobID, "eip-parity-extra-job"}
 
@@ -126,28 +126,6 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 	}
 
 	t.Log("live put/get job(+group) roundtrip ok")
-}
-
-func requireLiveMongo(t *testing.T) *eipmongo.Mongo {
-	t.Helper()
-	if os.Getenv("EIP_MONGO_PARITY_LIVE") != "1" {
-		t.Skip("set EIP_MONGO_PARITY_LIVE=1 to run against stack Mongo")
-	}
-	mongo, err := eipmongo.ConnectPrimary()
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		mongo.Disconnect(ctx)
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if err := mongo.Ping(ctx); err != nil {
-		t.Fatalf("ping: %v", err)
-	}
-	return mongo
 }
 
 func findOneJob(t *testing.T, ctx context.Context, m *eipmongo.Mongo) (models.Job, bool) {
@@ -223,8 +201,8 @@ func assertJobRoundtrip(t *testing.T, wantSeed, got models.Job, now time.Time, a
 	if got.Name != wantSeed.Name {
 		t.Fatalf("name: got %q want %q", got.Name, wantSeed.Name)
 	}
-	if got.MetaData.AccountID != accountID {
-		t.Fatalf("accountID: got %q", got.MetaData.AccountID)
+	if got.MetaData.Owner.ID != accountID {
+		t.Fatalf("accountID: got %q", got.MetaData.Owner.ID)
 	}
 	if got.MetaData.SessionID != sessionID || got.MetaData.ClientID != clientID {
 		t.Fatalf("session/client: got %q/%q want %q/%q", got.MetaData.SessionID, got.MetaData.ClientID, sessionID, clientID)
@@ -245,8 +223,8 @@ func assertGroupRoundtrip(t *testing.T, wantSeed, got models.Group, now time.Tim
 	if got.GroupName != wantSeed.GroupName {
 		t.Fatalf("groupName: got %q want %q", got.GroupName, wantSeed.GroupName)
 	}
-	if got.MetaData.AccountID != accountID || got.AccountID != accountID {
-		t.Fatalf("account fields: meta=%q root=%q", got.MetaData.AccountID, got.AccountID)
+	if got.MetaData.Owner.ID != accountID || got.AccountID != accountID {
+		t.Fatalf("account fields: meta=%q root=%q", got.MetaData.Owner.ID, got.AccountID)
 	}
 	if got.MetaData.SessionID != sessionID || got.MetaData.ClientID != clientID {
 		t.Fatalf("session/client mismatch")

@@ -8,9 +8,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
 // stage function indirection for testability.
@@ -29,11 +27,7 @@ var (
 
 // CheckSDEUpdates runs the Static Data Export update check (download/compare/refresh as implemented).
 // Triggered by the core scheduler via NATS with an empty payload.
-func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
-
+func CheckSDEUpdates(ctx context.Context, deps *taskrun.Dependencies) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
@@ -71,17 +65,17 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 	return nil
 }
 
-func runSDEUpdatePipeline(ctx context.Context, deps *esitasks.TaskDependencies, versionResult *sdeVersionCheckResult) error {
+func runSDEUpdatePipeline(ctx context.Context, deps *taskrun.Dependencies, versionResult *sdeVersionCheckResult) error {
 	return runSDEUpdatePipelineWithPersist(ctx, deps, versionResult, stagePersist, true)
 }
 
-func runSDEUpdatePipelineReplacingCurrent(ctx context.Context, deps *esitasks.TaskDependencies, versionResult *sdeVersionCheckResult) error {
+func runSDEUpdatePipelineReplacingCurrent(ctx context.Context, deps *taskrun.Dependencies, versionResult *sdeVersionCheckResult) error {
 	return runSDEUpdatePipelineWithPersist(ctx, deps, versionResult, stagePersistReplace, false)
 }
 
 func runSDEUpdatePipelineWithPersist(
 	ctx context.Context,
-	deps *esitasks.TaskDependencies,
+	deps *taskrun.Dependencies,
 	versionResult *sdeVersionCheckResult,
 	persistStage func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error),
 	runPostPersistStages bool,

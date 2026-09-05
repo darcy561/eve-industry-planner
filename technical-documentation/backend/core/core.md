@@ -34,10 +34,14 @@ Primary-only watchers publish document changes to JetStream stream `doc-update-s
 | Piece | Live rule |
 |-------|-----------|
 | Subject | `doc.update.{tenantString}.{collection}.{docID}` |
-| `tenantString` | Same encoding as websocket hosted / placement keys: `account:` / `corporation:` / `alliance:` (account wins, then corp, then alliance) |
+| `tenantString` | The document's owner key, `kind:id` — the same string websocket hosted / placement keys use |
 | Missing tenant | No publish (no legacy subject, no catch-all token) |
-| Payload | Still carries `accountID` / corp / alliance / collection / docID for WS routing |
+| Payload | Carries `ownerKey`, collection and docID. The websocket parses the key back into an owner and switches on its kind |
 | Consumers | Websocket durables filter by hosted tenant — [websocket.md](../websocket/websocket.md) § JetStream doc fan-out |
+
+The owner is read from `_meta.owner` on the changed document. A delete without a preimage states no
+owner, so the message routes to explicit subscribers rather than an owner's clients — singleton account
+documents recover it from the `_id`, which is the account id.
 
 Lock notifications are published by the API/document-lock path (`doc.lock.{accountID}`), not by this changestream subject shape.
 

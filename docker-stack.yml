@@ -1,6 +1,6 @@
 # App-layer Swarm fragment on eip-core. Data: docker-stack.data.yml. Obs: docker-stack.obs.yml.
 # Roll order: app start-first (x-app-deploy) + 60s stop grace (x-app-stop-grace); socket proxies stop-first (x-proxy-deploy).
-# Day-2 ship: eip rebuild / rematerialize / eip up — Swarm honors update_config below.
+# Day-2 ship: eip rebuild / rematerialise / eip up — Swarm honours update_config below.
 # Probe port 19100 must match services/shared/orchestrationprobes ListenPort.
 #
 # Secrets: per-service `secrets:` lists below are the attach SoT (logical names →
@@ -13,6 +13,14 @@ x-common-dns: &common-dns
   - 8.8.4.4
   - 1.1.1.1
 
+# Stdout is the only copy of a container's logs when the observability addon is off, so every
+# service rotates. Uniform on purpose: a service that outgrows this is a logging bug, not a tuning one.
+x-log-rotate: &log-rotate
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 x-mongo-env: &mongo-env
   MONGO_HOST: mongo
   MONGO_PORT: "27017"
@@ -24,6 +32,18 @@ x-redis-env: &redis-env
 x-nats-env: &nats-env
   NATS_URL: nats://nats:4222
 
+# OTLP export follows addons.observability.enabled (eip sync → EIP_OBSERVABILITY_ENABLED).
+# Off means no exporter at all: Alloy is not deployed with the addon off, and dialling it
+# leaves every service retrying a name that resolves to nothing.
+x-otel-env: &otel-env
+  OBSERVABILITY_ENABLED: ${EIP_OBSERVABILITY_ENABLED:-false}
+
+# Logging knobs apply with or without the observability addon: LOG_LEVEL is the floor the process
+# emits at, LOG_STDOUT mirrors structured logs to stdout (unset falls back to ENVIRONMENT).
+x-log-env: &log-env
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  LOG_STDOUT: ${LOG_STDOUT:-}
+
 x-objectstore-env: &objectstore-env
   S3_URL: http://seaweedfs:8333
 
@@ -31,7 +51,6 @@ x-objectstore-env: &objectstore-env
 x-app-public-env: &app-public-env
   EVE_CLIENT_ID: ${EVE_CLIENT_ID:-}
   REFRESH_TOKEN_AES_KEY_VERSION: ${REFRESH_TOKEN_AES_KEY_VERSION:-v1}
-  AUTHZ_HMAC_KEY_VERSION: ${AUTHZ_HMAC_KEY_VERSION:-v1}
   ENVIRONMENT: ${ENVIRONMENT:-}
   MAINTENANCE_MODE: ${MAINTENANCE_MODE:-false}
 
@@ -51,7 +70,7 @@ x-secrets-api: &secrets-api
   - S3_SECRET_KEY
   - EVE_CLIENT_SECRET
   - REFRESH_TOKEN_AES_KEY
-  - AUTHZ_HMAC_KEY
+  - ENTITY_ID_KEY
   - REFRESH_TOKEN_AES_LEGACY_KEYS
   - FEEDBACK_DISCORD_WEBHOOK_URL
 
@@ -59,6 +78,7 @@ x-secrets-websocket: &secrets-websocket
   - MONGO_USERNAME
   - MONGO_PASSWORD
   - REDIS_PASSWORD
+  - ENTITY_ID_KEY
 
 x-secrets-worker: &secrets-worker
   - MONGO_USERNAME
@@ -68,7 +88,7 @@ x-secrets-worker: &secrets-worker
   - S3_SECRET_KEY
   - EVE_CLIENT_SECRET
   - REFRESH_TOKEN_AES_KEY
-  - AUTHZ_HMAC_KEY
+  - ENTITY_ID_KEY
   - REFRESH_TOKEN_AES_LEGACY_KEYS
 
 x-secrets-core: &secrets-core
@@ -94,7 +114,7 @@ x-app-deploy: &app-deploy
     order: stop-first
     parallelism: 1
   restart_policy:
-    condition: on-failure
+    condition: any
     delay: 5s
 
 # Service-level (not under deploy:). Every *app-deploy consumer merges this at the service root.
@@ -113,13 +133,16 @@ x-proxy-deploy: &proxy-deploy
     order: stop-first
     parallelism: 1
   restart_policy:
-    condition: on-failure
+    # any, not on-failure: a service told to stop exits 0, which on-failure reads
+    # as "done" and leaves the service with no task.
+    condition: any
     delay: 5s
 
 services:
   # Docker API proxy for Traefik — own overlay eip-docker-traefik only (not on eip-core).
   traefik-docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.4.2
+    logging: *log-rotate
     networks: [eip-docker-traefik]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -137,6 +160,7 @@ services:
   traefik:
     <<: *app-stop-grace
     image: traefik:v3
+    logging: *log-rotate
     networks:
       eip-core:
         aliases: [traefik]
@@ -151,7 +175,6 @@ services:
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.websecure.http.tls=true"
       - "--entrypoints.dashboard.address=:81"
-      - "--entrypoints.metrics.address=:8082"
       - "--providers.docker=true"
       - "--providers.docker.endpoint=tcp://traefik-docker-proxy:2375"
       - "--providers.docker.exposedbydefault=false"
@@ -162,12 +185,23 @@ services:
       - "--providers.swarm.network=eip-public"
       - "--providers.swarm.refreshSeconds=5"
       - "--api.dashboard=true"
-      - "--metrics.prometheus=true"
-      - "--metrics.prometheus.entryPoint=metrics"
-      - "--metrics.prometheus.addEntryPointsLabels=true"
-      - "--metrics.prometheus.addRoutersLabels=true"
-      - "--metrics.prometheus.addServicesLabels=true"
-      - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+      - "--metrics.otlp=true"
+      - "--metrics.otlp.grpc=true"
+      - "--metrics.otlp.grpc.endpoint=alloy:4317"
+      - "--metrics.otlp.grpc.insecure=true"
+      - "--metrics.otlp.addEntryPointsLabels=true"
+      - "--metrics.otlp.addRoutersLabels=true"
+      - "--metrics.otlp.addServicesLabels=true"
+      - "--metrics.otlp.explicitBoundaries=0.1,0.3,1.2,5.0"
+      - "--metrics.otlp.pushInterval=15s"
+      # Edge spans start here so a trace covers Traefik → api/ws-router → downstream. Sampling is
+      # head-based: whatever Traefik decides propagates, so this rate governs the whole path.
+      - "--tracing=true"
+      - "--tracing.otlp=true"
+      - "--tracing.otlp.grpc=true"
+      - "--tracing.otlp.grpc.endpoint=alloy:4317"
+      - "--tracing.otlp.grpc.insecure=true"
+      - "--tracing.sampleRate=${TRACES_SAMPLE_RATE:-0}"
       - "--accesslog=true"
       - "--log.level=INFO"
       - "--ping=true"
@@ -201,10 +235,11 @@ services:
   api:
     <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-api:${APP_VERSION}
+    logging: *log-rotate
     networks: [eip-core, eip-public]
     dns: *common-dns
     environment:
-      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env, *log-env]
       APP_VERSION: ${APP_VERSION}
     secrets: *secrets-api
     volumes:
@@ -225,7 +260,7 @@ services:
         - "traefik.http.routers.api-secure.middlewares=cors"
         - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
         - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
-        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$$"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginList=${EIP_ALLOWED_ORIGINS:?EIP_ALLOWED_ORIGINS must be set}"
         - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
         - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
         - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
@@ -249,11 +284,13 @@ services:
   websocket:
     <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-websocket:${APP_VERSION}
+    logging: *log-rotate
     networks: [eip-core]
     dns: *common-dns
     environment:
-      <<: [*mongo-env, *redis-env, *nats-env, *app-public-env]
+      <<: [*mongo-env, *redis-env, *nats-env, *app-public-env, *otel-env, *log-env]
       APP_VERSION: ${APP_VERSION}
+      EIP_ALLOWED_ORIGINS: ${EIP_ALLOWED_ORIGINS:?EIP_ALLOWED_ORIGINS must be set}
       WS_CLIENT_CUTOFF: "2000"
       WS_TARGET_CLIENTS: "1500"
     secrets: *secrets-websocket
@@ -277,6 +314,7 @@ services:
   # Docker API proxy for ws-router — own overlay eip-docker-ws only (not on eip-core).
   ws-docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.4.2
+    logging: *log-rotate
     networks: [eip-docker-ws]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -293,10 +331,11 @@ services:
   ws-router:
     <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-ws-router:${APP_VERSION}
+    logging: *log-rotate
     networks: [eip-core, eip-public, eip-docker-ws]
     dns: *common-dns
     environment:
-      <<: *nats-env
+      <<: [*nats-env, *log-env, *otel-env]
       APP_VERSION: ${APP_VERSION}
       EIP_WEBSOCKET_SERVICE: eip_websocket
       EIP_WS_BACKEND_PORT: "4001"
@@ -318,7 +357,7 @@ services:
         - "traefik.http.routers.ws-secure.middlewares=cors"
         - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
         - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
-        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$$"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginList=${EIP_ALLOWED_ORIGINS:?EIP_ALLOWED_ORIGINS must be set}"
         - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
         - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
         - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
@@ -341,10 +380,11 @@ services:
   worker:
     <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-worker:${APP_VERSION}
+    logging: *log-rotate
     networks: [eip-core]
     dns: *common-dns
     environment:
-      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env, *log-env]
       APP_VERSION: ${APP_VERSION}
       WORKER_ASYNQ_CONCURRENCY: "50"
     secrets: *secrets-worker
@@ -368,10 +408,11 @@ services:
   core:
     <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-core:${APP_VERSION}
+    logging: *log-rotate
     networks: [eip-core]
     dns: *common-dns
     environment:
-      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env, *log-env]
       APP_VERSION: ${APP_VERSION}
     secrets: *secrets-core
     volumes:
@@ -396,6 +437,7 @@ services:
   # Docker API proxy for capacity-controller — own overlay eip-docker-capacity (POST allowed for Scale).
   capacity-docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.4.2
+    logging: *log-rotate
     networks: [eip-docker-capacity]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -412,10 +454,11 @@ services:
   capacity-controller:
     <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-capacity-controller:${APP_VERSION}
+    logging: *log-rotate
     networks: [eip-core, eip-docker-capacity]
     dns: *common-dns
     environment:
-      <<: [*redis-env, *nats-env]
+      <<: [*redis-env, *nats-env, *otel-env, *log-env]
       APP_VERSION: ${APP_VERSION}
       DOCKER_HOST: tcp://capacity-docker-proxy:2375
       EIP_STACK_NAME: eip
@@ -446,6 +489,7 @@ services:
   frontend:
     <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-frontend:${APP_VERSION}
+    logging: *log-rotate
     networks: [eip-public]
     dns: *common-dns
     environment:
@@ -506,7 +550,7 @@ secrets:
     external: true
   REFRESH_TOKEN_AES_KEY:
     external: true
-  AUTHZ_HMAC_KEY:
+  ENTITY_ID_KEY:
     external: true
   REFRESH_TOKEN_AES_LEGACY_KEYS:
     external: true

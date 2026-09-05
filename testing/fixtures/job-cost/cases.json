@@ -1,0 +1,563 @@
+{
+  "$comment": "Job cost corpus. The SPA (Classes/job.js) and the backend (models.Job.CostParts) both work out what a job cost, and both read these cases so the two cannot drift. Sale lines keep ESI's own field names (`tax`); our own aggregate is a transaction fee. Every component is summed from the rows that make it up: what a job produces from its setups, materials from each material's purchases, installs from the linked ESI jobs, extras from the extras rows and invention from its entries.",
+  "cases": [
+    {
+      "name": "every component",
+      "why": "A job's cost is materials, install, extras, invention, broker fees and tax. Install is summed from the linked ESI jobs.",
+      "job": {
+        "jobID": "job-every-component",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasing": [
+                {
+                  "id": "purchase-1",
+                  "typeID": 34,
+                  "itemCount": 60,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            },
+            {
+              "typeID": 35,
+              "purchasing": [
+                {
+                  "id": "purchase-2",
+                  "typeID": 35,
+                  "itemCount": 40,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            }
+          ],
+          "costs": {
+            "linkedJobs": [
+              {
+                "job_id": 900000,
+                "status": "delivered",
+                "cost": 5
+              }
+            ],
+            "extrasCosts": [
+              {
+                "id": "extra-1",
+                "category": "0",
+                "extraText": "Courier",
+                "extraValue": 3
+              }
+            ],
+            "inventionEntries": [
+              {
+                "id": 1,
+                "itemName": "Datacore",
+                "itemCost": 2
+              }
+            ]
+          },
+          "sale": {
+            "brokersFee": [
+              {
+                "id": 0,
+                "amount": 1.5
+              }
+            ],
+            "transactions": [
+              {
+                "transaction_id": 0,
+                "tax": 0.5
+              },
+              {
+                "transaction_id": 1,
+                "tax": 0.25
+              }
+            ]
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1,
+              "materialCount": {
+                "34": {
+                  "typeID": 34,
+                  "quantity": 60
+                },
+                "35": {
+                  "typeID": 35,
+                  "quantity": 40
+                }
+              }
+            }
+          }
+        },
+        "itemsProducedPerRun": 10
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 100,
+        "install": 5,
+        "invention": 2,
+        "extras": 3,
+        "brokersFee": 1.5,
+        "transactionFee": 0.75,
+        "build": 110,
+        "total": 112.25
+      }
+    },
+    {
+      "name": "materials come from the purchases",
+      "why": "Materials are summed from each purchase recorded against the material.",
+      "job": {
+        "jobID": "job-materials-come-from-the-purchases",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasing": [
+                {
+                  "id": "purchase-1",
+                  "typeID": 34,
+                  "itemCount": 10,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            },
+            {
+              "typeID": 35,
+              "purchasing": [
+                {
+                  "id": "purchase-2",
+                  "typeID": 35,
+                  "itemCount": 20,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            },
+            {
+              "typeID": 36,
+              "purchasing": [
+                {
+                  "id": "purchase-3",
+                  "typeID": 36,
+                  "itemCount": 30,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            }
+          ],
+          "costs": {},
+          "sale": {
+            "brokersFee": [],
+            "transactions": []
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1,
+              "materialCount": {
+                "34": {
+                  "typeID": 34,
+                  "quantity": 10
+                },
+                "35": {
+                  "typeID": 35,
+                  "quantity": 20
+                },
+                "36": {
+                  "typeID": 36,
+                  "quantity": 30
+                }
+              }
+            }
+          }
+        },
+        "itemsProducedPerRun": 10
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 60,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 60,
+        "total": 60
+      }
+    },
+    {
+      "name": "the cheapest purchases fill the requirement",
+      "why": "A job is charged for what it needed at the best prices paid, so the dearest units are the ones left over and buying beyond the requirement adds no cost.",
+      "job": {
+        "jobID": "job-cheapest-purchases-fill-the-requirement",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasing": [
+                {
+                  "id": "purchase-1",
+                  "typeID": 34,
+                  "itemCount": 50,
+                  "itemCost": 20,
+                  "childJobImport": false
+                },
+                {
+                  "id": "purchase-2",
+                  "typeID": 34,
+                  "itemCount": 50,
+                  "itemCost": 5,
+                  "childJobImport": false
+                }
+              ]
+            }
+          ],
+          "costs": {
+            "inventionEntries": [
+              {
+                "id": 1,
+                "itemName": "Datacore",
+                "itemCost": 25
+              }
+            ]
+          },
+          "sale": {
+            "brokersFee": [],
+            "transactions": []
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1,
+              "materialCount": {
+                "34": {
+                  "typeID": 34,
+                  "quantity": 50
+                }
+              }
+            }
+          }
+        },
+        "itemsProducedPerRun": 10
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 250,
+        "install": 0,
+        "invention": 25,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 275,
+        "total": 275
+      }
+    },
+    {
+      "name": "invention counts toward the build",
+      "why": "Inventing the blueprint is part of what building the item cost.",
+      "job": {
+        "jobID": "job-invention-counts-toward-the-build",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasing": [
+                {
+                  "id": "purchase-1",
+                  "typeID": 34,
+                  "itemCount": 100,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            }
+          ],
+          "costs": {
+            "inventionEntries": [
+              {
+                "id": 1,
+                "itemName": "Datacore",
+                "itemCost": 7
+              }
+            ]
+          },
+          "sale": {
+            "brokersFee": [],
+            "transactions": []
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1,
+              "materialCount": {
+                "34": {
+                  "typeID": 34,
+                  "quantity": 100
+                }
+              }
+            }
+          }
+        },
+        "itemsProducedPerRun": 10
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 100,
+        "install": 0,
+        "invention": 7,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 107,
+        "total": 107
+      }
+    },
+    {
+      "name": "fees are cost but not build cost",
+      "why": "Selling costs money too, but it is not what the item cost to make.",
+      "job": {
+        "jobID": "job-fees-are-cost-but-not-build-cost",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasing": [
+                {
+                  "id": "purchase-1",
+                  "typeID": 34,
+                  "itemCount": 100,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            }
+          ],
+          "costs": {},
+          "sale": {
+            "brokersFee": [
+              {
+                "id": 0,
+                "amount": 3
+              }
+            ],
+            "transactions": [
+              {
+                "transaction_id": 0,
+                "tax": 2
+              }
+            ]
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1,
+              "materialCount": {
+                "34": {
+                  "typeID": 34,
+                  "quantity": 100
+                }
+              }
+            }
+          }
+        },
+        "itemsProducedPerRun": 10
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 100,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 3,
+        "transactionFee": 2,
+        "build": 100,
+        "total": 105
+      }
+    },
+    {
+      "name": "a job with nothing bought",
+      "why": "A job that has purchased nothing has no material cost, not a missing one.",
+      "job": {
+        "jobID": "job-a-job-with-nothing-bought",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "materials": [],
+          "costs": {},
+          "sale": {
+            "brokersFee": [],
+            "transactions": []
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1
+            }
+          }
+        },
+        "itemsProducedPerRun": 10
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 0,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 0,
+        "total": 0
+      }
+    },
+    {
+      "name": "several fees and taxes",
+      "why": "Every fee and every transaction's tax counts.",
+      "job": {
+        "jobID": "job-several-fees-and-taxes",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasing": [
+                {
+                  "id": "purchase-1",
+                  "typeID": 34,
+                  "itemCount": 50,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            }
+          ],
+          "costs": {},
+          "sale": {
+            "brokersFee": [
+              {
+                "id": 0,
+                "amount": 1
+              },
+              {
+                "id": 1,
+                "amount": 2
+              },
+              {
+                "id": 2,
+                "amount": 3
+              }
+            ],
+            "transactions": [
+              {
+                "transaction_id": 0,
+                "tax": 0.5
+              },
+              {
+                "transaction_id": 1,
+                "tax": 1.5
+              }
+            ]
+          },
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "runCount": 1,
+              "jobCount": 1,
+              "materialCount": {
+                "34": {
+                  "typeID": 34,
+                  "quantity": 50
+                }
+              }
+            }
+          }
+        },
+        "itemsProducedPerRun": 10
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 50,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 6,
+        "transactionFee": 2.0,
+        "build": 50,
+        "total": 58.0
+      }
+    },
+    {
+      "name": "installs are what the linked jobs cost",
+      "why": "Nothing is linked, so the installs cost nothing: the setup estimate is a planning figure, not what the job cost. The install line and the build cost read the same figure \u2014 the planner and the archive must not disagree about it.",
+      "job": {
+        "jobID": "corpus-install-nothing-linked",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "setup": {
+            "setup-1": {
+              "id": "setup-1",
+              "jobCount": 2,
+              "estimatedInstallCost": 15,
+              "runCount": 1,
+              "materialCount": {
+                "34": {
+                  "typeID": 34,
+                  "quantity": 100
+                }
+              }
+            }
+          },
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasing": [
+                {
+                  "id": "purchase-1",
+                  "typeID": 34,
+                  "itemCount": 100,
+                  "itemCost": 1,
+                  "childJobImport": false
+                }
+              ]
+            }
+          ],
+          "costs": {}
+        },
+        "itemsProducedPerRun": 5
+      },
+      "expected": {
+        "produced": 10,
+        "materials": 100,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 100,
+        "total": 100
+      }
+    }
+  ]
+}

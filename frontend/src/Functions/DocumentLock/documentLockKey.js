@@ -5,7 +5,7 @@
 const SEP = "\x1e";
 
 /**
- * @param {string} collection - Mongo logical collection (e.g. `user_job_groups`, `jobs`)
+ * @param {string} collection - Mongo logical collection (e.g. `job_groups`, `jobs`)
  * @param {string} docID
  * @returns {string}
  */

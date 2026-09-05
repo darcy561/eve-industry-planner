@@ -43,14 +43,14 @@ func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection,
 
 	case "granted":
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, sessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
 			LockPayloadEventKey: LockEventAcquired,
 			"collection":        collection,
 			"docID":             docID,
 			"sessionID":         sessionID,
 			"expiresAtUnix":     tx.Record.ExpiresAtUnix,
 		})
-		if collection == eipmongo.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, sessionID)
 		}
 		payload := LockPayloadForRecord(tx.Record.ExpiresAtUnix, tx.Record.LeaseMode)
@@ -146,7 +146,7 @@ func (s *Service) Extend(ctx context.Context, accountID, sessionID, collection, 
 
 	case "probe_set":
 		if tx.PublishProbe {
-			_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+			_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
 				LockPayloadEventKey:    LockEventHandoffProbe,
 				"collection":           collection,
 				"docID":                docID,
@@ -189,7 +189,7 @@ func (s *Service) Release(ctx context.Context, accountID, sessionID, collection,
 	if tx.Outcome != "released" {
 		return nil
 	}
-	_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+	_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
 		LockPayloadEventKey: LockEventReleased,
 		"collection":        collection,
 		"docID":             docID,
@@ -221,7 +221,7 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 		return nil, ErrForceReleaseSameSession
 	case "released":
 		prev := tx.PreviousHolderSessionID
-		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
 			LockPayloadEventKey:  LockEventReleased,
 			"collection":         collection,
 			"docID":              docID,
@@ -229,18 +229,18 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 			"requesterSessionID": requesterSessionID,
 			"reason":             LockReleaseReasonForceReleasedSameAccount,
 		})
-		if collection == eipmongo.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionJobGroups {
 			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, prev)
 		}
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, requesterSessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
 			LockPayloadEventKey: LockEventAcquired,
 			"collection":        collection,
 			"docID":             docID,
 			"sessionID":         requesterSessionID,
 			"expiresAtUnix":     tx.Record.ExpiresAtUnix,
 		})
-		if collection == eipmongo.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, requesterSessionID)
 		}
 		payload := LockPayloadForRecord(tx.Record.ExpiresAtUnix, tx.Record.LeaseMode)
@@ -290,7 +290,7 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 		}, nil
 
 	case "released_no_queue":
-		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
 			LockPayloadEventKey: LockEventReleased,
 			"collection":        collection,
 			"docID":             docID,
@@ -304,7 +304,7 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 
 	case "promoted":
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, tx.NewHolderSessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, BuildHandoffCompletedPayload(
+		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, BuildHandoffCompletedPayload(
 			collection,
 			docID,
 			tx.NewHolderSessionID,
@@ -314,7 +314,7 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 				Reason:                  LockHandoffReasonHolderHandover,
 			},
 		))
-		if collection == eipmongo.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionJobGroups {
 			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, tx.PreviousHolderSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)
@@ -359,7 +359,7 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 	switch tx.Outcome {
 	case "granted_empty":
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, requesterSessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
 			LockPayloadEventKey:    LockEventAcquired,
 			"collection":           collection,
 			"docID":                docID,
@@ -367,7 +367,7 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 			"expiresAtUnix":        tx.ExpiresAtUnix,
 			"accessRequestGranted": true,
 		})
-		if collection == eipmongo.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, requesterSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)
@@ -386,7 +386,7 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 		return &RequestLockResult{StatusCode: http.StatusOK, Payload: payload}, nil
 
 	case "queued":
-		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
 			LockPayloadEventKey:  LockEventRequested,
 			"collection":         collection,
 			"docID":              docID,
@@ -436,14 +436,14 @@ func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionI
 		return &ClaimHandoffOutput{Status: http.StatusConflict, ErrText: "No longer next in queue"}, nil
 	case "granted":
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, tx.NewHolderSessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, BuildHandoffCompletedPayload(
+		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, BuildHandoffCompletedPayload(
 			collection,
 			docID,
 			tx.NewHolderSessionID,
 			tx.ExpiresAtUnix,
 			HandoffCompletedOpts{PreviousHolderSessionID: tx.PreviousHolderSessionID},
 		))
-		if collection == eipmongo.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionJobGroups {
 			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, tx.PreviousHolderSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)

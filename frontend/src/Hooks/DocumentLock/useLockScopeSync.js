@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import {
   getDocumentLockStateBatch,
   MAX_STATUS_BATCH_DOC_IDS,
-} from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+} from "../../Functions/Endpoints/Private/documentLockClient.js";
 import { applyDocumentLockStatusFromPayload } from "../../Functions/DocumentLock/applyDocumentLockStatusFromPayload.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 import {
@@ -26,9 +26,6 @@ import { groupMemberJobScopeAfterGroupGrantPartial } from "../../Functions/Docum
  * `applyDocumentLockStatusFromPayload`. Groups (when present) are only sent
  * with the first chunk because they are far fewer than jobs and one batch
  * always carries the entire group set.
- *
- * Used by `useJobPlannerJobLockSync` (no groups) and
- * `useJobPlannerPageLockSync` (jobs + groups).
  *
  * @param {string[]} jobIDs
  * @param {string[]} groupIDs

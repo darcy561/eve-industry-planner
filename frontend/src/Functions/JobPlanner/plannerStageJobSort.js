@@ -4,7 +4,6 @@
  * Sorting compares canonical `Job` instances the same way in both surfaces.
  */
 
-
 /**
  * Purchasing stage: all materials purchased first, then alphabetical by name.
  *
@@ -13,8 +12,8 @@
  * @returns {number}
  */
 const purchasingStageSort = (a, b) => {
-  const aAll = a.isReadyToBuild();
-  const bAll = b.isReadyToBuild();
+  const aAll = a.isReadyToBuild;
+  const bAll = b.isReadyToBuild;
   if (aAll !== bAll) {
     return aAll ? -1 : 1;
   }

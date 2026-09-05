@@ -87,10 +87,7 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 			doneLogger := reqLogger.With(doneFields...)
 
 			appendDebugSteps := func(fields []zap.Field) []zap.Field {
-				if steps := logs.DebugStepsFromRequest(r); len(steps) > 0 {
-					return append(fields, zap.Any(logs.DebugStepsLogKey, logs.DebugStepsForLog(steps)))
-				}
-				return fields
+				return append(fields, logs.DebugStepsField(logs.DebugStepsFromRequest(r)))
 			}
 
 			if rw.statusCode >= 500 && rw.statusCode != http.StatusServiceUnavailable {

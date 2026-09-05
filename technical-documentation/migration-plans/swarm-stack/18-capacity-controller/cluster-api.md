@@ -5,7 +5,7 @@
 
 ## Where / how (today)
 
-`cluster.Cluster` interface + live **`cluster.Swarm`**: Moby Observe/Scale via capacity proxy; **Cordon/Drain/Uncordon** via NATS Request on `ws.command.*`. Recording Fake for tests: [`testing/capacity_controller/clusterfake`](../../../../services/testing/capacity_controller/clusterfake/). Deployment Tool still mutates Swarm via **Moby** for `eip sync`. App services must not import `deployment-tool`.
+`cluster.Cluster` interface + live **`cluster.Swarm`**: Moby Observe/Scale via capacity proxy; **Cordon/Drain/Uncordon** via NATS Request on `ws.command.*`. Recording Fake for tests: [`testing/capacity_controller/clusterfake`](../../../../services/capacity-controller/cluster/clusterfake/). Deployment Tool still mutates Swarm via **Moby** for `eip sync`. App services must not import `deployment-tool`.
 
 ## Correctness need
 
@@ -57,5 +57,5 @@ type BackendState struct {
 
 - **Swarm impl:** Moby client via `DOCKER_HOST=tcp://capacity-docker-proxy:2375`. Service names `eip_worker` / `eip_websocket` / `eip_api` (stack-prefixed as deployed). No `docker` CLI. Cordon/Drain/Uncordon = NATS `ws.command.*` ([nats-control-plane.md](./nats-control-plane.md)); not Moby kill. `ObserveService` + Redis cooldown keys `eip:capacity:cooldown:v1:{service}` for per-service loops.
 - **Hard boundary:** `services/capacity-controller/**` must not import `eve-industry-planner/deployment-tool/...`.
-- **Fake/recording:** `services/testing/capacity_controller/clusterfake` — in-memory State + append-only Apply log (includes Uncordon); not in the product binary.
+- **Fake/recording:** `services/capacity-controller/cluster/clusterfake` — in-memory State + append-only Apply log (includes Uncordon); not in the product binary.
 - Grow `Pin` / tenant move later — not in v1 interface body.

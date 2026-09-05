@@ -2,15 +2,16 @@ package asynq
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
+	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/worker/taskrun"
 
 	"github.com/hibiken/asynq"
 )
@@ -18,8 +19,32 @@ import (
 // MaxConcurrency is the hard per-process Asynq pool cap.
 const MaxConcurrency = 50
 
+// DrainTimeout is how long a stopping worker waits for the tasks already running
+// to finish. What overruns it is pushed back to Redis and runs again elsewhere,
+// so this trades a slower stop against repeating work — and every task can
+// already run twice, since both the queue and the stream redeliver.
+//
+// It is stated rather than left to the library's 8s default because it has to sit
+// inside the stack's stop grace alongside the other cleanups, and because a
+// replica rolled mid-task should get a fair chance to finish it.
+const DrainTimeout = 25 * time.Second
+
 // DefaultConcurrency is the per-process default when unset.
 const DefaultConcurrency = 50
+
+// pollWeights is how often the server checks each queue relative to the others,
+// and it is the worker's own: the fractions the capacity controller scales on
+// live in shared/queuescale and answer a different question.
+//
+// Declared once because it is both what the server is configured with and what
+// the startup log reports; two copies drift the moment a weight is retuned.
+var pollWeights = map[string]int{
+	eipnats.Priority1: 20, // reserved for future critical tasks
+	eipnats.Priority2: 15, // urgent, user-impacting
+	eipnats.Priority3: 10, // default, steady throughput
+	eipnats.Priority4: 5,  // high-volume background
+	eipnats.Priority5: 1,  // reserved / bulk
+}
 
 // ServerConfig holds configuration for an asynq server
 type ServerConfig struct {
@@ -54,137 +79,50 @@ func ConcurrencyFromEnv() int {
 	return ResolveConcurrency(n)
 }
 
-// setupServer creates and starts an asynq server that handles all tasks.
-// Uses a 5-tier priority queue system to ensure proper task scheduling.
-// handlerFunc is called to set up the task handlers (mux.HandleFunc calls).
-// Concurrency is the worker pool size - controls how many tasks run concurrently.
-// Returns a cleanup function to shut down the server.
-func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(context.Context), error) {
+// setupServer creates and starts an asynq server across the five priority
+// queues. handlerFunc wires the mux and is allowed to refuse: nothing starts if
+// the handlers do not cover the registry. Returns a cleanup that stops the
+// server.
+func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux) error) (func(context.Context), error) {
 	// Concurrency IS the worker pool — hard-capped by MaxConcurrency (#7).
 	concurrency := ResolveConcurrency(config.Concurrency)
 
 	srv := asynq.NewServer(
 		config.RedisOpt,
 		asynq.Config{
-			Concurrency: concurrency,
-			Queues: map[string]int{
-				"priority_1": 20, // Reserved for future critical tasks
-				"priority_2": 15, // Urgent, user-impacting tasks
-				"priority_3": 10, // Default, steady throughput tasks
-				"priority_4": 5,  // High-volume background tasks
-				"priority_5": 1,  // Reserved / bulk tasks
-			},
-			// Custom retry delay function that respects ESI rate limit RetryAfter times
-			// CRITICAL: Adds jitter to prevent thundering herd when many tasks retry simultaneously
+			Concurrency:     concurrency,
+			ShutdownTimeout: DrainTimeout,
+			Queues:          pollWeights,
+			// An ESI refusal carries when to come back, so it sets the delay;
+			// anything else backs off exponentially. Both are spread so replicas
+			// that failed together do not return together.
 			RetryDelayFunc: func(n int, e error, t *asynq.Task) time.Duration {
-				bg := context.Background()
-				// Check if this is a rate limit error with RetryAfter
-				rateLimitErr := extractRateLimitError(e)
-				if rateLimitErr != nil && rateLimitErr.Retryable {
-					// Calculate delay until RetryAfter time
-					waitTime := time.Until(rateLimitErr.RetryAfter)
-					if waitTime > 0 {
-						// Add small buffer to ensure tokens are available
-						waitTime += 1 * time.Second
-
-						// CRITICAL: Add jitter to spread out retries and prevent thundering herd
-						// Shared Redis ESI limiter + multi-replica workers can pile onto RetryAfter.
-						// Jitter spreads retries over a window to prevent synchronized failures
-						// Use 20% jitter (random 0-20% of wait time) to break synchronization
-						// This ensures tasks don't all retry at exactly the same time
-						jitterWindow := waitTime / 5 // 20% of wait time
-						if jitterWindow > 0 {
-							// Generate deterministic jitter based on task type and payload
-							// This ensures each unique task gets consistent jitter across retries
-							// but different tasks get different jitter values
-							taskIDHash := uint64(0)
-							taskTypeBytes := []byte(t.Type())
-							payloadBytes := t.Payload()
-							// Hash task type
-							for _, b := range taskTypeBytes {
-								taskIDHash = taskIDHash*31 + uint64(b)
-							}
-							// Hash payload (use first 100 bytes to avoid excessive computation)
-							payloadLen := min(len(payloadBytes), 100)
-							for i := range payloadLen {
-								taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
-							}
-							jitter := time.Duration(taskIDHash % uint64(jitterWindow))
-							finalWait := waitTime + jitter
-
-							logs.DebugCtx(bg, "scheduling retry with jitter to prevent thundering herd",
-								"task_type", t.Type(),
-								"retry_attempt", n,
-								"retry_after", rateLimitErr.RetryAfter,
-								"base_wait", waitTime,
-								"jitter", jitter,
-								"final_wait", finalWait,
-								"group", rateLimitErr.Group)
-							return finalWait
-						}
-
-						logs.DebugCtx(bg, "scheduling retry based on rate limit RetryAfter",
-							"task_type", t.Type(),
-							"retry_attempt", n,
-							"retry_after", rateLimitErr.RetryAfter,
-							"wait_duration", waitTime,
-							"group", rateLimitErr.Group)
-						return waitTime
+				if limit, ok := esiclient.AsRateLimit(e); ok {
+					if wait := limit.RetryIn(); wait > 0 {
+						// A small buffer past the stated time, so the budget the
+						// refusal was waiting for has actually landed.
+						return spread(wait+time.Second, 5, t)
 					}
-					// RetryAfter is in the past, use minimum delay with jitter
-					baseDelay := 5 * time.Second
-					// Add small jitter even for minimum delay
-					taskIDHash := uint64(0)
-					taskTypeBytes := []byte(t.Type())
-					payloadBytes := t.Payload()
-					for _, b := range taskTypeBytes {
-						taskIDHash = taskIDHash*31 + uint64(b)
-					}
-					payloadLen := min(len(payloadBytes), 100)
-					for i := range payloadLen {
-						taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
-					}
-					jitter := time.Duration(taskIDHash%1000) * time.Millisecond // 0-1s jitter
-					return baseDelay + jitter
+					return spread(5*time.Second, 5, t)
 				}
-				// Not a rate limit error or no RetryAfter - use exponential backoff with jitter
-				// Base delay: 2 seconds, max delay: 5 minutes
-				delay := min(time.Duration(1<<uint(n))*time.Second, 5*time.Minute)
-				// Add jitter to exponential backoff (10% of delay)
-				jitterWindow := delay / 10
-				if jitterWindow > 0 {
-					taskIDHash := uint64(0)
-					taskTypeBytes := []byte(t.Type())
-					payloadBytes := t.Payload()
-					for _, b := range taskTypeBytes {
-						taskIDHash = taskIDHash*31 + uint64(b)
-					}
-					payloadLen := min(len(payloadBytes), 100)
-					for i := range payloadLen {
-						taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
-					}
-					jitter := time.Duration(taskIDHash % uint64(jitterWindow))
-					delay += jitter
-				}
-				return delay
+				return spread(min(time.Duration(1<<uint(n))*time.Second, 5*time.Minute), 10, t)
 			},
 			// Mark retryable rate-limit yields as non-failures for asynq stats/reporting.
 			// These are expected flow-control events (task re-queueing), not task defects.
 			IsFailure: func(err error) bool {
-				return !errIsRateLimitDeferral(err)
+				_, deferred := esiclient.AsRateLimit(err)
+				return !deferred
 			},
-			// Error handling
-			// RateLimitError with Retryable=true is intentional (task returned to queue for retry)
-			// Only log actual errors, not intentional retries
+			// A retryable RateLimitError is the task going back on the queue as
+			// intended, so it is not logged as a failure.
 			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
-				if errIsRateLimitDeferral(err) {
-					rateLimitErr := extractRateLimitError(err)
-					// Intentional retry - log at debug level, not error
+				if limit, ok := esiclient.AsRateLimit(err); ok {
 					logs.DebugCtx(ctx, "asynq task returned to queue for rate limit retry",
 						"task_type", task.Type(),
-						"retry_after", rateLimitErr.RetryAfter,
-						"reason", rateLimitErr.Reason,
-						"group", rateLimitErr.Group)
+						"kind", limit.Kind,
+						"retry_in", limit.RetryIn(),
+						"reason", limit.Reason,
+						"bucket", limit.Bucket)
 					return
 				}
 				// Actual error - log as error
@@ -195,11 +133,10 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 		},
 	)
 
-	// Create mux for routing tasks to handlers
 	mux := asynq.NewServeMux()
-
-	// Set up handlers via callback function
-	handlerFunc(mux)
+	if err := handlerFunc(mux); err != nil {
+		return nil, err
+	}
 
 	// Start server in background
 	go func() {
@@ -211,15 +148,13 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 
 	logs.DebugCtx(context.Background(), "asynq server started",
 		"concurrency", concurrency,
-		"queues", map[string]int{
-			"priority_1": 20,
-			"priority_2": 15,
-			"priority_3": 10,
-			"priority_4": 5,
-			"priority_5": 1,
-		})
+		"queues", pollWeights)
 
 	cleanup := func(ctx context.Context) {
+		// Stop before Shutdown: Stop ends the fetch loop, so the drain that
+		// follows is finite work rather than a race with a queue still handing out
+		// tasks. Shutdown alone would do both at once.
+		srv.Stop()
 		srv.Shutdown()
 		logs.InfoCtx(ctx, "asynq server shut down")
 	}
@@ -227,41 +162,31 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 	return cleanup, nil
 }
 
-// errIsRateLimitDeferral reports whether err is a retryable rate-limit yield (task re-queued later).
-// Same cases as asynq.Config.IsFailure == false — not a logical task failure.
-func errIsRateLimitDeferral(err error) bool {
-	if err == nil {
-		return false
+// spread offsets a delay by up to percent of itself, derived from the task so
+// one task keeps its offset across retries while differing from its neighbours.
+// Worker replicas share one ESI limiter and so learn the same time to return;
+// without this they would all return at once.
+func spread(delay time.Duration, percent int, t *asynq.Task) time.Duration {
+	window := delay * time.Duration(percent) / 100
+	if window <= 0 {
+		return delay
 	}
-	rle := extractRateLimitError(err)
-	return rle != nil && rle.Retryable
-}
-
-// extractRateLimitError unwraps errors to find a RateLimitError
-func extractRateLimitError(err error) *esiratelimiter.RateLimitError {
-	if err == nil {
-		return nil
+	hash := uint64(0)
+	for _, b := range []byte(t.Type()) {
+		hash = hash*31 + uint64(b)
 	}
-	// Try direct match
-	var rateLimitErr *esiratelimiter.RateLimitError
-	if errors.As(err, &rateLimitErr) {
-		return rateLimitErr
+	payload := t.Payload()
+	for _, b := range payload[:min(len(payload), 100)] {
+		hash = hash*31 + uint64(b)
 	}
-	// Try unwrapping (for wrapped errors like fmt.Errorf("rate limited: %w", ...))
-	unwrapped := errors.Unwrap(err)
-	if unwrapped != nil {
-		if errors.As(unwrapped, &rateLimitErr) {
-			return rateLimitErr
-		}
-	}
-	return nil
+	return delay + time.Duration(hash%uint64(window))
 }
 
 // SetupServer sets up and starts an asynq server that handles all tasks.
 // Returns a cleanup function for the server.
 func SetupServer(
 	redisOpt asynq.RedisClientOpt,
-	deps WorkerDependencies,
+	taskDeps *taskrun.Dependencies,
 ) (func(context.Context), error) {
 	// Per-process concurrency: default/cap 50 (#7). Operator YAML field is
 	// services.worker.concurrency (#19); until make swarm-sync, WORKER_ASYNQ_CONCURRENCY is the bridge.
@@ -269,8 +194,8 @@ func SetupServer(
 		RedisOpt:    redisOpt,
 		Concurrency: ConcurrencyFromEnv(),
 	}
-	cleanup, err := setupServer(serverConfig, func(mux *asynq.ServeMux) {
-		SetupHandlers(mux, deps)
+	cleanup, err := setupServer(serverConfig, func(mux *asynq.ServeMux) error {
+		return SetupHandlers(mux, taskDeps)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup asynq server: %w", err)

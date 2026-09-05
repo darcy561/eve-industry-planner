@@ -23,7 +23,7 @@ export default function CharacterSelection({
       [charactersRecord]
     );
     
-    // Initialize selected characters - default to all if available
+    // Initialise selected characters - default to all if available
     const [selectedCharacterHashes, setSelectedCharacterHashes] = useState(() => {
         if (allCharacters && allCharacters.length > 0) {
             return new Set(allCharacters.map((character) => character.CharacterHash));

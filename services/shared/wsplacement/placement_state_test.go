@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 func TestFlagsFromCounts(t *testing.T) {
@@ -39,14 +39,11 @@ func TestNewPlacementStateAndRoundTrip(t *testing.T) {
 	if !s.Soft || s.Full || s.Draining || s.Clients != 12 || s.ContainerID != "abc123456789" {
 		t.Fatalf("unexpected state: %+v", s)
 	}
-	if s.MessageType() != natscore.MessageTypeWSPlacement {
-		t.Fatalf("MessageType=%q", s.MessageType())
-	}
 	raw, err := json.Marshal(s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := natscore.ParsePlacementState(raw)
+	got, err := eipnats.ParsePlacementState(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +54,8 @@ func TestNewPlacementStateAndRoundTrip(t *testing.T) {
 
 func TestPlacementContracts(t *testing.T) {
 	t.Parallel()
-	if natscore.SubjectWSPlacementState != "ws.placement.state" {
-		t.Fatalf("SubjectWSPlacementState=%q", natscore.SubjectWSPlacementState)
+	if eipnats.SubjectWSPlacementState != "ws.placement.state" {
+		t.Fatalf("SubjectWSPlacementState=%q", eipnats.SubjectWSPlacementState)
 	}
 	if StatusPath != "/placement" {
 		t.Fatalf("StatusPath=%q", StatusPath)

@@ -25,9 +25,9 @@ export function JobSetupPanel(props) {
         {
           label: "Delete Active Setup",
           onClick: () => {
-            const succesfullyDeleted = state.activeJob.deleteActiveSetup();
+            const successfullyDeleted = state.activeJob.deleteActiveSetup();
 
-            if (!succesfullyDeleted) {
+            if (!successfullyDeleted) {
               showSnackbarWarning(
                 "Cannot delete the final setup. Create a replacement setup first.",
                 3

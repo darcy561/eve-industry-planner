@@ -5,7 +5,7 @@
  */
 export const AppEvent = Object.freeze({
   NEW_JOB: "new_job",
-  VIEW_JOB_TREE_DIALOG: "view_job_tree_dialog",
+  VIEW_JOB_TREE_DIALOGUE: "view_job_tree_dialogue",
   VIEW_ITEM_TREE_ITEM: "view_item_tree_item",
   GROUP_TAB_PLANNER: "group_tab_planner",
   GROUP_TAB_JOB_TREE: "group_tab_job_tree",

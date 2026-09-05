@@ -8,26 +8,32 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/lifecycle"
-	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
 	asynqpkg "eve-industry-planner/worker/asynq"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
+	"eve-industry-planner/worker/taskrun"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/hibiken/asynq"
 )
 
-const shutdownTimeout = 5 * time.Second
+// shutdownTimeout is the budget for one cleanup step. Derived from the drain
+// rather than chosen, because draining in-flight tasks is the one step that can
+// use its whole allowance and a budget shorter than it would not be enforced —
+// asynq's shutdown does not take a context.
+const shutdownTimeout = asynqpkg.DrainTimeout + 5*time.Second
 
 type app struct {
-	g        lifecycle.Group
-	stopDeps func(context.Context)
-	clients  *stackservices.Clients
-	deps     *WorkerDependencies
-	redisOpt asynq.RedisClientOpt
-	initErr  error
+	g           lifecycle.Group
+	stopDeps    func(context.Context)
+	clients     *stackservices.Clients
+	taskDeps    *taskrun.Dependencies
+	asynqClient *asynq.Client
+	redisOpt    asynq.RedisClientOpt
+	initErr     error
 }
 
 func (a *app) cleanups() []func(context.Context) {
@@ -65,24 +71,9 @@ func (a *app) connectDeps(ctx context.Context) error {
 }
 
 func (a *app) prepare(ctx context.Context) error {
-	if err := natscore.EnsureWorkerTaskStream(a.clients.JetStream); err != nil {
+	if _, err := a.clients.NATS.Tasks.Ensure(ctx); err != nil {
 		return a.fail(err)
 	}
-
-	const defaultRateLimit = 3.0
-	esiClient := esiratelimiter.NewRedisESIClient("https://esi.evetech.net", a.clients.Redis, defaultRateLimit)
-	rateLimits := map[string]float64{
-		"market-order": defaultRateLimit,
-		"industry":     defaultRateLimit,
-		"characters":   defaultRateLimit,
-		"status":       defaultRateLimit,
-	}
-	if err := esiClient.InitializeDefaultRateLimits(ctx, rateLimits); err != nil {
-		logs.ErrorCtx(ctx, "failed to initialize rate limits", "error", err)
-	} else {
-		logs.InfoCtx(ctx, "rate limits initialized for primary groups", "rate_limits", rateLimits)
-	}
-	logs.InfoCtx(ctx, "Redis-based ESI rate-limited client initialized (distributed rate limiting enabled)")
 
 	asynqClient, redisOpt, err := asynqpkg.SetupClient()
 	if err != nil {
@@ -90,16 +81,34 @@ func (a *app) prepare(ctx context.Context) error {
 	}
 	a.redisOpt = redisOpt
 	a.g.Add(lifecycle.FromStop("asynq-client", func() { asynqClient.Close() }))
-	a.deps = &WorkerDependencies{
-		Clients:     a.clients,
-		ESIClient:   esiClient,
-		AsynqClient: asynqClient,
+	// Tasks that persist documents convert entity ids to refs, so a missing authz
+	// key must stop the worker starting rather than fail individual tasks.
+	entityCipher, err := entityid.NewFromEnv()
+	if err != nil {
+		return a.fail(fmt.Errorf("load authz hmac key for entity refs: %w", err))
 	}
+
+	esi, stopESI, err := esiclient.New(a.clients.Redis, esiclient.DefaultConfig())
+	if err != nil {
+		return a.fail(fmt.Errorf("build esi client: %w", err))
+	}
+	a.g.Add(lifecycle.FromStop("esi-dispatcher", stopESI))
+
+	// Queue depth is the part of the limiter only this replica knows; the bucket
+	// figures it shares with every other replica are reported by core.
+	stopESIMetrics, err := esiclient.RegisterMetrics(esi.Dispatcher())
+	if err != nil {
+		return a.fail(fmt.Errorf("register esi metrics: %w", err))
+	}
+	a.g.Add(lifecycle.FromStop("esi-metrics", func() { _ = stopESIMetrics() }))
+
+	a.asynqClient = asynqClient
+	a.taskDeps = taskrun.FromClients(a.clients, esi, entityCipher)
 	return nil
 }
 
 func (a *app) startAsynq(context.Context) error {
-	serverCleanup, err := asynqpkg.SetupServer(a.redisOpt, a.deps)
+	serverCleanup, err := asynqpkg.SetupServer(a.redisOpt, a.taskDeps)
 	if err != nil {
 		return a.fail(err)
 	}
@@ -108,7 +117,7 @@ func (a *app) startAsynq(context.Context) error {
 }
 
 func (a *app) startSubscribers(context.Context) error {
-	scheduledTasksCleanup, err := SubscribeScheduledTasks(a.deps)
+	scheduledTasksCleanup, err := SubscribeScheduledTasks(a.clients.NATS, a.asynqClient)
 	if err != nil {
 		return a.fail(err)
 	}
@@ -121,7 +130,7 @@ func (a *app) startProbes(ctx context.Context) error {
 		if err := a.clients.Redis.Ping(c).Err(); err != nil {
 			return fmt.Errorf("redis: %w", err)
 		}
-		if a.clients.NATS == nil || !a.clients.NATS.IsConnected() {
+		if a.clients.NATS == nil || !a.clients.NATS.Connected() {
 			return fmt.Errorf("nats not connected")
 		}
 		if err := a.clients.Mongo.Ping(c); err != nil {
@@ -138,10 +147,10 @@ func (a *app) startProbes(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "worker",
 		InstanceID: container.ID(),
-		Conn:       a.clients.NATS,
+		NATS:       a.clients.NATS,
 		Ready:      ready,
 		Enabled:    true,
-		Fill: func(st *natscore.HealthStatus) {
+		Fill: func(st *eipnats.HealthStatus) {
 			if st != nil {
 				st.AppVersion = os.Getenv("APP_VERSION")
 			}

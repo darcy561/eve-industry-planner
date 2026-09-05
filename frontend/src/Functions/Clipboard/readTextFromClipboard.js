@@ -4,7 +4,7 @@ import { showSnackbarError } from "../../Events/snackbarEvents";
 /**
  * Reads text from clipboard and sanitizes it.
  *
- * @returns {Promise<string>} Sanitized text from clipboard, or null if error occurs
+ * @returns {Promise<string>} Sanitised text from clipboard, or null if error occurs
  */
 
 export default async function readTextFromClipboard() {

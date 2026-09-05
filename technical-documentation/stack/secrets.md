@@ -25,7 +25,7 @@ Containers do **not** reload env automatically. Prefer **`eip secrets`** after e
 
 ## Swarm secret attach
 
-**`eip secrets`** creates/updates versioned Swarm secrets and rematerializes services that mount them:
+**`eip secrets`** creates/updates versioned Swarm secrets and rematerialises services that mount them:
 
 - `eip_api`, `eip_websocket`, `eip_worker`, `eip_ws-router`, `eip_core` → `/run/secrets/<KEY>`
 - **Not** `eip_frontend` (public env only)

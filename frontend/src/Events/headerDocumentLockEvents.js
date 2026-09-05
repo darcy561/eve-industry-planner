@@ -2,7 +2,7 @@ import useUsersStore from "../Zustand/usersStore.js";
 
 /**
  * @typedef {Object} HeaderDocumentLockUIRegistration
- * @property {string} collection — e.g. `user_job_groups` (see documentLockCollections)
+ * @property {string} collection — e.g. `job_groups` (see documentLockCollections)
  * @property {string} docID
  * @property {boolean} [enabled=true] — when false, this row is skipped for the primary header control
  * @property {string} [readOnlyMessage] — copy for read-only popover; default in the control if omitted
@@ -13,7 +13,7 @@ import useUsersStore from "../Zustand/usersStore.js";
 /**
  * Register (or replace) document lock header targets. Pass **`{ registrations: [...] }`** for multiple
  * scopes (first enabled row is primary for the icon), or legacy **`collection` + `docID`** for one scope.
- * Idempotent when normalized registrations are unchanged.
+ * Idempotent when normalised registrations are unchanged.
  *
  * @param {HeaderDocumentLockUIRegistration & { registrations?: HeaderDocumentLockUIRegistration[] }} config
  * @returns {void}
@@ -36,6 +36,7 @@ export function patchHeaderDocumentLockUI(partial) {
 
 /**
  * Remove app bar document lock context (e.g. on route unmount).
+ *
  * @returns {void}
  */
 export function clearHeaderDocumentLockUI() {

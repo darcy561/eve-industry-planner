@@ -1,13 +1,5 @@
 /**
  * Main Users Store for EVE Industry Planner.
- *
- * Creates and configures the main Zustand store by combining all state slices
- * including application settings, account session, world data, and jobs data.
- * Provides centralized state management with Redux DevTools integration
- * and hot module replacement support for development.
- *
- * @fileoverview Main Zustand store configuration for EVE Industry Planner
- * @author EVE Industry Planner Team
  */
 
 import { create } from "zustand";
@@ -27,10 +19,6 @@ import headerDocumentLockUISlice from "./headerDocumentLockUISlice";
  * and jobs data) into a single Zustand store with Redux DevTools integration.
  *
  * @returns {Object} Configured Zustand store instance
- *
- * @example
- * const store = createUsersStore();
- * const useStore = store;
  */
 const createUsersStore = () =>
   create(
@@ -53,10 +41,8 @@ const createUsersStore = () =>
   );
 
 /**
- * Main store instance with hot module replacement support.
- *
- * Creates the store instance with support for hot module replacement in development.
- * Uses a global window reference to maintain store state across hot reloads.
+ * Main store instance. The store is parked on a global window reference so its
+ * state survives a hot reload.
  *
  * @type {Object} Configured Zustand store instance
  */

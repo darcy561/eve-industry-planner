@@ -9,6 +9,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -56,7 +57,11 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	tokenResponse, err := RefreshEveSSOAccessToken(ctx, cfg.ClientID, cfg.ClientSecret, refreshToken)
+	tokenResponse, err := evesso.RefreshEveSSOAccessToken(ctx, cfg.ClientID, cfg.ClientSecret, refreshToken)
+	// Reported but never consulted: a login is what a person is waiting on, and
+	// refusing one on a gate that tripped wrongly locks them out of an app that
+	// would otherwise have worked.
+	h.ReportSSO(ctx, err)
 	var characterHash string
 	if err != nil {
 		m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)

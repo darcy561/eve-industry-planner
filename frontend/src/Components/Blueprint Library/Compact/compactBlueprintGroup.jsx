@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { showBlueprintArchiveDialog } from "../../../Events/dialogEvents";
+import { showBlueprintArchiveDialogue } from "../../../Events/dialogueEvents";
 import {
   Box,
   CircularProgress,
@@ -34,10 +34,9 @@ export function CompactBlueprintGroup({ bpID, blueprintResults, currentFilter = 
     (bp) => bp.type_id === bpID
   );
 
-  // If we're in active filter mode, further filter to only include blueprints with active jobs
-  // This ensures the count only shows blueprints that actually have active jobs
-  // We need to check this even if the parent filtered, because the parent might include
-  // all blueprints of a type that has at least one active job
+  // Filtered again even though the parent already filtered: the parent keeps
+  // every blueprint of a type that has at least one active job, so the count
+  // here would otherwise include blueprints that have none.
   let resultsToGroup = currentFilter === "active"
     ? filteredResults.filter((bp) => {
       // Check if this specific blueprint has an active job
@@ -162,7 +161,7 @@ export function CompactBlueprintGroup({ bpID, blueprintResults, currentFilter = 
                   size="small"
                   disabled={!bpData}
                   onClick={() => {
-                    showBlueprintArchiveDialog(bpData.itemID, bpData?.name);
+                    showBlueprintArchiveDialogue(bpData.itemID, bpData?.name);
                   }}
                 >
                   <AssessmentOutlinedIcon />

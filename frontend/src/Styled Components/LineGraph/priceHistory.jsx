@@ -1,94 +1,46 @@
 import {
   Box,
-  FormControl,
   FormHelperText,
   MenuItem,
   Select,
-  Slider,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-import {
-  Area,
-  Bar,
-  ComposedChart,
-  Legend,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import GLOBAL_CONFIG from "../../global-config-app";
 import {
   appShellInsetSurfaceSx,
-  appShellSliderSx,
   getAppShellMarketSelectProps,
   MARKET_HUB_HISTORY_HELPER_TEXT,
 } from "../../Context/appShell";
 import { normalizeLocaleForIntl } from "../../Functions/Helper/localeDetection";
-import getItemNameFromTypeID from "../../Functions/Helper/getItemNameFromTypeID";
+import { useItemNames } from "../../Hooks/useItemNames";
 import useUsersStore from "../../Zustand/usersStore";
+import { ChartRangeSlider, trailingRange } from "../Charts/ChartRangeSlider";
+import { TimeSeriesChart } from "../Charts/TimeSeriesChart";
 
 const { MARKET_OPTIONS } = GLOBAL_CONFIG;
 
-function computeDefaultVisibleRange(graphData, isMobile) {
-  const n = graphData?.length ?? 0;
-  if (n === 0) return [0, 0];
-  const lastIdx = n - 1;
-  const windowPoints = isMobile ? 7 : 30;
-  const span = Math.min(windowPoints, n);
-  const startIdx = Math.max(0, n - span);
-  return [startIdx, lastIdx];
-}
-
 function PriceHistoryItemName({ typeID }) {
-  const [name, setName] = useState(() =>
-    typeID ? "Loading…" : "No Item Selected",
-  );
+  const rows = useMemo(() => (typeID ? [{ typeID }] : []), [typeID]);
+  const names = useItemNames(rows);
 
-  useEffect(() => {
-    if (!typeID) {
-      setName("No Item Selected");
-      return;
-    }
-    let cancelled = false;
-    setName("Loading…");
-    getItemNameFromTypeID(typeID).then((resolved) => {
-      if (!cancelled) setName(resolved ?? "Unknown Item");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [typeID]);
-
-  return name;
+  if (!typeID) return "No Item Selected";
+  return names[typeID] ?? "Loading…";
 }
 
 /**
- * A comprehensive price history chart component for EVE Online items.
- * Displays historical pricing data with interactive controls for date range (slider matches the chart:
- * older on the left, newer on the right) and region selection.
- * Features area charts for high/low prices, line chart for average prices, and bar chart for volume.
+ * Price history for an EVE item: high/low bands, an average line, and traded
+ * volume on its own axis, with a window selector and a region picker.
  *
- * @param {Object} props - Component props
- * @param {Array} props.graphData - Array of historical price data objects
- * @param {number} props.typeID - EVE Online type ID of the item to display
- * @param {number} props.regionID - Market region ID for the data
- * @param {Function} props.updateRegionID - Callback function to update the selected region
- * @param {Object} [props.alternativeRegionData] - Alternative region data for lookups
- * @returns {JSX.Element} Price history line graph component
- *
- * @example
- * <PriceHistoryLineGraph
- *   graphData={priceHistoryData}
- *   typeID={34}
- *   regionID={10000002}
- *   updateRegionID={(regionId) => setRegion(regionId)}
- * />
+ * @param {Object} props
+ * @param {Array} props.graphData - historical price rows, oldest first
+ * @param {number} props.typeID
+ * @param {number} props.regionID
+ * @param {Function} props.updateRegionID
+ * @param {Object} [props.alternativeRegionData]
  */
 function PriceHistoryLineGraph({
   graphData,
@@ -100,43 +52,22 @@ function PriceHistoryLineGraph({
   const theme = useTheme();
   const regionSelectShell = getAppShellMarketSelectProps(theme);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  /** Inclusive `[oldestIdx, newestIdx]` in `graphData` (same order as the X axis: older → newer). */
+  /** Inclusive `[oldestIdx, newestIdx]` into graphData, matching the X axis. */
   const [visibleIndexRange, setVisibleIndexRange] = useState([0, 0]);
-  const [containerDimensions, setContainerDimensions] = useState({
-    width: 0,
-    height: 0,
-  });
   const userLocale = normalizeLocaleForIntl(
     navigator.language || GLOBAL_CONFIG.DEFAULT_LOCALE,
   );
 
-  const historySeriesKey =
-    graphData?.length > 0
-      ? `${graphData.length}:${String(graphData[0]?.date)}:${String(graphData[graphData.length - 1]?.date)}`
+  const rowCount = graphData?.length ?? 0;
+  // Reset the window when the series itself changes, or it would point into
+  // rows belonging to a different item or region.
+  const seriesIdentity =
+    rowCount > 0
+      ? `${rowCount}:${String(graphData[0]?.date)}:${String(graphData[rowCount - 1]?.date)}`
       : "";
-
-  const rangeResetKey = `${historySeriesKey}|${isMobile}`;
   useLayoutEffect(() => {
-    setVisibleIndexRange(computeDefaultVisibleRange(graphData, isMobile));
-  }, [rangeResetKey, graphData, isMobile]);
-
-  const setChartContainerRef = useCallback((element) => {
-    if (!element) {
-      return;
-    }
-    const update = () => {
-      const { width, height } = element.getBoundingClientRect();
-      if (width > 0 && height > 0) {
-        setContainerDimensions({ width, height });
-      }
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(element);
-    return () => {
-      ro.disconnect();
-    };
-  }, []);
+    setVisibleIndexRange(trailingRange(rowCount, isMobile ? 7 : 30));
+  }, [seriesIdentity, rowCount, isMobile]);
 
   const regionName =
     useUsersStore
@@ -144,101 +75,78 @@ function PriceHistoryLineGraph({
       .worldData.actions.findUniverseData(regionID, alternativeRegionData)
       ?.name || "Unknown Region";
 
-  const filteredData =
-    graphData?.length && visibleIndexRange[1] >= visibleIndexRange[0]
-      ? graphData.slice(visibleIndexRange[0], visibleIndexRange[1] + 1)
-      : [];
+  const filteredData = useMemo(() => {
+    if (!rowCount || visibleIndexRange[1] < visibleIndexRange[0]) return [];
+    return graphData.slice(visibleIndexRange[0], visibleIndexRange[1] + 1);
+  }, [graphData, rowCount, visibleIndexRange]);
 
-  const minISK =
-    filteredData.length > 0
-      ? Math.min(...filteredData.map((d) => d.lowest))
-      : 0;
-  const maxISK =
-    filteredData.length > 0
-      ? Math.max(...filteredData.map((d) => d.highest))
-      : 1;
-  const minVolume =
-    filteredData.length > 0
-      ? Math.min(...filteredData.map((d) => d.volume))
-      : 0;
-  const maxVolume =
-    filteredData.length > 0
-      ? Math.max(...filteredData.map((d) => d.volume))
-      : 1;
-
-  const handleVisibleRangeChange = (_event, newValue) => {
-    const n = graphData?.length ?? 0;
-    const last = Math.max(0, n - 1);
-    let a = Math.round(Number(newValue[0]));
-    let b = Math.round(Number(newValue[1]));
-    a = Math.max(0, Math.min(a, last));
-    b = Math.max(0, Math.min(b, last));
-    if (a > b) {
-      setVisibleIndexRange([b, a]);
-    } else {
-      setVisibleIndexRange([a, b]);
-    }
-  };
-
-  const formatYAxisTicks = (tick) => {
-    return new Intl.NumberFormat(userLocale).format(tick);
-  };
-
-  const formatXAxisDates = (tick) => {
-    const date = new Date(tick);
-    return new Intl.DateTimeFormat(userLocale, {
+  const formatDate = (value) =>
+    new Intl.DateTimeFormat(userLocale, {
       year: "numeric",
       month: "short",
       day: "2-digit",
-    }).format(date);
+    }).format(new Date(value));
+
+  const formatThumbDate = (index) => {
+    const row = graphData?.[Math.round(Number(index))];
+    return row?.date ? formatDate(row.date) : "";
   };
 
-  const formatTooltipDate = (date) => {
-    const formattedDate = new Date(date);
-    return new Intl.DateTimeFormat(userLocale, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    }).format(formattedDate);
-  };
+  const series = [
+    {
+      key: "highest",
+      label: "High",
+      type: "area",
+      colour: "#f03939",
+      fillOpacity: 0.1,
+    },
+    {
+      key: "lowest",
+      label: "Low",
+      type: "area",
+      colour: "#f5b43b",
+      fillOpacity: 0.3,
+    },
+    {
+      key: "average",
+      label: "Average",
+      type: "line",
+      colour: theme.palette.primary.main,
+    },
+    {
+      key: "volume",
+      label: "Volume",
+      type: "bar",
+      colour: theme.palette.secondary.main,
+      axis: "right",
+      fillOpacity: 0.2,
+    },
+  ];
 
-  const formatThumbDate = (dataIndex) => {
-    const idx = Math.round(Number(dataIndex));
-    const row = graphData?.[idx];
-    if (!row?.date) return "";
-    return new Intl.DateTimeFormat(userLocale, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(row.date));
-  };
+  // Axes scale to the visible window rather than from zero, so a narrow price
+  // band stays readable instead of flattening against the axis.
+  const iskDomain = filteredData.length
+    ? [
+        Math.min(...filteredData.map((d) => d.lowest)),
+        Math.max(...filteredData.map((d) => d.highest)),
+      ]
+    : [0, 1];
+  const volumeDomain = filteredData.length
+    ? [
+        Math.min(...filteredData.map((d) => d.volume)),
+        Math.max(...filteredData.map((d) => d.volume)),
+      ]
+    : [0, 1];
 
-  const formatTooltipNumber = (number) => {
-    return new Intl.NumberFormat(userLocale).format(number);
-  };
-
-  const longestYAxisTickISK = formatYAxisTicks(maxISK).length;
-  const longestYAxisTickVolume = formatYAxisTicks(maxVolume).length;
-  const longestXAxisTick =
-    filteredData.length > 0
-      ? filteredData.reduce((longest, item) => {
-          const formattedDate = formatXAxisDates(item.date).length;
-          return Math.max(longest, formattedDate);
-        }, 0)
-      : 0;
-  const dynamicMargins = {
-    top: 10,
-    right: longestYAxisTickVolume * 5,
-    bottom: longestXAxisTick * 5,
-    left: longestYAxisTickISK * 5,
-  };
+  const formatAxisNumber = (tick) =>
+    new Intl.NumberFormat(userLocale).format(tick);
 
   return (
     <Box
       sx={{
         width: "100%",
         maxWidth: "100%",
-        height: "100%",
+        flex: 1,
         minHeight: 0,
         minWidth: 0,
         display: "flex",
@@ -314,100 +222,52 @@ function PriceHistoryLineGraph({
       </Box>
 
       <Box
-        ref={setChartContainerRef}
         sx={{
           width: "100%",
           maxWidth: "100%",
           flex: 1,
-          minHeight: 400,
+          minHeight: 320,
           minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
           position: "relative",
           overflow: "hidden",
         }}
       >
-        {containerDimensions.width > 0 &&
-          containerDimensions.height > 0 &&
-          filteredData.length > 0 && (
-            <ResponsiveContainer width="100%" height="100%" minHeight={400}>
-              <ComposedChart data={filteredData} margin={dynamicMargins}>
-                <Area
-                  type="monotone"
-                  dataKey="highest"
-                  stroke="#f03939"
-                  fill="#f03939"
-                  fillOpacity={0.1}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="lowest"
-                  stroke="#f5b43b"
-                  fill="#f5b43b"
-                  fillOpacity={0.3}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="average"
-                  stroke={theme.palette.primary.main}
-                  dot={false}
-                  activeDot
-                />
-                <Bar
-                  dataKey={"volume"}
-                  fill={theme.palette.secondary.main}
-                  fillOpacity={0.2}
-                  yAxisId="right"
-                />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatXAxisDates}
-                  angle={-20}
-                  textAnchor="end"
-                  interval={"preserveStartEnd"}
-                />
-                <YAxis
-                  dataKey="average"
-                  domain={[minISK, maxISK]}
-                  tickFormatter={formatYAxisTicks}
-                  label={{ value: "ISK", position: "top", offset: 15 }}
-                />
-                <YAxis
-                  yAxisId="right"
-                  dataKey={"volume"}
-                  domain={[minVolume, maxVolume]}
-                  orientation="right"
-                  tickFormatter={formatYAxisTicks}
-                  label={{
-                    value: "Volume",
-                    position: "top",
-                    offset: 15,
-                  }}
-                />
-                <Tooltip
-                  allowEscapeViewBox={{ x: false, y: false }}
-                  wrapperStyle={{
-                    maxWidth: "min(420px, calc(100vw - 48px))",
-                    zIndex: 2,
-                  }}
-                  contentStyle={{
-                    backgroundColor: theme.palette.background.paper,
-                    borderColor: theme.palette.divider,
-                    color: theme.palette.text.primary,
-                    borderRadius: 4,
-                    padding: "10px",
-                    maxWidth: "min(420px, calc(100vw - 48px))",
-                    whiteSpace: "normal",
-                    wordBreak: "break-word",
-                  }}
-                  itemStyle={{
-                    color: theme.palette.text.primary,
-                  }}
-                  labelFormatter={(label) => formatTooltipDate(label)}
-                  formatter={(value) => formatTooltipNumber(value)}
-                />
-                <Legend verticalAlign="top" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
+        {filteredData.length > 0 && (
+          <TimeSeriesChart
+            rows={filteredData}
+            categoryKey="date"
+            series={series}
+            formatCategory={formatDate}
+            formatAxisTick={formatAxisNumber}
+            leftAxisLabel="ISK"
+            rightAxisLabel="Volume"
+            leftDomain={iskDomain}
+            rightDomain={volumeDomain}
+            categoryAngle={-20}
+            showGrid={false}
+            axisProps={{ stroke: theme.palette.text.secondary }}
+            tooltipProps={{
+              contentStyle: {
+                backgroundColor: theme.palette.background.paper,
+                borderColor: theme.palette.divider,
+                color: theme.palette.text.primary,
+                borderRadius: 4,
+                padding: "10px",
+                maxWidth: "min(420px, calc(100vw - 48px))",
+                whiteSpace: "normal",
+                wordBreak: "break-word",
+              },
+            }}
+            style={{
+              height: "100%",
+              maxHeight: "none",
+              aspectRatio: "auto",
+              minHeight: 320,
+            }}
+          />
+        )}
       </Box>
 
       <Box
@@ -418,46 +278,17 @@ function PriceHistoryLineGraph({
           alignItems: "stretch",
           gap: 2,
           flexShrink: 0,
-          mt: "auto",
-          pt: 2,
+          pt: 1.5,
           borderTop: (t) => `1px solid ${alpha(t.palette.primary.main, 0.2)}`,
         }}
       >
-        <Box
-          sx={(t) => ({
-            ...appShellInsetSurfaceSx(t),
-            flex: 1,
-            minWidth: 0,
-            p: { xs: 2, md: 2.5 },
-            overflow: "hidden",
-          })}
-        >
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Visible history (same as chart: older left, newer right)
-          </Typography>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            display="block"
-            sx={{ mb: 1 }}
-          >
-            Drag the left handle to include or exclude older dates; drag the
-            right handle toward the left to move the window back in time on the
-            chart.
-          </Typography>
-          <Slider
-            value={visibleIndexRange}
-            onChange={handleVisibleRangeChange}
-            valueLabelDisplay="auto"
-            valueLabelFormat={(idx) => formatThumbDate(idx)}
-            min={0}
-            max={Math.max((graphData?.length ?? 1) - 1, 0)}
-            step={1}
-            orientation="horizontal"
-            disabled={!graphData?.length}
-            sx={(t) => appShellSliderSx(t)}
-          />
-        </Box>
+        <ChartRangeSlider
+          value={visibleIndexRange}
+          onChange={setVisibleIndexRange}
+          count={rowCount}
+          formatThumb={formatThumbDate}
+          title="Visible history — older left, newer right"
+        />
         <Box
           sx={(t) => ({
             ...appShellInsetSurfaceSx(t),
@@ -470,8 +301,8 @@ function PriceHistoryLineGraph({
           })}
         >
           <Typography variant="body2" color="text.secondary">
-            {graphData?.length && filteredData.length
-              ? `From ${formatTooltipDate(filteredData[0].date)} through ${formatTooltipDate(filteredData[filteredData.length - 1].date)}`
+            {rowCount && filteredData.length
+              ? `From ${formatDate(filteredData[0].date)} through ${formatDate(filteredData[filteredData.length - 1].date)}`
               : "No history loaded for this range."}
           </Typography>
         </Box>

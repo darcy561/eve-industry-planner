@@ -16,15 +16,15 @@ import mergeJobs from "../../../../../Functions/JobPlanner/mergeJobs";
 import massBuildMaterials from "../../../../../Functions/JobPlanner/massBuildMaterials";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { displayNotificationDialog } from "../../../../../Events/notificationDialogEvents";
+import { displayNotificationDialogue } from "../../../../../Events/notificationDialogueEvents";
 import toggleRightDrawerColapse from "../../../../SideMenu/Functions/toggleRightMenuDrawerColapse";
 import { shouldExpandRightDrawer } from "../../../../Tutorials/Functions/checkDisplayTutorials";
 import { showShoppingList } from "../../../../../Events/shoppingListEvents";
-import { showPriceEntryDialog } from "../../../../../Events/priceEntryEvents";
+import { showPriceEntryDialogue } from "../../../../../Events/priceEntryEvents";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import moveItemsOnPlanner from "../../../../../Functions/JobPlanner/moveItemsOnPlanner";
 import { buildJob } from "../../../../../Functions/JobPlanner/buildJob";
-import { openGroupTemplatesApplyDialog } from "../../../../../Events/groupTemplatesDialogEvents";
+import { openGroupTemplatesApplyDialogue } from "../../../../../Events/groupTemplatesDialogueEvents";
 import { filterUnlockedDocumentIDs } from "../../../../../Functions/DocumentLock/documentLockSelectors";
 import { USER_JOBS_COLLECTION } from "../../../../../Functions/DocumentLock/documentLockCollections";
 
@@ -38,7 +38,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
     buildJob(buildRequest, { queryClient });
   const navigate = useNavigate({ from: '/jobplanner' });
 
-  const standardDialogError =
+  const standardDialogueError =
     "You will need to select at least 1 job using the checkbox's on the job cards.";
 
   const buttonOptions = useMemo(() => {
@@ -84,7 +84,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
               divider: true,
               tooltip:
                 "Creates a new group from a saved group template.",
-              onClick: () => openGroupTemplatesApplyDialog({}),
+              onClick: () => openGroupTemplatesApplyDialogue({}),
             },
           ]
         : []),
@@ -95,7 +95,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
           "Displays a shopping list of the remaining materials needed to build all of the selected jobs.",
         onClick: () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           showShoppingList(multiSelect);
@@ -108,7 +108,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
           "Sets up new jobs to build the combined ingredient totals of each selected job cards.",
         onClick: async () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           await massBuildMaterials(multiSelect, {
@@ -126,10 +126,10 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         tooltip: "Input item costs for all selected jobs.",
         onClick: async () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
-          showPriceEntryDialog(multiSelect);
+          showPriceEntryDialogue(multiSelect);
         },
       },
       {
@@ -138,7 +138,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         tooltip: "Moves the selected jobs 1 step backwards on the planner.",
         onClick: () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           moveItemsOnPlanner(multiSelect, "backward");
@@ -150,7 +150,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         tooltip: "Moves the selected jobs 1 step forwards on the planner.",
         onClick: () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           moveItemsOnPlanner(multiSelect, "forward");
@@ -162,7 +162,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         tooltip: "Merges the selected jobs into one.",
         onClick: async () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           await mergeJobs(multiSelect, { buildJob: buildJobWithContext });
@@ -201,7 +201,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         hoverColor: "error.main",
         onClick: async () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           await deleteJobsFromPlanner(multiSelect);
@@ -216,12 +216,12 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
     buildJobWithContext,
     queryClient,
     moveItemsOnPlanner,
-    standardDialogError,
+    standardDialogueError,
     isLoggedIn,
   ]);
 
-  function throwDialogError(inputText = standardDialogError) {
-    displayNotificationDialog("Oops", inputText);
+  function throwDialogueError(inputText = standardDialogueError) {
+    displayNotificationDialogue("Oops", inputText);
   }
 
   return buttonOptions;

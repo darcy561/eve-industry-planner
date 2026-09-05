@@ -11,12 +11,12 @@ import (
 )
 
 type AppConfigResponse struct {
-	AppVersionNumber string                 `json:"app_version_number"`
-	MaintenanceMode  bool                   `json:"maintenance_mode"`
+	AppVersionNumber string         `json:"app_version_number"`
+	MaintenanceMode  bool           `json:"maintenance_mode"`
 	FeatureFlags     map[string]any `json:"feature_flags"`
 }
 
-// AppConfigHandler returns lightweight client config without Firebase Remote Config.
+// AppConfigHandler returns lightweight client config: maintenance mode and feature flags.
 // app_version_number is this process bake/env (APP_VERSION family).
 func (a *Handlers) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

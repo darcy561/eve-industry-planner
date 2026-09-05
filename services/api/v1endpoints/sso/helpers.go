@@ -10,7 +10,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/evesso"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -67,13 +67,13 @@ func handleSSOProviderError(w http.ResponseWriter, r *http.Request, err error, d
 		return
 	case strings.Contains(msg, "server error"):
 		helper.RespondEndpointError(w, r, http.StatusBadGateway, "EVE SSO server error", "SSO provider upstream server error", "sso_upstream_5xx", "", err, map[string]any{
-			"provider_token_url": evesso.EveSSOTokenURL,
+			"provider_token_url": evesso.TokenURL(),
 			"reason":             "upstream_server_error",
 		})
 		return
 	default:
 		helper.RespondEndpointServerError(w, r, defaultMessage, "SSO provider exchange failed with unexpected error", "sso_exchange_unexpected", "", err, map[string]any{
-			"provider_token_url": evesso.EveSSOTokenURL,
+			"provider_token_url": evesso.TokenURL(),
 			"reason":             "unexpected_sso_exchange_error",
 		})
 	}

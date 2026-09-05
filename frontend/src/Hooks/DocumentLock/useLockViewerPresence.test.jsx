@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useLockViewerPresence } from "./useLockViewerPresence.js";
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   postDocumentLockViewerArrived: vi.fn(() => Promise.resolve()),
   postDocumentLockViewerDeparted: vi.fn(() => Promise.resolve()),
   sendDocumentLockViewerDepartedBeacon: vi.fn(),
@@ -11,18 +11,14 @@ vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
 import {
   postDocumentLockViewerArrived,
   postDocumentLockViewerDeparted,
-} from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+} from "../../Functions/Endpoints/Private/documentLockClient.js";
 
 describe("useLockViewerPresence", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("registers viewer when queued on waitlist even if not readOnly", () => {
     renderHook(() =>
       useLockViewerPresence({
         enabled: true,
-        collection: "user_job_documents",
+        collection: "job_documents",
         docID: "job-1",
         readOnly: false,
         waitingInHandoffQueue: true,
@@ -30,7 +26,7 @@ describe("useLockViewerPresence", () => {
     );
 
     expect(postDocumentLockViewerArrived).toHaveBeenCalledWith(
-      "user_job_documents",
+      "job_documents",
       "job-1"
     );
     expect(postDocumentLockViewerDeparted).not.toHaveBeenCalled();
@@ -42,7 +38,7 @@ describe("useLockViewerPresence", () => {
       {
         initialProps: {
           enabled: true,
-          collection: "user_job_documents",
+          collection: "job_documents",
           docID: "job-1",
           readOnly: true,
           waitingInHandoffQueue: true,
@@ -55,7 +51,7 @@ describe("useLockViewerPresence", () => {
 
     rerender({
       enabled: true,
-      collection: "user_job_documents",
+      collection: "job_documents",
       docID: "job-1",
       readOnly: false,
       waitingInHandoffQueue: true,
@@ -66,7 +62,7 @@ describe("useLockViewerPresence", () => {
 
     unmount();
     expect(postDocumentLockViewerDeparted).toHaveBeenCalledWith(
-      "user_job_documents",
+      "job_documents",
       "job-1"
     );
   });

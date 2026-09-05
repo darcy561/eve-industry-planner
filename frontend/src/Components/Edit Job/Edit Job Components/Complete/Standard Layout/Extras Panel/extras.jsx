@@ -18,27 +18,25 @@ import {
   showSnackbarError,
 } from "../../../../../../Events/snackbarEvents";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import uuid from "react-uuid";
 import ExtrasCategoriesSelect from "../../../../../../Styled Components/Select/extrasCategories";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import DOMPurify from "dompurify";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import ExtraCost from "../../../../../../Classes/extraCost";
 
 export function ExtrasPanel({ state, actions }) {
   const [extrasCategory, setExtrasCategory] = useState("0");
   const extrasCategories = useUsersStore((state) => state.applicationSettings.extrasCategories);
 
-  const getCategoryLabel = (categoryId) => {
-    // Category id is string in API and UI; tolerate legacy numeric rows until re-saved.
-    const n =
-      categoryId == null || categoryId === ""
-        ? 0
-        : Number(categoryId);
+  // Consulted when an extra is added, to name the category it was filed under.
+  // A stored row already carries its name and does not come back here.
+  const lookUpCategoryLabel = (categoryId) => {
+    const n = Number(ExtraCost.categoryOf(categoryId));
     const safeCategoryId = Number.isFinite(n) ? n : 0;
     const category = extrasCategories.find(
       (cat) => cat.id === safeCategoryId || String(cat.id) === String(categoryId)
     );
-    return category ? category.label : "Unassigned";
+    return category ? category.label : "";
   };
 
   function handleAddAction(formData) {
@@ -63,13 +61,15 @@ export function ExtrasPanel({ state, actions }) {
       ALLOWED_ATTR: [],
     });
 
-    // Persisted shape for each row: { id, category, extraText, extraValue } (see Job.addExtrasCost, models.ExtraCost).
-    state.activeJob.addExtrasCost({
-      id: uuid(),
-      category,
-      extraText: sanitizedText,
-      extraValue,
-    });
+    state.activeJob.addExtrasCost(
+      new ExtraCost({
+        id: crypto.randomUUID(),
+        category,
+        categoryLabel: lookUpCategoryLabel(category),
+        extraText: sanitizedText,
+        extraValue,
+      }),
+    );
 
     actions.updateActiveJob(state.activeJob);
     showSnackbarSuccess("Extra cost added");
@@ -108,7 +108,7 @@ export function ExtrasPanel({ state, actions }) {
                 >
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Chip
-                      label={getCategoryLabel(item.category)}
+                      label={item.categoryLabel}
                       size="small"
                       variant="filled"
                       color="secondary"

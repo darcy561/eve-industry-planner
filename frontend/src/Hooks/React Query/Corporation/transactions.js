@@ -9,12 +9,6 @@ const corporationTransactionsQueryKey = "corporationTransactions";
  * React Query configuration for fetching corporation transactions from EVE ESI API.
  *
  * This query handles corporation transaction data fetching with:
- * - Division-based data fetching for corporation wallet divisions
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation transaction data
- * - Error handling with descriptive messages
- * - Division data flattening for unified access
  *
  * The query process:
  * 1. Checks ESI rate limits for corporation group
@@ -34,13 +28,6 @@ const corporationTransactionsQueryKey = "corporationTransactions";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- *
- * @example
- * const { data: corpTransactions, isLoading, error } = useQuery(corporationTransactionsQuery(characterHash));
- *
- * if (isLoading) return <div>Loading corporation transactions...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Corporation Transactions: {corpTransactions.length} transactions across all divisions</div>;
  */
 function corporationTransactionsQuery(characterHash) {
   const findCharacterByHash =

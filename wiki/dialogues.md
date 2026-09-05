@@ -19,7 +19,7 @@ Dialogues are typically opened:
 - When specific actions require additional input
 - To display detailed information
 
-Most dialogues can be closed by clicking outside the dialog or using the close button.
+Most dialogues can be closed by clicking outside the dialogue or using the close button.
 
 ## Related Documentation
 

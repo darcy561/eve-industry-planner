@@ -10,6 +10,7 @@ Live SoT for Swarm stack name **`eip`**: fragment files, membership, replica ide
 | [`docker-stack.yml`](../../docker-stack.yml) | **App** fragment — Traefik + api / websocket / worker / ws-router / core / frontend / **capacity-controller** (+ socket proxies) |
 | [`docker-stack.obs.yml`](../../docker-stack.obs.yml) | **Obs** addon — **Prometheus**, Grafana/Loki/Alloy/exporters/asynqmon; merged only when `addons.observability.enabled` |
 | [`docker-stack.dev.yml`](../../docker-stack.dev.yml) | **Dev overlay** — per-role `${TAG_*}` image refs (merged on `eip dev` / `eip rebuild`) |
+| [`docker-stack.data.dev.yml`](../../docker-stack.data.dev.yml) | **Data dev overlay** — publishes mongo `27017` and redis `6379` on the host (`mode: host`) for local tooling; merged on `eip dev` / `eip rebuild` **when present**, never by `eip up` |
 
 Operator YAML defaults → [config.md](./config.md). Secrets → [secrets.md](./secrets.md). Bake / image tags → [verbs.md](../deployment/deployment-tool/cli/verbs.md).
 
@@ -43,6 +44,17 @@ App services that roll **start-first** (`x-app-deploy`) also merge service-root 
 Compose puts grace **outside** `deploy:` — hence a separate service-root merge, not inside `x-app-deploy`.
 
 Websocket process cleanup budget (`shutdownTimeout` / SIGTERM drain wait) is **60s** to match this grace — [websocket.md](../backend/websocket/websocket.md). Other start-first services may use shorter in-process timers; Docker still waits up to 60s before SIGKILL.
+
+## Restart condition
+
+**`restart_policy` is `condition: any`** on every fragment — the two anchors in
+[`docker-stack.yml`](../../docker-stack.yml), the data one and the observability one.
+
+A service asked to stop exits 0, and `on-failure` reads that as the task having finished its work,
+leaving the service with no replacement. Nothing here keeps a stack alive that was meant to go:
+`eip shutdown` removes services rather than stopping them, and a removed service has no task to
+restart. Failure behaviour is the same either way — a crash-looping service is restarted after the
+5s `delay`.
 
 ## Replica identity
 

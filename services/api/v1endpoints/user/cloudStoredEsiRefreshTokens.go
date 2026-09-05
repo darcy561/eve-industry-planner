@@ -64,7 +64,7 @@ func (h *Handlers) handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r
 	// clients obtain ESI access via POST /api/v1/esi/characters/access-token/server.
 	col := h.Mongo.Users.Collection()
 	var userDoc models.UserAccountDocument
-	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
+	if err := col.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&userDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]any{
@@ -145,7 +145,7 @@ func (h *Handlers) handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r
 
 	col := h.Mongo.Users.Collection()
 	var existingDoc models.UserAccountDocument
-	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&existingDoc); err != nil {
+	if err := col.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&existingDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]any{
@@ -211,7 +211,7 @@ func (h *Handlers) handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r
 	}
 
 	if err := eipmongo.Retry(ctx, fmt.Sprintf("update cloud-stored ESI refresh tokens %s", accountID), func() error {
-		_, err := col.UpdateOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}, bson.M{
+		_, err := col.UpdateOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}, bson.M{
 			"$set": bson.M{
 				"refreshTokens":      nextRows,
 				"_meta.lastModified": time.Now().UTC(),
@@ -272,7 +272,7 @@ func (h *Handlers) handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter
 
 	col := h.Mongo.Users.Collection()
 	var existingDoc models.UserAccountDocument
-	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&existingDoc); err != nil {
+	if err := col.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&existingDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]any{
@@ -302,7 +302,7 @@ func (h *Handlers) handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter
 	}
 
 	if err := eipmongo.Retry(ctx, fmt.Sprintf("delete cloud-stored ESI refresh tokens %s", accountID), func() error {
-		_, err := col.UpdateOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}, bson.M{
+		_, err := col.UpdateOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}, bson.M{
 			"$set": bson.M{
 				"refreshTokens":      nextRows,
 				"_meta.lastModified": time.Now().UTC(),

@@ -31,7 +31,7 @@ var RequiredKeys = []string{
 	"S3_SECRET_KEY",
 	"EVE_CLIENT_SECRET",
 	"REFRESH_TOKEN_AES_KEY",
-	"AUTHZ_HMAC_KEY",
+	"ENTITY_ID_KEY",
 }
 
 // OptionalKeys are created/attached only when set in .env.

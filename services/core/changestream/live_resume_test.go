@@ -2,8 +2,8 @@ package changestream
 
 import (
 	"context"
+	"eve-industry-planner/testing/mongolive"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -20,7 +20,7 @@ const liveCSColl = "_eip_changestream_live_b5"
 //
 //	EIP_MONGO_PARITY_LIVE=1
 func TestLive_Watch_resumeStartAfter(t *testing.T) {
-	m := requireLiveChangestreamMongo(t)
+	m := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -120,7 +120,7 @@ func TestLive_Watch_resumeStartAfter(t *testing.T) {
 }
 
 func TestLive_Watch_invalidResumeThenCold(t *testing.T) {
-	m := requireLiveChangestreamMongo(t)
+	m := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
@@ -198,28 +198,6 @@ func TestIsInvalidResumeError_wrapped(t *testing.T) {
 	if !isInvalidResumeError(double) {
 		t.Fatal("double wrap should still match")
 	}
-}
-
-func requireLiveChangestreamMongo(t *testing.T) *eipmongo.Mongo {
-	t.Helper()
-	if os.Getenv("EIP_MONGO_PARITY_LIVE") != "1" {
-		t.Skip("set EIP_MONGO_PARITY_LIVE=1 against stack Mongo (eip-core)")
-	}
-	m, err := eipmongo.ConnectPrimary()
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		m.Disconnect(ctx)
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if err := m.Ping(ctx); err != nil {
-		t.Fatalf("ping: %v", err)
-	}
-	return m
 }
 
 func liveEventDocID(ev bson.M) string {

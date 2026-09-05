@@ -85,9 +85,9 @@ func TestBuildGroupCascadePayload(t *testing.T) {
 		{JobID: "job-b", EvictedSessionID: "sess-old"},
 	}
 	p := BuildGroupCascadePayload(
-		eipmongo.CollectionUserJobGroups,
+		eipmongo.CollectionJobGroups,
 		"group-1",
-		eipmongo.CollectionUserJobDocuments,
+		eipmongo.CollectionJobDocuments,
 		releases,
 		LockReleaseReasonGroupHandoffCascade,
 	)
@@ -95,13 +95,13 @@ func TestBuildGroupCascadePayload(t *testing.T) {
 	if p[LockPayloadEventKey] != LockEventGroupCascade {
 		t.Fatalf("expected event=%s, got %v", LockEventGroupCascade, p[LockPayloadEventKey])
 	}
-	if p["groupCollection"] != eipmongo.CollectionUserJobGroups {
+	if p["groupCollection"] != eipmongo.CollectionJobGroups {
 		t.Fatalf("groupCollection: got %v", p["groupCollection"])
 	}
 	if p["groupID"] != "group-1" {
 		t.Fatalf("groupID: got %v", p["groupID"])
 	}
-	if p["collection"] != eipmongo.CollectionUserJobDocuments {
+	if p["collection"] != eipmongo.CollectionJobDocuments {
 		t.Fatalf("collection: got %v", p["collection"])
 	}
 	if p["reason"] != LockReleaseReasonGroupHandoffCascade {
@@ -125,9 +125,9 @@ func TestBuildGroupCascadePayload_reasonVariants(t *testing.T) {
 
 	t.Run("membership_added", func(t *testing.T) {
 		p := BuildGroupCascadePayload(
-			eipmongo.CollectionUserJobGroups,
+			eipmongo.CollectionJobGroups,
 			"g99",
-			eipmongo.CollectionUserJobDocuments,
+			eipmongo.CollectionJobDocuments,
 			releases,
 			LockReleaseReasonGroupMembershipAdded,
 		)
@@ -138,9 +138,9 @@ func TestBuildGroupCascadePayload_reasonVariants(t *testing.T) {
 
 	t.Run("empty_reason_defaults_to_handoff_cascade", func(t *testing.T) {
 		p := BuildGroupCascadePayload(
-			eipmongo.CollectionUserJobGroups,
+			eipmongo.CollectionJobGroups,
 			"g98",
-			eipmongo.CollectionUserJobDocuments,
+			eipmongo.CollectionJobDocuments,
 			releases,
 			"",
 		)

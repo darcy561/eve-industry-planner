@@ -19,7 +19,6 @@ vi.mock("../../Functions/DocumentLock/documentLockAcquireFeedback.js", () => ({
 
 describe("useLockVacancySnackbar", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     shouldSuppressDocumentLockVacancyNotice.mockReturnValue(false);
   });
 

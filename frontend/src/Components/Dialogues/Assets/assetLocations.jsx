@@ -1,10 +1,10 @@
-// import { AssetLocationLogic_AssetDialogWindow } from "./AssetTemplates/templateLogic";
+// import { AssetLocationLogic_AssetDialogueWindow } from "./AssetTemplates/templateLogic";
 import { Typography, Grid } from "@mui/material";
 
 import useUsersStore from "../../../Zustand/usersStore";
-import AssetLocationLogic_AssetDialogWindow from "./AssetTemplates/templateLogic";
+import AssetLocationLogic_AssetDialogueWindow from "./AssetTemplates/templateLogic";
 
-export default function AssetLocations_AssetDialogWindow(props) {
+export default function AssetLocations_AssetDialogueWindow(props) {
   const { state } = props;
   const defaultAssetLocation = useUsersStore(
     (state) => state.applicationSettings.defaultStationIDForAssets
@@ -32,7 +32,7 @@ export default function AssetLocations_AssetDialogWindow(props) {
             </Grid>
             {assets.map((assetObject) => {
               return (
-                <AssetLocationLogic_AssetDialogWindow
+                <AssetLocationLogic_AssetDialogueWindow
                   key={assetObject.item_id}
                   {...props}
                   assetObject={assetObject}

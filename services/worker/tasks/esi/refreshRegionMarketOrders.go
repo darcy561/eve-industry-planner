@@ -1,19 +1,17 @@
-package tasks
+package esi
 
 import (
 	"context"
+	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"math"
 	"slices"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
-	esicore "eve-industry-planner/worker/esi"
-
-	"github.com/hibiken/asynq"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 // Percentile prices trim outlying quotes from each side of the book. Below
@@ -38,33 +36,21 @@ type typePriceAccumulator struct {
 //
 // Orders are filtered to the requested station as they stream, so types traded elsewhere in the
 // region produce no entry. Returns an error so asynq retries; a failed pass writes nothing.
-func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarketOrdersRequest, deps *taskrun.Dependencies) error {
 	if deps == nil {
 		return fmt.Errorf("task dependencies are nil")
 	}
 
-	request, err := UnmarshalTaskPayload[natscore.RegionMarketOrdersRequest](task)
-	if err != nil {
-		return err
-	}
 	if request.RegionID == 0 || request.StationID == 0 {
 		return fmt.Errorf("region market orders refresh requires region_id and station_id")
 	}
 
 	lockKey := fmt.Sprintf("esi:market_orders:region:%d:refresh_lock", request.RegionID)
-	cleanup, shouldContinue := taskscore.AcquireRefreshLock(ctx, deps.Redis, lockKey)
+	cleanup, shouldContinue := rediscore.AcquireRefreshLockLogged(ctx, deps.Redis, lockKey)
 	if !shouldContinue {
 		return nil
 	}
 	defer cleanup()
-
-	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-	if err := HandleStatusCheckResult(ctx, statusResult, natscore.TaskNameRegionMarketOrdersRefresh); err != nil {
-		return err
-	}
 
 	start := time.Now()
 
@@ -75,7 +61,7 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 	}
 
 	accumulators := make(map[int32]*typePriceAccumulator)
-	onOrder := func(order ESIMarketOrder) error {
+	onOrder := func(order esiclient.MarketOrder) error {
 		// The region endpoint returns every station in the region; only the hub station counts.
 		if order.LocationID != request.StationID {
 			return nil
@@ -93,10 +79,15 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 		return nil
 	}
 
-	fetchResult, err := FetchRegionMarketOrders(ctx, deps.ESIClient, deps.Redis, request.RegionID, prevETags, onOrder)
+	fetchResult, err := FetchRegionMarketOrders(ctx, deps.ESI, deps.Redis, request.RegionID, prevETags, onOrder)
 	if err != nil {
-		return HandleStreamError(ctx, err, natscore.TaskNameRegionMarketOrdersRefresh)
+		return HandleStreamError(ctx, err, eipnats.TaskNameRegionMarketOrdersRefresh)
 	}
+
+	// The first page's max-age speaks for the book: a region's pages are
+	// generated together and expire together.
+	recordNextRefresh(ctx, deps.Redis, rediscore.RegionMarketOrdersDataset(request.RegionID),
+		time.Duration(fetchResult.CacheSeconds)*time.Second)
 
 	now := time.Now().UnixMilli()
 

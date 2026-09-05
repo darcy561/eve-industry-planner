@@ -4,20 +4,13 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
 /**
  * Fetches character industry jobs from EVE ESI API with pagination and caching support.
  * Filters jobs based on completion date and includes both active and completed jobs.
- * 
+ *
  * @param {Object} params - Parameters object
  * @param {Object} params.character - Character object with esiAccessToken and CharacterID
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingData={}] - Existing data for caching
  * @param {Object} [params.config={}] - Additional configuration options
  * @returns {Promise<Object>} Promise that resolves to industry jobs data with etag and totalPages
- * 
- * @example
- * const jobs = await getCharacterIndustryJobs({
- *   character: { esiAccessToken: "token", CharacterID: 123456 },
- *   page: 1,
- *   config: { characterHash: "hash" }
- * });
  */
 async function getCharacterIndustryJobs({ character, page = 1, existingData = {}, config = {} }) {
   try {
@@ -109,7 +102,7 @@ async function getCharacterIndustryJobs({ character, page = 1, existingData = {}
           currentDate - Date.parse(job.completed_date) <=
           GLOBAL_CONFIG.ESI_DATE_PERIOD * 24 * 60 * 60 * 1000
       )
-      .map((job) => ({ ...job, is_corporation: false }));
+      .map((job) => ({ ...job, is_corporation: false, character_id: CharacterID }));
 
     return {
       data,

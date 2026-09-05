@@ -29,7 +29,7 @@ import { useNavigate } from "@tanstack/react-router";
 import useUsersStore from "../../../../Zustand/usersStore";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
-import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
+import { getJobTypeAccentColour } from "../../../../Functions/Helper/jobTypeDividerColour";
 import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 
 function DisplaySwitch({ job }) {
@@ -261,7 +261,7 @@ export function ClassicGroupJobCardFrame({
               <Box
                 sx={{
                   backgroundColor: (theme) =>
-                    getJobTypeAccentColor(theme, job.jobType),
+                    getJobTypeAccentColour(theme, job.jobType),
                   marginTop: 1,
                   width: "100%",
                 }}

@@ -1,6 +1,6 @@
 import { Button } from "@mui/material";
 import { trackNewJobsCreated } from "../../../../../../../analytics/trackNewJobsCreated";
-import { finalizeCreatedChildJobs } from "../Helpers/finalizeCreatedChildJobs";
+import { finaliseCreatedChildJobs } from "../Helpers/finaliseCreatedChildJobs";
 import { resolveMaterialChildJobStatus } from "../Helpers/materialChildJobs";
 import { useActiveGroupReadOnly } from "../../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import {
@@ -60,7 +60,7 @@ export function CreateChildJobButton_ChildJobPopoverFrame({
           if (!job) {
             return;
           }
-          await finalizeCreatedChildJobs({
+          await finaliseCreatedChildJobs({
             jobsForMissingDataAndRecalc: job,
             jobsToMarkForAddition: job,
             actions,

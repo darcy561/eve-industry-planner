@@ -121,7 +121,7 @@ export function useActiveGroupLockHeld(state) {
 }
 
 /**
- * Persist / mutate gate for edit-job save, delete, leave-dialog save, and
+ * Persist / mutate gate for edit-job save, delete, leave-dialogue save, and
  * sibling-link affordances. `canPersist` is {@link canEditActiveJob} (guest
  * bypass + {@link canPersistJobClose} when logged in). Lock flags are still
  * returned for tooltip copy.

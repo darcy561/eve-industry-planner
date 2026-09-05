@@ -75,8 +75,8 @@
         "type": "custom",
         "multi": true,
         "includeAll": true,
-        "allValue": "frontend|traefik|ws-router|mongo|redis|nats|prometheus|loki|grafana|nats-exporter|redis-exporter|mongodb-exporter|node-exporter|asynqmon|seaweedfs",
-        "query": "frontend,traefik,ws-router,mongo,redis,nats,prometheus,loki,grafana,nats-exporter,redis-exporter,mongodb-exporter,node-exporter,asynqmon,seaweedfs",
+        "allValue": "frontend|traefik|ws-router|mongo|redis|nats|prometheus|loki|grafana|nats-exporter|asynqmon|seaweedfs",
+        "query": "frontend,traefik,ws-router,mongo,redis,nats,prometheus,loki,grafana,nats-exporter,asynqmon,seaweedfs",
         "current": {
           "selected": true,
           "text": [

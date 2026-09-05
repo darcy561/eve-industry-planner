@@ -3,7 +3,7 @@ package identity
 import (
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 func TestJetStreamDurablesUseContainerID(t *testing.T) {
@@ -11,10 +11,10 @@ func TestJetStreamDurablesUseContainerID(t *testing.T) {
 
 	live := DocLiveUpdatesJetStreamDurable()
 	lock := DocLockJetStreamDurable()
-	if live != natscore.DurablePrefixDocLiveUpdates+"abc123def456" {
+	if live != eipnats.DurablePrefixDocLiveUpdates+"abc123def456" {
 		t.Fatalf("live=%q", live)
 	}
-	if lock != natscore.DurablePrefixDocLock+"abc123def456" {
+	if lock != eipnats.DurablePrefixDocLock+"abc123def456" {
 		t.Fatalf("lock=%q", lock)
 	}
 	if live == lock {

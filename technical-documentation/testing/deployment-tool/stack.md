@@ -17,7 +17,7 @@ go test ./internal/stack/
 
 | Area | What the tests cover |
 |------|----------------------|
-| Expand | Guards, interpolation, stamping, env overlay, in-memory rewrites, dollar escaping, mode normalization |
+| Expand | Guards, interpolation, stamping, env overlay, in-memory rewrites, dollar escaping, mode normalisation |
 | Externalize | Compose sources, bind paths, obs configs |
 | Injection | Secret/config injection into expanded docs |
 | Stackfile | Load; mounts; Traefik/Grafana apply surfaces; capacity targets; secret attaches |

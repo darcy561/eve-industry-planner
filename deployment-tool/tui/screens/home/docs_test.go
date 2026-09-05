@@ -133,14 +133,14 @@ func TestPlanDocApplyQueuesSecretsAndSync(t *testing.T) {
 	m := readyHome(t)
 	m.snap.Health = status.LightGreen
 	m.snap.Docker = status.LightGreen
-	jobs, note, start := m.planDocApply(true)
+	jobs, note, start := m.planDocApply(true, false)
 	if !start || len(jobs) != 2 || jobs[0].Label != "secrets" || jobs[1].Label != "sync" {
 		t.Fatalf("jobs=%v start=%v", jobs, start)
 	}
 	if !strings.Contains(note, "secrets") {
 		t.Fatalf("note=%q", note)
 	}
-	jobs, note, start = m.planDocApply(false)
+	jobs, note, start = m.planDocApply(false, false)
 	if !start || len(jobs) != 1 || jobs[0].Label != "sync" {
 		t.Fatalf("sync-only jobs=%v", jobs)
 	}
@@ -149,11 +149,24 @@ func TestPlanDocApplyQueuesSecretsAndSync(t *testing.T) {
 	}
 }
 
+func TestPlanDocApplyObservabilityChangeQueuesRepair(t *testing.T) {
+	m := readyHome(t)
+	m.snap.Health = status.LightGreen
+	m.snap.Docker = status.LightGreen
+	jobs, note, start := m.planDocApply(false, true)
+	if !start || len(jobs) != 2 || jobs[0].Label != "sync" || jobs[1].Label != "repair" {
+		t.Fatalf("jobs=%v start=%v", jobs, start)
+	}
+	if !strings.Contains(note, "observability") {
+		t.Fatalf("note=%q", note)
+	}
+}
+
 func TestAfterDocApplyDockerNotReady(t *testing.T) {
 	m := readyHome(t)
 	m.snap.Health = status.LightGreen
 	m.snap.Docker = status.LightRed
-	next, cmd := m.afterDocApply(false)
+	next, cmd := m.afterDocApply(false, false)
 	hm := next.(model)
 	if cmd != nil || hm.commandRunning {
 		t.Fatal("must not start CLI")

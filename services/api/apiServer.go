@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"eve-industry-planner/shared/stackservices"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/api/middleware"
-	"eve-industry-planner/api/migrationendpoints"
 	"eve-industry-planner/api/staticdata"
 	"eve-industry-planner/api/v1endpoints"
 	"eve-industry-planner/api/v1endpoints/archivedjobs"
@@ -24,6 +24,8 @@ import (
 	user "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/api/v1endpoints/watchlist"
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
 
@@ -38,7 +40,7 @@ type route struct {
 	Handler http.HandlerFunc
 }
 
-func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecycle.Runner, error) {
+func StartAPIServer(ctx context.Context, clients *stackservices.Clients, esi esiclient.API) (lifecycle.Runner, error) {
 	logs.SetDebugIdentityResolver(func(ctx context.Context) (string, string) {
 		return auth.AccountIDFromContext(ctx), auth.SessionIDFromContext(ctx)
 	})
@@ -79,7 +81,6 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 		middleware.UnregisteredRoutesMuxConstructor(mux),
 	)(http.NotFoundHandler()) // leaf unused; UnregisteredRoutesMuxConstructor serves the mux directly
 
-	// Public and private groups for v1
 	// Per-ID citadel name GETs are cacheable (browser + CDN); a single page can request many
 	// structure IDs in parallel on a cold cache. Exempt that prefix from the default public
 	// rate limit so we do not need a non-cacheable batch lookup.
@@ -97,7 +98,14 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 		middleware.AuthConstructor(clients.Redis),
 	)
 
-	deps := apideps.FromClients(clients)
+	// Documents carrying entity ids convert them to refs on write, so a missing
+	// authz key must stop startup rather than surface as a failed save.
+	entityCipher, err := entityid.NewFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("load authz hmac key for entity refs: %w", err)
+	}
+
+	deps := apideps.FromClients(clients, entityCipher, esi)
 	v1 := v1endpoints.New(deps)
 	ssoH := ssoendpoints.New(deps)
 	userH := user.New(deps)
@@ -200,7 +208,6 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 			},
 		},
 	}
-	// Register public routes
 	for _, route := range publicRoutes {
 		publicGroup.HandleFunc(route.Path, route.Handler)
 	}
@@ -288,31 +295,6 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 	// Register private routes (v1)
 	for _, route := range privateRoutes {
 		privateGroup.HandleFunc(route.Path, route.Handler)
-	}
-
-	// Migration-specific groups (separate from v1 handlers)
-	migrationPublicGroup := middleware.NewGroup(mux,
-		middleware.OptionalAccountLogConstructor(clients.Redis),
-		middleware.RateLimiterConstructor(store, publicRateLimit, "migration_public"),
-	)
-
-	// Migration public routes
-	migrationPublicRoutes := []route{
-		{
-			Path: "/api/migration/item/{itemID}",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				migrationendpoints.ItemRecipeHandler(w, r)
-			},
-		},
-		{
-			Path: "/api/migration/item",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				migrationendpoints.ItemRecipeHandler(w, r)
-			},
-		},
-	}
-	for _, route := range migrationPublicRoutes {
-		migrationPublicGroup.HandleFunc(route.Path, route.Handler)
 	}
 
 	baseHandler := middleware.RequestStartTimeConstructor()(

@@ -1,17 +1,11 @@
 /**
- * Optimizes job production quantities based on parent job requirements.
- * Iteratively recalculates job quantities to minimize overproduction while meeting requirements.
+ * Optimises job production quantities based on parent job requirements.
+ * Iteratively recalculates job quantities to minimise overproduction while meeting requirements.
  * Uses a "tree shaking" approach to eliminate unnecessary production.
- * 
- * @param {Array} allJobObjects - Array of all job objects to optimize
+ *
+ * @param {Array} allJobObjects - Array of all job objects to optimise
  * @param {Function} recalculateJob - Function to recalculate a job's production quantities
  * @returns {Set<string>} Set of job IDs that were recalculated
- * 
- * @example
- * const recalculatedJobs = materialTreeShaker(jobArray, (job, requirements) => {
- *   job.recalculateProduction(requirements);
- * });
- * console.log(`Recalculated ${recalculatedJobs.size} jobs`);
  */
 function materialTreeShaker(allJobObjects, recalculateJob) {
   if (!allJobObjects || !recalculateJob) {
@@ -48,7 +42,7 @@ function materialTreeShaker(allJobObjects, recalculateJob) {
 
 /**
  * Calculates the total material requirements from parent jobs for a given job.
- * 
+ *
  * @param {Object} job - The job to calculate requirements for
  * @param {Array} allJobs - Array of all job objects
  * @returns {number} Total quantity of materials needed from parent jobs
@@ -76,7 +70,7 @@ function getParentJobRequirements(job, allJobs) {
 
 /**
  * Determines if a job needs recalculation based on production vs requirements.
- * 
+ *
  * @param {Object} job - The job to check
  * @param {number} parentJobRequirements - Total requirements from parent jobs
  * @returns {boolean} True if the job needs recalculation
@@ -91,7 +85,7 @@ const shouldRecalculate = (job, parentJobRequirements) => {
   const neededRuns = Math.ceil(parentJobRequirements / job.itemsProducedPerRun);
   const minBuildQuantity = neededRuns * job.itemsProducedPerRun;
 
-  const { totalQuantity: currentProduction } = job.build.products;
+  const currentProduction = job.totalQuantityProduced;
 
   const isOverproducing =
     currentProduction > minBuildQuantity + job.itemsProducedPerRun;

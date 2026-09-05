@@ -90,7 +90,7 @@ func TestIsLockedInFile(t *testing.T) {
 func TestShowAutogenAndRollCheckboxes(t *testing.T) {
 	t.Parallel()
 	locked := EnvField{Key: "MONGO_PASSWORD", Autogen: true, Locked: true, Type: FieldPassword}
-	authz := EnvField{Key: "AUTHZ_HMAC_KEY", Autogen: true, Locked: true, Type: FieldHMAC}
+	authz := EnvField{Key: "ENTITY_ID_KEY", Autogen: true, Locked: true, Type: FieldHMAC}
 	rollable := EnvField{Key: "S3_SECRET_KEY", Autogen: true, Locked: false, Type: FieldPassword}
 	user := EnvField{Key: "MONGO_USERNAME", Locked: true, Type: FieldText}
 	set := "already-set-secret-value-here-ok"

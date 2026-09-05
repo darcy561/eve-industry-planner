@@ -108,7 +108,7 @@ The panel adapts to screen size:
 1. Check "Job Cost Per Item" across multiple archived jobs
 2. Identify trends in unit costs
 3. Determine if efficiency is improving or declining
-4. Use insights to optimize current job setups
+4. Use insights to optimise current job setups
 
 ### Profitability Review
 1. Examine "Profit/Loss" values from past jobs
@@ -147,7 +147,7 @@ The panel adapts to screen size:
 2. **Compare Contexts**: Compare standalone vs. child job performance
 3. **Plan Accordingly**: Use insights when planning new production chains
 
-### Cost Optimization
+### Cost Optimisation
 1. **Track Trends**: Monitor how costs change over time
 2. **Identify Improvements**: Look for jobs with better cost efficiency
 3. **Replicate Success**: Apply successful strategies to new jobs

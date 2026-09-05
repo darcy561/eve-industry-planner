@@ -1,5 +1,5 @@
 // Docker logs → Loki for non-Go Swarm tasks (frontend/nginx, edge, data, obs infra).
-// Go apps (api/core/worker/websocket) use OTLP below — dropped from docker scrape.
+// The six Go services use OTLP below — dropped from the docker scrape.
 // Docker API via allowlisted alloy-docker-proxy (eip-docker-alloy only).
 //
 // #15: Swarm com.docker.swarm.service.name → compose_service (strip eip_ prefix) for LogQL.
@@ -55,27 +55,34 @@ discovery.relabel "docker" {
 		replacement   = "$1"
 	}
 
+	// Every Go service exports its logs over OTLP, so scraping their stdout as well would file
+	// each line twice under two label sets whenever the stdout mirror is on.
 	rule {
 		source_labels = ["compose_service"]
-		regex         = "(api|core|worker|websocket)"
+		regex         = "(api|core|worker|websocket|ws-router|capacity-controller)"
 		action        = "drop"
 	}
 
 	rule {
 		source_labels = ["compose_service"]
-		regex         = "(alloy|alloy-docker-proxy|traefik-docker-proxy|ws-docker-proxy)"
+		regex         = "(alloy|alloy-docker-proxy|traefik-docker-proxy|ws-docker-proxy|capacity-docker-proxy)"
 		action        = "drop"
 	}
 }
 
+// targets takes the relabelled output, not discovery.docker's raw list: drop actions only remove a
+// container from the tailing set here. Passing raw targets with relabel_rules tails every container
+// and applies the rules to entry labels instead, so dropped services still arrive.
 loki.source.docker "docker" {
 	host             = "tcp://alloy-docker-proxy:2375"
-	targets          = discovery.docker.docker.targets
-	relabel_rules    = discovery.relabel.docker.rules
+	targets          = discovery.relabel.docker.output
 	refresh_interval = "5s"
 	forward_to       = [loki.write.default.receiver]
 }
 
+// Container stdout takes Loki's push API directly. Sending it over OTLP instead would land
+// compose_service and its siblings as structured metadata rather than stream labels, and the
+// logs-* dashboards select on {compose_service="…"}.
 loki.write "default" {
 	endpoint {
 		url = "http://loki:3100/loki/api/v1/push"
@@ -95,37 +102,8 @@ otelcol.receiver.otlp "apps" {
 
 	output {
 		metrics = [otelcol.processor.batch.apps.input]
-		logs    = [otelcol.processor.filter.loki_min_level.input]
+		logs    = [otelcol.processor.transform.scrub_otlp_boilerplate.input]
 		traces  = [otelcol.processor.batch.traces.input]
-	}
-}
-
-// Drop logs below Alloy LOG_LEVEL before Loki (apps export debug; filter here). Restart alloy after LOG_LEVEL changes.
-otelcol.processor.filter "loki_min_level" {
-	error_mode = "ignore"
-
-	logs {
-		log_record = [
-			"severity_number < " + coalesce(
-				{
-					"debug"   = "SEVERITY_NUMBER_DEBUG",
-					"DEBUG"   = "SEVERITY_NUMBER_DEBUG",
-					"info"    = "SEVERITY_NUMBER_INFO",
-					"INFO"    = "SEVERITY_NUMBER_INFO",
-					"warn"    = "SEVERITY_NUMBER_WARN",
-					"WARN"    = "SEVERITY_NUMBER_WARN",
-					"warning" = "SEVERITY_NUMBER_WARN",
-					"WARNING" = "SEVERITY_NUMBER_WARN",
-					"error"   = "SEVERITY_NUMBER_ERROR",
-					"ERROR"   = "SEVERITY_NUMBER_ERROR",
-				}[coalesce(env("LOG_LEVEL"), "info")],
-				"SEVERITY_NUMBER_INFO",
-			),
-		]
-	}
-
-	output {
-		logs = [otelcol.processor.transform.scrub_otlp_boilerplate.input]
 	}
 }
 
@@ -164,37 +142,6 @@ otelcol.processor.transform "scrub_otlp_boilerplate" {
 	}
 
 	output {
-		// debug: keep debug_steps on access logs; otherwise strip before Loki.
-		logs = coalesce(
-			{
-				"debug"   = [otelcol.processor.batch.logs.input],
-				"DEBUG"   = [otelcol.processor.batch.logs.input],
-				"info"    = [otelcol.processor.transform.strip_debug_steps.input],
-				"INFO"    = [otelcol.processor.transform.strip_debug_steps.input],
-				"warn"    = [otelcol.processor.transform.strip_debug_steps.input],
-				"WARN"    = [otelcol.processor.transform.strip_debug_steps.input],
-				"warning" = [otelcol.processor.transform.strip_debug_steps.input],
-				"WARNING" = [otelcol.processor.transform.strip_debug_steps.input],
-				"error"   = [otelcol.processor.transform.strip_debug_steps.input],
-				"ERROR"   = [otelcol.processor.transform.strip_debug_steps.input],
-			}[coalesce(env("LOG_LEVEL"), "info")],
-			[otelcol.processor.transform.strip_debug_steps.input],
-		)
-	}
-}
-
-// Remove debug_steps from access logs before Loki (skipped when LOG_LEVEL=debug via routing above).
-otelcol.processor.transform "strip_debug_steps" {
-	error_mode = "ignore"
-
-	log_statements {
-		context = "log"
-		statements = [
-			`delete_key(attributes, "debug_steps")`,
-		]
-	}
-
-	output {
 		logs = [otelcol.processor.batch.logs.input]
 	}
 }
@@ -205,7 +152,8 @@ otelcol.processor.batch "apps" {
 	}
 }
 
-// Accept OTLP logs (Go services) → Loki native OTLP (/otlp). Log line = message; zap fields = structured metadata.
+// Accept OTLP logs (Go services) → Loki native OTLP (/otlp). Log line = message; zap fields =
+// structured metadata.
 otelcol.processor.batch "logs" {
 	output {
 		logs = [otelcol.exporter.otlphttp.loki.input]
@@ -247,6 +195,8 @@ otelcol.exporter.prometheus "apps" {
 }
 
 // Prometheus scrape used job="otel_collector"; preserve that label for dashboards that filter on it.
+// Traefik pushes OTLP down this same path, so the second rule takes it back out of that bucket —
+// rules apply in order, and it would otherwise lose its identity to the stamp above.
 prometheus.relabel "otel_collector" {
 	forward_to = [prometheus.remote_write.local.receiver]
 
@@ -255,6 +205,117 @@ prometheus.relabel "otel_collector" {
 		target_label = "job"
 		replacement  = "otel_collector"
 	}
+
+	rule {
+		action        = "replace"
+		source_labels = ["service_name"]
+		regex         = "traefik"
+		target_label  = "job"
+		replacement   = "traefik"
+	}
+}
+
+// Embedded redis_exporter. Scraped straight into remote_write: the otel_collector relabel below
+// stamps job=otel_collector on everything crossing it, which would erase job="redis".
+prometheus.exporter.redis "redis" {
+	redis_addr     = "redis://redis:6379"
+	redis_password = sys.env("REDIS_PASSWORD")
+}
+
+// The exporter's targets carry job="integrations/redis"; target labels beat the scrape's job_name,
+// so the rewrite has to happen here or the Redis dashboard's job="redis" filter matches nothing.
+discovery.relabel "redis" {
+	targets = prometheus.exporter.redis.redis.targets
+
+	rule {
+		action       = "replace"
+		target_label = "job"
+		replacement  = "redis"
+	}
+}
+
+prometheus.scrape "redis" {
+	targets         = discovery.relabel.redis.output
+	forward_to      = [prometheus.remote_write.local.receiver]
+	scrape_interval = "15s"
+}
+
+// Embedded node_exporter. Alloy runs in a container, so the collectors are pointed at the host's
+// procfs and sysfs through the read-only rootfs bind rather than the container's own.
+prometheus.exporter.unix "host" {
+	rootfs_path        = "/host"
+	procfs_path        = "/host/proc"
+	sysfs_path         = "/host/sys"
+	disable_collectors = ["kernel_hung"]
+}
+
+discovery.relabel "node" {
+	targets = prometheus.exporter.unix.host.targets
+
+	rule {
+		action       = "replace"
+		target_label = "job"
+		replacement  = "node"
+	}
+}
+
+prometheus.scrape "node" {
+	targets         = discovery.relabel.node.output
+	forward_to      = [prometheus.remote_write.local.receiver]
+	scrape_interval = "15s"
+}
+
+// Embedded mongodb_exporter. collect_all, compatible_mode and direct_connect already default to
+// what the standalone exporter was run with, so only the URI is set here.
+//
+// The URI is the component's only way to take credentials, and it is safe to interpolate them
+// unescaped only because EnvFields generates and validates FieldPassword against the url-safe
+// base64 alphabet (A-Z a-z 0-9 _ -). Widening that alphabet would need percent-encoding here.
+prometheus.exporter.mongodb "mongo" {
+	mongodb_uri = "mongodb://" + sys.env("MONGO_ROOT_USERNAME") + ":" + sys.env("MONGO_ROOT_PASSWORD") + "@mongo:27017/admin?authSource=admin&replicaSet=rs0"
+}
+
+discovery.relabel "mongodb" {
+	targets = prometheus.exporter.mongodb.mongo.targets
+
+	rule {
+		action       = "replace"
+		target_label = "job"
+		replacement  = "mongodb"
+	}
+}
+
+prometheus.scrape "mongodb" {
+	targets         = discovery.relabel.mongodb.output
+	forward_to      = [prometheus.remote_write.local.receiver]
+	scrape_interval = "15s"
+}
+
+// nats-exporter stays a container: Alloy has no NATS exporter component, so this is a scrape
+// rather than an embed. Static target because the exporter is a fixed service alias on eip-obs.
+prometheus.scrape "nats" {
+	targets         = [{ __address__ = "nats-exporter:7777" }]
+	forward_to      = [prometheus.remote_write.local.receiver]
+	job_name        = "nats"
+	scrape_interval = "15s"
+}
+
+// asynqmon publishes Prometheus exposition and nothing else, so it is scraped rather than embedded.
+// Every panel on the Asynq dashboard filters job="asynqmon".
+prometheus.scrape "asynqmon" {
+	targets         = [{ __address__ = "asynqmon:8080" }]
+	forward_to      = [prometheus.remote_write.local.receiver]
+	job_name        = "asynqmon"
+	scrape_interval = "15s"
+}
+
+// SeaweedFS exposes master, filer, volume server and admin metrics on one port under `mini`; the
+// separate -s3.metricsPort does not listen in that mode, so there is nothing else to scrape.
+prometheus.scrape "seaweedfs" {
+	targets         = [{ __address__ = "seaweedfs:9327" }]
+	forward_to      = [prometheus.remote_write.local.receiver]
+	job_name        = "seaweedfs"
+	scrape_interval = "15s"
 }
 
 prometheus.remote_write "local" {

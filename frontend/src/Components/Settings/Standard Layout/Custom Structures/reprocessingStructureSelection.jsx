@@ -5,13 +5,12 @@ import { useTheme } from "@mui/material/styles";
 import StructureTypeSelect from "../../../../Styled Components/Select/structureType";
 import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
 import RigTypeSelect from "../../../../Styled Components/Select/rigType";
-import ImplantSelect from "../../../../Styled Components/Select/implantSelecter";
+import ImplantSelect from "../../../../Styled Components/Select/implantSelector";
 import { jobTypes } from "../../../../Context/defaultValues";
 import ReprocessingStructure from "../../../../Classes/reprocessingStructure";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
 import useUsersStore from "../../../../Zustand/usersStore";
-import DOMPurify from "dompurify";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {
   appShellTextFieldOutlinedSx,
@@ -69,12 +68,7 @@ function ReprocessingStructureSelection({
   };
 
   const handleNameChange = (e) => {
-    chosenStructure.setName(
-      DOMPurify.sanitize(e.target.value, {
-        ALLOWED_TAGS: [],
-        ALLOWED_ATTR: [],
-      }),
-    );
+    chosenStructure.setName(e.target.value);
     setChosenStructure(new ReprocessingStructure(chosenStructure));
   };
 

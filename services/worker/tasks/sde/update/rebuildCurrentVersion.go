@@ -8,17 +8,11 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-
-	"github.com/hibiken/asynq"
+	"eve-industry-planner/worker/taskrun"
 )
 
 // RebuildCurrentSDEVersion rebuilds the currently active SDE build in place.
-func RebuildCurrentSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
-
+func RebuildCurrentSDEVersion(ctx context.Context, deps *taskrun.Dependencies) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 

@@ -23,7 +23,7 @@ Sibling topics → [contents.md](./contents.md). Child protocol → [messaging.m
 6. **Reuse `theme` + `ui`** — and home helpers in `screens/home/{nav,docs,pickers,mouse}.go`.
 7. **Locked binary builds** — if the binary is locked (TUI still running), **alert and stop**. Do not invent alternate binary names. Build → [engineering.md](../cli/engineering.md).
 8. **Config SoT stays files** — builders read/write `.env` and `eip.config.yaml` in place. Persist / apply policy → [builders.md](./builders.md).
-9. **Dynamic lists / one SoT** — CLI verbs in `catalog`; home menu copy/gating in `tui/ops`. Registries → [variables.md](../cli/variables.md).
+9. **Dynamic lists / one SoT** — CLI verbs in `catalogue`; home menu copy/gating in `tui/ops`. Registries → [variables.md](../cli/variables.md).
 
 ## TUI package map
 

@@ -32,7 +32,7 @@ The Asset Library allows you to:
 - Use assets in job planning
 - Import assets to shopping lists
 - Link assets to jobs
-- Track asset utilization
+- Track asset utilisation
 
 ### Asset Locations
 

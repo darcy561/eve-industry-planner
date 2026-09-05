@@ -4,7 +4,7 @@
  *
  * When `useEditJobLeaveConfirm` is mounted (i.e. the holder is currently on
  * `/editjob/$jobID`) it registers a handler that opens the unsaved-changes
- * dialog instead of immediately surrendering the lock. The dialog drives the
+ * dialogue instead of immediately surrendering the lock. The dialogue drives the
  * outcome: save / discard both resolve to `proceed` (the slice continues with
  * the handover); closing/cancelling resolves to `cancelled` (the slice
  * dismisses the notice and the holder keeps editing).

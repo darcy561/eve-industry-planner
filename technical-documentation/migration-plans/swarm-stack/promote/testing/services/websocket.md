@@ -50,14 +50,14 @@ go test ./websocket/server/ -count=1 -run Integration
 
 ## Ops soak (not CI)
 
-`services/testing/ws_soak` against `eip up` / `eip dev` (docker network `eip-core`, NATS + `ws-router`; Redis only for session seed):
+`testing/ws_soak` against `eip up` / `eip dev` (docker network `eip-core`, NATS + `ws-router`; Redis only for session seed):
 
 | Profile | Purpose |
 |---------|---------|
 | `hold` | Hold N `/ws` clients; reconnect on close / `please_reconnect` |
 | `limits` | Sync lowered `target_clients` / `client_cutoff` first; fill one corp home → soft; mixed account/corp/alliance keys assert place off soft via `connected.container_id`; fill → full; mixed keys assert not-on-full |
 
-See command header comments in `services/testing/ws_soak/main.go`. Restore prod thresholds after limits runs.
+See command header comments in `testing/ws_soak/main.go`. Restore prod thresholds after limits runs.
 
 ## Topic-only detail
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
 )
 
@@ -42,11 +42,11 @@ func TestFetchPlacementStatus(t *testing.T) {
 func TestReconcileStatusesPrunesGone(t *testing.T) {
 	t.Parallel()
 	p := newPlacementStore()
-	gone, err := natscore.ParsePlacementState([]byte(`{"container_id":"gone11111111","clients":1}`))
+	gone, err := eipnats.ParsePlacementState([]byte(`{"container_id":"gone11111111","clients":1}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	live, err := natscore.ParsePlacementState([]byte(`{"container_id":"aaa111111111","clients":2}`))
+	live, err := eipnats.ParsePlacementState([]byte(`{"container_id":"aaa111111111","clients":2}`))
 	if err != nil {
 		t.Fatal(err)
 	}

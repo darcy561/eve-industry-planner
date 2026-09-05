@@ -20,12 +20,15 @@ import (
 	"time"
 
 	apihelperauth "eve-industry-planner/api/helper/auth"
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/shared/wsplacement"
 	"eve-industry-planner/websocket/server/model"
 
+	"eve-industry-planner/testing/keys"
+	"eve-industry-planner/testing/redisfake"
+	"eve-industry-planner/testing/wait"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
@@ -64,19 +67,19 @@ func newIntegFixture(t *testing.T) *integFixture {
 	t.Setenv("WS_CLIENT_CUTOFF", "0")
 	t.Setenv("WS_TARGET_CLIENTS", "0")
 
-	mr := miniredis.RunT(t)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	fake := redisfake.New(t)
+	mr, rdb := fake.Server, fake.Client
 
 	s := &Server{
+		entityCipher:           keys.EntityCipher(t),
 		Clients:                make(map[string]*Client),
 		userConnections:        make(map[string]map[string]bool),
 		sessionHandoffs:        make(map[string]*sessionHandoffEntry),
 		activeSubscriptions:    make(map[string]map[string]time.Time),
 		incomingQueues:         make(map[string]*IncomingDocQueue),
 		explicitDocSubscribers: make(map[string]map[string]bool),
-		corpToClients:          make(map[string]map[string]bool),
-		allianceToClients:      make(map[string]map[string]bool),
+		corpRefToClients:       make(map[string]map[string]bool),
+		allianceRefToClients:   make(map[string]map[string]bool),
 		Stack:                  &stackservices.Clients{Redis: rdb},
 		SyncPool:               pond.NewPool(1),
 		upgrader:               upgrader,
@@ -158,7 +161,7 @@ func (f *integFixture) seedSession(accountID, sessionID string) {
 func (f *integFixture) seedSessionWithGrants(accountID, sessionID string, corps, alliances []int64) {
 	f.t.Helper()
 	f.seedSession(accountID, sessionID)
-	if err := apihelperauth.UpdateAccountSessionGrants(context.Background(), f.Redis, accountID, corps, alliances); err != nil {
+	if err := apihelperauth.UpdateAccountSessionGrants(context.Background(), f.Redis, keys.EntityCipher(f.t), accountID, corps, alliances); err != nil {
 		f.t.Fatalf("seedSession grants: %v", err)
 	}
 }
@@ -217,14 +220,10 @@ func (f *integFixture) get(path string) (status int, body string) {
 
 func (f *integFixture) waitClients(want int, timeout time.Duration) {
 	f.t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if f.Server.ConnectedCount() == want {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	f.t.Fatalf("ConnectedCount=%d want %d", f.Server.ConnectedCount(), want)
+	wait.For(f.t, timeout, func() (bool, string) {
+		got := f.Server.ConnectedCount()
+		return got == want, fmt.Sprintf("ConnectedCount=%d want %d", got, want)
+	})
 }
 
 func (f *integFixture) readJSONMessage(conn *websocket.Conn, timeout time.Duration) map[string]any {
@@ -309,38 +308,28 @@ func (f *integFixture) requireRedisAbsent(key string) {
 
 func (f *integFixture) waitRedisExists(key string, timeout time.Duration) {
 	f.t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if f.redisExists(key) > 0 {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	f.t.Fatalf("redis key absent after wait: %s", key)
+	wait.For(f.t, timeout, func() (bool, string) {
+		return f.redisExists(key) > 0, "redis key absent: " + key
+	})
 }
 
 func (f *integFixture) waitRedisAbsent(key string, timeout time.Duration) {
 	f.t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if f.redisExists(key) == 0 {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	f.t.Fatalf("redis key still present: %s", key)
+	wait.For(f.t, timeout, func() (bool, string) {
+		return f.redisExists(key) == 0, "redis key still present: " + key
+	})
 }
 
 // --- in-process client / placement helpers (no second Server construction) ---
 
 func (f *integFixture) newClient(id, accountID string, corps, alliances []string) *Client {
 	return &Client{
-		id:                 id,
-		AccountID:          accountID,
-		Send:               make(chan []byte, 8),
-		Scopes:             model.RealtimeScopes{},
-		grantedCorpIDs:     stringSetFromSlice(corps),
-		grantedAllianceIDs: stringSetFromSlice(alliances),
+		id:                  id,
+		AccountID:           accountID,
+		Send:                make(chan []byte, 8),
+		Scopes:              model.RealtimeScopes{},
+		grantedCorpRefs:     stringSetFromSlice(corps),
+		grantedAllianceRefs: stringSetFromSlice(alliances),
 	}
 }
 
@@ -378,8 +367,8 @@ func (f *integFixture) unregister(c *Client) {
 func (f *integFixture) setOrgScopes(c *Client, corps, alliances []string) {
 	f.t.Helper()
 	f.Server.swapClientOrgScopesAndIndexes(c, model.RealtimeScopes{
-		CorporationIDs: corps,
-		AllianceIDs:    alliances,
+		CorporationRefs: corps,
+		AllianceRefs:    alliances,
 	})
 }
 
@@ -389,7 +378,7 @@ func (f *integFixture) syncPlacementHints() {
 	f.Server.syncPlacementFlags(context.Background(), n)
 }
 
-func (f *integFixture) placementStatus() natscore.PlacementState {
+func (f *integFixture) placementStatus() eipnats.PlacementState {
 	f.t.Helper()
 	res, err := http.Get(f.HTTP.URL + wsplacement.StatusPath)
 	if err != nil {
@@ -399,7 +388,7 @@ func (f *integFixture) placementStatus() natscore.PlacementState {
 	if res.StatusCode != http.StatusOK {
 		f.t.Fatalf("placement status=%d", res.StatusCode)
 	}
-	var st natscore.PlacementState
+	var st eipnats.PlacementState
 	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
 		f.t.Fatalf("decode placement: %v", err)
 	}
@@ -414,3 +403,28 @@ func (f *integFixture) requirePlacement(soft, full bool, clients int) {
 			st.Soft, st.Full, st.Clients, soft, full, clients)
 	}
 }
+
+func wsTestCorpRef(t *testing.T, id int64) string {
+	t.Helper()
+	r, err := keys.EntityCipher(t).Corporation(id)
+	if err != nil {
+		t.Fatalf("RefFromCorporationID: %v", err)
+	}
+	return r
+}
+
+func wsTestAllianceRef(t *testing.T, id int64) string {
+	t.Helper()
+	r, err := keys.EntityCipher(t).Alliance(id)
+	if err != nil {
+		t.Fatalf("RefFromAllianceID: %v", err)
+	}
+	return r
+}
+
+// Fixed, well formed refs for tests that seed indexes directly rather than
+// deriving from ids. Tenant keys reject anything that is not a real ref.
+const (
+	wsTestCorpRefValue     = "corp_56_J_DzQdPpjXwi9Xtp3C8bri9Bfi0Z94qUulkbKCac"
+	wsTestAllianceRefValue = "alliance_DWc0i6y_cTAGa4QSZWC0S94Zm7vUclxiUNHlNPthzvc"
+)

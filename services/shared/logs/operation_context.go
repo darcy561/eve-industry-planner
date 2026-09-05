@@ -117,9 +117,7 @@ func accessShapedLogFields(ctx context.Context, detail map[string]any, steps []D
 		fields = append(fields, zap.String("session_id", sessionID))
 	}
 	fields = append(fields, AccessLogDetailFields(detail)...)
-	if len(steps) > 0 {
-		fields = append(fields, zap.Any(DebugStepsLogKey, DebugStepsForLog(steps)))
-	}
+	fields = append(fields, DebugStepsField(steps))
 	if len(caveats) > 0 {
 		fields = append(fields, zap.Any("caveats", HandlerCaveatsForLog(caveats)))
 	}

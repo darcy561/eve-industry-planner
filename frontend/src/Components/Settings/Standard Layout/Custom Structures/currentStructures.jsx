@@ -353,13 +353,13 @@ function CurrentStructuresFrame({
                     )}
                     {selectedJobType !== jobTypes.reprocessing &&
                       selectedJobType !== jobTypes.invention && (
-                      <Grid size={4}>
-                        <Typography variant="caption">
-                          {rigTypeMap[selectedJobType][structure.rigType]
-                            ?.label || "Missing Rig Type"}
-                        </Typography>
-                      </Grid>
-                    )}
+                        <Grid size={4}>
+                          <Typography variant="caption">
+                            {rigTypeMap[selectedJobType][structure.rigType]
+                              ?.label || "Missing Rig Type"}
+                          </Typography>
+                        </Grid>
+                      )}
                     <Grid size={4}>
                       <Typography variant="caption">{`${
                         structure.tax || 0

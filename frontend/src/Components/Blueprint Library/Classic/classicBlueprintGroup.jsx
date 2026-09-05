@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { showBlueprintArchiveDialog } from "../../../Events/dialogEvents";
+import { showBlueprintArchiveDialogue } from "../../../Events/dialogueEvents";
 import {
   Box,
   CircularProgress,
@@ -121,7 +121,7 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
                 size="small"
                 disabled={!bpData}
                 onClick={() => {
-                  showBlueprintArchiveDialog(bpData.itemID, bpData?.name);
+                  showBlueprintArchiveDialogue(bpData.itemID, bpData?.name);
                 }}
               >
                 <AssessmentOutlinedIcon />

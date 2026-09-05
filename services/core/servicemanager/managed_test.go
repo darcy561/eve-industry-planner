@@ -3,8 +3,11 @@ package servicemanager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/wait"
 
 	"eve-industry-planner/core/primarycontroller"
 )
@@ -22,14 +25,10 @@ func TestManaged_standbyAckReady(t *testing.T) {
 	}
 	t.Cleanup(func() { m.Stop(context.Background()) })
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if err := m.Ready(context.Background()); err == nil {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("standby never ready")
+	wait.For(t, 2*time.Second, func() (bool, string) {
+		err := m.Ready(context.Background())
+		return err == nil, fmt.Sprintf("standby not ready: %v", err)
+	})
 }
 
 func TestManaged_leaderStartFailKeepsReadyError(t *testing.T) {
@@ -44,15 +43,11 @@ func TestManaged_leaderStartFailKeepsReadyError(t *testing.T) {
 	}
 	t.Cleanup(func() { m.Stop(context.Background()) })
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	wait.For(t, 2*time.Second, func() (bool, string) {
 		err := m.Ready(context.Background())
-		if err != nil && err.Error() != "applying primary state is_leader=true" && err.Error() != "waiting for initial primary state" {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("expected persistent ready error after leader start fail")
+		settled := err != nil && err.Error() != "applying primary state is_leader=true" && err.Error() != "waiting for initial primary state"
+		return settled, fmt.Sprintf("ready error not yet settled: %v", err)
+	})
 }
 
 // #28: lose-primary calls stop; standby Ready stays OK (handoff contract).
@@ -83,12 +78,8 @@ func TestManaged_losePrimaryStopsWorkAndStayReady(t *testing.T) {
 		t.Fatal("lose-primary did not stop leader work")
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if err := m.Ready(context.Background()); err == nil {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("standby Ready after lose-primary")
+	wait.For(t, 2*time.Second, func() (bool, string) {
+		err := m.Ready(context.Background())
+		return err == nil, fmt.Sprintf("standby not ready after lose-primary: %v", err)
+	})
 }

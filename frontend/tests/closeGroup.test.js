@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 import documentLockSlice from "../src/Zustand/documentLockSlice.js";
 import { docLockScopeKey } from "../src/Functions/DocumentLock/documentLockScope.js";
-import { USER_JOB_GROUPS_COLLECTION } from "../src/Functions/Endpoints/Pirivate/groups.js";
+import { USER_JOB_GROUPS_COLLECTION } from "../src/Functions/Endpoints/Private/groups.js";
 
 const flushPendingGroupSave = vi.fn().mockResolvedValue(undefined);
 const saveJobsViaApi = vi.fn().mockResolvedValue(undefined);
@@ -15,7 +15,7 @@ vi.mock("../src/Functions/JobDocuments/saveJobsViaApi.js", () => ({
   saveJobsViaApi: (...args) => saveJobsViaApi(...args),
 }));
 
-vi.mock("../src/Functions/Shared/normalizeParentChildRelationships.js", () => ({
+vi.mock("../src/Functions/Shared/normaliseParentChildRelationships.js", () => ({
   default: () => [],
 }));
 
@@ -41,14 +41,13 @@ function makeGroup(id = "g1") {
 function makeJob(id = "j1") {
   return {
     jobID: id,
-    removeParentJobsNotIncludedInInput: vi.fn(),
-    removeChildJobsNotIncludedInInputFromAllMaterials: vi.fn(),
+    keepOnlyParentJobs: vi.fn(),
+    keepOnlyChildJobs: vi.fn(),
   };
 }
 
 describe("closeActiveGroup", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     const group = makeGroup();
     const job = makeJob();
     group.includedJobIDs.add(job.jobID);

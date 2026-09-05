@@ -20,7 +20,7 @@ Swarm config hash-sync (like other `eip.config.sync` mounts) vs bind-mount: conf
 
 **Locked.**
 
-- DT materializes a **Swarm config** from project-home `eip.config.yaml` (full file or capacity slice — prefer **full file** for one schema) on rematerialize / `eip sync`, hash-synced like existing file configs.
+- DT materialises a **Swarm config** from project-home `eip.config.yaml` (full file or capacity slice — prefer **full file** for one schema) on rematerialise / `eip sync`, hash-synced like existing file configs.
 - Mount read-only into `capacity-controller`.
 - Controller polls mtime/inode (≥1s) and reloads Validate → in-memory cfg.
 - No arbitrary host bind-mounts; DT writes the config object; controller only reads the file.

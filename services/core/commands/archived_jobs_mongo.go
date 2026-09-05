@@ -7,46 +7,42 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func buildStatsIDPrefixFilter(accountID string) bson.M {
-	if strings.TrimSpace(accountID) == "" {
-		return bson.M{}
-	}
-	// _id is "accountID|typeID" (see worker archivedjobs.buildStatsDocumentID).
-	pattern := "^" + regexp.QuoteMeta(strings.TrimSpace(accountID)) + `\|`
-	return bson.M{"_id": bson.M{"$regex": pattern}}
-}
-
-// runMarkArchivedJobsUnprocessed sets archiveProcessed to false on Mongo archivedJobs documents
-// so the build_stats pipeline will pick them up again. _meta.archivedAt, _meta.archivedBy,
-// archiveTimeStamp, and other fields are not modified.
-func runMarkArchivedJobsUnprocessed(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("markArchivedJobsUnprocessed", flag.ContinueOnError)
+// runQueueArchivedJobStatsRebuild queues accounts for a statistics rebuild.
+//
+// Rebuilds are wholesale and read archived jobs directly, so an account is the
+// only unit that matters: whichever of its jobs changed, the recomputation is
+// the same. Nothing is written to the job documents, so there is no per-job
+// state for an operator to reset.
+func runQueueArchivedJobStatsRebuild(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("queueArchivedJobStatsRebuild", flag.ContinueOnError)
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: tasks markArchivedJobsUnprocessed [flags]\n\n")
-		fmt.Fprintf(fs.Output(), "Clears build-stats processing flags only (archiveProcessed / _meta.archiveProcessed).\n")
-		fmt.Fprintf(fs.Output(), "Does not change archived-at timestamps or other metadata.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: tasks queueArchivedJobStatsRebuild [flags]\n\n")
+		fmt.Fprintf(fs.Output(), "Queues accounts holding archived jobs for a statistics rebuild.\n")
+		fmt.Fprintf(fs.Output(), "Reads archived jobs; writes only the rebuild queue.\n\n")
+		fmt.Fprintf(fs.Output(), "The rebuild runs when the drain next fires; trigger it now with\n")
+		fmt.Fprintf(fs.Output(), "  tasks dispatchStatisticsRebuilds\n\n")
 		fmt.Fprintf(fs.Output(), "Scope: use -account to limit to one account, or omit -account / pass -all for every account.\n\n")
 		fs.PrintDefaults()
 	}
-	account := fs.String("account", "", "only documents with this _meta.accountID (omit or use -all for all accounts)")
-	markAll := fs.Bool("all", false, "explicitly mark every account (same as omitting -account); cannot combine with -account")
-	dryRun := fs.Bool("dry-run", false, "print matched count only; do not update")
+	account := fs.String("account", "", "only this account's documents (omit or use -all for every account)")
+	markAll := fs.Bool("all", false, "explicitly queue every account (same as omitting -account); cannot combine with -account")
+	dryRun := fs.Bool("dry-run", false, "print the accounts that would be queued; do not queue them")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
 	accountTrim := strings.TrimSpace(*account)
 	if *markAll && accountTrim != "" {
-		return fmt.Errorf("markArchivedJobsUnprocessed: use either -all or -account, not both")
+		return fmt.Errorf("queueArchivedJobStatsRebuild: use either -all or -account, not both")
 	}
 
 	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
@@ -58,102 +54,63 @@ func runMarkArchivedJobsUnprocessed(ctx context.Context, args []string) error {
 	filter := bson.M{}
 	scopeDesc := "all accounts"
 	if accountTrim != "" {
-		filter["_meta.accountID"] = accountTrim
-		scopeDesc = fmt.Sprintf("_meta.accountID=%s", accountTrim)
+		filter[eipmongo.FieldMetaOwnerKind] = models.OwnerAccount
+		filter[eipmongo.FieldMetaOwnerID] = accountTrim
+		scopeDesc = fmt.Sprintf("owner=account:%s", accountTrim)
 	}
 
 	mongo := clients.Mongo
-	coll := mongo.ArchivedJobs.Collection()
 
-	ctxCount, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	ctxRun, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	n, err := coll.CountDocuments(ctxCount, filter)
+	accounts, err := mongo.ArchivedJobs.DistinctStrings(ctxRun, eipmongo.FieldMetaOwnerID, filter)
 	if err != nil {
-		return fmt.Errorf("count archivedJobs: %w", err)
+		return fmt.Errorf("distinct archived job accounts: %w", err)
 	}
 
-	if *dryRun {
-		fmt.Printf("dry-run [%s]: %d document(s) would be marked unprocessed (archive flags only)\n", scopeDesc, n)
-		if n == 0 {
-			fmt.Fprint(os.Stderr, archivedJobsEmptyHint(scopeDesc))
-		}
+	if len(accounts) == 0 {
+		fmt.Printf("no accounts hold archived jobs [%s]\n", scopeDesc)
+		fmt.Fprint(os.Stderr, archivedJobsEmptyHint(scopeDesc))
 		return nil
 	}
 
-	// Only flip processing flags; do not touch _meta.archivedAt, archiveTimeStamp, etc.
-	update := bson.M{
-		"$set": bson.M{
-			"_meta.archiveProcessed": false,
-			"archiveProcessed":       false,
-		},
+	if *dryRun {
+		fmt.Printf("dry-run [%s]: %d account(s) would be queued for a statistics rebuild\n", scopeDesc, len(accounts))
+		return nil
 	}
 
-	res, err := coll.UpdateMany(ctxCount, filter, update)
-	if err != nil {
-		return fmt.Errorf("update archivedJobs: %w", err)
+	now := time.Now().UTC()
+	queued := 0
+	var queueErrs []error
+	for _, accountID := range accounts {
+		if err := mongo.QueueOwnerWork(ctxRun, models.AccountOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
+			queueErrs = append(queueErrs, fmt.Errorf("queue %s: %w", accountID, err))
+			continue
+		}
+		queued++
 	}
 
-	fmt.Printf("marked unprocessed (build-stats) [%s]: matched=%d modified=%d\n", scopeDesc, res.MatchedCount, res.ModifiedCount)
-	if res.MatchedCount == 0 {
-		fmt.Fprint(os.Stderr, archivedJobsEmptyHint(scopeDesc))
+	fmt.Printf("queued for statistics rebuild [%s]: %d/%d account(s)\n", scopeDesc, queued, len(accounts))
+	if len(queueErrs) > 0 {
+		// Named on stderr rather than summarised: the queue is idempotent, so an
+		// operator can re-run for the accounts that failed without undoing the
+		// ones that succeeded.
+		fmt.Fprintf(os.Stderr, "warning: %d account(s) could not be queued:\n", len(queueErrs))
+		for _, qerr := range queueErrs {
+			fmt.Fprintf(os.Stderr, "  %v\n", qerr)
+		}
+		return fmt.Errorf("queueArchivedJobStatsRebuild: %d/%d accounts failed to queue", len(queueErrs), len(accounts))
 	}
+
+	fmt.Println("run `tasks dispatchStatisticsRebuilds` to rebuild now, or wait for the scheduled pass")
 	return nil
 }
 
 func archivedJobsEmptyHint(scopeDesc string) string {
 	return fmt.Sprintf(
 		"note: no documents matched in %s.%s (scope: %s). "+
-			"If you expected rows here, confirm MONGO_URL points at the right cluster and that archived jobs "+
-			"have been imported into Mongo (they are not read from Firestore by this command).\n",
+			"If you expected rows here, confirm MONGO_URL points at the right cluster.\n",
 		eipmongo.DatabaseName, eipmongo.CollectionArchivedJobs, scopeDesc,
 	)
-}
-
-// runResetBuildStats deletes documents from Mongo build_stats (aggregate counters + dataSnapshots).
-// With -account, only rows whose _id starts with "accountID|" are removed.
-func runResetBuildStats(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("resetBuildStats", flag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: tasks resetBuildStats [flags]\n\n")
-		fmt.Fprintf(fs.Output(), "Deletes build_stats documents. Use after markArchivedJobsUnprocessed if you need to re-run\n")
-		fmt.Fprintf(fs.Output(), "aggregation without double-counting. Does not modify archivedJobs.\n\n")
-		fs.PrintDefaults()
-	}
-	account := fs.String("account", "", "if set, only delete stats whose _id matches this account (prefix before '|')")
-	dryRun := fs.Bool("dry-run", false, "print matched count only; do not delete")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
-	if err != nil {
-		return err
-	}
-	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
-
-	mongo := clients.Mongo
-	filter := buildStatsIDPrefixFilter(*account)
-	coll := mongo.BuildStats.Collection()
-
-	ctxOp, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	n, err := coll.CountDocuments(ctxOp, filter)
-	if err != nil {
-		return fmt.Errorf("count build_stats: %w", err)
-	}
-
-	if *dryRun {
-		fmt.Printf("dry-run: would delete %d build_stats document(s)\n", n)
-		return nil
-	}
-
-	res, err := coll.DeleteMany(ctxOp, filter)
-	if err != nil {
-		return fmt.Errorf("delete build_stats: %w", err)
-	}
-
-	fmt.Printf("reset build_stats: deleted=%d (matched request)\n", res.DeletedCount)
-	return nil
 }

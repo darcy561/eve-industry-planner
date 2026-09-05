@@ -1,16 +1,17 @@
 import { Button, Tooltip } from "@mui/material";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { deleteJobDocumentsFromApi } from "../../../../../../Functions/Endpoints/Pirivate/jobDocuments.js";
+import { deleteJobDocumentsFromApi } from "../../../../../../Functions/Endpoints/Private/jobDocuments.js";
 import { flushPendingJobDocumentsSave } from "../../../../../../Functions/Debounce/jobDocumentsPersistSchedule.js";
-import { saveUserAccountDocument } from "../../../../../../Functions/Endpoints/Pirivate/userDocument";
-import saveArchivedJobs from "../../../../../../Functions/Endpoints/Pirivate/archivedJobs";
+import { saveUserAccountDocument } from "../../../../../../Functions/Endpoints/Private/userDocument";
+import saveArchivedJobs from "../../../../../../Functions/Endpoints/Private/archivedJobs";
+import { markJobsArchivedInGroups } from "../../../../../../Functions/Groups/markJobsArchivedInGroups.js";
 import {
   showSnackbarError,
   showSnackbarSuccess,
 } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import { invalidateBuildStatsQuery } from "../../../../../../Hooks/React Query/Backend/buildStats";
+import { invalidateArchiveQueries } from "../../../../../../Hooks/React Query/Backend/archivedJobsList";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
@@ -30,9 +31,9 @@ export function ArchiveJobButton({ state }) {
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),
       transactionsToAdd: new Set(),
-      ordersToRemove: state.activeJob.apiOrders,
-      jobsToRemove: state.activeJob.apiJobs,
-      transactionsToRemove: state.activeJob.apiTransactions,
+      ordersToRemove: state.activeJob.esiOrderIDs,
+      jobsToRemove: state.activeJob.esiJobIDs,
+      transactionsToRemove: state.activeJob.esiTransactionIDs,
     });
 
     const archivedOk = await saveArchivedJobs([state.activeJob]);
@@ -41,7 +42,9 @@ export function ArchiveJobButton({ state }) {
       return;
     }
 
-    invalidateBuildStatsQuery(queryClient, state.activeJob.itemID);
+    invalidateArchiveQueries(queryClient);
+
+    await markJobsArchivedInGroups([state.activeJob]);
 
     try {
       await flushPendingJobDocumentsSave();

@@ -18,7 +18,7 @@ frontend/src/
   Events/
     headerDocumentLockEvents.js
     editJobReleaseRequestEvents.js
-  Functions/Endpoints/Pirivate/documentLockClient.js — REST/WS client
+  Functions/Endpoints/Private/documentLockClient.js — REST/WS client
   Realtime/realtimeClient.js   — WS envelope → CustomEvent dispatch
 ```
 
@@ -112,7 +112,7 @@ Responsibilities, all driven from one mount/unmount:
 
 ### Edit-job: API persist affordances (#20 / #21)
 
-Server-gated writes (`PUT`/`DELETE` job-documents and groups, `PUT` archived-jobs) return **409** with `lock_held_elsewhere` when Redis is configured and another session holds the lock; `applyPrivateHeaders.js` surfaces `DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE` after patching scopes. On Edit Job, **save**, **delete**, **leave-dialog save**, and **sibling job linking** use **`useActiveJobPersistGate`** → **`canEditActiveJob`**. On the group page, mutate side-menu actions and rename use **`useGroupCanEdit` / `useActiveGroupCanEdit`** → **`canEditActiveGroup`**. Both UI helpers share **`canEditLocallyOrAsHolder`**: logged-out allows local edits (no Redis lease); logged-in uses the same holder rules as **`canPersistJobClose`** / **`canPersistGroupClose`**. Job cards still gate “View” on **`readOnly`** only (vacancy must not flip cards while acquire is in flight). Close/save still skips API persist via `isLoggedIn && canPersist*Close(...)`. Other edit-job controls that already disable on **`useActiveJobReadOnly`** are the **documented gated set** for viewer lock (**ROADMAP.md** Done **#22** policy); holder-aware widening is **opportunistic** only if a gap is found later.
+Server-gated writes (`PUT`/`DELETE` job-documents and groups, `PUT` archived-jobs) return **409** with `lock_held_elsewhere` when Redis is configured and another session holds the lock; `applyPrivateHeaders.js` surfaces `DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE` after patching scopes. On Edit Job, **save**, **delete**, **leave-dialogue save**, and **sibling job linking** use **`useActiveJobPersistGate`** → **`canEditActiveJob`**. On the group page, mutate side-menu actions and rename use **`useGroupCanEdit` / `useActiveGroupCanEdit`** → **`canEditActiveGroup`**. Both UI helpers share **`canEditLocallyOrAsHolder`**: logged-out allows local edits (no Redis lease); logged-in uses the same holder rules as **`canPersistJobClose`** / **`canPersistGroupClose`**. Job cards still gate “View” on **`readOnly`** only (vacancy must not flip cards while acquire is in flight). Close/save still skips API persist via `isLoggedIn && canPersist*Close(...)`. Other edit-job controls that already disable on **`useActiveJobReadOnly`** are the **documented gated set** for viewer lock (**ROADMAP.md** Done **#22** policy); holder-aware widening is **opportunistic** only if a gap is found later.
 
 ### CustomEvent → state mapping
 
@@ -439,22 +439,22 @@ listener. The slice exposes higher-level actions for snackbar-driven flows:
 |---|---|
 | `requestAccess(collection, docID)` | Header popover → "Request access" / "Take over". Routes through `POST /request`, handles the 201 / 200-acquired / 202-queued branches. |
 | `pulseWaitlist(collection, docID)` | Driven by the `useDocumentLock` waitlist-pulse loop while `waitingInHandoffQueue`. |
-| `acceptAccessRequest(collection, docID)` | Snackbar "Accept" entry point. Routes through `requestEditJobReleaseConfirmation` so the Edit Job page can intercept and open its unsaved-changes dialog. Three outcomes: `proceed` (dialog already did the handover), `cancelled` (clear the notice locally), `not-handled` (no dialog handler → direct hand-over). |
+| `acceptAccessRequest(collection, docID)` | Snackbar "Accept" entry point. Routes through `requestEditJobReleaseConfirmation` so the Edit Job page can intercept and open its unsaved-changes dialogue. Three outcomes: `proceed` (dialogue already did the handover), `cancelled` (clear the notice locally), `not-handled` (no dialogue handler → direct hand-over). |
 | `yieldDocumentLockOnLeave(collection, docID)` | Silent leave helper: `POST /hand-over` when `pendingAccessRequest` or `waitlistLen > 0`, else `POST /release` when holder; `POST /viewer-departed` when queued/read-only viewer. |
 | `yieldEditJobDocumentLocksOnLeave({ jobID, groupID })` | Solo jobs only (`groupID` absent): yields the job lock before navigate. No-op in group context — group + job leases end on group close or `handOverEditAccess`. |
-| `resolveDocumentLockApiTarget(collection, docID)` | Maps `user_job_documents` + group member job → `user_job_groups` + `groupID`. Used by `requestAccess`, `handOverEditAccess`, `acceptAccessRequest`, and `forceReleaseSameAccountEditLock` so the server runs group handover + per-job cascade. Header primary registration prefers the **group** scope when both register. |
+| `resolveDocumentLockApiTarget(collection, docID)` | Maps `job_documents` + group member job → `job_groups` + `groupID`. Used by `requestAccess`, `handOverEditAccess`, `acceptAccessRequest`, and `forceReleaseSameAccountEditLock` so the server runs group handover + per-job cascade. Header primary registration prefers the **group** scope when both register. |
 | `handOverEditAccess(collection, docID)` | Calls `POST /hand-over`. **200** → patches former holder read-only. **204** → requester pulse gone; patches lock released locally + warning snackbar. **409** (`doc_lock_hand_over_noop`) → snackbar only (still holder or race). Requires `lockHeld` **or** `pendingAccessRequest` so snackbar accept works if store briefly disagrees. |
 | `claimHandoffProbe(collection, docID)` | Driven by `useDocumentLock`'s `HANDOFF_PROBE` branch when our session is the probe target. Calls `POST /claim-handoff`. |
 | `clearPendingAccessNotice` / `resetDocumentLockForScope` / `resetAllDocumentLocks` | Housekeeping. |
 
 The Accept flow uses the **release-request handler registry** in
 `Events/editJobReleaseRequestEvents.js`. The Edit Job page registers a
-handler that opens the unsaved-changes dialog; group page, archived jobs etc
+handler that opens the unsaved-changes dialogue; group page, archived jobs etc
 leave it `null` and the slice falls back to the direct hand-over path.
 
 ## REST + WebSocket client surface
 
-`frontend/src/Functions/Endpoints/Pirivate/documentLockClient.js` — fetch
+`frontend/src/Functions/Endpoints/Private/documentLockClient.js` — fetch
 wrappers around `/api/v1/document-locks/*` plus WebSocket-frame shortcuts.
 Notable details:
 
@@ -531,7 +531,7 @@ To add another document type or page to the system:
 4. **(If list view) Sync planner-style.** If the page renders many cards, use
    `useLockScopeSync({ getJobIDs, getGroupIDs, trackGroups, chunkSize })`
    instead of mounting a `useDocumentLock` per card.
-5. **(If a release dialog is needed)**
+5. **(If a release dialogue is needed)**
    `registerEditJobReleaseRequestHandler(async ({ collection, docID }) =>
    …)` to intercept the Accept-Request flow and resolve `proceed` /
    `cancelled` / `not-handled`.

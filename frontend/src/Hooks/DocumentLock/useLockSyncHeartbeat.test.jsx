@@ -2,7 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   acquireDocumentLock: vi.fn(),
   claimDocumentLockHandoff: vi.fn(),
   forceReleaseDocumentLockSameAccount: vi.fn(),
@@ -59,7 +59,7 @@ describe("useLockSyncHeartbeat", () => {
       useLockSyncHeartbeat({
         enabled: false,
         docID: "j1",
-        collection: "user_job_documents",
+        collection: "job_documents",
         syncLockFromServer,
         flushExtendLease,
       })
@@ -76,7 +76,7 @@ describe("useLockSyncHeartbeat", () => {
       useLockSyncHeartbeat({
         enabled: true,
         docID: "j1",
-        collection: "user_job_documents",
+        collection: "job_documents",
         syncLockFromServer,
         flushExtendLease,
       })

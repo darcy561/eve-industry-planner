@@ -256,7 +256,7 @@ sequenceDiagram
 { "auth_code": "<from EVE redirect>", "account_type": "main" }
 ```
 
-Response — exactly the CCP token payload, **no Firebase / no planner identity**:
+Response — exactly the CCP token payload, with no planner identity:
 
 ```json
 {
@@ -377,8 +377,6 @@ See [BACKEND.md §3](./sessions.md#3-redis-key-layout) for the full struct defin
 | `REFRESH_TOKEN_AES_KEY` | yes for cloud | Base64 AES key (16/24/32 bytes) for encrypting **ESI** refresh tokens stored in Mongo. |
 | `REFRESH_TOKEN_AES_KEY_VERSION` | no | Active key version for the keyring (default `"v1"`). |
 | `REFRESH_TOKEN_AES_LEGACY_KEYS` | no | JSON `{ "<version>": "<base64 key>" }` for legacy decryption. |
-| `GOOGLE_APPLICATION_CREDENTIALS` | no | Firebase Admin SDK service-account JSON path. Used **only** for migrations / Firestore admin reads, **not** for per-request auth. |
-| `FIREBASE_PROJECT_ID` | no | Override for Firebase project id; optional when embedded in the service-account JSON. |
 
 ---
 
@@ -404,7 +402,6 @@ See [BACKEND.md §3](./sessions.md#3-redis-key-layout) for the full struct defin
 - `api/v1endpoints/sso/helpers.go`, `requestParsers.go`, `types.go` — shared SSO parsing + length caps.
 - `websocket/server/handler.go` — WS upgrade auth via shared cookie + Redis.
 - `shared/core/config/config.go` — env-driven `Config` (EVE creds, Redis, refresh keyring).
-- `shared/firebaseadmin/client.go` + `auth_recency.go` — Firebase Admin singletons (migration use, not request auth).
 
 ### Frontend (`frontend/src/`)
 
@@ -421,7 +418,7 @@ See [BACKEND.md §3](./sessions.md#3-redis-key-layout) for the full struct defin
 - `Functions/Auth/serverTokens.js` — re-export aliases.
 - `Functions/Auth/appLoginFlow.js` — login mode resolvers + post-login hydration.
 - `Functions/Auth/authRefreshTranquilityGate.js` — refresh deferral helper.
-- `Functions/Endpoints/Pirivate/applyPrivateHeaders.js` — pre-rotate + cookie + `X-WS-Client-ID` headers.
+- `Functions/Endpoints/Private/applyPrivateHeaders.js` — pre-rotate + cookie + `X-WS-Client-ID` headers.
 - `Functions/EveESI/fetchTranquilityStatus.js` — `/status/` ESI fetch.
 - `Hooks/React Query/tranquilityServerStatus.js` — Tranquility query options + key.
 - `Hooks/App/useRefreshESITokens.js` — maintenance + stagger timers.

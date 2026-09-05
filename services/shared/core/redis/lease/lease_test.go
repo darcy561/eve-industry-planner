@@ -3,26 +3,17 @@ package lease
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-)
 
-func newTestRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
-	t.Helper()
-	srv, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis.Run: %v", err)
-	}
-	t.Cleanup(func() { srv.Close() })
-	rdb := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
-	return rdb, srv
-}
+	"eve-industry-planner/testing/redisfake"
+	"eve-industry-planner/testing/wait"
+)
 
 // silentLogger drops all output so tests don't spam stderr during the
 // intentional failure paths (renew failures, lost lease, etc).
@@ -45,7 +36,7 @@ func fastOpts() Options {
 // any moment; the rest must be parked in the acquire loop.
 func TestRunWhileHeld_SingleLeader(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const N = 5
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,7 +98,8 @@ func TestRunWhileHeld_SingleLeader(t *testing.T) {
 // replica picks up the lease after the TTL lapses.
 func TestRunWhileHeld_TakeoverAfterLeaderDies(t *testing.T) {
 	t.Parallel()
-	rdb, mr := newTestRedis(t)
+	f := redisfake.New(t)
+	rdb, mr := f.Client, f.Server
 
 	leaderACtx, cancelA := context.WithCancel(context.Background())
 	defer cancelA()
@@ -126,9 +118,9 @@ func TestRunWhileHeld_TakeoverAfterLeaderDies(t *testing.T) {
 	}()
 
 	// Wait for A to become leader.
-	if !waitFor(t, 1*time.Second, func() bool { return aHeld.Load() }) {
-		t.Fatalf("replica A never acquired the lease")
-	}
+	wait.For(t, 1*time.Second, func() (bool, string) {
+		return aHeld.Load(), "replica A never acquired the lease"
+	})
 
 	// Start B; it should be parked.
 	go func() {
@@ -147,13 +139,13 @@ func TestRunWhileHeld_TakeoverAfterLeaderDies(t *testing.T) {
 	// Kill A. B should take over after the lease TTL lapses on miniredis's
 	// fake clock.
 	cancelA()
-	if !waitFor(t, 1*time.Second, func() bool { return !aHeld.Load() }) {
-		t.Fatalf("replica A never released the lease after cancel")
-	}
+	wait.For(t, 1*time.Second, func() (bool, string) {
+		return !aHeld.Load(), "replica A never released the lease after cancel"
+	})
 	mr.FastForward(fastOpts().TTL + 100*time.Millisecond)
-	if !waitFor(t, 1*time.Second, func() bool { return bHeld.Load() }) {
-		t.Fatalf("replica B never took over the lease after A died")
-	}
+	wait.For(t, 1*time.Second, func() (bool, string) {
+		return bHeld.Load(), "replica B never took over the lease after A died"
+	})
 
 	cancelB()
 }
@@ -164,7 +156,7 @@ func TestRunWhileHeld_TakeoverAfterLeaderDies(t *testing.T) {
 // and fn observes the cancellation.
 func TestRunWhileHeld_LostLeaseCancelsFn(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	ctx := t.Context()
 
@@ -204,7 +196,7 @@ func TestRunWhileHeld_LostLeaseCancelsFn(t *testing.T) {
 // error causes a clean release + reacquire, not a permanent stop.
 func TestRunWhileHeld_FnErrorTriggersReacquire(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -224,9 +216,9 @@ func TestRunWhileHeld_FnErrorTriggersReacquire(t *testing.T) {
 		})
 	}()
 
-	if !waitFor(t, 2*time.Second, func() bool { return calls.Load() >= 2 }) {
-		t.Fatalf("expected fn to be re-invoked after error, got %d calls", calls.Load())
-	}
+	wait.For(t, 2*time.Second, func() (bool, string) {
+		return calls.Load() >= 2, fmt.Sprintf("expected fn to be re-invoked after error, got %d calls", calls.Load())
+	})
 
 	cancel()
 	<-done
@@ -236,7 +228,7 @@ func TestRunWhileHeld_FnErrorTriggersReacquire(t *testing.T) {
 // programmer errors fail loudly rather than silently mis-leading.
 func TestRunWhileHeld_RejectsBadArgs(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := t.Context()
 	cases := []struct {
 		name        string
@@ -256,16 +248,4 @@ func TestRunWhileHeld_RejectsBadArgs(t *testing.T) {
 			}
 		})
 	}
-}
-
-func waitFor(t *testing.T, timeout time.Duration, cond func() bool) bool {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return true
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	return cond()
 }

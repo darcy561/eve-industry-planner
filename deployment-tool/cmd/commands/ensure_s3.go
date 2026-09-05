@@ -5,14 +5,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/dataplane"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/process"
 )
 
 func init() {
-	if v, ok := catalog.ByID("ensure-s3"); ok {
+	if v, ok := catalogue.ByID("ensure-s3"); ok {
 		ensureS3Cmd.Short = v.Short
 	}
 	rootCmd.AddCommand(ensureS3Cmd)

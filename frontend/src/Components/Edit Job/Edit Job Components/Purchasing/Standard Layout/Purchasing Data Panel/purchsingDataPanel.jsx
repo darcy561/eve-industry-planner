@@ -8,10 +8,6 @@ import {
 } from "@mui/material";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import {
-  addMaterialCostsToJob,
-  materialPriceObjectFactory,
-} from "../../../../../../Functions/JobPlanner/materialCosts";
-import {
   MarketLocationSelectApplicationSettings,
 } from "../../../../../../Styled Components/Select/marketLocation.jsx";
 import {
@@ -32,7 +28,7 @@ export function PurchasingDataPanel_EditJob(props) {
   const { toggleHideCompleteMaterials } =
     useUsersStore.getState().applicationSettings.actions;
 
-  const totalComplete = state.activeJob.totalCompletedMaterials();
+  const totalComplete = state.activeJob.completedMaterialCount;
 
   return (
     <ContentPanel>
@@ -61,9 +57,7 @@ export function PurchasingDataPanel_EditJob(props) {
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
               Total Material Cost:{" "}
-              {formatNumberForLocale(
-                state.activeJob.build.costs.totalPurchaseCost
-              )}
+              {formatNumberForLocale(state.activeJob.totalMaterialCost)}
             </Typography>
           </Grid>
           <Grid
@@ -74,10 +68,10 @@ export function PurchasingDataPanel_EditJob(props) {
             }}
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
-              Current Cost Per Item:{" "}
+              Material Cost Per Item:{" "}
               {formatNumberForLocale(
-                state.activeJob.build.costs.totalPurchaseCost /
-                  state.activeJob.build.products.totalQuantity
+                state.activeJob.totalMaterialCost /
+                  state.activeJob.totalQuantityProduced
               )}
             </Typography>
           </Grid>
@@ -141,8 +135,9 @@ export function PurchasingDataPanel_EditJob(props) {
                       size="small"
                       onClick={async () => {
                         try {
-                          const materialPriceObjects = [];
                           const matches = await importMultibuyFromClipboard();
+                          let matchedCount = 0;
+                          let importedCount = 0;
 
                           for (let material of state.activeJob.build
                             .materials) {
@@ -150,30 +145,34 @@ export function PurchasingDataPanel_EditJob(props) {
                               (i) => i.importedName === material.name
                             );
                             if (!matchedItem) continue;
+                            matchedCount++;
 
-                            materialPriceObjects.push(
-                              materialPriceObjectFactory(
-                                material.typeID,
+                            const stillRequired =
+                              material.quantityRemaining;
+                            if (stillRequired <= 0) continue;
 
-                                "allRemaining",
-                                matchedItem.importedCost
-                              )
-                            );
+                            const pastedQuantity =
+                              Number(matchedItem.importedQuantity) || 0;
+                            const { taken } = material.importPurchase({
+                              itemCount:
+                                pastedQuantity > 0
+                                  ? pastedQuantity
+                                  : stillRequired,
+                              itemCost: matchedItem.importedCost,
+                            });
+                            if (taken > 0) importedCount++;
                           }
 
-                          if (materialPriceObjects.length === 0) {
+                          if (matchedCount === 0) {
                             showSnackbarError("No Matching Items Found");
                             return;
                           }
 
-                          const { newMaterialArray, newTotalPurchaseCost } =
-                            addMaterialCostsToJob(
-                              state.activeJob,
-                              materialPriceObjects
-                            );
-                          state.activeJob.build.materials = newMaterialArray;
-                          state.activeJob.build.costs.totalPurchaseCost =
-                            newTotalPurchaseCost;
+                          if (importedCount === 0) {
+                            showSnackbarError("Nothing Left To Buy");
+                            return;
+                          }
+
                           actions.updateActiveJob(state.activeJob);
                         } catch (error) {
                           console.error(

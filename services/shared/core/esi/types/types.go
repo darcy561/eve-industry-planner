@@ -1,6 +1,6 @@
 package types
 
-// SystemIndexes is the normalized structure used internally for industry system cost indices.
+// SystemIndexes is the normalised structure used internally for industry system cost indices.
 type SystemIndexes struct {
 	SolarSystemID    int32   `json:"solar_system_id"`
 	LastUpdated      int64   `json:"lastUpdated"`
@@ -12,7 +12,7 @@ type SystemIndexes struct {
 	Reaction         float64 `json:"reaction,omitempty"`
 }
 
-// AdjustedPrice is the normalized structure used internally (only adjusted price per user request).
+// AdjustedPrice is the normalised structure used internally (only adjusted price per user request).
 type AdjustedPrice struct {
 	TypeID        int32   `json:"type_id"`
 	AdjustedPrice float64 `json:"adjusted_price"`

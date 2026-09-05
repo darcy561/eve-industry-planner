@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -28,10 +28,10 @@ func ReportSchemaVersionLag(ctx context.Context, mongoHandle *eipmongo.Mongo) {
 		collection string
 		current    int
 	}{
-		{eipmongo.CollectionUsers, models.UserAccountDocumentSchemaCurrent},
-		{eipmongo.CollectionApplicationSettings, models.ApplicationSettingsSchemaCurrent},
-		{eipmongo.CollectionUserJobDocuments, models.JobSchemaCurrent},
-		{eipmongo.CollectionUserJobGroups, models.GroupSchemaCurrent},
+		{eipmongo.CollectionAccounts, models.UserAccountDocumentSchemaCurrent},
+		{eipmongo.CollectionAccountSettings, models.ApplicationSettingsSchemaCurrent},
+		{eipmongo.CollectionJobDocuments, models.JobSchemaCurrent},
+		{eipmongo.CollectionJobGroups, models.GroupSchemaCurrent},
 		{eipmongo.CollectionJobs, models.JobSchemaCurrent},
 	}
 

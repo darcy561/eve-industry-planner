@@ -36,7 +36,7 @@ Each Material Card provides:
 - **Content**: Number of child jobs linked to this material
 - **Tooltip**: "Number of child jobs linked, click to add or remove."
 - **Function**: Opens child job dialogue when clicked
-- **Behavior**: Shows count of linked child jobs
+- **Behaviour**: Shows count of linked child jobs
 
 ## Quantity Information
 
@@ -82,7 +82,7 @@ Each purchase is displayed as a chip showing:
   - **Primary** (blue): Costs imported from child jobs
   - **Secondary** (default): Manually entered costs
 - **Delete Button**: Red X icon to remove the cost entry
-- **Behavior**: 
+- **Behaviour**: 
   - Click delete to remove cost entry
   - Updates total costs automatically
   - Recalculates material completion status
@@ -218,7 +218,7 @@ Materials are automatically sorted:
 - Regularly check completion status
 - Review remaining quantities
 - Monitor total costs per material
-- Use completion indicators to prioritize work
+- Use completion indicators to prioritise work
 
 ## Related Documentation
 

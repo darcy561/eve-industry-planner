@@ -1,7 +1,7 @@
 import Group from "../../Classes/group";
 import { buildJob } from "../JobPlanner/buildJob";
 import mergeJobs from "../JobPlanner/mergeJobs";
-import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships";
+import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 import getMissingESIData from "../Shared/getMissingESIData";
@@ -67,9 +67,9 @@ export async function instantiateGroupTemplate({
         `Could not build job for item ${node.itemID} (${node.name || node.templateJobId}). The blueprint may be unavailable.`
       );
     }
-    if (job.build.products.totalQuantity !== desired) {
+    if (job.totalQuantityProduced !== desired) {
       throw new Error(
-        `Could not match target quantity for "${job.name}" (wanted ${desired}, got ${job.build.products.totalQuantity}).`
+        `Could not match target quantity for "${job.name}" (wanted ${desired}, got ${job.totalQuantityProduced}).`
       );
     }
     templateToJob.set(node.templateJobId, job);
@@ -97,7 +97,7 @@ export async function instantiateGroupTemplate({
     job.build.childJobs = childByMat;
   }
 
-  normalizeParentChildRelationships(built);
+  normaliseParentChildRelationships(built);
 
   let group = null;
   let activeGroupMergeIDs = null;

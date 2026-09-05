@@ -4,6 +4,7 @@ package lifecycle
 
 import (
 	"context"
+	"slices"
 )
 
 // Runner is a long-lived unit started from main (HTTP server, primary controller, etc).
@@ -97,7 +98,15 @@ func (g *Group) AddApp(extra ...func(context.Context)) {
 	g.App = Append(g.App, extra...)
 }
 
-// Cleanups returns app stops then runner stops (deps added by caller via AppThenDeps).
+// Cleanups returns runner stops in reverse registration order, then app stops
+// (deps added by caller via AppThenDeps).
+//
+// Reverse order makes a stop the mirror of a start, so a runner is torn down
+// before whatever it was built on top of. App stops come last because telemetry
+// and metric unsubscribes have to outlive the work they record — going first
+// makes the drain that follows invisible.
 func (g *Group) Cleanups() []func(context.Context) {
-	return append(append([]func(context.Context){}, g.App...), Stops(g.Runners...)...)
+	runners := slices.Clone(g.Runners)
+	slices.Reverse(runners)
+	return append(Stops(runners...), g.App...)
 }

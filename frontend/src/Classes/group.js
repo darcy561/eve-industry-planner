@@ -1,63 +1,37 @@
-import uuid from "react-uuid";
 import DOMPurify from "dompurify";
 import getAllRelatedJobs from "../Functions/Helper/getAllRelatedJobs";
 import { getRealtimeClientID } from "../Realtime/wsClientIdentity.js";
+import {
+  addIDsToSet,
+  asIDList,
+  asNumberID,
+  asNumberIDList,
+  asNumberIDSet,
+  asStringID,
+  asStringIDSet,
+  removeIDsFromSet,
+} from "../Functions/Helper/ids";
 
 /**
- * Group class for organizing and managing EVE Online industry jobs.
- * 
- * This class represents a group of related industry jobs for:
- * - Job organization and categorization
- * - Batch operations on multiple jobs
- * - Progress tracking and completion management
- * - ESI API integration tracking
- * - Material and type ID management
- * - Group status and workflow management
- * 
+ * Group class for organising and managing EVE Online industry jobs.
+ *
  * The Group class provides comprehensive job management capabilities:
- * - Job inclusion and exclusion management
- * - Material and type ID tracking
- * - ESI API integration (jobs, orders, transactions)
- * - Group status progression (0-3)
- * - Completion tracking and visibility controls
- * - Batch operations for job management
- * - Input sanitization for security
- * 
+ *
  * @class Group
- * @example
- * // Create a new group
- * const group = new Group({
- *   groupName: 'Tritanium Production',
- *   groupType: 1,
- *   includedJobIDs: ['job-1', 'job-2']
- * });
- * 
- * @example
- * // Add jobs to group
- * group.addJobsToGroup([job1, job2, job3]);
- * 
- * @example
- * // Update group data
- * group.updateGroupData(jobArray);
- * 
- * @example
- * // Manage group status
- * group.moveGroupStatusForward();
- * group.toggleShowComplete();
  */
 class Group {
   /**
-   * Creates a new Group instance for job organization.
-   * 
+   * Creates a new Group instance for job organisation.
+   *
    * @param {Object} data - Group configuration data
    * @param {string} [data.groupName] - Name of the group
    * @param {string} [data.groupID] - Unique group identifier
    * @param {Array<string>} [data.includedJobIDs] - Array of job IDs to include
+   * @param {Array<string>} [data.archivedJobIDs] - Members currently held in the archive
    * @param {Array<number>} [data.includedTypeIDs] - Array of type IDs to include
    * @param {Array<number>} [data.materialIDs] - Array of material type IDs
    * @param {number} [data.outputJobCount] - Number of output jobs
    * @param {Array<string>} [data.areComplete] - Array of completed job IDs
-   * @param {boolean} [data.showComplete] - Whether to show completed jobs
    * @param {number} [data.groupStatus] - Group status (0-3)
    * @param {number} [data.groupType] - Group type identifier
    * @param {Array<number>} [data.linkedJobIDs] - Array of linked ESI job IDs
@@ -66,34 +40,31 @@ class Group {
    */
   constructor(data) {
     this.groupName = data?.groupName || "Untitled Group";
-    this.groupID = data?.groupID || `group-${uuid()}`;
-    this.includedJobIDs = new Set(data?.includedJobIDs?.map(String) || []);
-    this.includedTypeIDs = this._newSet(data?.includedTypeIDs ?? [], this._convertToNumber);
-    this.materialIDs = this._newSet(data?.materialIDs ?? [], this._convertToNumber);
+    this.groupID = data?.groupID || `group-${crypto.randomUUID()}`;
+    this.includedJobIDs = asStringIDSet(data?.includedJobIDs);
+    this.archivedJobIDs = asStringIDSet(data?.archivedJobIDs);
+    this.includedTypeIDs = asNumberIDSet(data?.includedTypeIDs);
+    this.materialIDs = asNumberIDSet(data?.materialIDs);
     this.outputJobCount = data?.outputJobCount || 0;
-    this.areComplete = new Set(data?.areComplete?.map(String) || []);
-    this.showComplete = data?.showComplete || true;
+    this.areComplete = asStringIDSet(data?.areComplete);
     this.groupStatus = data?.groupStatus || 0;
     this.groupType = data?.groupType || 1;
-    this.linkedJobIDs = this._newSet(data?.linkedJobIDs ?? [], this._convertToNumber);
-    this.linkedOrderIDs = this._newSet(data?.linkedOrderIDs ?? [], this._convertToNumber);
-    this.linkedTransIDs = this._newSet(data?.linkedTransIDs ?? [], this._convertToNumber);
+    this.linkedJobIDs = asNumberIDSet(data?.linkedJobIDs);
+    this.linkedOrderIDs = asNumberIDSet(data?.linkedOrderIDs);
+    this.linkedTransIDs = asNumberIDSet(data?.linkedTransIDs);
     const rawMeta = data?._meta;
-    this._meta =
-      rawMeta && typeof rawMeta === "object"
-        ? { ...rawMeta }
-        : {};
+    this._meta = rawMeta && typeof rawMeta === "object" ? { ...rawMeta } : {};
     delete this._meta.buildVer;
   }
 
   /**
-   * Whether this group includes an output job for the given EVE type ID (number-normalized).
+   * Whether this group includes an output job for the given EVE type ID (number-normalised).
    *
    * @param {number|string} typeID
    * @returns {boolean}
    */
   hasIncludedTypeId(typeID) {
-    const n = this._convertToNumber(typeID);
+    const n = asNumberID(typeID);
     return n !== null && this.includedTypeIDs.has(n);
   }
 
@@ -103,17 +74,18 @@ class Group {
    * @returns {Object} Document object ready for storage
    */
   toDocument() {
-    const intArrayFromSet = (set) =>
-      [...set].filter((id) => Number.isFinite(Number(id)));
+    // Sorted, so an unchanged group is not rewritten as modified, and a document
+    // written here matches one the backend derives from the same jobs.
+    const intArrayFromSet = (set) => asNumberIDList(set).sort((a, b) => a - b);
     const doc = {
       groupName: this.groupName,
       groupID: this.groupID,
       includedJobIDs: [...this.includedJobIDs],
+      archivedJobIDs: [...this.archivedJobIDs],
       includedTypeIDs: intArrayFromSet(this.includedTypeIDs),
       materialIDs: intArrayFromSet(this.materialIDs),
       outputJobCount: this.outputJobCount,
       areComplete: [...this.areComplete],
-      showComplete: this.showComplete,
       groupStatus: this.groupStatus,
       groupType: this.groupType,
       linkedJobIDs: intArrayFromSet(this.linkedJobIDs),
@@ -133,85 +105,10 @@ class Group {
   }
 
   /**
-   * Converts an ID to a number, returning null if invalid.
-   * 
-   * @private
-   * @param {*} id - ID to convert to number
-   * @returns {number|null} Converted number or null if invalid
-   */
-  _convertToNumber(id) {
-    const num = Number(id);
-    return isNaN(num) ? null : num;
-  }
-
-  /**
-   * Converts an ID to a string, returning null if null/undefined.
-   * 
-   * @private
-   * @param {*} id - ID to convert to string
-   * @returns {string|null} Converted string or null if null/undefined
-   */
-  _convertToString(id) {
-    return id != null ? String(id) : null;
-  }
-
-  /**
-   * Applies an action to a set with ID conversion.
-   * 
-   * This private method handles ID conversion and set operations:
-   * - Validates input parameters
-   * - Handles both single IDs and arrays/sets
-   * - Converts IDs using the provided converter function
-   * - Applies the action to the target set
-   * 
-   * @private
-   * @param {*} inputIDs - ID(s) to process
-   * @param {Function} action - Set method to call (add, delete, etc.)
-   * @param {Set} targetSet - Target set to modify
-   * @param {Function} converter - Function to convert IDs
-   */
-  _toSet(inputIDs, action, targetSet, converter) {
-    if (!inputIDs || !action || !targetSet || !converter) return;
-
-    if (Array.isArray(inputIDs) || inputIDs instanceof Set) {
-      inputIDs.forEach((id) => {
-        const convertedID = converter(id);
-        if (convertedID !== null) {
-          action.call(targetSet, convertedID);
-        }
-      });
-    } else {
-      const convertedID = converter(inputIDs);
-      if (convertedID !== null) {
-        action.call(targetSet, convertedID);
-      }
-    }
-  }
-
-  /**
-   * Creates a new set from input IDs using a converter function.
-   * 
-   * @private
-   * @param {*} inputIDs - ID(s) to convert
-   * @param {Function} converter - Function to convert IDs
-   * @returns {Set} New set with converted IDs
-   */
-  _newSet(inputIDs, converter) {
-    const _newSet = new Set();
-    this._toSet(inputIDs, Set.prototype.add, _newSet, converter);
-    return _newSet;
-  }
-
-  /**
    * Builds new group data from an array of jobs.
-   * 
+   *
    * This private method processes job data to extract group information:
-   * - Counts output jobs (jobs without parent jobs)
-   * - Collects material IDs from jobs and their materials
-   * - Collects job type IDs
-   * - Collects included job IDs
-   * - Collects linked ESI data (jobs, orders, transactions)
-   * 
+   *
    * @private
    * @param {Array<Job>} arrayOfJobs - Array of job objects to process
    * @returns {Object} Object containing processed group data
@@ -238,9 +135,9 @@ class Group {
       newMaterialIDs.add(job.itemID);
       newJobTypeIDs.add(job.itemID);
       newIncludedJobIDs.add(job.jobID);
-      updateSet(newLinkedJobIDs, job.apiJobs);
-      updateSet(newLinkedOrderIDs, job.apiOrders);
-      updateSet(newLinkedTransIDs, job.apiTransactions);
+      updateSet(newLinkedJobIDs, job.esiJobIDs);
+      updateSet(newLinkedOrderIDs, job.esiOrderIDs);
+      updateSet(newLinkedTransIDs, job.esiTransactionIDs);
 
       job.build.materials.forEach((mat) => {
         newMaterialIDs.add(mat.typeID);
@@ -259,24 +156,23 @@ class Group {
   }
 
   /**
-   * Sets the group name with input sanitization.
-   * 
-   * This method sets the group name with security and formatting:
-   * - Validates input parameters
-   * - Handles both string and array inputs
-   * - Sanitizes input using DOMPurify for security
-   * - Truncates to 75 characters maximum
-   * 
+   * Sets the group name with input sanitisation.
+   *
    * @param {string|Array<Object>} inputGroupName - Group name or array of objects with name property
    */
   setGroupName(inputGroupName) {
     if (!inputGroupName || inputGroupName.length === 0) return;
 
     if (Array.isArray(inputGroupName)) {
-      const stringArray = [];
-      inputGroupName.forEach((obj) => stringArray.push(obj.name));
+      // An unnamed output is still an output, but it must not leave an empty
+      // segment in the name.
+      const names = inputGroupName
+        .map((obj) => (typeof obj?.name === "string" ? obj.name.trim() : ""))
+        .filter((name) => name !== "");
 
-      this.groupName = stringArray.join(", ").substring(0, 75);
+      this.groupName = names.length
+        ? names.join(", ").substring(0, 75)
+        : "Untitled Group";
     } else {
       const sanitizedName = DOMPurify.sanitize(inputGroupName, {
         ALLOWED_TAGS: [],
@@ -288,7 +184,7 @@ class Group {
 
   /**
    * Sets the group ID.
-   * 
+   *
    * @param {string} inputGroupID - New group ID
    */
   setGroupID(inputGroupID) {
@@ -298,118 +194,102 @@ class Group {
 
   /**
    * Adds job IDs to the included jobs set.
-   * 
+   *
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to add
    */
   addIncludedJobIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.includedJobIDs,
-      this._convertToString
-    );
+    addIDsToSet(this.includedJobIDs, inputJobIDs, asStringID);
   }
 
   /**
    * Sets the included job IDs, replacing existing ones.
-   * 
+   *
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to set
    */
   setIncludedJobIDs(inputJobIDs) {
-    this.includedJobIDs = this._newSet(inputJobIDs, this._convertToString);
+    this.includedJobIDs = asStringIDSet(inputJobIDs);
+  }
+
+  /**
+   * Replaces membership with the live jobs given, keeping archived members.
+   *
+   * `jobArray` holds only jobs on the planner, so a recompute would otherwise
+   * evict every archived member.
+   *
+   * @private
+   * @param {string|Array<string>|Set<string>} inputJobIDs
+   */
+  _setLiveIncludedJobIDs(inputJobIDs) {
+    this.setIncludedJobIDs(inputJobIDs);
+    this.addIncludedJobIDs(this.archivedJobIDs);
   }
 
   /**
    * Removes job IDs from the included jobs set.
-   * 
+   *
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to remove
    */
   removeIncludedJobIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.includedJobIDs,
-      this._convertToString
-    );
+    removeIDsFromSet(this.includedJobIDs, inputJobIDs, asStringID);
   }
 
   /**
    * Adds type IDs to the included types set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Type ID(s) to add
    */
   addIncludedTypeIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.includedTypeIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.includedTypeIDs, inputJobIDs, asNumberID);
   }
 
   /**
    * Sets the included type IDs, replacing existing ones.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Type ID(s) to set
    */
   setIncludedTypeIDs(inputJobIDs) {
-    this.includedTypeIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.includedTypeIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
    * Removes type IDs from the included types set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Type ID(s) to remove
    */
   removeIncludedTypeIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.includedTypeIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.includedTypeIDs, inputJobIDs, asNumberID);
   }
 
   /**
    * Adds material IDs to the materials set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputMaterialIDs - Material ID(s) to add
    */
   addMaterialIDs(inputMaterialIDs) {
-    this._toSet(
-      inputMaterialIDs,
-      Set.prototype.add,
-      this.materialIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.materialIDs, inputMaterialIDs, asNumberID);
   }
 
   /**
    * Sets the material IDs, replacing existing ones.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Material ID(s) to set
    */
   setMaterialIDs(inputJobIDs) {
-    this.materialIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.materialIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
    * Removes material IDs from the materials set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputMaterialIDs - Material ID(s) to remove
    */
   removeMaterialIDs(inputMaterialIDs) {
-    this._toSet(
-      inputMaterialIDs,
-      Set.prototype.delete,
-      this.materialIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.materialIDs, inputMaterialIDs, asNumberID);
   }
 
   /**
    * Updates the output job count.
-   * 
+   *
    * @param {number} input - New output job count
    */
   updateOutputJobCount(input) {
@@ -419,7 +299,7 @@ class Group {
 
   /**
    * Adds to the output job count.
-   * 
+   *
    * @param {number} input - Number to add to output job count
    */
   addOutputJobCount(input) {
@@ -429,51 +309,34 @@ class Group {
 
   /**
    * Adds job IDs to the completed jobs set.
-   * 
+   *
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to mark as complete
    */
   addAreComplete(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.areComplete,
-      this._convertToString
-    );
+    addIDsToSet(this.areComplete, inputJobIDs, asStringID);
   }
 
   /**
    * Sets the completed jobs, replacing existing ones.
-   * 
+   *
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to mark as complete
    */
   setAreComplete(inputJobIDs) {
-    this.areComplete = this._newSet(inputJobIDs, this._convertToString);
+    this.areComplete = asStringIDSet(inputJobIDs);
   }
 
   /**
    * Removes job IDs from the completed jobs set.
-   * 
+   *
    * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to remove from complete
    */
   removeAreComplete(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.areComplete,
-      this._convertToString
-    );
-  }
-
-  /**
-   * Toggles the show complete setting.
-   */
-  toggleShowComplete() {
-    this.showComplete = !this.showComplete;
+    removeIDsFromSet(this.areComplete, inputJobIDs, asStringID);
   }
 
   /**
    * Sets the group status.
-   * 
+   *
    * @param {number} input - Group status value (0-3)
    */
   setGroupStatus(input) {
@@ -499,124 +362,88 @@ class Group {
 
   /**
    * Adds order IDs to the linked orders set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Order ID(s) to add
    */
   addLinkedOrderIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.linkedOrderIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.linkedOrderIDs, inputJobIDs, asNumberID);
   }
 
   /**
    * Sets the linked order IDs, replacing existing ones.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Order ID(s) to set
    */
   setLinkedOrderIDs(inputJobIDs) {
-    this.linkedOrderIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.linkedOrderIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
    * Removes order IDs from the linked orders set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Order ID(s) to remove
    */
   removeLinkedOrderIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.linkedOrderIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.linkedOrderIDs, inputJobIDs, asNumberID);
   }
 
   /**
    * Adds job IDs to the linked jobs set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Job ID(s) to add
    */
   addLinkedJobIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.linkedJobIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.linkedJobIDs, inputJobIDs, asNumberID);
   }
 
   /**
    * Sets the linked job IDs, replacing existing ones.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Job ID(s) to set
    */
   setLinkedJobIDs(inputJobIDs) {
-    this.linkedJobIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.linkedJobIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
    * Removes job IDs from the linked jobs set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Job ID(s) to remove
    */
   removeLinkedJobIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.linkedJobIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.linkedJobIDs, inputJobIDs, asNumberID);
   }
 
   /**
    * Adds transaction IDs to the linked transactions set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Transaction ID(s) to add
    */
   addLinkedTransIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.add,
-      this.linkedTransIDs,
-      this._convertToNumber
-    );
+    addIDsToSet(this.linkedTransIDs, inputJobIDs, asNumberID);
   }
 
   /**
    * Sets the linked transaction IDs, replacing existing ones.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Transaction ID(s) to set
    */
   setLinkedTransIDs(inputJobIDs) {
-    this.linkedTransIDs = this._newSet(inputJobIDs, this._convertToNumber);
+    this.linkedTransIDs = asNumberIDSet(inputJobIDs);
   }
 
   /**
    * Removes transaction IDs from the linked transactions set.
-   * 
+   *
    * @param {number|Array<number>|Set<number>} inputJobIDs - Transaction ID(s) to remove
    */
   removeLinkedTransIDs(inputJobIDs) {
-    this._toSet(
-      inputJobIDs,
-      Set.prototype.delete,
-      this.linkedTransIDs,
-      this._convertToNumber
-    );
+    removeIDsFromSet(this.linkedTransIDs, inputJobIDs, asNumberID);
   }
 
   /**
    * Creates a new group from job objects.
-   * 
-   * This method initializes a group with job data:
-   * - Sets group name from output jobs
-   * - Calculates material and type IDs
-   * - Counts output jobs
-   * - Links ESI API data
-   * 
+   *
    * @param {Array<Job>|Job} inputJobObjects - Job objects to create group from
    */
   createGroup(inputJobObjects) {
@@ -641,7 +468,7 @@ class Group {
     this.setGroupName(outputJobs);
     this.updateOutputJobCount(newOutputJobCount);
     this.setMaterialIDs(newMaterialIDs);
-    this.setIncludedJobIDs(newIncludedJobIDs);
+    this._setLiveIncludedJobIDs(newIncludedJobIDs);
     this.setIncludedTypeIDs(newJobTypeIDs);
     this.setLinkedJobIDs(newLinkedJobIDs);
     this.setLinkedOrderIDs(newLinkedOrderIDs);
@@ -650,12 +477,7 @@ class Group {
 
   /**
    * Updates group data from job objects.
-   * 
-   * This method recalculates group data from current job objects:
-   * - Updates material and type IDs
-   * - Recalculates output job count
-   * - Updates ESI API links
-   * 
+   *
    * @param {Array<Job>|Job} inputJobObjects - Job objects to update group from
    */
   updateGroupData(inputJobObjects) {
@@ -677,7 +499,7 @@ class Group {
 
     this.updateOutputJobCount(newOutputJobCount);
     this.setMaterialIDs(newMaterialIDs);
-    this.setIncludedJobIDs(newIncludedJobIDs);
+    this._setLiveIncludedJobIDs(newIncludedJobIDs);
     this.setIncludedTypeIDs(newJobTypeIDs);
     this.setLinkedJobIDs(newLinkedJobIDs);
     this.setLinkedOrderIDs(newLinkedOrderIDs);
@@ -686,12 +508,7 @@ class Group {
 
   /**
    * Adds jobs to the existing group.
-   * 
-   * This method adds jobs to the group without replacing existing data:
-   * - Adds to existing material and type IDs
-   * - Increments output job count
-   * - Merges ESI API links
-   * 
+   *
    * @param {Array<Job>|Job} inputJobObjects - Job objects to add to group
    */
   addJobsToGroup(inputJobObjects) {
@@ -722,13 +539,7 @@ class Group {
 
   /**
    * Removes jobs from the group and recalculates group data.
-   * 
-   * This method removes specified jobs and updates group data:
-   * - Removes jobs from the group
-   * - Recalculates material and type IDs from remaining jobs
-   * - Updates output job count
-   * - Updates ESI API links
-   * 
+   *
    * @param {Array<Job>|Job} jobsToRemove - Jobs to remove from group
    * @param {Array<Job>} jobArray - Complete array of jobs for recalculation
    */
@@ -744,7 +555,8 @@ class Group {
     jobsToRemoveAsArray.forEach((job) => idsOfJobsToRemove.add(job.jobID));
 
     const remainingGroupJobs = jobArray.filter(
-      (job) => job.groupID === this.groupID && !idsOfJobsToRemove.has(job.jobID)
+      (job) =>
+        job.groupID === this.groupID && !idsOfJobsToRemove.has(job.jobID),
     );
 
     const {
@@ -759,11 +571,32 @@ class Group {
 
     this.updateOutputJobCount(newOutputJobCount);
     this.setMaterialIDs(newMaterialIDs);
-    this.setIncludedJobIDs(newIncludedJobIDs);
+    this._setLiveIncludedJobIDs(newIncludedJobIDs);
     this.setIncludedTypeIDs(newJobTypeIDs);
     this.setLinkedJobIDs(newLinkedJobIDs);
     this.setLinkedOrderIDs(newLinkedOrderIDs);
     this.setLinkedTransIDs(newLinkedTransIDs);
+  }
+
+  /**
+   * Marks jobs as archived. They stay members; the derived sets describe live
+   * jobs, so their contribution comes out until they are restored.
+   *
+   * @param {Array<Job>|Job} archivedJobs - Jobs being archived
+   * @param {Array<Job>} jobArray - Complete array of jobs for recalculation
+   */
+  markJobsArchived(archivedJobs, jobArray) {
+    if (!archivedJobs || !jobArray) return;
+
+    const asArray = asIDList(archivedJobs);
+    if (asArray.length === 0) return;
+
+    addIDsToSet(
+      this.archivedJobIDs,
+      asArray.map((job) => job.jobID),
+      asStringID,
+    );
+    this.removeJobsFromGroup(asArray, jobArray);
   }
 
   findOutputJobs(groupJobs) {
@@ -781,7 +614,6 @@ class Group {
 
     return getAllRelatedJobs(outputJob.jobID);
   }
-
 }
 
 export default Group;

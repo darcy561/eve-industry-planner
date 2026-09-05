@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 )
 
 func TestEnsureS3CmdCallsDataplane(t *testing.T) {
@@ -34,9 +34,9 @@ func TestEnsureS3CmdCallsDataplane(t *testing.T) {
 
 func TestEnsureS3Catalog(t *testing.T) {
 	t.Parallel()
-	v, ok := catalog.ByID("ensure-s3")
+	v, ok := catalogue.ByID("ensure-s3")
 	if !ok {
-		t.Fatal("ensure-s3 missing from catalog")
+		t.Fatal("ensure-s3 missing from catalogue")
 	}
 	if !strings.Contains(strings.ToLower(v.Short), "bucket") && !strings.Contains(strings.ToLower(v.Short), "static-data") {
 		t.Fatalf("Short should mention buckets: %q", v.Short)

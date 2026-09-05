@@ -10,13 +10,11 @@ import (
 	"sync"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
-	"eve-industry-planner/shared/wsplacement"
+	eipnats "eve-industry-planner/shared/nats"
 
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -32,8 +30,8 @@ const changeStreamMaxAwaitTime = 30 * time.Second
 
 // ScopesPayload narrows websocket fan-out under alliance/corporation roots (optional metadata).
 type ScopesPayload struct {
-	CorporationIDs []string `json:"corporationIDs,omitempty"`
-	AccountIDs     []string `json:"accountIDs,omitempty"`
+	CorporationRefs []string `json:"corporationRefs,omitempty"`
+	AccountIDs      []string `json:"accountIDs,omitempty"`
 }
 
 // ChangeStreamMessage represents the message payload sent to NATS
@@ -44,9 +42,7 @@ type ChangeStreamMessage struct {
 	OperationType           string         `json:"operationType"`
 	SourceClientID          string         `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
 	SourceSessionID         string         `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
-	AccountID               string         `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
-	CorporationID           string         `json:"corporationID,omitempty"`   // Org routing when accountID is absent (see websocket dispatch)
-	AllianceID              string         `json:"allianceID,omitempty"`
+	OwnerKey                string         `json:"ownerKey,omitempty"`        // kind:id of the changed document's owner; the websocket routes on it
 	Scopes                  *ScopesPayload `json:"scopes,omitempty"`
 	Document                map[string]any `json:"document,omitempty"`
 	PreviousDocument        map[string]any `json:"previousDocument,omitempty"`
@@ -57,25 +53,23 @@ type ChangeStreamMessage struct {
 
 // Watcher watches MongoDB change streams and publishes changes to NATS.
 type Watcher struct {
-	mongo     *eipmongo.Mongo
-	jsContext jetstream.JetStream
-	natsConn  *natslib.Conn
-	rdb       *redis.Client
-	database  *mongo.Database
+	mongo    *eipmongo.Mongo
+	nats     *eipnats.NATS
+	rdb      *redis.Client
+	database *mongo.Database
 }
 
 // NewWatcher creates a new change stream watcher. rdb may be nil (cold start only).
-func NewWatcher(mongoHandle *eipmongo.Mongo, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) *Watcher {
+func NewWatcher(mongoHandle *eipmongo.Mongo, natsHandle *eipnats.NATS, rdb *redis.Client) *Watcher {
 	var database *mongo.Database
 	if mongoHandle != nil {
 		database = mongoHandle.DB
 	}
 	return &Watcher{
-		mongo:     mongoHandle,
-		jsContext: jsContext,
-		natsConn:  natsConn,
-		rdb:       rdb,
-		database:  database,
+		mongo:    mongoHandle,
+		nats:     natsHandle,
+		rdb:      rdb,
+		database: database,
 	}
 }
 
@@ -265,7 +259,6 @@ func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group Collecti
 
 // processChangeEvent processes a single change event and publishes it to NATS
 func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) error {
-	// Extract operation type
 	operationType, ok := changeEvent["operationType"].(string)
 	if !ok {
 		return fmt.Errorf("missing or invalid operationType")
@@ -301,7 +294,6 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		return fmt.Errorf("missing _id in documentKey")
 	}
 
-	// Convert docID to string
 	var docID string
 	switch v := docIDValue.(type) {
 	case string:
@@ -344,30 +336,26 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			}
 		}
 
-		// Prefer root accountID (e.g. groups), then _meta.accountID (jobs, groups).
+		// Groups name their account at the document root. Every other scoped
+		// document states an owner in _meta, which ownerFromDocument reads.
 		if accID, ok := docToExtract["accountID"].(string); ok && accID != "" {
 			accountID = accID
-		}
-		if accountID == "" && meta != nil {
-			if accID, ok := meta["accountID"].(string); ok && accID != "" {
-				accountID = accID
-			}
 		}
 	}
 
 	// DELETE events only populate fullDocumentBeforeChange when the collection has
-	// changeStreamPreAndPostImages (deployment-tool PreimageCollections / EnsureMongo). Without that,
-	// AccountID stays empty → websocket dispatch skips account broadcast (unless clients
-	// explicitly subscribed). Singleton account docs use Mongo _id === account id string.
+	// changeStreamPreAndPostImages (deployment-tool PreimageCollections / EnsureMongo). Without it a
+	// delete states no owner, so the message routes to explicit subscribers rather than the owner's
+	// clients. Singleton account documents recover it from the _id, which is the account id.
 	if accountID == "" && operationType == "delete" {
 		switch collection {
-		case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
+		case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionWatchlistDeprecated:
 			accountID = docID
 		default:
-			if collection == eipmongo.CollectionUserJobGroups ||
-				collection == eipmongo.CollectionUserJobDocuments {
-				logs.WarnCtx(ctx, "delete missing accountID on collection (fullDocumentBeforeChange empty);"+
-					" websocket account fan-out skipped — enable changeStreamPreAndPostImages"+
+			if collection == eipmongo.CollectionJobGroups ||
+				collection == eipmongo.CollectionJobDocuments {
+				logs.WarnCtx(ctx, "delete states no owner (fullDocumentBeforeChange empty);"+
+					" websocket owner fan-out skipped — enable changeStreamPreAndPostImages"+
 					" (eip ensure-mongo / deployment-tool PreimageCollections)",
 					"component", changestreamLogComponent,
 					"collection", collection,
@@ -384,7 +372,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	switch collection {
-	case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
+	case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionWatchlistDeprecated:
 		if operationType == "update" || operationType == "replace" {
 			if previousDocToExtract != nil {
 				previousDocument = make(map[string]any, len(previousDocToExtract))
@@ -394,7 +382,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 	refreshTokensChanged := false
 	linkedCharactersChanged := false
-	if collection == eipmongo.CollectionUsers {
+	if collection == eipmongo.CollectionAccounts {
 		refreshTokensChanged = usersRefreshTokensChanged(operationType, docToExtract, previousDocToExtract)
 		linkedCharactersChanged = usersRefreshTokenCharacterHashesChanged(operationType, docToExtract, previousDocToExtract)
 		stripUsersRefreshTokenFields(document)
@@ -402,15 +390,22 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		// Client no longer needs previous users-doc payload; it relies on change flags
 		// plus dedicated token endpoint reads for linked-character reconciliation.
 		previousDocument = nil
-	} else if collection == eipmongo.CollectionApplicationSettings {
+	} else if collection == eipmongo.CollectionAccountSettings {
 		// Application settings reconcile uses the current authoritative document only.
 		previousDocument = nil
 	}
 
-	corpID, allianceID, scopePayload := extractOrgRoutingFromDocument(docToExtract)
-
-	tenantString := wsplacement.TenantStringFromRouting(accountID, corpID, allianceID)
-	subject := natscore.DocUpdateSubject(tenantString, collection, docID)
+	// A document states its owner. A delete without a preimage has none to read,
+	// leaving only the account id recovered above.
+	docOwner, scopePayload := ownerFromDocument(docToExtract)
+	if docOwner.IsZero() && accountID != "" {
+		docOwner = models.AccountOwner(accountID)
+	}
+	var tenantString string
+	if !docOwner.IsZero() {
+		tenantString = docOwner.Key()
+	}
+	subject := eipnats.DocUpdateSubject(tenantString, collection, docID)
 	if subject == "" {
 		logs.WarnCtx(ctx, "change stream event skipped: no tenant for doc.update subject",
 			"component", changestreamLogComponent,
@@ -418,8 +413,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			"collection", collection,
 			"doc_id", docID,
 			"account_id", accountID,
-			"corporation_id", corpID,
-			"alliance_id", allianceID)
+			"owner", docOwner.Key())
 		return nil
 	}
 
@@ -431,9 +425,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		OperationType:           operationType,
 		SourceClientID:          sourceClientID,
 		SourceSessionID:         sourceSessionID,
-		AccountID:               accountID,
-		CorporationID:           corpID,
-		AllianceID:              allianceID,
+		OwnerKey:                tenantString,
 		Scopes:                  scopePayload,
 		Document:                document,
 		PreviousDocument:        previousDocument,
@@ -441,14 +433,13 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		LinkedCharactersChanged: linkedCharactersChanged,
 	}
 
-	// Marshal to JSON
 	messageData, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal change stream message: %w", err)
 	}
 
 	// Publish to NATS (JetStream for persistence + optional offline replay)
-	if err := natscore.PublishMessage(ctx, w.jsContext, subject, messageData, w.natsConn); err != nil {
+	if err := w.nats.Publish(ctx, subject, messageData); err != nil {
 		logs.ErrorCtx(ctx, "failed to publish change stream message to NATS",
 			"component", changestreamLogComponent,
 			"operation", operationType,
@@ -469,7 +460,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		"tenant", tenantString,
 		"source_client_id", sourceClientID,
 		"source_session_id", sourceSessionID,
-		"account_id", accountID,
+		"owner_key", message.OwnerKey,
 		"has_document", document != nil,
 		"has_previous_document", previousDocument != nil,
 		"full_document_status", changeStreamDocFieldStatus(changeEvent, "fullDocument"),
@@ -624,17 +615,30 @@ func stripUsersRefreshTokenFields(doc map[string]any) {
 	delete(doc, "refresh_tokens")
 }
 
-func extractOrgRoutingFromDocument(doc bson.M) (corpID, allianceID string, scopes *ScopesPayload) {
+// ownerFromDocument reads the owner a document states, and the scopes it carries.
+//
+// One field, whatever the kind. This replaced reading a corporation ref and an
+// alliance ref and inferring the scope from which was set — a shape that could
+// not answer "who owns this" without knowing the answer first.
+func ownerFromDocument(doc bson.M) (models.Owner, *ScopesPayload) {
 	if doc == nil {
-		return "", "", nil
+		return models.Owner{}, nil
 	}
 	meta := subDocumentToMap(doc["_meta"])
-	corpID = docFieldString(doc, meta, "corporationID", "corporationId")
-	allianceID = docFieldString(doc, meta, "allianceID", "allianceId")
-	if sp := scopesFromDocOrMeta(doc, meta); sp != nil && (len(sp.CorporationIDs) > 0 || len(sp.AccountIDs) > 0) {
+	var owner models.Owner
+	if raw := subDocumentToMap(meta[models.MetaFieldOwner]); raw != nil {
+		kind, _ := raw["kind"].(string)
+		id, _ := raw["id"].(string)
+		owner = models.Owner{Kind: models.OwnerKind(kind), ID: id}
+		if owner.Validate() != nil {
+			owner = models.Owner{}
+		}
+	}
+	var scopes *ScopesPayload
+	if sp := scopesFromDocOrMeta(doc, meta); sp != nil && (len(sp.CorporationRefs) > 0 || len(sp.AccountIDs) > 0) {
 		scopes = sp
 	}
-	return corpID, allianceID, scopes
+	return owner, scopes
 }
 
 func docFieldString(doc, meta bson.M, keys ...string) string {
@@ -683,12 +687,12 @@ func scopesFromDocOrMeta(doc, meta bson.M) *ScopesPayload {
 	if raw == nil {
 		return nil
 	}
-	cids := bsonArrayToStrings(raw["corporationIDs"])
+	cids := bsonArrayToStrings(raw["corporationRefs"])
 	aids := bsonArrayToStrings(raw["accountIDs"])
 	if len(cids) == 0 && len(aids) == 0 {
 		return nil
 	}
-	return &ScopesPayload{CorporationIDs: cids, AccountIDs: aids}
+	return &ScopesPayload{CorporationRefs: cids, AccountIDs: aids}
 }
 
 func asBsonM(v any) bson.M {
@@ -729,11 +733,11 @@ func bsonArrayToStrings(v any) []string {
 
 // StartService starts the MongoDB change stream watcher service (parallel watches per CollectionGroups entry).
 // Returns a stop function for graceful shutdown. rdb stores per-group resume tokens (optional).
-func StartService(mongoHandle *eipmongo.Mongo, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) (func(), error) {
+func StartService(mongoHandle *eipmongo.Mongo, natsHandle *eipnats.NATS, rdb *redis.Client) (func(), error) {
 	groups := CollectionGroups()
 	if err := validateCollectionGroups(groups); err != nil {
 		return nil, err
 	}
-	watcher := NewWatcher(mongoHandle, jsContext, natsConn, rdb)
+	watcher := NewWatcher(mongoHandle, natsHandle, rdb)
 	return watcher.Start(groups), nil
 }

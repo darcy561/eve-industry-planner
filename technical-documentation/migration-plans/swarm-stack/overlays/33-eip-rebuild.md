@@ -6,7 +6,7 @@
 
 ## What changed
 
-Local-dev day-2: **`eip rebuild`** bakes the full app group to `:bake`, promotes per-role `TAG_*` only when digest changes, rematerializes the app fragment (no Ready). Public CLI takes no role args (`--no-cache` only). Prod day-2 images remain **`eip update`**.
+Local-dev day-2: **`eip rebuild`** bakes the full app group to `:bake`, promotes per-role `TAG_*` only when digest changes, rematerialises the app fragment (no Ready). Public CLI takes no role args (`--no-cache` only). Prod day-2 images remain **`eip update`**.
 
 ## How this part works after the change
 

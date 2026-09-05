@@ -2,31 +2,20 @@ package main
 
 import (
 	"context"
+	"os"
+
 	"eve-industry-planner/shared/lifecycle"
-	"eve-industry-planner/shared/stackservices"
 
 	"eve-industry-planner/shared/logs"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
-
-	"github.com/hibiken/asynq"
 )
 
-// WorkerDependencies holds all dependencies needed by worker subscribers.
-type WorkerDependencies struct {
-	*stackservices.Clients
-	ESIClient   esiratelimiter.ClientInterface
-	AsynqClient *asynq.Client
-}
-
-func (d *WorkerDependencies) GetClients() *stackservices.Clients {
-	return d.Clients
-}
-
-func (d *WorkerDependencies) GetESIClient() esiratelimiter.ClientInterface {
-	return d.ESIClient
-}
-
 func main() {
+	os.Exit(run())
+}
+
+// run returns the process exit code; non-zero on init failure so Swarm restarts the task
+// instead of recording a clean stop.
+func run() int {
 	ctx, cancel := lifecycle.NewSignalContext(context.Background())
 	defer cancel()
 
@@ -43,10 +32,11 @@ func main() {
 		if err := phase(ctx); err != nil {
 			logs.ErrorCtx(ctx, "initialization failed", "error", err)
 			cancel()
-			return
+			return 1
 		}
 	}
 
 	logs.InfoCtx(ctx, "worker service running")
 	lifecycle.WaitForShutdown(ctx, shutdownTimeout, a.cleanups()...)
+	return 0
 }

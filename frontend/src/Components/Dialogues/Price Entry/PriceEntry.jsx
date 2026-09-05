@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { PriceEntryContent } from "./DataProviders";
 import usePriceEntryReducer from "./Hooks/usePriceEntryReducer";
-import { useSyncedDialogEventState } from "../../../Styled Components/Dialog/ContentDialog";
+import { useSyncedDialogueEventState } from "../../../Styled Components/Dialogue/ContentDialogue";
 
 function serializePriceEntryEvent(messageData) {
   return JSON.stringify({
@@ -12,12 +12,12 @@ function serializePriceEntryEvent(messageData) {
   });
 }
 
-export function PriceEntryDialog() {
+export function PriceEntryDialogue() {
   const { state, actions } = usePriceEntryReducer();
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  useSyncedDialogEventState(
+  useSyncedDialogueEventState(
     "priceEntry",
     () => ({
       isOpen: false,

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -22,7 +22,6 @@ const (
 // structToMap converts a struct to map[string]any via JSON marshaling
 // This ensures proper type conversion and JSON compatibility
 func structToMap(v any) (map[string]any, error) {
-	// Marshal struct to JSON bytes
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal struct to JSON: %w", err)
@@ -52,7 +51,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 
 	// Handle known collections with struct decoding
 	switch collectionName {
-	case eipmongo.CollectionUsers:
+	case eipmongo.CollectionAccounts:
 		var users []models.UserAccountDocument
 		if err := cursor.All(ctx, &users); err != nil {
 			return nil, fmt.Errorf("failed to decode users: %w", err)
@@ -62,11 +61,11 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 			userMap, err := structToMap(users[i])
 			if err != nil {
 				logs.WarnCtx(ctx, "failed to convert user to map",
-					"account_id", users[i].MetaData.AccountID,
+					"account_id", users[i].MetaData.Owner.ID,
 					"error", err)
 				continue
 			}
-			results[users[i].MetaData.AccountID] = userMap
+			results[users[i].MetaData.Owner.ID] = userMap
 		}
 		return results, cursor.Err()
 
@@ -87,7 +86,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case eipmongo.CollectionUserJobGroups:
+	case eipmongo.CollectionJobGroups:
 		var groups []models.Group
 		if err := cursor.All(ctx, &groups); err != nil {
 			return nil, fmt.Errorf("failed to decode groups: %w", err)
@@ -162,12 +161,9 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 	return results, nil
 }
 
-// QueryDocumentsByCollection queries documents from MongoDB by collection name and document IDs
-// Returns a map of documentID -> document data (as map[string]any)
-// Documents that don't exist are omitted from the result
-// Uses bulk query with $in operator for efficiency
-// Implements retry logic with exponential backoff for transient MongoDB errors
-// Context can be cancelled to stop ongoing queries if client disconnects
+// QueryDocumentsByCollection reads the named documents in one `$in` query,
+// keyed by document id. A document that does not exist is omitted rather than
+// returned empty. Transient Mongo errors are retried with backoff.
 func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionName string, documentIDs []string, accountID string) (map[string]map[string]any, error) {
 	if len(documentIDs) == 0 {
 		return make(map[string]map[string]any), nil
@@ -180,7 +176,6 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 	default:
 	}
 
-	// Get Mongo handle
 	mongoHandleInterface := s.GetMongoClient()
 	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
@@ -198,13 +193,13 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 		"_id": bson.M{"$in": documentIDs},
 	}
 
-	// Account scoping: jobs, users, application_settings, and user_watchlist_deprecated use _meta.accountID (see models.Job, UserAccountDocument).
+	// Account scoping: jobs, accounts, account_settings and watchlist_deprecated carry the owner on _meta; the rest name their account at the root.
 	// Other collections use root accountID.
 	if collectionName == eipmongo.CollectionJobs ||
-		collectionName == eipmongo.CollectionUsers ||
-		collectionName == eipmongo.CollectionApplicationSettings ||
-		collectionName == eipmongo.CollectionUserWatchlistDeprecated {
-		filter["_meta.accountID"] = accountID
+		collectionName == eipmongo.CollectionAccounts ||
+		collectionName == eipmongo.CollectionAccountSettings ||
+		collectionName == eipmongo.CollectionWatchlistDeprecated {
+		filter[eipmongo.FieldMetaOwnerID] = accountID
 	} else {
 		filter["accountID"] = accountID
 	}
@@ -242,7 +237,6 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	default:
 	}
 
-	// Get Mongo handle
 	mongoHandleInterface := s.GetMongoClient()
 	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
@@ -253,15 +247,14 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 		return nil, fmt.Errorf("invalid MongoDB client type")
 	}
 
-	collection := mongo.Jobs.Collection()
+	// Job documents, the same collection the planner read serves over HTTP. A
+	// sync naming another one returns no jobs and reports nothing, because an
+	// account with none looks identical.
+	collection := mongo.JobDocuments.Collection()
 
-	// Build query filter: jobs shown on planner (displayOnPlanner or legacy isIncludedOnPlanner).
 	filter := bson.M{
-		"_meta.accountID": accountID,
-		"$or": []bson.M{
-			{"displayOnPlanner": true},
-			{"isIncludedOnPlanner": true},
-		},
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
+		"displayOnPlanner": true,
 	}
 
 	// Use retry logic from mongo core package
@@ -318,7 +311,6 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	default:
 	}
 
-	// Get Mongo handle
 	mongoHandleInterface := s.GetMongoClient()
 	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
@@ -332,7 +324,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	collection := mongo.Groups.Collection()
 
 	filter := bson.M{
-		"_meta.accountID": accountID,
+		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
 	}
 
 	// Use retry logic from mongo core package
@@ -371,7 +363,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	}
 
 	logs.DebugCtx(ctx, "queried all groups for account",
-		"collection", eipmongo.CollectionUserJobGroups,
+		"collection", eipmongo.CollectionJobGroups,
 		"account_id", accountID,
 		"found", len(results))
 

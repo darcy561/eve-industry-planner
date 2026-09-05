@@ -8,6 +8,7 @@
  * @fileoverview User preferences and settings management actions
  * @author EVE Industry Planner Team
  */
+import { asIDList } from "../../Functions/Helper/ids";
 
 import {
   detectUserLocale,
@@ -357,10 +358,7 @@ export const preferencesActions = (set, get) => ({
    */
   addExemptTypeID: (inputValue) => {
     if (!inputValue) return;
-    const inputAsArray =
-      Array.isArray(inputValue) || inputValue instanceof Set
-        ? [...inputValue]
-        : [inputValue];
+    const inputAsArray = asIDList(inputValue);
 
     set(
       (state) => ({
@@ -393,10 +391,7 @@ export const preferencesActions = (set, get) => ({
    */
   removeExemptTypeID: (inputValue) => {
     if (!inputValue) return;
-    const inputAsArray =
-      Array.isArray(inputValue) || inputValue instanceof Set
-        ? [...inputValue]
-        : [inputValue];
+    const inputAsArray = asIDList(inputValue);
 
     set(
       (state) => ({

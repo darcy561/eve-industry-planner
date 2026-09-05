@@ -6,14 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/deploy"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/process"
 )
 
 func init() {
-	if v, ok := catalog.ByID("rebuild"); ok {
+	if v, ok := catalogue.ByID("rebuild"); ok {
 		rebuildCmd.Short = v.Short
 	}
 	rebuildCmd.Flags().Bool("no-cache", false, "bake without Docker layer cache")
@@ -22,9 +22,9 @@ func init() {
 
 var rebuildCmd = &cobra.Command{
 	Use:   "rebuild",
-	Short: "Bake local images and rematerialize (roll only when digests change)",
+	Short: "Bake local images and rematerialise (roll only when digests change)",
 	Long: `Bake Swarm app images (docker-stack.dev.yml), promote TAG_* only when a
-role's digest changes, then rematerialize the stack. Unchanged image specs
+role's digest changes, then rematerialise the stack. Unchanged image specs
 are left alone so Swarm does not roll those services.
 
 Requires a prior eip dev stack (dev source). Does not re-run engine/dataplane Ready.`,

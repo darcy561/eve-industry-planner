@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/evesso"
+	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
@@ -17,7 +17,10 @@ import (
 )
 
 // RefreshStoredEsiForCharacter refreshes one encrypted refresh row by CharacterHash and persists the user document.
-func RefreshStoredEsiForCharacter(ctx context.Context, mongo *eipmongo.Mongo, accountID, characterHash string, cfg *config.CloudStoredESI) (*evesso.EveSSOTokenPayload, error) {
+// reportSSO is told what the token exchange saw, and nothing else. This runs
+// Mongo work either side of that call, and a failure to read a document says
+// nothing about whether EVE SSO is answering.
+func RefreshStoredEsiForCharacter(ctx context.Context, mongo *eipmongo.Mongo, accountID, characterHash string, cfg *config.CloudStoredESI, reportSSO func(error)) (*evesso.EveSSOTokenPayload, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("cloud esi: config is nil")
 	}
@@ -37,7 +40,7 @@ func RefreshStoredEsiForCharacter(ctx context.Context, mongo *eipmongo.Mongo, ac
 	}
 
 	var userDoc models.UserAccountDocument
-	if err := usersCol.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
+	if err := usersCol.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&userDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return nil, ErrUserNotFound
 		}
@@ -67,8 +70,11 @@ func RefreshStoredEsiForCharacter(ctx context.Context, mongo *eipmongo.Mongo, ac
 	defer cancel()
 
 	tok, err := evesso.RefreshEveSSOAccessToken(refreshCtx, cfg.SSO.ClientID, cfg.SSO.ClientSecret, plain)
+	if reportSSO != nil {
+		reportSSO(err)
+	}
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
+		if evesso.IsPermanentRefreshFailure(err) {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidGrant, err)
 		}
 		return nil, fmt.Errorf("cloud esi: %w", err)

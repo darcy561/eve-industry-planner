@@ -1,6 +1,6 @@
 # Reprocessing Calculator
 
-The Reprocessing Calculator is a powerful tool for calculating ore-to-mineral conversions and reverse mineral-to-ore calculations in EVE Online. It helps you optimize your reprocessing operations by considering structure types, skills, rigs, implants, and market prices.
+The Reprocessing Calculator is a powerful tool for calculating ore-to-mineral conversions and reverse mineral-to-ore calculations in EVE Online. It helps you optimise your reprocessing operations by considering structure types, skills, rigs, implants, and market prices.
 
 ## Overview
 
@@ -15,7 +15,7 @@ Both modes use advanced algorithms that consider:
 - Reprocessing skills
 - Structure rigs
 - Implants
-- Market prices for optimization
+- Market prices for optimisation
 - Compression bonuses
 
 ## Getting Started
@@ -43,7 +43,7 @@ Both modes use advanced algorithms that consider:
 
 4. **Click "Reprocess"**
    - View results in Basic or Advanced view
-   - See mineral yields, values, and optimization suggestions
+   - See mineral yields, values, and optimisation suggestions
 
 ## Input Format
 
@@ -142,9 +142,9 @@ Controls how strongly the algorithm prefers compressed ores:
 ### Value Multiplier
 
 Balances cost-effectiveness vs. mineral yield:
-- **0.0**: Prioritize maximum mineral yield
+- **0.0**: Prioritise maximum mineral yield
 - **1.0**: Balanced approach
-- **2.0**: Recommended for cost optimization
+- **2.0**: Recommended for cost optimisation
 - **4.0**: Maximum cost-effectiveness priority
 
 ### Waste Penalty Multiplier
@@ -178,7 +178,7 @@ The Advanced View provides detailed breakdowns:
 - **Per-Ore Analysis**: Detailed yield calculations for each ore type
 - **Mineral Breakdown**: Complete mineral output with sources
 - **Value Analysis**: Cost-benefit analysis
-- **Optimization Suggestions**: Recommendations for better yields
+- **Optimisation Suggestions**: Recommendations for better yields
 
 ### From Minerals Mode
 
@@ -242,7 +242,7 @@ The calculator automatically recalculates when:
 
 1. **Use Compressed Ores**: When available, compressed ores provide better yields and are more space-efficient
 
-2. **Optimize Skills**: Higher reprocessing skills significantly improve yields - train them to level V
+2. **Optimise Skills**: Higher reprocessing skills significantly improve yields - train them to level V
 
 3. **Choose the Right Structure**: Refineries in null-sec provide the best yields
 
@@ -250,7 +250,7 @@ The calculator automatically recalculates when:
 
 5. **Exclude Unwanted Ores**: Use the exempt ores feature to exclude ores you don't want to process
 
-6. **Compare Locations**: Check market prices at different locations to maximize profit
+6. **Compare Locations**: Check market prices at different locations to maximise profit
 
 7. **Use Advanced View**: For detailed analysis, switch to Advanced View to see per-ore breakdowns
 

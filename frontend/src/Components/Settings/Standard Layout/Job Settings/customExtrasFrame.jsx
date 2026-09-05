@@ -5,7 +5,6 @@ import { SMALL_TEXT_FORMAT, STANDARD_TEXT_FORMAT, permanentExtrasCategories } fr
 import useUsersStore from "../../../../Zustand/usersStore";
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
-import uuid from "react-uuid";
 import DOMPurify from "dompurify";
 import UndoIcon from "@mui/icons-material/Undo";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
@@ -20,7 +19,7 @@ export default function CustomExtrasFrame() {
             ALLOWED_TAGS: [],
             ALLOWED_ATTR: [],
         });
-        addExtrasCategory({ id: uuid(), label: sanitizedCategoryName });
+        addExtrasCategory({ id: crypto.randomUUID(), label: sanitizedCategoryName });
         setNewCategoryName("");
         scheduleDebouncedApplicationSettingsSave();
     };

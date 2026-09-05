@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
 	"eve-industry-planner/websocket/server/config"
 )
@@ -17,18 +17,18 @@ const placementPublishRefreshEvery = 30 * time.Second
 
 // placementPub publishes to NATS when available. ok=false means skipped (nil NATS);
 // callers must not treat a skip as a successful publish for dedupe.
-func (s *Server) placementPub(subject string, data []byte) (ok bool, err error) {
+func (s *Server) placementPub(state eipnats.PlacementState) (ok bool, err error) {
 	if s != nil && s.placementPublishFn != nil {
-		return true, s.placementPublishFn(subject, data)
+		return true, s.placementPublishFn(state)
 	}
 	if s == nil || s.Stack == nil || s.Stack.NATS == nil {
 		return false, nil
 	}
-	return true, s.Stack.NATS.Publish(subject, data)
+	return true, eipnats.PublishPlacementState(s.Stack.NATS, state)
 }
 
 // currentPlacementState builds PlacementState from live count and config thresholds.
-func (s *Server) currentPlacementState(connected int) natscore.PlacementState {
+func (s *Server) currentPlacementState(connected int) eipnats.PlacementState {
 	return wsplacement.NewPlacementState(
 		container.ID(),
 		connected,
@@ -39,9 +39,9 @@ func (s *Server) currentPlacementState(connected int) natscore.PlacementState {
 }
 
 // CurrentPlacementSnapshot returns placement flags for health census (capacity Observe).
-func (s *Server) CurrentPlacementSnapshot() natscore.PlacementState {
+func (s *Server) CurrentPlacementSnapshot() eipnats.PlacementState {
 	if s == nil {
-		return natscore.PlacementState{}
+		return eipnats.PlacementState{}
 	}
 	return s.currentPlacementState(s.ConnectedCount())
 }
@@ -65,15 +65,10 @@ func (s *Server) publishPlacementState(ctx context.Context, connected int, force
 	}
 	s.placementMu.Unlock()
 
-	raw, err := json.Marshal(state)
-	if err != nil {
-		logs.WarnCtx(ctx, "placement state marshal failed", "error", err)
-		return
-	}
-	ok, err := s.placementPub(natscore.SubjectWSPlacementState, raw)
+	ok, err := s.placementPub(state)
 	if err != nil {
 		logs.WarnCtx(ctx, "placement state publish failed",
-			"error", err, "subject", natscore.SubjectWSPlacementState,
+			"error", err,
 			"clients", state.Clients, "soft", state.Soft, "full", state.Full, "draining", state.Draining)
 		return
 	}
@@ -85,7 +80,7 @@ func (s *Server) publishPlacementState(ctx context.Context, connected int, force
 	s.hasLastPlacement = true
 	s.placementMu.Unlock()
 	logs.DebugCtx(ctx, "placement state published",
-		"subject", natscore.SubjectWSPlacementState,
+		"subject", eipnats.SubjectWSPlacementState,
 		"clients", state.Clients, "soft", state.Soft, "full", state.Full, "draining", state.Draining)
 }
 

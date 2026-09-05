@@ -2,40 +2,26 @@ package maintenance
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // RotateRefreshTokenKeys rotates encrypted refresh-token rows to the active key version.
-func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func RotateRefreshTokenKeys(ctx context.Context, p eipnats.RotateRefreshTokenKeysRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 
-	var p natscore.RotateRefreshTokenKeysRequest
-	if len(task.Payload()) > 0 {
-		payload, err := esitasks.UnmarshalTaskPayload[natscore.RotateRefreshTokenKeysRequest](task)
-		if err == nil {
-			p = payload
-		} else if err := json.Unmarshal(task.Payload(), &p); err != nil {
-			return fmt.Errorf("invalid payload: %w", err)
-		}
-	}
 	p.AccountID = strings.TrimSpace(p.AccountID)
 	p.FromVersion = strings.TrimSpace(p.FromVersion)
 	if p.AccountID == "" {
@@ -55,7 +41,7 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 
 	mongo := deps.Mongo
 	var userDoc models.UserAccountDocument
-	if err := mongo.Users.Collection().FindOne(ctx, bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID}).Decode(&userDoc); err != nil {
+	if err := mongo.Users.Collection().FindOne(ctx, bson.M{"_id": p.AccountID, eipmongo.FieldMetaOwnerID: p.AccountID}).Decode(&userDoc); err != nil {
 		return fmt.Errorf("load user for key rotation %s: %w", p.AccountID, err)
 	}
 

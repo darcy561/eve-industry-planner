@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { Box, Button, TextField, Grid, Stack } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
-import DOMPurify from "dompurify";
 import {
   requirements,
   rigTypeMap,
@@ -58,12 +57,7 @@ function StructureOptionsSelection_CustomStructures({
   );
 
   const handleNameChange = (e) => {
-    currentStructure.setName(
-      DOMPurify.sanitize(e.target.value, {
-        ALLOWED_TAGS: [],
-        ALLOWED_ATTR: [],
-      }),
-    );
+    currentStructure.setName(e.target.value);
     setCurrentStructure(new CustomStructure(currentStructure));
   };
 
@@ -248,7 +242,7 @@ function StructureOptionsSelection_CustomStructures({
         >
           {wrapFirstLogin(
             "Structure rigs",
-            "Rig bonuses are the same for each tech level regardless of type of items they are applied to. The application does differenciate between the different rigs that apply to specific items. For structures that have rigs that only apply to specific item types just select the tech level for this and use an additional custom structure for items that the bonus does not apply to. ",
+            "Rig bonuses are the same for each tech level regardless of type of items they are applied to. The application does differentiate between the different rigs that apply to specific items. For structures that have rigs that only apply to specific item types just select the tech level for this and use an additional custom structure for items that the bonus does not apply to. ",
             <RigTypeSelect
               {...appShellFieldProps}
               value={currentStructure.rigType}

@@ -2,6 +2,7 @@ package home
 
 import (
 	"context"
+	"strings"
 
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -87,15 +88,16 @@ func (m model) onBuilderDone() (tea.Model, tea.Cmd) {
 			return m.openSetupConfigChoice()
 		}
 		m.exitBuilder()
-		return m.afterDocApply(true)
+		return m.afterDocApply(true, false)
 	case docConfigSetup, docConfigEdit:
+		obsBefore := initui.ObservabilityEnabled()
 		if err := initui.PersistConfig(&m.builder); err != nil {
 			return m, m.builder.SetFinishError(err.Error())
 		}
 		m.appendOutBlank("Wrote eip.config.yaml.")
 		withSecrets := m.docKind == docConfigSetup
 		m.exitBuilder()
-		return m.afterDocApply(withSecrets)
+		return m.afterDocApply(withSecrets, initui.ObservabilityEnabled() != obsBefore)
 	default:
 		return m.closeBuilder()
 	}
@@ -147,6 +149,7 @@ func (m model) activateSetupChoice() (tea.Model, tea.Cmd) {
 		m.fromMore = false
 		return m.closeBuilder()
 	case choiceConfigDefaults:
+		obsBefore := initui.ObservabilityEnabled()
 		if err := initui.WriteConfigDefaults(); err != nil {
 			m.appendOut("Config defaults failed: " + err.Error())
 			return m, nil
@@ -154,7 +157,7 @@ func (m model) activateSetupChoice() (tea.Model, tea.Cmd) {
 		m.appendOut("Wrote eip.config.yaml from defaults (backup path preserved).")
 		m.fromMore = false
 		m.exitBuilder()
-		return m.afterDocApply(true)
+		return m.afterDocApply(true, initui.ObservabilityEnabled() != obsBefore)
 	case choiceConfigAdvanced:
 		m.restoreOpsList()
 		m.openConfigBuilder("SETTINGS", docConfigSetup)
@@ -164,8 +167,8 @@ func (m model) activateSetupChoice() (tea.Model, tea.Cmd) {
 }
 
 // afterDocApply reminds Start/Dev on greenfield, or queues apply CLIs when the stack is up.
-func (m model) afterDocApply(withSecrets bool) (tea.Model, tea.Cmd) {
-	jobs, note, start := m.planDocApply(withSecrets)
+func (m model) afterDocApply(withSecrets, obsChanged bool) (tea.Model, tea.Cmd) {
+	jobs, note, start := m.planDocApply(withSecrets, obsChanged)
 	if note != "" {
 		m.appendOut(note)
 	}
@@ -177,8 +180,10 @@ func (m model) afterDocApply(withSecrets bool) (tea.Model, tea.Cmd) {
 	return m.startNextPendingCLI()
 }
 
-// planDocApply decides post-Persist messaging and optional secrets/sync jobs.
-func (m model) planDocApply(withSecrets bool) (jobs []cliJob, note string, start bool) {
+// planDocApply decides post-Persist messaging and optional secrets/sync/repair jobs.
+// Toggling the observability addon adds or removes services, which sync cannot do —
+// only a stack deploy can, so repair follows to redeploy at the running source.
+func (m model) planDocApply(withSecrets, obsChanged bool) (jobs []cliJob, note string, start bool) {
 	stackOff := m.snap.Health == statusbar.LightOff || m.snap.Health == statusbar.LightRed
 	if stackOff {
 		return nil, "Next: Start or Dev to bring up the stack.", false
@@ -188,10 +193,20 @@ func (m model) planDocApply(withSecrets bool) (jobs []cliJob, note string, start
 	}
 	if withSecrets {
 		jobs = append(jobs, cliJob{Label: "secrets", Args: []string{"secrets"}})
-		note = "Applying to stack: secrets, then sync…"
-	} else {
-		note = "Applying to stack: sync…"
 	}
 	jobs = append(jobs, cliJob{Label: "sync", Args: []string{"sync"}})
+	if obsChanged {
+		// Repair is menu-gated to unhealthy stacks; a healthy stack missing the
+		// addon it was just told to run is exactly the case the gate excludes.
+		jobs = append(jobs, cliJob{Label: "repair", Args: []string{"repair"}, Forced: true})
+	}
+	labels := make([]string, 0, len(jobs))
+	for _, j := range jobs {
+		labels = append(labels, j.Label)
+	}
+	note = "Applying to stack: " + strings.Join(labels, ", ") + "…"
+	if obsChanged {
+		note += " (observability changed — repair deploys the addon)"
+	}
 	return jobs, note, true
 }

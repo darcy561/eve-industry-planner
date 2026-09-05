@@ -7,6 +7,6 @@
 //     errors (duplicate key, not found) to HTTP/task outcomes with errors.Is /
 //     mongo.IsDuplicateKeyError.
 //
-// Expand by adding a focused file per product unit (e.g. another catalog+payload pair),
+// Expand by adding a focused file per product unit (e.g. another catalogue+payload pair),
 // reusing [RunOrdered] / [RunUnordered] rather than calling Bulk from handlers/workers.
 package writers

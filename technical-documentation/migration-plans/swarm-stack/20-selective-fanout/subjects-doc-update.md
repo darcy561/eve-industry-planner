@@ -2,7 +2,7 @@
 
 **Roadmap:** #20 — Selective fan-out  
 **Landed:** [`services/core/changestream/watcher.go`](../../../../services/core/changestream/watcher.go) → `doc.update.{tenantString}.{collection}.{docID}`  
-**Tenant keys:** [`services/shared/wsplacement/tenant.go`](../../../../services/shared/wsplacement/tenant.go) (`TenantStringFromRouting`)
+**Tenant keys:** [`services/shared/models/owner.go`](../../../../services/shared/models/owner.go) (`Owner.Key()`, `ParseOwnerKey`)
 
 ## Where / how (before → landed)
 

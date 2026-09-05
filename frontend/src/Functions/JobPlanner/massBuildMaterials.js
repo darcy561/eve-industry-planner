@@ -1,6 +1,6 @@
 import Job from "../../Classes/job";
 import useUsersStore from "../../Zustand/usersStore";
-import seperateGroupAndJobIDs from "../Helper/seperateGroupAndJobIDs";
+import separateGroupAndJobIDs from "../Helper/separateGroupAndJobIDs";
 import checkJobTypeIsBuildable from "../Helper/checkJobTypeIsBuildable";
 import { getAvailableBlueprintsByMaterialID } from "../Helper/getAvailableBlueprints";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
@@ -15,9 +15,7 @@ import { showSnackbarError, showSnackbarSuccess } from "../../Events/snackbarEve
 /**
  * Mass-builds one material level for selected jobs (planner scoped).
  *
- * This function only considers explicitly provided jobs (no group expansion).
- * It aggregates buildable missing child-material quantities by typeID, builds jobs in batch,
- * links each built child only to requesting parent jobs, then persists and commits updates.
+ * Only the jobs passed in are considered — a group is not expanded to its members.
  *
  * @param {string|Array<string>|Set<string>} inputJobIDs
  * @param {{
@@ -40,7 +38,7 @@ export default async function massBuildMaterials(inputJobIDs, options) {
   const { jobsFromIdsOrObjects, updateOrAddJobsToJobArray, findJobInJobArray } =
     useUsersStore.getState().jobData.actions;
 
-  const { jobIDs } = seperateGroupAndJobIDs(inputJobIDs);
+  const { jobIDs } = separateGroupAndJobIDs(inputJobIDs);
   const selectedJobs = await jobsFromIdsOrObjects(jobIDs);
 
   const availableBlueprints = ignoreItemsWithoutBlueprints

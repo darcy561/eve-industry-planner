@@ -24,16 +24,16 @@ The Price History dialogue provides:
 - Compare prices across regions
 - Switch between regions
 - View regional price differences
-- Analyze market variations
+- Analyse market variations
 
 ### Time Periods
 
 - View different time ranges
-- Analyze short and long-term trends
+- Analyse short and long-term trends
 - Identify price patterns
 - Plan based on historical data
 
-### Data Visualization
+### Data Visualisation
 
 - Clear chart presentation
 - Easy-to-read graphs

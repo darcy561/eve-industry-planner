@@ -1,13 +1,13 @@
 # Edit Job - Planning Stage
 
-The Planning stage is the first step in the job lifecycle. This is where you configure all aspects of your industry job before beginning material acquisition and production. During planning, you select blueprints, configure manufacturing setups, review material requirements, analyze costs, and ensure you have the necessary skills to execute the job.
+The Planning stage is the first step in the job lifecycle. This is where you configure all aspects of your industry job before beginning material acquisition and production. During planning, you select blueprints, configure manufacturing setups, review material requirements, analyse costs, and ensure you have the necessary skills to execute the job.
 
 ## Stage Purpose
 
 The Planning stage serves to:
 - **Configure production parameters** including blueprint selection, efficiency values, and job setups
 - **Plan material requirements** by reviewing what materials are needed and in what quantities
-- **Analyze costs and profitability** by comparing market prices with estimated production costs
+- **Analyse costs and profitability** by comparing market prices with estimated production costs
 - **Validate job feasibility** by checking skill requirements and reviewing historical data
 - **Prepare for production** by setting up all configurations needed before purchasing materials
 
@@ -34,7 +34,7 @@ Configure multiple manufacturing setups for the job, including structure selecti
 Browse and select from available blueprints in your inventory, with one-click application of efficiency values to your job setup.
 
 ### [Material Prices](planning/material%20prices)
-View estimated market costs for all required materials, compare purchase prices with build costs, and analyze total job profitability.
+View estimated market costs for all required materials, compare purchase prices with build costs, and analyse total job profitability.
 
 ### [Production Stats](planning/production%20stats)
 Review production quantities at different levels, validate parent job requirements, and check time estimates for job completion.

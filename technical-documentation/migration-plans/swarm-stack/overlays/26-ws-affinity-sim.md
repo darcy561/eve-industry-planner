@@ -2,7 +2,7 @@
 
 **Roadmap:** [../roadmap.md](../roadmap.md) `#26`  
 **Status (mirror):** **done** — hold + limits + co-location fail-on-split  
-**Live SoT:** [testing/services/websocket.md](../../../testing/services/websocket.md) § Ops soak. Code: `services/testing/ws_soak` (`main.go` + `lib`/`soaklib`).
+**Live SoT:** [testing/services/websocket.md](../../../testing/services/websocket.md) § Ops soak. Code: `testing/ws_soak` (`main.go` + `lib`/`soaklib`).
 
 ## What changed
 

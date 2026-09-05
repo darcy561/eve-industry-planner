@@ -6,18 +6,22 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/wait"
+
+	"github.com/go-co-op/gocron/v2"
 )
 
-// #28: gocron Shutdown cancels in-flight job contexts (lose-primary path).
+// gocron Shutdown cancels in-flight job contexts (lose-primary path).
 func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
-	s, err := NewTaskScheduler(nil, nil, nil)
+	s, err := NewTaskScheduler(nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var running atomic.Bool
 	cancelled := make(chan struct{})
-	s.RegisterHandler("refreshRegionMarketOrders", func(ctx context.Context, _ json.RawMessage) error {
+	s.registerHandler("refreshRegionMarketOrders", func(ctx context.Context, _ json.RawMessage) error {
 		running.Store(true)
 		select {
 		case <-ctx.Done():
@@ -32,17 +36,19 @@ func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ScheduleOneTimeJob("cancel-test", "refreshRegionMarketOrders", time.Now().Add(150*time.Millisecond), nil); err != nil {
+	// Drive the handler from a one-shot gocron job: the property under test is
+	// that Shutdown cancels whatever is in flight, whoever started it.
+	handler := s.handlers["refreshRegionMarketOrders"]
+	if _, err := s.scheduler.NewJob(
+		gocron.DurationJob(150*time.Millisecond),
+		gocron.NewTask(func(jobCtx context.Context) { _ = handler(jobCtx, nil) }),
+	); err != nil {
 		t.Fatal(err)
 	}
 
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) && !running.Load() {
-		time.Sleep(20 * time.Millisecond)
-	}
-	if !running.Load() {
-		t.Fatal("job never started")
-	}
+	wait.For(t, 3*time.Second, func() (bool, string) {
+		return running.Load(), "scheduled job never started"
+	})
 
 	done := make(chan struct{})
 	go func() {

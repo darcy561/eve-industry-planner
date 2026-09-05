@@ -34,4 +34,4 @@ GET returns character hashes only.
 
 - **Session:** [`frontend/src/Functions/Auth/sessionClient.js`](frontend/src/Functions/Auth/sessionClient.js) (re-exported as `serverTokens.js`; URLs live at the top of that file).
 - **ESI access HTTP:** [`frontend/src/Functions/Endpoints/esiAccessClient.js`](frontend/src/Functions/Endpoints/esiAccessClient.js).
-- **OAuth credentials (private):** [`frontend/src/Functions/Endpoints/Pirivate/accountCredentialsClient.js`](frontend/src/Functions/Endpoints/Pirivate/accountCredentialsClient.js) and [`cloudStoredEsiRefreshTokens.js`](frontend/src/Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js).
+- **OAuth credentials (private):** [`frontend/src/Functions/Endpoints/Private/accountCredentialsClient.js`](frontend/src/Functions/Endpoints/Private/accountCredentialsClient.js) and [`cloudStoredEsiRefreshTokens.js`](frontend/src/Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js).

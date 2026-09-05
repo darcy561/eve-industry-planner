@@ -70,6 +70,9 @@ type serviceListMsg struct {
 type cliJob struct {
 	Label string
 	Args  []string
+	// Forced skips the menu gate: a planned follow-up runs on the state the plan
+	// was made for, not the one the gate expects an operator to pick it from.
+	Forced bool
 }
 
 type model struct {
@@ -509,6 +512,9 @@ func (m model) startNextPendingCLI() (tea.Model, tea.Cmd) {
 	}
 	job := m.pendingCLI[0]
 	m.pendingCLI = m.pendingCLI[1:]
+	if job.Forced {
+		return m.startCLIForced(job.Label, job.Args)
+	}
 	return m.startCLI(job.Label, job.Args)
 }
 

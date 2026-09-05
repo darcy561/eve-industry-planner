@@ -3,16 +3,18 @@ import Job from "../../Classes/job";
 import {
   putJobDocumentsBatch,
   deleteJobDocumentsFromApi,
-} from "../Endpoints/Pirivate/jobDocuments.js";
-import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships.js";
-import { showSnackbarError, showSnackbarSuccess } from "../../Events/snackbarEvents";
+} from "../Endpoints/Private/jobDocuments.js";
+import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
+import {
+  showSnackbarError,
+  showSnackbarSuccess,
+} from "../../Events/snackbarEvents";
+import { asIDList } from "../Helper/ids";
 
 /**
  * Merges duplicate jobs (same itemID) into replacement jobs.
  *
  * Notes:
- * - Only selected jobs are candidates for merge.
- * - Relationship normalization is scoped to touched jobs only, so links to jobs
  *   outside the touched set are preserved as-is.
  *
  * @param {string[]|Set<string>|string} inputJobIDs
@@ -35,18 +37,16 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   const { isLoggedIn } = useUsersStore.getState().account;
   const { addLinkedEsiData } = useUsersStore.getState().account.actions;
 
-  const normalizedInput = Array.isArray(inputJobIDs)
-    ? inputJobIDs
-    : inputJobIDs instanceof Set
-      ? [...inputJobIDs]
-      : [inputJobIDs];
+  const normalizedInput = asIDList(inputJobIDs);
   const selectedIDs = [...new Set(normalizedInput.filter(Boolean))];
 
   const selectedJobs = selectedIDs
     .map((id) => findJobInJobArray(id))
     .filter(Boolean);
   const touchedGroupIDs = new Set(
-    selectedJobs.map((j) => j.groupID).filter((id) => Boolean(id && String(id).trim()))
+    selectedJobs
+      .map((j) => j.groupID)
+      .filter((id) => Boolean(id && String(id).trim())),
   );
 
   const jobsByTypeID = new Map();
@@ -57,7 +57,9 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     jobsByTypeID.get(job.itemID).push(job);
   }
 
-  const mergeGroups = [...jobsByTypeID.values()].filter((jobs) => jobs.length > 1);
+  const mergeGroups = [...jobsByTypeID.values()].filter(
+    (jobs) => jobs.length > 1,
+  );
   if (mergeGroups.length === 0) {
     showSnackbarSuccess("0 Jobs Merged", 3);
     return { mergedCount: 0, mergedGroups: 0, removedJobIDs: [] };
@@ -75,7 +77,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     let totalItemQuantity = 0;
 
     for (const job of group) {
-      totalItemQuantity += job.build?.products?.totalQuantity ?? 0;
+      totalItemQuantity += job.totalQuantityProduced;
 
       for (const parentID of job.parentJobs ?? []) {
         parentJobs.add(parentID);
@@ -125,7 +127,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   }
 
   const oldJobIDsToRemove = new Set(
-    mergeRecords.flatMap((record) => [...record.oldJobIDs])
+    mergeRecords.flatMap((record) => [...record.oldJobIDs]),
   );
 
   const oldToNew = new Map();
@@ -160,13 +162,15 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
       ...new Set(
         (replacementJob.parentJobs ?? [])
           .map(resolveCurrentJobID)
-          .filter((id) => id !== replacementJob.jobID)
+          .filter((id) => id !== replacementJob.jobID),
       ),
     ];
 
     for (const material of replacementJob.build?.materials ?? []) {
       const typeID = material.typeID;
-      const translatedChildren = (replacementJob.build?.childJobs?.[typeID] ?? [])
+      const translatedChildren = (
+        replacementJob.build?.childJobs?.[typeID] ?? []
+      )
         .map(resolveCurrentJobID)
         .filter((id) => id !== replacementJob.jobID);
       replacementJob.build.childJobs[typeID] = [...new Set(translatedChildren)];
@@ -191,10 +195,10 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     }
   }
 
-  normalizeParentChildRelationships([...touchedJobs]);
+  normaliseParentChildRelationships([...touchedJobs]);
 
   const jobsToPersist = [...touchedJobs].filter(
-    (job) => !oldJobIDsToRemove.has(job.jobID)
+    (job) => !oldJobIDsToRemove.has(job.jobID),
   );
 
   const linkedJobIdsToRemove = new Set();
@@ -204,9 +208,9 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   for (const oldJobID of oldJobIDsToRemove) {
     const oldJob = findJobInJobArray(oldJobID);
     if (!oldJob) continue;
-    for (const id of oldJob.apiJobs ?? []) linkedJobIdsToRemove.add(id);
-    for (const id of oldJob.apiOrders ?? []) linkedOrderIdsToRemove.add(id);
-    for (const id of oldJob.apiTransactions ?? []) linkedTransIdsToRemove.add(id);
+    for (const id of oldJob.esiJobIDs) linkedJobIdsToRemove.add(id);
+    for (const id of oldJob.esiOrderIDs) linkedOrderIdsToRemove.add(id);
+    for (const id of oldJob.esiTransactionIDs) linkedTransIdsToRemove.add(id);
   }
 
   if (isLoggedIn) {

@@ -24,7 +24,7 @@ import { useNavigate } from "@tanstack/react-router";
 import getTooltipContent from "./jobCardTooltips";
 import useUsersStore from "../../../../Zustand/usersStore";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
-import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
+import { getJobTypeAccentColour } from "../../../../Functions/Helper/jobTypeDividerColour";
 import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 
 export function CompactGroupJobCardFrame({
@@ -79,7 +79,7 @@ export function CompactGroupJobCardFrame({
     switch (jobType) {
       case jobTypes.manufacturing:
       case jobTypes.reaction: {
-        const accent = getJobTypeAccentColor(theme, jobType);
+        const accent = getJobTypeAccentColour(theme, jobType);
         return theme.palette.mode === PRIMARY_THEME
           ? `linear-gradient(to right, ${accent} 30%, ${grey[900]} 60%)`
           : `linear-gradient(to right, ${accent} 30%, white 60%)`;

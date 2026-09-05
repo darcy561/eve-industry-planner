@@ -112,3 +112,36 @@ func TestResolveSentryTracesSampleRate_emptyMeansZero(t *testing.T) {
 		t.Fatalf("want 0: got %v", got)
 	}
 }
+
+func TestResolveOTLPEndpoint(t *testing.T) {
+	for _, tt := range []struct {
+		env  string
+		want string
+	}{
+		{"", ""},
+		{"false", ""},
+		{"nonsense", ""},
+		{"true", DefaultOTLPEndpoint},
+		{" 1 ", DefaultOTLPEndpoint},
+	} {
+		t.Setenv(observabilityEnabledEnv, tt.env)
+		if got := resolveOTLPEndpoint(); got != tt.want {
+			t.Errorf("%s=%q: got %q, want %q", observabilityEnabledEnv, tt.env, got, tt.want)
+		}
+	}
+}
+
+func TestDefaultConfig_observabilityOffKeepsSentry(t *testing.T) {
+	t.Setenv(observabilityEnabledEnv, "false")
+	saved := BakedSentryDSN
+	BakedSentryDSN = "https://key@example.ingest.sentry.io/1"
+	t.Cleanup(func() { BakedSentryDSN = saved })
+
+	cfg := DefaultConfig("api")
+	if cfg.OTLPEndpoint != "" {
+		t.Fatalf("want no OTLP endpoint, got %q", cfg.OTLPEndpoint)
+	}
+	if !cfg.shouldInit() {
+		t.Fatal("want Init to still run for Sentry")
+	}
+}

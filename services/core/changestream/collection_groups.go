@@ -16,15 +16,9 @@ type CollectionGroup struct {
 	Collections []string // Database collection names (match ns.coll on change events)
 }
 
-// Group builds a CollectionGroup. Pass eipmongo.Collection* constants (or raw names).
-//
-// Example — add a new realtime collection:
-//
-//	Group("widgets", eipmongo.CollectionWidgets)
-//
-// Or create a new group when you want that collection isolated on its own goroutine:
-//
-//	Group("reports", "monthly_reports"),
+// Group builds a CollectionGroup from eipmongo.Collection* constants (or raw
+// names). Each group watches on its own goroutine, so a collection put in a
+// group of its own is isolated from the others.
 func Group(id string, collections ...string) CollectionGroup {
 	copies := append([]string(nil), collections...)
 	return CollectionGroup{ID: id, Collections: copies}
@@ -35,21 +29,17 @@ func Group(id string, collections ...string) CollectionGroup {
 func CollectionGroups() []CollectionGroup {
 	return []CollectionGroup{
 		Group("account",
-			eipmongo.CollectionUsers,
-			eipmongo.CollectionApplicationSettings,
-			eipmongo.CollectionUserWatchlistDeprecated,
+			eipmongo.CollectionAccounts,
+			eipmongo.CollectionAccountSettings,
+			eipmongo.CollectionWatchlistDeprecated,
 		),
 		Group("planner",
 			eipmongo.CollectionJobs,
-			eipmongo.CollectionUserJobDocuments,
-			eipmongo.CollectionUserJobGroups,
-		),
-		Group("archive_and_stats",
-			eipmongo.CollectionArchivedJobs,
-			eipmongo.CollectionBuildStats,
+			eipmongo.CollectionJobDocuments,
+			eipmongo.CollectionJobGroups,
 		),
 		Group("blueprints",
-			eipmongo.CollectionBlueprints,
+			eipmongo.CollectionSharedBlueprints,
 		),
 	}
 }

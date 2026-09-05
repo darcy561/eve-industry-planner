@@ -5,7 +5,7 @@
 
 ## Where / how (today)
 
-`services/capacity-controller/`: `config/`, `policy/`, `cluster/` (**`Swarm`** Observe/Scale/Cordon/Drain/Uncordon), `executor/`, `ctl/`, `main` under **`lease:capacity:primary`**. Under the lease, **three parallel per-service loops** (worker / websocket / api). Recording Fake lives under `services/testing/capacity_controller/clusterfake` (tests only). Managed worker: Scale via proxy. Evaluate WS scale-in emits cordon → drain → scale; Swarm Apply uses NATS `ws.command.*` when managed. Operator ctl verbs + `eip capacity` Moby-exec.
+`services/capacity-controller/`: `config/`, `policy/`, `cluster/` (**`Swarm`** Observe/Scale/Cordon/Drain/Uncordon), `executor/`, `ctl/`, `main` under **`lease:capacity:primary`**. Under the lease, **three parallel per-service loops** (worker / websocket / api). Recording Fake lives under `services/capacity-controller/cluster/clusterfake` (tests only). Managed worker: Scale via proxy. Evaluate WS scale-in emits cordon → drain → scale; Swarm Apply uses NATS `ws.command.*` when managed. Operator ctl verbs + `eip capacity` Moby-exec.
 
 ## Correctness need
 
@@ -35,7 +35,7 @@ services/capacity-controller/
   ctl/              // status|plan|cordon|uncordon|drain|evacuate
   policy/           // EvaluateService / Evaluate (pure; no Moby imports)
   cluster/          // Cluster + Swarm (Moby Scale; NATS Cordon/Drain/Uncordon)
-  // Fake → services/testing/capacity_controller/clusterfake (not product)
+  // Fake → services/capacity-controller/cluster/clusterfake (not product)
   executor/         // Scale / Cordon / Drain helpers (managed gate)
   config/           // YAML load/validate (mirror of eip.config capacity fields)
 ```

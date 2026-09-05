@@ -1,19 +1,19 @@
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
-import saveArchivedJobs from "../Endpoints/Pirivate/archivedJobs.js";
+import saveArchivedJobs from "../Endpoints/Private/archivedJobs.js";
 import {
   showSnackbarError,
   showSnackbarSuccess,
 } from "../../Events/snackbarEvents.js";
-import { saveUserAccountDocument } from "../Endpoints/Pirivate/userDocument.js";
-import { deleteJobGroupsFromApi } from "../Endpoints/Pirivate/groups.js";
-import { deleteJobDocumentsFromApi } from "../Endpoints/Pirivate/jobDocuments.js";
+import { saveUserAccountDocument } from "../Endpoints/Private/userDocument.js";
+import { deleteJobGroupsFromApi } from "../Endpoints/Private/groups.js";
+import { deleteJobDocumentsFromApi } from "../Endpoints/Private/jobDocuments.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
  * Archives selected jobs from the active group. Reads job/account state from Zustand.
  *
  * @param {Array} selectedJobs
- * @returns {Promise<boolean>} `true` when jobs were archived on the server (caller may invalidate build-stats queries); `false` otherwise.
+ * @returns {Promise<boolean>} `true` when jobs were archived on the server (caller may invalidate statistics queries); `false` otherwise.
  */
 export async function archiveGroupJobs(selectedJobs) {
   const { jobData, account } = useUsersStore.getState();
@@ -44,7 +44,7 @@ export async function archiveGroupJobs(selectedJobs) {
   );
 
   for (let selectedJob of filteredJobs) {
-    for (const o of selectedJob.apiOrders || []) {
+    for (const o of selectedJob.esiOrderIDs || []) {
       newLinkedOrders.add(o);
     }
     for (const t of selectedJob.linkedTrans || []) {
@@ -55,7 +55,9 @@ export async function archiveGroupJobs(selectedJobs) {
     }
   }
 
-  const removeIds = new Set(selectedJobs.map((j) => j.jobID));
+  // Only the jobs that were archived leave the planner. A job kept back stays
+  // visible, still naming the group it came from.
+  const removeIds = new Set(filteredJobs.map((j) => j.jobID));
   const linkedEsiPatch = {
     ordersToAdd: new Set(),
     jobsToAdd: new Set(),

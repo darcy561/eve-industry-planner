@@ -5,13 +5,13 @@ function getTooltipContent(job) {
     case 0:
       return (
         <span>
-          <p>Job Setups: {job.setupCount()}</p>
+          <p>Job Setups: {job.setupCount}</p>
         </span>
       );
     case 1:
       const totalMaterials = job.build.materials.length;
-      const totalComplete = job.totalCompletedMaterials();
-      if (!job.isReadyToBuild()) {
+      const totalComplete = job.completedMaterialCount;
+      if (!job.isReadyToBuild) {
         return (
           <span>
             <p>
@@ -27,7 +27,7 @@ function getTooltipContent(job) {
         <span>
           <p>
             ESI Jobs Linked:{" "}
-            {formatNumberForLocale(job.apiJobs.size, { max: 0 })}
+            {formatNumberForLocale(job.esiJobIDs.size, { max: 0 })}
           </p>
 
         </span>
@@ -36,7 +36,7 @@ function getTooltipContent(job) {
       return (
         <span>
           <p>
-            Items Built: {formatNumberForLocale(job.build.products.totalQuantity, { max: 0 })}
+            Items Built: {formatNumberForLocale(job.totalQuantityProduced, { max: 0 })}
           </p>
         </span>
       );
@@ -45,11 +45,11 @@ function getTooltipContent(job) {
         <span>
           <p>
             Market Orders:{" "}
-            {formatNumberForLocale(job.apiOrders.size, { max: 0 })}
+            {formatNumberForLocale(job.esiOrderIDs.size, { max: 0 })}
           </p>
           <p>
             Transactions:{" "}
-            {formatNumberForLocale(job.apiTransactions.size, { max: 0 })}{" "}
+            {formatNumberForLocale(job.esiTransactionIDs.size, { max: 0 })}{" "}
           </p>
         </span>
       );

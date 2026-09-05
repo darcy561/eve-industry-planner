@@ -3,7 +3,7 @@ import {
   saveApplicationSettings,
   saveUserAccountAndApplicationSettings,
   saveUserAccountDocument,
-} from "../Endpoints/Pirivate/userDocument.js";
+} from "../Endpoints/Private/userDocument.js";
 import { attachFlushOnHiddenAndUnload } from "./helpers/attachFlushOnHiddenAndUnload.js";
 import { createPersistDebounce } from "./helpers/createPersistDebounce.js";
 

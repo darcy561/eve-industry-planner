@@ -6,14 +6,15 @@ import (
 	"time"
 
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 	jobID := "job-new-member"
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-other",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
@@ -23,7 +24,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *
 		Redis: rdb,
 	}, testAccountID, "group-x", []string{jobID}, "sess-group-holder")
 
-	rec, err := GetLock(ctx, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID)
+	rec, err := GetLock(ctx, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
@@ -34,10 +35,10 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *
 
 func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_keepsAlignedHolder(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 	jobID := "job-aligned"
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-group-holder",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
@@ -47,7 +48,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_keepsAlignedHolder(
 		Redis: rdb,
 	}, testAccountID, "group-x", []string{jobID}, "sess-group-holder")
 
-	rec, err := GetLock(ctx, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID)
+	rec, err := GetLock(ctx, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}

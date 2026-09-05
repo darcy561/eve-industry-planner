@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
 import getWorldData from "../../../Functions/EveESI/World/getWorldData";
+import findIndustryJobsForItem from "../../../Functions/IndustryJobs/findIndustryJobsForItem";
 
 export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
   allIndustryJobs,
@@ -24,24 +25,9 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
         setIsWorldDataLoading(true);
         setError(null);
 
-        const uniqueJobIds = new Set();
-        const removeSet = new Set(esiDataToLink.industryJobs.remove);
-
-        const matches = allIndustryJobs.filter((job) => {
-          if (uniqueJobIds.has(job.job_id)) return false;
-          uniqueJobIds.add(job.job_id);
-
-          const isCorrectType = job.product_type_id === activeJob.itemID;
-          const isNotInActiveApiJobs = !activeJob.apiJobs.has(job.job_id);
-          const isLinkedButBeingRemoved =
-            linkedJobs.has(job.job_id) && removeSet.has(job.job_id);
-          const isNotLinked = !linkedJobs.has(job.job_id);
-
-          return (
-            isCorrectType &&
-            isNotInActiveApiJobs &&
-            (isNotLinked || isLinkedButBeingRemoved)
-          );
+        const matches = findIndustryJobsForItem(allIndustryJobs, activeJob, {
+          linkedAcrossAccount: linkedJobs,
+          beingRemoved: esiDataToLink.industryJobs.remove,
         });
 
         activeJob.updateLinkedJobData(allIndustryJobs);

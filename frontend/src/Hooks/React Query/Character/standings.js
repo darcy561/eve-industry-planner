@@ -7,21 +7,16 @@ const characterStandingsQueryKey = "characterStandings";
 
 /**
  * React Query configuration for fetching character standings from EVE ESI API.
- * 
+ *
  * This query handles character standings data fetching with:
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimized for standings data
- * - Error handling with descriptive messages
- * - Single-page data fetching (standings are not paginated)
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for character group
  * 2. Fetches all character standings in a single request
  * 3. Returns standings data with faction and corporation relationships
  * 4. Handles rate limiting errors with appropriate wait times
  * 5. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -33,13 +28,6 @@ const characterStandingsQueryKey = "characterStandings";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: standings, isLoading, error } = useQuery(characterStandingsQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading standings...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Standings: {standings.length} relationships</div>;
  */
 function characterStandingsQuery(characterHash) {
   const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;

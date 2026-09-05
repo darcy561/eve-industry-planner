@@ -9,10 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// Parity expectations: ../../../../migration/JOB_MODEL_PARITY_AUDIT.md (Phase 0).
-
-func TestJob_JSON_FirestoreToDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
-	const firestoreLike = `{
+func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
+	const legacyDocument = `{
 		"buildVer": "9.9.9",
 		"metaLevel": 2,
 		"jobType": 1,
@@ -22,29 +20,19 @@ func TestJob_JSON_FirestoreToDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 		"volume": 1.5,
 		"itemID": 34,
 		"maxProductionLimit": 100,
-		"apiJobs": [],
-		"apiOrders": [],
-		"apiTransactions": [],
 		"parentJobs": [],
 		"blueprintTypeID": null,
 		"groupID": null,
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 10},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [],
-				"extrasTotal": 0,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -63,7 +51,6 @@ func TestJob_JSON_FirestoreToDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 		},
 		"_meta": {
 			"lastModified": "1970-01-01T00:00:01Z",
-			"accountID": "",
 			"createdAt": "1970-01-01T00:00:01Z",
 			"lastUpdatedBy": "",
 			"archiveProcessed": false,
@@ -73,7 +60,7 @@ func TestJob_JSON_FirestoreToDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 	}`
 
 	var job Job
-	if err := json.Unmarshal([]byte(firestoreLike), &job); err != nil {
+	if err := json.Unmarshal([]byte(legacyDocument), &job); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if job.MetaLevel == nil || *job.MetaLevel != 2 {
@@ -102,17 +89,12 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 		"volume": 0,
 		"itemID": 1,
 		"maxProductionLimit": 1,
-		"apiJobs": [],
-		"apiOrders": [],
-		"apiTransactions": [],
 		"parentJobs": [],
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 1},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [
 					{
 						"id": "uuid",
@@ -123,13 +105,9 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 				],
 				"extrasTotal": 123.45,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -167,7 +145,7 @@ func TestJob_JSON_MongoLike_ShapeRoundTripMeta(t *testing.T) {
 		MetaData: JobMetaData{
 			MetaData: MetaData{
 				LastModified: time.Unix(1000, 0).UTC(),
-				AccountID:    "acc-1",
+				Owner:        AccountOwner("acc-1"),
 			},
 			CreatedAt:        time.Unix(500, 0).UTC(),
 			LastUpdatedBy:    "acc-1",
@@ -182,7 +160,21 @@ func TestJob_JSON_MongoLike_ShapeRoundTripMeta(t *testing.T) {
 	if err := json.Unmarshal(b, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.MetaData.AccountID != orig.MetaData.AccountID {
+	// The owner deliberately does not travel: for the two org kinds its id is a
+	// ref, so nothing that reaches a client should be able to carry one. Everything
+	// else on _meta round-trips.
+	if !decoded.MetaData.Owner.IsZero() {
+		t.Fatalf("the owner reached the wire: %+v", decoded.MetaData.Owner)
+	}
+	if !bytes.Contains(b, []byte(`"lastModified"`)) {
+		t.Fatal("lastModified should still be on the wire")
+	}
+	for _, leaked := range []string{`"owner"`, `"accountID"`, `"corporationRef"`, `"allianceRef"`} {
+		if bytes.Contains(b, []byte(leaked)) {
+			t.Fatalf("%s must not appear in a job's JSON", leaked)
+		}
+	}
+	if decoded.MetaData.LastUpdatedBy != orig.MetaData.LastUpdatedBy {
 		t.Fatalf("round-trip meta mismatch: %+v", decoded.MetaData)
 	}
 }
@@ -255,30 +247,20 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 		"volume": 1,
 		"itemID": 34,
 		"maxProductionLimit": 1,
-		"apiJobs": [],
-		"apiOrders": [],
-		"apiTransactions": [],
 		"parentJobs": [],
 		"displayOnPlanner": true,
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 1},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [
 					{"id": "row-1", "category": "2", "extraText": "Label", "extraValue": 99.5}
 				],
-				"extrasTotal": 0,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -297,7 +279,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 		},
 		"_meta": {
 			"lastModified": "1970-01-01T00:00:00Z",
-			"accountID": "",
 			"createdAt": "1970-01-01T00:00:00Z",
 			"lastUpdatedBy": ""
 		}
@@ -330,28 +311,18 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 		"volume": 1,
 		"itemID": 57478,
 		"maxProductionLimit": 1,
-		"apiJobs": [],
-		"apiOrders": [],
-		"apiTransactions": [],
 		"parentJobs": [],
 		"displayOnPlanner": true,
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 1},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [],
-				"extrasTotal": 0,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -360,7 +331,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 				{
 					"typeID": 57478,
 					"name": "x",
-					"quantity": 360,
 					"jobType": 1,
 					"volume": 16,
 					"purchasing": [
@@ -371,10 +341,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 							"itemCount": 360,
 							"childJobImport": false
 						}
-					],
-					"quantityPurchased": 360,
-					"purchasedCost": 17200800,
-					"purchaseComplete": true
+					]
 				}
 			]
 		},
@@ -384,7 +351,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 		"layout": {},
 		"_meta": {
 			"lastModified": "1970-01-01T00:00:00Z",
-			"accountID": "",
 			"createdAt": "1970-01-01T00:00:00Z",
 			"lastUpdatedBy": ""
 		}
@@ -420,9 +386,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 		"volume": 17550000,
 		"itemID": 34328,
 		"maxProductionLimit": 1,
-		"apiJobs": [],
-		"apiOrders": [],
-		"apiTransactions": [],
 		"parentJobs": [],
 		"blueprintTypeID": 34329,
 		"isReadyToSell": false,
@@ -455,10 +418,8 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 					"useAlternativeSystemIndexValue": false
 				}
 			},
-			"products": {"totalQuantity": 1},
 			"childJobs": {"57478": []},
 			"costs": {
-				"totalPurchaseCost": 676669000,
 				"extrasCosts": [
 					{
 						"id": "ee3c139f-7cce-8613-6f92-4bd7bebbfe92",
@@ -467,7 +428,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 						"extraValue": 33
 					}
 				],
-				"extrasTotal": 33,
 				"linkedJobs": [
 					{
 						"status": "active",
@@ -488,13 +448,9 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 						"corporation_id": 98699553
 					}
 				],
-				"installCosts": 93039957,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [],
 				"transactions": [],
 				"brokersFee": []
@@ -512,13 +468,9 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 						}
 					],
 					"volume": 16,
-					"purchasedCost": 17200800,
 					"jobType": 1,
 					"typeID": 57478,
-					"name": "Auto-Integrity Preservation Seal",
-					"quantityPurchased": 360,
-					"quantity": 360,
-					"purchaseComplete": true
+					"name": "Auto-Integrity Preservation Seal"
 				}
 			]
 		},
@@ -539,7 +491,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 		"_meta": {
 			"lastModified": "2026-04-05T08:26:44.017Z",
 			"createdAt": "2026-04-05T08:26:44.017Z",
-			"accountID": "8XGnAtq8QEEQ76LfinJaI8MA6T4",
 			"lastUpdatedBy": "8XGnAtq8QEEQ76LfinJaI8MA6T4"
 		}
 	}`
@@ -576,9 +527,6 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 		"volume": 0.1,
 		"itemID": 57457,
 		"maxProductionLimit": 1000,
-		"apiJobs": [],
-		"apiOrders": [],
-		"apiTransactions": [],
 		"parentJobs": [],
 		"groupID": "",
 		"includedInGroup": false,
@@ -586,20 +534,13 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 		"isReadyToSell": false,
 		"build": {
 			"setup": {},
-			"products": {"totalQuantity": 200},
 			"childJobs": {},
 			"costs": {
-				"totalPurchaseCost": 0,
 				"extrasCosts": [],
-				"extrasTotal": 0,
 				"linkedJobs": [],
-				"installCosts": 0,
-				"inventionCosts": 0,
 				"inventionEntries": []
 			},
 			"sale": {
-				"totalSold": 0,
-				"totalSale": 0,
 				"marketOrders": [
 					{
 						"duration": 90,
@@ -615,7 +556,6 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 						"volume_total": 200000,
 						"timeStamps": ["2026-04-03T15:27:19Z"],
 						"CharacterHash": "x",
-						"complete": true,
 						"state": "expired"
 					}
 				],
@@ -630,7 +570,6 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 		"layout": {},
 		"_meta": {
 			"lastModified": "1970-01-01T00:00:00Z",
-			"accountID": "",
 			"createdAt": "1970-01-01T00:00:00Z",
 			"lastUpdatedBy": ""
 		}

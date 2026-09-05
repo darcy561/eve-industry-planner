@@ -6,14 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/config"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/process"
 )
 
 func init() {
-	if v, ok := catalog.ByID("sync"); ok {
+	if v, ok := catalogue.ByID("sync"); ok {
 		syncCmd.Short = v.Short
 	}
 	syncCmd.Flags().BoolP("dry-run", "n", false, "print planned updates without applying")

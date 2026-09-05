@@ -3,11 +3,11 @@ package wsplacement
 import (
 	"strings"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
-// StatusPath is the websocket HTTP path that returns natscore.PlacementState JSON.
-// NATS subject SoT: natscore.SubjectWSPlacementState; payload SoT: natscore.PlacementState.
+// StatusPath is the websocket HTTP path that returns eipnats.PlacementState JSON.
+// NATS subject SoT: eipnats.SubjectWSPlacementState; payload SoT: eipnats.PlacementState.
 const StatusPath = "/placement"
 
 // FlagsFromCounts derives soft/full: threshold 0 disables that flag; else clients >= threshold.
@@ -16,10 +16,10 @@ func FlagsFromCounts(clients, targetClients, clientCutoff int) (soft, full bool)
 		clientCutoff > 0 && clients >= clientCutoff
 }
 
-// NewPlacementState builds natscore.PlacementState from live count and config thresholds.
-func NewPlacementState(containerID string, clients, targetClients, clientCutoff int, draining bool) natscore.PlacementState {
+// NewPlacementState builds eipnats.PlacementState from live count and config thresholds.
+func NewPlacementState(containerID string, clients, targetClients, clientCutoff int, draining bool) eipnats.PlacementState {
 	soft, full := FlagsFromCounts(clients, targetClients, clientCutoff)
-	return natscore.PlacementState{
+	return eipnats.PlacementState{
 		ContainerID: strings.TrimSpace(containerID),
 		Clients:     max(clients, 0),
 		Soft:        soft,

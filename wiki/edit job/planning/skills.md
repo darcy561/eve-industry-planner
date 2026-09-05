@@ -146,7 +146,7 @@ Skills are determined by:
 1. **Skill Awareness**: Be aware of skill requirements when planning jobs
 2. **Character Matching**: Match jobs to characters with appropriate skills
 3. **Training Planning**: Plan skill training for future job requirements
-4. **Skill Optimization**: Consider training skills to higher levels for efficiency bonuses
+4. **Skill Optimisation**: Consider training skills to higher levels for efficiency bonuses
 
 ## Related Documentation
 

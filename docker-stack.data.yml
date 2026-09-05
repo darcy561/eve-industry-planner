@@ -1,6 +1,6 @@
 # Data-layer Swarm fragment (mongo / redis / nats / SeaweedFS / Prometheus) on eip-core.
 # Roll order: stop-first (x-data-deploy) — R=1 + exclusive volumes.
-# File configs: eip.config.sync=1 → hash-synced via eip sync / rematerialize.
+# File configs: eip.config.sync=1 → hash-synced via eip sync / rematerialise.
 # Network name SoT: x-net-* anchors (reuse in name: + eip.network.* labels).
 
 x-net-core: &net-core eip-core
@@ -10,6 +10,14 @@ x-common-dns: &common-dns
   - 8.8.8.8
   - 8.8.4.4
   - 1.1.1.1
+
+# Stdout is the only copy of a container's logs when the observability addon is off, so every
+# service rotates. Uniform on purpose: a service that outgrows this is a logging bug, not a tuning one.
+x-log-rotate: &log-rotate
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
 
 x-data-deploy: &data-deploy
   replicas: 1
@@ -22,12 +30,13 @@ x-data-deploy: &data-deploy
     order: stop-first
     parallelism: 1
   restart_policy:
-    condition: on-failure
+    condition: any
     delay: 5s
 
 services:
   nats:
-    image: nats:2
+    image: nats:2.14.6
+    logging: *log-rotate
     command: ["-js", "-sd", "/data", "-m", "8222"]
     networks:
       eip-core:
@@ -40,6 +49,7 @@ services:
 
   redis:
     image: redis:8
+    logging: *log-rotate
     command:
       [
         "redis-server",
@@ -69,6 +79,7 @@ services:
 
   mongo:
     image: mongo:8
+    logging: *log-rotate
     # Auth-first mongod (no dual-boot). RS/users/preimages: eip ensure-mongo / Ready Ensure.
     # Host keyfile SoT: ./mongo-keyfile (project home). Desktop bind mounts often appear
     # mode 777; copy+chmod 600 in /tmp for mongod only (host file unchanged).
@@ -114,7 +125,8 @@ services:
 
   seaweedfs:
     image: chrislusf/seaweedfs:4.40
-    command: ["mini", "-dir=/data", "-ip.bind=0.0.0.0"]
+    logging: *log-rotate
+    command: ["mini", "-dir=/data", "-ip.bind=0.0.0.0", "-metricsPort=9327"]
     networks:
       eip-core:
         aliases: [seaweedfs]
@@ -125,6 +137,12 @@ services:
       S3_BUCKET: static-data,static-data-test
     volumes:
       - seaweedfs_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8333/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
     deploy:
       <<: *data-deploy
 

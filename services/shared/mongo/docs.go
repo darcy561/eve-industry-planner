@@ -7,6 +7,7 @@ import (
 	"maps"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -46,7 +47,7 @@ func (d *Docs) GetPublicByIDs(ctx context.Context, docIDs []string) ([]bson.M, e
 	return d.getByIDs(ctx, docIDs, nil)
 }
 
-// ExistsByAccountID reports whether _id + _meta.accountID exist.
+// ExistsByAccountID reports whether the account owns a document with this _id.
 func (d *Docs) ExistsByAccountID(ctx context.Context, docID, accountID string) (bool, error) {
 	coll, err := d.requireColl()
 	if err != nil {
@@ -58,7 +59,7 @@ func (d *Docs) ExistsByAccountID(ctx context.Context, docID, accountID string) (
 	if accountID == "" {
 		return false, fmt.Errorf("accountID is required")
 	}
-	filter := bson.M{"_id": docID, "_meta.accountID": accountID}
+	filter := bson.M{FieldMetaOwnerKind: models.OwnerAccount, FieldMetaOwnerID: accountID, "_id": docID}
 	err = coll.FindOne(ctx, filter).Err()
 	if err == nil {
 		return true, nil
@@ -67,33 +68,6 @@ func (d *Docs) ExistsByAccountID(ctx context.Context, docID, accountID string) (
 		return false, nil
 	}
 	return false, err
-}
-
-// UpsertStructWithMeta upserts by _id writing full metadata from the struct.
-func (d *Docs) UpsertStructWithMeta(ctx context.Context, v any, docID string) (*mongo.UpdateResult, error) {
-	coll, err := d.requireColl()
-	if err != nil {
-		return nil, err
-	}
-	if docID == "" {
-		return nil, fmt.Errorf("docID is required")
-	}
-	doc, err := StructToMongoDoc(v, docID)
-	if err != nil {
-		return nil, fmt.Errorf("convert struct to BSON: %w", err)
-	}
-	setDoc := buildSetDoc(doc, "_id")
-	applyLastModified(setDoc, nil, nil, false)
-	result, err := coll.UpdateOne(
-		ctx,
-		bson.M{"_id": docID},
-		bson.M{"$set": setDoc, "$setOnInsert": bson.M{"_id": docID}},
-		options.UpdateOne().SetUpsert(true),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("upsert document: %w", err)
-	}
-	return result, nil
 }
 
 // UpsertStructPreservingMeta upserts by _id preserving existing _meta (bumps lastModified).
@@ -154,8 +128,30 @@ type BulkUpsertSummary struct {
 	Failed  int
 }
 
-// UpsertStructsPreservingMetaBulk upserts many structs (unordered collection BulkWrite).
+// UpsertStructsPreservingMetaBulk upserts many structs, leaving each document's
+// existing `_meta` in place.
+//
+// For documents a client and the server both write: `_meta` carries the writing
+// tab and session, which a server-side rewrite must not clobber.
 func (d *Docs) UpsertStructsPreservingMetaBulk(ctx context.Context, items []StructUpsertItem, batchSize int) (BulkUpsertSummary, error) {
+	return d.upsertStructsBulk(ctx, items, batchSize, buildPreservingMetaUpsertModel)
+}
+
+// UpsertStructsWithMetaBulk upserts many structs, writing `_meta` from the struct.
+//
+// For documents one writer wholly owns — the derived statistics rows, which are
+// reproduced from the archived jobs on every rebuild. Preserving `_meta` there
+// would mean a rebuild could never correct an owner it had already written.
+func (d *Docs) UpsertStructsWithMetaBulk(ctx context.Context, items []StructUpsertItem, batchSize int) (BulkUpsertSummary, error) {
+	return d.upsertStructsBulk(ctx, items, batchSize, buildWithMetaUpsertModel)
+}
+
+func (d *Docs) upsertStructsBulk(
+	ctx context.Context,
+	items []StructUpsertItem,
+	batchSize int,
+	build func(docID string, doc bson.M) mongo.WriteModel,
+) (BulkUpsertSummary, error) {
 	summary := BulkUpsertSummary{Total: len(items)}
 	coll, err := d.requireColl()
 	if err != nil {
@@ -191,7 +187,7 @@ func (d *Docs) UpsertStructsPreservingMetaBulk(ctx context.Context, items []Stru
 			summary.Failed++
 			continue
 		}
-		models = append(models, buildPreservingMetaUpsertModel(item.DocID, doc))
+		models = append(models, build(item.DocID, doc))
 		if len(models) >= batchSize {
 			if err := flush(); err != nil {
 				return summary, err
@@ -238,6 +234,82 @@ func (d *Docs) deleteManyAfterStampingMeta(ctx context.Context, filter bson.M, n
 		return 0, nil
 	}
 	return result.DeletedCount, nil
+}
+
+// DistinctStrings returns the distinct non-empty string values of field.
+// Non-string and empty values are skipped.
+// Log label defaults to "DistinctStrings"; override with [WithOpName].
+func (d *Docs) DistinctStrings(ctx context.Context, field string, filter bson.M, opts ...RetryOption) ([]string, error) {
+	coll, err := d.requireColl()
+	if err != nil {
+		return nil, err
+	}
+	if field == "" {
+		return nil, fmt.Errorf("field is required")
+	}
+	if filter == nil {
+		filter = bson.M{}
+	}
+
+	var raw []any
+	err = Retry(ctx, applyRetryOptions("DistinctStrings", opts), func() error {
+		raw = nil
+		return coll.Distinct(ctx, field, filter).Decode(&raw)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]string, 0, len(raw))
+	for _, v := range raw {
+		s, ok := v.(string)
+		if !ok || s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
+// ListIDs returns the _id of every matching document, for collections whose _id
+// is a string key. A nil filter lists the whole collection.
+// Log label defaults to "ListIDs"; override with [WithOpName].
+func (d *Docs) ListIDs(ctx context.Context, filter bson.M, opts ...RetryOption) ([]string, error) {
+	coll, err := d.requireColl()
+	if err != nil {
+		return nil, err
+	}
+	if filter == nil {
+		filter = bson.M{}
+	}
+
+	var out []string
+	err = Retry(ctx, applyRetryOptions("ListIDs", opts), func() error {
+		out = nil
+		cursor, findErr := coll.Find(ctx, filter, options.Find().SetProjection(bson.M{"_id": 1}))
+		if findErr != nil {
+			return findErr
+		}
+		defer cursor.Close(ctx)
+
+		for cursor.Next(ctx) {
+			var row struct {
+				ID string `bson:"_id"`
+			}
+			if decErr := cursor.Decode(&row); decErr != nil {
+				return decErr
+			}
+			if row.ID == "" {
+				continue
+			}
+			out = append(out, row.ID)
+		}
+		return cursor.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (d *Docs) getByID(ctx context.Context, docID string, extraFilter bson.M) (bson.M, bool, error) {
@@ -368,6 +440,16 @@ func ensureMetaMap(metaRaw any) bson.M {
 	return bson.M{}
 }
 
+// buildWithMetaUpsertModel writes the whole document, `_meta` included.
+func buildWithMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
+	setDoc := buildSetDoc(doc, "_id")
+	applyLastModified(setDoc, nil, nil, false)
+	return mongo.NewUpdateOneModel().
+		SetFilter(bson.M{"_id": docID}).
+		SetUpdate(bson.M{"$set": setDoc, "$setOnInsert": bson.M{"_id": docID}}).
+		SetUpsert(true)
+}
+
 func buildPreservingMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
 	setDoc := buildSetDoc(doc, "_id", "_meta")
 	setOnInsert := bson.M{"_id": docID}
@@ -386,11 +468,43 @@ func executeBulkUpsertModels(ctx context.Context, collection *mongo.Collection, 
 	if err == nil {
 		return len(models), 0, nil
 	}
-	var bwe mongo.BulkWriteException
-	if errors.As(err, &bwe) {
+	if bwe, ok := errors.AsType[mongo.BulkWriteException](err); ok {
 		failed = len(bwe.WriteErrors)
 		success = len(models) - failed
 		return success, failed, nil
 	}
 	return 0, len(models), err
+}
+
+// Aggregate runs a pipeline and decodes every result into out, which must be a
+// pointer to a slice.
+//
+// Reads on this surface are otherwise Find-shaped, which cannot express a
+// grouped read: summing pre-aggregated rows across a dimension has to happen on
+// the server, because the alternative is shipping every row to the caller and
+// folding it there. Callers pass a pipeline rather than a filter, so the shape
+// of the grouping stays with the query that needs it.
+//
+// Under Retry like the other helpers, so a grouped read carries an operation
+// name in its logs. Log label defaults to "Aggregate"; override with [WithOpName].
+func (d *Docs) Aggregate(ctx context.Context, pipeline mongo.Pipeline, out any, opts ...RetryOption) error {
+	coll, err := d.requireColl()
+	if err != nil {
+		return err
+	}
+	if pipeline == nil {
+		return fmt.Errorf("pipeline is required")
+	}
+	if out == nil {
+		return fmt.Errorf("out is required")
+	}
+
+	return Retry(ctx, applyRetryOptions("Aggregate", opts), func() error {
+		cursor, aggErr := coll.Aggregate(ctx, pipeline)
+		if aggErr != nil {
+			return aggErr
+		}
+		defer cursor.Close(ctx)
+		return cursor.All(ctx, out)
+	})
 }

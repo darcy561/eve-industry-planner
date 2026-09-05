@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/shared/wsplacement"
 )
@@ -21,19 +21,11 @@ func TestPublishPlacementStateOnChange(t *testing.T) {
 	t.Setenv("HOSTNAME", "websocket-place-1")
 
 	var mu sync.Mutex
-	var pubs []natscore.PlacementState
+	var pubs []eipnats.PlacementState
 	s := &Server{
 		Stack:        &stackservices.Clients{},
 		shutdownChan: make(chan struct{}),
-		placementPublishFn: func(subject string, data []byte) error {
-			if subject != natscore.SubjectWSPlacementState {
-				t.Errorf("subject=%q", subject)
-			}
-			st, err := natscore.ParsePlacementState(data)
-			if err != nil {
-				t.Errorf("parse: %v", err)
-				return err
-			}
+		placementPublishFn: func(st eipnats.PlacementState) error {
 			mu.Lock()
 			pubs = append(pubs, st)
 			mu.Unlock()
@@ -74,7 +66,7 @@ func TestPublishPlacementStateSkipsDedupeWithoutNATS(t *testing.T) {
 	}
 
 	var pubs int
-	s.placementPublishFn = func(string, []byte) error {
+	s.placementPublishFn = func(eipnats.PlacementState) error {
 		pubs++
 		return nil
 	}
@@ -98,7 +90,7 @@ func TestHandlePlacement(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d", rec.Code)
 	}
-	var st natscore.PlacementState
+	var st eipnats.PlacementState
 	if err := json.NewDecoder(rec.Body).Decode(&st); err != nil {
 		t.Fatal(err)
 	}

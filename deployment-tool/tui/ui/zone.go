@@ -10,7 +10,7 @@ import (
 	zone "github.com/lrstanley/bubblezone/v2"
 )
 
-// zoneTestMu serializes Mark/Scan/Hit against bubblezone's process-global manager.
+// zoneTestMu serialises Mark/Scan/Hit against bubblezone's process-global manager.
 // The live TUI is single-threaded; tests that Scan must LockZones/UnlockZones.
 var zoneTestMu sync.Mutex
 
@@ -64,14 +64,14 @@ func MouseWheelAtZone(id string, up bool) (tea.MouseWheelMsg, bool) {
 
 // Zone id SoT (no ad-hoc strings in Update switches).
 const (
-	ZonePaneOutput     = "pane.output"
-	ZonePaneForm       = "pane.form"
-	ZonePaneNav        = "pane.nav"
-	ZoneCommandLine    = "cmdline"
-	ZoneFinish           = "finish"
-	ZoneBack             = "back"
-	ZoneListRowPrefix    = "list.row."
-	ZoneFormFieldPrefix  = "form.field."
+	ZonePaneOutput      = "pane.output"
+	ZonePaneForm        = "pane.form"
+	ZonePaneNav         = "pane.nav"
+	ZoneCommandLine     = "cmdline"
+	ZoneFinish          = "finish"
+	ZoneBack            = "back"
+	ZoneListRowPrefix   = "list.row."
+	ZoneFormFieldPrefix = "form.field."
 )
 
 func init() {
@@ -136,7 +136,7 @@ func Hit(msg tea.MouseMsg, ids ...string) (id string, ok bool) {
 
 // HitPrefix probes prefix+0..maxInclusive for a containing zone.
 // When several zones overlap (stale scans / nested marks), the smallest
-// bounding box wins so a click lands on the tightest field, not a neighbor.
+// bounding box wins so a click lands on the tightest field, not a neighbour.
 func HitPrefix(msg tea.MouseMsg, prefix string, maxInclusive int) (id string, ok bool) {
 	best := ""
 	bestArea := int(^uint(0) >> 1) // max int

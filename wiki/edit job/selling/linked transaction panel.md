@@ -75,7 +75,7 @@ Each linked transaction is displayed as a row showing:
 - **Icon**: Clear (X) icon
 - **Color**: Error (red)
 - **Function**: Unlinks transaction from job
-- **Behavior**:
+- **Behaviour**:
   - Removes transaction from linked list
   - Updates sales stats
   - Shows confirmation message
@@ -89,7 +89,7 @@ Each linked transaction is displayed as a row showing:
 - **Display**: Only shows transactions matching filtered locations
 - **Purpose**: Focus on transactions for specific orders
 
-### Filter Behavior
+### Filter Behaviour
 - Transactions only show if their location matches active filters
 - Multiple locations can be filtered simultaneously
 - Filtering helps track sales per order
@@ -117,13 +117,13 @@ Opens when "Add Manual Transaction" is selected from menu:
 - **Label**: "Item Cost"
 - **Suffix**: "ISK"
 - **Function**: Enter price per unit
-- **Behavior**: Auto-calculates total amount when quantity changes
+- **Behaviour**: Auto-calculates total amount when quantity changes
 
 #### Quantity Field
 - **Type**: Number input
 - **Label**: "Quantity"
 - **Function**: Enter quantity sold
-- **Behavior**: Auto-calculates total amount when price changes
+- **Behaviour**: Auto-calculates total amount when price changes
 
 #### Tax Or Fees Paid Field
 - **Type**: Number input
@@ -135,7 +135,7 @@ Opens when "Add Manual Transaction" is selected from menu:
 #### Dialogue Actions
 - **Close Button**: Cancels transaction entry
 - **Add Button**: Creates and links transaction
-- **Behavior**: 
+- **Behaviour**: 
   - Creates transaction object
   - Links to active market order
   - Adds to linked transactions

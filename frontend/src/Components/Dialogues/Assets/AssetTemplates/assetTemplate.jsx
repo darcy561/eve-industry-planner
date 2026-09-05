@@ -3,7 +3,7 @@ import { Avatar, Box, Typography, Grid } from "@mui/material";
 import { findAssetImageURL } from "../../../../Functions/Assets/assetHelpers";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 
-export default function AssetTemplate_AssetDialogWindow(props) {
+export default function AssetTemplate_AssetDialogueWindow(props) {
   const { state, assetObject } = props;
   if (!assetObject) return null;
 

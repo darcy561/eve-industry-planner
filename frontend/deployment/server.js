@@ -246,7 +246,7 @@ export function createServer(distDir, port = 80) {
       }
 
       // Skip compression for already-compressed assets (images, fonts, etc.)
-      // These files are already optimized and compression provides minimal benefit
+      // These files are already optimised and compression provides minimal benefit
       const alreadyCompressed = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".woff", ".woff2", ".mp4", ".zip", ".gz"].includes(ext);
       
       // Apply compression if supported and asset is not already compressed

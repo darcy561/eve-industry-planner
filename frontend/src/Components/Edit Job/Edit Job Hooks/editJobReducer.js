@@ -1,13 +1,5 @@
 /**
  * Edit Job Reducer for EVE Industry Planner.
- * 
- * Manages state transitions for the edit job dialog component, handling actions
- * for job editing, parent-child job relationships, ESI data linking, and temporary
- * job management. This reducer provides centralized state management for complex
- * job editing operations.
- * 
- * @fileoverview Reducer for edit job dialog state management
- * @author EVE Industry Planner Team
  */
 
 import Job from "../../../Classes/job";
@@ -15,11 +7,7 @@ import { normalizeSetIsLoadingPayload } from "../../../Functions/Helper/setIsLoa
 
 /**
  * Action types for the edit job reducer.
- * 
- * Defines all possible action types that can be dispatched to modify
- * the edit job dialog state. Each action type corresponds to a specific
- * state change operation for job editing functionality.
- * 
+ *
  * @constant {Object} EDIT_JOB_ACTION_TYPES
  * @property {string} SET_ACTIVE_JOB - Set the active job being edited
  * @property {string} UPDATE_ACTIVE_JOB - Update the active job with new data
@@ -60,13 +48,8 @@ export const EDIT_JOB_ACTION_TYPES = {
 };
 
 /**
- * Reducer function for managing edit job dialog state.
- * 
- * Handles state transitions based on action types, providing immutable
- * state updates for the edit job dialog component. Includes complex logic
- * for managing parent-child job relationships, ESI data linking, and
- * temporary job state management.
- * 
+ * Reducer function for managing edit job dialogue state.
+ *
  * @param {Object} state - Current state object
  * @param {Object|null} state.activeJob - Currently active job being edited
  * @param {boolean} state.jobModified - Whether the job has unsaved changes
@@ -83,12 +66,6 @@ export const EDIT_JOB_ACTION_TYPES = {
  * @param {string} action.type - Action type from EDIT_JOB_ACTION_TYPES
  * @param {*} [action.payload] - Action payload data
  * @returns {Object} New state object
- * 
- * @example
- * const newState = editJobReducer(currentState, {
- *   type: EDIT_JOB_ACTION_TYPES.SET_ACTIVE_JOB,
- *   payload: jobObject
- * });
  */
 export function editJobReducer(state, action) {
   switch (action.type) {

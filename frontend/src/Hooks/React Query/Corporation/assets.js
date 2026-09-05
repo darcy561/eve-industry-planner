@@ -8,21 +8,16 @@ const corporationAssetsQueryKey = "corporationAssets";
 
 /**
  * React Query configuration for fetching corporation assets from EVE ESI API.
- * 
+ *
  * This query handles corporation asset data fetching with:
- * - Pagination support for large corporation asset collections
- * - ESI rate limiting awareness and handling
- * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation asset data
- * - Error handling with descriptive messages
- * 
+ *
  * The query process:
  * 1. Checks ESI rate limits for assets group
  * 2. Fetches corporation assets page by page until all data is retrieved
  * 3. Combines all pages into a single array
  * 4. Handles rate limiting errors with appropriate wait times
  * 5. Caches data for 1 hour with 30-minute stale time
- * 
+ *
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
  * @returns {Array} returns.queryKey - Query key array for React Query
@@ -34,13 +29,6 @@ const corporationAssetsQueryKey = "corporationAssets";
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
  * @returns {boolean} returns.refetchOnMount - Whether to refetch on component mount (false)
- * 
- * @example
- * const { data: corpAssets, isLoading, error } = useQuery(corporationAssetsQuery(characterHash));
- * 
- * if (isLoading) return <div>Loading corporation assets...</div>;
- * if (error) return <div>Error: {error.message}</div>;
- * return <div>Corporation Assets: {corpAssets.length} items</div>;
  */
 function corporationAssetsQuery(characterHash) {
   const findCharacterByHash =

@@ -2,39 +2,64 @@ package asynq
 
 import (
 	"context"
-	"eve-industry-planner/shared/stackservices"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
-	archivedjobtasks "eve-industry-planner/worker/tasks/archivedjobs"
-	esitasks "eve-industry-planner/worker/tasks/esi"
-	maintenancetasks "eve-industry-planner/worker/tasks/maintenance"
-	migrationtasks "eve-industry-planner/worker/tasks/migration"
+	"eve-industry-planner/worker/taskrun"
+	"eve-industry-planner/worker/tasks/archivedjobs"
+	"eve-industry-planner/worker/tasks/esi"
+	"eve-industry-planner/worker/tasks/jobidentity"
+	"eve-industry-planner/worker/tasks/maintenance"
 	sderollbacktasks "eve-industry-planner/worker/tasks/sde/rollback"
 	sdetasks "eve-industry-planner/worker/tasks/sde/update"
 
 	"github.com/hibiken/asynq"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// WorkerDependencies holds dependencies needed by task handlers
-type WorkerDependencies interface {
-	GetClients() *stackservices.Clients
-	GetESIClient() esiratelimiter.ClientInterface
+// SetupHandlers puts every task's handler on the mux, checked against the
+// registry: a task with no handler, or a handler for no task, stops the worker
+// starting rather than going unnoticed until work quietly does not happen.
+func SetupHandlers(mux *asynq.ServeMux, taskDeps *taskrun.Dependencies) error {
+	installTaskMiddleware(mux)
+
+	handlers := map[string]asynq.HandlerFunc{}
+	handleTrigger(handlers, eipnats.RefreshSystemIndexes, taskDeps, esi.RefreshSystemIndexes)
+	handleTrigger(handlers, eipnats.RefreshAdjustedPrices, taskDeps, esi.RefreshAdjustedPrices)
+	handle(handlers, eipnats.RefreshRegionMarketOrders, taskDeps, esi.RefreshRegionMarketOrders)
+	handleTrigger(handlers, eipnats.CheckSDEUpdates, taskDeps, sdetasks.CheckSDEUpdates)
+	handleTrigger(handlers, eipnats.RollbackSDEVersion, taskDeps, sderollbacktasks.RollbackSDEVersion)
+	handle(handlers, eipnats.ApplySDEVersion, taskDeps, sdetasks.ApplySDEVersion)
+	handleTrigger(handlers, eipnats.RebuildCurrentSDEVersion, taskDeps, sdetasks.RebuildCurrentSDEVersion)
+	handle(handlers, eipnats.UpdateAccountSessionGrants, taskDeps, esi.RefreshAccountSessionGrants)
+	handle(handlers, eipnats.DispatchStatisticsRebuilds, taskDeps, archivedjobs.DispatchStatisticsRebuilds)
+	handle(handlers, eipnats.RebuildOwnerStatistics, taskDeps, archivedjobs.RebuildOwnerStatistics)
+	handle(handlers, eipnats.ApplyOwnerStatisticsDelta, taskDeps, archivedjobs.ApplyOwnerStatisticsDelta)
+	handleTrigger(handlers, eipnats.DispatchStatisticsReconciles, taskDeps, archivedjobs.DispatchStatisticsReconciles)
+	handle(handlers, eipnats.ReconcileOwnerStatistics, taskDeps, archivedjobs.ReconcileOwnerStatistics)
+	handle(handlers, eipnats.RotateRefreshTokenKeys, taskDeps, maintenance.RotateRefreshTokenKeys)
+	handle(handlers, eipnats.EncodeJobIdentity, taskDeps, jobidentity.EncodeJobIdentity)
+	handle(handlers, eipnats.SchemaVersionMaintenanceBatch, taskDeps, maintenance.SchemaVersionMaintenanceBatch)
+	handle(handlers, eipnats.InactiveAccountPlannerCleanup, taskDeps, maintenance.InactiveAccountPlannerCleanup)
+	handle(handlers, eipnats.CloudStoredEsiRefreshMaintenance, taskDeps, maintenance.CloudStoredEsiRefreshMaintenance)
+	handleTrigger(handlers, eipnats.PruneExpiredAccountSessions, taskDeps, maintenance.PruneExpiredAccountSessions)
+
+	return mount(mux, handlers)
 }
 
-// SetupHandlers registers all task handlers (both ESI and regular) on the given mux
-func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
-	// Restore trace from NATS/asynq headers, start a span for this task; record OTel metrics only on success or real failure (not rate-limit re-queues).
-	// Handlers should pass ctx to NATS PublishTask / DB calls so child work stays on the same trace.
-	tracer := otel.Tracer("eve-industry-planner/worker")
+// installTaskMiddleware wraps every handler with the context, span and outcome
+// reporting a task runs under, so a handler opens none of it for itself.
+func installTaskMiddleware(mux *asynq.ServeMux) {
+	// A handler passes this ctx to its own publishes and queries, which is what
+	// keeps child work on the trace the task arrived on.
+	tracer := telemetry.Tracer("worker")
 	mux.Use(func(h asynq.Handler) asynq.Handler {
 		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
 			ctx = natsprop.ExtractFromStringMap(ctx, t.Headers())
@@ -45,14 +70,11 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 			ctx, span := tracer.Start(ctx, "asynq.task",
 				trace.WithAttributes(attribute.String("asynq.task.type", taskType)),
 			)
-			if attrs := natscore.AsynqTaskPayloadSpanAttributes(taskType, t.Payload()); len(attrs) > 0 {
-				span.SetAttributes(attrs...)
-			}
 			logs.AttachDebugStepCtx(ctx, "asynq_task_started", map[string]any{
 				"task_type": taskType,
 			})
 			start := time.Now()
-			err := h.ProcessTask(ctx, t)
+			err := terminalAsSkipRetry(h.ProcessTask(ctx, t))
 			elapsed := time.Since(start)
 			outcomeDetail := map[string]any{
 				"task_type":   taskType,
@@ -67,7 +89,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 				workermetrics.RecordAsynqTask(ctx, taskType, "success", elapsed)
 				logs.AttachDebugStepCtx(ctx, "asynq_task_completed", outcomeDetail)
 				emitAsynqTaskLog(ctx, "debug", "asynq task completed", outcomeDetail)
-			case errIsRateLimitDeferral(err):
+			case esiclient.IsRateLimit(err):
 				// Matches asynq.Config.IsFailure: task is re-queued for later; do not count in metrics
 				// (these bounce until they eventually succeed or fail for real).
 				span.SetAttributes(attribute.String("asynq.task.outcome", "retry_rate_limit"))
@@ -86,81 +108,6 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 			span.End()
 			return err
 		})
-	})
-
-	// Create task dependencies once
-	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESIClient())
-
-	// Register task handlers
-	mux.HandleFunc("refreshSystemIndexes", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshSystemIndexes(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("refreshAdjustedPrices", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshAdjustedPrices(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("refreshRegionMarketOrders", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshRegionMarketOrders(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("checkSDEUpdates", func(ctx context.Context, t *asynq.Task) error {
-		return sdetasks.CheckSDEUpdates(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("rollbackSDEVersion", func(ctx context.Context, t *asynq.Task) error {
-		return sderollbacktasks.RollbackSDEVersion(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("applySDEVersion", func(ctx context.Context, t *asynq.Task) error {
-		return sdetasks.ApplySDEVersion(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("rebuildCurrentSDEVersion", func(ctx context.Context, t *asynq.Task) error {
-		return sdetasks.RebuildCurrentSDEVersion(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("updateAccountSessionGrants", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshAccountSessionGrants(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("migrateUserDocumentToMongo", func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.MigrateUserDocumentToMongo(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("encryptCloudRefreshTokensBatch", func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.EncryptCloudRefreshTokensBatch(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("migrateUserCloudAccountsToUserDoc", func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.MigrateUserCloudAccountsToUserDoc(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("migrateFirestoreWatchlistToMongo", func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.MigrateFirestoreWatchlistToMongo(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("importArchivedJobToMongo", func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.ImportArchivedJobToMongo(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("importUserJobDocumentsForAccount", func(ctx context.Context, t *asynq.Task) error {
-		return migrationtasks.ImportUserJobDocumentsForAccount(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("processArchivedBuildStats", func(ctx context.Context, t *asynq.Task) error {
-		return archivedjobtasks.ProcessBuildStats(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("rotateRefreshTokenKeys", func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.RotateRefreshTokenKeys(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("schemaVersionMaintenanceBatch", func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.SchemaVersionMaintenanceBatch(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("inactiveAccountPlannerCleanup", func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.InactiveAccountPlannerCleanup(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("cloudStoredEsiRefreshMaintenance", func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.CloudStoredEsiRefreshMaintenance(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("pruneExpiredAccountSessions", func(ctx context.Context, t *asynq.Task) error {
-		return maintenancetasks.PruneExpiredAccountSessions(ctx, t, taskDeps)
 	})
 }
 

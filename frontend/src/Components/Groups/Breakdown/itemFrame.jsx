@@ -5,7 +5,7 @@ import { useTheme } from "@mui/material/styles";
 import useUsersStore from "../../../Zustand/usersStore";
 import { LARGE_TEXT_FORMAT, SMALL_TEXT_FORMAT } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
-import { getJobTypeAccentColor } from "../../../Functions/Helper/jobTypeDividerColor";
+import { getJobTypeAccentColour } from "../../../Functions/Helper/jobTypeDividerColour";
 
 export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null }) {
     const theme = useTheme();
@@ -14,7 +14,7 @@ export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null })
     const [error, setError] = useState(null);
     const [relatedJobs, setRelatedJobs] = useState([]);
     const [breakdownStats, setBreakdownStats] = useState({
-        totalRawMaterialPurchaseCost: 0,
+        totalBoughtMaterialCost: 0,
         totalInstallCosts: 0,
         totalExtrasCosts: 0,
         totalInventionCosts: 0,
@@ -31,22 +31,22 @@ export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null })
                 }
                 const matchedJobs = groupObject.getJobIDsForOutputJob(outputJob);
 
-                let totalRawMaterialPurchaseCost = 0;
+                let totalBoughtMaterialCost = 0;
                 let totalInstallCosts = 0;
                 let totalExtrasCosts = 0;
                 let totalInventionCosts = 0;
                 let totalInvolvedCharacters = 0;
 
                 for (const job of matchedJobs) {
-                    totalRawMaterialPurchaseCost += job.totalRawMaterialPurchaseCost();
-                    totalInstallCosts += job.build.costs.installCosts;
-                    totalExtrasCosts += job.build.costs.extrasTotal;
-                    totalInventionCosts += job.build.costs.inventionCosts;
-                    totalInvolvedCharacters += job.calculateTotalInvolvedCharacters().numberOfUniqueCharacters;
+                    totalBoughtMaterialCost += job.totalBoughtMaterialCost;
+                    totalInstallCosts += job.totalInstallCost;
+                    totalExtrasCosts += job.totalExtrasCost;
+                    totalInventionCosts += job.totalInventionCost;
+                    totalInvolvedCharacters += job.involvedCharacters.size;
                 }
 
                 setBreakdownStats({
-                    totalRawMaterialPurchaseCost,
+                    totalBoughtMaterialCost,
                     totalInstallCosts,
                     totalExtrasCosts,
                     totalInventionCosts,
@@ -87,12 +87,12 @@ export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null })
                     flexItem
                     sx={{
                         borderBottomWidth: 2,
-                        borderBottomColor: getJobTypeAccentColor(theme, outputJob?.jobType),
+                        borderBottomColor: getJobTypeAccentColour(theme, outputJob?.jobType),
                     }}
                 />
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
                     <Typography sx={{ typography: SMALL_TEXT_FORMAT }}>
-                        Total Raw Material Purchase Cost: {formatNumberForLocale(breakdownStats.totalRawMaterialPurchaseCost)}
+                        Total Bought Material Cost: {formatNumberForLocale(breakdownStats.totalBoughtMaterialCost)}
                     </Typography>
                     <Typography sx={{ typography: SMALL_TEXT_FORMAT }}>
                         Total Install Costs: {formatNumberForLocale(breakdownStats.totalInstallCosts)}

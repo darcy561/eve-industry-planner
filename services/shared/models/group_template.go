@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Group template v1 — catalog + payload documents (see product plan).
+// Group template v1 — catalogue + payload documents (see product plan).
 
 const (
 	GroupTemplateCatalogSchemaVersion = 1
@@ -17,14 +17,14 @@ const (
 	MaxSetupsPerJob                   = 32
 )
 
-// TemplateOutputSummary is one root deliverable row in the catalog.
+// TemplateOutputSummary is one root deliverable row in the catalogue.
 type TemplateOutputSummary struct {
 	TemplateJobID        string `json:"templateJobId" bson:"templateJobId"`
 	ItemID               int    `json:"itemID" bson:"itemID"`
 	DesiredTotalQuantity int    `json:"desiredTotalQuantity" bson:"desiredTotalQuantity"`
 }
 
-// TemplateCatalogEntry is one row in catalog.templates[].
+// TemplateCatalogEntry is one row in catalogue.templates[].
 type TemplateCatalogEntry struct {
 	TemplateID        string                  `json:"templateID" bson:"templateID"`
 	Name              string                  `json:"name" bson:"name"`
@@ -76,7 +76,7 @@ type TemplateJobNode struct {
 // GroupTemplatePayloadSource optional provenance.
 type GroupTemplatePayloadSource struct {
 	GroupID    string    `json:"groupID,omitempty" bson:"groupID,omitempty"`
-	CapturedAt time.Time `json:"capturedAt,omitempty" bson:"capturedAt,omitempty"`
+	CapturedAt time.Time `json:"capturedAt" bson:"capturedAt,omitempty"`
 }
 
 // GroupTemplatePayload is one Mongo document per templateID (_id = templateID string).
@@ -153,7 +153,7 @@ func ValidateGroupTemplatePayload(p *GroupTemplatePayload) error {
 	return nil
 }
 
-// BuildCatalogEntryFromPayload derives the catalog row from a validated payload + metadata.
+// BuildCatalogEntryFromPayload derives the catalogue row from a validated payload + metadata.
 func BuildCatalogEntryFromPayload(templateID, name, description string, payload *GroupTemplatePayload, createdAt, updatedAt time.Time) TemplateCatalogEntry {
 	total := len(payload.Jobs)
 	outputs := make([]TemplateOutputSummary, 0)

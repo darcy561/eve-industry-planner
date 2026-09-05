@@ -7,13 +7,12 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	eipnats "eve-industry-planner/shared/nats"
+	"eve-industry-planner/worker/taskrun"
 
-	"github.com/hibiken/asynq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -22,16 +21,9 @@ const defaultInactivePlannerStaleYears = 2
 
 // InactiveAccountPlannerCleanup deletes live planner job documents and groups for an account when the
 // users document still indicates last login older than the stale-age threshold (re-checked here).
-func InactiveAccountPlannerCleanup(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
-	if task == nil {
-		return fmt.Errorf("task is nil")
-	}
+func InactiveAccountPlannerCleanup(ctx context.Context, payload eipnats.InactiveAccountPlannerCleanupRequest, deps *taskrun.Dependencies) error {
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
-	}
-	payload, err := esitasks.UnmarshalTaskPayload[natscore.InactiveAccountPlannerCleanupRequest](task)
-	if err != nil {
-		return fmt.Errorf("invalid payload: %w", err)
 	}
 	accountID := strings.TrimSpace(payload.AccountID)
 	if accountID == "" {
@@ -47,7 +39,7 @@ func InactiveAccountPlannerCleanup(ctx context.Context, task *asynq.Task, deps *
 	usersCol := mongo.Users.Collection()
 
 	var userDoc models.UserAccountDocument
-	err = usersCol.FindOne(ctx, bson.M{"_id": accountID}).Decode(&userDoc)
+	err := usersCol.FindOne(ctx, bson.M{"_id": accountID}).Decode(&userDoc)
 	if errors.Is(err, mongodriver.ErrNoDocuments) {
 		logs.InfoCtx(ctx, "inactive account planner cleanup: user missing; skipping",
 			"account_id", accountID)
@@ -70,7 +62,7 @@ func InactiveAccountPlannerCleanup(ctx context.Context, task *asynq.Task, deps *
 		return nil
 	}
 
-	acctFilter := bson.M{"_meta.accountID": accountID}
+	acctFilter := bson.M{eipmongo.FieldMetaOwnerID: accountID}
 
 	jobDocsCol := mongo.JobDocuments.Collection()
 	jobsCol := mongo.Jobs.Collection()
@@ -87,7 +79,7 @@ func InactiveAccountPlannerCleanup(ctx context.Context, task *asynq.Task, deps *
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("delete user_job_documents for %s: %w", accountID, err)
+		return fmt.Errorf("delete job_documents for %s: %w", accountID, err)
 	}
 
 	err = eipmongo.Retry(ctx, fmt.Sprintf("inactive planner cleanup jobs %s", accountID), func() error {
@@ -111,7 +103,7 @@ func InactiveAccountPlannerCleanup(ctx context.Context, task *asynq.Task, deps *
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("delete user_job_groups for %s: %w", accountID, err)
+		return fmt.Errorf("delete job_groups for %s: %w", accountID, err)
 	}
 
 	lastLoginLog := ""
@@ -120,9 +112,9 @@ func InactiveAccountPlannerCleanup(ctx context.Context, task *asynq.Task, deps *
 	}
 	logs.InfoCtx(ctx, "inactive account planner cleanup complete",
 		"account_id", accountID,
-		"deleted_user_job_documents", jobsDocDeleted,
+		"deleted_job_documents", jobsDocDeleted,
 		"deleted_jobs", jobsDeleted,
-		"deleted_user_job_groups", groupsDeleted,
+		"deleted_job_groups", groupsDeleted,
 		"last_login_at", lastLoginLog,
 		"cutoff_utc", cutoff.Format(time.RFC3339),
 	)

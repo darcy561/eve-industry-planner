@@ -20,7 +20,7 @@ This is the **shipped** product today. Multi-tenant work (**#30–#37**) must **
 |--|--|
 | **Partition** | Redis / JetStream keyed by **account** (`accountID` in keys and `doc.lock.{accountID}`) |
 | **Competitors** | Tabs / sessions of **that same account** only (`sessionID` = JWT claim) |
-| **Documents** | Personal Mongo collections: `user_job_documents`, `user_job_groups` |
+| **Documents** | Personal Mongo collections: `job_documents`, `job_groups` |
 | **Not yet** | Corp/alliance docs, cross-account holders on one Redis row |
 
 One Redis lock row = one `(accountID, collection, docID)`. Two browsers on the same account fight; two different accounts never share a personal-doc lease.
@@ -112,7 +112,7 @@ One Redis lock row = one `(accountID, collection, docID)`. Two browsers on the s
 
 ### #32 — JetStream subjects and WebSocket fan-out by tenant
 
-- **Status**: open · **Size**: M · **Where**: `documentlock/publish.go`, `shared/core/nats/constants.go` (`SubjectDocLock`), `websocket/server/nats_doc_lock.go`, subscription / `broadcastRawToAccount` → tenant-based broadcast (new helper or parameterised bucket).
+- **Status**: open · **Size**: M · **Where**: `documentlock/publish.go`, `shared/nats/subjects.go` (`SubjectDocLock`), `websocket/server/nats_doc_lock.go`, subscription / `broadcastRawToAccount` → tenant-based broadcast (new helper or parameterised bucket).
 - **Why**: today publish + in-process delivery are still account-scoped (`doc.lock.{accountID}`, `broadcastRawToAccount`); corp/alliance lock subjects are not on the bus yet.
 - **Already landed (outside this roadmap — swarm selective fan-out, 2026-08-08):** websocket lock durables are **not** a `doc.lock.>` firehose. Each replica’s `doc-lock-{container.ID()}` durable uses mutable **FilterSubjects** = `doc.lock.{accountID}` for each locally hosted `account:{id}` (inert `__none__` when empty; `DeliverLast`). Publish subject unchanged: `doc.lock.{accountID}`. Live SoT: [websocket.md](../websocket/websocket.md) § JetStream doc fan-out; [locks.md](./locks.md) publish/WS pull. Do **not** re-implement account-only selective pull here.
 - **Still this ticket:** publish `doc.lock.{tenantString}` (same family as placement / `doc.update` tenants); widen WS filters + replace account-only broadcast with tenant-aware fan-out for all tenants needed on open routes (personal + corp/alliance); personal-only sessions stay a single `account:…` path after #30 encoding. Echo suppression by `sessionID` unchanged (consider suppress by principal if needed). Depends on **#30** / **#31**.
@@ -291,7 +291,7 @@ These items apply to **today’s personal stack** and remain valid after tenant 
     6. `backupJobRef.current = new Job(merged)` (leave/discard path stays consistent with `useEditJobLeaveConfirm`).
     7. Clear pending remote; dismiss snackbar.
 - **Out of scope for v1**: per-field dirty tracking; 3-way merge; `GET /job-documents` refetch (WS miss / `syncInProgress` drop → optional v2 fallback or planner resync only).
-- **v2 (optional)**: pre-merge review dialog (summary: name, step, setup count, material totals) — still server-wins replace; or per-section “apply remote materials only” (each section still full replace, not blend).
+- **v2 (optional)**: pre-merge review dialogue (summary: name, step, setup count, material totals) — still server-wins replace; or per-section “apply remote materials only” (each section still full replace, not blend).
 - **Locks (#38)**: promotion does **not** auto-merge. If pending remote exists when becoming holder, user merges (or read-only already auto-applied). `doc.update` vs `handoff_completed` ordering independent.
 - **Echo**: holder’s writing tab is WS echo-suppressed — no self-notification.
 - **Multi-tenant**: same merge UX for corp/alliance edit surfaces once those fork an `activeJob`-like document; planner arrays remain source of truth after coalesce.

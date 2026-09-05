@@ -2,18 +2,15 @@ import { IconButton, TextField, Tooltip, Box, CircularProgress } from "@mui/mate
 import { useFormStatus } from "react-dom";
 import AddIcon from "@mui/icons-material/Add";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
+import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import {
-  addMaterialCostsToJob,
-  materialPriceObjectFactory,
-} from "../../../../../../Functions/JobPlanner/materialCosts";
 import { useEffectiveMarketHubFromLayout } from "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
 
 export function AddMaterialCost_Purchasing({
   state,
   actions,
   material,
-  childJobProductionTotal,
+  childSupply,
   childJobs,
 }) {
   const { marketDisplay, orderDisplay } = useEffectiveMarketHubFromLayout(
@@ -24,22 +21,15 @@ export function AddMaterialCost_Purchasing({
     .getState()
     .worldData.actions.findMarketData(material.typeID);
 
-  // Calculate initial quantity based on child jobs
-  const getInitialQuantity = () => {
-    if (childJobs.length === 0) {
-      // No child jobs: remaining is total minus purchased
-      return Math.max(0, material.quantity - material.quantityPurchased);
-    } else {
-      if (childJobProductionTotal >= material.quantity) {
-        // Child jobs cover requirement, shouldn't show but return 0
-        return 0;
-      } else {
-        // Child jobs don't cover: shortfall minus purchased
-        const shortfall = material.quantity - childJobProductionTotal;
-        return Math.max(0, shortfall - material.quantityPurchased);
-      }
-    }
-  };
+  // A child job's output is not promised to this job until its cost is
+  // imported, so the form offers what the children cannot be counted on for.
+  const stillToBuy = Math.max(
+    0,
+    material.quantityRemaining -
+      (childJobs.length === 0 ? 0 : childSupply.min),
+  );
+
+  const getInitialQuantity = () => stillToBuy;
 
   function handleSubmitAction(formData) {
     const itemCountInput = Number(formData.get("itemCountInput"));
@@ -53,43 +43,21 @@ export function AddMaterialCost_Purchasing({
     ) {
       return;
     }
-    const { newMaterialArray, newTotalPurchaseCost } = addMaterialCostsToJob(
-      state.activeJob,
-      [
-        materialPriceObjectFactory(
-          material.typeID,
-          itemCountInput,
-          itemCostInput
-        ),
-      ]
+    const { leftOver } = state.activeJob.importPurchaseToMaterial(
+      material.typeID,
+      { itemCount: itemCountInput, itemCost: itemCostInput },
+      { recordExcess: true }
     );
 
-    state.activeJob.build.materials = newMaterialArray;
-    state.activeJob.build.costs.totalPurchaseCost = newTotalPurchaseCost;
     actions.updateActiveJob(state.activeJob);
-    showSnackbarSuccess("Success");
+    showSnackbarSuccess(
+      leftOver > 0
+        ? `Success. ${formatNumberForLocale(leftOver, { max: 0 })} more than this job needs, not charged to it.`
+        : "Success"
+    );
   }
 
-  // Determine if cost entry should be shown
-  let shouldShowCostEntry = false;
-
-  if (childJobs.length === 0) {
-    // No child jobs: show if not fully purchased
-    shouldShowCostEntry = material.quantityPurchased < material.quantity;
-  } else {
-    // Child jobs exist
-    if (childJobProductionTotal >= material.quantity) {
-      // Child jobs cover the requirement, don't show cost entry
-      shouldShowCostEntry = false;
-    } else {
-      // Child jobs don't cover the requirement, calculate shortfall
-      const shortfall = material.quantity - childJobProductionTotal;
-      // Only show cost entry if shortfall hasn't been covered yet
-      shouldShowCostEntry = material.quantityPurchased < shortfall;
-    }
-  }
-
-  if (!shouldShowCostEntry) return null;
+  if (stillToBuy <= 0) return null;
 
   return (
     <form

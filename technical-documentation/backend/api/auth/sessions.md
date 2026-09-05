@@ -399,7 +399,7 @@ Multiple tabs share one `sessionID`; the WS layer does **not** evict by session 
 
 | Material | Mechanism | Where |
 |---|---|---|
-| **EVE ESI access JWT** | Verified with CCP's JWKS via `services/api/helper/sso` (`ValidateEveTokenAndExtractHash`). Audience claim is `cfg.EveSSOClientID`. | `auth_helpers.go` |
+| **EVE ESI access JWT** | Verified with CCP's JWKS via `services/shared/evesso` (`ValidateEveTokenAndExtractHash`). Audience claim is `cfg.EveSSOClientID`. | `auth_helpers.go` |
 | **Planner refresh token** | Opaque random UUID. Stored as plaintext JSON in Redis with a 7d TTL. **No** at-rest encryption — Redis is the trust boundary. | `refresh_token.go` |
 | **Planner session id** | Opaque random UUID. Stored inside `account_sessions:<accountID>`. Cookie value is the session id directly. | `refresh_token.go` |
 | **ESI refresh token at rest** (cloud accounts only) | AES-GCM via a keyring from env (`REFRESH_TOKEN_AES_KEY`, optional `REFRESH_TOKEN_AES_KEY_VERSION`, optional `REFRESH_TOKEN_AES_LEGACY_KEYS`). Lives in Mongo `users.refreshTokens`. | `services/shared/core/crypto/keyrings/refresh_token.go` |
@@ -420,19 +420,7 @@ File: `services/shared/core/config/config.go`. `LoadConfig` populates a `Config`
 
 ---
 
-## 10. `services/shared/firebaseadmin`
-
-Firebase **Admin** SDK wiring lives here, but **is not part of per-request authentication**.
-
-- `client.go` — `getFirebaseApp`, `GetFirestoreClient`, `GetAuthClient`, `Close`. Lazy singletons. Env: `GOOGLE_APPLICATION_CREDENTIALS` (path), `FIREBASE_PROJECT_ID` (optional override).
-- `auth_recency.go` — `AccountHasAuthActivitySince`, `DefaultRecencyForActiveAccounts`. Reads `firebase.Auth.GetUser(...)` for migration filtering.
-- `client_test.go` — `Test_getFirebaseApp_withoutFirebaseProjectID`: writes a fake service-account JSON to a temp file, clears `FIREBASE_PROJECT_ID`, asserts the app initialises (project id can be embedded in the JSON).
-
-There is **no `VerifyIDToken` or `CustomToken` call anywhere in this package**: the planner does not mint or verify Firebase tokens at runtime.
-
----
-
-## 11. Routing table
+## 10. Routing table
 
 From `services/api/apiServer.go`:
 
@@ -450,7 +438,7 @@ Every other private handler under `services/api/v1endpoints/**` is wrapped by `A
 
 ---
 
-## 12. Failure / status mapping
+## 11. Failure / status mapping
 
 | Trigger | API response |
 |---|---|
@@ -467,7 +455,7 @@ Every other private handler under `services/api/v1endpoints/**` is wrapped by `A
 
 ---
 
-## 13. Lifecycle on a single session
+## 12. Lifecycle on a single session
 
 ```mermaid
 stateDiagram-v2
@@ -487,16 +475,15 @@ stateDiagram-v2
 
 ---
 
-## 14. Testing notes
+## 13. Testing notes
 
-- **`services/shared/firebaseadmin/client_test.go`** — only ensures the Admin app can boot without `FIREBASE_PROJECT_ID`; not auth-flow coverage.
 - **No JWT signing tests exist** because there is no internal JWT to sign — the previous tests under `internaljwt/` are deleted along with the module.
 - **Integration tests for cookies, Redis CRUD, and the refresh state machine** live alongside their handler packages (search for `*_test.go` under `services/api/v1endpoints/`).
-- **EVE JWT validation** uses CCP's live JWKS; for tests, mock the verifier through the helpers in `services/api/helper/sso`.
+- **EVE JWT validation** uses CCP's live JWKS; for tests, point `EVE_SSO_BASE_URL` at `testing/evessofake`, which signs verifiable tokens.
 
 ---
 
-## 15. Operational notes
+## 14. Operational notes
 
 - **Redis is in the critical path of every authenticated request.** A Redis outage degrades to `401 {"code":"session_missing"}` (middleware returns this when `TouchAccountSession` fails). Consider a circuit breaker if you need to keep the SPA reachable during partial outages.
 - **Cookie scope matters.** `eip_app_refresh` is deliberately scoped to `/api/v1/auth` so even an XSS bug on a data route cannot exfiltrate the refresh value. Keep this invariant when adding new auth paths.
@@ -506,7 +493,7 @@ stateDiagram-v2
 
 ---
 
-## 16. Files
+## 15. Files
 
 | Path | Role |
 |---|---|
@@ -533,7 +520,6 @@ stateDiagram-v2
 | `services/websocket/server/handler.go` | `HandleWS` — shared cookie+Redis auth on upgrade |
 | `services/shared/core/config/config.go` | Env loader |
 | `services/shared/core/crypto/keyrings/refresh_token.go` | AES-GCM keyring for Mongo-stored ESI refresh |
-| `services/shared/firebaseadmin/client.go` / `auth_recency.go` / `client_test.go` | Firebase Admin SDK (migration / Firestore admin reads, not request auth) |
 
 ### Deleted (reference)
 
