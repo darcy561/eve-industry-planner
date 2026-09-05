@@ -134,7 +134,7 @@ services:
     environment:
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
-      S3_BUCKET: static-data,static-data-test
+      S3_BUCKET: static-data,static-data-test,observability
     volumes:
       - seaweedfs_data:/data
     healthcheck:
@@ -145,6 +145,9 @@ services:
       start_period: 30s
     deploy:
       <<: *data-deploy
+      labels:
+        eip.network.attach: *net-obs
+        eip.network.attach.when: observability
 
 networks:
   eip-core:

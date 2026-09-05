@@ -9,12 +9,15 @@ after each landed stage lives in [overlay.md](./overlay.md).
 1. Read [plan.md](./plan.md) § Stage status for what is done, then § Decisions taken — those four
    are settled and are not to be reopened without a reason.
 2. **The code is committed** as `dd0454b9` on `feature/archived-jobs-stats`, docs included. That
-   branch is where the work lives; it is not on `Development`. A machine without it needs the branch
-   fetched, and the commit is not yet pushed at the time of writing — check before assuming.
-3. Stages A, B and C are written and A and B are verified against a running stack. **Stage C has not
-   been deployed**, so its behaviour is unverified — see § Landed but unverified.
-4. Next work is Stage D. Nothing in D depends on C being deployed first, but deploying C first keeps
-   the two verifications separable.
+   branch is where the work lives; it is not on `Development`. It is pushed — a machine without it
+   needs the branch fetched.
+3. Stages A, B and C are written and all three are now verified against a running stack.
+4. **There is no parallel run.** That decision was taken after Stage C landed and it re-scoped
+   Stages D, E and I — read those three before assuming the older "run both" shape.
+5. Stage D has landed and is verified: OpenObserve is the only store, and Prometheus and Loki
+   receive nothing. They stay deployed until Stage I so the dashboard rebuild can be checked
+   against them.
+6. Next work is Stage E, the query gate — run it before Stage I deletes anything.
 
 ## Where the code is
 
@@ -34,20 +37,18 @@ never `git add -A`. Staging for this commit picked up two files a peer had alrea
 deletion under `core/commands`), which had to be removed from the index first — worth checking
 `git diff --cached --name-only` before every commit here.
 
-## Landed but unverified
+## Stage C verification — done
 
-Written, building and tested, but never deployed:
+Stage C was deployed and checked against the running stack. What held:
 
-- `ws-router` reporting over OTLP at all — structured logs, placement metrics, a routing span.
-- Both duplicate-log paths closed (`ws-router`, `capacity-controller` added to the Alloy drop regex).
-- Six websocket placement gauges (`ws.placement.flag`, `ws.placement.target_clients`,
-  `ws.placement.client_cutoff`).
-- The shared instrument scaffolding refactor across fifteen files — the change with the widest
-  blast radius, since every metrics package moved onto it.
-- Traefik tracing flags and the `TRACES_SAMPLE_RATE` env key, both inert while the rate is 0.
+- Application series names survived the fifteen-file instrument scaffolding refactor, the change with
+  the widest blast radius. `api_*`, `core_*`, `worker_*` and `ws_*` all still register under their
+  existing names. There is **no bare `esi_*` prefix** — the limiter's series are `core_esi_*`, so a
+  check written against `esi_*` proves nothing.
+- `ws-router` appears in Loki's `compose_service` values, so it reports over OTLP for the first time.
+- All three `ws_placement_*` gauges are live: `flag`, `target_clients`, `client_cutoff`.
 
-First deploy should confirm the existing series still appear under unchanged names — `api_*`,
-`core_*`, `worker_*`, `ws_*`, `esi_*` — because the scaffolding refactor touched every one of them.
+Still inert by design: Traefik tracing flags and `TRACES_SAMPLE_RATE`, while the rate is 0.
 
 ## How a change actually reaches the stack
 
@@ -65,7 +66,7 @@ that removed an exporter container while leaving its replacement absent — Redi
 all until the next build. Check before deploying:
 
 ```bash
-strings eip | grep -c 'prometheus.exporter.redis'   # 0 means the binary predates the kit edit
+grep -a -c 'prometheus.exporter.redis' eip.exe   # 0 means the binary predates the kit edit
 ```
 
 ## Traps found the hard way
@@ -91,6 +92,25 @@ question is whether something is still being written.
 component reported healthy while the Docker log scrape collected nothing. Trust the error log and
 the data in the store.
 
+**`strings` is not installed in this environment.** The staleness probe below returns 0 with an
+error on stderr whether or not the binary is current, which reads as "stale" either way. Use
+`grep -a -c '<marker>' eip.exe` instead.
+
+**`build-host.sh` fails on Windows/Git Bash.** It assigns `mktemp`'s output to `TMP`, which is
+already the Windows temp-directory variable Go reads for its build work dir, so `go build` tries to
+`mkdir` inside a file. Build by invoking `go build` directly with the script's ldflags and
+`-trimpath`, then copy over `eip.exe`.
+
+**`loki.source.docker` needs the relabelled target list, not the raw one.** Passing
+`discovery.docker.docker.targets` with `relabel_rules` set separately applies `drop` actions to
+entry labels, not to the tailing set — every container gets tailed and dropped services still
+arrive. Pass `discovery.relabel.docker.output` instead. Loki hid this by deduplicating on label set;
+the OTLP path does not, so it surfaced as 60% junk log volume the moment the backend changed.
+
+**Alloy's own reload burst looks like a regression.** After a config change Alloy logs a few hundred
+"node exited without error" lines, which arrive unlabelled and can read as a broken drop rule. Wait
+for the reload to settle before judging a log-routing change.
+
 **Embedded exporters ignore `prometheus.scrape`'s `job_name`.** Their targets arrive carrying
 `job="integrations/<name>"`, and a target label wins, so each needs a `discovery.relabel`. Static
 scrape targets have no `job` of their own and take `job_name` directly. The failure is silent:
@@ -114,6 +134,15 @@ this project has not otherwise touched.
 Run from the repo root; `eip-obs` is the observability overlay.
 
 ```bash
+# what has reached the backend, by source (needs OBS_ADMIN_* from .env)
+U=$(grep -E '^OBS_ADMIN_USER=' .env | cut -d= -f2-); P=$(grep -E '^OBS_ADMIN_PASSWORD=' .env | cut -d= -f2-)
+NOW=$(( $(date +%s) * 1000000 )); AGO=$(( NOW - 60000000 ))
+docker run --rm --network eip-obs curlimages/curl:8.11.1 -s -u "$U:$P"   -H 'Content-Type: application/json'   -d "{\"query\":{\"sql\":\"SELECT compose_service, count(*) AS n FROM \\\"default\\\" GROUP BY compose_service ORDER BY n DESC\",\"start_time\":$AGO,\"end_time\":$NOW,\"size\":30}}"   'http://openobserve:5080/api/default/_search'
+
+# which containers Alloy is actually tailing (should exclude the six Go services and four proxies)
+cid=$(docker ps --format '{{.ID}} {{.Names}}' | grep 'eip_alloy\.1' | awk '{print $1}')
+docker run --rm --network container:$cid curlimages/curl:8.11.1 -s   'http://localhost:12345/api/v0/web/components/loki.source.docker.docker'
+
 # every collection job, with real sample ages
 docker run --rm --network eip-obs curlimages/curl:8.11.1 -s --data-urlencode \
   'query=timestamp({__name__=~"redis_up|node_load1|mongodb_up|asynq_queue_size"})' \

@@ -383,50 +383,63 @@ tries harder than it should be.
 
 Like Stage B, this is worth doing on its own terms and survives whatever Stage E decides.
 
-### Stage D — run both, cut nothing over
+### Stage D — OpenObserve arrives and Alloy repoints onto it
 
-By now Alloy carries everything, which is what makes this stage small. Add single-node OpenObserve to
-`docker-stack.obs.yml`, backed by the existing SeaweedFS S3, then fan out the paths Alloy owns —
-every source rides one of them, so nothing needs a second destination of its own:
+There is **no parallel run**. Alloy's exporters move to the new backend rather than fanning out to a
+second destination, so at the end of this stage OpenObserve is the only thing receiving telemetry.
+Grafana, Prometheus and Loki stay deployed but stop being written to — they are kept for reference
+while the dashboards are rebuilt, not as a fallback the stack could return to.
 
-- **Metrics.** `prometheus.remote_write` takes multiple `endpoint` blocks; add a second alongside the
-  Prometheus one.
-- **Application logs.** Add a second `otelcol.exporter.otlphttp` beside the Loki one.
-- **Docker stdout.** This one is not a second exporter. The path is Loki-native push with no OTLP in
-  it, so duplicating it means inserting `otelcol.receiver.loki` and forwarding `loki.source.docker`
-  to both the existing `loki.write` and the new OTLP branch. **Decide here whether the bridged copy
-  passes through the same `LOG_LEVEL` filter and `strip_debug_steps` transform the application logs
-  get** — today it does not, and the parallel run is where that difference becomes visible.
+Add single-node OpenObserve to `docker-stack.obs.yml`, backed by the existing SeaweedFS S3, then
+repoint the three paths Alloy owns. Every source rides one of them, so nothing needs a destination of
+its own:
 
-Prometheus, Loki and Grafana keep running untouched. Rollback is deleting one service and the added
-config blocks.
+- **Metrics.** Repoint `prometheus.remote_write "local"` at the backend's `remote_write` endpoint.
+- **Application logs.** Repoint `otelcol.exporter.otlphttp "loki"` at the backend's OTLP endpoint,
+  and rename it for the thing it now writes to.
+- **Docker stdout.** This one is not a repointed exporter. The path is Loki-native push with no OTLP
+  in it, so moving it means inserting `otelcol.receiver.loki` between `loki.source.docker` and the
+  OTLP branch, and dropping `loki.write` once nothing forwards to it.
 
-Done when the same metric and the same log line can be read from both stores for the same timestamp.
+**The bridged stdout copy does not pass through `scrub_otlp_boilerplate`.** That transform strips
+OTel SDK and zap caller metadata — `code.*`, `telemetry.sdk.*`, scope name — which container stdout
+never carries, so routing the bridge through it would add a component that changes nothing. The
+application OTLP path keeps it because that is the path those attributes arrive on.
 
-### Stage E — the decision gate
+Credentials are `OBS_ADMIN_USER` and `OBS_ADMIN_PASSWORD`, new env-template fields generated and
+locked the way Grafana's are. They are named for the role in this stack rather than after the
+backend's own `ZO_` prefix, so a later backend swap does not rename an operator-facing key.
+
+Done when every signal — application metrics, application logs, container stdout, infrastructure
+scrapes and Traefik's OTLP push — is readable in OpenObserve, and Prometheus and Loki have stopped
+receiving new samples.
+
+### Stage E — the query gate
 
 Rebuild the ESI limiter dashboard in OpenObserve, and alongside it a probe panel set covering the
 PromQL constructs this stack actually depends on.
 
-**This stage decides the backend, not the project.** If PromQL holds on real panels, continue. It
-decides only that: whether the *queries* survive, not whether the dashboards still describe the
-system — see [Stage H](#stage-h--the-dashboards). The consolidation landed in Stages B and C keeps
-its value either way, which is why they run first.
+**This stage is a checkpoint, not a fork.** With the parallel run gone it no longer decides the
+backend — Stage D has already moved the writes, and the old stores hold only history. What it decides
+is how much of the dashboard rebuild is a query translation problem: if PromQL holds on real panels,
+the eleven Prometheus-only dashboards carry their expressions across; if it does not, they are
+rewritten against the backend's own query language along with the seven `logs-*` ones.
 
-If PromQL does not hold, stop here: delete the parallel run, build the ESI dashboard in Grafana
-instead, and keep Prometheus, Loki and Grafana as the store. Stages B and C have already landed and
-stay landed; the stack keeps one collector and loses only the second backend.
+Run it **before** Stage I deletes anything. The old three are still deployed at this point precisely
+so a panel that returns nothing can be checked against the store that used to answer it — that is
+reference, not rollback.
 
 Two things about the ESI dashboard specifically. First, **the shipped one is broken today**, and has
 been since the limiter's metrics were renamed: its five panels select `core_esi_group_token_limit`,
 `_token_used`, `_token_remaining`, `_seconds_into_window` and `_seconds_until_reset`, while the code
 emits `core.esi.bucket.token_limit`, `.token_used`, `.token_remaining`, `.fill` and
-`.seconds_until_open`. That is a live defect independent of this project and worth fixing on its own
-terms; here it means the rebuild starts from the live doc, not from the JSON.
+`.seconds_until_open`. Confirmed against the live store: the old names are in the index with no
+current samples, and nothing has written them since the rename. That is a live defect independent of
+this project; here it means the rebuild starts from the live doc, not from the JSON.
 
-Second, **as shipped it is five bare gauge selectors and proves nothing about PromQL.** The
+Second, **as shipped it is five bare gauge selectors and proves nothing about the query surface.** The
 histograms and the `class` / `reason` labels live in `esiclient`, a different emitter from the core
-gauges. A gate that decides the project has to be built to exercise:
+gauges. A checkpoint worth running has to exercise:
 
 | Construct | Where it is used today |
 |---|---|
@@ -542,8 +555,8 @@ cancelled. The same is true of the `mongodb.json` oplog panel.
 
 ### Stage I — cutover
 
-Remove the second destinations added in Stage D, then Grafana, Prometheus and Loki, their volumes
-and their provisioning.
+Nothing writes to Grafana, Prometheus or Loki after Stage D, so this stage removes three idle
+services, their volumes and their provisioning.
 
 The Deployment Tool work is the bulk of this stage and is not a deletion. Grafana is a first-class
 concept there — **388 references across 33 Go files** — including `addons.observability.grafana.public`
@@ -571,14 +584,15 @@ Promote the overlay into live SoT under [`stack/`](../../stack/contents.md) and
 - **`.env`.** `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` are replaced by the new backend's
   credentials, which the env template generates and locks the same way.
 
-**Breaking, and the reason for the parallel run:**
+**Breaking, and accepted at the cut:**
 
 - **Dashboard format.** Grafana JSON does not import. Every dashboard is rebuilt, not converted.
 - **Provisioning.** The Deployment Tool embeds Grafana's file-based provisioning —
   `datasources.yaml`, `dashboards.yaml`, and twenty `grafana_dash_*` configs in the stack YAML.
   The target manages dashboards through its API, so that path is rebuilt rather than reconfigured.
-- **Historical telemetry.** Prometheus TSDB and Loki chunks do not migrate. Whatever retention
-  matters must survive as a parallel-run overlap, not a copy.
+- **Historical telemetry.** Prometheus TSDB and Loki chunks do not migrate and are not copied.
+  The cut is hard: history before it is readable only until Stage I deletes the volumes, and not
+  after.
 - **`job` labels.** The exporter collapse, the Traefik OTLP switch and any change to the write path
   can each rewrite them, and every infrastructure dashboard filters on them.
 - **Traefik metric names.** Prometheus exposition and OTLP export do not name the same series.
@@ -598,8 +612,10 @@ the whole of the claim that this project is a configuration change.
 
 ## Cutover and rollback
 
-Every stage before I is reversible by deleting what it added, because the existing stack keeps
-running alongside. Stage D adds second destinations rather than moving the first.
+Every stage before D is reversible by deleting what it added. **Stage D is the cut**: it moves the
+writes rather than duplicating them, so from that point the old stores hold history and nothing more.
+Reverting D means repointing Alloy back at Prometheus and Loki, which works only while Stage I has
+not yet deleted them, and leaves a gap for the period they were not written to.
 
 Stage A is the exception in kind rather than in risk: it changes how services log rather than adding
 a destination, so it reverts by reverting the change. It is also the one stage that improves the
@@ -630,13 +646,15 @@ than Prometheus on the panels that matter, or single-node ingestion falling behi
 
 ## Open questions
 
-1. **How much history matters?** Decides how long the parallel run lasts, since nothing migrates.
+1. **How much history matters?** Nothing migrates and there is no overlap to widen, so this is now
+   a question about how long Stage I waits before deleting the old volumes — the only window in which
+   pre-cut history can still be read.
 2. **Does anyone but the operator need dashboards?** SSO and advanced RBAC are Enterprise in
    OpenObserve; Grafana OSS gives more here. Irrelevant for a single operator, decisive if not.
 3. **Retention and storage sizing on SeaweedFS.** Object storage changes the retention economics
    against a local TSDB volume, and the current 70 MB is not a useful guide to what a year looks
    like. Stage B makes this answerable rather than guessable: once SeaweedFS reports, the growth
-   curve is measurable during the parallel run instead of estimated before it.
+   curve is measurable from the moment SeaweedFS reports, instead of estimated before it.
 4. **Does `asynqmon` stay?** It is a queue UI and a scrape target. Out of scope here, but it is one
    of the four remaining services and worth asking about when the count is the point.
 5. **What should `ws-router` measure?** Stage C adds the plumbing; the instrumentation it carries is
@@ -656,8 +674,8 @@ Stages A to C are committed as `dd0454b9` on `feature/archived-jobs-stats`.
 | A — logging holds with the layer off | Done |
 | B — every metrics target moves onto Alloy | Done |
 | C — the application tier all speaks OTLP | Done |
-| D — run both, cut nothing over | Not started |
-| E — decision gate (ESI dashboard, PromQL verification) | Not started |
+| D — OpenObserve arrives and Alloy repoints onto it | Done |
+| E — query gate (ESI dashboard, PromQL verification) | Not started |
 | F — traces stop being discarded | Not started |
 | G — the spans say what a trace needs | Not started |
 | H — the dashboards | Not started |
@@ -665,5 +683,10 @@ Stages A to C are committed as `dd0454b9` on `feature/archived-jobs-stats`.
 | J — promote and delete | Not started |
 
 The consolidation runs before the backend arrives. Every producer reaches Alloy first, so standing up
-OpenObserve is one fan-out at one place rather than a destination added per source, and each
+OpenObserve is one repoint at one place rather than a destination changed per source, and each
 consolidation stage is verifiable against the store and dashboards that already exist.
+
+**There is no parallel run.** Stage D moves the writes onto OpenObserve in one step; Grafana,
+Prometheus and Loki stay deployed but unwritten-to until Stage I removes them, so the dashboard
+rebuild can be checked against the store that used to answer a panel. That is reference, not
+rollback — the stack does not return to them.

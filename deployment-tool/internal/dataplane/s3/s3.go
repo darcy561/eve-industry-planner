@@ -21,15 +21,16 @@ const serviceName = "seaweedfs"
 
 // App buckets (keep in sync with objectstore + docker-stack.data.yml S3_BUCKET).
 const (
-	BucketStatic     = "static-data"
-	BucketStaticTest = "static-data-test"
+	BucketStatic        = "static-data"
+	BucketStaticTest    = "static-data-test"
+	BucketObservability = "observability"
 )
 
 var safeBucketName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // AppBuckets is the declarative list Ensure creates / Check verifies.
 func AppBuckets() []string {
-	return []string{BucketStatic, BucketStaticTest}
+	return []string{BucketStatic, BucketStaticTest, BucketObservability}
 }
 
 func requireSafeBucket(name string) error {

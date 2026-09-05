@@ -97,7 +97,7 @@ var envFields = []EnvField{
 
 	{
 		Key: "S3_ACCESS_KEY", Section: "Database", Label: "S3 access key",
-		Help: "SeaweedFS S3 credentials for static-data / static-data-test buckets.",
+		Help: "SeaweedFS S3 credentials for the static-data, static-data-test and observability buckets.",
 		Type: FieldText, Required: true, Default: "eipobject",
 	},
 	{
@@ -214,6 +214,17 @@ var envFields = []EnvField{
 	{
 		Key: "GRAFANA_ADMIN_PASSWORD", Section: "Grafana", Label: "Grafana admin password",
 		Help: "Grafana login password. Generated on first Setup / eip init. Locked once set.",
+		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
+	},
+
+	{
+		Key: "OBS_ADMIN_USER", Section: "Observability", Label: "Observability admin user",
+		Help: "Telemetry backend login. Must be an email address — the backend rejects anything else.",
+		Type: FieldText, Required: true, Default: "admin@eve-industry-planner.local", Locked: true,
+	},
+	{
+		Key: "OBS_ADMIN_PASSWORD", Section: "Observability", Label: "Observability admin password",
+		Help: "Telemetry backend login password. Generated on first Setup / eip init. Locked once set.",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
 	},
 }

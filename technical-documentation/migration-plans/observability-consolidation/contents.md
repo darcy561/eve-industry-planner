@@ -7,8 +7,7 @@ Grafana Alloy as the single point everything enters, and a single-node store tha
 logs and traces together and serves its own dashboards.
 
 Covers the four collection paths that bypassed Alloy, the backend evaluation and its decision
-gate, the dashboard rebuild, the trace pipeline that is currently discarded, and the parallel-run
-cutover.
+gate, the dashboard rebuild, the trace pipeline that is currently discarded, and the cutover.
 
 ## Does not own
 
@@ -30,7 +29,7 @@ cutover.
 | Know what the off-mode has to do and how the level floor moves | [plan.md](./plan.md) § Stage A — logging holds with the layer off |
 | Know which backends were considered and why one was chosen | [plan.md](./plan.md) § Choosing the backend |
 | Find the facts this plan rests on, and how they were checked | [plan.md](./plan.md) § Verified facts |
-| Know what would send us back to a different backend | [plan.md](./plan.md) § Stage E — the decision gate |
+| Know what the query checkpoint has to prove | [plan.md](./plan.md) § Stage E — the query gate |
 | See how the exporters and scrape targets fold into the collector | [plan.md](./plan.md) § Stage B — every metrics target moves onto Alloy |
 | Understand what happens to traces, and what Sentry keeps | [plan.md](./plan.md) § Stage F — traces stop being discarded |
 | Make the spans worth querying once tracing is on | [plan.md](./plan.md) § Stage G — the spans say what a trace needs |

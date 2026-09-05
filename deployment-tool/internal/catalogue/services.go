@@ -124,6 +124,7 @@ func Groups() []Group {
 				{Short: "loki", Label: "Loki"},
 				{Short: "alloy", Label: "Alloy"},
 				{Short: "alloy-docker-proxy", Label: "Alloy helper"},
+				{Short: "openobserve", Label: "Telemetry backend"},
 				{Short: "asynqmon", Label: "Job monitor"},
 				{Short: "nats-exporter", Label: "NATS exporter"},
 			},

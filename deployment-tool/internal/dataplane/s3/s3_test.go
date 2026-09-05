@@ -7,8 +7,9 @@ import (
 func TestAppBuckets(t *testing.T) {
 	t.Parallel()
 	got := AppBuckets()
-	// Keep in sync with services/shared/core/objectstore BucketStaticData*.
-	want := []string{"static-data", "static-data-test"}
+	// static-data* keep in sync with services/shared/core/objectstore BucketStaticData*;
+	// observability is the telemetry backend's store and has no app-side counterpart.
+	want := []string{"static-data", "static-data-test", "observability"}
 	if len(got) != len(want) {
 		t.Fatalf("len=%d want %d", len(got), len(want))
 	}

@@ -9,7 +9,7 @@ func TestEnvFieldSectionsConsistent(t *testing.T) {
 	t.Parallel()
 	want := []string{
 		"Release", "EVE SSO", "Analytics", "Database", "Encryption",
-		"Runtime", "Sentry", "Integrations", "Grafana",
+		"Runtime", "Sentry", "Integrations", "Grafana", "Observability",
 	}
 	var got []string
 	seen := map[string]bool{}

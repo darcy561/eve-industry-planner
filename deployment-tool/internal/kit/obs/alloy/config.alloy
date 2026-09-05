@@ -65,24 +65,28 @@ discovery.relabel "docker" {
 
 	rule {
 		source_labels = ["compose_service"]
-		regex         = "(alloy|alloy-docker-proxy|traefik-docker-proxy|ws-docker-proxy)"
+		regex         = "(alloy|alloy-docker-proxy|traefik-docker-proxy|ws-docker-proxy|capacity-docker-proxy)"
 		action        = "drop"
 	}
 }
 
 loki.source.docker "docker" {
-	host             = "tcp://alloy-docker-proxy:2375"
-	targets          = discovery.docker.docker.targets
-	relabel_rules    = discovery.relabel.docker.rules
+	host = "tcp://alloy-docker-proxy:2375"
+	// Take the relabelled output, not the raw target list: drop actions only remove a container
+	// from the tailing set here. Passing raw targets with relabel_rules tails every container and
+	// applies the rules to entry labels instead, so dropped services still arrive.
+	targets          = discovery.relabel.docker.output
 	refresh_interval = "5s"
-	forward_to       = [loki.write.default.receiver]
+	forward_to       = [otelcol.receiver.loki.docker.receiver]
 }
 
-loki.write "default" {
-	endpoint {
-		url = "http://loki:3100/loki/api/v1/push"
+// Container stdout is Loki-native push; this bridges it onto OTLP so it leaves by the same exporter
+// as the application logs. It does not pass through scrub_otlp_boilerplate — container stdout
+// carries none of the OTel SDK or zap caller attributes that transform removes.
+otelcol.receiver.loki "docker" {
+	output {
+		logs = [otelcol.processor.batch.logs.input]
 	}
-	external_labels = {}
 }
 
 // OTLP from Go services (replaces otel-collector).
@@ -147,20 +151,26 @@ otelcol.processor.batch "apps" {
 	}
 }
 
-// Accept OTLP logs (Go services) → Loki native OTLP (/otlp). Log line = message; zap fields = structured metadata.
+// Application OTLP logs and bridged container stdout both leave here.
 otelcol.processor.batch "logs" {
 	output {
-		logs = [otelcol.exporter.otlphttp.loki.input]
+		logs = [otelcol.exporter.otlphttp.backend.input]
 	}
 }
 
-otelcol.exporter.otlphttp "loki" {
+otelcol.exporter.otlphttp "backend" {
 	client {
-		endpoint = "http://loki:3100/otlp"
+		endpoint = "http://openobserve:5080/api/default"
 		tls {
 			insecure = true
 		}
+		auth = otelcol.auth.basic.backend.handler
 	}
+}
+
+otelcol.auth.basic "backend" {
+	username = sys.env("OBS_ADMIN_USER")
+	password = sys.env("OBS_ADMIN_PASSWORD")
 }
 
 // Accept OTLP traces then discard — app traces go to Sentry, not Alloy.
@@ -314,6 +324,11 @@ prometheus.scrape "seaweedfs" {
 
 prometheus.remote_write "local" {
 	endpoint {
-		url = "http://prometheus:9090/api/v1/write"
+		url = "http://openobserve:5080/api/default/prometheus/api/v1/write"
+
+		basic_auth {
+			username = sys.env("OBS_ADMIN_USER")
+			password = sys.env("OBS_ADMIN_PASSWORD")
+		}
 	}
 }
