@@ -86,45 +86,29 @@ _Empty until Stage C lands._
 
 ## Where telemetry goes
 
-OpenObserve is the only store. Alloy's three exporters point at it and nothing else; Prometheus,
-Loki and Grafana are still deployed but no longer receive anything, and they hold only history from
-before the cut.
+Alloy is the only collector. Prometheus stores metrics, Loki stores logs, Grafana queries both.
 
 | Signal | Path |
 |---|---|
-| Application metrics | OTLP → Alloy → `prometheus.remote_write` → `/api/default/prometheus/api/v1/write` |
-| Infrastructure metrics | Alloy exporters and scrapes → the same `remote_write` |
+| Application metrics | OTLP → Alloy → `prometheus.remote_write` → Prometheus |
+| Infrastructure metrics | Alloy's embedded exporters and scrapes → the same `remote_write` |
 | Traefik metrics | Native OTLP push → Alloy → the same `remote_write` |
-| Application logs | OTLP → `scrub_otlp_boilerplate` → `otelcol.exporter.otlphttp "backend"` → `/api/default` |
-| Container stdout | `loki.source.docker` → `otelcol.receiver.loki` → the same exporter |
-| Traces | Still discarded — Stage F |
+| Application logs | OTLP → `scrub_otlp_boilerplate` → `otelcol.exporter.otlphttp` → Loki `/otlp` |
+| Container stdout | `loki.source.docker` → `loki.write` → Loki's push API |
+| Traces | Discarded at `otelcol.exporter.debug` |
 
-Alloy authenticates with `OBS_ADMIN_USER` / `OBS_ADMIN_PASSWORD`, read with `sys.env`, as HTTP basic
-on both the metrics and logs exporters. The backend stores on the existing SeaweedFS S3 in an
-`observability` bucket, created by `eip ensure-s3` from the `AppBuckets` list.
+**Container stdout keeps Loki's native push rather than being bridged onto OTLP.** Sending it through
+`otelcol.receiver.loki` and out of the shared OTLP exporter works, and was in place while an
+alternative backend was evaluated, but against Loki it delivers `compose_service`, `container`,
+`swarm_service` and `task_slot` as structured metadata instead of stream labels. Every `logs-*`
+dashboard selects `{compose_service="…"}`, so those queries return nothing. The two log paths
+therefore leave Alloy by different exporters, and that is deliberate.
 
-**SeaweedFS joins `eip-obs` when the addon is enabled**, through the `eip.network.attach` /
-`attach.when: observability` labels the Deployment Tool already understands. The backend reaches
-storage without the addon gaining a foothold on `eip-core`, where the application services live.
-
-**The bridged stdout copy does not pass through `scrub_otlp_boilerplate`.** That transform removes
-OTel SDK and zap caller attributes, which container stdout never carries.
-
-### Two collection defects the cut exposed
-
-Both predate this stage and were invisible while Loki was the log store, because Loki deduplicates
-by label set and the OTLP path does not.
-
-**`loki.source.docker` was tailing every container.** It took `discovery.docker.docker.targets` (the
-raw list) with `relabel_rules` supplied separately. In that arrangement the `drop` actions apply to
-entry labels rather than to the tailing set, so all 23 services were tailed and the six Go services
-and four socket proxies arrived despite being named in a drop rule. It now takes
-`discovery.relabel.docker.output`, the already-relabelled target list: 21 targets, none of them
-dropped services.
-
-**`capacity-docker-proxy` was missing from the proxy drop group** its three siblings were in.
-
-Together these were 60% of ingested log volume, none of it wanted.
+**`loki.source.docker` takes `discovery.relabel.docker.output`, not the raw target list.** Passing
+`discovery.docker.docker.targets` with `relabel_rules` supplied separately applies `drop` actions to
+entry labels rather than to the tailing set: every container gets tailed, and services named in a
+drop rule still arrive. The dropped set is the six Go services, which export OTLP logs of their own,
+and the four socket proxies.
 
 ## Reading the ESI limiter
 

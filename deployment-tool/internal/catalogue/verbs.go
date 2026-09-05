@@ -33,7 +33,7 @@ func Verbs() []Verb {
 		{ID: "add-path", Title: "Add to PATH", Short: "Optional: symlink eip onto PATH so you can run eip from any directory"},
 		{ID: "init", Title: "Init", Short: "Write missing stack YAML / .env / eip.config.yaml"},
 		{ID: "ensure-mongo", Title: "Ensure mongo", Short: "Ensure mongo RS, users, preimages, and indexes (CLI)"},
-		{ID: "ensure-s3", Title: "Ensure S3", Short: "Ensure SeaweedFS app buckets static-data / static-data-test / observability (CLI)"},
+		{ID: "ensure-s3", Title: "Ensure S3", Short: "Ensure SeaweedFS app buckets static-data / static-data-test (CLI)"},
 		{ID: "restore-mongo-keyfile", Title: "Restore mongo keyfile", Short: "Restore ./mongo-keyfile (+ .bak) from a running mongo task (CLI)"},
 		{ID: "rekey-mongo", Title: "Rekey mongo", Short: "Rekey ./mongo-keyfile using MONGO_ROOT_* when stack is down (CLI)"},
 	}

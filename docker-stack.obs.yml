@@ -117,8 +117,6 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       MONGO_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-      OBS_ADMIN_USER: ${OBS_ADMIN_USER}
-      OBS_ADMIN_PASSWORD: ${OBS_ADMIN_PASSWORD}
     networks:
       eip-obs:
         aliases: [alloy]
@@ -221,40 +219,6 @@ services:
         traefik.http.routers.grafana-secure.service: grafana
         traefik.http.services.grafana.loadbalancer.server.port: "3000"
 
-  # Telemetry backend — metrics, logs and traces in one store, with its own query UI.
-  # Ingests OTLP (:5081 gRPC, :5080 HTTP) and Prometheus remote_write; data on SeaweedFS S3,
-  # metadata on the local volume.
-  openobserve:
-    image: openobserve/openobserve:v0.15.0
-    logging: *log-rotate
-    networks:
-      eip-obs:
-        aliases: [openobserve]
-    dns: *common-dns
-    environment:
-      ZO_ROOT_USER_EMAIL: ${OBS_ADMIN_USER}
-      ZO_ROOT_USER_PASSWORD: ${OBS_ADMIN_PASSWORD}
-      ZO_DATA_DIR: /data
-      # SeaweedFS speaks S3 on :8333.
-      ZO_LOCAL_MODE: "true"
-      ZO_LOCAL_MODE_STORAGE: s3
-      ZO_S3_PROVIDER: s3
-      ZO_S3_SERVER_URL: http://seaweedfs:8333
-      ZO_S3_REGION_NAME: us-east-1
-      ZO_S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      ZO_S3_SECRET_KEY: ${S3_SECRET_KEY}
-      ZO_S3_BUCKET_NAME: ${OBS_S3_BUCKET:-observability}
-      # SeaweedFS serves no per-bucket subdomains, so addressing stays path-style (the default).
-      ZO_S3_FEATURE_FORCE_HOSTED_STYLE: "false"
-      ZO_TELEMETRY: "false"
-    volumes:
-      - openobserve_data:/data
-    # No healthcheck: the image is distroless and ships no shell or HTTP client to run one with.
-    deploy:
-      <<: *obs-deploy
-      labels:
-        - "eip.config.sync=1"
-
   asynqmon:
     image: hibiken/asynqmon:latest
     logging: *log-rotate
@@ -322,9 +286,6 @@ volumes:
     external: true
   prometheus_data:
     name: eve-industry-planner_prometheus_data
-    external: true
-  openobserve_data:
-    name: eve-industry-planner_openobserve_data
     external: true
 
 configs:

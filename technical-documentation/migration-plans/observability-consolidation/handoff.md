@@ -12,12 +12,13 @@ after each landed stage lives in [overlay.md](./overlay.md).
    branch is where the work lives; it is not on `Development`. It is pushed — a machine without it
    needs the branch fetched.
 3. Stages A, B and C are written and all three are now verified against a running stack.
-4. **There is no parallel run.** That decision was taken after Stage C landed and it re-scoped
-   Stages D, E and I — read those three before assuming the older "run both" shape.
-5. Stage D has landed and is verified: OpenObserve is the only store, and Prometheus and Loki
-   receive nothing. They stay deployed until Stage I so the dashboard rebuild can be checked
-   against them.
-6. Next work is Stage E, the query gate — run it before Stage I deletes anything.
+4. **The stack keeps Grafana, Prometheus and Loki.** A single-node OpenObserve was built, deployed,
+   measured and removed — [plan.md](./plan.md) § Choosing the backend has the numbers. Do not
+   reopen that without new information; the deciding figure was 1.2 GB idle on a stack with no
+   users, against 466 MB for the three services it would have replaced, on a 2-core/8 GB host.
+5. Stage E is dropped and Stage I is retired with it. Stage H is now a defect fix, not a rebuild.
+6. Next work is Stage H (fix the three broken dashboards) or Stage F (which first needs a decision
+   on whether traces get a store at all).
 
 ## Where the code is
 
@@ -36,6 +37,21 @@ The working tree is shared with other sessions and carries unrelated work. Stage
 never `git add -A`. Staging for this commit picked up two files a peer had already staged (a
 deletion under `core/commands`), which had to be removed from the index first — worth checking
 `git diff --cached --name-only` before every commit here.
+
+## What the backend evaluation left behind
+
+Two collection defects were found while the store was swapped and are **kept**:
+
+- `loki.source.docker` now takes `discovery.relabel.docker.output` rather than the raw target list,
+  so `drop` rules actually stop a container being tailed.
+- `capacity-docker-proxy` joined the proxy drop group.
+
+Together about 60% of ingested log volume. Both were invisible while Loki was the only log
+destination, because Loki deduplicates by label set.
+
+**Reverted with the backend:** bridging container stdout through `otelcol.receiver.loki`. Against
+Loki that delivers `compose_service` as structured metadata rather than a stream label, and the
+`logs-*` dashboards select `{compose_service="…"}`. Container stdout keeps `loki.write`.
 
 ## Stage C verification — done
 
@@ -106,6 +122,15 @@ already the Windows temp-directory variable Go reads for its build work dir, so 
 entry labels, not to the tailing set — every container gets tailed and dropped services still
 arrive. Pass `discovery.relabel.docker.output` instead. Loki hid this by deduplicating on label set;
 the OTLP path does not, so it surfaced as 60% junk log volume the moment the backend changed.
+
+**Loki indexes OTLP resource attributes as structured metadata, not stream labels.** A log arriving
+by the OTLP path carries `compose_service` in `loki_attribute_labels`, and `{compose_service="x"}`
+matches nothing. Check a label is queryable with
+`curl 'http://loki:3100/loki/api/v1/label/compose_service/values'` before assuming a log path works.
+
+**`timestamp(<metric>) < N` in an instant query can return empty even when data is arriving.** Ask
+`count({__name__=~".+"})` or query a known series directly before concluding a store is not
+receiving.
 
 **Alloy's own reload burst looks like a regression.** After a config change Alloy logs a few hundred
 "node exited without error" lines, which arrive unlabelled and can read as a broken drop rule. Wait

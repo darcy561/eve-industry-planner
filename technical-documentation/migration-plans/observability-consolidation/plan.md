@@ -14,7 +14,12 @@ Live SoT will not be edited until this project is complete and promotion is appr
 
 ## The shape of the change
 
-**Everything that produces telemetry sends it to Alloy. Alloy sends it to OpenObserve.**
+**Everything that produces telemetry sends it to Alloy. Alloy sends it to Prometheus and Loki.**
+
+The second half of that sentence was very nearly a different backend. It is not, and
+[Choosing the backend](#choosing-the-backend) records why. What matters for everything below is the
+first half: one collector, entered by every producer, so the store behind it is a single repoint
+rather than a per-source migration.
 
 That is one sentence but it is not one change. Today Alloy is the only thing the *Go applications*
 talk to, and four other collection paths run beside it: Prometheus scrapes seven targets directly,
@@ -134,17 +139,22 @@ nats-exporter, asynqmon, seaweedfs ─▶ prometheus.scrape ────┤
                                                     ▼
                                                   Alloy
                                                     │
+                                          ┌─────────┴─────────┐
+                                          ▼                   ▼
+                                     Prometheus              Loki
+                                          └─────────┬─────────┘
                                                     ▼
-                                              OpenObserve
+                                                 Grafana
 ```
 
-Everything enters through Alloy; everything lands in one backend that stores metrics, logs and
-traces and serves its own dashboards. Two services carry the pipeline. `alloy-docker-proxy` remains
+Everything enters through Alloy. Prometheus and Loki store it and Grafana queries both — the single
+collector is the consolidation; the store behind it stayed as it was. Two services carry the
+ingestion path. `alloy-docker-proxy` remains
 as a trust boundary and `asynqmon` as a queue UI, neither of which is pipeline.
 
-Ten services become five. The reduction comes from three independent changes that touch the same
-file: the exporters Alloy can embed become components, the rest move onto Alloy as scrape targets or
-push to it, and one backend replaces three. `nats-exporter` survives because Alloy has no NATS
+Ten services become seven. The reduction comes from two changes that touch the same file: the
+exporters Alloy can embed become components, and the rest move onto Alloy as scrape targets or push
+to it. `nats-exporter` survives because Alloy has no NATS
 exporter component — it stays a container that Alloy scrapes, like `asynqmon`.
 
 ## Decisions taken
@@ -153,7 +163,8 @@ These were open when the plan was first written and are settled now. They are re
 than in the stages so that a reader knows the stages are executing a decision, not proposing one.
 
 **Sentry keeps errors; traces move.** Error capture, grouping and release tracking stay on Sentry
-for both the backend and the SPA — that is the job it does well and OpenObserve does not replace it.
+for both the backend and the SPA — that is the job it does well and a telemetry store does not
+replace it.
 Span export switches to the collector. One tracer provider, one exporter, pointed at Alloy. This
 means `sentryotel.NewOtelIntegration` no longer has spans to attach to errors, which is the cost of
 the split and is accepted.
@@ -173,29 +184,62 @@ which puts edge spans on the same trace as the application spans they precede.
 
 ## Choosing the backend
 
-Four options were measured against a single-host Swarm with no Kubernetes.
+**The stack keeps Grafana, Prometheus and Loki.** A single-node OpenObserve was built, deployed and
+measured against the running stack, then removed. This section records the measurement so the
+question is not reopened without new information.
 
-**OpenObserve, single-node — chosen.** One container: metrics, logs, traces, dashboards and
-alerting, with SQLite for metadata and either local disk or S3 for data. It accepts OTLP and
-Prometheus `remote_write`. AGPL-3.0, and the open-source edition is feature-complete for every
-signal this stack carries.
+**The target host is 2 cores and 8 GB.** The rest of the stack uses about 2.5 GB, so a telemetry
+backend has roughly 1–1.5 GB before the host is uncomfortable.
 
-**SigNoz — rejected on footprint.** Self-hosted needs five containers (ClickHouse, ClickHouse
-Keeper, PostgreSQL, its own OTel collector, and the SigNoz backend) and documents a floor of 4 GB
-of memory for Docker. Against the same three services it would replace, that is a net increase of
-two containers plus a second database and a coordination service. Its HA path needs Kubernetes,
-which is not available here. SigNoz is the stronger dedicated APM product and would be worth
-revisiting if tracing became the primary need — but OpenObserve stores traces too, so "we would
-need SigNoz for traces" is not the reason to take it.
+| Configuration | Metric streams | Memory | CPU |
+|---|---|---|---|
+| Grafana + Prometheus + Loki | — | **466 MB** combined | idle |
+| OpenObserve, defaults | 7,314 | 3.7 GB | — |
+| OpenObserve, caches capped | 7,314 | 3.0–3.2 GB | 180–540% |
+| OpenObserve, caches capped, MongoDB collection off | 721 | 1.2 GB | 3–16% |
 
-**Apps pushing OTLP straight to Prometheus — rejected.** Prometheus v3.2.1 has a native OTLP
-receiver (`--web.enable-otlp-receiver`, currently not enabled), so this is possible. It is also the
-opposite of this project: it removes Alloy from the metrics path while leaving it in place for logs,
-so the stack keeps two ingestion paths and gains a second export destination in every application.
+Three things came out of that.
 
-**`grafana/otel-lgtm` — rejected.** Bundles Grafana, Prometheus, Loki, Tempo and a collector in one
-container, but Grafana Labs ships it for development and demonstration rather than production, and
-it covers neither the Docker stdout scrape nor the exporters without adding that configuration back.
+**It sizes itself off the host it boots on.** Left alone it claimed a 3.9 GB memory cache, a 5.8 GB
+query pool and a 100 GB disk cache from a 16 GB development machine — the same ratios come to about
+5 GB on the target host. Capping the caches brought it to 3.0–3.2 GB.
+
+**Most of what remained was our own cardinality.** The MongoDB exporter emits 6,569 distinct metric
+names — 90% of every stream — and OpenObserve keeps a schema and flush cycle per stream, where
+Prometheus treats a metric name as one more label in a single TSDB. Disabling MongoDB collection
+took it to 721 streams and 1.2 GB. The exporter's `enable_coll_stats`, `enable_index_stats`,
+`enable_db_stats`, `enable_diagnostic_data` and `enable_top_metrics` toggles do **not** reduce this:
+measured against the live database, all five disabled still produced exactly 6,569 names, because
+`collect_all` overrides them.
+
+**1.2 GB is the floor, not the cost.** That figure is a development stack with no users: no request
+traffic, no application log volume, no dashboard queries. Against 466 MB for the three services it
+would replace, the backend swap was a memory increase on a host that has none to spare, in exchange
+for a footprint that only grows once real usage arrives.
+
+Rejected for the same reason, before that measurement:
+
+**SigNoz — footprint.** Five containers (ClickHouse, ClickHouse Keeper, PostgreSQL, its own OTel
+collector, the SigNoz backend) and a documented 4 GB floor. Against the three services it would
+replace that is a net increase of two containers plus a second database and a coordination service,
+and its HA path needs Kubernetes. It is the stronger dedicated APM product and would be worth
+revisiting if tracing became the primary need.
+
+**Apps pushing OTLP straight to Prometheus.** Prometheus v3.2.1 has a native OTLP receiver, so this
+is possible. It is also the opposite of this project: it removes Alloy from the metrics path while
+leaving it in place for logs, so the stack keeps two ingestion paths and gains a second export
+destination in every application.
+
+**`grafana/otel-lgtm`.** Ships for development and demonstration rather than production, and covers
+neither the Docker stdout scrape nor the exporters without adding that configuration back.
+
+### What the evaluation left behind
+
+Alloy remains the sole ingestion point, which was the consolidation's actual goal. Every producer
+enters through one component, so changing the store later is one repoint in one file rather than a
+migration per source. The cardinality finding also stands on its own: 6,569 MongoDB series that one
+dashboard queries ten of are being collected and stored today, and Prometheus pays for that too —
+just more quietly.
 
 ## Verified facts
 
@@ -218,20 +262,15 @@ than recalled, because several are the kind that go stale.
 | `LOG_STDOUT` is an env-template field that reaches no container | Absent from every service environment in every fragment; only `logger.go` and its tests read it |
 | No fragment sets a `logging:` driver, so stdout rotation is the host daemon's default | Fragment scan for `logging:` |
 | Traefik v3 exports OTLP metrics with `--metrics.otlp.grpc=true`, `--metrics.otlp.grpc.endpoint`, `--metrics.otlp.grpc.insecure`, `--metrics.otlp.pushInterval`, and the same router/service label switches | Traefik v3 install-configuration reference |
-| OpenObserve takes `remote_write` at `/api/<org>/prometheus/api/v1/write` and OTLP at `/api/<org>/v1/{logs,metrics,traces}` (HTTP `:5080`, gRPC `:5081`), authenticated with `Authorization: Basic` and an optional `stream-name` header | Vendor ingestion documentation |
 | SeaweedFS already serves S3 on `:8333` with credentials in the stack | `S3_URL`, `S3_ACCESS_KEY`, `S3_BUCKET` in the stack YAML |
 | `weed mini -metricsPort` serves 48 SeaweedFS metric families (master, filer, filerStore, volumeServer, admin) on one port; `-s3.metricsPort` is accepted but never listens under `mini` | Throwaway `chrislusf/seaweedfs:4.40 mini` container with both flags set, then curl against each port: 200 and connection refused |
-| OpenObserve single-node is one container; HA needs Kubernetes | Vendor architecture documentation |
-| OpenObserve is AGPL-3.0; SSO, advanced RBAC, audit trail, federated search and redaction are Enterprise | Project repository |
-| SigNoz self-hosted is five containers with a 4 GB memory floor | Vendor install documentation |
 | There are **20** dashboards: 11 Prometheus-only, 7 Loki-only, 2 mixed | Datasource and expression audit across `kit/obs/grafana/.../definitions/` |
 | Two dashboards query metrics nothing emits — 15 series in total | Every dashboard expression audited against the instrument names registered across `services/`: `core-esi-limits.json` selects `core_esi_group_*` against emitted `core.esi.bucket.*`, and ten `api-otel-metrics.json` panels select `api_static_data_*` series that no instrument creates |
 
-**Not verified, and the reason Stage E exists:** OpenObserve claims full PromQL compatibility. No
-independent limitations list was found, and the claim is marketing rather than a compatibility
-matrix. Arithmetic between two metrics has regressed there before (issue #5703, fixed in #5719),
-and this stack has fourteen expressions of exactly that shape. It decides whether thirteen metric
-dashboards port or are rewritten.
+**Measured, and the reason the backend was not adopted:** OpenObserve idles at 1.2 GB on a stack
+with no users once its caches are capped and MongoDB's cardinality is removed, against 466 MB for
+the three services it would have replaced. Its PromQL compatibility was never tested, because the
+footprint decided it first.
 
 ## Phases
 
@@ -329,8 +368,8 @@ already exist rather than against a store nobody has decided to keep.
 - **The Prometheus self-scrape** disappears with Prometheus. Alloy's own metrics on `:12345` are
   exposed and unscraped today; this is the moment to decide whether the collector monitors itself.
 
-This stage stands on its own: it is worth doing whether or not the backend ever changes, and if
-Stage E rules OpenObserve out, none of it is wasted.
+This stage stands on its own: it is worth doing whether or not the backend ever changes. The backend
+did not change, and none of it was wasted.
 
 Five things to get right:
 
@@ -381,77 +420,31 @@ tries harder than it should be.
   every line lands in Loki twice, by two paths with two label sets. The regex needs to name every
   service that exports OTLP logs, which after this stage is all six.
 
-Like Stage B, this is worth doing on its own terms and survives whatever Stage E decides.
+Like Stage B, this is worth doing on its own terms, and it survived the backend evaluation intact.
 
-### Stage D — OpenObserve arrives and Alloy repoints onto it
+### Stage D — backend evaluation (closed, backend not adopted)
 
-There is **no parallel run**. Alloy's exporters move to the new backend rather than fanning out to a
-second destination, so at the end of this stage OpenObserve is the only thing receiving telemetry.
-Grafana, Prometheus and Loki stay deployed but stop being written to — they are kept for reference
-while the dashboards are rebuilt, not as a fallback the stack could return to.
+A single-node OpenObserve was added to `docker-stack.obs.yml` on the existing SeaweedFS S3, Alloy's
+three exporters were repointed onto it, and the result was measured against the running stack. It
+was then removed and Alloy repointed back at Prometheus and Loki.
+[Choosing the backend](#choosing-the-backend) carries the numbers and the reasoning.
 
-Add single-node OpenObserve to `docker-stack.obs.yml`, backed by the existing SeaweedFS S3, then
-repoint the three paths Alloy owns. Every source rides one of them, so nothing needs a destination of
-its own:
+Two collection defects surfaced while the store was swapped, both predating this project and both
+invisible while Loki was the only log destination, because Loki deduplicates by label set:
 
-- **Metrics.** Repoint `prometheus.remote_write "local"` at the backend's `remote_write` endpoint.
-- **Application logs.** Repoint `otelcol.exporter.otlphttp "loki"` at the backend's OTLP endpoint,
-  and rename it for the thing it now writes to.
-- **Docker stdout.** This one is not a repointed exporter. The path is Loki-native push with no OTLP
-  in it, so moving it means inserting `otelcol.receiver.loki` between `loki.source.docker` and the
-  OTLP branch, and dropping `loki.write` once nothing forwards to it.
+- **`loki.source.docker` was tailing every container.** It took `discovery.docker.docker.targets`
+  with `relabel_rules` supplied separately, so `drop` actions applied to entry labels rather than to
+  the tailing set: all 23 services were tailed and the six Go services and four socket proxies
+  arrived despite being named in a drop rule. It now takes `discovery.relabel.docker.output`.
+- **`capacity-docker-proxy` was missing from the proxy drop group** its three siblings were in.
 
-**The bridged stdout copy does not pass through `scrub_otlp_boilerplate`.** That transform strips
-OTel SDK and zap caller metadata — `code.*`, `telemetry.sdk.*`, scope name — which container stdout
-never carries, so routing the bridge through it would add a component that changes nothing. The
-application OTLP path keeps it because that is the path those attributes arrive on.
+Together these were about 60% of ingested log volume. Both fixes are kept.
 
-Credentials are `OBS_ADMIN_USER` and `OBS_ADMIN_PASSWORD`, new env-template fields generated and
-locked the way Grafana's are. They are named for the role in this stack rather than after the
-backend's own `ZO_` prefix, so a later backend swap does not rename an operator-facing key.
-
-Done when every signal — application metrics, application logs, container stdout, infrastructure
-scrapes and Traefik's OTLP push — is readable in OpenObserve, and Prometheus and Loki have stopped
-receiving new samples.
-
-### Stage E — the query gate
-
-Rebuild the ESI limiter dashboard in OpenObserve, and alongside it a probe panel set covering the
-PromQL constructs this stack actually depends on.
-
-**This stage is a checkpoint, not a fork.** With the parallel run gone it no longer decides the
-backend — Stage D has already moved the writes, and the old stores hold only history. What it decides
-is how much of the dashboard rebuild is a query translation problem: if PromQL holds on real panels,
-the eleven Prometheus-only dashboards carry their expressions across; if it does not, they are
-rewritten against the backend's own query language along with the seven `logs-*` ones.
-
-Run it **before** Stage I deletes anything. The old three are still deployed at this point precisely
-so a panel that returns nothing can be checked against the store that used to answer it — that is
-reference, not rollback.
-
-Two things about the ESI dashboard specifically. First, **the shipped one is broken today**, and has
-been since the limiter's metrics were renamed: its five panels select `core_esi_group_token_limit`,
-`_token_used`, `_token_remaining`, `_seconds_into_window` and `_seconds_until_reset`, while the code
-emits `core.esi.bucket.token_limit`, `.token_used`, `.token_remaining`, `.fill` and
-`.seconds_until_open`. Confirmed against the live store: the old names are in the index with no
-current samples, and nothing has written them since the rename. That is a live defect independent of
-this project; here it means the rebuild starts from the live doc, not from the JSON.
-
-Second, **as shipped it is five bare gauge selectors and proves nothing about the query surface.** The
-histograms and the `class` / `reason` labels live in `esiclient`, a different emitter from the core
-gauges. A checkpoint worth running has to exercise:
-
-| Construct | Where it is used today |
-|---|---|
-| `rate` over counters, `histogram_quantile` | 139 and 25 occurrences across the dashboards |
-| Arithmetic between two metrics | 14 expressions — the construct with a known regression history |
-| `label_replace` | 12 occurrences |
-| `on() group_left(...)` vector matching | `app-activity.json` |
-| `topk`, `irate`, `clamp_min`, `or` fallback | `frontend-events`, `mongodb` |
-| Grafana-isms with no equivalent | `$__rate_interval` and dashboard template variables — these do not port, they get replaced |
-
-What the limiter emits, and why bucket state is reported once by core while queue depth is reported
-per replica, is [backend/shared/esi.md](../../backend/shared/esi.md) § What it reports.
+**What did not survive the revert:** bridging container stdout through `otelcol.receiver.loki` onto
+the OTLP exporter. That is correct when the destination indexes every attribute, and wrong for Loki
+— the bridge delivers `compose_service` and its siblings as structured metadata rather than stream
+labels, and every `logs-*` dashboard selects `{compose_service="…"}`. Container stdout keeps
+`loki.write`.
 
 ### Stage F — traces stop being discarded
 
@@ -473,7 +466,10 @@ Three changes, not one. **This stage was originally scoped as config-only and is
 
 Doing only the last produces an empty traces view.
 
-Held until after Stage E because it only pays off on a backend that stores traces.
+**Loki and Prometheus store no traces, so this stage now needs a trace destination of its own.**
+Tempo is the obvious candidate — it completes the Grafana stack, Grafana already queries it as a
+datasource, and the exporter change in `shared/telemetry` is the same work either way. That is the
+open question this stage must answer before it starts: add Tempo, or leave traces discarded.
 
 ### Stage G — the spans say what a trace needs
 
@@ -498,76 +494,55 @@ accident rather than by choice.
 
 Span names (`nats.publish_task`, `nats.enqueue_task`, `asynq.task`) are bespoke rather than the
 `{destination} {operation}` the conventions use. Worth a sweep alongside the decision above, since
-conventions are what make a trace render in whichever backend Stage E picks.
+conventions are what make a trace render in any backend.
 
 **Verification needs tracing on.** None of this is observable while the sample rate is zero, so this
 stage follows F rather than preceding it.
 
 ### Stage H — the dashboards
 
-Twenty dashboards, and the cost is lopsided:
-
-- **Eleven Prometheus-only.** Stage E decides whether their queries can be carried across at all;
-  the note below decides how much of each one is worth carrying. `traefik.json` was expected to be a
-  rewrite regardless, on the assumption that OTLP export would rename Traefik's series. It did not:
-  all 22 `traefik_*` families came through the switch unchanged, `_bucket` histograms included.
-- **Seven Loki-only** (`logs-api`, `logs-core`, `logs-frontend`, `logs-traefik`, `logs-websocket`,
-  `logs-worker`, `observability-stack`) are rewritten regardless. They are LogQL; the target queries
-  logs with SQL. No amount of PromQL compatibility helps here.
-- **Two mixed** (`asynq-queues`, `worker-tasks`) need both halves.
-- **One new.** SeaweedFS has never been dashboarded because it has never been collected. It is a
-  build, not a port, and it matters more after cutover than before: retention and ingestion problems
-  in the backend show up as storage problems first.
-
-**Treat none of these as a direct port.** The question Stage E answers is whether PromQL survives the
-backend change; it does not tell you whether a dashboard still describes the system. Metric and log
-shapes have moved underneath these definitions since they were written, and a panel that ports
-cleanly into a query the new backend accepts is still a panel returning nothing.
-
-Two cases are already confirmed by an audit of every dashboard expression against the instruments
-`services/` actually registers:
+Grafana stays, so this is no longer a rebuild. The twenty dashboards keep their format, their
+datasources and their queries; what they need is the defects fixing. The audit that was done to
+scope a rebuild found them, and they are real today:
 
 | Dashboard | What it queries | What exists |
 |---|---|---|
 | `core-esi-limits.json` | `core_esi_group_token_limit`, `_token_used`, `_token_remaining`, `_seconds_into_window`, `_seconds_until_reset` — all five panels | `core.esi.bucket.token_limit`, `.token_used`, `.token_remaining`, `.fill`, `.seconds_until_open` |
 | `api-otel-metrics.json` | ten panels on `api_static_data_*_requests_total` and `_duration_milliseconds_bucket` | Nothing. Those endpoints call `LogRequestMetrics`, which despite its name emits **log lines**, not instruments |
-| `mongodb.json` | one panel on `mongodb_oplog_stats_size` | `mongodb_oplog_stats_storageStats_size`. Confirmed against the live store: zero samples for the queried name across 12 hours, while the real one recorded throughout |
+| `mongodb.json` | one panel on `mongodb_oplog_stats_size` | `mongodb_oplog_stats_storageStats_size` |
 
-Sixteen dead series across three dashboards, and that audit only catches names that were renamed or
-never existed. It cannot see a panel whose metric still exists but now carries different labels, a
-different unit, or a different cardinality — and the label surface has moved too: the
-`job="otel_collector"` stamp, `resource_to_telemetry_conversion` promoting `service_name` and
-`service_instance_id`, and the `class` / `reason` / `group` / `scope` attributes all arrived after
-some of these dashboards were written.
+Sixteen dead series across three dashboards. Confirmed against the live store: the `core_esi_group_*`
+names are in the index with no current samples and nothing has written them since the limiter was
+renamed.
+
+That audit only catches names that were renamed or never existed. It cannot see a panel whose metric
+still exists but now carries different labels, a different unit, or a different cardinality — and the
+label surface has moved: the `job="otel_collector"` stamp, `resource_to_telemetry_conversion`
+promoting `service_name` and `service_instance_id`, and the `class` / `reason` / `group` / `scope`
+attributes all arrived after some of these dashboards were written.
 
 The `logs-*` dashboards have the same problem in a form no audit catches, because LogQL selectors do
 not fail loudly. They filter on a log shape that gets rewritten before it lands: `debug_steps` absent
 unless `LOG_LEVEL=debug` (at the source, since Stage A), the `code.*` and `telemetry.sdk.*`
-attributes scrubbed by Alloy, scope name blanked, `compose_service` arriving as a resource attribute
-rather than a scrape label. Stage A also moved the severity floor into the process, which changes
-what reaches the store at all.
+attributes scrubbed by Alloy, and scope name blanked.
 
-So the rebuild starts from **what the code emits today** — the instrument registrations and the live
-topic docs — and not from the JSON. Where a dashboard turns out to have been broken for a while, that
-is a defect to fix on its own terms rather than a rewrite to schedule: `core-esi-limits.json` and the
-static-data panels are wrong in Grafana right now, and would still be wrong if this project were
-cancelled. The same is true of the `mongodb.json` oplog panel.
+**One dashboard is genuinely new.** SeaweedFS has never been dashboarded because it was never
+collected before Stage B. It matters more than it sounds: storage growth is where retention problems
+show up first.
 
-### Stage I — cutover
+**And one question this stage should answer rather than inherit.** The MongoDB exporter emits 6,569
+distinct metric names; `mongodb.json` queries ten of them. That cardinality was what made the
+alternative backend unaffordable, and Prometheus stores it too — it just absorbs the cost more
+quietly. Deciding what MongoDB telemetry is actually wanted belongs with the dashboard that consumes
+it. An allowlist modelled during the backend evaluation kept every queried series and cut the stream
+count by 85%.
 
-Nothing writes to Grafana, Prometheus or Loki after Stage D, so this stage removes three idle
-services, their volumes and their provisioning.
+### Stage I — retired
 
-The Deployment Tool work is the bulk of this stage and is not a deletion. Grafana is a first-class
-concept there — **388 references across 33 Go files** — including `addons.observability.grafana.public`
-and `base_url` in the config schema, `paths.grafana`, `grafana_apply.go`, `grafana_url.go`,
-`GrafanaApplySurfaceFromDoc` in `stackfile.go`, the `grafana.public` network attach-when, the
-Traefik router enable/disable that `eip sync` drives, and `GRAFANA_ADMIN_USER` /
-`GRAFANA_ADMIN_PASSWORD` in the env template. OpenObserve needs the same edge-exposure surface, so
-this is a rename-and-generalise refactor with its tests, not a delete.
-
-The point of no return is deleting the Prometheus and Loki volumes; historical data does not
-migrate. Decide the retention question below before this stage, not during it.
+There is no cutover. Grafana, Prometheus and Loki stay, so the Deployment Tool's Grafana surface —
+388 references across 33 Go files, `addons.observability.grafana.public`, `paths.grafana`,
+`grafana_apply.go`, `grafana_url.go`, the Traefik router that `eip sync` drives, and the
+`GRAFANA_ADMIN_*` env fields — stays exactly as it is. Nothing to rename, nothing to generalise.
 
 ### Stage J — promote and delete
 
@@ -610,63 +585,49 @@ edge spans joining application traces.
 where spans go and what they carry. Only the metrics path is untouched application-side, and that is
 the whole of the claim that this project is a configuration change.
 
-## Cutover and rollback
+## Rollback
 
-Every stage before D is reversible by deleting what it added. **Stage D is the cut**: it moves the
-writes rather than duplicating them, so from that point the old stores hold history and nothing more.
-Reverting D means repointing Alloy back at Prometheus and Loki, which works only while Stage I has
-not yet deleted them, and leaves a gap for the period they were not written to.
+Every stage is reversible by reverting the change that made it. Stage A is the one that changes how
+services log rather than what collects them, so it reverts by reverting the code; the rest are
+Alloy configuration and stack fragments.
 
-Stage A is the exception in kind rather than in risk: it changes how services log rather than adding
-a destination, so it reverts by reverting the change. It is also the one stage that improves the
-stack whether or not anything after it happens.
-
-After Stage I, rollback means restoring Prometheus, Loki and Grafana from the stack fragment and
-accepting the gap in history for the period the old stores were not being written. Restoring
-Prometheus does **not** mean undoing Stage B: it comes back as a `remote_write` target with an empty
-scrape list, because Alloy now owns collection and that is true whichever backend stores the result.
-
-Rollback triggers worth naming in advance: PromQL gaps found after Stage E, query performance worse
-than Prometheus on the panels that matter, or single-node ingestion falling behind.
+The backend evaluation is the worked example: OpenObserve was added, Alloy was repointed onto it,
+and both were undone in one pass with the old stores never having been deleted. That is why
+[Stage I](#stage-i--retired) exists only to say there is nothing to cut over.
 
 ## Done when
 
 - With the layer off, every service logs to stdout at the level the operator set, without
   `debug_steps`, into a rotated log.
 - Every producer sends to Alloy, and nothing collects telemetry except Alloy.
-- One backend answers for metrics, logs and traces.
 - The exporters Alloy can embed are gone as containers; `nats-exporter` remains, scraped by Alloy.
 - SeaweedFS reports, including the S3 gateway the backend stores through.
-- Traces are queryable rather than discarded, and Sentry still receives errors.
+- Traces are either queryable or a deliberate decision not to store them, and Sentry still receives
+  errors.
 - `ws-router` reports like the other five services, and no service's logs arrive twice.
-- Grafana, Prometheus and Loki are gone from the stack fragment, the embedded kit and the
-  Deployment Tool's configuration surface.
-- `docker service ls` shows five observability services.
+- The dashboards describe what the code actually emits.
 - Live SoT describes the new shape and this folder is deleted.
 
 ## Open questions
 
-1. **How much history matters?** Nothing migrates and there is no overlap to widen, so this is now
-   a question about how long Stage I waits before deleting the old volumes — the only window in which
-   pre-cut history can still be read.
-2. **Does anyone but the operator need dashboards?** SSO and advanced RBAC are Enterprise in
-   OpenObserve; Grafana OSS gives more here. Irrelevant for a single operator, decisive if not.
-3. **Retention and storage sizing on SeaweedFS.** Object storage changes the retention economics
-   against a local TSDB volume, and the current 70 MB is not a useful guide to what a year looks
-   like. Stage B makes this answerable rather than guessable: once SeaweedFS reports, the growth
-   curve is measurable from the moment SeaweedFS reports, instead of estimated before it.
-4. **Does `asynqmon` stay?** It is a queue UI and a scrape target. Out of scope here, but it is one
-   of the four remaining services and worth asking about when the count is the point.
-5. **What should `ws-router` measure?** Stage C adds the plumbing; the instrumentation it carries is
+1. **Do traces get a store?** Stage F moves spans off Sentry and onto the collector, but Prometheus
+   and Loki hold none. Either Tempo joins the stack or traces stay discarded and Stage F is dropped.
+   Nothing else in the plan depends on the answer.
+2. **What should `ws-router` measure?** Stage C added the plumbing; the instrumentation it carries is
    a separate design question.
-6. **Does the SPA's browser telemetry ever move?** Sentry keeps its errors by decision, and GA4 is
-   external by design, so the browser is the one producer that stays outside Alloy. Worth revisiting
-   only if browser spans need to join backend traces beyond the `traceparent` already propagated.
+3. **How much MongoDB telemetry is actually wanted?** 6,569 metric names collected, ten queried.
+   Stage H is where this gets decided, alongside the dashboard that consumes them.
+4. **Does `asynqmon` stay?** It is a queue UI and a scrape target, and it is one of the remaining
+   observability services.
+5. **Does the SPA's browser telemetry ever move?** Sentry keeps its errors by decision and GA4 is
+   external by design, so the browser stays outside Alloy. Worth revisiting only if browser spans
+   need to join backend traces beyond the `traceparent` already propagated.
 
 ## Stage status
 
 Picking this up on a different machine, or after a gap, starts at [handoff.md](./handoff.md).
-Stages A to C are committed as `dd0454b9` on `feature/archived-jobs-stats`.
+Stages A to C are committed as `dd0454b9` on `feature/archived-jobs-stats`; the backend evaluation
+and its removal followed on the same branch.
 
 | Stage | Status |
 |-------|--------|
@@ -674,19 +635,15 @@ Stages A to C are committed as `dd0454b9` on `feature/archived-jobs-stats`.
 | A — logging holds with the layer off | Done |
 | B — every metrics target moves onto Alloy | Done |
 | C — the application tier all speaks OTLP | Done |
-| D — OpenObserve arrives and Alloy repoints onto it | Done |
-| E — query gate (ESI dashboard, PromQL verification) | Not started |
-| F — traces stop being discarded | Not started |
+| D — backend evaluation | Closed — backend not adopted |
+| E — query gate | Dropped with the backend |
+| F — traces stop being discarded | Not started — needs a trace store decided first |
 | G — the spans say what a trace needs | Not started |
-| H — the dashboards | Not started |
-| I — cutover | Not started |
+| H — fix the dashboards | Not started |
+| I — cutover | Retired — nothing to cut over |
 | J — promote and delete | Not started |
 
-The consolidation runs before the backend arrives. Every producer reaches Alloy first, so standing up
-OpenObserve is one repoint at one place rather than a destination changed per source, and each
-consolidation stage is verifiable against the store and dashboards that already exist.
-
-**There is no parallel run.** Stage D moves the writes onto OpenObserve in one step; Grafana,
-Prometheus and Loki stay deployed but unwritten-to until Stage I removes them, so the dashboard
-rebuild can be checked against the store that used to answer a panel. That is reference, not
-rollback — the stack does not return to them.
+The consolidation ran before any backend change, and that ordering is what made the backend
+evaluation cheap: every producer already reached Alloy, so standing up a candidate store was one
+repoint in one file, and undoing it was the same repoint back. The stages that landed are
+independent of which store sits behind the collector.
