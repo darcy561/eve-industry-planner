@@ -216,7 +216,6 @@ var envFields = []EnvField{
 		Help: "Grafana login password. Generated on first Setup / eip init. Locked once set.",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
 	},
-
 }
 
 // knownEnvKeySet returns current keys and PreviousKeys (consumed on migrate, not preserved).

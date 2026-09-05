@@ -70,18 +70,18 @@ discovery.relabel "docker" {
 	}
 }
 
+// targets takes the relabelled output, not discovery.docker's raw list: drop actions only remove a
+// container from the tailing set here. Passing raw targets with relabel_rules tails every container
+// and applies the rules to entry labels instead, so dropped services still arrive.
 loki.source.docker "docker" {
-	host = "tcp://alloy-docker-proxy:2375"
-	// Take the relabelled output, not the raw target list: drop actions only remove a container
-	// from the tailing set here. Passing raw targets with relabel_rules tails every container and
-	// applies the rules to entry labels instead, so dropped services still arrive.
+	host             = "tcp://alloy-docker-proxy:2375"
 	targets          = discovery.relabel.docker.output
 	refresh_interval = "5s"
 	forward_to       = [loki.write.default.receiver]
 }
 
-// Container stdout keeps Loki's native push. Bridging it through otelcol.receiver.loki would
-// deliver compose_service and friends as structured metadata rather than stream labels, and the
+// Container stdout takes Loki's push API directly. Sending it over OTLP instead would land
+// compose_service and its siblings as structured metadata rather than stream labels, and the
 // logs-* dashboards select on {compose_service="…"}.
 loki.write "default" {
 	endpoint {

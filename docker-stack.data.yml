@@ -145,9 +145,6 @@ services:
       start_period: 30s
     deploy:
       <<: *data-deploy
-      labels:
-        eip.network.attach: *net-obs
-        eip.network.attach.when: observability
 
 networks:
   eip-core:

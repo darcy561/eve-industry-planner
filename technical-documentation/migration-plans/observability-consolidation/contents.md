@@ -24,7 +24,7 @@ currently discarded.
 | Understand the change in one sentence, and why it is not one change | [plan.md](./plan.md) § The shape of the change |
 | See how a Go service logs, and what happens with the layer off | [plan.md](./plan.md) § How a Go service actually logs |
 | See every producer and where its telemetry goes today | [plan.md](./plan.md) § What runs today |
-| See the target shape | [plan.md](./plan.md) § One collector, one backend |
+| See the target shape | [plan.md](./plan.md) § One collector |
 | Know what was settled and is no longer up for debate | [plan.md](./plan.md) § Decisions taken |
 | Know what the off-mode has to do and how the level floor moves | [plan.md](./plan.md) § Stage A — logging holds with the layer off |
 | Know which backends were measured and why the stack kept Grafana | [plan.md](./plan.md) § Choosing the backend |

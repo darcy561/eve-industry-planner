@@ -128,7 +128,7 @@ shape now. This subsection stays as the baseline the work was justified against.
 filtered alike: the `LOG_LEVEL` severity filter and the `strip_debug_steps` transform sit only on
 the OTLP branch.
 
-## One collector, one backend
+## One collector
 
 ```
 apps (6 Go services) ─────────────OTLP──────────────┐
