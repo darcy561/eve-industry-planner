@@ -2,6 +2,7 @@ package esiclient_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -945,5 +946,400 @@ func TestAGatedBucketAffordsNothing(t *testing.T) {
 	}
 	if afford && !room.GatedUntil.IsZero() {
 		t.Error("a gated bucket afforded work")
+	}
+}
+
+// A bucket called once an hour used to vanish from the fleet's inventory
+// between calls: the state key and the ledger shared one expiry, and the
+// inventory is a scan of state keys. Grafana saw the series stop rather than a
+// bucket sitting idle.
+//
+// The allowance now outlives the ledger, but not indefinitely — a bucket nothing
+// calls any more should stop being reported rather than draw a confident flat
+// line for ever. These hold both edges.
+
+func TestAnIdleBucketStaysInTheInventory(t *testing.T) {
+	store, fake := newStore(t)
+	bucket := esiclient.Bucket{Group: "industry", User: esiclient.AnonymousUser}
+	known(t, store, bucket, 150, 15*time.Minute)
+
+	// Longer than the hourly refresh that produced the gap, and longer than
+	// twice the window, which is when every charge has aged out.
+	fake.Server.FastForward(90 * time.Minute)
+
+	buckets, err := store.Buckets(t.Context())
+	if err != nil {
+		t.Fatalf("Buckets: %v", err)
+	}
+	var found bool
+	for _, b := range buckets {
+		if b.Key() == bucket.Key() {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("an hour-idle bucket left the inventory (%v); anything reading it sees a gap", buckets)
+	}
+}
+
+func TestAnIdleBucketReportsFullRatherThanNothing(t *testing.T) {
+	store, fake := newStore(t)
+	bucket := esiclient.Bucket{Group: "industry", User: esiclient.AnonymousUser}
+	known(t, store, bucket, 150, 15*time.Minute)
+
+	fake.Server.FastForward(90 * time.Minute)
+
+	state, err := store.State(t.Context(), bucket)
+	if err != nil {
+		t.Fatalf("State: %v", err)
+	}
+	if !state.Known() {
+		t.Error("the allowance was forgotten; it is a learned fact, not a running total")
+	}
+	if state.Limit != 150 {
+		t.Errorf("Limit = %d, want the figure ESI stated", state.Limit)
+	}
+	// Idle is not unknown. Every charge has aged out, so nothing is spent — which
+	// is the truthful reading, and the one that draws a flat line instead of a gap.
+	if state.Spent != 0 {
+		t.Errorf("Spent = %d, want 0 once every charge has aged out", state.Spent)
+	}
+	if !state.Metered {
+		t.Error("Metered was forgotten, so the limiter would stop consulting the ledger")
+	}
+}
+
+func TestTheLedgerStillExpiresWithItsWindow(t *testing.T) {
+	// The state outliving the ledger is the point; the ledger outliving its
+	// window would be a leak, and would hold spend against a bucket forever.
+	store, fake := newStore(t)
+	bucket := esiclient.Bucket{Group: "industry", User: esiclient.AnonymousUser}
+	known(t, store, bucket, 150, 15*time.Minute)
+
+	if state, _ := store.State(t.Context(), bucket); state.Spent == 0 {
+		t.Fatal("nothing was spent, so there is no ledger to watch expire")
+	}
+
+	fake.Server.FastForward(90 * time.Minute)
+
+	if fake.Server.Exists("esi:b:" + bucket.Key() + ":ledger") {
+		t.Error("the ledger outlived twice its window; charges must age out")
+	}
+}
+
+func TestABucketNothingCallsStopsBeingReported(t *testing.T) {
+	// The other edge. Eight windows is well past every scheduled refresh, so a
+	// bucket silent that long is not idle between runs — it is finished, and a
+	// dashboard should stop drawing it rather than show full fill for ever.
+	store, fake := newStore(t)
+	bucket := esiclient.Bucket{Group: "industry", User: esiclient.AnonymousUser}
+	known(t, store, bucket, 150, 15*time.Minute)
+
+	fake.Server.FastForward(3 * time.Hour)
+
+	buckets, err := store.Buckets(t.Context())
+	if err != nil {
+		t.Fatalf("Buckets: %v", err)
+	}
+	for _, b := range buckets {
+		if b.Key() == bucket.Key() {
+			t.Fatalf("%s was still reported three hours after its last call", b.Key())
+		}
+	}
+}
+
+// ESI counts what it charged this address. A ledger that started empty after a
+// deploy, or another caller behind the same address, makes our count the lower
+// of the two — and once the header goes stale, ours is the only one left.
+
+// nextReserve runs the reserve script without caring whether it grants. The
+// ledger is reconciled to ESI there, on the walk it already makes, so this is
+// what applies the correction — before the admission decision that needs it.
+func nextReserve(t *testing.T, store *esiclient.Store, b esiclient.Bucket) {
+	t.Helper()
+	grant, err := store.Reserve(t.Context(), b, esiclient.ClassBackground, marketPolicy, 1)
+	if err != nil {
+		t.Fatalf("Reserve: %v", err)
+	}
+	// A held slot counts against the bucket until it is settled or given back,
+	// which is right but not what these are measuring.
+	for _, r := range grant.Reservations {
+		if err := store.Release(t.Context(), r); err != nil {
+			t.Fatalf("Release: %v", err)
+		}
+	}
+}
+
+// settleReporting settles one call costing cost, with ESI replying that
+// reportedRemaining of limit are left.
+func settleReporting(t *testing.T, store *esiclient.Store, b esiclient.Bucket, limit, cost, reportedRemaining int) {
+	t.Helper()
+	grant, err := store.Reserve(t.Context(), b, esiclient.ClassBackground, marketPolicy, 1)
+	if err != nil || !grant.Granted {
+		t.Fatalf("Reserve: %v %+v", err, grant)
+	}
+	if err := store.Settle(t.Context(), grant.Reservations[0], esiclient.Outcome{
+		Attempted: true, Status: 200, Cost: cost, ObservedAt: time.Now(),
+		Limit: limit, Window: 15 * time.Minute, Remaining: reportedRemaining, Metered: true,
+	}); err != nil {
+		t.Fatalf("Settle: %v", err)
+	}
+}
+
+func TestOurLedgerCatchesUpWithWhatESIHasCharged(t *testing.T) {
+	store, _ := newStore(t)
+	bucket := esiclient.Bucket{Group: "market-order", User: esiclient.AnonymousUser}
+
+	// A cold start: our first call costs 2, but ESI says a thousand are already
+	// gone — spend from before this ledger existed.
+	settleReporting(t, store, bucket, 12000, 2, 11000)
+	nextReserve(t, store, bucket)
+
+	state, err := store.State(t.Context(), bucket)
+	if err != nil {
+		t.Fatalf("State: %v", err)
+	}
+	if state.Spent != 1000 {
+		t.Errorf("Spent = %d, want the 1000 ESI says it has charged", state.Spent)
+	}
+	if state.Unaccounted != 998 {
+		t.Errorf("Unaccounted = %d, want the 998 we never recorded ourselves", state.Unaccounted)
+	}
+}
+
+func TestTheDifferenceIsHeldOnceRatherThanAccumulated(t *testing.T) {
+	// Replaced on each settle, not added to. Topping up every time would make a
+	// steady disagreement look like runaway spend.
+	store, _ := newStore(t)
+	bucket := esiclient.Bucket{Group: "market-order", User: esiclient.AnonymousUser}
+
+	for range 5 {
+		settleReporting(t, store, bucket, 12000, 2, 11000)
+	}
+	nextReserve(t, store, bucket)
+
+	// ESI still says a thousand are gone, so that is what the bucket holds — the
+	// gap shrinks as our own charges account for more of it, rather than five
+	// corrections piling up.
+	state, _ := store.State(t.Context(), bucket)
+	if state.Spent != 1000 {
+		t.Errorf("Spent = %d after five settles, want 1000 — the gap, not five copies of it", state.Spent)
+	}
+	if state.Unaccounted != 1000-10 {
+		t.Errorf("Unaccounted = %d, want 990 once our own ten tokens account for part of it", state.Unaccounted)
+	}
+}
+
+func TestOurOwnSpendIsNotDoubleCounted(t *testing.T) {
+	// Once ESI's count and ours agree there is nothing to hold, and our real
+	// charges must stand on their own.
+	store, _ := newStore(t)
+	bucket := esiclient.Bucket{Group: "market-order", User: esiclient.AnonymousUser}
+
+	settleReporting(t, store, bucket, 12000, 2, 11998)
+
+	state, _ := store.State(t.Context(), bucket)
+	if state.Spent != 2 {
+		t.Errorf("Spent = %d, want just the 2 we spent when ESI agrees with us", state.Spent)
+	}
+}
+
+func TestAGenerousHeaderDoesNotCreditUsBack(t *testing.T) {
+	// ESI reporting more left than we think is the safe direction, and not a
+	// reason to forget charges we know we made.
+	store, _ := newStore(t)
+	bucket := esiclient.Bucket{Group: "market-order", User: esiclient.AnonymousUser}
+
+	settleReporting(t, store, bucket, 12000, 2, 12000)
+
+	state, _ := store.State(t.Context(), bucket)
+	if state.Spent < 2 {
+		t.Errorf("Spent = %d; a generous header must not erase spend we recorded", state.Spent)
+	}
+}
+
+func TestTheDifferenceIsNotChargedToAClassOrEndpoint(t *testing.T) {
+	// It counts against the bucket, but no class spent it and no endpoint did
+	// either — attributing it would eat a floor or a share that owes nothing.
+	store, fake := newStore(t)
+	bucket := esiclient.Bucket{Group: "market-order", User: esiclient.AnonymousUser}
+
+	settleReporting(t, store, bucket, 12000, 2, 11000)
+	nextReserve(t, store, bucket)
+
+	fields, err := fake.Client.HGetAll(t.Context(), "esi:b:"+bucket.Key()+":ledger").Result()
+	if err != nil {
+		t.Fatalf("read ledger: %v", err)
+	}
+	var found bool
+	for field := range fields {
+		// "<slot>|<class>|<endpoint>"
+		parts := strings.Split(field, "|")
+		if len(parts) != 3 || parts[1] != esiclient.SyncMember {
+			continue
+		}
+		found = true
+		if parts[2] != esiclient.SyncMember {
+			t.Errorf("the difference was booked to endpoint %q; it belongs to none", parts[2])
+		}
+	}
+	if !found {
+		t.Fatalf("no reconciliation charge in the ledger: %v", fields)
+	}
+}
+
+// A refusal has to say when enough tokens come back. Charges are held in slots,
+// so the answer lands on a slot boundary rather than on the instant a single
+// charge expires — later than the truth by up to one slot, never earlier.
+//
+// Later is the safe direction: a caller that returns early is refused again. A
+// caller that returns late has only waited. What would be useless is falling
+// back to "a whole window from now", which is what happens if the ledger is not
+// read far enough, so these check the answer is inside a slot of the truth.
+
+// slotWidth is how coarse a retry time can be, given the window these use.
+const slotWidth = 15 * time.Minute / esiclient.SlotsPerWindow
+
+// chargeAt settles one charge of cost, expiring at now + in.
+func chargeAt(t *testing.T, store *esiclient.Store, b esiclient.Bucket, limit, cost int, in time.Duration) time.Time {
+	t.Helper()
+	const window = 15 * time.Minute
+	observed := time.Now().Add(in - window)
+
+	grant, err := store.Reserve(t.Context(), b, esiclient.ClassBackground, esiclient.EndpointPolicy{}, 1)
+	if err != nil || !grant.Granted {
+		t.Fatalf("Reserve: %v %+v", err, grant)
+	}
+	if err := store.Settle(t.Context(), grant.Reservations[0], esiclient.Outcome{
+		Attempted: true, Status: 200, Cost: cost, ObservedAt: observed,
+		Limit: limit, Window: window, Remaining: -1, Metered: true,
+	}); err != nil {
+		t.Fatalf("Settle: %v", err)
+	}
+	return observed.Add(window)
+}
+
+func TestARefusalNamesTheChargeThatFreesEnough(t *testing.T) {
+	store, _ := newStore(t)
+	bucket := esiclient.Bucket{Group: "market-order", User: esiclient.AnonymousUser}
+	const limit = 10
+
+	// Five 2-token charges expiring a minute apart fill the bucket exactly.
+	first := chargeAt(t, store, bucket, limit, 2, time.Minute)
+	for i := 2; i <= 5; i++ {
+		chargeAt(t, store, bucket, limit, 2, time.Duration(i)*time.Minute)
+	}
+
+	refused, err := store.Reserve(t.Context(), bucket, esiclient.ClassBackground, esiclient.EndpointPolicy{}, 1)
+	if err != nil {
+		t.Fatalf("Reserve: %v", err)
+	}
+	if refused.Granted {
+		t.Fatalf("a full bucket granted a slot: %+v", refused)
+	}
+
+	// The soonest charge frees 2, which is the whole deficit, so that is when to
+	// come back — not the window default, and not the second charge's expiry.
+	if refused.RetryAt.Before(first) {
+		t.Errorf("RetryAt = %s is before the charge expires at %s; coming back early is a refusal",
+			refused.RetryAt.Format(time.RFC3339), first.Format(time.RFC3339))
+	}
+	if late := refused.RetryAt.Sub(first); late > slotWidth {
+		t.Errorf("RetryAt is %v past the first charge's expiry, more than the %v slot it rounds to", late, slotWidth)
+	}
+	if wait := time.Until(refused.RetryAt); wait > 5*time.Minute {
+		t.Errorf("RetryAt is %v away — that is the whole-window fallback, so the ledger was not read far enough", wait)
+	}
+}
+
+func TestARefusalReadsFarEnoughForCheapCharges(t *testing.T) {
+	// Conditional hits cost one token each, so freeing a deficit takes as many
+	// charges as tokens. This is the case a bound that is too tight breaks: it
+	// reads a couple of charges, fails to cover the deficit, and falls back to a
+	// whole window — later than needed, and never an error.
+	store, _ := newStore(t)
+	bucket := esiclient.Bucket{Group: "market-order", User: esiclient.AnonymousUser}
+	const limit = 30
+
+	expiries := make([]time.Time, 0, 20)
+	for i := 1; i <= 20; i++ {
+		expiries = append(expiries, chargeAt(t, store, bucket, limit, 1, time.Duration(i)*time.Minute))
+	}
+
+	refused, err := store.Reserve(t.Context(), bucket, esiclient.ClassBackground, esiclient.EndpointPolicy{}, 8)
+	if err != nil {
+		t.Fatalf("Reserve: %v", err)
+	}
+	if refused.Granted {
+		t.Fatalf("a block of eight was granted: %+v", refused)
+	}
+
+	// What this class may take is a share of the bucket, not all of it, so the
+	// deficit comes from the refusal itself rather than from arithmetic here.
+	deficit := 8*esiclient.SuccessCost - refused.Available
+	if deficit <= 0 || deficit > len(expiries) {
+		t.Fatalf("deficit of %d tokens is outside what this fixture staged", deficit)
+	}
+	// One token per charge, so the deficit-th charge to expire is the one that
+	// covers it.
+	want := expiries[deficit-1]
+
+	if refused.RetryAt.Before(want) {
+		t.Errorf("RetryAt = %s is before charge %d expires at %s; coming back early is a refusal",
+			refused.RetryAt.Format(time.RFC3339), deficit, want.Format(time.RFC3339))
+	}
+	if late := refused.RetryAt.Sub(want); late > slotWidth {
+		t.Errorf("RetryAt is %v past charge %d's expiry, more than the %v slot it rounds to",
+			late, deficit, slotWidth)
+	}
+	if wait := time.Until(refused.RetryAt); wait > 19*time.Minute {
+		t.Errorf("RetryAt is %v away — the whole-window fallback, so the ledger was not read far enough", wait)
+	}
+}
+
+func TestASettleAfterAReleaseChargesWithoutRefunding(t *testing.T) {
+	// A response can name a rate-limit group the call was not reserved against.
+	// The hold goes back to the bucket that took it and the cost is settled onto
+	// the real one, so that settle carries no hold — and must not refund a charge
+	// the real bucket is holding for someone else.
+	store, _ := newStore(t)
+	guessed := esiclient.Bucket{Group: "unknown:/markets/10000002/orders/", User: esiclient.AnonymousUser}
+	disclosed := esiclient.Bucket{Group: "market-order", User: esiclient.AnonymousUser}
+
+	known(t, store, guessed, 12000, 15*time.Minute)
+	known(t, store, disclosed, 12000, 15*time.Minute)
+
+	inFlight, err := store.Reserve(t.Context(), disclosed, esiclient.ClassBackground, marketPolicy, 1)
+	if err != nil || !inFlight.Granted {
+		t.Fatalf("Reserve: %v %+v", err, inFlight)
+	}
+	before, err := store.State(t.Context(), disclosed)
+	if err != nil {
+		t.Fatalf("State: %v", err)
+	}
+
+	misrouted, err := store.Reserve(t.Context(), guessed, esiclient.ClassBackground, marketPolicy, 1)
+	if err != nil || !misrouted.Granted {
+		t.Fatalf("Reserve: %v %+v", err, misrouted)
+	}
+	reservation := misrouted.Reservations[0]
+	if err := store.Release(t.Context(), reservation); err != nil {
+		t.Fatalf("Release: %v", err)
+	}
+	reservation.Bucket, reservation.Cost = disclosed, 0
+	if err := store.Settle(t.Context(), reservation, esiclient.Outcome{
+		Attempted: true, Status: 200, Cost: 2, ObservedAt: time.Now(),
+		Limit: 12000, Window: 15 * time.Minute, Remaining: 11998, Metered: true,
+	}); err != nil {
+		t.Fatalf("Settle: %v", err)
+	}
+
+	after, err := store.State(t.Context(), disclosed)
+	if err != nil {
+		t.Fatalf("State: %v", err)
+	}
+	if want := before.Spent + 2; after.Spent != want {
+		t.Errorf("Spent = %d, want %d: the settled call was charged and the held one left alone",
+			after.Spent, want)
 	}
 }

@@ -108,6 +108,10 @@ func (d *Dispatcher) Settle(ctx context.Context, ticket httpclient.Ticket, resp 
 		_ = d.store.Release(settleCtx, reservation)
 		d.retire(reservation.Bucket)
 		reservation.Bucket = disclosed
+		// The hold went back to the bucket that took it. Carrying the cost across
+		// would have the real bucket refund a charge it never made, out of
+		// whatever its ledger is holding for someone else.
+		reservation.Cost = 0
 	}
 	d.note(reservation.Bucket)
 

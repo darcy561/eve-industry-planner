@@ -122,10 +122,40 @@ turn you away, and without that rule a batch of expired tokens would read as an 
 | `esi.queue_wait_milliseconds`, `esi.request_duration_milliseconds`, `esi.request_wire_bytes` | histograms |
 | `esi.queue.waiting`, `esi.queue.slots_held` | per-replica queue depth |
 | `core.esi.bucket.token_limit`, `.token_used`, `.token_remaining`, `.fill`, `.seconds_until_open` | bucket state, reported once by core |
+| `core.esi.bucket.reported_remaining` | CCP's own count, while the header still describes this window |
+| `core.esi.bucket.unaccounted` | Tokens ESI charged that this fleet never recorded |
 | `core.esi.publication_skipped` | refreshes the scheduler decided not to publish, by reason |
 
 Labels are `group` and `scope` — `address` or `character`, never a character id, which would be an
 unbounded metric dimension.
+
+**The ledger is reconciled to ESI on every response.** ESI counts what it charged this address, which
+can exceed what this fleet recorded — a ledger that started empty after a deploy, or another caller
+behind the same address. Every settle holds that difference as a single charge, replaced rather than
+added to, so it tracks the gap instead of accumulating.
+
+Admission and pacing already took the smaller of the two counts while the header was fresh. What
+reconciling adds is that our own reckoning stays right *after* the header goes stale, when it is the
+only figure left — an understated ledger would otherwise let us spend budget ESI has already taken.
+
+Because the two counts then agree by construction, subtracting them measures nothing but how long
+ago the last response was. What is worth watching is `unaccounted`: how much of our spend came from
+that reconciliation rather than from calls we made. A spike after a deploy is a cold ledger catching
+up and clears within a window. A standing figure means something else is spending this address's
+budget.
+
+**An idle bucket reads as full; a dead one stops being reported.** What ESI allows is a learned fact
+and outlives the charges it is measured against, so the two keys expire on different clocks: the
+ledger after twice the window, once every charge has aged out, and the bucket's own state after
+eight. Two hours at ESI's fifteen-minute window.
+
+That is past every scheduled refresh — the longest is hourly — so a bucket between runs reports a
+flat line at full fill rather than dropping out of the series. It is also short enough that a bucket
+nothing calls any more stops being drawn within a couple of hours, instead of showing a confident
+full bucket for something that is finished.
+
+So a gap in Grafana means core stopped reporting, or the work behind that bucket stopped — not that
+a bucket went quiet between runs.
 
 **Bucket state is reported once, by core.** A bucket belongs to the fleet and every replica reads the
 same figures from Redis, so reporting them per replica would emit identical series a dashboard can

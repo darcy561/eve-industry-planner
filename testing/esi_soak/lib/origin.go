@@ -148,6 +148,16 @@ func (o *Origin) spent() int {
 }
 
 // GoDown makes the origin answer 502, as Tranquility does while it restarts.
+// Preload charges the origin for spend the fleet never made — another caller
+// behind the same address, or a ledger that started empty after a deploy. The
+// fleet learns of it only through X-Ratelimit-Remaining.
+func (o *Origin) Preload(tokens int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.charges = append(o.charges, charge{cost: tokens, expires: time.Now().Add(o.window)})
+	o.peakSpend = max(o.peakSpend, o.spent())
+}
+
 func (o *Origin) GoDown() {
 	o.mu.Lock()
 	defer o.mu.Unlock()

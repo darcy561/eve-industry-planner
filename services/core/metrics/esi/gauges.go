@@ -56,6 +56,14 @@ func Register(store *esiclient.Store) {
 		if !ok {
 			return
 		}
+		gReported, ok := gauge("core.esi.bucket.reported_remaining", "1", "Tokens ESI itself says are left, from X-Ratelimit-Remaining.")
+		if !ok {
+			return
+		}
+		gUnaccounted, ok := gauge("core.esi.bucket.unaccounted", "1", "Tokens ESI charged this address that the fleet never recorded — a cold ledger, or another caller sharing the address.")
+		if !ok {
+			return
+		}
 
 		_, err := m.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
 			cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
@@ -79,9 +87,17 @@ func Register(store *esiclient.Store) {
 				o.ObserveFloat64(gRem, float64(row.TokenRemaining), attr)
 				o.ObserveFloat64(gFill, row.Fill, attr)
 				o.ObserveFloat64(gOpen, row.SecondsUntilOpen, attr)
+
+				o.ObserveFloat64(gUnaccounted, float64(row.Unaccounted), attr)
+
+				// ESI's own figure is a snapshot that does not move on its own, so
+				// it is only worth drawing while it still describes this window.
+				if row.Comparable {
+					o.ObserveFloat64(gReported, float64(row.ReportedRemaining), attr)
+				}
 			}
 			return nil
-		}, gLimit, gUsed, gRem, gFill, gOpen)
+		}, gLimit, gUsed, gRem, gFill, gOpen, gReported, gUnaccounted)
 		if err != nil {
 			logs.ErrorCtx(context.Background(), "core metrics esi: register callback", "error", err)
 		}

@@ -23,6 +23,12 @@ type BucketState struct {
 	NextSlot   time.Time
 	ProbeUntil time.Time
 	Spent      int
+	// Unaccounted is the part of Spent that ESI charged this address but this
+	// fleet never recorded: a ledger that started empty after a deploy, or
+	// another caller sharing the address. It is held so our own reckoning does
+	// not overstate what is left, and it is the honest measure of how far out of
+	// step the two counts are.
+	Unaccounted int
 }
 
 // Known reports whether a response has ever disclosed this bucket's allowance.
@@ -184,6 +190,8 @@ func (s *Store) Settle(ctx context.Context, r Reservation, out Outcome) error {
 		downtimeProbeMax.Seconds(),
 		sourcesToTripDowntime,
 		loneSourceFailures,
+		float64(r.Slot.UnixNano())/1e9,
+		r.Cost,
 	).Result()
 	if err != nil {
 		return fmt.Errorf("settle %s: %w", r.Bucket, err)
@@ -212,11 +220,12 @@ func (s *Store) State(ctx context.Context, b Bucket) (BucketState, error) {
 	state := stateFromFields(fields)
 
 	if state.Metered {
-		spent, err := s.spend(ctx, b)
+		spent, unaccounted, err := s.spend(ctx, b)
 		if err != nil {
 			return state, err
 		}
 		state.Spent = spent
+		state.Unaccounted = unaccounted
 	}
 	return state, nil
 }
@@ -277,20 +286,39 @@ func (s *Store) headroomFrom(state BucketState, b Bucket, class Class) Headroom 
 	return room
 }
 
-func (s *Store) spend(ctx context.Context, b Bucket) (int, error) {
-	members, err := s.redis.ZRangeByScore(ctx, ledgerKey(b), &redis.ZRangeBy{
-		Min: strconv.FormatFloat(float64(time.Now().UnixNano())/1e9, 'f', 6, 64),
-		Max: "+inf",
-	}).Result()
+// spend is what the bucket currently holds against it, and how much of that
+// this fleet never recorded itself — spend ESI charged the address that came
+// from somewhere else, or from before this ledger existed.
+func (s *Store) spend(ctx context.Context, b Bucket) (total, unaccounted int, err error) {
+	// Slots expire themselves, so whatever comes back is inside the window and
+	// nothing needs filtering by time.
+	fields, err := s.redis.HGetAll(ctx, ledgerKey(b)).Result()
 	if err != nil {
-		return 0, fmt.Errorf("ledger %s: %w", b, err)
+		return 0, 0, fmt.Errorf("ledger %s: %w", b, err)
 	}
 
-	total := 0
-	for _, member := range members {
-		total += costFromMember(member)
+	for field, value := range fields {
+		cost, err := strconv.Atoi(value)
+		if err != nil {
+			continue
+		}
+		total += cost
+		if fieldClass(field) == SyncMember {
+			unaccounted += cost
+		}
 	}
-	return total, nil
+	return total, unaccounted, nil
+}
+
+// fieldClass is the class a ledger field was charged to, from
+// "<slot>|<class>|<endpoint>".
+func fieldClass(field string) string {
+	_, rest, ok := strings.Cut(field, "|")
+	if !ok {
+		return ""
+	}
+	class, _, _ := strings.Cut(rest, "|")
+	return class
 }
 
 // Observe records whether the servers answered, from a caller that has no
