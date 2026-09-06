@@ -24,3 +24,4 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Service import boundaries (stop services importing each other) | [service-import-boundaries/contents.md](./service-import-boundaries/contents.md) |
 | Task dispatch (task type authority, envelope collapse, operator CLI) | [task-dispatch/contents.md](./task-dispatch/contents.md) |
 | Observability consolidation (every producer into Alloy; scrape collapse, backend evaluation, dashboard defects, traces) | [observability-consolidation/contents.md](./observability-consolidation/contents.md) |
+| ESI collections (one normalised row shape from the query layer for assets and blueprints; tree, search, quantity, library and location consumers) | [esi-collections/contents.md](./esi-collections/contents.md) |
