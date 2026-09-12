@@ -2,19 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("../../../../../../Zustand/usersStore.js", () => ({
-  default: (selector) =>
-    selector({
-      applicationSettings: {
-        defaultPricing: {
-          buying: { market: "jita", basis: "sell" },
-          // Deliberately different: a fixture whose sides agree cannot tell a
-          // surface asking for the wrong one.
-          selling: { market: "amarr", basis: "buy" },
-        },
+vi.mock("../../../../../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
+    applicationSettings: {
+      defaultPricing: {
+        buying: { market: "jita", basis: "sell" },
+        // Deliberately different: a fixture whose sides agree cannot tell a
+        // surface asking for the wrong one.
+        selling: { market: "amarr", basis: "buy" },
       },
-    }),
-}));
+    },
+  });
+});
 
 const { default: RowPricingOverride } =
   await import("./rowPricingOverride.jsx");

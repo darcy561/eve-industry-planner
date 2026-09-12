@@ -1,12 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { activePlannerStoreState } from "../../../tests/utils.js";
+const state = await (async () => {
+  const { usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreState();
+})();
 
-const state = activePlannerStoreState();
-
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((s) => s(state), { getState: () => state }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(state);
+});
 vi.mock("../../../global-config-app", () => ({
   default: { DEFAULT_ARCHIVE_REFRESH_PERIOD: 2 },
 }));
@@ -123,7 +127,9 @@ describe("planner-scoped query keys", () => {
   });
 
   it("name the planner whose documents they hold", () => {
-    expect(archivedJobsQueryKey()[2]).toBe("account:acct-1");
+    expect(archivedJobsQueryKey()[2]).toBe(
+      `account:${state.account.accountID}`,
+    );
 
     state.activePlanner.owner = "corporation:98000001";
     expect(archivedJobsQueryKey()[2]).toBe("corporation:98000001");

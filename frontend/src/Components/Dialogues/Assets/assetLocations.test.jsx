@@ -1,13 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign(() => ({}), {
-    getState: () => ({
-      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-    }),
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock();
+});
 
 import AssetLocations_AssetDialogueWindow from "./assetLocations";
 import buildAssetNodes from "../../../Functions/Assets/buildAssetNodes";
