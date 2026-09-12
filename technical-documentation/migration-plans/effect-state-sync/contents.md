@@ -1,6 +1,6 @@
 # Effect-driven state synchronisation
 
-**Status: closed (2026-09-11).** Every finding is resolved and the live SoT is promoted. This folder is **history only**, kept because [job-document-drafts](../job-document-drafts/contents.md) cites it.
+**Status: closed.** Every finding is resolved and the live SoT is promoted. This folder is **history only**, kept because [job-document-drafts](../job-document-drafts/contents.md) and [react-19-idioms](../react-19-idioms/contents.md) cite its verdicts.
 
 ## Owns
 

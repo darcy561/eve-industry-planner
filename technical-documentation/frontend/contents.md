@@ -2,10 +2,14 @@
 
 ## Owns (SoT)
 
-SPA behaviour: React auth/session UX, credential acquisition, document-lock UI, routing and page
-chrome, the normalised ESI asset and blueprint row collections — their index hooks, the login
-prefetch that fills them, and shared location-name resolution — and the group page's scheduler
-character selection, group name editing, and job dependency tree.
+SPA behaviour: React auth/session UX, credential acquisition, document-lock UI,
+routing and page chrome, the normalised ESI asset and blueprint row collections
+— their index hooks, the login prefetch that fills them, and shared
+location-name resolution — the group page's scheduler character selection,
+group name editing and job dependency tree, the Edit Job page's floating
+step-navigation controls and parent-job linking, the job planner's job status
+accordions, the reprocessing settings panel, the dashboard's watchlist and
+tutorial-card row, and the shared price history and price entry surfaces.
 
 ## Does not own
 
@@ -27,4 +31,9 @@ character selection, group name editing, and job dependency tree.
 | Change what login prefetches, when, or under what budget | [esi-collections/prefetch.md](./esi-collections/prefetch.md) |
 | Resolve a location or container id into a name | [esi-collections/location-names.md](./esi-collections/location-names.md) |
 | Change the group scheduler's default character selection, the group name editor, or the job dependency tree | [group/contents.md](./group/contents.md) |
+| Change the Edit Job page's floating step arrows, or which jobs the Link Parent Job dialogue offers | [editjob/contents.md](./editjob/contents.md) |
+| Change the job planner's job status accordions or their expansion state | [jobplanner/contents.md](./jobplanner/contents.md) |
+| Change the reprocessing settings panel | [reprocessing/contents.md](./reprocessing/contents.md) |
+| Change the price history chart or the price entry dialogue | [pricing/contents.md](./pricing/contents.md) |
+| Change the dashboard's watchlist panel or its tutorial-card row | [dashboard/contents.md](./dashboard/contents.md) |
 | Frontend test entrypoints / depth | [../testing/frontend/contents.md](../testing/frontend/contents.md) |

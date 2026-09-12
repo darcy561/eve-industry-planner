@@ -147,6 +147,17 @@ apart does not need to — mounting fresh for each request is enough on its own.
 on the request changing, the same shape `useHasChanged` gives a synchronised copy, rather than on a
 counter it has to remember to reset.
 
+## Watching whether an element is on screen
+
+A control that needs to know whether it has scrolled out of view — to draw a floating stand-in, say —
+uses `useIsScrolledOutOfView` in `frontend/src/Hooks/GeneralHooks/`, rather than a state flag kept by
+hand with an `IntersectionObserver` in an effect. It returns `[isOutOfView, ref]`: attach the ref to
+the element being watched, and the hook attaches and disconnects the observer as that element mounts
+and unmounts, re-observing on its own if the ref moves to a different element.
+
+Callers that watch more than one control call it once per control — it carries no shared state
+between calls, so two controls each get their own answer.
+
 ## Lint and format
 
 The SPA is linted by **ESLint** ([`frontend/eslint.config.mjs`](../../frontend/eslint.config.mjs),
