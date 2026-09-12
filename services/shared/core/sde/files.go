@@ -11,6 +11,7 @@ const (
 	ReprocessingFile       = "reprocessingData.json"
 	InventionModifiersFile = "inventionModifiers.json"
 	MarketGroupsFile       = "marketGroups.json"
+	SolarSystemsFile       = "solarSystems.json"
 )
 
 type StaticDataFileDef struct {
@@ -25,6 +26,7 @@ var staticDataFileDefs = []StaticDataFileDef{
 	{Key: "RECIPE_LIST", FileName: RecipeListFile},
 	{Key: "INVENTION_MODIFIERS", FileName: InventionModifiersFile},
 	{Key: "MARKET_GROUPS", FileName: MarketGroupsFile},
+	{Key: "SOLAR_SYSTEMS", FileName: SolarSystemsFile},
 }
 
 type VersionJSON struct {

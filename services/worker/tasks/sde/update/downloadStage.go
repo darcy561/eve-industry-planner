@@ -28,6 +28,7 @@ var requiredFiles = map[string]string{
 	"marketGroups.jsonl":    "MarketGroups",
 	"dogmaAttributes.jsonl": "DogmaAttributes",
 	"typeDogma.jsonl":       "TypeDogma",
+	"mapSolarSystems.jsonl": "SolarSystems",
 }
 
 type sdeDownloadResult struct {

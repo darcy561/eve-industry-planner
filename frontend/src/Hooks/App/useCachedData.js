@@ -4,6 +4,8 @@ import {
   getFullItemList,
   getReprocessingData,
   getRecipeListFromCache,
+  getMarketGroups,
+  getSolarSystems,
 } from "../../Functions/Helper/getCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
 
@@ -12,6 +14,8 @@ const READERS = {
   [CACHED_DATA_FILES.FULL_ITEM_LIST]: getFullItemList,
   [CACHED_DATA_FILES.REPROCESSING_DATA]: getReprocessingData,
   [CACHED_DATA_FILES.RECIPE_LIST]: getRecipeListFromCache,
+  [CACHED_DATA_FILES.MARKET_GROUPS]: getMarketGroups,
+  [CACHED_DATA_FILES.SOLAR_SYSTEMS]: getSolarSystems,
 };
 
 /**

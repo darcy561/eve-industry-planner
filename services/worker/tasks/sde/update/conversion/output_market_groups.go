@@ -36,16 +36,3 @@ func GenerateMarketGroupsOutput(marketGroupsMap map[string]any) map[string]*Mark
 
 	return groups
 }
-
-// localisedName reads the English name the rest of the SPA displays.
-func localisedName(group map[string]any) (string, bool) {
-	nameObj, ok := group["name"].(map[string]any)
-	if !ok {
-		return "", false
-	}
-	name, ok := nameObj["en"].(string)
-	if !ok || name == "" {
-		return "", false
-	}
-	return name, true
-}

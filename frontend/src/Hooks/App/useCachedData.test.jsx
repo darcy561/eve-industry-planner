@@ -7,12 +7,16 @@ const getFullItemList = vi.fn();
 const getSearchIndex = vi.fn();
 const getReprocessingData = vi.fn();
 const getRecipeListFromCache = vi.fn();
+const getMarketGroups = vi.fn();
+const getSolarSystems = vi.fn();
 
 vi.mock("../../Functions/Helper/getCachedData", () => ({
   getFullItemList: (...args) => getFullItemList(...args),
   getSearchIndex: (...args) => getSearchIndex(...args),
   getReprocessingData: (...args) => getReprocessingData(...args),
   getRecipeListFromCache: (...args) => getRecipeListFromCache(...args),
+  getMarketGroups: (...args) => getMarketGroups(...args),
+  getSolarSystems: (...args) => getSolarSystems(...args),
 }));
 
 const { useCachedData } = await import("./useCachedData.js");
@@ -36,6 +40,8 @@ beforeEach(() => {
   getSearchIndex.mockResolvedValue([{ typeID: 34 }]);
   getReprocessingData.mockResolvedValue({ 34: {} });
   getRecipeListFromCache.mockResolvedValue({ 587: {} });
+  getMarketGroups.mockResolvedValue({ 1857: { name: "Minerals" } });
+  getSolarSystems.mockResolvedValue({ 30000142: "Jita" });
 });
 
 describe("useCachedData", () => {
@@ -44,6 +50,8 @@ describe("useCachedData", () => {
     [CACHED_DATA_FILES.SEARCH_INDEX, () => getSearchIndex],
     [CACHED_DATA_FILES.REPROCESSING_DATA, () => getReprocessingData],
     [CACHED_DATA_FILES.RECIPE_LIST, () => getRecipeListFromCache],
+    [CACHED_DATA_FILES.MARKET_GROUPS, () => getMarketGroups],
+    [CACHED_DATA_FILES.SOLAR_SYSTEMS, () => getSolarSystems],
   ];
 
   for (const [dataType, reader] of cases) {

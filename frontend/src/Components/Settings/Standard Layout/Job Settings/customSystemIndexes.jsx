@@ -22,7 +22,10 @@ import GLOBAL_CONFIG from "../../../../global-config-app";
 import AddIcon from "@mui/icons-material/Add";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 import useUsersStore from "../../../../Zustand/usersStore";
-import getSystemNameFromID from "../../../../Functions/Helper/getSystemName";
+import {
+  UNKNOWN_SYSTEM_LABEL,
+  useSolarSystemNames,
+} from "../../../../Hooks/useSolarSystemNames";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
@@ -37,6 +40,7 @@ export default function CustomSystemIndexes() {
   );
   const { updatePredefinedSystemIndexes, deletePredefinedSystemIndexType } =
     useUsersStore.getState().applicationSettings.actions;
+  const systemNames = useSolarSystemNames();
 
   const handleSystemChange = (systemID) => {
     setSelectedSystem(systemID);
@@ -232,7 +236,8 @@ export default function CustomSystemIndexes() {
           >
             {Object.entries(predefinedSystemIndexes).map(
               ([systemID, indexData]) => {
-                const systemName = getSystemNameFromID(Number(systemID));
+                const systemName =
+                  systemNames[Number(systemID)] ?? UNKNOWN_SYSTEM_LABEL;
                 return (
                   <Box
                     key={systemID}

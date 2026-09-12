@@ -25,7 +25,10 @@ import {
   systemTypeMap,
   Implants,
 } from "../../../../Context/defaultValues";
-import getSystemNameFromID from "../../../../Functions/Helper/getSystemName";
+import {
+  UNKNOWN_SYSTEM_LABEL,
+  useSolarSystemNames,
+} from "../../../../Hooks/useSolarSystemNames";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
@@ -40,6 +43,7 @@ function CurrentStructuresFrame({
         customStructureMap[selectedJobType]
       ] ?? [],
   );
+  const systemNames = useSolarSystemNames();
   const { setDefaultCustomStructure, deleteCustomStructure } =
     useUsersStore.getState().applicationSettings.actions;
 
@@ -301,7 +305,8 @@ function CurrentStructuresFrame({
                               placement="top"
                             >
                               <Box component="span">
-                                {getSystemNameFromID(structure.systemID)}
+                                {systemNames[structure.systemID] ??
+                                  UNKNOWN_SYSTEM_LABEL}
                                 <Typography
                                   component="span"
                                   variant="caption"
@@ -375,7 +380,8 @@ function CurrentStructuresFrame({
                       <Grid size={6}>
                         <Box sx={{ display: "flex", flexDirection: "column" }}>
                           <Typography variant="caption">
-                            {getSystemNameFromID(structure.systemID)}
+                            {systemNames[structure.systemID] ??
+                              UNKNOWN_SYSTEM_LABEL}
                           </Typography>
                           <Tooltip
                             title="System Index Value"

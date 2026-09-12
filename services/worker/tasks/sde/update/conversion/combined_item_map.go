@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 func ConvertBlueprintDataToTypeIDMap(blueprintData map[string]any, typesData map[string]any) map[string]any {
@@ -59,12 +58,8 @@ func BuildCombinedItemMap(typesData map[string]any, blueprintData map[string]any
 		if published, ok := itemData["published"].(bool); ok && !published {
 			continue
 		}
-		if name, ok := itemData["name"].(map[string]any); ok {
-			if enName, ok := name["en"].(string); ok {
-				if strings.Contains(enName, "expired") || strings.Contains(enName, "Expired") {
-					continue
-				}
-			}
+		if isExpiredType(itemData) {
+			continue
 		}
 
 		newItem := createEVETypeFromData(itemData)
@@ -100,10 +95,8 @@ func createEVETypeFromData(itemData map[string]any) *EVEType {
 		item.Key = int(key)
 		item.ItemID = int(key)
 	}
-	if nameObj, ok := itemData["name"].(map[string]any); ok {
-		if enName, ok := nameObj["en"].(string); ok {
-			item.Name = enName
-		}
+	if name, ok := localisedName(itemData); ok {
+		item.Name = name
 	}
 	if marketGroupID, ok := itemData["marketGroupID"].(float64); ok {
 		item.MarketSectionID = int(marketGroupID)

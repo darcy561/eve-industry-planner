@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
-import systemIDsJSON from "../../RawData/systems.json";
 import { FormControl, FormHelperText } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { systemStructureRequirements } from "../../Context/defaultValues";
+import { useSolarSystemNames } from "../../Hooks/useSolarSystemNames";
 import GLOBAL_CONFIG from "../../global-config-app";
 import {
   appShellAutocompleteListboxSx,
@@ -63,28 +63,32 @@ function VirtualisedSystemSearch({
     });
   };
 
-  const systemIDMap = useMemo(() => {
-    let results = {};
-    for (let system of systemIDsJSON) {
+  const systemNames = useSolarSystemNames();
+
+  const autocompleteOptions = useMemo(() => {
+    const options = [];
+    for (const [systemID, name] of Object.entries(systemNames)) {
+      const id = Number(systemID);
       const availableJobTypes =
-        systemStructureRequirements[system.id]?.allowedJobTypes || [];
-      if (jobType === null || availableJobTypes.length === 0) {
-        results[system.id] = system;
-      } else {
-        const matches = availableJobTypes.includes(jobType);
-        if (matches) {
-          results[system.id] = system;
-        }
+        systemStructureRequirements[id]?.allowedJobTypes || [];
+      if (
+        jobType === null ||
+        availableJobTypes.length === 0 ||
+        availableJobTypes.includes(jobType)
+      ) {
+        options.push({ id, name });
       }
     }
+    return options;
+  }, [jobType, systemNames]);
 
-    return results;
-  }, [jobType]);
-
-  const autocompleteOptions = useMemo(
-    () => Object.values(systemIDMap),
-    [systemIDMap],
-  );
+  // MUI matches the value against the options by identity, so the selected system
+  // has to be the option object itself rather than an equal copy.
+  const optionsByID = useMemo(() => {
+    const byID = {};
+    for (const option of autocompleteOptions) byID[option.id] = option;
+    return byID;
+  }, [autocompleteOptions]);
 
   const handleChange = (event, newValue) => {
     if (newValue) {
@@ -144,7 +148,7 @@ function VirtualisedSystemSearch({
       <Autocomplete
         id="System Search"
         value={
-          systemIDMap[selectedValue] ?? systemIDMap[DEFAULT_SYSTEM] ?? null
+          optionsByID[selectedValue] ?? optionsByID[DEFAULT_SYSTEM] ?? null
         }
         options={autocompleteOptions}
         filterOptions={filterOptions}

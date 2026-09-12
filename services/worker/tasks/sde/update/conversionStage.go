@@ -27,8 +27,9 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	marketGroupsData := mapResult.StructuredData["MarketGroups"]
 	dogmaAttributesData := mapResult.StructuredData["DogmaAttributes"]
 	typeDogmaData := mapResult.StructuredData["TypeDogma"]
+	solarSystemsData := mapResult.StructuredData["SolarSystems"]
 	if blueprintsData == nil || typesData == nil || groupsData == nil || typeMaterialsData == nil || marketGroupsData == nil ||
-		dogmaAttributesData == nil || typeDogmaData == nil {
+		dogmaAttributesData == nil || typeDogmaData == nil || solarSystemsData == nil {
 		return nil, fmt.Errorf("missing one or more required structured data maps")
 	}
 
@@ -42,6 +43,7 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	fullItemList := conversion.GenerateFullItemListOutput(combinedItemMap, conversion.BuildCategoryByGroupID(groupsData))
 	reprocessingObjects := conversion.GenerateReprocessingDataOutput(typeMaterialsData, combinedItemMap, marketGroupsData)
 	marketGroups := conversion.GenerateMarketGroupsOutput(marketGroupsData)
+	solarSystems := conversion.GenerateSolarSystemsOutput(solarSystemsData)
 	inventionModifiers, err := conversion.GenerateInventionModifiersOutput(typesData, dogmaAttributesData, typeDogmaData)
 	if err != nil {
 		return nil, err
@@ -63,6 +65,9 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	if err := addJSONFile(files, "output/marketGroups", marketGroups); err != nil {
 		return nil, err
 	}
+	if err := addJSONFile(files, "output/solarSystems", solarSystems); err != nil {
+		return nil, err
+	}
 	if err := addJSONFile(files, "output/inventionModifiers", inventionModifiers); err != nil {
 		return nil, err
 	}
@@ -74,6 +79,7 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 		"full_item_list", len(fullItemList),
 		"reprocessing_items", len(reprocessingObjects),
 		"invention_modifier_items", len(inventionModifiers.Items),
+		"solar_systems", len(solarSystems),
 	)
 	return &sdeConversionResult{
 		Files:      files,

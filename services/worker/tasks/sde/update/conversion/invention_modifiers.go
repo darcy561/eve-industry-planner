@@ -60,7 +60,7 @@ func GenerateInventionModifiersOutput(
 		if !ok || !isOptionalDecryptorGroup(int(gid)) {
 			continue
 		}
-		name := englishTypeName(typeRow)
+		name := typeName(typeRow)
 
 		typeID, err := strconv.Atoi(typeKey)
 		if err != nil {
@@ -143,23 +143,12 @@ func typePublishedForExport(itemData map[string]any) bool {
 	if published, ok := itemData["published"].(bool); ok && !published {
 		return false
 	}
-	if name, ok := itemData["name"].(map[string]any); ok {
-		if enName, ok := name["en"].(string); ok {
-			if strings.Contains(enName, "expired") || strings.Contains(enName, "Expired") {
-				return false
-			}
-		}
-	}
-	return true
+	return !isExpiredType(itemData)
 }
 
-func englishTypeName(itemData map[string]any) string {
-	if nameObj, ok := itemData["name"].(map[string]any); ok {
-		if en, ok := nameObj["en"].(string); ok {
-			return en
-		}
-	}
-	return ""
+func typeName(itemData map[string]any) string {
+	name, _ := localisedName(itemData)
+	return name
 }
 
 func attrIDKey(attributeID float64) string {

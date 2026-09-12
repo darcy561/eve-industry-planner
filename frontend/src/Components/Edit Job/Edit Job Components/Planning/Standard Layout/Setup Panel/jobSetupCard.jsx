@@ -16,7 +16,7 @@ import {
   getStructureInfoFromID,
   getSystemTypeFromID,
 } from "../../../../../../Functions/Helper/getStructureInfo";
-import getSystemNameFromID from "../../../../../../Functions/Helper/getSystemName";
+import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystemNames";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
@@ -188,7 +188,7 @@ function UseDefaultStructures({ setupEntry }) {
     setupEntry.systemTypeID,
   );
 
-  const matchedSystemID = getSystemNameFromID(setupEntry.systemID);
+  const matchedSystemID = useSolarSystemName(setupEntry.systemID);
 
   const systemIndexValue =
     findSystemIndexForJob(

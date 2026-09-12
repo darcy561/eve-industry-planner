@@ -388,3 +388,11 @@ export const getReprocessingData = async () => {
 export const getRecipeListFromCache = async () => {
   return await getCachedData(CACHED_DATA_FILES.RECIPE_LIST);
 };
+
+export const getMarketGroups = async () => {
+  return await getCachedData(CACHED_DATA_FILES.MARKET_GROUPS);
+};
+
+export const getSolarSystems = async () => {
+  return await getCachedData(CACHED_DATA_FILES.SOLAR_SYSTEMS);
+};
