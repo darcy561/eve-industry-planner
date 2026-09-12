@@ -9,11 +9,11 @@ const { store } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 import SelectAssetLocation_ShoppingListDialogue from "./assetLocationsSelection";
 import seedLocationNames from "../../../tests/seedLocationNames";

@@ -23,11 +23,11 @@ const {
   failCorporation: { current: false },
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 vi.mock("../React Query/Character/assets", () => ({
   characterAssetsQueryKey: "characterAssets",

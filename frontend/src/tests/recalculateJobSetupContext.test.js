@@ -26,9 +26,12 @@ const JOB_AS_BUILT = {
   TE: 20,
 };
 
-vi.mock("../Zustand/usersStore", () => ({
-  default: {
-    getState: () => ({
+// Read lazily: RECALCULATING_USER is declared below this hoisted factory.
+vi.mock("../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("./usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       account: {
         isLoggedIn: true,
         actions: {
@@ -73,8 +76,8 @@ vi.mock("../Zustand/usersStore", () => ({
         },
       },
     }),
-  },
-}));
+  );
+});
 
 // The blueprints the recalculating user holds: none, which is what makes the derived ME fall back
 // to their own default rather than the job's stored value.

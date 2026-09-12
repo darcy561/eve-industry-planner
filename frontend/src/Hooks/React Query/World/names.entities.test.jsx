@@ -8,11 +8,11 @@ const { store, bodies } = vi.hoisted(() => ({
   bodies: [],
 }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 // Only ESI is faked. The classifier, the batching loader and the per-id cache are all real.
 vi.mock("../../../Functions/EveESI/fetchWithCustomHeaders", () => ({

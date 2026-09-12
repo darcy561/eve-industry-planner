@@ -9,11 +9,11 @@ const { store, setOffices, imperativeFetch } = vi.hoisted(() => ({
   imperativeFetch: vi.fn(),
 }));
 
-vi.mock("../../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+vi.mock("../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 // The path this hook used to take: names fetched outside a render and written into the store by
 // hand, while the office picker resolved the very same ids again.

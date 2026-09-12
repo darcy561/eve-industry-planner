@@ -9,11 +9,11 @@ const { store, structureAsks, marketRows } = vi.hoisted(() => ({
   marketRows: { current: [] },
 }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 vi.mock("../../../Functions/EveESI/World/getMarketData", () => ({
   default: async () => ({ data: marketRows.current, totalPages: 1 }),

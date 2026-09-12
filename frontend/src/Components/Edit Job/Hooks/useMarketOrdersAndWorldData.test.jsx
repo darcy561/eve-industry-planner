@@ -15,11 +15,11 @@ const { store, requested, resolved, pending, imperativeFetch, matches } =
     matches: { current: [] },
   }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 // The path this hook used to take.
 vi.mock("../../../Hooks/React Query/World/names", async (original) => ({

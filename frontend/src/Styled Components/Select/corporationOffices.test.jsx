@@ -9,11 +9,11 @@ const { store } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 // An id with no name seeded into the cache stands for one still being asked about, unless it is in
 // `failing` — a lookup that did not settle, which throws and is never cached.

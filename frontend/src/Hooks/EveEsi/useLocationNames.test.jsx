@@ -10,11 +10,11 @@ const { store, requestCalls, answers, gate } = vi.hoisted(() => ({
   gate: { current: null },
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 vi.mock("../../Functions/EveESI/World/nameLoader", () => ({
   requestName: async (id) => {
