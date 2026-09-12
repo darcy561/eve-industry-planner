@@ -92,7 +92,7 @@ the file could not simply be pruned.
 
 ## The cross-site sweep
 
-Run when session-and-route-access finished and asked what the OAuth `state` is actually for. The
+Run when the OAuth `state` stopped carrying paths, which asked what it is actually for. The
 evidence is here rather than only in the stage, so a later reader can tell whether a verdict still
 holds without repeating the sweep.
 

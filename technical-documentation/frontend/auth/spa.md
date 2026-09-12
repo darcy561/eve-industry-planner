@@ -3,7 +3,8 @@
 Live SoT for how the SPA signs a user in, holds the credentials it needs, authenticates every private
 request and the realtime connection, and tears all of it down again. Package:
 [`frontend/src/Functions/Auth`](../../../frontend/src/Functions/Auth). Session state and the rotate
-action: [`frontend/src/Zustand/account`](../../../frontend/src/Zustand/account).
+action: [`frontend/src/Zustand/account`](../../../frontend/src/Zustand/account). Route access and
+what a route needs before it renders → [frontend/navigation/spa.md](../navigation/spa.md).
 
 Wire contracts, cookies and status codes → [backend/api/auth/overview.md](../../backend/api/auth/overview.md).
 Server-side session storage and the websocket upgrade check → [sessions.md](../../backend/api/auth/sessions.md).
@@ -37,19 +38,19 @@ credential nobody asked for.
 ## Wiring
 
 ```text
-useAuthUrlLogin ──► runAppLogin ──► applyClientSessionAfterAppTokens
-                                             │
-        ┌────────────────────────────────────┼────────────────────────────────────┐
-        ▼                                    ▼                                    ▼
-  account slice                        esiCredentials                     useAccountWebSocket
-  (identity, session id)         (ESI access tokens, per character)              (/ws)
-        │                                    ▲                                    │
-        │ ensurePlannerSession               │ getEsiAccessToken                  │ clientID
-        ▼                                    │                                    ▼
-  POST /auth/sessions/rotate      ESI fetchers, rotate body           requestWithPrivateHeaders
-                                                                                  │
-                                                                                  ▼
-                                                       fetch: eip_session cookie + X-Session-ID
+resumeStoredSession / useAuthUrlLogin ──► runAppLogin ──► applyClientSessionAfterAppTokens
+                                                                    │
+        ┌───────────────────────────────────────────────────────────┼────────────────────────────────────┐
+        ▼                                                          ▼                                    ▼
+  account slice                                             esiCredentials                     useAccountWebSocket
+  (identity, session id)                              (ESI access tokens, per character)              (/ws)
+        │                                                          ▲                                    │
+        │ ensurePlannerSession                                     │ getEsiAccessToken                  │ clientID
+        ▼                                                          │                                    ▼
+  POST /auth/sessions/rotate                            ESI fetchers, rotate body           requestWithPrivateHeaders
+                                                                                                          │
+                                                                                                          ▼
+                                                                               fetch: eip_session cookie + X-Session-ID
 ```
 
 Login is the only thing that assembles a session; everything after it is pulled by a caller that
@@ -57,10 +58,18 @@ needs something. A private request awaits `ensurePlannerSession`, which is a no-
 is actually due. An ESI fetcher awaits `getEsiAccessToken`, which returns the token already in hand
 unless it is close to expiry. The websocket depends only on being logged in.
 
+A route rebuilds a stored session itself, in place, rather than sending the reader to `/auth` — see
+[frontend/navigation/spa.md](../navigation/spa.md) § Guarding a route. `resumeStoredSession`
+(`frontend/src/Functions/Auth/resumeStoredSession.js`) is what both the guard and `/auth` call: it
+picks the mode, runs `runAppLogin`, and waits on the login's own completion rather than on
+`runAppLogin` resolving, because that resolves once the reader is authenticated with the planner's
+own data still arriving.
+
 ## What the SPA holds
 
 The account slice (`frontend/src/Zustand/account/account.js`) holds **identity**: who is signed in,
-which planner session this browser tab owns, and the character roster. It holds no ESI access token.
+which planner session this browser tab owns, and the character roster. It holds no ESI access token,
+and no reauth deadline — that lives per tab in `sessionStorage`, below.
 
 | Field | Holds |
 |-------|-------|
@@ -68,8 +77,8 @@ which planner session this browser tab owns, and the character roster. It holds 
 | `mainCharacterHash` | the EVE character hash the account was established with |
 | `sessionID` | the planner session id for **this tab**, mirrored from `sessionStorage` |
 | `lastPlannerSessionValidatedAt` | when a login, rotate or bootstrap last confirmed the session — what the rotate cooldown reads |
-| `refreshToken` / `refreshTokenEXP` | the tab's planner refresh token, mirrored from `sessionStorage` and sent in the body on bootstrap and rotate |
-| `isLoggedIn` | the only signal a route guard reads |
+| `refreshToken` | the tab's planner refresh token, mirrored from `sessionStorage` and sent in the body on bootstrap and rotate |
+| `isLoggedIn` | the signal a route's audience is checked against |
 | `plannerPrivateAuthReady` | false from the moment a login response lands until the post-login sync finishes; gates work that must not race the first private request |
 | `isFirstTimeLogin` / `hasCompletedFirstLoginFlow` | a new account, and whether the guided flow has been completed — the second drives the `/first-login` redirect |
 | `linkedCharacterHashesFromBootstrapSession` / `linkedBootstrapHydrationPending` | the linked characters a cloud login reported, held until the post-login sync has adopted them |
@@ -83,11 +92,11 @@ storage-mode switch made elsewhere reaches this tab; and `ensurePlannerSession` 
 below. Roster writes are beside them in `characterActions.js`.
 
 Planner session material is **per tab**, in `sessionStorage`
-(`frontend/src/Functions/Auth/tabSessionStorage.js`): session id, refresh token, its expiry, and the
-reauth deadline. The Zustand fields mirror it, and the storage copy is what a cold reload resumes
-from — so two tabs of the same account hold two planner sessions and never spend each other's refresh
-token. `localStorage["Auth"]` is separate again: it is the main character's EVE refresh secret, and
-only a local account keeps one.
+(`frontend/src/Functions/Auth/tabSessionStorage.js`): session id, refresh token, and the reauth
+deadline. The Zustand fields mirror what a page render needs; the storage copy is what a cold reload
+resumes from — so two tabs of the same account hold two planner sessions and never spend each other's
+refresh token. `localStorage["Auth"]` is separate again: it is the main character's EVE refresh
+secret, and only a local account keeps one.
 
 ## Signing in
 
@@ -95,16 +104,23 @@ only a local account keeps one.
 picks a mode for `runAppLogin`:
 
 | Situation | Mode | What it does |
-|-----------|------|--------------|
+|-----------|------|---------------|
 | The URL carries an OAuth `code` | `oauthCode` | exchanges the code with EVE SSO, then `POST /auth/sessions` |
 | No `localStorage["Auth"]`, but a tab refresh token or the cloud storage cookie hint | `cookieCloudResume` | `POST /auth/sessions/bootstrap` with the tab's refresh token; a cloud account may send no `eve_token` |
 | `localStorage["Auth"]` is present | `eveClientRefresh` | builds the character from that secret, then bootstrap if the tab has a refresh token, falling back to `POST /auth/sessions` |
 | Nothing resumable, or any of the above failing | — | full EVE SSO redirect, which gives the tab a new planner session |
 
-`hasResumablePlannerSession()` is what decides there is nothing to resume: a passed reauth deadline
-makes a tab non-resumable however much material it holds, and a tab refresh token *alone* is not
-enough for a local account, because bootstrap still needs an `eve_token` it can only get from
-`localStorage["Auth"]`.
+`resumeStoredSession` (`frontend/src/Functions/Auth/resumeStoredSession.js`) picks between
+`cookieCloudResume` and `eveClientRefresh` the same way, for a route rebuilding a session where the
+reader already is rather than on `/auth`; `/auth` calls it for the two resume modes and keeps only
+`oauthCode` as work genuinely its own.
+
+`hasResumablePlannerSession()` (`frontend/src/Functions/Auth/tabSessionStorage.js`) reports only
+whether this browser holds credentials a cold reload could rebuild from — a tab refresh token or the
+cloud storage hint, or `localStorage["Auth"]` for a local account. It says nothing about whether the
+reader is allowed to resume: a session past its reauth deadline still has its credentials sitting
+here. That question is `reauthDemand`, below, and keeping the two apart is what lets a resume tell a
+timed-out session from a browser that never had one.
 
 Every mode builds its `Character` through
 `frontend/src/Functions/Auth/buildCharacterFromCredentials.js`, which adopts the access token that
@@ -120,6 +136,31 @@ the watchlist, job-group and job-document bootstrap steps without waiting on the
 `plannerPrivateAuthReady` in a `finally`, so a login that failed part-way still opens the gate.
 
 `connectRealtime` follows from `isLoggedIn` flipping, not from anything the login flow calls.
+
+### Login progress
+
+`Functions/Auth/loginProgress.js` holds how far the current login has got — the completed steps, the
+current step, an error, and the characters reported so far — outside React, written by the
+`loginStepComplete` / `loginError` / `loginComplete` / `userDataUpdate` events the login flow emits.
+It lives outside React because those events can fire before anything displaying progress has mounted.
+`useLoginState` (`frontend/src/Components/Auth/Hooks/useLoginState.jsx`) reads it through
+`useSyncExternalStore`, so a step that completes before mount is still counted.
+
+`startLogin()` clears what the last login reached and arms a fresh `whenLoginComplete()` promise; it
+is called when a reader arrives at `/auth` and by a resume. `isLoginRunning()` reports whether a login
+is in flight directly, because the first step is a network round trip away from the start.
+`whenLoginComplete()` is what a caller awaits for the planner's own data rather than only for
+authentication — see [frontend/navigation/spa.md](../navigation/spa.md) § Login complete is not data
+complete.
+
+A step that fails does not resolve `whenLoginComplete()`; it reports an error and waits to be
+re-run. `Functions/Auth/retryLoginStep.js` names the steps that can be — the three bootstrap steps
+(`bootstrapJobDocumentsLoginStep`, `bootstrapJobGroupsLoginStep`, `bootstrapWatchlistLoginStep`), each
+of which takes no arguments and simply re-emits its own completion. `characterData` is not retryable:
+`runPostLoginAccountSync` works from the `user_document` and `linked_characters` of the login
+response, and nothing outside that response holds them, so recovering it means signing in again. A
+failed step's icon in `LoginUI` is the retry button, wired through `canRetryLoginStep` /
+`retryLoginStep`.
 
 ## Acquiring an ESI access token
 
@@ -213,14 +254,14 @@ On success the response's session id and, for a local account, the raw refresh t
 are written through `setSessionTokens`, which persists to `sessionStorage` and mirrors into the
 slice, and `lastPlannerSessionValidatedAt` is stamped.
 
-Failures are read for their code. A 401 whose body carries `session_revoked` or `reauth_required` —
-the two terminal codes in `frontend/src/Functions/Auth/plannerSessionRedirect.js` — clears the tab's
-session material and cookies and starts a full EVE SSO login. An untyped 401 on a **local** account
-that still holds an ESI access token is retried once as `establishPlannerSession`: a fresh session
-rather than a rotate. Anything else records the failure time and logs.
+A failure is read for its code. `frontend/src/Functions/Auth/plannerSessionRedirect.js` owns the
+single question of whether it demands a fresh sign-in — see § When a reader has to sign in again,
+below. Anything else records the failure time and logs. An untyped 401 on a **local** account that
+still holds an ESI access token is retried once as `establishPlannerSession`: a fresh session rather
+than a rotate.
 
-A failed rotate never signs the user out. Only `requireAuth`, driven by `isLoggedIn`, redirects a
-route.
+A failed rotate never signs the user out by itself; it is a reauth demand, if it is one, that sends
+the tab to EVE.
 
 ### Why nothing runs on a timer
 
@@ -278,10 +319,11 @@ attaches the `eip_session` cookie, and adds:
 
 There is no `Authorization` header. Identity is the cookie plus the session header.
 
-Two 401 shapes are read off the response before the retry policy sees it. A body carrying a terminal
-auth code redirects to full EVE SSO and throws rather than retrying — the tab is already leaving. A
-body carrying `session_missing` triggers one `ensurePlannerSession({ force: true })` and one retry of
-the same request; recovery is attempted once, and the retried attempt does not attempt it again.
+Two 401 shapes are read off the response before the retry policy sees it. A body carrying a demand
+for a fresh sign-in is handed to `enforceReauthDemand`, which redirects and throws rather than
+retrying — the tab is already leaving. A body carrying `session_missing` triggers one
+`ensurePlannerSession({ force: true })` and one retry of the same request; recovery is attempted
+once, and the retried attempt does not attempt it again.
 
 Two config flags exist for calls that must not take the default path. `skipSessionRefresh: true`
 suppresses both the pre-request rotate and the 401 recovery, and `retry: false` disables the retry
@@ -358,29 +400,35 @@ message. That value is what `X-WS-Client-ID` carries on private calls, and it is
 the socket is open there is nothing to send, and the API simply treats such a change as coming from
 another tab.
 
-## Route guards
+## When a reader has to sign in again
 
-`frontend/src/utils/authGuard.js` holds both guards, and neither does network I/O — each is a
-synchronous read of Zustand and browser storage.
+`frontend/src/Functions/Auth/plannerSessionRedirect.js` owns the single question of whether a reader
+must abandon whatever they hold and sign in fresh, which reaches the SPA in three different shapes:
 
-| Guard | Used by | Behaviour |
-|-------|---------|-----------|
-| `requireAuth` | `routes/_protected.jsx` as `beforeLoad`, guarding the whole `/_protected/*` subtree | redirects to `/auth` when `isLoggedIn` is false, carrying the attempted path as `state` |
-| `allowPublicAccess` | public routes that can hydrate from auth state | when not logged in but `hasResumablePlannerSession()`, redirects to `/auth` to rebuild client state and return; otherwise reports `isLoggedIn` and lets the route render |
+- **A deadline** the server handed over in an auth response, stored per tab as
+  `reauth_required_at`. `reauthDemand()` checks it first and with no signal at all, so a session the
+  server has already timed out is a demand in its own right.
+- **A terminal code** on a rejected request — `reauth_required` or `session_revoked` — whether the
+  caller holds it as a parsed string, an `err.code`, or only inside an error message.
+- **An ESI credential classification**, `EsiCredentialError` carrying `reauth_required`.
 
-**`isLoggedIn` is the only redirect signal.** A 401 from the API does not redirect a route: the flag
-is flipped explicitly by a login succeeding and by signout. A session invalidated out-of-band
-therefore leaves a logged-in-looking UI until the user signs out or reloads — deliberate, so a
-transient outage does not throw people out of the app mid-edit. A *coded terminal* 401 is the
-exception, and it does not go through a guard: it sends the tab to full EVE SSO from the request
-path.
+`reauthDemand(signal)` answers whether there is a demand, not which kind — `reauth_required` and
+`session_revoked` differ in what the server saw and never in what the SPA does about it.
+`enforceReauthDemand(signal)` clears the tab session and the client-readable cookies and leaves for
+EVE SSO, returning whether it fired, so a caller's remaining work is only about what it must **not**
+do next: the private request path still throws its 401, and the rotate path still clears its failure
+backoff.
 
-The first-login redirect in `routes/__root.jsx` is independent of both guards: an account whose
-guided flow is not complete is sent to `/first-login` before anything else mounts.
+**A demand always means a full EVE sign-in, never `/auth`.** The material a rotate or a resume would
+need is exactly what is no longer valid, so there is nothing for an in-app login to do. The redirect
+falls back to the page the reader was on (`${pathname}${search}${hash}`), and the returning `state` is
+checked against the real route table before it is used — see
+[frontend/navigation/spa.md](../navigation/spa.md) § Signing in and coming back.
 
 ## Signout
 
-`routes/signout.jsx` is an ordinary route whose component runs the teardown on mount:
+`routes/signout.jsx` has no component. Its teardown runs in an async `beforeLoad`, which the router
+awaits before rendering anything, and which ends by throwing a redirect to `/`:
 
 1. `disconnectRealtime()` — close `/ws` before anything else, so no fan-out lands mid-teardown.
 2. `logoutPlannerSession(tabRefreshToken)` — `POST /api/v1/auth/sessions/logout`, carrying the tab's
@@ -390,10 +438,11 @@ guided flow is not complete is sent to `/first-login` before anything else mount
    data, application settings and world data, expire the client-readable cookie, and `reset()` the
    credential provider.
 4. `queryClient.clear()`, then `sessionStorage.clear()` and the `localStorage` keys.
-5. Navigate home.
+5. Throw a redirect to `/`.
 
-Any failure runs the same cleanup and then hard-navigates, so a logout that could not reach the API
-still leaves nothing behind in the browser.
+Any failure runs the same cleanup and then hard-navigates with `window.location.href`, so a logout
+that could not reach the API still leaves nothing behind in the browser and does not carry broken
+state into the next session.
 
 Two orderings in step 3 are load-bearing. The inbound coalesce queue is dropped **first**, because a
 pending flush would repopulate job data after the reset. The account slice is reset **before** the

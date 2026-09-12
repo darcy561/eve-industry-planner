@@ -317,8 +317,9 @@ each can legitimately close as declined — but it should close.
 
 ### Stage G — a callback the browser did not ask for
 
-**Found while building** [session-and-route-access](../session-and-route-access/plan.md), which
-retired the OAuth `state` as a carrier of paths and left the question of what it is *for*.
+**Found** when the OAuth `state` stopped carrying paths, which left the question of what it is
+*for*. What it carries today, and what a returning value is validated against, is
+[frontend/auth/spa.md](../../frontend/auth/spa.md) § Signing in.
 
 Nothing checks that a sign-in callback answers a sign-in this browser started. `useAuthUrlLogin`
 reads `state` off the callback URL and never consults it before handing `code` to
@@ -346,8 +347,8 @@ never the exposure.
   cookie names another. On its own it inherits the same weakness — a fresh document has no cookie to
   compare — so it is a second line rather than the fix.
 - Whether the return location keeps riding in `state` beside the minted value. It is not secret and
-  is validated against the real routes on arrival, so it can; that keeps
-  session-and-route-access's decision that the URL carries where a reader was headed.
+  is validated against the real routes on arrival, so it can; that keeps the settled behaviour that
+  the URL carries where a reader was headed.
 
 **Also here: signing out by following a link.** `/signout` tears down in `beforeLoad`, so arriving is
 enough, and `SameSite=Lax` sends the session cookie on a top-level GET — so a link from any site

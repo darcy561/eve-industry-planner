@@ -23,12 +23,14 @@ Same as other testing modules: **Tested** / **Thin** / **Little / none** (not co
 | Coverage | `npm run coverage` | `vitest run --coverage` |
 | CI | [`.github/workflows/test.yml`](../../../.github/workflows/test.yml) job `frontend` | Selected when `frontend/**` changes — [overview](../overview.md) § CI test suite |
 
-`*.test.js(x)` sit beside the module they test under `frontend/src/`; reusable fixtures and helpers live in `frontend/src/tests/`.
+`*.test.js(x)` sit beside the module they test under `frontend/src/`; reusable fixtures and helpers
+live in `frontend/src/tests/`.
 
 ## Task map
 
 | I need to… | Read |
 |------------|------|
 | SPA auth test depth — credentials, planner session, login | [auth.md](./auth.md) |
+| Routing test depth — the guard, route loaders, and the screens a reader sees | [navigation.md](./navigation.md) |
 | Asset and blueprint collection test depth — builders, index hooks, scheduler, library rendering | [esi-collections.md](./esi-collections.md) |
 | _(add rows as topic files land — e.g. document-lock, planner)_ | |
