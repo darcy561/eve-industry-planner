@@ -17,10 +17,10 @@ vi.mock("../../Hooks/App/useCachedData", () => ({
   }),
 }));
 
-vi.mock("../../Events/snackbarEvents", () => ({
-  showSnackbarSuccess: () => {},
-  showSnackbarError: () => {},
-}));
+vi.mock("../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("../../Functions/Debounce/userDocumentsPersistSchedule.js", () => ({
   scheduleDebouncedApplicationSettingsSave: () => {},

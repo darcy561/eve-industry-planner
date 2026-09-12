@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  resetSnackbars,
+  snackbarMessages,
+} from "../../../tests/snackbarHarness.js";
+import {
   render,
   screen,
   act,
@@ -8,9 +12,8 @@ import {
 } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-const { submitted, errors } = vi.hoisted(() => ({
+const { submitted } = vi.hoisted(() => ({
   submitted: [],
-  errors: [],
 }));
 
 vi.mock("../../../Functions/Endpoints/Public/feedback", () => ({
@@ -20,10 +23,10 @@ vi.mock("../../../Functions/Endpoints/Public/feedback", () => ({
   },
 }));
 
-vi.mock("../../../Events/snackbarEvents", () => ({
-  showSnackbarError: (message) => errors.push(message),
-  showSnackbarSuccess: () => {},
-}));
+vi.mock("../../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 const { FeedbackIcon } = await import("./feedback.jsx");
 const { eventEmitter } = await import("../../../utils/EventSystem");
@@ -55,7 +58,7 @@ async function submit(text) {
 
 beforeEach(() => {
   submitted.length = 0;
-  errors.length = 0;
+  resetSnackbars();
 });
 
 afterEach(() => {
@@ -141,7 +144,9 @@ describe("submitting feedback", () => {
     await submit("   ");
 
     await waitFor(() =>
-      expect(errors).toContain("Feedback content is required"),
+      expect(snackbarMessages("error")).toContain(
+        "Feedback content is required",
+      ),
     );
     expect(submitted).toHaveLength(0);
   });

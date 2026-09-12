@@ -1,5 +1,8 @@
 import { renderHook, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetSnackbars, snackbarSpies } from "../../tests/snackbarHarness.js";
+
+const { showDocumentLockAccessRequestSnackbar } = snackbarSpies;
 import { useLockWsListener } from "./useLockWsListener.js";
 import {
   DOCUMENT_LOCK_CUSTOM_EVENT,
@@ -9,14 +12,12 @@ import { USER_JOBS_COLLECTION } from "../../Functions/DocumentLock/documentLockC
 import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.js";
 import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
 
-const showDocumentLockAccessRequestSnackbar = vi.fn();
-
 const claimHandoffProbe = vi.fn();
 
-vi.mock("../../Events/snackbarEvents.js", () => ({
-  showDocumentLockAccessRequestSnackbar: (...args) =>
-    showDocumentLockAccessRequestSnackbar(...args),
-}));
+vi.mock("../../Events/snackbarEvents.js", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 /** Mutable snapshot returned by `useUsersStore.getState()` */
 const storeSnapshot = {
@@ -43,6 +44,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
   const scopeKey = docLockScopeKey(collection, docID);
 
   beforeEach(() => {
+    resetSnackbars();
     storeSnapshot.documentLock.scopes = {};
     storeSnapshot.account.sessionID = "jwt-session-shared";
   });
