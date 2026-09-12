@@ -181,22 +181,7 @@ export function editJobStore({
     },
     worldData: {
       marketData: {},
-      // The panels resolve location names through `useLocationNames`, which answers from here
-      // before it asks ESI — so a seeded name is a name that has already resolved.
-      universeIDs: {
-        [JITA_IV]: {
-          id: JITA_IV,
-          name: "Jita IV",
-          resolutionStatus: "resolved",
-        },
-        [ABBEY_RAITARU]: {
-          id: ABBEY_RAITARU,
-          name: "Abbey Raitaru",
-          resolutionStatus: "resolved",
-        },
-      },
       actions: {
-        addUniverseIDs: () => {},
         findMarketData: () => ({ jita: { sell: 5, buy: 4 } }),
         findSystemIndex: () => ({ manufacturing: 0.01 }),
       },
@@ -215,3 +200,14 @@ export function editJobStore({
 /* The store and lock mocks each test file installs are identical and cannot move
  * here: `vi.mock` factories are hoisted above the imports, so a factory that
  * called anything imported would read it before it exists. They stay inline. */
+
+/**
+ * The places the Edit Job panels name, for a test that renders one.
+ *
+ * Passed to {@link renderOverEditJob} as `locationNames`, which seeds them into the query cache the
+ * real hook reads — so the panels find them already resolved and ask ESI for nothing.
+ */
+export const editJobLocationNames = {
+  [JITA_IV]: "Jita IV",
+  [ABBEY_RAITARU]: "Abbey Raitaru",
+};

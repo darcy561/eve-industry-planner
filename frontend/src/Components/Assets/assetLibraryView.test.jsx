@@ -4,18 +4,24 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-const { store, characterRows, blueprintRows, failAssets, failItemList } =
-  vi.hoisted(() => ({
-    store: {
-      account: { characters: [], corporations: [] },
-      worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
-      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-    },
-    characterRows: new Map(),
-    blueprintRows: { current: [] },
-    failAssets: { current: false },
-    failItemList: { current: false },
-  }));
+const {
+  store,
+  characterRows,
+  blueprintRows,
+  failAssets,
+  failItemList,
+  resolved,
+} = vi.hoisted(() => ({
+  store: {
+    account: { characters: [], corporations: [] },
+    applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
+  },
+  characterRows: new Map(),
+  blueprintRows: { current: [] },
+  failAssets: { current: false },
+  failItemList: { current: false },
+  resolved: { current: {} },
+}));
 
 import { assetFixtureItemList } from "../../tests/assetFixtures";
 
@@ -90,9 +96,10 @@ vi.mock("../../Hooks/App/useCachedData", () => ({
 }));
 
 vi.mock("../../Functions/EveESI/World/nameLoader", () => ({
-  // Anything these tests do not seed into the store is a location ESI has no name for, which is a
+  // Anything these tests do not seed an answer for is a location ESI has no name for, which is a
   // settled answer rather than a failure to retry.
-  requestName: async (id) => ({ id, resolutionStatus: "unnamed" }),
+  requestName: async (id) =>
+    resolved.current[id] ?? { id, resolutionStatus: "unnamed" },
 }));
 
 vi.mock("../../Functions/EveESI/World/getAssetLocationNames", () => ({
@@ -155,15 +162,12 @@ afterEach(() => restoreHeights?.());
 beforeEach(() => {
   restoreHeights = stubElementHeights();
   store.account = { characters: [CHARACTER], corporations: [] };
-  store.worldData = {
-    universeIDs: {
-      [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
-      [RAITARU_STRUCTURE_ID]: {
-        id: RAITARU_STRUCTURE_ID,
-        name: "Abbey Raitaru",
-      },
+  resolved.current = {
+    [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
+    [RAITARU_STRUCTURE_ID]: {
+      id: RAITARU_STRUCTURE_ID,
+      name: "Abbey Raitaru",
     },
-    actions: { addUniverseIDs: () => {} },
   };
   characterRows.clear();
   characterRows.set("hash-a", [...characterAssetRows, BLUEPRINT_ASSET_ROW]);

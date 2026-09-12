@@ -21,13 +21,15 @@ export default function CorporationOfficesSelect({
     return corp.officeLocations || [];
   }, [selectedCorporation, corporations]);
 
-  const { names } = useLocationNames(officeLocations);
+  const { names, failed } = useLocationNames(officeLocations);
 
   // An office nobody can dock at is offered carrying the name that says so, rather than left out:
-  // the corporation has it either way, and hiding it reads as the office not existing.
+  // the corporation has it either way, and hiding it reads as the office not existing. One whose
+  // lookup did not settle is offered for the same reason, and because a chosen office dropping out
+  // of this list clears the reader's choice without saying why.
   const offices = useMemo(
-    () => locationOptions(officeLocations, names),
-    [officeLocations, names],
+    () => locationOptions(officeLocations, names, failed),
+    [officeLocations, names, failed],
   );
 
   // Against the offices actually offered, not the corporation's whole list: an office whose name is

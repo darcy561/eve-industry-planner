@@ -4,7 +4,6 @@ import { QueryClient } from "@tanstack/react-query";
 const { store, bodies } = vi.hoisted(() => ({
   store: {
     account: { characters: [] },
-    worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
   },
   bodies: [],
 }));
@@ -47,7 +46,6 @@ function client() {
 
 beforeEach(() => {
   store.account = { characters: [{ CharacterHash: "hash-a" }] };
-  store.worldData = { universeIDs: {}, actions: { addUniverseIDs: () => {} } };
   bodies.length = 0;
 });
 

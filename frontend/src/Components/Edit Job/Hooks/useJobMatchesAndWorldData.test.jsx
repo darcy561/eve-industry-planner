@@ -8,7 +8,6 @@ const { store, requested, resolved, pending, imperativeFetch } = vi.hoisted(
     imperativeFetch: vi.fn(),
     store: {
       account: { characters: [] },
-      worldData: { universeIDs: {}, actions: { addUniverseIDs: vi.fn() } },
     },
     requested: [],
     resolved: { current: {} },
@@ -89,19 +88,15 @@ function render(job, allIndustryJobs) {
 
 beforeEach(() => {
   store.account = { characters: [{ CharacterHash: "hash-a" }] };
-  store.worldData = {
-    universeIDs: {},
-    actions: { addUniverseIDs: vi.fn() },
-  };
   requested.length = 0;
   imperativeFetch.mockReset();
   resolved.current = {};
   pending.current = new Set();
 });
 
-// The hook used to resolve these names itself and write them into the store, while the panels
-// beneath it resolved the same ids again through the shared cache. It now only says whether the
-// names are in yet, which is what the page waits on before drawing.
+// The hook used to resolve these names itself, while the panels beneath it resolved the same ids
+// again through the shared cache. It now only says whether the names are in yet, which is what the
+// page waits on before drawing.
 describe("the job matches a building panel is given", () => {
   it("holds the page back until the places its rows name are known", async () => {
     pending.current.add(JITA);

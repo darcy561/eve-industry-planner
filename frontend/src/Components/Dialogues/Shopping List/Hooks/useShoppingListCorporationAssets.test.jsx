@@ -3,14 +3,11 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
-const { store, setOffices, addUniverseIDs, imperativeFetch } = vi.hoisted(
-  () => ({
-    store: {},
-    setOffices: vi.fn(),
-    addUniverseIDs: vi.fn(),
-    imperativeFetch: vi.fn(),
-  }),
-);
+const { store, setOffices, imperativeFetch } = vi.hoisted(() => ({
+  store: {},
+  setOffices: vi.fn(),
+  imperativeFetch: vi.fn(),
+}));
 
 vi.mock("../../../../Zustand/usersStore", () => ({
   default: Object.assign((selector) => selector(store), {
@@ -149,7 +146,6 @@ function renderChangingOffice(firstOffice) {
 
 beforeEach(() => {
   setOffices.mockReset();
-  addUniverseIDs.mockReset();
   imperativeFetch.mockReset();
   store.account = {
     characters: [{ CharacterHash: MEMBER }],
@@ -164,7 +160,6 @@ beforeEach(() => {
       }),
     },
   };
-  store.worldData = { universeIDs: {}, actions: { addUniverseIDs } };
 });
 
 describe("the offices a corporation's assets say it rents", () => {
@@ -179,13 +174,12 @@ describe("the offices a corporation's assets say it rents", () => {
   });
 
   // The office picker resolves its own names from the shared cache. Fetching them here as well
-  // resolved every office twice and made this the last writer into the store outside the hook.
+  // resolved every office twice.
   it("resolves no names of its own", async () => {
     render();
 
     await waitFor(() => expect(setOffices).toHaveBeenCalled());
     expect(imperativeFetch).not.toHaveBeenCalled();
-    expect(addUniverseIDs).not.toHaveBeenCalled();
   });
 });
 

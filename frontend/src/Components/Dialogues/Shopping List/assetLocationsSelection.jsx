@@ -19,10 +19,12 @@ export default function SelectAssetLocation_ShoppingListDialogue({
     () => state.assetLocations ?? [],
     [state.assetLocations],
   );
-  const { names } = useLocationNames(locationIds);
+  const { names, failed } = useLocationNames(locationIds);
+  // A place whose lookup did not settle is offered saying so: the chosen one is held in the reducer,
+  // and a place missing from this list renders as a blank row while it is still selected.
   const locations = useMemo(
-    () => locationOptions(locationIds, names),
-    [locationIds, names],
+    () => locationOptions(locationIds, names, failed),
+    [locationIds, names, failed],
   );
 
   // Show character asset dropdowns when assetType is "character"

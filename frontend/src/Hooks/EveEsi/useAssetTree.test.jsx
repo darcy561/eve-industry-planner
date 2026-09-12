@@ -3,17 +3,23 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
-const { store, characterRows, containerNameCalls, nameAsks } = vi.hoisted(
-  () => ({
-    store: {
-      account: { characters: [], corporations: [] },
-      worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
-    },
-    characterRows: new Map(),
-    containerNameCalls: [],
-    nameAsks: [],
-  }),
-);
+const {
+  store,
+  characterRows,
+  containerNameCalls,
+  nameAsks,
+  resolved,
+  failing,
+} = vi.hoisted(() => ({
+  store: {
+    account: { characters: [], corporations: [] },
+  },
+  characterRows: new Map(),
+  containerNameCalls: [],
+  nameAsks: [],
+  resolved: { current: {} },
+  failing: { current: new Set() },
+}));
 
 vi.mock("../../Zustand/usersStore", () => ({
   default: Object.assign((selector) => selector(store), {
@@ -65,11 +71,13 @@ vi.mock("../App/useCachedData", () => ({
 }));
 
 vi.mock("../../Functions/EveESI/World/nameLoader", () => ({
-  // Anything these tests do not seed into the store is a location ESI has no name for, which is a
-  // settled answer rather than a failure to retry.
+  // Anything these tests do not seed an answer for is a location ESI has no name for, which is a
+  // settled answer rather than a failure to retry. An id in `failing` is the other case: a lookup
+  // that did not settle, which throws and is never cached.
   requestName: async (id) => {
     nameAsks.push(id);
-    return { id, resolutionStatus: "unnamed" };
+    if (failing.current.has(id)) throw new Error(`could not reach ${id}`);
+    return resolved.current[id] ?? { id, resolutionStatus: "unnamed" };
   },
 }));
 
@@ -97,7 +105,9 @@ const OTHER_TABS = ["Deliveries", "AssetSafety"];
 
 function render(request) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    defaultOptions: {
+      queries: { retry: false, retryDelay: 0, gcTime: Infinity },
+    },
   });
   return renderHook(() => useAssetTree(request), {
     wrapper: ({ children }) =>
@@ -107,20 +117,18 @@ function render(request) {
 
 beforeEach(() => {
   store.account = { characters: [CHARACTER], corporations: [] };
-  store.worldData = {
-    universeIDs: {
-      [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
-      [RAITARU_STRUCTURE_ID]: {
-        id: RAITARU_STRUCTURE_ID,
-        name: "Abbey Raitaru",
-      },
+  resolved.current = {
+    [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
+    [RAITARU_STRUCTURE_ID]: {
+      id: RAITARU_STRUCTURE_ID,
+      name: "Abbey Raitaru",
     },
-    actions: { addUniverseIDs: () => {} },
   };
   characterRows.clear();
   characterRows.set("hash-a", characterAssetRows);
   containerNameCalls.length = 0;
   nameAsks.length = 0;
+  failing.current = new Set();
 });
 
 describe("the tree one asset view renders", () => {
@@ -137,6 +145,27 @@ describe("the tree one asset view renders", () => {
     expect(names.slice(0, 2)).toEqual(["Abbey Raitaru", "Jita IV-4"]);
     // The ship holding item 1010 is in space and has no name to resolve.
     expect(names.at(-1)).toBe("");
+  });
+
+  // A failure is never cached, so the location has no name and never will this session. The assets
+  // are still there, so the place is listed saying it could not be named rather than dropped.
+  it("keeps a location whose name could not be resolved", async () => {
+    failing.current = new Set([RAITARU_STRUCTURE_ID]);
+
+    const { result } = render({
+      assets: ASSETS,
+      blueprints: BLUEPRINTS,
+      namesCharacter: CHARACTER,
+      excludeRootFlags: OTHER_TABS,
+    });
+
+    await waitFor(() =>
+      expect(
+        result.current.locations.find(
+          ({ locationId }) => locationId === RAITARU_STRUCTURE_ID,
+        ),
+      ).toMatchObject({ name: "Name unavailable", unresolved: true }),
+    );
   });
 
   it("shows only the compartment it was asked for", async () => {

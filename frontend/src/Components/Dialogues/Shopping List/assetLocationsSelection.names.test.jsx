@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const { store, esiCalls, esiAnswers, community } = vi.hoisted(() => ({
   store: {
     account: { characters: [], corporations: [] },
-    worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
   },
   esiCalls: [],
   esiAnswers: { current: {} },
@@ -117,17 +116,13 @@ async function locationsOffered(user) {
 }
 
 beforeEach(() => {
-  store.worldData = {
-    universeIDs: {},
-    actions: { addUniverseIDs: () => {} },
-  };
   esiCalls.length = 0;
   esiAnswers.current = {};
   community.current = {};
 });
 
-// The shopping list's own location picker, resolved for real rather than from names seeded into
-// the store: the same ladder the asset views walk, reached through this dialogue's dropdown.
+// The shopping list's own location picker, resolved for real rather than from seeded names: the
+// same ladder the asset views walk, reached through this dialogue's dropdown.
 describe("the asset locations a shopping list offers, resolved for real", () => {
   it("names a station from the bulk lookup", async () => {
     const user = open([JITA]);
@@ -162,6 +157,25 @@ describe("the asset locations a shopping list offers, resolved for real", () => 
       `Station ${JITA}`,
       `No Access To Location - ${CLOSED}`,
     ]);
+  });
+
+  // A 5xx is not a refusal: nothing has been established about the place, and the lookup is never
+  // cached. The selection is held in the reducer, so the place is offered rather than dropped.
+  it("offers a location whose lookup did not settle, saying so", async () => {
+    const unreachable = { ok: false, status: 502, statusText: "Bad Gateway" };
+    esiAnswers.current[CLOSED] = () => unreachable;
+
+    const user = open([JITA, CLOSED]);
+
+    // The lookup is retried before it is reported as failed, so the row arrives a few attempts in.
+    await user.click(screen.getAllByRole("combobox")[1]);
+    await vi.waitFor(() =>
+      expect(
+        within(screen.getByRole("listbox"))
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toEqual([`Station ${JITA}`, "Name unavailable"]),
+    );
   });
 
   it("takes a community name when every character is refused", async () => {

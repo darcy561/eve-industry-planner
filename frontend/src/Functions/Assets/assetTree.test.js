@@ -143,11 +143,18 @@ describe("the locations a picker offers", () => {
 
   it("marks the one nobody can read", () => {
     expect(locationOptions([1, 3], names)).toEqual([
-      { locationId: 1, name: "Zoohen VII", unnamed: false, unreadable: false },
+      {
+        locationId: 1,
+        name: "Zoohen VII",
+        unnamed: false,
+        unresolved: false,
+        unreadable: false,
+      },
       {
         locationId: 3,
         name: "No Access To Location - 3",
         unnamed: false,
+        unresolved: false,
         unreadable: true,
       },
     ]);
@@ -166,9 +173,59 @@ describe("the locations a picker offers", () => {
         locationId: 4,
         name: "Unknown Location",
         unnamed: true,
+        unresolved: false,
         unreadable: false,
       },
     ]);
+  });
+
+  // A failure is never cached, so an id whose lookup did not settle would be offered on every render
+  // for the rest of the session under a label saying nothing. A picker leaves it out by default.
+  it("holds back a location whose lookup failed", () => {
+    expect(locationOptions([1, 9], names)).toEqual([
+      {
+        locationId: 1,
+        name: "Zoohen VII",
+        unnamed: false,
+        unresolved: false,
+        unreadable: false,
+      },
+    ]);
+  });
+
+  // A surface listing where assets are would otherwise drop a place that holds some.
+  it("offers a failed location when asked for, saying so", () => {
+    expect(locationOptions([1, 9], names, new Set([9]))).toEqual([
+      {
+        locationId: 1,
+        name: "Zoohen VII",
+        unnamed: false,
+        unresolved: false,
+        unreadable: false,
+      },
+      {
+        locationId: 9,
+        name: "Name unavailable",
+        unnamed: false,
+        unresolved: true,
+        unreadable: false,
+      },
+    ]);
+  });
+
+  // An id that resolved after all is named, whatever an earlier attempt did.
+  it("names a location that resolved even when it is in the failed set", () => {
+    const [option] = locationOptions([1], names, new Set([1]));
+
+    expect(option).toMatchObject({ name: "Zoohen VII", unresolved: false });
+  });
+
+  it("puts a failed location below the named ones, and above the unreadable", () => {
+    expect(
+      locationOptions([3, 9, 1, 2], names, new Set([9])).map(
+        ({ locationId }) => locationId,
+      ),
+    ).toEqual([2, 1, 9, 3]);
   });
 
   // Its stand-in label starts with a letter like any other, so without a rule of its own it would

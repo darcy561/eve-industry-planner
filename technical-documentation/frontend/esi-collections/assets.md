@@ -108,16 +108,27 @@ A location nobody could name is shown saying so, never dropped, so a genuine acc
 reads as the place simply not existing. `describeLocation`, `byLocationOrder`, `orderLocations` and
 `locationOptions` (`assetTree.js`) give every view that ordering and that shape.
 
-The three states a view can show say different things and are ordered by how much each tells the
-reader: the named places first, alphabetically; then a place ESI answered about and had no name for,
-under `UNNAMED_LOCATION_LABEL` — the one wording for that, which every surface reads rather than
-re-types; then the places the account cannot read. A stand-in label begins with a letter like any
+The states a view can show say different things and are ordered by how much each tells the reader:
+the named places first, alphabetically; then a place carrying no name — either because ESI answered
+and had none, under `UNNAMED_LOCATION_LABEL`, or because the lookup did not settle, under
+`UNRESOLVED_LOCATION_LABEL`; then the places the account cannot read. Those are the one wording for
+each, which every surface reads rather than re-types. A stand-in label begins with a letter like any
 other, so without a rule of its own it would sort into the middle of the real names.
 
-The one thing a picker withholds is an id still being asked about: it has no entry in the names map
-yet, and a row with no label says nothing a reader can act on when the name is moments away. A tree
-built from `orderLocations` keeps its place instead, because the assets sitting there are visible
-whether or not the place has a name.
+A picker withholds an id still being asked about: it has no entry in the names map yet, and a row
+with no label says nothing a reader can act on when the name is moments away. A tree built from
+`orderLocations` keeps its place instead, because the assets sitting there are visible whether or
+not the place has a name.
+
+An id whose lookup **failed** has no entry either — a failure is never cached, and it will not gain
+one this session — so it is indistinguishable there from one still being asked about.
+`useLocationNames` answers `failed` for exactly those ids, and every surface passes that set to
+`describeLocation`.
+
+Every picker passes it, because each holds the reader's choice somewhere that outlives the list — a
+stored default station, a dialogue's selection, a filter in the URL. A place missing from the list
+reads as no choice at all while that id still stands: the box renders blank or resets itself while
+the view stays narrowed to a place the reader can no longer see.
 
 ## Topic-only detail
 

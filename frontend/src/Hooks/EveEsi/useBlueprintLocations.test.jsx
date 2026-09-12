@@ -3,17 +3,25 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
-const { store, characterRows, corporationRows, gate, failCorporation } =
-  vi.hoisted(() => ({
-    store: {
-      account: { characters: [], corporations: [] },
-      worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
-    },
-    characterRows: new Map(),
-    corporationRows: new Map(),
-    gate: { current: null },
-    failCorporation: { current: false },
-  }));
+const {
+  store,
+  characterRows,
+  corporationRows,
+  gate,
+  failCorporation,
+  resolved,
+  failing,
+} = vi.hoisted(() => ({
+  store: {
+    account: { characters: [], corporations: [] },
+  },
+  resolved: { current: {} },
+  failing: { current: new Set() },
+  characterRows: new Map(),
+  corporationRows: new Map(),
+  gate: { current: null },
+  failCorporation: { current: false },
+}));
 
 vi.mock("../../Zustand/usersStore", () => ({
   default: Object.assign((selector) => selector(store), {
@@ -45,9 +53,13 @@ vi.mock("../React Query/Corporation/assets", () => ({
 }));
 
 vi.mock("../../Functions/EveESI/World/nameLoader", () => ({
-  // Anything these tests do not seed into the store is a location ESI has no name for, which is a
-  // settled answer rather than a failure to retry.
-  requestName: async (id) => ({ id, resolutionStatus: "unnamed" }),
+  // Anything these tests do not seed an answer for is a location ESI has no name for, which is a
+  // settled answer rather than a failure to retry. An id in `failing` is that other case: a lookup
+  // that did not settle, which throws and is never cached.
+  requestName: async (id) => {
+    if (failing.current.has(id)) throw new Error(`could not reach ${id}`);
+    return resolved.current[id] ?? { id, resolutionStatus: "unnamed" };
+  },
 }));
 
 import useBlueprintLocations from "./useBlueprintLocations";
@@ -88,7 +100,9 @@ const blueprints = buildBlueprintRows(
 
 function render() {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    defaultOptions: {
+      queries: { retry: false, retryDelay: 0, gcTime: Infinity },
+    },
   });
   return renderHook(() => useBlueprintLocations(blueprints), {
     wrapper: ({ children }) =>
@@ -101,16 +115,14 @@ beforeEach(() => {
     characters: [{ CharacterHash: "hash-a", corporation_id: 98000001 }],
     corporations: [{ corporation_id: 98000001, members: ["hash-a"] }],
   };
-  store.worldData = {
-    universeIDs: {
-      [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
-      [RAITARU_STRUCTURE_ID]: {
-        id: RAITARU_STRUCTURE_ID,
-        name: "Abbey Raitaru",
-      },
+  resolved.current = {
+    [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
+    [RAITARU_STRUCTURE_ID]: {
+      id: RAITARU_STRUCTURE_ID,
+      name: "Abbey Raitaru",
     },
-    actions: { addUniverseIDs: () => {} },
   };
+  failing.current = new Set();
   characterRows.clear();
   characterRows.set("hash-a", [
     {
@@ -190,9 +202,25 @@ describe("what each blueprint's location is called", () => {
 
   // The library's picker is fed from here and the asset dropdowns are fed from `useAssetLocations`.
   // Both reach the same component, so a structure nobody can read has to be offered the same way in
+  // The chosen place is held in the URL, so a place missing from this list reads as no choice at all
+  // while the library stays narrowed to it.
+  it("offers a place whose name could not be resolved, saying so", async () => {
+    failing.current.add(RAITARU_STRUCTURE_ID);
+
+    const { result } = render();
+
+    await waitFor(() =>
+      expect(
+        result.current.places.find(
+          ({ locationId }) => locationId === RAITARU_STRUCTURE_ID,
+        ),
+      ).toMatchObject({ name: "Name unavailable", unresolved: true }),
+    );
+  });
+
   // each: named after the readable places, saying it cannot be read.
   it("offers a location nobody can read, last and marked", async () => {
-    store.worldData.universeIDs[RAITARU_STRUCTURE_ID] = {
+    resolved.current[RAITARU_STRUCTURE_ID] = {
       id: RAITARU_STRUCTURE_ID,
       name: `No Access To Location - ${RAITARU_STRUCTURE_ID}`,
       resolutionStatus: "no_access",

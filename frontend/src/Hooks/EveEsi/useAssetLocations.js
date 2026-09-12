@@ -12,6 +12,11 @@ import { locationOptions } from "../../Functions/Assets/assetTree";
  * here instead, so a location offered on one is offered on all of them. `locationOptions` owns what
  * is offered and in what order.
  *
+ * A location whose name lookup did not settle is offered under a label saying so. Every caller here
+ * holds its choice somewhere that outlives the list — a stored default station, a dialogue's
+ * selection — and a place missing from the list reads as no choice at all while that stored id still
+ * stands.
+ *
  * @param {{scope?: string, id?: string|number, enabled?: boolean}} [request]
  * @returns {{locations: Array<{locationId: number, name: string, unreadable: boolean}>, isLoading: boolean, isError: boolean}}
  */
@@ -33,13 +38,14 @@ export default function useAssetLocations({
 
   const {
     names,
+    failed,
     isLoading: namesLoading,
     isError: namesError,
   } = useLocationNames(locationIds);
 
   const locations = useMemo(
-    () => locationOptions(locationIds, names),
-    [locationIds, names],
+    () => locationOptions(locationIds, names, failed),
+    [locationIds, names, failed],
   );
 
   return {

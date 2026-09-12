@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const { store, esiCalls, esiAnswers, community } = vi.hoisted(() => ({
   store: {
     account: { characters: [], corporations: [] },
-    worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
   },
   esiCalls: [],
   esiAnswers: { current: {} },
@@ -115,17 +114,13 @@ async function optionsShown(user) {
 }
 
 beforeEach(() => {
-  store.worldData = {
-    universeIDs: {},
-    actions: { addUniverseIDs: () => {} },
-  };
   esiCalls.length = 0;
   esiAnswers.current = {};
   community.current = {};
 });
 
 // The picker end to end: what a reader is offered after a real walk across every linked character,
-// rather than after names were seeded into the store.
+// rather than after names were seeded.
 describe("the offices a corporation picker offers, resolved for real", () => {
   it("names an office only an alt can dock at", async () => {
     esiAnswers.current[ALT_ONLY] = (asker) =>

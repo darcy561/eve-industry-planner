@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import useEditJobReducer from "../Components/Edit Job/Edit Job Hooks/useEditJobReducer";
 import Job from "../Classes/job";
+import seedLocationNames from "./seedLocationNames";
 
 /* The app paints job types from palette entries of its own, which panels read
  * straight off the theme. A bare theme has none of them and the panel throws. */
@@ -29,11 +30,17 @@ const theme = createTheme({
  * @param {Object} props.job - Job fields to start from, as stored.
  * @param {(props: {state: Object, actions: Object}) => React.ReactNode} props.children
  * @param {{current: Object}} props.editJobRef - Filled in with the live reducer state.
+ * @param {Object<string, string|Object>} [props.locationNames] - Names the panels should find
+ *   already resolved, seeded into the cache the real hook reads.
  */
-export function EditJobHarness({ job, children, editJobRef }) {
-  const [queryClient] = useState(
-    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
-  );
+export function EditJobHarness({ job, children, editJobRef, locationNames }) {
+  const [queryClient] = useState(() => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    if (locationNames) seedLocationNames(client, locationNames);
+    return client;
+  });
   const { state, actions } = useEditJobReducer();
 
   useEffect(() => {
@@ -64,12 +71,17 @@ export function EditJobHarness({ job, children, editJobRef }) {
 /**
  * @param {Object} job - Job fields to start from, as stored.
  * @param {(props: {state: Object, actions: Object}) => React.ReactNode} children
+ * @param {{locationNames?: Object<string, string|Object>}} [options]
  * @returns {{editJob: {current: Object}, ...import("@testing-library/react").RenderResult}}
  */
-export function renderOverEditJob(job, children) {
+export function renderOverEditJob(job, children, { locationNames } = {}) {
   const editJob = { current: null };
   const result = render(
-    <EditJobHarness job={job} editJobRef={editJob}>
+    <EditJobHarness
+      job={job}
+      editJobRef={editJob}
+      locationNames={locationNames}
+    >
       {children}
     </EditJobHarness>,
   );

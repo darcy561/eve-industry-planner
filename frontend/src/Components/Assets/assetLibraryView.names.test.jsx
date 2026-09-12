@@ -6,7 +6,6 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 const { store, characterRows, esiCalls, community } = vi.hoisted(() => ({
   store: {
     account: { characters: [], corporations: [] },
-    worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
     applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
   },
   characterRows: { current: [] },
@@ -210,10 +209,6 @@ afterEach(() => restoreHeights?.());
 beforeEach(() => {
   restoreHeights = stubElementHeights();
   store.account = { characters: [MAIN, ALT], corporations: [] };
-  store.worldData = {
-    universeIDs: {},
-    actions: { addUniverseIDs: () => {} },
-  };
   esiCalls.length = 0;
   community.current = {};
   esiAnswers.current = {};

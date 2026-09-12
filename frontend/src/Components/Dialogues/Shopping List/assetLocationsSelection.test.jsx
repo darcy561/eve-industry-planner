@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const { store } = vi.hoisted(() => ({
   store: {
     account: { characters: [], corporations: [] },
-    worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
   },
 }));
 
@@ -17,14 +16,20 @@ vi.mock("../../../Zustand/usersStore", () => ({
 }));
 
 import SelectAssetLocation_ShoppingListDialogue from "./assetLocationsSelection";
+import seedLocationNames from "../../../tests/seedLocationNames";
 
 const JITA = 60003760;
 const SOTIYO = 1035466617947;
 
+/** The locations already named when a test renders; an id left out is one still being asked about. */
+let names = {};
+
 function open(state = {}) {
   const user = userEvent.setup();
+  const client = new QueryClient();
+  seedLocationNames(client, names);
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={client}>
       <SelectAssetLocation_ShoppingListDialogue
         state={{
           assetType: "character",
@@ -50,18 +55,14 @@ beforeEach(() => {
     characters: [{ CharacterHash: "main", CharacterName: "Main" }],
     corporations: [],
   };
-  store.worldData = {
-    universeIDs: {
-      // Sorts after "No Access…" alphabetically, so the order below rests on the unreadable-last
-      // rule rather than coinciding with it.
-      [JITA]: { id: JITA, name: "Zoohen VII", resolutionStatus: "resolved" },
-      [SOTIYO]: {
-        id: SOTIYO,
-        name: `No Access To Location - ${SOTIYO}`,
-        resolutionStatus: "no_access",
-      },
+  names = {
+    // Sorts after "No Access…" alphabetically, so the order below rests on the unreadable-last
+    // rule rather than coinciding with it.
+    [JITA]: "Zoohen VII",
+    [SOTIYO]: {
+      name: `No Access To Location - ${SOTIYO}`,
+      resolutionStatus: "no_access",
     },
-    actions: { addUniverseIDs: () => {} },
   };
 });
 

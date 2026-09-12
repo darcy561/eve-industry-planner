@@ -3,9 +3,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
-const { store, addUniverseIDs, historyRows } = vi.hoisted(() => ({
-  store: { account: { characters: [] }, worldData: { universeIDs: {} } },
-  addUniverseIDs: vi.fn(),
+const { store, historyRows } = vi.hoisted(() => ({
+  store: { account: { characters: [] } },
   historyRows: { current: [] },
 }));
 
@@ -46,8 +45,6 @@ beforeEach(() => {
     characters: [{ CharacterHash: "main" }],
     actions: { getMainCharacter: () => ({ CharacterHash: "main" }) },
   };
-  store.worldData = { universeIDs: {}, actions: { addUniverseIDs } };
-  addUniverseIDs.mockReset();
   historyRows.current = [];
 });
 

@@ -5,6 +5,7 @@ import {
   editJobStore,
   esiIndustryJob,
   esiMarketOrder,
+  editJobLocationNames,
   JITA_IV,
   linkedIndustryJob,
 } from "../../tests/editJobFixtures";
@@ -226,41 +227,53 @@ function sellingThroughOrder(order_id) {
 // afterwards never reached it. Both panels resolve through the names hook now.
 describe("the places these panels name", () => {
   it("names where an offered order sits", () => {
-    renderOverEditJob(storedJob({ jobStatus: 4 }), ({ state, actions }) => (
-      <AvailableMarketOrdersTab
-        state={state}
-        actions={actions}
-        itemOrderMatch={[esiMarketOrder(700001)]}
-      />
-    ));
+    renderOverEditJob(
+      storedJob({ jobStatus: 4 }),
+      ({ state, actions }) => (
+        <AvailableMarketOrdersTab
+          state={state}
+          actions={actions}
+          itemOrderMatch={[esiMarketOrder(700001)]}
+        />
+      ),
+      { locationNames: editJobLocationNames },
+    );
 
     expect(screen.getByText("Jita IV")).toBeTruthy();
   });
 
   it("names where a linked order sits", () => {
-    renderOverEditJob(sellingThroughOrder(700001), ({ state, actions }) => (
-      <LinkedMarketOrdersTab
-        state={state}
-        actions={actions}
-        activeOrder={700001}
-        updateActiveOrder={() => {}}
-      />
-    ));
+    renderOverEditJob(
+      sellingThroughOrder(700001),
+      ({ state, actions }) => (
+        <LinkedMarketOrdersTab
+          state={state}
+          actions={actions}
+          activeOrder={700001}
+          updateActiveOrder={() => {}}
+        />
+      ),
+      { locationNames: editJobLocationNames },
+    );
 
     expect(screen.getByText("Jita IV")).toBeTruthy();
   });
 
   // The facility, not the station holding it: ESI reports both, and they are different places.
   it("names the facility an offered industry job is running in", () => {
-    renderOverEditJob(jobWithOneSlot(), ({ state, actions }) => (
-      <AvailableJobsTab
-        state={state}
-        actions={actions}
-        jobMatches={[esiIndustryJob(500001, { runs: 3 })]}
-        isLoading={false}
-        isError={false}
-      />
-    ));
+    renderOverEditJob(
+      jobWithOneSlot(),
+      ({ state, actions }) => (
+        <AvailableJobsTab
+          state={state}
+          actions={actions}
+          jobMatches={[esiIndustryJob(500001, { runs: 3 })]}
+          isLoading={false}
+          isError={false}
+        />
+      ),
+      { locationNames: editJobLocationNames },
+    );
 
     expect(screen.getByText("Abbey Raitaru")).toBeTruthy();
   });
@@ -268,12 +281,6 @@ describe("the places these panels name", () => {
   // The names map carries an id ESI answered about and had no name for, and such an entry has no
   // `name` at all. A row testing the entry rather than the name renders nothing at all.
   it("says a linked job's facility is unknown when nothing could name it", () => {
-    // ESI answered about the facility and had no name for it, so the entry carries no `name`.
-    store.current.worldData.universeIDs[JITA_IV] = {
-      id: JITA_IV,
-      resolutionStatus: "unnamed",
-    };
-
     renderOverEditJob(
       jobWithOneSlot({ linkedJobs: [linkedIndustryJob(500001)] }),
       ({ state, actions }) => (
@@ -284,6 +291,8 @@ describe("the places these panels name", () => {
           isError={false}
         />
       ),
+      // ESI answered about the facility and had no name for it, so the entry carries no `name`.
+      { locationNames: { [JITA_IV]: { resolutionStatus: "unnamed" } } },
     );
 
     expect(screen.getByText("Unknown Location")).toBeTruthy();
@@ -300,6 +309,7 @@ describe("the places these panels name", () => {
           isError={false}
         />
       ),
+      { locationNames: editJobLocationNames },
     );
 
     expect(screen.getByText("Jita IV")).toBeTruthy();

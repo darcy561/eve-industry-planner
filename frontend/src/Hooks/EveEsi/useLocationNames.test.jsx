@@ -3,15 +3,12 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
-const { store, addUniverseIDs, requestCalls, answers, gate } = vi.hoisted(
-  () => ({
-    store: { account: { characters: [] }, worldData: { universeIDs: {} } },
-    addUniverseIDs: vi.fn(),
-    requestCalls: [],
-    answers: { current: new Map() },
-    gate: { current: null },
-  }),
-);
+const { store, requestCalls, answers, gate } = vi.hoisted(() => ({
+  store: { account: { characters: [] } },
+  requestCalls: [],
+  answers: { current: new Map() },
+  gate: { current: null },
+}));
 
 vi.mock("../../Zustand/usersStore", () => ({
   default: Object.assign((selector) => selector(store), {
@@ -42,26 +39,24 @@ const named = (id, name) => ({
 });
 
 // One client across a render pair, as the app has: moving between pages does not make a new one.
+// It is also the only place a resolved name lives, so a test seeds one by putting it here.
 function harness() {
   // The query asks for retries itself, and a per-query option outlives a client default — so the
   // wait between attempts is collapsed rather than the attempts removed.
   const client = new QueryClient({
     defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
   });
-  return (ids) =>
+  const render = (ids) =>
     renderHook(() => useLocationNames(ids), {
       wrapper: ({ children }) =>
         createElement(QueryClientProvider, { client }, children),
     });
+  render.client = client;
+  return render;
 }
 
 beforeEach(() => {
   store.account = { characters: [{ CharacterHash: "hash-a" }] };
-  store.worldData = {
-    universeIDs: {},
-    actions: { addUniverseIDs },
-  };
-  addUniverseIDs.mockReset();
   requestCalls.length = 0;
   answers.current = new Map();
   gate.current = null;
@@ -76,11 +71,12 @@ describe("useLocationNames", () => {
     expect(result.current.names).toEqual({});
   });
 
-  it("asks only for what the store does not already hold", async () => {
-    store.worldData.universeIDs = { [JITA]: named(JITA, "Jita IV-4") };
+  it("asks only for what the cache does not already hold", async () => {
     answers.current.set(RAITARU, named(RAITARU, "Home Raitaru"));
+    const render = harness();
+    render.client.setQueryData(["esi", "name", JITA], named(JITA, "Jita IV-4"));
 
-    const { result } = harness()([JITA, RAITARU]);
+    const { result } = render([JITA, RAITARU]);
 
     await waitFor(() => expect(requestCalls).toEqual([RAITARU]));
     expect(result.current.names[JITA].name).toBe("Jita IV-4");
@@ -93,15 +89,6 @@ describe("useLocationNames", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(requestCalls).toHaveLength(0);
-  });
-
-  it("writes what it resolved to the store the other surfaces read", async () => {
-    answers.current.set(RAITARU, named(RAITARU, "Home Raitaru"));
-
-    harness()([RAITARU]);
-
-    await waitFor(() => expect(addUniverseIDs).toHaveBeenCalled());
-    expect(addUniverseIDs.mock.calls[0][0][RAITARU].name).toBe("Home Raitaru");
   });
 
   it("reports a failure rather than an empty result", async () => {
@@ -127,6 +114,26 @@ describe("useLocationNames", () => {
     await waitFor(() =>
       expect(result.current.names[RAITARU]?.name).toBe("Home Raitaru"),
     );
+  });
+
+  // A failure is never cached, so a failed id has no entry in `names` and nothing there tells it
+  // apart from one still being asked about. A surface that shows what it could not resolve needs to.
+  it("says which ids did not settle", async () => {
+    answers.current.set(JITA, named(JITA, "Jita IV-4"));
+
+    const { result } = harness()([JITA, RAITARU]);
+
+    await waitFor(() => expect(result.current.failed.has(RAITARU)).toBe(true));
+    expect(result.current.failed.has(JITA)).toBe(false);
+  });
+
+  it("names nothing as failed when every id settled", async () => {
+    answers.current.set(JITA, named(JITA, "Jita IV-4"));
+
+    const { result } = harness()([JITA]);
+
+    await waitFor(() => expect(result.current.names[JITA]).toBeTruthy());
+    expect(result.current.failed.size).toBe(0);
   });
 
   // The other half of the same defect: one id failing must not cost the ids beside it.

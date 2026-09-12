@@ -13,7 +13,10 @@ into a name.
 ## Asking for names
 
 `useLocationNames(locationIds)` takes the ids a view wants named and returns the names it has,
-alongside loading and error state. Each id is its own cache entry —
+alongside loading and error state and `failed` — the ids whose lookup did not settle. A failure is
+never cached, so those ids have no entry among the names and nothing there tells them apart from an
+id still being asked about; `failed` is how a surface that shows what it could not resolve tells the
+two apart. Each id is its own cache entry —
 [`nameQuery`](../../../frontend/src/Hooks/React%20Query/World/names.js), keyed
 `["esi", "name", <id>]` — so a name resolved for one view is present for the next without being
 asked for again, and an id that could not be resolved is a failure against that id rather than a
@@ -22,9 +25,6 @@ the broker fee a linked market order was charged, which is worked out where no c
 rendering — calls `fetchNames(queryClient, ids)` instead, which shares the same per-id cache: a name
 either path resolves is present for the other. Only a player structure needs a character's token, so
 that call takes characters only when it might ask for one.
-
-`worldData.universeIDs` is read before either path asks ESI and is written once names come back: a
-name the store already holds is an answer, and asking for it again would be work for nothing.
 
 ## What a lookup can settle on
 
@@ -120,10 +120,10 @@ can see changes — a character linked, a corporation or alliance joined or left
 this exists for, so whatever comes to watch for those changes has somewhere to say so rather than
 reaching into the cache's keys from outside.
 
-`worldData.universeIDs` remains as a read-through map: `useLocationNames` checks it before asking and
-writes back what it resolves. Nothing else in the app reads or writes it, in either direction. The
-map holds nothing across a reload, so what it buys is a render's worth of cache in front of the
-cache proper.
+The query cache is the only place a resolved name lives. A settled outcome sits under
+`["esi","name",<id>]` at `staleTime: Infinity` and `gcTime: Infinity`, so nothing else has to hold a
+copy to stop an id being asked about twice — and a test seeding a name for a view seeds that entry,
+through `tests/seedLocationNames.js`.
 
 ## Topic-only detail
 

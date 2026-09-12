@@ -4,10 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-const { store, characterRows, corporationRows } = vi.hoisted(() => ({
+const { store, characterRows, corporationRows, resolved } = vi.hoisted(() => ({
   store: {
     account: { characters: [], corporations: [], actions: {} },
-    worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
     applicationSettings: {
       defaultStationIDForAssets: null,
       actions: { getCurrentLocale: () => "en-GB" },
@@ -15,6 +14,7 @@ const { store, characterRows, corporationRows } = vi.hoisted(() => ({
   },
   characterRows: new Map(),
   corporationRows: { current: [] },
+  resolved: { current: {} },
 }));
 
 vi.mock("../../../Zustand/usersStore", () => ({
@@ -55,9 +55,10 @@ vi.mock("../../../Hooks/App/useCachedData", () => ({
 }));
 
 vi.mock("../../../Functions/EveESI/World/nameLoader", () => ({
-  // Anything these tests do not seed into the store is a location ESI has no name for, which is a
+  // Anything these tests do not seed an answer for is a location ESI has no name for, which is a
   // settled answer rather than a failure to retry.
-  requestName: async (id) => ({ id, resolutionStatus: "unnamed" }),
+  requestName: async (id) =>
+    resolved.current[id] ?? { id, resolutionStatus: "unnamed" },
 }));
 
 vi.mock("../../../Functions/EveESI/World/getAssetLocationNames", () => ({
@@ -142,11 +143,8 @@ beforeEach(() => {
       getCorporation: () => CORPORATION,
     },
   };
-  store.worldData = {
-    universeIDs: {
-      [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
-    },
-    actions: { addUniverseIDs: () => {} },
+  resolved.current = {
+    [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
   };
   characterRows.clear();
   characterRows.set("hash-a", characterAssetRows);

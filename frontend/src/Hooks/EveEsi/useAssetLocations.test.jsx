@@ -3,18 +3,17 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
-const { store, characterRows, resolveCalls, resolved, pending } = vi.hoisted(
-  () => ({
+const { store, characterRows, resolveCalls, resolved, pending, failing } =
+  vi.hoisted(() => ({
     store: {
       account: { characters: [], corporations: [] },
-      worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
     },
     characterRows: new Map(),
     resolveCalls: [],
     pending: { current: new Set() },
+    failing: { current: new Set() },
     resolved: { current: {} },
-  }),
-);
+  }));
 
 vi.mock("../../Zustand/usersStore", () => ({
   default: Object.assign((selector) => selector(store), {
@@ -45,6 +44,8 @@ vi.mock("../../Functions/EveESI/World/nameLoader", () => ({
     resolveCalls.push([id]);
     // An id left pending stands for one still being asked about.
     if (pending.current.has(id)) await new Promise(() => {});
+    // An id in `failing` is a lookup that did not settle: it throws and is never cached.
+    if (failing.current.has(id)) throw new Error(`could not reach ${id}`);
     return resolved.current[id] ?? { id, resolutionStatus: "unnamed" };
   },
 }));
@@ -59,7 +60,9 @@ import {
 
 function render(request) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    defaultOptions: {
+      queries: { retry: false, retryDelay: 0, gcTime: Infinity },
+    },
   });
   return renderHook(() => useAssetLocations(request), {
     wrapper: ({ children }) =>
@@ -72,23 +75,20 @@ beforeEach(() => {
     characters: [{ CharacterHash: "hash-a" }],
     corporations: [],
   };
-  // The names the walk resolves land in the store, which is what the hook reads back.
-  store.worldData = {
-    universeIDs: {
-      [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
-      [RAITARU_STRUCTURE_ID]: {
-        id: RAITARU_STRUCTURE_ID,
-        name: "Abbey Raitaru",
-      },
-      [ASSET_SAFETY_ID]: { id: ASSET_SAFETY_ID, name: "Asset Safety" },
+  // What the loader answers for each id, which is the only place a resolved name comes from.
+  resolved.current = {
+    [JITA_STATION_ID]: { id: JITA_STATION_ID, name: "Jita IV-4" },
+    [RAITARU_STRUCTURE_ID]: {
+      id: RAITARU_STRUCTURE_ID,
+      name: "Abbey Raitaru",
     },
-    actions: { addUniverseIDs: () => {} },
+    [ASSET_SAFETY_ID]: { id: ASSET_SAFETY_ID, name: "Asset Safety" },
   };
   characterRows.clear();
   characterRows.set("hash-a", characterAssetRows);
   resolveCalls.length = 0;
   pending.current = new Set();
-  resolved.current = {};
+  failing.current = new Set();
 });
 
 describe("the asset locations offered to a dropdown", () => {
@@ -108,7 +108,7 @@ describe("the asset locations offered to a dropdown", () => {
   // Dropping it instead would read as the account holding nothing there, which is the opposite of
   // what an unreadable structure means: the assets are in it, and no character can name it.
   it("offers a structure the account cannot read, last and saying so", async () => {
-    store.worldData.universeIDs[RAITARU_STRUCTURE_ID] = {
+    resolved.current[RAITARU_STRUCTURE_ID] = {
       id: RAITARU_STRUCTURE_ID,
       name: "No Access To Location - 1035466617946",
     };
@@ -126,7 +126,6 @@ describe("the asset locations offered to a dropdown", () => {
   });
 
   it("holds a location back until its name is known", async () => {
-    delete store.worldData.universeIDs[RAITARU_STRUCTURE_ID];
     pending.current.add(RAITARU_STRUCTURE_ID);
 
     const { result } = render();
@@ -137,6 +136,22 @@ describe("the asset locations offered to a dropdown", () => {
     // so absent from the set; its id sits in the structure range and is asked for as well.
     await waitFor(() =>
       expect(resolveCalls.flat()).toContain(RAITARU_STRUCTURE_ID),
+    );
+  });
+
+  // The chosen location is held in settings, so a place missing from this list reads as no choice at
+  // all while that stored id still stands.
+  it("offers a location whose lookup failed, saying so", async () => {
+    failing.current.add(RAITARU_STRUCTURE_ID);
+
+    const { result } = render();
+
+    await waitFor(() =>
+      expect(
+        result.current.locations.find(
+          ({ locationId }) => locationId === RAITARU_STRUCTURE_ID,
+        ),
+      ).toMatchObject({ name: "Name unavailable", unresolved: true }),
     );
   });
 

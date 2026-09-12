@@ -7,7 +7,6 @@ const { store, requested, resolved, pending, imperativeFetch, matches } =
   vi.hoisted(() => ({
     store: {
       account: { characters: [] },
-      worldData: { universeIDs: {}, actions: { addUniverseIDs: vi.fn() } },
     },
     requested: [],
     resolved: { current: {} },
@@ -93,7 +92,6 @@ function render(job) {
 
 beforeEach(() => {
   store.account = { characters: [{ CharacterHash: "hash-a" }] };
-  store.worldData = { universeIDs: {}, actions: { addUniverseIDs: vi.fn() } };
   requested.length = 0;
   resolved.current = {};
   pending.current = new Set();

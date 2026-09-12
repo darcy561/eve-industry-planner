@@ -101,13 +101,18 @@ export default function useAssetTree({
     () => [...rowsByLocation.keys()].filter((id) => !shipIds.has(id)),
     [rowsByLocation, shipIds],
   );
-  const { names: locationNames, isLoading: namesLoading } =
-    useLocationNames(locationIds);
+  const {
+    names: locationNames,
+    failed: unresolvedLocations,
+    isLoading: namesLoading,
+  } = useLocationNames(locationIds);
 
   const locations = useMemo(
     () =>
-      enabled ? orderLocations(rowsByLocation, locationNames) : EMPTY_LOCATIONS,
-    [enabled, rowsByLocation, locationNames],
+      enabled
+        ? orderLocations(rowsByLocation, locationNames, unresolvedLocations)
+        : EMPTY_LOCATIONS,
+    [enabled, rowsByLocation, locationNames, unresolvedLocations],
   );
 
   return {

@@ -49,13 +49,18 @@ export default function useAssetsOfType({
     () => [...byLocation.keys()].filter((id) => !shipIds.has(id)),
     [byLocation, shipIds],
   );
-  const { names: locationNames, isLoading: namesLoading } =
-    useLocationNames(locationIds);
+  const {
+    names: locationNames,
+    failed: unresolvedLocations,
+    isLoading: namesLoading,
+  } = useLocationNames(locationIds);
 
   const locations = useMemo(
     () =>
-      enabled ? orderLocations(byLocation, locationNames) : EMPTY_LOCATIONS,
-    [enabled, byLocation, locationNames],
+      enabled
+        ? orderLocations(byLocation, locationNames, unresolvedLocations)
+        : EMPTY_LOCATIONS,
+    [enabled, byLocation, locationNames, unresolvedLocations],
   );
 
   return {

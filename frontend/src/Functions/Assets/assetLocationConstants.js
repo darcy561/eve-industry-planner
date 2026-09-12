@@ -15,6 +15,18 @@ export const NO_ACCESS_LOCATION_NAME_PREFIX = "No Access To Location";
  * @type {string}
  */
 export const UNNAMED_LOCATION_LABEL = "Unknown Location";
+
+/**
+ * What a place is called when the lookup for it did not settle.
+ *
+ * Distinct from both a refusal and an unnamed answer: nothing has been established about this place
+ * at all, and asking again may name it. Only a surface that shows what it could not resolve says
+ * this — the place is still where the assets are.
+ *
+ * @type {string}
+ */
+export const UNRESOLVED_LOCATION_LABEL = "Name unavailable";
+
 export const LOCATION_RESOLUTION_STATUS = {
   RESOLVED: "resolved",
   COMMUNITY: "community",

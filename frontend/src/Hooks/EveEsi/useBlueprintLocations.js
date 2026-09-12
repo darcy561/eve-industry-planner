@@ -40,6 +40,7 @@ export default function useBlueprintLocations(blueprints) {
   }, [locationIds, assets]);
   const {
     names,
+    failed,
     isLoading: namesLoading,
     isError: namesError,
     error: namesErrorValue,
@@ -59,9 +60,12 @@ export default function useBlueprintLocations(blueprints) {
   // The places blueprints are held at, for narrowing the library to one of them. The same picker
   // component is fed from `useAssetLocations`, so both feeds order and describe a place the same
   // way — a structure nobody can read is offered saying so, after the named ones.
+  //
+  // A place whose lookup did not settle is offered too: the chosen one lives in the URL, and a place
+  // missing from this list reads as no choice at all while the library stays narrowed to it.
   const places = useMemo(
-    () => locationOptions(asNumberIDSet(locationIds.values()), names),
-    [locationIds, names],
+    () => locationOptions(asNumberIDSet(locationIds.values()), names, failed),
+    [locationIds, names, failed],
   );
 
   // A failure reads the same as a blueprint simply having no location, so it is reported rather

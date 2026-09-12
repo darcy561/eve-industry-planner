@@ -12,7 +12,6 @@ const { store } = vi.hoisted(() => ({
         }),
       },
     },
-    worldData: { universeIDs: {}, actions: { addUniverseIDs: () => {} } },
     applicationSettings: {
       actions: { getCurrentLocale: () => "en-GB" },
     },

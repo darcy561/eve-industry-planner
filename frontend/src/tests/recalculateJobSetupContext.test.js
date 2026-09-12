@@ -42,7 +42,6 @@ vi.mock("../Zustand/usersStore", () => ({
       worldData: {
         marketData: {},
         systemIndexes: {},
-        universeIDs: {},
         actions: {
           findSystemIndex: (systemID, alternativeLocation) =>
             alternativeLocation?.[systemID] ?? null,
