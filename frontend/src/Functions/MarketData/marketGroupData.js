@@ -1,0 +1,108 @@
+import { getFullItemList, getMarketGroups } from "../Helper/getCachedData";
+
+/**
+ * The market group tree and each item's place in it, held where the pricing rung
+ * can read them without awaiting.
+ *
+ * Both are static files the app already downloads and caches. What this adds is a
+ * synchronous read, which the rung cannot do without: the walk runs per material
+ * on every row of every job, and one of its callers prices a shopping list from a
+ * class method where no hook can be called.
+ *
+ * Reading is therefore separate from loading. `primeMarketGroupData` is awaited
+ * once by whatever can wait; every read after that is a plain lookup that reports
+ * absence rather than blocking.
+ */
+
+let marketGroups = null;
+let itemsByType = null;
+let priming = null;
+
+/**
+ * Loads both files once, for a caller that can wait.
+ *
+ * Concurrent callers share the one load, and a failure is not remembered as an
+ * answer, so a later caller retries rather than inheriting an outage.
+ *
+ * @returns {Promise<void>}
+ */
+export function primeMarketGroupData() {
+  if (marketGroups && itemsByType) return Promise.resolve();
+
+  priming ??= Promise.all([getMarketGroups(), getFullItemList()])
+    .then(([groups, items]) => {
+      marketGroups = groups || {};
+      itemsByType = items || {};
+    })
+    .finally(() => {
+      priming = null;
+    });
+
+  return priming;
+}
+
+/**
+ * The tree, or null until it has loaded.
+ *
+ * Null rather than an empty tree on purpose: a walk over an empty one answers
+ * nothing for every item, which reads as a tree disagreeing with the defaults set
+ * against it rather than as data that has not arrived.
+ *
+ * @returns {Object<string, {name: string, parent_id?: number}>|null}
+ */
+export function readMarketGroups() {
+  return marketGroups;
+}
+
+/**
+ * Which market group an item sits in, or undefined where nothing says.
+ *
+ * Most unpublished types carry no market group, so undefined is an ordinary
+ * answer rather than a missing item.
+ *
+ * @param {number} typeID
+ * @returns {number|undefined}
+ */
+export function marketGroupOf(typeID) {
+  return itemsByType?.[typeID]?.market_group_id;
+}
+
+/**
+ * What the market group rung needs to answer a row, or undefined where it cannot
+ * answer at all.
+ *
+ * Undefined until every part is present: a walk with no tree cannot climb and one
+ * with no defaults has nothing to find, so the ladder then reads exactly as it did
+ * before this rung existed rather than answering from half the data.
+ *
+ * The rungs are carried rather than resolved here, because the walk sits below a
+ * job's own choice and above the account's — what it may displace depends on which
+ * rung answered, and only the caller knows that.
+ *
+ * @param {object} params
+ * @param {Object<string, {market?: string, basis?: string}>|undefined} params.groupDefaults
+ * @param {string} params.marketRung
+ * @param {string} params.listingRung
+ * @returns {import("./materialPricing.js").GroupPricing|undefined}
+ */
+export function groupPricingFor({ groupDefaults, marketRung, listingRung }) {
+  if (Object.keys(groupDefaults ?? {}).length === 0) return undefined;
+
+  const marketGroups = readMarketGroups();
+  if (!marketGroups) return undefined;
+
+  return {
+    marketGroups,
+    groupDefaults,
+    marketGroupOf,
+    marketRung,
+    listingRung,
+  };
+}
+
+/** Drops what has been loaded. Tests only. */
+export function resetMarketGroupData() {
+  marketGroups = null;
+  itemsByType = null;
+  priming = null;
+}

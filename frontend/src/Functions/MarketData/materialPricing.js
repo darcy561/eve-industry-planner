@@ -1,9 +1,21 @@
 import { listingType } from "../../Context/defaultValues";
 import { MATERIAL_PLAN } from "./materialSourcingRow";
+import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
 
 /**
  * How a material row is priced on the Planning stage: what the job's materials
  * would cost on each pricing basis, and whether a row is still an estimate at all.
+ */
+
+/**
+ * @typedef {object} GroupPricing
+ * @property {Object<string, {parent_id?: number}>} marketGroups - The tree
+ * @property {Object<string, {market?: string, basis?: string}>} groupDefaults -
+ *   The account side's group table
+ * @property {(typeID: number) => number|undefined} marketGroupOf - An item's own
+ *   market group
+ * @property {string} marketRung - Which rung answered defaultMarketSelect
+ * @property {string} listingRung - Which rung answered defaultListingSelect
  */
 
 /**
@@ -14,10 +26,18 @@ import { MATERIAL_PLAN } from "./materialSourcingRow";
  * lives; a second copy of it would let a quoted total disagree with the row it
  * quotes.
  *
+ * The market group walk sits between those two, and is why the panel default
+ * arrives with the rung that answered it: a group default outranks the account's
+ * and the global one, and loses to the job's own choice. Handed a panel value
+ * alone there would be no way to tell those apart, and a group would silently
+ * overrule a job the player had explicitly set.
+ *
  * @param {object} layout - The job's layout, holding materialPriceOverrides
  * @param {number} materialTypeID
  * @param {string} defaultMarketSelect
  * @param {string} defaultListingSelect
+ * @param {GroupPricing} [groupPricing] - Absent until the tree has loaded, which
+ *   is a normal early state: the ladder then reads as it did before rung 3
  * @returns {{marketSelect: string, listingSelect: string}}
  */
 export function getEffectiveMaterialPriceHub(
@@ -25,13 +45,58 @@ export function getEffectiveMaterialPriceHub(
   materialTypeID,
   defaultMarketSelect,
   defaultListingSelect,
+  groupPricing,
 ) {
   const override = layout?.materialPriceOverrides?.[materialTypeID];
 
+  const group = groupPricing
+    ? resolveGroupDefault({
+        marketGroupID: groupPricing.marketGroupOf?.(materialTypeID),
+        marketGroups: groupPricing.marketGroups,
+        groupDefaults: groupPricing.groupDefaults,
+      })
+    : null;
+
   return {
-    marketSelect: override?.marketDisplay ?? defaultMarketSelect,
-    listingSelect: override?.orderDisplay ?? defaultListingSelect,
+    marketSelect:
+      override?.marketDisplay ??
+      beneathTheJob(group?.market, groupPricing?.marketRung) ??
+      defaultMarketSelect,
+    listingSelect:
+      override?.orderDisplay ??
+      beneathTheJob(group?.basis, groupPricing?.listingRung) ??
+      defaultListingSelect,
   };
+}
+
+/**
+ * Marks an axis as one the group rung may not answer.
+ *
+ * `materialCostByBasis` varies the basis to cost each candidate, so for that call
+ * the basis is not a rung question at all. It is named rather than borrowing the
+ * job's rung, which would read as a job choice that was never made.
+ */
+const SUPPRESSED = "suppressed";
+
+/**
+ * A group's answer, where what it would displace is something it outranks.
+ *
+ * The walk sits below a job's own choice and above the account's, so a job that
+ * named an axis keeps it on every row rather than being reached past.
+ *
+ * An unnamed rung yields too. A caller that knows about the walk knows which rung
+ * answered — the panel resolver returns both — so a missing one is a caller that
+ * did not, and guessing it was the account's would let a group overrule a job.
+ *
+ * @param {string|null|undefined} chosen
+ * @param {string|undefined} rung - The rung that answered the panel default
+ * @returns {string|undefined}
+ */
+function beneathTheJob(chosen, rung) {
+  if (!chosen) return undefined;
+  return rung === PRICING_RUNG.ACCOUNT || rung === PRICING_RUNG.GLOBAL
+    ? chosen
+    : undefined;
 }
 
 /**
@@ -57,6 +122,7 @@ export function getEffectiveMaterialPriceHub(
  * @param {string} params.marketSelect - The hub in effect
  * @param {string} params.listingSelect - The basis in effect
  * @param {(typeID: number, hub: string, basis: string) => number} params.getPrice
+ * @param {GroupPricing} [params.groupPricing]
  * @returns {BasisOption[]}
  */
 export function materialCostByBasis({
@@ -65,8 +131,18 @@ export function materialCostByBasis({
   marketSelect,
   listingSelect,
   getPrice,
+  groupPricing,
 }) {
   const rows = Array.isArray(materials) ? materials : [];
+
+  // The basis is the axis being varied, so nothing below the panel may answer it:
+  // a group default naming one would answer every candidate identically and
+  // flatten the comparison into one figure repeated four times. Its market still
+  // applies, because that axis is not the one being asked about.
+  const perCandidate = groupPricing && {
+    ...groupPricing,
+    listingRung: SUPPRESSED,
+  };
 
   const totalOn = (basis) =>
     rows.reduce((total, material) => {
@@ -75,6 +151,7 @@ export function materialCostByBasis({
         material.typeID,
         marketSelect,
         basis,
+        perCandidate,
       );
       const price = getPrice(
         material.typeID,

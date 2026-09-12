@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { resolvePricingSide } from "../../Functions/MarketData/pricingSide.js";
+import { resolvePricingSideRungs } from "../../Functions/MarketData/pricingSide.js";
 
 /**
  * Where one side of a job is priced, from the job's own choice down to the
@@ -10,9 +10,15 @@ import { resolvePricingSide } from "../../Functions/MarketData/pricingSide.js";
  * something costs to buy or what it fetches when sold, and nothing here can
  * infer it.
  *
+ * The rung that answered each axis is reported alongside it, because the market
+ * group walk sits between this answer and a row's own override and has to know
+ * what it would be displacing. A caller with no rung of its own to insert reads
+ * the two values and ignores the rest.
+ *
  * @param {object} layout - The job's layout
  * @param {string} side - One of PRICING_SIDE
- * @returns {{marketDisplay: string, orderDisplay: string}}
+ * @returns {{marketDisplay: string, orderDisplay: string,
+ *   marketRung: string, orderRung: string}}
  */
 export function useEffectiveMarketHubFromLayout(layout, side) {
   const accountPricing = useUsersStore(
@@ -21,7 +27,7 @@ export function useEffectiveMarketHubFromLayout(layout, side) {
   const jobPricing = layout?.localPricing;
 
   return useMemo(
-    () => resolvePricingSide({ jobPricing, accountPricing, side }),
+    () => resolvePricingSideRungs({ jobPricing, accountPricing, side }),
     [jobPricing, accountPricing, side],
   );
 }

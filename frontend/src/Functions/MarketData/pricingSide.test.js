@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  PRICING_RUNG,
   PRICING_SIDE,
   resolvePricingSide,
+  resolvePricingSideRungs,
   resolveGroupDefault,
   setJobPricingSide,
 } from "./pricingSide.js";
@@ -241,5 +243,59 @@ describe("resolveGroupDefault", () => {
         groupDefaults: { 99: { market: "jita" } },
       }),
     ).toEqual({ market: null, basis: null });
+  });
+});
+
+describe("resolvePricingSideRungs", () => {
+  const rungs = (jobPricing, side = PRICING_SIDE.BUYING) =>
+    resolvePricingSideRungs({ jobPricing, accountPricing: account, side });
+
+  it("names the job when the job answered", () => {
+    const answer = rungs({ buying: { market: "hek", basis: "buy" } });
+
+    expect(answer.marketRung).toBe(PRICING_RUNG.JOB);
+    expect(answer.orderRung).toBe(PRICING_RUNG.JOB);
+  });
+
+  it("names the account when the job said nothing", () => {
+    const answer = rungs(null);
+
+    expect(answer.marketRung).toBe(PRICING_RUNG.ACCOUNT);
+    expect(answer.orderRung).toBe(PRICING_RUNG.ACCOUNT);
+  });
+
+  // The rung is per axis for the same reason the value is: a job naming a market
+  // and no basis has answered one question and left the other.
+  it("names a rung per axis", () => {
+    const answer = rungs({ buying: { market: "hek" } });
+
+    expect(answer.marketRung).toBe(PRICING_RUNG.JOB);
+    expect(answer.orderRung).toBe(PRICING_RUNG.ACCOUNT);
+  });
+
+  it("names the global default when nothing else did", () => {
+    const answer = resolvePricingSideRungs({
+      jobPricing: null,
+      accountPricing: { buying: {}, selling: {} },
+      side: PRICING_SIDE.BUYING,
+    });
+
+    expect(answer.marketRung).toBe(PRICING_RUNG.GLOBAL);
+    expect(answer.orderRung).toBe(PRICING_RUNG.GLOBAL);
+  });
+
+  // Two functions answering the same ladder is exactly how a quoted total comes
+  // to disagree with the row it quotes.
+  it("resolves the same values resolvePricingSide does", () => {
+    const job = { buying: { market: "dodixie" } };
+
+    const { marketDisplay, orderDisplay } = rungs(job);
+    expect({ marketDisplay, orderDisplay }).toEqual(
+      resolvePricingSide({
+        jobPricing: job,
+        accountPricing: account,
+        side: PRICING_SIDE.BUYING,
+      }),
+    );
   });
 });

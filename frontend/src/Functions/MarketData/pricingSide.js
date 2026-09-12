@@ -23,6 +23,19 @@ export const PRICING_SIDES = [
 ];
 
 /**
+ * Which rung of the ladder answered an axis.
+ *
+ * Only the rungs `resolvePricingSideRungs` itself walks are named: the row
+ * override above it and the group walk below are applied by the caller holding
+ * the data for them, so neither is ever returned from here.
+ */
+export const PRICING_RUNG = {
+  JOB: "job",
+  ACCOUNT: "account",
+  GLOBAL: "global",
+};
+
+/**
  * Where one side of a job is priced: the job's own choice, then the account's
  * default, then the global one.
  *
@@ -38,13 +51,55 @@ export const PRICING_SIDES = [
  * @returns {{marketDisplay: string, orderDisplay: string}}
  */
 export function resolvePricingSide({ jobPricing, accountPricing, side }) {
+  const { marketDisplay, orderDisplay } = resolvePricingSideRungs({
+    jobPricing,
+    accountPricing,
+    side,
+  });
+
+  return { marketDisplay, orderDisplay };
+}
+
+/**
+ * Which rung answered each axis, alongside the value it answered with.
+ *
+ * A caller that has a rung of its own to insert underneath — the market group
+ * walk, which outranks the account default but not the job's own choice — cannot
+ * work from the resolved value alone: "jita" says nothing about whether the job
+ * named it or the account did, and the group rung must beat one and not the
+ * other. So the rung is reported and the caller decides, rather than every rung
+ * being collapsed here.
+ *
+ * The value is still resolved for a caller that has nothing to insert, so the two
+ * can never disagree about the ladder.
+ *
+ * @param {object} params
+ * @param {object|null|undefined} params.jobPricing - `layout.localPricing`
+ * @param {object|null|undefined} params.accountPricing - `defaultPricing`
+ * @param {string} params.side - One of PRICING_SIDE
+ * @returns {{marketDisplay: string, orderDisplay: string,
+ *   marketRung: string, orderRung: string}}
+ */
+export function resolvePricingSideRungs({ jobPricing, accountPricing, side }) {
   const job = jobPricing?.[side];
   const account = accountPricing?.[side];
 
+  const market = answer(job?.market, account?.market, DEFAULT_MARKET_OPTION);
+  const basis = answer(job?.basis, account?.basis, DEFAULT_ORDER_OPTION);
+
   return {
-    marketDisplay: job?.market || account?.market || DEFAULT_MARKET_OPTION,
-    orderDisplay: job?.basis || account?.basis || DEFAULT_ORDER_OPTION,
+    marketDisplay: market.value,
+    orderDisplay: basis.value,
+    marketRung: market.rung,
+    orderRung: basis.rung,
   };
+}
+
+/** The first rung naming a value, and which one it was. */
+function answer(job, account, global) {
+  if (job) return { value: job, rung: PRICING_RUNG.JOB };
+  if (account) return { value: account, rung: PRICING_RUNG.ACCOUNT };
+  return { value: global, rung: PRICING_RUNG.GLOBAL };
 }
 
 /**

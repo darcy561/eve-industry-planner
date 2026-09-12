@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import { useEffectiveMarketHubFromLayout } from "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
+import { useMaterialGroupPricing } from "../../../../../../Hooks/Planner/useMaterialGroupPricing.js";
 import {
   childJobCoverage,
   coverageModeFor,
@@ -42,8 +43,18 @@ import useUsersStore from "../../../../../../Zustand/usersStore.js";
 export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
   const { activeJob } = state;
   const { layout } = activeJob;
-  const { marketDisplay: marketSelect, orderDisplay: listingSelect } =
-    useEffectiveMarketHubFromLayout(layout, PRICING_SIDE.BUYING);
+  const {
+    marketDisplay: marketSelect,
+    orderDisplay: listingSelect,
+    marketRung,
+    orderRung,
+  } = useEffectiveMarketHubFromLayout(layout, PRICING_SIDE.BUYING);
+
+  const groupPricing = useMaterialGroupPricing({
+    side: PRICING_SIDE.BUYING,
+    marketRung,
+    listingRung: orderRung,
+  });
 
   const checkTypeIDisExempt = useUsersStore(
     (store) => store.applicationSettings.actions.checkTypeIDisExempt,
@@ -63,6 +74,7 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
         material.typeID,
         marketSelect,
         listingSelect,
+        groupPricing,
       );
       const { childJobsById, hasChildJobs } = resolveMaterialChildJobs({
         state,
@@ -139,6 +151,7 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
         marketSelect,
         listingSelect,
         getPrice: getMarketPriceForType,
+        groupPricing,
       }),
     };
     // The reducer returns a new state object on every dispatch anywhere on the
@@ -151,6 +164,7 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
     listingSelect,
     checkTypeIDisExempt,
     automaticRecalculation,
+    groupPricing,
     marketSelect,
     state.parentChildToEdit.childJobs,
     state.speculativeChildJobs,

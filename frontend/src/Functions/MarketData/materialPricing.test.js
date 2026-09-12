@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import JobMaterial from "../../Classes/jobMaterial";
 import {
+  getEffectiveMaterialPriceHub,
   materialCostByBasis,
   materialPurchaseState,
   summariseBasisUse,
   priceAge,
 } from "./materialPricing";
+import { PRICING_RUNG } from "./pricingSide";
 
 // Prices differ per basis so a total can only come out right if the basis reached
 // the lookup; the hub is included so an override on the hub is visible too.
@@ -285,5 +287,185 @@ describe("priceAge", () => {
   it("has no age to state when nothing is priced", () => {
     expect(priceAge([{ typeID: 34 }], found({}))).toBeNull();
     expect(priceAge([], found({}))).toBeNull();
+  });
+});
+
+// Tritanium (34) sits in Minerals, which sits in Materials. 35 has no market
+// group at all, which is the normal case for an unpublished type.
+const MARKET_GROUPS = {
+  1857: { name: "Minerals", parent_id: 1849 },
+  1849: { name: "Materials" },
+};
+
+const GROUP_OF = { 34: 1857 };
+
+/**
+ * The group rung's inputs, with both panel axes answered by the rung named.
+ */
+function groupPricing(groupDefaults, rung = PRICING_RUNG.ACCOUNT) {
+  return {
+    marketGroups: MARKET_GROUPS,
+    groupDefaults,
+    marketGroupOf: (typeID) => GROUP_OF[typeID],
+    marketRung: rung,
+    listingRung: rung,
+  };
+}
+
+describe("getEffectiveMaterialPriceHub — the market group rung", () => {
+  it("prices from the item's group rather than the account default", () => {
+    const resolved = getEffectiveMaterialPriceHub(
+      {},
+      34,
+      "jita",
+      "sell",
+      groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
+    );
+
+    expect(resolved).toEqual({ marketSelect: "amarr", listingSelect: "buy" });
+  });
+
+  it("climbs to an ancestor group", () => {
+    const resolved = getEffectiveMaterialPriceHub(
+      {},
+      34,
+      "jita",
+      "sell",
+      groupPricing({ 1849: { market: "hek" } }),
+    );
+
+    expect(resolved.marketSelect).toBe("hek");
+    // Nothing named a basis, so the panel still answers it.
+    expect(resolved.listingSelect).toBe("sell");
+  });
+
+  it("leaves an item with no market group on the panel default", () => {
+    const resolved = getEffectiveMaterialPriceHub(
+      {},
+      35,
+      "jita",
+      "sell",
+      groupPricing({ 1857: { market: "amarr" } }),
+    );
+
+    expect(resolved).toEqual({ marketSelect: "jita", listingSelect: "sell" });
+  });
+
+  // The whole reason the rung arrives with the panel's: a group sits beneath a
+  // job's own choice, so a job that named a market keeps it on every row.
+  it("yields to a job that named the axis", () => {
+    const resolved = getEffectiveMaterialPriceHub(
+      {},
+      34,
+      "jita",
+      "sell",
+      groupPricing(
+        { 1857: { market: "amarr", basis: "buy" } },
+        PRICING_RUNG.JOB,
+      ),
+    );
+
+    expect(resolved).toEqual({ marketSelect: "jita", listingSelect: "sell" });
+  });
+
+  it("yields per axis, where the job named only one", () => {
+    const resolved = getEffectiveMaterialPriceHub({}, 34, "jita", "sell", {
+      ...groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
+      marketRung: PRICING_RUNG.JOB,
+      listingRung: PRICING_RUNG.ACCOUNT,
+    });
+
+    expect(resolved).toEqual({ marketSelect: "jita", listingSelect: "buy" });
+  });
+
+  it("loses to the row's own override", () => {
+    const layout = {
+      materialPriceOverrides: { 34: { marketDisplay: "dodixie" } },
+    };
+
+    const resolved = getEffectiveMaterialPriceHub(
+      layout,
+      34,
+      "jita",
+      "sell",
+      groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
+    );
+
+    expect(resolved.marketSelect).toBe("dodixie");
+    // The override named no basis, so the group still answers that axis.
+    expect(resolved.listingSelect).toBe("buy");
+  });
+
+  // Rung 1 clears to null rather than to an empty string — the override writers
+  // normalise that way — so an empty string is a stored value the ladder honours,
+  // unlike every rung below it. Pinned because the asymmetry is easy to "tidy".
+  it("treats an empty row override as the row's answer", () => {
+    const layout = { materialPriceOverrides: { 34: { marketDisplay: "" } } };
+
+    const resolved = getEffectiveMaterialPriceHub(
+      layout,
+      34,
+      "jita",
+      "sell",
+      groupPricing({ 1857: { market: "amarr" } }),
+    );
+
+    expect(resolved.marketSelect).toBe("");
+  });
+
+  // Safer to lose the rung than to overrule a job that answered: a caller that
+  // knows about the walk has the rungs to hand, so a missing one is a caller that
+  // does not know, not an account default waiting to be displaced.
+  it("yields where the rung that answered was not named", () => {
+    const resolved = getEffectiveMaterialPriceHub({}, 34, "jita", "sell", {
+      ...groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
+      marketRung: undefined,
+      listingRung: undefined,
+    });
+
+    expect(resolved).toEqual({ marketSelect: "jita", listingSelect: "sell" });
+  });
+
+  it("reads as it did before the rung when the tree has not loaded", () => {
+    expect(getEffectiveMaterialPriceHub({}, 34, "jita", "sell")).toEqual({
+      marketSelect: "jita",
+      listingSelect: "sell",
+    });
+  });
+
+  // A group naming a basis must not answer every candidate identically, or the
+  // comparison offers four copies of one figure.
+  it("still costs each basis apart when a group names one", () => {
+    const byId = basisById(
+      materialCostByBasis({
+        materials,
+        layout: {},
+        marketSelect: "jita",
+        listingSelect: "sell",
+        getPrice,
+        groupPricing: groupPricing({ 1857: { basis: "buy" } }),
+      }),
+    );
+
+    // Tritanium is 10 on sell and 5 on buy; the group names neither candidate.
+    expect(byId.sell.total).toBe(10 * 10 + 2 * 100);
+    expect(byId.buy.total).toBe(10 * 5 + 2 * 50);
+  });
+
+  // A group naming a market is not a candidate axis, so it applies to all four.
+  it("keeps a group's market on every candidate basis", () => {
+    const byId = basisById(
+      materialCostByBasis({
+        materials: [{ typeID: 34, quantity: 1 }],
+        layout: {},
+        marketSelect: "amarr",
+        listingSelect: "sell",
+        getPrice,
+        groupPricing: groupPricing({ 1857: { market: "jita" } }),
+      }),
+    );
+
+    expect(byId.sell.total).toBe(10);
+    expect(byId.buy.total).toBe(5);
   });
 });

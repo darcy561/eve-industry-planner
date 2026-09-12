@@ -1,7 +1,9 @@
 import useUsersStore from "../Zustand/usersStore";
+import { getEffectiveMaterialPriceHub } from "../Functions/MarketData/materialPricing";
+import { groupPricingFor } from "../Functions/MarketData/marketGroupData";
 import {
   PRICING_SIDE,
-  resolvePricingSide,
+  resolvePricingSideRungs,
 } from "../Functions/MarketData/pricingSide.js";
 
 /**
@@ -119,17 +121,36 @@ class ShoppingList {
    * @param {Object} [alternativePriceLocation={}] - Alternative price location for market data
    */
   calculateTotalValue(alternativePriceLocation = {}) {
-    const { marketDisplay, orderDisplay } = resolvePricingSide({
-      accountPricing:
-        useUsersStore.getState().applicationSettings.defaultPricing,
-      side: PRICING_SIDE.BUYING,
+    const accountPricing =
+      useUsersStore.getState().applicationSettings.defaultPricing;
+    const { marketDisplay, orderDisplay, marketRung, orderRung } =
+      resolvePricingSideRungs({
+        accountPricing,
+        side: PRICING_SIDE.BUYING,
+      });
+
+    // A list carries no job and no per-item override, so the group walk is the
+    // only rung above the account's here — and it answers per item, which is why
+    // it is resolved inside the loop rather than once for the list.
+    const groupPricing = groupPricingFor({
+      groupDefaults: accountPricing?.[PRICING_SIDE.BUYING]?.groups,
+      marketRung,
+      listingRung: orderRung,
     });
+
     this.totalValue = 0;
     this.items.forEach((item) => {
       if (!item.isVisible || !item.includeWhenCopying) return;
       const quantityAfterAssets = Math.max(
         item.quantityToPurchase - item.assetQuantity,
         0,
+      );
+      const { marketSelect, listingSelect } = getEffectiveMaterialPriceHub(
+        null,
+        item.typeID,
+        marketDisplay,
+        orderDisplay,
+        groupPricing,
       );
       this.totalValue +=
         quantityAfterAssets *
@@ -138,7 +159,7 @@ class ShoppingList {
           .worldData.actions.findMarketData(
             item.typeID,
             alternativePriceLocation,
-          )?.[marketDisplay]?.[orderDisplay] ?? 0);
+          )?.[marketSelect]?.[listingSelect] ?? 0);
     });
   }
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
+import { beforeAll } from "vitest";
 
 vi.mock(
   "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js",
@@ -7,12 +8,28 @@ vi.mock(
     useEffectiveMarketHubFromLayout: () => ({
       marketDisplay: "jita",
       orderDisplay: "sell",
+      marketRung: "account",
+      orderRung: "account",
     }),
+  }),
+);
+// Tritanium (34) sits in Minerals; 35 carries no market group, as most
+// unpublished types do. The real module is primed rather than stubbed, because
+// the rule deciding whether the rung fires reads its state directly.
+vi.mock(
+  "../../../../../../Functions/Helper/getCachedData",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    getMarketGroups: async () => ({ 1857: { name: "Minerals" } }),
+    getFullItemList: async () => ({ 34: { market_group_id: 1857 } }),
   }),
 );
 vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
   getMarketPriceForType: (typeID, hub, basis) =>
-    ({ sell: 10, buy: 8, buyP95: 9, sellP05: 11 })[basis] ?? 0,
+    ({
+      jita: { sell: 10, buy: 8, buyP95: 9, sellP05: 11 },
+      amarr: { sell: 20, buy: 16, buyP95: 18, sellP05: 22 },
+    })[hub]?.[basis] ?? 0,
 }));
 // Set per test rather than remocked, so a case with linked children does not
 // need the module registry reset around it.
@@ -31,22 +48,35 @@ vi.mock("./Helpers/materialChildJobs", () => ({
   }),
 }));
 let automaticRecalculation = true;
+let groupDefaults;
 
-vi.mock("../../../../../../Zustand/usersStore.js", () => {
-  const storeState = {
-    applicationSettings: {
-      // Read per render: the mock factory runs once, so a plain value would
-      // freeze whatever the first test set.
-      get enableAutomaticJobRecalculation() {
-        return automaticRecalculation;
+// A reader rather than a built state: the harness builds one once, and a getter
+// does not survive that — it is evaluated as the state is spread, freezing
+// whatever the first test set.
+vi.mock("../../../../../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  // The reader form, not the eager one: two of these are read per render, and an
+  // eagerly built state spreads the getter away and freezes the first value.
+  return usersStoreMock(() =>
+    usersStoreState({
+      applicationSettings: {
+        get enableAutomaticJobRecalculation() {
+          return automaticRecalculation;
+        },
+        actions: { checkTypeIDisExempt: () => false },
+        // The two sides carry different values, so a hook asking for the wrong
+        // one is visible.
+        get defaultPricing() {
+          return {
+            buying: { market: "jita", basis: "sell", groups: groupDefaults },
+            selling: { market: "amarr", basis: "buy" },
+          };
+        },
       },
-      actions: { checkTypeIDisExempt: () => false },
-    },
-    worldData: { actions: { findMarketData: () => undefined } },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+      worldData: { actions: { findMarketData: () => undefined } },
+    }),
+  );
 });
 vi.mock(
   "../../../../../../Functions/Helper/checkJobTypeIsBuildable.js",
@@ -273,5 +303,64 @@ describe("a row whose child jobs no longer cover it", () => {
     expect(rows[0].coverage.covered).toBe(100);
     expect(rows[0].coverage.total).toBe(700);
     expect(rows[0].buildPrice).toBe(7);
+  });
+});
+
+// The rung the account's group table answers. It sits above the account default
+// and below a job's own choice, and it is resolved per material — so it has to be
+// visible on the row the panel builds, not only in the pure resolver.
+describe("a material priced from its market group", () => {
+  // Reset first: the module holds the tree for the whole worker, so another file
+  // in the same run may have primed it with data of its own.
+  beforeAll(async () => {
+    const { primeMarketGroupData, resetMarketGroupData } =
+      await import("../../../../../../Functions/MarketData/marketGroupData");
+    resetMarketGroupData();
+    await primeMarketGroupData();
+  });
+
+  afterEach(() => {
+    groupDefaults = undefined;
+  });
+
+  it("prices the row from the group rather than the account default", () => {
+    groupDefaults = { 1857: { market: "amarr", basis: "buy" } };
+
+    const { rows } = render(setup());
+
+    expect(rows[0]).toMatchObject({
+      marketSelect: "amarr",
+      listingSelect: "buy",
+      buyPrice: 16,
+    });
+  });
+
+  it("leaves the account default where the item's group says nothing", () => {
+    groupDefaults = { 9999: { market: "amarr", basis: "buy" } };
+
+    const { rows } = render(setup());
+
+    expect(rows[0]).toMatchObject({
+      marketSelect: "jita",
+      listingSelect: "sell",
+      buyPrice: 10,
+    });
+  });
+
+  it("reads as it did before the rung where the account set no groups", () => {
+    const { rows } = render(setup());
+
+    expect(rows[0]).toMatchObject({ marketSelect: "jita", buyPrice: 10 });
+  });
+
+  // The basis comparison varies the basis itself, so a group naming one must not
+  // answer all four candidates identically.
+  it("still costs each basis apart when the group names one", () => {
+    groupDefaults = { 1857: { basis: "buy" } };
+
+    const { basisOptions } = render(setup());
+    const byId = Object.fromEntries(basisOptions.map((o) => [o.id, o.total]));
+
+    expect(byId.sell).not.toBe(byId.buy);
   });
 });
