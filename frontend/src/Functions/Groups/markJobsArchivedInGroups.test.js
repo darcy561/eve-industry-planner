@@ -7,9 +7,11 @@ const getState = vi.fn();
 vi.mock("../Endpoints/Private/groups.js", () => ({
   putJobGroupsBatch: (...args) => putJobGroupsBatch(...args),
 }));
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: { getState: () => getState() },
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(getState()));
+});
 
 const { markJobsArchivedInGroups } =
   await import("./markJobsArchivedInGroups.js");

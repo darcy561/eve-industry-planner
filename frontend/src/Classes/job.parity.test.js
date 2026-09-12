@@ -20,9 +20,10 @@ import Job from "./job.js";
 // Without the corpus there is nothing to check, so the test skips rather than
 // standing in for coverage it does not have.
 
-vi.mock("../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account: { accountID: "parity-account" } }) },
-}));
+vi.mock("../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
+  return usersStoreMock({ account: { accountID: "parity-account" } });
+});
 
 // The server owns `_meta` and stamps the schema version on write, so the SPA
 // dropping these is the contract rather than a loss.

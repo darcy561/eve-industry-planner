@@ -19,11 +19,11 @@ const {
   slowRelease: { current: null },
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector({ account }), {
-    getState: () => ({ account }),
-  }),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState({ account }));
+});
 
 vi.mock("../React Query/Character/assets", () => ({
   characterAssetsQueryKey: "characterAssets",

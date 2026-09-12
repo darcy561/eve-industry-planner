@@ -4,8 +4,7 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { activePlannerActions } from "../Zustand/activePlanner/actions.js";
-import { activePlannerStoreState } from "./utils.js";
+import { usersStoreState } from "./usersStoreHarness.js";
 
 /**
  * Shared pieces for rendering an archive page against faked transport.
@@ -19,52 +18,37 @@ import { activePlannerStoreState } from "./utils.js";
 const theme = createTheme();
 
 /**
- * Store state an archive view expects to find: the planner its reads are scoped
- * to, and the slices its panels reach for.
+ * A store state with the extras an archive view expects on top of the usual
+ * defaults.
  *
- * The locale matters: number formatting reads it, and without it a panel throws
- * mid-render and falls back to something that still looks plausible.
+ * Signed in, because every archive query is `enabled` on `account.isLoggedIn`:
+ * a signed-out state leaves the page rendering its empty message with nothing
+ * requested, which reads as a component fault rather than as missing setup.
+ *
+ * The job actions are here because a restore applies its result to the planner
+ * store, so a page that never restores anything still has to carry them.
  *
  * @param {Object} [overrides]
+ * @returns {Object} a state for a `usersStore` mock
  */
 export function archiveStoreState(overrides = {}) {
-  const state = {
-    ...activePlannerStoreState(),
-    applicationSettings: {
-      extrasCategories: [],
-      actions: { getCurrentLocale: () => "en-GB" },
-    },
-    // A restore applies its own result to the planner store, so the actions it
-    // reaches for have to be there even for a view that never restores.
+  const { account, jobData, ...rest } = overrides;
+  return usersStoreState({
+    ...rest,
+    account: { isLoggedIn: true, ...account },
     jobData: {
       groupArray: [],
+      ...jobData,
+      // Merged a level down, as the shared harness does: an override naming one
+      // action would otherwise take the restore stubs out with it.
       actions: {
         updateOrAddJobsToJobArray: vi.fn(),
         addGroupToGroupArray: vi.fn(),
         updateModifiedGroups: vi.fn(),
+        ...jobData?.actions,
       },
     },
-    ...overrides,
-  };
-  // The actions resolve against the state they are read from, so they are rebuilt
-  // once the overrides are on it.
-  state.activePlanner = {
-    ...state.activePlanner,
-    actions: activePlannerActions(
-      () => {},
-      () => state,
-    ),
-  };
-  return state;
-}
-
-/** The users store as a component tree sees it. */
-export function usersStoreMock(state = archiveStoreState()) {
-  return {
-    default: Object.assign((selector) => selector(state), {
-      getState: () => state,
-    }),
-  };
+  });
 }
 
 /**
@@ -231,6 +215,8 @@ export function cachedDataMock(overrides = {}) {
     getSearchIndex: vi.fn(async () => []),
     getReprocessingData: vi.fn(async () => ({})),
     getRecipeListFromCache: vi.fn(async () => ({})),
+    getMarketGroups: vi.fn(async () => ({})),
+    getSolarSystems: vi.fn(async () => ({})),
     ...overrides,
   };
 }

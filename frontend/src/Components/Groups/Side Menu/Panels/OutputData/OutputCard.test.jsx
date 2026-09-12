@@ -2,24 +2,25 @@ import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithRouter } from "../../../../../tests/routerHarness";
 
-vi.mock("../../../../../Zustand/usersStore", () => {
-  const state = () => ({
-    jobData: {
-      activeGroupID: "group-1",
-      actions: { findJobInJobArray: () => undefined },
-    },
-    applicationSettings: {
-      defaultPricing: {
-        buying: { market: "jita", basis: "sell" },
-        selling: { market: 60003760, basis: "sell" },
+vi.mock("../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
+      jobData: {
+        activeGroupID: "group-1",
+        actions: { findJobInJobArray: () => undefined },
       },
-      actions: { getCurrentLocale: () => "en-GB" },
-    },
-    worldData: { marketData: {} },
-  });
-  const store = (selector) => selector(state());
-  store.getState = state;
-  return { default: store };
+      applicationSettings: {
+        defaultPricing: {
+          buying: { market: "jita", basis: "sell" },
+          selling: { market: 60003760, basis: "sell" },
+        },
+        actions: { getCurrentLocale: () => "en-GB" },
+      },
+      worldData: { marketData: {} },
+    }),
+  );
 });
 
 vi.mock("../../../../../Styled Components/IconButton/marketHistory", () => ({

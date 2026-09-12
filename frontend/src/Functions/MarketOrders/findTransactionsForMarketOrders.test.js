@@ -13,9 +13,10 @@ vi.mock(
     getAllCachedCorporationTransactions: () => corporationTransactions,
   }),
 );
-vi.mock("../../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account: { linkedTrans } }) },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({ account: { linkedTrans } });
+});
 
 const { default: findTransactionsForMarketOrders } =
   await import("./findTransactionsForMarketOrders.js");

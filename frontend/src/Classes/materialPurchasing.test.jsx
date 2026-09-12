@@ -2,15 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
-      account: { accountID: "acc-1", isLoggedIn: false },
-      jobData: { jobArray: [], actions: {} },
-      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-    }),
-  },
-}));
+vi.mock("../Zustand/usersStore.js", async () => {
+  const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
+  return usersStoreMock();
+});
 
 const { MaterialCostsFrame_Purchasing } =
   await import("../Components/Edit Job/Edit Job Components/Purchasing/Standard Layout/Material Cards/materialCostsFrame.jsx");

@@ -4,11 +4,12 @@ import { renderWithRouter } from "../tests/routerHarness";
 
 const { account } = vi.hoisted(() => ({ account: { isLoggedIn: true } }));
 
-vi.mock("../Zustand/usersStore", () => {
-  const state = () => ({ account: { isLoggedIn: account.isLoggedIn } });
-  const users = (selector) => selector(state());
-  users.getState = state;
-  return { default: users };
+vi.mock("../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({ account: { isLoggedIn: account.isLoggedIn } }),
+  );
 });
 
 const { RouteNotFound } = await import("./routeNotFound.jsx");

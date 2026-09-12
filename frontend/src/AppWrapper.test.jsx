@@ -29,32 +29,33 @@ vi.mock("./Functions/Auth/resumeStoredSession.js", () => ({
   resumeStoredSession: () => new Promise(() => {}),
 }));
 
-vi.mock("./Zustand/usersStore", () => {
-  const state = () => ({
-    account: {
-      isLoggedIn: false,
-      accountID: null,
-      actions: {
-        getRequiresFirstLoginFlow: () => false,
-        getIsLoggedIn: () => false,
+vi.mock("./Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("./tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
+      account: {
+        isLoggedIn: false,
+        accountID: null,
+        actions: {
+          getRequiresFirstLoginFlow: () => false,
+          getIsLoggedIn: () => false,
+        },
       },
-    },
-    jobData: {
-      activeGroupID: null,
-      jobArray: [],
-      groupArray: [],
-      actions: {
-        setActiveGroupID: () => {},
-        clearActiveGroupID: () => {},
-        findJobInJobArray: () => undefined,
-        getGroupObject: () => null,
-        jobsFromIdsOrObjects: async () => [],
+      jobData: {
+        activeGroupID: null,
+        jobArray: [],
+        groupArray: [],
+        actions: {
+          setActiveGroupID: () => {},
+          clearActiveGroupID: () => {},
+          findJobInJobArray: () => undefined,
+          getGroupObject: () => null,
+          jobsFromIdsOrObjects: async () => [],
+        },
       },
-    },
-  });
-  const users = (selector) => selector(state());
-  users.getState = state;
-  return { default: users };
+    }),
+  );
 });
 
 vi.mock("@sentry/react", () => ({ setUser: () => {} }));

@@ -58,8 +58,10 @@ vi.mock("../../../../../../Functions/MarketOrders/sellerCharacter", () => ({
   }),
 }));
 
-vi.mock("../../../../../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     applicationSettings: {
       defaultPricing: {
         buying: { market: "jita", basis: "sell" },
@@ -82,10 +84,7 @@ vi.mock("../../../../../../Zustand/usersStore", () => {
       actions: { findJobInJobArray: (id) => parentJobs[id] },
     },
     worldData: { actions: { findMarketData: () => undefined } },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 // Populated per test; the store mock closes over it.

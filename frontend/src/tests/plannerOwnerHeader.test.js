@@ -3,9 +3,11 @@ import { activePlannerStoreState } from "./utils.js";
 
 const storeState = activePlannerStoreState();
 
-vi.mock("../Zustand/usersStore", () => ({
-  default: { getState: () => storeState },
-}));
+vi.mock("../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(storeState));
+});
 vi.mock("../Realtime/wsClientIdentity.js", () => ({
   getRealtimeClientID: () => null,
 }));

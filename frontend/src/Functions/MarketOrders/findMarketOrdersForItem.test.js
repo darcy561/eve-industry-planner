@@ -10,18 +10,17 @@ const OWN_CHARACTER_ID = 2114000001;
 const OWN_CHARACTER_HASH = "hash-1";
 const OTHER_MEMBER_ID = 2114000999;
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: {
-    getState: () => ({
-      account: {
-        linkedOrders,
-        characters: [
-          { CharacterID: OWN_CHARACTER_ID, CharacterHash: OWN_CHARACTER_HASH },
-        ],
-      },
-    }),
-  },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({
+    account: {
+      linkedOrders,
+      characters: [
+        { CharacterID: OWN_CHARACTER_ID, CharacterHash: OWN_CHARACTER_HASH },
+      ],
+    },
+  });
+});
 vi.mock("../../Hooks/EveEsi/Character/useGetAllCharacterMarketOrders", () => ({
   getAllCachedCharacterMarketOrders: () => characterOrders,
 }));

@@ -3,9 +3,11 @@ import { activePlannerStoreState } from "../../../tests/utils.js";
 
 const state = activePlannerStoreState();
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: { getState: () => state },
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(state));
+});
 
 const { currentOwnerHandle, statisticsPath } =
   await import("./statisticsOwner.js");

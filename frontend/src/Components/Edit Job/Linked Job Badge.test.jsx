@@ -8,9 +8,11 @@ const { store, readOnly, dialogueRenders } = vi.hoisted(() => ({
   dialogueRenders: { count: 0 },
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: { getState: () => store.current },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),

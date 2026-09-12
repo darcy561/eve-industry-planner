@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account: { accountID: "acct-store" } }) },
-}));
+vi.mock("../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
+  return usersStoreMock({ account: { accountID: "acct-store" } });
+});
 
 const { default: Job } = await import("./job");
 

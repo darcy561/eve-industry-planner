@@ -4,17 +4,18 @@ import { renderWithRouter } from "../../../../tests/routerHarness";
 
 const { locked } = vi.hoisted(() => ({ locked: { current: false } }));
 
-vi.mock("../../../../Zustand/usersStore", () => {
-  const state = () => ({
-    jobData: {
-      multiSelect: [],
-      actions: { addToMultiSelect: vi.fn(), removeFromMultiSelect: vi.fn() },
-    },
-    applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-  });
-  const store = (selector) => selector(state());
-  store.getState = state;
-  return { default: store };
+vi.mock("../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
+      jobData: {
+        multiSelect: [],
+        actions: { addToMultiSelect: vi.fn(), removeFromMultiSelect: vi.fn() },
+      },
+      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
+    }),
+  );
 });
 
 vi.mock("../../../../Hooks/DocumentLock/useDocumentLockState", () => ({

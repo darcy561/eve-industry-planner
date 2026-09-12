@@ -4,13 +4,15 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { readOnly } = vi.hoisted(() => ({ readOnly: { current: false } }));
 
-vi.mock("../../../../../../Zustand/usersStore", () => ({
-  default: {
-    getState: () => ({
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       account: { actions: { getMainCharacterHash: () => "hash-main" } },
     }),
-  },
-}));
+  );
+});
 
 vi.mock("../../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
   useActiveJobReadOnly: () => readOnly.current,

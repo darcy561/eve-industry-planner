@@ -8,11 +8,11 @@ const { account, payloads } = vi.hoisted(() => ({
   payloads: new Map(),
 }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector({ account }), {
-    getState: () => ({ account }),
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState({ account }));
+});
 
 vi.mock("../../React Query/Character/blueprints", () => ({
   characterBlueprintsQueryKey: "characterBlueprints",

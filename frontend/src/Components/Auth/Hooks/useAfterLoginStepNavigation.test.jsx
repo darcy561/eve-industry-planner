@@ -6,17 +6,18 @@ const { account } = vi.hoisted(() => ({
   account: { requiresFirstLogin: false },
 }));
 
-vi.mock("../../../Zustand/usersStore", () => {
-  const state = () => ({
-    account: {
-      actions: {
-        getRequiresFirstLoginFlow: () => account.requiresFirstLogin,
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
+      account: {
+        actions: {
+          getRequiresFirstLoginFlow: () => account.requiresFirstLogin,
+        },
       },
-    },
-  });
-  const users = (selector) => selector(state());
-  users.getState = state;
-  return { default: users };
+    }),
+  );
 });
 
 const { useAfterLoginStepNavigation } =

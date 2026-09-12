@@ -20,9 +20,10 @@ vi.mock("../../Hooks/EveEsi/Character/useGetAllCharacterJournal", () => ({
 vi.mock("../../Hooks/EveEsi/Corporation/useGetAllCorporationJournal", () => ({
   getAllCachedCorporationJournal: () => ({ data: {} }),
 }));
-vi.mock("../../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account: { linkedTrans } }) },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({ account: { linkedTrans } });
+});
 
 const { default: findOrderTransactions } =
   await import("./findOrderTransactions.js");

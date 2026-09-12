@@ -2,17 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const jobsById = new Map();
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
+// Read fresh each time: the tests fill `jobsById` after the mock is built.
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       jobData: {
-        actions: {
-          findJobInJobArray: (id) => jobsById.get(id) ?? null,
-        },
+        actions: { findJobInJobArray: (id) => jobsById.get(id) ?? null },
       },
     }),
-  },
-}));
+  );
+});
 
 const captureException = vi.fn();
 vi.mock("@sentry/react", () => ({

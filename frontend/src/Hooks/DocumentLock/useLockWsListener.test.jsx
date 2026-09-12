@@ -27,11 +27,11 @@ const storeSnapshot = {
   },
 };
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => storeSnapshot,
-  },
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(storeSnapshot));
+});
 
 function dispatchLockEvent(detail) {
   window.dispatchEvent(new CustomEvent(DOCUMENT_LOCK_CUSTOM_EVENT, { detail }));

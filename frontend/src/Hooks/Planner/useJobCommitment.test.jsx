@@ -3,13 +3,11 @@ import { renderHook } from "@testing-library/react";
 
 const jobsInStore = {};
 
-vi.mock("../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     jobData: { actions: { findJobInJobArray: (id) => jobsInStore[id] } },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 const { useJobCommitment } = await import("./useJobCommitment");

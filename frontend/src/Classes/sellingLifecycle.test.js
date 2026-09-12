@@ -5,9 +5,11 @@ const characterTransactions = { data: {} };
 const characterJournal = { data: {} };
 const linkedTrans = new Set();
 
-vi.mock("../Zustand/usersStore", () => ({
-  default: {
-    getState: () => ({
+vi.mock("../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       account: {
         accountID: "acc-1",
         isLoggedIn: false,
@@ -22,8 +24,8 @@ vi.mock("../Zustand/usersStore", () => ({
       jobData: { jobArray: [], actions: {} },
       applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
     }),
-  },
-}));
+  );
+});
 // The fetch behind the charges is asserted in brokersFeeCalculation.test.js;
 // here the figures are what matters, not where they came from.
 vi.mock("../Hooks/React Query/Character/useSellingRateInputs", () => ({

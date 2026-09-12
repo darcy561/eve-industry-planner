@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { account } = vi.hoisted(() => ({ account: { actions: {} } }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account }) },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState({ account }));
+});
 
 import { eveImageSize, ownerImageUrl, ownerName } from "./eveOwner";
 import { OWNER_KIND } from "./ownerKind";

@@ -9,8 +9,8 @@ vi.mock("../../Functions/Endpoints/Private/statisticsTimeline.js", () => ({
   getAccountTimelineItems: vi.fn(),
 }));
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, archiveStoreState } =
-    await import("../../tests/archiveHarness.jsx");
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  const { archiveStoreState } = await import("../../tests/archiveHarness.jsx");
   return usersStoreMock(archiveStoreState());
 });
 

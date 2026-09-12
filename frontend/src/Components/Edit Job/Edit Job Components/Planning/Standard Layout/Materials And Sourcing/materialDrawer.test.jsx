@@ -68,15 +68,14 @@ vi.mock("../../../../../../Functions/Groups/findMaterialJobInGroup.js", () => ({
 
 let exempt = false;
 
-vi.mock("../../../../../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     applicationSettings: {
       actions: { checkTypeIDisExempt: () => exempt },
     },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 const { default: MaterialDrawer } = await import("./materialDrawer");

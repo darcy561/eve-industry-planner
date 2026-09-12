@@ -6,9 +6,13 @@ const { collection, account, applicationSettings } = vi.hoisted(() => ({
   applicationSettings: { defaultMaterialEfficiencyValue: 0 },
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account, applicationSettings }) },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({ account, applicationSettings }),
+  );
+});
 
 vi.mock("../../Hooks/EveEsi/useBlueprintIndex", () => ({
   BLUEPRINT_SCOPE: { ALL: "all" },

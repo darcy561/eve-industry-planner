@@ -17,11 +17,11 @@ const {
   searchIndex: [{ blueprintID: 686, itemID: 587, jobType: 1 }],
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector({ account }), {
-    getState: () => ({ account }),
-  }),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState({ account }));
+});
 
 vi.mock("../React Query/Character/blueprints", () => ({
   characterBlueprintsQueryKey: "characterBlueprints",

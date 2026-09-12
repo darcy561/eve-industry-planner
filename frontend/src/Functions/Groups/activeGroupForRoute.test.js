@@ -2,23 +2,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { store } = vi.hoisted(() => ({ store: { activeGroupID: null } }));
 
-vi.mock("../../Zustand/usersStore", () => {
-  const state = () => ({
-    jobData: {
-      activeGroupID: store.activeGroupID,
-      actions: {
-        setActiveGroupID: (groupID) => {
-          store.activeGroupID = groupID;
-        },
-        clearActiveGroupID: () => {
-          store.activeGroupID = null;
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
+      jobData: {
+        activeGroupID: store.activeGroupID,
+        actions: {
+          setActiveGroupID: (groupID) => {
+            store.activeGroupID = groupID;
+          },
+          clearActiveGroupID: () => {
+            store.activeGroupID = null;
+          },
         },
       },
-    },
-  });
-  const users = (selector) => selector(state());
-  users.getState = state;
-  return { default: users };
+    }),
+  );
 });
 
 const { activeGroupForRoute, applyActiveGroupForRoute } =

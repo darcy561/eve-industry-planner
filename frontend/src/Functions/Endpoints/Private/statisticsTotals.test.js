@@ -9,9 +9,11 @@ vi.mock("./applyPrivateHeaders.js", () => ({
   default: (...args) => requestWithPrivateHeaders(...args),
 }));
 // The path names the owner, so a request needs one.
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: { getState: () => plannerState },
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(plannerState));
+});
 
 const { default: getAccountTotalsByTypeID } =
   await import("./statisticsTotals.js");

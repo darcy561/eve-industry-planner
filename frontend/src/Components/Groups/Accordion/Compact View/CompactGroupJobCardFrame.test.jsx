@@ -6,22 +6,23 @@ const { locked } = vi.hoisted(() => ({
   locked: { current: { cardLocked: false, reason: "" } },
 }));
 
-vi.mock("../../../../Zustand/usersStore", () => {
-  const state = () => ({
-    jobData: {
-      multiSelect: [],
-      activeGroupID: "group-2",
-      actions: {
-        addToMultiSelect: vi.fn(),
-        removeFromMultiSelect: vi.fn(),
-        getActiveGroupObject: () => ({ areComplete: new Set() }),
+vi.mock("../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
+      jobData: {
+        multiSelect: [],
+        activeGroupID: "group-2",
+        actions: {
+          addToMultiSelect: vi.fn(),
+          removeFromMultiSelect: vi.fn(),
+          getActiveGroupObject: () => ({ areComplete: new Set() }),
+        },
       },
-    },
-    applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-  });
-  const store = (selector) => selector(state());
-  store.getState = state;
-  return { default: store };
+      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
+    }),
+  );
 });
 
 vi.mock("../../../../Hooks/DocumentLock/useDocumentLockState", () => ({

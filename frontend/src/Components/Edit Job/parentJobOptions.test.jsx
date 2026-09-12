@@ -9,9 +9,11 @@ const { store, readOnly, showSnackbarSuccess } = vi.hoisted(() => ({
   showSnackbarSuccess: vi.fn(),
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: (selector) => selector(store.current),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 vi.mock("../../Events/snackbarEvents", () => ({ showSnackbarSuccess }));
 

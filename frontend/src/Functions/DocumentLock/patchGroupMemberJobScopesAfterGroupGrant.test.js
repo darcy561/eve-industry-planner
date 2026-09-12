@@ -5,11 +5,11 @@ import { patchGroupMemberJobScopesAfterGroupGrant } from "./patchGroupMemberJobS
 
 const patchManyDocumentLockScopes = vi.fn();
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => useTestStore.getState(),
-  },
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(useTestStore.getState()));
+});
 
 const useTestStore = create(() => ({
   jobData: {

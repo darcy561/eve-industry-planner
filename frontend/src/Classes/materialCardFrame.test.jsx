@@ -23,11 +23,10 @@ const store = {
   documentLock: { scopes: {} },
 };
 
-vi.mock("../Zustand/usersStore.js", () => {
-  const useUsersStore = (selector) =>
-    typeof selector === "function" ? selector(store) : store;
-  useUsersStore.getState = () => store;
-  return { default: useUsersStore };
+vi.mock("../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
 });
 
 const { MaterialCardFrame_Purchasing } =

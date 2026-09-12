@@ -13,9 +13,11 @@ vi.mock("../fetchWithCustomHeaders", () => ({
   default: (...args) => fetchMock(...args),
 }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account }) },
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState({ account }));
+});
 
 vi.mock("./communityNames", () => ({
   submitStructureName: (id, esi) => submissions.push({ id, name: esi.name }),

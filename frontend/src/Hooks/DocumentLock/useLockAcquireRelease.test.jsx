@@ -14,16 +14,18 @@ vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
 
 const mockLockScopes = {};
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       documentLock: {
         scopes: mockLockScopes,
         actions: { pulseWaitlist: vi.fn() },
       },
     }),
-  },
-}));
+  );
+});
 
 function grantedResponse() {
   return {

@@ -18,15 +18,14 @@ vi.mock("../Hooks/EveEsi/Corporation/useGetAllCorporationMarketOrders", () => ({
 vi.mock("../Hooks/EveEsi/useGetAllIndustryJobs", () => ({
   getCachedAllIndustryJobs: () => industryJobs,
 }));
-vi.mock("../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
-      account: { accountID: "acc-1", characters: [], isLoggedIn: false },
-      jobData: { jobArray: [], actions: {} },
-      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-    }),
-  },
-}));
+vi.mock("../Zustand/usersStore.js", async () => {
+  const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
+  return usersStoreMock({
+    account: { accountID: "acc-1", characters: [], isLoggedIn: false },
+    jobData: { jobArray: [], actions: {} },
+    applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
+  });
+});
 
 const { useRefreshLinkedESIData } =
   await import("../Components/Edit Job/Hooks/useRefreshLinkedESIData.js");

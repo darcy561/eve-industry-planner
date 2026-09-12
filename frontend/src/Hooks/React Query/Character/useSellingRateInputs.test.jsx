@@ -14,20 +14,20 @@ vi.mock("../../../Functions/EveESI/Character/getStandings", () => ({
 vi.mock("../../../Functions/Shared/queryExecutionEnabled", () => ({
   isQueryExecutionEnabled: () => true,
 }));
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: {
-    getState: () => ({
-      account: {
-        actions: {
-          findCharacterByHash: (hash) => ({
-            CharacterHash: hash,
-            CharacterID: 1,
-          }),
-        },
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
+    account: {
+      actions: {
+        findCharacterByHash: (hash) => ({
+          CharacterHash: hash,
+          CharacterID: 1,
+        }),
       },
-    }),
-  },
-}));
+    },
+  });
+});
 
 const { useSellingRateInputs, ensureSellingRateInputs } =
   await import("./useSellingRateInputs");

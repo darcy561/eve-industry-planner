@@ -4,13 +4,12 @@ import { render, screen } from "@testing-library/react";
 import MaterialCards from "./materialCards";
 import { MATERIAL_PLAN } from "../../../../../../Functions/MarketData/materialSourcingRow";
 
-vi.mock("../../../../../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 const row = (overrides = {}) => ({

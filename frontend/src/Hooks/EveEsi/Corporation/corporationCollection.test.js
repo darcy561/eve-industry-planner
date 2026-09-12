@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { account } = vi.hoisted(() => ({ account: { corporations: [] } }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector({ account }), {
-    getState: () => ({ account }),
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState({ account }));
+});
 
 import {
   keyRowsByCorporation,

@@ -4,9 +4,11 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { store } = vi.hoisted(() => ({ store: { current: null } }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: (selector) => selector(store.current),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 /** Stands in for the tutorial card, whose own fade-out is tested beside it. */
 vi.mock("../Tutorials/tutorialTemplate", () => ({

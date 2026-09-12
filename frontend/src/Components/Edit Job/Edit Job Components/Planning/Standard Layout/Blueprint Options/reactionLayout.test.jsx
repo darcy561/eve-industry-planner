@@ -7,23 +7,10 @@ const { collection, industryJobs, characters } = vi.hoisted(() => ({
   characters: [{ CharacterHash: "character-hash-a", CharacterID: 2114000001 }],
 }));
 
-vi.mock("../../../../../../Zustand/usersStore", () => {
-  const state = {
-    account: {
-      characters,
-      actions: {
-        findCharacterByHash: (hash) =>
-          characters.find((c) => c.CharacterHash === hash) ?? null,
-        getCorporation: () => ({ corporationName: "A Corp" }),
-      },
-    },
-  };
-  // The owner portrait reads the store directly rather than through a hook.
-  return {
-    default: Object.assign((selector) => selector(state), {
-      getState: () => state,
-    }),
-  };
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(state));
 });
 
 vi.mock("../../../../../../Hooks/EveEsi/useBlueprintIndex", () => ({

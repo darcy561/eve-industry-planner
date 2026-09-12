@@ -3,9 +3,11 @@ import { activePlannerStoreState } from "./utils.js";
 
 const storeState = activePlannerStoreState();
 
-vi.mock("../Zustand/usersStore.js", () => ({
-  default: { getState: () => storeState },
-}));
+vi.mock("../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(storeState));
+});
 vi.mock("../Functions/Endpoints/Private/applyPrivateHeaders.js", () => ({
   getSessionIDFromStore: () => "session-1",
 }));

@@ -10,9 +10,11 @@ vi.mock("../../Shared/queryExecutionEnabled", () => ({
   isQueryExecutionEnabled: () => queryGateOpen.value,
 }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account }) },
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState({ account }));
+});
 
 vi.mock("../fetchWithCustomHeaders", () => ({
   getESIRateLimitStatus: (group, hash) => rateLimits.get(`${group}:${hash}`),

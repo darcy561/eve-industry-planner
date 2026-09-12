@@ -25,8 +25,9 @@ vi.mock("../../Hooks/App/useCachedData", () => ({
   }),
 }));
 
-vi.mock("../../Zustand/usersStore", () => {
-  const state = {
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     account: {
       actions: {
         findCharacterByHash: () => ({
@@ -36,13 +37,7 @@ vi.mock("../../Zustand/usersStore", () => {
         getCorporation: () => ({ corporationName: "Astral Acquisitions Inc." }),
       },
     },
-    applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-  };
-  return {
-    default: Object.assign((selector) => selector(state), {
-      getState: () => state,
-    }),
-  };
+  });
 });
 
 import BlueprintGroup from "./blueprintGroup";

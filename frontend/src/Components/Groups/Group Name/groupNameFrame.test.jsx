@@ -10,11 +10,11 @@ const { state, flushPendingGroupSave, updateModifiedGroups, canEdit } =
     canEdit: { current: true },
   }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: {
-    getState: () => state.current,
-  },
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(state.current));
+});
 
 vi.mock("../../../Functions/Debounce/jobGroupsPersistSchedule.js", () => ({
   flushPendingGroupSave,

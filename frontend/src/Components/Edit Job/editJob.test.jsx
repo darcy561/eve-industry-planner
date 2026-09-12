@@ -18,11 +18,10 @@ vi.mock("./Edit Job Hooks/useEditJobReducer", () => ({
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ jobID: "job-1" }),
 }));
-vi.mock("../../Zustand/usersStore", () => ({
-  default: {
-    getState: () => ({ jobData: { actions: { setActiveJobID: vi.fn() } } }),
-  },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({ jobData: { actions: { setActiveJobID: vi.fn() } } });
+});
 vi.mock("../../Hooks/useJobStatuses", () => ({
   useJobStatuses: () => ({
     jobStatuses: [

@@ -5,11 +5,11 @@ import { activePlannerStoreState } from "../../../tests/utils.js";
 
 const storeState = activePlannerStoreState();
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(storeState), {
-    getState: () => storeState,
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(storeState));
+});
 
 const ensurePlannerViaApi = vi.fn();
 vi.mock("../../../Functions/Endpoints/Private/planners.js", () => ({

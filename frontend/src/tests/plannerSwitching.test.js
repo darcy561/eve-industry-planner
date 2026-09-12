@@ -13,9 +13,11 @@ const storeState = {
   },
 };
 
-vi.mock("../Zustand/usersStore.js", () => ({
-  default: { getState: () => storeState },
-}));
+vi.mock("../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(storeState));
+});
 
 const { plannerDisplayName } = await import("../Hooks/React Query/planners.js");
 

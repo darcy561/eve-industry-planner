@@ -2,19 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 
 const store = { jobs: new Map() };
 
-vi.mock("../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
-      account: { accountID: "acc-1", isLoggedIn: false },
+// Read fresh each time: the tests fill `store.jobs` after the mock is built.
+vi.mock("../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       jobData: {
         jobArray: [...store.jobs.values()],
-        actions: {
-          findJobInJobArray: (id) => store.jobs.get(id) ?? null,
-        },
+        actions: { findJobInJobArray: (id) => store.jobs.get(id) ?? null },
       },
     }),
-  },
-}));
+  );
+});
 
 const { childJobSupplyForMaterial } =
   await import("../Components/Edit Job/Edit Job Components/Purchasing/Standard Layout/Material Cards/functions/childJobSupplyForMaterial.js");

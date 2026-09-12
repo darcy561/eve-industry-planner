@@ -5,14 +5,15 @@ import { renderWithRouter } from "../../../tests/routerHarness";
 
 const { loggedIn } = vi.hoisted(() => ({ loggedIn: { current: true } }));
 
-vi.mock("../../../Zustand/usersStore", () => {
-  const state = () => ({
-    account: { isLoggedIn: loggedIn.current },
-    applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-  });
-  const store = (selector) => selector(state());
-  store.getState = state;
-  return { default: store };
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
+      account: { isLoggedIn: loggedIn.current },
+      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
+    }),
+  );
 });
 
 vi.mock("../../../Hooks/React Query/tranquilityServerStatus.js", () => ({

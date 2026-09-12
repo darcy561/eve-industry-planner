@@ -8,13 +8,17 @@ import { resolveDocumentLockApiTarget } from "./resolveDocumentLockApiTarget.js"
 const findJobInJobArray = vi.fn();
 const getGroupObject = vi.fn();
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
+// Built on read rather than up front: `vi.mock` is hoisted above the consts
+// below, so naming them in the factory body would run before they exist.
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       jobData: { actions: { findJobInJobArray, getGroupObject } },
     }),
-  },
-}));
+  );
+});
 
 describe("resolveDocumentLockApiTarget", () => {
   it("redirects group member jobs to the group lock", () => {

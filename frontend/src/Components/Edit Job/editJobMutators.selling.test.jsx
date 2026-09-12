@@ -14,11 +14,11 @@ const { store, readOnly } = vi.hoisted(() => ({
   readOnly: { current: false },
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store.current), {
-    getState: () => store.current,
-  }),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 vi.mock("./Edit Job Hooks/useActiveJobDocumentLock", () => ({
   useActiveJobReadOnly: () => readOnly.current,

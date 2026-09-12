@@ -34,8 +34,8 @@ vi.mock("../../Functions/Endpoints/Private/archivedJobsList", async () => {
   return emptyArchiveListMock();
 });
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, archiveStoreState } =
-    await import("../../tests/archiveHarness.jsx");
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  const { archiveStoreState } = await import("../../tests/archiveHarness.jsx");
   return usersStoreMock(archiveStoreState());
 });
 vi.mock("../../Functions/Helper/getCachedData", async () => {

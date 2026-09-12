@@ -1,14 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: {
-    getState: () => ({
-      account: { accountID: "acc-1", isLoggedIn: false },
-      jobData: { jobArray: [], actions: {} },
-      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-    }),
-  },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock();
+});
 
 const { default: findIndustryJobsForItem } =
   await import("./findIndustryJobsForItem.js");

@@ -1,14 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
-      account: { accountID: "acc-1" },
-      jobData: { jobArray: [], actions: {} },
-      applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-    }),
-  },
-}));
+vi.mock("../Zustand/usersStore.js", async () => {
+  const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
+  return usersStoreMock();
+});
 
 const { closeAdjustmentSummary } =
   await import("../Functions/JobPlanner/closeAdjustmentSummary.js");

@@ -4,11 +4,11 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { store } = vi.hoisted(() => ({ store: { current: null } }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store.current), {
-    getState: () => store.current,
-  }),
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 vi.mock("../../Hooks/App/useCachedData", () => ({
   useCachedData: () => ({

@@ -2,15 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 const yieldDocumentLockOnLeave = vi.fn();
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       documentLock: {
         actions: { yieldDocumentLockOnLeave },
       },
     }),
-  },
-}));
+  );
+});
 
 import { yieldEditJobDocumentLocksOnLeave } from "./yieldEditJobDocumentLocksOnLeave.js";
 

@@ -17,11 +17,11 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search.current,
 }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store.current), {
-    getState: () => store.current,
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 vi.mock("../../../Functions/Debounce/jobGroupsPersistSchedule.js", () => ({
   flushPendingGroupSave: async () => {

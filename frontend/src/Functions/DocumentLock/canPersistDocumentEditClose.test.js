@@ -8,11 +8,11 @@ import {
 
 const storeHolder = { current: null };
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => storeHolder.current.getState(),
-  },
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(storeHolder.current.getState()));
+});
 
 import {
   canPersistJobClose,

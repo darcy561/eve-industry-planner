@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("../../../../../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     account: { isLoggedIn: true },
     applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 const { default: OutputHeader } = await import("./outputHeader");

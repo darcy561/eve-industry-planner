@@ -26,16 +26,15 @@ vi.mock("../../../../../../Functions/Installation Costs/installCosts", () => ({
 
 const findJobInJobArray = vi.fn(() => undefined);
 
-vi.mock("../../../../../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
     jobData: {
       actions: { findJobInJobArray: (...a) => findJobInJobArray(...a) },
     },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 vi.mock("../../../../../../Functions/MarketOrders/sellerCharacter", () => ({

@@ -10,9 +10,11 @@ const { store, getActiveGroupObject, fetchTemplateCatalogSummaries } =
     fetchTemplateCatalogSummaries: vi.fn(async () => []),
   }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: (selector) => selector(store.current),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 vi.mock("../../../Functions/Endpoints/Private/groupTemplates", () => ({
   fetchTemplateCatalogSummaries,

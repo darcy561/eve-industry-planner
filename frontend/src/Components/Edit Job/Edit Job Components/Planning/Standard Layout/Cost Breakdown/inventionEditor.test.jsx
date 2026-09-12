@@ -7,14 +7,13 @@ vi.mock("../../../../../../Events/snackbarEvents", () => ({
   showSnackbarError: vi.fn(),
 }));
 
-vi.mock("../../../../../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     account: { accountID: "acc-1", isLoggedIn: true },
     applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 const { default: InventionEditor, invitesInvention } =

@@ -19,7 +19,7 @@ const storeState = await (async () => {
   return archiveStoreState();
 })();
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock } = await import("../../tests/archiveHarness.jsx");
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(storeState);
 });
 
@@ -184,7 +184,7 @@ describe("the archived jobs list, end to end", () => {
     storeState.activePlanner.owner = null;
 
     expect(forOwn).not.toEqual(forCorporation);
-    expect(forOwn[2]).toBe("account:acct-1");
+    expect(forOwn[2]).toBe(`account:${storeState.account.accountID}`);
     expect(forCorporation[2]).toBe("corporation:98000001");
   });
 });

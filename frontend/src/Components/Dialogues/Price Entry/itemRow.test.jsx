@@ -5,11 +5,11 @@ import { TRITANIUM } from "../../../tests/editJobFixtures.js";
 
 const { store } = vi.hoisted(() => ({ store: { current: null } }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store.current), {
-    getState: () => store.current,
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 const { ItemPriceRow } = await import("./itemRow.jsx");
 

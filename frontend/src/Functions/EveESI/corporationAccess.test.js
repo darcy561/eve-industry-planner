@@ -4,9 +4,11 @@ const { account } = vi.hoisted(() => ({
   account: { corporations: [], actions: {} },
 }));
 
-vi.mock("../../Zustand/usersStore", () => ({
-  default: { getState: () => ({ account }) },
-}));
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState({ account }));
+});
 
 import {
   corporationMembers,

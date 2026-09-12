@@ -18,15 +18,15 @@ vi.mock("../../../Functions/Shared/queryExecutionEnabled", () => ({
   isQueryExecutionEnabled: () => true,
 }));
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: {
-    getState: () => ({
-      account: {
-        actions: { findCharacterByHash: () => ({ CharacterHash: "hash" }) },
-      },
-    }),
-  },
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
+    account: {
+      actions: { findCharacterByHash: () => ({ CharacterHash: "hash" }) },
+    },
+  });
+});
 
 // As ESI reports Jita 4-4: race_id is the race that built the station, and the
 // standing is held against that race's faction.

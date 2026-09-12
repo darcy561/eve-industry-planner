@@ -27,8 +27,8 @@ vi.mock("../../Functions/Endpoints/Private/statisticsTotals.js", () => ({
   getAccountTotalsSummary: vi.fn(async () => null),
 }));
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, archiveStoreState } =
-    await import("../../tests/archiveHarness.jsx");
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  const { archiveStoreState } = await import("../../tests/archiveHarness.jsx");
   return usersStoreMock(archiveStoreState());
 });
 vi.mock("../../Styled Components/Charts", async () => {

@@ -3,11 +3,11 @@ import { activePlannerStoreState } from "../../../tests/utils.js";
 
 const state = activePlannerStoreState();
 
-vi.mock("../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(state), {
-    getState: () => state,
-  }),
-}));
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(state));
+});
 
 vi.mock("../../../global-config-app", () => ({
   default: { DEFAULT_ARCHIVE_REFRESH_PERIOD: 2 },

@@ -10,16 +10,15 @@ vi.mock("../../../../../../Events/snackbarEvents", () => ({
   showSnackbarSuccess: (...args) => showSnackbarSuccess(...args),
 }));
 
-vi.mock("../../../../../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     applicationSettings: {
       extrasCategories: [{ id: 0, label: "Unassigned" }],
       actions: { getCurrentLocale: () => "en-GB" },
     },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 vi.mock("../../../../../../Styled Components/Select/extrasCategories", () => ({

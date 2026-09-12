@@ -4,11 +4,11 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { store } = vi.hoisted(() => ({ store: { current: null } }));
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: Object.assign((selector) => selector(store.current), {
-    getState: () => store.current,
-  }),
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
 
 const { default: DocumentLockHeaderControl } =
   await import("./DocumentLockHeaderControl.jsx");

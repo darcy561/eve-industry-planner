@@ -2,19 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { calculateMaterialCostFromChildJobs } from "./materialCostFromChildJobs.js";
 import Job from "../../Classes/job.js";
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
-      jobData: { jobArray: [] },
-      account: { accountID: "acc-1" },
-      worldData: {
-        actions: {
-          findMarketData: () => ({ jita: { sell: 1 } }),
-        },
-      },
-    }),
-  },
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({
+    worldData: { actions: { findMarketData: () => ({ jita: { sell: 1 } }) } },
+  });
+});
 
 describe("calculateMaterialCostFromChildJobs install rollup", () => {
   it("includes child setup install estimates in material cost", () => {

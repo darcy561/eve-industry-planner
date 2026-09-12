@@ -4,8 +4,10 @@ import userEvent from "@testing-library/user-event";
 
 const updatePricingDefault = vi.fn();
 
-vi.mock("../../../Zustand/usersStore", () => {
-  const storeState = {
+vi.mock("../../../Zustand/usersStore", async () => {
+  const { usersStoreMock } =
+    await import("../../../tests/usersStoreHarness.js");
+  return usersStoreMock({
     applicationSettings: {
       defaultPricing: {
         buying: { market: "jita", basis: "sell" },
@@ -24,10 +26,7 @@ vi.mock("../../../Zustand/usersStore", () => {
       },
     },
     account: { characters: [], mainCharacterHash: "main" },
-  };
-  const useUsersStore = (selector) => selector(storeState);
-  useUsersStore.getState = () => storeState;
-  return { default: useUsersStore };
+  });
 });
 
 vi.mock("../../../Hooks/EveEsi/useAssetLocations", () => ({

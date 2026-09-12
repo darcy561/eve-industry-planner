@@ -8,10 +8,12 @@ vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
   saveJobsViaApi: async () => {},
 }));
 
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => ({
-      account: { accountID: "acc-1", isLoggedIn: false },
+// Read fresh each time: the tests fill `store.jobs` after the mock is built.
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() =>
+    usersStoreState({
       jobData: {
         jobArray: [...store.jobs.values()],
         actions: {
@@ -20,12 +22,11 @@ vi.mock("../../Zustand/usersStore.js", () => ({
             (Array.isArray(input) ? input : [...input]).map((i) =>
               typeof i === "string" ? store.jobs.get(i) : i,
             ),
-          updateOrAddJobsToJobArray: () => {},
         },
       },
     }),
-  },
-}));
+  );
+});
 
 const { distributeItemCostsBetweenJobs, passBuildCostsToParentJobs } =
   await import("./passBuildCosts.js");
