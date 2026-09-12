@@ -37,7 +37,7 @@ export function useAuthUrlLogin() {
         return;
       }
 
-      if (await resumeStoredSession({ queryClient })) {
+      if ((await resumeStoredSession({ queryClient })) === "rebuilt") {
         return;
       }
 

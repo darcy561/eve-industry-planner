@@ -8,7 +8,7 @@ const { app } = vi.hoisted(() => ({
     jobArray: [],
     groupArray: [],
     fetched: [],
-    resumes: false,
+    resumes: "no-session",
   },
 }));
 
@@ -56,9 +56,9 @@ vi.mock("../Zustand/usersStore", () => {
 
 vi.mock("../Functions/Auth/resumeStoredSession.js", () => ({
   resumeStoredSession: async () => {
-    if (!app.resumes) return false;
+    if (app.resumes !== "rebuilt") return app.resumes;
     app.isLoggedIn = true;
-    return true;
+    return "rebuilt";
   },
 }));
 
@@ -75,7 +75,7 @@ beforeEach(() => {
   app.jobArray = [];
   app.groupArray = [];
   app.fetched = [];
-  app.resumes = false;
+  app.resumes = "no-session";
 });
 
 describe("walking into a page signed out", () => {
@@ -107,7 +107,7 @@ describe("walking into a page signed out", () => {
 
 describe("walking in with a session to rebuild", () => {
   beforeEach(() => {
-    app.resumes = true;
+    app.resumes = "rebuilt";
   });
 
   it("rebuilds it before a public page is reached", async () => {
@@ -119,7 +119,7 @@ describe("walking in with a session to rebuild", () => {
 
   it("leaves a reader who is already signed in alone", async () => {
     app.isLoggedIn = true;
-    app.resumes = false;
+    app.resumes = "no-session";
 
     const { pathname } = await enterRoute("/jobplanner");
 
@@ -145,6 +145,45 @@ describe("walking in with a session to rebuild", () => {
 
     expect(pathname).toBe("/");
     expect(app.isLoggedIn).toBe(false);
+  });
+});
+
+describe("a session that fails to rebuild", () => {
+  beforeEach(() => {
+    app.resumes = "failed";
+  });
+
+  // Rendering the signed-out planner would hide the loss: the reader still believes
+  // they have a session, and their jobs are simply missing from the page.
+  it.each(["/jobplanner", "/reprocessing", "/itemtrees"])(
+    "sends them from %s to sign in",
+    async (url) => {
+      const { pathname } = await enterRoute(url);
+
+      expect(pathname).toBe("/auth");
+    },
+  );
+
+  it("carries the page they were on, so they come back to it", async () => {
+    const { search } = await enterRoute("/jobplanner?tab=groups");
+
+    expect(search.state).toBe("/jobplanner?tab=groups");
+  });
+
+  it("sends them to sign in from a private page too", async () => {
+    const { pathname } = await enterRoute("/settings");
+
+    expect(pathname).toBe("/auth");
+  });
+
+  // Nothing to lose and nothing to explain: a reader who never had a session is the
+  // signed-out reader the public pages are built for.
+  it("leaves a reader with no session at all on a public page", async () => {
+    app.resumes = "no-session";
+
+    const { pathname } = await enterRoute("/jobplanner");
+
+    expect(pathname).toBe("/jobplanner");
   });
 });
 

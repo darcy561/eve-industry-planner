@@ -1,10 +1,13 @@
 /**
- * Full EVE SSO redirect when the planner session chain is no longer valid.
- * @fileoverview
+ * Whether this reader has to sign in again, and the redirect that acts on it.
  */
 import redirectToEveSSO from "../../Components/Auth/Functions/eveSSORedirect";
+import { isReauthRequired } from "./esiCredentials/errors.js";
 import { clearPlannerAuthCookiesClientSide } from "./plannerAuthCookies.js";
-import { clearTabPlannerSession } from "./tabSessionStorage.js";
+import {
+  clearTabPlannerSession,
+  isPlannerReauthDeadlinePassed,
+} from "./tabSessionStorage.js";
 
 /** API auth codes that require a fresh EVE SSO login (not rotate/bootstrap). */
 export const PLANNER_TERMINAL_AUTH_CODES = new Set([
@@ -92,23 +95,43 @@ export function errorIndicatesTerminalPlannerAuth(err) {
 }
 
 /**
- * When the server reports a terminal planner auth state, start full EVE SSO immediately.
- * @param {unknown} errOrCode - Error with `.code` or a raw API code string
- * @returns {boolean} True when a redirect was triggered
+ * The deadline is read first and with no signal at all, so a session the server has
+ * already timed out is a demand in its own right rather than something each caller
+ * remembers to test separately.
+ *
+ * @param {unknown} [signal] - A `Response`'s parsed code, an `Error` (planner or ESI
+ *   credential), a raw API code string, or nothing to ask about the deadline alone.
+ * @returns {boolean}
  */
-export function redirectToFullEveLoginIfTerminal(errOrCode) {
+export function reauthDemand(signal) {
+  if (isPlannerReauthDeadlinePassed()) return true;
+  if (signal == null) return false;
+  if (isReauthRequired(signal)) return true;
+
   const code =
-    typeof errOrCode === "string"
-      ? errOrCode
-      : typeof errOrCode?.code === "string"
-        ? errOrCode.code
+    typeof signal === "string"
+      ? signal
+      : typeof signal?.code === "string"
+        ? signal.code
         : null;
-  if (
-    isTerminalPlannerAuthCode(code) ||
-    errorIndicatesTerminalPlannerAuth(errOrCode)
-  ) {
-    redirectToFullEveLogin();
-    return true;
-  }
-  return false;
+  return (
+    isTerminalPlannerAuthCode(code) || errorIndicatesTerminalPlannerAuth(signal)
+  );
+}
+
+/**
+ * Acts on a reauth demand: clears what this tab holds and leaves for EVE SSO.
+ *
+ * Callers do not choose between this and {@link redirectToFullEveLogin} — a demand
+ * always means a full sign-in, because the material a rotate would need is exactly
+ * what is no longer valid. The tab is gone once this returns `true`, so a caller's
+ * remaining work is only about what it must not do next.
+ *
+ * @param {unknown} [signal] - As {@link reauthDemand}.
+ * @returns {boolean} True when the reader is being sent to EVE.
+ */
+export function enforceReauthDemand(signal) {
+  if (!reauthDemand(signal)) return false;
+  redirectToFullEveLogin();
+  return true;
 }

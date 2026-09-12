@@ -1,6 +1,6 @@
 import { runAppLogin } from "./appLoginFlow.js";
 import { startLogin, whenLoginComplete } from "./loginProgress.js";
-import { redirectToFullEveLoginIfTerminal } from "./plannerSessionRedirect.js";
+import { enforceReauthDemand } from "./plannerSessionRedirect.js";
 import { hasResumablePlannerSession } from "./tabSessionStorage.js";
 
 /**
@@ -12,15 +12,20 @@ import { hasResumablePlannerSession } from "./tabSessionStorage.js";
  * steps, not on `runAppLogin`, because that returns once the reader is authenticated
  * with the job and group data still arriving.
  *
- * A terminal credential sends the tab to EVE rather than reporting back — there is
- * nothing a caller could do with it.
+ * A reader the server wants signed in again leaves for EVE rather than being reported
+ * back, so there is no such outcome below: the tab is already going.
+ *
+ * `"failed"` and `"no-session"` are kept apart because a caller has to treat them
+ * differently — a reader who had a session and lost it is asked to sign in again,
+ * while one who never had a session belongs on a public page signed out.
  *
  * @param {Object} p
  * @param {import("@tanstack/react-query").QueryClient} p.queryClient
- * @returns {Promise<boolean>} Whether the session was rebuilt.
+ * @returns {Promise<"rebuilt" | "failed" | "no-session">}
  */
 export async function resumeStoredSession({ queryClient }) {
-  if (!hasResumablePlannerSession()) return false;
+  if (enforceReauthDemand()) return "failed";
+  if (!hasResumablePlannerSession()) return "no-session";
 
   const storedEsiRefresh = localStorage.getItem("Auth");
   const hasLocalEsiRefresh =
@@ -37,10 +42,10 @@ export async function resumeStoredSession({ queryClient }) {
     await runAppLogin({ queryClient, mode });
   } catch (error) {
     console.error("Session resume failed:", error);
-    redirectToFullEveLoginIfTerminal(error);
-    return false;
+    enforceReauthDemand(error);
+    return "failed";
   }
 
   await whenLoginComplete();
-  return true;
+  return "rebuilt";
 }

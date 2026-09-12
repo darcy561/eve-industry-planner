@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockEnsurePlannerSession, mockRedirectToFullEveLogin } = vi.hoisted(
+const { mockEnsurePlannerSession, mockEnforceReauthDemand } = vi.hoisted(
   () => ({
     mockEnsurePlannerSession: vi.fn().mockResolvedValue(undefined),
-    mockRedirectToFullEveLogin: vi.fn(),
+    mockEnforceReauthDemand: vi.fn(
+      (signal) => signal === "reauth_required" || signal === "session_revoked",
+    ),
   }),
 );
 
 vi.mock("../../Auth/plannerSessionRedirect.js", async (importOriginal) => ({
   ...(await importOriginal()),
-  redirectToFullEveLogin: mockRedirectToFullEveLogin,
+  enforceReauthDemand: mockEnforceReauthDemand,
 }));
 
 import useUsersStore from "../../../Zustand/usersStore.js";
@@ -31,7 +33,7 @@ describe("private requests and the planner session", () => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     mockEnsurePlannerSession.mockClear().mockResolvedValue(undefined);
-    mockRedirectToFullEveLogin.mockClear();
+    mockEnforceReauthDemand.mockClear();
     useUsersStore.setState((s) => ({
       ...s,
       account: {
@@ -93,7 +95,7 @@ describe("private requests and the planner session", () => {
       requestWithPrivateHeaders("/api/v1/thing", {}, { retry: false }),
     ).rejects.toMatchObject({ status: 401 });
 
-    expect(mockRedirectToFullEveLogin).toHaveBeenCalledTimes(1);
+    expect(mockEnforceReauthDemand).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

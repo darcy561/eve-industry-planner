@@ -16,6 +16,7 @@ vi.mock("../../Functions/Endpoints/Private/corporationClaims.js", () => ({
 import useUsersStore from "../usersStore.js";
 import esiCredentials from "../../Functions/Auth/esiCredentials/provider.js";
 import {
+  TAB_REAUTH_REQUIRED_AT_KEY,
   TAB_REFRESH_TOKEN_KEY,
   TAB_SESSION_ID_KEY,
 } from "../../Functions/Auth/tabSessionStorage.js";
@@ -71,6 +72,9 @@ describe("planner session recovery", () => {
     sessionStorage.setItem(TAB_REFRESH_TOKEN_KEY, "dead-refresh-token");
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    // The redirect is a module-level mock, so a test that asserts nothing redirected
+    // reads the previous test's redirect without this.
+    mockRedirectToEveSSO.mockClear();
     seedLoggedInAccount();
   });
 
@@ -92,6 +96,18 @@ describe("planner session recovery", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(ROTATE_URL);
     expect(mockRedirectToEveSSO).toHaveBeenCalledTimes(1);
     expect(sessionStorage.getItem(TAB_REFRESH_TOKEN_KEY)).toBeNull();
+  });
+
+  // The consolidation made the deadline a reauth demand like any other, so this is the
+  // one path where a rotate is refused before any HTTP happens at all.
+  it("starts a full EVE login instead of rotating past the reauth deadline", async () => {
+    const past = Math.floor(Date.now() / 1000) - 60;
+    sessionStorage.setItem(TAB_REAUTH_REQUIRED_AT_KEY, String(past));
+
+    await useUsersStore.getState().account.actions.ensurePlannerSession();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockRedirectToEveSSO).toHaveBeenCalledTimes(1);
   });
 
   // The pre-fix server behaviour: an uncoded 401. Nothing can classify it, so the tab keeps its dead
@@ -154,7 +170,6 @@ describe("planner session recovery", () => {
       jsonResponse(200, {
         session_id: "session-2",
         refresh_token: "fresh-refresh-token",
-        refresh_token_exp: Math.floor(Date.now() / 1000) + 3600,
       }),
     );
     await actions.ensurePlannerSession();

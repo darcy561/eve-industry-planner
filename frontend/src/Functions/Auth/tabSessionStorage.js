@@ -9,7 +9,6 @@ import { hasCloudOAuthStorageServerHint } from "./plannerAuthCookies.js";
 
 export const TAB_SESSION_ID_KEY = "eip_tab_session_id";
 export const TAB_REFRESH_TOKEN_KEY = "eip_tab_refresh_token";
-export const TAB_REFRESH_TOKEN_EXP_KEY = "eip_tab_refresh_token_exp";
 export const TAB_REAUTH_REQUIRED_AT_KEY = "eip_tab_reauth_required_at";
 
 /** @returns {boolean} */
@@ -40,25 +39,9 @@ export function getTabPlannerRefreshToken() {
 }
 
 /**
- * @returns {number|null}
- */
-export function getTabPlannerRefreshTokenExp() {
-  if (!hasSessionStorage()) {
-    return null;
-  }
-  const raw = sessionStorage.getItem(TAB_REFRESH_TOKEN_EXP_KEY);
-  if (raw == null || raw === "") {
-    return null;
-  }
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
  * @param {object} [partial]
  * @param {string|null} [partial.sessionID]
  * @param {string|null} [partial.refreshToken]
- * @param {number|null} [partial.refreshTokenEXP]
  * @param {number|null} [partial.reauthRequiredAt]
  */
 export function persistTabPlannerSession(partial) {
@@ -85,19 +68,6 @@ export function persistTabPlannerSession(partial) {
       sessionStorage.setItem(TAB_REFRESH_TOKEN_KEY, rt);
     } else {
       sessionStorage.removeItem(TAB_REFRESH_TOKEN_KEY);
-    }
-  }
-  if (partial.refreshTokenEXP !== undefined) {
-    if (
-      partial.refreshTokenEXP != null &&
-      Number.isFinite(Number(partial.refreshTokenEXP))
-    ) {
-      sessionStorage.setItem(
-        TAB_REFRESH_TOKEN_EXP_KEY,
-        String(partial.refreshTokenEXP),
-      );
-    } else {
-      sessionStorage.removeItem(TAB_REFRESH_TOKEN_EXP_KEY);
     }
   }
   if (partial.reauthRequiredAt !== undefined) {
@@ -132,10 +102,6 @@ export function persistTabPlannerSessionFromAuthResponse(authResponse) {
     authResponse.refresh_token.trim()
       ? authResponse.refresh_token.trim()
       : null;
-  const refreshTokenEXP =
-    authResponse.refresh_token_exp ??
-    authResponse.refresh_token_expires_at ??
-    null;
   const reauthRequiredAt =
     authResponse.reauth_required_at != null
       ? Number(authResponse.reauth_required_at)
@@ -144,7 +110,6 @@ export function persistTabPlannerSessionFromAuthResponse(authResponse) {
   persistTabPlannerSession({
     ...(sessionID && { sessionID }),
     ...(refreshToken && { refreshToken }),
-    ...(refreshTokenEXP != null && { refreshTokenEXP: refreshTokenEXP }),
     ...(reauthRequiredAt != null &&
       Number.isFinite(reauthRequiredAt) && { reauthRequiredAt }),
   });
@@ -157,7 +122,6 @@ export function clearTabPlannerSession() {
   }
   sessionStorage.removeItem(TAB_SESSION_ID_KEY);
   sessionStorage.removeItem(TAB_REFRESH_TOKEN_KEY);
-  sessionStorage.removeItem(TAB_REFRESH_TOKEN_EXP_KEY);
   sessionStorage.removeItem(TAB_REAUTH_REQUIRED_AT_KEY);
 }
 
@@ -197,15 +161,18 @@ export function isPlannerReauthDeadlinePassed() {
 }
 
 /**
- * Whether cold reload can rebuild client auth without a fresh EVE SSO redirect.
+ * Whether this browser holds credentials a cold reload could rebuild auth from.
  * Local accounts require `localStorage["Auth"]`; cloud accounts use the routing cookie
  * (tab refresh alone is not enough for local — bootstrap still needs `eve_token`).
+ *
+ * Says nothing about whether the reader is *allowed* to resume: a session past its
+ * reauth deadline still has its credentials sitting here. `reauthDemand` answers that,
+ * and keeping the two apart is what lets a caller tell a timed-out session from a
+ * browser that never had one.
+ *
  * @returns {boolean}
  */
 export function hasResumablePlannerSession() {
-  if (isPlannerReauthDeadlinePassed()) {
-    return false;
-  }
   if (hasCloudOAuthStorageServerHint()) {
     return true;
   }

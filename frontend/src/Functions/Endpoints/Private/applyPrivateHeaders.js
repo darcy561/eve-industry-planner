@@ -12,9 +12,8 @@ import {
   tabPlannerSessionRequestHeaders,
 } from "../../Auth/tabSessionStorage.js";
 import {
-  isTerminalPlannerAuthCode,
+  enforceReauthDemand,
   parsePlannerAuthCodeFromResponse,
-  redirectToFullEveLogin,
 } from "../../Auth/plannerSessionRedirect.js";
 import { applyLockHeldElsewhereFromApiBody } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
@@ -135,12 +134,7 @@ async function responseIndicatesSessionMissing(res) {
  * @returns {Promise<boolean>}
  */
 async function handleTerminalPlannerAuthResponse(res) {
-  const code = await parsePlannerAuthCodeFromResponse(res);
-  if (isTerminalPlannerAuthCode(code)) {
-    redirectToFullEveLogin();
-    return true;
-  }
-  return false;
+  return enforceReauthDemand(await parsePlannerAuthCodeFromResponse(res));
 }
 
 /** Resolves planner session id for this tab (sessionStorage, then Zustand). */

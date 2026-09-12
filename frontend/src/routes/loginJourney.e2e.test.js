@@ -13,6 +13,7 @@ const { app } = vi.hoisted(() => ({
   app: {
     isLoggedIn: false,
     storedSession: true,
+    reauthDue: false,
     activeGroupID: null,
     jobArray: [],
     groupArray: [],
@@ -66,6 +67,8 @@ vi.mock("../Zustand/usersStore", () => {
 vi.mock("../Functions/Auth/tabSessionStorage.js", () => ({
   hasResumablePlannerSession: () => app.storedSession,
   getTabPlannerRefreshToken: () => "tab-refresh",
+  isPlannerReauthDeadlinePassed: () => app.reauthDue,
+  clearTabPlannerSession: () => {},
 }));
 
 // Stands in for the network: signs the reader in, then reports the same four steps the
@@ -91,6 +94,7 @@ const { enterRoute } = await import("../tests/routerHarness.jsx");
 beforeEach(() => {
   app.isLoggedIn = false;
   app.storedSession = true;
+  app.reauthDue = false;
   app.activeGroupID = null;
   app.jobArray = [];
   app.groupArray = [

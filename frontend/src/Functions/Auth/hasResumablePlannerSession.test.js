@@ -38,11 +38,11 @@ describe("hasResumablePlannerSession", () => {
     expect(hasResumablePlannerSession()).toBe(true);
   });
 
-  it("returns false when the stored reauth deadline has passed", () => {
+  it("still reports credentials that are past their reauth deadline", () => {
     document.cookie = `${EIP_ESI_OAUTH_STORAGE_COOKIE}=server; Path=/`;
     const past = Math.floor(Date.now() / 1000) - 60;
     sessionStorage.setItem(TAB_REAUTH_REQUIRED_AT_KEY, String(past));
-    expect(hasResumablePlannerSession()).toBe(false);
+    expect(hasResumablePlannerSession()).toBe(true);
   });
 
   it("returns false when no resume material exists", () => {

@@ -44,7 +44,7 @@ function arriveAt(search) {
 beforeEach(() => {
   vi.clearAllMocks();
   calls.importWindow.mockResolvedValue(false);
-  calls.resume.mockResolvedValue(false);
+  calls.resume.mockResolvedValue("no-session");
   calls.runAppLogin.mockResolvedValue(undefined);
 });
 
@@ -63,13 +63,28 @@ describe("arriving at the callback", () => {
   });
 
   it("rebuilds a stored session when there is no code", async () => {
-    calls.resume.mockResolvedValue(true);
+    calls.resume.mockResolvedValue("rebuilt");
 
     arriveAt("?state=/jobplanner");
 
     await waitFor(() => expect(calls.resume).toHaveBeenCalled());
     expect(calls.fullEveLogin).not.toHaveBeenCalled();
   });
+
+  // Only a rebuilt session means the reader is in. Every other outcome has to reach
+  // EVE, which is what a truthiness check on the outcome quietly stops happening.
+  it.each(["no-session", "failed"])(
+    "sends them to EVE when the resume answers %s",
+    async (outcome) => {
+      calls.resume.mockResolvedValue(outcome);
+
+      arriveAt("?state=/jobplanner");
+
+      await waitFor(() =>
+        expect(calls.fullEveLogin).toHaveBeenCalledWith("/jobplanner"),
+      );
+    },
+  );
 
   // The guard sends a reader here from the page they actually asked for, and names it
   // in `state`. Leaving without it would carry `/auth`, which is nowhere to be put

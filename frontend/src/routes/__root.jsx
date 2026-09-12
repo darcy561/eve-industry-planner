@@ -37,12 +37,16 @@ export const Route = createRootRoute({
     const { audience, resumeSession } = routeBeingEntered(matches);
     if (audience === "transient") return;
 
+    let resumed = "no-session";
     if (!state.account.isLoggedIn && resumeSession) {
-      await resumeStoredSession({ queryClient });
+      resumed = await resumeStoredSession({ queryClient });
     }
 
+    // A reader who had a session and lost it is asked to sign in again whatever the
+    // route's audience: dropping them onto a signed-out public page hides the loss,
+    // and the page they are looking at is not the one they thought they had.
     if (
-      audience === "private" &&
+      (resumed === "failed" || audience === "private") &&
       !useUsersStore.getState().account.isLoggedIn
     ) {
       throw redirect({ to: "/auth", search: { state: location.href } });

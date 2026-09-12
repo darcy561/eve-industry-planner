@@ -41,7 +41,7 @@ vi.mock("../Zustand/usersStore", () => {
 });
 
 vi.mock("../Functions/Auth/resumeStoredSession.js", () => ({
-  resumeStoredSession: async () => false,
+  resumeStoredSession: async () => "no-session",
 }));
 
 const { renderRoute } = await import("../tests/routerHarness.jsx");

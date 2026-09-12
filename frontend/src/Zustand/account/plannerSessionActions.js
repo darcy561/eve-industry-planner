@@ -9,20 +9,15 @@ import {
 } from "../../Functions/Auth/sessionClient.js";
 import {
   getTabPlannerRefreshToken,
-  isPlannerReauthDeadlinePassed,
   persistTabPlannerSession,
   persistTabPlannerSessionFromAuthResponse,
 } from "../../Functions/Auth/tabSessionStorage.js";
-import {
-  redirectToFullEveLogin,
-  redirectToFullEveLoginIfTerminal,
-} from "../../Functions/Auth/plannerSessionRedirect.js";
+import { enforceReauthDemand } from "../../Functions/Auth/plannerSessionRedirect.js";
 import { shouldDeferAuthRefreshDueToTranquilityOffline } from "../../Functions/Auth/authRefreshTranquilityGate.js";
 import {
   getEsiAccessToken,
   heldEsiAccessToken,
 } from "../../Functions/Auth/esiCredentials/provider.js";
-import { isReauthRequired } from "../../Functions/Auth/esiCredentials/errors.js";
 import GLOBAL_CONFIG from "../../global-config-app.js";
 import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
@@ -256,8 +251,6 @@ export const plannerSessionActions = (set, get) => ({
               ? false
               : state.account.plannerPrivateAuthReady,
             refreshToken: response.refresh_token ?? null,
-            refreshTokenEXP:
-              response.refresh_token_exp ?? response.refresh_token_expires_at,
             isFirstTimeLogin,
             ...linkedPatch,
             ...(nextHasCompletedFirstLogin !== undefined && {
@@ -371,7 +364,6 @@ export const plannerSessionActions = (set, get) => ({
    *
    * @param {object} partial
    * @param {string} [partial.refreshToken]
-   * @param {number} [partial.refreshTokenEXP]
    */
   setSessionTokens: (partial) => {
     if (!partial) return;
@@ -384,9 +376,6 @@ export const plannerSessionActions = (set, get) => ({
       ...(partial.refreshToken !== undefined && {
         refreshToken: partial.refreshToken,
       }),
-      ...(partial.refreshTokenEXP !== undefined && {
-        refreshTokenEXP: partial.refreshTokenEXP,
-      }),
     });
     set(
       (state) => ({
@@ -398,9 +387,6 @@ export const plannerSessionActions = (set, get) => ({
           }),
           ...(partial.refreshToken !== undefined && {
             refreshToken: partial.refreshToken,
-          }),
-          ...(partial.refreshTokenEXP !== undefined && {
-            refreshTokenEXP: partial.refreshTokenEXP,
           }),
           actions: state.account.actions,
         },
@@ -436,8 +422,7 @@ export const plannerSessionActions = (set, get) => ({
       );
       if (!mainCharacter) return;
 
-      if (isPlannerReauthDeadlinePassed()) {
-        redirectToFullEveLoginIfTerminal("reauth_required");
+      if (enforceReauthDemand()) {
         return;
       }
 
@@ -479,9 +464,7 @@ export const plannerSessionActions = (set, get) => ({
           eveTokenForRefresh = acquired.accessToken;
         } catch (err) {
           if (!cloud) {
-            if (isReauthRequired(err)) {
-              redirectToFullEveLogin();
-            }
+            enforceReauthDemand(err);
             return;
           }
         }
@@ -502,8 +485,6 @@ export const plannerSessionActions = (set, get) => ({
         };
         if (response.refresh_token) {
           tokenPatch.refreshToken = response.refresh_token;
-          tokenPatch.refreshTokenEXP =
-            response.refresh_token_exp ?? response.refresh_token_expires_at;
         }
         get().account.actions.setSessionTokens(tokenPatch);
         set(
@@ -520,7 +501,7 @@ export const plannerSessionActions = (set, get) => ({
         );
         clearPlannerSessionRotateFailure();
       } catch (err) {
-        if (redirectToFullEveLoginIfTerminal(err)) {
+        if (enforceReauthDemand(err)) {
           clearPlannerSessionRotateFailure();
           return;
         }
