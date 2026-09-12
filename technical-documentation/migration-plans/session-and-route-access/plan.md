@@ -283,7 +283,7 @@ tidiness, and it is the fiddliest part of the auth surface.
 |---|---|
 | 1 — the declaration | **Landed.** All 16 routes declare an audience, `utils/routeAccess.js` reads the tree, and the fail-closed test covers a route that declares nothing. Behaviour: [overlay.md](./overlay.md) § What a route declares |
 | 2 — the progress tracker | **Landed.** `Functions/Auth/loginProgress.js` holds step state outside React and `useLoginState` reads it. Behaviour: [overlay.md](./overlay.md) § How login progress is tracked |
-| 3 — one guard | **Landed, with one follow-up.** The root guard owns first login, resume and the private requirement; `allowPublicAccess`, `requireAuth` and `utils/authGuard.js` are gone. Outstanding: a resume that fails on a **public** route currently renders signed-out, and § Settled now says it should start a fresh sign-in. Behaviour: [overlay.md](./overlay.md) § Guarding a route |
+| 3 — one guard | **Landed.** The root guard owns first login, resume and the require; `allowPublicAccess`, `requireAuth` and `utils/authGuard.js` are gone. A resume that fails sends the reader to sign in whatever the route's audience, and the one question of whether a reader must sign in again is now answered in one handler rather than five places. Behaviour: [overlay.md](./overlay.md) § Guarding a route, § When a reader has to sign in again |
 | 4 — the data a page needs | **Landed.** `/editjob/$jobID` and `/group/$groupID` carry loaders, the router has a not-found page and a deliberate preload staleness, and the fetch-or-bounce in the two pages is gone. Behaviour: [overlay.md](./overlay.md) § What a page needs beyond a session |
 | 5 — the handshake | **Landed.** `state` carries where the reader was headed and is checked against the real routes on return; `getRedirectPathAfterAuth` is down to "a route the app has, and not transient"; `storeOriginalPathFromOAuthState` and the `originalPath` key are gone. Behaviour: [overlay.md](./overlay.md) § Signing in and coming back |
 | 6 — the second readers | **Landed.** The side menu asks each route whether a reader may go there, through `canVisitRoute`. Behaviour: [overlay.md](./overlay.md) § Who sees which navigation |
@@ -324,3 +324,8 @@ before.
   describes it correctly, so the two live docs disagree today.
 - [frontend/auth/spa.md](../../frontend/auth/spa.md) § Route guards is accurate for the current code
   and is superseded wholesale by this project's Stage 3.
+- [frontend/auth/spa.md](../../frontend/auth/spa.md) names the account slice field
+  `refreshToken` / `refreshTokenEXP`. `refreshTokenEXP` no longer exists: it was read from
+  `refresh_token_exp` and `refresh_token_expires_at`, which no session response has ever carried, so
+  it was permanently null. The reauth window it was meant to express is `reauth_required_at`, stored
+  as `reauthRequiredAt`. The row becomes `refreshToken` alone.

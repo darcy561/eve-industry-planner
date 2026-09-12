@@ -8,16 +8,28 @@ import {
   Tooltip,
   Alert,
   Button,
+  IconButton,
 } from "@mui/material";
+import { useTransition } from "react";
 import CheckIcon from "@mui/icons-material/Check";
 import ErrorIcon from "@mui/icons-material/Error";
 import { LOGIN_STEPS } from "../../../Events/loginEvents";
+import {
+  canRetryLoginStep,
+  retryLoginStep,
+} from "../../../Functions/Auth/retryLoginStep.js";
 import { useLoginState } from "../Hooks/useLoginState";
 import { LARGE_TEXT_FORMAT } from "../../../Context/defaultValues";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 
-/** One step of the login progress row. */
-function LoadingStep({ title, complete, error }) {
+/**
+ * One step of the login progress row.
+ *
+ * A failed step that can be re-run is a button, so the reader recovers the login
+ * rather than reloading the page and losing what the other steps already fetched.
+ */
+function LoadingStep({ title, complete, error, onRetry, retrying }) {
+  const retryable = error && typeof onRetry === "function";
   return (
     <Grid
       container
@@ -27,7 +39,7 @@ function LoadingStep({ title, complete, error }) {
       }}
     >
       <Grid size={12}>
-        <Tooltip title={error ? "Click to retry" : ""}>
+        <Tooltip title={retryable ? "Click to retry" : ""}>
           <Typography
             align="center"
             sx={{
@@ -46,11 +58,23 @@ function LoadingStep({ title, complete, error }) {
               <CheckIcon />
             </Icon>
           </Zoom>
+        ) : retrying ? (
+          <CircularProgress color="primary" />
         ) : error ? (
           <Zoom in={true}>
-            <Icon sx={{ color: "error.main" }}>
-              <ErrorIcon />
-            </Icon>
+            {retryable ? (
+              <IconButton
+                aria-label={`Retry ${title}`}
+                onClick={onRetry}
+                sx={{ color: "error.main" }}
+              >
+                <ErrorIcon />
+              </IconButton>
+            ) : (
+              <Icon sx={{ color: "error.main" }}>
+                <ErrorIcon />
+              </Icon>
+            )}
           </Zoom>
         ) : (
           <CircularProgress color="primary" />
@@ -62,6 +86,18 @@ function LoadingStep({ title, complete, error }) {
 
 export function UserLogInUI() {
   const { error, isStepComplete, userData } = useLoginState();
+  const [retrying, startRetry] = useTransition();
+
+  // The failed step, when re-running it is an option. Anything else keeps the
+  // reload below, which is the only way back from a step this cannot re-run.
+  // Only one step can be in error at a time, so one flag covers the retry.
+  const retryableStep = canRetryLoginStep(error?.step) ? error.step : null;
+
+  const retryStep = (step) => startRetry(() => retryLoginStep(step));
+
+  /** The props that make a failed step clickable, for the step that failed. */
+  const retryProps = (step) =>
+    retryableStep === step ? { onRetry: () => retryStep(step), retrying } : {};
 
   const getStepName = (step) => {
     switch (step) {
@@ -195,16 +231,19 @@ export function UserLogInUI() {
               title="Building Job Planner"
               complete={isStepComplete(LOGIN_STEPS.JOB_PLANNER)}
               error={error?.step === LOGIN_STEPS.JOB_PLANNER}
+              {...retryProps(LOGIN_STEPS.JOB_PLANNER)}
             />
             <LoadingStep
               title="Building Group Data"
               complete={isStepComplete(LOGIN_STEPS.GROUP_DATA)}
               error={error?.step === LOGIN_STEPS.GROUP_DATA}
+              {...retryProps(LOGIN_STEPS.GROUP_DATA)}
             />
             <LoadingStep
               title="Building Watchlist Data"
               complete={isStepComplete(LOGIN_STEPS.WATCHLIST_DATA)}
               error={error?.step === LOGIN_STEPS.WATCHLIST_DATA}
+              {...retryProps(LOGIN_STEPS.WATCHLIST_DATA)}
             />
           </Grid>
           {error && (
@@ -218,7 +257,12 @@ export function UserLogInUI() {
                 <Button
                   color="inherit"
                   size="small"
-                  onClick={() => window.location.reload()}
+                  disabled={retrying}
+                  onClick={
+                    retryableStep
+                      ? () => retryStep(retryableStep)
+                      : () => window.location.reload()
+                  }
                 >
                   Retry
                 </Button>

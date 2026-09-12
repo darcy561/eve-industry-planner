@@ -67,8 +67,24 @@ match's `staticData`. It runs three things in order for every navigation:
 1. **First login** — an account whose guided flow is incomplete goes to `/first-login`.
 2. **Resume** — for a route that is not `transient` and has not opted out, a reader who is not signed
    in has a stored session rebuilt **in place**, awaited to completion.
-3. **Require** — a `private` route with no signed-in reader redirects to `/auth`, carrying
-   `location.href` — the whole location, search and hash included.
+3. **Require** — a reader with no session redirects to `/auth`, carrying `location.href` — the
+   whole location, search and hash included. Two things trigger it: a `private` route, and a
+   **resume that was attempted and failed**, whatever the route's audience.
+
+That second trigger is why the resume reports which of three things happened rather than a plain
+success flag. Rendering a public page signed out after a failed resume hides the loss: the reader
+still believes they have a session, and their jobs are simply absent from a page that looks
+finished. A reader who never had a session is the opposite case — nothing was lost, and the public
+pages are built for them — so `"failed"` and `"no-session"` cannot be the same answer.
+
+| `resumeStoredSession` returns | When | The guard |
+|---|---|---|
+| `"rebuilt"` | the login ran and its steps completed | renders |
+| `"failed"` | credentials were there and the rebuild did not finish | `/auth`, any audience |
+| `"no-session"` | this browser holds nothing to rebuild from | public renders signed out; private goes to `/auth` |
+
+A reader the server wants signed in again never reaches that table: the reauth demand below has
+already sent the tab to EVE.
 
 `utils/authGuard.js` is gone, with `requireAuth` and `allowPublicAccess` and their seven call sites.
 `_protected.jsx` is a layout that renders an `Outlet` and nothing else; the first-login check it
@@ -99,6 +115,62 @@ mid-read and made the hold look as though it had been ignored. The existing
 pending timings are unchanged, so a fast resume shows nothing at all. The consequence is that
 refreshing a deep URL keeps it — `/editjob/abc?activeGroup=g1&pageView=outputs` is never left, so its
 param and both search values survive without anything capturing or restoring them.
+
+**A step that fails holds the guard, so the reader can re-run it.** The guard waits on every login
+step landing, and a step that fails reports an error rather than completing — so the wait does not
+end and the route stays on the pending screen. That is the right call for the data (a job page drawn
+against a half-built store shows wrong figures, not late ones), but it means the screen the reader is
+held on has to offer a way forward.
+
+`Functions/Auth/retryLoginStep.js` owns which steps can be re-run and how. The three bootstrap steps
+can: their fetches take no arguments, so re-running the one that failed emits its step, resolves the
+completion the guard is awaiting, and lets the route through — without re-fetching what the other
+steps already have. A failed step's icon in `LoginUI` is the button that does it, which is what the
+"Click to retry" tooltip beside it always described.
+
+`CHARACTER_DATA` is deliberately not retryable. `runPostLoginAccountSync` works from the
+`user_document` and `linked_characters` of the login response, and nothing outside that response
+holds them — so recovering it means signing in again, and its alert keeps the reload.
+
+## When a reader has to sign in again
+
+*Stage 3 — landed.*
+
+One question — must this reader sign in again — reached the SPA in three vocabularies and was
+answered in five places, two of which disagreed about what counts. `Functions/Auth/plannerSessionRedirect.js`
+now owns it: `reauthDemand(signal)` classifies, `enforceReauthDemand(signal)` acts, and every caller
+passes whatever it happens to hold.
+
+The three shapes it reads, all of them now one call:
+
+- **A deadline** the server handed over in an auth response, stored per tab as
+  `reauth_required_at`. Read with no signal at all, so a session the server has already timed out
+  is a demand in its own right.
+- **A terminal code** on a rejected request — `reauth_required` or `session_revoked` — whether the
+  caller holds it as a parsed string, an `err.code`, or only inside an error message.
+- **An ESI credential classification**, `EsiCredentialError` carrying `reauth_required`.
+
+`reauthDemand` answers whether there is a demand, not which kind: `reauth_required` and
+`session_revoked` differ in what the server saw and never in what the SPA does about it.
+`enforceReauthDemand` clears the tab session and the client-readable cookies and leaves for EVE SSO,
+returning whether it fired — so a caller's remaining work is only about what it must **not** do
+next: the private request path still throws its 401, and the rotate path still clears its failure
+backoff.
+
+**A demand always means a full EVE sign-in, never `/auth`.** The material a rotate or a resume would
+need is exactly what is no longer valid, so there is nothing for the in-app login to do. Callers do
+not get to choose — the handler is the only thing that acts on a demand, which is what stops the
+request path and the guard answering the same server instruction differently.
+
+**The redirect keeps the reader's place.** `redirectToEveSSO` falls back to
+`${pathname}${search}${hash}`, and the returning `state` is checked against the real route table by
+`getRedirectPathAfterAuth`, so a reauth demand mid-session comes back to the page it interrupted
+rather than to the dashboard.
+
+**`hasResumablePlannerSession` no longer answers this.** It reports only whether this browser holds
+credentials; it used to fold the deadline in and return `false`, which made a timed-out session
+indistinguishable from a browser that never had one. Keeping the two apart is what lets the guard
+tell those cases apart — see the table above.
 
 ## What a page needs beyond a session
 
@@ -194,6 +266,14 @@ so rather than implying more.
 Three mutations confirm the harness bites where the superseded tests could not: declaring a private
 route `public` fails the walk to it, pointing a link at a route the app does not have fails the
 component test that renders it, and removing `defaultNotFoundComponent` fails the screen tests.
+
+**The reauth handler is tested at the classifier**, in `plannerSessionRedirect.test.js`: each of the
+three vocabularies is pinned to the outcome it produces, and so is the case that matters most —
+a recoverable failure (`session_missing`, a recoverable `EsiCredentialError`, a bare network error)
+must classify as no demand, because treating one as terminal would send a reader to EVE for
+something the next request would have fixed. `routes.e2e.test.js` covers the guard side: a failed
+resume reaches `/auth` from a public route carrying the page it left, and a reader with no session
+at all still gets the public page.
 
 ## Signing in and coming back
 
