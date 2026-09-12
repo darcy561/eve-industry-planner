@@ -1,7 +1,8 @@
 # Market pricing defaults — plan
 
-**Status:** Stage A steps 1-6 landed; step 7 waits on the shared-planners release. Stage B: the data is
-published and the walk is built, but nothing consults it yet.
+**Status:** Stage A steps 1-6 landed; step 7 waits on the shared-planners release. Stage B: the rung
+resolves end to end on the Planning stage and the shopping list; only the settings surface is left, and
+it waits on § Open decisions.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Hooks/Planner/`, `Functions/MarketData/`,
 `Styled Components/Select/`, `Zustand/applicationSettings/`, `Classes/shoppingList.js` and the panels
 and dialogues listed in § Stage A; [`services/shared/models/`](../../../services/shared/models/),
@@ -320,14 +321,44 @@ is published alongside it so the setting can offer "Minerals" rather than an id.
 
 1. ~~Publish an item's market group and the group tree.~~ Done (B1).
 2. ~~The stored shape for a group default, and the walk that resolves one.~~ Done (B2, in part).
-3. Consult the walk from the per-material resolution. Rung 3 is **per item**, like rung 1, so it
-   belongs beside `getEffectiveMaterialPriceHub` rather than in the panel-level resolver — a panel
-   default is always concrete, so a rung underneath it could never fire.
-4. Read the published tree and each item's market group in the SPA.
+3. ~~Consult the walk from the per-material resolution.~~ Done (B3). Rung 3 is **per item**, like rung
+   1, so it sits in `getEffectiveMaterialPriceHub`. Making it fire meant the panel default could no
+   longer arrive as a bare value — see [overlay.md](./overlay.md) § B3. Inert until item 4 supplies
+   the tree and the item's own group.
+4. ~~Read the published tree and each item's market group in the SPA.~~ Done (B4).
 5. A settings surface for choosing a group and what it prices against, per side.
 
 **Done when** a player can say "price minerals from Jita buy orders" once and have every mineral on
 every job follow it, without touching a row.
+
+## Stage N — One vocabulary for a market and a basis
+
+**Frontend only, no behaviour change.** Deferred deliberately: it is a rename, it spans more code than
+this project owns, and it is better done once, whole, than in pieces as each stage passes through.
+
+The same two values travel under four names between the store and the screen:
+
+| Layer | Names | Occurrences |
+|-------|-------|-------------|
+| Stored shape (Go) | `Market` / `Basis` | — |
+| The ladder | `marketDisplay` / `orderDisplay` | 70, across 20 files |
+| A material row | `marketSelect` / `listingSelect` | 157, across 24 files |
+| The Select components and the panels wiring them | `marketLocation` / `orderType` | — |
+| The Reprocessing reducer's own state | `marketLocation` / `marketListing` | — |
+
+Each layer converts once and passes on, so nothing is wrong — this is friction for a reader tracing a
+figure, not a defect, which is why it is a task of its own rather than a fix.
+
+**The row-level name is the dominant one, not the ladder's.** That is the opposite of what it looks
+like from inside this project, whose own modules are all ladder-side. `marketSelect` / `listingSelect`
+is entrenched in `Functions/Groups/`, `childJobTotals`, `materialCostFromChildJobs`, Cost Breakdown and
+the Materials drawer and table — none of which this project introduced or has reason to touch. Decide
+the direction from the whole SPA rather than from the pricing modules, and settle the Select props and
+the Reprocessing reducer's state names in the same pass; doing the inner two alone leaves three
+vocabularies instead of four.
+
+**Wire compatibility:** none. The Go field names do not move, and nothing renamed here is persisted or
+crosses a process boundary.
 
 ## Non-goals
 
@@ -386,8 +417,11 @@ until then a key naming something the other side never had throws only when firs
 | Phase 1 — project folder and docs | Done |
 | Stage A — retire the single account default | Steps 1-6 landed; step 7 waits on the release |
 | Stage B1 — publishing the market group data | Done |
-| Stage B2 — the stored shape and the walk | Done; nothing consults it yet |
-| Stage B3 — wiring the rung, and the settings surface | Not started |
+| Stage B2 — the stored shape and the walk | Done |
+| Stage B3 — the rung in the ladder | Done |
+| Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
+| Stage B5 — the settings surface | Not started; waits on § Open decisions |
+| Stage N — one vocabulary for a market and a basis | Not started; deliberately deferred |
 
 ## Start here
 
@@ -405,10 +439,13 @@ single pair does not, so the stored pair goes stale rather than wrong. A session
 code would read the stale one. That is a deploy-window consideration, not a data question — the
 server never overwrites a filled side.
 
-**Stage B is where the work is, and it does not wait on the release.** Its next piece is § Stage B,
-§ The work item 3: consulting the walk from the per-material resolution. Rung 3 is per item, so it
-belongs beside `getEffectiveMaterialPriceHub`, not in the panel-level resolver — a panel default is
-always concrete, so nothing underneath it could ever fire.
+**Stage B's remaining piece is the settings surface** — § Stage B, § The work item 5. Everything
+beneath it resolves: an account's group table is walked per material on the Planning stage and on the
+shopping list, and a group default outranks the account default while losing to a job's own choice.
+What is missing is any way for a player to *set* one, so the table is only ever filled by hand today.
+
+That item waits on § Open decisions: a group table on the selling side has to offer either a basis or
+an exit route, and that is not settled. Nothing else blocks it.
 
 Read § Two axes, both called buy and sell before naming anything, and § Traps this work has already
 fallen into before changing a stored shape. Both cost a slice each the first time.

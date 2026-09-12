@@ -166,5 +166,115 @@ names a parent it does not carry, so those two guards are defensive rather than 
 cap sits far above the real depth on purpose, so a legitimate deepening of EVE's tree is not silently
 truncated.
 
-Still to wire: the per-material resolution consulting this rung, the SPA reading the published tree,
-and the settings surface for choosing a group.
+Still to wire: the SPA reading the published tree, and the settings surface for choosing a group.
+
+### B3 — Where the walk sits in the ladder
+
+The rung is consulted from `getEffectiveMaterialPriceHub`, which is the one place a material row's
+hub and basis are decided. It sits between a row's own override and the panel default, and it is
+answered per axis like every other rung: a group naming a market and no basis narrows one and leaves
+the other.
+
+**The panel default had to stop being a single value for this to work.** `resolvePricingSide` collapses
+job override, account default and global into one answer, and a group default has to beat two of those
+three and lose to the first. Handed `"jita"` there is no way to tell which rung said it, so a group
+would have overruled a job the player had explicitly set. `resolvePricingSideRungs` answers the same
+ladder and reports **which rung answered each axis** alongside the value; `resolvePricingSide` is now a
+thin call onto it, so the two can never disagree about the ladder. `PRICING_RUNG` names the three rungs
+that function itself walks — the row override above it and the group walk below are applied by whoever
+holds the data for them, and are never returned from it.
+
+`useEffectiveMarketHubFromLayout` returns the rungs too. A caller with nothing to insert underneath
+reads the two values and ignores the rest, which is every caller except Materials & Sourcing.
+
+**Costing the four bases suspends the basis rung.** `materialCostByBasis` asks what the job would cost
+on each basis in turn, so a group default naming a basis would answer all four identically and flatten
+the comparison into one figure repeated four times. That axis is marked `SUPPRESSED` rather than being
+given the job's rung: the basis is not a rung question for that call at all, and borrowing the job's
+would read as a choice the player never made. The group's *market* still applies to every candidate,
+because the market is not the axis being varied.
+
+**The walk answers only where it was told what it is displacing.** `beneathTheJob` fires for the
+account and global rungs and yields for everything else, including a rung that was not named at all —
+a caller holding the walk's data also holds the rungs, because the panel resolver returns both, so an
+absent one means a caller that does not know about the rung rather than an account default waiting to
+be displaced. Yielding loses the feature for that caller; guessing would overrule a job the player set.
+
+**Rung 1's "empty" is not the ladder's.** Every rung below the row override treats `""` as no choice,
+but the override is read with `??`, so an empty string stored there answers and the group rung beneath
+it never fires. It is not reachable from the panel — `normalizeOverrideEntry` clears to `null` and
+drops an entry once both axes are null — so this is an inconsistency in the rule rather than a defect
+with a symptom. It is pinned by a test so the asymmetry is not silently "tidied" into `||`, which would
+change what a stored empty override means.
+
+**The rung stays optional.** `groupPricing` is absent wherever the walk cannot answer — no tree loaded,
+or an account with no group defaults, which is the common case — and the ladder then reads exactly as it
+did before the rung existed rather than answering from half the data.
+
+### B4 — Reading the tree in the SPA
+
+`marketGroups.json` is registered as a static data file like every other: a `getMarketGroups` reader in
+`getCachedData`, and an entry in `useCachedData`'s `READERS`. Nothing else about static data changed —
+`refreshStaticDataCache` already downloads every key the server publishes, so the file was reaching the
+browser before anything read it.
+
+**The rung needs a synchronous read, so the tree is held outside React Query.**
+`Functions/MarketData/marketGroupData.js` holds the tree and the item list, primed once from
+`useFetchStaticDataFiles` beside the existing refresh. Reading is then a plain lookup that reports
+absence. This is not a second cache of the files — it is a synchronous view onto the same Cache API
+payloads, which the rung cannot do without: the walk runs per material on every row of every job, and
+`shoppingList.calculateTotalValue` prices from a class method where no hook can be called.
+
+A React Query read was tried first and rejected. Calling `useCachedData` from `useMaterialsSourcing`
+gives the panel hook a `QueryClientProvider` requirement, which broke every test rendering it through
+`renderHook` — a pricing hook acquiring a transport dependency to read two static files is the wrong
+trade.
+
+**One builder answers "can the rung fire", for both callers.** `groupPricingFor` holds that rule;
+`useMaterialGroupPricing` is a `useMemo` over it, and the shopping list calls it directly. Two copies
+would let the panel and the list disagree about whether a group default applies to the same material.
+
+**The shopping list resolves the rung per item.** It carries no job and no per-item override, so the
+walk is the only rung above the account default there — but it is still per item, so it moved inside
+the loop rather than being resolved once for the list.
+
+**An item's market group is a field on the item list.** `FullItem.market_group_id` is read from the
+list every consumer already holds, rather than copied into a second structure.
+
+## Consolidation
+
+Work the stages left behind, folded back together once the surface had settled.
+
+### Market links resolve their target in one place
+
+The four price-link components — `Typography/marketData`, `IconButton/marketData` and the two
+`marketHistory` twins — each carried a verbatim copy of the same fallback: no market given, so resolve
+the account's default for the side being priced, then look the id up in `MARKET_OPTIONS`. Comment
+included. That rule now lives once, in `Functions/MarketData/marketLinkTarget.js`, which the four call.
+
+It matters beyond tidiness because [market-price-delivery](../market-price-delivery/contents.md) retires
+`MARKET_OPTIONS` for a source registry admitting reader-saved markets. That change had four landing
+sites here and now has one.
+
+Two things changed in the folding, both deliberate:
+
+- **A link follows the account's default.** The copies read the store through `getState()` during
+  render, so a link kept pointing at whatever the market was when the component first rendered. The
+  helper takes `accountPricing` from a subscribed read instead.
+- **A market id given as a string is looked up once.** The copies tested "nothing given" before testing
+  "given as a string", so a string id fell through the default branch first and was resolved twice.
+
+### The watchlist resolves both sides once
+
+A watched item is costed on both sides at once — its materials are bought, the item itself is valued at
+what it would fetch — which makes the watchlist the only surface reading both account defaults.
+`ItemRow` and `ItemRowExpanded` each held an identical copy of that pair, comments and all, and
+`itemWatchContainer` re-derived the buying basis a third time for a column header.
+`useWatchlistPricing` now holds it, and all three read through it.
+
+### One unguarded price read
+
+`addMaterialCosts.jsx` indexed `materialPrice[market][basis]` with no guard, the shape § A3 guarded in
+three other files. It was not reachable to throw — every rung feeding it draws from `MARKET_OPTIONS`,
+which `findMarketData`'s empty default always carries — but a market group id is not drawn from that
+list, so wiring the group rung into that component would have made it the fourth throw site.
