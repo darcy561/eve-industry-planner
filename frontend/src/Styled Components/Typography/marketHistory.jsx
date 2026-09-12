@@ -1,13 +1,8 @@
 import { Typography, Tooltip } from "@mui/material";
-import {
-  PRICING_SIDE,
-  resolvePricingSide,
-} from "../../Functions/MarketData/pricingSide.js";
+import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
+import { resolveMarketLinkTarget } from "../../Functions/MarketData/marketLinkTarget.js";
 import { showPriceHistoryDialogue } from "../../Events/dialogueEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import GLOBAL_CONFIG from "../../global-config-app";
-
-const { MARKET_OPTIONS, DEFAULT_REGION } = GLOBAL_CONFIG;
 
 /**
  * A clickable typography component that opens the price history dialogue.
@@ -32,24 +27,17 @@ function MarketHistoryDialogueTriggerText({
   tooltipPlacement = "top",
   side = PRICING_SIDE.BUYING,
 }) {
-  let marketRegion = regionID;
-
-  if (!marketRegion) {
-    // The market a link points at is the one the figure beside it came from.
-    // Where a caller has none to give, the side it is pricing decides.
-    const { marketDisplay } = resolvePricingSide({
-      accountPricing:
-        useUsersStore.getState().applicationSettings.defaultPricing,
-      side,
-    });
-    marketRegion =
-      MARKET_OPTIONS.find((i) => i.id === marketDisplay) ??
-      MARKET_OPTIONS.find((i) => i.regionID === DEFAULT_REGION);
-  }
-
-  if (typeof marketRegion === "string") {
-    marketRegion = MARKET_OPTIONS.find((i) => i.id === marketRegion);
-  }
+  // Read through the store rather than a snapshot, so a link follows the
+  // account's default changing rather than pointing at a stale market.
+  const accountPricing = useUsersStore(
+    (state) => state.applicationSettings.defaultPricing,
+  );
+  const marketRegion = resolveMarketLinkTarget({
+    given: regionID,
+    side,
+    accountPricing,
+    needsRegion: true,
+  });
 
   return (
     <Tooltip title={tooltipText} arrow placement={tooltipPlacement}>

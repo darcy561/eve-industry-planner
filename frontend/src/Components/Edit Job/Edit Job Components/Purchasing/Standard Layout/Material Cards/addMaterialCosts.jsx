@@ -117,7 +117,7 @@ export function AddMaterialCost_Purchasing({
             type="number"
             label="Price"
             name="itemCostInput"
-            defaultValue={materialPrice[marketDisplay][orderDisplay]}
+            defaultValue={materialPrice?.[marketDisplay]?.[orderDisplay] ?? 0}
             fullWidth
             sx={{
               "& .MuiInputBase-root": {

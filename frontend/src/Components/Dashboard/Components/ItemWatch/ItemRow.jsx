@@ -1,7 +1,4 @@
-import {
-  PRICING_SIDE,
-  resolvePricingSide,
-} from "../../../../Functions/MarketData/pricingSide.js";
+import { useWatchlistPricing } from "./useWatchlistPricing.js";
 import {
   FormControl,
   FormHelperText,
@@ -38,21 +35,7 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   const { setUserWatchlistItems } = useUsersStore.getState().jobData.actions;
 
-  // A watched item is costed on both sides: its materials are bought, and the
-  // item itself is valued at what it would fetch.
-  const accountPricing = useUsersStore(
-    (state) => state.applicationSettings.defaultPricing,
-  );
-  const buying = resolvePricingSide({
-    accountPricing,
-    side: PRICING_SIDE.BUYING,
-  });
-  // Only the market: the column states what listing the item would fetch, so the
-  // sell price is the figure it wants whatever basis the account prices on.
-  const { marketDisplay: sellingMarket } = resolvePricingSide({
-    accountPricing,
-    side: PRICING_SIDE.SELLING,
-  });
+  const { buying, sellingMarket } = useWatchlistPricing();
   const marketData = useUsersStore((state) => state.worldData.marketData);
 
   const { getCustomStructureWithID } =

@@ -1,13 +1,8 @@
 import { Typography, Tooltip } from "@mui/material";
-import {
-  PRICING_SIDE,
-  resolvePricingSide,
-} from "../../Functions/MarketData/pricingSide.js";
+import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
+import { resolveMarketLinkTarget } from "../../Functions/MarketData/marketLinkTarget.js";
 import { showMarketDataDialogue } from "../../Events/dialogueEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import GLOBAL_CONFIG from "../../global-config-app";
-
-const { MARKET_OPTIONS } = GLOBAL_CONFIG;
 
 /**
  * A clickable typography component that opens the market data dialogue.
@@ -32,22 +27,16 @@ function MarketDataDialogueTriggerText({
   tooltipPlacement = "top",
   side = PRICING_SIDE.BUYING,
 }) {
-  let marketLocation = locationID;
-
-  if (!marketLocation) {
-    // The market a link points at is the one the figure beside it came from.
-    // Where a caller has none to give, the side it is pricing decides.
-    const { marketDisplay } = resolvePricingSide({
-      accountPricing:
-        useUsersStore.getState().applicationSettings.defaultPricing,
-      side,
-    });
-    marketLocation = MARKET_OPTIONS.find((i) => i.id === marketDisplay);
-  }
-
-  if (typeof marketLocation === "string") {
-    marketLocation = MARKET_OPTIONS.find((i) => i.id === marketLocation);
-  }
+  // Read through the store rather than a snapshot, so a link follows the
+  // account's default changing rather than pointing at a stale market.
+  const accountPricing = useUsersStore(
+    (state) => state.applicationSettings.defaultPricing,
+  );
+  const marketLocation = resolveMarketLinkTarget({
+    given: locationID,
+    side,
+    accountPricing,
+  });
 
   return (
     <Tooltip title={tooltipText} arrow placement={tooltipPlacement}>

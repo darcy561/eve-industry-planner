@@ -1,8 +1,5 @@
 import { useMemo } from "react";
-import {
-  PRICING_SIDE,
-  resolvePricingSide,
-} from "../../../../Functions/MarketData/pricingSide.js";
+import { useWatchlistPricing } from "./useWatchlistPricing.js";
 import { Typography, Grid } from "@mui/material";
 
 import useUsersStore from "../../../../Zustand/usersStore";
@@ -11,21 +8,7 @@ import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser
 import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
 
 export function ExpandedWatchlistRow({ mat }) {
-  // The material's own materials are bought; the material itself is compared
-  // against what it would fetch, so the row reads both sides.
-  const accountPricing = useUsersStore(
-    (state) => state.applicationSettings.defaultPricing,
-  );
-  const buying = resolvePricingSide({
-    accountPricing,
-    side: PRICING_SIDE.BUYING,
-  });
-  // Only the market: the row states what the material would fetch listed, so the
-  // sell price is the figure it wants whatever basis the account prices on.
-  const { marketDisplay: sellingMarket } = resolvePricingSide({
-    accountPricing,
-    side: PRICING_SIDE.SELLING,
-  });
+  const { buying, sellingMarket } = useWatchlistPricing();
   const { findMarketData } = useUsersStore.getState().worldData.actions;
   const marketData = useUsersStore((state) => state.worldData.marketData);
 
