@@ -33,7 +33,6 @@ export const accountStateDefault = () => ({
   plannerPrivateAuthReady: true,
   /** Per-tab planner refresh token (mirrors sessionStorage; see tabSessionStorage.js). */
   refreshToken: null,
-  refreshTokenEXP: null,
   /** From login response: Mongo first-login (new account) flag. */
   isFirstTimeLogin: false,
   /** Persisted on Mongo `users`: first-login guided flow completed (`user_document.hasCompletedFirstLoginFlow`). */
