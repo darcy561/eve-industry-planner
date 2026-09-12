@@ -64,10 +64,11 @@ A ship in space is not asked either. Its item id sits in the same range a struct
 tells the two apart is what is filed inside it rather than the id: a holder outside the asset set is
 settled as a ship, not a structure, when what it holds carries a fitting-slot, bay or cargo flag
 (`assetLocationConstants.isShipHoldFlag`). `Functions/Assets/assetLocationIds.js`'s
-`unnameableLocationIds` collects those ids, and every surface handing location ids to
-`useLocationNames` — the tree, the location dropdown, the "where is this held" dialogue, the
-blueprint library's locations — filters through it, so an id that was never going to resolve is
-never asked about.
+`unnameableLocationIds` collects those ids, and the surfaces that walk the nodes themselves — the
+tree, the "where is this held" dialogue, the blueprint library's locations — filter through it. The
+location dropdown needs no filter: it takes its ids from `assetLocationIds`, which admits only the
+place kinds, so a ship never reaches it. Either way an id that was never going to resolve is never
+asked about.
 
 ## Asking every character for a structure
 

@@ -42,8 +42,9 @@ export default function assetLocationIds(collection) {
  * in. Asked of ESI as a place it is refused, for every character, on every ask, and a refusal costs
  * five times what an answer does against the error budget.
  *
- * Every surface that hands location ids to `useLocationNames` filters through this, so a new one
- * cannot quietly reintroduce the storm.
+ * Every surface that walks the nodes itself filters through this, so a new one cannot quietly
+ * reintroduce the storm. A caller taking its ids from `assetLocationIds` above needs no filter —
+ * that one admits only the place kinds, and a ship is not among them.
  *
  * @param {import("./buildAssetNodes").AssetCollection} collection
  * @returns {Set<number>}

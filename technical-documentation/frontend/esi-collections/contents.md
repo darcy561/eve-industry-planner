@@ -33,3 +33,4 @@ fetched at login.
 | Add a collection to the login prefetch, or change when one is fetched | [prefetch.md](./prefetch.md) § The collection table |
 | Decide whether a corporation endpoint is fetched once or per member | [blueprints.md](./blueprints.md) § Corporation blueprints as a single access point |
 | Resolve a location or container id into a name | [location-names.md](./location-names.md) |
+| Show a location whose name is refused, absent, or could not be resolved | [assets.md](./assets.md) § Assembling a view, [location-names.md](./location-names.md) § What a lookup can settle on |
