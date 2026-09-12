@@ -1,7 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { create } from "zustand";
 
 vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   acquireDocumentLock: vi.fn(),
@@ -27,26 +26,16 @@ vi.mock("../../Functions/DocumentLock/documentLockAcquireFeedback.js", () => ({
 
 import * as readOnlyGrace from "../../Functions/DocumentLock/readOnlyGrace.js";
 import { LOCK_READONLY_GRACE_MS } from "../../Functions/DocumentLock/documentLockTimings.js";
-import documentLockSlice from "../../Zustand/documentLockSlice.js";
 import { useLockReadOnlyGrace } from "./useLockReadOnlyGrace.js";
 
-const storeHolder = { current: null };
-
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => storeHolder.current.getState(),
-    setState: (...args) => storeHolder.current.setState(...args),
-    subscribe: (...args) => storeHolder.current.subscribe(...args),
-  },
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({ account: { sessionID: "s" } });
+});
 
 describe("useLockReadOnlyGrace", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    storeHolder.current = create((set, get) => ({
-      account: { sessionID: "s" },
-      ...documentLockSlice(set, get),
-    }));
   });
 
   afterEach(() => {

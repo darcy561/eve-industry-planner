@@ -1,6 +1,5 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { create } from "zustand";
 
 vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   acquireDocumentLock: vi.fn(),
@@ -24,27 +23,17 @@ vi.mock("../../Functions/DocumentLock/documentLockAcquireFeedback.js", () => ({
   suppressDocumentLockVacancyNotice: vi.fn(),
 }));
 
-import documentLockSlice from "../../Zustand/documentLockSlice.js";
 import { LOCK_STATUS_SYNC_INTERVAL_MS } from "../../Functions/DocumentLock/documentLockTimings.js";
 import { useLockSyncHeartbeat } from "./useLockSyncHeartbeat.js";
 
-const storeHolder = { current: null };
-
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => storeHolder.current.getState(),
-    setState: (...args) => storeHolder.current.setState(...args),
-    subscribe: (...args) => storeHolder.current.subscribe(...args),
-  },
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock({ account: { sessionID: "s" } });
+});
 
 describe("useLockSyncHeartbeat", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    storeHolder.current = create((set, get) => ({
-      account: { sessionID: "s" },
-      ...documentLockSlice(set, get),
-    }));
   });
 
   afterEach(() => {
