@@ -40,40 +40,44 @@ and the rollout's § The component layer table is where such an atom is recorded
 
 ## Starting position
 
-The page is [`Components/Accounts/Accounts.jsx`](../../../frontend/src/Components/Accounts/Accounts.jsx),
+What the page was when this project opened — kept because it is the argument for the project, and
+because the promotion drafts have to say what changed. Stages A to C have replaced all of it; what
+each part is now is in [overlay.md](./overlay.md).
+
+The page was [`Components/Accounts/Accounts.jsx`](../../../frontend/src/Components/Accounts/Accounts.jsx),
 three sections stacked in a grid, reached at `/_protected/accounts`.
 
-| Piece | State |
-|-------|-------|
+| Piece | State it was in |
+|-------|-----------------|
 | `Accounts.jsx` | A 12-column grid of three panels. No page-level heading, no shell of its own |
 | `accountInfo.jsx` | `ContentPanel`. Character name and **account ID**, as two label/value rows in `LARGE_TEXT_FORMAT` |
 | `CitadelNamesCommunityPanel.jsx` | `ContentPanel`. A paragraph and a switch. The copy opens with a stray double quote and is a near-duplicate of the first-login wording |
 | `AdditionalAccounts.jsx` | 528 lines. `ContentPanel` **or** a local `firstLoginPanelSx` panel. Owns the SSO popup import flow, the cloud/local storage switch, and the linked-character list |
 | `AccountEntry.jsx` | Two complete layouts behind one `appearance` prop. The default is `elevation={3} square` and shows no corporation; the `firstLogin` one is an outlined card that does |
 
-Three things are wrong with it beyond the styling.
+Three things were wrong with it beyond the styling.
 
-**One component renders two unrelated layouts.** `appearance="firstLogin"` is a style fork inside
-shared components, and it has spread past this page — into four Settings Custom Structures components
-as well. It is not two equal styles: it is the old design and the new one, chosen by a string.
+**One component rendered two unrelated layouts.** `appearance="firstLogin"` was a style fork inside
+shared components, and it had spread past this page — into four Settings Custom Structures components
+as well. Not two equal styles: the old design and the new one, chosen by a string.
 
-**The panel surface exists here a fourth time.** `firstLoginPanelSx` in `AdditionalAccounts` is a
-hand-rolled copy of a surface the design already defines, named for a screen it is not on.
+**The panel surface existed here a fourth time.** `firstLoginPanelSx` in `AdditionalAccounts` was a
+hand-rolled copy of a surface the design already defines, named for a screen it was not on.
 
-Which surface it copies is worth pinning down before Stage B, because the two candidates are not
-interchangeable. It matches **`appShellNestedCardSx`** — same radius of 2, and the same background
-alpha of 0.5 dark / 0.88 light — and differs from `appShellSetupSectionPaperSx` on every value it has
-in common with it (radius 3, border alpha 0.2, background 0.72/0.9, and a blur this does not have).
-So it is a drifted copy of the *card* surface being used where the screen wants a *panel*, which is
-why it reads as nearly right. Consolidating it onto the setup-section panel is a visible change
-rather than a no-op, and Stage B says which it is taking.
+Which surface it copied mattered, because the two candidates are not interchangeable. It matched
+**`appShellNestedCardSx`** — same radius of 2, same background alpha of 0.5 dark / 0.88 light — and
+differed from `appShellSetupSectionPaperSx` on every value they have in common (radius 3, border
+alpha 0.2, background 0.72/0.9, and a blur it did not have). So it was a drifted copy of the *card*
+surface standing in for a *panel*, which is why it read as nearly right. Moving it onto the section
+panel at Stage B was therefore a visible change rather than a no-op.
 
-The rollout recorded this as a copy of the panel surface; that attribution is the one thing corrected
-here, and the rollout's own row is left to be fixed when this project takes the file.
+The rollout had recorded it as a copy of the panel surface. That attribution was wrong, and following
+it would have consolidated onto the wrong target.
 
-**The page has no room for what it now needs to say.** A linked character is a row with a name and a
-remove button. There is nowhere to act on a character, nothing about what the application holds for
-it, and no mention of planners at all — while the account may already reach several.
+**The page had no room for what it needs to say.** A linked character was a row with a name and a
+remove button: nowhere to act on a character, nothing about what the application holds for it, and no
+mention of planners at all — while the account may already reach several. Stages D and E are what
+that observation becomes.
 
 ## What this project takes from the rollout
 
@@ -81,11 +85,11 @@ Used as they are, not rebuilt: `AppShellPanel`, `SelectableCard`, `InsetSurface`
 `AppShellSelect`, `Figure` and the `appShell` sx helpers under
 [`Context/appShell`](../../../frontend/src/Context/appShell).
 
-Two shells currently live under `Components/First Login/shared/` and are already imported across
-trees — `FirstLoginSetupSection` (an `AppShellPanel` with a subtitle) and `FirstLoginStructureFormField`
-(an overline label, a description and a control). Both are general, both have a caller outside first
-login already, and this page needs both. They move into `Styled Components` under names that are not
-first-login's, which retires the cross-tree import at the same time.
+Added to the layer by this project, because a second screen needed each and neither was
+first-login's to keep: **`SectionPanel`** (a titled `AppShellPanel` with a subtitle) and
+**`FormField`** (a label, a description and a control), both promoted out of
+`Components/First Login/shared/` at Stage A; and **`SwitchField`**, the label-left switch row three
+call sites were each assembling, at Stage C.
 
 ## The page
 
@@ -94,12 +98,15 @@ column is a grid for no reason.
 
 ```
 Accounts
-├── Account                     — main character, account identity
-├── Linked characters           — the roster, storage mode, per-character actions
-│     └── (per character) ESI data status, expanded on demand
-├── Shared planners             — what this account can reach, and how
-└── Community citadel names     — one switch, and why it is offered
+├── Account                     — main character, account identity          ✓
+├── Linked characters           — the roster, storage mode                  ✓
+│     ├── per-character actions                                         Stage D
+│     └── ESI data status, expanded on demand                           Stage D
+├── Shared planners             — what this account can reach, and how   Stage E
+└── Community citadel names     — one switch, and why it is offered         ✓
 ```
+
+The sections marked ✓ are on the page; the rest is what Stages D and E add to it.
 
 An earlier reading of this grouped citadel names and storage mode into a `Preferences` section, on
 the grounds that both are settings a reader visits once. Stage B settled it the other way: **storage
@@ -312,35 +319,31 @@ panel one (see § Starting position), that is a visual change: the section gains
 radius, its slightly stronger border and its blur. Standardising a drifted value is a visual change
 and is called out rather than folded in.
 
-### The label above a control is not settled
+### The label above a control
 
-`FormField` styles its label with a hand-written `variant="overline"` — a literal letter spacing and
-two literal line heights, with no token behind them. It was moved verbatim at Stage A, so it is
-visually unchanged, but it is not standardised the way the section panel is.
+`FormField` renders `FigureCaption`, the atom that names a figure on the converted panels, so a
+control and a number are labelled the same way.
 
-Two things make that worth deciding rather than leaving:
+The question this settled was which of the SPA's label idioms to standardise on — a hand-written
+`variant="overline"` in `FormField` itself, or the `variant="subtitle2"` twenty other files reach
+for. The answer was neither, and the reason is worth keeping: **`subtitle2` is not a label**. It is
+used for item names, values and legends as often as for headings, so counting its call sites measured
+the wrong thing. `FigureCaption` was the only thing in the tree doing this one job, on nine surfaces,
+and it already carried the `0.06em` spacing `FormField` was writing out by hand.
 
-- **The overline is the minority idiom.** Two places in the SPA use it; **twenty** use
-  `variant="subtitle2"` for the same job, including `AdditionalAccounts`,
-  `FirstLoginCustomStructures` and `FirstLoginPlannerSetupStep` — files this project rewrites. A
-  shared component currently blesses the rarer of the two.
-- **`Context/appShell` has no label token.** It covers surfaces, form controls, menus, sliders,
-  pickers and data grids, and `appShellHelperTextSx` is for the line *below* a control. There is
-  nothing for `FormField` to read from.
-
-**Settled at Stage C: neither.** The design already had a label — `FigureCaption`, on nine surfaces
-across the converted panels, naming what a figure is. It is caption weight, secondary, uppercase, and
-carries the same `0.06em` spacing `FormField` was hand-writing. `FormField` renders it, so a control
-and a figure are named the same way and no token was added: the one that was wanted already existed
-under a name that described its first caller rather than its shape.
+No token was added to `Context/appShell`. The one that was wanted existed under a name describing its
+first caller rather than its shape, which is why it took a search to find rather than a decision to
+make. What changed visibly is in [overlay.md](./overlay.md) § Stage C.
 
 ### Stage C — The page
 
-`Accounts.jsx` becomes the section stack. `AccountInfo` and `CitadelNamesCommunityPanel` move onto the
-shared section shell, the duplicated citadel copy becomes one exported string, and the character row
-replaces both `AccountEntry` layouts and `FirstLoginMainCharacterCard`.
+`Accounts.jsx` is the section stack, `AccountInfo` and `CitadelNamesCommunityPanel` are on the shared
+section shell, the citadel copy is one exported string, and `MainCharacterCard` replaces both the
+first-login card and the identity rows `accountInfo` drew.
 
-The account ID's place on the page is decided here — see § Open questions.
+**The account id stays on the page**, under a caption rather than in a labelled row. It identifies
+the account to its owner and appears on no surface a planner member reaches, so the section growing
+around it does not argue for hiding it.
 
 ### Stage D — The action slot and ESI status
 
