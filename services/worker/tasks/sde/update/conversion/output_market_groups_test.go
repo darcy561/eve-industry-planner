@@ -163,3 +163,42 @@ func TestMarketGroupsIgnoreAnItemWithNoGroup(t *testing.T) {
 		}
 	}
 }
+
+// A market group's own icon names a file inside the game client, which nothing
+// can serve. Borrowing one of its items gives a picture of the same thing from
+// the image server, which already carries every type.
+func TestMarketGroupsBorrowAnItemToBeRecognisedBy(t *testing.T) {
+	groups := GenerateMarketGroupsOutput(marketGroupsFixture(), map[string]*FullItem{
+		"34": {TypeID: 34, MarketGroupID: 5},
+		"35": {TypeID: 35, MarketGroupID: 5},
+	})
+
+	// The lowest id of the two, so a rebuild of the same source picks the same one.
+	if got := groups["5"].IconTypeID; got != 34 {
+		t.Fatalf("frigates icon type = %d, want 34", got)
+	}
+}
+
+// A container holds its items through what is beneath it, and would otherwise be
+// the one row in a tree with nothing to recognise it by.
+func TestMarketGroupsBorrowFromBeneathWhenTheyHoldNothing(t *testing.T) {
+	groups := GenerateMarketGroupsOutput(marketGroupsFixture(), map[string]*FullItem{
+		"34": {TypeID: 34, MarketGroupID: 5},
+	})
+
+	if got := groups["4"].IconTypeID; got != 34 {
+		t.Fatalf("ships icon type = %d, want the frigate beneath it", got)
+	}
+}
+
+// A group whose whole branch is obsolete has nothing to borrow, and says so
+// rather than naming a type that does not exist.
+func TestMarketGroupsCarryNoIconTypeWhenNothingIsBeneathThem(t *testing.T) {
+	groups := GenerateMarketGroupsOutput(marketGroupsFixture(), nil)
+
+	for id, entry := range groups {
+		if entry.IconTypeID != 0 {
+			t.Fatalf("group %s borrowed %d from an empty item list", id, entry.IconTypeID)
+		}
+	}
+}

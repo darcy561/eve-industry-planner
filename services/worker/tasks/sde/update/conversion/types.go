@@ -120,6 +120,18 @@ type MarketGroup struct {
 	// groups beneath it. Both are choosable — a default set on a container covers
 	// everything under it — but a reader picking one deserves to know which it is.
 	HasTypes bool `json:"has_types,omitempty"`
+	// IconTypeID is an item from this group, for a reader to recognise it by.
+	//
+	// A market group has an icon of its own in the SDE, but it names a file inside
+	// the game client rather than anything servable: the image server carries
+	// types, characters and corporations and nothing else. So a group borrows one
+	// of its own items, which is a picture of the thing either way — Minerals
+	// shows Tritanium.
+	//
+	// A group holding nothing directly takes the first from the branch beneath it,
+	// so a container is still recognisable. 0 where a group and everything under
+	// it is obsolete and holds no published type at all.
+	IconTypeID int `json:"icon_type_id,omitempty"`
 }
 
 type ReprocessingItem struct {

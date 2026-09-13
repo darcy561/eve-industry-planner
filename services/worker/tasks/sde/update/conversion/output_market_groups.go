@@ -44,9 +44,65 @@ func GenerateMarketGroupsOutput(marketGroupsMap map[string]any, items map[string
 
 	linkChildren(groups)
 	markGroupsHoldingTypes(groups, items)
+	chooseIconTypes(groups, items)
 
 	return groups
 }
+
+// chooseIconTypes gives each group an item to be recognised by.
+//
+// The lowest type id in a group, so the same source always picks the same item
+// and a rebuilt file can still be compared to the last one. A group holding
+// nothing directly borrows from the branch beneath it, which is what makes a
+// container recognisable rather than blank.
+func chooseIconTypes(groups map[string]*MarketGroup, items map[string]*FullItem) {
+	direct := make(map[int]int, len(groups))
+	for _, item := range items {
+		if item == nil || item.MarketGroupID == 0 {
+			continue
+		}
+		if held, ok := direct[item.MarketGroupID]; !ok || item.TypeID < held {
+			direct[item.MarketGroupID] = item.TypeID
+		}
+	}
+
+	for key, entry := range groups {
+		id, err := strconv.Atoi(key)
+		if err != nil {
+			continue
+		}
+		entry.IconTypeID = inheritedIconType(groups, direct, id, 0)
+	}
+}
+
+// inheritedIconType is a group's own item, or the first one found beneath it.
+//
+// Depth-capped for the same reason the SPA's walk is: a cycle in the source would
+// otherwise recurse forever, and this runs once per group.
+func inheritedIconType(groups map[string]*MarketGroup, direct map[int]int, id, depth int) int {
+	if depth > maxIconSearchDepth {
+		return 0
+	}
+	if held, ok := direct[id]; ok {
+		return held
+	}
+
+	entry, ok := groups[strconv.Itoa(id)]
+	if !ok {
+		return 0
+	}
+	for _, child := range entry.Children {
+		if held := inheritedIconType(groups, direct, child, depth+1); held != 0 {
+			return held
+		}
+	}
+
+	return 0
+}
+
+// EVE's market tree is six groups deep; this is the margin over that, so a
+// legitimate deepening is not silently truncated.
+const maxIconSearchDepth = 32
 
 // linkChildren fills each group's Children from the parent links already set.
 //

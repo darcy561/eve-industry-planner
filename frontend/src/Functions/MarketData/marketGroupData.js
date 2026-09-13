@@ -76,7 +76,8 @@ export function childrenOf(parentID = null) {
  *
  * @param {Object<string, Object>|null|undefined} groups
  * @param {number|null} [parentID]
- * @returns {Array<{id: number, name: string, hasChildren: boolean, hasTypes: boolean}>}
+ * @returns {Array<{id: number, name: string, hasChildren: boolean, hasTypes: boolean,
+ *   iconTypeID?: number}>}
  */
 export function childrenIn(groups, parentID = null) {
   if (!groups) return [];
@@ -94,6 +95,7 @@ export function childrenIn(groups, parentID = null) {
         name: group.name,
         hasChildren: (group.children?.length ?? 0) > 0,
         hasTypes: Boolean(group.has_types),
+        iconTypeID: group.icon_type_id,
       };
     })
     .filter(Boolean)
@@ -154,7 +156,11 @@ export function ancestorPathIn(groups, groupID) {
   for (let step = 0; step < MAX_PATH_DEPTH && id; step += 1) {
     const group = groups[String(id)];
     if (!group) break;
-    path.unshift({ id: Number(id), name: group.name });
+    path.unshift({
+      id: Number(id),
+      name: group.name,
+      iconTypeID: group.icon_type_id,
+    });
     id = group.parent_id;
   }
 
