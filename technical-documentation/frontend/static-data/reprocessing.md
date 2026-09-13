@@ -48,6 +48,6 @@ the file.
 
 `resetReprocessing` forgets the file and both views built from it, so the next prime reads it again.
 A new SDE build is a different file behind the same key ([delivery.md](./delivery.md)), so
-[`useFetchStaticDataFiles`](../../../frontend/src/Hooks/App/useFetchStaticDataFiles.js) calls it when
+[`staticDataSync`](../../../frontend/src/Functions/Static/staticDataSync.js) calls it when
 the build has moved. The views are dropped with the file rather than separately: a `selectable` array
 left behind would outlive the entries it was built from.

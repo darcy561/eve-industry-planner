@@ -12,6 +12,8 @@ behaviour itself is [frontend/static-data/](../../frontend/static-data/contents.
 | The React reads over those files | [`Hooks/Static/useItems.test.jsx`](../../../frontend/src/Hooks/Static/useItems.test.jsx) |
 | What ore selection may choose from, and matching a pasted ore name | [`Functions/Static/reprocessing.test.js`](../../../frontend/src/Functions/Static/reprocessing.test.js) |
 | Recipes by id, either form, and when the API is asked instead | [`Functions/Static/recipes.test.js`](../../../frontend/src/Functions/Static/recipes.test.js), [`Functions/Job Build/getItemRecipes.test.js`](../../../frontend/src/Functions/Job%20Build/getItemRecipes.test.js) |
+| When the files are read again: load, a websocket announcement with its spread, and waking | [`Functions/Static/staticDataSync.test.js`](../../../frontend/src/Functions/Static/staticDataSync.test.js) |
+| Acting on an announced build, and ignoring one already held | [`Realtime/handlers/staticDataMessage.test.js`](../../../frontend/src/Realtime/handlers/staticDataMessage.test.js) |
 | The parsers that read what a player pasted | [`Functions/Reprocessing/parseOreInput.test.js`](../../../frontend/src/Functions/Reprocessing/parseOreInput.test.js), [`Functions/Reprocessing/toMinerals.test.js`](../../../frontend/src/Functions/Reprocessing/toMinerals.test.js) |
 
 ## Mocking a static file
@@ -43,6 +45,7 @@ writes what a reader would have written, so nothing has to mock the hook itself.
 
 ## What is not covered
 
-`marketGroupData`'s own tests cover the market group tree, but the delivery layer in
-`Functions/Helper/getCachedData.js` has no test for the build-version check or for what a changed
-build drops — the behaviour is exercised only through the owners that consume it.
+`marketGroupData`'s own tests cover the market group tree. `Functions/Helper/getCachedData.js` has no
+test of its own for the build-version check: what a changed build drops is covered a layer up, in
+`staticDataSync.test.js`, which mocks the refresh and asserts on the dropping rather than on the
+comparison that decided it.

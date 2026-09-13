@@ -29,6 +29,7 @@ Nothing outside an owner reaches for a static file or builds its query key.
 | I need to… | Read |
 |------------|------|
 | Know how a file reaches the browser, or when it is fetched again | [delivery.md](./delivery.md) |
+| Understand why nothing polls, or change what triggers a refresh | [delivery.md](./delivery.md) § Nothing runs on a timer |
 | Change what happens when a new SDE build ships | [delivery.md](./delivery.md) § The build is what decides whether there is work |
 | Add a static file, or hold one for reading without awaiting | [staticFile.md](./staticFile.md) |
 | Derive a value from a file without it outliving the file | [staticFile.md](./staticFile.md) § A view is registered, not held beside the file |

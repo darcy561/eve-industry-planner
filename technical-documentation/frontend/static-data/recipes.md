@@ -40,7 +40,6 @@ comes from one source and one build of the data.
 
 ## Dropping what was primed
 
-`resetRecipes` forgets the map, so the next prime reads the file again. The app refreshes its static
-data on a timer and a new SDE build is a different file behind the same key, so
-[`useFetchStaticDataFiles`](../../../frontend/src/Hooks/App/useFetchStaticDataFiles.js) calls it when
-the build has moved.
+`resetRecipes` forgets the map, so the next prime reads the file again. A new SDE build is a
+different file behind the same key ([delivery.md](./delivery.md)), so [`staticDataSync`](../../../frontend/src/Functions/Static/staticDataSync.js) calls it when the
+build has moved.

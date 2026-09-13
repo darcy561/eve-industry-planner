@@ -75,7 +75,7 @@ scan of every buildable item per line.
 `resetItems` forgets both files, so the next prime reads them again. A new SDE build is a different
 file behind the same key ([delivery.md](./delivery.md)), so what is held synchronously has to be
 droppable without a reload —
-[`useFetchStaticDataFiles`](../../../frontend/src/Hooks/App/useFetchStaticDataFiles.js) drops it when
+[`staticDataSync`](../../../frontend/src/Functions/Static/staticDataSync.js) drops it when
 the build has moved, through `resetMarketGroupData`, and drops nothing when it has not.
 
 Anything priming the records beside its own state has to guard on both halves. `primeMarketGroupData`

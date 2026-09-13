@@ -3,7 +3,7 @@
 Live SoT for how a static data file reaches the SPA and how it is kept current:
 [`frontend/src/Functions/Helper/getCachedData.js`](../../../frontend/src/Functions/Helper/getCachedData.js),
 driven by
-[`frontend/src/Hooks/App/useFetchStaticDataFiles.js`](../../../frontend/src/Hooks/App/useFetchStaticDataFiles.js).
+[`frontend/src/Functions/Static/staticDataSync.js`](../../../frontend/src/Functions/Static/staticDataSync.js).
 
 What each file holds and who reads it belongs to the owner topics —
 [items.md](./items.md), [reprocessing.md](./reprocessing.md), [recipes.md](./recipes.md). Which files
@@ -29,24 +29,47 @@ callers that cannot await.
 `/api/static-data/meta` reports a `build_version` for the whole SDE build and a versioned URL per
 file. `refreshStaticDataCache` fetches that metadata, compares the build against the one already
 cached, and **returns immediately when it has not moved** — no cache walk, no downloads, no parses.
-Since static data only changes when a new build is published, an unchanged build is nothing to do, and
-walking every entry on a timer for the life of the page was work with no result.
+Since static data only changes when a new build is published, an unchanged build is nothing to do.
 
 When the build *has* moved, everything held against the one it replaced is dropped:
 
 - the parsed payloads, cleared inside `refreshStaticDataCache`
-- the `["static"]` query entries, invalidated by `useFetchStaticDataFiles`
+- the `["static"]` query entries, invalidated by `staticDataSync`
 - the synchronous owners' primed copies, through `resetMarketGroupData`, `resetReprocessing` and
   `resetRecipes`
 
-`changed` is the contract between the two modules: the hook keys all of that off the one boolean the
+`changed` is the contract between the two modules: the sync keys all of that off the one boolean the
 refresh returns. Stale entries are pruned from the Cache API in the same pass, and any file the cache
 is missing is downloaded — nothing is parsed while doing it, because a file is parsed when something
 asks for its contents.
 
-The check runs on mount and every **30 minutes** after. Metadata itself is held for **5 minutes**, so
-several reads in quick succession do not each ask for it, and concurrent callers share one request; a
-read that already has metadata never goes to the network for it.
+## Nothing runs on a timer
+
+The check runs **once, when the page loads**. There is no interval: the files change when a new build
+is published and at no other time, so a client has nothing to discover by asking again on a schedule.
+The server says when there is something to do instead, three ways:
+
+| The client learns from | When |
+|---|---|
+| the load-time check | every page load, including a reload |
+| a `staticData` websocket message | a build ships while the session is open |
+| `visibilitychange` / `online` | a tab that was asleep or offline is back |
+
+The websocket message names the build, so a client already holding it does nothing. A client that
+does not **waits a random moment inside a 30-second window** before downloading — every connected
+client is told at the same instant, and without the spread they would all ask for the same files
+together. The wait is free: what the client holds stays readable and correct until the new files
+arrive.
+
+The wake check has a **five-minute floor**, so alt-tabbing costs nothing, and it is the backstop for
+the case the socket cannot cover — a throttled background tab is exactly the one that missed the
+announcement.
+
+`startStaticDataSync` is called from
+[`frontend/src/index.jsx`](../../../frontend/src/index.jsx) rather than from a component, so the
+listeners and the first load belong to the page rather than to a mounted tree. Metadata itself is
+held for **5 minutes**, so several reads in quick succession do not each ask for it, and concurrent
+callers share one request.
 
 ## What a reader should expect to survive
 
