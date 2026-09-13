@@ -15,14 +15,9 @@ import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
 } from "../../Context/defaultValues";
-import MarketHistoryIconButton from "../../Styled Components/IconButton/marketHistory";
-import MarketDataIconButton from "../../Styled Components/IconButton/marketData";
-import GLOBAL_CONFIG from "../../global-config-app";
 import useUsersStore from "../../Zustand/usersStore";
-import MaterialPopoverIconButtons from "../../Styled Components/Popover/iconButtons";
+import ItemMarketActions from "../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
-
-const { MARKET_OPTIONS } = GLOBAL_CONFIG;
 
 function BasicMineralOutput({ pageState }) {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("md"));
@@ -226,7 +221,7 @@ function BasicMineralOutput({ pageState }) {
                   md: 3,
                 }}
               >
-                <MaterialPopoverIconButtons
+                <ItemMarketActions
                   typeID={item.id}
                   regionID={pageState.marketLocation}
                 >
@@ -241,7 +236,7 @@ function BasicMineralOutput({ pageState }) {
                   >
                     {matchedName}
                   </Typography>
-                </MaterialPopoverIconButtons>
+                </ItemMarketActions>
               </Grid>
               <Grid sx={{ textAlign: "center" }} size={2}>
                 <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
@@ -273,31 +268,6 @@ function BasicMineralOutput({ pageState }) {
                     {formatNumberForLocale(totalValue)}
                   </Typography>
                 </Fade>
-              </Grid>
-              <Grid
-                sx={{
-                  textAlign: "center",
-                  display: { xs: "none", md: "block" },
-                }}
-                size={{
-                  xs: 0,
-                  md: 2,
-                }}
-              >
-                <MarketHistoryIconButton
-                  itemTypeID={item.id}
-                  tooltipPlacement="top"
-                  regionID={MARKET_OPTIONS.find(
-                    (i) => i.id === pageState.marketLocation,
-                  )}
-                />
-                <MarketDataIconButton
-                  itemTypeID={item.id}
-                  tooltipPlacement="top"
-                  locationID={MARKET_OPTIONS.find(
-                    (i) => i.id === pageState.marketLocation,
-                  )}
-                />
               </Grid>
             </Grid>
           );

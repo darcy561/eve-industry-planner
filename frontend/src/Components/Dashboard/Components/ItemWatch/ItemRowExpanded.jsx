@@ -3,7 +3,7 @@ import { useWatchlistPricing } from "./useWatchlistPricing.js";
 import { Typography, Grid } from "@mui/material";
 
 import useUsersStore from "../../../../Zustand/usersStore";
-import MaterialPopoverIconButtons from "../../../../Styled Components/Popover/iconButtons";
+import ItemMarketActions from "../../../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
 
@@ -42,11 +42,11 @@ export function ExpandedWatchlistRow({ mat }) {
         />
       </Grid>
       <Grid align="center" size={12}>
-        <MaterialPopoverIconButtons typeID={mat.typeID}>
+        <ItemMarketActions typeID={mat.typeID}>
           <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
             {mat.name}
           </Typography>
-        </MaterialPopoverIconButtons>
+        </ItemMarketActions>
       </Grid>
       <Grid
         size={{

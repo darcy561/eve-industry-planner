@@ -13,6 +13,10 @@ import { Tooltip } from "@mui/material";
  * matters because the state most needing an explanation is often the one a
  * conditional title leaves empty.
  *
+ * `wrap={false}` hands the tooltip straight to the child. Use it where the child
+ * already takes listeners and carries its own `aria-label`: MUI clones its props
+ * onto the wrapper, so a labelled child inside one is announced twice.
+ *
  * A tooltip that restates its own label is worse than none: it costs a hover and
  * teaches nothing. Say what the control *does*, what it affects, or what it
  * costs.
@@ -21,19 +25,21 @@ import { Tooltip } from "@mui/material";
  * @param {React.ReactNode} [props.title] - Empty renders the child alone
  * @param {React.ReactElement} props.children
  * @param {import("@mui/material").TooltipProps["placement"]} [props.placement]
+ * @param {boolean} [props.wrap] - False where the child takes the listeners itself
  * @returns {React.ReactElement}
  */
 export default function ExplainerTooltip({
   title,
   children,
   placement = "top",
+  wrap = true,
   ...rest
 }) {
   if (!title) return children;
 
   return (
     <Tooltip title={title} arrow placement={placement} {...rest}>
-      <span>{children}</span>
+      {wrap ? <span>{children}</span> : children}
     </Tooltip>
   );
 }

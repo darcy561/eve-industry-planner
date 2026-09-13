@@ -24,7 +24,7 @@ import { useItemList } from "../../Hooks/Static/useItems";
 import { itemNameFrom } from "../../Functions/Static/items";
 import useUsersStore from "../../Zustand/usersStore";
 import MineralCard from "./Components/MineralCard";
-import MaterialPopoverIconButtons from "../../Styled Components/Popover/iconButtons";
+import ItemMarketActions from "../../Styled Components/Item/marketActions";
 import ReprocessingSettingsPanel from "./reprocessingSettingsPanel";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
@@ -579,7 +579,7 @@ export function AdvancedMineralOutput(props) {
                         md: 3,
                       }}
                     >
-                      <MaterialPopoverIconButtons
+                      <ItemMarketActions
                         typeID={item.id}
                         regionID={pageState.marketLocation}
                       >
@@ -595,7 +595,7 @@ export function AdvancedMineralOutput(props) {
                         >
                           {matchedName}
                         </Typography>
-                      </MaterialPopoverIconButtons>
+                      </ItemMarketActions>
                     </Grid>
 
                     <Grid

@@ -7,10 +7,7 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import MarketDataIconButton from "../../../Styled Components/IconButton/marketData";
-import MarketHistoryIconButton from "../../../Styled Components/IconButton/marketHistory";
-import AssetsIconButton from "../../../Styled Components/IconButton/assets";
-import useUsersStore from "../../../Zustand/usersStore";
+import ItemMarketActions from "../../../Styled Components/Item/marketActions";
 import { reprocessingItemTypes } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 
@@ -349,22 +346,10 @@ export default function MineralCard({
           borderTop: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >
-        <MarketDataIconButton
-          itemTypeID={mineralKey}
-          locationID={pageState.marketLocation}
-          iconButtonStyle={{ size: "small" }}
-        />
-        <MarketHistoryIconButton
-          itemTypeID={mineralKey}
+        <ItemMarketActions
+          typeID={mineralKey}
           regionID={pageState.marketLocation}
-          iconButtonStyle={{ size: "small" }}
         />
-        {useUsersStore.getState().account.isLoggedIn && (
-          <AssetsIconButton
-            materialTypeID={mineralKey}
-            iconButtonStyle={{ size: "small" }}
-          />
-        )}
       </Box>
     </Card>
   );

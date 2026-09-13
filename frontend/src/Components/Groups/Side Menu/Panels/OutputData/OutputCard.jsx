@@ -17,8 +17,7 @@ import { calculateCurrentJobBuildCostFromChildren } from "../../../../../Functio
 import findJobsToHighlight from "./findJobsToHighlight";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import { RouterCardActionArea } from "../../../../../Styled Components/Navigation/routerControls.jsx";
-import MarketHistoryIconButton from "../../../../../Styled Components/IconButton/marketHistory";
-import MarketDataIconButton from "../../../../../Styled Components/IconButton/marketData";
+import ItemMarketActions from "../../../../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../../../../Functions/Helper/numberParser";
 
 function OutputJobCard({ inputJob, state, actions }) {
@@ -115,13 +114,8 @@ function OutputJobCard({ inputJob, state, actions }) {
             <HighlightIcon color={isHighlighted ? "secondary" : "primary"} />
           </IconButton>
         </Tooltip>
-        <MarketHistoryIconButton
-          itemTypeID={inputJob.itemID}
-          tooltipPlacement="left"
-          side={PRICING_SIDE.SELLING}
-        />
-        <MarketDataIconButton
-          itemTypeID={inputJob.itemID}
+        <ItemMarketActions
+          typeID={inputJob.itemID}
           tooltipPlacement="left"
           side={PRICING_SIDE.SELLING}
         />

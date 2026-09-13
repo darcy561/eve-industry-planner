@@ -60,4 +60,21 @@ describe("explaining what a control does", () => {
 
     expect(onClick).toHaveBeenCalled();
   });
+
+  // MUI clones the child's props onto the wrapper, so a child carrying its own
+  // aria-label ends up announced twice — once on each. Handing the tooltip
+  // straight to the child leaves one labelled element.
+  it("states a labelled child's name once when it takes the listeners itself", () => {
+    render(
+      <ExplainerTooltip title="Manufacturing Job Linked" wrap={false}>
+        <span aria-label="Manufacturing Job Linked">
+          <svg />
+        </span>
+      </ExplainerTooltip>,
+    );
+
+    expect(screen.getAllByLabelText("Manufacturing Job Linked")).toHaveLength(
+      1,
+    );
+  });
 });

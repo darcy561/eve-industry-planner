@@ -1,8 +1,7 @@
 import { Box, Typography, useMediaQuery, Grid } from "@mui/material";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 import GLOBAL_CONFIG from "../../../../../../global-config-app";
-import MarketHistoryIconButton from "../../../../../../Styled Components/IconButton/marketHistory";
-import MarketDataIconButton from "../../../../../../Styled Components/IconButton/marketData";
+import ItemMarketActions from "../../../../../../Styled Components/Item/marketActions";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
@@ -32,12 +31,8 @@ export function MarketCostsPanel({ state }) {
           gap: 1,
         }}
       >
-        <MarketHistoryIconButton
-          itemTypeID={state.activeJob.itemID}
-          side={PRICING_SIDE.SELLING}
-        />
-        <MarketDataIconButton
-          itemTypeID={state.activeJob.itemID}
+        <ItemMarketActions
+          typeID={state.activeJob.itemID}
           side={PRICING_SIDE.SELLING}
         />
       </Box>

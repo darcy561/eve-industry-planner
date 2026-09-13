@@ -23,10 +23,7 @@ vi.mock("../../../../../Zustand/usersStore", async () => {
   );
 });
 
-vi.mock("../../../../../Styled Components/IconButton/marketHistory", () => ({
-  default: () => null,
-}));
-vi.mock("../../../../../Styled Components/IconButton/marketData", () => ({
+vi.mock("../../../../../Styled Components/Item/marketActions", () => ({
   default: () => null,
 }));
 

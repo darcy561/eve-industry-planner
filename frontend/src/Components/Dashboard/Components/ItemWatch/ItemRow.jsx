@@ -25,7 +25,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useQueryClient } from "@tanstack/react-query";
 import { showSnackbarError } from "../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
-import MaterialPopoverIconButtons from "../../../../Styled Components/Popover/iconButtons";
+import ItemMarketActions from "../../../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
 import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPlanner";
@@ -164,11 +164,11 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
               marginBottom: { xs: "20px", sm: "0px" },
             }}
           >
-            <MaterialPopoverIconButtons typeID={item.typeID}>
+            <ItemMarketActions typeID={item.typeID}>
               <Typography sx={{ typography: { xs: "subtitle2", sm: "body2" } }}>
                 {item.name}
               </Typography>
-            </MaterialPopoverIconButtons>
+            </ItemMarketActions>
           </Grid>
           <Grid
             container

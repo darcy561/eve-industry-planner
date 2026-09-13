@@ -1,6 +1,6 @@
 import { Box, Typography } from "@mui/material";
 
-import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
+import ItemMarketActions from "../../../../../../Styled Components/Item/marketActions";
 import {
   FigureCaption,
   Figure,
@@ -37,11 +37,11 @@ export default function OutputHeader({
         sx={{ width: 32, height: 32, flexShrink: 0 }}
       />
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <MaterialPopoverIconButtons typeID={typeID} regionID={priceHubID}>
+        <ItemMarketActions typeID={typeID} regionID={priceHubID}>
           <Typography variant="body1" sx={{ fontWeight: 500 }}>
             {name}
           </Typography>
-        </MaterialPopoverIconButtons>
+        </ItemMarketActions>
         {/* Its own line, said explicitly: the name above sits in the market
             links' wrapper, which is inline-flex, and a caption renders as a
             span — so the two run together on one line without this. */}

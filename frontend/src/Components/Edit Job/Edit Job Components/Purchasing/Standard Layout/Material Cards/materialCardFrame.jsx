@@ -14,15 +14,13 @@ import { MaterialExcessBox_Purchasing } from "./materialExcessBox";
 import { AwaitingCostImportBox_Purchasing } from "./awaitingCostImportBox";
 import getCurrentLinkedChildJobIDsForMaterial from "./functions/getCurrentLinkedChildJobIDsForMaterial.js";
 import { childJobSupplyForMaterial } from "./functions/childJobSupplyForMaterial.js";
-import AssetsIconButton from "../../../../../../Styled Components/IconButton/assets";
-import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
+import ItemMarketActions from "../../../../../../Styled Components/Item/marketActions";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { MaterialQuantityInfoSingleRow } from "./materialQuantityInfoSingleRow";
 import { MaterialQuantityInfoDoubleRow } from "./materialQuantityInfoDoubleRow";
 
 export function MaterialCardFrame_Purchasing(props) {
   const { state, material } = props;
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { jobArray } = useUsersStore((state) => state.jobData);
   const childJobDialogue = useDialogueTrigger();
 
@@ -170,7 +168,7 @@ export function MaterialCardFrame_Purchasing(props) {
               overflow: "hidden",
             }}
           >
-            <MaterialPopoverIconButtons typeID={material.typeID}>
+            <ItemMarketActions typeID={material.typeID}>
               <Typography
                 sx={{
                   typography: { xs: "body2", sm: "body1" },
@@ -183,7 +181,7 @@ export function MaterialCardFrame_Purchasing(props) {
               >
                 {material.name}
               </Typography>
-            </MaterialPopoverIconButtons>
+            </ItemMarketActions>
           </Box>
           <Box
             sx={{
@@ -193,12 +191,6 @@ export function MaterialCardFrame_Purchasing(props) {
               flexShrink: 0,
             }}
           >
-            {isLoggedIn && (
-              <AssetsIconButton
-                iconButtonStyle={{}}
-                materialTypeID={material.typeID}
-              />
-            )}
             <ChildJobsAvatar_Purchasing
               {...props}
               onOpen={childJobDialogue.open}
