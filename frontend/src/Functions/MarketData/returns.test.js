@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateReturns } from "./returns";
+import { EXIT_ROUTE, calculateReturns } from "./returns";
 
 const returns = (overrides = {}) =>
   calculateReturns({
@@ -152,5 +152,60 @@ describe("what each route was priced from", () => {
     expect(immediate.unitPrice).toBe(100);
     // Nothing is listed, so no broker fee is charged on this route.
     expect(immediate.deducts).toBe("less tax");
+  });
+});
+
+// A hub with no orders on a side reports a price of zero, and a real order can
+// never be zero — EVE will not accept one. Without marking that, a build nobody
+// is trading reads as a total loss of everything it cost rather than as an
+// item with no market where it is being sold.
+describe("a hub holding no orders", () => {
+  it("marks the route priced from the empty side", () => {
+    const returns = calculateReturns({
+      sellPrice: 0,
+      buyPrice: 851_600_000,
+      quantityProduced: 1,
+      buildCost: 155_000_000_000,
+    });
+
+    const listed = returns.routes.find(
+      (route) => route.id === EXIT_ROUTE.LISTED,
+    );
+    const immediate = returns.routes.find(
+      (route) => route.id === EXIT_ROUTE.IMMEDIATE,
+    );
+
+    expect(listed.hasNoOrders).toBe(true);
+    expect(immediate.hasNoOrders).toBe(false);
+  });
+
+  it("says so of the whole job only when neither side holds anything", () => {
+    const oneSide = calculateReturns({
+      sellPrice: 0,
+      buyPrice: 851_600_000,
+      quantityProduced: 1,
+      buildCost: 100,
+    });
+    const neither = calculateReturns({
+      sellPrice: 0,
+      buyPrice: 0,
+      quantityProduced: 1,
+      buildCost: 100,
+    });
+
+    expect(oneSide.hasNoOrders).toBe(false);
+    expect(neither.hasNoOrders).toBe(true);
+  });
+
+  it("leaves a priced route unmarked", () => {
+    const returns = calculateReturns({
+      sellPrice: 900_000_000,
+      buyPrice: 851_600_000,
+      quantityProduced: 1,
+      buildCost: 100,
+    });
+
+    expect(returns.routes.every((route) => route.hasNoOrders)).toBe(false);
+    expect(returns.hasNoOrders).toBe(false);
   });
 });

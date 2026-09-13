@@ -227,3 +227,83 @@ describe("what the ledger deducts on each route", () => {
     expect(screen.getByText("Broker fee")).toBeInTheDocument();
   });
 });
+
+// An item nobody is trading at the chosen market is the ordinary case for a
+// capital ship. Every figure below is derived from a price that is not there:
+// the Erebus that prompted this read as a net return of −155 billion and a
+// −100% return on outlay, which is what a missing price looks like rather than
+// what the build is worth.
+describe("an item with no market orders where it is being sold", () => {
+  const unpriced = (overrides = {}) =>
+    calculateReturns({
+      ...inputs,
+      sellPrice: 0,
+      buyPrice: 0,
+      ...overrides,
+    });
+
+  it("says why, and names the market", () => {
+    renderPanel({
+      returns: unpriced(),
+      saleLocationName: "Placeholder Citadel",
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /No market orders for this item at Placeholder Citadel/,
+    );
+  });
+
+  it("states no net return rather than a loss of the whole build", () => {
+    renderPanel({ returns: unpriced() });
+
+    expect(screen.queryByText("Net return — sell order")).toBeNull();
+    expect(screen.getByText("Sell order — not priced")).toBeInTheDocument();
+  });
+
+  it("drops the headroom, having no current price to measure against", () => {
+    renderPanel({ returns: unpriced() });
+
+    expect(screen.queryByText(/below break-even/)).toBeNull();
+    expect(screen.getByText(/to break even/)).toBeInTheDocument();
+  });
+
+  // The working behind the headline is where the figure was still being stated:
+  // a revenue of nothing taken from a real outlay is a loss the market has not
+  // dealt, and the disclosure was showing it as one.
+  it("states no net return in the working either", async () => {
+    renderPanel({ returns: unpriced() });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /How this is worked out/ }),
+    );
+
+    const working = screen
+      .getByText("How this is worked out")
+      .closest("div").parentElement;
+
+    expect(working).toHaveTextContent("no orders to price it from");
+    expect(working).not.toHaveTextContent("-881");
+  });
+
+  // What was spent is known whether or not anything is selling it.
+  it("still states what the build cost in the working", async () => {
+    renderPanel({ returns: unpriced() });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /How this is worked out/ }),
+    );
+
+    expect(screen.getByText("Cost to build")).toBeInTheDocument();
+  });
+
+  // Buy orders and sell orders are separate books: a capital often has bids and
+  // no listings, and the route that can be priced still says what it is worth.
+  it("still prices the side that does hold orders", () => {
+    renderPanel({ returns: unpriced({ buyPrice: 100 }) });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByText(/No sell orders here, so this route cannot be priced/),
+    ).toBeInTheDocument();
+  });
+});

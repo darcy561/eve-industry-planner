@@ -10,6 +10,7 @@ import {
   formatNumberForLocale,
   formatPercentage,
 } from "../../../../../../Functions/Helper/numberParser";
+import { EXIT_ROUTE } from "../../../../../../Functions/MarketData/returns";
 
 /**
  * The ways out of a finished build, side by side.
@@ -43,6 +44,28 @@ export default function ExitRoutes({ routes }) {
  */
 function Route({ route }) {
   const tone = signTone(route.net);
+
+  // Every figure on this route is derived from a price that is not there, so
+  // none of them is stated: a net of minus the whole build cost and a return of
+  // −100% are what a missing price looks like, not what the route is worth.
+  if (route.hasNoOrders) {
+    return (
+      <InsetSurface>
+        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          {route.label}
+        </Typography>
+        <Figure
+          sx={{ display: "block", typography: "h6", fontWeight: 500, mt: 0.5 }}
+        >
+          {null}
+        </Figure>
+        <Typography variant="caption" color="text.secondary">
+          No {route.id === EXIT_ROUTE.LISTED ? "sell" : "buy"} orders here, so
+          this route cannot be priced
+        </Typography>
+      </InsetSurface>
+    );
+  }
 
   return (
     <InsetSurface>

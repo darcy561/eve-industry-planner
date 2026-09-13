@@ -576,3 +576,46 @@ describe("extras, a line each as they were recorded", () => {
     expect(extras.detail).toMatch(/Hauling/);
   });
 });
+
+// A hub with no orders reports no price, and the row is counted for nothing in
+// the bought line. A total that is quietly low is worse than one that admits
+// what it left out: an item off the market is not an item that is free.
+describe("a material the market holds no orders for", () => {
+  const rows = [
+    {
+      typeID: 34,
+      plan: MATERIAL_PLAN.BUY,
+      quantity: 10,
+      remainingQuantity: 10,
+      buyPrice: 5,
+      buildPrice: null,
+      volume: 0,
+    },
+    {
+      typeID: 35,
+      plan: MATERIAL_PLAN.BUY,
+      quantity: 2,
+      remainingQuantity: 2,
+      buyPrice: null,
+      buildPrice: null,
+      volume: 0,
+    },
+  ];
+
+  it("says how many the figure leaves out", () => {
+    const cost = buildCostBreakdown({ rows, quantityProduced: 1 });
+    const bought = cost.toBuild.lines.find((line) => line.id === "bought");
+
+    expect(bought.detail).toContain("1 not on the market, counted as nothing");
+  });
+
+  it("says nothing of the sort when every row has a price", () => {
+    const cost = buildCostBreakdown({
+      rows: [rows[0]],
+      quantityProduced: 1,
+    });
+    const bought = cost.toBuild.lines.find((line) => line.id === "bought");
+
+    expect(bought.detail).not.toContain("not on the market");
+  });
+});

@@ -93,6 +93,7 @@ export default function PlanningEconomics(props) {
       <ReturnsPanel
         returns={returns}
         exitRoute={exitRoute}
+        saleLocationName={saleLocation?.name}
         charges={charges}
         buildCost={sellableBuildCost}
         comparison={comparison}

@@ -229,12 +229,25 @@ function extrasLines(rows) {
  * @returns {{total: number, bought: number, built: number, paid: number}}
  */
 function countRows(rows, buyEverything = false) {
-  const counts = { total: rows.length, bought: 0, built: 0, paid: 0 };
+  const counts = {
+    total: rows.length,
+    bought: 0,
+    built: 0,
+    paid: 0,
+    unpriced: 0,
+  };
   for (const row of rows) {
     if (row.plan === MATERIAL_PLAN.PAID) counts.paid += 1;
     else if (!buyEverything && row.plan === MATERIAL_PLAN.BUILD)
       counts.built += 1;
-    else counts.bought += 1;
+    else {
+      counts.bought += 1;
+      // A market holding no orders for the row reports no price, and it is
+      // counted for nothing above. Saying so is the difference between a total
+      // that is low and a total that is wrong without admitting it.
+      if (row.buyPrice === null || row.buyPrice === undefined)
+        counts.unpriced += 1;
+    }
   }
   return counts;
 }
@@ -246,12 +259,20 @@ function countRows(rows, buyEverything = false) {
  * @param {boolean} [includesShortfall] - Whether a child job's shortfall is in here
  * @returns {string}
  */
-function materialsDetail({ total, bought, built }, includesShortfall = false) {
+function materialsDetail(
+  { total, bought, built, unpriced = 0 },
+  includesShortfall = false,
+) {
   const of = `${bought} of ${total}`;
   const base = built > 0 ? `${of} · ${built} replaced by child builds` : of;
-  return includesShortfall
+  const withShortfall = includesShortfall
     ? `${base} · includes what child jobs fall short of`
     : base;
+
+  // Last, because it is the part that makes the figure beside it incomplete.
+  return unpriced > 0
+    ? `${withShortfall} · ${unpriced} not on the market, counted as nothing`
+    : withShortfall;
 }
 
 /**

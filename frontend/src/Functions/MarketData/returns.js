@@ -17,6 +17,7 @@
  * @property {number|null} perUnit
  * @property {number|null} margin - Net over revenue, as a fraction
  * @property {number|null} returnOnOutlay - Net over what it cost, as a fraction
+ * @property {boolean} hasNoOrders - Whether the hub holds no orders on this side
  */
 
 /**
@@ -26,6 +27,7 @@
  *   the build and the selling
  * @property {{price: number, above: number|null}|null} headroom - What a unit
  *   fetches today against what it must, and by how much as a fraction
+ * @property {boolean} hasNoOrders - Whether the hub holds nothing on either side
  */
 
 /**
@@ -81,6 +83,11 @@ export function calculateReturns({
       perUnit: quantityProduced > 0 ? net / quantityProduced : null,
       margin: fraction(net, revenue),
       returnOnOutlay: fraction(net, buildCost),
+      // A hub with no orders on this side reports a price of zero, and a real
+      // order can never be zero — EVE will not take one. Without saying so the
+      // figures below read as a finding rather than as an absence: a build
+      // nobody is selling comes out as a total loss of everything it cost.
+      hasNoOrders: unitPrice === 0,
     };
   };
 
@@ -121,6 +128,8 @@ export function calculateReturns({
             price: sellPrice,
             above: fraction(sellPrice - breakEven, breakEven),
           },
+    // Neither side holds an order, so nothing here is priced against anything.
+    hasNoOrders: sellPrice === 0 && buyPrice === 0,
   };
 }
 

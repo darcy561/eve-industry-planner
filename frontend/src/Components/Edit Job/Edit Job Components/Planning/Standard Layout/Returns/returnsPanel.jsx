@@ -1,4 +1,4 @@
-import { Box, Stack, Typography } from "@mui/material";
+import { Alert, Box, Stack, Typography } from "@mui/material";
 
 import AppShellPanel from "../../../../../../Styled Components/Paper/AppShellPanel";
 import InsetSurface from "../../../../../../Styled Components/Paper/InsetSurface";
@@ -33,6 +33,8 @@ import OutputHeader from "./outputHeader";
  * @param {number} props.buildCost - ISK, selling excluded
  * @param {ReturnType<import("../../../../../../Functions/MarketData/buildComparison").compareToHistory>} [props.comparison]
  * @param {object} [props.output] - What the job makes, for the header
+ * @param {string} [props.saleLocationName] - Where the sale is planned, for saying
+ *   which market holds no orders
  * @param {React.ReactNode} [props.action] - Shown in the panel header
  * @param {React.ReactNode} [props.children] - The sale location and its rates
  */
@@ -42,6 +44,7 @@ export default function ReturnsPanel({
   buildCost,
   comparison,
   output,
+  saleLocationName,
   action,
   children,
   exitRoute = EXIT_ROUTE.LISTED,
@@ -67,6 +70,19 @@ export default function ReturnsPanel({
       <Stack spacing={2}>
         {output ? <OutputHeader {...output} /> : null}
 
+        {/* An item nobody is trading at the chosen market is the ordinary case
+            for a capital: the figures below are all derived from a price that is
+            not there, so the cause is stated once here rather than each of them
+            reading as a finding. */}
+        {returns.hasNoOrders ? (
+          <Alert severity="info" variant="outlined" icon={false}>
+            No market orders for this item at{" "}
+            {saleLocationName ?? "this market"}, so there is nothing to price
+            the return against. Choosing a market that trades it, or entering a
+            price by hand, gives these figures something to work from.
+          </Alert>
+        ) : null}
+
         {/* The headline sits on its own surface: it is the panel's answer, and
             it should read as one rather than as the first of several rows. */}
         <InsetSurface>
@@ -78,7 +94,7 @@ export default function ReturnsPanel({
                   size="beside"
                   tone={signTone(headline.perUnit)}
                   value={
-                    headline.perUnit === null
+                    headline.hasNoOrders || headline.perUnit === null
                       ? null
                       : formatNumberForLocale(headline.perUnit)
                   }
@@ -87,21 +103,37 @@ export default function ReturnsPanel({
                   caption="Margin"
                   size="beside"
                   tone={signTone(headline.margin)}
-                  value={formatPercentage(headline.margin)}
+                  value={
+                    headline.hasNoOrders
+                      ? null
+                      : formatPercentage(headline.margin)
+                  }
                 />
                 <HeadlineStat
                   caption="Return on outlay"
                   size="beside"
                   tone={signTone(headline.returnOnOutlay)}
-                  value={formatPercentage(headline.returnOnOutlay)}
+                  value={
+                    headline.hasNoOrders
+                      ? null
+                      : formatPercentage(headline.returnOnOutlay)
+                  }
                 />
               </Stack>
             }
           >
             <HeadlineStat
-              caption={`Net return — ${headline.label.toLowerCase()}`}
-              tone={signTone(headline.net)}
-              value={formatNumberForLocale(headline.net)}
+              caption={
+                headline.hasNoOrders
+                  ? `${headline.label} — not priced`
+                  : `Net return — ${headline.label.toLowerCase()}`
+              }
+              tone={headline.hasNoOrders ? undefined : signTone(headline.net)}
+              value={
+                headline.hasNoOrders
+                  ? null
+                  : formatNumberForLocale(headline.net)
+              }
             />
           </PanelHeadline>
         </InsetSurface>
@@ -114,7 +146,10 @@ export default function ReturnsPanel({
         </Box>
 
         <Stack>
-          <ContextRow note={headroomNote(returns)}>
+          {/* Break-even still means something with no orders — it is what the
+              build cost — but the headroom beside it does not, because there is
+              no current price to be above or below. */}
+          <ContextRow note={returns.hasNoOrders ? null : headroomNote(returns)}>
             {returns.breakEvenPerUnit === null
               ? "Nothing produced, so there is nothing to break even on"
               : `Each unit must fetch ${formatNumberForLocale(returns.breakEvenPerUnit)} to break even`}
@@ -175,7 +210,15 @@ function Ledger({ route, charges, buildCost }) {
       <Typography variant="caption" color="text.secondary">
         {route.label}
       </Typography>
-      <FigureRow label="Revenue" value={formatNumberForLocale(route.revenue)} />
+      {/* What was spent is known either way. What the sale brings in is not,
+          where nothing is being sold at the price this is quoted from — and a
+          revenue of nothing subtracted from a real outlay is a loss the market
+          has not actually dealt. */}
+      <FigureRow
+        label="Revenue"
+        sublabel={route.hasNoOrders ? "no orders to price it from" : undefined}
+        value={route.hasNoOrders ? null : formatNumberForLocale(route.revenue)}
+      />
       {listing ? (
         <FigureRow
           label="Broker fee"
@@ -197,8 +240,8 @@ function Ledger({ route, charges, buildCost }) {
       <FigureRow
         label="Net return"
         isTotal
-        tone={signTone(route.net)}
-        value={formatNumberForLocale(route.net)}
+        tone={route.hasNoOrders ? undefined : signTone(route.net)}
+        value={route.hasNoOrders ? null : formatNumberForLocale(route.net)}
       />
     </>
   );

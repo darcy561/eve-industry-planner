@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MenuItem,
   Select,
@@ -19,11 +19,7 @@ import MaterialDrawer from "./materialDrawer";
 import PlanChip from "./planChip";
 import MaterialsTable from "./materialsTable";
 import MaterialCards from "./materialCards";
-import {
-  SourcingCostOffer,
-  SourcingFooter,
-  SourcingOffer,
-} from "./sourcingSummary";
+import { SourcingFooter, SourcingOffer } from "./sourcingSummary";
 import { useMaterialsSourcing } from "./useMaterialsSourcing";
 import { useMaterialOverrides } from "./Hooks/useMaterialOverrides";
 import { getSafeMaterialPriceOverrides } from "./Helpers/materialPriceOverridesState";
@@ -47,6 +43,12 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
   const [displayType, setDisplayType] = useState("all");
   const [openTypeIDs, setOpenTypeIDs] = useState([]);
   const [isCosting, setIsCosting] = useState(false);
+  // Set while a request is in flight and left set once one succeeds, so the rows
+  // the pricing could not answer for are not asked about again on every render
+  // that still finds them uncosted. A failure clears it, and the attempt count
+  // beside it is what gives the effect a reason to run again.
+  const costingRef = useRef(false);
+  const [attempt, setAttempt] = useState(0);
 
   // The job's own lock, the way every other panel on the page gates its
   // actions: a job someone else holds is read from, not edited.
@@ -84,22 +86,46 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
       actions,
     });
 
-  if (!state.activeJob?.selectedSetup) return null;
+  // Buildable rows with nothing to compare against yet, taken from the summary
+  // so the banner and the footer cannot disagree about what counts as buildable.
+  const uncosted = summary.buildable - summary.costed;
 
-  // Buildable rows with nothing to compare against yet. A row already linked has
-  // a real build cost, so it is not waiting on anything.
-  const uncosted = rows.filter(
-    (row) => row.isBuildable && row.buildPrice === null,
-  ).length;
+  // Costing every buildable row is two batched requests and writes nothing
+  // outside this page, so it is not worth asking permission for — the rows that
+  // have a build price and the rows that do not looked the same, and a reader
+  // could not tell "cannot be built" from "nobody has worked it out yet".
+  //
+  // An effect because it reaches the network: it runs once the panel is being
+  // looked at rather than during the render that shows it, so the table paints
+  // with its Build column pending and fills in.
+  useEffect(() => {
+    if (readOnly || uncosted <= 0 || costingRef.current) return;
 
-  const costBuildableRows = async () => {
+    let live = true;
+    costingRef.current = true;
     setIsCosting(true);
-    try {
-      await buildSpeculativeChildJobs();
-    } finally {
-      setIsCosting(false);
-    }
-  };
+
+    buildSpeculativeChildJobs()
+      .catch((error) => {
+        // A failed attempt is not an answer: the guard comes off and the
+        // attempt is counted, which is what gives this effect a reason to run
+        // again. Left set, a transient ESI failure would stand the panel down
+        // for the rest of the visit — and there is no control to ask with any
+        // more.
+        costingRef.current = false;
+        console.warn("Pricing the buildable rows failed", error);
+        if (live) setAttempt((previous) => previous + 1);
+      })
+      .finally(() => {
+        if (live) setIsCosting(false);
+      });
+
+    return () => {
+      live = false;
+    };
+  }, [readOnly, uncosted, attempt, buildSpeculativeChildJobs]);
+
+  if (!state.activeJob?.selectedSetup) return null;
 
   /**
    * Promotes every costed row that would be cheaper to build. The speculative
@@ -197,14 +223,6 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
           <MenuItem value="active">Selected Setup</MenuItem>
         </Select>
 
-        <SourcingCostOffer
-          summary={summary}
-          uncosted={uncosted}
-          onCost={costBuildableRows}
-          isCosting={isCosting}
-          disabled={readOnly}
-        />
-
         <SourcingOffer
           summary={summary}
           formatIsk={formatIsk}
@@ -214,6 +232,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
 
         <MaterialsList
           rows={rows}
+          isCosting={isCosting}
           formatIsk={formatIsk}
           formatQuantity={formatQuantity}
           onToggleRow={toggleRow}

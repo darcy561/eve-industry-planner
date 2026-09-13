@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { MATERIAL_PLAN } from "../../../../../../Functions/MarketData/materialSourcingRow";
@@ -26,6 +26,7 @@ const sourcing = {
   summary: {
     materials: 1,
     buildable: 1,
+    costed: 1,
     linked: 0,
     volume: 10,
     savingAvailable: 450,
@@ -108,7 +109,7 @@ const state = {
 };
 
 function renderPanel(props = {}) {
-  render(
+  return render(
     <MaterialsAndSourcingPanel
       state={state}
       actions={{
@@ -123,6 +124,8 @@ function renderPanel(props = {}) {
 
 beforeEach(() => {
   useActiveJobReadOnly.mockReturnValue(false);
+  // Every test starts from a fully costed panel; the ones about pricing say so.
+  useMaterialsSourcingMock.mockReturnValue(sourcing);
 });
 
 describe("the Materials and Sourcing panel", () => {
@@ -225,33 +228,89 @@ describe("how the panel sits in the stage's layout", () => {
 // Pricing a row means building a whole speculative job for it, so the panel asks
 // rather than doing it on arrival.
 describe("costing the buildable rows", () => {
-  it("offers to cost the rows that have no build price", async () => {
-    const uncosted = {
-      ...sourcing,
-      rows: [{ ...sourcing.rows[0], buildPrice: null, delta: null }],
-    };
-    useMaterialsSourcingMock.mockReturnValueOnce(uncosted);
+  const uncosted = () => ({
+    ...sourcing,
+    rows: [{ ...sourcing.rows[0], buildPrice: null, delta: null }],
+    summary: { ...sourcing.summary, costed: 0 },
+  });
+
+  // Two batched requests that write nothing outside the page is not worth
+  // asking permission for, and the alert that asked could not be dismissed by
+  // any route but doing the work.
+  it("prices the rows that have no build price, without being asked", async () => {
+    useMaterialsSourcingMock.mockReturnValue(uncosted());
 
     renderPanel();
 
-    expect(
-      screen.getByText("1 of 1 buildable material has no build price yet"),
-    ).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Cost them" }));
-
-    expect(buildSpeculativeChildJobs).toHaveBeenCalled();
+    await waitFor(() => expect(buildSpeculativeChildJobs).toHaveBeenCalled());
   });
 
-  it("does not offer once every buildable row is costed", () => {
+  // The pricing may not answer for every row — a material with no blueprint the
+  // app can reach stays uncosted — and without a guard the effect would see the
+  // same unpriced rows and ask again on every render that follows.
+  it("asks once even while rows it could not price remain uncosted", async () => {
+    useMaterialsSourcingMock.mockReturnValue(uncosted());
+
+    const { rerender } = renderPanel();
+    await waitFor(() => expect(buildSpeculativeChildJobs).toHaveBeenCalled());
+
+    // Still uncosted, and now a different count: a fresh reason for the effect
+    // to run, which only the guard stops.
+    useMaterialsSourcingMock.mockReturnValue({
+      ...uncosted(),
+      summary: { ...sourcing.summary, buildable: 2, costed: 0 },
+    });
+    rerender(
+      <MaterialsAndSourcingPanel
+        state={state}
+        actions={{
+          updateActiveJob: () => {},
+          markChildJobsForAddition,
+          forgetSpeculativeChildJobs,
+        }}
+      />,
+    );
+
+    expect(buildSpeculativeChildJobs).toHaveBeenCalledTimes(1);
+  });
+
+  it("prices nothing once every buildable row has a price", () => {
     renderPanel();
 
-    expect(
-      screen.queryByRole("button", { name: "Cost them" }),
-    ).not.toBeInTheDocument();
+    expect(buildSpeculativeChildJobs).not.toHaveBeenCalled();
   });
 
-  it("builds nothing on its own", () => {
+  // Nothing asks on the player's behalf any more, so a failure that left the
+  // guard set would stand the panel down for the rest of the visit with no way
+  // back but leaving the job and returning to it.
+  it("asks again after an attempt that failed", async () => {
+    useMaterialsSourcingMock.mockReturnValue(uncosted());
+    buildSpeculativeChildJobs.mockRejectedValueOnce(new Error("ESI is down"));
+
+    const { rerender } = renderPanel();
+    await waitFor(() => expect(buildSpeculativeChildJobs).toHaveBeenCalled());
+
+    rerender(
+      <MaterialsAndSourcingPanel
+        state={state}
+        actions={{
+          updateActiveJob: () => {},
+          markChildJobsForAddition,
+          forgetSpeculativeChildJobs,
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(buildSpeculativeChildJobs).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  // A reader who cannot edit the job cannot act on what the pricing would say.
+  it("prices nothing on a job held by someone else", async () => {
+    useMaterialsSourcingMock.mockReturnValue(uncosted());
+    useActiveJobReadOnly.mockReturnValue(true);
+
     renderPanel();
 
     expect(buildSpeculativeChildJobs).not.toHaveBeenCalled();

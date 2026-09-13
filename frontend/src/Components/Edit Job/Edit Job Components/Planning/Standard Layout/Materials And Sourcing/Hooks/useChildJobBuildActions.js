@@ -44,9 +44,10 @@ export function useChildJobBuildActions({ state, actions }) {
    * Prices every buildable row that has nothing linked to it yet, by building a
    * speculative job for each and keeping them apart from the committed ones.
    *
-   * Never fires on page load. A speculative build is `buildJob` plus blueprint
-   * and ESI hydration per material, which is real work most visitors to a job do
-   * not need doing, so a control asks for it.
+   * Costs two batched requests whatever the row count — recipes come from the
+   * cached file, and hydration asks for every job's market data and system
+   * indexes in one go — and writes nothing outside the page, so the panel runs
+   * it on arrival rather than offering it.
    *
    * @returns {Promise<number>} How many rows were costed
    */
