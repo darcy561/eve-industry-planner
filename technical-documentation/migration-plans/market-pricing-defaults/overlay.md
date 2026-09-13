@@ -345,6 +345,21 @@ MUI `Avatar` so a failed load falls through to a glyph rather than a broken imag
 branch is obsolete there is no item to borrow and the glyph is all there is — 28 groups of 1,108
 across the branches this app prices, every one of them obsolete.
 
+### B6.7 — The selling side resolves a group default, and a sale is priced from it
+
+`useJobSellingContext` consults the group rung for the job's output type, so an account pricing
+minerals somewhere reaches a job that makes one. The ladder there is the sale location's hub, then the
+group, then the side's own market — the order every other surface already holds.
+
+**The output was being priced from the buying side.** The market reaching `useJobEconomics` came from
+`useMaterialsSourcing`, which resolves the buying side, so a sale was quoted against the market the
+materials come from whenever no sale location named a hub. The selling context was already in that
+hook; it now reads the market from there, and the prop is gone rather than left unread.
+
+That was invisible because a sale location outranks the market and `getSaleStructures` always returns
+one. The case has its own test file, since reaching it means mocking the placeholder away and eleven
+other cases depend on it.
+
 ## Consolidation
 
 Work the stages left behind, folded back together once the surface had settled.

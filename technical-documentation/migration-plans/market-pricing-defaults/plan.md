@@ -383,9 +383,11 @@ than a file.
    which is the trap § A group default belongs to a side already records.
 4. ~~The panel: `AppShellPanel`, a section per side, each listing that side's groups with the market
    and the basis it prices against.~~ Done (B6.4), read-only.
-5. Editing a row and removing one, through the action from item 3.
-6. The picker: a `ContentDialogue` browsing the tree, any level selectable, with a name search beside
-   it for a reader who already knows what they want.
+5. ~~Editing a row and removing one, through the action from item 3.~~ Done (B6.5).
+6. ~~The picker: a `ContentDialogue` browsing the tree, any level selectable, with a name search
+   beside it.~~ Done (B6.6).
+7. ~~Read a group default on the selling side.~~ Done (B6.7), and it turned up § A sale was priced
+   from the buying side.
 
 **Done when** a player can say "price minerals from Jita buy orders" from Settings and see every
 mineral on every job follow it.
@@ -418,6 +420,25 @@ vocabularies instead of four.
 
 **Wire compatibility:** none. The Go field names do not move, and nothing renamed here is persisted or
 crosses a process boundary.
+
+## A sale was priced from the buying side
+
+Found while wiring the selling group rung, and worse than the gap it was opening.
+
+`useJobEconomics` priced a job's **output** from the market `useMaterialsSourcing` had resolved, which
+is `PRICING_SIDE.BUYING`. A player buying in Jita and selling in Amarr had the sale quoted against
+Jita — the crossing this project exists to remove, sitting inside it. The selling context was already
+in that hook and already returning the right market; the buying one was passed in beside it as a prop.
+
+**Why nothing caught it.** A sale location supplies its own `priceHubID`, which outranks the market,
+and `getSaleStructures` returns a hardcoded placeholder — so there is always one, and the fallback was
+unreachable in every test. Hardcoding `priceHub` to a nonsense value left 531 tests passing.
+
+Reaching that path in a test means mocking away the placeholder, which breaks the eleven cases that
+rely on it, so the selling market has its own file beside the hook's.
+
+The prop is gone from the hook and its caller rather than left unread: a market passed to something
+that prices a sale is the wrong market by construction now.
 
 ## Non-goals
 
@@ -478,7 +499,7 @@ until then a key naming something the other side never had throws only when firs
 | Stage B3 — the rung in the ladder | Done |
 | Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
 | Stage B5 — the selling side names a route, and the controls for it | Done |
-| Stage B6 — a surface for setting a group default | Reads and renders; editing and the picker are next |
+| Stage B6 — a surface for setting a group default | Done |
 | Stage N — one vocabulary for a market and a basis | Not started; deliberately deferred |
 
 ## Start here
