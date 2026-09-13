@@ -56,13 +56,12 @@ vi.mock("../Hooks/EveEsi/Character/useGetAllCharacterTransactions", () => ({
 vi.mock("../Hooks/EveEsi/Corporation/useGetAllCorporationTransactions", () => ({
   getAllCachedCorporationTransactions: () => ({ data: {} }),
 }));
+const staticData = {
+  SEARCH_INDEX: [{ itemID: 34, name: "Tritanium" }],
+  FULL_ITEM_LIST: { 34: { type_id: 34, name: "Tritanium" } },
+};
 vi.mock("../Hooks/App/useCachedData", () => ({
-  useCachedData: (dataType) => ({
-    data:
-      dataType === "FULL_ITEM_LIST"
-        ? { 34: { type_id: 34, name: "Tritanium" } }
-        : [{ itemID: 34, name: "Tritanium" }],
-  }),
+  useCachedData: (dataType) => ({ data: staticData[dataType] }),
 }));
 
 const { NewTransactions } =
@@ -100,6 +99,8 @@ function journalFor(id, { withTax = true } = {}) {
 function setUp({
   orders = [ORDER],
   linked = [900],
+  buildable = [{ itemID: 34, name: "Tritanium" }],
+  known = { 34: { type_id: 34, name: "Tritanium" } },
   jobs = [{ itemID: 34, jobStatus: LAST_JOB_STATUS_ID }],
   transactions = [
     {
@@ -113,6 +114,8 @@ function setUp({
   ],
   journal = journalFor(1),
 } = {}) {
+  staticData.SEARCH_INDEX = buildable;
+  staticData.FULL_ITEM_LIST = known;
   characterOrders.data = { "hash-1": orders };
   corporationOrders.data = {};
   characterTransactions.data = { "hash-1": transactions };
@@ -173,6 +176,18 @@ describe("the sales the dashboard offers as new", () => {
   // The same completeness rule the job's own panel applies.
   it("waits for the tax entry before showing a sale", () => {
     setUp({ journal: journalFor(1, { withTax: false }) });
+
+    renderPanel();
+
+    expect(screen.queryByText("Tritanium")).not.toBeInTheDocument();
+  });
+
+  // The panel offers a sale for linking against a job, and a job can only be for an item with a
+  // blueprint — so a type the buildable index does not carry has nothing to offer and is left out.
+  it("leaves out a sale of something no job could have built", () => {
+    // Named by the full item list but absent from the buildable index — which is exactly what an
+    // ore or a blueprint-less module looks like, and the only shape that tells the two apart.
+    setUp({ buildable: [] });
 
     renderPanel();
 

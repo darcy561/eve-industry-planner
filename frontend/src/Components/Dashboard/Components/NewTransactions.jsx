@@ -2,7 +2,7 @@ import { Typography, Grid } from "@mui/material";
 
 import { useMemo } from "react";
 import { STANDARD_TEXT_FORMAT } from "../../../Context/defaultValues";
-import { useItemList } from "../../../Hooks/Static/useItems";
+import { useItemSearchIndex } from "../../../Hooks/Static/useItems";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import findTransactionsForMarketOrders from "../../../Functions/MarketOrders/findTransactionsForMarketOrders";
@@ -37,7 +37,7 @@ export function NewTransactions() {
   const { jobArray } = useUsersStore((state) => state.jobData);
   const queryClient = useQueryClient();
   const linkedOrders = useUsersStore((state) => state.account.linkedOrders);
-  const { records: itemRecords } = useItemList();
+  const { entries: buildableItems } = useItemSearchIndex();
 
   // Query states
   const characterMarketQuery = useGetAllCharacterMarketOrders();
@@ -196,7 +196,11 @@ export function NewTransactions() {
           size={12}
         >
           {transactionData.map((trans) => {
-            const itemName = itemRecords[trans.type_id]?.name;
+            // The buildable-item index rather than every item: this panel offers a sale for
+            // linking against a job, so a type no job can be for has nothing to offer here.
+            const itemName = buildableItems.find(
+              (item) => item.itemID === trans.type_id,
+            )?.name;
             if (!itemName) return null;
 
             return (
