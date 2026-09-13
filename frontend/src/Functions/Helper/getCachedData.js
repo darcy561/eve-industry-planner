@@ -409,6 +409,19 @@ export async function refreshStaticDataCache(force = false) {
   return { buildVersion, changed, files };
 }
 
+/**
+ * The build whose files this page is holding, or null before the first refresh.
+ *
+ * This is the only honest answer to "which build do I have": app-config reports
+ * the build the *server* held when it was last fetched, which is what a client
+ * compares an announcement against before it has caught up, not after.
+ *
+ * @returns {string|null}
+ */
+export function heldStaticDataBuildVersion() {
+  return cachedBuildVersion;
+}
+
 /** Forgets which build is cached, so the next refresh goes through the whole pass. Tests only. */
 export function resetStaticDataCacheState() {
   cachedBuildVersion = null;

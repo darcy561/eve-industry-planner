@@ -199,6 +199,21 @@ describe("waking up", () => {
     expect(refreshStaticDataCache).toHaveBeenCalledTimes(2);
   });
 
+  // The floor is there so alt-tabbing is free, not so a tab that failed to reach
+  // the server has to wait before trying again.
+  it("retries after a failed check rather than waiting out the floor", async () => {
+    vi.useFakeTimers();
+    refreshStaticDataCache.mockRejectedValue(new Error("offline"));
+    await startStaticDataSync();
+    expect(refreshStaticDataCache).toHaveBeenCalledTimes(1);
+
+    refreshStaticDataCache.mockResolvedValue({ changed: false });
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(refreshStaticDataCache).toHaveBeenCalledTimes(2);
+  });
+
   it("stops listening once stopped", async () => {
     vi.useFakeTimers();
     await startStaticDataSync();

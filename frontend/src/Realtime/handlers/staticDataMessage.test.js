@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const refreshStaticDataAfterAnnouncement = vi.fn();
 const getAppConfig = vi.fn();
+const heldStaticDataBuildVersion = vi.fn();
 
 vi.mock("../../Functions/Static/staticDataSync.js", () => ({
   refreshStaticDataAfterAnnouncement: (...args) =>
@@ -10,11 +11,16 @@ vi.mock("../../Functions/Static/staticDataSync.js", () => ({
 vi.mock("../../Functions/Endpoints/Public/appConfig.js", () => ({
   getAppConfig: () => getAppConfig(),
 }));
+vi.mock("../../Functions/Helper/getCachedData.js", () => ({
+  heldStaticDataBuildVersion: () => heldStaticDataBuildVersion(),
+}));
 
 const { applyStaticDataMessage } = await import("./staticDataMessage.js");
 
 beforeEach(() => {
   getAppConfig.mockReturnValue({ sde_build_version: "2026-09-01" });
+  // Nothing refreshed yet, so app-config is all the page has.
+  heldStaticDataBuildVersion.mockReturnValue(null);
 });
 
 describe("a static data announcement", () => {
@@ -61,6 +67,26 @@ describe("a static data announcement", () => {
   it("reports a message naming no build at all", () => {
     expect(applyStaticDataMessage({ type: "staticData" })).toBe(false);
     expect(refreshStaticDataAfterAnnouncement).not.toHaveBeenCalled();
+  });
+
+  // app-config reports the build the server held when it was last fetched. Once
+  // this page has refreshed, that is no longer what it holds, and comparing
+  // against it would download the same files on every announcement after the
+  // first.
+  it("compares against what the page holds, not what it loaded with", () => {
+    heldStaticDataBuildVersion.mockReturnValue("2026-09-13");
+
+    applyStaticDataMessage({ type: "staticData", version: "2026-09-13" });
+
+    expect(refreshStaticDataAfterAnnouncement).not.toHaveBeenCalled();
+  });
+
+  it("still acts on a build newer than the one held", () => {
+    heldStaticDataBuildVersion.mockReturnValue("2026-09-13");
+
+    applyStaticDataMessage({ type: "staticData", version: "2026-09-20" });
+
+    expect(refreshStaticDataAfterAnnouncement).toHaveBeenCalled();
   });
 
   // The refresh is a network read; a malformed frame must not start one.

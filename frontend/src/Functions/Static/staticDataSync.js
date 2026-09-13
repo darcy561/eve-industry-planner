@@ -72,10 +72,14 @@ export function refreshStaticData(force = false) {
       // Material pricing walks the market group tree while building a row, so
       // it needs these readable without awaiting.
       await primeMarketGroupData();
+
+      // Only a pass that got an answer counts as having checked. Stamping a
+      // failed one would let the wake floor below suppress the retry that a tab
+      // coming back from a bad network window is exactly there to make.
+      lastCheckedAt = Date.now();
     } catch (err) {
       console.error("[staticDataSync] refresh failed:", err);
     } finally {
-      lastCheckedAt = Date.now();
       inFlight = null;
     }
   })();
