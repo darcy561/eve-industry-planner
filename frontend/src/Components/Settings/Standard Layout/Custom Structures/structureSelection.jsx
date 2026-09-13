@@ -24,7 +24,7 @@ import {
   appShellTextFieldOutlinedSx,
   getAppShellMarketSelectProps,
 } from "../../../../Context/appShell";
-import { FirstLoginStructureFormField } from "../../../First Login/shared/FirstLoginStructureFormField";
+import { FormField } from "../../../../Styled Components/Textfield/FormField";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
 function StructureOptionsSelection_CustomStructures({
@@ -177,9 +177,9 @@ function StructureOptionsSelection_CustomStructures({
 
   const wrapFirstLogin = (title, description, node) =>
     isFirstLogin ? (
-      <FirstLoginStructureFormField title={title} description={description}>
+      <FormField title={title} description={description}>
         {node}
-      </FirstLoginStructureFormField>
+      </FormField>
     ) : (
       node
     );

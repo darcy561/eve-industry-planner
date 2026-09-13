@@ -278,10 +278,16 @@ one yet because it does not exist.
 
 ### Stage A — The shared shells move
 
-`FirstLoginSetupSection` and `FirstLoginStructureFormField` move into `Styled Components` under
-general names, and every importer is converted. No visual change, no behaviour change.
+`FirstLoginSetupSection` and `FirstLoginStructureFormField` move into `Styled Components` as
+`SectionPanel` and `FormField`, and every importer is converted.
 
 Independent of every other stage and of the open design questions, which is why it is first.
+
+Intended as a no-op, and it is one visually. It is not quite one in behaviour: making a shell general
+exposed two things it was doing because it had only ever had one caller — a hardcoded error-boundary
+label, and label lines rendered whether or not there was anything to put in them. Both are fixed
+here rather than carried into a shared component, and [overlay.md](./overlay.md) § Stage A records
+them.
 
 ### Stage B — The `appearance` fork is deleted
 
@@ -303,6 +309,27 @@ panel, whatever it was copied from. Because it is a drifted copy of the card sur
 panel one (see § Starting position), that is a visual change: the section gains the panel's larger
 radius, its slightly stronger border and its blur. Standardising a drifted value is a visual change
 and is called out rather than folded in.
+
+### The label above a control is not settled
+
+`FormField` styles its label with a hand-written `variant="overline"` — a literal letter spacing and
+two literal line heights, with no token behind them. It was moved verbatim at Stage A, so it is
+visually unchanged, but it is not standardised the way the section panel is.
+
+Two things make that worth deciding rather than leaving:
+
+- **The overline is the minority idiom.** Two places in the SPA use it; **twenty** use
+  `variant="subtitle2"` for the same job, including `AdditionalAccounts`,
+  `FirstLoginCustomStructures` and `FirstLoginPlannerSetupStep` — files this project rewrites. A
+  shared component currently blesses the rarer of the two.
+- **`Context/appShell` has no label token.** It covers surfaces, form controls, menus, sliders,
+  pickers and data grids, and `appShellHelperTextSx` is for the line *below* a control. There is
+  nothing for `FormField` to read from.
+
+Settled at **Stage C**, not before: the rollout's rule is that a shape earns an atom when a second
+screen needs it, and the Accounts page is that second screen. Deciding it from one call site would
+mean restyling twenty files on a sample of one. Stage C picks the winner, adds the token to
+`Context/appShell`, and `FormField` reads it.
 
 ### Stage C — The page
 
@@ -326,7 +353,7 @@ The section, read-only against the planners listing, with the management control
 | Stage | Surface | Status |
 |-------|---------|--------|
 | Phase 1 — project folder and docs | docs | **Done** |
-| A — the shared shells move | SPA | Not started |
+| A — the shared shells move | SPA | **Landed.** `SectionPanel` and `FormField` are in `Styled Components`, all eight call sites converted, the originals deleted and the Settings-into-first-login import retired. Two defects fixed on the way — see [overlay.md](./overlay.md) § Stage A |
 | B — the `appearance` fork is deleted | SPA | Not started |
 | C — the page | SPA | Not started |
 | D — the action slot and ESI status | SPA | Not started |

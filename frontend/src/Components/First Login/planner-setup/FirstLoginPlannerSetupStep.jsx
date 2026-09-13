@@ -12,7 +12,7 @@ import FirstLoginCustomStructures from "./FirstLoginCustomStructures";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
 import MarketListingSelect from "../../../Styled Components/Select/marketListing";
 import useAssetLocations from "../../../Hooks/EveEsi/useAssetLocations";
-import { FirstLoginSetupSection } from "../shared/FirstLoginSetupSection";
+import { SectionPanel } from "../../../Styled Components/Paper/SectionPanel";
 import { FirstLoginJobCardPreview } from "./FirstLoginJobCardPreview";
 import { FirstLoginAssetLocationSelect } from "../shared/FirstLoginAssetLocationSelect";
 import {
@@ -49,7 +49,7 @@ export function FirstLoginPlannerSetupStep() {
 
   return (
     <Stack spacing={2}>
-      <FirstLoginSetupSection
+      <SectionPanel
         title="Markets, orders, assets, and broker fees"
         subtitle="Set default settings for market and material sourcing."
       >
@@ -134,9 +134,9 @@ export function FirstLoginPlannerSetupStep() {
             />
           </Grid>
         </Grid>
-      </FirstLoginSetupSection>
+      </SectionPanel>
 
-      <FirstLoginSetupSection
+      <SectionPanel
         title="Planner layout and cards"
         subtitle="Choose the design of the job cards on the planner."
       >
@@ -156,9 +156,9 @@ export function FirstLoginPlannerSetupStep() {
           Preview
         </Typography>
         <FirstLoginJobCardPreview layoutCompact={enableCompactLayoutView} />
-      </FirstLoginSetupSection>
+      </SectionPanel>
 
-      <FirstLoginSetupSection
+      <SectionPanel
         title="Custom structures"
         subtitle="Add structures now so new jobs use your setup."
       >
@@ -168,7 +168,7 @@ export function FirstLoginPlannerSetupStep() {
           still add or edit structures later in Settings.
         </Typography>
         <FirstLoginCustomStructures />
-      </FirstLoginSetupSection>
+      </SectionPanel>
     </Stack>
   );
 }

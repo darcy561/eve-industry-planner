@@ -7,7 +7,7 @@ import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import { FaDiscord } from "react-icons/fa";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import { openFeedbackDialogue } from "../../../Events/feedbackDialogueEvents";
-import { FirstLoginSetupSection } from "../shared/FirstLoginSetupSection";
+import { SectionPanel } from "../../../Styled Components/Paper/SectionPanel";
 
 const bookendCardInteractiveSx = {
   textDecoration: "none",
@@ -152,7 +152,7 @@ export function FirstLoginSupportStep() {
 
   return (
     <Stack spacing={2}>
-      <FirstLoginSetupSection
+      <SectionPanel
         title="Need help later?"
         subtitle={`If you get stuck or have any questions about the application, here are the best places to get support.`}
       >
@@ -235,7 +235,7 @@ export function FirstLoginSupportStep() {
             </Typography>
           </SupportBookendCard>
         ) : null}
-      </FirstLoginSetupSection>
+      </SectionPanel>
     </Stack>
   );
 }

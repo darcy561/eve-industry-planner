@@ -15,7 +15,7 @@ import {
   appShellTextFieldOutlinedSx,
   getAppShellMarketSelectProps,
 } from "../../../../Context/appShell";
-import { FirstLoginStructureFormField } from "../../../First Login/shared/FirstLoginStructureFormField";
+import { FormField } from "../../../../Styled Components/Textfield/FormField";
 
 export default function InventionStructureSelection({
   selectedJobType,
@@ -35,9 +35,9 @@ export default function InventionStructureSelection({
 
   const wrapFirstLogin = (title, description, node) =>
     isFirstLogin ? (
-      <FirstLoginStructureFormField title={title} description={description}>
+      <FormField title={title} description={description}>
         {node}
-      </FirstLoginStructureFormField>
+      </FormField>
     ) : (
       node
     );

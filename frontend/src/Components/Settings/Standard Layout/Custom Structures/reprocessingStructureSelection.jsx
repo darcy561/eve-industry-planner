@@ -16,7 +16,7 @@ import {
   appShellTextFieldOutlinedSx,
   getAppShellMarketSelectProps,
 } from "../../../../Context/appShell";
-import { FirstLoginStructureFormField } from "../../../First Login/shared/FirstLoginStructureFormField";
+import { FormField } from "../../../../Styled Components/Textfield/FormField";
 
 function ReprocessingStructureSelection({
   selectedJobType,
@@ -36,9 +36,9 @@ function ReprocessingStructureSelection({
 
   const wrapFirstLogin = (title, description, node) =>
     isFirstLogin ? (
-      <FirstLoginStructureFormField title={title} description={description}>
+      <FormField title={title} description={description}>
         {node}
-      </FirstLoginStructureFormField>
+      </FormField>
     ) : (
       node
     );
