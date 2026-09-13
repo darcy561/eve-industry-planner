@@ -67,3 +67,16 @@ func SetWarmerSafetyForTest(d time.Duration) (restore func()) {
 	warmerSafetyInterval = d
 	return func() { warmerSafetyInterval = prev }
 }
+
+// SetLiveBuildVersionForTest overrides the held build version; returns a restore func.
+func SetLiveBuildVersionForTest(version string) (restore func()) {
+	cacheMu.Lock()
+	prev := cacheVer
+	cacheVer = version
+	cacheMu.Unlock()
+	return func() {
+		cacheMu.Lock()
+		cacheVer = prev
+		cacheMu.Unlock()
+	}
+}

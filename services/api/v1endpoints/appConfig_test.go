@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"eve-industry-planner/api/apideps"
+	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/shared/appconfig"
 	"eve-industry-planner/testing/redisfake"
 
@@ -91,5 +92,42 @@ func TestAppConfigETagChangesWithTheFlag(t *testing.T) {
 	}
 	if after := rec.Header().Get("ETag"); after == before {
 		t.Errorf("ETag %q unchanged after the flag changed", after)
+	}
+}
+
+// A client learns a new SDE build exists from here, so the response has to follow
+// what the process holds rather than what it started with.
+func TestAppConfigReportsTheHeldSDEBuild(t *testing.T) {
+	h := New(&apideps.Deps{})
+
+	restore := sdecache.SetLiveBuildVersionForTest("2026-09-01")
+	if got := appConfigBody(t, h).SDEBuildVersion; got != "2026-09-01" {
+		t.Fatalf("sde_build_version = %q, want %q", got, "2026-09-01")
+	}
+
+	sdecache.SetLiveBuildVersionForTest("2026-09-13")
+	if got := appConfigBody(t, h).SDEBuildVersion; got != "2026-09-13" {
+		t.Fatalf("sde_build_version = %q after a rewarm, want %q", got, "2026-09-13")
+	}
+	restore()
+}
+
+// The ETag must follow the build too, or a client holding the previous one would
+// be told nothing had changed and never look for the new files.
+func TestAppConfigETagChangesWithTheSDEBuild(t *testing.T) {
+	h := New(&apideps.Deps{})
+	defer sdecache.SetLiveBuildVersionForTest("2026-09-01")()
+
+	rec := httptest.NewRecorder()
+	h.AppConfigHandler(rec, httptest.NewRequest(http.MethodGet, "/api/v1/app-config", nil))
+	first := rec.Header().Get("ETag")
+
+	sdecache.SetLiveBuildVersionForTest("2026-09-13")
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/app-config", nil)
+	req.Header.Set("If-None-Match", first)
+	rec = httptest.NewRecorder()
+	h.AppConfigHandler(rec, req)
+	if rec.Code == http.StatusNotModified {
+		t.Fatal("status = 304 after the SDE build moved, want a fresh body")
 	}
 }

@@ -58,6 +58,15 @@ func IsReady() bool {
 	return cacheReady.Load()
 }
 
+// LiveBuildVersion returns the SDE build this process holds, or "" before the
+// first warm. Read from memory rather than the object store because app-config
+// answers it on every page load.
+func LiveBuildVersion() string {
+	cacheMu.RLock()
+	defer cacheMu.RUnlock()
+	return cacheVer
+}
+
 // SetReadyForTest overrides the ready flag (tests only).
 func SetReadyForTest(ready bool) {
 	cacheReady.Store(ready)

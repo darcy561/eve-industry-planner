@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/shared/appconfig"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
@@ -13,11 +14,13 @@ import (
 type AppConfigResponse struct {
 	AppVersionNumber string         `json:"app_version_number"`
 	MaintenanceMode  bool           `json:"maintenance_mode"`
+	SDEBuildVersion  string         `json:"sde_build_version,omitempty"`
 	FeatureFlags     map[string]any `json:"feature_flags"`
 }
 
-// AppConfigHandler returns lightweight client config: maintenance mode and feature flags.
-// app_version_number is this process bake/env (APP_VERSION family).
+// AppConfigHandler returns lightweight client config: maintenance mode, feature flags
+// and the SDE build this process holds. app_version_number is this process bake/env
+// (APP_VERSION family).
 func (a *Handlers) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIAppConfig()
@@ -38,6 +41,7 @@ func (a *Handlers) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 	response := AppConfigResponse{
 		AppVersionNumber: appconfig.ProcessAppVersion(),
 		MaintenanceMode:  a.MaintenanceModeEnabled(ctx),
+		SDEBuildVersion:  sdecache.LiveBuildVersion(),
 		FeatureFlags:     featureFlags,
 	}
 
