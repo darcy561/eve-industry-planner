@@ -23,6 +23,11 @@ version of it, onto the shared surface and the component layer above it.
   competing with it.
 - **Behaviour.** A conversion changes what a screen is made of, not what it does.
   Where a conversion finds a defect, it is recorded here and fixed separately.
+- **The Accounts page** → [accounts-page/contents.md](../accounts-page/contents.md).
+  That screen is being redesigned rather than converted, and a redesign converts it
+  on the way. It takes `AdditionalAccounts`, `AccountEntry` and
+  `FirstLoginMainCharacterCard` with it, along with retiring the `appearance` fork
+  those share with the Settings custom-structure components.
 
 ## Task map
 

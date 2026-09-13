@@ -65,7 +65,7 @@ needs it; before that it stays where it is.
 | First login — page shell | **Not converted.** 274 lines, its own radius-3 surfaces |
 | First login — main character card | **Not converted.** Own nested surface at a drifted border alpha |
 | First login — welcome banner | **Not converted.** Own surface and shadow |
-| Additional accounts | Reads `SelectableCard`. Still defines a local `firstLoginPanelSx` — a fourth copy of the panel surface, and misnamed for a screen it is not on |
+| Additional accounts, and the rest of the Accounts page | **Moved out.** Converts as part of a redesign, which this project does not do → [accounts-page/plan.md](../accounts-page/plan.md) |
 | Archived jobs list, archive chart panels, archive jobs panel | On `AppShellPanel` already; not audited against the component layer |
 | Everything else | Predates the design. Converts when the design reaches it, not before |
 
@@ -104,17 +104,18 @@ during a conversion is the failure this project exists to undo.
 |-------|---------|--------|
 | Phase 1 — project folder and docs | docs | **Done** |
 | First login — remaining screens | SPA | Not started |
-| Additional accounts — retire the local panel sx | SPA | Not started |
+| Additional accounts — retire the local panel sx | SPA | **Moved to [accounts-page](../accounts-page/plan.md)** Stage B |
 | Archive statistics — audit the rest of the area | SPA | Not started |
 | Component layer — add atoms as conversions need them | SPA | Ongoing |
 
 ## Start here
 
 The remaining first login screens, because they are the ones already claiming the design while not
-using it, and because the atoms they need now exist. `FirstLoginMainCharacterCard` is the smallest and
-`appShellNestedCardSx` replaces its surface outright.
+using it, and because the atoms they need now exist. The page shell, the welcome banner and the
+support step are what is left here.
 
-`AdditionalAccounts`'s local `firstLoginPanelSx` is the other clear one: a fourth copy of the panel
-surface, named for a screen it does not belong to.
+`FirstLoginMainCharacterCard` and `AdditionalAccounts` are **not** on that list any more:
+[accounts-page](../accounts-page/plan.md) takes both, because the character card it would convert to
+is the one that project builds, and converting it here first would mean converting it twice.
 
-Neither is urgent. Both are cheap once someone is in the file.
+Not urgent. Cheap once someone is in the file.
