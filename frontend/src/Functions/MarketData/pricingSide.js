@@ -162,6 +162,35 @@ export function setJobPricingSide(jobPricing, side, key, value) {
 }
 
 /**
+ * A side's group table with one group's field set.
+ *
+ * Returns undefined once the last choice is cleared, at either level: a group
+ * that names nothing is dropped from the table, and a table with nothing in it is
+ * dropped from the side. An empty entry would otherwise sit in the stored
+ * document answering nothing, and the walk reads an empty value as no choice
+ * anyway — so keeping it would be a row a reader could see and not use.
+ *
+ * @param {Object<string, {market?: string, basis?: string}>|null|undefined} groups
+ * @param {number|string} groupID
+ * @param {"market"|"basis"} key
+ * @param {string|null|undefined} value
+ * @returns {Object<string, {market?: string, basis?: string}>|undefined}
+ */
+export function setGroupPricing(groups, groupID, key, value) {
+  const id = String(groupID);
+  const next = { ...groups };
+  const entry = { ...next[id], [key]: value || undefined };
+
+  if (!entry.market && !entry.basis) {
+    delete next[id];
+  } else {
+    next[id] = entry;
+  }
+
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
  * How far a walk may climb before it stops looking.
  *
  * EVE's market tree is a handful of levels deep, so a walk longer than this has

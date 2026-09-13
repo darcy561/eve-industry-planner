@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  setGroupPricing,
   PRICING_RUNG,
   PRICING_SIDE,
   resolvePricingSide,
@@ -297,5 +298,81 @@ describe("resolvePricingSideRungs", () => {
         side: PRICING_SIDE.BUYING,
       }),
     );
+  });
+});
+
+// A side's group table is the one place this project has already recorded a
+// whole-value replacement destroying what sat beside it, so each of these is
+// about what survives a write rather than what it sets.
+describe("setGroupPricing", () => {
+  const existing = {
+    1857: { market: "jita", basis: "buy" },
+    1996: { market: "amarr" },
+  };
+
+  it("sets a field on a group the table does not carry yet", () => {
+    expect(setGroupPricing(existing, 1998, "market", "hek")).toEqual({
+      ...existing,
+      1998: { market: "hek" },
+    });
+  });
+
+  it("leaves every other group alone", () => {
+    const next = setGroupPricing(existing, 1857, "market", "dodixie");
+
+    expect(next[1996]).toEqual({ market: "amarr" });
+    expect(next[1857]).toEqual({ market: "dodixie", basis: "buy" });
+  });
+
+  it("sets one field without disturbing the other", () => {
+    expect(setGroupPricing(existing, 1996, "basis", "sell")[1996]).toEqual({
+      market: "amarr",
+      basis: "sell",
+    });
+  });
+
+  it("builds a table where a side had none", () => {
+    expect(setGroupPricing(undefined, 1857, "market", "jita")).toEqual({
+      1857: { market: "jita" },
+    });
+  });
+
+  // An entry naming nothing would be a row a reader can see and not use: the
+  // walk reads an empty value as no choice, so it would answer nothing.
+  it("drops a group once its last field is cleared", () => {
+    const next = setGroupPricing(existing, 1996, "market", "");
+
+    expect(next).not.toHaveProperty("1996");
+    expect(next[1857]).toEqual({ market: "jita", basis: "buy" });
+  });
+
+  it("keeps a group that still names something", () => {
+    expect(setGroupPricing(existing, 1857, "market", "")[1857]).toEqual({
+      basis: "buy",
+    });
+  });
+
+  // The side has to stop carrying `groups` at all, rather than an empty object
+  // that reads as a table answering nothing.
+  it("answers undefined once the last group goes", () => {
+    const one = { 1857: { market: "jita" } };
+
+    expect(setGroupPricing(one, 1857, "market", "")).toBeUndefined();
+  });
+
+  it("reads a cleared field as gone rather than as empty", () => {
+    const next = setGroupPricing(existing, 1857, "basis", null);
+
+    expect(next[1857]).toEqual({ market: "jita" });
+    expect(next[1857]).not.toHaveProperty("basis", null);
+  });
+
+  // Group ids arrive as numbers from the tree and as strings from a stored
+  // document; both have to reach the same entry.
+  it("reaches the same entry whether the id is a number or a string", () => {
+    const byString = setGroupPricing(existing, "1857", "market", "hek");
+
+    expect(byString[1857]).toEqual({ market: "hek", basis: "buy" });
+    expect(Object.keys(byString)).toHaveLength(2);
   });
 });

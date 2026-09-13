@@ -9,6 +9,7 @@
  * @author EVE Industry Planner Team
  */
 import { asIDList } from "../../Functions/Helper/ids";
+import { setGroupPricing } from "../../Functions/MarketData/pricingSide.js";
 
 import {
   detectUserLocale,
@@ -192,6 +193,45 @@ export const preferencesActions = (set, get) => ({
       }),
       false,
       "updateDefaultMaterialEfficiencyValue",
+    ),
+
+  /**
+   * Sets one field of one market group's pricing, on one side.
+   *
+   * Separate from {@link updatePricingDefault} because that one spreads a side
+   * and assigns a top-level key: it cannot reach inside `groups`, and handing it
+   * "groups" would replace the whole table with whatever the caller had built.
+   * A side's other answers have to survive a change to one group.
+   *
+   * @param {string} side - One of PRICING_SIDE
+   * @param {number|string} groupID - A market group id
+   * @param {"market"|"basis"} key
+   * @param {string|null|undefined} value - Empty clears the field, and clearing
+   *   the last field drops the group
+   *
+   * @example
+   * actions.updateGroupPricingDefault("buying", 1857, "market", "jita");
+   */
+  updateGroupPricingDefault: (side, groupID, key, value) =>
+    set(
+      (state) => {
+        const current = state.applicationSettings.defaultPricing?.[side];
+        const groups = setGroupPricing(current?.groups, groupID, key, value);
+        const { groups: _dropped, ...withoutGroups } = current ?? {};
+
+        return {
+          ...state,
+          applicationSettings: {
+            ...state.applicationSettings,
+            defaultPricing: {
+              ...state.applicationSettings.defaultPricing,
+              [side]: groups ? { ...withoutGroups, groups } : withoutGroups,
+            },
+          },
+        };
+      },
+      false,
+      "updateGroupPricingDefault",
     ),
 
   /**

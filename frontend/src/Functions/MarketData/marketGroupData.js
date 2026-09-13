@@ -51,6 +51,125 @@ export function readMarketGroups() {
 }
 
 /**
+ * What sits directly inside a market group, or at the top of the tree.
+ *
+ * The published file carries each group's children, so this is a lookup rather
+ * than a walk: deriving it from the parent links would mean inverting the whole
+ * tree on first open, in every session, for an answer that never changes.
+ *
+ * Ordered by name, because a reader browsing is looking for one; the file orders
+ * children by id, which is what makes a published build comparable to the last.
+ *
+ * @param {number|null} [parentID] - null or omitted for the roots
+ * @returns {Array<{id: number, name: string, hasChildren: boolean, hasTypes: boolean}>}
+ */
+export function childrenOf(parentID = null) {
+  return childrenIn(tree.read(), parentID);
+}
+
+/**
+ * The same answer, against a tree the caller already holds.
+ *
+ * React reads this file through the query cache while the pricing rung reads the
+ * copy held here, and the two are primed separately — so a caller that has a tree
+ * passes it rather than asking which copy arrived first.
+ *
+ * @param {Object<string, Object>|null|undefined} groups
+ * @param {number|null} [parentID]
+ * @returns {Array<{id: number, name: string, hasChildren: boolean, hasTypes: boolean}>}
+ */
+export function childrenIn(groups, parentID = null) {
+  if (!groups) return [];
+
+  const ids = parentID
+    ? (groups[String(parentID)]?.children ?? [])
+    : rootIDs(groups);
+
+  return ids
+    .map((id) => {
+      const group = groups[String(id)];
+      if (!group) return null;
+      return {
+        id,
+        name: group.name,
+        hasChildren: (group.children?.length ?? 0) > 0,
+        hasTypes: Boolean(group.has_types),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The groups nothing contains.
+ *
+ * Read by scanning rather than from a published list: a root is simply a group
+ * with no parent, and a second way of saying so could disagree with the parent
+ * links themselves.
+ *
+ * @param {Object<string, {parent_id?: number}>} groups
+ * @returns {number[]}
+ */
+function rootIDs(groups) {
+  const roots = [];
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.parent_id) continue;
+    const id = Number(key);
+    if (Number.isFinite(id)) roots.push(id);
+  }
+  return roots;
+}
+
+/**
+ * What contains a group, outermost first, ending with the group itself.
+ *
+ * A reader choosing "Minerals" is shown where it sits, because the name alone
+ * does not say whether it is the one they meant. The same parent links the
+ * pricing rung climbs, so the path and the resolution cannot disagree about
+ * parentage.
+ *
+ * Capped like the rung's own walk: a cycle in the published file would otherwise
+ * build a path forever. Nothing in the data does that, but this runs per row of
+ * a list a reader is scrolling.
+ *
+ * @param {number|null|undefined} groupID
+ * @returns {Array<{id: number, name: string}>}
+ */
+export function ancestorPath(groupID) {
+  return ancestorPathIn(tree.read(), groupID);
+}
+
+/**
+ * The same answer, against a tree the caller already holds.
+ *
+ * @param {Object<string, Object>|null|undefined} groups
+ * @param {number|null|undefined} groupID
+ * @returns {Array<{id: number, name: string}>}
+ */
+export function ancestorPathIn(groups, groupID) {
+  if (!groups || !groupID) return [];
+
+  const path = [];
+  let id = groupID;
+  for (let step = 0; step < MAX_PATH_DEPTH && id; step += 1) {
+    const group = groups[String(id)];
+    if (!group) break;
+    path.unshift({ id: Number(id), name: group.name });
+    id = group.parent_id;
+  }
+
+  return path;
+}
+
+/**
+ * How far a path may climb before it stops looking.
+ *
+ * EVE's tree is six groups deep at its deepest, so anything longer has met a
+ * cycle the published file should not contain.
+ */
+const MAX_PATH_DEPTH = 32;
+
+/**
  * Which market group an item sits in, or undefined where nothing says.
  *
  * Most unpublished types carry no market group, so undefined is an ordinary

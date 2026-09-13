@@ -13,6 +13,7 @@ import useAssetLocations from "../../../Hooks/EveEsi/useAssetLocations";
 import VirtualisedLocationSearch from "../../../Styled Components/autocomplete/virtualisedLocationSearch";
 import CustomSystemIndexes from "./Job Settings/customSystemIndexes";
 import CustomExtrasFrame from "./Job Settings/customExtrasFrame";
+import MarketGroupPricing from "./Job Settings/marketGroupPricing";
 
 function JobSettingsFrame() {
   const {
@@ -181,6 +182,9 @@ function JobSettingsFrame() {
       </Grid>
       <CustomSystemIndexes />
       <CustomExtrasFrame />
+      <Box sx={{ marginTop: "20px" }}>
+        <MarketGroupPricing />
+      </Box>
     </Box>
   );
 }

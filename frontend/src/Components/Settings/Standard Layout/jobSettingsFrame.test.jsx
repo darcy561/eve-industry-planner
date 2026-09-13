@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render as renderBare, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const setDefaultMarketCharacter = vi.fn();
 const updatePricingDefault = vi.fn();
@@ -40,6 +42,14 @@ vi.mock("./Job Settings/customSystemIndexes", () => ({ default: () => null }));
 vi.mock("./Job Settings/customExtrasFrame", () => ({ default: () => null }));
 
 const { default: JobSettingsFrame } = await import("./jobSettingsFrame");
+
+// The frame carries a panel that reads the market group tree through the query
+// cache, so every case needs a client even when it is asserting a select.
+function render(ui) {
+  return renderBare(
+    <QueryClientProvider client={testQueryClient()}>{ui}</QueryClientProvider>,
+  );
+}
 
 // The seller is a separate choice from the builder, and it belongs with the
 // other market defaults rather than in a tab of its own.
