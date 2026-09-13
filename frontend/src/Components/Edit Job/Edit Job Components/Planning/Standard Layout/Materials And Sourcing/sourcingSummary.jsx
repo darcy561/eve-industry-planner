@@ -1,4 +1,5 @@
 import { Alert, Button, CircularProgress } from "@mui/material";
+import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
 
 import { PanelFooterMeta } from "../../../../../../Styled Components/Typography/figures";
 
@@ -32,14 +33,16 @@ export function SourcingOffer({
       severity="success"
       variant="outlined"
       action={
-        <Button
-          color="inherit"
-          size="small"
-          onClick={onApply}
-          disabled={disabled}
-        >
-          Apply
-        </Button>
+        <ExplainerTooltip title="Links a child job for every row that is cheaper to build, not just one">
+          <Button
+            color="inherit"
+            size="small"
+            onClick={onApply}
+            disabled={disabled}
+          >
+            Apply
+          </Button>
+        </ExplainerTooltip>
       }
       sx={{ alignItems: "center", py: 0 }}
     >
@@ -101,17 +104,19 @@ export function SourcingCostOffer({
       variant="outlined"
       icon={false}
       action={
-        <Button
-          color="inherit"
-          size="small"
-          onClick={onCost}
-          disabled={disabled || isCosting}
-          startIcon={
-            isCosting ? <CircularProgress size={14} color="inherit" /> : null
-          }
-        >
-          {isCosting ? "Costing" : "Cost them"}
-        </Button>
+        <ExplainerTooltip title="Works out what each of these would cost to build, which fetches a blueprint for every one">
+          <Button
+            color="inherit"
+            size="small"
+            onClick={onCost}
+            disabled={disabled || isCosting}
+            startIcon={
+              isCosting ? <CircularProgress size={14} color="inherit" /> : null
+            }
+          >
+            {isCosting ? "Costing" : "Cost them"}
+          </Button>
+        </ExplainerTooltip>
       }
       sx={{ alignItems: "center", py: 0 }}
     >

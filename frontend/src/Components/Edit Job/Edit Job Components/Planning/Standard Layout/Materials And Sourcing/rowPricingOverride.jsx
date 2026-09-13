@@ -1,4 +1,5 @@
 import { Box, Button, Typography } from "@mui/material";
+import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 
 import { MarketListingSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketListing";
@@ -75,13 +76,15 @@ export default function RowPricingOverride({
           />
         </Box>
         {hasOverride ? (
-          <Button
-            size="small"
-            onClick={() => onReset?.(typeID)}
-            disabled={disabled}
-          >
-            Follow panel
-          </Button>
+          <ExplainerTooltip title="Clears this row's own market and listing, so it is priced by the panel above again">
+            <Button
+              size="small"
+              onClick={() => onReset?.(typeID)}
+              disabled={disabled}
+            >
+              Use panel pricing
+            </Button>
+          </ExplainerTooltip>
         ) : null}
       </Box>
     </Box>

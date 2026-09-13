@@ -216,3 +216,23 @@ describe("what the picker costs while it is shut", () => {
     expect(screen.queryByText("Minerals")).not.toBeInTheDocument();
   });
 });
+
+// A row does two different things depending on what is under the group, and the
+// row itself cannot show which.
+describe("what a picker row says it will do", () => {
+  it("says a group with children opens rather than being chosen", async () => {
+    renderPicker();
+
+    await userEvent.hover(screen.getByText("Manufacture & Research"));
+
+    expect(await screen.findByText(/Opens this group/)).toBeInTheDocument();
+  });
+
+  it("says a group with nothing under it is priced", async () => {
+    renderPicker();
+
+    await userEvent.hover(screen.getByText("Ammunition"));
+
+    expect(await screen.findByText("Prices this group")).toBeInTheDocument();
+  });
+});

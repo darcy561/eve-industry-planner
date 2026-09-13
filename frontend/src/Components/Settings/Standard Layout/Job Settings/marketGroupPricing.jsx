@@ -22,6 +22,7 @@ import {
 import ExitRouteSelect from "../../../../Styled Components/Select/exitRoute";
 import MarketGroupPicker from "./marketGroupPicker";
 import MarketGroupIcon from "../../../../Styled Components/Avatar/MarketGroupIcon";
+import ExplainerTooltip from "../../../../Styled Components/Tooltip/ExplainerTooltip";
 import { useDialogueTrigger } from "../../../../Styled Components/Dialogue/ContentDialogue";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 
@@ -74,31 +75,37 @@ function GroupRow({ side, groupID, choice }) {
       sublabel={within.length > 0 ? within.join(" › ") : undefined}
       value={
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-          <MarketLocationSelect
-            useAppShellStyling
-            value={choice?.market}
-            onChange={(option) => commit("market", option.id)}
-            labelText="Market"
-            customFormStyling={{ minWidth: 140 }}
-          />
+          <ExplainerTooltip title="Where everything in this group is priced, unless a job or a row says otherwise">
+            <MarketLocationSelect
+              useAppShellStyling
+              value={choice?.market}
+              onChange={(option) => commit("market", option.id)}
+              labelText="Market"
+              customFormStyling={{ minWidth: 140 }}
+            />
+          </ExplainerTooltip>
           {/* A group answers its own side's axis: output leaves by a route,
               materials are priced on a basis. */}
           {selling ? (
-            <ExitRouteSelect
-              value={choice?.exit}
-              onChange={(option) => commit("exit", option.id)}
-              labelText="Sold by"
-              customFormStyling={{ minWidth: 180 }}
-            />
+            <ExplainerTooltip title="How this group's output leaves a build: listing pays a broker fee, selling into bids does not">
+              <ExitRouteSelect
+                value={choice?.exit}
+                onChange={(option) => commit("exit", option.id)}
+                labelText="Sold by"
+                customFormStyling={{ minWidth: 180 }}
+              />
+            </ExplainerTooltip>
           ) : (
-            <MarketListingSelect
-              value={choice?.basis}
-              onChange={(option) => commit("basis", option.id)}
-              labelText="Prices"
-              customFormStyling={{ minWidth: 150 }}
-            />
+            <ExplainerTooltip title="Which side of the order book a price comes from — the ask you would pay, or the bid you would be offered">
+              <MarketListingSelect
+                value={choice?.basis}
+                onChange={(option) => commit("basis", option.id)}
+                labelText="Prices"
+                customFormStyling={{ minWidth: 150 }}
+              />
+            </ExplainerTooltip>
           )}
-          <Tooltip title="Stop pricing this group separately" arrow>
+          <ExplainerTooltip title="Stops pricing this group separately, so its items follow the default above">
             <IconButton
               size="small"
               aria-label={`Remove ${name ?? groupID}`}
@@ -117,7 +124,7 @@ function GroupRow({ side, groupID, choice }) {
             >
               <CloseIcon fontSize="small" />
             </IconButton>
-          </Tooltip>
+          </ExplainerTooltip>
         </Stack>
       }
     />
@@ -155,9 +162,11 @@ function SideSection({ side, noun, groups }) {
         sx={{ alignItems: "center", justifyContent: "space-between" }}
       >
         <FigureCaption>{noun}</FigureCaption>
-        <Button size="small" startIcon={<AddIcon />} onClick={picker.open}>
-          Add a group
-        </Button>
+        <ExplainerTooltip title="Price one EVE market category differently — minerals, say — from everything else on this side">
+          <Button size="small" startIcon={<AddIcon />} onClick={picker.open}>
+            Add a group
+          </Button>
+        </ExplainerTooltip>
       </Stack>
       <MarketGroupPicker {...picker.dialogueProps} onChoose={add} noun={noun} />
       <InsetSurface sx={{ marginTop: 1 }}>

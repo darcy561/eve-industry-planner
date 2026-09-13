@@ -46,14 +46,16 @@ describe("where a single material is priced", () => {
     // Nothing to undo, so an undo would be a control that does nothing.
     renderControl();
 
-    expect(screen.queryByRole("button", { name: /follow panel/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /use panel pricing/i }),
+    ).toBeNull();
   });
 
   it("offers a way back once the row has its own hub", () => {
     renderControl({ overrideMarket: "amarr" });
 
     expect(
-      screen.getByRole("button", { name: /follow panel/i }),
+      screen.getByRole("button", { name: /use panel pricing/i }),
     ).toBeInTheDocument();
   });
 
@@ -61,7 +63,7 @@ describe("where a single material is priced", () => {
     renderControl({ overrideListing: "buyP95" });
 
     expect(
-      screen.getByRole("button", { name: /follow panel/i }),
+      screen.getByRole("button", { name: /use panel pricing/i }),
     ).toBeInTheDocument();
   });
 
@@ -70,7 +72,9 @@ describe("where a single material is priced", () => {
     const user = userEvent.setup();
     renderControl({ overrideMarket: "amarr", onReset });
 
-    await user.click(screen.getByRole("button", { name: /follow panel/i }));
+    await user.click(
+      screen.getByRole("button", { name: /use panel pricing/i }),
+    );
 
     expect(onReset).toHaveBeenCalledWith(34);
   });
@@ -79,7 +83,7 @@ describe("where a single material is priced", () => {
     renderControl({ overrideMarket: "amarr", disabled: true });
 
     expect(
-      screen.getByRole("button", { name: /follow panel/i }),
+      screen.getByRole("button", { name: /use panel pricing/i }),
     ).toBeDisabled();
   });
 });

@@ -212,19 +212,22 @@ export default function CustomSystemIndexes() {
               sm: 2,
             }}
           >
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={handleAddSystemIndex}
-              disabled={
-                !selectedSystem ||
-                !selectedIndexType ||
-                !indexValue ||
-                !!valueError
-              }
-            >
-              <AddIcon />
-            </IconButton>
+            <ExplainerTooltip title="Saves this index for the system, so every job installed there uses it instead of the live figure">
+              <IconButton
+                size="small"
+                color="primary"
+                aria-label="Save system index"
+                onClick={handleAddSystemIndex}
+                disabled={
+                  !selectedSystem ||
+                  !selectedIndexType ||
+                  !indexValue ||
+                  !!valueError
+                }
+              >
+                <AddIcon />
+              </IconButton>
+            </ExplainerTooltip>
           </Grid>
           <Grid
             align="center"
@@ -283,19 +286,22 @@ export default function CustomSystemIndexes() {
                               })}
                               %
                             </Typography>
-                            <IconButton
-                              size="small"
-                              onClick={async () => {
-                                deletePredefinedSystemIndexType(
-                                  Number(systemID),
-                                  indexType,
-                                );
-                                scheduleDebouncedApplicationSettingsSave();
-                              }}
-                              sx={{ padding: "2px" }}
-                            >
-                              <CloseIcon fontSize="small" color="error" />
-                            </IconButton>
+                            <ExplainerTooltip title="Drops this one index, so jobs in this system use the live figure for it again">
+                              <IconButton
+                                size="small"
+                                aria-label={`Remove the saved ${indexType} index`}
+                                onClick={async () => {
+                                  deletePredefinedSystemIndexType(
+                                    Number(systemID),
+                                    indexType,
+                                  );
+                                  scheduleDebouncedApplicationSettingsSave();
+                                }}
+                                sx={{ padding: "2px" }}
+                              >
+                                <CloseIcon fontSize="small" color="error" />
+                              </IconButton>
+                            </ExplainerTooltip>
                           </Box>
                         ),
                       )}

@@ -15,6 +15,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 import VirtualisedListbox from "../../../../Styled Components/autocomplete/virtualisedListbox";
 import MarketGroupIcon from "../../../../Styled Components/Avatar/MarketGroupIcon";
+import ExplainerTooltip from "../../../../Styled Components/Tooltip/ExplainerTooltip";
 
 import ContentDialogue, {
   DialogueCloseAction,
@@ -146,7 +147,12 @@ function PickerBody({ onChoose, onClose }) {
           </Box>
         )}
         renderInput={(params) => (
-          <TextField {...params} label="Search a group" size="small" />
+          <TextField
+            {...params}
+            label="Search a group"
+            size="small"
+            helperText="Searches every group, not just this level"
+          />
         )}
         sx={{ marginBottom: 2 }}
       />
@@ -175,31 +181,42 @@ function PickerBody({ onChoose, onClose }) {
 
       {/* The level itself is a choice, not only what sits under it. */}
       {parentID ? (
-        <Button
-          size="small"
-          onClick={() => choose(parentID)}
-          sx={{ marginBottom: 1 }}
-        >
-          Price “{path.at(-1)?.name}” and everything under it
-        </Button>
+        <ExplainerTooltip title="Covers every group beneath this one too, so one entry prices the whole branch">
+          <Button
+            size="small"
+            onClick={() => choose(parentID)}
+            sx={{ marginBottom: 1 }}
+          >
+            Price “{path.at(-1)?.name}” and everything under it
+          </Button>
+        </ExplainerTooltip>
       ) : null}
 
       <List dense disablePadding>
         {children.map((group) => (
-          <ListItemButton
+          <ExplainerTooltip
             key={group.id}
-            onClick={() =>
-              group.hasChildren ? setParentID(group.id) : choose(group.id)
+            title={
+              group.hasChildren
+                ? "Opens this group — use the button above to price the whole branch instead"
+                : "Prices this group"
             }
+            placement="right"
           >
-            <MarketGroupIcon typeID={group.iconTypeID} size={24} />
-            <ListItemText
-              primary={group.name}
-              secondary={group.hasTypes ? "Holds items" : undefined}
-              sx={{ marginLeft: 1 }}
-            />
-            {group.hasChildren ? <ChevronRightIcon fontSize="small" /> : null}
-          </ListItemButton>
+            <ListItemButton
+              onClick={() =>
+                group.hasChildren ? setParentID(group.id) : choose(group.id)
+              }
+            >
+              <MarketGroupIcon typeID={group.iconTypeID} size={24} />
+              <ListItemText
+                primary={group.name}
+                secondary={group.hasTypes ? "Holds items" : undefined}
+                sx={{ marginLeft: 1 }}
+              />
+              {group.hasChildren ? <ChevronRightIcon fontSize="small" /> : null}
+            </ListItemButton>
+          </ExplainerTooltip>
         ))}
         {children.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ p: 1 }}>

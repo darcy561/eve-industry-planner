@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ExplainerTooltip from "../../../../Styled Components/Tooltip/ExplainerTooltip";
 import {
   Box,
   Chip,
@@ -104,13 +105,16 @@ export default function CustomExtrasFrame() {
               onChange={(e) => setNewCategoryName(e.target.value)}
               sx={{ flexGrow: 1 }}
             />
-            <IconButton
-              onClick={handleAddCategory}
-              disabled={!newCategoryName.trim()}
-              color="primary"
-            >
-              <AddIcon />
-            </IconButton>
+            <ExplainerTooltip title="Adds the category to every job's extras, not just this one">
+              <IconButton
+                aria-label="Add extras category"
+                onClick={handleAddCategory}
+                disabled={!newCategoryName.trim()}
+                color="primary"
+              >
+                <AddIcon />
+              </IconButton>
+            </ExplainerTooltip>
           </Grid>
           <Grid
             sx={{ padding: "20px" }}

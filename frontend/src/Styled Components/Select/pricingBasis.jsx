@@ -11,6 +11,7 @@ import {
 
 import { formatTimeDuration } from "../../Functions/Helper/numberParser";
 import { useMediaQuery, useTheme } from "@mui/material";
+import ExplainerTooltip from "../Tooltip/ExplainerTooltip";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 /**
@@ -170,9 +171,11 @@ function BasisUsage({ usage, onReset }) {
           {parts.join(" \u00b7 ")}
         </Typography>
         {usage.overridden && onReset ? (
-          <Button size="small" onClick={onReset}>
-            Reset overrides
-          </Button>
+          <ExplainerTooltip title="Puts every row back on this panel's market and basis, clearing the ones that departed">
+            <Button size="small" onClick={onReset}>
+              Reset overrides
+            </Button>
+          </ExplainerTooltip>
         ) : null}
       </Box>
     </Box>
