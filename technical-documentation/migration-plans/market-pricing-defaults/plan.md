@@ -366,13 +366,14 @@ than a file.
 ### The work
 
 1. ~~Publish child links and an items flag on each market group.~~ Done (B6.1).
-2. Read them in the SPA: `childrenOf` and `ancestorPath` beside the tree they walk.
-3. A store action that merges one `groups[id]` entry. `updatePricingDefault` flat-spreads a side and
-   cannot reach one level deeper — passing `groups` replaces the whole table, which is the trap
-   § A group default belongs to a side already records.
-4. The panel: `AppShellPanel`, a section per side, each listing that side's groups with the market and
-   the basis or route it prices against.
-5. The picker: a `ContentDialogue` browsing the tree, any level selectable, with a name search beside
+2. ~~Read them in the SPA: `childrenOf` and `ancestorPath` beside the tree they walk.~~ Done (B6.2).
+3. ~~A store action that merges one `groups[id]` entry.~~ Done (B6.3). `updatePricingDefault`
+   flat-spreads a side and cannot reach one level deeper — passing `groups` replaces the whole table,
+   which is the trap § A group default belongs to a side already records.
+4. ~~The panel: `AppShellPanel`, a section per side, each listing that side's groups with the market
+   and the basis it prices against.~~ Done (B6.4), read-only.
+5. Editing a row and removing one, through the action from item 3.
+6. The picker: a `ContentDialogue` browsing the tree, any level selectable, with a name search beside
    it for a reader who already knows what they want.
 
 **Done when** a player can say "price minerals from Jita buy orders" from Settings and see every
@@ -466,7 +467,7 @@ until then a key naming something the other side never had throws only when firs
 | Stage B3 — the rung in the ladder | Done |
 | Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
 | Stage B5 — the selling side names a route, and the controls for it | Done |
-| Stage B6 — a surface for setting a group default | Tree data published; the SPA work is next |
+| Stage B6 — a surface for setting a group default | Reads and renders; editing and the picker are next |
 | Stage N — one vocabulary for a market and a basis | Not started; deliberately deferred |
 
 ## Start here

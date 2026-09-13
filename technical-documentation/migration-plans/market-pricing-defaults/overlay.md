@@ -307,6 +307,29 @@ compared between builds.
 Both fields are `omitempty` on a file read as a map, so this is additive in both directions — an older
 SPA ignores them, and a newer one tolerates their absence until the next SDE build publishes them.
 
+### B6.2–B6.4 — Reading the tree, writing one group, and showing both
+
+**The walks take a tree rather than finding one.** `childrenIn` and `ancestorPathIn` are the real
+functions; `childrenOf` and `ancestorPath` read the module's own copy and call them. React reads this
+file through the query cache while the pricing rung reads the copy `marketGroupData` holds, and the two
+are primed separately — so a hook that consulted one to decide the other had arrived would be a race,
+showing paths that come and go. A caller holding a tree passes it.
+
+**`setGroupPricing` is the merge, and `updateGroupPricingDefault` is the store's use of it.** A side's
+own market, basis and route sit beside its group table, so a write to one group has to leave them
+alone — the reason this is not `updatePricingDefault` with a `groups` key. Clearing a group's last
+field drops the entry; clearing the last entry drops `groups` from the side entirely, because an empty
+table would be persisted and read back as a table answering nothing.
+
+**The panel is built from the app-shell kit**, on a Settings page that has not been migrated to it:
+`AppShellPanel` holds it, `FigureCaption` heads each side, `InsetSurface` holds the rows, and each row
+is a `FigureRow` — label, sublabel, value is exactly a group, its path and what it prices against, and
+a hand-rolled version of that row was the first thing this slice got wrong.
+
+**A row states where its group sits.** "Minerals" alone does not say whether it is the one the reader
+meant, and a default set on a container covers everything beneath it. A group the published tree no
+longer carries is still shown, by id, because a reader has to see a choice to clear it.
+
 ## Consolidation
 
 Work the stages left behind, folded back together once the surface had settled.
