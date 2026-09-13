@@ -181,3 +181,34 @@ describe("the child job drawer", () => {
     ).toBeInTheDocument();
   });
 });
+
+// Opening a drawer on a row nobody has decided to build costs a job
+// speculatively, so the drawer can show what building would take. That job
+// carries an id but lives in this page's state alone — offering to open it would
+// navigate to a job the planner does not hold.
+describe("opening the job behind a row", () => {
+  it("offers nothing for a row that is only being costed", async () => {
+    renderDrawer();
+
+    expect(await screen.findByTestId("child-materials")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open job" })).toBeNull();
+  });
+
+  it("offers the job once the row is actually built by one", async () => {
+    const linked = { jobID: "child-1", name: "Tritanium", build: {} };
+
+    renderDrawer({
+      matchedChildJobs: [linked],
+      state: {
+        activeJob: jobFixture({ childJobs: { 35: ["child-1"] } }),
+        temporaryChildJobs: {},
+        speculativeChildJobs: {},
+        parentChildToEdit: { childJobs: {} },
+      },
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Open job" }),
+    ).toBeInTheDocument();
+  });
+});

@@ -86,10 +86,11 @@ describe("the plan chip", () => {
     );
   });
 
-  // Nothing has been costed, so there is no job to promote and no figure behind
-  // the decision. The control says why rather than failing on click.
-  it("cannot build a row that has not been costed", () => {
-    renderChip({ rowJob: null });
+  // Nothing costed and no way to cost it — the control says why rather than
+  // failing on click. A panel that can cost the row passes `costRow`, and the
+  // case below covers that.
+  it("cannot build a row it has no way to cost", () => {
+    renderChip({ rowJob: null, costRow: undefined });
 
     expect(screen.getByRole("button", { name: "Build it" })).toBeDisabled();
   });
@@ -297,5 +298,66 @@ describe("what the row was costed with, once it has been decided", () => {
     );
 
     expect(actions.forgetSpeculativeChildJobs).toHaveBeenCalledWith(34);
+  });
+});
+
+// Deciding to build is not a reason to have read the row's drawer first. A row
+// nobody has opened has nothing costed for it, so the control costs it and then
+// shows what it made.
+describe("building a row that has not been costed", () => {
+  it("offers to build a row nothing has costed yet", () => {
+    renderChip({ rowJob: null, costRow: vi.fn() });
+
+    expect(screen.getByRole("button", { name: "Build it" })).toBeEnabled();
+  });
+
+  it("costs the row, then commits what it costed", async () => {
+    const costed = { jobID: "costed-34", itemID: 34 };
+    const costRow = vi.fn(async () => costed);
+
+    renderChip({ rowJob: null, costRow });
+
+    await userEvent.click(screen.getByRole("button", { name: "Build it" }));
+
+    expect(costRow).toHaveBeenCalled();
+    expect(finaliseCreatedChildJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ jobsToMarkForAddition: costed }),
+    );
+  });
+
+  // The row has something new to look at once it has been built.
+  it("shows the row afterwards", async () => {
+    const onBuilt = vi.fn();
+    renderChip({
+      rowJob: null,
+      costRow: vi.fn(async () => ({ jobID: "costed-34", itemID: 34 })),
+      onBuilt,
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Build it" }));
+
+    expect(onBuilt).toHaveBeenCalled();
+  });
+
+  // Costing reaches the network, so a second press while it runs would build the
+  // row twice.
+  it("cannot be pressed again while it is costing", async () => {
+    let settle;
+    const costRow = vi.fn(() => new Promise((res) => (settle = res)));
+
+    renderChip({ rowJob: null, costRow });
+    await userEvent.click(screen.getByRole("button", { name: "Build it" }));
+
+    expect(screen.getByRole("button", { name: "Costing" })).toBeDisabled();
+
+    settle({ jobID: "costed-34", itemID: 34 });
+  });
+
+  it("commits nothing when the row cannot be costed", async () => {
+    renderChip({ rowJob: null, costRow: vi.fn(async () => null) });
+
+    await userEvent.click(screen.getByRole("button", { name: "Build it" }));
+
+    expect(finaliseCreatedChildJobs).not.toHaveBeenCalled();
   });
 });

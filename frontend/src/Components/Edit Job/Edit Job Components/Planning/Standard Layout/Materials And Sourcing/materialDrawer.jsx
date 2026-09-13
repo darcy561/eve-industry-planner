@@ -126,8 +126,14 @@ export default function MaterialDrawer({
               setJobDisplay={setJobDisplay}
             />
             {/* Buy or build is decided on the row above, where it can be
-                decided without opening anything. */}
-            {childJobObjects[jobDisplay] ? (
+                decided without opening anything.
+
+                Only for a job the planner actually holds. Opening a drawer on an
+                unbuilt row costs one speculatively so the drawer can show what
+                building would take, and that job lives in this page's state
+                alone — offering to open it would navigate to a job that is not
+                there. */}
+            {isRealJob(childJobObjects[jobDisplay], matchedChildJobs) ? (
               <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
                 <OpenChildJobButton
                   {...shared}
@@ -143,4 +149,21 @@ export default function MaterialDrawer({
       </InsetSurface>
     </Collapse>
   );
+}
+
+/**
+ * Whether the job on show is one the planner holds, rather than a costing.
+ *
+ * A drawer opened on a row that is only being considered builds a speculative
+ * job to price it. That job carries an id like any other but exists in this
+ * page's state alone, so anything offering to navigate to it has to tell the two
+ * apart.
+ *
+ * @param {object|undefined} shown - The job the drawer is displaying
+ * @param {Array<object>} matchedChildJobs - The jobs actually linked to this row
+ * @returns {boolean}
+ */
+function isRealJob(shown, matchedChildJobs) {
+  if (!shown) return false;
+  return matchedChildJobs.some((job) => job.jobID === shown.jobID);
 }

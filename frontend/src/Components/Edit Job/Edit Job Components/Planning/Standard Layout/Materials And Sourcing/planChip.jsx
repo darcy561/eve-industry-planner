@@ -1,4 +1,6 @@
-import { Button, Chip, Stack, Tooltip } from "@mui/material";
+import { useState } from "react";
+import { Button, Chip, Stack } from "@mui/material";
+import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { findMaterialJobInGroup } from "../../../../../../Functions/Groups/findMaterialJobInGroup";
@@ -28,8 +30,19 @@ import { trackNewJobsCreated } from "../../../../../../analytics/trackNewJobsCre
  * @param {object} props.material
  * @param {object|null} [props.rowJob] - The job behind this row: the one costed
  *   for it, or the real one already linked to it
+ * @param {() => Promise<object|null>} [props.costRow] - Works out what building
+ *   this row would take, for a reader who has not opened its drawer
+ * @param {() => void} [props.onBuilt] - Shows the job that was just created
  */
-export default function PlanChip({ state, actions, material, rowJob }) {
+export default function PlanChip({
+  state,
+  actions,
+  material,
+  rowJob,
+  costRow,
+  onBuilt,
+}) {
+  const [costing, setCosting] = useState(false);
   const queryClient = useQueryClient();
   const groupReadOnly = useActiveGroupReadOnly(state);
   const siblingLock = useSiblingLinkLock(state);
@@ -60,7 +73,18 @@ export default function PlanChip({ state, actions, material, rowJob }) {
       };
 
   const promote = async () => {
-    const job = groupJob ?? rowJob;
+    // A row nobody has opened has nothing costed for it, and deciding to build is
+    // not a reason to have read the drawer first — so the cost is worked out
+    // here, and the drawer opens afterwards showing what was made.
+    let job = groupJob ?? rowJob;
+    if (!job && costRow) {
+      setCosting(true);
+      try {
+        job = await costRow();
+      } finally {
+        setCosting(false);
+      }
+    }
     if (!job) return;
 
     await finaliseCreatedChildJobs({
@@ -80,6 +104,7 @@ export default function PlanChip({ state, actions, material, rowJob }) {
     if (!groupJob) trackNewJobsCreated(job);
 
     forgetCosting();
+    onBuilt?.();
   };
 
   const undo = () => {
@@ -116,19 +141,23 @@ export default function PlanChip({ state, actions, material, rowJob }) {
           readOnly={siblingLock.readOnly}
           reason={siblingLock.reason}
         >
-          <Button
-            size="small"
-            onClick={undo}
-            disabled={siblingLock.readOnly || !(tempJob ?? groupJob ?? rowJob)}
-          >
-            Buy instead
-          </Button>
+          <ExplainerTooltip title="Unlinks the job building this row, so the material is bought instead">
+            <Button
+              size="small"
+              onClick={undo}
+              disabled={
+                siblingLock.readOnly || !(tempJob ?? groupJob ?? rowJob)
+              }
+            >
+              Buy instead
+            </Button>
+          </ExplainerTooltip>
         </LockGatedTooltip>
       </Stack>
     );
   }
 
-  const nothingToPromote = !groupJob && !rowJob;
+  const nothingToPromote = !groupJob && !rowJob && !costRow;
 
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
@@ -137,25 +166,29 @@ export default function PlanChip({ state, actions, material, rowJob }) {
         readOnly={promoteLock.readOnly}
         reason={promoteLock.reason}
       >
-        <Tooltip
+        <ExplainerTooltip
           title={
             nothingToPromote
               ? "Cost this row first to see what building it would take"
-              : ""
+              : groupJob
+                ? "Links the group's existing job, at whatever size it already is"
+                : rowJob
+                  ? "Adds a child job sized to what this row needs"
+                  : "Works out what building this would take, then adds a child job sized to this row"
           }
-          arrow
-          placement="top"
         >
-          <span>
-            <Button
-              size="small"
-              onClick={promote}
-              disabled={promoteLock.readOnly || nothingToPromote}
-            >
-              {groupJob ? "Build in this group" : "Build it"}
-            </Button>
-          </span>
-        </Tooltip>
+          <Button
+            size="small"
+            onClick={promote}
+            disabled={promoteLock.readOnly || nothingToPromote || costing}
+          >
+            {costing
+              ? "Costing"
+              : groupJob
+                ? "Build in this group"
+                : "Build it"}
+          </Button>
+        </ExplainerTooltip>
       </LockGatedTooltip>
     </Stack>
   );

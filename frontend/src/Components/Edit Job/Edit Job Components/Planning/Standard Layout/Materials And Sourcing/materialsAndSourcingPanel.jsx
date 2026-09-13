@@ -78,10 +78,11 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
     updateActiveJob: actions.updateActiveJob,
   });
 
-  const { buildSpeculativeChildJobs } = useChildJobBuildActions({
-    state,
-    actions,
-  });
+  const { buildSpeculativeChildJobs, buildSingleChildJobPreview } =
+    useChildJobBuildActions({
+      state,
+      actions,
+    });
 
   if (!state.activeJob?.selectedSetup) return null;
 
@@ -133,6 +134,13 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
       open.includes(typeID)
         ? open.filter((id) => id !== typeID)
         : [...open, typeID],
+    );
+
+  // Shown rather than toggled: a row built from its own control has something
+  // new to look at, and closing it would be the opposite of what was asked.
+  const openRow = (typeID) =>
+    setOpenTypeIDs((open) =>
+      open.includes(typeID) ? open : [...open, typeID],
     );
 
   return (
@@ -224,6 +232,10 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
                   row.matchedChildJobs?.[0] ??
                   null
                 }
+                costRow={() =>
+                  buildSingleChildJobPreview({ material: row.material })
+                }
+                onBuilt={() => openRow(row.typeID)}
               />
             ) : null
           }
