@@ -15,9 +15,8 @@ let characters = [];
 let cloudAccounts = false;
 
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
     usersStoreState({
       account: {
@@ -38,11 +37,14 @@ vi.mock("../../Zustand/usersStore", async () => {
   );
 });
 
-vi.mock("../../Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js", () => ({
-  upsertCloudStoredEsiRefreshTokens: (...args) =>
-    upsertCloudStoredEsiRefreshTokens(...args),
-  deleteCloudStoredEsiRefreshTokens: vi.fn(async () => true),
-}));
+vi.mock(
+  "../../Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js",
+  () => ({
+    upsertCloudStoredEsiRefreshTokens: (...args) =>
+      upsertCloudStoredEsiRefreshTokens(...args),
+    deleteCloudStoredEsiRefreshTokens: vi.fn(async () => true),
+  }),
+);
 
 // The component imports this module both with and without the extension, and
 // Vitest keys a mock by the specifier, so both spellings need one. The factories
@@ -170,7 +172,9 @@ describe("where linked character tokens are kept", () => {
     });
     expect(setCloudAccountsEnabled).toHaveBeenCalledWith(true);
     // What was moved is not left behind in the browser as well.
-    expect(window.localStorage.getItem("main-hash AdditionalAccounts")).toBeNull();
+    expect(
+      window.localStorage.getItem("main-hash AdditionalAccounts"),
+    ).toBeNull();
   });
 
   it("writes the tokens back to the browser when leaving the cloud", async () => {

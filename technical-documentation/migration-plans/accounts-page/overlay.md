@@ -126,7 +126,79 @@ unrelated once the Accounts page puts them side by side.
 
 ## Stage C — The page
 
-Not started.
+The Accounts page is a stack of app-shell sections. Nothing on it renders
+`ContentPanel` any more.
+
+```
+Account               — the main character, and the account id
+Linked characters     — the roster, storage mode, and adding one
+Community citadel names
+```
+
+### The label above a control was already decided
+
+`FormField` hand-wrote an overline label with a literal letter spacing.
+`FigureCaption` was already doing that job on nine surfaces across the converted
+panels, so `FormField` renders it and a panel now names a control and a number
+the same way.
+
+**The six custom-structure field labels look different for it**, in two ways
+rather than the one the choice was about:
+
+| | Was | Is |
+|---|---|---|
+| Colour | `primary.main` | `text.secondary` |
+| Case | as written | uppercase |
+
+So "Rig slot 1" reads as "RIG SLOT 1", in the quiet secondary colour the rest of
+the design labels with rather than the accent. Nothing is mangled — the
+uppercase is a CSS transform, so the text itself is untouched and a screen reader
+still reads what was written.
+
+That is the standardisation, not a side effect of it: a label that was a
+different colour and a different case from every other label on the design was
+exactly the drift worth removing. Worth saying plainly, though, rather than
+calling it adopting an answer that already existed — the shared atom does not
+match what `FormField` was drawing, and the fields change to meet it.
+
+No new token was added. The plan expected one; what it needed was the one that
+existed under a name describing its first caller rather than its shape.
+
+### One card for the main character
+
+[`Accounts/MainCharacterCard.jsx`](../../../frontend/src/Components/Accounts/MainCharacterCard.jsx)
+replaces `First Login/accounts/FirstLoginMainCharacterCard.jsx` and the two
+label-and-value rows `accountInfo` drew. It takes children, which is how the
+Accounts page adds the account id and first login does not.
+
+Its own surface is gone in favour of `appShellNestedCardSx`. That sx names a
+border **colour** and leaves the border to the surface, so the card is an
+outlined `Paper` — a plain `Stack` carrying the same sx draws no border at all.
+
+**The account id stays on the page**, under a caption rather than in a row
+labelled "Account ID:". It identifies the account to its owner and appears
+nowhere a planner member can see; § Open questions in the plan is closed.
+
+**`accountInfo` was reading the store through `getState()` during render**, so
+the name and id were a snapshot taken once and never updated. Both are
+subscriptions now. This was a live defect, not a styling one.
+
+### One wording for citadel names
+
+The Accounts page and the first-login step each carried their own paragraph
+explaining community citadel names, and the two had drifted — the Accounts copy
+also opened with a stray double quote mid-sentence. Both render
+`SHARE_CITADEL_NAMES_EXPLANATION` from
+[`Accounts/citadelNames.js`](../../../frontend/src/Components/Accounts/citadelNames.js)
+as their section subtitle.
+
+### A switch is a component now
+
+[`Styled Components/Textfield/SwitchField.jsx`](../../../frontend/src/Styled%20Components/Textfield/SwitchField.jsx)
+is the label-left, switch-right row. Three call sites assembled their own
+`FormControlLabel` with the same four props and the same spacing sx; two of them
+are these citadel switches and the third is storage mode's predecessor. It hands
+the caller the new state rather than the event, like `AppShellSelect`.
 
 ## Stage D — Character actions and ESI data status
 

@@ -1,10 +1,12 @@
-import { FormControlLabel, Stack, Switch } from "@mui/material";
+import { Stack } from "@mui/material";
+
 import { AdditionalAccounts } from "../../Accounts/AdditionalAccounts";
+import { MainCharacterCard } from "../../Accounts/MainCharacterCard";
+import { SHARE_CITADEL_NAMES_EXPLANATION } from "../../Accounts/citadelNames.js";
 import { scheduleDebouncedUserAccountDocumentSave } from "../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import useUsersStore from "../../../Zustand/usersStore";
 import { SectionPanel } from "../../../Styled Components/Paper/SectionPanel";
-import { FormField } from "../../../Styled Components/Textfield/FormField";
-import { FirstLoginMainCharacterCard } from "./FirstLoginMainCharacterCard";
+import { SwitchField } from "../../../Styled Components/Textfield/SwitchField";
 
 export function FirstLoginAccountsStep() {
   const shareCitadelNames = useUsersStore(
@@ -17,7 +19,7 @@ export function FirstLoginAccountsStep() {
   return (
     <Stack spacing={2}>
       <SectionPanel title="Your main character">
-        <FirstLoginMainCharacterCard />
+        <MainCharacterCard />
       </SectionPanel>
 
       {/* Titles itself, so it is a section rather than something inside one. */}
@@ -25,32 +27,16 @@ export function FirstLoginAccountsStep() {
 
       <SectionPanel
         title="Citadel names"
-        subtitle="Citadel name data is only available from the ESI when a character has docking access to the structure in-game.
-        To reduce the number of missing names in the asset lists the application is gathering name data from community submissions.
-        All name data is stored anonymously and is not linked to your account, all ESI queries are made with your character's access token locally in your browser.
-        To opt out of sharing/using community data, simply turn the switch off."
+        subtitle={SHARE_CITADEL_NAMES_EXPLANATION}
       >
-        <FormField>
-          <FormControlLabel
-            label="Share Citadel Names"
-            labelPlacement="start"
-            sx={{
-              width: "100%",
-              ml: 0,
-              justifyContent: "space-between",
-              gap: 1,
-            }}
-            control={
-              <Switch
-                checked={shareCitadelNames}
-                onChange={() => {
-                  toggleShareCitadelNames();
-                  scheduleDebouncedUserAccountDocumentSave();
-                }}
-              />
-            }
-          />
-        </FormField>
+        <SwitchField
+          label="Share citadel names"
+          checked={shareCitadelNames}
+          onChange={() => {
+            toggleShareCitadelNames();
+            scheduleDebouncedUserAccountDocumentSave();
+          }}
+        />
       </SectionPanel>
     </Stack>
   );

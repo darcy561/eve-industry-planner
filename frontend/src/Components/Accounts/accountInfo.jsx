@@ -1,37 +1,25 @@
-import { Typography, Grid } from "@mui/material";
+import { Stack, Typography } from "@mui/material";
+
 import useUsersStore from "../../Zustand/usersStore";
-import ContentPanel from "../../Styled Components/Paper/ContentPanel";
-import { LARGE_TEXT_FORMAT } from "../../Context/defaultValues";
+import { SectionPanel } from "../../Styled Components/Paper/SectionPanel";
+import { FigureCaption } from "../../Styled Components/Typography/figures";
+import { MainCharacterCard } from "./MainCharacterCard";
 
 export function AccountInfo() {
+  const accountID = useUsersStore((state) =>
+    state.account.actions.getAccountID(),
+  );
+
   return (
-    <ContentPanel
-      title="Main Account"
-      componentName="Account Info"
-      paperSx={{ overflow: "hidden" }}
-    >
-      <Grid container size={12}>
-        <Grid size={3}>
-          <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            Character Name:
+    <SectionPanel title="Account" componentName="Account">
+      <MainCharacterCard>
+        <Stack spacing={0.25} sx={{ pt: 0.5 }}>
+          <FigureCaption>Account ID</FigureCaption>
+          <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+            {accountID ?? "—"}
           </Typography>
-        </Grid>
-        <Grid align="right" size={9}>
-          <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            {useUsersStore.getState().account.actions.getMainCharacterName()}
-          </Typography>
-        </Grid>
-        <Grid size={3}>
-          <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            Account ID:
-          </Typography>
-        </Grid>
-        <Grid align="right" size={9}>
-          <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            {useUsersStore.getState().account.actions.getAccountID()}
-          </Typography>
-        </Grid>
-      </Grid>
-    </ContentPanel>
+        </Stack>
+      </MainCharacterCard>
+    </SectionPanel>
   );
 }

@@ -1,10 +1,12 @@
 import { Box, Stack, Typography } from "@mui/material";
 
+import { FigureCaption } from "../Typography/figures";
+
 /**
  * A labelled control: what it is, what it does, and the control itself.
  *
- * The label is an overline rather than a field label so it reads as a heading
- * for the description beneath it — the control below keeps its own label.
+ * The label is the same caption a figure is named by, so a panel labels a
+ * control and a number the one way. The control below keeps its own label.
  *
  * @param {object} props
  * @param {React.ReactNode} [props.title]
@@ -14,19 +16,7 @@ import { Box, Stack, Typography } from "@mui/material";
 export function FormField({ title, description, children }) {
   return (
     <Stack spacing={0.75}>
-      {title ? (
-        <Typography
-          variant="overline"
-          sx={{
-            color: "primary.main",
-            letterSpacing: 0.06,
-            lineHeight: 1.25,
-            display: "block",
-          }}
-        >
-          {title}
-        </Typography>
-      ) : null}
+      {title ? <FigureCaption>{title}</FigureCaption> : null}
       {description ? (
         <Typography
           variant="body2"

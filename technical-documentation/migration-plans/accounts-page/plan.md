@@ -95,15 +95,17 @@ column is a grid for no reason.
 ```
 Accounts
 ├── Account                     — main character, account identity
-├── Linked characters           — the roster, and per-character actions
+├── Linked characters           — the roster, storage mode, per-character actions
 │     └── (per character) ESI data status, expanded on demand
 ├── Shared planners             — what this account can reach, and how
-└── Preferences                 — citadel name sharing, character storage mode
+└── Community citadel names     — one switch, and why it is offered
 ```
 
-`Preferences` is last deliberately: it is the part a reader visits once. The two settings in it are
-unrelated to each other but alike in kind, and both are one-line switches today sitting in panels of
-their own.
+An earlier reading of this grouped citadel names and storage mode into a `Preferences` section, on
+the grounds that both are settings a reader visits once. Stage B settled it the other way: **storage
+mode belongs to the roster it governs**, because it decides where those characters' tokens are kept
+and means nothing without them. That leaves citadel names alone, so it keeps a section of its own
+rather than a section named for being miscellaneous.
 
 ## The character row
 
@@ -326,10 +328,11 @@ Two things make that worth deciding rather than leaving:
   pickers and data grids, and `appShellHelperTextSx` is for the line *below* a control. There is
   nothing for `FormField` to read from.
 
-Settled at **Stage C**, not before: the rollout's rule is that a shape earns an atom when a second
-screen needs it, and the Accounts page is that second screen. Deciding it from one call site would
-mean restyling twenty files on a sample of one. Stage C picks the winner, adds the token to
-`Context/appShell`, and `FormField` reads it.
+**Settled at Stage C: neither.** The design already had a label — `FigureCaption`, on nine surfaces
+across the converted panels, naming what a figure is. It is caption weight, secondary, uppercase, and
+carries the same `0.06em` spacing `FormField` was hand-writing. `FormField` renders it, so a control
+and a figure are named the same way and no token was added: the one that was wanted already existed
+under a name that described its first caller rather than its shape.
 
 ### Stage C — The page
 
@@ -355,7 +358,7 @@ The section, read-only against the planners listing, with the management control
 | Phase 1 — project folder and docs | docs | **Done** |
 | A — the shared shells move | SPA | **Landed.** `SectionPanel` and `FormField` are in `Styled Components`, all eight call sites converted, the originals deleted and the Settings-into-first-login import retired. Two defects fixed on the way — see [overlay.md](./overlay.md) § Stage A |
 | B — the `appearance` fork is deleted | SPA | **Landed.** Nothing in the SPA carries an `appearance` prop. The four custom-structure components render one layout and share one `CustomStructuresForm`; `AccountEntry` and `AdditionalAccounts` render one each, the latter titling itself as a section. Settings → Custom Structures and the Accounts page both have the app-shell look — see [overlay.md](./overlay.md) § Stage B |
-| C — the page | SPA | Not started |
+| C — the page | SPA | **Landed.** The page is a stack of app-shell sections, one `MainCharacterCard` serves both screens, the citadel copy is one string, and `FormField` reads `FigureCaption` rather than its own label. The account id stays — see [overlay.md](./overlay.md) § Stage C |
 | D — the action slot and ESI status | SPA | Not started |
 | E — shared planners | SPA | Not started |
 
@@ -374,8 +377,5 @@ is how a working screen is quietly lost.
 
 ## Open questions
 
-- **The account ID on a shared page.** `AccountInfo` displays it today. It identifies the account to
-  its owner, and this page is growing sections about other people's planners. Whether it stays visible,
-  moves behind a disclosure, or goes is not decided.
 - **Which character actions exist beyond the first two.** Refresh token and clear ESI cache are named;
   the slot takes a table, so the rest can arrive later without the row changing.

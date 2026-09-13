@@ -15,9 +15,8 @@ let corporation = null;
 let cloudAccounts = false;
 
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
     usersStoreState({
       account: {
