@@ -47,10 +47,22 @@ func RebuildCurrentSDEVersion(ctx context.Context, deps *taskrun.Dependencies) e
 		return err
 	}
 
+	// Re-read rather than announcing rootVersion: a rebuild republishes the same
+	// build under a new version label, so the copy read before the pipeline names
+	// the build that was just replaced. A client told that version compares it
+	// against what it already holds and does nothing.
+	liveVersion, err := sdecore.ReadRootVersionJSON(ctx, backend)
+	if err != nil {
+		return fmt.Errorf("failed reading rebuilt root version.json: %w", err)
+	}
+	if liveVersion == nil {
+		return fmt.Errorf("no root version.json after rebuilding the current SDE version")
+	}
+
 	logs.InfoCtx(ctx, "SDE rebuild current version completed",
-		"build_number", rootVersion.BuildNumber,
-		"version", rootVersion.Version,
+		"build_number", liveVersion.BuildNumber,
+		"version", liveVersion.Version,
 	)
-	pushCoreSDEBuildUpdate(ctx, deps, rootVersion.BuildNumber, rootVersion.Version)
+	pushCoreSDEBuildUpdate(ctx, deps, liveVersion.BuildNumber, liveVersion.Version)
 	return nil
 }
