@@ -47,6 +47,13 @@ speculatively — each has a real caller.
 | `SelectableCard` | A card a player picks, as one of a set or on its own |
 | `InsetSurface` | A recessed area inside a panel |
 | `figureToneColour` | A tone, for the places one has to reach something that is not a `Figure` |
+| `SectionPanel` | A titled section of a page, and the line explaining it |
+| `FormField` | A labelled control: what it is, what it does, and the control |
+| `SwitchField` | A setting that is on or off, named on the left |
+
+The last three were added by [accounts-page](../accounts-page/plan.md), which promoted the first two
+out of first login at its Stage A and built the third at Stage C. `FormField` labels with
+`FigureCaption`, so a control and a figure are named the same way.
 
 `Context/appShell` keeps the sx helpers these sit on: `appShellSetupSectionPaperSx` for a panel and
 `appShellNestedCardSx` for a card inside one.
@@ -96,7 +103,7 @@ make piecemeal, and the stuck-backdrop defect is already fixed, so nothing is wa
 | First login — choice row | Converted and promoted to `SelectableCard`; the accessibility bug went with it |
 | First login — support step | **Not converted.** 242 lines, draws its own surfaces |
 | First login — page shell | **Not converted.** 274 lines, its own radius-3 surfaces |
-| First login — main character card | **Not converted.** Own nested surface at a drifted border alpha |
+| First login — main character card | **Gone.** [accounts-page](../accounts-page/plan.md) Stage C replaced it with a card both it and the Accounts page render |
 | First login — welcome banner | **Not converted.** Own surface and shadow |
 | Additional accounts, and the rest of the Accounts page | **Moved out.** Converts as part of a redesign, which this project does not do → [accounts-page/plan.md](../accounts-page/plan.md) |
 | Archived jobs list, archive chart panels, archive jobs panel | On `AppShellPanel` already; not audited against the component layer |
@@ -148,8 +155,9 @@ The remaining first login screens, because they are the ones already claiming th
 using it, and because the atoms they need now exist. The page shell, the welcome banner and the
 support step are what is left here.
 
-`FirstLoginMainCharacterCard` and `AdditionalAccounts` are **not** on that list any more:
-[accounts-page](../accounts-page/plan.md) takes both, because the character card it would convert to
-is the one that project builds, and converting it here first would mean converting it twice.
+The Accounts page and the first-login accounts step are not on that list:
+[accounts-page](../accounts-page/plan.md) has converted both, and its Stages A and C added
+`SectionPanel`, `FormField` and `SwitchField` to the component layer on the way. Read that project's
+overlay before converting a screen that uses any of the three.
 
 Not urgent. Cheap once someone is in the file.
