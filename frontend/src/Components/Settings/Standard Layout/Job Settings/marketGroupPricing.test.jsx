@@ -19,11 +19,14 @@ const { store, tree, updateGroupPricingDefault } = vi.hoisted(() => {
   };
 });
 
-vi.mock("../../../../Zustand/usersStore", () => ({
-  default: Object.assign((selector) => selector(store), {
-    getState: () => store,
-  }),
-}));
+// The shared harness rather than a bare object: the row's save schedule reads
+// `account`, and a mock carrying only what this panel touches breaks on the next
+// module that reaches for a slice it did not model.
+vi.mock("../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store));
+});
 
 vi.mock("../../../../Hooks/App/useCachedData", () => ({
   useCachedData: () => ({

@@ -1,5 +1,13 @@
-import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  IconButton,
+  Stack,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import AddIcon from "@mui/icons-material/Add";
 
 import AppShellPanel from "../../../../Styled Components/Paper/AppShellPanel";
 import InsetSurface from "../../../../Styled Components/Paper/InsetSurface";
@@ -12,6 +20,12 @@ import {
   PRICING_SIDES,
 } from "../../../../Functions/MarketData/pricingSide";
 import ExitRouteSelect from "../../../../Styled Components/Select/exitRoute";
+import MarketGroupPicker from "./marketGroupPicker";
+import MarketGroupIcon from "../../../../Styled Components/Avatar/MarketGroupIcon";
+import { useDialogueTrigger } from "../../../../Styled Components/Dialogue/ContentDialogue";
+import GLOBAL_CONFIG from "../../../../global-config-app";
+
+const { DEFAULT_MARKET_OPTION } = GLOBAL_CONFIG;
 import {
   useAncestorPath,
   useMarketGroupTree,
@@ -51,7 +65,12 @@ function GroupRow({ side, groupID, choice }) {
     <FigureRow
       // A group the published tree no longer carries still has to be visible, or
       // a reader cannot clear what they set.
-      label={name ?? `Group ${groupID}`}
+      label={
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <MarketGroupIcon typeID={path.at(-1)?.iconTypeID} size={20} />
+          <span>{name ?? `Group ${groupID}`}</span>
+        </Stack>
+      }
       sublabel={within.length > 0 ? within.join(" › ") : undefined}
       value={
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
@@ -115,10 +134,32 @@ function GroupRow({ side, groupID, choice }) {
  */
 function SideSection({ side, noun, groups }) {
   const entries = Object.entries(groups ?? {});
+  const picker = useDialogueTrigger();
+  const { updateGroupPricingDefault } = useUsersStore(
+    (state) => state.applicationSettings.actions,
+  );
+
+  // A group starts on the side's own market, which is what it was priced against
+  // before: choosing a group is saying "this one is different", and the reader
+  // says how it differs with the controls on the row.
+  const add = (groupID) => {
+    updateGroupPricingDefault(side, groupID, "market", DEFAULT_MARKET_OPTION);
+    scheduleDebouncedApplicationSettingsSave();
+  };
 
   return (
     <Box>
-      <FigureCaption>{noun}</FigureCaption>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: "center", justifyContent: "space-between" }}
+      >
+        <FigureCaption>{noun}</FigureCaption>
+        <Button size="small" startIcon={<AddIcon />} onClick={picker.open}>
+          Add a group
+        </Button>
+      </Stack>
+      <MarketGroupPicker {...picker.dialogueProps} onChoose={add} noun={noun} />
       <InsetSurface sx={{ marginTop: 1 }}>
         {entries.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
