@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { snackbarSpies } from "../tests/snackbarHarness.js";
+
+const { showSnackbar } = snackbarSpies;
 
 const invalidateArchiveQueries = vi.fn();
-const showSnackbar = vi.fn();
 
 vi.mock("../queryClient.js", () => ({
   queryClient: { marker: "queryClient" },
@@ -9,9 +11,10 @@ vi.mock("../queryClient.js", () => ({
 vi.mock("../Hooks/React Query/Backend/archivedJobsList.js", () => ({
   invalidateArchiveQueries: (...args) => invalidateArchiveQueries(...args),
 }));
-vi.mock("../Events/snackbarEvents.js", () => ({
-  showSnackbar: (...args) => showSnackbar(...args),
-}));
+vi.mock("../Events/snackbarEvents.js", async () => {
+  const { snackbarMock } = await import("../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 const applyDocumentMessage = vi.fn();
 vi.mock("./handlers/documentMessage.js", () => ({

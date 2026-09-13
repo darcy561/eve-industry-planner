@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { snackbarSpies } from "../../../../../../tests/snackbarHarness.js";
 
-const showSnackbarError = vi.fn();
-const showSnackbarSuccess = vi.fn();
+const { showSnackbarError } = snackbarSpies;
 
-vi.mock("../../../../../../Events/snackbarEvents", () => ({
-  showSnackbarError: (...args) => showSnackbarError(...args),
-  showSnackbarSuccess: (...args) => showSnackbarSuccess(...args),
-}));
+vi.mock("../../../../../../Events/snackbarEvents", async () => {
+  const { snackbarMock } =
+    await import("../../../../../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =

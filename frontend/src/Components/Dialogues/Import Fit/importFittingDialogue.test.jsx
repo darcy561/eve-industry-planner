@@ -8,17 +8,18 @@ import {
 } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { snackbarSpies } from "../../../tests/snackbarHarness.js";
+
+const { showSnackbarError } = snackbarSpies;
 
 const {
   checkClipboardReadPermissions,
   importFromClipboard,
   finalBuildRequests,
-  showSnackbarError,
 } = vi.hoisted(() => ({
   checkClipboardReadPermissions: vi.fn(async () => true),
   importFromClipboard: vi.fn(async () => ({ importedItems: [] })),
   finalBuildRequests: vi.fn(async () => {}),
-  showSnackbarError: vi.fn(),
 }));
 
 vi.mock("../../../Functions/Clipboard/clipboardPermissions", () => ({
@@ -30,7 +31,10 @@ vi.mock("../../../Functions/JobPlanner/importFitFromClipboard", () => ({
   finalBuildRequests,
 }));
 
-vi.mock("../../../Events/snackbarEvents", () => ({ showSnackbarError }));
+vi.mock("../../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("./importFittingItemRow", () => ({
   ImportFittingItemRow: ({ item }) => (

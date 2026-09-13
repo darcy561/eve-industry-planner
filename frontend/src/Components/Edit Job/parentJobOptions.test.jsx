@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { TRITANIUM } from "../../tests/editJobFixtures.js";
+import { snackbarSpies } from "../../tests/snackbarHarness.js";
 
-const { store, readOnly, showSnackbarSuccess } = vi.hoisted(() => ({
+const { showSnackbarSuccess } = snackbarSpies;
+
+const { store, readOnly } = vi.hoisted(() => ({
   store: { current: null },
   readOnly: { current: false },
-  showSnackbarSuccess: vi.fn(),
 }));
 
 vi.mock("../../Zustand/usersStore", async () => {
@@ -15,7 +17,10 @@ vi.mock("../../Zustand/usersStore", async () => {
   return usersStoreMock(() => usersStoreState(store.current));
 });
 
-vi.mock("../../Events/snackbarEvents", () => ({ showSnackbarSuccess }));
+vi.mock("../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("./Edit Job Hooks/useActiveJobDocumentLock", () => ({
   useActiveJobReadOnly: () => readOnly.current,

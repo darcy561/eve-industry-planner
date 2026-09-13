@@ -3,12 +3,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const { addNewJobsToPlanner, showBlueprintArchiveDialogue, showSnackbarError } =
-  vi.hoisted(() => ({
+const { addNewJobsToPlanner, showBlueprintArchiveDialogue } = vi.hoisted(
+  () => ({
     addNewJobsToPlanner: vi.fn(),
     showBlueprintArchiveDialogue: vi.fn(),
-    showSnackbarError: vi.fn(),
-  }));
+  }),
+);
 
 vi.mock("../../Functions/JobPlanner/addNewJobsToPlanner", () => ({
   default: addNewJobsToPlanner,
@@ -18,11 +18,17 @@ vi.mock("../../Events/dialogueEvents", () => ({
   showBlueprintArchiveDialogue,
 }));
 
-vi.mock("../../Events/snackbarEvents", () => ({ showSnackbarError }));
+vi.mock("../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("@sentry/react", () => ({ captureException: vi.fn() }));
 
 import BlueprintGroupActions from "./blueprintGroupActions";
+import { snackbarSpies } from "../../tests/snackbarHarness.js";
+
+const { showSnackbarError } = snackbarSpies;
 
 const BP_DATA = { itemID: 587, name: "Rifter" };
 

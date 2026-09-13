@@ -8,10 +8,10 @@ import {
 import { shouldSuppressDocumentLockVacancyNotice } from "../../Functions/DocumentLock/documentLockAcquireFeedback.js";
 import { useLockVacancySnackbar } from "./useLockVacancySnackbar.js";
 
-vi.mock("../../Events/snackbarEvents.js", () => ({
-  showSnackbarSuccess: vi.fn(),
-  showSnackbarWarning: vi.fn(),
-}));
+vi.mock("../../Events/snackbarEvents.js", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("../../Functions/DocumentLock/documentLockAcquireFeedback.js", () => ({
   shouldSuppressDocumentLockVacancyNotice: vi.fn(() => false),

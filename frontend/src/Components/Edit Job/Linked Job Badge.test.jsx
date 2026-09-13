@@ -19,7 +19,10 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => ({}),
 }));
 
-vi.mock("../../Events/snackbarEvents", () => ({ showSnackbarError: vi.fn() }));
+vi.mock("../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 vi.mock("../../Events/editJobNavigationEvents", () => ({
   requestEditJobNavigation: vi.fn(),
 }));

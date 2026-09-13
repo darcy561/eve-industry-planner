@@ -3,9 +3,10 @@ import { renderHook } from "@testing-library/react";
 import { showDocumentLockExtendNudgeSnackbar } from "../../Events/snackbarEvents.js";
 import { useLockExtendNudgeSnackbar } from "./useLockExtendNudgeSnackbar.js";
 
-vi.mock("../../Events/snackbarEvents.js", () => ({
-  showDocumentLockExtendNudgeSnackbar: vi.fn(),
-}));
+vi.mock("../../Events/snackbarEvents.js", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 describe("useLockExtendNudgeSnackbar", () => {
   beforeEach(() => {

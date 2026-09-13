@@ -4,9 +4,10 @@ import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.
 import { showSnackbarInfo } from "../../Events/snackbarEvents.js";
 import { useLockPassiveViewerSnackbar } from "./useLockPassiveViewerSnackbar.js";
 
-vi.mock("../../Events/snackbarEvents.js", () => ({
-  showSnackbarInfo: vi.fn(),
-}));
+vi.mock("../../Events/snackbarEvents.js", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 describe("useLockPassiveViewerSnackbar", () => {
   function prevRef(sk, viewerCount = 0, lockHeld = true, readOnly = false) {

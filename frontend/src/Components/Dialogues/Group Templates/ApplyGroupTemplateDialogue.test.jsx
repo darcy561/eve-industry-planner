@@ -23,10 +23,10 @@ vi.mock("../../../Functions/Endpoints/Private/groupTemplates", () => ({
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 
-vi.mock("../../../Events/snackbarEvents", () => ({
-  showSnackbarError: vi.fn(),
-  showSnackbarSuccess: vi.fn(),
-}));
+vi.mock("../../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("../../../analytics/trackAppEvent", () => ({ trackAppEvent: vi.fn() }));
 

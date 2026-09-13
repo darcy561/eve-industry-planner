@@ -23,11 +23,10 @@ vi.mock("./Edit Job Hooks/useActiveJobDocumentLock", () => ({
   useSiblingLinkLock: () => ({ readOnly: readOnly.current, reason: "" }),
 }));
 
-vi.mock("../../Events/snackbarEvents", () => ({
-  showSnackbarSuccess: vi.fn(),
-  showSnackbarError: vi.fn(),
-  showSnackbarWarning: vi.fn(),
-}));
+vi.mock("../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),

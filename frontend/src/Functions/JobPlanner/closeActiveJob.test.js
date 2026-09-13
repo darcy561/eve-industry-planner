@@ -50,11 +50,10 @@ vi.mock("../Helper/materialTreeShaker", () => ({
   },
 }));
 
-const showSnackbarInfo = vi.fn();
-
-vi.mock("../../Events/snackbarEvents", () => ({
-  showSnackbarInfo: (...args) => showSnackbarInfo(...args),
-}));
+vi.mock("../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 const storeHolder = { current: null };
 
@@ -66,6 +65,9 @@ vi.mock("../../Zustand/usersStore.js", () => ({
 }));
 
 import closeActiveJob from "./closeActiveJob.js";
+import { snackbarSpies } from "../../tests/snackbarHarness.js";
+
+const { showSnackbarInfo } = snackbarSpies;
 
 function makeJob(id = "j1", groupID = null) {
   return {

@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { snackbarSpies } from "../../../tests/snackbarHarness.js";
+
+const { showSnackbarError } = snackbarSpies;
 
 const {
   store,
@@ -12,8 +15,6 @@ const {
   deleteGroupTemplate,
   fetchTemplateCatalogSummaries,
   serialiseGroupToTemplatePayload,
-  showSnackbarError,
-  showSnackbarSuccess,
 } = vi.hoisted(() => ({
   store: { current: null },
   getActiveGroupObject: vi.fn(),
@@ -27,8 +28,6 @@ const {
     description: "",
     payload: {},
   })),
-  showSnackbarError: vi.fn(),
-  showSnackbarSuccess: vi.fn(),
 }));
 
 vi.mock("../../../Zustand/usersStore", async () => {
@@ -49,10 +48,10 @@ vi.mock(
   () => ({ serialiseGroupToTemplatePayload }),
 );
 
-vi.mock("../../../Events/snackbarEvents", () => ({
-  showSnackbarError,
-  showSnackbarSuccess,
-}));
+vi.mock("../../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("../../../analytics/trackAppEvent", () => ({ trackAppEvent: vi.fn() }));
 

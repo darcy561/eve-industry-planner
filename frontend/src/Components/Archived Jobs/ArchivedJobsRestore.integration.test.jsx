@@ -4,6 +4,9 @@ import {
   renderWithProviders,
   setViewportWide,
 } from "../../tests/archiveHarness.jsx";
+import { snackbarSpies } from "../../tests/snackbarHarness.js";
+
+const { showSnackbarError, showSnackbarSuccess } = snackbarSpies;
 
 /**
  * Restoring, from the click to what the tab is left holding.
@@ -17,8 +20,6 @@ import {
 const getArchivedJobs = vi.fn();
 const restoreArchivedJobs = vi.fn();
 const invalidateArchiveQueries = vi.fn();
-const showSnackbarSuccess = vi.fn();
-const showSnackbarError = vi.fn();
 
 vi.mock("../../Functions/Endpoints/Private/archivedJobsList", async () => {
   const { emptyArchiveListMock } =
@@ -38,10 +39,10 @@ vi.mock("../../Hooks/React Query/Backend/archivedJobsList", async () => {
     invalidateArchiveQueries: (...a) => invalidateArchiveQueries(...a),
   };
 });
-vi.mock("../../Events/snackbarEvents", () => ({
-  showSnackbarSuccess: (...args) => showSnackbarSuccess(...args),
-  showSnackbarError: (...args) => showSnackbarError(...args),
-}));
+vi.mock("../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 vi.mock("../../Zustand/usersStore", async () => {
   const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
   const { archiveStoreState } = await import("../../tests/archiveHarness.jsx");

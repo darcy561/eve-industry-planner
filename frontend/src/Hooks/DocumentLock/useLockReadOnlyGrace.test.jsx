@@ -11,10 +11,10 @@ vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   requestDocumentLockAccess: vi.fn(),
 }));
 
-vi.mock("../../Events/snackbarEvents.js", () => ({
-  showSnackbarSuccess: vi.fn(),
-  showSnackbarWarning: vi.fn(),
-}));
+vi.mock("../../Events/snackbarEvents.js", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 vi.mock("../../Events/editJobReleaseRequestEvents.js", () => ({
   requestEditJobReleaseConfirmation: vi.fn(),

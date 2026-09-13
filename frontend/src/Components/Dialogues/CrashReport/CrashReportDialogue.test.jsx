@@ -14,10 +14,10 @@ vi.mock("@sentry/react", () => ({
   captureFeedback: (feedback, hint) => captured.push({ feedback, hint }),
 }));
 
-vi.mock("../../../Events/snackbarEvents", () => ({
-  showSnackbarSuccess: () => {},
-  showSnackbarError: () => {},
-}));
+vi.mock("../../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
 
 const { CrashReportDialogue } = await import("./CrashReportDialogue.jsx");
 const { eventEmitter } = await import("../../../utils/EventSystem");
