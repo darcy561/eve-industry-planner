@@ -241,6 +241,52 @@ the loop rather than being resolved once for the list.
 **An item's market group is a field on the item list.** `FullItem.market_group_id` is read from the
 list every consumer already holds, rather than copied into a second structure.
 
+### B5 — The selling side names a route out
+
+The selling default names an **exit route** — listing on the market, or selling into buy orders —
+rather than a pricing basis. A basis says which side of the book a figure comes from; it cannot say
+whether a broker fee is charged, and those are the same question. Listing pays fee and tax; selling
+into bids pays tax only, because nothing is listed.
+
+`PricingSide` gains `Exit`, on the selling side only, and the selling side stops carrying a `Basis`:
+two stored answers to one question are free to disagree. `basisForExit` is the single place that turns
+a route into a side of the book, and `resolvePricingSide` consults it when the selling side has no
+basis of its own — a job that named one still outranks it, because a job that named a basis has
+answered for itself.
+
+**Returns stops assuming the listing.** `returnsPanel` hardcoded `EXIT_ROUTE.LISTED` as the figure it
+leads with, for everyone. It now leads with the account's route, carried there through
+`useJobSellingContext` beside the seller and the sale location — the same hook, because the route
+decides both which figure leads and whether the broker fee that hook's seller is quoted for applies at
+all. Both routes are still stated; only which one is the headline changed.
+
+**The seed reads the route from the basis an account already had.** Returns led with the listing for
+everyone, so an account that named the bid side was reading a listing's fee against a bid's price.
+Taking its stored basis at its word repairs that where it was set and leaves everyone else on the route
+they were already shown. Both the Go upgrader and the SPA merge do this, and neither consults a
+previously held route: that would outrank an answer the server has just given.
+
+**The ledger states the broker fee only on the route that pays it.** `calculateReturns` already charged
+the fee to the listing and not to the buy-order sale, but the panel's own breakdown deducted it from
+both — invisible while the headline was hardcoded to the listing, and wrong the moment an account could
+choose the other. A player selling into bids would have seen a fee deducted above a net figure that
+never had it taken off, so the two halves of the same panel disagreed.
+
+**The blank state names no route, and that is what makes a chosen one stick.** The legacy single
+default is still written on every save and so arrives with merges that are not about pricing at all. A
+route derived from it each time would quietly undo the player's choice — the setting would appear to
+save and then revert on the next unrelated write. The merge therefore keeps a route it already holds,
+which it can only treat as a choice because nothing seeds one: a seeded route is indistinguishable from
+a chosen one, and a legacy account's first load still has to read its route from the basis it stored.
+Readers supply `EXIT_ROUTE.LISTED` where none is held, which is where that default belongs.
+
+The precedence, in full: a route the server sent; then the basis it sent beside it, because a document
+stored before routes existed is still the server answering; then the route already held; then the
+legacy single default.
+
+`EXIT_ROUTE` is not redefined. It already existed in `returns.js`, which is what charges a fee against
+one route and not the other, so that is where it stays and the resolver imports it.
+
 ## Consolidation
 
 Work the stages left behind, folded back together once the surface had settled.

@@ -1,8 +1,8 @@
 # Market pricing defaults — plan
 
-**Status:** Stage A steps 1-6 landed; step 7 waits on the shared-planners release. Stage B: the rung
-resolves end to end on the Planning stage and the shopping list; only the settings surface is left, and
-it waits on § Open decisions.
+**Status:** Stage A steps 1-6 landed; step 7 waits on the shared-planners release. Stage B is done: the
+group rung resolves end to end, and the selling side names an exit route with controls for it. What
+remains is a surface for setting a *group* default, which nothing yet offers — see § Still open.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Hooks/Planner/`, `Functions/MarketData/`,
 `Styled Components/Select/`, `Zustand/applicationSettings/`, `Classes/shoppingList.js` and the panels
 and dialogues listed in § Stage A; [`services/shared/models/`](../../../services/shared/models/),
@@ -326,10 +326,22 @@ is published alongside it so the setting can offer "Minerals" rather than an id.
    longer arrive as a bare value — see [overlay.md](./overlay.md) § B3. Inert until item 4 supplies
    the tree and the item's own group.
 4. ~~Read the published tree and each item's market group in the SPA.~~ Done (B4).
-5. A settings surface for choosing a group and what it prices against, per side.
+5. ~~A settings surface for choosing a group and what it prices against, per side.~~ Done (B5), for
+   the account's own defaults. A per-group surface is still to come — see § Still open.
 
 **Done when** a player can say "price minerals from Jita buy orders" once and have every mineral on
 every job follow it, without touching a row.
+
+## Still open
+
+**Nothing offers a market group default.** The rung resolves one wherever an account holds one, and the
+stored shape carries it per side, but no surface writes to `groups` — so the table is only ever filled
+by hand. That is the last piece of Stage B's original item 5, and it is not blocked by anything: a
+picker for a group and what it prices against, per side, on the same frame as the account defaults.
+
+The shape question it has to answer is how a player finds a group in a tree of 2,039. The published
+tree carries every node's name and parent, so a search over names is the cheap answer and a browsable
+tree the thorough one; neither is decided.
 
 ## Stage N — One vocabulary for a market and a basis
 
@@ -371,9 +383,7 @@ crosses a process boundary.
 
 ## Open decisions
 
-- **What a basis default means on the selling side.** Listing an order and dumping into bids are
-  different exits with different bases, and Returns already shows both. Whether the selling default
-  names one basis or names the exit route is undecided.
+None outstanding. The selling side's default names an **exit route**, settled in § Stage B5.
 
 ## Traps this work has already fallen into
 
@@ -420,7 +430,7 @@ until then a key naming something the other side never had throws only when firs
 | Stage B2 — the stored shape and the walk | Done |
 | Stage B3 — the rung in the ladder | Done |
 | Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
-| Stage B5 — the settings surface | Not started; waits on § Open decisions |
+| Stage B5 — the selling side names a route, and the controls for it | Done |
 | Stage N — one vocabulary for a market and a basis | Not started; deliberately deferred |
 
 ## Start here
