@@ -179,48 +179,18 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients, esi esi
 			Handler: v1.BlueprintsHandler,
 		},
 		{
-			Path: "/api/static-data/recipeList.json",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				staticdata.RecipeListHandler(w, r)
-			},
-		},
-		{
-			Path: "/api/static-data/searchIndex.json",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				staticdata.SearchIndexHandler(w, r)
-			},
-		},
-		{
-			Path: "/api/static-data/fullItemList.json",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				staticdata.FullItemListHandler(w, r)
-			},
-		},
-		{
-			Path: "/api/static-data/reprocessingData.json",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				staticdata.ReprocessingDataHandler(w, r)
-			},
-		},
-		{
-			Path: "/api/static-data/inventionModifiers.json",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				staticdata.InventionModifiersHandler(w, r)
-			},
-		},
-		{
-			Path: "/api/static-data/marketGroups.json",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				staticdata.MarketGroupsHandler(w, r)
-			},
-		},
-		{
 			Path: "/api/static-data/meta",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				staticdata.MetaHandler(w, r)
 			},
 		},
 	}
+	// One route per published static data file, built from the SDE definitions
+	// that the meta endpoint advertises from, so the two cannot disagree.
+	for path, handler := range staticdata.FileRoutes() {
+		publicRoutes = append(publicRoutes, route{Path: path, Handler: handler})
+	}
+
 	for _, route := range publicRoutes {
 		publicGroup.HandleFunc(route.Path, route.Handler)
 	}

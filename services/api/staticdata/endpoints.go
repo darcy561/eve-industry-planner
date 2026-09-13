@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/sdecache"
@@ -32,34 +34,43 @@ type fileMeta struct {
 	ModTime      time.Time `json:"mod_time,omitempty"`
 }
 
-func RecipeListHandler(w http.ResponseWriter, r *http.Request) {
+// FileRoutes returns one handler per published static data file, keyed by the
+// path it is served at.
+//
+// Built from the SDE file definitions rather than listed here, so a file added
+// there is served without a second edit. A file the server publishes but does
+// not route is worse than one it does not publish at all: the meta endpoint
+// advertises it from the same definitions, so every client would ask for it and
+// take a 404.
+func FileRoutes() map[string]http.HandlerFunc {
 	m := apimetrics.GetAPIStaticData()
-	serveStaticDataFile(w, r, sdecore.RecipeListFile, m.RecipeList, "recipe_list")
+	routes := make(map[string]http.HandlerFunc, len(sdecore.OutputFileNames()))
+	for _, name := range sdecore.OutputFileNames() {
+		fileName := name
+		metricName := staticDataMetricName(fileName)
+		routes["/api/static-data/"+fileName] = func(w http.ResponseWriter, r *http.Request) {
+			serveStaticDataFile(w, r, fileName, m.File(metricName), metricName)
+		}
+	}
+	return routes
 }
 
-func SearchIndexHandler(w http.ResponseWriter, r *http.Request) {
-	m := apimetrics.GetAPIStaticData()
-	serveStaticDataFile(w, r, sdecore.SearchIndexFile, m.SearchIndex, "search_index")
-}
-
-func FullItemListHandler(w http.ResponseWriter, r *http.Request) {
-	m := apimetrics.GetAPIStaticData()
-	serveStaticDataFile(w, r, sdecore.FullItemListFile, m.FullItemList, "full_item_list")
-}
-
-func ReprocessingDataHandler(w http.ResponseWriter, r *http.Request) {
-	m := apimetrics.GetAPIStaticData()
-	serveStaticDataFile(w, r, sdecore.ReprocessingFile, m.Reprocessing, "reprocessing")
-}
-
-func InventionModifiersHandler(w http.ResponseWriter, r *http.Request) {
-	m := apimetrics.GetAPIStaticData()
-	serveStaticDataFile(w, r, sdecore.InventionModifiersFile, m.InventionModifiers, "invention_modifiers")
-}
-
-func MarketGroupsHandler(w http.ResponseWriter, r *http.Request) {
-	m := apimetrics.GetAPIStaticData()
-	serveStaticDataFile(w, r, sdecore.MarketGroupsFile, m.MarketGroups, "market_groups")
+// staticDataMetricName turns a file name into the snake_case name its metrics
+// and error labels carry: "fullItemList.json" becomes "full_item_list".
+func staticDataMetricName(fileName string) string {
+	base, _ := strings.CutSuffix(fileName, ".json")
+	var out strings.Builder
+	for i, r := range base {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				out.WriteByte('_')
+			}
+			out.WriteRune(unicode.ToLower(r))
+			continue
+		}
+		out.WriteRune(r)
+	}
+	return out.String()
 }
 
 func MetaHandler(w http.ResponseWriter, r *http.Request) {

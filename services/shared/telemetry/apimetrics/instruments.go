@@ -677,14 +677,28 @@ type StaticDataFileMetrics struct {
 
 // APIStaticDataMetrics holds OpenTelemetry metrics for public static JSON and meta endpoints.
 type APIStaticDataMetrics struct {
-	RecipeList         *StaticDataFileMetrics
-	SearchIndex        *StaticDataFileMetrics
-	FullItemList       *StaticDataFileMetrics
-	Reprocessing       *StaticDataFileMetrics
-	InventionModifiers *StaticDataFileMetrics
-	MarketGroups       *StaticDataFileMetrics
-	Meta               *StaticDataFileMetrics
-	Errors             *counterVec
+	// Files holds one entry per published static data file, keyed by the
+	// snake_case name its instruments carry. Built on demand rather than as a
+	// field per file, so serving a new file needs no edit here.
+	Files  map[string]*StaticDataFileMetrics
+	Meta   *StaticDataFileMetrics
+	Errors *counterVec
+
+	filesMu sync.Mutex
+	newFile func(name, desc string) *StaticDataFileMetrics
+}
+
+// File returns the instruments for one static data file, creating them on first
+// use.
+func (m *APIStaticDataMetrics) File(name string) *StaticDataFileMetrics {
+	m.filesMu.Lock()
+	defer m.filesMu.Unlock()
+	if f, ok := m.Files[name]; ok {
+		return f
+	}
+	f := m.newFile(name, name+".json")
+	m.Files[name] = f
+	return f
 }
 
 var (
@@ -708,13 +722,9 @@ func GetAPIStaticData() *APIStaticDataMetrics {
 			}
 		}
 		apiStaticDataHolder = &APIStaticDataMetrics{
-			RecipeList:         newFile("recipe_list", "recipeList.json"),
-			SearchIndex:        newFile("search_index", "searchIndex.json"),
-			FullItemList:       newFile("full_item_list", "fullItemList.json"),
-			Reprocessing:       newFile("reprocessing", "reprocessingData.json"),
-			InventionModifiers: newFile("invention_modifiers", "inventionModifiers.json"),
-			MarketGroups:       newFile("market_groups", "marketGroups.json"),
-			Meta:               newFile("meta", "static-data meta"),
+			Files:   make(map[string]*StaticDataFileMetrics),
+			newFile: newFile,
+			Meta:    newFile("meta", "static-data meta"),
 			Errors: &counterVec{
 				c: telemetry.Must(m.Int64Counter("api.static_data.errors_total",
 					metric.WithDescription("Static data handler errors by reason"),
