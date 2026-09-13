@@ -30,6 +30,7 @@ export function cachedDataMock(overrides = {}) {
     // known — which is what the readers above already pretend.
     getCachedData: vi.fn(async () => null),
     getStaticDataBuildVersion: vi.fn(async () => null),
+    heldStaticDataBuildVersion: vi.fn(() => null),
     checkFileInCache: vi.fn(async () => null),
     checkFileInCacheWithMetadata: vi.fn(async () => null),
     // Answers with a shape, not nothing: its caller destructures `changed`, and
