@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { create } from "zustand";
-import { activePlannerActions } from "../Zustand/activePlanner/actions.js";
+import { usersStoreState } from "./usersStoreHarness.js";
 
 /**
  * Test utilities for Zustand store testing
@@ -172,8 +172,13 @@ export function createTestData() {
 /**
  * A store state for code that resolves the planner a request works in.
  *
- * Carries the real slice actions rather than stubs, so a test exercises the
- * fallback to the account's own planner instead of a second copy of that rule.
+ * Signed in whenever an account is named, because the reads this is written for
+ * are enabled on `account.isLoggedIn`: a signed-out state leaves them never
+ * asking for anything, which reads as the code being wrong rather than the
+ * setup being incomplete.
+ *
+ * The planner actions are the real ones, so a test exercises the actual fallback
+ * to the account's own planner instead of a second copy of that rule.
  *
  * @param {{accountID?: string, owner?: string|null}} [overrides]
  * @returns {object} a state object for a `usersStore` mock
@@ -182,15 +187,10 @@ export function activePlannerStoreState({
   accountID = "acct-1",
   owner = null,
 } = {}) {
-  const state = {
+  return usersStoreState({
     account: { accountID, isLoggedIn: Boolean(accountID) },
     activePlanner: { owner },
-  };
-  state.activePlanner.actions = activePlannerActions(
-    () => {},
-    () => state,
-  );
-  return state;
+  });
 }
 
 /**
