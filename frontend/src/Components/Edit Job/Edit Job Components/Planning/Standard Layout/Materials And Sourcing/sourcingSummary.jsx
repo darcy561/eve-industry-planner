@@ -1,4 +1,4 @@
-import { Alert, Button, CircularProgress } from "@mui/material";
+import { Alert, Button } from "@mui/material";
 import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
 
 import { PanelFooterMeta } from "../../../../../../Styled Components/Typography/figures";
@@ -46,7 +46,7 @@ export function SourcingOffer({
       }
       sx={{ alignItems: "center", py: 0 }}
     >
-      Building {summary.cheaperToBuild} of {summary.buildable} saves{" "}
+      Building {summary.cheaperToBuild} of {summary.costed} saves{" "}
       {formatIsk(summary.savingAvailable)}
     </Alert>
   );
@@ -72,56 +72,5 @@ export function SourcingFooter({ summary, formatVolume }) {
     <PanelFooterMeta value={formatVolume(summary.volume)}>
       {parts.join(" \u00b7 ")}
     </PanelFooterMeta>
-  );
-}
-
-/**
- * Asks for the buildable rows to be costed.
- *
- * A control rather than something the panel does on arrival: pricing a row means
- * building a whole speculative job for it, blueprint and ESI hydration included,
- * and most visitors to a job are not asking that question.
- *
- * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/materialSourcingRow").SourcingSummary} props.summary
- * @param {number} props.uncosted - Buildable rows with no build price yet
- * @param {() => void} props.onCost
- * @param {boolean} [props.isCosting]
- * @param {boolean} [props.disabled]
- */
-export function SourcingCostOffer({
-  summary,
-  uncosted,
-  onCost,
-  isCosting = false,
-  disabled = false,
-}) {
-  if (!summary || uncosted <= 0) return null;
-
-  return (
-    <Alert
-      severity="info"
-      variant="outlined"
-      icon={false}
-      action={
-        <ExplainerTooltip title="Works out what each of these would cost to build, which fetches a blueprint for every one">
-          <Button
-            color="inherit"
-            size="small"
-            onClick={onCost}
-            disabled={disabled || isCosting}
-            startIcon={
-              isCosting ? <CircularProgress size={14} color="inherit" /> : null
-            }
-          >
-            {isCosting ? "Costing" : "Cost them"}
-          </Button>
-        </ExplainerTooltip>
-      }
-      sx={{ alignItems: "center", py: 0 }}
-    >
-      {uncosted} of {summary.buildable} buildable{" "}
-      {uncosted === 1 ? "material has" : "materials have"} no build price yet
-    </Alert>
   );
 }

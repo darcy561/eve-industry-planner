@@ -159,7 +159,8 @@ export function hasSavingAvailable(row) {
 /**
  * @typedef {object} SourcingSummary
  * @property {number} materials - How many rows there are
- * @property {number} buildable - How many could be built
+ * @property {number} buildable - How many have a blueprint, costed or not
+ * @property {number} costed - How many of those have a build price worked out
  * @property {number} linked - How many have child jobs linked
  * @property {number} volume - Total volume of everything on the list
  * @property {number} savingAvailable - What switching every cheaper-to-build row would save
@@ -172,6 +173,11 @@ export function hasSavingAvailable(row) {
  * The saving counts only rows that are cheaper to build **and** not already
  * building, since offering to apply a change that is already applied reads as a
  * figure the panel cannot back up.
+ *
+ * `buildable` and `costed` are separate because a row has a blueprint long
+ * before anything works out what building it would cost. Counting buildable
+ * rows by whether they carry a price conflates the two, and the panel then
+ * states a total smaller than the number of rows it is talking about.
  *
  * @param {MaterialSourcingRow[]} rows
  * @returns {SourcingSummary}
@@ -194,7 +200,9 @@ export function summariseSourcing(rows) {
 
   return {
     materials: list.length,
-    buildable: list.filter((row) => row.buildPrice !== null).length,
+    buildable: list.filter((row) => row.isBuildable).length,
+    costed: list.filter((row) => row.isBuildable && row.buildPrice !== null)
+      .length,
     linked: list.filter((row) => row.isLinked).length,
     volume: list.reduce((total, row) => total + row.volume, 0),
     savingAvailable,

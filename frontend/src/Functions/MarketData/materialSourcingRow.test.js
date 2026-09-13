@@ -288,3 +288,42 @@ it("offers a saving only on the part of a row still to source", () => {
   expect(summary.savingAvailable).toBe(80);
   expect(summary.cheaperToBuild).toBe(1);
 });
+
+// A row has a blueprint long before anything works out what building it would
+// cost, so these two counts have to be able to disagree. Counting buildable
+// rows by whether they carried a price made the panel state "2 of 1": the
+// banner counted rows waiting for a price, and the total counted rows that
+// already had one, which are sets that cannot overlap.
+it("counts a row with a blueprint as buildable before it has been costed", () => {
+  const withBlueprint = (typeID, buildPrice) => ({
+    typeID,
+    plan: MATERIAL_PLAN.BUY,
+    isBuildable: true,
+    isLinked: false,
+    buyPrice: 100,
+    buildPrice,
+    quantity: 1,
+    volume: 0,
+  });
+
+  const summary = summariseSourcing([
+    withBlueprint(1, 80),
+    withBlueprint(2, null),
+    withBlueprint(3, null),
+    {
+      typeID: 34,
+      plan: MATERIAL_PLAN.BASE,
+      isBuildable: false,
+      isLinked: false,
+      buyPrice: 5,
+      buildPrice: null,
+      quantity: 1,
+      volume: 0,
+    },
+  ]);
+
+  expect(summary.buildable).toBe(3);
+  expect(summary.costed).toBe(1);
+  // What the banner states, and the reason this test exists.
+  expect(summary.buildable - summary.costed).toBe(2);
+});

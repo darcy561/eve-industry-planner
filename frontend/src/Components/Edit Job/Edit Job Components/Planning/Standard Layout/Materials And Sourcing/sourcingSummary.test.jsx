@@ -10,6 +10,7 @@ const formatVolume = (value) => `${value.toLocaleString("en-GB")} m³`;
 const summary = (overrides = {}) => ({
   materials: 16,
   buildable: 3,
+  costed: 3,
   linked: 2,
   volume: 214_800,
   savingAvailable: 22_800_000,
