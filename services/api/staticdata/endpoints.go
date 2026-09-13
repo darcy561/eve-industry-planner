@@ -76,9 +76,14 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Cache-Control", "public, max-age=600, stale-while-revalidate=60")
-	w.Header().Set("CDN-Cache-Control", "public, s-maxage=600, stale-while-revalidate=60")
-	w.Header().Set("Cloudflare-CDN-Cache-Control", "public, s-maxage=600, stale-while-revalidate=60")
+	// This is how a client learns a new build exists, so it is never served from
+	// a cache: held for ten minutes it capped how fast anything could notice one,
+	// and a browser answered its own reload from that copy. The files it names
+	// stay immutable — they carry the build in their URL and never change under
+	// it, which is what makes this one safe to ask for every time.
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("CDN-Cache-Control", "no-cache")
+	w.Header().Set("Cloudflare-CDN-Cache-Control", "no-cache")
 	w.Header().Set("Vary", "Accept-Encoding")
 
 	backend, err := sdecache.OpenBackend(ctx)
