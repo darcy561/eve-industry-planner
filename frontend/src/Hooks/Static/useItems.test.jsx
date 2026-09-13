@@ -7,7 +7,7 @@ const getFullItemList = vi.fn();
 const getSearchIndex = vi.fn();
 
 vi.mock("../../Functions/Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
   return cachedDataMock({
     getFullItemList: (...args) => getFullItemList(...args),
     getSearchIndex: (...args) => getSearchIndex(...args),

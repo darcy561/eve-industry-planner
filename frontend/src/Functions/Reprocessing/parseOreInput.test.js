@@ -4,7 +4,7 @@ import { reprocessingItemTypes } from "../../Context/defaultValues";
 const getReprocessingData = vi.fn();
 
 vi.mock("../Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
   return cachedDataMock({
     getReprocessingData: (...args) => getReprocessingData(...args),
   });

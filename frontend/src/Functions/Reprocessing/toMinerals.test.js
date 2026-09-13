@@ -5,7 +5,7 @@ const getReprocessingData = vi.fn();
 const getMarketData = vi.fn();
 
 vi.mock("../Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
   return cachedDataMock({
     getReprocessingData: (...args) => getReprocessingData(...args),
   });

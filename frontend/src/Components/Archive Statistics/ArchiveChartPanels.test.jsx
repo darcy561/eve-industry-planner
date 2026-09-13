@@ -44,7 +44,7 @@ vi.mock("../../Styled Components/Charts", async () => {
 // The panels resolve item names from the cached static list, the way the rest
 // of the app reads it.
 vi.mock("../../Functions/Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
   return cachedDataMock({
     getFullItemList: vi.fn(async () => ({ 34: { name: "Tritanium" } })),
   });

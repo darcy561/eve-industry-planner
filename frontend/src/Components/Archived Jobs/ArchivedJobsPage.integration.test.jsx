@@ -39,7 +39,7 @@ vi.mock("../../Zustand/usersStore", async () => {
   return usersStoreMock(archiveStoreState());
 });
 vi.mock("../../Functions/Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
   return cachedDataMock();
 });
 vi.mock("../../Styled Components/Charts", async () => {

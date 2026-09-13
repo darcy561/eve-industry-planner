@@ -11,14 +11,19 @@ const getRecipeListFromCache = vi.fn();
 const getMarketGroups = vi.fn();
 const getSolarSystems = vi.fn();
 
-vi.mock("../../Functions/Helper/getCachedData", () => ({
-  getFullItemList: (...args) => getFullItemList(...args),
-  getSearchIndex: (...args) => getSearchIndex(...args),
-  getReprocessingData: (...args) => getReprocessingData(...args),
-  getRecipeListFromCache: (...args) => getRecipeListFromCache(...args),
-  getMarketGroups: (...args) => getMarketGroups(...args),
-  getSolarSystems: (...args) => getSolarSystems(...args),
-}));
+// The readers this asserts on are its own spies; the rest come from the shared
+// mock, so a new static file does not break this on setup.
+vi.mock("../../Functions/Helper/getCachedData", async () => {
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
+  return cachedDataMock({
+    getFullItemList: (...args) => getFullItemList(...args),
+    getSearchIndex: (...args) => getSearchIndex(...args),
+    getReprocessingData: (...args) => getReprocessingData(...args),
+    getRecipeListFromCache: (...args) => getRecipeListFromCache(...args),
+    getMarketGroups: (...args) => getMarketGroups(...args),
+    getSolarSystems: (...args) => getSolarSystems(...args),
+  });
+});
 
 const { useCachedData } = await import("./useCachedData.js");
 

@@ -6,7 +6,7 @@ import { testQueryClient } from "../tests/queryClients.js";
 const getSolarSystems = vi.fn();
 
 vi.mock("../Functions/Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../tests/cachedDataMock.js");
   return cachedDataMock({
     getSolarSystems: (...args) => getSolarSystems(...args),
   });

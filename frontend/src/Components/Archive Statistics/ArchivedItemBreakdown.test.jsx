@@ -11,7 +11,7 @@ vi.mock("../../Hooks/React Query/Backend/statisticsTimeline", () => ({
 }));
 
 vi.mock("../../Functions/Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
   return cachedDataMock({
     getFullItemList: (...args) => getFullItemList(...args),
   });

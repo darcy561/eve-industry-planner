@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const getRecipeListFromCache = vi.fn();
 
 vi.mock("../Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
   return cachedDataMock({
     getRecipeListFromCache: (...args) => getRecipeListFromCache(...args),
   });
