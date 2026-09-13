@@ -80,7 +80,7 @@ func TestPricingGroupsRoundTripUnderTheirSide(t *testing.T) {
 	in := PricingDefaults{
 		Buying: PricingSide{
 			PricingChoice: PricingChoice{Market: "jita", Basis: "sell"},
-			Groups:        map[string]PricingChoice{"1857": {Market: "hek"}},
+			Groups:        map[string]GroupPricing{"1857": {Market: "hek"}},
 		},
 		Selling: PricingSide{PricingChoice: PricingChoice{Market: "amarr", Basis: "buy"}},
 	}

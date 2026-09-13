@@ -1,13 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import { testQueryClient } from "../../../../tests/queryClients.js";
 
-const { store, tree } = vi.hoisted(() => ({
-  store: { applicationSettings: { defaultPricing: {} } },
-  tree: { current: {} },
-}));
+const { store, tree, updateGroupPricingDefault } = vi.hoisted(() => {
+  const updateGroupPricingDefault = vi.fn();
+  return {
+    updateGroupPricingDefault,
+    store: {
+      applicationSettings: {
+        defaultPricing: {},
+        actions: { updateGroupPricingDefault },
+      },
+    },
+    tree: { current: {} },
+  };
+});
 
 vi.mock("../../../../Zustand/usersStore", () => ({
   default: Object.assign((selector) => selector(store), {
@@ -44,6 +54,10 @@ function seed({ buying, selling } = {}) {
   tree.current = TREE;
 }
 
+beforeEach(() => {
+  updateGroupPricingDefault.mockClear();
+});
+
 const renderPanel = () =>
   render(
     <QueryClientProvider client={testQueryClient()}>
@@ -57,7 +71,9 @@ describe("the market group pricing panel", () => {
     renderPanel();
 
     expect(screen.getByText("Minerals")).toBeInTheDocument();
-    expect(screen.getByText("Hek · Buy Orders")).toBeInTheDocument();
+    // The choices are the selects' own values rather than text beside them.
+    expect(screen.getByText("Hek")).toBeInTheDocument();
+    expect(screen.getByText("Buy Orders")).toBeInTheDocument();
   });
 
   // The name alone does not say whether it is the group the reader meant, and a
@@ -76,8 +92,8 @@ describe("the market group pricing panel", () => {
     });
     renderPanel();
 
-    expect(screen.getByText("Hek · Buy Orders")).toBeInTheDocument();
-    expect(screen.getByText("Dodixie · —")).toBeInTheDocument();
+    expect(screen.getByText("Hek")).toBeInTheDocument();
+    expect(screen.getByText("Dodixie")).toBeInTheDocument();
   });
 
   it("says a side has none rather than showing an empty box", () => {
@@ -94,5 +110,142 @@ describe("the market group pricing panel", () => {
     renderPanel();
 
     expect(screen.getByText("Group 99999")).toBeInTheDocument();
+  });
+});
+
+// The store drops a group once it names nothing, so a row's controls and its
+// remove are the same write reaching the same entry.
+describe("changing what a group prices against", () => {
+  it("writes the market to the side the row belongs to", async () => {
+    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+    renderPanel();
+
+    const [market] = screen.getAllByRole("combobox");
+    await userEvent.click(market);
+    await userEvent.click(
+      within(screen.getByRole("listbox")).getByText(/Jita/i),
+    );
+
+    expect(updateGroupPricingDefault).toHaveBeenCalledWith(
+      "buying",
+      1857,
+      "market",
+      "jita",
+    );
+  });
+
+  it("writes the basis without disturbing the market", async () => {
+    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+    renderPanel();
+
+    await userEvent.click(screen.getAllByRole("combobox")[1]);
+    await userEvent.click(
+      within(screen.getByRole("listbox")).getByText("Sell Orders"),
+    );
+
+    expect(updateGroupPricingDefault).toHaveBeenCalledWith(
+      "buying",
+      1857,
+      "basis",
+      "sell",
+    );
+  });
+
+  it("writes to the side the row is under, not the first one", async () => {
+    seed({ selling: { 1857: { market: "hek", exit: "listed" } } });
+    renderPanel();
+
+    const [market] = screen.getAllByRole("combobox");
+    await userEvent.click(market);
+    await userEvent.click(
+      within(screen.getByRole("listbox")).getByText(/Jita/i),
+    );
+
+    expect(updateGroupPricingDefault).toHaveBeenCalledWith(
+      "selling",
+      1857,
+      "market",
+      "jita",
+    );
+  });
+
+  // Removing is clearing both fields: the store reads an entry naming nothing as
+  // no entry, so there is no separate delete to get out of step with it.
+  it("clears both fields to stop pricing a group separately", async () => {
+    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+    renderPanel();
+
+    await userEvent.click(screen.getByRole("button", { name: /Remove/ }));
+
+    expect(updateGroupPricingDefault).toHaveBeenCalledWith(
+      "buying",
+      1857,
+      "market",
+      "",
+    );
+    expect(updateGroupPricingDefault).toHaveBeenCalledWith(
+      "buying",
+      1857,
+      "basis",
+      "",
+    );
+  });
+});
+
+// A group answers its own side's axis. The selling side names how output leaves
+// a build, so a group beneath it names a route rather than a basis its side no
+// longer reads.
+describe("what each side's groups answer", () => {
+  it("offers the buying side a pricing basis", async () => {
+    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+    renderPanel();
+
+    await userEvent.click(screen.getAllByRole("combobox")[1]);
+    expect(
+      within(screen.getByRole("listbox")).getByText("Sell Orders"),
+    ).toBeInTheDocument();
+  });
+
+  it("offers the selling side a route out", async () => {
+    seed({ selling: { 1857: { market: "hek", exit: "listed" } } });
+    renderPanel();
+
+    await userEvent.click(screen.getAllByRole("combobox")[1]);
+    expect(
+      within(screen.getByRole("listbox")).getByText("Sell into buy orders"),
+    ).toBeInTheDocument();
+  });
+
+  it("writes a route on the selling side", async () => {
+    seed({ selling: { 1857: { market: "hek", exit: "listed" } } });
+    renderPanel();
+
+    await userEvent.click(screen.getAllByRole("combobox")[1]);
+    await userEvent.click(
+      within(screen.getByRole("listbox")).getByText("Sell into buy orders"),
+    );
+
+    expect(updateGroupPricingDefault).toHaveBeenCalledWith(
+      "selling",
+      1857,
+      "exit",
+      "immediate",
+    );
+  });
+
+  // Removing has to clear the axis the side actually uses, or the entry keeps a
+  // value and the group stays.
+  it("clears the route when removing a selling group", async () => {
+    seed({ selling: { 1857: { market: "hek", exit: "listed" } } });
+    renderPanel();
+
+    await userEvent.click(screen.getByRole("button", { name: /Remove/ }));
+
+    expect(updateGroupPricingDefault).toHaveBeenCalledWith(
+      "selling",
+      1857,
+      "exit",
+      "",
+    );
   });
 });

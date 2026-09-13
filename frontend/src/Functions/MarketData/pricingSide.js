@@ -172,16 +172,17 @@ export function setJobPricingSide(jobPricing, side, key, value) {
  *
  * @param {Object<string, {market?: string, basis?: string}>|null|undefined} groups
  * @param {number|string} groupID
- * @param {"market"|"basis"} key
+ * @param {"market"|"basis"|"exit"} key - The selling side's groups name a route
+ *   in place of a basis, as the side itself does
  * @param {string|null|undefined} value
- * @returns {Object<string, {market?: string, basis?: string}>|undefined}
+ * @returns {Object<string, {market?: string, basis?: string, exit?: string}>|undefined}
  */
 export function setGroupPricing(groups, groupID, key, value) {
   const id = String(groupID);
   const next = { ...groups };
   const entry = { ...next[id], [key]: value || undefined };
 
-  if (!entry.market && !entry.basis) {
+  if (!entry.market && !entry.basis && !entry.exit) {
     delete next[id];
   } else {
     next[id] = entry;
@@ -226,7 +227,12 @@ export function resolveGroupDefault({
     const chosen = groupDefaults[String(id)];
     if (chosen) {
       answer.market ||= chosen.market || null;
-      answer.basis ||= chosen.basis || null;
+      // A group answers its side's own axis: the selling side names a route out,
+      // which decides the basis, and the buying side names the basis directly.
+      // Both reach the caller as a basis, because that is what a price is read
+      // on — the route's other half, the broker fee, belongs to the side rather
+      // than to a group beneath it.
+      answer.basis ||= chosen.basis || basisForExit(chosen.exit) || null;
       if (answer.market && answer.basis) return answer;
     }
     id = marketGroups?.[String(id)]?.parent_id;

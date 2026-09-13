@@ -1,4 +1,5 @@
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 
 import AppShellPanel from "../../../../Styled Components/Paper/AppShellPanel";
 import InsetSurface from "../../../../Styled Components/Paper/InsetSurface";
@@ -6,42 +7,19 @@ import {
   FigureCaption,
   FigureRow,
 } from "../../../../Styled Components/Typography/figures";
-import { PRICING_SIDES } from "../../../../Functions/MarketData/pricingSide";
+import {
+  PRICING_SIDE,
+  PRICING_SIDES,
+} from "../../../../Functions/MarketData/pricingSide";
+import ExitRouteSelect from "../../../../Styled Components/Select/exitRoute";
 import {
   useAncestorPath,
   useMarketGroupTree,
 } from "../../../../Hooks/Static/useMarketGroups";
 import useUsersStore from "../../../../Zustand/usersStore";
-import GLOBAL_CONFIG from "../../../../global-config-app";
-import { listingType } from "../../../../Context/defaultValues";
-
-const { MARKET_OPTIONS } = GLOBAL_CONFIG;
-
-/**
- * What a market a group prices against is called.
- *
- * An id the hub list does not carry is shown as itself rather than dropped: a
- * reader has to be able to see a choice in order to change it, and the list is
- * about to admit markets beyond the four hubs.
- *
- * @param {string|undefined} id
- * @returns {string}
- */
-function marketName(id) {
-  if (!id) return "—";
-  return MARKET_OPTIONS.find((option) => option.id === id)?.name ?? id;
-}
-
-/**
- * What a pricing basis is called.
- *
- * @param {string|undefined} id
- * @returns {string}
- */
-function basisName(id) {
-  if (!id) return "—";
-  return listingType.find((entry) => entry.id === id)?.name ?? id;
-}
+import MarketLocationSelect from "../../../../Styled Components/Select/marketLocation";
+import MarketListingSelect from "../../../../Styled Components/Select/marketListing";
+import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 /**
  * One group's row: what it is, where it sits, and what it prices against.
@@ -51,13 +29,23 @@ function basisName(id) {
  * everything beneath it.
  *
  * @param {object} props
+ * @param {string} props.side - One of PRICING_SIDE
  * @param {number} props.groupID
  * @param {{market?: string, basis?: string}} props.choice
  */
-function GroupRow({ groupID, choice }) {
+function GroupRow({ side, groupID, choice }) {
   const path = useAncestorPath(groupID);
   const name = path.at(-1)?.name;
   const within = path.slice(0, -1).map((step) => step.name);
+  const { updateGroupPricingDefault } = useUsersStore(
+    (state) => state.applicationSettings.actions,
+  );
+  const selling = side === PRICING_SIDE.SELLING;
+
+  const commit = (key, value) => {
+    updateGroupPricingDefault(side, groupID, key, value);
+    scheduleDebouncedApplicationSettingsSave();
+  };
 
   return (
     <FigureRow
@@ -65,7 +53,54 @@ function GroupRow({ groupID, choice }) {
       // a reader cannot clear what they set.
       label={name ?? `Group ${groupID}`}
       sublabel={within.length > 0 ? within.join(" › ") : undefined}
-      value={`${marketName(choice?.market)} · ${basisName(choice?.basis)}`}
+      value={
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <MarketLocationSelect
+            useAppShellStyling
+            value={choice?.market}
+            onChange={(option) => commit("market", option.id)}
+            labelText="Market"
+            customFormStyling={{ minWidth: 140 }}
+          />
+          {/* A group answers its own side's axis: output leaves by a route,
+              materials are priced on a basis. */}
+          {selling ? (
+            <ExitRouteSelect
+              value={choice?.exit}
+              onChange={(option) => commit("exit", option.id)}
+              labelText="Sold by"
+              customFormStyling={{ minWidth: 180 }}
+            />
+          ) : (
+            <MarketListingSelect
+              value={choice?.basis}
+              onChange={(option) => commit("basis", option.id)}
+              labelText="Prices"
+              customFormStyling={{ minWidth: 150 }}
+            />
+          )}
+          <Tooltip title="Stop pricing this group separately" arrow>
+            <IconButton
+              size="small"
+              aria-label={`Remove ${name ?? groupID}`}
+              // Clearing both fields is what drops the group: the store treats an
+              // entry naming nothing as no entry, so there is no separate remove.
+              onClick={() => {
+                updateGroupPricingDefault(side, groupID, "market", "");
+                updateGroupPricingDefault(
+                  side,
+                  groupID,
+                  selling ? "exit" : "basis",
+                  "",
+                );
+                scheduleDebouncedApplicationSettingsSave();
+              }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      }
     />
   );
 }
@@ -74,10 +109,11 @@ function GroupRow({ groupID, choice }) {
  * One side's groups, or a line saying it has none.
  *
  * @param {object} props
+ * @param {string} props.side - One of PRICING_SIDE
  * @param {string} props.noun - What this side prices, for the heading
  * @param {Object<string, {market?: string, basis?: string}>|undefined} props.groups
  */
-function SideSection({ noun, groups }) {
+function SideSection({ side, noun, groups }) {
   const entries = Object.entries(groups ?? {});
 
   return (
@@ -94,6 +130,7 @@ function SideSection({ noun, groups }) {
             {entries.map(([groupID, choice]) => (
               <GroupRow
                 key={groupID}
+                side={side}
                 groupID={Number(groupID)}
                 choice={choice}
               />
@@ -137,6 +174,7 @@ function MarketGroupPricing() {
         {PRICING_SIDES.map(({ side, noun }) => (
           <SideSection
             key={side}
+            side={side}
             noun={noun}
             groups={defaultPricing?.[side]?.groups}
           />

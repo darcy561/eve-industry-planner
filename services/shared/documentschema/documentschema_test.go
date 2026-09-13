@@ -214,7 +214,7 @@ func TestApplicationSettingsPricingFallsBackToTheGlobalDefault(t *testing.T) {
 // A side can carry market group defaults before it names a market of its own, so
 // the seed fills the two fields rather than replacing the side.
 func TestApplicationSettingsSeedKeepsAGroupTable(t *testing.T) {
-	groups := map[string]models.PricingChoice{"1857": {Market: "hek"}}
+	groups := map[string]models.GroupPricing{"1857": {Market: "hek"}}
 	doc := &models.ApplicationSettings{
 		DefaultMarketLocation: "amarr",
 		DefaultOrderType:      "buy",

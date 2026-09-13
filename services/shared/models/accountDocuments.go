@@ -172,9 +172,26 @@ type PricingChoice struct {
 // Groups is keyed by market group id and prices everything under that group. It
 // lives on the side rather than beside it, so a group can never answer the side
 // it was not set on.
+// GroupPricing is what one market group is priced against, beneath a side.
+//
+// It carries a route as well as a basis because a group answers the same question
+// its side does: the selling side names how output leaves a build, and a group
+// beneath it has to be able to name a different route rather than a basis its own
+// side no longer reads. The buying side's groups name a basis and no route.
+//
+// Kept apart from PricingChoice, which rungs 1 and 2 also use: a job's own
+// override and a material's are about where a figure comes from, not about how a
+// build is sold, so a route on that type would be a field two rungs could never
+// answer.
+type GroupPricing struct {
+	Market string `bson:"market,omitempty" json:"market,omitempty"`
+	Basis  string `bson:"basis,omitempty" json:"basis,omitempty"`
+	Exit   string `bson:"exit,omitempty" json:"exit,omitempty"`
+}
+
 type PricingSide struct {
 	PricingChoice `bson:",inline" json:",inline"`
-	Groups        map[string]PricingChoice `bson:"groups,omitempty" json:"groups,omitempty"`
+	Groups        map[string]GroupPricing `bson:"groups,omitempty" json:"groups,omitempty"`
 	// Exit is the route out of a finished build — listing it, or selling into
 	// bids — and is answered on the selling side only. It decides the basis
 	// rather than sitting beside one: a listing is priced from the ask and pays a
