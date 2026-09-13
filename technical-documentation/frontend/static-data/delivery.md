@@ -55,10 +55,15 @@ The server says when there is something to do instead, three ways:
 | a `staticData` websocket message | a build ships while the session is open |
 | `visibilitychange` / `online` | a tab that was asleep or offline is back |
 
-The websocket message names the build, so a client already holding it does nothing. A client that
-does not **waits a random moment inside a 30-second window** before downloading — every connected
-client is told at the same instant, and without the spread they would all ask for the same files
-together. The wait is free: what the client holds stays readable and correct until the new files
+The websocket message names the build, so a client already holding it does nothing. What it is
+compared against is `heldStaticDataBuildVersion()` — the build whose files are in *this page's*
+cache. `app-config`'s `sde_build_version` answers only until the first refresh: it reports the build
+the **server** held when it was last fetched, so a client that has acted on one announcement would
+compare every later one against the build it loaded with and download the same files again.
+
+A client that does not hold the build **waits a random moment inside a 30-second window** before
+downloading — every connected client is told at the same instant, and without the spread they would
+all ask for the same files together. The wait is free: what the client holds stays readable and correct until the new files
 arrive.
 
 The wake check has a **five-minute floor**, so alt-tabbing costs nothing, and it is the backstop for
