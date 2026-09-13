@@ -330,6 +330,21 @@ a hand-rolled version of that row was the first thing this slice got wrong.
 meant, and a default set on a container covers everything beneath it. A group the published tree no
 longer carries is still shown, by id, because a reader has to see a choice to clear it.
 
+### B6.5 — A group is recognised by one of its items
+
+Market group rows carry a picture. A group's own icon in EVE's data names a file inside the game
+client, which nothing can serve, so a group borrows one of its own items instead: `IconTypeID` is the
+lowest type id it holds, and a container with none of its own takes the first from the branch beneath
+it. Minerals shows Tritanium.
+
+The lowest id rather than any id, so the same source always picks the same item and a rebuilt file can
+still be compared with the last one.
+
+`MarketGroupIcon` sits beside `OwnerAvatar`, which is where EVE imagery already lives, and is built on
+MUI `Avatar` so a failed load falls through to a glyph rather than a broken image. Where a whole
+branch is obsolete there is no item to borrow and the glyph is all there is — 28 groups of 1,108
+across the branches this app prices, every one of them obsolete.
+
 ## Consolidation
 
 Work the stages left behind, folded back together once the surface had settled.

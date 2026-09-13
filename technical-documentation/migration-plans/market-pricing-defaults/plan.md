@@ -352,6 +352,17 @@ item list, and runs after it in `conversionStage`.
 Children are sorted by id so the same source produces the same bytes, which is what lets a published
 file be compared between builds.
 
+**A group borrows an item to be recognised by.** Its own icon in the SDE names a file inside the game
+client, and the image server carries types, characters and corporations and nothing else — so the
+picture comes from one of the group's own items, which is a picture of the same thing either way.
+`IconTypeID` is the lowest type id in a group, and a container with none of its own takes the first
+from the branch beneath it. Across the branches this app prices, 28 groups of 1,108 have nothing to
+borrow, and every one of them is obsolete.
+
+Surveying that call added a forty-first place the SPA builds an image URL inline, which is what opened
+[eve-image-server](../eve-image-server/contents.md). That project owns how a picture is asked for;
+which item a group borrows stays here.
+
 **Nothing caps a walk downward.** The upward walk has `MAX_GROUP_DEPTH` because a cycle would hang a
 page rendering once per material; a browse is driven by a reader and stops when they stop, so it has no
 equivalent. A self-referencing or two-node cycle in the source would let a reader open the same group
