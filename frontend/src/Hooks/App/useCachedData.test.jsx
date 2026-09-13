@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { testQueryClient } from "../../tests/queryClients.js";
 
 const getFullItemList = vi.fn();
 const getSearchIndex = vi.fn();
@@ -21,7 +22,7 @@ vi.mock("../../Functions/Helper/getCachedData", () => ({
 
 const { useCachedData } = await import("./useCachedData.js");
 
-function withClient(client = new QueryClient()) {
+function withClient(client = testQueryClient()) {
   return function Wrapper({ children }) {
     return (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -31,7 +32,7 @@ function withClient(client = new QueryClient()) {
 
 /** A client that does not retry, so a failing read fails once and reports it. */
 function quietClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return testQueryClient();
 }
 
 beforeEach(() => {
@@ -92,7 +93,7 @@ describe("useCachedData", () => {
   // The file is one read for the whole app: two components asking share it
   // rather than holding a copy each.
   it("reads a file once however many components ask", async () => {
-    const client = new QueryClient();
+    const client = testQueryClient();
     const { result: first } = renderHook(
       () => useCachedData(CACHED_DATA_FILES.FULL_ITEM_LIST),
       { wrapper: withClient(client) },
@@ -108,7 +109,7 @@ describe("useCachedData", () => {
   });
 
   it("keeps the files apart", async () => {
-    const client = new QueryClient();
+    const client = testQueryClient();
     renderHook(() => useCachedData(CACHED_DATA_FILES.FULL_ITEM_LIST), {
       wrapper: withClient(client),
     });

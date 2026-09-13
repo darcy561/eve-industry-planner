@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const getCharacterSkills = vi.fn();
 const getCharacterStandings = vi.fn();
@@ -33,9 +34,7 @@ const { useSellingRateInputs, ensureSellingRateInputs } =
   await import("./useSellingRateInputs");
 
 const harness = () => {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return {
     client,
     wrapper: ({ children }) => (

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { testQueryClient } from "../../../../../../../tests/queryClients.js";
 
 const buildChildJobs = vi.fn();
 const hydrateChildJobsWithMissingData = vi.fn();
@@ -47,7 +48,7 @@ const jobState = (overrides = {}) => ({
 });
 
 const wrapper = ({ children }) => (
-  <QueryClientProvider client={new QueryClient()}>
+  <QueryClientProvider client={testQueryClient()}>
     {children}
   </QueryClientProvider>
 );

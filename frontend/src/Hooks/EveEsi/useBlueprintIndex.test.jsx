@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const {
@@ -60,6 +60,7 @@ import useBlueprintIndex, {
   BLUEPRINT_SCOPE,
   getCachedBlueprintIndex,
 } from "./useBlueprintIndex";
+import { testQueryClientKeepingCache } from "../../tests/queryClients.js";
 
 function blueprint(itemId, overrides = {}) {
   return {
@@ -76,9 +77,7 @@ function blueprint(itemId, overrides = {}) {
 }
 
 function render(request) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-  });
+  const client = testQueryClientKeepingCache();
   return renderHook(() => useBlueprintIndex(request), {
     wrapper: ({ children }) =>
       createElement(QueryClientProvider, { client }, children),
@@ -162,9 +161,7 @@ describe("useBlueprintIndex", () => {
   it("gives two consumers of one scope the same collection", async () => {
     characterPayloads.set("hash-a", [blueprint(1)]);
 
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-    });
+    const client = testQueryClientKeepingCache();
     const wrapper = ({ children }) =>
       createElement(QueryClientProvider, { client }, children);
     const request = { scope: BLUEPRINT_SCOPE.CHARACTER, id: "hash-a" };

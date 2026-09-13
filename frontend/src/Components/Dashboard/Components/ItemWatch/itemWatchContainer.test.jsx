@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { testQueryClient } from "../../../../tests/queryClients.js";
 
 const { store, getMarketData, addMarketData } = vi.hoisted(() => ({
   store: { current: null },
@@ -51,9 +52,7 @@ function item(id, name, typeID) {
 }
 
 function show() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
       <ThemeProvider theme={theme}>

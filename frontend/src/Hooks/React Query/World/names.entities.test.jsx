@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
 
 const { store, bodies } = vi.hoisted(() => ({
   store: {
@@ -31,6 +30,7 @@ vi.mock("../../../Functions/EveESI/fetchWithCustomHeaders", () => ({
 }));
 
 import { fetchNames } from "./names";
+import { testQueryClientCollapsingRetries } from "../../../tests/queryClients.js";
 
 const FACTION = 500001;
 const CORPORATION = 98000001;
@@ -39,9 +39,7 @@ const ALLIANCE = 99000001;
 const JITA = 60003760;
 
 function client() {
-  return new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
-  });
+  return testQueryClientCollapsingRetries();
 }
 
 beforeEach(() => {

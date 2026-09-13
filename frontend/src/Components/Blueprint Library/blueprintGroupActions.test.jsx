@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 const { addNewJobsToPlanner, showBlueprintArchiveDialogue } = vi.hoisted(
   () => ({
@@ -27,15 +27,14 @@ vi.mock("@sentry/react", () => ({ captureException: vi.fn() }));
 
 import BlueprintGroupActions from "./blueprintGroupActions";
 import { snackbarSpies } from "../../tests/snackbarHarness.js";
+import { testQueryClient } from "../../tests/queryClients.js";
 
 const { showSnackbarError } = snackbarSpies;
 
 const BP_DATA = { itemID: 587, name: "Rifter" };
 
 function renderActions(bpData = BP_DATA) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
       <BlueprintGroupActions bpData={bpData} />

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { store, characterRows, esiCalls, community } = vi.hoisted(() => ({
@@ -143,6 +143,7 @@ const { esiAnswers, publicNames } = vi.hoisted(() => ({
 
 import AssetLibraryView from "./assetLibraryView";
 import { stubElementHeights } from "../../tests/elementHeights";
+import { testQueryClientCollapsingRetries } from "../../tests/queryClients.js";
 
 const JITA = 60003760;
 const ALT_ONLY_STRUCTURE = 1035466617946;
@@ -185,11 +186,7 @@ function stack(itemId, locationId, flag = "Hangar") {
 }
 
 function newClient() {
-  return new QueryClient({
-    // `nameQuery` sets its own `retry`, which outlives a client default — so the wait
-    // between attempts is collapsed rather than the attempts removed.
-    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
-  });
+  return testQueryClientCollapsingRetries();
 }
 
 function renderLibrary(client = newClient()) {

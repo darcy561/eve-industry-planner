@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
@@ -18,6 +18,7 @@ import {
   JITA_STATION_ID,
 } from "../../../tests/assetFixtures";
 import { seedItemRecords } from "../../../tests/seedItems";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const itemRecords = {
   34: { name: "Tritanium" },
@@ -30,7 +31,7 @@ function renderLocations(collection, typeId, extra = {}) {
     [JITA_STATION_ID]: { name: "Jita IV-4" },
   });
 
-  const queryClient = new QueryClient();
+  const queryClient = testQueryClient();
   seedItemRecords(queryClient, itemRecords);
 
   return render(

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { activePlannerStoreState } from "../../../tests/utils.js";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const storeState = activePlannerStoreState();
 
@@ -42,9 +43,7 @@ vi.mock("../../../Hooks/React Query/planners.js", () => ({
 const { PlannerSwitcher } = await import("./plannerSwitcher.jsx");
 
 function renderSwitcher() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
       <PlannerSwitcher />

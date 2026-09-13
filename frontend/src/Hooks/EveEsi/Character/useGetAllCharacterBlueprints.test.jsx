@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const { account, payloads } = vi.hoisted(() => ({
@@ -30,6 +30,7 @@ import {
   getAllCachedCharacterBlueprints,
   useGetAllCharacterBlueprints,
 } from "./useGetAllCharacterBlueprints";
+import { testQueryClientKeepingCache } from "../../../tests/queryClients.js";
 
 const row = { item_id: 1, type_id: 686 };
 
@@ -44,9 +45,7 @@ describe("useGetAllCharacterBlueprints", () => {
   it("returns the same shape as the cache reader", async () => {
     payloads.set("hash-a", [row]);
 
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-    });
+    const client = testQueryClientKeepingCache();
     const { result } = renderHook(() => useGetAllCharacterBlueprints(), {
       wrapper: ({ children }) =>
         createElement(QueryClientProvider, { client }, children),
@@ -61,9 +60,7 @@ describe("useGetAllCharacterBlueprints", () => {
   });
 
   it("gives a character with no blueprints an empty array", async () => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-    });
+    const client = testQueryClientKeepingCache();
     const { result } = renderHook(() => useGetAllCharacterBlueprints(), {
       wrapper: ({ children }) =>
         createElement(QueryClientProvider, { client }, children),

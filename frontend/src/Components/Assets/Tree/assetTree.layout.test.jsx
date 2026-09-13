@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import AssetTree from "./assetTree";
 import { assetRowHeight } from "./assetTreeRow";
 import { ASSET_ROW } from "../../../Functions/Assets/flattenAssetTree";
@@ -9,6 +9,7 @@ import buildAssetNodes from "../../../Functions/Assets/buildAssetNodes";
 import { assetRowsByLocation } from "../../../Functions/Assets/assetTree";
 import { stubElementHeights } from "../../../tests/elementHeights";
 import { seedItemRecords } from "../../../tests/seedItems";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const STATION_ID = 60003760;
 const theme = createTheme();
@@ -28,7 +29,7 @@ const collection = buildAssetNodes(
 function renderTree(expanded = []) {
   const rows = assetRowsByLocation(collection).get(STATION_ID);
 
-  const queryClient = new QueryClient();
+  const queryClient = testQueryClient();
   seedItemRecords(queryClient, itemRecords);
 
   return render(

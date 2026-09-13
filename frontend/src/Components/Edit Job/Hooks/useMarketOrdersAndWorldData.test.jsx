@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const { store, requested, resolved, pending, imperativeFetch, matches } =
@@ -62,6 +62,7 @@ vi.mock(
 );
 
 import { useGatherMarketOrdersAndUpdateExistingLinkedOrders } from "./useMarketOrdersAndWorldData";
+import { testQueryClientCollapsingRetries } from "../../../tests/queryClients.js";
 
 const JITA = 60003760;
 const RAITARU = 1035466617946;
@@ -71,9 +72,7 @@ function activeJob(marketOrders = []) {
 }
 
 function render(job) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
-  });
+  const client = testQueryClientCollapsingRetries();
   return renderHook(
     () =>
       useGatherMarketOrdersAndUpdateExistingLinkedOrders(

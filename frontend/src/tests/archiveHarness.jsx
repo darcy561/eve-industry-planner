@@ -3,7 +3,8 @@ import { expect, vi } from "vitest";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { testQueryClient } from "./queryClients.js";
 import { usersStoreState } from "./usersStoreHarness.js";
 
 /**
@@ -160,9 +161,7 @@ export function setViewportWide(isWide) {
 
 /** Renders with the providers an archive view needs. */
 export function renderWithProviders(ui) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
       <ThemeProvider theme={theme}>{withPickers(ui)}</ThemeProvider>

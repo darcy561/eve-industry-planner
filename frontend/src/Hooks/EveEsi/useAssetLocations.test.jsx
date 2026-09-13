@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const { store, characterRows, resolveCalls, resolved, pending, failing } =
@@ -57,13 +57,10 @@ import {
   JITA_STATION_ID,
   RAITARU_STRUCTURE_ID,
 } from "../../tests/assetFixtures";
+import { testQueryClientCollapsingRetries } from "../../tests/queryClients.js";
 
 function render(request) {
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, retryDelay: 0, gcTime: Infinity },
-    },
-  });
+  const client = testQueryClientCollapsingRetries();
   return renderHook(() => useAssetLocations(request), {
     wrapper: ({ children }) =>
       createElement(QueryClientProvider, { client }, children),

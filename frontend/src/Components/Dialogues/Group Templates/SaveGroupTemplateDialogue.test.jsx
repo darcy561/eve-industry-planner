@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { snackbarSpies } from "../../../tests/snackbarHarness.js";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const { showSnackbarError } = snackbarSpies;
 
@@ -82,9 +83,7 @@ function planner({ groups = [], jobs = [], active = null } = {}) {
 }
 
 function show() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
       <ThemeProvider theme={theme}>

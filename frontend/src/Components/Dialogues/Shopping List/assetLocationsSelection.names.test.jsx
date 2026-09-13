@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 const { store, esiCalls, esiAnswers, community } = vi.hoisted(() => ({
   store: {
@@ -70,6 +70,7 @@ vi.mock("../../../Functions/EveESI/fetchWithCustomHeaders", () => ({
 }));
 
 import SelectAssetLocation_ShoppingListDialogue from "./assetLocationsSelection";
+import { testQueryClientCollapsingRetries } from "../../../tests/queryClients.js";
 
 const JITA = 60003760;
 const ALT_ONLY = 1035466617946;
@@ -82,13 +83,7 @@ function open(assetLocations) {
   const user = userEvent.setup();
   store.account = { characters: [MAIN, ALT], corporations: [] };
   render(
-    <QueryClientProvider
-      client={
-        new QueryClient({
-          defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
-        })
-      }
-    >
+    <QueryClientProvider client={testQueryClientCollapsingRetries()}>
       <SelectAssetLocation_ShoppingListDialogue
         state={{
           assetType: "character",

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const { getMarketData, addMarketData } = vi.hoisted(() => ({
   getMarketData: vi.fn(async () => ({})),
@@ -29,7 +30,7 @@ function Subject({ typeIDs, enabled }) {
 let client;
 
 function show(props) {
-  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
       <Subject {...props} />

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const { store, historyRows } = vi.hoisted(() => ({
@@ -27,13 +27,12 @@ vi.mock("../../../Functions/EveESI/World/getUniverseNames", () => ({
 }));
 
 import { useMarketHistoryData } from "./useMarketHistoryData";
+import { testQueryClientCollapsingRetries } from "../../../tests/queryClients.js";
 
 const THE_FORGE = 10000002;
 
 function render(typeID, location) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
-  });
+  const client = testQueryClientCollapsingRetries();
   return renderHook(() => useMarketHistoryData(typeID, location), {
     wrapper: ({ children }) =>
       createElement(QueryClientProvider, { client }, children),

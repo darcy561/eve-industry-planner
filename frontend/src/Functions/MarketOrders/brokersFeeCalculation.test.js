@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { testQueryClient } from "../../tests/queryClients.js";
 
 // Jita 4-4 as ESI reports it: race_id is the race that built the station, not
 // the faction the standing is against.
@@ -47,8 +47,7 @@ const { default: calcSellingCharges } = await import("./calcSellingCharges.js");
 
 // A real client: the race lookup behind a station's faction standing goes
 // through React Query, and passing null hid that the wiring was never exercised.
-const client = () =>
-  new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const client = () => testQueryClient();
 const { default: findBrokersFeeEntry } =
   await import("./findBrokersFeeEntry.js");
 const { default: Job } = await import("../../Classes/job.js");

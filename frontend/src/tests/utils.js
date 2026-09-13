@@ -1,5 +1,6 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
+import { testQueryClient } from "./queryClients.js";
 import { usersStoreState } from "./usersStoreHarness.js";
 
 /**
@@ -67,9 +68,5 @@ export function esiAccessToken(claims = {}) {
  * @returns {React.ReactElement}
  */
 export function withQueryClient(ui) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-
-  return createElement(QueryClientProvider, { client }, ui);
+  return createElement(QueryClientProvider, { client: testQueryClient() }, ui);
 }

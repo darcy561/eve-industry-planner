@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const { store, requested, resolved, pending, imperativeFetch } = vi.hoisted(
@@ -38,6 +38,7 @@ vi.mock("../../../Functions/EveESI/World/nameLoader", () => ({
 }));
 
 import { useGatherJobMatchesAndUpdateExistingLinkedJobs } from "./useJobMatchesAndWorldData";
+import { testQueryClientCollapsingRetries } from "../../../tests/queryClients.js";
 
 const JITA = 60003760;
 const RAITARU = 1035466617946;
@@ -68,9 +69,7 @@ function activeJob(linkedJobs = []) {
 }
 
 function render(job, allIndustryJobs) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
-  });
+  const client = testQueryClientCollapsingRetries();
   return renderHook(
     () =>
       useGatherJobMatchesAndUpdateExistingLinkedJobs(

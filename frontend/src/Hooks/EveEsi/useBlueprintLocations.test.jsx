@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const {
@@ -68,6 +68,7 @@ import {
   JITA_STATION_ID,
   RAITARU_STRUCTURE_ID,
 } from "../../tests/assetFixtures";
+import { testQueryClientCollapsingRetries } from "../../tests/queryClients.js";
 
 const CHARACTER_BLUEPRINT = 7001;
 const CORPORATION_BLUEPRINT = 7002;
@@ -99,11 +100,7 @@ const blueprints = buildBlueprintRows(
 );
 
 function render() {
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, retryDelay: 0, gcTime: Infinity },
-    },
-  });
+  const client = testQueryClientCollapsingRetries();
   return renderHook(() => useBlueprintLocations(blueprints), {
     wrapper: ({ children }) =>
       createElement(QueryClientProvider, { client }, children),

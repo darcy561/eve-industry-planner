@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { testQueryClient } from "../tests/queryClients.js";
 
 const characterTransactions = { data: {} };
 const characterJournal = { data: {} };
@@ -58,8 +58,7 @@ const { default: calcSellingCharges } =
   await import("../Functions/MarketOrders/calcSellingCharges.js");
 
 // A real client: both charges are worked out from reads this fetches if absent.
-const client = () =>
-  new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const client = () => testQueryClient();
 const { default: findBrokersFeeEntry } =
   await import("../Functions/MarketOrders/findBrokersFeeEntry.js");
 const { default: findOrderTransactions } =

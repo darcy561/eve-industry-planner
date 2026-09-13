@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const getRaces = vi.fn();
 
@@ -9,8 +9,7 @@ vi.mock("../../../Functions/EveESI/World/getRaces", () => ({
 
 const { raceFactionsQuery } = await import("./raceFactions");
 
-const client = () =>
-  new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const client = () => testQueryClient();
 
 beforeEach(() => vi.clearAllMocks());
 

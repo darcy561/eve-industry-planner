@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { testQueryClient } from "../../../tests/queryClients.js";
 
 const { store, getActiveGroupObject, fetchTemplateCatalogSummaries } =
   vi.hoisted(() => ({
@@ -38,9 +39,7 @@ const { openGroupTemplatesApplyDialogue } =
 const theme = createTheme();
 
 function show() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
       <ThemeProvider theme={theme}>

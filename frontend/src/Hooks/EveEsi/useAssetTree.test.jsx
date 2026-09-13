@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const {
@@ -96,6 +96,7 @@ import {
   JITA_STATION_ID,
   RAITARU_STRUCTURE_ID,
 } from "../../tests/assetFixtures";
+import { testQueryClientCollapsingRetries } from "../../tests/queryClients.js";
 
 const CHARACTER = { CharacterHash: "hash-a", CharacterID: 2114000001 };
 const ASSETS = { scope: ASSET_SCOPE.CHARACTER, id: "hash-a" };
@@ -104,11 +105,7 @@ const DELIVERIES = ["Deliveries"];
 const OTHER_TABS = ["Deliveries", "AssetSafety"];
 
 function render(request) {
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, retryDelay: 0, gcTime: Infinity },
-    },
-  });
+  const client = testQueryClientCollapsingRetries();
   return renderHook(() => useAssetTree(request), {
     wrapper: ({ children }) =>
       createElement(QueryClientProvider, { client }, children),

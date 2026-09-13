@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const { store, setOffices, imperativeFetch } = vi.hoisted(() => ({
@@ -22,6 +22,7 @@ vi.mock("../../../../Hooks/React Query/World/names", () => ({
 }));
 
 import { useShoppingListCorporationAssets } from "./useShoppingListCorporationAssets";
+import { testQueryClient } from "../../../../tests/queryClients.js";
 
 const CORPORATION = 98000001;
 const MEMBER = "hash-a";
@@ -77,9 +78,7 @@ function render({
   hangar = null,
   ...rest
 } = {}) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   client.setQueryData(["corporationAssets", MEMBER], rows);
 
   const actions = {
@@ -113,9 +112,7 @@ function render({
 
 /** The same hook, with the office the reader chose free to change between renders. */
 function renderChangingOffice(firstOffice) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   client.setQueryData(["corporationAssets", MEMBER], rows);
 
   const actions = { setIsLoading: vi.fn(), applyAssetsFromMap: vi.fn() };

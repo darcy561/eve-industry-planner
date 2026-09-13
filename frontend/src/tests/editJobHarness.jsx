@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import useEditJobReducer from "../Components/Edit Job/Edit Job Hooks/useEditJobReducer";
 import Job from "../Classes/job";
 import seedLocationNames from "./seedLocationNames";
+import { testQueryClient } from "./queryClients.js";
 
 /* The app paints job types from palette entries of its own, which panels read
  * straight off the theme. A bare theme has none of them and the panel throws. */
@@ -35,9 +36,7 @@ const theme = createTheme({
  */
 export function EditJobHarness({ job, children, editJobRef, locationNames }) {
   const [queryClient] = useState(() => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const client = testQueryClient();
     if (locationNames) seedLocationNames(client, locationNames);
     return client;
   });

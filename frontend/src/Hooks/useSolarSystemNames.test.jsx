@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { testQueryClient } from "../tests/queryClients.js";
 
 const getSolarSystems = vi.fn();
 
@@ -17,9 +18,7 @@ const { UNKNOWN_SYSTEM_LABEL, useSolarSystemName, useSolarSystemNames } =
 const JITA = 30000142;
 
 function withClient() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return function Wrapper({ children }) {
     return (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const { store, structureAsks, marketRows } = vi.hoisted(() => ({
@@ -46,15 +46,14 @@ vi.mock("../../../Functions/EveESI/World/getCitadelData", () => ({
 }));
 
 import { useMarketData } from "./useMarketData";
+import { testQueryClientCollapsingRetries } from "../../../tests/queryClients.js";
 
 const THE_FORGE = 10000002;
 const JITA = 60003760;
 const SOTIYO = 1035466617946;
 
 function render(typeID, location) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
-  });
+  const client = testQueryClientCollapsingRetries();
   return renderHook(() => useMarketData(typeID, location), {
     wrapper: ({ children }) =>
       createElement(QueryClientProvider, { client }, children),

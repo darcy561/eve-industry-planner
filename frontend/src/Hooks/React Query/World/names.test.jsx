@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
 
 const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }));
 
@@ -12,15 +11,14 @@ import {
   LOCATION_OUTCOME,
   LocationResolutionError,
 } from "../../../Functions/EveESI/World/locationOutcome";
+import { testQueryClientKeepingCache } from "../../../tests/queryClients.js";
 
 const JITA = 60003760;
 const RAITARU = 1035466617946;
 const characters = [{ CharacterHash: "hash-a" }];
 
 function client() {
-  return new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-  });
+  return testQueryClientKeepingCache();
 }
 
 beforeEach(() => {

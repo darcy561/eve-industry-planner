@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { store, characterRows, corporationRows, resolved } = vi.hoisted(() => ({
@@ -84,6 +84,7 @@ const secondCharacterAssetRows = [
   },
 ];
 import { EVERY_CHARACTER } from "../../Assets/assetScopePicker";
+import { testQueryClientKeepingCache } from "../../../tests/queryClients.js";
 
 const CHARACTER = {
   CharacterHash: "hash-a",
@@ -113,9 +114,7 @@ function renderDialogue(scope = EVERY_CHARACTER, typeId = 34) {
     setSelectedTypeID: vi.fn(),
     toggleIsOpen: vi.fn(),
   };
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-  });
+  const client = testQueryClientKeepingCache();
 
   render(
     <ThemeProvider theme={theme}>

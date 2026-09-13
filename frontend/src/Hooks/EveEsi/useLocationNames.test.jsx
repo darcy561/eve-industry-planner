@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const { store, requestCalls, answers, gate } = vi.hoisted(() => ({
@@ -28,6 +28,7 @@ vi.mock("../../Functions/EveESI/World/nameLoader", () => ({
 
 import useLocationNames from "./useLocationNames";
 import { LOCATION_OUTCOME } from "../../Functions/EveESI/World/locationOutcome";
+import { testQueryClientCollapsingRetries } from "../../tests/queryClients.js";
 
 const JITA = 60003760;
 const RAITARU = 1035466617946;
@@ -43,9 +44,7 @@ const named = (id, name) => ({
 function harness() {
   // The query asks for retries itself, and a per-query option outlives a client default — so the
   // wait between attempts is collapsed rather than the attempts removed.
-  const client = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
-  });
+  const client = testQueryClientCollapsingRetries();
   const render = (ids) =>
     renderHook(() => useLocationNames(ids), {
       wrapper: ({ children }) =>

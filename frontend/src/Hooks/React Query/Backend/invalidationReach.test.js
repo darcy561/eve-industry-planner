@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { testQueryClient } from "../../../tests/queryClients.js";
 const state = await (async () => {
   const { usersStoreState } =
     await import("../../../tests/usersStoreHarness.js");
@@ -38,7 +38,7 @@ const { plannerScopedQueryRoots } = await import("./plannerQueryScope.js");
 // because the shapes can match while the prefix still fails to match.
 describe("archive invalidation", () => {
   it("reaches every statistics view and the archive list", async () => {
-    const qc = new QueryClient();
+    const qc = testQueryClient();
     qc.setQueryData(timelineQueryKey(), { months: [] });
     qc.setQueryData(timelineItemsQueryKey(), { items: [] });
     qc.setQueryData(totalsQueryKey(34), { typeID: 34 });
@@ -61,7 +61,7 @@ describe("archive invalidation", () => {
   // A restore writes to one planner but moves figures a member of another may be
   // looking at, so invalidation stops above the owner and clears both.
   it("reaches a planner other than the one being worked in", async () => {
-    const qc = new QueryClient();
+    const qc = testQueryClient();
     const own = archivedJobsQueryKey();
     const ownTotals = totalsQueryKey(34);
 
@@ -92,7 +92,7 @@ describe("planner-scoped query keys", () => {
   // removes have to cover every scoped view or one survives holding the previous
   // planner's rows.
   it("are all reachable from the roots a switch drops", () => {
-    const qc = new QueryClient();
+    const qc = testQueryClient();
     qc.setQueryData(archivedJobsQueryKey(), { rows: [] });
     qc.setQueryData(timelineQueryKey(), { months: [] });
     qc.setQueryData(totalsQueryKey(34), { typeID: 34 });
@@ -113,7 +113,7 @@ describe("planner-scoped query keys", () => {
   // Only the planner being left is dropped: the one switched to keeps whatever
   // it had cached.
   it("leave another planner's entries alone", () => {
-    const qc = new QueryClient();
+    const qc = testQueryClient();
     state.activePlanner.owner = "corporation:98000001";
     const other = archivedJobsQueryKey();
     qc.setQueryData(other, { rows: [] });

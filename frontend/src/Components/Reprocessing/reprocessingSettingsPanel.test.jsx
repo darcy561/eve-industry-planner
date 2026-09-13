@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { seedItemRecords } from "../../tests/seedItems";
+import { testQueryClient } from "../../tests/queryClients.js";
 
 const { store } = vi.hoisted(() => ({ store: { current: null } }));
 
@@ -29,9 +30,7 @@ const theme = createTheme();
 function show({ exempt = [], items = { 34: "Veldspar" } } = {}) {
   // No retries: the unseeded case is the panel drawing before the file arrives, and a client that
   // retried the real fetch would sit there rather than render that state.
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const queryClient = testQueryClient();
   if (items) seedItemRecords(queryClient, items);
 
   return {

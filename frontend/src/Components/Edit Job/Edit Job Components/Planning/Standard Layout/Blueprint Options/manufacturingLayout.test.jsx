@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 const { collection, industryJobs, characters } = vi.hoisted(() => ({
   collection: { current: null },
@@ -35,15 +35,14 @@ import {
   CHARACTER_HASH,
   RIFTER_BLUEPRINT_TYPE_ID,
 } from "../../../../../../tests/blueprintFixtures";
+import { testQueryClient } from "../../../../../../tests/queryClients.js";
 
 const state = {
   activeJob: { blueprintTypeID: RIFTER_BLUEPRINT_TYPE_ID, selectedSetup: {} },
 };
 
 function renderPanel(withState = state) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
       <ManufacturingLayout_BlueprintPanel state={withState} actions={{}} />

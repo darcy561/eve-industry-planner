@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
 const {
@@ -49,6 +49,10 @@ vi.mock("../React Query/Corporation/assets", () => ({
 
 import useAssetIndex, { ASSET_SCOPE } from "./useAssetIndex";
 import { JITA_STATION_ID } from "../../tests/assetFixtures";
+import {
+  testQueryClient,
+  testQueryClientKeepingCache,
+} from "../../tests/queryClients.js";
 
 function station(itemId, typeId = 34) {
   return {
@@ -62,9 +66,7 @@ function station(itemId, typeId = 34) {
 }
 
 function render(request) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-  });
+  const client = testQueryClientKeepingCache();
   return renderHook(() => useAssetIndex(request), {
     wrapper: ({ children }) =>
       createElement(QueryClientProvider, { client }, children),
@@ -164,9 +166,7 @@ describe("useAssetIndex", () => {
   it("gives two consumers of one scope the same collection", async () => {
     characterRows.set("hash-a", [station(1)]);
 
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-    });
+    const client = testQueryClientKeepingCache();
     const wrapper = ({ children }) =>
       createElement(QueryClientProvider, { client }, children);
     const request = { scope: ASSET_SCOPE.CHARACTER, id: "hash-a" };
@@ -192,9 +192,7 @@ describe("useAssetIndex", () => {
           createElement(
             QueryClientProvider,
             {
-              client: new QueryClient({
-                defaultOptions: { queries: { retry: false } },
-              }),
+              client: testQueryClient(),
             },
             children,
           ),

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { testQueryClient } from "../../tests/queryClients.js";
 
 // Jita 4-4 as ESI actually reports it: the station names the race that built it
 // (Caldari, 1), not the faction the standing is held against (Caldari State,
@@ -64,7 +64,7 @@ const HASH = "hash-1";
 // this exercises the query config as well as the fee arithmetic.
 let client;
 beforeEach(() => {
-  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client = testQueryClient();
 });
 
 function trained({ brokerRelations = 0, accounting = 0 } = {}) {
