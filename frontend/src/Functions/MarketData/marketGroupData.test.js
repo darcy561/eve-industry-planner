@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // The shared mock carries every reader, so a new static data file added
 // elsewhere does not break this file's mock for want of an export.
 vi.mock("../Helper/getCachedData", async () => {
-  const { cachedDataMock } = await import("../../tests/archiveHarness.jsx");
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
   return cachedDataMock({
     getMarketGroups: vi.fn(),
     getFullItemList: vi.fn(),

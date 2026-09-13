@@ -32,7 +32,14 @@ export function cachedDataMock(overrides = {}) {
     getStaticDataBuildVersion: vi.fn(async () => null),
     checkFileInCache: vi.fn(async () => null),
     checkFileInCacheWithMetadata: vi.fn(async () => null),
-    refreshStaticDataCache: vi.fn(async () => undefined),
+    // Answers with a shape, not nothing: its caller destructures `changed`, and
+    // a bare `undefined` throws inside that hook's own try/catch — so the test
+    // stays green while the path it was covering never runs.
+    refreshStaticDataCache: vi.fn(async () => ({
+      buildVersion: null,
+      changed: false,
+      files: null,
+    })),
     resetStaticDataCacheState: vi.fn(),
 
     ...overrides,

@@ -4,7 +4,6 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { cachedDataMock } from "./cachedDataMock.js";
 import { testQueryClient } from "./queryClients.js";
 import { usersStoreState } from "./usersStoreHarness.js";
 
@@ -220,7 +219,3 @@ export function emptyArchiveListMock() {
     RESTORE_SCOPES: { JOB: "job", GROUP: "group", RELATED: "related" },
   };
 }
-
-// Re-exported while a peer session's uncommitted work still imports it from
-// here. Its home is ./cachedDataMock.js; drop this once that file lands.
-export { cachedDataMock };
