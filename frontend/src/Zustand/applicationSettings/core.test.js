@@ -8,7 +8,10 @@ describe("pricing defaults", () => {
   it("starts both sides on the global default", () => {
     expect(stateDefault().defaultPricing).toEqual({
       buying: { market: "jita", basis: "sell" },
-      selling: { market: "jita", basis: "sell" },
+      // No route: one seeded here could not be told from one the player chose,
+      // and the merge has to keep a choice while still letting a legacy
+      // account's stored basis answer on first load.
+      selling: { market: "jita" },
     });
   });
 
@@ -20,7 +23,9 @@ describe("pricing defaults", () => {
 
     expect(merged.defaultPricing).toEqual({
       buying: { market: "amarr", basis: "buy" },
-      selling: { market: "amarr", basis: "buy" },
+      // The basis it seeded from is read as a route and then dropped: an
+      // account priced from bids was reading a listing's fee against a bid.
+      selling: { market: "amarr", exit: "immediate" },
     });
   });
 
@@ -40,7 +45,7 @@ describe("pricing defaults", () => {
     });
     expect(merged.defaultPricing.selling).toEqual({
       market: "hek",
-      basis: "buy",
+      exit: "immediate",
     });
   });
 
@@ -57,7 +62,7 @@ describe("pricing defaults", () => {
     });
     expect(merged.defaultPricing.selling).toEqual({
       market: "hek",
-      basis: "buy",
+      exit: "immediate",
     });
   });
 
@@ -81,7 +86,7 @@ describe("pricing defaults", () => {
 
     expect(merged.defaultPricing).toEqual({
       buying: { market: "amarr", basis: "buy" },
-      selling: { market: "amarr", basis: "buy" },
+      selling: { market: "amarr", exit: "immediate" },
     });
   });
 
@@ -91,7 +96,7 @@ describe("pricing defaults", () => {
 
     expect(merge({ displayHelpCards: true }, prev).defaultPricing).toEqual({
       buying: { market: "hek", basis: "sell" },
-      selling: { market: "hek", basis: "sell" },
+      selling: { market: "hek", exit: "listed" },
     });
   });
 
@@ -142,5 +147,56 @@ describe("pricing defaults", () => {
       basis: "buy",
       groups,
     });
+  });
+});
+
+// The legacy single default is still written on every save, so it arrives with
+// merges that are not about pricing at all. A route derived from it each time
+// would quietly undo the player's choice — the setting would appear to save and
+// then revert.
+describe("a chosen route out survives later merges", () => {
+  const chosen = () => ({
+    ...stateDefault(),
+    defaultPricing: {
+      buying: { market: "jita", basis: "sell" },
+      selling: { market: "jita", exit: "immediate" },
+    },
+  });
+
+  it("keeps the route when a merge says nothing about pricing", () => {
+    const merged = merge({ displayHelpCards: true }, chosen());
+
+    expect(merged.defaultPricing.selling.exit).toBe("immediate");
+  });
+
+  it("keeps the route when the legacy single default disagrees with it", () => {
+    const merged = merge(
+      { defaultMarketLocation: "jita", defaultOrderType: "sell" },
+      chosen(),
+    );
+
+    expect(merged.defaultPricing.selling.exit).toBe("immediate");
+  });
+
+  // A route the server sends is the account's own answer and outranks the one
+  // this client happens to hold.
+  it("takes a route the server sends over the one held", () => {
+    const merged = merge(
+      { defaultPricing: { selling: { market: "jita", exit: "listed" } } },
+      chosen(),
+    );
+
+    expect(merged.defaultPricing.selling.exit).toBe("listed");
+  });
+
+  // A document stored before the route existed answers with its basis, and that
+  // is the server answering — so it outranks a held route too.
+  it("reads a route from a side the server sent without one", () => {
+    const merged = merge(
+      { defaultPricing: { selling: { market: "hek", basis: "sell" } } },
+      chosen(),
+    );
+
+    expect(merged.defaultPricing.selling.exit).toBe("listed");
   });
 });

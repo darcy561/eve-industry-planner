@@ -3,6 +3,7 @@ import { listingType } from "../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../global-config-app";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
+import { basisForExit } from "../../Functions/MarketData/pricingSide.js";
 
 const { DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
 
@@ -123,9 +124,14 @@ export function MarketListingSelectApplicationSettings({
   alternativeDefaultOrderType,
   ...rest
 }) {
-  const storeDefault = useUsersStore(
-    (s) => s.applicationSettings.defaultPricing?.[side]?.basis,
+  // The selling side stores a route rather than a basis, so its basis is derived
+  // the same way the ladder derives it. Reading `.basis` alone would answer
+  // undefined for that side and fall through to the global default, which looks
+  // like a working control quietly ignoring the account.
+  const storeSide = useUsersStore(
+    (s) => s.applicationSettings.defaultPricing?.[side],
   );
+  const storeDefault = storeSide?.basis || basisForExit(storeSide?.exit);
   const applicationDefault = alternativeDefaultOrderType ?? storeDefault;
   const value = overrideOrderType ?? applicationDefault ?? DEFAULT_ORDER_OPTION;
 

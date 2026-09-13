@@ -1,5 +1,9 @@
 import { Divider, Grid, Stack, TextField, Typography } from "@mui/material";
-import { PRICING_SIDES } from "../../../Functions/MarketData/pricingSide.js";
+import {
+  PRICING_SIDE,
+  PRICING_SIDES,
+} from "../../../Functions/MarketData/pricingSide.js";
+import ExitRouteSelect from "../../../Styled Components/Select/exitRoute";
 import { useTheme } from "@mui/material/styles";
 import { useMemo } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
@@ -69,15 +73,30 @@ export function FirstLoginPlannerSetupStep() {
                 />
               </Grid>
               <Grid size={6}>
-                <MarketListingSelect
-                  {...appShellMarketSelectProps}
-                  value={defaultPricing?.[side]?.basis}
-                  onChange={(e) => {
-                    updatePricingDefault(side, "basis", e.id);
-                    scheduleDebouncedApplicationSettingsSave();
-                  }}
-                  labelText={`${noun} prices`}
-                />
+                {/* The selling side names a route out rather than a basis: it
+                    decides which side of the book the figure comes from and
+                    whether a broker fee is charged with it. */}
+                {side === PRICING_SIDE.SELLING ? (
+                  <ExitRouteSelect
+                    {...appShellMarketSelectProps}
+                    value={defaultPricing?.[side]?.exit}
+                    onChange={(e) => {
+                      updatePricingDefault(side, "exit", e.id);
+                      scheduleDebouncedApplicationSettingsSave();
+                    }}
+                    labelText={`${noun} sold by`}
+                  />
+                ) : (
+                  <MarketListingSelect
+                    {...appShellMarketSelectProps}
+                    value={defaultPricing?.[side]?.basis}
+                    onChange={(e) => {
+                      updatePricingDefault(side, "basis", e.id);
+                      scheduleDebouncedApplicationSettingsSave();
+                    }}
+                    labelText={`${noun} prices`}
+                  />
+                )}
               </Grid>
             </Grid>
           ))}

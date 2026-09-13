@@ -7,6 +7,8 @@ import {
 import { resolveSellerCharacter } from "../../Functions/MarketOrders/sellerCharacter";
 import { useEffectiveMarketHubFromLayout } from "./useEffectiveMarketHubFromLayout.js";
 import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
+import { EXIT_ROUTE } from "../../Functions/MarketData/returns";
+import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
  * Who sells this job's output, and from where.
@@ -19,7 +21,7 @@ import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
  *
  * @param {object} activeJob
  * @returns {{seller: import("../../Functions/MarketOrders/sellerCharacter").SellerCharacter,
- *   saleLocation: object|null, marketSelect: string}}
+ *   saleLocation: object|null, marketSelect: string, exitRoute: string}}
  */
 export function useJobSellingContext(activeJob) {
   const { marketDisplay: marketSelect } = useEffectiveMarketHubFromLayout(
@@ -28,6 +30,11 @@ export function useJobSellingContext(activeJob) {
   );
 
   const plan = activeJob?.build?.sale?.plan ?? {};
+
+  const exitRoute =
+    useUsersStore(
+      (state) => state.applicationSettings.defaultPricing?.selling?.exit,
+    ) ?? EXIT_ROUTE.LISTED;
 
   // The job's own choice first, the account's default behind it.
   const saleLocation = useMemo(
@@ -48,5 +55,8 @@ export function useJobSellingContext(activeJob) {
   // — so `resolveSellerCharacter` falls back to their own and says it is.
   const seller = resolveSellerCharacter(plan.sellerCharacter);
 
-  return { seller, saleLocation, marketSelect };
+  // The route out belongs here rather than in the panel: it decides which figure
+  // Returns leads with *and* whether the broker fee this hook's seller is quoted
+  // for applies at all, so the two have to be read from the same place.
+  return { seller, saleLocation, marketSelect, exitRoute };
 }

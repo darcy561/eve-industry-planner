@@ -1,4 +1,5 @@
 import GLOBAL_CONFIG from "../../global-config-app";
+import { EXIT_ROUTE } from "./returns.js";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
 
@@ -11,6 +12,33 @@ export const PRICING_SIDE = {
   BUYING: "buying",
   SELLING: "selling",
 };
+
+/**
+ * Which side of the book each route out reads.
+ *
+ * The selling side names a route rather than a basis because a route answers two
+ * questions a basis cannot answer alone: which side of the book a figure comes
+ * from, and whether a broker fee is charged. Listing pays fee and tax; selling
+ * into bids pays tax only, because nothing is listed.
+ */
+const BASIS_FOR_EXIT = {
+  [EXIT_ROUTE.LISTED]: "sell",
+  [EXIT_ROUTE.IMMEDIATE]: "buy",
+};
+
+/**
+ * The basis a route prices on.
+ *
+ * The selling side stores a route rather than a basis, so this is the one place
+ * that turns one into the other — a second copy would let a quoted price
+ * disagree with the fee quoted beside it.
+ *
+ * @param {string|null|undefined} exit - One of EXIT_ROUTE
+ * @returns {string|undefined}
+ */
+export function basisForExit(exit) {
+  return BASIS_FOR_EXIT[exit];
+}
 
 /**
  * The sides a control offers, named for what is being priced rather than for the
@@ -85,7 +113,14 @@ export function resolvePricingSideRungs({ jobPricing, accountPricing, side }) {
   const account = accountPricing?.[side];
 
   const market = answer(job?.market, account?.market, DEFAULT_MARKET_OPTION);
-  const basis = answer(job?.basis, account?.basis, DEFAULT_ORDER_OPTION);
+  // The selling side answers its basis with a route; the buying side stores one
+  // directly. A job's own basis still outranks either, because a job that named
+  // one has answered for itself.
+  const basis = answer(
+    job?.basis,
+    account?.basis || basisForExit(account?.exit),
+    DEFAULT_ORDER_OPTION,
+  );
 
   return {
     marketDisplay: market.value,

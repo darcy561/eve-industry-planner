@@ -37,7 +37,7 @@ export function useJobEconomics({
 }) {
   const { activeJob } = state;
 
-  const { seller, saleLocation } = useJobSellingContext(activeJob);
+  const { seller, saleLocation, exitRoute } = useJobSellingContext(activeJob);
 
   const { data: rates, isLoading: ratesLoading } = useSellingRates(
     saleLocation,
@@ -102,6 +102,7 @@ export function useJobEconomics({
     return {
       cost,
       saleLocation,
+      exitRoute,
       priceHub,
       rates,
       ratesLoading,
@@ -137,6 +138,7 @@ export function useJobEconomics({
     activeJob,
     buyEverything,
     commitment,
+    exitRoute,
     marketSelect,
     rates,
     ratesLoading,

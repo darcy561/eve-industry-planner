@@ -40,6 +40,7 @@ export default function PlanningEconomics(props) {
     comparison,
     charges,
     saleLocation,
+    exitRoute,
     rates,
     ratesLoading,
     seller,
@@ -92,6 +93,7 @@ export default function PlanningEconomics(props) {
 
       <ReturnsPanel
         returns={returns}
+        exitRoute={exitRoute}
         charges={charges}
         buildCost={sellableBuildCost}
         comparison={comparison}

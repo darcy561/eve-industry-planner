@@ -14,7 +14,7 @@ vi.mock("../../../Zustand/usersStore", async () => {
         buying: { market: "jita", basis: "sell" },
         // Deliberately different from the buying side: a fixture whose sides
         // agree cannot tell a control reading the wrong one.
-        selling: { market: "amarr", basis: "buy" },
+        selling: { market: "amarr", exit: "immediate" },
       },
       defaultStationIDForAssets: 0,
       hideCompleteMaterials: false,
@@ -58,14 +58,14 @@ describe("the pricing defaults", () => {
     updatePricingDefault.mockClear();
   });
 
-  it("offers a market and a basis for each side of a job", () => {
+  it("offers a market for each side, and the axis that side answers", () => {
     render(<JobSettingsFrame />);
 
     for (const label of [
       "Materials market",
       "Materials prices",
       "Output market",
-      "Output prices",
+      "Output sold by",
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -76,8 +76,9 @@ describe("the pricing defaults", () => {
 
     expect(screen.getByText("Jita")).toBeInTheDocument();
     expect(screen.getByText("Amarr")).toBeInTheDocument();
-    expect(screen.getByText("Buy Orders")).toBeInTheDocument();
     expect(screen.getByText("Sell Orders")).toBeInTheDocument();
+    // The selling side states its route out, not a basis.
+    expect(screen.getByText("Sell into buy orders")).toBeInTheDocument();
   });
 
   it("writes a change to the side that was changed", async () => {
@@ -124,18 +125,18 @@ describe("the pricing defaults", () => {
     );
   });
 
-  it("writes the selling side's basis", async () => {
+  it("writes the selling side's route out", async () => {
     render(<JobSettingsFrame />);
 
     await userEvent.click(screen.getAllByRole("combobox")[3]);
     await userEvent.click(
-      within(screen.getByRole("listbox")).getByText("Sell Orders"),
+      within(screen.getByRole("listbox")).getByText("List on the market"),
     );
 
     expect(updatePricingDefault).toHaveBeenCalledWith(
       "selling",
-      "basis",
-      "sell",
+      "exit",
+      "listed",
     );
   });
 });

@@ -175,7 +175,20 @@ type PricingChoice struct {
 type PricingSide struct {
 	PricingChoice `bson:",inline" json:",inline"`
 	Groups        map[string]PricingChoice `bson:"groups,omitempty" json:"groups,omitempty"`
+	// Exit is the route out of a finished build — listing it, or selling into
+	// bids — and is answered on the selling side only. It decides the basis
+	// rather than sitting beside one: a listing is priced from the ask and pays a
+	// broker fee, a buy-order sale is priced from the bid and pays none. A stored
+	// basis cannot carry that second half, which is why the selling side names a
+	// route and derives its basis from it.
+	Exit string `bson:"exit,omitempty" json:"exit,omitempty"`
 }
+
+// The routes out of a finished build. The buying side never carries one.
+const (
+	ExitRouteListed    = "listed"
+	ExitRouteImmediate = "immediate"
+)
 
 // PricingDefaults is what a figure is priced against when nothing nearer has
 // said. A material's own override and the panel it sits on both outrank it.
@@ -198,9 +211,10 @@ type JobPricing struct {
 
 // DefaultPricingDefaults returns the pricing defaults a new account starts with.
 func DefaultPricingDefaults() PricingDefaults {
-	side := PricingSide{Market: "jita", Basis: "sell"}
+	buying := PricingSide{Market: "jita", Basis: "sell"}
+	selling := PricingSide{Market: "jita", Exit: ExitRouteListed}
 
-	return PricingDefaults{Buying: side, Selling: side}
+	return PricingDefaults{Buying: buying, Selling: selling}
 }
 
 // LinkedCharacterSession is returned at login / auth refresh for cloud-mode additional characters

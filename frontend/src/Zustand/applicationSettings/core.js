@@ -5,6 +5,8 @@
  */
 
 import GLOBAL_CONFIG from "../../global-config-app";
+import { EXIT_ROUTE } from "../../Functions/MarketData/returns.js";
+import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
 import {
   DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
   extrasCategoriesDefault,
@@ -26,8 +28,29 @@ function defaultReprocessingSettings() {
 }
 
 /**
- * @typedef {{market: string, basis: string}} PricingSide
+ * One side's default. The buying side names a basis; the selling side names the
+ * route its output leaves by, which decides the basis and the charges together.
+ *
+ * @typedef {{market: string, basis?: string, exit?: string,
+ *   groups?: Object<string, {market?: string, basis?: string}>}} PricingSide
  */
+
+/**
+ * The route an account priced on a basis was already being shown.
+ *
+ * Returns led with the listing for everyone before the route was stored, so an
+ * account that named the bid side was reading a listing's fee against a bid's
+ * price. Taking its basis at its word repairs that, and leaves everyone else on
+ * the route they already had.
+ *
+ * @param {string|null|undefined} basis
+ * @returns {string}
+ */
+function exitForBasis(basis) {
+  return basis === "buy" || basis === "buyP95"
+    ? EXIT_ROUTE.IMMEDIATE
+    : EXIT_ROUTE.LISTED;
+}
 
 /**
  * Where each side of a job is priced when nothing nearer has said.
@@ -37,7 +60,12 @@ function defaultReprocessingSettings() {
 function defaultPricingSides() {
   return {
     buying: { market: DEFAULT_MARKET_OPTION, basis: DEFAULT_ORDER_OPTION },
-    selling: { market: DEFAULT_MARKET_OPTION, basis: DEFAULT_ORDER_OPTION },
+    // The selling side names a route out rather than a basis, and the blank
+    // state names none: a route seeded here could not be told from one the
+    // player chose, and the merge has to keep a choice while still letting a
+    // legacy account's stored basis answer on first load. Readers fall back to
+    // EXIT_ROUTE.LISTED, which is where that default belongs.
+    selling: { market: DEFAULT_MARKET_OPTION },
   };
 }
 
@@ -67,11 +95,35 @@ function mergePricingDefaults(incoming, prev, market, basis) {
       ? { market: sent.market, basis: sent.basis || previous[name].basis }
       : { market, basis };
 
-    // The side's market group defaults travel with it. Dropping them here would
-    // lose them on the next save, because what is persisted is this merged copy.
+    // The side's market group defaults and its route out travel with it.
+    // Dropping either here would lose it on the next save, because what is
+    // persisted is this merged copy.
     const groups = sent?.groups ?? previous[name].groups;
 
-    return groups ? { ...chosen, groups } : chosen;
+    if (name !== PRICING_SIDE.SELLING) {
+      return groups ? { ...chosen, groups } : chosen;
+    }
+
+    // The selling side names a route instead of a basis, so the basis it seeded
+    // from is read as one and then dropped: two stored answers to the same
+    // question are free to disagree, and the route is the one that also decides
+    // whether a broker fee is charged.
+    // A route the server sent wins. Where it sent this side without one, its
+    // basis answers — a document stored before routes existed is still the
+    // server answering. Only where it sent nothing for this side does the route
+    // already held stand, which is a choice because the blank state names none;
+    // and behind that the legacy single default, for a legacy account's first
+    // load. The held route must outrank that last rung: the single default is
+    // still written on every save, so deriving from it again would reset a
+    // chosen route on the next merge that said nothing about pricing.
+    const exit =
+      sent?.exit ??
+      (sent?.market || sent?.basis
+        ? exitForBasis(chosen.basis)
+        : (previous[name].exit ?? exitForBasis(chosen.basis)));
+    const { basis: _seeded, ...withoutBasis } = chosen;
+
+    return { ...withoutBasis, exit, ...(groups ? { groups } : {}) };
   };
 
   return { buying: side("buying"), selling: side("selling") };

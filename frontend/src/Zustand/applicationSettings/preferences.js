@@ -203,7 +203,8 @@ export const preferencesActions = (set, get) => ({
    * the "sell" basis, because the ask is what buying costs.
    *
    * @param {string} side - One of PRICING_SIDE
-   * @param {"market"|"basis"} key
+   * @param {"market"|"basis"|"exit"} key - The selling side takes `exit` in place
+   *   of `basis`: its route decides which side of the book it reads.
    * @param {string} value
    *
    * @example

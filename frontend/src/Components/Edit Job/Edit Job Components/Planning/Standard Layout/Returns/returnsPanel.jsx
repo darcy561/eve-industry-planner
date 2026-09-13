@@ -44,15 +44,15 @@ export default function ReturnsPanel({
   output,
   action,
   children,
+  exitRoute = EXIT_ROUTE.LISTED,
 }) {
   if (!returns) return null;
 
-  // The listing is what the panel leads with: it is the route a player is
-  // planning towards, and the one the fee and tax on the page are quoted for.
-  // The other route is stated beside it rather than led with.
-  const headline = returns.routes.find(
-    (route) => route.id === EXIT_ROUTE.LISTED,
-  );
+  // The panel leads with the route the player takes, which the account names:
+  // the fee and tax on the page are quoted for it, and a player who dumps into
+  // bids should not be led with a listing's margin. The other route is stated
+  // beside it rather than led with.
+  const headline = returns.routes.find((route) => route.id === exitRoute);
   if (!headline) return null;
 
   return (
@@ -159,25 +159,31 @@ function PreviousBuilds({ comparison }) {
  * The working behind the headline: what the sale brings in, what is taken from
  * it, and what making it cost.
  *
- * The headline's alone, which is the listing. A ledger covering both routes
- * would have to state a broker fee that only one of them pays, and the route
- * that never lists does not pay it.
+ * The headline's alone. A ledger covering both routes would have to state a
+ * broker fee that only one of them pays, so the fee is stated only on the route
+ * that lists: `calculateReturns` charges it to that route and not the other, and
+ * a row stating it against a buy-order sale would not reconcile with the net
+ * figure below it.
  *
  * @param {object} props
  */
 function Ledger({ route, charges, buildCost }) {
+  const listing = route.id === EXIT_ROUTE.LISTED;
+
   return (
     <>
       <Typography variant="caption" color="text.secondary">
         {route.label}
       </Typography>
       <FigureRow label="Revenue" value={formatNumberForLocale(route.revenue)} />
-      <FigureRow
-        label="Broker fee"
-        sublabel="charged when the order is listed"
-        tone={FIGURE_TONE.BAD}
-        value={`−${formatNumberForLocale(charges?.brokerFee ?? 0)}`}
-      />
+      {listing ? (
+        <FigureRow
+          label="Broker fee"
+          sublabel="charged when the order is listed"
+          tone={FIGURE_TONE.BAD}
+          value={`−${formatNumberForLocale(charges?.brokerFee ?? 0)}`}
+        />
+      ) : null}
       <FigureRow
         label="Sales tax"
         tone={FIGURE_TONE.BAD}

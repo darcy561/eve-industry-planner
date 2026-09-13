@@ -13,7 +13,7 @@ vi.mock("../../../Zustand/usersStore", async () => {
         buying: { market: "jita", basis: "sell" },
         // Deliberately different from the buying side: a fixture whose sides
         // agree cannot tell a control reading the wrong one.
-        selling: { market: "amarr", basis: "buy" },
+        selling: { market: "amarr", exit: "immediate" },
       },
       defaultStationIDForAssets: 0,
       defaultCitadelBrokersFee: 1,
@@ -53,14 +53,14 @@ describe("the pricing defaults on first login", () => {
     updatePricingDefault.mockClear();
   });
 
-  it("offers a market and a basis for each side of a job", () => {
+  it("offers a market for each side, and the axis that side answers", () => {
     render(<FirstLoginPlannerSetupStep />);
 
     for (const label of [
       "Materials market",
       "Materials prices",
       "Output market",
-      "Output prices",
+      "Output sold by",
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -71,8 +71,9 @@ describe("the pricing defaults on first login", () => {
 
     expect(screen.getByText("Jita")).toBeInTheDocument();
     expect(screen.getByText("Amarr")).toBeInTheDocument();
-    expect(screen.getByText("Buy Orders")).toBeInTheDocument();
     expect(screen.getByText("Sell Orders")).toBeInTheDocument();
+    // The selling side states its route out, not a basis.
+    expect(screen.getByText("Sell into buy orders")).toBeInTheDocument();
   });
 
   it("writes a change to the side and field that was changed", async () => {
@@ -80,13 +81,13 @@ describe("the pricing defaults on first login", () => {
 
     await userEvent.click(screen.getAllByRole("combobox")[3]);
     await userEvent.click(
-      within(screen.getByRole("listbox")).getByText("Sell Orders"),
+      within(screen.getByRole("listbox")).getByText("List on the market"),
     );
 
     expect(updatePricingDefault).toHaveBeenCalledWith(
       "selling",
-      "basis",
-      "sell",
+      "exit",
+      "listed",
     );
   });
 });

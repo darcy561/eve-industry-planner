@@ -32,8 +32,8 @@ describe("the Returns panel", () => {
     expect(screen.getByText("Net return — sell order")).toBeInTheDocument();
   });
 
-  // The listing is the route a player plans towards, and the one the fee and
-  // tax on the page are quoted for, so it is the one the panel leads with.
+  // The listing is the route most players plan towards, so it is what the panel
+  // leads with when the account has not said otherwise.
   it("leads with the listing rather than the buy orders", () => {
     renderPanel();
 
@@ -183,5 +183,47 @@ describe("headroom above break-even", () => {
     });
 
     expect(screen.getByText(/below break-even/)).toBeInTheDocument();
+  });
+});
+
+// The account says which way its output leaves, and the panel leads with that
+// route: a player who dumps into bids should not be shown a listing's margin as
+// the answer, with a broker fee in it they never pay.
+describe("the route the panel leads with", () => {
+  it("leads with the buy orders when the account sells into them", () => {
+    renderPanel({ exitRoute: "immediate" });
+
+    expect(
+      screen.getByText("Net return — into buy orders"),
+    ).toBeInTheDocument();
+  });
+
+  it("leads with the listing when the account lists", () => {
+    renderPanel({ exitRoute: "listed" });
+
+    expect(screen.getByText("Net return — sell order")).toBeInTheDocument();
+  });
+});
+
+// The ledger and the headline above it are the same figure worked out twice, so
+// a charge stated in one and not the other is a panel that disagrees with
+// itself. calculateReturns charges the broker fee to the listing only.
+describe("what the ledger deducts on each route", () => {
+  const openDisclosure = async () => {
+    await userEvent.click(screen.getByRole("button", { name: /worked out/i }));
+  };
+
+  it("states no broker fee on a route that never lists", async () => {
+    renderPanel({ exitRoute: "immediate" });
+    await openDisclosure();
+
+    expect(screen.queryByText("Broker fee")).not.toBeInTheDocument();
+  });
+
+  it("states the broker fee on the listing", async () => {
+    renderPanel({ exitRoute: "listed" });
+    await openDisclosure();
+
+    expect(screen.getByText("Broker fee")).toBeInTheDocument();
   });
 });

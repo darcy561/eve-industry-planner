@@ -63,8 +63,39 @@ func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID
 	if doc.DefaultPricing.Buying.Market == "" {
 		doc.DefaultPricing.Buying.PricingChoice = legacyPricingChoice(doc)
 	}
+	// The market only: the selling side's basis follows from its route, so writing
+	// one here would store a second answer to the same question, free to disagree.
 	if doc.DefaultPricing.Selling.Market == "" {
-		doc.DefaultPricing.Selling.PricingChoice = legacyPricingChoice(doc)
+		doc.DefaultPricing.Selling.Market = legacyPricingChoice(doc).Market
+	}
+	// Seeded separately from the market: a side may already name one and still
+	// have no route, because the route is newer than the split that filled it.
+	if doc.DefaultPricing.Selling.Exit == "" {
+		doc.DefaultPricing.Selling.Exit = legacyExitRoute(doc)
+	}
+}
+
+// legacyExitRoute is the route out an account was being quoted before it could
+// say which one it took.
+//
+// Returns led with the listing for everyone, so an account that named the buy
+// side was being priced from bids while reading a listing's fee. Taking the
+// stored basis at its word repairs that where it was set, and leaves everyone
+// else on the route they were already being shown.
+func legacyExitRoute(doc *models.ApplicationSettings) string {
+	// The stored side first, then the single default behind it: a document from
+	// before the split has its only answer in the legacy field, and one from after
+	// it carries a basis the route now replaces.
+	basis := doc.DefaultPricing.Selling.Basis
+	if basis == "" {
+		basis = doc.DefaultOrderType
+	}
+
+	switch basis {
+	case "buy", "buyP95":
+		return models.ExitRouteImmediate
+	default:
+		return models.ExitRouteListed
 	}
 }
 

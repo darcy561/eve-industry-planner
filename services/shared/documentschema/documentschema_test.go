@@ -125,9 +125,39 @@ func TestApplicationSettingsSeedsPricingFromTheSingleDefault(t *testing.T) {
 	u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
 
 	want := models.PricingSide{Market: "amarr", Basis: "buy"}
-	if !reflect.DeepEqual(doc.DefaultPricing.Buying, want) ||
-		!reflect.DeepEqual(doc.DefaultPricing.Selling, want) {
-		t.Fatalf("pricing = %+v, want both sides %+v", doc.DefaultPricing, want)
+	if !reflect.DeepEqual(doc.DefaultPricing.Buying, want) {
+		t.Fatalf("buying = %+v, want %+v", doc.DefaultPricing.Buying, want)
+	}
+	// The selling side takes the market and no basis — its route answers that —
+	// and the route is read from the single default it was being priced on.
+	want = models.PricingSide{Market: "amarr", Exit: models.ExitRouteImmediate}
+	if !reflect.DeepEqual(doc.DefaultPricing.Selling, want) {
+		t.Fatalf("selling = %+v, want %+v", doc.DefaultPricing.Selling, want)
+	}
+}
+
+// An account priced from the ask was being shown a listing, which is the route
+// it keeps; one priced from bids was reading a listing's fee against a bid's
+// price, and the seed is what ends that.
+func TestApplicationSettingsReadsTheExitRouteFromTheStoredBasis(t *testing.T) {
+	for basis, want := range map[string]string{
+		"sell":    models.ExitRouteListed,
+		"sellP05": models.ExitRouteListed,
+		"buy":     models.ExitRouteImmediate,
+		"buyP95":  models.ExitRouteImmediate,
+	} {
+		doc := &models.ApplicationSettings{
+			DefaultPricing: models.PricingDefaults{
+				Selling: models.PricingSide{Market: "jita", Basis: basis},
+			},
+		}
+
+		var u Upgrader
+		u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
+
+		if got := doc.DefaultPricing.Selling.Exit; got != want {
+			t.Fatalf("basis %q gave exit %q, want %q", basis, got, want)
+		}
 	}
 }
 
@@ -142,6 +172,9 @@ func TestApplicationSettingsLeavesAChosenPricingSideAlone(t *testing.T) {
 	var u Upgrader
 	u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
 
+	// The market and basis it chose are untouched; the route is filled because it
+	// had none, and follows the basis it was already priced on.
+	chosen.Exit = models.ExitRouteImmediate
 	if !reflect.DeepEqual(doc.DefaultPricing.Selling, chosen) {
 		t.Fatalf("selling = %+v, want %+v", doc.DefaultPricing.Selling, chosen)
 	}
@@ -198,5 +231,26 @@ func TestApplicationSettingsSeedKeepsAGroupTable(t *testing.T) {
 	}
 	if doc.DefaultPricing.Buying.Market != "amarr" {
 		t.Fatalf("market = %q, want amarr", doc.DefaultPricing.Buying.Market)
+	}
+}
+
+// The seed runs on every read rather than in an offline drain, so a route the
+// player has chosen has to survive it — including when the legacy single default
+// still says something different, which it does until Stage A step 7 lands.
+func TestApplicationSettingsKeepsAChosenExitRoute(t *testing.T) {
+	doc := &models.ApplicationSettings{
+		DefaultMarketLocation: "jita",
+		DefaultOrderType:      "sell",
+		DefaultPricing: models.PricingDefaults{
+			Selling: models.PricingSide{Market: "jita", Exit: models.ExitRouteImmediate},
+		},
+	}
+
+	var u Upgrader
+	u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
+	u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
+
+	if got := doc.DefaultPricing.Selling.Exit; got != models.ExitRouteImmediate {
+		t.Fatalf("exit = %q, want the route the account chose", got)
 	}
 }
