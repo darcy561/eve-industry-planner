@@ -2,7 +2,6 @@ import { renderHook, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetSnackbars, snackbarSpies } from "../../tests/snackbarHarness.js";
 
-const { showDocumentLockAccessRequestSnackbar } = snackbarSpies;
 import { useLockWsListener } from "./useLockWsListener.js";
 import {
   DOCUMENT_LOCK_CUSTOM_EVENT,
@@ -11,6 +10,8 @@ import {
 import { USER_JOBS_COLLECTION } from "../../Functions/DocumentLock/documentLockCollections.js";
 import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.js";
 import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
+
+const { showDocumentLockAccessRequestSnackbar } = snackbarSpies;
 
 const claimHandoffProbe = vi.fn();
 

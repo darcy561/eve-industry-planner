@@ -17,10 +17,16 @@ import { vi } from "vitest";
  * Every snackbar raised since the last {@link resetSnackbars}, oldest first.
  *
  * Entries carry the whole call: `kind` names the export, `severity` and
- * `message` are what the reader sees, and `scope` holds the collection and
- * document a lock snackbar was about.
+ * `message` are what the reader sees, and a lock snackbar adds the flat
+ * `documentLockCollection` / `documentLockDocID` the snackbar component reads.
  *
- * @type {Array<{kind: string, message: string, severity: string, duration: number|null, action: string|null, scope: {collection?: string, docID?: string}|null}>}
+ * These shapes are copied from `Events/snackbarEvents.js` rather than taken from
+ * it. Importing the real module here hangs the suite — a spy that calls through
+ * pulls `utils/EventSystem` and its module-scope emitter into every file this
+ * harness reaches, and four were enough to turn a nine-second run into one that
+ * never finished. Change a shape there and change it here.
+ *
+ * @type {Array<Record<string, unknown> & {kind: string}>}
  */
 export const snackbars = [];
 
@@ -29,7 +35,6 @@ function record(entry) {
     severity: "info",
     duration: 1,
     action: null,
-    scope: null,
     ...entry,
   });
 }
@@ -82,7 +87,8 @@ export const snackbarSpies = {
       message,
       duration: null,
       action: "DOCUMENT_LOCK_ACCESS_REQUEST",
-      scope,
+      documentLockCollection: scope.collection,
+      documentLockDocID: scope.docID,
     }),
   ),
   showDocumentLockExtendNudgeSnackbar: vi.fn((message, scope = {}) =>
@@ -92,7 +98,8 @@ export const snackbarSpies = {
       severity: "warning",
       duration: null,
       action: "DOCUMENT_LOCK_EXTEND_NUDGE",
-      scope,
+      documentLockCollection: scope.collection,
+      documentLockDocID: scope.docID,
     }),
   ),
 };

@@ -13,8 +13,7 @@ beforeEach(resetSnackbars);
 describe("snackbarMock", () => {
   // The reason this harness exists: Vitest throws on an export a factory left
   // out, so a mock that covers all but one is a test that breaks the day a
-  // component reaches for the one it missed. Compared against the real module
-  // rather than a copied list, which would drift the same way.
+  // component reaches for the one it missed.
   it("covers every export the real module has", () => {
     expect(Object.keys(snackbarMock()).sort()).toEqual(
       Object.keys(real).sort(),
@@ -22,8 +21,7 @@ describe("snackbarMock", () => {
   });
 
   it("records what the reader was told", () => {
-    const mock = snackbarMock();
-    mock.showSnackbarError("Could not save", 4);
+    snackbarMock().showSnackbarError("Could not save", 4);
 
     expect(lastSnackbar()).toMatchObject({
       kind: "showSnackbarError",
@@ -33,16 +31,18 @@ describe("snackbarMock", () => {
     });
   });
 
-  it("keeps a lock snackbar's scope", () => {
-    const mock = snackbarMock();
-    mock.showDocumentLockAccessRequestSnackbar("Another tab asked", {
+  // Recorded from the real call rather than restated here, so the fields are
+  // the ones the snackbar component reads — flat, not a scope object.
+  it("carries a lock snackbar's document as the app emits it", () => {
+    snackbarMock().showDocumentLockAccessRequestSnackbar("Another tab asked", {
       collection: "job_documents",
       docID: "j1",
     });
 
-    expect(lastSnackbar().scope).toEqual({
-      collection: "job_documents",
-      docID: "j1",
+    expect(lastSnackbar()).toMatchObject({
+      action: "DOCUMENT_LOCK_ACCESS_REQUEST",
+      documentLockCollection: "job_documents",
+      documentLockDocID: "j1",
     });
   });
 
@@ -52,6 +52,15 @@ describe("snackbarMock", () => {
 
     expect(mock.showSnackbarSuccess).toHaveBeenCalledWith("Saved");
     expect(snackbarMessages()).toEqual(["Saved"]);
+  });
+
+  // Pins the copied severity to what the real module passes. The harness cannot
+  // import that module — doing so puts it in every test that mocks snackbars and
+  // hangs the suite — so this assertion is what catches the two drifting apart.
+  it("records the severity the real module sends", () => {
+    snackbarMock().showDocumentLockExtendNudgeSnackbar("Renew now", {});
+
+    expect(lastSnackbar().severity).toBe("warning");
   });
 });
 
@@ -79,5 +88,13 @@ describe("reading back", () => {
 
     expect(snackbars).toEqual([]);
     expect(mock.showSnackbarInfo).not.toHaveBeenCalled();
+  });
+
+  it("records each snackbar once", () => {
+    const mock = snackbarMock();
+    mock.showSnackbarInfo("Once");
+    mock.showSnackbarInfo("Twice");
+
+    expect(snackbarMessages()).toEqual(["Once", "Twice"]);
   });
 });
