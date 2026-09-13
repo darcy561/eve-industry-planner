@@ -20,27 +20,18 @@ import { FormField } from "../../../../Styled Components/Textfield/FormField";
 export default function InventionStructureSelection({
   selectedJobType,
   setIsLoading,
-  appearance = "default",
 }) {
   const theme = useTheme();
   const appShellFieldProps = useMemo(
-    () =>
-      appearance === "firstLogin" ? getAppShellMarketSelectProps(theme) : {},
-    [appearance, theme],
+    () => getAppShellMarketSelectProps(theme),
+    [theme],
   );
 
-  const gridPadSx =
-    appearance === "firstLogin" ? { px: 0 } : { paddingX: "20px" };
-  const isFirstLogin = appearance === "firstLogin";
-
-  const wrapFirstLogin = (title, description, node) =>
-    isFirstLogin ? (
-      <FormField title={title} description={description}>
-        {node}
-      </FormField>
-    ) : (
-      node
-    );
+  const field = (title, description, node) => (
+    <FormField title={title} description={description}>
+      {node}
+    </FormField>
+  );
   const { addCustomStructure } =
     useUsersStore.getState().applicationSettings.actions;
 
@@ -73,13 +64,9 @@ export default function InventionStructureSelection({
 
   return (
     <Box>
-      <Grid
-        container
-        spacing={isFirstLogin ? 2 : 0}
-        sx={{ alignItems: "flex-start" }}
-      >
-        <Grid size={12} sx={gridPadSx}>
-          {wrapFirstLogin(
+      <Grid container spacing={2} sx={{ alignItems: "flex-start" }}>
+        <Grid size={12}>
+          {field(
             "Display name",
             "A label you will see in structure lists to help you identify the structure. It does not need to match an in-game name.",
             <TextField
@@ -87,29 +74,22 @@ export default function InventionStructureSelection({
               placeholder="Display Name"
               value={chosenStructure.name}
               size="small"
-              variant={isFirstLogin ? "outlined" : "standard"}
-              label={isFirstLogin ? "Structure name" : undefined}
-              helperText={
-                isFirstLogin
-                  ? "Shown in lists only; used to tell structures apart."
-                  : "Structure Name"
-              }
-              sx={
-                isFirstLogin ? (t) => appShellTextFieldOutlinedSx(t) : undefined
-              }
+              variant="outlined"
+              label="Structure name"
+              helperText="Shown in lists only; used to tell structures apart."
+              sx={(t) => appShellTextFieldOutlinedSx(t)}
               onChange={handleNameChange}
               onBlur={handleNameChange}
             />,
           )}
         </Grid>
         <Grid
-          sx={gridPadSx}
           size={{
             xs: 12,
             sm: 6,
           }}
         >
-          {wrapFirstLogin(
+          {field(
             "Structure Type",
             "The structure type determines the bonuses and available rigs.",
             <StructureTypeSelect
@@ -125,13 +105,12 @@ export default function InventionStructureSelection({
         </Grid>
 
         <Grid
-          sx={gridPadSx}
           size={{
             xs: 12,
             sm: 6,
           }}
         >
-          {wrapFirstLogin(
+          {field(
             "Security Status",
             "The security status of the system determines the effectiveness of the rigs that are fitted to the structure.",
             <SystemTypeSelect
@@ -146,13 +125,12 @@ export default function InventionStructureSelection({
           )}
         </Grid>
         <Grid
-          sx={gridPadSx}
           size={{
             xs: 12,
             sm: 6,
           }}
         >
-          {wrapFirstLogin(
+          {field(
             "Rig slot 1",
             "Multiple rigs of the same type cannot be used on the same structure.",
             <RigTypeSelect
@@ -182,13 +160,12 @@ export default function InventionStructureSelection({
           )}
         </Grid>
         <Grid
-          sx={gridPadSx}
           size={{
             xs: 12,
             sm: 6,
           }}
         >
-          {wrapFirstLogin(
+          {field(
             "Rig slot 2",
             "Multiple rigs of the same type cannot be used on the same structure.",
             <RigTypeSelect
@@ -218,13 +195,12 @@ export default function InventionStructureSelection({
           )}
         </Grid>
         <Grid
-          sx={gridPadSx}
           size={{
             xs: 12,
             sm: 6,
           }}
         >
-          {wrapFirstLogin(
+          {field(
             "Structure Tax",
             "Facility tax percentage for using the services at this structure. This is applied when calculating the invention cost.",
             <TaxPercentageTextField
@@ -233,28 +209,20 @@ export default function InventionStructureSelection({
                 chosenStructure.setTax(value);
                 setChosenStructure(new InventionStructure(chosenStructure));
               }}
-              variant={isFirstLogin ? "outlined" : "standard"}
-              label={isFirstLogin ? "Tax %" : undefined}
-              helperText={"Tax Percentage"}
-              sx={
-                isFirstLogin ? (t) => appShellTextFieldOutlinedSx(t) : undefined
-              }
+              variant="outlined"
+              label="Tax %"
+              helperText="Tax Percentage"
+              sx={(t) => appShellTextFieldOutlinedSx(t)}
             />,
           )}
         </Grid>
 
-        <Grid size={12} sx={gridPadSx}>
+        <Grid size={12}>
           <Stack
             direction="row"
-            sx={{
-              pt: isFirstLogin ? 0.5 : 0,
-              justifyContent: isFirstLogin ? "flex-end" : "flex-start",
-            }}
+            sx={{ pt: 0.5, justifyContent: "flex-end" }}
           >
-            <Button
-              variant={isFirstLogin ? "contained" : "text"}
-              onClick={handleAdd}
-            >
+            <Button variant="contained" onClick={handleAdd}>
               Add structure
             </Button>
           </Stack>

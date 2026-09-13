@@ -8,7 +8,7 @@ import { useTheme } from "@mui/material/styles";
 import { useMemo } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../Functions/Debounce/userDocumentsPersistSchedule";
-import FirstLoginCustomStructures from "./FirstLoginCustomStructures";
+import CustomStructuresForm from "../../Settings/Standard Layout/Custom Structures/CustomStructuresForm";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
 import MarketListingSelect from "../../../Styled Components/Select/marketListing";
 import useAssetLocations from "../../../Hooks/EveEsi/useAssetLocations";
@@ -167,7 +167,7 @@ export function FirstLoginPlannerSetupStep() {
           for your industry calculations. If you skip this for now, you can
           still add or edit structures later in Settings.
         </Typography>
-        <FirstLoginCustomStructures />
+        <CustomStructuresForm />
       </SectionPanel>
     </Stack>
   );

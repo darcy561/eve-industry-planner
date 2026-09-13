@@ -3,7 +3,7 @@ import { TabContext, TabList, TabPanel } from "@mui/lab";
 import { Box, Tab, useMediaQuery } from "@mui/material";
 import LayoutSettingsFrame from "./Standard Layout/layoutSettingsFrame";
 import JobSettingsFrame from "./Standard Layout/jobSettingsFrame";
-import CustomStructuresFrame from "./Standard Layout/customStructuresFrame";
+import CustomStructuresForm from "./Standard Layout/Custom Structures/CustomStructuresForm";
 import BlueprintSettingsFrame from "./Standard Layout/blueprintSettingsFrame";
 import ReprocessingSettingsFrame from "./Standard Layout/ReprocessingSettingsFrame";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
@@ -71,7 +71,7 @@ function SettingsPage() {
                 <JobSettingsFrame />
               </TabPanel>
               <TabPanel value={"2"}>
-                <CustomStructuresFrame />
+                <CustomStructuresForm />
               </TabPanel>
               <TabPanel value={"3"}>
                 <BlueprintSettingsFrame />

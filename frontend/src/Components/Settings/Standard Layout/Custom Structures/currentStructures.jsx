@@ -3,9 +3,7 @@ import StarBorderIcon from "@mui/icons-material/StarBorder";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import {
   Box,
-  Button,
   Card,
-  CardActions,
   CardContent,
   CircularProgress,
   Grid,
@@ -19,7 +17,6 @@ import {
   customStructureMap,
   jobTypeMapping,
   jobTypes,
-  LARGE_TEXT_FORMAT,
   rigTypeMap,
   structureTypeMap,
   systemTypeMap,
@@ -32,11 +29,7 @@ import {
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
-function CurrentStructuresFrame({
-  selectedJobType,
-  isLoading,
-  appearance = "default",
-}) {
+function CurrentStructuresFrame({ selectedJobType, isLoading }) {
   const structures = useUsersStore(
     (state) =>
       state.applicationSettings.customStructures?.[
@@ -73,9 +66,7 @@ function CurrentStructuresFrame({
     );
   }
 
-  const isFirstLogin = appearance === "firstLogin";
-
-  function FirstLoginPair({ label, children }) {
+  function StructureFact({ label, children }) {
     return (
       <Grid size={{ xs: 6, sm: 4 }}>
         <Typography
@@ -101,47 +92,30 @@ function CurrentStructuresFrame({
         return (
           <Grid
             key={structure.id}
-            sx={{
-              width: "100%",
-              padding: isFirstLogin ? "8px" : "5px",
-              display: "flex",
-            }}
-            size={
-              isFirstLogin
-                ? { xs: 12, sm: 6, md: 6 }
-                : {
-                    xs: 12,
-                    sm: 3,
-                  }
-            }
+            sx={{ width: "100%", padding: "8px", display: "flex" }}
+            size={{ xs: 12, sm: 6, md: 6 }}
           >
             <Card
-              variant={isFirstLogin ? "outlined" : "elevation"}
-              square={!isFirstLogin}
-              elevation={isFirstLogin ? 0 : undefined}
+              variant="outlined"
+              elevation={0}
               sx={(theme) => ({
                 height: "100%",
                 width: "100%",
                 display: "flex",
                 flexDirection: "column",
-                position: isFirstLogin ? "relative" : undefined,
-                overflow: isFirstLogin ? "visible" : undefined,
-                borderRadius: isFirstLogin ? 2 : 0,
-                ...(isFirstLogin
-                  ? {
-                      borderColor: alpha(theme.palette.primary.main, 0.22),
-                      bgcolor: alpha(
-                        theme.palette.background.paper,
-                        theme.palette.mode === "dark" ? 0.55 : 0.94,
-                      ),
-                      backdropFilter: "blur(4px)",
-                      boxShadow: "none",
-                    }
-                  : {}),
+                position: "relative",
+                overflow: "visible",
+                borderRadius: 2,
+                borderColor: alpha(theme.palette.primary.main, 0.22),
+                bgcolor: alpha(
+                  theme.palette.background.paper,
+                  theme.palette.mode === "dark" ? 0.55 : 0.94,
+                ),
+                backdropFilter: "blur(4px)",
+                boxShadow: "none",
               })}
             >
-              {isFirstLogin ? (
-                <Stack
+              <Stack
                   direction="row"
                   spacing={0.25}
                   sx={{
@@ -196,25 +170,9 @@ function CurrentStructuresFrame({
                       <DeleteOutlinedIcon sx={{ fontSize: 18 }} />
                     </IconButton>
                   </Tooltip>
-                </Stack>
-              ) : null}
-              <CardContent
-                sx={{
-                  flexGrow: 1,
-                  pt: isFirstLogin ? 1.25 : undefined,
-                  pr: isFirstLogin ? 1 : undefined,
-                  ...(isFirstLogin
-                    ? {}
-                    : {
-                        "& .MuiTypography-caption": {
-                          color: "text.secondary",
-                          display: "block",
-                        },
-                      }),
-                }}
-              >
-                {isFirstLogin ? (
-                  <Box sx={{ pr: { xs: 5, sm: 5.5 } }}>
+              </Stack>
+              <CardContent sx={{ flexGrow: 1, pt: 1.25, pr: 1 }}>
+                <Box sx={{ pr: { xs: 5, sm: 5.5 } }}>
                     <Typography
                       variant="subtitle1"
                       color="primary"
@@ -225,12 +183,12 @@ function CurrentStructuresFrame({
                     <Grid container spacing={1} columns={12} sx={{ mt: 1 }}>
                       {selectedJobType === jobTypes.reprocessing ? (
                         <>
-                          <FirstLoginPair label="Structure type">
+                          <StructureFact label="Structure type">
                             {structureTypeMap[selectedJobType][
                               structure.structureType
                             ]?.label || "—"}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Rigs">
+                          </StructureFact>
+                          <StructureFact label="Rigs">
                             {[
                               rigTypeMap[selectedJobType][structure.rigSlot1]
                                 ?.label,
@@ -239,28 +197,28 @@ function CurrentStructuresFrame({
                             ]
                               .filter((label) => label && label !== "None")
                               .join(" · ") || "—"}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Tax">
+                          </StructureFact>
+                          <StructureFact label="Tax">
                             {`${structure.tax || 0}%`}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Security">
+                          </StructureFact>
+                          <StructureFact label="Security">
                             {systemTypeMap[selectedJobType][
                               structure.systemType
                             ]?.label || "—"}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Implant">
+                          </StructureFact>
+                          <StructureFact label="Implant">
                             {Implants[selectedJobType]?.[structure.implant]
                               ?.label || "—"}
-                          </FirstLoginPair>
+                          </StructureFact>
                         </>
                       ) : selectedJobType === jobTypes.invention ? (
                         <>
-                          <FirstLoginPair label="Structure type">
+                          <StructureFact label="Structure type">
                             {structureTypeMap[selectedJobType][
                               structure.structureType
                             ]?.label || "—"}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Rigs">
+                          </StructureFact>
+                          <StructureFact label="Rigs">
                             {[
                               rigTypeMap[selectedJobType][structure.rigSlot1]
                                 ?.label,
@@ -269,36 +227,36 @@ function CurrentStructuresFrame({
                             ]
                               .filter((label) => label && label !== "None")
                               .join(" · ") || "—"}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Tax">
+                          </StructureFact>
+                          <StructureFact label="Tax">
                             {`${structure.tax || 0}%`}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Security">
+                          </StructureFact>
+                          <StructureFact label="Security">
                             {systemTypeMap[selectedJobType][
                               structure.systemType
                             ]?.label || "—"}
-                          </FirstLoginPair>
+                          </StructureFact>
                         </>
                       ) : (
                         <>
-                          <FirstLoginPair label="Structure type">
+                          <StructureFact label="Structure type">
                             {structureTypeMap[selectedJobType][
                               structure.structureType
                             ]?.label || "—"}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Rig">
+                          </StructureFact>
+                          <StructureFact label="Rig">
                             {rigTypeMap[selectedJobType][structure.rigType]
                               ?.label || "—"}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Tax">
+                          </StructureFact>
+                          <StructureFact label="Tax">
                             {`${structure.tax || 0}%`}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="Security">
+                          </StructureFact>
+                          <StructureFact label="Security">
                             {systemTypeMap[selectedJobType][
                               structure.systemType
                             ]?.label || "—"}
-                          </FirstLoginPair>
-                          <FirstLoginPair label="System">
+                          </StructureFact>
+                          <StructureFact label="System">
                             <Tooltip
                               title={`System index ${getSystemIndex(structure.systemID)}%`}
                               arrow
@@ -318,137 +276,12 @@ function CurrentStructuresFrame({
                                 </Typography>
                               </Box>
                             </Tooltip>
-                          </FirstLoginPair>
+                          </StructureFact>
                         </>
                       )}
                     </Grid>
                   </Box>
-                ) : (
-                  <Grid container align="center" spacing={0}>
-                    <Grid size={12}>
-                      <Typography
-                        color="primary"
-                        sx={{ typography: LARGE_TEXT_FORMAT }}
-                      >
-                        {structure.name}
-                      </Typography>
-                    </Grid>
-                    <Grid size={4}>
-                      <Typography variant="caption">
-                        {structureTypeMap[selectedJobType][
-                          structure.structureType
-                        ]?.label || "Missing Structure Type"}
-                      </Typography>
-                    </Grid>
-                    {(selectedJobType === jobTypes.reprocessing ||
-                      selectedJobType === jobTypes.invention) && (
-                      <Grid size={8}>
-                        <Typography variant="caption">
-                          {[
-                            rigTypeMap[selectedJobType][structure.rigSlot1]
-                              ?.label,
-                            rigTypeMap[selectedJobType][structure.rigSlot2]
-                              ?.label,
-                          ]
-                            .filter((label) => label && label !== "None")
-                            .join(", ") || "No Rigs"}
-                        </Typography>
-                      </Grid>
-                    )}
-                    {selectedJobType !== jobTypes.reprocessing &&
-                      selectedJobType !== jobTypes.invention && (
-                        <Grid size={4}>
-                          <Typography variant="caption">
-                            {rigTypeMap[selectedJobType][structure.rigType]
-                              ?.label || "Missing Rig Type"}
-                          </Typography>
-                        </Grid>
-                      )}
-                    <Grid size={4}>
-                      <Typography variant="caption">{`${
-                        structure.tax || 0
-                      }%`}</Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="caption">
-                        {systemTypeMap[selectedJobType][structure.systemType]
-                          ?.label || "Missing System Type"}
-                      </Typography>
-                    </Grid>
-                    {(selectedJobType === jobTypes.manufacturing ||
-                      selectedJobType === jobTypes.reaction) && (
-                      <Grid size={6}>
-                        <Box sx={{ display: "flex", flexDirection: "column" }}>
-                          <Typography variant="caption">
-                            {systemNames[structure.systemID] ??
-                              UNKNOWN_SYSTEM_LABEL}
-                          </Typography>
-                          <Tooltip
-                            title="System Index Value"
-                            arrow
-                            placement="right"
-                          >
-                            <Typography variant="caption">
-                              {`${getSystemIndex(structure.systemID)}%`}
-                            </Typography>
-                          </Tooltip>
-                        </Box>
-                      </Grid>
-                    )}
-
-                    {selectedJobType === jobTypes.reprocessing && (
-                      <Grid size={4}>
-                        <Typography variant="caption">
-                          {Implants[selectedJobType]?.[structure.implant]
-                            ?.label || "Missing Implant Type"}
-                        </Typography>
-                      </Grid>
-                    )}
-                  </Grid>
-                )}
               </CardContent>
-              {!isFirstLogin ? (
-                <CardActions
-                  sx={{
-                    px: 2,
-                    pt: 0,
-                    gap: 1,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Tooltip
-                    title="Default structures are automatically applied when creating new jobs."
-                    arrow
-                    placement="top"
-                  >
-                    <span>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="primary"
-                        disabled={structure.default}
-                        onClick={async () => {
-                          setDefaultCustomStructure(structure.id);
-                          scheduleDebouncedApplicationSettingsSave();
-                        }}
-                      >
-                        Make Default
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Button
-                    size="small"
-                    variant="text"
-                    color="error"
-                    onClick={async () => {
-                      deleteCustomStructure(structure.id);
-                      scheduleDebouncedApplicationSettingsSave();
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </CardActions>
-              ) : null}
             </Card>
           </Grid>
         );
