@@ -20,6 +20,11 @@
       "type": "maintenance",
       "why": "The stack entered a maintenance window. Carries enabled and a message and is sent to every connected client immediately before its socket is closed, so the client shows the banner rather than reading the close as a failure. Leaving a window sends nothing: no client is connected to tell.",
       "subtypes": []
+    },
+    {
+      "type": "staticData",
+      "why": "A new Static Data Export build was published. Carries the build number and version and goes to every connected client regardless of who is signed in, because the files are the same for all of them. The client compares the build against the one it holds and refreshes its cache only if it has moved.",
+      "subtypes": []
     }
   ]
 }

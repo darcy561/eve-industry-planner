@@ -17,6 +17,10 @@ const (
 	// ClientMessageMaintenance says the stack entered a maintenance window. It is
 	// sent to every connected client immediately before its socket is closed.
 	ClientMessageMaintenance = "maintenance"
+	// ClientMessageStaticData says a new Static Data Export build was published.
+	// It is addressed to nobody in particular: the files are the same for every
+	// client, so it goes to all of them regardless of who is signed in.
+	ClientMessageStaticData = "staticData"
 )
 
 // Notification kinds within [ClientMessageNotification].
@@ -36,6 +40,7 @@ var ClientMessageKinds = map[string][]string{
 	ClientMessageDocument:     {},
 	ClientMessageNotification: {NotificationArchiveStatsProcessed},
 	ClientMessageMaintenance:  {},
+	ClientMessageStaticData:   {},
 }
 
 // MaintenanceMessage is a [ClientMessageMaintenance] frame. Flat rather than
@@ -44,6 +49,18 @@ type MaintenanceMessage struct {
 	Type    string `json:"type"`
 	Enabled bool   `json:"enabled"`
 	Message string `json:"message"`
+}
+
+// StaticDataMessage is a [ClientMessageStaticData] frame, naming the build that
+// was published.
+//
+// The build is carried rather than left for the client to discover, so a client
+// can tell a build it already holds from one it does not and stay quiet for the
+// first. Nothing else travels: the files are fetched from their own endpoints.
+type StaticDataMessage struct {
+	Type        string `json:"type"`
+	BuildNumber int    `json:"buildNumber"`
+	Version     string `json:"version,omitempty"`
 }
 
 // ArchiveStatsProcessedNotification is the body of a

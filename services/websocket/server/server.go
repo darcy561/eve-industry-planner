@@ -95,6 +95,9 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 	// Account notifications (worker → NATS notify.{tenant}.{subtype} → all tabs)
 	s.subscribeToNotifications()
 
+	// New SDE builds (worker → NATS → every connected client, signed in or not)
+	s.subscribeToStaticDataBuilds()
+
 	s.reconcileDocUpdateFanoutConsumers()
 
 	s.startCleanupGoroutine()
