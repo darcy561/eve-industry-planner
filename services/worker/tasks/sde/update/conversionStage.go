@@ -42,7 +42,9 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	searchIndex := conversion.GenerateSearchIndexOutput(recipeList)
 	fullItemList := conversion.GenerateFullItemListOutput(combinedItemMap, conversion.BuildCategoryByGroupID(groupsData))
 	reprocessingObjects := conversion.GenerateReprocessingDataOutput(typeMaterialsData, combinedItemMap, marketGroupsData)
-	marketGroups := conversion.GenerateMarketGroupsOutput(marketGroupsData)
+	// After fullItemList: the market groups say which of them hold items, and that
+	// is read from the published list rather than from the SDE's own flag.
+	marketGroups := conversion.GenerateMarketGroupsOutput(marketGroupsData, fullItemList)
 	solarSystems := conversion.GenerateSolarSystemsOutput(solarSystemsData)
 	inventionModifiers, err := conversion.GenerateInventionModifiersOutput(typesData, dogmaAttributesData, typeDogmaData)
 	if err != nil {

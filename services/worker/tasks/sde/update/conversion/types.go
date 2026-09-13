@@ -110,6 +110,16 @@ type MarketGroup struct {
 	Name string `json:"name"`
 	// ParentID is 0 at a root, which is the only place the walk can stop.
 	ParentID int `json:"parent_id,omitempty"`
+	// Children names what sits directly inside this group, so a reader can walk
+	// down as well as up. The SPA browses the tree to let a player choose a group
+	// to price against, and deriving this from the parent links there means
+	// inverting the whole map in every session — the same answer, rebuilt from
+	// data this side already holds in order.
+	Children []int `json:"children,omitempty"`
+	// HasTypes says whether items sit in this group directly, as against only in
+	// groups beneath it. Both are choosable — a default set on a container covers
+	// everything under it — but a reader picking one deserves to know which it is.
+	HasTypes bool `json:"has_types,omitempty"`
 }
 
 type ReprocessingItem struct {
