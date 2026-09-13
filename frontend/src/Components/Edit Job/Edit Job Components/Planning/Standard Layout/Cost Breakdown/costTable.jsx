@@ -1,6 +1,5 @@
 import {
   Box,
-  Table,
   TableBody,
   TableCell,
   TableRow,
@@ -14,7 +13,10 @@ import {
   Figure,
   totalRowSx,
 } from "../../../../../../Styled Components/Typography/figures";
-import { ColumnHeaderRow } from "../../../../../../Styled Components/Table/tableParts";
+import {
+  ColumnHeaderRow,
+  ScrollingTable,
+} from "../../../../../../Styled Components/Table/tableParts";
 import { costPartColour, extrasIdsOf } from "./costParts";
 
 /**
@@ -24,6 +26,9 @@ import { costPartColour, extrasIdsOf } from "./costParts";
  * line says in words what its figure is made of, because a number alone does
  * not say how much of the build it covers.
  */
+
+// A figure split across two lines cannot be read as a number.
+const FIGURE_CELL_SX = { whiteSpace: "nowrap" };
 
 const COLUMNS = [
   { id: "component", label: "Component", align: "left" },
@@ -58,7 +63,10 @@ export default function CostTable({
   const perUnit = (value) => (value === null ? null : formatIsk(value));
 
   return (
-    <Table size="small" aria-label="Cost breakdown">
+    // Two full ISK figures and a label do not fit a narrow desktop window, and a
+    // table with nothing to scroll inside simply runs off the panel. Below the
+    // floor it scrolls here rather than squeezing the label to one word a line.
+    <ScrollingTable minWidth="sm" aria-label="Cost breakdown">
       <ColumnHeaderRow columns={COLUMNS} />
       <TableBody>
         {cost.toBuild.lines.map((line) => (
@@ -104,7 +112,7 @@ export default function CostTable({
           </>
         ) : null}
       </TableBody>
-    </Table>
+    </ScrollingTable>
   );
 }
 
@@ -160,10 +168,10 @@ function CostRow({
           </Typography>
         ) : null}
       </TableCell>
-      <TableCell align="right">
+      <TableCell align="right" sx={FIGURE_CELL_SX}>
         <Figure>{formatIsk(line.value)}</Figure>
       </TableCell>
-      <TableCell align="right">
+      <TableCell align="right" sx={FIGURE_CELL_SX}>
         <Figure>{perUnit(line.perUnit)}</Figure>
       </TableCell>
     </TableRow>
@@ -183,10 +191,10 @@ function SubtotalRow({ label, value, valuePerUnit, formatIsk, perUnit }) {
           {label}
         </Typography>
       </TableCell>
-      <TableCell align="right" sx={totalRowSx}>
+      <TableCell align="right" sx={{ ...totalRowSx, ...FIGURE_CELL_SX }}>
         <Figure sx={{ fontWeight: 500 }}>{formatIsk(value)}</Figure>
       </TableCell>
-      <TableCell align="right" sx={totalRowSx}>
+      <TableCell align="right" sx={{ ...totalRowSx, ...FIGURE_CELL_SX }}>
         <Figure sx={{ fontWeight: 500 }}>{perUnit(valuePerUnit)}</Figure>
       </TableCell>
     </TableRow>

@@ -7,7 +7,6 @@ import {
   MenuItem,
   Paper,
   Skeleton,
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -16,6 +15,7 @@ import {
   Typography,
 } from "@mui/material";
 import { appShellSetupSectionPaperSx } from "../../Context/appShell";
+import { ScrollingTable } from "../../Styled Components/Table/tableParts";
 import AppShellSelect from "../../Styled Components/Select/AppShellSelect";
 import {
   formatNumberForLocale,
@@ -186,7 +186,7 @@ export function ArchivedItemBreakdown({ from, to, range, onSelectItem } = {}) {
         </Grid>
       </Grid>
 
-      <Table size="small">
+      <ScrollingTable minWidth="sm">
         <TableHead>
           <TableRow>
             <TableCell>Item</TableCell>
@@ -266,7 +266,7 @@ export function ArchivedItemBreakdown({ from, to, range, onSelectItem } = {}) {
             })
           )}
         </TableBody>
-      </Table>
+      </ScrollingTable>
 
       {canExpand && (
         <Grid container sx={{ justifyContent: "center", mt: 1 }}>

@@ -6,7 +6,6 @@ import {
   MenuItem,
   Pagination,
   Stack,
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -19,6 +18,7 @@ import {
 import { appShellInsetSurfaceSx } from "../../Context/appShell";
 import { useQueryClient } from "@tanstack/react-query";
 import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
+import { ScrollingTable } from "../../Styled Components/Table/tableParts";
 import AppShellSelect from "../../Styled Components/Select/AppShellSelect";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import {
@@ -709,7 +709,7 @@ export function ArchivedJobsList({ enabled = true }) {
         ) : (
           <Box sx={{ width: "100%" }}>
             {deviceNotMobile ? (
-              <Table size="small">
+              <ScrollingTable minWidth="md">
                 <ListHeader />
                 <TableBody>
                   {blocks.map((block) => (
@@ -722,7 +722,7 @@ export function ArchivedJobsList({ enabled = true }) {
                     />
                   ))}
                 </TableBody>
-              </Table>
+              </ScrollingTable>
             ) : (
               <Stack spacing={1.5}>
                 {blocks.map((block) => (

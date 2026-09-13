@@ -337,7 +337,16 @@ export default function EditJob_New() {
                       >
                         {status.name}
                       </StepButton>
-                      <StepContent sx={{ width: "100%" }}>
+                      <StepContent
+                        sx={{
+                          width: "100%",
+                          marginLeft: { xs: 0, md: "12px" },
+                          paddingLeft: { xs: 1, md: "20px" },
+                          paddingRight: { xs: 0, md: 1 },
+                          borderLeft: { xs: 0, md: 1 },
+                          borderColor: { md: "divider" },
+                        }}
+                      >
                         <Divider />
                         {canMoveBackward && (
                           <Grid

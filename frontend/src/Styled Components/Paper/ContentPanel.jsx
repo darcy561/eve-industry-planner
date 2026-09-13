@@ -91,7 +91,7 @@ export default function ContentPanel({
     <Paper
       elevation={elevation}
       sx={{
-        padding: 2,
+        padding: { xs: 1, sm: 2 },
         width: "100%",
         height: "100%",
         display: "flex",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { createTheme } from "@mui/material";
 
 import CostTable from "./costTable";
 
@@ -133,5 +134,30 @@ describe("the cost table", () => {
     expect(screen.queryByText(/Cost to sell/)).toBeNull();
     expect(screen.queryByText("Cost to build and sell")).toBeNull();
     expect(screen.getByText("Cost to build")).toBeInTheDocument();
+  });
+});
+
+// A table left to itself squeezes its label column to a word a line and still
+// runs off the side of the panel. The scrolling belongs to ScrollingTable and is
+// tested there; what is this table's own is the floor it picks and its figures
+// staying on one line.
+describe("a window too narrow for the table", () => {
+  it("holds the table to a width its columns can be read at", () => {
+    const { container } = render(
+      <CostTable cost={cost()} formatIsk={formatIsk} />,
+    );
+
+    expect(getComputedStyle(container.querySelector("table")).minWidth).toBe(
+      `${createTheme().breakpoints.values.sm}px`,
+    );
+  });
+
+  // A figure broken across two lines cannot be read as a number.
+  it("never breaks a figure across lines", () => {
+    render(<CostTable cost={cost()} formatIsk={formatIsk} />);
+
+    const figure = screen.getByText("398,600,000").closest("td");
+
+    expect(getComputedStyle(figure).whiteSpace).toBe("nowrap");
   });
 });
