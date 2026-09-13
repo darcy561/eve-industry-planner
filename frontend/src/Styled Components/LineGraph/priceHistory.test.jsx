@@ -4,7 +4,7 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { isMobile } = vi.hoisted(() => ({ isMobile: { current: false } }));
 
-vi.mock("../../Hooks/useItemNames", () => ({
+vi.mock("../../Hooks/Static/useItems", () => ({
   useItemNames: () => ({ 34: "Tritanium" }),
 }));
 

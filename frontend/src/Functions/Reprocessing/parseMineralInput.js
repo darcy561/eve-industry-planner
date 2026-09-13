@@ -1,4 +1,4 @@
-import { getFullItemList } from "../Helper/getCachedData";
+import { primeItems, itemRecord } from "../Static/items";
 import { parseNumberWithSeparators } from "../Helper/numberParser";
 
 const mineralIDS = new Set([34, 35, 36, 37, 38, 39, 40, 11399]);
@@ -30,7 +30,10 @@ async function parseInputMineralString(inputString) {
     return [];
   }
 
-  const fullItemList = await getFullItemList();
+  await primeItems();
+  // Only these types can match, so the name they are pasted under is resolved from them rather
+  // than by searching every item in the game once per line.
+  const byName = mineralsByName();
   const lines = inputString.split("\n").map((line) => line.trim());
   const matchedMinerals = {};
 
@@ -50,14 +53,7 @@ async function parseInputMineralString(inputString) {
     if (!quantity || isNaN(parseNumberWithSeparators(quantity))) return;
     quantity = parseNumberWithSeparators(quantity);
 
-    const mineral = Object.values(fullItemList).find(
-      (item) =>
-        (item.name.toLowerCase() === name.trim().toLowerCase() &&
-          (mineralIDS.has(item.type_id) ||
-            moonMineralIDS.has(item.type_id) ||
-            iceProductIDs.has(item.type_id))) ||
-        unrefinedMineralIDS.has(item.type_id),
-    );
+    const mineral = byName.get(name.trim().toLowerCase());
 
     if (mineral) {
       if (!matchedMinerals[mineral.type_id]) {
@@ -74,6 +70,32 @@ async function parseInputMineralString(inputString) {
   });
 
   return matchedMinerals;
+}
+
+/**
+ * The types a pasted line can name, keyed by the name they are pasted under.
+ *
+ * @returns {Map<string, {name: string, type_id: number}>}
+ */
+function mineralsByName() {
+  const byName = new Map();
+  for (const ids of [
+    mineralIDS,
+    moonMineralIDS,
+    iceProductIDs,
+    unrefinedMineralIDS,
+  ]) {
+    for (const typeID of ids) {
+      const record = itemRecord(typeID);
+      if (record?.name) {
+        byName.set(record.name.toLowerCase(), {
+          name: record.name,
+          type_id: typeID,
+        });
+      }
+    }
+  }
+  return byName;
 }
 
 export default parseInputMineralString;

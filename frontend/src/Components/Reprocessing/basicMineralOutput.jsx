@@ -9,8 +9,8 @@ import {
   CircularProgress,
   useMediaQuery,
 } from "@mui/material";
-import { useCachedData } from "../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { useItemList } from "../../Hooks/Static/useItems";
+import { itemNameFrom } from "../../Functions/Static/items";
 import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
@@ -28,12 +28,10 @@ function BasicMineralOutput({ pageState }) {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("md"));
   const findMarketData =
     useUsersStore.getState().worldData.actions.findMarketData;
-  const { data: fullItemList, isLoading } = useCachedData(
-    CACHED_DATA_FILES.FULL_ITEM_LIST,
-  );
+  const { records: itemRecords, isLoading } = useItemList();
 
   const totalReprocessingValue = useMemo(() => {
-    if (!fullItemList) return 0;
+    if (isLoading) return 0;
     return pageState.processedInput.reduce((acc, item) => {
       if (item.quantity === 0) return acc;
       const itemPriceObject = findMarketData(item.id);
@@ -45,11 +43,11 @@ function BasicMineralOutput({ pageState }) {
     pageState.processedInput,
     pageState.marketLocation,
     pageState.marketListing,
-    fullItemList,
+    isLoading,
   ]);
 
   const totalUnreprocessedValue = useMemo(() => {
-    if (!fullItemList) return 0;
+    if (isLoading) return 0;
     return pageState.reprocessingObjects.reduce((acc, item) => {
       if (item.batchSize > item.totalQuantity) return acc;
       const itemPriceObject = findMarketData(item.id);
@@ -61,10 +59,10 @@ function BasicMineralOutput({ pageState }) {
     pageState.reprocessingObjects,
     pageState.marketLocation,
     pageState.marketListing,
-    fullItemList,
+    isLoading,
   ]);
 
-  if (isLoading || !fullItemList) {
+  if (isLoading) {
     return <CircularProgress />;
   }
 
@@ -189,7 +187,7 @@ function BasicMineralOutput({ pageState }) {
       <Grid container spacing={2}>
         {pageState.processedInput.map((item) => {
           if (item.quantity === 0) return null;
-          const matchedName = fullItemList[item.id]?.name ?? "Unknown Item";
+          const matchedName = itemNameFrom(item.id, itemRecords);
           const itemPriceObject = findMarketData(item.id);
           const unitPrice =
             itemPriceObject[pageState.marketLocation][

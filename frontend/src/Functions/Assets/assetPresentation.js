@@ -1,4 +1,5 @@
 import { isAncientRelic } from "../Shared/itemCategories";
+import { itemNameFrom } from "../Static/items";
 
 /**
  * The image EVE serves for what a node is.
@@ -7,11 +8,11 @@ import { isAncientRelic } from "../Shared/itemCategories";
  * answered with a 400 and no image — so the one exception is asked for by name.
  *
  * @param {import("./buildAssetNodes").AssetNode} node
- * @param {Object<string, {category_id?: number}>} [fullItemList]
+ * @param {Object<string, {category_id?: number}>} [itemRecords]
  * @returns {string}
  */
-export function assetImageUrl(node, fullItemList) {
-  const variant = isAncientRelic(fullItemList?.[node.typeId]?.category_id)
+export function assetImageUrl(node, itemRecords) {
+  const variant = isAncientRelic(itemRecords?.[node.typeId]?.category_id)
     ? "relic"
     : "icon";
   return `https://images.evetech.net/types/${node.typeId}/${variant}?size=32`;
@@ -23,19 +24,18 @@ export function assetImageUrl(node, fullItemList) {
  * division's own name gives.
  *
  * @param {import("./buildAssetNodes").AssetNode} node
- * @param {Object<string, {name: string}>} [fullItemList]
+ * @param {Object<string, {name: string}>} [itemRecords]
  * @param {Map<number, {name: string}>} [containerNames]
  * @param {string} [compartmentName]
  * @returns {string}
  */
 export function assetName(
   node,
-  fullItemList = {},
+  itemRecords = {},
   containerNames,
   compartmentName,
 ) {
-  const itemName =
-    fullItemList[node.typeId]?.name ?? `Unknown Item - ${node.typeId}`;
+  const itemName = itemNameFrom(node.typeId, itemRecords);
   const givenName = containerNames?.get(node.itemId)?.name;
 
   return [compartmentName, itemName, givenName].filter(Boolean).join(" - ");

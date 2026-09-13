@@ -26,14 +26,8 @@ export default function useAssetsOfType({
   namesScope,
   enabled = true,
 }) {
-  const {
-    collection,
-    fullItemList,
-    containerNames,
-    isLoading,
-    isError,
-    error,
-  } = useAssetSource({ assets, namesCharacter, namesScope, enabled });
+  const { collection, containerNames, isLoading, isError, error } =
+    useAssetSource({ assets, namesCharacter, namesScope, enabled });
 
   const byLocation = useMemo(
     () => (enabled ? assetsOfType(collection, typeId) : new Map()),
@@ -67,7 +61,6 @@ export default function useAssetsOfType({
     locations,
     collection,
     containerNames,
-    fullItemList,
     isLoading: isLoading || namesLoading,
     isError,
     error,

@@ -17,7 +17,7 @@ import {
 } from "../../Context/appShell";
 import { normalizeLocaleForIntl } from "../../Functions/Helper/localeDetection";
 import { useHasChanged } from "../../Hooks/useHasChanged";
-import { useItemNames } from "../../Hooks/useItemNames";
+import { useItemNames } from "../../Hooks/Static/useItems";
 import { ChartRangeSlider, TimeSeriesChart, trailingRange } from "../Charts";
 
 const { MARKET_OPTIONS } = GLOBAL_CONFIG;

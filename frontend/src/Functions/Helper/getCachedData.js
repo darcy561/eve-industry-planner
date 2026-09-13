@@ -336,40 +336,82 @@ export async function getCachedData(fileName) {
   }
 }
 
-export async function preloadAllStaticDataFromAPI() {
-  const meta = await fetchStaticMeta(false, true);
+/**
+ * Puts every static file in the cache, downloading only what is missing.
+ *
+ * Nothing is parsed here. A file is read for its contents when something asks for it, through
+ * `getCachedData`; parsing all of them to build a result nobody reads cost a full parse of every
+ * payload on each refresh, and briefly held a second copy of all of them beside the live ones.
+ *
+ * @param {Object} meta - the metadata this pass resolved, so it is not fetched a second time
+ * @returns {Promise<Object<string, {cached: boolean, error?: string}>>} what happened per file
+ */
+async function cacheAllStaticData(meta) {
   const cache = await getCache();
-  await pruneStaleStaticCacheEntries(cache, meta);
-  const fileKeys = Object.keys(meta?.file_keys || {});
   const results = {};
 
-  for (const fileKey of fileKeys) {
+  for (const fileKey of Object.keys(meta?.file_keys || {})) {
     const cacheURL = getVersionedURLFromMeta(meta, fileKey);
     try {
-      if (cache) {
-        const cached = await cache.match(cacheURL);
-        if (cached) {
-          results[fileKey] = { data: await parseJSONResponse(cached) };
-          continue;
-        }
+      if (cache && (await cache.match(cacheURL))) {
+        results[fileKey] = { cached: true };
+        continue;
       }
-      const data = await fetchAndCacheByURL(cache, cacheURL);
-      results[fileKey] = { data };
+      await fetchAndCacheByURL(cache, cacheURL);
+      results[fileKey] = { cached: false };
     } catch (error) {
-      results[fileKey] = { error: error.message };
+      results[fileKey] = { cached: false, error: error.message };
     }
   }
   return results;
 }
 
-// Refreshes metadata from API and prunes/fetches static files.
-// Intended for app startup and periodic refreshes, not per-file reads.
-export async function refreshStaticDataCache() {
+/**
+ * The build whose files are in the cache, so an unchanged one is not walked again.
+ *
+ * @type {string|null}
+ */
+let cachedBuildVersion = null;
+
+/**
+ * Brings the cache up to the build the server is serving.
+ *
+ * Static data only changes when a new SDE build is published, so an unchanged build is nothing to
+ * do: the files in the cache are already that build's, and walking them again would re-check every
+ * entry on a timer for the life of the page. Only the metadata is fetched to find that out.
+ *
+ * A changed build is a different file behind every key. The parses held against the old one are
+ * dropped, so the next reader loads the new file rather than being served what it replaced.
+ *
+ * @param {boolean} [force] - go through the whole pass even if the build has not moved
+ * @returns {Promise<{buildVersion: string|null, changed: boolean, files: Object|null}>}
+ */
+export async function refreshStaticDataCache(force = false) {
   await migrateAndCleanupStaticCaches();
   const meta = await fetchStaticMeta(true, true);
+  const buildVersion = meta?.build_version ?? null;
+
+  const changed = buildVersion !== cachedBuildVersion;
+  if (!changed && !force) {
+    return { buildVersion, changed: false, files: null };
+  }
+
+  if (changed && cachedBuildVersion !== null) {
+    // Held against the build that has just been superseded.
+    parsedPayloads.clear();
+  }
+
   const cache = await getCache();
   await pruneStaleStaticCacheEntries(cache, meta);
-  return preloadAllStaticDataFromAPI();
+  const files = await cacheAllStaticData(meta);
+  cachedBuildVersion = buildVersion;
+
+  return { buildVersion, changed, files };
+}
+
+/** Forgets which build is cached, so the next refresh goes through the whole pass. Tests only. */
+export function resetStaticDataCacheState() {
+  cachedBuildVersion = null;
 }
 
 // Helper functions for specific data files

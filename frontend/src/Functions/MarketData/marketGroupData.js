@@ -1,25 +1,31 @@
-import { getFullItemList, getMarketGroups } from "../Helper/getCachedData";
+import { getMarketGroups } from "../Helper/getCachedData";
+import {
+  primeItems,
+  itemRecord,
+  readItemRecords,
+  resetItems,
+} from "../Static/items";
 
 /**
- * The market group tree and each item's place in it, held where the pricing rung
- * can read them without awaiting.
+ * The market group tree, held where the pricing rung can read it without awaiting.
  *
- * Both are static files the app already downloads and caches. What this adds is a
+ * A static file the app already downloads and caches. What this adds is a
  * synchronous read, which the rung cannot do without: the walk runs per material
  * on every row of every job, and one of its callers prices a shopping list from a
  * class method where no hook can be called.
  *
  * Reading is therefore separate from loading. `primeMarketGroupData` is awaited
  * once by whatever can wait; every read after that is a plain lookup that reports
- * absence rather than blocking.
+ * absence rather than blocking. Which group an item sits in is the item list's to
+ * say, so that half is read from its owner rather than held again here.
  */
 
 let marketGroups = null;
-let itemsByType = null;
 let priming = null;
 
 /**
- * Loads both files once, for a caller that can wait.
+ * Loads the tree once, and the item list it reads groups from, for a caller that
+ * can wait.
  *
  * Concurrent callers share the one load, and a failure is not remembered as an
  * answer, so a later caller retries rather than inheriting an outage.
@@ -27,12 +33,13 @@ let priming = null;
  * @returns {Promise<void>}
  */
 export function primeMarketGroupData() {
-  if (marketGroups && itemsByType) return Promise.resolve();
+  // Both halves, not just the tree: the item half is held by its own module and can be dropped on
+  // its own, which would leave this short-circuiting on a tree whose items had gone.
+  if (marketGroups && readItemRecords()) return Promise.resolve();
 
-  priming ??= Promise.all([getMarketGroups(), getFullItemList()])
-    .then(([groups, items]) => {
+  priming ??= Promise.all([getMarketGroups(), primeItems()])
+    .then(([groups]) => {
       marketGroups = groups || {};
-      itemsByType = items || {};
     })
     .finally(() => {
       priming = null;
@@ -64,7 +71,7 @@ export function readMarketGroups() {
  * @returns {number|undefined}
  */
 export function marketGroupOf(typeID) {
-  return itemsByType?.[typeID]?.market_group_id;
+  return itemRecord(typeID)?.market_group_id;
 }
 
 /**
@@ -103,6 +110,8 @@ export function groupPricingFor({ groupDefaults, marketRung, listingRung }) {
 /** Drops what has been loaded. Tests only. */
 export function resetMarketGroupData() {
   marketGroups = null;
-  itemsByType = null;
   priming = null;
+  // The item half of what this primes is the item list's to hold, so dropping the tree without
+  // dropping that would leave a caller reading groups for items from a load this one did not make.
+  resetItems();
 }

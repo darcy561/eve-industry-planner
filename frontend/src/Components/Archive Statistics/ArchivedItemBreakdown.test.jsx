@@ -94,7 +94,7 @@ describe("ArchivedItemBreakdown", () => {
 
     renderWithProviders(<ArchivedItemBreakdown />);
 
-    expect(await screen.findByText("Type 23773")).toBeInTheDocument();
+    expect(await screen.findByText("Unknown Item - 23773")).toBeInTheDocument();
   });
 
   // Ranking happens on the server, so the sort is a request parameter. Sorting

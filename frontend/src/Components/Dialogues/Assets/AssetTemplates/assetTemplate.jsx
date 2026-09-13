@@ -8,19 +8,20 @@ import {
 import { ownerName } from "../../../../Functions/Shared/eveOwner";
 import OwnerAvatar from "../../../../Styled Components/Avatar/OwnerAvatar";
 import { Figure } from "../../../../Styled Components/Typography/figures";
+import { useItemList } from "../../../../Hooks/Static/useItems";
 
 /**
  * One stack of what was asked for.
  *
- * @param {{branch: Object, fullItemList: Object, showOwner?: boolean}} props
+ * @param {{branch: Object, showOwner?: boolean}} props
  */
 export default function AssetTemplate_AssetDialogueWindow({
   branch,
-  fullItemList,
   showOwner = false,
 }) {
+  const { records: itemRecords } = useItemList();
   const { node } = branch;
-  const itemName = assetName(node, fullItemList);
+  const itemName = assetName(node, itemRecords);
   const holder = showOwner ? ownerName(node.owner) : "";
 
   return (
@@ -51,14 +52,14 @@ export default function AssetTemplate_AssetDialogueWindow({
             badgeContent={<OwnerAvatar owner={node.owner} size={18} />}
           >
             <Avatar
-              src={assetImageUrl(node, fullItemList)}
+              src={assetImageUrl(node, itemRecords)}
               alt={itemName}
               variant="square"
             />
           </Badge>
         ) : (
           <Avatar
-            src={assetImageUrl(node, fullItemList)}
+            src={assetImageUrl(node, itemRecords)}
             alt={itemName}
             variant="square"
           />

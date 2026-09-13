@@ -31,9 +31,10 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import {
   buildCatalogQueryOptions,
-  buildFullItemListQueryOptions,
   invalidateTemplateCatalogQueries,
 } from "./helpers/templateDialogueQueries";
+import { useItemList } from "../../../Hooks/Static/useItems";
+import { itemNameFrom } from "../../../Functions/Static/items";
 import { makeTemplateFilter } from "./helpers/templateDialogueUtils";
 import { appShellSetupSectionPaperSx } from "../../../Context/appShell";
 import { trackAppEvent } from "../../../analytics/trackAppEvent";
@@ -71,20 +72,17 @@ function ApplyGroupTemplateDialogueBody({ messageData, onDismiss }) {
   const { data: catalog = [] } = useQuery(
     buildCatalogQueryOptions(activeSession, true),
   );
-  const { data: fullItemList = null } = useQuery(
-    buildFullItemListQueryOptions(true),
-  );
-  const getItemName = (itemID) =>
-    fullItemList?.[itemID]?.name || `Type ${itemID}`;
+  const { records: itemRecords } = useItemList();
+  const getItemName = (itemID) => itemRecords[itemID]?.name || `Type ${itemID}`;
   const filterTemplates = useMemo(
     () =>
       makeTemplateFilter({
         getOutputSearchText: (o) =>
           (o.rootOutputItemIDs || [])
-            .map((id) => fullItemList?.[id]?.name || "")
+            .map((id) => itemRecords[id]?.name || "")
             .join(" "),
       }),
-    [fullItemList],
+    [itemRecords],
   );
 
   const selected = useMemo(() => {

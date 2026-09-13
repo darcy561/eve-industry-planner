@@ -5,8 +5,10 @@ import { characterBlueprintsQuery } from "../React Query/Character/blueprints";
 import { corporationBlueprintsQuery } from "../React Query/Corporation/blueprints";
 import buildBlueprintRows from "../../Functions/Blueprints/buildBlueprintRows";
 import createCollectionCache from "../../Functions/Shared/collectionCache";
-import { useCachedData } from "../App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import {
+  useItemSearchIndex,
+  readCachedItemSearchIndex,
+} from "../Static/useItems";
 import {
   isQueryObserverResultLoading,
   isQueryStateLoading,
@@ -85,8 +87,7 @@ function queriesForScope(scope, id, characters, corporations) {
  */
 export function getCachedBlueprintIndex(queryClient, { scope, id } = {}) {
   const { characters, corporations } = useUsersStore.getState().account;
-  const searchIndex =
-    queryClient.getQueryData(["static", CACHED_DATA_FILES.SEARCH_INDEX]) ?? [];
+  const searchIndex = readCachedItemSearchIndex(queryClient);
 
   const keys = queriesForScope(
     scope,
@@ -124,10 +125,10 @@ export default function useBlueprintIndex({ scope, id } = {}) {
   const characters = useUsersStore((state) => state.account.characters);
   const corporations = useUsersStore((state) => state.account.corporations);
   const {
-    data: searchIndex,
+    entries: searchIndex,
     isLoading: searchIndexLoading,
     error: searchIndexError,
-  } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
+  } = useItemSearchIndex();
 
   // Only the raw sources and the flags come back through `combine`. React Query structurally
   // shares whatever it returns, which would clone the derived collection and hand each consumer

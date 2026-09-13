@@ -43,14 +43,8 @@ export default function useAssetTree({
   hideAssembledShips = false,
   enabled = true,
 }) {
-  const {
-    collection,
-    fullItemList,
-    containerNames,
-    isLoading,
-    isError,
-    error,
-  } = useAssetSource({ assets, namesCharacter, namesScope, enabled });
+  const { collection, itemRecords, containerNames, isLoading, isError, error } =
+    useAssetSource({ assets, namesCharacter, namesScope, enabled });
 
   const {
     data: blueprintCollection,
@@ -68,16 +62,16 @@ export default function useAssetTree({
   const hidden = useMemo(() => {
     const itemIds = new Set();
     for (const [itemId, row] of blueprintCollection.byItemId) {
-      if (isAncientRelic(fullItemList?.[row.typeId]?.category_id)) continue;
+      if (isAncientRelic(itemRecords[row.typeId]?.category_id)) continue;
       itemIds.add(itemId);
     }
     if (!hideAssembledShips) return itemIds;
 
-    for (const itemId of assembledShipIds(collection, fullItemList ?? {})) {
+    for (const itemId of assembledShipIds(collection, itemRecords)) {
       itemIds.add(itemId);
     }
     return itemIds;
-  }, [blueprintCollection, hideAssembledShips, collection, fullItemList]);
+  }, [blueprintCollection, hideAssembledShips, collection, itemRecords]);
 
   // The flag and location lists are expected to be stable — a module-level constant or a memo at
   // the call site — because a fresh array each render would rebuild the whole view each render.
@@ -121,7 +115,6 @@ export default function useAssetTree({
     byItemId: collection.byItemId,
     excludeItemIds: hidden,
     containerNames,
-    fullItemList,
     isLoading: isLoading || blueprintsLoading || namesLoading,
     isError: isError || blueprintsError,
     error: error ?? blueprintsErrorValue ?? null,

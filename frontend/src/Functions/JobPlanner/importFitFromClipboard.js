@@ -1,8 +1,7 @@
 import getMissingESIData from "../Shared/getMissingESIData";
 import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
-import { getCachedData } from "../Helper/getCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { primeItemSearchIndex, searchEntryByName } from "../Static/items";
 import useUsersStore from "../../Zustand/usersStore";
 import { parseNumberWithSeparators } from "../Helper/numberParser";
 import { checkClipboardReadPermissions } from "../Clipboard/clipboardPermissions";
@@ -23,7 +22,7 @@ export async function importFromClipboard() {
     throw new Error("Clipboard access denied. Please enable permissions.");
   }
 
-  const itemTypes = await getCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
+  await primeItemSearchIndex();
   const importedText = await readTextFromClipboard();
   if (!importedText) {
     return { importedItems: [], fittingName: "" };
@@ -67,9 +66,7 @@ export async function importFromClipboard() {
   });
 
   objectArray.forEach((item) => {
-    const matchingItemType = itemTypes.find(
-      (itemType) => itemType.name === item.itemName,
-    );
+    const matchingItemType = searchEntryByName(item.itemName);
     if (matchingItemType) {
       item.itemID = matchingItemType.itemID;
       item.included = true;

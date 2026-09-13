@@ -2,8 +2,7 @@ import { Typography, Grid } from "@mui/material";
 
 import { useMemo } from "react";
 import { STANDARD_TEXT_FORMAT } from "../../../Context/defaultValues";
-import { useCachedData } from "../../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../../Context/defaultValues";
+import { useItemList } from "../../../Hooks/Static/useItems";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import findTransactionsForMarketOrders from "../../../Functions/MarketOrders/findTransactionsForMarketOrders";
@@ -38,7 +37,7 @@ export function NewTransactions() {
   const { jobArray } = useUsersStore((state) => state.jobData);
   const queryClient = useQueryClient();
   const linkedOrders = useUsersStore((state) => state.account.linkedOrders);
-  const { data: itemData } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
+  const { records: itemRecords } = useItemList();
 
   // Query states
   const characterMarketQuery = useGetAllCharacterMarketOrders();
@@ -197,7 +196,7 @@ export function NewTransactions() {
           size={12}
         >
           {transactionData.map((trans) => {
-            const itemName = itemData?.find((i) => i.itemID === trans.type_id);
+            const itemName = itemRecords[trans.type_id]?.name;
             if (!itemName) return null;
 
             return (
@@ -217,7 +216,7 @@ export function NewTransactions() {
                     align="center"
                     sx={{ typography: STANDARD_TEXT_FORMAT }}
                   >
-                    {itemName.name}
+                    {itemName}
                   </Typography>
                 </Grid>
                 <Grid size={4}>

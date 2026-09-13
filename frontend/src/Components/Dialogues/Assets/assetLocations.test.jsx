@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
@@ -16,8 +17,9 @@ import {
   corporationAssetRows,
   JITA_STATION_ID,
 } from "../../../tests/assetFixtures";
+import { seedItemRecords } from "../../../tests/seedItems";
 
-const fullItemList = {
+const itemRecords = {
   34: { name: "Tritanium" },
   36: { name: "Mexallon" },
   3465: { name: "Large Secure Container" },
@@ -28,14 +30,18 @@ function renderLocations(collection, typeId, extra = {}) {
     [JITA_STATION_ID]: { name: "Jita IV-4" },
   });
 
+  const queryClient = new QueryClient();
+  seedItemRecords(queryClient, itemRecords);
+
   return render(
-    <AssetLocations_AssetDialogueWindow
-      locations={locations.filter(
-        ({ locationId }) => locationId === JITA_STATION_ID,
-      )}
-      fullItemList={fullItemList}
-      {...extra}
-    />,
+    <QueryClientProvider client={queryClient}>
+      <AssetLocations_AssetDialogueWindow
+        locations={locations.filter(
+          ({ locationId }) => locationId === JITA_STATION_ID,
+        )}
+        {...extra}
+      />
+    </QueryClientProvider>,
   );
 }
 

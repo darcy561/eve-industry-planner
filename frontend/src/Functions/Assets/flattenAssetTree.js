@@ -42,7 +42,7 @@ const itemKey = (itemId) => `item:${itemId}`;
  *   locations: Array<{locationId: number, name: string, rows: Array<import("./buildAssetNodes").AssetNode>}>,
  *   expanded: Set<string>,
  *   byItemId: Map<number, import("./buildAssetNodes").AssetNode>,
- *   fullItemList?: Object<string, {name: string}>,
+ *   itemRecords?: Object<string, {name: string}>,
  *   compartments?: Array<{assetLocationRef: string, name: string}>,
  *   excludeItemIds?: Set<number>,
  *   containerNames?: Map<number, {name: string}>,
@@ -54,7 +54,7 @@ export default function flattenAssetTree({
   locations = [],
   expanded = new Set(),
   byItemId,
-  fullItemList,
+  itemRecords,
   compartments,
   excludeItemIds,
   containerNames,
@@ -77,7 +77,7 @@ export default function flattenAssetTree({
         : matchesUnder(rows, {
             term,
             byItemId,
-            fullItemList,
+            itemRecords,
             containerNames,
             excludeItemIds,
           });
@@ -103,17 +103,17 @@ export default function flattenAssetTree({
         rows,
         expanded,
         byItemId,
-        fullItemList,
+        itemRecords,
         compartments,
         excludeItemIds,
         matching,
         openAll: Boolean(term),
       });
     } else {
-      pushItems(flat, sortNodesByName(rows, fullItemList), 1, {
+      pushItems(flat, sortNodesByName(rows, itemRecords), 1, {
         expanded,
         byItemId,
-        fullItemList,
+        itemRecords,
         excludeItemIds,
         matching,
         openAll: Boolean(term),
@@ -132,7 +132,7 @@ function pushCompartments(
     rows,
     expanded,
     byItemId,
-    fullItemList,
+    itemRecords,
     compartments,
     excludeItemIds,
     matching,
@@ -161,10 +161,10 @@ function pushCompartments(
 
     if (!openAll && !expanded.has(key)) return;
 
-    pushItems(flat, sortNodesByName(held, fullItemList), 2, {
+    pushItems(flat, sortNodesByName(held, itemRecords), 2, {
       expanded,
       byItemId,
-      fullItemList,
+      itemRecords,
       excludeItemIds,
       matching,
       openAll,
@@ -176,7 +176,7 @@ function pushItems(
   flat,
   nodes,
   depth,
-  { expanded, byItemId, fullItemList, excludeItemIds, matching, openAll },
+  { expanded, byItemId, itemRecords, excludeItemIds, matching, openAll },
 ) {
   const shown = matching ? nodes.filter((n) => matching.has(n.itemId)) : nodes;
 
@@ -201,10 +201,10 @@ function pushItems(
     if (!expandable || (!openAll && !expanded.has(key))) return;
 
     const contents = childIds.map((childId) => byItemId.get(childId));
-    pushItems(flat, sortNodesByName(contents, fullItemList), depth + 1, {
+    pushItems(flat, sortNodesByName(contents, itemRecords), depth + 1, {
       expanded,
       byItemId,
-      fullItemList,
+      itemRecords,
       excludeItemIds,
       matching,
       openAll,
@@ -218,17 +218,17 @@ function pushItems(
  * A container is kept when what is inside it matches, so the player can see which one to open.
  *
  * @param {Array<import("./buildAssetNodes").AssetNode>} rows
- * @param {{term: string, byItemId: Map, fullItemList: Object, containerNames: Map, excludeItemIds: Set<number>}} against
+ * @param {{term: string, byItemId: Map, itemRecords: Object, containerNames: Map, excludeItemIds: Set<number>}} against
  * @returns {Set<number>} item ids worth showing
  */
 function matchesUnder(
   rows,
-  { term, byItemId, fullItemList, containerNames, excludeItemIds },
+  { term, byItemId, itemRecords, containerNames, excludeItemIds },
 ) {
   const keep = new Set();
 
   function walk(node) {
-    let kept = assetName(node, fullItemList, containerNames)
+    let kept = assetName(node, itemRecords, containerNames)
       .toLowerCase()
       .includes(term);
 

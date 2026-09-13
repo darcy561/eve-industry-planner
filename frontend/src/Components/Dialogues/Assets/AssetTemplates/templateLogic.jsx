@@ -3,7 +3,6 @@ import AssetContainerTemplate_AssetDialogueWindow from "./containerTemplate";
 
 export default function AssetLocationLogic_AssetDialogueWindow({
   branch,
-  fullItemList,
   containerNames,
   compartmentNames,
   showOwner,
@@ -12,7 +11,6 @@ export default function AssetLocationLogic_AssetDialogueWindow({
 
   const shared = {
     branch,
-    fullItemList,
     containerNames,
     compartmentNames,
     showOwner,

@@ -9,6 +9,7 @@ import AssetScopePicker, {
   ASSET_OWNER,
   readScopeValue,
 } from "../../Assets/assetScopePicker";
+import { useItemRecord } from "../../../Hooks/Static/useItems";
 import useAssetsOfType from "../../../Hooks/EveEsi/useAssetsOfType";
 import { ASSET_SCOPE } from "../../../Hooks/EveEsi/useAssetIndex";
 import { officeLocationIds } from "../../../Functions/Assets/assetTree";
@@ -61,20 +62,13 @@ export default function AssetsDialogueContent({ state, actions }) {
     );
   }, [isCorporation, corporation]);
 
-  const {
-    locations,
-    collection,
-    containerNames,
-    fullItemList,
-    isLoading,
-    isError,
-    error,
-  } = useAssetsOfType({
-    assets,
-    typeId: state.selectedTypeID,
-    namesCharacter,
-    namesScope: isCorporation ? "corporation" : "character",
-  });
+  const { locations, collection, containerNames, isLoading, isError, error } =
+    useAssetsOfType({
+      assets,
+      typeId: state.selectedTypeID,
+      namesCharacter,
+      namesScope: isCorporation ? "corporation" : "character",
+    });
 
   // The office selects elsewhere read the corporation's offices from the store, and a member's
   // assets are the only place they are stated.
@@ -99,7 +93,7 @@ export default function AssetsDialogueContent({ state, actions }) {
     ];
   }, [locations, defaultAssetLocation]);
 
-  const itemName = fullItemList?.[state.selectedTypeID]?.name;
+  const itemName = useItemRecord(state.selectedTypeID)?.name;
 
   function handleClose() {
     actions.resetState();
@@ -117,7 +111,7 @@ export default function AssetsDialogueContent({ state, actions }) {
       maxWidth="lg"
       fullWidth
       asyncState={{
-        isLoading: isLoading || !fullItemList,
+        isLoading,
         isError,
         error,
         loadingMessage: "Loading assets and locations…",
@@ -147,7 +141,6 @@ export default function AssetsDialogueContent({ state, actions }) {
       {ordered.length > 0 ? (
         <AssetLocations_AssetDialogueWindow
           locations={ordered}
-          fullItemList={fullItemList}
           containerNames={containerNames}
           compartmentNames={compartmentNames}
           // One owner's holdings need no owner said against every stack; several do.

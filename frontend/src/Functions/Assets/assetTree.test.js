@@ -90,7 +90,7 @@ describe("a location's rows split by compartment", () => {
 });
 
 describe("ordering rows for display", () => {
-  const fullItemList = {
+  const itemRecords = {
     34: { name: "Tritanium" },
     3465: { name: "Container" },
   };
@@ -98,7 +98,7 @@ describe("ordering rows for display", () => {
   it("orders by the name of what the row is", () => {
     const rows = [characters.byItemId.get(1001), characters.byItemId.get(1002)];
 
-    expect(sortNodesByName(rows, fullItemList).map((n) => n.itemId)).toEqual([
+    expect(sortNodesByName(rows, itemRecords).map((n) => n.itemId)).toEqual([
       1002, 1001,
     ]);
   });
@@ -108,7 +108,7 @@ describe("ordering rows for display", () => {
     const rows = assetRowsByLocation(characters).get(JITA_STATION_ID);
     const before = rows.map((node) => node.itemId);
 
-    sortNodesByName(rows, fullItemList);
+    sortNodesByName(rows, itemRecords);
 
     expect(rows.map((node) => node.itemId)).toEqual(before);
   });

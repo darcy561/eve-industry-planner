@@ -8,7 +8,7 @@ import {
   JITA_STATION_ID,
 } from "../../tests/assetFixtures";
 
-const fullItemList = {
+const itemRecords = {
   34: { name: "Tritanium" },
   35: { name: "Pyerite" },
   36: { name: "Mexallon" },
@@ -33,7 +33,7 @@ function characterView(expanded, excludeItemIds, search) {
     locations,
     expanded: new Set(expanded),
     byItemId: collection.byItemId,
-    fullItemList,
+    itemRecords,
     excludeItemIds,
     containerNames: new Map([[1002, { name: "Ore Crate" }]]),
     search,
@@ -50,7 +50,7 @@ function corporationView(expanded) {
     locations,
     expanded: new Set(expanded),
     byItemId: collection.byItemId,
-    fullItemList,
+    itemRecords,
     compartments: HANGARS,
   });
 }
@@ -197,7 +197,7 @@ describe("the rows of a corporation's office", () => {
       locations: [{ locationId: JITA_STATION_ID, name: "Jita IV-4", rows: [] }],
       expanded: new Set([LOCATION]),
       byItemId: collection.byItemId,
-      fullItemList,
+      itemRecords,
       compartments: HANGARS,
     });
 

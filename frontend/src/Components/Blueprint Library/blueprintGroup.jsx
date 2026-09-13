@@ -1,7 +1,6 @@
 import { Box, Grid, Typography } from "@mui/material";
 
-import { useCachedData } from "../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { useItemList, useItemSearchIndex } from "../../Hooks/Static/useItems";
 import useGetAllIndustryJobs from "../../Hooks/EveEsi/useGetAllIndustryJobs";
 import consolidateBlueprints from "../../Functions/Blueprints/consolidateBlueprints";
 import { isAncientRelic } from "../../Functions/Shared/itemCategories";
@@ -31,15 +30,13 @@ export default function BlueprintGroup({
   compact = false,
 }) {
   const {
-    data: blueprintIDs,
+    entries: blueprintIDs,
     isLoading: blueprintIDsLoading,
     error: blueprintIDsError,
-  } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
+  } = useItemSearchIndex();
 
   // Only for the type's category: a relic is drawn from its own image variant.
-  const { data: fullItemList } = useCachedData(
-    CACHED_DATA_FILES.FULL_ITEM_LIST,
-  );
+  const { records: itemRecords } = useItemList();
 
   const {
     data: apiJobs = [],
@@ -95,7 +92,7 @@ export default function BlueprintGroup({
                 bpData={bpData}
                 locationName={locationNames?.get(stack.blueprint.itemId)}
                 isRelic={isAncientRelic(
-                  fullItemList?.[stack.blueprint.typeId]?.category_id,
+                  itemRecords[stack.blueprint.typeId]?.category_id,
                 )}
                 density={density}
               />

@@ -7,11 +7,10 @@ import { UNNAMED_LOCATION_LABEL } from "../../../Functions/Assets/assetLocationC
 /**
  * Where a material is held: a heading per location, and under it the containers holding it.
  *
- * @param {{locations: Array<Object>, fullItemList: Object, containerNames: Map, compartmentNames: Map, showOwner?: boolean}} props
+ * @param {{locations: Array<Object>, containerNames: Map, compartmentNames: Map, showOwner?: boolean}} props
  */
 export default function AssetLocations_AssetDialogueWindow({
   locations,
-  fullItemList,
   containerNames,
   compartmentNames,
   showOwner,
@@ -44,7 +43,6 @@ export default function AssetLocations_AssetDialogueWindow({
               <AssetLocationLogic_AssetDialogueWindow
                 key={branch.node.itemId}
                 branch={branch}
-                fullItemList={fullItemList}
                 containerNames={containerNames}
                 compartmentNames={compartmentNames}
                 showOwner={showOwner}

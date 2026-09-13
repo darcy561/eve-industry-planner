@@ -92,7 +92,6 @@ export default function AssetLibraryView({
     byItemId,
     excludeItemIds,
     containerNames,
-    fullItemList,
     isLoading,
     isError,
     error,
@@ -121,7 +120,7 @@ export default function AssetLibraryView({
       .account.actions.setCorporationOffices(id, officeLocationIds(collection));
   }, [isCorporation, id, collection]);
 
-  if (isLoading || isError || !fullItemList) {
+  if (isLoading || isError) {
     return isError ? (
       <PanelFallBack isLoading={false} isError error={error} />
     ) : (
@@ -137,7 +136,6 @@ export default function AssetLibraryView({
     <AssetTree
       locations={locations}
       byItemId={byItemId}
-      fullItemList={fullItemList}
       containerNames={containerNames}
       excludeItemIds={excludeItemIds}
       compartments={isCorporation && view === "held" ? hangars : undefined}

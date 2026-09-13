@@ -3,6 +3,7 @@ import { Box, Grid, Typography, useMediaQuery } from "@mui/material";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import AssetTreeRow, { assetRowHeight } from "./assetTreeRow";
 import flattenAssetTree from "../../../Functions/Assets/flattenAssetTree";
+import { useItemList } from "../../../Hooks/Static/useItems";
 
 /**
  * The asset tree, however many rows deep it goes.
@@ -13,7 +14,6 @@ import flattenAssetTree from "../../../Functions/Assets/flattenAssetTree";
  * @param {{
  *   locations: Array<Object>,
  *   byItemId: Map<number, Object>,
- *   fullItemList: Object,
  *   containerNames: Map<number, {name: string}>,
  *   excludeItemIds?: Set<number>,
  *   compartments?: Array<{assetLocationRef: string, name: string}>,
@@ -25,7 +25,6 @@ import flattenAssetTree from "../../../Functions/Assets/flattenAssetTree";
 export default function AssetTree({
   locations,
   byItemId,
-  fullItemList,
   containerNames,
   excludeItemIds,
   compartments,
@@ -35,6 +34,9 @@ export default function AssetTree({
 }) {
   const listRef = useRef(null);
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
+  // Read once for the whole list rather than per row: every row names and pictures what it holds
+  // from the same records, and the list is virtualised so a row mounts and unmounts as it scrolls.
+  const { records: itemRecords } = useItemList();
 
   const rows = useMemo(
     () =>
@@ -42,7 +44,7 @@ export default function AssetTree({
         locations,
         expanded,
         byItemId,
-        fullItemList,
+        itemRecords,
         compartments,
         excludeItemIds,
         containerNames,
@@ -52,7 +54,7 @@ export default function AssetTree({
       locations,
       expanded,
       byItemId,
-      fullItemList,
+      itemRecords,
       compartments,
       excludeItemIds,
       containerNames,
@@ -121,7 +123,7 @@ export default function AssetTree({
                 height={item.size}
                 expanded={expanded.has(row.key)}
                 onToggle={() => onToggle(row.key)}
-                fullItemList={fullItemList}
+                itemRecords={itemRecords}
                 containerNames={containerNames}
               />
             </div>

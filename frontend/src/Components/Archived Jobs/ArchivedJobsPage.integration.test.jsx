@@ -156,14 +156,18 @@ describe("the archive page, end to end", () => {
     });
     renderWithProviders(<ArchivedJobsPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Type 34" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Unknown Item - 34" }),
+    );
 
     expect(
       screen.getByRole("tab", { name: "Item Statistics" }),
     ).toHaveAttribute("aria-selected", "true");
     // The row hands the item over, so the tab opens on it rather than empty:
     // the name is on the breakdown row and again as the item panel's heading.
-    expect((await screen.findAllByText("Type 34")).length).toBeGreaterThan(1);
+    expect(
+      (await screen.findAllByText("Unknown Item - 34")).length,
+    ).toBeGreaterThan(1);
   });
 
   it("says so when a rebuild is outstanding, and not when one is not", async () => {

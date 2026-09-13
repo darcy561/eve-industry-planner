@@ -8,8 +8,7 @@ import {
   appShellSelectMenuPaperSx,
   appShellTextFieldOutlinedSx,
 } from "../../Context/appShell";
-import { useCachedData } from "../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { useItemSearchIndex } from "../../Hooks/Static/useItems";
 import useUsersStore from "../../Zustand/usersStore";
 import { useTranquilityServerStatusQuery } from "../../Hooks/React Query/tranquilityServerStatus.js";
 import useBlueprintIndex, {
@@ -253,10 +252,10 @@ function VirtualisedRecipeSearch({
   const queryEnabled = isLoggedIn && !!tranquilityStatus?.online;
 
   const {
-    data: itemList,
-    loading: isLoadingItemList,
+    entries: itemList,
+    isLoading: isLoadingItemList,
     error: itemListError,
-  } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
+  } = useItemSearchIndex();
 
   const shouldApplyBlueprintFilter =
     !ignoreSelectionOverrides &&

@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import useAssetIndex from "./useAssetIndex";
 import useAssetContainerNames from "./useAssetContainerNames";
-import { useCachedData } from "../App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { useItemList } from "../Static/useItems";
 import { namedContainerIds } from "../../Functions/Assets/assetTree";
 
 /**
@@ -15,7 +14,7 @@ import { namedContainerIds } from "../../Functions/Assets/assetTree";
  *   namesScope?: string,
  *   enabled?: boolean
  * }} request
- * @returns {{collection: import("../../Functions/Assets/buildAssetNodes").AssetCollection, fullItemList: Object|null, containerNames: Map<number, {name: string}>, isLoading: boolean, isError: boolean, error: Error|null}}
+ * @returns {{collection: import("../../Functions/Assets/buildAssetNodes").AssetCollection, itemRecords: Object, containerNames: Map<number, {name: string}>, isLoading: boolean, isError: boolean, error: Error|null}}
  */
 export default function useAssetSource({
   assets,
@@ -31,11 +30,11 @@ export default function useAssetSource({
   } = useAssetIndex({ ...assets, enabled });
 
   const {
-    data: fullItemList,
+    records: itemRecords,
     isLoading: itemListLoading,
     isError: itemListError,
     error: itemListErrorValue,
-  } = useCachedData(CACHED_DATA_FILES.FULL_ITEM_LIST);
+  } = useItemList();
 
   const containerIds = useMemo(
     () => namedContainerIds(collection),
@@ -50,7 +49,7 @@ export default function useAssetSource({
 
   return {
     collection,
-    fullItemList: fullItemList ?? null,
+    itemRecords,
     containerNames,
     // What a row is called comes from a static file rather than ESI, and a view cannot draw a row
     // without it — so its failure is this collection's failure, not a slower load.

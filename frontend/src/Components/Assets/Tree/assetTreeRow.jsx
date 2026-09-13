@@ -55,14 +55,14 @@ const WHOLE = { max: 0 };
  * Depth is drawn as guide rules to the left of the row rather than as a margin on it, so the
  * quantity stays in the same column however deep the row sits.
  *
- * @param {{row: import("../../../Functions/Assets/flattenAssetTree").AssetTreeRow, height: number, expanded: boolean, onToggle: Function, fullItemList: Object, containerNames: Map}} props
+ * @param {{row: import("../../../Functions/Assets/flattenAssetTree").AssetTreeRow, height: number, expanded: boolean, onToggle: Function, itemRecords: Object, containerNames: Map}} props
  */
 export default function AssetTreeRow({
   row,
   height,
   expanded,
   onToggle,
-  fullItemList,
+  itemRecords,
   containerNames,
 }) {
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
@@ -116,7 +116,7 @@ export default function AssetTreeRow({
   }
 
   const { node } = row;
-  const itemName = assetName(node, fullItemList, containerNames);
+  const itemName = assetName(node, itemRecords, containerNames);
 
   return (
     <Row depth={row.depth} height={height}>
@@ -141,7 +141,7 @@ export default function AssetTreeRow({
           name={itemName}
         />
         <Avatar
-          src={assetImageUrl(node, fullItemList)}
+          src={assetImageUrl(node, itemRecords)}
           alt=""
           variant="square"
           sx={{

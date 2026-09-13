@@ -1,6 +1,5 @@
 import { Box } from "@mui/material";
-import { useCachedData } from "../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { useItemSearchIndex } from "../../Hooks/Static/useItems";
 import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import FilterChipGroup from "../../Styled Components/Chip/filterChipGroup";
 import VirtualisedLocationSearch from "../../Styled Components/autocomplete/virtualisedLocationSearch";
@@ -21,7 +20,7 @@ const FILTER_OPTIONS = [
  * @param {{places: Array<{locationId: number, name: string}>}} props
  */
 export function LibrarySearch({ places = [] }) {
-  const { data: itemList } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
+  const { entries: itemList } = useItemSearchIndex();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) || {};
 

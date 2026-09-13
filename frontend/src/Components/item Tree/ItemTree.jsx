@@ -14,11 +14,8 @@ import ClearIcon from "@mui/icons-material/Clear";
 import { useQueryClient } from "@tanstack/react-query";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/virtualisedRecipeSearch";
-import { useCachedData } from "../../Hooks/App/useCachedData";
-import {
-  CACHED_DATA_FILES,
-  STANDARD_TEXT_FORMAT,
-} from "../../Context/defaultValues";
+import { useItemList, useItemNames } from "../../Hooks/Static/useItems";
+import { STANDARD_TEXT_FORMAT } from "../../Context/defaultValues";
 import { appShellSetupSectionPaperSx } from "../../Context/appShell";
 import { buildJob } from "../../Functions/JobPlanner/buildJob";
 import JobDependencyTreeFlow from "../../Styled Components/JobTreeFlow/JobDependencyTreeFlow";
@@ -44,14 +41,11 @@ const treeSurfaceSx = {
 export function ItemTree() {
   const queryClient = useQueryClient();
   const [selectedItems, setSelectedItems] = useState([]);
+  const selectedNames = useItemNames(selectedItems.map(({ itemID }) => itemID));
   const [jobs, setJobs] = useState([]);
   const [isBuilding, setIsBuilding] = useState(false);
   const [fitViewRequestKey, setFitViewRequestKey] = useState(0);
-  const {
-    data: fullItemList,
-    isLoading,
-    isError,
-  } = useCachedData(CACHED_DATA_FILES.FULL_ITEM_LIST);
+  const { isLoading, isError } = useItemList();
 
   const orderedJobs = useMemo(
     () =>
@@ -247,7 +241,7 @@ export function ItemTree() {
                         selectedItems.map((itemObj) => (
                           <Chip
                             key={itemObj.itemID}
-                            label={`${fullItemList?.[itemObj.itemID]?.name ?? String(itemObj.itemID)} ×${itemObj.itemQty}`}
+                            label={`${selectedNames[itemObj.itemID]} ×${itemObj.itemQty}`}
                             size="small"
                             deleteIcon={<ClearIcon />}
                             onDelete={() =>

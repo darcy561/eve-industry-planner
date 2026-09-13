@@ -9,8 +9,7 @@ import useBlueprintIndex, {
 } from "../../Hooks/EveEsi/useBlueprintIndex";
 import useBlueprintLocations from "../../Hooks/EveEsi/useBlueprintLocations";
 import useGetAllIndustryJobs from "../../Hooks/EveEsi/useGetAllIndustryJobs";
-import { useCachedData } from "../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { useItemSearchIndex } from "../../Hooks/Static/useItems";
 import filterLibraryBlueprints from "../../Functions/Blueprints/filterLibraryBlueprints";
 import blueprintsAtLocation from "../../Functions/Blueprints/blueprintsAtLocation";
 import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
@@ -24,7 +23,7 @@ export default function BlueprintLibrary() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) || {};
 
-  const { data: itemList } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
+  const { entries: itemList } = useItemSearchIndex();
 
   // Initialise URL params with defaults if they don't exist
   useEffect(() => {

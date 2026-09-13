@@ -1,16 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AssetTree from "./assetTree";
 import buildAssetNodes from "../../../Functions/Assets/buildAssetNodes";
 import { assetRowsByLocation } from "../../../Functions/Assets/assetTree";
 import { stubElementHeights } from "../../../tests/elementHeights";
+import { seedItemRecords } from "../../../tests/seedItems";
 
 const STATION_ID = 60003760;
 const STACK_COUNT = 400;
 const theme = createTheme();
 
-const fullItemList = { 34: { name: "Tritanium" } };
+const itemRecords = { 34: { name: "Tritanium" } };
 
 const collection = buildAssetNodes(
   Array.from({ length: STACK_COUNT }, (unused, index) => ({
@@ -26,17 +28,21 @@ const collection = buildAssetNodes(
 function renderTree(expanded) {
   const rows = assetRowsByLocation(collection).get(STATION_ID);
 
+  const queryClient = new QueryClient();
+  seedItemRecords(queryClient, itemRecords);
+
   return render(
-    <ThemeProvider theme={theme}>
-      <AssetTree
-        locations={[{ locationId: STATION_ID, name: "Jita IV-4", rows }]}
-        byItemId={collection.byItemId}
-        fullItemList={fullItemList}
-        containerNames={new Map()}
-        expanded={new Set(expanded)}
-        onToggle={() => {}}
-      />
-    </ThemeProvider>,
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={theme}>
+        <AssetTree
+          locations={[{ locationId: STATION_ID, name: "Jita IV-4", rows }]}
+          byItemId={collection.byItemId}
+          containerNames={new Map()}
+          expanded={new Set(expanded)}
+          onToggle={() => {}}
+        />
+      </ThemeProvider>
+    </QueryClientProvider>,
   );
 }
 

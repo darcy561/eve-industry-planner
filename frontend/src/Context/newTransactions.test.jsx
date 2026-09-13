@@ -57,7 +57,12 @@ vi.mock("../Hooks/EveEsi/Corporation/useGetAllCorporationTransactions", () => ({
   getAllCachedCorporationTransactions: () => ({ data: {} }),
 }));
 vi.mock("../Hooks/App/useCachedData", () => ({
-  useCachedData: () => ({ data: [{ itemID: 34, name: "Tritanium" }] }),
+  useCachedData: (dataType) => ({
+    data:
+      dataType === "FULL_ITEM_LIST"
+        ? { 34: { type_id: 34, name: "Tritanium" } }
+        : [{ itemID: 34, name: "Tritanium" }],
+  }),
 }));
 
 const { NewTransactions } =

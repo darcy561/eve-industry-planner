@@ -8,22 +8,23 @@ import {
 } from "../../../../Functions/Assets/assetPresentation";
 import { ownerName } from "../../../../Functions/Shared/eveOwner";
 import OwnerAvatar from "../../../../Styled Components/Avatar/OwnerAvatar";
+import { useItemList } from "../../../../Hooks/Static/useItems";
 
 /**
  * A container holding what was asked for, and what is inside it.
  *
- * @param {{branch: Object, fullItemList: Object, containerNames: Map, compartmentNames: Map, showOwner?: boolean}} props
+ * @param {{branch: Object, containerNames: Map, compartmentNames: Map, showOwner?: boolean}} props
  */
 export default function AssetContainerTemplate_AssetDialogueWindow({
   branch,
-  fullItemList,
   containerNames,
   compartmentNames,
   showOwner = false,
 }) {
+  const { records: itemRecords } = useItemList();
   const itemName = assetName(
     branch.node,
-    fullItemList,
+    itemRecords,
     containerNames,
     compartmentNames?.get(branch.node.rootFlag),
   );
@@ -46,7 +47,7 @@ export default function AssetContainerTemplate_AssetDialogueWindow({
         }}
       >
         <Avatar
-          src={assetImageUrl(branch.node, fullItemList)}
+          src={assetImageUrl(branch.node, itemRecords)}
           alt=""
           variant="square"
           sx={{ height: 24, width: 24 }}
@@ -75,7 +76,6 @@ export default function AssetContainerTemplate_AssetDialogueWindow({
           <AssetLocationLogic_AssetDialogueWindow
             key={child.node.itemId}
             branch={child}
-            fullItemList={fullItemList}
             containerNames={containerNames}
             compartmentNames={compartmentNames}
             showOwner={showOwner}

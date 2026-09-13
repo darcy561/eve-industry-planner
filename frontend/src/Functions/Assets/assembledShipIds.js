@@ -47,14 +47,14 @@ function holdsShipFittings(node, byItemId) {
  * its modules, its drones and its cargo.
  *
  * @param {import("./buildAssetNodes").AssetCollection} collection
- * @param {Object<string, {category_id?: number}>} [fullItemList]
+ * @param {Object<string, {category_id?: number}>} [itemRecords]
  * @returns {Set<number>}
  */
-export default function assembledShipIds(collection, fullItemList = {}) {
+export default function assembledShipIds(collection, itemRecords = {}) {
   const ships = new Set();
 
   for (const node of collection?.nodes ?? []) {
-    const category = fullItemList[node.typeId]?.category_id;
+    const category = itemRecords[node.typeId]?.category_id;
 
     if (category === ITEM_CATEGORY.SHIP) {
       if (node.isSingleton) ships.add(node.itemId);

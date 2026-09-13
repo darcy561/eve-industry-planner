@@ -99,13 +99,13 @@ export function rowsByCompartment(rows = []) {
  * its rows in place would reorder it for all of them.
  *
  * @param {Array<import("./buildAssetNodes").AssetNode>} nodes
- * @param {Object<string, {name: string}>} [fullItemList]
+ * @param {Object<string, {name: string}>} [itemRecords]
  * @returns {Array<import("./buildAssetNodes").AssetNode>}
  */
-export function sortNodesByName(nodes = [], fullItemList = {}) {
+export function sortNodesByName(nodes = [], itemRecords = {}) {
   return [...nodes].sort((a, b) => {
-    const left = fullItemList[a.typeId]?.name;
-    const right = fullItemList[b.typeId]?.name;
+    const left = itemRecords[a.typeId]?.name;
+    const right = itemRecords[b.typeId]?.name;
     if (!left || !right) return 0;
     return left.localeCompare(right);
   });

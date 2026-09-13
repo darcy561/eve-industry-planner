@@ -15,8 +15,7 @@ import {
 import { saveApplicationSettings } from "../../../Functions/Endpoints/Private/userDocument";
 import { blueprintOptions } from "../../../Context/defaultValues";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
-import { useCachedData } from "../../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../../Context/defaultValues";
+import { useItemNames } from "../../../Hooks/Static/useItems";
 import ClearIcon from "@mui/icons-material/Clear";
 import useUsersStore from "../../../Zustand/usersStore";
 function BlueprintSettingsFrame() {
@@ -41,9 +40,7 @@ function BlueprintSettingsFrame() {
     removeExemptTypeID,
   } = useUsersStore.getState().applicationSettings.actions;
 
-  const { data: fullItemList } = useCachedData(
-    CACHED_DATA_FILES.FULL_ITEM_LIST,
-  );
+  const itemNames = useItemNames(exemptTypeIDs);
 
   return (
     <Box sx={{ width: "100%", height: "100%" }}>
@@ -162,7 +159,7 @@ function BlueprintSettingsFrame() {
         </Box>
         <Box sx={{ marginTop: "20px" }}>
           {[...exemptTypeIDs].map((id) => {
-            const itemName = fullItemList?.[id]?.name || "Unknown Item";
+            const itemName = itemNames[id];
 
             return (
               <Chip

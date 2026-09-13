@@ -12,8 +12,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { useCachedData } from "../../../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../../../Context/defaultValues";
+import { useItemNames } from "../../../../Hooks/Static/useItems";
 import AddShipFittingPanel from "./addFittingJobs";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,9 +25,7 @@ function AddNewJobSharedContentPanel({ state, actions }) {
   const [itemIDsToAdd, updateItemIDsToAdd] = useState([]);
   const [addNewGroupOnBuild, updateAddNewGroupOnBuild] = useState(false);
   const queryClient = useQueryClient();
-  const { data: fullItemList } = useCachedData(
-    CACHED_DATA_FILES.FULL_ITEM_LIST,
-  );
+  const itemNames = useItemNames(itemIDsToAdd.map(({ itemID }) => itemID));
 
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
 
@@ -161,7 +158,7 @@ function AddNewJobSharedContentPanel({ state, actions }) {
           >
             <Grid container size={12}>
               {itemIDsToAdd.map((itemObj) => {
-                const itemName = fullItemList[itemObj.itemID]?.name;
+                const itemName = itemNames[itemObj.itemID];
                 return (
                   <Grid key={itemObj.itemID} size="auto">
                     <Chip

@@ -25,7 +25,7 @@ import { monthLabel, NoData, useCostComponentStack } from "./panelParts";
 import { useChartKeys } from "../../Styled Components/Charts/useChartKeys";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import { timelineWindow, useArchiveTimeline } from "./useArchiveTimeline";
-import { useItemNames } from "../../Hooks/useItemNames";
+import { useItemNames } from "../../Hooks/Static/useItems";
 
 /** The measure a panel ranks or splits by, shown in the panel header. */
 function MeasureSelect({ value, onChange, options }) {

@@ -9,8 +9,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCachedData } from "../../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../../Context/defaultValues";
+import { useItemList, useItemNames } from "../../../Hooks/Static/useItems";
 import ClearIcon from "@mui/icons-material/Clear";
 import useUsersStore from "../../../Zustand/usersStore";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
@@ -24,14 +23,11 @@ export function SearchBar({ actions }) {
   const [itemIDsToAdd, updateItemIDsToAdd] = useState([]);
   const [addNewGroupOnBuild, updateAddNewGroupOnBuild] = useState(false);
   const queryClient = useQueryClient();
-  const {
-    data: fullItemList,
-    isLoading,
-    isError,
-  } = useCachedData(CACHED_DATA_FILES.FULL_ITEM_LIST);
+  const { isLoading, isError } = useItemList();
+  const itemNames = useItemNames(itemIDsToAdd.map(({ itemID }) => itemID));
 
   async function addJobs() {
-    if (!fullItemList) return;
+    if (isLoading) return;
     actions.setSkeletonElementsToDisplay(
       addNewGroupOnBuild ? 1 : itemIDsToAdd.length,
     );
@@ -44,7 +40,7 @@ export function SearchBar({ actions }) {
   }
 
   function addItemToSelection(inputID) {
-    if (!fullItemList) return;
+    if (isLoading) return;
     const newItemsToAdd = itemIDsToAdd.map((obj) => ({ ...obj }));
 
     const existingObject = newItemsToAdd.find((i) => i.itemID === inputID);
@@ -74,7 +70,7 @@ export function SearchBar({ actions }) {
   return (
     <ContentPanel
       componentName="SearchBar"
-      isLoading={isLoading || !fullItemList}
+      isLoading={isLoading}
       isError={isError}
     >
       <Grid
@@ -129,7 +125,7 @@ export function SearchBar({ actions }) {
           </Grid>
           <Grid container sx={{ marginTop: 2 }} size={12}>
             {itemIDsToAdd.map((itemObj) => {
-              const itemName = fullItemList[itemObj.itemID]?.name;
+              const itemName = itemNames[itemObj.itemID];
               return (
                 <Grid key={itemObj.itemID} size="auto">
                   <Chip

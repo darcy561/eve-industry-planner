@@ -21,25 +21,21 @@ import SaveIcon from "@mui/icons-material/Save";
 import RestoreIcon from "@mui/icons-material/Restore";
 import { useState } from "react";
 import useUsersStore from "../../Zustand/usersStore";
-import { useCachedData } from "../../Hooks/App/useCachedData";
-import {
-  CACHED_DATA_FILES,
-  DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
-} from "../../Context/defaultValues";
+import { useItemList } from "../../Hooks/Static/useItems";
+import { itemNameFrom } from "../../Functions/Static/items";
+import { DEFAULT_REPROCESSING_CALCULATION_SETTINGS } from "../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import { scheduleDebouncedApplicationSettingsSave } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import { useHasChanged } from "../../Hooks/useHasChanged";
 
 export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
-  const { data: fullItemList } = useCachedData(
-    CACHED_DATA_FILES.FULL_ITEM_LIST,
-  );
   const updateReprocessingSettings = useUsersStore(
     (state) =>
       state.applicationSettings.actions.updateReprocessingCalculationSettings,
   );
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const exemptTypeIDs = pageState.oreIDsToBeIgnored || [];
+  const { records: itemRecords } = useItemList();
   const reprocessingSettings = pageState.reprocessingCalculationSettings;
 
   // Something already exempt is the reason to look, so the panel opens on it
@@ -61,12 +57,7 @@ export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
     pageActions.removeOreIDToBeIgnored(typeID);
   };
 
-  // Get ore name by typeID
-  const getOreName = (typeID) => {
-    if (!fullItemList) return `TypeID: ${typeID}`;
-    const item = fullItemList[typeID];
-    return item ? item.name : `TypeID: ${typeID}`;
-  };
+  const getOreName = (typeID) => itemNameFrom(typeID, itemRecords);
 
   // Toggle expanded state
   const toggleExpanded = () => {

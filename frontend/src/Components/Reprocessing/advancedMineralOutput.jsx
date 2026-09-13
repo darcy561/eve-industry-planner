@@ -20,8 +20,8 @@ import {
   reprocessingItemTypes,
   STANDARD_TEXT_FORMAT,
 } from "../../Context/defaultValues";
-import { useCachedData } from "../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import { useItemList } from "../../Hooks/Static/useItems";
+import { itemNameFrom } from "../../Functions/Static/items";
 import useUsersStore from "../../Zustand/usersStore";
 import MineralCard from "./Components/MineralCard";
 import MaterialPopoverIconButtons from "../../Styled Components/Popover/iconButtons";
@@ -37,9 +37,7 @@ export function AdvancedMineralOutput(props) {
   const [clipboardAccessible, setClipboardAccessible] = useState(true);
   const findMarketData =
     useUsersStore.getState().worldData.actions.findMarketData;
-  const { data: fullItemList, isLoading } = useCachedData(
-    CACHED_DATA_FILES.FULL_ITEM_LIST,
-  );
+  const { records: itemRecords, isLoading } = useItemList();
 
   // Check clipboard permissions
   useEffect(() => {
@@ -75,12 +73,12 @@ export function AdvancedMineralOutput(props) {
   };
 
   const handleCopyOreData = async () => {
-    if (!fullItemList) return;
+    if (isLoading) return;
 
     let copyText = "";
     pageState.reprocessingObjects.forEach((item) => {
       if (item.batchSize > item.totalQuantity) return;
-      const oreName = fullItemList[item.id]?.name ?? "Unknown Item";
+      const oreName = itemNameFrom(item.id, itemRecords);
       copyText += `${oreName} ${item.totalQuantity}\n`;
     });
 
@@ -103,7 +101,7 @@ export function AdvancedMineralOutput(props) {
   };
 
   const totalValue = useMemo(() => {
-    if (!fullItemList) return 0;
+    if (isLoading) return 0;
     if (pageState.toMinerals) {
       // When converting to minerals, calculate value of processed minerals
       return pageState.processedInput.reduce((acc, item) => {
@@ -142,11 +140,11 @@ export function AdvancedMineralOutput(props) {
     pageState.marketLocation,
     pageState.marketListing,
     pageState.toMinerals,
-    fullItemList,
+    isLoading,
   ]);
 
   const totalUnreprocessedValue = useMemo(() => {
-    if (!fullItemList) return 0;
+    if (isLoading) return 0;
     return pageState.reprocessingObjects.reduce((acc, item) => {
       if (item.batchSize > item.totalQuantity) return acc;
       const itemPriceObject = findMarketData(item.id);
@@ -158,13 +156,13 @@ export function AdvancedMineralOutput(props) {
     pageState.reprocessingObjects,
     pageState.marketLocation,
     pageState.marketListing,
-    fullItemList,
+    isLoading,
   ]);
 
   // Calculate value of excess minerals that will be sold
   const excessMineralsValue = useMemo(() => {
     if (
-      !fullItemList ||
+      isLoading ||
       pageState.toMinerals ||
       !pageState.reprocessingCalculationSettings.sellExcessMineralTypes
     )
@@ -203,7 +201,7 @@ export function AdvancedMineralOutput(props) {
     pageState.marketLocation,
     pageState.marketListing,
     pageState.toMinerals,
-    fullItemList,
+    isLoading,
   ]);
 
   // Calculate net cost (ore cost minus excess minerals value)
@@ -278,7 +276,7 @@ export function AdvancedMineralOutput(props) {
     return reprocessingCosts;
   };
 
-  if (isLoading || !fullItemList) {
+  if (isLoading) {
     return <CircularProgress />;
   }
 
@@ -536,7 +534,7 @@ export function AdvancedMineralOutput(props) {
           <Grid container spacing={isMobile ? 0.5 : 2}>
             {pageState.reprocessingObjects.map((item) => {
               if (item.batchSize > item.totalQuantity) return null;
-              const matchedName = fullItemList[item.id]?.name ?? "Unknown Item";
+              const matchedName = itemNameFrom(item.id, itemRecords);
               const itemPriceObject = findMarketData(item.id);
               const unitPrice =
                 itemPriceObject[pageState.marketLocation][
@@ -691,7 +689,7 @@ export function AdvancedMineralOutput(props) {
                     {Object.entries(item.reprocessedMaterials).map(
                       ([key, quantity]) => {
                         const matchedName =
-                          fullItemList[key]?.name ?? "Unknown Item";
+                          itemNameFrom(key, itemRecords);
                         const itemPriceObject = findMarketData(key);
                         const unitPrice =
                           itemPriceObject[pageState.marketLocation][
