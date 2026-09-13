@@ -54,10 +54,10 @@ describe("the materials table", () => {
     expect(headers).toEqual([
       "Material",
       "Qty",
-      "Buy",
+      "Source",
+      "Market",
       "Build",
       "Δ",
-      "Source",
       "Plan",
     ]);
   });
@@ -74,9 +74,9 @@ describe("the materials table", () => {
     const cells = within(rowFor("Tritanium")).getAllByRole("cell");
 
     expect(cells[1]).toHaveTextContent("10,000,000");
-    expect(cells[2]).toHaveTextContent("5.40");
-    expect(cells[3]).toHaveTextContent("4.95");
-    expect(cells[4]).toHaveTextContent("−8.3%");
+    expect(cells[3]).toHaveTextContent("5.40");
+    expect(cells[4]).toHaveTextContent("4.95");
+    expect(cells[5]).toHaveTextContent("−8.3%");
   });
 
   it("shows a dash where a material cannot be built", () => {
@@ -92,8 +92,8 @@ describe("the materials table", () => {
     ]);
     const cells = within(rowFor("Nocxium")).getAllByRole("cell");
 
-    expect(cells[3]).toHaveTextContent("—");
     expect(cells[4]).toHaveTextContent("—");
+    expect(cells[5]).toHaveTextContent("—");
     expect(cells[6]).toHaveTextContent("base");
   });
 
@@ -362,7 +362,7 @@ describe("the source column", () => {
     renderTable([row({ plan: MATERIAL_PLAN.PAID })]);
 
     const cells = within(rowFor("Tritanium")).getAllByRole("cell");
-    expect(cells[5]).toHaveTextContent("Price Entry");
+    expect(cells[2]).toHaveTextContent("Price Entry");
     expect(cells[6]).toHaveTextContent("Paid");
   });
 });
@@ -559,5 +559,126 @@ describe("the row's own buy-or-build control", () => {
     await userEvent.click(screen.getByRole("button", { name: "Buy instead" }));
 
     expect(onToggleRow).not.toHaveBeenCalled();
+  });
+
+  // A chevron that follows the name sits at a different x on every row, so it
+  // cannot be found by eye or pressed twice in the same place. It is held at the
+  // cell's edge by a flexible spacer; jsdom lays nothing out, so the spacer is
+  // what can be checked here rather than the position it produces.
+  describe("where the expand control sits", () => {
+    it("holds the chevron at the cell's edge rather than after the name", () => {
+      renderTable([row()]);
+
+      const cell = within(rowFor("Tritanium")).getAllByRole("cell")[0];
+      const toggle = within(cell).getByRole("button", { name: /building/ });
+      const spacer = toggle.previousElementSibling;
+
+      expect(spacer).not.toBeNull();
+      expect(getComputedStyle(spacer).flexGrow).toBe("1");
+    });
+  });
+
+  // A tag appearing on one row and not the next would shift the control sideways,
+  // so the control is last and the tags sit before it.
+  describe("the order of the plan column", () => {
+    it("keeps the control after the tags", () => {
+      renderTable(
+        [
+          row({
+            coverage: {
+              isShort: true,
+              shortfall: 5,
+              produced: 5,
+              required: 10,
+            },
+          }),
+        ],
+        { renderPlan: () => <button type="button">Build it</button> },
+      );
+
+      const cell = within(rowFor("Tritanium")).getAllByRole("cell")[6];
+      const tag = within(cell).getByText("5 short");
+      const control = within(cell).getByRole("button", { name: "Build it" });
+
+      expect(
+        tag.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+  });
+
+  // A row being priced and a row that cannot be built both showed a dash, so a
+  // reader could not tell "working it out" from "nothing builds this".
+  describe("a row whose build price is still being worked out", () => {
+    it("shows the Build cell as pending rather than as absent", () => {
+      renderTable([row({ buildPrice: null, delta: null })], {
+        isCosting: true,
+      });
+
+      const build = within(rowFor("Tritanium")).getAllByRole("cell")[4];
+
+      expect(build.querySelector(".MuiSkeleton-root")).not.toBeNull();
+    });
+
+    it("leaves a material nothing can build showing a dash", () => {
+      renderTable(
+        [
+          row({
+            buildPrice: null,
+            delta: null,
+            isBuildable: false,
+            plan: MATERIAL_PLAN.BASE,
+          }),
+        ],
+        { isCosting: true },
+      );
+
+      const build = within(rowFor("Tritanium")).getAllByRole("cell")[4];
+
+      expect(build.querySelector(".MuiSkeleton-root")).toBeNull();
+      expect(build).toHaveTextContent("—");
+    });
+
+    it("shows the price once it arrives", () => {
+      renderTable([row()], { isCosting: false });
+
+      const build = within(rowFor("Tritanium")).getAllByRole("cell")[4];
+
+      expect(build.querySelector(".MuiSkeleton-root")).toBeNull();
+      expect(build).toHaveTextContent("4.95");
+    });
+  });
+});
+
+// A dash in the Market column is indistinguishable from every other absence,
+// and a material nothing is selling is not a material that is free — the build
+// total counts it for nothing either way, so the row has to say so.
+describe("a material the market holds no orders for", () => {
+  it("says so where its price would be", () => {
+    renderTable([row({ buyPrice: null, delta: null })]);
+
+    const market = within(rowFor("Tritanium")).getAllByRole("cell")[3];
+
+    expect(market).toHaveTextContent("No orders");
+  });
+
+  it("leaves a priced row showing its price", () => {
+    renderTable([row()]);
+
+    const market = within(rowFor("Tritanium")).getAllByRole("cell")[3];
+
+    expect(market).not.toHaveTextContent("No orders");
+    expect(market).toHaveTextContent("5.40");
+  });
+
+  // A row priced from a real purchase has no market figure by design, and
+  // saying the market holds nothing would be answering a question nobody asked.
+  it("says nothing of the sort for a row priced from what was paid", () => {
+    renderTable([
+      row({ buyPrice: null, delta: null, plan: MATERIAL_PLAN.PAID }),
+    ]);
+
+    const market = within(rowFor("Tritanium")).getAllByRole("cell")[3];
+
+    expect(market).not.toHaveTextContent("No orders");
   });
 });

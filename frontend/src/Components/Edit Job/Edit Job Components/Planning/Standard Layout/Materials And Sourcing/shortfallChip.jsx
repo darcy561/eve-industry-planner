@@ -1,5 +1,4 @@
-import { Tooltip } from "@mui/material";
-
+import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
 import StatusChip, {
   STATUS_TONE,
 } from "../../../../../../Styled Components/Chip/statusChip";
@@ -25,11 +24,9 @@ export default function ShortfallChip({ coverage, childJobs = [] }) {
   const short = formatNumberForLocale(coverage.shortfall, { max: 0 });
 
   return (
-    <Tooltip title={explain(coverage, childJobs)} arrow>
-      <span>
-        <StatusChip label={`${short} short`} tone={STATUS_TONE.WARN} />
-      </span>
-    </Tooltip>
+    <ExplainerTooltip title={explain(coverage, childJobs)}>
+      <StatusChip label={`${short} short`} tone={STATUS_TONE.WARN} />
+    </ExplainerTooltip>
   );
 }
 

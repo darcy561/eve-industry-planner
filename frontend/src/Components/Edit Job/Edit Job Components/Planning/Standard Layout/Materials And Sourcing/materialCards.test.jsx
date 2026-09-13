@@ -44,7 +44,7 @@ describe("the material cards", () => {
   it("carries every figure the table does", () => {
     renderCards();
 
-    for (const label of ["Qty", "Buy", "Δ"]) {
+    for (const label of ["Qty", "Market", "Δ"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     // "Build" is both a figure label and the plan chip on this row.

@@ -1,4 +1,4 @@
-import { Box, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, Skeleton, Stack, Tooltip, Typography } from "@mui/material";
 
 import {
   Figure,
@@ -8,6 +8,9 @@ import {
   MATERIAL_PLAN,
   hasSavingAvailable,
 } from "../../../../../../Functions/MarketData/materialSourcingRow";
+import StatusChip, {
+  STATUS_TONE,
+} from "../../../../../../Styled Components/Chip/statusChip";
 import { eveImageSize } from "../../../../../../Functions/Shared/eveOwner";
 import { formatCompactNumber } from "../../../../../../Functions/Helper/numberParser";
 import {
@@ -47,6 +50,7 @@ export default function MaterialCards({
   openTypeIDs = [],
   renderDrawer,
   renderPlan,
+  isCosting = false,
 }) {
   return (
     <Stack spacing={1}>
@@ -57,6 +61,7 @@ export default function MaterialCards({
           <Box key={row.typeID}>
             <MaterialCard
               row={row}
+              isCosting={isCosting}
               formatIsk={formatIsk}
               formatQuantity={formatQuantity}
               isOpen={isOpen}
@@ -81,6 +86,7 @@ function MaterialCard({
   isOpen,
   onToggleRow,
   renderPlan,
+  isCosting = false,
 }) {
   const expandable = row.isBuildable;
 
@@ -153,17 +159,35 @@ function MaterialCard({
           value={row.quantity}
           full={formatQuantity(row.quantity)}
         />
-        <CardFigure
-          label="Buy"
-          value={row.buyPrice}
-          full={row.buyPrice === null ? null : formatIsk(row.buyPrice)}
-          tone={cheaperTone(row.delta !== null && row.delta > 0)}
-        />
+        {row.buyPrice === null && row.plan !== MATERIAL_PLAN.PAID ? (
+          // No market cost is not the same as costing nothing, and the build
+          // total counts it for nothing either way.
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block" }}
+            >
+              Market
+            </Typography>
+            <StatusChip label="No orders" tone={STATUS_TONE.WARN} />
+          </Box>
+        ) : (
+          <CardFigure
+            label="Market"
+            value={row.buyPrice}
+            full={row.buyPrice === null ? null : formatIsk(row.buyPrice)}
+            tone={cheaperTone(row.delta !== null && row.delta > 0)}
+          />
+        )}
         <CardFigure
           label="Build"
           value={row.buildPrice}
           full={row.buildPrice === null ? null : formatIsk(row.buildPrice)}
           tone={cheaperTone(row.delta !== null && row.delta < 0)}
+          // Being priced is not the same as cannot be built, and both showed a
+          // dash.
+          isPending={row.buildPrice === null && isCosting && row.isBuildable}
         />
         <Box sx={{ minWidth: 0 }}>
           <Typography
@@ -194,7 +218,7 @@ function MaterialCard({
  * @param {number|null} props.value - The raw figure, shortened for display
  * @param {string|null} props.full - The same figure in full, shown on tap
  */
-function CardFigure({ label, value, full, tone }) {
+function CardFigure({ label, value, full, tone, isPending = false }) {
   return (
     <Box sx={{ minWidth: 0 }}>
       <Typography
@@ -204,15 +228,19 @@ function CardFigure({ label, value, full, tone }) {
       >
         {label}
       </Typography>
-      <Tooltip title={full ?? ""} enterTouchDelay={0}>
-        <span>
-          <Figure tone={tone}>
-            {value === null || value === undefined
-              ? null
-              : formatCompactNumber(value)}
-          </Figure>
-        </span>
-      </Tooltip>
+      {isPending ? (
+        <Skeleton variant="text" width={64} />
+      ) : (
+        <Tooltip title={full ?? ""} enterTouchDelay={0}>
+          <span>
+            <Figure tone={tone}>
+              {value === null || value === undefined
+                ? null
+                : formatCompactNumber(value)}
+            </Figure>
+          </span>
+        </Tooltip>
+      )}
     </Box>
   );
 }

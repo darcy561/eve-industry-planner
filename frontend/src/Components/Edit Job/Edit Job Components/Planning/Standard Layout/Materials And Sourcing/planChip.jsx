@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { Button, Chip, Stack } from "@mui/material";
+import { Button, Stack } from "@mui/material";
 import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
+import StatusChip, {
+  STATUS_TONE,
+} from "../../../../../../Styled Components/Chip/statusChip";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { findMaterialJobInGroup } from "../../../../../../Functions/Groups/findMaterialJobInGroup";
@@ -134,7 +137,9 @@ export default function PlanChip({
   if (onBuild) {
     return (
       <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-        <Chip label="Build" size="small" color="primary" />
+        <ExplainerTooltip title="Set to be built by a job of its own">
+          <StatusChip label="Build" tone={STATUS_TONE.GOOD} />
+        </ExplainerTooltip>
         {/* Severing a link is the sibling lock's business wherever it happens,
             group or not — the same gate the Purchasing stage's unlink uses. */}
         <LockGatedTooltip
@@ -161,7 +166,9 @@ export default function PlanChip({
 
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-      <Chip label="Buy" size="small" variant="outlined" />
+      <ExplainerTooltip title="Set to be bought from the market">
+        <StatusChip label="Buy" tone={STATUS_TONE.NEUTRAL} />
+      </ExplainerTooltip>
       <LockGatedTooltip
         readOnly={promoteLock.readOnly}
         reason={promoteLock.reason}
