@@ -7,6 +7,8 @@ import {
 import { resolveSellerCharacter } from "../../Functions/MarketOrders/sellerCharacter";
 import { useEffectiveMarketHubFromLayout } from "./useEffectiveMarketHubFromLayout.js";
 import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
+import { getEffectiveMaterialPriceHub } from "../../Functions/MarketData/materialPricing.js";
+import { useMaterialGroupPricing } from "./useMaterialGroupPricing.js";
 import { EXIT_ROUTE } from "../../Functions/MarketData/returns";
 import useUsersStore from "../../Zustand/usersStore.js";
 
@@ -24,9 +26,29 @@ import useUsersStore from "../../Zustand/usersStore.js";
  *   saleLocation: object|null, marketSelect: string, exitRoute: string}}
  */
 export function useJobSellingContext(activeJob) {
-  const { marketDisplay: marketSelect } = useEffectiveMarketHubFromLayout(
-    activeJob?.layout,
-    PRICING_SIDE.SELLING,
+  const {
+    marketDisplay: sideMarket,
+    orderDisplay: sideBasis,
+    marketRung,
+    orderRung,
+  } = useEffectiveMarketHubFromLayout(activeJob?.layout, PRICING_SIDE.SELLING);
+
+  const groupPricing = useMaterialGroupPricing({
+    side: PRICING_SIDE.SELLING,
+    marketRung,
+    listingRung: orderRung,
+  });
+
+  // The output's own market group, if it has one and the account priced it. The
+  // rung sits beneath a job's own choice and above the account's, which is the
+  // order `getEffectiveMaterialPriceHub` already holds — a job has no per-item
+  // override for its own output, so the layout it is passed is empty.
+  const { marketSelect } = getEffectiveMaterialPriceHub(
+    null,
+    activeJob?.itemID,
+    sideMarket,
+    sideBasis,
+    groupPricing,
   );
 
   const plan = activeJob?.build?.sale?.plan ?? {};

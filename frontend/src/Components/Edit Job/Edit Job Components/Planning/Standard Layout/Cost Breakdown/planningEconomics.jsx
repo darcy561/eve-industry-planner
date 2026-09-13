@@ -30,7 +30,7 @@ export default function PlanningEconomics(props) {
   // The model is a way of reading this job's cost, not a change to it — it is
   // never written to the document, so a reader coming back sees the real one.
   const [pricingModel, setPricingModel] = useState(PRICING_MODEL.CHEAPEST);
-  const { rows, marketSelect } = useMaterialsSourcing({
+  const { rows } = useMaterialsSourcing({
     state,
     actions: props.actions,
   });
@@ -52,7 +52,6 @@ export default function PlanningEconomics(props) {
     state,
     actions: props.actions,
     rows,
-    marketSelect,
     buyEverything: pricingModel === PRICING_MODEL.BUY_ALL,
   });
 

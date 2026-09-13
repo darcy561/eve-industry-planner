@@ -25,19 +25,22 @@ import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSell
  * @param {object} params.state - Edit Job state
  * @param {object} params.actions - Edit Job actions
  * @param {Array<object>} params.rows - Rows from useMaterialsSourcing
- * @param {string} params.marketSelect
  * @param {boolean} [params.buyEverything] - Price every material at market
  */
 export function useJobEconomics({
   state,
   actions,
   rows,
-  marketSelect,
   buyEverything = false,
 }) {
   const { activeJob } = state;
 
-  const { seller, saleLocation, exitRoute } = useJobSellingContext(activeJob);
+  const {
+    seller,
+    saleLocation,
+    exitRoute,
+    marketSelect: sellingMarket,
+  } = useJobSellingContext(activeJob);
 
   const { data: rates, isLoading: ratesLoading } = useSellingRates(
     saleLocation,
@@ -55,8 +58,11 @@ export function useJobEconomics({
     const sellable = commitment.surplus;
 
     // Both routes out are priced from the location's own hub, which for a
-    // citadel is not the citadel: it holds no market of its own.
-    const priceHub = saleLocation?.priceHubID ?? marketSelect;
+    // citadel is not the citadel: it holds no market of its own. Behind that the
+    // selling side's market, not the panel's — the panel resolves where materials
+    // are bought, and quoting a sale against it is the crossing this whole
+    // arrangement exists to stop.
+    const priceHub = saleLocation?.priceHubID ?? sellingMarket;
     const sellPrice = getMarketPriceForType(activeJob.itemID, priceHub, "sell");
     const buyPrice = getMarketPriceForType(activeJob.itemID, priceHub, "buy");
 
@@ -139,12 +145,12 @@ export function useJobEconomics({
     buyEverything,
     commitment,
     exitRoute,
-    marketSelect,
     rates,
     ratesLoading,
     rows,
     saleLocation,
     seller,
+    sellingMarket,
     totalsData,
   ]);
 }

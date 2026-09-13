@@ -89,7 +89,6 @@ const render = (overrides = {}) =>
       state,
       actions: { getCurrentParentJobs: () => [] },
       rows,
-      marketSelect: "jita",
       ...overrides,
     }),
   );
@@ -169,7 +168,7 @@ describe("useJobEconomics", () => {
   // A citadel holds no market of its own, so what it sells for is a hub's price
   // — the one the saved row names, not whatever the materials are priced at.
   it("prices the output at the sale location's hub", () => {
-    render({ marketSelect: "amarr" });
+    render();
 
     const hubs = getMarketPriceForType.mock.calls.map(([, hub]) => hub);
     expect(new Set(hubs)).toEqual(new Set(["jita"]));
