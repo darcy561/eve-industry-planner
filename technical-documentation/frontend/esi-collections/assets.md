@@ -97,6 +97,12 @@ than through the node collection.
 | Where a type is held, and the containers on the path to it | `assetsOfType.js` — everything on a path to a matching stack is kept, and everything inside a match; an office folder is read through rather than shown |
 | Named locations for a dropdown | `Hooks/EveEsi/useAssetLocations.js`, pairing `useAssetIndex` with [location-names.md](./location-names.md) |
 | The distinct locations a collection's assets sit at, and the ids among them nothing will ever name | `assetLocationIds.js` — `assetLocationIds` for the first; `unnameableLocationIds` for a ship in space, filtered out of what any picker hands to the names hook |
+| The three things every asset view needs at once — the collection, what each row is called, and the names their owner gave the containers | `Hooks/EveEsi/useAssetSource.js`, beneath `useAssetTree` and `useAssetsOfType` |
+
+What a row is called comes from a static file rather than from ESI ([static-data/items.md](../static-data/items.md)),
+and a view cannot draw a row without it — so `useAssetSource` reports that file's failure as the
+collection's failure rather than as a slower load. A view drawing rows with every name missing would
+be worse than one that says it could not load.
 
 `useAssetTree.js` pairs the node collection, the blueprint collection and the shared name query into
 everything one asset view renders. Blueprints are always excluded from an asset view — they have

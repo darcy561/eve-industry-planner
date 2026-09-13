@@ -5,13 +5,14 @@ Live SoT for how the SPA reads what an ore, ice, moon ore or gas yields when it 
 
 The calculation that uses those yields — skills, structure bonuses, ore selection — belongs to
 [`Functions/Reprocessing`](../../../frontend/src/Functions/Reprocessing) and is not documented here;
-this topic covers the file and the two views taken from it.
+this topic covers the file and what is read from it.
 
-## One owner, two views
+## One owner, three reads
 
 `REPROCESSING_DATA` is a map keyed by type id, each entry carrying `{id, name, materials, batchSize,
 itemType, reprocessingSkill}`. Both directions of the reprocessing page read it, and each wants a
-different view, so the views are built once here rather than walked again on every calculation:
+different view of it. The two derived ones are built once and dropped with the file they came from,
+the way [staticFile.md](./staticFile.md) describes; the third is the file itself:
 
 | Read | Wanted by |
 |---|---|
@@ -46,8 +47,7 @@ the file.
 ## Dropping what was primed
 
 `resetReprocessing` forgets the file and both views built from it, so the next prime reads it again.
-The app refreshes its static data on a timer and a new SDE build is a different file behind the same
-key, so
+A new SDE build is a different file behind the same key ([delivery.md](./delivery.md)), so
 [`useFetchStaticDataFiles`](../../../frontend/src/Hooks/App/useFetchStaticDataFiles.js) calls it when
 the build has moved. The views are dropped with the file rather than separately: a `selectable` array
 left behind would outlive the entries it was built from.

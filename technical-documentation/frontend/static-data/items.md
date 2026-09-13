@@ -1,4 +1,4 @@
-# The item list (`frontend/src/Hooks/Static/useItems.js`)
+# The item list
 
 Live SoT for how the SPA reads what an EVE type *is* — its name, its category, the market group it
 sits in, and whether it can be built. Two static files answer that, and both are read through one
@@ -9,8 +9,8 @@ pair of owners:
 - Synchronous layer:
   [`frontend/src/Functions/Static/items.js`](../../../frontend/src/Functions/Static/items.js)
 
-Where the files come from, how they are versioned and cached at the edge belongs to
-[`Functions/Helper/getCachedData.js`](../../../frontend/src/Functions/Helper/getCachedData.js); this
+Where the files come from and how they are kept current belongs to [delivery.md](./delivery.md); how
+an owner holds one for reading without awaiting belongs to [staticFile.md](./staticFile.md). This
 topic covers turning a type id into what a surface shows.
 
 ## Two files, never one name
@@ -72,11 +72,11 @@ scan of every buildable item per line.
 
 ## Dropping what was primed
 
-`resetItems` forgets both files, so the next prime reads them again. The app refreshes its static
-data on a timer and a new SDE build is a different file behind the same key, so what is held
-synchronously has to be droppable without a reload —
-[`useFetchStaticDataFiles`](../../../frontend/src/Hooks/App/useFetchStaticDataFiles.js) calls it
-after each refresh.
+`resetItems` forgets both files, so the next prime reads them again. A new SDE build is a different
+file behind the same key ([delivery.md](./delivery.md)), so what is held synchronously has to be
+droppable without a reload —
+[`useFetchStaticDataFiles`](../../../frontend/src/Hooks/App/useFetchStaticDataFiles.js) drops it when
+the build has moved, through `resetMarketGroupData`, and drops nothing when it has not.
 
 Anything priming the records beside its own state has to guard on both halves. `primeMarketGroupData`
 holds the market group tree itself but reads an item's group from here, so its early return asks

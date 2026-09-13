@@ -18,9 +18,9 @@ the exception rather than the path.
 
 ## Keyed on the way in
 
-`RECIPE_LIST` arrives as a flat array of 4,104 recipes. `primeRecipes` turns it into a map keyed by
-item id once, because a job asks for several items at a time and searching the array per item was a
-walk of every recipe per item.
+`RECIPE_LIST` arrives as a flat array of every buildable item's recipe, and is kept as a map keyed by
+item id — the shape it is received in, so the keying happens once on the way in. A job asks for
+several items at a time, and searching the array per item was a walk of every recipe per item.
 
 Ids are keyed and looked up **as strings**. The file's own ids are numbers, but a caller may hold
 either — a material's type id arrives as a number, an id read back off a stored document as a string

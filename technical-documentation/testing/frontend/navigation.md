@@ -13,7 +13,7 @@ Module entrypoints → [contents.md](./contents.md).
 | Routing end to end | `npx vitest run src/routes` | Guard, loaders, screens, the full login-and-deep-link journey |
 | Coverage | `npm run coverage` | `vitest run --coverage` |
 
-One harness, [`frontend/src/tests/routerHarness.jsx`](../../../../frontend/src/tests/routerHarness.jsx),
+One harness, [`frontend/src/tests/routerHarness.jsx`](../../../frontend/src/tests/routerHarness.jsx),
 backs every routing test. It builds a router over the app's **real** route tree rather than one
 invented for the test, so a link naming a route the app does not have, or a guard called with a
 context no router would produce, fails there instead of passing silently.
