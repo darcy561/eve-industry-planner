@@ -11,7 +11,6 @@ import DefaultPageLayout from "./Styled Components/defaultPageLayout";
 import PageTransition, { usePageKey } from "./Components/pageTransition";
 import ErrorBoundary from "./Components/ErrorBoundary";
 import { useTranquilityServerStatusQuery } from "./Hooks/React Query/tranquilityServerStatus.js";
-import useFetchStaticDataFiles from "./Hooks/App/useFetchStaticDataFiles";
 import useAppConfig from "./Hooks/App/useAppConfig";
 import useMaintenanceRealtimePark from "./Hooks/App/useMaintenanceRealtimePark.js";
 import { useAccountWebSocket } from "./Realtime/useAccountWebSocket.js";
@@ -30,7 +29,6 @@ export default function App() {
   useAccountWebSocket();
   useTranquilityServerStatusQuery();
   useAccountAffiliationQuery();
-  useFetchStaticDataFiles();
 
   return (
     <>

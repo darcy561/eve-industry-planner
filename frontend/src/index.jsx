@@ -2,6 +2,7 @@ import ReactDOM from "react-dom/client";
 import { init, tanstackRouterBrowserTracingIntegration } from "@sentry/react";
 import { appRouter } from "./appRouter";
 import { subscribeGa4ToTanStackRouter } from "./analytics/googleAnalytics";
+import { startStaticDataSync } from "./Functions/Static/staticDataSync";
 import { AppWrapper } from "./AppWrapper";
 import {
   captureReactErrorOnce,
@@ -50,6 +51,10 @@ init({
 });
 
 subscribeGa4ToTanStackRouter(appRouter);
+
+// Started here rather than from a component: the files are the app's, not any
+// screen's, and nothing should re-run this when a tree remounts.
+void startStaticDataSync();
 
 const root = ReactDOM.createRoot(document.getElementById("pageWrapper"), {
   onUncaughtError: (error, errorInfo) => {

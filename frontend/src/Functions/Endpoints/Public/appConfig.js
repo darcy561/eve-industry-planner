@@ -4,6 +4,7 @@ import { subscribeToAppConfigRecheck } from "../../../Events/appConfigEvents.js"
 const DEFAULT_APP_CONFIG = {
   app_version_number: __APP_VERSION__,
   maintenance_mode: false,
+  sde_build_version: "",
   feature_flags: {},
 };
 

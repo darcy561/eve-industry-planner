@@ -8,10 +8,12 @@
 import { applyDocumentMessage } from "./handlers/documentMessage.js";
 import { applyNotificationMessage } from "./handlers/notificationMessage.js";
 import { applyMaintenanceMessage } from "./handlers/maintenanceMessage.js";
+import { applyStaticDataMessage } from "./handlers/staticDataMessage.js";
 import {
   MESSAGE_TYPE_DOCUMENT,
   MESSAGE_TYPE_MAINTENANCE,
   MESSAGE_TYPE_NOTIFICATION,
+  MESSAGE_TYPE_STATIC_DATA,
   messageFamily,
 } from "./messageKinds.js";
 
@@ -42,6 +44,13 @@ export async function applyRemoteMessage(raw) {
   if (family === MESSAGE_TYPE_MAINTENANCE) {
     if (!applyMaintenanceMessage(msg)) {
       console.warn("[realtime] maintenance message without enabled", msg);
+    }
+    return;
+  }
+
+  if (family === MESSAGE_TYPE_STATIC_DATA) {
+    if (!applyStaticDataMessage(msg)) {
+      console.warn("[realtime] static data message without a build", msg);
     }
     return;
   }
