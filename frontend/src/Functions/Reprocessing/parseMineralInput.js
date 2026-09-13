@@ -1,4 +1,5 @@
 import { primeItems, itemRecord } from "../Static/items";
+import { byName, nameKey } from "../Static/staticFile";
 import { parseNumberWithSeparators } from "../Helper/numberParser";
 
 const mineralIDS = new Set([34, 35, 36, 37, 38, 39, 40, 11399]);
@@ -33,7 +34,7 @@ async function parseInputMineralString(inputString) {
   await primeItems();
   // Only these types can match, so the name they are pasted under is resolved from them rather
   // than by searching every item in the game once per line.
-  const byName = mineralsByName();
+  const minerals = mineralsByName();
   const lines = inputString.split("\n").map((line) => line.trim());
   const matchedMinerals = {};
 
@@ -53,7 +54,7 @@ async function parseInputMineralString(inputString) {
     if (!quantity || isNaN(parseNumberWithSeparators(quantity))) return;
     quantity = parseNumberWithSeparators(quantity);
 
-    const mineral = byName.get(name.trim().toLowerCase());
+    const mineral = minerals.get(nameKey(name));
 
     if (mineral) {
       if (!matchedMinerals[mineral.type_id]) {
@@ -78,24 +79,20 @@ async function parseInputMineralString(inputString) {
  * @returns {Map<string, {name: string, type_id: number}>}
  */
 function mineralsByName() {
-  const byName = new Map();
-  for (const ids of [
-    mineralIDS,
-    moonMineralIDS,
-    iceProductIDs,
-    unrefinedMineralIDS,
-  ]) {
-    for (const typeID of ids) {
-      const record = itemRecord(typeID);
-      if (record?.name) {
-        byName.set(record.name.toLowerCase(), {
-          name: record.name,
-          type_id: typeID,
-        });
-      }
-    }
-  }
-  return byName;
+  const types = [
+    ...mineralIDS,
+    ...moonMineralIDS,
+    ...iceProductIDs,
+    ...unrefinedMineralIDS,
+  ];
+  return byName(
+    types
+      .map((typeID) => {
+        const record = itemRecord(typeID);
+        return record?.name ? { name: record.name, type_id: typeID } : null;
+      })
+      .filter(Boolean),
+  );
 }
 
 export default parseInputMineralString;

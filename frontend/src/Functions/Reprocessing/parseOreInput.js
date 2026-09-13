@@ -1,22 +1,16 @@
 import ReprocessingItem from "../../Classes/reprocessingItem";
 import { parseNumberWithSeparators } from "../Helper/numberParser";
+import { reprocessableByName } from "../Static/reprocessing";
 
 /**
- * Parses a text input string containing ore names and quantities into reprocessing objects.
- * Supports both tab-separated and space-separated formats for ore name and quantity pairs.
- * Creates ReprocessingItem objects for each unique ore type found in the input.
+ * The ores a player pasted, as reprocessing items.
  *
- * @param {string} inputString - Input string containing ore names and quantities
- * @param {Object} ores - Object containing ore data with names as keys
- * @returns {Array<ReprocessingItem>} Array of ReprocessingItem objects
+ * Lines naming the same ore are added together rather than becoming two items.
  *
- * @example
- * const input = "Tritanium Ore\t1000\nPyerite Ore 500";
- * const ores = { "Tritanium Ore": { id: 34, name: "Tritanium Ore" } };
- * const items = parseReprocessingInput(input, ores);
- * console.log(items[0].totalQuantity); // 1000
+ * @param {string} inputString - name and quantity pairs, one per line, tab- or space-separated
+ * @returns {Array<ReprocessingItem>}
  */
-function parseReprocessingInput(inputString, ores) {
+function parseReprocessingInput(inputString) {
   if (typeof inputString !== "string" || !inputString.trim()) {
     return [];
   }
@@ -40,9 +34,7 @@ function parseReprocessingInput(inputString, ores) {
     if (!quantity || isNaN(parseNumberWithSeparators(quantity))) return;
     quantity = Math.floor(parseNumberWithSeparators(quantity));
 
-    const ore = Object.values(ores).find(
-      (o) => o.name.toLowerCase() === name.trim().toLowerCase(),
-    );
+    const ore = reprocessableByName(name);
     if (ore) {
       if (!matchedItems[ore.id]) {
         matchedItems[ore.id] = new ReprocessingItem(ore);

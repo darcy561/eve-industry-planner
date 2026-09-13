@@ -1,67 +1,30 @@
-import { getRecipeListFromCache } from "../Helper/getCachedData";
+import { primeRecipes, recipeFor } from "../Static/recipes";
 import fetchBlueprints from "../Endpoints/Public/blueprints";
 
 /**
- * Retrieves item recipes with cache-first strategy.
- * First attempts to get recipes from cached data, then falls back to the public blueprints API.
+ * The recipes for the items asked about.
  *
- * @param {string|string[]} itemRequests - The ID of the item to retrieve the recipe for or an array of item IDs
- * @returns {Promise<Object|Array>} The recipe for the item or an array of recipes for the items
+ * The cached file answers first, and the API only when it cannot: a recipe the file does not carry
+ * is one published since the build the app holds, which is the case the fallback exists for. A
+ * partial answer is not used — the API is asked for the whole set rather than the found recipes
+ * being mixed with fetched ones, so every recipe in one build request comes from one source.
  *
- * @example
- * const recipe = await getItemRecipes("34");
- * console.log(recipe); // Tritanium recipe
- *
- * @example
- * const recipes = await getItemRecipes(["34", "35"]);
- * console.log(recipes); // Array of recipes
+ * @param {string|number|Array<string|number>} itemRequests
+ * @returns {Promise<Array<Object>>}
  */
 export default async function getItemRecipes(itemRequests) {
-  // First, try to get data from cached recipe list
+  const itemIDs = Array.isArray(itemRequests) ? itemRequests : [itemRequests];
+
   try {
-    const recipeList = await getRecipeListFromCache();
+    await primeRecipes();
+    const found = itemIDs.map((itemID) => recipeFor(itemID)).filter(Boolean);
 
-    if (recipeList && Array.isArray(recipeList)) {
-      const itemIDs = Array.isArray(itemRequests)
-        ? itemRequests
-        : [itemRequests];
-
-      const foundItems = itemIDs
-        .map((itemID) =>
-          recipeList.find(
-            (item) => item.itemID === itemID || item.itemID === String(itemID),
-          ),
-        )
-        .filter(Boolean);
-
-      // If we found all requested items in cache, return them
-      if (foundItems.length === itemIDs.length) {
-        return foundItems;
-      }
-    } else if (recipeList && typeof recipeList === "object") {
-      console.log("recipe list is an object");
-      // Handle case where recipe list is an object (key-value mapping)
-      const itemIDs = Array.isArray(itemRequests)
-        ? itemRequests
-        : [itemRequests];
-
-      const foundItems = itemIDs
-        .map((itemID) => {
-          const key = String(itemID);
-          return recipeList[key] || recipeList[itemID];
-        })
-        .filter(Boolean);
-
-      // If we found all requested items in cache, return them
-      if (foundItems.length === itemIDs.length) {
-        return foundItems;
-      }
+    if (found.length === itemIDs.length) {
+      return found;
     }
-  } catch (cacheError) {
-    console.warn("failed to get items from cache");
-    console.warn(cacheError);
+  } catch (error) {
+    console.warn("Recipes: reading the cached list failed", error);
   }
 
-  // Fallback to public blueprints API call
   return await fetchBlueprints(itemRequests);
 }

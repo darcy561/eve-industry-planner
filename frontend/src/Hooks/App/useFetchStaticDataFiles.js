@@ -5,6 +5,8 @@ import {
   primeMarketGroupData,
   resetMarketGroupData,
 } from "../../Functions/MarketData/marketGroupData";
+import { resetReprocessing } from "../../Functions/Static/reprocessing";
+import { resetRecipes } from "../../Functions/Static/recipes";
 
 const STATIC_DATA_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
@@ -24,6 +26,8 @@ export default function useFetchStaticDataFiles() {
           // resetMarketGroupData drops the item half too, so the tree and the records it reads
           // groups from are never left from different builds.
           resetMarketGroupData();
+          resetReprocessing();
+          resetRecipes();
           queryClient.invalidateQueries({ queryKey: ["static"] });
         }
 

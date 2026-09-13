@@ -1,14 +1,13 @@
 import { getFullItemList, getSearchIndex } from "../Helper/getCachedData";
+import staticFile, { byName, nameKey } from "./staticFile";
 
 /**
  * The item files, held where a caller that cannot await can read them.
  *
- * Both are static files the app already downloads and caches. What this adds is a synchronous read,
- * which some callers cannot do without: a shopping list is priced from a class method and a fit is
- * parsed from clipboard text, neither of which is a place a hook can be called.
+ * A shopping list is priced from a class method and a fit is parsed from clipboard text, neither of
+ * which is a place a hook can be called, so these are read without awaiting once primed.
  *
- * Reading is therefore separate from loading. {@link primeItems} is awaited once by whatever can
- * wait; every read after that is a plain lookup that reports absence rather than blocking.
+ * The two files prime separately: pricing a row should not wait on the file the fit importer reads.
  */
 
 /** Shown wherever the list carries no record for a type, with the type id beside it. */
@@ -28,56 +27,14 @@ export function itemNameFrom(typeID, records) {
   return records?.[typeID]?.name ?? `${UNKNOWN_ITEM_LABEL} - ${typeID}`;
 }
 
-let records = null;
-let searchIndex = null;
-let searchByName = null;
-let primingRecords = null;
-let primingSearchIndex = null;
+const records = staticFile(getFullItemList, (list) => list || {});
+const search = staticFile(getSearchIndex, (index) => index || []);
 
-/**
- * Loads the item records once, for a caller that can wait.
- *
- * Concurrent callers share the one load, and a failure is not remembered as an answer, so a later
- * caller retries rather than inheriting an outage.
- *
- * The search index is a separate file and a separate load: most callers want one or the other, and
- * pricing a row should not wait on the file the fit importer reads.
- *
- * @returns {Promise<void>}
- */
-export function primeItems() {
-  if (records) return Promise.resolve();
+export const primeItems = records.prime;
+export const readItemRecords = records.read;
+export const primeItemSearchIndex = search.prime;
 
-  primingRecords ??= getFullItemList()
-    .then((list) => {
-      records = list || {};
-    })
-    .finally(() => {
-      primingRecords = null;
-    });
-
-  return primingRecords;
-}
-
-/**
- * Loads the search index once, for a caller that can wait.
- *
- * @returns {Promise<void>}
- */
-export function primeItemSearchIndex() {
-  if (searchIndex) return Promise.resolve();
-
-  primingSearchIndex ??= getSearchIndex()
-    .then((index) => {
-      searchIndex = index || [];
-      searchByName = null;
-    })
-    .finally(() => {
-      primingSearchIndex = null;
-    });
-
-  return primingSearchIndex;
-}
+const searchByName = search.view((entries) => byName(entries));
 
 /**
  * One item's record, or undefined where the file has not loaded or does not carry the type.
@@ -86,36 +43,18 @@ export function primeItemSearchIndex() {
  * @returns {Object|undefined}
  */
 export function itemRecord(typeID) {
-  return records?.[typeID];
-}
-
-/**
- * Every item record keyed by type id, or null until the file has loaded.
- *
- * Null rather than an empty map on purpose: a lookup against an empty one answers nothing for every
- * type, which reads as the list disagreeing with what was asked of it rather than as data that has
- * not arrived.
- *
- * @returns {Object<string, Object>|null}
- */
-export function readItemRecords() {
-  return records;
+  return records.read()?.[typeID];
 }
 
 /**
  * The search index entry an item's name belongs to.
  *
- * Matched through a name-keyed map built on first use rather than by scanning the array: the
- * callers here match a whole pasted fit, so a scan per line is a scan of every buildable item per
- * line.
- *
  * @param {string} [name]
  * @returns {Object|undefined}
  */
 export function searchEntryByName(name) {
-  if (!name || !searchIndex?.length) return undefined;
-  searchByName ??= byLowercaseName(searchIndex);
-  return searchByName.get(name.trim().toLowerCase());
+  const key = nameKey(name);
+  return key ? searchByName()?.get(key) : undefined;
 }
 
 /**
@@ -127,28 +66,13 @@ export function searchEntryByName(name) {
  * @returns {Object|undefined}
  */
 export function searchEntryByNameIn(entries, name) {
-  if (!name || !entries?.length) return undefined;
-  return byLowercaseName(entries).get(name.trim().toLowerCase());
+  const key = nameKey(name);
+  if (!key || !entries?.length) return undefined;
+  return byName(entries).get(key);
 }
 
-/**
- * Forgets both files, so the next {@link primeItems} loads them again.
- *
- * The app refreshes its static data on a timer, and a new SDE build is a different file behind the
- * same key — so what is held here has to be droppable without a reload.
- */
+/** Forgets both files, so the next prime reads them again. */
 export function resetItems() {
-  records = null;
-  searchIndex = null;
-  searchByName = null;
-  primingRecords = null;
-  primingSearchIndex = null;
-}
-
-function byLowercaseName(entries) {
-  const map = new Map();
-  for (const entry of entries) {
-    if (entry?.name) map.set(entry.name.toLowerCase(), entry);
-  }
-  return map;
+  records.reset();
+  search.reset();
 }

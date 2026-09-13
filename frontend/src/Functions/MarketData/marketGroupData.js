@@ -1,4 +1,5 @@
 import { getMarketGroups } from "../Helper/getCachedData";
+import staticFile from "../Static/staticFile";
 import {
   primeItems,
   itemRecord,
@@ -20,32 +21,20 @@ import {
  * say, so that half is read from its owner rather than held again here.
  */
 
-let marketGroups = null;
-let priming = null;
+const tree = staticFile(getMarketGroups, (groups) => groups || {});
 
 /**
  * Loads the tree once, and the item list it reads groups from, for a caller that
  * can wait.
  *
- * Concurrent callers share the one load, and a failure is not remembered as an
- * answer, so a later caller retries rather than inheriting an outage.
- *
  * @returns {Promise<void>}
  */
-export function primeMarketGroupData() {
+export async function primeMarketGroupData() {
   // Both halves, not just the tree: the item half is held by its own module and can be dropped on
   // its own, which would leave this short-circuiting on a tree whose items had gone.
-  if (marketGroups && readItemRecords()) return Promise.resolve();
+  if (tree.read() && readItemRecords()) return;
 
-  priming ??= Promise.all([getMarketGroups(), primeItems()])
-    .then(([groups]) => {
-      marketGroups = groups || {};
-    })
-    .finally(() => {
-      priming = null;
-    });
-
-  return priming;
+  await Promise.all([tree.prime(), primeItems()]);
 }
 
 /**
@@ -58,7 +47,7 @@ export function primeMarketGroupData() {
  * @returns {Object<string, {name: string, parent_id?: number}>|null}
  */
 export function readMarketGroups() {
-  return marketGroups;
+  return tree.read();
 }
 
 /**
@@ -109,8 +98,7 @@ export function groupPricingFor({ groupDefaults, marketRung, listingRung }) {
 
 /** Drops what has been loaded. Tests only. */
 export function resetMarketGroupData() {
-  marketGroups = null;
-  priming = null;
+  tree.reset();
   // The item half of what this primes is the item list's to hold, so dropping the tree without
   // dropping that would leave a caller reading groups for items from a load this one did not make.
   resetItems();

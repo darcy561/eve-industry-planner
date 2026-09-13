@@ -1,24 +1,24 @@
 import parseInputMineralString from "./parseMineralInput";
-import { reprocessingItemTypes } from "../../Context/defaultValues";
 import ReprocessingItem from "../../Classes/reprocessingItem";
 import getMarketData from "../MarketData/findMarketData";
 import oreSelector from "./oreSelector";
-import { getReprocessingData } from "../Helper/getCachedData";
+import { primeReprocessing, selectableItems } from "../Static/reprocessing";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * Processes mineral input string and finds optimal ore selection to produce those minerals.
- * Analyses all available ores, calculates costs and yields, then selects the most
- * efficient combination based on market prices and user preferences.
+ * Which ore to buy to produce the minerals a player asked for, priced against the market.
  *
- * @param {string} inputString - Input string containing mineral quantities and types
- * @param {Object} skillsMap - Map of reprocessing skills and their levels
- * @param {Object} chosenStructure - Structure object with reprocessing bonuses
- * @param {string} marketLocation - Market location for price lookup
- * @param {string} marketListing - Market listing type (buy/sell orders)
- * @param {Array<number>} oreIDsToBeIgnored - Array of ore IDs to exclude from selection
- * @param {Object} reprocessingCalculationSettings - Settings for ore selection algorithm
- * @returns {Promise<Object>} Promise that resolves to ore selection results
+ * Every item selection may choose from is costed, so the choice is made against what each would
+ * actually cost rather than against yield alone.
+ *
+ * @param {string} inputString - mineral names and quantities, one per line
+ * @param {Object} skillsMap - the player's reprocessing skills by level
+ * @param {Object} chosenStructure - the structure the reprocessing is done in
+ * @param {string} marketLocation - which market's prices to cost against
+ * @param {string} marketListing - buy or sell orders
+ * @param {Array<number>} oreIDsToBeIgnored - ores the player has excluded
+ * @param {Object} reprocessingCalculationSettings - how selection weighs its options
+ * @returns {Promise<{oreSelection: Object, newMarketPrices: Object, requestedMinerals: Object}>}
  */
 async function reprocessFromMinerals(
   inputString,
@@ -32,18 +32,8 @@ async function reprocessFromMinerals(
   const priceRequest = new Set();
 
   const reprocessingObjects = {};
-  const ore = await getReprocessingData();
-  const items = Object.values(ore);
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    if (
-      item.itemType !== reprocessingItemTypes.ore &&
-      item.itemType !== reprocessingItemTypes.unrefinedOre &&
-      item.itemType !== reprocessingItemTypes.moonOre &&
-      item.itemType !== reprocessingItemTypes.ice
-    )
-      continue;
-
+  await primeReprocessing();
+  for (const item of selectableItems()) {
     const obj = new ReprocessingItem(item);
     obj.addToTotalQuantity(obj.batchSize);
 
