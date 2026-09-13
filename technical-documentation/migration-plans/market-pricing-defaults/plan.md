@@ -332,16 +332,51 @@ is published alongside it so the setting can offer "Minerals" rather than an id.
 **Done when** a player can say "price minerals from Jita buy orders" once and have every mineral on
 every job follow it, without touching a row.
 
-## Still open
+## Stage B6 — A surface for setting a group default
 
-**Nothing offers a market group default.** The rung resolves one wherever an account holds one, and the
-stored shape carries it per side, but no surface writes to `groups` — so the table is only ever filled
-by hand. That is the last piece of Stage B's original item 5, and it is not blocked by anything: a
-picker for a group and what it prices against, per side, on the same frame as the account defaults.
+The rung has resolved a group default since B3, and nothing writes one: the table is filled by hand
+or not at all. This is the last piece of Stage B.
 
-The shape question it has to answer is how a player finds a group in a tree of 2,039. The published
-tree carries every node's name and parent, so a search over names is the cheap answer and a browsable
-tree the thorough one; neither is decided.
+### The published tree gained child links first
+
+Browsing the tree needs downward links, and the file carried only `parent_id`. Deriving one from the
+other means inverting two thousand entries in every session — the same answer, rebuilt in the browser
+from data the worker already holds in order. So `MarketGroup` gained `children` and `has_types`, and
+the SPA reads both rather than computing them.
+
+`has_types` is taken from the **published item list**, not from the SDE's own flag: the question a
+reader has is whether a group holds anything *the app knows about*, which is not the same as what the
+source says about types the item list may never carry. `GenerateMarketGroupsOutput` therefore takes the
+item list, and runs after it in `conversionStage`.
+
+Children are sorted by id so the same source produces the same bytes, which is what lets a published
+file be compared between builds.
+
+**Nothing caps a walk downward.** The upward walk has `MAX_GROUP_DEPTH` because a cycle would hang a
+page rendering once per material; a browse is driven by a reader and stops when they stop, so it has no
+equivalent. A self-referencing or two-node cycle in the source would let a reader open the same group
+forever. Neither exists in CCP's data and neither is guarded — recorded here rather than defended
+against, so that a browse behaving oddly has somewhere to start.
+
+**Additive, no schema step.** Both fields are `omitempty` on a file the SPA reads as a map, so an
+older SPA ignores them and a newer one tolerates their absence until the next SDE build publishes
+them. The `CACHED_DATA_FILES` parity test is unaffected — this adds fields to an existing file rather
+than a file.
+
+### The work
+
+1. ~~Publish child links and an items flag on each market group.~~ Done (B6.1).
+2. Read them in the SPA: `childrenOf` and `ancestorPath` beside the tree they walk.
+3. A store action that merges one `groups[id]` entry. `updatePricingDefault` flat-spreads a side and
+   cannot reach one level deeper — passing `groups` replaces the whole table, which is the trap
+   § A group default belongs to a side already records.
+4. The panel: `AppShellPanel`, a section per side, each listing that side's groups with the market and
+   the basis or route it prices against.
+5. The picker: a `ContentDialogue` browsing the tree, any level selectable, with a name search beside
+   it for a reader who already knows what they want.
+
+**Done when** a player can say "price minerals from Jita buy orders" from Settings and see every
+mineral on every job follow it.
 
 ## Stage N — One vocabulary for a market and a basis
 
@@ -431,6 +466,7 @@ until then a key naming something the other side never had throws only when firs
 | Stage B3 — the rung in the ladder | Done |
 | Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
 | Stage B5 — the selling side names a route, and the controls for it | Done |
+| Stage B6 — a surface for setting a group default | Tree data published; the SPA work is next |
 | Stage N — one vocabulary for a market and a basis | Not started; deliberately deferred |
 
 ## Start here

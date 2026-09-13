@@ -287,6 +287,26 @@ legacy single default.
 `EXIT_ROUTE` is not redefined. It already existed in `returns.js`, which is what charges a fee against
 one route and not the other, so that is where it stays and the resolver imports it.
 
+### B6.1 — The published tree walks both ways
+
+`MarketGroup` carries `children` and `has_types` alongside `name` and `parent_id`.
+
+The SPA browses the tree so a player can choose a group to price against, and the file gave it only
+upward links — so finding what sits inside a group meant inverting two thousand entries on first open,
+every session, to recover an answer that never changes. The worker holds the map in order already, so
+it says so once.
+
+**`has_types` comes from the published item list, not the SDE's flag.** The question a reader has is
+whether a group holds anything the app knows about; the source answers a different question, about
+types the item list may never carry. `GenerateMarketGroupsOutput` takes the item list and runs after it
+in `conversionStage`.
+
+Children are sorted by id: the same source has to produce the same bytes, or a published file cannot be
+compared between builds.
+
+Both fields are `omitempty` on a file read as a map, so this is additive in both directions — an older
+SPA ignores them, and a newer one tolerates their absence until the next SDE build publishes them.
+
 ## Consolidation
 
 Work the stages left behind, folded back together once the surface had settled.
