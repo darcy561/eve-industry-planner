@@ -284,10 +284,7 @@ function StructureOptionsSelection_CustomStructures({
           )}
         </Grid>
         <Grid size={12}>
-          <Stack
-            direction="row"
-            sx={{ pt: 0.5, justifyContent: "flex-end" }}
-          >
+          <Stack direction="row" sx={{ pt: 0.5, justifyContent: "flex-end" }}>
             <Button variant="contained" onClick={handleAdd}>
               Add structure
             </Button>

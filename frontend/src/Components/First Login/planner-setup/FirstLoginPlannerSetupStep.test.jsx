@@ -32,7 +32,10 @@ vi.mock("../../../Zustand/usersStore", async () => {
 vi.mock("../../../Hooks/EveEsi/useAssetLocations", () => ({
   default: () => ({ locations: [], isLoading: false }),
 }));
-vi.mock("./FirstLoginCustomStructures", () => ({ default: () => null }));
+vi.mock(
+  "../../Settings/Standard Layout/Custom Structures/CustomStructuresForm",
+  () => ({ default: () => null }),
+);
 vi.mock("./FirstLoginJobCardPreview", () => ({
   FirstLoginJobCardPreview: () => null,
 }));

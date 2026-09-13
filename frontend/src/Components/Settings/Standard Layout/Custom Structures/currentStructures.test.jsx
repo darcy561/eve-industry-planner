@@ -9,18 +9,21 @@ const setDefaultCustomStructure = vi.fn();
 const deleteCustomStructure = vi.fn();
 
 let structures = [];
+/** Which slot of the store the structures under test are held in. */
+let lane = "manufacturing";
 
 vi.mock("../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
     usersStoreState({
       applicationSettings: {
-        customStructures: { manufacturing: structures },
+        customStructures: { [lane]: structures },
         actions: { setDefaultCustomStructure, deleteCustomStructure },
       },
-      worldData: { actions: { findSystemIndex: () => ({ manufacturing: 0.05 }) } },
+      worldData: {
+        actions: { findSystemIndex: () => ({ manufacturing: 0.05 }) },
+      },
     }),
   );
 });
@@ -30,9 +33,12 @@ vi.mock("../../../../Hooks/useSolarSystemNames", () => ({
   useSolarSystemNames: () => ({ 30000142: "Jita" }),
 }));
 
-vi.mock("../../../../Functions/Debounce/userDocumentsPersistSchedule.js", () => ({
-  scheduleDebouncedApplicationSettingsSave: vi.fn(),
-}));
+vi.mock(
+  "../../../../Functions/Debounce/userDocumentsPersistSchedule.js",
+  () => ({
+    scheduleDebouncedApplicationSettingsSave: vi.fn(),
+  }),
+);
 
 function aStructure(overrides = {}) {
   return {
@@ -60,6 +66,7 @@ function renderFrame(props = {}) {
 
 describe("the structures a reader has saved", () => {
   beforeEach(() => {
+    lane = "manufacturing";
     structures = [aStructure()];
     setDefaultCustomStructure.mockClear();
     deleteCustomStructure.mockClear();
@@ -94,7 +101,9 @@ describe("the structures a reader has saved", () => {
     structures = [aStructure({ default: true })];
     renderFrame();
 
-    expect(screen.getByRole("button", { name: /make default/i })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /make default/i }),
+    ).toBeDisabled();
   });
 
   it("removes a structure", async () => {
@@ -121,6 +130,52 @@ describe("the structures a reader has saved", () => {
     structures = [];
     renderFrame();
 
-    expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /remove/i }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// A structure is described by different facts depending on what it does, and
+// each job type used to have its own card body on each of two layouts. One body
+// serves them all now, so what each type is owed is asserted rather than read.
+describe("what a card says about each kind of structure", () => {
+  beforeEach(() => {
+    setDefaultCustomStructure.mockClear();
+    deleteCustomStructure.mockClear();
+  });
+
+  it("gives a manufacturing structure its rig, tax, security and system", () => {
+    lane = "manufacturing";
+    structures = [aStructure()];
+    renderFrame({ selectedJobType: jobTypes.manufacturing });
+
+    expect(screen.getByText("Rig")).toBeInTheDocument();
+    expect(screen.getByText("Tax")).toBeInTheDocument();
+    expect(screen.getByText("Security")).toBeInTheDocument();
+    expect(screen.getByText("System")).toBeInTheDocument();
+    expect(screen.getByText("Jita")).toBeInTheDocument();
+  });
+
+  it("gives an invention structure both of its rig slots", () => {
+    lane = "invention";
+    structures = [aStructure({ rigSlot1: 0, rigSlot2: 0 })];
+    renderFrame({ selectedJobType: jobTypes.invention });
+
+    expect(screen.getByText("Jita Sotiyo")).toBeInTheDocument();
+    expect(screen.getByText("Rigs")).toBeInTheDocument();
+    expect(screen.getByText("Security")).toBeInTheDocument();
+    // Invention happens wherever the blueprint is, so no system is named.
+    expect(screen.queryByText("System")).not.toBeInTheDocument();
+  });
+
+  it("gives a reprocessing structure its implant", () => {
+    lane = "reprocessing";
+    structures = [aStructure({ rigSlot1: 0, rigSlot2: 0, implant: 0 })];
+    renderFrame({ selectedJobType: jobTypes.reprocessing });
+
+    expect(screen.getByText("Jita Sotiyo")).toBeInTheDocument();
+    expect(screen.getByText("Implant")).toBeInTheDocument();
+    expect(screen.getByText("Rigs")).toBeInTheDocument();
   });
 });

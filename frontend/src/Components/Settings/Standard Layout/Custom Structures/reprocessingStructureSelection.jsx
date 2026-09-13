@@ -18,10 +18,7 @@ import {
 } from "../../../../Context/appShell";
 import { FormField } from "../../../../Styled Components/Textfield/FormField";
 
-function ReprocessingStructureSelection({
-  selectedJobType,
-  setIsLoading,
-}) {
+function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
   const theme = useTheme();
   const appShellFieldProps = useMemo(
     () => getAppShellMarketSelectProps(theme),
@@ -240,10 +237,7 @@ function ReprocessingStructureSelection({
         </Grid>
 
         <Grid size={12}>
-          <Stack
-            direction="row"
-            sx={{ pt: 0.5, justifyContent: "flex-end" }}
-          >
+          <Stack direction="row" sx={{ pt: 0.5, justifyContent: "flex-end" }}>
             <Button variant="contained" onClick={handleAdd}>
               Add structure
             </Button>

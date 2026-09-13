@@ -11,9 +11,8 @@ const addCustomStructure = vi.fn();
 const addCustomStructureFunction = vi.fn();
 
 vi.mock("../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock } = await import(
-    "../../../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock } =
+    await import("../../../../tests/usersStoreHarness.js");
   return usersStoreMock({});
 });
 
@@ -21,9 +20,12 @@ vi.mock("../../../../Functions/Structure/addCustomStructure", () => ({
   addCustomStructure: (...args) => addCustomStructureFunction(...args),
 }));
 
-vi.mock("../../../../Functions/Debounce/userDocumentsPersistSchedule.js", () => ({
-  scheduleDebouncedApplicationSettingsSave: vi.fn(),
-}));
+vi.mock(
+  "../../../../Functions/Debounce/userDocumentsPersistSchedule.js",
+  () => ({
+    scheduleDebouncedApplicationSettingsSave: vi.fn(),
+  }),
+);
 
 /**
  * The structure form is the same form whatever screen it is on. These cover what
@@ -52,7 +54,9 @@ describe("the structure form", () => {
     renderForm();
 
     expect(screen.getByPlaceholderText("Display Name")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add structure/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /add structure/i }),
+    ).toBeInTheDocument();
   });
 
   it("labels each field with what it is for", () => {

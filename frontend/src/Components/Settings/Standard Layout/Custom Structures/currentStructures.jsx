@@ -116,171 +116,168 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
               })}
             >
               <Stack
-                  direction="row"
-                  spacing={0.25}
-                  sx={{
-                    position: "absolute",
-                    top: 4,
-                    right: 4,
-                    zIndex: 1,
-                  }}
+                direction="row"
+                spacing={0.25}
+                sx={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  zIndex: 1,
+                }}
+              >
+                <Tooltip
+                  title={
+                    structure.default
+                      ? "Default for new jobs"
+                      : "Make default for new jobs"
+                  }
+                  arrow
                 >
-                  <Tooltip
-                    title={
-                      structure.default
-                        ? "Default for new jobs"
-                        : "Make default for new jobs"
-                    }
-                    arrow
-                  >
-                    <span>
-                      <IconButton
-                        size="small"
-                        disabled={structure.default}
-                        onClick={async () => {
-                          setDefaultCustomStructure(structure.id);
-                          scheduleDebouncedApplicationSettingsSave();
-                        }}
-                        sx={{
-                          p: 0.35,
-                          color: "primary.main",
-                          "&.Mui-disabled": { opacity: 0.85 },
-                        }}
-                        aria-label="Make default structure"
-                      >
-                        {structure.default ? (
-                          <StarIcon sx={{ fontSize: 18 }} />
-                        ) : (
-                          <StarBorderIcon sx={{ fontSize: 18 }} />
-                        )}
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title="Remove structure" arrow>
+                  <span>
                     <IconButton
                       size="small"
-                      color="error"
+                      disabled={structure.default}
                       onClick={async () => {
-                        deleteCustomStructure(structure.id);
+                        setDefaultCustomStructure(structure.id);
                         scheduleDebouncedApplicationSettingsSave();
                       }}
-                      sx={{ p: 0.35 }}
-                      aria-label="Remove structure"
+                      sx={{
+                        p: 0.35,
+                        color: "primary.main",
+                        "&.Mui-disabled": { opacity: 0.85 },
+                      }}
+                      aria-label="Make default structure"
                     >
-                      <DeleteOutlinedIcon sx={{ fontSize: 18 }} />
+                      {structure.default ? (
+                        <StarIcon sx={{ fontSize: 18 }} />
+                      ) : (
+                        <StarBorderIcon sx={{ fontSize: 18 }} />
+                      )}
                     </IconButton>
-                  </Tooltip>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Remove structure" arrow>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={async () => {
+                      deleteCustomStructure(structure.id);
+                      scheduleDebouncedApplicationSettingsSave();
+                    }}
+                    sx={{ p: 0.35 }}
+                    aria-label="Remove structure"
+                  >
+                    <DeleteOutlinedIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Tooltip>
               </Stack>
               <CardContent sx={{ flexGrow: 1, pt: 1.25, pr: 1 }}>
                 <Box sx={{ pr: { xs: 5, sm: 5.5 } }}>
-                    <Typography
-                      variant="subtitle1"
-                      color="primary"
-                      sx={{ fontWeight: 700, lineHeight: 1.3 }}
-                    >
-                      {structure.name}
-                    </Typography>
-                    <Grid container spacing={1} columns={12} sx={{ mt: 1 }}>
-                      {selectedJobType === jobTypes.reprocessing ? (
-                        <>
-                          <StructureFact label="Structure type">
-                            {structureTypeMap[selectedJobType][
-                              structure.structureType
-                            ]?.label || "—"}
-                          </StructureFact>
-                          <StructureFact label="Rigs">
-                            {[
-                              rigTypeMap[selectedJobType][structure.rigSlot1]
-                                ?.label,
-                              rigTypeMap[selectedJobType][structure.rigSlot2]
-                                ?.label,
-                            ]
-                              .filter((label) => label && label !== "None")
-                              .join(" · ") || "—"}
-                          </StructureFact>
-                          <StructureFact label="Tax">
-                            {`${structure.tax || 0}%`}
-                          </StructureFact>
-                          <StructureFact label="Security">
-                            {systemTypeMap[selectedJobType][
-                              structure.systemType
-                            ]?.label || "—"}
-                          </StructureFact>
-                          <StructureFact label="Implant">
-                            {Implants[selectedJobType]?.[structure.implant]
-                              ?.label || "—"}
-                          </StructureFact>
-                        </>
-                      ) : selectedJobType === jobTypes.invention ? (
-                        <>
-                          <StructureFact label="Structure type">
-                            {structureTypeMap[selectedJobType][
-                              structure.structureType
-                            ]?.label || "—"}
-                          </StructureFact>
-                          <StructureFact label="Rigs">
-                            {[
-                              rigTypeMap[selectedJobType][structure.rigSlot1]
-                                ?.label,
-                              rigTypeMap[selectedJobType][structure.rigSlot2]
-                                ?.label,
-                            ]
-                              .filter((label) => label && label !== "None")
-                              .join(" · ") || "—"}
-                          </StructureFact>
-                          <StructureFact label="Tax">
-                            {`${structure.tax || 0}%`}
-                          </StructureFact>
-                          <StructureFact label="Security">
-                            {systemTypeMap[selectedJobType][
-                              structure.systemType
-                            ]?.label || "—"}
-                          </StructureFact>
-                        </>
-                      ) : (
-                        <>
-                          <StructureFact label="Structure type">
-                            {structureTypeMap[selectedJobType][
-                              structure.structureType
-                            ]?.label || "—"}
-                          </StructureFact>
-                          <StructureFact label="Rig">
-                            {rigTypeMap[selectedJobType][structure.rigType]
-                              ?.label || "—"}
-                          </StructureFact>
-                          <StructureFact label="Tax">
-                            {`${structure.tax || 0}%`}
-                          </StructureFact>
-                          <StructureFact label="Security">
-                            {systemTypeMap[selectedJobType][
-                              structure.systemType
-                            ]?.label || "—"}
-                          </StructureFact>
-                          <StructureFact label="System">
-                            <Tooltip
-                              title={`System index ${getSystemIndex(structure.systemID)}%`}
-                              arrow
-                              placement="top"
-                            >
-                              <Box component="span">
-                                {systemNames[structure.systemID] ??
-                                  UNKNOWN_SYSTEM_LABEL}
-                                <Typography
-                                  component="span"
-                                  variant="caption"
-                                  color="text.secondary"
-                                  sx={{ display: "block" }}
-                                >
-                                  Index{" "}
-                                  {getSystemIndex(structure.systemID) * 100}%
-                                </Typography>
-                              </Box>
-                            </Tooltip>
-                          </StructureFact>
-                        </>
-                      )}
-                    </Grid>
-                  </Box>
+                  <Typography
+                    variant="subtitle1"
+                    color="primary"
+                    sx={{ fontWeight: 700, lineHeight: 1.3 }}
+                  >
+                    {structure.name}
+                  </Typography>
+                  <Grid container spacing={1} columns={12} sx={{ mt: 1 }}>
+                    {selectedJobType === jobTypes.reprocessing ? (
+                      <>
+                        <StructureFact label="Structure type">
+                          {structureTypeMap[selectedJobType][
+                            structure.structureType
+                          ]?.label || "—"}
+                        </StructureFact>
+                        <StructureFact label="Rigs">
+                          {[
+                            rigTypeMap[selectedJobType][structure.rigSlot1]
+                              ?.label,
+                            rigTypeMap[selectedJobType][structure.rigSlot2]
+                              ?.label,
+                          ]
+                            .filter((label) => label && label !== "None")
+                            .join(" · ") || "—"}
+                        </StructureFact>
+                        <StructureFact label="Tax">
+                          {`${structure.tax || 0}%`}
+                        </StructureFact>
+                        <StructureFact label="Security">
+                          {systemTypeMap[selectedJobType][structure.systemType]
+                            ?.label || "—"}
+                        </StructureFact>
+                        <StructureFact label="Implant">
+                          {Implants[selectedJobType]?.[structure.implant]
+                            ?.label || "—"}
+                        </StructureFact>
+                      </>
+                    ) : selectedJobType === jobTypes.invention ? (
+                      <>
+                        <StructureFact label="Structure type">
+                          {structureTypeMap[selectedJobType][
+                            structure.structureType
+                          ]?.label || "—"}
+                        </StructureFact>
+                        <StructureFact label="Rigs">
+                          {[
+                            rigTypeMap[selectedJobType][structure.rigSlot1]
+                              ?.label,
+                            rigTypeMap[selectedJobType][structure.rigSlot2]
+                              ?.label,
+                          ]
+                            .filter((label) => label && label !== "None")
+                            .join(" · ") || "—"}
+                        </StructureFact>
+                        <StructureFact label="Tax">
+                          {`${structure.tax || 0}%`}
+                        </StructureFact>
+                        <StructureFact label="Security">
+                          {systemTypeMap[selectedJobType][structure.systemType]
+                            ?.label || "—"}
+                        </StructureFact>
+                      </>
+                    ) : (
+                      <>
+                        <StructureFact label="Structure type">
+                          {structureTypeMap[selectedJobType][
+                            structure.structureType
+                          ]?.label || "—"}
+                        </StructureFact>
+                        <StructureFact label="Rig">
+                          {rigTypeMap[selectedJobType][structure.rigType]
+                            ?.label || "—"}
+                        </StructureFact>
+                        <StructureFact label="Tax">
+                          {`${structure.tax || 0}%`}
+                        </StructureFact>
+                        <StructureFact label="Security">
+                          {systemTypeMap[selectedJobType][structure.systemType]
+                            ?.label || "—"}
+                        </StructureFact>
+                        <StructureFact label="System">
+                          <Tooltip
+                            title={`System index ${getSystemIndex(structure.systemID)}%`}
+                            arrow
+                            placement="top"
+                          >
+                            <Box component="span">
+                              {systemNames[structure.systemID] ??
+                                UNKNOWN_SYSTEM_LABEL}
+                              <Typography
+                                component="span"
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: "block" }}
+                              >
+                                Index {getSystemIndex(structure.systemID) * 100}
+                                %
+                              </Typography>
+                            </Box>
+                          </Tooltip>
+                        </StructureFact>
+                      </>
+                    )}
+                  </Grid>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
