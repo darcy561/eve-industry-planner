@@ -54,6 +54,39 @@ speculatively — each has a real caller.
 **The layer grows from conversions, not ahead of them.** A shape earns an atom when a second screen
 needs it; before that it stays where it is.
 
+**Wanted, not yet built:** a row's item actions — see § An item's market actions want a row atom.
+Seven callers already share a component for this; what they share is the wrong shape rather than the
+wrong place.
+
+## An item's market actions want a row atom, not a hover popover
+
+`Styled Components/Popover/iconButtons.jsx` wraps an item's name on seven surfaces — the material
+rows, the watchlist and its expanded rows, the Returns output header, the Purchasing material card,
+and both reprocessing outputs — and reveals three actions on hover: market data, price history, and
+assets.
+
+**Three things are wrong with it as a shape**, and they are the reason it belongs in the component
+layer rather than being patched again:
+
+- **It is a Modal.** MUI's `Popover` is built on `Modal`, which lays an invisible `position: fixed`
+  backdrop over the whole viewport. That backdrop swallowed every pointer event, so the anchor never
+  saw the pointer leave and nothing closed the popover but a click. Fixed by letting events through
+  the root, which is a workaround for using a modal to do a non-modal job.
+- **It is unreachable on a phone.** `display: { xs: "none" }` hides it outright, so those three
+  actions have no route on mobile at all.
+- **It is unreachable by keyboard.** Hover is the only way in.
+
+**What it should become: the icons on the row.** Dimmed until the row is hovered or focused on a
+pointer device, always visible on touch. No portal, no backdrop, no hover timers, reachable by
+keyboard, and it works on mobile — which the present one does not.
+
+That is a **row atom**, which is what makes it this project's: every one of the seven callers is a
+row or a card showing an item, and each currently reaches for the popover because there is nothing
+else to reach for.
+
+**The popover stays until the atom replaces it.** Seven callers across five areas is not a change to
+make piecemeal, and the stuck-backdrop defect is already fixed, so nothing is waiting on this.
+
 ## Screens
 
 | Screen | State |
@@ -107,6 +140,7 @@ during a conversion is the failure this project exists to undo.
 | Additional accounts — retire the local panel sx | SPA | **Moved to [accounts-page](../accounts-page/plan.md)** Stage B |
 | Archive statistics — audit the rest of the area | SPA | Not started |
 | Component layer — add atoms as conversions need them | SPA | Ongoing |
+| Item actions — the row atom replacing the hover popover | SPA | Not started; the popover works meanwhile |
 
 ## Start here
 

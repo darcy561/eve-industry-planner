@@ -128,7 +128,13 @@ export default function MaterialPopoverIconButtons({
             },
           },
         }}
+        // A Popover is a Modal, and a Modal lays an invisible backdrop over the
+        // whole viewport. That backdrop swallows every pointer event, so the
+        // anchor never sees the pointer leave and nothing closes the popover but
+        // a click. Letting events through the root fixes that; the paper takes
+        // them back so its buttons still work.
         sx={{
+          pointerEvents: "none",
           display: { xs: "none", sm: "block" },
         }}
       >
@@ -145,7 +151,6 @@ export default function MaterialPopoverIconButtons({
         <MarketHistoryIconButton
           itemTypeID={typeID}
           regionID={regionID}
-
           iconButtonStyle={{ size: "small" }}
           iconStyle={{
             "&:hover": {
