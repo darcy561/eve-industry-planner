@@ -354,7 +354,7 @@ The section, read-only against the planners listing, with the management control
 |-------|---------|--------|
 | Phase 1 — project folder and docs | docs | **Done** |
 | A — the shared shells move | SPA | **Landed.** `SectionPanel` and `FormField` are in `Styled Components`, all eight call sites converted, the originals deleted and the Settings-into-first-login import retired. Two defects fixed on the way — see [overlay.md](./overlay.md) § Stage A |
-| B — the `appearance` fork is deleted | SPA | **Partly landed.** The four custom-structure components render one layout, the two frames are one `CustomStructuresForm`, and Settings → Custom Structures has the app-shell look. `AdditionalAccounts` and `AccountEntry` still carry the prop — see [overlay.md](./overlay.md) § Stage B |
+| B — the `appearance` fork is deleted | SPA | **Landed.** Nothing in the SPA carries an `appearance` prop. The four custom-structure components render one layout and share one `CustomStructuresForm`; `AccountEntry` and `AdditionalAccounts` render one each, the latter titling itself as a section. Settings → Custom Structures and the Accounts page both have the app-shell look — see [overlay.md](./overlay.md) § Stage B |
 | C — the page | SPA | Not started |
 | D — the action slot and ESI status | SPA | Not started |
 | E — shared planners | SPA | Not started |

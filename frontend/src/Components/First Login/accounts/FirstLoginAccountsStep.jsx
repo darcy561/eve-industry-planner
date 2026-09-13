@@ -16,10 +16,12 @@ export function FirstLoginAccountsStep() {
 
   return (
     <Stack spacing={2}>
-      <SectionPanel title="Characters & linked accounts">
+      <SectionPanel title="Your main character">
         <FirstLoginMainCharacterCard />
-        <AdditionalAccounts appearance="firstLogin" />
       </SectionPanel>
+
+      {/* Titles itself, so it is a section rather than something inside one. */}
+      <AdditionalAccounts />
 
       <SectionPanel
         title="Citadel names"

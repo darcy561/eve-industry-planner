@@ -1,14 +1,4 @@
-import {
-  Button,
-  FormControlLabel,
-  FormGroup,
-  Grid,
-  Paper,
-  Skeleton,
-  Stack,
-  Switch,
-  Typography,
-} from "@mui/material";
+import { Button, Grid, Skeleton, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useEffect, useRef, useState } from "react";
 import { AccountEntry } from "./AccountEntry";
@@ -34,8 +24,7 @@ import {
   watchForClosedImportPopup,
 } from "../Auth/additionalAccountImport.js";
 import { getEveSsoAuthorizeUrl } from "../Auth/Functions/eveSSORedirect";
-import ContentPanel from "../../Styled Components/Paper/ContentPanel";
-import { STANDARD_TEXT_FORMAT } from "../../Context/defaultValues";
+import { SectionPanel } from "../../Styled Components/Paper/SectionPanel";
 import {
   canonicalCharacterHashKey,
   isCharacterInListByHash,
@@ -48,24 +37,7 @@ import { AppEvent } from "../../analytics/appEventNames";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 import SelectableCard from "../../Styled Components/Paper/SelectableCard";
 
-const firstLoginPanelSx = {
-  p: { xs: 2, sm: 2.5 },
-  borderRadius: 2,
-  border: "1px solid",
-  borderColor: (theme) => alpha(theme.palette.primary.main, 0.14),
-  bgcolor: (theme) =>
-    alpha(
-      theme.palette.background.paper,
-      theme.palette.mode === "dark" ? 0.5 : 0.88,
-    ),
-  width: "100%",
-};
-
-/**
- * @param {{ appearance?: "default" | "firstLogin" }} [props]
- */
-export function AdditionalAccounts({ appearance = "default" } = {}) {
-  const isFirstLogin = appearance === "firstLogin";
+export function AdditionalAccounts() {
   const characters = useUsersStore((state) => state.account.characters);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cloudModeChanging, setCloudModeChanging] = useState(false);
@@ -292,25 +264,14 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
     }
   };
 
-  const inner = (
-    <Grid container>
-      {appearance !== "firstLogin" ? (
-        <Grid sx={{ marginTop: 1, marginBottom: 2 }} size={12}>
-          <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            Additional accounts can be linked allowing you to import the ESI
-            data in alongside your main accounts data. Additional accounts can
-            be added and removed at any time.{<br />}
-            {<br />}
-            By default the additional accounts that you choose to link are only
-            stored in the browser where they were added. If you wanted to make
-            these accounts available on all other devices then you will need to
-            enable the option to store the accounts in the cloud. Accounts that
-            are stored locally will be removed if the browsers cache is cleared.
-          </Typography>
-        </Grid>
-      ) : null}
-      <Grid container size={12}>
-        {isFirstLogin ? (
+  return (
+    <SectionPanel
+      title="Linked characters"
+      subtitle="Linking a character imports its ESI data alongside your main account's. Characters can be added and removed at any time."
+      componentName="Linked characters"
+    >
+      <Grid container>
+        <Grid container size={12}>
           <Grid size={12}>
             <Stack spacing={1.5}>
               <Stack
@@ -377,152 +338,66 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
               </Grid>
             </Stack>
           </Grid>
-        ) : (
-          <>
-            <Grid
-              size={{
-                xs: 0,
-                sm: 3,
-                md: 7,
-              }}
-            />
-            <Grid
-              size={{
-                xs: 6,
-                sm: 5,
-                md: 3,
-              }}
-            >
-              <FormGroup>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={cloudAccounts}
-                      disabled={cloudModeChanging || skeletonVisible}
-                      onChange={(e) => {
-                        void setCloudMode(e.target.checked);
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography
-                      sx={{
-                        typography: STANDARD_TEXT_FORMAT,
-                      }}
-                    >
-                      Store Accounts In Cloud
-                    </Typography>
-                  }
-                  labelPlacement="start"
-                />
-              </FormGroup>
-            </Grid>
+        </Grid>
+        <Grid container sx={{ marginTop: 2 }} size={12}>
+          {skeletonVisible ? (
             <Grid
               container
-              size={{
-                xs: 6,
-                sm: 4,
-                md: 2,
-              }}
+              align="center"
+              size={12}
               sx={{
-                justifyContent: "center",
                 alignItems: "center",
+                marginTop: 1,
+                marginLeft: 1,
               }}
             >
-              <Button
-                variant="contained"
-                size="small"
-                disabled={skeletonVisible}
-                onClick={handleAdd}
+              <Grid
+                align="left"
+                size={{
+                  xs: 2,
+                  sm: 1,
+                }}
               >
-                Add Account
-              </Button>
+                <Skeleton variant="circular" width={40} height={40} />
+              </Grid>
+              <Grid
+                size={{
+                  xs: 8,
+                  sm: 9,
+                }}
+              >
+                <Skeleton variant="text" />
+              </Grid>
+              <Grid size={1}>
+                <Skeleton
+                  variant="circular"
+                  width={30}
+                  height={30}
+                  align="center"
+                />
+              </Grid>
+              <Grid size={1}>
+                <Skeleton
+                  variant="circular"
+                  width={30}
+                  height={30}
+                  align="center"
+                />
+              </Grid>
             </Grid>
-          </>
-        )}
+          ) : (
+            characters.map((character, index) => {
+              if (character.isMainCharacter) return null;
+              return (
+                <AccountEntry
+                  key={`${canonicalCharacterHashKey(character.CharacterHash)}-${index}`}
+                  character={character}
+                />
+              );
+            })
+          )}
+        </Grid>
       </Grid>
-      <Grid container sx={{ marginTop: 2 }} size={12}>
-        {skeletonVisible ? (
-          <Grid
-            container
-            align="center"
-            size={12}
-            sx={{
-              alignItems: "center",
-              marginTop: 1,
-              marginLeft: 1,
-            }}
-          >
-            <Grid
-              align="left"
-              size={{
-                xs: 2,
-                sm: 1,
-              }}
-            >
-              <Skeleton variant="circular" width={40} height={40} />
-            </Grid>
-            <Grid
-              size={{
-                xs: 8,
-                sm: 9,
-              }}
-            >
-              <Skeleton variant="text" />
-            </Grid>
-            <Grid size={1}>
-              <Skeleton
-                variant="circular"
-                width={30}
-                height={30}
-                align="center"
-              />
-            </Grid>
-            <Grid size={1}>
-              <Skeleton
-                variant="circular"
-                width={30}
-                height={30}
-                align="center"
-              />
-            </Grid>
-          </Grid>
-        ) : (
-          characters.map((character, index) => {
-            if (character.isMainCharacter) return null;
-            return (
-              <AccountEntry
-                key={`${canonicalCharacterHashKey(character.CharacterHash)}-${index}`}
-                character={character}
-                appearance={appearance}
-              />
-            );
-          })
-        )}
-      </Grid>
-    </Grid>
-  );
-
-  if (appearance === "firstLogin") {
-    return (
-      <Paper variant="outlined" sx={firstLoginPanelSx}>
-        <Stack spacing={2}>
-          <Typography variant="subtitle2" color="primary">
-            Linked characters
-          </Typography>
-          {inner}
-        </Stack>
-      </Paper>
-    );
-  }
-
-  return (
-    <ContentPanel
-      title="Additional Accounts"
-      componentName="Additional Accounts"
-      paperSx={{ overflow: "hidden" }}
-    >
-      {inner}
-    </ContentPanel>
+    </SectionPanel>
   );
 }

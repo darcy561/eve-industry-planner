@@ -46,7 +46,7 @@ boundary, and `FormField.test.jsx` is new, the original having had none.
 
 ## Stage B — One layout per component
 
-**Custom structures: done. Accounts: not started.**
+**Done. Nothing in the SPA carries an `appearance` prop.**
 
 ### Custom structures
 
@@ -89,7 +89,40 @@ two layouts and one body serves them all now.
 
 ### Accounts
 
-Not started. `AdditionalAccounts` and `AccountEntry` still carry the prop.
+`AccountEntry` is one layout: the outlined card, with the character's portrait,
+name, corporation logo and corporation name, and a remove button. The layout that
+went was an elevated square row that named no corporation — so the Accounts page
+gains the corporation a character belongs to, which it never showed.
+
+Its remove button now carries the character's name as its accessible name. It had
+none, so a roster of five offered five buttons a screen reader read identically.
+
+`AdditionalAccounts` went from 528 lines to 400 and titles itself, as a
+`SectionPanel` called **Linked characters**. What changed for a reader on the
+Accounts page:
+
+- Storage mode is the two `SelectableCard`s, each saying what it means, rather
+  than a switch labelled "Store Accounts In Cloud". The switch stated the cloud
+  option and left the local one implied; the cards state both.
+- The introductory paragraph is the section's subtitle rather than a wall of body
+  text, and says the same thing in two sentences instead of two paragraphs.
+
+`firstLoginPanelSx` is gone with it. It was a drifted copy of the **card** surface
+standing in for a panel, so moving the section onto the shared panel is a visual
+change: a larger radius, a slightly stronger border and the panel's blur. That is
+the standardisation the plan called out, not an accident of the merge.
+
+First login renders `AdditionalAccounts` as its own section now rather than
+wrapping it in one, because a self-titling section inside a titled section drew
+two panels and two headings.
+
+**That step shows two sections where it showed one**, and the heading that covered
+both — "Characters & linked accounts" — is gone. The main character card is under
+"Your main character" and the roster under "Linked characters". A section that
+titles itself cannot be grouped under a heading with something else without
+nesting a panel, and being one section on every screen that renders it is the
+point of it titling itself. Worth revisiting at Stage C if the two read as
+unrelated once the Accounts page puts them side by side.
 
 ## Stage C — The page
 
