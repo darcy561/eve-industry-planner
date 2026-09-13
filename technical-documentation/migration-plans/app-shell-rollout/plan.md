@@ -61,38 +61,94 @@ out of first login at its Stage A and built the third at Stage C. `FormField` la
 **The layer grows from conversions, not ahead of them.** A shape earns an atom when a second screen
 needs it; before that it stays where it is.
 
-**Wanted, not yet built:** a row's item actions — see § An item's market actions want a row atom.
-Seven callers already share a component for this; what they share is the wrong shape rather than the
-wrong place.
+**Built:** a row's item actions — see § An item's market actions, and the one place they are assembled. Seven callers shared
+a component for this already; what they shared was the wrong shape rather than the wrong place.
 
-## An item's market actions want a row atom, not a hover popover
+## An item's market actions, and the one place they are assembled
 
-`Styled Components/Popover/iconButtons.jsx` wraps an item's name on seven surfaces — the material
+`Styled Components/Popover/iconButtons.jsx` wrapped an item's name on seven surfaces — the material
 rows, the watchlist and its expanded rows, the Returns output header, the Purchasing material card,
-and both reprocessing outputs — and reveals three actions on hover: market data, price history, and
+and both reprocessing outputs — and revealed three actions on hover: market data, price history, and
 assets.
 
-**Three things are wrong with it as a shape**, and they are the reason it belongs in the component
-layer rather than being patched again:
+**Three things were wrong with it**, and they are the reason it was rebuilt rather than patched
+again:
 
-- **It is a Modal.** MUI's `Popover` is built on `Modal`, which lays an invisible `position: fixed`
+- **It was a Modal.** MUI's `Popover` is built on `Modal`, which lays an invisible `position: fixed`
   backdrop over the whole viewport. That backdrop swallowed every pointer event, so the anchor never
-  saw the pointer leave and nothing closed the popover but a click. Fixed by letting events through
-  the root, which is a workaround for using a modal to do a non-modal job.
-- **It is unreachable on a phone.** `display: { xs: "none" }` hides it outright, so those three
-  actions have no route on mobile at all.
-- **It is unreachable by keyboard.** Hover is the only way in.
+  saw the pointer leave and nothing closed the popover but a click. Letting events through the root
+  fixed it, but that was a workaround for using a modal to do a non-modal job.
+- **It was unreachable on a phone.** `display: { xs: "none" }` hid it outright, so those three
+  actions had no route on mobile at all.
+- **It was unreachable by keyboard.** Hover was the only way in.
 
-**What it should become: the icons on the row.** Dimmed until the row is hovered or focused on a
-pointer device, always visible on touch. No portal, no backdrop, no hover timers, reachable by
-keyboard, and it works on mobile — which the present one does not.
+**What it became: the same card, rebuilt.** The actions still appear in a small card above the item's
+name while the pointer is on either — that shape was right, and replacing it with icons sitting
+inline on the row was a change nobody asked for.
 
-That is a **row atom**, which is what makes it this project's: every one of the seven callers is a
-row or a card showing an item, and each currently reaches for the popover because there is nothing
-else to reach for.
+`Styled Components/Item/marketActions.jsx` exports `ItemMarketActions`, taking the same
+`children` / `typeID` / `regionID` the popover took, so every caller converted by swapping the
+import. What changed is underneath:
 
-**The popover stays until the atom replaces it.** Seven callers across five areas is not a change to
-make piecemeal, and the stuck-backdrop defect is already fixed, so nothing is waiting on this.
+- It is built on **`Popper`, not `Popover`**. `Popover` is a `Modal`, and the backdrop was the whole
+  defect — it covered the viewport, swallowed the pointer leave that should have closed the card, and
+  left a click as the only way out. `Popper` only positions, so there is no backdrop to let events
+  through and nothing to dismiss.
+- **The wrapper is focusable**, which gives the actions a keyboard route. Hover was the only way into
+  the old popover.
+- **It is no longer hidden below `sm`**, so the three actions exist on a phone.
+- The icons are **larger** than the originals.
+
+A close is delayed by 150ms so the pointer can cross the gap between the name and the card, and the
+card cancels that pending close when the pointer arrives on it. Without that the buttons cannot be
+reached at all. That delay is not covered by a test: jsdom has no pointer, so it cannot reproduce one
+travelling between two elements, and a test written for it passed with the behaviour removed.
+
+`Styled Components/Popover/` is gone — it held only the popover and its test, and the cutover left it
+with no callers.
+
+**It is also where these three actions are assembled, and the only place.** Five further
+surfaces put them together by hand: the reprocessing mineral card and basic output, the Purchasing
+material card, a group's output card, and the Selling market-costs header. Two of those rendered
+them *twice* on the same row, once through the atom on the name and again as loose icons beside it.
+
+Taking the rest needed two things the atom lacked. A **`side`**, because a link beside a sale price
+must open the market the sale is priced against rather than the one materials were bought on. And a
+**standalone mode** for a caller with no name to sit beside — in a card's actions row or a panel
+header there is nothing to hover, so the actions sit inline as the content itself.
+
+Two consequences worth stating. The group output card and the market-costs header **gain an assets
+button** they did not have, because the component offers all three to a signed-in player; the alternative
+was a prop to suppress it, which is a second shape for the same thing. And the mineral card read
+`isLoggedIn` through `getState()` during render — a snapshot that never re-rendered on sign-in — so
+converting it fixed a bug that was not being looked for.
+
+## A table fits the panel it sits in
+
+Four tables ran off the side of the panel on a narrow window — the cost breakdown, materials and
+sourcing, the archive item breakdown and the archived jobs list. A table with nothing to scroll
+inside does not shrink to fit: it squeezes its label column to a word a line and overflows anyway,
+which is how a cost breakdown came to show "Broker fee to list" down the left edge while its figures
+sat outside the panel.
+
+`ScrollingTable` in `Styled Components/Table/tableParts.jsx` is the one implementation — the module
+that already owns the shared column header. Below its floor the table scrolls, so every column stays
+readable and the overflow stays inside the panel.
+
+**The floor is a theme breakpoint**, named the way the other thirty `breakpoints.up`/`down` calls in
+the SPA name them, rather than a pixel figure per table drifting on its own. A breakpoint is a
+viewport measure and a table's need is a content one, so a table scrolls somewhat before its columns
+would actually collide; that is the price of one vocabulary, and it errs toward scrolling rather than
+toward squeezing a column.
+
+Figures never wrap. A number split across two lines cannot be read, and the wrapping is itself what
+makes a table demand more width than it has; the item's name is the part that may wrap.
+
+**Nested chrome was taking 73px of a 407px viewport** before any content — 18%. `StepContent` indents
+every Edit Job stage beneath its step icon (12px margin, 20px padding, a 1px rail), and `ContentPanel`
+padded a fixed 16px each side at every width. The rail earns its place on a wide screen and does not
+on a narrow one, so it is kept from `md` up; the panel's padding halves below `sm`. Together that is
+41px returned to the content.
 
 ## Screens
 
@@ -147,7 +203,9 @@ during a conversion is the failure this project exists to undo.
 | Additional accounts — retire the local panel sx | SPA | **Moved to [accounts-page](../accounts-page/plan.md)** Stage B |
 | Archive statistics — audit the rest of the area | SPA | Not started |
 | Component layer — add atoms as conversions need them | SPA | Ongoing |
-| Item actions — the row atom replacing the hover popover | SPA | Not started; the popover works meanwhile |
+| Item actions — one component, rebuilt on Popper | SPA | **Done** — `Styled Components/Item/marketActions.jsx`, ten callers |
+| Tables fit their panel — `ScrollingTable`, floors from the theme | SPA | **Done** — four tables |
+| Nested chrome gives width back on a narrow window | SPA | **Done** — `StepContent`, `ContentPanel` |
 
 ## Start here
 

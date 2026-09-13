@@ -1323,6 +1323,47 @@ every part of the page uses — a row rebuild happens on unrelated interactions.
 each material's child jobs; the measured cost of that walk is well under a millisecond on the largest
 real job.
 
+## A price that is missing is not a price of nothing
+
+A hub holding no orders for a type reports `0`, and a real order can never be `0` — EVE will not
+accept one. The client read that zero as a price, so two panels stated conclusions derived from an
+absence.
+
+**Returns** priced a capital nobody was trading at −155 billion with a −100% return on outlay, which
+is what a missing sell price looks like rather than what the build is worth. `calculateReturns` marks
+each route `hasNoOrders` when its own side is empty, and the panel names the market instead of
+stating the figures. Per route, because the two sides are separate books: a capital commonly has bids
+and no listings, and the side that can be priced still says what it is worth. Break-even survives —
+what the build cost is still true — but the headroom beside it does not, having no current price to
+measure against.
+
+**The materials list** was worse, because the damage was in a total rather than on a row.
+`bought += (row.buyPrice ?? 0) * remaining` counted an unpriced material for nothing, so the whole
+job read as cheaper than it is with nothing saying why. The cost line now counts what it left out,
+and the row carries a `No orders` tag where its price would be. A row priced from a real purchase is
+left alone: it has no market figure by design, and saying the market holds nothing would answer a
+question nobody asked.
+
+## Buildable rows are priced without being asked
+
+Stage G gated costing behind an alert — *"N of M buildable materials have no build price yet"* — on
+the grounds that a speculative build is real work most visitors do not need doing. Tracing it says
+otherwise: recipes come from the cached static file, `buildJob`'s per-item loop is CPU over data
+already fetched, and hydration batches into two requests whatever the row count. Speculative jobs
+live in the page reducer, so nothing is written and nothing is created server-side until the player
+confirms.
+
+Two batched requests that change nothing is not worth asking permission for, and the alert could not
+be dismissed by any route except doing the work. The panel now prices every uncosted buildable row as
+it opens, from an effect so the table paints first and the Build column fills in behind a placeholder.
+
+Two guards. Nothing runs on a job held by someone else, since a reader cannot act on what it would
+say. And a ref makes it once per panel: the pricing cannot answer for every row, and without that the
+effect would see the same unpriced rows and ask again on every render that followed.
+
+The placeholder is narrow on purpose — only a row that is buildable and has no price yet. A material
+nothing can build still shows a dash, which is the distinction the old panel could not make.
+
 ## Stage status
 
 | Stage | Surface | Status |
@@ -1334,7 +1375,8 @@ real job.
 | D — pricing basis in panel headers | SPA | **Done** — picker built; Stages E and F mount it |
 | E — Materials & Sourcing | SPA | **Done** for the standard layout. Mobile still renders Raw Resources until Stage J; the market panel is reduced to the figures Stage F absorbs |
 | F — Cost Breakdown and Returns | SPA | **Done** for the standard layout. Both panels mounted, Extras absorbed into Cost Breakdown, and the totals panel retired from it. Mobile keeps the old panel until Stage J |
-| G — speculative child jobs | SPA, behavioural | **Done.** Rows cost on demand and stay on Buy, the offer that switches them works, group jobs seed their own rows, and the five buttons are one chip with an undo |
+| G — speculative child jobs | SPA, behavioural | **Done.** Rows are priced as the panel opens rather than on demand, stay on Buy, the offer that switches them works, group jobs seed their own rows, and the five buttons are one chip with an undo |
+| O — a missing price is stated, not counted as zero | SPA, behavioural | **Done.** Returns names the market holding no orders; the materials list tags the row and the cost line counts what it left out |
 | H — jobs with parent jobs | SPA, behavioural | **Done.** Committed output carries no sale figures and no charges; a surplus is priced on its own; Contribution replaces Returns where nothing is sellable |
 | I — Skills as a model | SPA | **Done.** Three groups, the selling one read from the seller's own skills, Broker Relations kept and marked at a citadel, the signed-out path states requirements, and what-if re-derives the charges without touching the panels |
 | J — mobile layouts | SPA | **Done.** Mobile mounts the same panels as the standard layout; the materials table becomes cards below `sm`, figures shorten with the full value on tap, and the basis picker opens as a bottom sheet. Raw Resources and the totals panel are deleted |
