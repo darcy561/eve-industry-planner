@@ -2,7 +2,6 @@ package lifecycle
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -41,7 +40,7 @@ func RunCleanups(timeoutPerFn time.Duration, cleanups ...func(context.Context)) 
 // WaitForShutdown blocks until the context is cancelled, then runs cleanup fns with a per-fn timeout.
 func WaitForShutdown(ctx context.Context, timeoutPerFn time.Duration, cleanups ...func(context.Context)) {
 	<-ctx.Done()
-	log.Println("shutting down...")
+	logs.InfoCtx(ctx, "shutting down")
 	RunCleanups(timeoutPerFn, cleanups...)
 }
 

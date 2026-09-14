@@ -39,8 +39,11 @@ func connectMongo(mongoURL string, connectionName string, configureOpts func(*op
 		connected = client
 		return nil
 	}, func(err error, at retry.AttemptContext) bool {
-		logs.ErrorCtx(bg, fmt.Sprintf("Failed to connect to %s. Attempt %d/%d. Error: %v",
-			connectionName, at.Attempt, at.MaxAttempts, err))
+		logs.ErrorCtx(bg, "mongo connection attempt failed",
+			"connection", connectionName,
+			"attempt", at.Attempt,
+			"max_attempts", at.MaxAttempts,
+			"error", err)
 		return true
 	},
 		retry.WithMaxAttempts(retryCount),
@@ -50,12 +53,14 @@ func connectMongo(mongoURL string, connectionName string, configureOpts func(*op
 		retry.WithMaxDelay(retryDelay),
 	)
 	if err != nil {
-		message := fmt.Sprintf("Failed to connect to %s after %d attempts. Exiting...", connectionName, retryCount)
-		logs.ErrorCtx(bg, message)
-		return nil, fmt.Errorf("%s: %w", message, err)
+		logs.ErrorCtx(bg, "mongo connection gave up",
+			"connection", connectionName,
+			"attempts", retryCount,
+			"error", err)
+		return nil, fmt.Errorf("connect to %s after %d attempts: %w", connectionName, retryCount, err)
 	}
 
-	logs.DebugCtx(bg, fmt.Sprintf("Connected to %s", connectionName))
+	logs.DebugCtx(bg, "mongo connected", "connection", connectionName)
 	go monitorMongoConnection(connected)
 	return connected, nil
 }

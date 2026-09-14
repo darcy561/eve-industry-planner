@@ -194,7 +194,7 @@ func (s *Service) setLeader(v bool) {
 	if v {
 		role = "leader"
 	}
-	logs.InfoCtx(context.Background(), s.msg(fmt.Sprintf("notifying listeners role=%s count=%d", role, len(subs))),
+	logs.InfoCtx(context.Background(), s.msg("notifying listeners"),
 		"component", s.Name(), "is_leader", v, "listeners", len(subs), "lease_key", LeaseKey, "role", role)
 	for _, ch := range subs {
 		select {
