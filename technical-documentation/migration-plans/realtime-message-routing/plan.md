@@ -23,15 +23,17 @@ its members something while each of them is working in a different planner.
 
 ## Starting position
 
-Four families exist. Each has a hand-written path from NATS to a socket, and each knows its own
-delivery rule:
+Five families exist. Each has a hand-written path from NATS to a socket, and each knows its own
+delivery rule. Two of these files are gone — see [overlay.md](./overlay.md) § Stage C for what
+replaced them:
 
 | Family | Producer | Delivery | Audience rule |
 |--------|----------|----------|---------------|
 | `document` | JetStream `doc.update.…` | [`dispatch.go`](../../../services/websocket/server/dispatch.go) | scopes, plus explicit doc subscriptions |
-| `notification` | [`nats_notifications.go`](../../../services/websocket/server/nats_notifications.go) | `broadcastRawToAccount` | the account named in the subject |
+| `notification` | `nats_notifications.go` | `broadcastRawToAccount` | the account named in the subject |
 | `maintenance` | [`maintenance.go`](../../../services/websocket/server/maintenance.go) | `closeLocalClients` | every client, then close the socket |
-| `staticData` | [`nats_static_data.go`](../../../services/websocket/server/nats_static_data.go) | `broadcastRawToEveryClient` | every client |
+| `staticData` | `nats_static_data.go` | `broadcastRawToEveryClient` | every client |
+| `document_lock` | [`nats_doc_lock.go`](../../../services/websocket/server/nats_doc_lock.go) | `broadcastRawToAccount` | the account named in the subject, less the session that caused it |
 
 `broadcastRawToEveryClient` is the tell: a general fan-out primitive living in a file named for the
 one family that needed it.
@@ -44,6 +46,15 @@ why a new notification subtype costs a Go subscriber today rather than a constan
 **What is already right, and stays.** `type` and `subtype` are one vocabulary defined on both sides
 and pinned by a shared corpus. The SPA's notification family is already table-driven. Nothing here
 proposes changing either.
+
+**The vocabulary does not cover every wire type.** `document_lock` is a fifth `type` on the wire,
+spelled in [`locks.go`](../../../services/websocket/server/natslogic/locks.go) and in
+[`documentLockEvents.js`](../../../frontend/src/Functions/DocumentLock/documentLockEvents.js) with a comment asking
+a reader to keep them in step, and absent from `ClientMessageKinds`, `messageKinds.js` and the
+corpus. Its frames are also shaped differently — flat `{type, event, …fields}` rather than
+`{type, subtype, data}` — and the SPA intercepts them in the realtime client before the family
+dispatch runs, so they never reach `applyRemoteMessage`. This project does not change it; it is
+recorded because the sentence above is otherwise read as covering the whole wire.
 
 **Two delivery checks test a scope shape that can no longer exist.** The corporation and alliance
 branches in `dispatch.go` each run a downward-hierarchy check in front of the owner check.
@@ -300,10 +311,16 @@ it was about, and the payload carries exactly what that destination needs.
 
 ## Stage status
 
+**Parked, not paused.** Everything that could be built without an answer from
+[shared-planners](../shared-planners/plan.md) § Stage I is built. Each of the three remaining pieces —
+the ceiling index, the `members` audience and the SPA destination for one — needs to know whether the
+grants ceiling stays a stored snapshot before it can be designed, so the next move on this project is
+that decision rather than any of its own stages. See § What this project is waiting on.
+
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
 | A — retire the downward-match checks | **Landed.** One owner walk for every owner kind, the matchers and `ScopesPayload` deleted at both ends, and the delivery log naming one owner ref. See [overlay.md](./overlay.md) § Stage A |
 | B — the ceiling index | **Not started.** No dependencies of its own, but its only consumer is the `members` audience, so it lands with that work rather than ahead of it — see § Stage B |
-| C — audience routing | **Steps 1 to 3 landed** — the subject space, the one subscription and the fan-out per audience, both producers moved across and both their subscribers deleted, and organisation notifications reaching members for the first time; step 4 outstanding. Built beside the old paths and migrated one publisher at a time, so steps 1 to 3 ship independently; only the `members` audience is gated on [shared-planners](../shared-planners/plan.md) § Stage I — see § What this project is waiting on |
+| C — audience routing | **Steps 1 to 3 landed** — the subject space, the one subscription and the fan-out per audience, both producers moved across and both their subscribers deleted, and nothing left filtering a notification by owner kind; step 4 outstanding. Built beside the old paths and migrated one publisher at a time, so steps 1 to 3 ship independently; only the `members` audience is gated on [shared-planners](../shared-planners/plan.md) § Stage I — see § What this project is waiting on |
 | D — the SPA destination for a members message | **Not started.** Owes the payload shape Stage C needs |

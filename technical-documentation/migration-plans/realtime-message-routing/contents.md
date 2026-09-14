@@ -30,6 +30,15 @@ How a realtime message says **who receives it**, separately from what it means.
   in [`shared/nats/client_messages.go`](../../../services/shared/nats/client_messages.go),
   [`messageKinds.js`](../../../frontend/src/Realtime/messageKinds.js) and the corpus they are both
   checked against. Audience is a separate dimension and does not enter them.
+- **The document lock's delivery** — its key, its fan-out subject `doc.lock.{accountID}` and the
+  corporation and alliance selectivity that waits on them →
+  [shared-planners/plan.md](../shared-planners/plan.md) § Stage H. How broad the lock is, and whether
+  it gates a write at all → [document-write-granularity](../document-write-granularity/contents.md).
+  What the editing layers may assume about it →
+  [job-document-drafts](../job-document-drafts/plan.md) § The lock is the isolation, and it stays.
+  `document_lock` is a fifth wire family with an audience this project could express, and moving it is
+  not this project's to propose: Stage H owns that subject. See [plan.md](./plan.md) § Starting
+  position for what it is.
 - **Websocket placement and selective fan-out** →
   [swarm-stack #20](../swarm-stack/overlays/20-selective-fanout.md) and live
   [backend/websocket/websocket.md](../../backend/websocket/websocket.md).
@@ -46,6 +55,7 @@ How a realtime message says **who receives it**, separately from what it means.
 | Understand the goal and what surfaced it | [plan.md](./plan.md) § Goal |
 | See how a message is routed today, and what is hard-coded | [plan.md](./plan.md) § Starting position |
 | Understand why `type` cannot carry the audience | [plan.md](./plan.md) § Meaning and audience are two questions |
+| Know why the audience is a subject segment rather than an envelope field | [plan.md](./plan.md) § The audience travels in the subject |
 | See the audiences and what each reads | [plan.md](./plan.md) § The audiences |
 | Understand the difference between subscribed and entitled | [plan.md](./plan.md) § Subscribed is not entitled |
 | Know why the member list is not derived at publish time | [plan.md](./plan.md) § Why the publisher does not derive the member list |
@@ -55,5 +65,6 @@ How a realtime message says **who receives it**, separately from what it means.
 | Pick up the work slice by slice | [plan.md](./plan.md) §§ Stage A – Stage D |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | Know what the SPA does with a message about a planner it is not in | [plan.md](./plan.md) § Open questions |
+| Find out who owns the document lock's delivery | § Does not own, above |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
