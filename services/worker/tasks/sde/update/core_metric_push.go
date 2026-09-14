@@ -15,4 +15,7 @@ func pushCoreSDEBuildUpdate(ctx context.Context, deps *taskrun.Dependencies, bui
 	if err := eipnats.PublishSDEBuildUpdated(deps.NATS, build, version); err != nil {
 		logs.WarnCtx(ctx, "failed to publish core SDE build update", "build_number", build, "error", err)
 	}
+	if err := eipnats.AnnounceStaticDataBuild(deps.NATS, build, version); err != nil {
+		logs.WarnCtx(ctx, "failed to announce SDE build to clients", "build_number", build, "error", err)
+	}
 }

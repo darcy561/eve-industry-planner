@@ -28,6 +28,32 @@ func SubscribeSDEBuildUpdated(n *NATS, handle func(SDECurrentBuildUpdate)) (stop
 	return subscribeTopic(n, SubjectCoreSDEBuildUpdated, handle)
 }
 
+// SubtypeStaticDataBuildUpdated labels the announcement on its subject.
+//
+// A subject segment for routing and tooling, not a client subtype: the
+// staticData family has none, and what the browser reads is the frame below.
+const SubtypeStaticDataBuildUpdated = "sdeBuildUpdated"
+
+// AnnounceStaticDataBuild tells every connected browser that a new Static Data
+// Export build is live, so a session already open learns about it without asking
+// on a timer.
+//
+// Separate from [PublishSDEBuildUpdated], which is the internal event the
+// services deriving from a build listen for. This one is addressed to people: it
+// goes to every socket whether or not anyone is signed in, and it carries the
+// build so a client already holding it stays quiet.
+func AnnounceStaticDataBuild(n *NATS, buildNumber int, version string) error {
+	frame, err := json.Marshal(StaticDataMessage{
+		Type:        ClientMessageStaticData,
+		BuildNumber: buildNumber,
+		Version:     version,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal static data announcement: %w", err)
+	}
+	return PublishToAudience(n, Everyone(), SubtypeStaticDataBuildUpdated, frame)
+}
+
 // PublishPlacementState announces one websocket replica's current load, which
 // ws-router uses to place new clients.
 func PublishPlacementState(n *NATS, state PlacementState) error {

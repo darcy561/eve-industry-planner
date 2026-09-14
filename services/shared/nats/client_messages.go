@@ -71,6 +71,6 @@ type StaticDataMessage struct {
 // sent, so a client can tell two notifications apart.
 type ArchiveStatsProcessedNotification struct {
 	OwnerKind   string `json:"ownerKind"`
-	AccountID   string `json:"accountID"`
+	OwnerID     string `json:"ownerID"`
 	ProcessedAt string `json:"processedAt"`
 }

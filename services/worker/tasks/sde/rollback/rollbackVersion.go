@@ -52,6 +52,10 @@ func RollbackSDEVersion(ctx context.Context, deps *taskrun.Dependencies) error {
 			logs.WarnCtx(ctx, "failed to publish core SDE build update after rollback",
 				"build_number", rollbackVersion.BuildNumber, "error", err)
 		}
+		if err := eipnats.AnnounceStaticDataBuild(deps.NATS, rollbackVersion.BuildNumber, rollbackVersion.Version); err != nil {
+			logs.WarnCtx(ctx, "failed to announce rolled-back SDE build to clients",
+				"build_number", rollbackVersion.BuildNumber, "error", err)
+		}
 	}
 
 	return nil

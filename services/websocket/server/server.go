@@ -92,11 +92,8 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 	// Lock notifications (API → NATS doc.lock.{accountID} → all tabs)
 	s.subscribeToDocLockNotifications()
 
-	// Account notifications (worker → NATS notify.{tenant}.{subtype} → all tabs)
-	s.subscribeToNotifications()
-
-	// New SDE builds (worker → NATS → every connected client, signed in or not)
-	s.subscribeToStaticDataBuilds()
+	// Anything addressed to an audience (any producer → NATS deliver.{audience}.{target}.{subtype})
+	s.subscribeToAudienceMessages()
 
 	s.reconcileDocUpdateFanoutConsumers()
 

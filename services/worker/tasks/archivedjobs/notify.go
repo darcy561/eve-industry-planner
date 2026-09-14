@@ -15,20 +15,17 @@ import (
 // the figures are already written, so failing the task here would rewrite them
 // to send a message whose only job is to save a client from waiting for its next
 // request. A client that misses one still learns the truth when it asks.
-//
-// Only an owner kind that has clients is worth a message; corporation and
-// alliance tenants have none yet.
 func notifyStatisticsProcessed(ctx context.Context, nats *eipnats.NATS, owner models.Owner, at time.Time) {
-	if nats == nil || owner.Kind != models.OwnerAccount || owner.ID == "" {
+	if nats == nil || owner.IsZero() {
 		return
 	}
 	body := eipnats.ArchiveStatsProcessedNotification{
 		OwnerKind:   string(owner.Kind),
-		AccountID:   owner.ID,
+		OwnerID:     owner.ID,
 		ProcessedAt: at.UTC().Format(time.RFC3339),
 	}
-	if err := eipnats.PublishAccountNotification(
-		nats, owner.ID, eipnats.NotificationArchiveStatsProcessed, body,
+	if err := eipnats.PublishNotification(
+		nats, owner.Key(), eipnats.NotificationArchiveStatsProcessed, body,
 	); err != nil {
 		logs.WarnCtx(ctx, "statistics notification not published",
 			"component", "archivedjobs", "owner_kind", owner.Kind, "error", err)

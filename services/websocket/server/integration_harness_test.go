@@ -29,6 +29,7 @@ import (
 	"eve-industry-planner/shared/wsplacement"
 
 	"eve-industry-planner/testing/keys"
+	"eve-industry-planner/testing/natsfake"
 	"eve-industry-planner/testing/redisfake"
 	"eve-industry-planner/testing/wait"
 	"github.com/alicebob/miniredis/v2"
@@ -303,6 +304,17 @@ func (f *integFixture) connectAccount(accountID, sessionID string) *websocket.Co
 	conn, _ := f.connectTab(sessionID)
 	f.waitClients(1, 2*time.Second)
 	return conn
+}
+
+// withAudienceDelivery attaches an in-process NATS server and starts the
+// audience subscription, so a scenario can publish on the real subject and watch
+// the frame arrive at a socket.
+func (f *integFixture) withAudienceDelivery() *eipnats.NATS {
+	f.t.Helper()
+	fake := natsfake.New(f.t)
+	f.Server.Stack.NATS = fake.NATS
+	f.Server.subscribeToAudienceMessages()
+	return fake.NATS
 }
 
 // connectTab dials an already-seeded session and returns the connection with the
