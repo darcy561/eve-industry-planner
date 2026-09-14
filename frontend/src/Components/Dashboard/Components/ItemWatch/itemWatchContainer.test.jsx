@@ -17,6 +17,7 @@ vi.mock("../../../../Zustand/usersStore", async () => {
 
 vi.mock("../../../../Functions/MarketData/priceCache", () => ({
   fetchPrices,
+  MARKET_PRICES_QUERY_KEY: ["market", "prices"],
 }));
 
 vi.mock("./ItemRow", () => ({

@@ -1,5 +1,10 @@
 import { queryClient } from "../../queryClient";
-import { requestAdjustedPrice, requestPrice } from "./priceLoader";
+import {
+  requestAdjustedPrice,
+  requestPrice,
+  setClockMovedListener,
+} from "./priceLoader";
+import { clockedSources } from "./sourceClocks";
 
 /**
  * Where a price is held, and the two halves of getting one.
@@ -17,21 +22,46 @@ import { requestAdjustedPrice, requestPrice } from "./priceLoader";
  * callers are not components — a shopping list, a job, a reducer.
  */
 
-/** A cached row is good for this long before the next reader re-asks. */
-const PRICE_STALE_TIME = 5 * 60 * 1000;
+/**
+ * A held row never goes stale by age. Its market's clock decides: the row is
+ * what that market would answer with until the market's book is walked again,
+ * whether that is ten minutes or ten hours. Any duration here would re-ask for
+ * prices that have not moved and still miss the moment they do.
+ */
+const PRICE_STALE_TIME = Infinity;
 
-/** @param {number|string} typeID @param {string} sourceID */
-export const priceQueryKey = (typeID, sourceID) => [
+/**
+ * Every market key is built from one of these, so that dropping a whole market's
+ * rows and reading one of them cannot disagree about where they are held.
+ *
+ * @param {string} sourceID
+ */
+export const marketPricesKey = (sourceID) => [
   "market",
   "price",
   String(sourceID),
+];
+
+/** @type {string[]} */
+export const ADJUSTED_PRICES_KEY = ["market", "adjusted"];
+
+/**
+ * What a surface waiting on a set of prices is keyed under.
+ *
+ * It sits here beside the rows it stands over because both this module and the
+ * hook that builds the full key need it, and the hook already reads this one.
+ */
+export const MARKET_PRICES_QUERY_KEY = ["market", "prices"];
+
+/** @param {number|string} typeID @param {string} sourceID */
+export const priceQueryKey = (typeID, sourceID) => [
+  ...marketPricesKey(sourceID),
   String(typeID),
 ];
 
 /** @param {number|string} typeID */
 export const adjustedQueryKey = (typeID) => [
-  "market",
-  "adjusted",
+  ...ADJUSTED_PRICES_KEY,
   String(typeID),
 ];
 
@@ -116,4 +146,77 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
   // A market that could not be reached leaves its own entries unwritten and must
   // not stop the rest: the view draws what resolved rather than nothing.
   await Promise.allSettled(asked);
+}
+
+/**
+ * Drops every row held for a market whose book has been walked again.
+ *
+ * The whole market at once, because the whole book was walked at once: a market
+ * that answers one type with a newer figure has newer figures for all of them,
+ * and leaving the rest would show a reader two moments side by side.
+ *
+ * **Removed, not invalidated.** These rows are superseded rather than merely
+ * old, and the difference is not cosmetic: entries here never go stale by age,
+ * so a reader asking through `ensureQueryData` is handed an invalidated entry
+ * as readily as a fresh one and the new figures are never fetched. Removing
+ * them is what makes the next reader ask.
+ */
+setClockMovedListener(({ sources, adjusted }) => {
+  for (const sourceID of sources) {
+    queryClient.removeQueries({ queryKey: marketPricesKey(sourceID) });
+  }
+
+  if (adjusted) {
+    queryClient.removeQueries({ queryKey: ADJUSTED_PRICES_KEY });
+  }
+
+  // Dropping the rows is not enough to reach anyone looking at them. A priced
+  // surface reads its figures synchronously while rendering and subscribes to
+  // none of these entries — the only thing it subscribes to is the query that
+  // holds it up, keyed by the wants it asked for. So the rows are dropped and
+  // that query is asked again: without this a reader watching a panel keeps the
+  // superseded figures until something unrelated happens to re-render them.
+  queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
+});
+
+/**
+ * Asks each market holding rows for one type it already holds, so that market
+ * reports its clock.
+ *
+ * This is the whole of how a moved book is noticed. Nothing polls for a clock,
+ * because no request exists whose purpose is to report one — a price answer
+ * carries its market's clock, so asking for a single price a market has already
+ * answered costs one row and settles whether every other row held for it is
+ * still good. A market whose clock has not moved is left entirely alone.
+ *
+ * @returns {Promise<void>}
+ */
+export async function revalidateSourceClocks() {
+  const wants = [];
+
+  for (const sourceID of clockedSources()) {
+    const typeID = anyHeldTypeAt(sourceID);
+    if (typeID !== undefined) wants.push({ typeID, sourceID });
+  }
+
+  if (wants.length === 0) return;
+
+  await Promise.allSettled(
+    wants.map(({ typeID, sourceID }) => requestPrice(typeID, sourceID)),
+  );
+}
+
+/**
+ * One type this market has an entry for, whichever comes first.
+ *
+ * Any held type answers the clock as well as any other, so there is nothing to
+ * choose between them and no reason for a sentinel type id that would be a
+ * magic constant in the bargain.
+ */
+function anyHeldTypeAt(sourceID) {
+  const [entry] = queryClient.getQueryCache().findAll({
+    queryKey: marketPricesKey(sourceID),
+  });
+
+  return entry?.queryKey?.[3];
 }

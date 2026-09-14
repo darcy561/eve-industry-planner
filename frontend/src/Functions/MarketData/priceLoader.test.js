@@ -5,8 +5,14 @@ vi.mock("../Endpoints/Public/marketPricesQuery", () => ({
   fetchMarketPricesQuery: (...args) => fetchMarketPricesQuery(...args),
 }));
 
-const { requestPrice, requestAdjustedPrice, resetPriceLoader } =
-  await import("./priceLoader.js");
+const {
+  requestPrice,
+  requestAdjustedPrice,
+  resetPriceLoader,
+  setClockMovedListener,
+} = await import("./priceLoader.js");
+const { readSourceClock, readAdjustedClock, resetSourceClocks } =
+  await import("./sourceClocks.js");
 
 const row = (sell) => ({ buy: sell - 1, sell, buyP95: sell, sellP05: sell });
 
@@ -17,6 +23,10 @@ const byPair = (a, b) =>
 
 afterEach(() => {
   resetPriceLoader();
+  resetSourceClocks();
+  // This file never imports the cache, so nothing else has registered here and
+  // clearing it simply undoes whatever a test stood in.
+  setClockMovedListener(null);
   fetchMarketPricesQuery.mockReset();
 });
 
@@ -171,5 +181,90 @@ describe("adjusted prices", () => {
 
     expect(await requestAdjustedPrice(34)).toBe(4.9);
     expect(fetchMarketPricesQuery.mock.calls[0][0].wants).toEqual([]);
+  });
+});
+
+describe("the clock every answer carries", () => {
+  // Nothing polls for a clock. Whatever a request was asked for, its answer
+  // reports where each market named in it had got to.
+  it("is recorded for each market the answer named", async () => {
+    fetchMarketPricesQuery.mockResolvedValue(
+      answer({
+        jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } },
+        amarr: { refreshedAt: 1757003600000, prices: { 34: row(30) } },
+      }),
+    );
+
+    await Promise.all([requestPrice(34, "jita"), requestPrice(34, "amarr")]);
+
+    expect(readSourceClock("jita")).toBe(1757000000000);
+    expect(readSourceClock("amarr")).toBe(1757003600000);
+  });
+
+  it("records the adjusted block's clock apart from any market", async () => {
+    fetchMarketPricesQuery.mockResolvedValue(
+      answer({}, { refreshedAt: 1757086400000, prices: { 34: 4.9 } }),
+    );
+
+    await requestAdjustedPrice(34);
+
+    expect(readAdjustedClock()).toBe(1757086400000);
+    expect(readSourceClock("jita")).toBeUndefined();
+  });
+
+  it("says nothing on the first answer from a market", async () => {
+    const moved = vi.fn();
+    setClockMovedListener(moved);
+    fetchMarketPricesQuery.mockResolvedValue(
+      answer({ jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } } }),
+    );
+
+    await requestPrice(34, "jita");
+
+    expect(moved).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when a market answers with the clock already held", async () => {
+    fetchMarketPricesQuery.mockResolvedValue(
+      answer({ jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } } }),
+    );
+    await requestPrice(34, "jita");
+
+    const moved = vi.fn();
+    setClockMovedListener(moved);
+    await requestPrice(35, "jita");
+
+    expect(moved).not.toHaveBeenCalled();
+  });
+
+  it("names the markets whose books were walked again", async () => {
+    fetchMarketPricesQuery.mockResolvedValue(
+      answer({
+        jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } },
+        amarr: { refreshedAt: 1757000000000, prices: { 34: row(30) } },
+      }),
+    );
+    await Promise.all([requestPrice(34, "jita"), requestPrice(34, "amarr")]);
+
+    const moved = vi.fn();
+    setClockMovedListener(moved);
+    fetchMarketPricesQuery.mockResolvedValue(
+      answer({
+        jita: { refreshedAt: 1757003600000, prices: { 34: row(11) } },
+        amarr: { refreshedAt: 1757000000000, prices: { 34: row(30) } },
+      }),
+    );
+    await Promise.all([requestPrice(34, "jita"), requestPrice(34, "amarr")]);
+
+    expect(moved).toHaveBeenCalledTimes(1);
+    expect(moved).toHaveBeenCalledWith({ sources: ["jita"], adjusted: false });
+  });
+
+  // A request that could not be made says nothing about where a market got to.
+  it("records no clock from a request that failed", async () => {
+    fetchMarketPricesQuery.mockRejectedValue(new Error("offline"));
+
+    await expect(requestPrice(34, "jita")).rejects.toThrow("offline");
+    expect(readSourceClock("jita")).toBeUndefined();
   });
 });

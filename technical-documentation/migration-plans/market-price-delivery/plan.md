@@ -1,8 +1,9 @@
 # Market price delivery — plan
 
-**Status:** Phase 1 complete. **Stages A and B landed.** Every price in the SPA now comes from the
-query cache, `worldData.marketData` is retired, and the old `/api/v1/market-prices` endpoint is
-deleted. Next is Stage C, freshness from each source's own clock.
+**Status:** Phase 1 complete. **Stages A, B and C landed.** Every price in the SPA now comes from the
+query cache, `worldData.marketData` is retired, the old `/api/v1/market-prices` endpoint is deleted,
+and a market's own clock now decides what survives rather than an age guess. Next is Stage D, the
+price cache's persistent tier.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/MarketData/`,
 `Functions/EveESI/World/`, `Functions/Endpoints/Public/`, `Functions/Shared/getMissingESIData.js`,
 `Hooks/React Query/World/`, `Zustand/worldDataSlice/`, `Styled Components/Select/`,
@@ -426,12 +427,15 @@ read through `getMarketPriceForType`, so what is beneath it can change in one pl
 
 ## Stage C — Freshness from the source's clock
 
-1. The browser records, per source, the clock the rows it holds came from — per source and type for a
+1. ~~The browser records, per source, the clock the rows it holds came from — per source and type for a
    source fetched per type. **It comes from the price response**, which carries each source's
    `refreshedAt` beside that source's rows; nothing is polled to learn it, and no request exists whose
-   purpose is to report it.
-2. A fetch is decided by missing rows or a moved clock; `doesMarketItemRequireRefresh` stops being the
-   rule for prices.
+   purpose is to report it.~~ Done, as `sourceClocks.js`, written by the loader from every answer —
+   see [overlay.md](./overlay.md) § C1, § C2.
+2. ~~A fetch is decided by missing rows or a moved clock; `doesMarketItemRequireRefresh` stops being the
+   rule for prices.~~ Done. `PRICE_STALE_TIME` is `Infinity` and a moved clock **removes** the market's
+   rows — invalidating them is not enough once nothing is stale by age. Reaching a surface that is
+   already open needed more than the cache: see [overlay.md](./overlay.md) § C4, § C5.
 3. ~~`DEFAULT_ITEM_REFRESH_PERIOD` and `Functions/MarketData/refreshPeriod.js` are deleted.~~ Done
    early, in Stage B: both were orphaned the moment `findMarketData.js` went, and leaving a staleness
    rule in the tree that nothing consults is worse than deleting it a stage ahead of its item. The
@@ -558,6 +562,39 @@ only answer — a change to what it means, which belongs in this stage rather th
 **Done when** a reader can add an NPC station or a citadel as a market, price against it anywhere a
 hub can be priced against, and the placeholder is gone.
 
+## What Stage D and E actually need
+
+Checked against the tree on 2026-09-14, because the stage text was written before Stages B and C
+landed and several of its items have since been done elsewhere.
+
+**Stage D is nearly empty.** Items 1, 2 and 3 landed in Stage B or are inherited from it; what is
+left is item 4, the persistent tier, and item 5's sequencing note. The stage's most vivid section —
+retiring the alternative price table threaded through eleven files — **is already done**: no
+`addMarketData` or `findMarketData` reference survives anywhere in the SPA. The seven remaining
+`alternativeLocation` references are all `findSystemIndex`, which this project scopes out.
+
+**Stage D has no consumer until Stage E.** Only reader-saved sources go in the persistent tier; the
+four hubs stay session-only by design (§ Two tiers of storage). Building D first means building a
+store with nothing to put in it, and guessing at what it must hold — per-type clocks for a station,
+one clock for a citadel — before Stage E has settled either. **Take D and E together, E leading.**
+
+**Stage E's two hard parts are in better shape than the stage text assumes.**
+
+- The per-character citadel walk item 3 wants *extended rather than copied* already exists as
+  `settleStructureName` in `Functions/EveESI/World/nameLoader.js`. It asks each linked character in
+  turn, keeps one refusal from settling the account's answer, skips a character whose token lacks the
+  scope, and refuses to cache a transient failure as an answer — which is the whole contract item 3
+  describes.
+- The Go derivation item 1 must reproduce is `percentilePrice` in
+  `services/worker/tasks/esi/refreshRegionMarketOrders.go`: roughly fifteen lines, nearest-rank
+  `ceil(p × N)` clamped into the sorted slice, with a fallback below `minOrdersForPercentile`. Small
+  enough to port exactly, which makes the fixture in § Open decisions cheap to honour rather than a
+  project of its own.
+
+**Stage F's seam is intact.** `saleLocations.js` still returns the two placeholder citadels,
+unexported and deliberately disagreeing on every field that changes a figure, so replacing them with
+the stored list stays a change to that one file.
+
 ## Left out on purpose
 
 **The Market Data and Price History dialogues** read region order books and history straight from ESI
@@ -578,7 +615,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Question | Notes |
 |----------|-------|
 | **How the Go and JavaScript derivations are held in agreement.** Options: a fixture file in the repo (order books in, expected rows out) that a test on each side reads, so a change to one without the other fails; or generating the JavaScript from the Go; or accepting drift and testing each alone | The fixture is the cheapest thing that actually catches a divergence, and the repo already keeps shared fixtures for the SPA. Decide before Stage E writes a line of derivation |
-| IndexedDB access — `idb`, Dexie, or the raw API | Stage D. Check current versions and maintenance before choosing, per the shared dependency rule |
+| Persistent storage — TanStack's own persister, Dexie, or `idb` | Stage D. Versions checked 2026-09-14: `@tanstack/query-persist-client-core` **5.102.8**, matching the `@tanstack/react-query` the SPA already runs; Dexie **4.4.6**, shipped four days before; `idb` **8.0.3**, last shipped May 2025. The persister is first-party and needs no new vendor, but it is built to persist the **whole** cache while this design persists only reader-saved sources — whether `dehydrateOptions` narrows it cleanly is the thing to settle before choosing. See § What Stage D and E actually need |
 | When the `esi-markets.structure_markets.v1` scope is added — with Stage E, or earlier so the re-authorisation rides a release that is already asking for one | Adding a scope re-authorises every character; it should not be its own event if it can avoid being one |
 | Whether a citadel book walk is bounded, and what happens to a reader who saves a structure with a very large book | Unknown until measured. Stage E |
 
@@ -589,23 +626,28 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Phase 1 — project folder and docs | Done |
 | Stage A — The source registry | **Done.** A parity test holds the SPA's hub list and `esicore.DefaultMarketLocations` together with no endpoint; `allMarketSources()` is the registry every consumer reads, and `MARKET_OPTIONS` has one reader left. The registry is not in the world-data store — see [overlay.md](./overlay.md) § A1, § A2-A4 |
 | Stage B — The price row and the narrowed query | **Done.** Every price is read from the query cache through one accessor; `worldData.marketData` and the alternative price table are retired; every surface resolves its market through `priceResolution.js`, so the fetch and the read cannot disagree; the old `/market-prices`, its `MarshalJSON` and the `PricesByType` reader are deleted — see [overlay.md](./overlay.md) § B1-B5 |
-| Stage C — Freshness from the source's clock | Not started |
+| Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
 | Stage D — The price cache and its two tiers | Not started |
 | Stage E — Sources the browser fetches | Not started |
 | Stage F — Custom market locations | Not started |
 
 ## Start here
 
-**Stage C.** Stages A and B are done — the registry exists and is read everywhere, and every price
-now travels through the narrowed query into one cache entry per type per market
-([overlay.md](./overlay.md) § A1-A4, § B1-B5). What is left is freshness: each source's `refreshedAt`
-already arrives with its rows, so the work is deciding a fetch from it rather than from an age guess
-the browser makes.
+**Stage D.** Stages A, B and C are done — the registry is read everywhere, every price travels through
+the narrowed query into one cache entry per type per market, and each market's own clock decides what
+survives ([overlay.md](./overlay.md) § A1-A4, § B1-B5, § C1-C5). What is left of Stage D is the
+persistent tier alone; its items 1 and 2 moved into Stage B and have landed.
 
-Stage B is where the wire moves, and it is the first breaking change this project makes: the request
-gains `sources`, the response is reshaped per source, and the custom `MarshalJSON` goes. It also
-retires `worldData.marketData` as the price store. Read § The unit of a price for the shape and
-§ Wire compatibility for why it is cut over rather than versioned.
+**Read [overlay.md](./overlay.md) § C5 before touching the cache.** A priced surface subscribes to no
+row entry — it reads figures synchronously while rendering — so anything that changes what is held
+must also wake `useMarketPricesQuery`, and that query only notifies on fields its caller actually
+reads. A change to the cache that does not account for this is invisible in unit tests and visible to
+a reader as figures that never update.
+
+**Stage E is the persistent tier's first consumer**, so expect it close behind rather than a stage
+finished in isolation — § Stage D item 5 says the same, and § What Stage D and E actually need
+recommends taking the two together with E leading, having checked each stage's items against the
+tree. Read that section before planning either: most of Stage D is already done.
 
 **What the wait bought.** The one project this one depends on,
 [market-pricing-defaults](../market-pricing-defaults/contents.md), is finished bar a deploy, and it

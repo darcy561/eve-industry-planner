@@ -21,8 +21,9 @@ empty one.
 
 ## Server read cost
 
-Counted from [`marketPrices.go`](../../../services/api/v1endpoints/marketPrices.go), which calls
-`fetchMarketPricesForType` once per validated type id:
+Counted from the `/api/v1/market-prices` handler as it stood when this was measured, which called
+`fetchMarketPricesForType` once per validated type id. That handler was deleted in Stage B and its
+replacement is `marketPricesQuery.go`; the figures below are what the measurement was taken against:
 
 - Per type: 1 `GET` for the adjusted price, 1 `MGET` across the four hub regions.
 - A 500-type request: **~1,000 sequential Redis round trips**, no pipelining.

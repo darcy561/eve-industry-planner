@@ -7,7 +7,10 @@ const { fetchPrices } = vi.hoisted(() => ({
   fetchPrices: vi.fn(async () => {}),
 }));
 
-vi.mock("../../../Functions/MarketData/priceCache", () => ({ fetchPrices }));
+vi.mock("../../../Functions/MarketData/priceCache", () => ({
+  fetchPrices,
+  MARKET_PRICES_QUERY_KEY: ["market", "prices"],
+}));
 
 const { useMarketPricesQuery } = await import("./marketPrices.js");
 

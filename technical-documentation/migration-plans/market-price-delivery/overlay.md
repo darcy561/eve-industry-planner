@@ -208,14 +208,114 @@ nothing re-renders when a cache entry is written.
 group's fetch resolves each job's own choice; the card did not, so any job with a market of its own
 showed zero. It resolves the same way now.
 
-*Still to land:* Stage C's freshness from the source's clock, and Stage D's second tier.
+*Still to land:* Stage D's second tier.
 
 ## Stage C — Freshness from the source's clock
 
-*Nothing landed yet.*
+### C1 — A market's clock, and where it is held
 
-Sections to fill: what the browser records per source, and where that differs for a source fetched per
-type; what decides a fetch; what became of the per-type age guess.
+`Functions/MarketData/sourceClocks.js` holds the newest `refreshedAt` seen for each market, and one
+more for the adjusted block, which belongs to no market and refreshes on its own day-long cadence.
+`recordSourceClock` both stores a clock and answers whether it **moved past** the one held, which is
+the question everything downstream is built on.
+
+**The first clock from a market is not a move.** The rows arriving with it are current as of it, so
+there is nothing older to make stale — `record` reports a move only where a clock was already held.
+Without that distinction the first answer from every market would drop the rows it had just delivered.
+
+**An older clock is ignored rather than written.** Two chunks of one request settle in whichever order
+they land, and a market never walks its book backwards.
+
+**A clock of zero is refused**, as is anything not finite. This is the same defect Stage B found in
+`findMarketData`'s zero-filled row: a market that answered with no clock must not be recorded as
+having been walked at the epoch.
+
+### C2 — Nothing polls for a clock
+
+`revalidateSourceClocks` in `priceCache.js` asks each market holding rows for **one type it already
+holds**. The answer carries that market's `refreshedAt`, so a request costing a single row settles
+whether every other row held for that market is still good. There is no clock endpoint and no request
+whose purpose is to report a clock — the plan's § Freshness belongs to the source rejected one, and
+nothing here reintroduces it.
+
+Any held type answers the clock as well as any other, so the probe takes whichever the cache lists
+first rather than naming a sentinel type id that would be a magic constant.
+
+`Hooks/App/useMarketClockRevalidation.js` paces it, mounted once in `App.jsx`. **Fifteen minutes**,
+matching the server's own scheduler tick — a shorter interval cannot see anything that has not been
+published, and a longer one leaves a reader on figures already replaced. It also probes when the
+reader returns to the tab, because a background tab's timers are throttled. That interval paces the
+*asking*; it is not a staleness rule, and a row whose market has not moved outlives any number of
+ticks untouched.
+
+### C3 — The age guess is gone
+
+`PRICE_STALE_TIME` is `Infinity`. A held row never expires by age: it is what its market would answer
+with until that market's book is walked again, whether that is ten minutes or ten hours. The five
+minutes it replaced was the last of the four-hour rule Stage C exists to remove.
+
+### C4 — Rows are removed, not invalidated
+
+When a clock moves, every entry for that market is **removed** from the query cache, the whole market
+at once because the whole book was walked at once.
+
+Removal rather than invalidation is load-bearing and was found by a failing test, not by reasoning.
+Entries never go stale by age now, so an *invalidated* entry is still handed straight back by
+`ensureQueryData` — the new figures would never be fetched at all. Removing them is what makes the
+next reader ask.
+
+### C5 — What actually re-renders a priced surface
+
+This is the part the stage's design missed on the first pass, and it is worth stating plainly because
+nothing about it is visible from the cache module alone.
+
+**A priced surface subscribes to none of the row entries.** It reads figures synchronously while
+rendering, through `getMarketPriceForType`, because a shopping list row and a basis comparison read
+inside a reduce and neither can await. So dropping a market's rows reaches nobody on its own: React is
+never told anything changed.
+
+The only thing such a surface does subscribe to is `useMarketPricesQuery`, the query that holds it up.
+Two changes make a moved clock reach it:
+
+- The clock-moved listener **invalidates that query** alongside removing the rows, so a mounted
+  surface asks for its wants again.
+- That query now **returns each market's clock** rather than the wants it asked for, and the hook
+  **reads `data`**. Both halves are required: the query tracks which of its fields a caller uses and
+  notifies only on those, so a hook reading none of `data` is never re-rendered however often the
+  query refetches. Returning a constant made every refetch invisible.
+
+`MARKET_PRICES_QUERY_KEY` moved to `priceCache.js` so both the listener and the hook read one key; the
+hook re-exports it, and `marketPrices.js` importing the cache is why it cannot own it.
+
+**Every market key is built from one prefix.** `marketPricesKey(sourceID)` and `ADJUSTED_PRICES_KEY`
+are what `priceQueryKey` and `adjustedQueryKey` extend and what the clock-moved listener and the probe
+match on, so reading one row and dropping a whole market's rows cannot disagree about where they are
+held. The listener and probe spelled those arrays by hand at first, which is a second copy of a shape
+one function already owned.
+
+`tests/seedPrices.js` records a clock for every market it seeds. Rows carry a `refreshedAt`, but the
+clock is what the freshness rule reads — seeding rows without one leaves a market that
+`clockedSources()` cannot see, so a probe would skip it entirely.
+
+**The reader never sees a zero on the way.** Removing rows leaves the accessor answering `0` until the
+refetch lands, and a price flashing to zero reads as free rather than as loading. A test asserts the
+figure goes from the old one to the new one with no zero between them.
+
+### What `resetPriceLoader` must not do
+
+It does **not** clear the clock-moved listener. The cache registers that listener once when it is
+first imported and has no way to register again, so clearing it leaves every later test in a file
+running without the rule it is trying to exercise — which is exactly how the C5 defect hid: the
+integration test reset the loader in `beforeEach` and silently disabled the behaviour under test.
+
+### What this stage did not need
+
+The server was already finished for it. `marketPricesQuery.go` computes `regionClocks` and stamps each
+source block with its own `refreshedAt`, and the adjusted block carries its own — all landed in Stage
+B. Stage C is SPA-only, and the wire did not move.
+
+Plan item 3 (`DEFAULT_ITEM_REFRESH_PERIOD` and `Functions/MarketData/refreshPeriod.js`) was already
+done early in Stage B, and `doesMarketItemRequireRefresh` has no callers left anywhere in the tree.
 
 ## Stage D — The price cache and its two tiers
 

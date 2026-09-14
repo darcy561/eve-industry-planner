@@ -74,5 +74,8 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Find every surface holding a second copy of the hub list | [plan.md](./plan.md) § Stage A |
 | Know why callers used to pass a price table alongside the store, and what removed it | [plan.md](./plan.md) § It retires the alternative price table |
 | Know where a price comes from today, now the store is gone | [overlay.md](./overlay.md) § B2, § B4 |
+| Know what decides that a price has gone stale | [overlay.md](./overlay.md) § C1, § C3 |
+| Know how a moved book reaches a surface someone is already looking at | [overlay.md](./overlay.md) § C5 |
+| Know what is genuinely left in Stages D and E, and why they go together | [plan.md](./plan.md) § What Stage D and E actually need |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
 | The measurements this design was argued from | [measurements.md](./measurements.md) |

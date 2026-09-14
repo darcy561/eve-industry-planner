@@ -1,9 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { fetchPrices } from "../../../Functions/MarketData/priceCache";
+import {
+  fetchPrices,
+  MARKET_PRICES_QUERY_KEY,
+} from "../../../Functions/MarketData/priceCache";
 import { idsQueryKeySuffix } from "../idsQueryKey.js";
+import {
+  readAdjustedClock,
+  readSourceClock,
+} from "../../../Functions/MarketData/sourceClocks";
 
-export const MARKET_PRICES_QUERY_KEY = ["market", "prices"];
+export { MARKET_PRICES_QUERY_KEY };
 
 /**
  * Holds a surface behind the prices it reads.
@@ -43,7 +50,7 @@ export function useMarketPricesQuery(
     [adjustedTypeIDs],
   );
 
-  const { isLoading, isError, error } = useQuery({
+  const { isLoading, isError, error, data } = useQuery({
     queryKey: [
       ...MARKET_PRICES_QUERY_KEY,
       asked.map(([pair]) => pair).join(","),
@@ -54,12 +61,32 @@ export function useMarketPricesQuery(
         wants: asked.map(([, want]) => want),
         adjustedTypeIDs: adjusted ? adjusted.split(",") : [],
       });
-      return asked;
+
+      // The clocks the rows came back with, rather than the wants that were
+      // asked. A surface reads its figures synchronously and subscribes to no
+      // row, so this value is the only thing that can re-render it — and a
+      // constant here makes a refetch invisible, leaving a reader on figures
+      // the market has already replaced.
+      return clocksFor(asked);
     },
     enabled: enabled && (asked.length > 0 || adjusted.length > 0),
     staleTime: 0,
     retry: false,
   });
 
-  return { isLoading, isError, error };
+  // `data` is read rather than ignored on purpose: the query tracks which of
+  // its fields a caller uses and notifies only on those, so a hook that reads
+  // none of it is never re-rendered when the prices behind it are replaced.
+  // Returning the clocks is what lets a caller see a market's book move.
+  return { isLoading, isError, error, clocks: data };
+}
+
+/** Each market's clock as it stands, keyed so a moved one changes the value. */
+function clocksFor(asked) {
+  const clocks = {};
+  for (const [, { sourceID }] of asked) {
+    clocks[sourceID] = readSourceClock(sourceID) ?? 0;
+  }
+  clocks.adjusted = readAdjustedClock() ?? 0;
+  return clocks;
 }
