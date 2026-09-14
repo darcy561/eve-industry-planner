@@ -1,6 +1,6 @@
 # Market price delivery — plan
 
-**Status:** Phase 1 complete. Stage A not started.
+**Status:** Phase 1 complete. **Stage A landed**; Stage B not started.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/MarketData/`,
 `Functions/EveESI/World/`, `Functions/Endpoints/Public/`, `Functions/Shared/getMissingESIData.js`,
 `Hooks/React Query/World/`, `Zustand/worldDataSlice/`, `Styled Components/Select/`,
@@ -230,16 +230,41 @@ The practical effect on the hubs: a second job opened on the same materials with
 nothing at all, where today it re-downloads every price whose blob happened to cross the four-hour
 line.
 
-The hub clocks come from a source-status read that is cheap enough to make on its own:
+**The clock arrives with the rows, and there is nothing to poll.** Every stored price already carries
+the moment its region was walked — `MarketPriceEntry.LastUpdated`, written from the same timestamp as
+the region's own refresh mark, in the same pass of `refreshRegionMarketOrders`. So a row states its own
+age, and a browser holding rows can decide whether to ask again without a round trip to find out.
 
-```
-GET /api/v1/market-sources
-[ { "id": "jita", "name": "Jita", "regionID": 10000002, "stationID": 60003760,
-    "refreshedAt": 1757000000000 } ]
-```
+That retires a question this plan previously asked twice. An earlier draft had the hub clocks coming
+from a status read of their own, while § The unit of a price had `refreshedAt` inside the price
+response — two answers to one question, and the endpoint version was the one free to disagree with the
+rows it described.
 
-This is also the server's list of the markets it serves, which is what retires the second copy in the
-SPA. The SPA's full source registry is this list plus whatever sources the reader has saved.
+**And with the clock gone, there is nothing left for a source endpoint to serve.** What remained was
+four rows of `{id, name, regionID, stationID}` that move only when a deploy moves them — a request on
+every boot, an asynchronous dependency for readers that are synchronous today, and a route to keep,
+in exchange for static configuration. It was built, and removed before it was committed.
+
+**The two copies are held together by a test instead.** This repository already answers "two sides
+must agree about a shape" without a runtime call: a fixture generated from the Go side, committed, and
+asserted by a test on both — `testing/fixtures/session-responses/surface.json`, written by
+`session_response_surface_test.go` and read by `sessionResponse.parity.test.js`. A drift fails CI
+rather than reaching a client, which is the failure this was ever about: someone adds a fifth hub
+server-side and the SPA does not know.
+
+So the SPA keeps a constant, `esicore.DefaultMarketLocations` stays the source of truth, and a parity
+test fails when they disagree. The SPA's full source registry is that constant plus whatever sources
+the reader has saved — available at module load, as it is today.
+
+**If the list ever stops being static** — server-controlled at runtime, or differing per account — that
+is when it earns a transport. Nothing in this project makes it so: reader-saved sources arrive on the
+planner document (§ Stage F), not from the server's list.
+
+**The refresh cadence is ESI's, not a number this app picks.** `recordNextRefresh` takes the page's own
+`max-age`, and the scheduler ticks every fifteen minutes publishing only the regions ESI says can have
+changed. In practice that lands around hourly, but nothing should hard-code an interval: the row's
+timestamp is the honest signal, and a fixed guess is how the four-hour rule went wrong in the first
+place.
 
 ## The unit of a price
 
@@ -290,7 +315,6 @@ nothing in IndexedDB today, so the persistent tier is new ground.
 
 | Surface | Change | Note |
 |---------|--------|------|
-| `GET /api/v1/market-sources` | **Additive** | New route; nothing reads it until Stage A lands in the SPA |
 | `POST /api/v1/market-prices` → `/query` | **Breaking** | Request gains required `sources`; response is reshaped and the flattened top-level hub keys go. The endpoint is public and unauthenticated, but the SPA is its only consumer and the two ship together, so the shape is cut over rather than versioned |
 | `worldData.marketData` | **Breaking, SPA-internal** | Retired. Prices move to a React Query entry per type and source, read through one accessor; the store keeps the source registry and nothing else |
 | ESI scopes | **Migrate-required** | Citadel sources need `esi-markets.structure_markets.v1`, which the SPA does not request today. Every linked character must re-authorise. Scopes are operator configuration, not in-repo, so this is a deployment step and needs its own call-out at Stage E |
@@ -299,22 +323,44 @@ nothing in IndexedDB today, so the persistent tier is new ground.
 
 ## Stage A — The source registry
 
-The markets stop being a list the SPA also keeps, and become a registry that admits more than four.
+The SPA's four hard-coded markets become a registry that admits more than four. The hubs stay a
+constant — they are static configuration, and a test is what stops them drifting from the server's —
+but nothing above the registry may assume the set is those four, or that a source is one of them.
 
-1. `GET /api/v1/market-sources` serves `esicore.DefaultMarketLocations` joined to the stored region
-   refresh times, which `MarketOrdersStore.RefreshTimes` already reads.
-2. The SPA holds a source registry in the world-data store: the server's sources, each marked as
-   server-held, with room for reader-saved sources to join them.
-3. Retire `GLOBAL_CONFIG.MARKET_OPTIONS` and move its thirteen readers onto the registry —
-   `marketPriceForType.js`, `marketLocation.jsx`, `saleLocations.js`, `saleLocationRates.jsx`,
-   `marketCostsPanel.jsx`, `marketLabelHelpers.js`, `basicMineralOutput.jsx`, the market data and
-   market history icon and typography components, `priceHistory.jsx`, and
-   `worldDataSlice/marketData.js`.
-4. `DEFAULT_MARKET_OPTION` stays in config: it is a default *choice*, not a copy of the list.
+1. ~~A parity test holds the SPA's hub list and `esicore.DefaultMarketLocations` in agreement, on the
+   pattern of the session-response surface.~~ Done — `testing/fixtures/market-hubs/hubs.json`, written
+   by `shared/core/esi/locations_parity_test.go` and read by `global-config-app.parity.test.js`. See
+   [overlay.md](./overlay.md) § A1. **No endpoint**: the list is static configuration, and the clock it
+   would once have carried now arrives with the prices.
+2. ~~The SPA holds a source registry: the hubs the server prices, each marked as server-held, with
+   room for reader-saved sources to join them.~~ Done — **not in the world-data store**, as this item
+   first said. Putting a constant in state made store initialisation depend on app config and broke
+   two tests that mock it partially; `allMarketSources()` composes the registry instead, which is the
+   same single seam without the coupling. See [overlay.md](./overlay.md) § The registry is not in the
+   world-data store.
+3. ~~Retire `GLOBAL_CONFIG.MARKET_OPTIONS` and move its readers onto the registry.~~ Done — the
+   constant now has exactly one reader, the registry that builds from it. **Eight consumers,
+   not the thirteen this plan first counted** — [market-pricing-defaults](../market-pricing-defaults/contents.md)
+   consolidated five of them away while this project waited:
+
+   | Reader | |
+   |--------|--|
+   | `Functions/MarketData/marketLinkTarget.js` | **New, and the reason the count fell.** The market data and market history icon and typography components each resolved their own link target; they now all call this |
+   | `Zustand/worldDataSlice/marketData.js` | |
+   | `Styled Components/Select/marketLocation.jsx` | |
+   | `Styled Components/LineGraph/priceHistory.jsx` | |
+   | `Returns/saleLocationRates.jsx` | |
+   | `Materials And Sourcing/Helpers/marketLabelHelpers.js` | |
+   | `Market Costs Panel/marketCostsPanel.jsx` | |
+   | `Functions/MarketOrders/saleLocations.js` | |
+
+   `basicMineralOutput.jsx` is off the list for the same reason, and `marketPriceForType.js` and both
+   `marketHistory` components now name `MARKET_OPTIONS` only in stale JSDoc rather than in code —
+   worth correcting as they are passed, not worth a visit of its own.
+4. ~~`DEFAULT_MARKET_OPTION` stays in config: it is a default *choice*, not a copy of the list.~~ Done.
 
 **Done when** the SPA holds no hand-maintained market list, every surface reads sources from the
-registry, no surface assumes a source is one of four, and a hub's refresh clock is available to the
-price layer.
+registry, and no surface assumes a source is one of four.
 
 ## Stage B — The price row and the narrowed query
 
@@ -327,8 +373,10 @@ price layer.
    `getMissingESIData` stop writing into the store themselves, and the eight flows that call the
    latter ask through the imperative path instead.
 5. Move every call site onto naming the source it wants. The resolver
-   [market-pricing-defaults](../market-pricing-defaults/contents.md) is building is what answers that
-   question; where it is not yet wired, a call site names the market it is already pricing against.
+   [market-pricing-defaults](../market-pricing-defaults/contents.md) built is what answers that
+   question, and **it is finished** — every rung of its ladder resolves and the SPA names the two axes
+   `marketLocation` and `listingType` throughout, so a call site has something to ask rather than a
+   market to assume.
 6. Delete [`Functions/MarketData/refreshMarketData.js`](../../../frontend/src/Functions/MarketData/refreshMarketData.js)
    and [`Functions/MarketData/requestChunks.js`](../../../frontend/src/Functions/MarketData/requestChunks.js),
    which nothing imports.
@@ -339,7 +387,9 @@ a price without naming a source, and the handler no longer loops per type.
 ## Stage C — Freshness from the source's clock
 
 1. The browser records, per source, the clock the rows it holds came from — per source and type for a
-   source fetched per type.
+   source fetched per type. **It comes from the price response**, which carries each source's
+   `refreshedAt` beside that source's rows; nothing is polled to learn it, and no request exists whose
+   purpose is to report it.
 2. A fetch is decided by missing rows or a moved clock; `doesMarketItemRequireRefresh` stops being the
    rule for prices.
 3. `DEFAULT_ITEM_REFRESH_PERIOD` and `Functions/MarketData/refreshPeriod.js` are deleted. Nothing
@@ -452,7 +502,6 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Question | Notes |
 |----------|-------|
 | **How the Go and JavaScript derivations are held in agreement.** Options: a fixture file in the repo (order books in, expected rows out) that a test on each side reads, so a change to one without the other fails; or generating the JavaScript from the Go; or accepting drift and testing each alone | The fixture is the cheapest thing that actually catches a divergence, and the repo already keeps shared fixtures for the SPA. Decide before Stage E writes a line of derivation |
-| How the browser learns a hub clock moved — polling `GET /api/v1/market-sources`, or a push over the existing websocket fan-out | Polling is simpler and the clock moves hourly; the fan-out exists and would make it exact. Decide at Stage C |
 | IndexedDB access — `idb`, Dexie, or the raw API | Stage D. Check current versions and maintenance before choosing, per the shared dependency rule |
 | When the `esi-markets.structure_markets.v1` scope is added — with Stage E, or earlier so the re-authorisation rides a release that is already asking for one | Adding a scope re-authorises every character; it should not be its own event if it can avoid being one |
 | Whether a citadel book walk is bounded, and what happens to a reader who saves a structure with a very large book | Unknown until measured. Stage E |
@@ -462,7 +511,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project folder and docs | Done |
-| Stage A — The source registry | Not started |
+| Stage A — The source registry | **Done.** A parity test holds the SPA's hub list and `esicore.DefaultMarketLocations` together with no endpoint; `allMarketSources()` is the registry every consumer reads, and `MARKET_OPTIONS` has one reader left. The registry is not in the world-data store — see [overlay.md](./overlay.md) § A1, § A2-A4 |
 | Stage B — The price row and the narrowed query | Not started |
 | Stage C — Freshness from the source's clock | Not started |
 | Stage D — The price cache and its two tiers | Not started |
@@ -471,5 +520,28 @@ browser a legitimate version of this path for custom sources, where there is no 
 
 ## Start here
 
-Stage A. It is self-contained, it is the only stage that is purely additive on the wire, and every
-stage after it needs the registry and the clock it publishes.
+**Stage B.** Stage A is done: the registry exists, every consumer reads it, and the hub list is held
+against the server's by a test rather than an endpoint — [overlay.md](./overlay.md) § A1, § A2-A4.
+
+Stage B is where the wire moves, and it is the first breaking change this project makes: the request
+gains `sources`, the response is reshaped per source, and the custom `MarshalJSON` goes. It also
+retires `worldData.marketData` as the price store. Read § The unit of a price for the shape and
+§ Wire compatibility for why it is cut over rather than versioned.
+
+**What the wait bought.** The one project this one depends on,
+[market-pricing-defaults](../market-pricing-defaults/contents.md), is finished bar a deploy, and it
+left this project less to do rather than more:
+
+- **Stage A was smaller.** Five of the thirteen `MARKET_OPTIONS` readers had been consolidated away,
+  four of them behind the single `marketLinkTarget.js` — see § Stage A item 3.
+- **Stage B item 5 has its answer.** The resolver it names is built, so "name the source you want" is
+  a call the code can already make rather than a thing to invent alongside.
+- **Stage B item 3 inherits guards.** The unguarded `findMarketData(typeID)[market][basis]` reads were
+  guarded by that project, because the split made an unrecognised id reachable. Those guards sit on the
+  function this stage rekeys and puts behind one accessor, so expect to reshape them rather than
+  preserve them — that project's plan says the same from its side.
+
+**One name to know before reading its code.** That project renamed the SPA's pricing vocabulary: a
+market is `marketLocation` and a pricing basis is `listingType`, everywhere except where a name is a
+stored document key. The `marketDisplay` / `orderDisplay` still in the tree are `MaterialPriceOverride`
+keys and are not the in-memory vocabulary.
