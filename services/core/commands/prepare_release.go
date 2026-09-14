@@ -81,6 +81,10 @@ var releases = []release{{
 		// Sessions outlive a deploy, so grants written by the previous release are
 		// rewritten rather than left to lapse at the next token refresh.
 		{name: "rewrite session grants as owner keys", run: repairSessionGrants},
+		// After maintenance, which stamps the schema version the seed sits behind,
+		// and after the owner stamp, because the settings written here are upserted
+		// through the owner-preserving path.
+		{name: "seed each account's buying and selling pricing defaults", run: seedPricingDefaults},
 		// Last: the window's gate. A document with no owner is unreachable, so the
 		// release fails rather than reporting success over it.
 		{name: "verify every document carries an owner", run: verifyMetaOwner},
