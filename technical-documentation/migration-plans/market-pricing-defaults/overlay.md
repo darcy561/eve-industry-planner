@@ -166,8 +166,6 @@ names a parent it does not carry, so those two guards are defensive rather than 
 cap sits far above the real depth on purpose, so a legitimate deepening of EVE's tree is not silently
 truncated.
 
-Still to wire: the SPA reading the published tree, and the settings surface for choosing a group.
-
 ### B3 — Where the walk sits in the ladder
 
 The rung is consulted from `getEffectiveMaterialPriceHub`, which is the one place a material row's
@@ -307,7 +305,7 @@ compared between builds.
 Both fields are `omitempty` on a file read as a map, so this is additive in both directions — an older
 SPA ignores them, and a newer one tolerates their absence until the next SDE build publishes them.
 
-### B6.2–B6.4 — Reading the tree, writing one group, and showing both
+### B6.2–B6.5 — Reading the tree, writing one group, showing both, and editing a row
 
 **The walks take a tree rather than finding one.** `childrenIn` and `ancestorPathIn` are the real
 functions; `childrenOf` and `ancestorPath` read the module's own copy and call them. React reads this
@@ -330,7 +328,7 @@ a hand-rolled version of that row was the first thing this slice got wrong.
 meant, and a default set on a container covers everything beneath it. A group the published tree no
 longer carries is still shown, by id, because a reader has to see a choice to clear it.
 
-### B6.5 — A group is recognised by one of its items
+### A group is recognised by one of its items
 
 Market group rows carry a picture. A group's own icon in EVE's data names a file inside the game
 client, which nothing can serve, so a group borrows one of its own items instead: `IconTypeID` is the
@@ -344,6 +342,25 @@ still be compared with the last one.
 MUI `Avatar` so a failed load falls through to a glyph rather than a broken image. Where a whole
 branch is obsolete there is no item to borrow and the glyph is all there is — 28 groups of 1,108
 across the branches this app prices, every one of them obsolete.
+
+### B6.6 — Browsing the tree to choose one
+
+`MarketGroupPicker` is a `ContentDialogue` holding a drill and a search, because the two answer
+different questions: a reader who knows "Minerals" types it, and one who does not knows only that it
+sits somewhere under materials. The search covers every group rather than the level being looked at,
+and each row carries the path above it — two thousand names hold more than one "Ammunition", and the
+path is what tells them apart.
+
+**Any level is choosable, including a container.** A default set on a group covers everything beneath
+it, so a reader is never made to reach a leaf: the level they are standing in has its own button, and
+a group with children opens rather than being picked by accident. That is the rung's own rule made
+visible — it walks ancestors, so pricing "Materials" prices everything under it.
+
+**The list is virtualised and the body is mounted only while open.** Two thousand options is a listbox
+that costs something to mount, and two of these sit on the settings page, one per side. The shell
+renders nothing until the dialogue opens, so walking every group to build the search costs nothing
+while nobody is looking — and closing unmounts the browse, which is why a reader who closes mid-drill
+opens again at the roots rather than somewhere they have forgotten.
 
 ### B6.7 — The selling side resolves a group default, and a sale is priced from it
 

@@ -1,8 +1,9 @@
 # Market pricing defaults — plan
 
-**Status:** Stage A steps 1-6 landed; step 7 waits on the shared-planners release. Stage B is done: the
-group rung resolves end to end, and the selling side names an exit route with controls for it. What
-remains is a surface for setting a *group* default, which nothing yet offers — see § Still open.
+**Status:** Stage A steps 1-6 landed; step 7 waits on the shared-planners release. Stage B is done
+through B6: the group rung resolves end to end on both sides, the selling side names an exit route,
+and Settings can set, edit and remove a group default. Stage N is under way: steps 0-2 of the rename
+have landed, steps 3-4 are open.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Hooks/Planner/`, `Functions/MarketData/`,
 `Styled Components/Select/`, `Zustand/applicationSettings/`, `Classes/shoppingList.js` and the panels
 and dialogues listed in § Stage A; [`services/shared/models/`](../../../services/shared/models/),
@@ -327,7 +328,7 @@ is published alongside it so the setting can offer "Minerals" rather than an id.
    the tree and the item's own group.
 4. ~~Read the published tree and each item's market group in the SPA.~~ Done (B4).
 5. ~~A settings surface for choosing a group and what it prices against, per side.~~ Done (B5), for
-   the account's own defaults. A per-group surface is still to come — see § Still open.
+   the account's own defaults. The per-group surface is § Stage B6.
 
 **Done when** a player can say "price minerals from Jita buy orders" once and have every mineral on
 every job follow it, without touching a row.
@@ -394,32 +395,139 @@ mineral on every job follow it.
 
 ## Stage N — One vocabulary for a market and a basis
 
-**Frontend only, no behaviour change.** Deferred deliberately: it is a rename, it spans more code than
-this project owns, and it is better done once, whole, than in pieces as each stage passes through.
+**Frontend only, no behaviour change.** Deferred until the rest of the project had landed: it is a
+rename, it spans more code than this project owns, and it is better done once, whole, than in pieces
+as each stage passes through.
 
-The same two values travel under four names between the store and the screen:
+### The direction is settled: `marketLocation` and `listingType`
 
-| Layer | Names | Occurrences |
-|-------|-------|-------------|
-| Stored shape (Go) | `Market` / `Basis` | — |
-| The ladder | `marketDisplay` / `orderDisplay` | 70, across 20 files |
-| A material row | `marketSelect` / `listingSelect` | 157, across 24 files |
-| The Select components and the panels wiring them | `marketLocation` / `orderType` | — |
-| The Reprocessing reducer's own state | `marketLocation` / `marketListing` | — |
+The axes are **`marketLocation`** — which market a figure is priced against — and **`listingType`** —
+which side of the order book it comes from.
 
-Each layer converts once and passes on, so nothing is wrong — this is friction for a reader tracing a
-figure, not a defect, which is why it is a task of its own rather than a fix.
+A survey of the whole SPA was run first and is kept at
+[measurements/vocabulary-counts.md](./measurements/vocabulary-counts.md); it is what sized the work and
+found the layers this section did not know about. **It is not what chose the names.** The counts argue
+for `market` and `basis`, because those already dominate the tree and are what `PricingChoice` stores.
+That pair was tried across the row and ladder layers and rejected on reading it: `basis` is short and
+consistent and tells someone meeting it nothing about which side of the order book it means.
 
-**The row-level name is the dominant one, not the ladder's.** That is the opposite of what it looks
-like from inside this project, whose own modules are all ladder-side. `marketSelect` / `listingSelect`
-is entrenched in `Functions/Groups/`, `childJobTotals`, `materialCostFromChildJobs`, Cost Breakdown and
-the Materials drawer and table — none of which this project introduced or has reason to touch. Decide
-the direction from the whole SPA rather than from the pricing modules, and settle the Select props and
-the Reprocessing reducer's state names in the same pass; doing the inner two alone leaves three
-vocabularies instead of four.
+`listingType` is chosen because the app already owns it — `Context/defaultValues` exports the list of
+the four values this axis may take under that exact name, so the name leads a reader to what it may
+be. `marketLocation` is already the name of the Select component that sets the other axis.
 
-**Wire compatibility:** none. The Go field names do not move, and nothing renamed here is persisted or
-crosses a process boundary.
+**The conversion layers go away rather than being renamed**, which is the part that makes the work
+worth doing.
+
+### The cost: the SPA stops matching the stored names
+
+`PricingChoice` stores `market` and `basis` — those are its `bson` and `json` tags in
+`services/shared/models/accountDocuments.go`, and they are what `JobPricing`, `PricingSide` and the
+account's `defaultPricing` carry on the wire. Naming the SPA's vocabulary `marketLocation` and
+`listingType` means the SPA no longer says what the document says.
+
+**That leaves one conversion, at the store boundary**, where `resolvePricingSideRungs` reads
+`job?.market` and `account?.basis` and returns `marketLocation` and `listingType`. It is the same shape
+the ladder already has against `MaterialPriceOverride`, and it is deliberate rather than overlooked:
+the alternative was naming the SPA after the wire and keeping `basis`, which reads as nothing to
+someone meeting it.
+
+So this stage does not end with one word for each axis everywhere. It ends with **one word inside the
+SPA, one word in the documents, and a single named place where they meet** — which is the thing worth
+having, since the four-vocabulary problem was never that the wire disagreed but that the SPA disagreed
+with itself.
+
+### `listingType` collides with the list it is named after
+
+`Context/defaultValues` exports the four options as `listingType`, and three modules import it —
+`materialPricing.js`, `marketLabelHelpers.js` and the `marketListing` Select. A value called
+`listingType` in those files shadows the list called `listingType`, and `materialPricing.js` reads both
+in one function: `materialCostByBasis` would take the chosen one as a parameter while mapping over all
+four.
+
+The export is the one to move, because it holds a set of options rather than a single value. It becomes
+`LISTING_TYPES`, matching `JOB_STATUS_CATALOG` beside it and `MARKET_OPTIONS`, and that frees
+`listingType` for the value throughout. Four files.
+
+The layers still to move:
+
+| Layer | Names | Production occurrences |
+|-------|-------|-----------------------:|
+| A material row | `marketSelect` / `listingSelect` | 54 / 50 |
+| The ladder | `marketDisplay` / `orderDisplay` | 34 / 32 |
+| The rungs | `marketRung` / `listingRung` **and** `orderRung` | crossed at three call sites |
+| The Select components and the panels wiring them | `marketLocation` / `marketListing` | 46 / 36 |
+| The Reprocessing reducer's own state | `marketLocation` / `marketListing` | counted above |
+
+The rung row is a **fifth** vocabulary the first survey missed: the same axis is `listingRung` on the
+row side and `orderRung` on the ladder side, and three call sites — `useJobSellingContext`,
+`useMaterialsSourcing` and `shoppingList` — carry a `listingRung: orderRung` line whose only purpose is
+to cross between them. Those three lines are deleted by the rename, not rewritten, which is the first
+evidence that this stage removes code.
+
+**`orderType` is already retired** — one occurrence left, the legacy stored field the `Job`
+constructor seeds from, which goes with Stage A step 7 and needs nothing from here.
+
+**`marketListing` is wider than it looks.** It was recorded as the Reprocessing reducer's own state;
+it is also a Select component's name and a prop threaded through Price Entry, the row pricing
+override, the purchasing panel, first login and Settings. The reducer is not a separable slice.
+
+**`marketLocation` is the one to read rather than replace.** 46 production occurrences against 2 in
+tests is the widest ratio in the table, so the suite will not catch a mistake there the way it will
+in the row layer.
+
+### The work
+
+0. ~~Free the name: `Context/defaultValues`'s `listingType` export becomes `LISTING_TYPES`, across its
+   four importers.~~ Done.
+1. ~~The row layer: `marketSelect` / `listingSelect`, and the rung pair with it.~~ Done. The rung pair
+   collapsed to `marketLocationRung` / `listingTypeRung`, deleting the three `listingRung: orderRung`
+   conversion lines.
+2. ~~The ladder layer: `marketDisplay` / `orderDisplay` — **in-memory uses only**, per § The ladder layer
+   is half a stored shape.~~ Done. Eleven occurrences of `marketDisplay` / `orderDisplay` remain and are
+   meant to: every one is a `MaterialPriceOverride` key.
+3. The Select components, their props, and every panel wiring them — including the Reprocessing
+   reducer's state, which is the same names and cannot be split off. Check each `marketLocation` for
+   whether it is naming a stored key before moving it, as § The ladder layer is half a stored shape
+   required of `marketDisplay`.
+4. Delete the conversion points the layers above needed, which is what is left once both ends of each
+   speak the same words.
+
+One layer per slice, with the suite run between: a rename is exactly the change whose failures do not
+say where they came from, and four revertable steps cost nothing next to one diff large enough to
+hide a real mistake.
+
+**Done when** a figure can be traced from the store to the screen without changing what it is called,
+and nothing converts between two names for the same value.
+
+### The ladder layer is half a stored shape
+
+**`marketDisplay` and `orderDisplay` are not in-memory names.** They are the persisted field names of
+a job's per-material price override — `MaterialPriceOverride` in `services/shared/models/job.go`
+carries them in both its `json` and its `bson` tags, and the SPA writes them as literal string keys
+through `updateMaterialLayoutPreference(typeID, "marketDisplay", id)`. The same identifier is doing
+two jobs: the ladder's own vocabulary, and a key in a document.
+
+So the ladder layer does not rename as one thing. It splits:
+
+| Use | Renameable |
+|-----|-----------|
+| Locals, params, returns, destructuring aliases | Yes — nothing outside the module sees them |
+| `override?.marketDisplay`, the literal `"marketDisplay"` key, the typedef describing an override | **No.** That is the stored document's shape |
+
+The resolver reads correctly across the boundary: `getEffectiveMaterialPriceHub` returns
+`{marketLocation, listingType}` while reading `override?.marketDisplay` — the document's name on the
+right of the assignment, the app's name on the left. That is the shape the whole layer ends in —
+**the SPA speaks `marketLocation` and `listingType` everywhere except where it is naming a stored
+key.**
+
+Renaming the stored keys as well would be a document migration on `jobs`, needing an upgrader and a
+release step, for a rename with no behaviour behind it. Not worth it on its own; if it is ever wanted
+it rides a release that is already rewriting those documents.
+
+**Wire compatibility:** the in-memory rename is none — nothing renamed crosses a process boundary. The
+stored keys are **deliberately not renamed**, which is what keeps it that way. `JobPricing` and
+`PricingChoice` already store `market` and `basis`, so the stored shapes disagree with each other and
+that is not this project's to fix.
 
 ## A sale was priced from the buying side
 
@@ -484,6 +592,20 @@ compiler caught it in tests; it would not have in a map key.
 identical values, so a surface asking for the wrong side passed. Give the two sides different values
 in every fixture.
 
+**A plan naming the target wrongly in one paragraph.** § The ladder layer is half a stored shape was
+written before the names were settled and said the SPA would speak `market` and `basis`. Three call
+sites — the Price Entry reducer, the Purchasing material costs and the Reprocessing reducer — were then
+edited to destructure exactly that pair from functions returning `marketLocation` and `listingType`, so
+each silently read `undefined`: a dialogue seeded with no market, a price field defaulting to zero, a
+reducer falling through to the global default. **Destructuring the wrong key is not a lint error and
+not a type error here**, and none of the three files has a test, so a green suite proved nothing. One
+stale sentence in a plan is enough to produce a bug in every file written from it.
+
+**A name that is also a stored key.** `marketDisplay` reads as one of four in-memory vocabularies
+until you notice `MaterialPriceOverride` persists it under that exact name, and that the panel writes
+it as a string literal. A rename that looks confined to the SPA reaches Mongo. Check the Go models
+before moving any name, however local it looks. See § The ladder layer is half a stored shape.
+
 **A key list duplicated across two languages.** Nothing connects the two copies until a test does, and
 until then a key naming something the other side never had throws only when first reached for. See
 [overlay.md](./overlay.md) § B1.
@@ -500,7 +622,7 @@ until then a key naming something the other side never had throws only when firs
 | Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
 | Stage B5 — the selling side names a route, and the controls for it | Done |
 | Stage B6 — a surface for setting a group default | Done |
-| Stage N — one vocabulary for a market and a basis | Not started; deliberately deferred |
+| Stage N — one vocabulary for a market and a basis | Steps 0-2 landed: the row layer, the rungs and the ladder's in-memory uses all speak `marketLocation` / `listingType`. Step 3 (the Select components and the panels) and step 4 (deleting the conversions) are open — see § Stage N |
 
 ## Start here
 
@@ -518,13 +640,15 @@ single pair does not, so the stored pair goes stale rather than wrong. A session
 code would read the stale one. That is a deploy-window consideration, not a data question — the
 server never overwrites a filled side.
 
-**Stage B's remaining piece is the settings surface** — § Stage B, § The work item 5. Everything
-beneath it resolves: an account's group table is walked per material on the Planning stage and on the
-shopping list, and a group default outranks the account default while losing to a job's own choice.
-What is missing is any way for a player to *set* one, so the table is only ever filled by hand today.
+**Stage B is finished end to end.** An account's group table is walked per material on the Planning
+stage and on the shopping list, a group default outranks the account default while losing to a job's
+own choice, and Settings browses the tree to set, edit and remove one on either side.
 
-That item waits on § Open decisions: a group table on the selling side has to offer either a basis or
-an exit route, and that is not settled. Nothing else blocks it.
+**What is left is Stage N**, the rename, now part-landed. The axes are `marketLocation` and
+`listingType`; the row layer, the rungs and the ladder's in-memory uses are converted and the suite is
+green. What remains is step 3 — the Select components, their props and the panels wiring them,
+including the Reprocessing reducer — and step 4, deleting the conversion points that are left once both
+ends of each speak the same words. § Stage N.
 
 Read § Two axes, both called buy and sell before naming anything, and § Traps this work has already
 fallen into before changing a stored shape. Both cost a slice each the first time.

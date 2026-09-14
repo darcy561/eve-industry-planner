@@ -63,4 +63,6 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know why a group default sits inside a side | [plan.md](./plan.md) § A group default belongs to a side |
 | Read what has already gone wrong here before changing a stored shape | [plan.md](./plan.md) § Traps this work has already fallen into |
 | Find what the market group tree actually contains | [measurements/market-group-tree.md](./measurements/market-group-tree.md) |
+| See which name for a market and a basis the SPA already uses | [measurements/vocabulary-counts.md](./measurements/vocabulary-counts.md) |
+| Know which vocabulary the rename converges on, and why | [plan.md](./plan.md) § Stage N |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
