@@ -1,8 +1,8 @@
-import { Grid, Paper, Tooltip, Typography } from "@mui/material";
+import { Grid, Tooltip, Typography } from "@mui/material";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import RemoveIcon from "@mui/icons-material/Remove";
-import { appShellSetupSectionPaperSx } from "../../Context/appShell";
+import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import {
   FIGURE_TONE,
   StatTile,
@@ -114,7 +114,7 @@ function MetricCard({
       : FIGURE_TONE.GOOD;
 
   return (
-    <Paper variant="outlined" sx={{ ...appShellSetupSectionPaperSx, p: 2 }}>
+    <AppShellPanel componentName={`${label} stat`} paperSx={{ p: 2 }}>
       <StatTile
         isLoading={isLoading}
         label={label}
@@ -141,7 +141,7 @@ function MetricCard({
           </Tooltip>
         }
       />
-    </Paper>
+    </AppShellPanel>
   );
 }
 

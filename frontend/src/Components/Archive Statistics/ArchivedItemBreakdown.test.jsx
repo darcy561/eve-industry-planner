@@ -18,6 +18,7 @@ vi.mock("../../Functions/Helper/getCachedData", async () => {
 });
 
 const { ArchivedItemBreakdown } = await import("./ArchivedItemBreakdown.jsx");
+const { ITEM_BREAKDOWN_TITLE } = await import("./ArchiveChartPanels.jsx");
 
 function page(items, totalItems = items.length) {
   return { data: { items, paging: { totalItems } }, isLoading: false };
@@ -55,6 +56,10 @@ describe("ArchivedItemBreakdown", () => {
 
     expect(await screen.findByText("Ragnarok")).toBeInTheDocument();
     expect(screen.getByText("Erebus")).toBeInTheDocument();
+
+    // The panel names itself: the header is AppShellPanel's, and nothing else
+    // asserted it, so a lost title would have passed the rest of this suite.
+    expect(screen.getByText(ITEM_BREAKDOWN_TITLE)).toBeInTheDocument();
   });
 
   // The name list is a single cached lookup. Resolving per row would repeat it

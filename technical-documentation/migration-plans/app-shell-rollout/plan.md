@@ -45,6 +45,7 @@ speculatively — each has a real caller.
 | `FigureCaption` | What a figure is |
 | `StatusChip` | A state, named rather than coloured at the call site |
 | `SelectableCard` | A card a player picks, as one of a set or on its own |
+| `ActionCard` | A card that acts — follows a link, runs an action, or states something there is nothing to do about |
 | `InsetSurface` | A recessed area inside a panel |
 | `figureToneColour` | A tone, for the places one has to reach something that is not a `Figure` |
 | `SectionPanel` | A titled section of a page, and the line explaining it |
@@ -150,17 +151,105 @@ padded a fixed 16px each side at every width. The rail earns its place on a wide
 on a narrow one, so it is kept from `md` up; the panel's padding halves below `sm`. Together that is
 41px returned to the content.
 
+## First login sits on the shared surface
+
+The page frame and the support step's cards each drew their own near-miss of a helper that already
+existed, which is this project's failure case rather than a second implementation of it.
+
+**The page frame** hand-rolled `appShellSetupSectionPaperSx` at six slightly different values: a
+border at alpha 0.22 against the helper's 0.20, backgrounds at 0.84/0.94 against 0.72/0.90, a 4px
+blur against 3px, and `md` padding of 3 against 2.5. Only the radius matched. It is now the helper on
+an outlined `Paper` — `elevation={0}` with a hand-drawn `border: "1px solid"` was doing by hand what
+the variant does, and the helper supplies a `borderColor` with no border to colour otherwise.
+
+**The support step's cards are `ActionCard`.** They were a local `SupportBookendCard`: three
+hand-assembled `Paper` branches over a local surface sx, with their own hover, focus and transition
+block. Pointing that sx at `appShellNestedCardSx` would have moved the CSS and left the screen still
+building its own card, which is not what this project is for — a screen is meant to compose the
+component layer, not to restyle a surface. The component went to `Styled Components/Paper/`, beside
+the `SelectableCard` it is a sibling of, and the support step is 108 lines where it was 241.
+
+Both atoms make the whole card the control, and a `Paper` given a role and a `tabIndex` is reachable
+by Tab but does not get a native button's Enter and Space activation — that is the browser's doing
+and does not come with the role. `activateOnEnterOrSpace` in `Styled Components/Paper/cardActivation.js`
+is that handler, once, for both.
+
+`ActionCard` and `SelectableCard` split by what the card does. `SelectableCard` is a card a player
+**picks**: it carries a radio or checkbox role and a selected state. `ActionCard` is a card that
+**acts**: a link role or a button role, and no state of its own. They share the nested-card surface,
+so a card that acts and a card that is chosen read as the same object. A card with neither a link nor
+an action is inert and takes no role at all, because a control a reader cannot use should not be
+announced as one.
+
+**This atom has one caller**, which § The component layer says should not happen yet. The rule is
+there to stop a shape being abstracted before anyone knows its real shape; here the shape was already
+drawn and already duplicated three ways inside one component, and leaving it in the screen was the
+thing that made first login look unlike the pages around it. Taken deliberately rather than by
+forgetting the rule.
+
+**Both surface changes are visible**, slightly: the frame's fill and border land where every other
+app-shell panel's do, and the cards gain the tinted fill and softer border they were missing. That is
+the point of the conversion rather than a side effect of it, but a screenshot would catch it.
+
+**Two screens were checked and left alone.** The **welcome banner** draws no panel surface — its
+radius and shadow are on the logo image, and the layer has no atom for a branded image. The **job
+card preview** highlights whichever layout is active around a real `JobCardFrame`, and is
+deliberately not a control: `SelectableCard`s beside it do the choosing and `previewInteractionBlockSx`
+kills its pointer events. Its frame matches the job card on the planner, which is what it is
+previewing, so it keeps that styling rather than taking the app-shell selection treatment.
+
+**Tests came first**, as § How a screen converts asks, because none of the three screens had any. The
+support step has nine covering the three card modes, the unconfigured-link states and the feedback
+flag; they were written against the old hand-built card and pass unchanged against `ActionCard`,
+which is what shows the conversion preserved behaviour. `ActionCard` has eight of its own. The page
+shell has six covering the step sequence, which button shows where, and the finish path that saves
+before it navigates — the save-failure one checked by breaking the guard and watching it fail. The
+shell's height animation is **not** covered: it runs on a `ResizeObserver` and a
+double-`requestAnimationFrame`, and jsdom has no layout to observe.
+
+## Archive statistics uses the panel, not the panel's surface
+
+Two of the area's seven files drew a panel instead of using one: a `Paper` carrying
+`appShellSetupSectionPaperSx`, which is the surface without the component that owns it.
+
+`ArchivedItemBreakdown` was the plainer case. Under the `Paper` it rebuilt `AppShellPanel`'s header
+by hand — the same `Grid container spacing={1.5}` with centred items, a secondary-coloured
+`caption`/`md: body2` title, and a control opposite it at `sm: 7`/`sm: 5`. All of it is the panel's
+own layout, so the conversion deletes it and passes the sort select as the panel's `action`. The
+header's `mb: 1` becomes the panel's `mb: 1.5`.
+
+`ArchivedStatsOverview`'s stat card wrapped a single `StatTile`. The tile keeps its own `isLoading`
+rather than handing it to the panel: its skeleton is tile-shaped where the panel's fallback is sized
+for a panel's worth of content.
+
+**The stat cards now stand equal in a row.** `AppShellPanel` sets `height: "100%"`, and three cards
+in a `Grid` row stretch to the tallest of them where a bare `Paper` let each size itself. That is the
+uniform row the design wants, and it is a visible change rather than a side effect of tidying.
+
+**Both gain an error boundary they did not have** — the same thing first login's section card gained,
+and the reason the component exists rather than the sx helper alone.
+
+**Two files were checked and left as they are.** `panelParts.jsx` holds the area's chart adapters and
+its cost-component hook; a local parts file is only a problem when it re-implements a shared shape,
+and this one holds logic the layer has no opinion about. `RecalculationNotice` is a plain MUI `Alert`
+driven by the shared `useHasChanged`, and there is no alert atom for it to compose.
+
+The area's 139 tests pass unchanged, which says less than it appears to: **nothing asserted the
+breakdown's title**, so dropping it would have left the suite green. That assertion is now in
+`ArchivedItemBreakdown.test.jsx`, checked by removing the title and watching it fail.
+
 ## Screens
 
 | Screen | State |
 |--------|-------|
-| Archive statistics | Stat cards converted to `StatTile`; `changeDisplay` returns a tone rather than a colour. The rest of the area is unconverted |
+| Archive statistics | Converted: stat cards are `StatTile`, `changeDisplay` returns a tone rather than a colour, and the two files that drew their own panel now use `AppShellPanel` |
 | First login — section card | Converted: it is `AppShellPanel`, and gains the error boundary and loading states it was doing without |
 | First login — choice row | Converted and promoted to `SelectableCard`; the accessibility bug went with it |
-| First login — support step | **Not converted.** 242 lines, draws its own surfaces |
-| First login — page shell | **Not converted.** 274 lines, its own radius-3 surfaces |
+| First login — support step | Converted: its cards are `ActionCard`, and the local card component is gone |
+| First login — page shell | Converted: the frame is `appShellSetupSectionPaperSx` on an outlined `Paper` |
 | First login — main character card | **Gone.** [accounts-page](../accounts-page/plan.md) Stage C replaced it with a card both it and the Accounts page render |
-| First login — welcome banner | **Not converted.** Own surface and shadow |
+| First login — welcome banner | **Nothing to convert.** Its radius and shadow are on the logo image, not a panel surface, and no atom covers a branded image |
+| First login — job card preview | **Keeps its own frame.** It previews the planner's job card, so it matches that card rather than the app-shell selection treatment |
 | Additional accounts, and the rest of the Accounts page | **Moved out.** Converts as part of a redesign, which this project does not do → [accounts-page/plan.md](../accounts-page/plan.md) |
 | Archived jobs list, archive chart panels, archive jobs panel | On `AppShellPanel` already; not audited against the component layer |
 | Everything else | Predates the design. Converts when the design reaches it, not before |
@@ -199,9 +288,9 @@ during a conversion is the failure this project exists to undo.
 | Stage | Surface | Status |
 |-------|---------|--------|
 | Phase 1 — project folder and docs | docs | **Done** |
-| First login — remaining screens | SPA | Not started |
+| First login — remaining screens | SPA | **Done** — page shell, and the support step onto a new `ActionCard`; the welcome banner and job card preview keep what they draw |
 | Additional accounts — retire the local panel sx | SPA | **Moved to [accounts-page](../accounts-page/plan.md)** Stage B |
-| Archive statistics — audit the rest of the area | SPA | Not started |
+| Archive statistics — audit the rest of the area | SPA | **Done** — two files onto `AppShellPanel`; the other five already compose the layer |
 | Component layer — add atoms as conversions need them | SPA | Ongoing |
 | Item actions — one component, rebuilt on Popper | SPA | **Done** — `Styled Components/Item/marketActions.jsx`, ten callers |
 | Tables fit their panel — `ScrollingTable`, floors from the theme | SPA | **Done** — four tables |
@@ -209,13 +298,17 @@ during a conversion is the failure this project exists to undo.
 
 ## Start here
 
-The remaining first login screens, because they are the ones already claiming the design while not
-using it, and because the atoms they need now exist. The page shell, the welcome banner and the
-support step are what is left here.
+Nothing is outstanding on the screens this project named. What is left is the standing work: the
+component layer grows as conversions need it, and a screen converts when the design reaches it.
 
-The Accounts page and the first-login accounts step are not on that list:
-[accounts-page](../accounts-page/plan.md) has converted both, and its Stages A and C added
-`SectionPanel`, `FormField` and `SwitchField` to the component layer on the way. Read that project's
-overlay before converting a screen that uses any of the three.
+The nearest unfinished thing is the **archived jobs list, archive chart panels and archive jobs
+panel** — on `AppShellPanel` already, never read against the component layer. That is an audit
+rather than a conversion, and the archive statistics audit is the shape of it: of seven files, five
+were already composing the layer and two were drawing a panel's surface without its component.
+
+The Accounts page is not on that list: [accounts-page](../accounts-page/plan.md) converts it as part
+of a redesign, and its Stages A and C added `SectionPanel`, `FormField` and `SwitchField` to the
+component layer on the way. Read that project's overlay before converting a screen that uses any of
+the three.
 
 Not urgent. Cheap once someone is in the file.

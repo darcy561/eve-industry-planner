@@ -2,6 +2,7 @@ import { Box, Checkbox, Paper, Radio, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import { appShellNestedCardSx } from "../../Context/appShell";
+import { activateOnEnterOrSpace } from "./cardActivation";
 
 /**
  * A card a player picks, as one of a set or on its own.
@@ -44,12 +45,7 @@ export default function SelectableCard({
       aria-disabled={disabled || undefined}
       tabIndex={disabled ? -1 : 0}
       onClick={activate}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          activate();
-        }
-      }}
+      onKeyDown={activateOnEnterOrSpace(activate)}
       sx={[
         (theme) => ({
           ...appShellNestedCardSx,

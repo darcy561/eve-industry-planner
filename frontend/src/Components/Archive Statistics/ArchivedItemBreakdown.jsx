@@ -5,7 +5,6 @@ import {
   Grid,
   Link,
   MenuItem,
-  Paper,
   Skeleton,
   TableBody,
   TableCell,
@@ -14,8 +13,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { appShellSetupSectionPaperSx } from "../../Context/appShell";
 import { ScrollingTable } from "../../Styled Components/Table/tableParts";
+import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import AppShellSelect from "../../Styled Components/Select/AppShellSelect";
 import {
   formatNumberForLocale,
@@ -152,40 +151,31 @@ export function ArchivedItemBreakdown({ from, to, range, onSelectItem } = {}) {
   };
 
   return (
-    <Paper variant="outlined" sx={{ ...appShellSetupSectionPaperSx, p: 2 }}>
-      <Grid container spacing={1.5} sx={{ alignItems: "center", mb: 1 }}>
-        <Grid size={{ xs: 12, sm: 7 }}>
-          <Typography
-            sx={{
-              typography: { xs: "caption", md: "body2" },
-              color: "text.secondary",
-            }}
-          >
-            {ITEM_BREAKDOWN_TITLE}
-          </Typography>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 5 }}>
-          <AppShellSelect
-            fullWidth
-            value={sort}
-            onChange={(next) => {
-              setSort(String(next));
-              // A new ranking is a new list, so start it from the top. The
-              // old rows are dropped rather than faded: they belong to an
-              // ordering that no longer applies.
-              setCollapsingRows(null);
-              setExpanded(false);
-            }}
-          >
-            {SORT_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </AppShellSelect>
-        </Grid>
-      </Grid>
-
+    <AppShellPanel
+      title={ITEM_BREAKDOWN_TITLE}
+      componentName="Archived Item Breakdown"
+      paperSx={{ p: 2 }}
+      action={
+        <AppShellSelect
+          fullWidth
+          value={sort}
+          onChange={(next) => {
+            setSort(String(next));
+            // A new ranking is a new list, so start it from the top. The
+            // old rows are dropped rather than faded: they belong to an
+            // ordering that no longer applies.
+            setCollapsingRows(null);
+            setExpanded(false);
+          }}
+        >
+          {SORT_OPTIONS.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </AppShellSelect>
+      }
+    >
       <ScrollingTable minWidth="sm">
         <TableHead>
           <TableRow>
@@ -277,6 +267,6 @@ export function ArchivedItemBreakdown({ from, to, range, onSelectItem } = {}) {
           </Button>
         </Grid>
       )}
-    </Paper>
+    </AppShellPanel>
   );
 }

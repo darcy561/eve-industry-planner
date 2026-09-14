@@ -7,7 +7,6 @@ import {
   StepLabel,
   Stepper,
 } from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { useNavigate } from "@tanstack/react-router";
@@ -15,6 +14,7 @@ import useUsersStore from "../../../Zustand/usersStore";
 import { flushPendingUserDocumentSaves } from "../../../Functions/Debounce/userDocumentsPersistSchedule";
 import { saveUserAccountDocument } from "../../../Functions/Endpoints/Private/userDocument";
 import { LoadingBrandBackdrop } from "../../loadingBrand";
+import { appShellSetupSectionPaperSx } from "../../../Context/appShell";
 import { FIRST_LOGIN_STEPS } from "./firstLoginConstants";
 import { FirstLoginWelcomeBanner } from "../welcome/FirstLoginWelcomeBanner";
 import { FirstLoginPlannerSetupStep } from "../planner-setup/FirstLoginPlannerSetupStep";
@@ -169,107 +169,92 @@ export default function FirstLoginPage() {
     );
 
   return (
-    <>
-      <LoadingBrandBackdrop
+    <LoadingBrandBackdrop
+      sx={{
+        width: "100%",
+        borderRadius: 3,
+        alignItems: "stretch",
+        justifyContent: "flex-start",
+        py: { xs: 2, md: 3 },
+        px: { xs: 1, md: 2 },
+      }}
+    >
+      <Paper
+        variant="outlined"
         sx={{
+          ...appShellSetupSectionPaperSx,
           width: "100%",
-          borderRadius: 3,
-          alignItems: "stretch",
-          justifyContent: "flex-start",
-          py: { xs: 2, md: 3 },
-          px: { xs: 1, md: 2 },
+          maxWidth: 1320,
+          mx: "auto",
+          overflow: "auto",
         }}
       >
-        <Paper
-          elevation={0}
-          sx={{
-            width: "100%",
-            maxWidth: 1320,
-            mx: "auto",
-            p: { xs: 2, md: 3 },
-            borderRadius: 3,
-            border: "1px solid",
-            borderColor: (theme) => alpha(theme.palette.primary.main, 0.22),
-            bgcolor: (theme) =>
-              alpha(
-                theme.palette.background.paper,
-                theme.palette.mode === "dark" ? 0.84 : 0.94,
-              ),
-            backdropFilter: "blur(4px)",
-            overflow: "auto",
-          }}
-        >
-          <Stack spacing={3}>
-            <FirstLoginWelcomeBanner />
+        <Stack spacing={3}>
+          <FirstLoginWelcomeBanner />
 
-            <Stepper activeStep={activeStep}>
-              {FIRST_LOGIN_STEPS.map((label) => (
-                <Step key={label}>
-                  <StepLabel>{label}</StepLabel>
-                </Step>
-              ))}
-            </Stepper>
+          <Stepper activeStep={activeStep}>
+            {FIRST_LOGIN_STEPS.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
 
+          <Box
+            sx={{
+              overflow: "hidden",
+              width: "100%",
+              height:
+                viewportHeightPx == null ? "auto" : `${viewportHeightPx}px`,
+              transition: canAnimateViewportHeight
+                ? `height ${STEP_VIEWPORT_HEIGHT_MS}ms ${STEP_ENTER_EASE}`
+                : "none",
+            }}
+          >
             <Box
               sx={{
-                overflow: "hidden",
+                position: "relative",
                 width: "100%",
-                height:
-                  viewportHeightPx == null ? "auto" : `${viewportHeightPx}px`,
-                transition: canAnimateViewportHeight
-                  ? `height ${STEP_VIEWPORT_HEIGHT_MS}ms ${STEP_ENTER_EASE}`
-                  : "none",
+                overflow: "hidden",
               }}
             >
-              <Box
-                sx={{
-                  position: "relative",
-                  width: "100%",
-                  overflow: "hidden",
-                }}
-              >
-                <SwitchTransition mode="out-in">
-                  <CSSTransition
-                    key={activeStep}
-                    nodeRef={stepPanelRef}
-                    timeout={{ enter: STEP_ENTER_MS, exit: STEP_EXIT_MS }}
-                    classNames="fl-step"
-                    appear={false}
-                    unmountOnExit
-                  >
-                    <Box ref={stepPanelRef} sx={stepTransitionSx}>
-                      {stepPanel}
-                    </Box>
-                  </CSSTransition>
-                </SwitchTransition>
-              </Box>
-            </Box>
-
-            <Stack direction="row" sx={{ justifyContent: "space-between" }}>
-              <Button
-                variant="text"
-                disabled={activeStep === 0}
-                onClick={goBack}
-              >
-                Back
-              </Button>
-              {isLastStep ? (
-                <Button
-                  variant="contained"
-                  onClick={() => void completeFlow()}
-                  disabled={isFinishing}
+              <SwitchTransition mode="out-in">
+                <CSSTransition
+                  key={activeStep}
+                  nodeRef={stepPanelRef}
+                  timeout={{ enter: STEP_ENTER_MS, exit: STEP_EXIT_MS }}
+                  classNames="fl-step"
+                  appear={false}
+                  unmountOnExit
                 >
-                  Finish Setup
-                </Button>
-              ) : (
-                <Button variant="contained" onClick={goNext}>
-                  Continue
-                </Button>
-              )}
-            </Stack>
+                  <Box ref={stepPanelRef} sx={stepTransitionSx}>
+                    {stepPanel}
+                  </Box>
+                </CSSTransition>
+              </SwitchTransition>
+            </Box>
+          </Box>
+
+          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+            <Button variant="text" disabled={activeStep === 0} onClick={goBack}>
+              Back
+            </Button>
+            {isLastStep ? (
+              <Button
+                variant="contained"
+                onClick={() => void completeFlow()}
+                disabled={isFinishing}
+              >
+                Finish Setup
+              </Button>
+            ) : (
+              <Button variant="contained" onClick={goNext}>
+                Continue
+              </Button>
+            )}
           </Stack>
-        </Paper>
-      </LoadingBrandBackdrop>
-    </>
+        </Stack>
+      </Paper>
+    </LoadingBrandBackdrop>
   );
 }
