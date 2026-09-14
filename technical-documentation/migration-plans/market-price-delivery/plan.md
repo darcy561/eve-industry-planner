@@ -511,7 +511,10 @@ a second one.
    turn, keeps one refusal from settling the account's answer, skips a character whose token lacks the
    scope, and refuses to cache a transient failure as an answer. One clock for the whole source.
 4. Each source refreshed on its own ESI expiry rather than on demand, so a panel pricing its first
-   material does not pay for a book walk.
+   material does not pay for a book walk. **Its home exists:**
+   `Functions/MarketData/priceRefreshSchedule.js`, started from `index.jsx` and owned by no component
+   — see [overlay.md](./overlay.md) § C2. Add each source's expiry there rather than building a second
+   mechanism beside the fetching.
 5. The accessor from Stage D answers for these sources without its callers changing.
 
 This stage builds against the placeholder accessor that already exists for saved locations —

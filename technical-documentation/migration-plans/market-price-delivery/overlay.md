@@ -230,7 +230,7 @@ they land, and a market never walks its book backwards.
 `findMarketData`'s zero-filled row: a market that answered with no clock must not be recorded as
 having been walked at the epoch.
 
-### C2 — Nothing polls for a clock
+### C2 — Nothing polls for a clock, and nothing renders to ask
 
 `revalidateSourceClocks` in `priceCache.js` asks each market holding rows for **one type it already
 holds**. The answer carries that market's `refreshedAt`, so a request costing a single row settles
@@ -241,12 +241,25 @@ nothing here reintroduces it.
 Any held type answers the clock as well as any other, so the probe takes whichever the cache lists
 first rather than naming a sentinel type id that would be a magic constant.
 
-`Hooks/App/useMarketClockRevalidation.js` paces it, mounted once in `App.jsx`. **Fifteen minutes**,
-matching the server's own scheduler tick — a shorter interval cannot see anything that has not been
-published, and a longer one leaves a reader on figures already replaced. It also probes when the
-reader returns to the tab, because a background tab's timers are throttled. That interval paces the
-*asking*; it is not a staleness rule, and a row whose market has not moved outlives any number of
-ticks untouched.
+`Functions/MarketData/priceRefreshSchedule.js` paces it, started from `index.jsx` beside
+`startStaticDataSync` and **not owned by any component**. A price is read by panels, by classes and by
+reducers that never render, so what keeps prices current cannot belong to whichever screen happens to
+be mounted — it runs whether or not anything is looking, and a route change that unmounts the shell
+does not stop it. `startPriceRefresh` / `stopPriceRefresh` follow `staticDataSync`'s shape exactly,
+including the `started` guard that makes a second start a no-op and the stop that exists for tests.
+
+**Fifteen minutes**, matching the server's own scheduler tick — a shorter interval cannot see anything
+that has not been published, and a longer one leaves a reader on figures already replaced. It also
+probes when the reader returns to the tab, because a background tab's timers are throttled, subject to
+a **five-minute floor** so that alt-tabbing does not ask every market for a price on each pass.
+
+That interval paces the *asking*; it is not a staleness rule, and a row whose market has not moved
+outlives any number of ticks untouched. The scheduler asks for nothing until something has fetched a
+price, because it works from the markets that already hold rows.
+
+**This is where Stage E's pacing goes.** Each reader-saved source refreshes on its own ESI expiry
+rather than on demand, and that belongs here beside the hub probe rather than in a second mechanism
+invented alongside the fetching.
 
 ### C3 — The age guess is gone
 

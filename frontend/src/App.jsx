@@ -13,7 +13,6 @@ import ErrorBoundary from "./Components/ErrorBoundary";
 import { useTranquilityServerStatusQuery } from "./Hooks/React Query/tranquilityServerStatus.js";
 import useAppConfig from "./Hooks/App/useAppConfig";
 import useMaintenanceRealtimePark from "./Hooks/App/useMaintenanceRealtimePark.js";
-import useMarketClockRevalidation from "./Hooks/App/useMarketClockRevalidation.js";
 import { useAccountWebSocket } from "./Realtime/useAccountWebSocket.js";
 import { useAccountAffiliationQuery } from "./Hooks/React Query/accountAffiliation.js";
 const { ENABLE_FEEDBACK_ICON } = GLOBAL_CONFIG;
@@ -30,7 +29,6 @@ export default function App() {
   useAccountWebSocket();
   useTranquilityServerStatusQuery();
   useAccountAffiliationQuery();
-  useMarketClockRevalidation();
 
   return (
     <>
