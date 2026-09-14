@@ -1,0 +1,1055 @@
+{
+  "_why": "Order books in, the four prices out, from buildMarketPriceEntry. The SPA derives the same prices for the markets it fetches itself, and nothing but this file holds the two in agreement. Regenerate with: EIP_UPDATE_MARKET_DERIVATION=1 go test ./worker/tasks/esi/ -run TestTheDerivationIsCurrent",
+  "cases": [
+    {
+      "name": "a book big enough for percentiles",
+      "why": "Both sides sort and take the nearest rank, so a book over the floor proves the ordinary path.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 10,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 11,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 12,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 13,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 14,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 15,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 20,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 21,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 22,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 23,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 24,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 25,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 15,
+        "sell": 20,
+        "buyP95": 15,
+        "sellP05": 20
+      }
+    },
+    {
+      "name": "a book under the percentile floor",
+      "why": "Below five orders the percentile degenerates, so both sides must fall back to the best price rather than to a rank.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 10,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 11,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 12,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 20,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 21,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 22,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 12,
+        "sell": 20,
+        "buyP95": 12,
+        "sellP05": 20
+      }
+    },
+    {
+      "name": "exactly at the floor",
+      "why": "Five is the first size that takes a rank rather than the fallback, which is where an off-by-one hides.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 10,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 11,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 12,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 13,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 14,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 20,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 21,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 22,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 23,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 24,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 14,
+        "sell": 20,
+        "buyP95": 14,
+        "sellP05": 20
+      }
+    },
+    {
+      "name": "orders at another station in the same region",
+      "why": "The region endpoint answers for every station in it, so a side that forgets the filter prices the wrong market.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 10,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 11,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 12,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 13,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 14,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 20,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 21,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 22,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 23,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 24,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 999,
+          "is_buy_order": true,
+          "location_id": 60008494,
+          "type_id": 34
+        },
+        {
+          "price": 1,
+          "is_buy_order": false,
+          "location_id": 60008494,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 14,
+        "sell": 20,
+        "buyP95": 14,
+        "sellP05": 20
+      }
+    },
+    {
+      "name": "only sell orders",
+      "why": "An empty side reports zero rather than failing, and must not drag the side that has orders.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 20,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 21,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 22,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 23,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 24,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 25,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 0,
+        "sell": 20,
+        "buyP95": 0,
+        "sellP05": 20
+      }
+    },
+    {
+      "name": "only buy orders",
+      "why": "The mirror of the case above.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 10,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 11,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 12,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 13,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 14,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 15,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 15,
+        "sell": 0,
+        "buyP95": 15,
+        "sellP05": 0
+      }
+    },
+    {
+      "name": "prices that are not whole numbers",
+      "why": "A rank picks a stored price rather than computing one, so no rounding may creep in on either side.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 3.89,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 3.87,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 3.91,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 3.8801,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 3.9,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 4.03,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 4.04,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 4.02,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 4.0399,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 4.1,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 3.91,
+        "sell": 4.02,
+        "buyP95": 3.91,
+        "sellP05": 4.02
+      }
+    },
+    {
+      "name": "a book large enough for the rank to leave the extreme",
+      "why": "The whole point of carrying both figures. ceil(0.95*n) only steps back from the last index at twenty-one orders, and ceil(0.05*n) only steps forward from the first at twenty-one, so a smaller book cannot tell a real percentile from one that simply returns the best price.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 1,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 2,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 3,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 4,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 5,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 6,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 7,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 8,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 9,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 10,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 11,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 12,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 13,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 14,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 15,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 16,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 17,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 18,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 19,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 20,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 21,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 100,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 101,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 102,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 103,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 104,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 105,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 106,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 107,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 108,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 109,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 110,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 111,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 112,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 113,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 114,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 115,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 116,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 117,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 118,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 119,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 120,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 21,
+        "sell": 100,
+        "buyP95": 20,
+        "sellP05": 101
+      }
+    },
+    {
+      "name": "outliers the percentile is there to trim",
+      "why": "One absurd order on each side moves the best price and must not move the percentile, which is the reason a figure other than the best exists.",
+      "stationID": 60003760,
+      "typeID": 34,
+      "orders": [
+        {
+          "price": 1,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 2,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 3,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 4,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 5,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 6,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 7,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 8,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 9,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 10,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 11,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 12,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 13,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 14,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 15,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 16,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 17,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 18,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 19,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 20,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 21,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 22,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 23,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 24,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 9999,
+          "is_buy_order": true,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 100,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 101,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 102,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 103,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 104,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 105,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 106,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 107,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 108,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 109,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 110,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 111,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 112,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 113,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 114,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 115,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 116,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 117,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 118,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 119,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 120,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 121,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 122,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 123,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        },
+        {
+          "price": 0.01,
+          "is_buy_order": false,
+          "location_id": 60003760,
+          "type_id": 34
+        }
+      ],
+      "expected": {
+        "buy": 9999,
+        "sell": 0.01,
+        "buyP95": 24,
+        "sellP05": 100
+      }
+    }
+  ]
+}
