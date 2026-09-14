@@ -51,8 +51,10 @@ branches in `dispatch.go` each run a downward-hierarchy check in front of the ow
 under the alliance — but a connection's scopes are rebuilt on every planner switch as exactly the
 account key plus the active planner, so a client in an alliance planner holds no corporation key at
 all. The check is asking about the pre-owner-system hierarchy, where alliance contained corporation
-contained account and delivery ran downward. It now sits in front of a correct check and can only
-subtract.
+contained account and delivery ran downward. It now sits in front of a correct check and would only
+subtract — but `scopesFromDocOrMeta` reads a `scopes` field off the change document or its preimage
+and nothing writes one, so both matchers are handed empty scopes on every message and already pass
+everything. The mechanism is dead at both ends rather than harmful at one.
 
 ## Meaning and audience are two questions
 
@@ -86,6 +88,18 @@ not a hosted tenant.
 **Maintenance stays outside this.** It is a write followed by a socket close, sequential and with a
 write deadline so a dead peer does not hold the rest. Folding "and then close the socket" into
 audience would make audience mean two things.
+
+## The audience travels in the subject
+
+Not the envelope. The subject keeps the property that a notification is forwarded without being
+parsed, it matches how document routing already encodes its key, and it is visible in NATS tooling.
+
+The deciding reason is the migration rather than any of those. A new subject space is disjoint from
+the subjects the existing families travel, so the new delivery path can be built, deployed and
+exercised while every family still arrives by its old path, and publishers move across one at a
+time. An audience field in the envelope would leave both paths reading the same subjects, which
+means either double delivery or one coordinated cutover of every publisher and the consumer
+together. See § Stage C.
 
 ## Subscribed is not entitled
 
@@ -175,20 +189,33 @@ The corporation and alliance delivery branches each run a downward-hierarchy che
 owner check. Remove both call sites and the matchers behind them, leaving the owner check as the
 single rule.
 
-With them gone the two branches differ only in the owner kind they build and the label they log —
-collapse them into one owner walk. That is the consolidation the later stages need, arrived at from
-the other side.
+The producer goes with them. Nothing writes the `scopes` field `ScopesPayload` is built from, so it
+is already always absent — this stage deletes a mechanism that is inert at both ends, which makes it
+a removal rather than a change in who receives what.
 
-**Done when** one function delivers owner-scoped changes for every owner kind, the downward matchers
-are gone rather than left unused, and a test proves an alliance-planner client receives alliance
-changes while holding no corporation key — the case the removed check would have rejected.
+With them gone the two branches differ only in the owner kind they build, the label they log and
+which of two outcome fields they set — collapse them into one owner walk. That is the consolidation
+the later stages need, arrived at from the other side. Those two fields reach only the delivery
+log's detail map, so the collapse turns two operator-visible log keys into one owner ref beside the
+route kind that is already there.
+
+**Done when** one function delivers owner-scoped changes for every owner kind, the matchers and the
+scopes payload behind them are gone rather than left unused, and a test holds the alliance-planner
+client that holds no corporation key. That test guards the shape rather than proving a fix: with the
+scopes always empty the removed check passed it too, so what it stops is the check being reasoned
+back in.
+
+**Landed.** See [overlay.md](./overlay.md) § Stage A.
 
 ### Stage B — The ceiling index
 
 Mirror the owner index with one built from `Ceiling`, giving an entitled-clients lookup beside the
 subscribed-clients lookup. Add on connect, remove on disconnect. Keep it out of `HostedTenants()`.
 
-Nothing consumes it yet; it is the index Stage C routes on.
+Nothing consumes it yet; it is the index the `members` audience routes on. That consumer is gated on
+§ What this project is waiting on, so this stage lands with it rather than ahead of it: an index, a
+lock, connect and disconnect hooks and a hosted-tenant exclusion test is a lot of unread machinery to
+leave standing against a decision that is deliberately unscheduled.
 
 **Done when** a client entitled to an owner but not subscribed to it is found by the entitled lookup
 and not by the subscribed one, and hosted-tenant counts are unchanged by its existence.
@@ -203,8 +230,34 @@ Two consequences worth stating: the notification path stops discarding every non
 which it does today because corporation and alliance tenants had no clients of their own when it was
 written; and a new family becomes a publish call.
 
-**Gated on** § What this project is waiting on for the `members` audience. `everyone` and
-`subscribers` do not depend on it.
+**Built beside the old paths, not in place of them.** The audience subject space is disjoint from the
+subjects the existing families travel, so a message arrives by the new path or an old one according
+to which subject its publisher chose, and never by both. The whole non-document surface is two
+publish calls, so the migration is:
+
+1. Add the subject space, the single subscriber and the dispatch table. Nothing publishes to it yet.
+   Prove delivery from a fixture publishing on the new subject, and prove the two subject spaces
+   cannot overlap.
+2. Move the static-data publisher, an `everyone` audience. Its subscriber goes quiet: delete it, and
+   lift the general fan-out out of the file named for the one family that needed it.
+3. Move the notification publisher, a `subscribers` audience, fixing the non-account-tenant discard
+   as part of the move. Delete that subscriber.
+4. The `members` audience and the ceiling index behind it, once § What this project is waiting on
+   has an answer.
+
+Each step ships on its own, and at every one of them a real announcement can be watched arriving in
+the app. The browser sees the same frame throughout — audience never crosses to it — so none of this
+is visible to the SPA.
+
+**Suppression is a property the table has to carry.** The document paths skip the connection that
+made the change; the non-document families do not, and cannot — a notification is forwarded with no
+source ids on it at all. That difference is invisible while each family has its own subscriber, and
+becomes a silent choice the moment one table routes all of them. Decide per audience at step 1 and
+say so, rather than inheriting whichever behaviour the first family through the table happened to
+have.
+
+**Gated on** § What this project is waiting on for the `members` audience only. Steps 1 to 3 do not
+depend on it.
 
 **Done when** no delivery path branches on a family name, adding a family touches no websocket Go
 file, and the SPA vocabulary and its shared corpus are unchanged.
@@ -222,9 +275,10 @@ it was about, and the payload carries exactly what that destination needs.
 
 | Change | Shape |
 |--------|-------|
-| Stage A — removing the downward checks | No wire change. Delivery only widens, to recipients the owner check already admitted |
+| Stage A — removing the downward checks | No wire change and no delivery change: nothing writes the `scopes` field the matchers read, so both already admit everyone the owner check admits |
 | Stage B — the ceiling index | No wire change. In-process index only |
-| Stage C — `audience` / `target` on the subject | **Breaking, migrate-required.** Publishers in core, worker and api and the consumer in websocket must ship together. All in-repo Go, one coordinated deploy |
+| Stage C — the audience subject space | Additive. A new subject space beside the existing ones, built and deployed while every family still travels its old path |
+| Stage C — moving a publisher onto it | **Migrate-required, one publisher at a time.** Each move is one publisher and its now-dead subscriber in a single change; no two publishers have to ship together |
 | Stage C — the `members` audience | Additive. New capability; no existing message changes shape |
 | SPA message vocabulary | Unchanged throughout. Audience never crosses to the browser |
 
@@ -232,19 +286,17 @@ it was about, and the payload carries exactly what that destination needs.
 
 - **Where a `members` message lands in the SPA** — a snackbar offering a switch, a badge on the
   planner list, or something else. Stage D.
-- **Whether the audience travels in the subject or the envelope.** The subject is preferred: it keeps
-  the property that a notification is forwarded without being parsed, it matches how document
-  routing already encodes its key, and it is visible in NATS tooling. The envelope would avoid the
-  subject rename and the coordinated deploy. Settle before Stage C.
-- **Whether Stage C rides this pass or a later one.** Stages A and B are additive and stand on their
-  own; Stage C is the only breaking change here.
+- **The subject shape for an audience with no target.** `everyone` addresses nobody in particular, so
+  either the subject varies in arity by audience or a fixed shape carries a literal filler target.
+  The fixed shape is preferred: one parser covers every audience and the space reads uniformly in
+  NATS tooling. Settle before Stage C step 1.
 
 ## Stage status
 
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
-| A — retire the downward-match checks | **Not started.** No dependencies; ready to pick up |
-| B — the ceiling index | **Not started.** No dependencies; ready to pick up |
-| C — audience routing | **Not started.** The `members` audience is gated on [shared-planners](../shared-planners/plan.md) § Stage I — see § What this project is waiting on |
+| A — retire the downward-match checks | **Landed.** One owner walk for every owner kind, the matchers and `ScopesPayload` deleted at both ends, and the delivery log naming one owner ref. See [overlay.md](./overlay.md) § Stage A |
+| B — the ceiling index | **Not started.** No dependencies of its own, but its only consumer is the `members` audience, so it lands with that work rather than ahead of it — see § Stage B |
+| C — audience routing | **Not started.** Built beside the old paths and migrated one publisher at a time, so steps 1 to 3 ship independently; only the `members` audience is gated on [shared-planners](../shared-planners/plan.md) § Stage I — see § What this project is waiting on |
 | D — the SPA destination for a members message | **Not started.** Owes the payload shape Stage C needs |
