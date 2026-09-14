@@ -64,3 +64,4 @@ them.
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
+| Read what would replace live SoT on promote | [promote/README.md](./promote/README.md) |

@@ -1988,11 +1988,10 @@ the `sync_started` / `sync_data` / `sync_complete` / `sync_error` frames — rea
 sync frames anywhere in this repository's history. So nothing is enqueued, the queue never has work,
 and the frames are never produced, while the coordinator scans for the life of the process.
 
-It is an account-shaped answer to the question this stage asks per owner, which is why
-[realtime-delivery-shape](../realtime-delivery-shape/plan.md) § The sync path belongs to shared
-planners established the facts and deliberately left it standing rather than deleting a precedent
-before its replacement is designed. Decide here whether the owner-scoped baseline builds on it or
-replaces it, and remove it as part of that rather than as a tidy-up.
+It is an account-shaped answer to the question this stage asks per owner, which is why it was left
+standing rather than deleted: removing it would throw away the precedent before its replacement is
+designed. Decide here whether the owner-scoped baseline builds on it or replaces it, and remove it as
+part of that rather than as a tidy-up.
 
 The delivery table's `skipWhileSyncing` policy rides on the same decision: it holds a document back
 from a client rebuilding its state and never fires today, so what this stage builds either gives that

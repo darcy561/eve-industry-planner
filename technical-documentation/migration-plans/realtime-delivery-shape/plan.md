@@ -321,6 +321,12 @@ deleted, because each was a reason a stage could not proceed.
 
 ## Stage status
 
+**All four stages are landed, and promotion drafts are written.** What is left is the fold-in into
+live SoT, which is not this project's to take alone: `realtime-message-routing` is still in flight and
+its overlay cites this plan as load-bearing explanation, so promoting ahead of it would leave live
+documentation describing the finished shape while an overlay claims to change it. The folder also
+stays after promote for the same reason. See [promote/README.md](./promote/README.md) § Sequencing.
+
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
