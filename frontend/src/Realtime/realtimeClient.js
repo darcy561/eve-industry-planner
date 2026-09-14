@@ -5,10 +5,6 @@
 
 import { getSessionIDFromStore } from "../Functions/Endpoints/Private/applyPrivateHeaders.js";
 import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Private/jobDocuments.js";
-import {
-  considerRemoteAppVersion,
-  isClientAppVersionOutdated,
-} from "../Functions/App/appVersionCheck.js";
 import { applyRemoteMessage } from "./applyRemoteMessage.js";
 import { requestAppConfigRecheck } from "../Events/appConfigEvents.js";
 import { syncAccountDocumentsFromServer } from "./syncAccountDocumentsFromServer.js";
@@ -342,17 +338,6 @@ export function connectRealtime(params) {
             clientID: parsed.clientID,
             slot: parsed.slot,
             app_version: parsed.app_version,
-          });
-          return;
-        }
-        if (parsed.type === "app_version") {
-          if (typeof parsed.app_version === "string") {
-            considerRemoteAppVersion(parsed.app_version);
-          }
-          // eslint-disable-next-line no-console -- ops/train cutover nudge
-          console.info("[realtime] app_version", {
-            app_version: parsed.app_version,
-            outdated: isClientAppVersionOutdated(),
           });
           return;
         }

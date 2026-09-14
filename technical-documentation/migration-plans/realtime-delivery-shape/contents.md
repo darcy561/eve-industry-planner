@@ -15,10 +15,10 @@ them.
   onto the outcome the other paths already report.
 - **Where the frame is built** — each adapter produces what its family's browser handler already
   reads, and delivery never opens it; that is the seam where those shapes could later converge.
-- Bringing the types that deliver to a browser but are pinned by nothing —
-  `document_lock`, the sync frames, the connection-lifecycle frames — **into the vocabulary and the
-  corpus**, because the table is keyed by type and a type it does not know is a message it cannot
-  route.
+- Bringing every family the service delivers **into the vocabulary and the corpus**, because a table
+  keyed by family cannot route one only a single side knows. That is `document_lock`, and the corpus
+  covers messages addressed to an audience rather than every string that can appear in a `type`
+  field — the replies and lifecycle signals written to one socket address nobody.
 
 ## Does not own
 
@@ -38,6 +38,11 @@ them.
   [changestream-tenant-scale/contents.md](../changestream-tenant-scale/contents.md).
 - **How broad the document lock is, and whether a refused write reaches the user** →
   [document-write-granularity/contents.md](../document-write-granularity/contents.md).
+- **The baseline sync path** — the `sync` package, its coordinator and queue, and the frames it
+  formats → [shared-planners/plan.md](../shared-planners/plan.md) § Stage G, which absorbs what
+  survived the retired websocket-realtime project. This project established that neither half was ever
+  built here and left it standing rather than removing an account-shaped precedent before its
+  replacement is designed — see [plan.md](./plan.md) § The sync path belongs to shared planners.
 - **Live backend and SPA behaviour** → [backend/contents.md](../../backend/contents.md),
   [frontend/contents.md](../../frontend/contents.md), promoted only when this project closes.
 
@@ -54,6 +59,7 @@ them.
 | Know why the browser sees no change | [plan.md](./plan.md) § The adapter builds the frame |
 | See how a lock, a document or an announcement is addressed today | [overlay.md](./overlay.md) §§ Stage A – Stage C |
 | See what has to be decided rather than assumed | [plan.md](./plan.md) § Open questions |
+| Find out why the sync frames are not removed here | [plan.md](./plan.md) § The sync path belongs to shared planners |
 | Pick up the work slice by slice | [plan.md](./plan.md) §§ Stage A – Stage D |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | Check what has landed | [plan.md](./plan.md) § Stage status |

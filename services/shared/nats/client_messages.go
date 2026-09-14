@@ -23,8 +23,7 @@ const (
 	ClientMessageStaticData = "staticData"
 	// ClientMessageDocumentLock says who is holding, waiting for or viewing a
 	// document. Its kinds travel in an `event` field of the frame rather than in
-	// a subtype, so [ClientMessageKinds] does not describe them and the SPA's
-	// spelling of them is matched against this one by nothing.
+	// a subtype, so [ClientMessageKinds] lists the family with no kinds under it.
 	ClientMessageDocumentLock = "document_lock"
 )
 
@@ -46,6 +45,7 @@ var ClientMessageKinds = map[string][]string{
 	ClientMessageNotification: {NotificationArchiveStatsProcessed},
 	ClientMessageMaintenance:  {},
 	ClientMessageStaticData:   {},
+	ClientMessageDocumentLock: {},
 }
 
 // MaintenanceMessage is a [ClientMessageMaintenance] frame. Flat rather than

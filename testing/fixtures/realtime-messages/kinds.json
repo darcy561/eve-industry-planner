@@ -25,6 +25,11 @@
       "type": "staticData",
       "why": "A new Static Data Export build was published. Carries the build number and version and goes to every connected client regardless of who is signed in, because the files are the same for all of them. The client compares the build against the one it holds and refreshes its cache only if it has moved.",
       "subtypes": []
+    },
+    {
+      "type": "document_lock",
+      "why": "Who is holding, waiting for or viewing a document. Delivered to the tabs of the account that owns it, less the session that caused it: a viewer joining or leaving is one fact about a whole session rather than about one tab. Its kinds travel in an `event` field of the frame rather than in a subtype, so it lists none here.",
+      "subtypes": []
     }
   ]
 }

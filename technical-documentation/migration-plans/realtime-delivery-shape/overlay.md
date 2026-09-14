@@ -104,10 +104,40 @@ recorded as a scope skip now, the same as on the document path.
 
 **`document_lock` is spelled once in Go.** The family constant moved beside the others in
 `shared/nats`, so the frame the adapter builds and the row in the delivery table cannot drift apart.
-`ClientMessageKinds` still does not describe it — its kinds travel in an `event` field rather than a
-subtype, which is Stage D's question.
+Stage D then added it to `ClientMessageKinds`, with no kinds under it.
 
 ## Stage D — The vocabulary covers the wire
 
-*Not started.* Will describe: which types joined the vocabulary and the corpus, and which were removed
-for having no reader.
+**What changed.** `document_lock` is in the shared vocabulary on both sides and in the corpus, and the
+SPA no longer branches on a message type nothing sends.
+
+**The corpus is the messages addressed to an audience.** Not every string that can appear in a
+`type` field. `document_lock` was the one such family the corpus did not name, so it is the only one
+added. The connection-lifecycle frames — `connected`, `resume_ack`, `subscribe_ack`,
+`please_reconnect` — and the lock's `document_lock_lock_state_batch_ack` stay out: each is a reply or
+a lifecycle signal written to the one connection it concerns, addressing nobody, so there is no
+delivery decision for the corpus to guard.
+
+That line is not the same as holding a row in `deliveryPolicies`. `maintenance` is addressed to every
+connected client and is in the corpus, but keeps its own path because the socket close is the point
+of it.
+
+**The family carries no kinds.** A lock's kind travels in an `event` field of the frame rather than in
+a subtype, so it joins as a family with an empty kind list, and the `event` values keep being matched
+against `shared/core/documentlock` as they already were.
+
+**The SPA reads the lock spelling rather than repeating it.** `MESSAGE_TYPE_DOCUMENT_LOCK` is
+`DOCUMENT_LOCK_FRAME_TYPES.CHANNEL` from the document-lock module that already owns the string, so
+the vocabulary cannot drift from the wire constant beside it.
+
+**Three files move together.** The corpus, `ClientMessageKinds` and `MESSAGE_KINDS` are checked
+against each other for exact set equality in both directions, so a family added to one alone turns
+the other side's suite red. That guard already existed; this stage decided what belongs inside it.
+
+**One dead branch is gone.** The SPA tested for `type === "app_version"` as though it were a message
+family. No path sends it: it is a field inside the `connected` and `resume_ack` frames, which the SPA
+reads correctly where those arrive. The branch and the two imports that served only it are removed.
+
+**What is deliberately still standing.** The `sync` package and its frames are unreached at both ends
+and are not removed here — see [plan.md](./plan.md) § The sync path belongs to shared planners. The
+delivery table's `skipWhileSyncing` policy stays with them.

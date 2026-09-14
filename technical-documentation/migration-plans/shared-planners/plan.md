@@ -1881,6 +1881,9 @@ baseline exists the store keeps the documents it already held, which is why keyi
 with this stage rather than with Stage E. Switching and reconnecting are the same operation as far as the store is concerned, and
 both need the active owner's document set to arrive from somewhere.
 
+**An unbuilt baseline path is already standing, and this stage decides its fate** — see
+§ Absorbed from the retired websocket-realtime project below.
+
 **Resume asserts rather than checks.** `session_resume` moves the previous connection's explicit
 document subscriptions across and answers `skipBaselineSync: true` having read no document and compared
 no version. Anything written during the gap is lost, because there is no replay. On a personal planner
@@ -1957,7 +1960,8 @@ edit.
 
 #### Absorbed from the retired websocket-realtime project
 
-Two facts outlived that folder and are held here until this project promotes.
+Two behaviours outlived that folder and are held here until this project promotes. A third survival
+is not a behaviour but unfinished work, and is recorded after them.
 
 **Outbound delivery partitions on the owner key.** `outboundDocPartitionKey` returns the message's
 owner key, falling back to `explicit:{collectionScopedDocID}` when the route carries no owner and
@@ -1975,6 +1979,24 @@ were derived from the grant ceiling at connect and narrowed by the active planne
 answer who the account may read for, and a bare id from a client is resolved within them rather than
 looked up. This is C4's rewrite of a rule the retired folder documented against `ExistsByAccountID`;
 the rule survived, the mechanism did not.
+
+**The baseline sync path was never finished, and this stage decides whether to finish or remove it.**
+The websocket service carries a `sync` package — a queue, a coordinator, a processor, a timeout, and
+the `sync_started` / `sync_data` / `sync_complete` / `sync_error` frames — reached from the reader's
+`case "sync":`. No client sends that message: the SPA sends `session_resume`, `subscribe`,
+`unsubscribe`, `active_planner`, the document-lock frames and `ping`, and it has never referenced the
+sync frames anywhere in this repository's history. So nothing is enqueued, the queue never has work,
+and the frames are never produced, while the coordinator scans for the life of the process.
+
+It is an account-shaped answer to the question this stage asks per owner, which is why
+[realtime-delivery-shape](../realtime-delivery-shape/plan.md) § The sync path belongs to shared
+planners established the facts and deliberately left it standing rather than deleting a precedent
+before its replacement is designed. Decide here whether the owner-scoped baseline builds on it or
+replaces it, and remove it as part of that rather than as a tidy-up.
+
+The delivery table's `skipWhileSyncing` policy rides on the same decision: it holds a document back
+from a client rebuilding its state and never fires today, so what this stage builds either gives that
+gate a reason to exist or retires it.
 
 ### Stage H — The document lock stops being account-shaped
 

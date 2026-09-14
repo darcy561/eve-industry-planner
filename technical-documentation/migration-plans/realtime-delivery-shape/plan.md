@@ -52,12 +52,26 @@ onto the one that already exists.
 `document_lock`, `document_lock_lock_state_batch_ack`, the four sync frames and the
 connection-lifecycle frames (`connected`, `resume_ack`, `please_reconnect`, `subscribe_ack`) are
 pinned by nothing — `document_lock` is spelled once in Go and once in the SPA with a comment asking a
-reader to keep them in step. A table keyed by type cannot route a type it does not know, so the
-vocabulary has to grow to match.
+reader to keep them in step.
+
+**Only one of those is a routing gap.** A table keyed by family cannot route a family it does not
+know, but most of these never reach the table: `connected`, `resume_ack`, `subscribe_ack`,
+`please_reconnect`, `document_lock_lock_state_batch_ack` and the sync frames are written straight to
+one socket by the code that originates them, as a reply or a lifecycle signal to the connection in
+hand. They address nobody, so there is nothing for a policy to decide. `document_lock` is the
+exception — it is delivered through `deliverOutbound` and holds a row in the table, and it is the
+family the corpus is missing.
+
+So the corpus is the vocabulary of a **message addressed to an audience**, not of every string that
+can appear in a `type` field. That is the line between the two sets, and it is not the same as
+"holds a row in `deliveryPolicies`": `maintenance` is addressed to every connected client and belongs
+in the corpus, while keeping its own path because the close is the point of it — see § Maintenance
+stays where it is. What the corpus excludes is the frame a socket is handed about itself.
 
 `app_version` is **not** one of them despite the SPA branching on it: it is a field inside the
 `connected` and `resume_ack` frames and has never been a type of its own, so that branch is
-unreachable. Stage D decides whether it goes.
+unreachable. No Go path emits it as a frame type, and the SPA reads the field correctly four lines
+above the dead branch. Stage D deletes it.
 
 ## The internal shape
 
@@ -213,18 +227,69 @@ are intact, the operator-visible keys are written down, and `broadcastRawToAccou
 
 ### Stage D — The vocabulary covers the wire
 
-Add the types that deliver to a browser but are pinned by nothing — `document_lock`, the sync frames,
-the connection-lifecycle frames — to both sides and to the shared corpus, so the table cannot be keyed
-by a type only one side knows.
+Pin the family the corpus does not name but the service delivers, and delete the SPA branch that no
+sender can reach.
 
-Some of these have no reader, and one has no sender. Nothing in the SPA appears to handle
-`sync_started`, `sync_data` or `sync_complete` outside its own tests, and `app_version` is a field the
-SPA branches on as though it were a type. The first job of this stage is finding out which is which,
-because a type with no reader is deleted rather than pinned, and a branch with no sender is deleted
-from the SPA.
+The stage was scoped to every unpinned type on the wire. Looking at how each one reaches a socket
+narrowed it to two changes, and moved a third elsewhere:
 
-**Done when** every type the service can send is in the corpus or gone, and adding one to either side
-alone fails a test.
+- **`document_lock` is pinned.** It is delivered through `deliverOutbound`, holds a row in
+  `deliveryPolicies`, and is absent from the corpus — the one case where a family the table routes is
+  known to one side only.
+- **The lifecycle frames and the batch ack stay out.** Each is a reply or a lifecycle signal written
+  to the one connection it concerns, addressed to no audience, so pinning them would make the corpus
+  mean something other than a message with recipients — see § Starting position.
+- **The `app_version` branch is deleted** from the SPA. Unreachable: no Go path sends that type.
+- **The sync frames are not this project's.** See § The sync path belongs to shared planners.
+
+**The corpus guard already exists.** Both tests are exact and bidirectional — Go compares family and
+subtype counts each way, the SPA asserts an exact key-set match — so adding a family on one side
+already turns the other red. This stage does not build that property; it decides what belongs inside
+the set the property guards. One consequence: the corpus, `ClientMessageKinds` and `MESSAGE_KINDS`
+move in a single change, because either file alone is a red suite.
+
+**Done when** every family the delivery table can route is in the corpus, the unreachable SPA branch
+is gone, and adding a family to either side alone fails a test.
+
+**Landed.** See [overlay.md](./overlay.md) § Stage D.
+
+**One thing this stage found and did not fix.** `subscribe_ack` is sent — `QueueSubscribeAck` writes
+it to the socket after an explicit `subscribe`, which the SPA sends on every scoped document
+subscription — and the SPA has no branch for it, so it falls through `applyRemoteMessage` to
+`console.warn("[realtime] no handler for message family", …)`. The ack is documented as optional for
+clients and nothing waits on it, so this is console noise rather than a behaviour defect, and it
+predates this project.
+
+It is left alone because both available fixes are somebody else's call. Handling it means deciding
+what a client does with an ack it has never needed; silencing it means `applyRemoteMessage` learning
+which types it is allowed to ignore, which is a second list of frame names beside the corpus — the
+duplication this project exists to remove. The honest shape is that the browser's dispatch has no
+notion of "a frame addressed to me alone", and giving it one is a change to the SPA's realtime client
+rather than to the vocabulary.
+
+### The sync path belongs to shared planners
+
+`sync_started`, `sync_data`, `sync_complete` and `sync_error` are built by the `sync` package, and
+nothing reads them. The SPA has never referenced them — not in application code, not in tests, not
+anywhere in this repository's history.
+
+**They are never sent, rather than sent and ignored.** `handleSyncWS` is reachable only from the
+reader's `case "sync":`, and the SPA sends no such message: its sends are `session_resume`,
+`subscribe`, `unsubscribe`, `active_planner`, the document-lock frames and `ping`. So nothing is
+enqueued, the queue never has work, and the frames are never produced. The coordinator, the queue,
+the processor and the timeout all run for the life of the process on behalf of a client half that was
+never written here.
+
+This is residue from the retired websocket-realtime project, whose survivals
+[shared-planners](../shared-planners/plan.md) § Stage G holds — see § Absorbed from the retired
+websocket-realtime project there. That stage owns the account-shaped baseline and is not started, so
+removing this implementation now would take away the precedent before its replacement is designed.
+Baseline behaviour is also outside what this project owns — see [contents.md](./contents.md)
+§ Does not own.
+
+`skipWhileSyncing` stays with it. The gate never fires today because no client syncs, but it is the
+seam Stage G needs once an owner-scoped baseline exists, and stripping it as dead would have to be
+rebuilt by that stage.
 
 ## Wire compatibility
 
@@ -233,17 +298,26 @@ alone fails a test.
 | Stage A — the family on the deliver subject | **Migrate-required, and contained.** Two publishers and one subscriber, all in this repository, all core NATS with no durable to drain. Nothing outside the audience path sees it |
 | Stages A–C — the internal shape and the one walk | No wire change. In-process only; every subject, stream, durable and filter is untouched |
 | Stage B — the delivery log's keys | No wire change. `route_kind` names the audience rather than the owner kind, and `owner_kind` carries what it used to — a runbook change rather than a contract |
-| Stage D — pinning existing types | Additive. Names what is already sent |
-| Stage D — deleting a type with no reader | **Breaking if wrong.** Only after proving nothing reads it |
+| Stage D — pinning `document_lock` | Additive. Names a family already delivered |
+| Stage D — deleting the `app_version` branch | No wire change. SPA-internal, and no sender exists to break |
 | Converging the projections | **Breaking, migrate-required**, and deliberately not in this project. One decision per family, later |
 
 ## Open questions
 
-- **Whether the sync frames have a reader at all.** Stage D, and the answer decides whether that stage
-  pins them or removes them.
-- **Where `Subtype` comes from for a type that has none.** `staticData` carries no subtype in its
-  frame while its subject segment says `sdeBuildUpdated`; the two are different fields that coincide
-  for notifications only. Settle before the table is keyed on subtype for anything.
+Both of this project's open questions are answered. They are kept here with their answers rather than
+deleted, because each was a reason a stage could not proceed.
+
+- **Whether the sync frames have a reader at all** — **no, and they have no sender either.** Neither
+  half was ever built in this repository, so the frames are never produced. They are not pinned and
+  not removed here: see § The sync path belongs to shared planners.
+- **Where `Subtype` comes from for a type that has none** — **always the subject segment, never the
+  frame.** These are two vocabularies at two layers rather than two sources for one field.
+  `PublishToAudience` takes the subtype as a parameter and `parseDeliverSubject` reads it back, so
+  delivery has it without opening a body it forwards unread; the frame's own subtype, where it has
+  one, is the browser's vocabulary. `staticData` shows they are separate — its subject segment says
+  `sdeBuildUpdated` while its frame carries no subtype at all — and notifications coincide only
+  because one producer passes the same string to both. So the table may key on `Outbound.Subtype`,
+  which has one source; what it must not do is assume the frame agrees.
 
 ## Stage status
 
@@ -253,4 +327,4 @@ alone fails a test.
 | A — the shape and one adapter | **Landed.** `Outbound`, the family-keyed table and one walk; the audience subscription is an adapter; the family rides the subject; audience delivery reports the shared outcome. See [overlay.md](./overlay.md) § Stage A |
 | B — documents | **Landed.** The document dispatch is an adapter, the three fan-outs are gone, and the sync gate is the first policy the table actually varies. `route_kind` now names the audience with `owner_kind` beside it — see [overlay.md](./overlay.md) § Stage B |
 | C — document locks, and one outcome | **Landed.** The lock subscription is an adapter, `broadcastRawToAccount` is gone, and one finisher composes every fan-out log including the rejection branch. Taken now because shared-planners § Stage H has not started — see [overlay.md](./overlay.md) § Stage C |
-| D — the vocabulary covers the wire | **Not started.** Independent of A–C; can be taken whenever |
+| D — the vocabulary covers the wire | **Landed.** `document_lock` is in the corpus and in both sides' vocabulary, carrying no kinds; the lifecycle frames and the batch ack stay out because the corpus is messages addressed to an audience rather than frames a socket is handed about itself; the unreachable `app_version` branch is deleted. The sync frames left this project — see § The sync path belongs to shared planners. Both open questions are answered. See [overlay.md](./overlay.md) § Stage D |
