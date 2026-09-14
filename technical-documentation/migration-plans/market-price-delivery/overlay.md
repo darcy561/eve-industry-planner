@@ -40,8 +40,8 @@ and a station to filter to, and `DEFAULT_MARKET_OPTION` names one of the markets
 ### A2-A4 — The registry, and what reads it
 
 `Functions/MarketData/marketSources.js` owns the registry. `allMarketSources()` is what every caller
-reads; `sourceIn`, `sourceNameIn` and `isServerHeld` are the questions asked of it, and `SOURCE_KIND`
-marks which kind a source is. `Hooks/Static/useMarketSources.js` wraps it for components and offers
+reads; `sourceIn` and `sourceNameIn` are the questions asked of it, and `SOURCE_KIND` marks which
+kind a source is. `Hooks/Static/useMarketSources.js` wraps it for components and offers
 `readMarketSources()` for callers outside render — the same hook-plus-imperative pair
 `marketGroupData.js` and its hooks already use.
 
@@ -53,7 +53,9 @@ list.
 |------------------|-------|
 | `useMarketSources()` | `marketLocation.jsx`, `priceHistory.jsx`, `marketCostsPanel.jsx` |
 | `readMarketSources()` | `marketLabelHelpers.js`, `marketLinkTarget.js`, `saleLocations.js`, `saleLocationRates.jsx` |
-| `allMarketSources()` directly | `worldDataSlice/marketData.js`, building `findMarketData`'s zero-filled shape |
+
+Nothing reads `allMarketSources()` directly any more. Its one such caller built `findMarketData`'s
+zero-filled row, and went with the store in § B4.
 
 **`marketLabelHelpers` reads per call rather than mapping once.** It built its id-to-name map at module
 load, which would name only the markets that existed when the module was imported.
@@ -89,11 +91,124 @@ next remount. It is called out here because the hook looks finished and is not.
 
 ## Stage B — The price row and the narrowed query
 
-*Nothing landed yet.*
+### B1 — The query, and what the server refuses
 
-Sections to fill: the query and response shape; how the handler reads Redis and what it does with a
-source it does not hold; how the world-data store is keyed and the one accessor every price read goes
-through; how a call site names the sources it wants.
+`POST /api/v1/market-prices/query` takes the markets and types a caller wants and answers with those
+and nothing else. The response nests rows under each source beside that source's `refreshedAt`, with
+CCP's adjusted prices in a block of their own, so a top-level key is never ambiguously a market or a
+piece of metadata.
+
+**A type a market holds no order for is absent, not zero.** Zero is a figure, and a wrong one; absence
+keeps "no orders here" and "nobody asked" as different answers.
+
+**A source the server does not price is refused.** A reader-saved market is the browser's to fetch, so
+naming one here is a client-side mistake — answering it empty would read as a market with no orders.
+
+**Each source carries its own type list.** `{"sources": {"jita": ["34"], "amarr": ["35"]}}`, not a
+market list beside a shared type list. The first shape shipped was the second, and it asked every
+market named in a request for every type named in it — so a job pricing half its materials at Jita
+and half at Amarr fetched both halves at both, which is the cross product this stage exists to
+remove. The request now says exactly what is wanted and nothing else.
+
+**The adjusted block is its own list**, not a flag over the types above, and carries its own clock. It
+refreshes daily and belongs to no market, so folding it into each source's rows would tie a figure
+that has not moved to the clock of one that has — and a flag would ask for an adjusted price for
+every type in the request, when only installation cost estimation reads them and it wants fewer. A
+caller wanting only adjusted prices now names no market at all; under the flag it had to name an
+arbitrary one to be answered.
+
+**The cap counts reads, not type ids.** The same type at two markets is two reads, so a limit on ids
+would let a request through asking for twice the work. The client splits on the same count.
+
+The handler reads **one Redis round trip per source**, on `PricesAtLocation`, and one for the whole
+adjusted block on a new generic `Entries`. The shape it replaces asked Redis twice for every type it
+was given, whatever it was asked about. The adjusted block was written as a loop first and corrected —
+the same per-type round trip this stage exists to remove, sitting beside reads that had already been
+fixed.
+
+**`/api/v1/market-prices` is gone**, along with its custom `MarshalJSON` — which existed to flatten
+market ids into top-level keys beside `adjustedPrice` and `typeID`, the ambiguity the nested shape
+replaces — and the `PricesByType` Redis reader that served it. Its removal is a **breaking change to a
+public surface**, and safe only because the SPA is its only caller and moved in the same change.
+`LocationPrice` and the 500-type cap moved to the query handler, which is now the one that holds them.
+
+### B2 — One accessor for every price
+
+`getMarketPriceForType` is what every price read in the SPA goes through, and it has grown to cover
+what callers were reaching into the store for: `getAdjustedPriceForType` and `getPriceRefreshedAt`
+beside it. All three read the cache and nothing else.
+
+Moving the readers found a live defect. `findMarketData` answers an unpriced type with a **zero-filled
+row**, so `lastUpdated` came back as `0`, `Number.isFinite(0)` was true, and `priceAge` read it as a
+real moment — a job with one unpriced material told the reader its figures were **fifty-six years
+old**. Both the accessor and `priceAge` now treat zero as nothing held.
+
+`marketLabelHelpers` also stopped mapping ids to names once at import: the registry gains reader-saved
+markets while the app runs, and a map built at module load would name only the four it started with.
+
+### B3 — Asking for prices
+
+`fetchMarketPricesQuery` is the client, and `priceLoader` is what batches for it: a tick's wants
+collect against `sourceID|typeID`, and flush on a **macrotask** rather than a microtask, because React
+renders every panel wanting prices before yielding and a microtask would flush after the first. Two
+callers wanting the same type at the same market wait on one lookup; the same type at two markets stays
+two answers.
+
+**A failure must not settle.** A first cut had the client swallow refusals and answer empty, which
+would have the loader resolve `null` and the cache record "this market holds no order for this type"
+from a transient 5xx. It throws instead, on the name cache's rule — a market that answered and held no
+order, and a market that could not be reached, are different facts. A market holding no order still
+settles as nothing, because that is an answer and retrying it would ask forever.
+
+**Chunking is the client's own**, not the shared `batch` option: that merges responses with a single
+`Object.assign`, and these rows nest under each source — so a second chunk would replace the first
+source's block whole and take every price in it. It splits on the shared `chunkArray` at the same cap
+the server enforces, and merges per source.
+
+### B4 — `worldData.marketData` is gone
+
+The store slice, its `addMarketData` and `findMarketData` actions, the `marketData` key in
+`stateDefault()`, and the alternative price table every reader threaded through are all removed. A
+price lives in one place: `queryClient`, one entry per type per market.
+
+**The zero-filled row went with it.** `findMarketData` answered an unpriced type with a row of zeroes
+for every market, which is what made a missing price read as a real figure of zero and a missing
+`lastUpdated` read as the epoch. A type nothing was fetched for now has no entry, and each accessor
+says what absence means for its own caller: a price reads as `0` because every caller multiplies by
+it, `getPriceRefreshedAt` reads as `undefined` because a caller showing an age must be able to show
+none.
+
+**The alternative price table was already dead.** Both callers of
+`calculateMaterialCostFromChildJobs` passed `{}` for it, so the parameter is removed rather than
+carried forward — the arity change is followed through every caller, because the last one of these
+silently dropped an argument and cost a stage's figures.
+
+### B5 — Every surface asks for what it reads
+
+Three surfaces still read prices the planner's own fetch had warmed, and each has been moved onto
+resolving through `priceResolution.js` so what it asks for and what it reads are the same answer:
+
+| Surface | Asks through | Resolves |
+|---------|--------------|----------|
+| Watchlist | `pricesWantedByWatchlist` → `useMarketPricesQuery` | Both sides at once — materials bought, item and each material valued |
+| Group output card | the group's own `getMissingESIData` | The job's own choice, not just the account's |
+| Price Entry dialogue | `useMarketPricesQuery` on the reader's chosen market | The market the reader picked in the dialogue |
+
+`useMarketPricesQuery` now takes **resolved wants** — each type paired with the market it is priced
+at — rather than bare type ids, which is what lets one surface want the same type at two markets. It
+dedupes and sorts them into its own key, so a caller that lists a pair twice or in another order is
+asking the same question rather than fetching again on every render.
+
+**Price Entry was asking for nothing at all.** It lets the reader pick any market, and read whatever
+the planner had already fetched at the account's — so a reader who switched markets saw zeroes. It
+asks for its own list at its own market now, and tells its rows when that fetch landed, because
+nothing re-renders when a cache entry is written.
+
+**The group output card was reading the account's market for a job that may name another.** The
+group's fetch resolves each job's own choice; the card did not, so any job with a market of its own
+showed zero. It resolves the same way now.
+
+*Still to land:* Stage C's freshness from the source's clock, and Stage D's second tier.
 
 ## Stage C — Freshness from the source's clock
 

@@ -13,11 +13,12 @@ every owner kind.
 
 **How delivery works now.** A `doc.update` message names one owner. Account owners go to that
 account's connections by the user-connection index, as before. Every other owner kind goes to
-`broadcastToOwnerScope`, which takes the clients the owner index holds for that key and delivers to
-each one that still has the owner in its scopes, is not the connection that made the change, and is
-not mid-sync. Subscription is the whole rule: a connection's scopes are the account key plus the
-planner it is working in, so holding the owner's key is what entitles it to the message, and there is
-nothing further to narrow by.
+`deliverOutbound`, the one walk every family shares — see
+[realtime-delivery-shape](../realtime-delivery-shape/plan.md) § Stage B. It takes the clients the owner
+index holds for that key and delivers to each one that still has the owner in its scopes, is not the
+connection that made the change, and is not mid-sync. Subscription is the whole rule: a connection's
+scopes are the account key plus the planner it is working in, so holding the owner's key is what
+entitles it to the message, and there is nothing further to narrow by.
 
 Echo suppression is unchanged and still per tab: the connection that made the change is skipped and
 its sibling tabs are delivered to, falling back to skipping the whole session only for a write that
@@ -47,11 +48,16 @@ the hosted-tenant view that feeds JetStream filters.
 beside the per-family paths rather than replacing them. Every existing family still travels the
 subject it always did.
 
-**The subject.** `deliver.{audience}.{target}.{subtype}`, four tokens whatever the audience:
-`deliver.everyone.all.sdeBuildUpdated`, `deliver.subscribers.corporation:corp_56_JxK.archiveStatsProcessed`.
-`all` fills the target slot for an audience that addresses no owner, so one parser reads every
-audience and the space lists uniformly in NATS tooling. A segment holding a dot or a wildcard yields
-no subject at all rather than one that splits into an extra token.
+**The subject.** `deliver.{audience}.{target}.{family}.{subtype}`, the same tokens whatever the
+audience: `deliver.everyone.all.staticData.sdeBuildUpdated`,
+`deliver.subscribers.corporation:corp_56_JxK.notification.archiveStatsProcessed`. `all` fills the
+target slot for an audience that addresses no owner, so one parser reads every audience and the space
+lists uniformly in NATS tooling. A segment holding a dot or a wildcard yields no subject at all rather
+than one that splits into an extra token.
+
+The family segment is **not** this project's: it was added by
+[realtime-delivery-shape](../realtime-delivery-shape/plan.md) § Stage A, which keys a delivery policy
+on the family and cannot read one out of a frame this service forwards unparsed.
 
 **What each audience reads.** `everyone` takes the client map. `subscribers` takes the owner index for
 an organisation owner, and the user-connection index for an account — an account's own key is
@@ -64,6 +70,11 @@ defect.
 audience is delivered to, including whichever one caused the message. That is what the families
 carried on this path do today; the document paths, which do skip the connection that made the change,
 are unaffected and still travel `doc.update`.
+
+The delivery walk these messages now go through does have a suppression gate —
+[realtime-delivery-shape](../realtime-delivery-shape/plan.md) § Stage A put it there for the paths it
+will carry later — but no adapter names a source for an audience message, so nothing on this path is
+suppressed.
 
 **The frame is forwarded unread.** The subject carries the routing and the body is passed through byte
 for byte, so the browser's vocabulary is decided by the producer and this layer never shapes it.

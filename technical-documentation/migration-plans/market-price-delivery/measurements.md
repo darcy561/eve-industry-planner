@@ -7,8 +7,7 @@ measurement with the conclusion drawn from it.
 
 Serialised sizes of the market price response, computed from the shape the handler emits with
 representative ISK figures (eight and seven significant digits, which is what real hub prices look
-like). Not sampled from live traffic — a live sample is still owed and should be taken before Stage B
-closes.
+like). Sampled against a served response afterwards — see § A served response, below.
 
 | Shape | 1 type | 500 types |
 |-------|--------|-----------|
@@ -73,6 +72,29 @@ Styled Components/Typography/marketHistory.jsx
 Zustand/worldDataSlice/marketData.js
 ```
 
+### A served response
+
+Taken from the dev stack's own `/api/v1/market-prices` before that endpoint was deleted, which was the
+last moment it could be. 500 type ids in one request, answered in 66 ms.
+
+| | Bytes |
+|---|---|
+| Served, the shape being replaced | 128,671 |
+| The same data in the new shape, one source | 121 |
+| The same data in the new shape, if absent rows were sent as zeroes | 24,121 |
+| The new shape with the adjusted block asked for as well | 5,024 |
+
+**Dev's order books are nearly empty**, so these are not production sizes: 25 of the 500 types carried
+a figure at any hub, and one carried a figure at Jita. That is exactly what makes the sample worth
+keeping. The shape being replaced spends **128 KB describing data it does not have** — its size is
+decided by the number of types asked about and the number of hubs, not by how much is known — while the
+new shape's size follows the data. The 79 % figure computed above is what the change saves when every
+type is priced; this is what it saves when they are not, and the two ends bracket the real answer.
+
+The third row is the same 500 types with a row of zeroes written for every unpriced one, and it is why
+absence is not zero: sending zeroes would give back most of the saving and state 499 prices that are
+not prices.
+
 ## Refresh cadence
 
 From the code, not from observation:
@@ -82,12 +104,12 @@ From the code, not from observation:
 | Hub order book re-walk | 1 hour | `regionSweepInterval`, `core/scheduler/esi/regionMarketOrdersRefresh.go` |
 | Stored price entry TTL | 2 hours | `ttlRegionPrice`, `shared/redis/marketorders.go` |
 | Cached region page / ETag TTL | 24 hours | `ttlRegionPage`, `ttlRegionETags` |
-| Browser's staleness guess | 4 hours | `DEFAULT_ITEM_REFRESH_PERIOD`, `frontend/src/global-config-app.js` |
+| Browser's staleness guess | 4 hours | `DEFAULT_ITEM_REFRESH_PERIOD`, `frontend/src/global-config-app.js` — both since deleted, Stage B |
 | Cost of a full four-hub pass | ~1,674 ESI tokens against 12,000 per 15 min | Comment on `regionSweepInterval` |
 
 ## Dead code found
 
-Nothing imports either file:
+Nothing imported either file; both were deleted in Stage B:
 
 - `frontend/src/Functions/MarketData/refreshMarketData.js`
 - `frontend/src/Functions/MarketData/requestChunks.js` — the System Indexes area has its own
@@ -103,4 +125,4 @@ Run while the plan was written, scoped to the packages in the project's touch su
 | `./shared/core/esi/...` | Clean |
 | `./worker/tasks/esi/...` | Clean |
 | `./core/scheduler/esi/...` | Clean |
-| `./api/v1endpoints/...` | Suggestions in `authenticate.go`, `refresh.go`, `session_types.go`, `statistics/live_scope_test.go`; none in `marketPrices.go` |
+| `./api/v1endpoints/...` | Suggestions in `authenticate.go`, `refresh.go`, `session_types.go`, `statistics/live_scope_test.go`; none in a file this project touches. Re-run after Stage B: unchanged |

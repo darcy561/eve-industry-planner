@@ -1,11 +1,13 @@
 # Market price delivery — plan
 
-**Status:** Phase 1 complete. **Stage A landed**; Stage B not started.
+**Status:** Phase 1 complete. **Stages A and B landed.** Every price in the SPA now comes from the
+query cache, `worldData.marketData` is retired, and the old `/api/v1/market-prices` endpoint is
+deleted. Next is Stage C, freshness from each source's own clock.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/MarketData/`,
 `Functions/EveESI/World/`, `Functions/Endpoints/Public/`, `Functions/Shared/getMissingESIData.js`,
 `Hooks/React Query/World/`, `Zustand/worldDataSlice/`, `Styled Components/Select/`,
 `global-config-app.js`, and the surfaces listed in § Stage A and § The pipeline prices travel today;
-[`services/api/v1endpoints/marketPrices.go`](../../../services/api/v1endpoints/marketPrices.go),
+[`services/api/v1endpoints/marketPricesQuery.go`](../../../services/api/v1endpoints/marketPricesQuery.go),
 [`services/shared/redis/marketorders.go`](../../../services/shared/redis/marketorders.go),
 [`services/shared/core/esi/locations.go`](../../../services/shared/core/esi/locations.go).
 **Live SoT (until promote):** [frontend/](../../frontend/contents.md), [backend/](../../backend/contents.md)
@@ -20,8 +22,8 @@ Live SoT will not be edited until this project is complete and promotion is appr
 `./worker/tasks/esi/...` and `./core/scheduler/esi/...`. A scan of `./api/v1endpoints/...` reports
 suggestions in `authenticate.go`, `refresh.go`, `session_types.go` and `statistics/live_scope_test.go`
 — struct-literal consolidation and the `omitempty`/`omitzero` pair that `go fix` itself marks a
-behaviour change. None is in `marketPrices.go`, the one file of that package this project touches, so
-all are left alone deliberately; JSON tag semantics belong to
+behaviour change. None is in a file this project touches, so all are left alone deliberately; JSON
+tag semantics belong to
 [go-127-adoption](../go-127-adoption/contents.md). Named here so a later scan coming back non-empty is
 not mistaken for new debt.
 
@@ -197,10 +199,13 @@ wants prices while it renders, and an imperative `fetchPrices(queryClient, wants
 running outside render — which is what `getMissingESIData` becomes. Both share the one cache, so a
 price either path resolves is present for the other.
 
-`worldData.marketData` stops being the price store. Zustand keeps what it is good at — the source
-registry, which is small, app-wide and rarely changes — and the read-through beneath the cache, which
-is `worldData.universeIDs`'s role in the name design, becomes **IndexedDB** for the sources that need
-to survive a reload.
+`worldData.marketData` stops being the price store, and **Zustand keeps nothing of this at all.** An
+earlier draft had it holding the source registry; Stage A found that putting a constant in state made
+store initialisation depend on app config, so the registry is composed by `allMarketSources()` instead
+— see [overlay.md](./overlay.md) § The registry is not in the world-data store.
+
+The read-through beneath the cache, which is `worldData.universeIDs`'s role in the name design,
+becomes **IndexedDB** for the sources that need to survive a reload.
 
 ### One price, whoever derived it
 
@@ -315,8 +320,8 @@ nothing in IndexedDB today, so the persistent tier is new ground.
 
 | Surface | Change | Note |
 |---------|--------|------|
-| `POST /api/v1/market-prices` → `/query` | **Breaking** | Request gains required `sources`; response is reshaped and the flattened top-level hub keys go. The endpoint is public and unauthenticated, but the SPA is its only consumer and the two ship together, so the shape is cut over rather than versioned |
-| `worldData.marketData` | **Breaking, SPA-internal** | Retired. Prices move to a React Query entry per type and source, read through one accessor; the store keeps the source registry and nothing else |
+| `POST /api/v1/market-prices` → `/query` | **Breaking** | Request becomes a market-to-types map plus its own adjusted-price list, in place of a flat type list; response is reshaped and the flattened top-level hub keys go. The endpoint is public and unauthenticated, but the SPA is its only consumer and the two ship together, so the shape is cut over rather than versioned |
+| `worldData.marketData` | **Breaking, SPA-internal** | Retired. Prices move to a React Query entry per type and source, read through one accessor. Nothing replaces it in the store: the source registry is composed outside it (Stage A), so `worldData` loses market data entirely |
 | ESI scopes | **Migrate-required** | Citadel sources need `esi-markets.structure_markets.v1`, which the SPA does not request today. Every linked character must re-authorise. Scopes are operator configuration, not in-repo, so this is a deployment step and needs its own call-out at Stage E |
 | Stored documents | **Additive** | Saved market locations are saved sale locations, a `CustomStructures` lane on the planner document. An additive field plus an upgrader step, with the Invention lane's v0→v1 addition as a worked precedent. The price *data* is IndexedDB and touches no server shape |
 | IndexedDB store | **Additive** | New, versioned from the first write |
@@ -364,25 +369,60 @@ registry, and no surface assumes a source is one of four.
 
 ## Stage B — The price row and the narrowed query
 
-1. Reshape the endpoint to `/query` with `sources`, `typeIDs` and the `adjusted` flag, and the nested
-   response above. Retire the custom `MarshalJSON`. Reject a source the server does not hold.
-2. Pipeline the handler's Redis reads — one round trip per source, one for adjusted prices.
-3. Rekey `worldData.marketData` to type-and-source, and put every read behind the single accessor that
-   `getMarketPriceForType` is already most of.
-4. Move the pipeline in § The pipeline prices travel today onto the new shape: `findMarketData` and
-   `getMissingESIData` stop writing into the store themselves, and the eight flows that call the
-   latter ask through the imperative path instead.
-5. Move every call site onto naming the source it wants. The resolver
-   [market-pricing-defaults](../market-pricing-defaults/contents.md) built is what answers that
-   question, and **it is finished** — every rung of its ladder resolves and the SPA names the two axes
-   `marketLocation` and `listingType` throughout, so a call site has something to ask rather than a
-   market to assume.
-6. Delete [`Functions/MarketData/refreshMarketData.js`](../../../frontend/src/Functions/MarketData/refreshMarketData.js)
-   and [`Functions/MarketData/requestChunks.js`](../../../frontend/src/Functions/MarketData/requestChunks.js),
-   which nothing imports.
+1. ~~Reshape the endpoint to `/query` with the sources and types a caller wants, and the nested
+   response above. Reject a source the server does not hold.~~ Done, as
+   `api/v1endpoints/marketPricesQuery.go`. The old `/market-prices` and its custom `MarshalJSON` were
+   deleted once the SPA had moved, in the same change, along with the `PricesByType` Redis reader
+   that only it used. Removing a public endpoint is breaking, and safe only because its one caller
+   moved with it.
+2. ~~Pipeline the handler's Redis reads — one round trip per source, one for adjusted prices.~~ Done,
+   on `PricesAtLocation` and a new generic `Entries` for the cached dataset. The adjusted block was
+   written as a loop first and corrected: it is the same per-type round trip this stage exists to
+   remove, sitting next to the reads that had already been fixed.
+3. ~~Put every read behind the single accessor that `getMarketPriceForType` is already most of.~~
+   Done. It has grown to cover everything callers reached into the store for —
+   `getAdjustedPriceForType` and `getPriceRefreshedAt` beside it — and all three read the cache.
+
+   **The rekey is dropped**: the store goes rather than changing shape first — see § The store is not
+   rekeyed — it goes.
+3b. ~~The query cache beneath the accessor: an entry per type at one source, and the loader that turns
+   a tick's wants into requests, following the name cache's shape (§ Where a price is read from).~~
+   Done, as `priceCache.js` over `priceLoader.js`. Moved here from Stage D.
+4. ~~Move the pipeline in § The pipeline prices travel today onto the new shape.~~ Done.
+   `findMarketData`, `refreshPeriod.js`, the old endpoint client and the whole `marketData` store
+   slice are deleted; `getMissingESIData` resolves prices into the cache and returns only the system
+   indexes its callers still pass on.
+5. ~~Move every call site onto naming the source it wants.~~ Done, and **one module answers that
+   question for all of them**: `priceResolution.js` owns `sideDefaults` + `resolveFor`, so the path
+   deciding what to fetch and the path reading it back cannot resolve different markets. Consolidating
+   them exposed a live defect — the fetch path was skipping the job's own choice of market while every
+   reader honoured it — which is the failure the shared module exists to prevent.
+6. ~~Delete `Functions/MarketData/refreshMarketData.js` and `Functions/MarketData/requestChunks.js`,
+   which nothing imports.~~ Done. The near-identical `requestChunks.js` under `Functions/System
+   Indexes/` is **live** and was left alone.
 
 **Done when** a request carries the sources it wants, the response carries only those, no caller reads
-a price without naming a source, and the handler no longer loops per type.
+a price without naming a source, the handler no longer loops per type, and the old endpoint is gone.
+**All met.**
+
+### The store is not rekeyed — it goes
+
+**Settled: `worldData.marketData` is retired here rather than reshaped first.** An earlier draft of
+item 3 rekeyed it to type-and-source, and Stage D then deleted it — two stages of life for a shape
+nothing was meant to keep, and the rekey is not small, because it is the moment every reader either
+goes through the accessor or breaks.
+
+So **Stage D items 1 and 2 move into this stage**: the query cache entry per type and source, and the
+accessor over it. Stage D keeps the persistent tier alone. Neither moved item needs IndexedDB — the
+session tier is "behaves as today: lost on reload", which is a plain query cache, and the library
+choice that is still an open decision belongs to the persistent tier only.
+
+Two things follow. The store is retired **once**, rather than reshaped and then retired. And
+§ It retires the alternative price table lands a stage earlier than planned, which is the more
+valuable half: eleven files stop threading a price table beside the one they are reading from.
+
+The accessor half of item 3 is already done and is what makes this cheap — every price in the SPA is
+read through `getMarketPriceForType`, so what is beneath it can change in one place.
 
 ## Stage C — Freshness from the source's clock
 
@@ -392,28 +432,64 @@ a price without naming a source, and the handler no longer loops per type.
    purpose is to report it.
 2. A fetch is decided by missing rows or a moved clock; `doesMarketItemRequireRefresh` stops being the
    rule for prices.
-3. `DEFAULT_ITEM_REFRESH_PERIOD` and `Functions/MarketData/refreshPeriod.js` are deleted. Nothing
-   else uses either: the constant has one reader, `refreshPeriod.js`, whose only live caller is
-   `findMarketData.js` — the rest is the dead `refreshMarketData.js`.
+3. ~~`DEFAULT_ITEM_REFRESH_PERIOD` and `Functions/MarketData/refreshPeriod.js` are deleted.~~ Done
+   early, in Stage B: both were orphaned the moment `findMarketData.js` went, and leaving a staleness
+   rule in the tree that nothing consults is worse than deleting it a stage ahead of its item. The
+   System Indexes `refreshPeriod.js` is a different file and is untouched.
 
 **Done when** no price is asked for twice while its source's clock has not moved, and no price
 survives a walk that produced a new figure.
 
 ## Stage D — The price cache and its two tiers
 
-1. A React Query entry per type at one source, with the loader beneath it that turns a tick's wants
-   into requests, following the name cache's shape (§ Where a price is read from).
-2. One accessor above it, replacing `getMarketPriceForType` and retiring `worldData.marketData`. The
-   store keeps the source registry.
-3. The session tier behaves as today: lost on reload.
+1. ~~A React Query entry per type at one source, with the loader beneath it.~~ **Moved to Stage B**
+   as item 3b — see § The store is not rekeyed — it goes.
+2. ~~One accessor above it, retiring `worldData.marketData`.~~ **Moved to Stage B.** The accessor
+   itself already exists; what moved is retiring the store beneath it.
+3. The session tier behaves as today: lost on reload — which is what the cache Stage B builds already
+   does, so this stage inherits it rather than building it.
 4. The persistent tier reads through IndexedDB beneath the cache, versioned, with a documented path
    for a schema change and for eviction. The library choice is an open decision below.
 5. Stage E is the persistent tier's first consumer, so this stage lands with it close behind rather
    than waiting for a second tenant to prove it.
 
 **Done when** every price in the SPA is read through one accessor, no caller knows which kind of
-source answered, hub prices still vanish on reload, and a row written to the persistent tier survives
-one.
+source answered, hub prices still vanish on reload, a row written to the persistent tier survives one,
+and no caller passes a price table alongside the one it is reading from.
+
+### It retires the alternative price table
+
+The clearest present-tense reason for this stage is not IndexedDB. It is that **a fetch does not land
+anywhere a reader can see**, so every caller carries the result by hand:
+
+```js
+const prices = await getMarketData(ids);      // fetch into a local object
+shoppingList.calculateTotalValue(prices);     // use them now…
+addMarketData(prices);                        // …and only then write them down
+```
+
+That middle argument is `alternativePriceLocation` — also called `additionalMaterialPrices`,
+`newMarketPrices` and `alternativeLocation` — and it is threaded through **eleven files**:
+`shoppingList`, `job`, `jobSetup`, `materialCostFromChildJobs`, `installCosts`, three Reprocessing
+modules, and bottoming out in `findMarketData`, which takes it as a second lookup table to try before
+its own state. **Twelve call sites** then write the same object into the store afterwards.
+
+A cache where resolving the fetch *is* the write removes all of it: the loader resolves, the accessor
+reads, and there is no interval in which a caller holds prices the reader cannot see.
+
+**Three silent failures go with it.** A caller that forgets to pass the table reads zeroes and states
+a wrong total; one that forgets `addMarketData` refetches for the life of the session; and two flows
+wanting the same type both fetch it, because `getMarketData` filters against a store neither has
+written yet. None of the three announces itself.
+
+**The same workaround exists for system indexes** — `findSystemIndex` takes the same second table, and
+`findSystemIndexValue` threads it. Out of scope here, but it is the same shape and the same cause, so
+whatever this stage settles is the answer there too.
+
+**What it costs.** The non-React readers — `shoppingList`, `Job` and `jobSetup` are classes,
+`fromMinerals` is a plain function — cannot call a hook, so the accessor needs a module-level handle
+on the query client. The name cache already solved exactly this; take its answer rather than inventing
+a second one.
 
 ## Stage E — Sources the browser fetches
 
@@ -512,7 +588,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 |-------|--------|
 | Phase 1 — project folder and docs | Done |
 | Stage A — The source registry | **Done.** A parity test holds the SPA's hub list and `esicore.DefaultMarketLocations` together with no endpoint; `allMarketSources()` is the registry every consumer reads, and `MARKET_OPTIONS` has one reader left. The registry is not in the world-data store — see [overlay.md](./overlay.md) § A1, § A2-A4 |
-| Stage B — The price row and the narrowed query | Not started |
+| Stage B — The price row and the narrowed query | **Done.** Every price is read from the query cache through one accessor; `worldData.marketData` and the alternative price table are retired; every surface resolves its market through `priceResolution.js`, so the fetch and the read cannot disagree; the old `/market-prices`, its `MarshalJSON` and the `PricesByType` reader are deleted — see [overlay.md](./overlay.md) § B1-B5 |
 | Stage C — Freshness from the source's clock | Not started |
 | Stage D — The price cache and its two tiers | Not started |
 | Stage E — Sources the browser fetches | Not started |
@@ -520,8 +596,11 @@ browser a legitimate version of this path for custom sources, where there is no 
 
 ## Start here
 
-**Stage B.** Stage A is done: the registry exists, every consumer reads it, and the hub list is held
-against the server's by a test rather than an endpoint — [overlay.md](./overlay.md) § A1, § A2-A4.
+**Stage C.** Stages A and B are done — the registry exists and is read everywhere, and every price
+now travels through the narrowed query into one cache entry per type per market
+([overlay.md](./overlay.md) § A1-A4, § B1-B5). What is left is freshness: each source's `refreshedAt`
+already arrives with its rows, so the work is deciding a fetch from it rather than from an age guess
+the browser makes.
 
 Stage B is where the wire moves, and it is the first breaking change this project makes: the request
 gains `sources`, the response is reshaped per source, and the custom `MarshalJSON` goes. It also
