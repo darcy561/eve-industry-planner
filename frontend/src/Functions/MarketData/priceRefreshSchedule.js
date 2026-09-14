@@ -22,7 +22,7 @@ import { revalidateSourceClocks } from "./priceCache.js";
  * that has not been published and a longer one leaves a reader on figures the
  * server has already replaced.
  */
-const PROBE_INTERVAL_MS = 15 * 60 * 1000;
+export const PROBE_INTERVAL_MS = 15 * 60 * 1000;
 
 /**
  * The shortest gap between two wake probes.
@@ -30,7 +30,7 @@ const PROBE_INTERVAL_MS = 15 * 60 * 1000;
  * Alt-tabbing is not a reason to ask every market for a price, and a tab that is
  * hidden and shown repeatedly would otherwise ask on every pass.
  */
-const WAKE_PROBE_FLOOR_MS = 5 * 60 * 1000;
+export const WAKE_PROBE_FLOOR_MS = 5 * 60 * 1000;
 
 let started = false;
 let timer = null;
@@ -51,16 +51,11 @@ async function probe() {
   try {
     await revalidateSourceClocks();
   } catch {
-    // Left deliberately: see above.
+    // Swallowed on purpose, per the contract above.
   }
 }
 
-/**
- * Probes on waking, unless the last one was recent enough that no market can
- * have been walked since.
- *
- * @returns {void}
- */
+/** @returns {void} */
 function probeOnWake() {
   if (document.visibilityState !== "visible") return;
   if (Date.now() - lastProbedAt < WAKE_PROBE_FLOOR_MS) return;
@@ -72,10 +67,6 @@ function probeOnWake() {
  *
  * Called explicitly rather than on import, so a test or a tool can load this
  * module without acquiring a timer and a listener.
- *
- * It asks for nothing until something has fetched a price: the probe works from
- * the markets that already hold rows, so before that it has nothing to ask about
- * and does nothing.
  *
  * @returns {void}
  */

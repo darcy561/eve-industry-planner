@@ -5,11 +5,14 @@ vi.mock("./priceCache.js", () => ({
   revalidateSourceClocks: (...args) => revalidateSourceClocks(...args),
 }));
 
-const { startPriceRefresh, stopPriceRefresh } =
-  await import("./priceRefreshSchedule.js");
-
-const PROBE_INTERVAL_MS = 15 * 60 * 1000;
-const WAKE_PROBE_FLOOR_MS = 5 * 60 * 1000;
+// The module's own pacing, not a second copy of it: a test carrying its own
+// numbers would keep passing against a cadence that had moved.
+const {
+  startPriceRefresh,
+  stopPriceRefresh,
+  PROBE_INTERVAL_MS,
+  WAKE_PROBE_FLOOR_MS,
+} = await import("./priceRefreshSchedule.js");
 
 /** Puts the tab in a state and tells anyone listening it changed. */
 function setVisibility(state) {
