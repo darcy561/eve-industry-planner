@@ -45,6 +45,39 @@ documents recover it from the `_id`, which is the account id.
 
 Lock notifications are published by the API/document-lock path (`doc.lock.{accountID}`), not by this changestream subject shape.
 
+## Triggering a task
+
+An operator runs a worker task by name through `eip cli` → [verbs.md](../../deployment/deployment-tool/cli/verbs.md):
+
+```bash
+eip cli tasks list
+eip cli tasks checkSdeUpdates
+eip cli tasks applySdeVersion --version=3272045
+```
+
+`tasks list` prints what is runnable, with each command's worker task name, subject and default queue.
+
+**A task is runnable because it is listed, not because it exists.** `dispatchTable` in
+[`core/commands/tasks.go`](../../../services/core/commands/tasks.go) is the allowlist: one entry per
+command, holding what an operator types, the task definition it names, and the call that publishes
+it. The registry may hold a task that has no entry, and that task is not reachable from the command
+line.
+
+**Each entry publishes through the task's own helper**, not through a subject and a payload assembled
+here. A command therefore cannot queue a request in a shape the handler does not take, and the flags
+a task needs are its entry's business — `applySdeVersion` refuses without `--version` before anything
+is published.
+
+Adding a task to the operator surface is one entry. A command name that differs from the worker task
+name is part of that entry rather than a second mapping to keep in step.
+
+**Commands that run in the process rather than publishing** are a second allowlist, `cliTable`,
+alongside the first. These act directly — reporting SDE versions, purging worker queues, toggling
+[maintenance mode](../maintenance-mode.md), running release steps — and each entry declares its own
+flag summary. The usage text and `tasks list` are both built from the two tables, so a command
+reaches them by being runnable rather than by being remembered — nothing lists a command separately
+from the table that runs it.
+
 ## Health
 
 | Endpoint | Role |
