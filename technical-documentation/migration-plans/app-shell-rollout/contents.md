@@ -33,7 +33,8 @@ version of it, onto the shared surface and the component layer above it.
 
 | I need to… | Read |
 |------------|------|
+| Know how a part works after the change, and what promotion has to create | [overlay.md](./overlay.md) |
 | See what has converted and what has not | [plan.md](./plan.md) § Screens |
-| Know what the component layer already offers | [plan.md](./plan.md) § The component layer |
+| Know what the component layer already offers | [overlay.md](./overlay.md) § The component layer |
 | Understand why a screen drawing its own surface is a problem | [plan.md](./plan.md) § Why this matters |
 | See what a conversion has to preserve | [plan.md](./plan.md) § How a screen converts |

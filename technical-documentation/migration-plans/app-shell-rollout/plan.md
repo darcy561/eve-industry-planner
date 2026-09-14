@@ -6,6 +6,9 @@ to, and [`../../frontend/technical-rules.md`](../../frontend/technical-rules.md)
 this plan names. No Go surfaces are in scope.
 Live SoT will not be edited until this project is complete and promotion is approved.
 
+**The plan's work is done.** How each part behaves now is [overlay.md](./overlay.md); this file
+stays as the record of what was decided and why. The stage table below is the state of it.
+
 ## Goal
 
 Every screen on the app-shell design is made of the same pieces, so a panel states what it holds
@@ -314,7 +317,7 @@ during a conversion is the failure this project exists to undo.
 | Additional accounts — retire the local panel sx | SPA | **Moved to [accounts-page](../accounts-page/plan.md)** Stage B |
 | Archive statistics — audit the rest of the area | SPA | **Done** — two files onto `AppShellPanel`; the other five already compose the layer |
 | Archived jobs — audit the list, chart panels and archive panel | SPA | **Done** — three surfaces onto `InsetSurface`; the rest already composed the layer |
-| Component layer — add atoms as conversions need them | SPA | Ongoing |
+| Component layer — add atoms as conversions need them | SPA | **Standing** — grows with conversions rather than closing |
 | Item actions — one component, rebuilt on Popper | SPA | **Done** — `Styled Components/Item/marketActions.jsx`, ten callers |
 | Tables fit their panel — `ScrollingTable`, floors from the theme | SPA | **Done** — four tables |
 | Nested chrome gives width back on a narrow window | SPA | **Done** — `StepContent`, `ContentPanel` |
