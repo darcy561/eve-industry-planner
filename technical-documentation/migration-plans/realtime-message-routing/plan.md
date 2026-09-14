@@ -239,9 +239,17 @@ publish calls, so the migration is:
    Prove delivery from a fixture publishing on the new subject, and prove the two subject spaces
    cannot overlap.
 2. Move the static-data publisher, an `everyone` audience. Its subscriber goes quiet: delete it, and
-   lift the general fan-out out of the file named for the one family that needed it.
+   lift the general fan-out out of the file named for the one family that needed it. The producer is
+   the worker, not the `core.metrics.sde.build.updated` topic — that subject has two other consumers
+   deriving from a build, and stays as the internal event.
 3. Move the notification publisher, a `subscribers` audience, fixing the non-account-tenant discard
    as part of the move. Delete that subscriber.
+
+   Settle where the notification frame is built before starting. `PublishNotification` wraps the
+   envelope and the publish together, and `PublishToAudience` takes a frame already built — so the
+   move either hand-rolls that envelope at the call site or a third copy of it appears. The frame
+   builder wants splitting out of `PublishNotification` so both paths call it. Deleting that
+   subscriber also removes the last caller of `SubscribeNotifications`, which goes with it.
 4. The `members` audience and the ceiling index behind it, once § What this project is waiting on
    has an answer.
 
@@ -286,10 +294,9 @@ it was about, and the payload carries exactly what that destination needs.
 
 - **Where a `members` message lands in the SPA** — a snackbar offering a switch, a badge on the
   planner list, or something else. Stage D.
-- **The subject shape for an audience with no target.** `everyone` addresses nobody in particular, so
-  either the subject varies in arity by audience or a fixed shape carries a literal filler target.
-  The fixed shape is preferred: one parser covers every audience and the space reads uniformly in
-  NATS tooling. Settle before Stage C step 1.
+- **Whether the `members` audience needs its own suppression rule.** The families on this path carry
+  no originating connection today, so nothing is suppressed. A member announcement about a planner
+  someone is not in raises it again only if a producer ever names the actor. Stage C step 4.
 
 ## Stage status
 
@@ -298,5 +305,5 @@ it was about, and the payload carries exactly what that destination needs.
 | Phase 1 — project docs | Complete |
 | A — retire the downward-match checks | **Landed.** One owner walk for every owner kind, the matchers and `ScopesPayload` deleted at both ends, and the delivery log naming one owner ref. See [overlay.md](./overlay.md) § Stage A |
 | B — the ceiling index | **Not started.** No dependencies of its own, but its only consumer is the `members` audience, so it lands with that work rather than ahead of it — see § Stage B |
-| C — audience routing | **Not started.** Built beside the old paths and migrated one publisher at a time, so steps 1 to 3 ship independently; only the `members` audience is gated on [shared-planners](../shared-planners/plan.md) § Stage I — see § What this project is waiting on |
+| C — audience routing | **Steps 1 to 3 landed** — the subject space, the one subscription and the fan-out per audience, both producers moved across and both their subscribers deleted, and organisation notifications reaching members for the first time; step 4 outstanding. Built beside the old paths and migrated one publisher at a time, so steps 1 to 3 ship independently; only the `members` audience is gated on [shared-planners](../shared-planners/plan.md) § Stage I — see § What this project is waiting on |
 | D — the SPA destination for a members message | **Not started.** Owes the payload shape Stage C needs |
