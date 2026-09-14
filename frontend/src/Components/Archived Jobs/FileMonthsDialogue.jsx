@@ -1,11 +1,9 @@
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Alert, Button, Paper, Stack, Typography } from "@mui/material";
+import { Alert, Button, Stack, Typography } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers";
-import {
-  appShellSetupSectionPaperSx,
-  getAppShellPickerSlotProps,
-} from "../../Context/appShell";
+import { getAppShellPickerSlotProps } from "../../Context/appShell";
+import InsetSurface from "../../Styled Components/Paper/InsetSurface";
 import ContentDialogue from "../../Styled Components/Dialogue/ContentDialogue";
 import { DialogueCloseAction } from "../../Styled Components/Dialogue/DialogueCloseAction";
 import { useDialogueCloseReset } from "../../Styled Components/Dialogue/useDialogueCloseReset";
@@ -33,7 +31,7 @@ function monthValue(date) {
 /** Clearing is how a filing is undone: a picker has no empty state to choose. */
 function MonthField({ label, value, onChange, disabled, helperText }) {
   return (
-    <Paper variant="outlined" sx={{ ...appShellSetupSectionPaperSx, p: 1.5 }}>
+    <InsetSurface>
       <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
         <DatePicker
           label={label}
@@ -55,7 +53,7 @@ function MonthField({ label, value, onChange, disabled, helperText }) {
           Clear
         </Button>
       </Stack>
-    </Paper>
+    </InsetSurface>
   );
 }
 

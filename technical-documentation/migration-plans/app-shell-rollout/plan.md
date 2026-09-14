@@ -238,6 +238,27 @@ The area's 139 tests pass unchanged, which says less than it appears to: **nothi
 breakdown's title**, so dropping it would have left the suite green. That assertion is now in
 `ArchivedItemBreakdown.test.jsx`, checked by removing the title and watching it fail.
 
+## Archived jobs uses the inset, and a dialogue field is not a section
+
+The area was already composing the layer: the list, the chart panels, the Edit Job archive panel and
+the file-months dialogue all use `AppShellPanel`, `ScrollingTable`, `AppShellSelect`, the charts or
+`ContentDialogue`. What was left was three surfaces reaching past the components to the sx beneath
+them.
+
+`ArchivedJobsList` built its job card and its block card as a `Box` carrying
+`appShellInsetSurfaceSx(theme)` and `p: 1.5` — which is `InsetSurface`'s body, value for value. Both
+are the component now.
+
+`FileMonthsDialogue`'s `MonthField` was on **`appShellSetupSectionPaperSx`, which is the wrong
+surface** rather than the right surface reached the wrong way. That helper is for a section of a
+page; a date picker and a Clear button inside a dialogue are a recessed block within one, which is
+what `InsetSurface` is for. Using `AppShellPanel` here would have been worse still — a header slot,
+an error boundary and loading states around one picker.
+
+**No test asserts these surfaces, and none should.** Each conversion is a verbatim substitution of
+the atom's own markup, so `InsetSurface`'s three tests cover the surface and each caller's tests
+cover its behaviour. An assertion at the call site would restate what the atom already proves.
+
 ## Screens
 
 | Screen | State |
@@ -251,7 +272,8 @@ breakdown's title**, so dropping it would have left the suite green. That assert
 | First login — welcome banner | **Nothing to convert.** Its radius and shadow are on the logo image, not a panel surface, and no atom covers a branded image |
 | First login — job card preview | **Keeps its own frame.** It previews the planner's job card, so it matches that card rather than the app-shell selection treatment |
 | Additional accounts, and the rest of the Accounts page | **Moved out.** Converts as part of a redesign, which this project does not do → [accounts-page/plan.md](../accounts-page/plan.md) |
-| Archived jobs list, archive chart panels, archive jobs panel | On `AppShellPanel` already; not audited against the component layer |
+| Archived jobs list, archive chart panels, archive jobs panel | Audited: the cards in the list are `InsetSurface`, and the rest already composed the layer |
+| File months dialogue | Converted: its month fields are `InsetSurface`, not the section-panel surface |
 | Everything else | Predates the design. Converts when the design reaches it, not before |
 
 ## How a screen converts
@@ -291,6 +313,7 @@ during a conversion is the failure this project exists to undo.
 | First login — remaining screens | SPA | **Done** — page shell, and the support step onto a new `ActionCard`; the welcome banner and job card preview keep what they draw |
 | Additional accounts — retire the local panel sx | SPA | **Moved to [accounts-page](../accounts-page/plan.md)** Stage B |
 | Archive statistics — audit the rest of the area | SPA | **Done** — two files onto `AppShellPanel`; the other five already compose the layer |
+| Archived jobs — audit the list, chart panels and archive panel | SPA | **Done** — three surfaces onto `InsetSurface`; the rest already composed the layer |
 | Component layer — add atoms as conversions need them | SPA | Ongoing |
 | Item actions — one component, rebuilt on Popper | SPA | **Done** — `Styled Components/Item/marketActions.jsx`, ten callers |
 | Tables fit their panel — `ScrollingTable`, floors from the theme | SPA | **Done** — four tables |
@@ -298,17 +321,34 @@ during a conversion is the failure this project exists to undo.
 
 ## Start here
 
-Nothing is outstanding on the screens this project named. What is left is the standing work: the
-component layer grows as conversions need it, and a screen converts when the design reaches it.
+Nothing is outstanding. Every screen this project named is converted, and the two areas it flagged
+for audit have been read against the component layer.
 
-The nearest unfinished thing is the **archived jobs list, archive chart panels and archive jobs
-panel** — on `AppShellPanel` already, never read against the component layer. That is an audit
-rather than a conversion, and the archive statistics audit is the shape of it: of seven files, five
-were already composing the layer and two were drawing a panel's surface without its component.
+What remains is standing work rather than a queue: the component layer grows as conversions need it,
+and a screen converts when the design reaches it. A screen that predates the design is not a defect.
+
+The pattern the audits kept finding is worth carrying into the next one, and it has a grep:
+
+```
+grep -rEn "appShell(SetupSectionPaper|NestedCard|InsetSurface)Sx" --include=*.jsx frontend/src/Components/
+```
+
+Those three helpers each have a component above them — `AppShellPanel`, `ActionCard` or
+`SelectableCard`, and `InsetSurface` — so a screen naming one of them has the surface without the
+component that owns it. That is how a header or a card comes to be redrawn beside the one that
+already exists.
+
+**Seven files outside this project's scope still do**, in the item tree, the group template and
+asset template dialogues, the blueprint card, the Edit Job cost-over-time panel and the Accounts
+main character card. They are not defects and this project does not claim them: each converts when
+the design reaches its screen, or with the redesign that owns it. The grep is where that starts.
+
+Not every `Context/appShell` import is a candidate. The module also holds form-control and picker
+props — `getAppShellPickerSlotProps` and the like — which have no component above them and are meant
+to be imported directly; `FileMonthsDialogue` keeps its picker props having moved its surface to
+`InsetSurface`.
 
 The Accounts page is not on that list: [accounts-page](../accounts-page/plan.md) converts it as part
 of a redesign, and its Stages A and C added `SectionPanel`, `FormField` and `SwitchField` to the
 component layer on the way. Read that project's overlay before converting a screen that uses any of
 the three.
-
-Not urgent. Cheap once someone is in the file.

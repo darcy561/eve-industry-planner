@@ -15,10 +15,10 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import { appShellInsetSurfaceSx } from "../../Context/appShell";
 import { useQueryClient } from "@tanstack/react-query";
 import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import { ScrollingTable } from "../../Styled Components/Table/tableParts";
+import InsetSurface from "../../Styled Components/Paper/InsetSurface";
 import AppShellSelect from "../../Styled Components/Select/AppShellSelect";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import {
@@ -312,12 +312,7 @@ function JobRow({ job, onRestore, onFile, busy, indented }) {
  */
 function JobCard({ job, onRestore, onFile, busy }) {
   return (
-    <Box
-      sx={(theme) => ({
-        ...appShellInsetSurfaceSx(theme),
-        p: 1.5,
-      })}
-    >
+    <InsetSurface>
       <Stack spacing={1}>
         <Stack
           direction="row"
@@ -377,7 +372,7 @@ function JobCard({ job, onRestore, onFile, busy }) {
           </Button>
         </Stack>
       </Stack>
-    </Box>
+    </InsetSurface>
   );
 }
 
@@ -443,12 +438,7 @@ function BlockCard({ block, onRestore, onFile, busy }) {
 
   const isGroup = block.kind === "group";
   return (
-    <Box
-      sx={(theme) => ({
-        ...appShellInsetSurfaceSx(theme),
-        p: 1.5,
-      })}
-    >
+    <InsetSurface>
       <Stack spacing={1.5}>
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
           <Chip
@@ -512,7 +502,7 @@ function BlockCard({ block, onRestore, onFile, busy }) {
           ))}
         </Stack>
       </Stack>
-    </Box>
+    </InsetSurface>
   );
 }
 
