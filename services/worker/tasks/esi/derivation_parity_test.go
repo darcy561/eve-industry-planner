@@ -134,6 +134,18 @@ func books() []derivationCase {
 			),
 		},
 		{
+			Name: "a book where the rank falls on a whole number",
+			Why: "Twenty orders makes 0.95*n and 0.05*n whole, which is the only size " +
+				"where ceil(p*n)-1 and floor(p*n) disagree. Without this size the fixture " +
+				"cannot tell nearest-rank from the off-by-one that looks just like it.",
+			StationID: 60003760,
+			TypeID:    34,
+			Orders: join(
+				buys(60003760, 34, ramp(1, 20)...),
+				sells(60003760, 34, ramp(100, 20)...),
+			),
+		},
+		{
 			Name: "outliers the percentile is there to trim",
 			Why: "One absurd order on each side moves the best price and must not move " +
 				"the percentile, which is the reason a figure other than the best exists.",
@@ -298,6 +310,19 @@ func TestTheDerivationRulesHold(t *testing.T) {
 		}
 		if got.SellP05 == got.Sell {
 			t.Errorf("sellP05 must not be the best sell at this size, got %+v", got)
+		}
+	})
+
+	// ceil(p*n)-1 and floor(p*n) agree everywhere except where p*n is whole, so
+	// this size is what makes the fixture state which rule is in force.
+	t.Run("a whole-number rank takes the lower index", func(t *testing.T) {
+		got := byName["a book where the rank falls on a whole number"]
+		// Prices ramp from 1, so the value is the index plus one.
+		if got.BuyP95 != 19 {
+			t.Errorf("buyP95 must be the 19th price (ceil(0.95*20)-1 = index 18), got %v", got.BuyP95)
+		}
+		if got.SellP05 != 100 {
+			t.Errorf("sellP05 must be the first price (ceil(0.05*20)-1 = index 0), got %v", got.SellP05)
 		}
 	})
 
