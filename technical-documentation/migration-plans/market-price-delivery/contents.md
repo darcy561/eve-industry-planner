@@ -77,5 +77,6 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know what decides that a price has gone stale | [overlay.md](./overlay.md) § C1, § C3 |
 | Know how a moved book reaches a surface someone is already looking at | [overlay.md](./overlay.md) § C5 |
 | Know what is genuinely left in Stages D and E, and why they go together | [plan.md](./plan.md) § What Stage D and E actually need |
+| Know how prices survive a reload, and why it is not the query persister | [plan.md](./plan.md) § How the persistent tier is stored |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
 | The measurements this design was argued from | [measurements.md](./measurements.md) |
