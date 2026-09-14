@@ -27,6 +27,7 @@ import {
   useSolarSystemNames,
 } from "../../../../Hooks/useSolarSystemNames";
 import CloseIcon from "@mui/icons-material/Close";
+import ExplainerTooltip from "../../../../Styled Components/Tooltip/ExplainerTooltip";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 

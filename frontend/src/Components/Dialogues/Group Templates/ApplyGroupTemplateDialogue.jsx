@@ -73,10 +73,13 @@ function ApplyGroupTemplateDialogueBody({ messageData, onDismiss }) {
     buildCatalogQueryOptions(activeSession, true),
   );
   const { records: itemRecords } = useItemList();
-  const getItemName = (itemID) => itemRecords[itemID]?.name || `Type ${itemID}`;
+  const getItemName = (itemID) => itemNameFrom(itemID, itemRecords);
   const filterTemplates = useMemo(
     () =>
       makeTemplateFilter({
+        // Not itemNameFrom: its fallback names the type, and an unnamed row
+        // contributing "Unknown Item" would match a search for those words
+        // against every other unnamed row.
         getOutputSearchText: (o) =>
           (o.rootOutputItemIDs || [])
             .map((id) => itemRecords[id]?.name || "")
