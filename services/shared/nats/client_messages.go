@@ -21,6 +21,11 @@ const (
 	// It is addressed to nobody in particular: the files are the same for every
 	// client, so it goes to all of them regardless of who is signed in.
 	ClientMessageStaticData = "staticData"
+	// ClientMessageDocumentLock says who is holding, waiting for or viewing a
+	// document. Its kinds travel in an `event` field of the frame rather than in
+	// a subtype, so [ClientMessageKinds] does not describe them and the SPA's
+	// spelling of them is matched against this one by nothing.
+	ClientMessageDocumentLock = "document_lock"
 )
 
 // Notification kinds within [ClientMessageNotification].

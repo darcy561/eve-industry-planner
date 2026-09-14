@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/config"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 
@@ -44,22 +43,13 @@ func shardIndexForDocUpdate(partitionKey string, shardCount int) int {
 	return int(h.Sum32() % uint32(shardCount))
 }
 
-func (s *Server) finishDocUpdateDelivery(ctx context.Context, docID, subject string, outcome outboundDeliveryOutcome) {
-	if outcome.RouteKind == "invalid" {
-		detail := outboundDeliveryDetail(docID, subject, outcome)
-		eipnats.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", detail)
-		return
-	}
-	finishReplicaFanoutOperation(ctx, "doc update delivered", docID, subject, outcome, nil)
-}
-
 // enqueueOutboundDocUpdate routes to a shard FIFO. If that shard is full, delivers synchronously and acks immediately.
 func (s *Server) enqueueOutboundDocUpdate(ctx context.Context, collectionScopedDocID, subject string, msg jetstream.Msg) {
 	payloadCopy := append([]byte(nil), msg.Data()...)
 	shards := s.docUpdateOutboundShards
 	if len(shards) == 0 {
 		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
-		s.finishDocUpdateDelivery(ctx, collectionScopedDocID, subject, outcome)
+		finishReplicaFanoutOperation(ctx, "doc update", collectionScopedDocID, subject, outcome, nil)
 		return
 	}
 	key := outboundDocPartitionKey(collectionScopedDocID, payloadCopy)
@@ -79,7 +69,7 @@ func (s *Server) enqueueOutboundDocUpdate(ctx context.Context, collectionScopedD
 			"partition", key,
 			"shard_queue_cap", config.DocUpdateOutboundShardQueueCap)
 		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
-		s.finishDocUpdateDelivery(ctx, collectionScopedDocID, subject, outcome)
+		finishReplicaFanoutOperation(ctx, "doc update", collectionScopedDocID, subject, outcome, nil)
 	}
 }
 
@@ -106,7 +96,7 @@ func (s *Server) runDocUpdateOutboundShardWorker(shard int) {
 				}
 				payload := append([]byte(nil), w.msg.Data()...)
 				outcome := s.deliverOutboundDocUpdate(ctx, w.collectionScopedDocID, payload)
-				s.finishDocUpdateDelivery(ctx, w.collectionScopedDocID, w.subject, outcome)
+				finishReplicaFanoutOperation(ctx, "doc update", w.collectionScopedDocID, w.subject, outcome, nil)
 			}()
 		}
 	}

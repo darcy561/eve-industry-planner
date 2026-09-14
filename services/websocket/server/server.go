@@ -92,7 +92,7 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 	// Lock notifications (API → NATS doc.lock.{accountID} → all tabs)
 	s.subscribeToDocLockNotifications()
 
-	// Anything addressed to an audience (any producer → NATS deliver.{audience}.{target}.{subtype})
+	// Anything addressed to an audience (any producer → NATS deliver.{audience}.{target}.{family}.{subtype})
 	s.subscribeToAudienceMessages()
 
 	s.reconcileDocUpdateFanoutConsumers()

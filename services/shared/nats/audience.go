@@ -51,13 +51,19 @@ func Subscribers(ownerKey string) Delivery {
 	return Delivery{audience: AudienceSubscribers, target: strings.TrimSpace(ownerKey)}
 }
 
-// DeliverSubject builds deliver.{audience}.{target}.{subtype}.
+// DeliverSubject builds deliver.{audience}.{target}.{family}.{subtype}.
+//
+// The family rides the subject rather than being read out of the frame, because
+// the frame is forwarded unparsed and the delivery side keys its policy on the
+// family. It is also what makes a subject readable in NATS tooling without
+// opening the body.
 //
 // Returns "" if any segment is empty or holds a dot, which would silently split
 // into an extra token and address a subject nobody subscribes to.
-func DeliverSubject(to Delivery, subtype string) string {
+func DeliverSubject(to Delivery, family, subtype string) string {
+	family = strings.TrimSpace(family)
 	subtype = strings.TrimSpace(subtype)
-	segments := []string{string(to.audience), to.target, subtype}
+	segments := []string{string(to.audience), to.target, family, subtype}
 	for _, s := range segments {
 		if s == "" || strings.ContainsAny(s, ". *>") {
 			return ""
@@ -71,7 +77,10 @@ func DeliverSubject(to Delivery, subtype string) string {
 type AudienceMessage struct {
 	Audience Audience
 	// Target is the owner key the audience reads, or [TargetEveryone].
-	Target  string
+	Target string
+	// Family is the client message type, which the delivery side keys its policy
+	// on without reading the frame.
+	Family  string
 	Subtype string
 	// Payload is the client frame as published. The websocket service forwards
 	// it without parsing: the frame is the browser's vocabulary and this layer
@@ -79,14 +88,14 @@ type AudienceMessage struct {
 	Payload []byte
 }
 
-// parseDeliverSubject splits deliver.{audience}.{target}.{subtype}.
+// parseDeliverSubject splits deliver.{audience}.{target}.{family}.{subtype}.
 func parseDeliverSubject(subject string) (AudienceMessage, bool) {
 	rest, found := strings.CutPrefix(subject, subjectDeliver+".")
 	if !found {
 		return AudienceMessage{}, false
 	}
 	parts := strings.Split(rest, ".")
-	if len(parts) != 3 {
+	if len(parts) != 4 {
 		return AudienceMessage{}, false
 	}
 	if slices.Contains(parts, "") {
@@ -95,7 +104,8 @@ func parseDeliverSubject(subject string) (AudienceMessage, bool) {
 	return AudienceMessage{
 		Audience: Audience(parts[0]),
 		Target:   parts[1],
-		Subtype:  parts[2],
+		Family:   parts[2],
+		Subtype:  parts[3],
 	}, true
 }
 
@@ -108,16 +118,17 @@ func parseDeliverSubject(subject string) (AudienceMessage, bool) {
 // The frame is published as the caller built it. Producing it here would make
 // this the place the browser's vocabulary is decided, and audience is meant to
 // be the dimension that does not touch it.
-func PublishToAudience(n *NATS, to Delivery, subtype string, frame []byte) error {
+func PublishToAudience(n *NATS, to Delivery, family, subtype string, frame []byte) error {
 	if n == nil || n.conn == nil {
 		return fmt.Errorf("nats connection is required")
 	}
 	if len(frame) == 0 {
 		return fmt.Errorf("a message to %s needs a frame", to.audience)
 	}
-	subject := DeliverSubject(to, subtype)
+	subject := DeliverSubject(to, family, subtype)
 	if subject == "" {
-		return fmt.Errorf("audience %q, target %q and subtype %q do not name a subject", to.audience, to.target, subtype)
+		return fmt.Errorf("audience %q, target %q, family %q and subtype %q do not name a subject",
+			to.audience, to.target, family, subtype)
 	}
 	if err := n.conn.Publish(subject, frame); err != nil {
 		return fmt.Errorf("publish %s: %w", subject, err)

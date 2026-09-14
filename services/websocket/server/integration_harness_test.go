@@ -317,6 +317,22 @@ func (f *integFixture) withAudienceDelivery() *eipnats.NATS {
 	return fake.NATS
 }
 
+// withDocLockDelivery attaches an in-process NATS server and starts the lock
+// subscription, so a scenario can publish on the real subject and watch the
+// frame arrive at a socket.
+//
+// Call it after the connections exist: subscribing reconciles the consumer's
+// filter subjects from the hosted tenants, which are derived from who is
+// connected, and a subject nothing is hosting is filtered out.
+func (f *integFixture) withDocLockDelivery() *eipnats.NATS {
+	f.t.Helper()
+	f.t.Setenv("HOSTNAME", "websocket-integ-doclock")
+	fake := natsfake.New(f.t)
+	f.Server.Stack.NATS = fake.NATS
+	f.Server.subscribeToDocLockNotifications()
+	return fake.NATS
+}
+
 // connectTab dials an already-seeded session and returns the connection with the
 // client id the server told it, which is the id delivery suppresses on. Use it
 // where a scenario needs to name one tab among several.

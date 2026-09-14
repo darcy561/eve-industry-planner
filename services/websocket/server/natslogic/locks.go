@@ -6,10 +6,8 @@ import (
 	"strings"
 
 	"eve-industry-planner/shared/core/documentlock"
+	eipnats "eve-industry-planner/shared/nats"
 )
-
-// wsDocumentLockChannel matches frontend DOCUMENT_LOCK_FRAME_TYPES.CHANNEL.
-const wsDocumentLockChannel = "document_lock"
 
 func innerLockEventName(inner map[string]any) string {
 	if s, ok := inner[documentlock.LockPayloadEventKey].(string); ok {
@@ -42,7 +40,7 @@ func BuildDocumentLockWire(rawPayload []byte) (wire []byte, suppressSessionID st
 	}
 
 	out := map[string]any{
-		"type":  wsDocumentLockChannel,
+		"type":  eipnats.ClientMessageDocumentLock,
 		"event": eventName,
 	}
 	for k, v := range inner {

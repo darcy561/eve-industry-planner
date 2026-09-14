@@ -6,8 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // docUpdateFrom builds the payload the watcher publishes for an owner, naming the
@@ -89,8 +95,10 @@ func TestAccountBroadcastReachesOnlyTheOwningAccount(t *testing.T) {
 	payload := docUpdateFor(t, models.AccountOwner(ownerAcct), "job-1")
 	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1", payload)
 
-	if out.RouteKind != "account" {
-		t.Fatalf("route kind = %q, want account", out.RouteKind)
+	// The route kind names the audience that carried it and the owner kind the
+	// owner it addressed, which together say what one field used to.
+	if out.RouteKind != string(eipnats.AudienceSubscribers) || out.OwnerKind != string(models.OwnerAccount) {
+		t.Fatalf("routed as %q/%q, want subscribers of an account", out.RouteKind, out.OwnerKind)
 	}
 
 	// Both of the owner's tabs, because a change is for the account rather than
@@ -146,8 +154,8 @@ func TestUnreadableOwnerDoesNotBroadcast(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-2", raw)
-			if out.RouteKind == "account" {
-				t.Fatalf("an unreadable owner routed as an account broadcast")
+			if out.OwnerKind != "" {
+				t.Fatalf("an unreadable owner routed to owner kind %q", out.OwnerKind)
 			}
 			if got := received(t, client); len(got) != 0 {
 				t.Fatalf("client received %v from an unroutable message", got)
@@ -456,5 +464,183 @@ func TestOwnerWalkFallsBackToSuppressingTheWholeSession(t *testing.T) {
 	}
 	if got := received(t, otherMember); len(got) != 1 || got[0] != "corp-doc" {
 		t.Fatalf("another member received %v, want [corp-doc]", got)
+	}
+}
+
+// A client rebuilding its state is held back from a document change.
+//
+// The baseline it is writing is half there, so a change applied on top of one
+// lands in a document about to be replaced. It refetches what it missed when the
+// rebuild finishes, which is why skipping costs nothing.
+func TestADocumentIsHeldBackFromAClientMidSync(t *testing.T) {
+	f := newIntegFixture(t)
+
+	syncing := f.orgClient("syncing-tab", "acct-owner", nil, nil)
+	settled := f.orgClient("settled-tab", "acct-owner", nil, nil)
+	syncing.SyncMu.Lock()
+	syncing.SyncInProgress = true
+	syncing.SyncMu.Unlock()
+
+	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1",
+		docUpdateFor(t, models.AccountOwner("acct-owner"), "job-1"))
+
+	if len(out.SkippedSyncClientIDs) != 1 || out.SkippedSyncClientIDs[0] != syncing.id {
+		t.Fatalf("sync skips = %v, want [%s]", out.SkippedSyncClientIDs, syncing.id)
+	}
+	if got := received(t, syncing); len(got) != 0 {
+		t.Fatalf("a client mid-sync received %v", got)
+	}
+	if got := received(t, settled); len(got) != 1 || got[0] != "job-1" {
+		t.Fatalf("the settled tab received %v, want [job-1]", got)
+	}
+}
+
+// The sync gate belongs to the document family rather than to delivery. An
+// announcement is one fact with nothing to apply it on top of, so a client
+// rebuilding still gets it — which is what makes the policy table worth having
+// rather than a check every message runs.
+func TestAnAnnouncementStillReachesAClientMidSync(t *testing.T) {
+	f := newIntegFixture(t)
+
+	syncing := f.orgClient("syncing-tab", "acct-owner", nil, nil)
+	syncing.SyncMu.Lock()
+	syncing.SyncInProgress = true
+	syncing.SyncMu.Unlock()
+
+	if sent, routed := f.delivered(everyoneMessage(staticDataFrame(t, 42, "2026-09-13"))); !routed || sent != 1 {
+		t.Fatalf("routed=%v sent=%d, want the announcement delivered", routed, sent)
+	}
+	if got := receivedFrames(t, syncing); len(got) != 1 {
+		t.Fatalf("a client mid-sync received %d announcements, want 1", len(got))
+	}
+}
+
+// A client left in a document's subscriber index after dropping the document is
+// refused.
+//
+// The index and the client's own set are written at different moments — an
+// unsubscribe racing a delivery, a reconnect — so the index alone is not
+// authority, exactly as the owner pool is not for a scoped change.
+func TestByNameDeliveryRefusesAClientLeftInTheIndex(t *testing.T) {
+	f := newIntegFixture(t)
+
+	const scoped = "job_documents.watched-doc"
+	stale := f.orgClient("stale-tab", "acct-any", nil, nil)
+	f.Server.addExplicitSubscriber(stale.id, scoped)
+	// The client's own set no longer holds it while the index entry stays.
+	stale.explicitDocIDs = map[string]bool{}
+
+	// A message stating no owner is the one that addresses by-name subscribers.
+	out := f.Server.deliverOutboundDocUpdate(context.Background(), scoped,
+		docUpdateFor(t, models.Owner{}, "watched-doc"))
+
+	if out.RecipientCount != 0 {
+		t.Fatalf("recipients = %d, want nothing delivered", out.RecipientCount)
+	}
+	if len(out.SkippedScopeClientIDs) != 1 || out.SkippedScopeClientIDs[0] != stale.id {
+		t.Fatalf("scope skips = %v, want [%s]", out.SkippedScopeClientIDs, stale.id)
+	}
+	if got := received(t, stale); len(got) != 0 {
+		t.Fatalf("a client that dropped the document received %v", got)
+	}
+}
+
+// An owner kind with no id addresses no pool, so it is reported as a defect
+// rather than as an audience nobody happened to be connected for. The two read
+// identically otherwise and only one of them wants looking at.
+func TestAnOwnerWithNoIDIsReportedRatherThanEmpty(t *testing.T) {
+	f := newIntegFixture(t)
+	c := f.orgClient("a-tab", "acct-any", nil, nil)
+
+	out := f.Server.deliverOutbound(Outbound{
+		Family:   eipnats.ClientMessageDocument,
+		Audience: eipnats.AudienceSubscribers,
+		Target:   models.Owner{Kind: models.OwnerAccount},
+		Frame:    []byte(`{"docID":"job-1"}`),
+	})
+	if out.Undeliverable != "unaddressable_target" {
+		t.Fatalf("undeliverable = %q, want unaddressable_target", out.Undeliverable)
+	}
+	if got := received(t, c); len(got) != 0 {
+		t.Fatalf("a client received %v addressed to an owner with no id", got)
+	}
+}
+
+// A document that cannot be delivered says so on the outcome, which is what
+// separates a defect from an idle replica in the delivery log. Both reach
+// nobody, and only one wants an operator's attention.
+//
+// Unreadable JSON is the only way a document gets here: an owner key the model
+// refuses is normalised to no owner by the decoder, which addresses by-name
+// subscribers rather than failing.
+func TestAnUndeliverableDocumentIsReportedOnTheOutcome(t *testing.T) {
+	f := newIntegFixture(t)
+
+	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1", []byte(`{not json`))
+	if out.Undeliverable != "unreadable_message" {
+		t.Fatalf("undeliverable = %q, want unreadable_message", out.Undeliverable)
+	}
+	if out.RecipientCount != 0 {
+		t.Fatalf("recipients = %d, want nothing delivered", out.RecipientCount)
+	}
+}
+
+// An undeliverable message is logged as a rejection rather than as a replica
+// with nobody connected, whichever family it belongs to.
+//
+// Both deliver to nobody, so the outcome alone cannot tell them apart; only the
+// severity and the message do, and an operator alerts on one of them.
+func TestAnUndeliverableMessageIsLoggedAsARejection(t *testing.T) {
+	for name, tc := range map[string]struct {
+		what      string
+		outcome   outboundDeliveryOutcome
+		wantLevel zapcore.Level
+		wantMsg   string
+	}{
+		"undeliverable document": {
+			what:      "doc update",
+			outcome:   outboundDeliveryOutcome{Undeliverable: "unreadable_message"},
+			wantLevel: zapcore.WarnLevel,
+			wantMsg:   "doc update rejected",
+		},
+		"nobody connected": {
+			what:      "doc update",
+			outcome:   outboundDeliveryOutcome{RouteKind: "subscribers"},
+			wantLevel: zapcore.DebugLevel,
+			wantMsg:   "doc update delivered (idle replica)",
+		},
+		"held back on purpose": {
+			what:      "doc update",
+			outcome:   outboundDeliveryOutcome{RouteKind: "subscribers", CandidateCount: 1, SkippedEchoClientIDs: []string{"c1"}},
+			wantLevel: zapcore.DebugLevel,
+			wantMsg:   "doc update delivered (suppressed on replica)",
+		},
+		"lost rather than held back": {
+			what:      "doc update",
+			outcome:   outboundDeliveryOutcome{RouteKind: "subscribers", CandidateCount: 1, SkippedSendBufferFullClientIDs: []string{"c1"}},
+			wantLevel: zapcore.DebugLevel,
+			wantMsg:   "doc update delivered (no recipients on replica)",
+		},
+		"undeliverable lock": {
+			what:      "doc lock notification",
+			outcome:   outboundDeliveryOutcome{Undeliverable: "unaddressable_target"},
+			wantLevel: zapcore.WarnLevel,
+			wantMsg:   "doc lock notification rejected",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			core, recorded := observer.New(zapcore.DebugLevel)
+			ctx := logs.ContextWithLogger(context.Background(), zap.New(core))
+
+			finishReplicaFanoutOperation(ctx, tc.what, "job_documents.job-1", "doc.update.x", tc.outcome, nil)
+
+			entries := recorded.FilterMessage(tc.wantMsg).All()
+			if len(entries) != 1 {
+				t.Fatalf("logged %v, want one %q", recorded.All(), tc.wantMsg)
+			}
+			if entries[0].Level != tc.wantLevel {
+				t.Fatalf("level = %v, want %v", entries[0].Level, tc.wantLevel)
+			}
+		})
 	}
 }

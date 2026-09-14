@@ -51,7 +51,7 @@ func AnnounceStaticDataBuild(n *NATS, buildNumber int, version string) error {
 	if err != nil {
 		return fmt.Errorf("marshal static data announcement: %w", err)
 	}
-	return PublishToAudience(n, Everyone(), SubtypeStaticDataBuildUpdated, frame)
+	return PublishToAudience(n, Everyone(), ClientMessageStaticData, SubtypeStaticDataBuildUpdated, frame)
 }
 
 // PublishPlacementState announces one websocket replica's current load, which

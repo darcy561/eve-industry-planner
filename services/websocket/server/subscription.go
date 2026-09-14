@@ -3,11 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/websocket/server/outgoinglogic"
 	"eve-industry-planner/websocket/server/subscriptionlogic"
 )
 
@@ -171,60 +169,6 @@ func (s *Server) handleUnsubscribeRequest(clientID string, docID string) {
 		}
 	}
 	s.activeSubsMu.Unlock()
-}
-
-// broadcastRawToAccount delivers a pre-marshaled JSON message to every connection
-// for the account. routeKind names the traffic for the delivery outcome, since
-// more than one kind of message reaches a browser this way.
-func (s *Server) broadcastRawToAccount(routeKind, accountID string, data []byte, suppressSessionID string) outboundDeliveryOutcome {
-	out := outboundDeliveryOutcome{
-		RouteKind:         routeKind,
-		AccountID:         accountID,
-		SuppressSessionID: strings.TrimSpace(suppressSessionID),
-	}
-	if accountID == "" || len(data) == 0 {
-		return out
-	}
-	s.userConnMu.RLock()
-	userConns, ok := s.userConnections[accountID]
-	if !ok || len(userConns) == 0 {
-		s.userConnMu.RUnlock()
-		return out
-	}
-	ids := make([]string, 0, len(userConns))
-	for id := range userConns {
-		ids = append(ids, id)
-	}
-	s.userConnMu.RUnlock()
-	out.CandidateCount = len(ids)
-
-	s.ClientsMu.RLock()
-	defer s.ClientsMu.RUnlock()
-	for _, cid := range ids {
-		client, exists := s.Clients[cid]
-		if !exists || !outgoinglogic.RawAccountRecipientDeliverable(accountID, client.AccountID) {
-			if !exists {
-				out.recordNotConnectedSkip(cid)
-			}
-			continue
-		}
-		if suppressSessionID != "" && client.SessionID == suppressSessionID {
-			out.recordSessionSkip(cid)
-			continue
-		}
-		if outgoinglogic.TrySendNonBlocking(client.Send, data) {
-			out.RecipientCount++
-			out.recordRecipient(cid, client)
-		} else {
-			out.recordSendBufferFull(cid)
-			logs.WarnCtx(context.Background(), "client send buffer full, dropping message",
-				"route_kind", routeKind, "client_id", cid)
-		}
-	}
-	if out.RecipientCount > 0 {
-		out.RecipientAccountIDs = appendUniqueString(out.RecipientAccountIDs, accountID)
-	}
-	return out
 }
 
 // QueueSubscribeAck sends a lightweight ack after explicit subscribe JSON (optional for clients).

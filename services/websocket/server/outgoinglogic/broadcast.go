@@ -1,8 +1,8 @@
 package outgoinglogic
 
-// RawAccountRecipientDeliverable is used for pre-marshaled fan-out (e.g. doc.lock) where
-// there is no source echo suppression — only account alignment is checked.
-func RawAccountRecipientDeliverable(expectedAccountID, clientAccountID string) bool {
+// ClientBelongsToAccount reports whether a client still works in the account a
+// message addresses. An unnamed account matches nobody rather than everybody.
+func ClientBelongsToAccount(expectedAccountID, clientAccountID string) bool {
 	return expectedAccountID != "" && clientAccountID == expectedAccountID
 }
 

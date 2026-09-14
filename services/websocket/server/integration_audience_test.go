@@ -8,13 +8,6 @@ import (
 	eipnats "eve-industry-planner/shared/nats"
 )
 
-// Audience routing, end to end.
-//
-// A message that names its own recipients travels one subject space, one
-// subscription and one fan-out choice. The pieces are tested on their own; these
-// are what prove a producer publishing to an audience reaches a browser without
-// a Go file written for its family.
-
 // A message addressed to an audience, end to end: published on the subject a
 // producer uses, through the one subscription, to a real socket. Every link
 // below this is tested on its own; this is the only thing that proves a producer
@@ -27,7 +20,7 @@ func TestIntegrationAnAudienceMessageReachesTheBrowser(t *testing.T) {
 	conn := f.connectAccount("acct-e2e-audience", "sess-e2e-audience")
 
 	frame := []byte(`{"type":"staticData","buildNumber":42}`)
-	if err := eipnats.PublishToAudience(nats, eipnats.Everyone(), "sdeBuildUpdated", frame); err != nil {
+	if err := eipnats.PublishToAudience(nats, eipnats.Everyone(), eipnats.ClientMessageStaticData, "sdeBuildUpdated", frame); err != nil {
 		t.Fatalf("PublishToAudience: %v", err)
 	}
 
@@ -54,7 +47,7 @@ func TestIntegrationAnOwnerAudienceMessageReachesThatOwnersMember(t *testing.T) 
 
 	corp := models.CorporationOwner(wsTestCorpRef(t, 10))
 	frame := []byte(`{"type":"notification","subtype":"archiveStatsProcessed"}`)
-	if err := eipnats.PublishToAudience(nats, eipnats.Subscribers(corp.Key()), "archiveStatsProcessed", frame); err != nil {
+	if err := eipnats.PublishToAudience(nats, eipnats.Subscribers(corp.Key()), eipnats.ClientMessageNotification, "archiveStatsProcessed", frame); err != nil {
 		t.Fatalf("PublishToAudience: %v", err)
 	}
 

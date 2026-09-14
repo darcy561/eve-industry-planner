@@ -42,7 +42,7 @@ func TestAudienceMessageArrivesAsPublished(t *testing.T) {
 	frames := subscribeAudience(t, fake.NATS)
 
 	body := []byte(`{"type":"staticData","buildNumber":42}`)
-	if err := eipnats.PublishToAudience(fake.NATS, eipnats.Everyone(), "sdeBuildUpdated", body); err != nil {
+	if err := eipnats.PublishToAudience(fake.NATS, eipnats.Everyone(), eipnats.ClientMessageStaticData, "sdeBuildUpdated", body); err != nil {
 		t.Fatalf("PublishToAudience: %v", err)
 	}
 
@@ -68,7 +68,7 @@ func TestAudienceMessageCarriesTheOwnerItAddresses(t *testing.T) {
 	frames := subscribeAudience(t, fake.NATS)
 
 	const ownerKey = "corporation:corp_56_JxK"
-	if err := eipnats.PublishToAudience(fake.NATS, eipnats.Subscribers(ownerKey), "archiveStatsProcessed", []byte(`{"type":"notification"}`)); err != nil {
+	if err := eipnats.PublishToAudience(fake.NATS, eipnats.Subscribers(ownerKey), eipnats.ClientMessageNotification, "archiveStatsProcessed", []byte(`{"type":"notification"}`)); err != nil {
 		t.Fatalf("PublishToAudience: %v", err)
 	}
 

@@ -8,12 +8,12 @@ import (
 func TestDeliverSubjectNamesTheAudienceAndItsTarget(t *testing.T) {
 	t.Parallel()
 
-	if got := DeliverSubject(Subscribers("account:acct-1"), "archiveStatsProcessed"); got != "deliver.subscribers.account:acct-1.archiveStatsProcessed" {
+	if got := DeliverSubject(Subscribers("account:acct-1"), ClientMessageNotification, "archiveStatsProcessed"); got != "deliver.subscribers.account:acct-1.notification.archiveStatsProcessed" {
 		t.Fatalf("subject = %q", got)
 	}
 	// An audience addressing no owner still fills the target slot, so every
 	// subject in the space has the same shape and one parser reads all of them.
-	if got := DeliverSubject(Everyone(), "sdeBuildUpdated"); got != "deliver.everyone.all.sdeBuildUpdated" {
+	if got := DeliverSubject(Everyone(), ClientMessageStaticData, "sdeBuildUpdated"); got != "deliver.everyone.all.staticData.sdeBuildUpdated" {
 		t.Fatalf("subject = %q", got)
 	}
 }
@@ -25,12 +25,14 @@ func TestDeliverSubjectRefusesASegmentItCannotPlaceInOneToken(t *testing.T) {
 	t.Parallel()
 
 	for name, subject := range map[string]string{
-		"dotted subtype":   DeliverSubject(Everyone(), "sde.build.updated"),
-		"wildcard subtype": DeliverSubject(Everyone(), "*"),
-		"reaching subtype": DeliverSubject(Everyone(), ">"),
-		"empty subtype":    DeliverSubject(Everyone(), "  "),
-		"no target":        DeliverSubject(Subscribers(""), "archiveStatsProcessed"),
-		"dotted target":    DeliverSubject(Subscribers("account.acct-1"), "archiveStatsProcessed"),
+		"dotted subtype":   DeliverSubject(Everyone(), ClientMessageStaticData, "sde.build.updated"),
+		"wildcard subtype": DeliverSubject(Everyone(), ClientMessageStaticData, "*"),
+		"reaching subtype": DeliverSubject(Everyone(), ClientMessageStaticData, ">"),
+		"empty subtype":    DeliverSubject(Everyone(), ClientMessageStaticData, "  "),
+		"empty family":     DeliverSubject(Everyone(), " ", "sdeBuildUpdated"),
+		"dotted family":    DeliverSubject(Everyone(), "static.data", "sdeBuildUpdated"),
+		"no target":        DeliverSubject(Subscribers(""), ClientMessageNotification, "archiveStatsProcessed"),
+		"dotted target":    DeliverSubject(Subscribers("account.acct-1"), ClientMessageNotification, "archiveStatsProcessed"),
 	} {
 		if subject != "" {
 			t.Fatalf("%s produced %q, want no subject", name, subject)
@@ -41,11 +43,12 @@ func TestDeliverSubjectRefusesASegmentItCannotPlaceInOneToken(t *testing.T) {
 func TestParseDeliverSubjectReadsBackWhatWasBuilt(t *testing.T) {
 	t.Parallel()
 
-	got, ok := parseDeliverSubject(DeliverSubject(Subscribers("corporation:corp_56_JxK"), "archiveStatsProcessed"))
+	got, ok := parseDeliverSubject(DeliverSubject(Subscribers("corporation:corp_56_JxK"), ClientMessageNotification, "archiveStatsProcessed"))
 	if !ok {
 		t.Fatal("a subject this package built did not parse")
 	}
-	if got.Audience != AudienceSubscribers || got.Target != "corporation:corp_56_JxK" || got.Subtype != "archiveStatsProcessed" {
+	if got.Audience != AudienceSubscribers || got.Target != "corporation:corp_56_JxK" ||
+		got.Family != ClientMessageNotification || got.Subtype != "archiveStatsProcessed" {
 		t.Fatalf("parsed = %+v", got)
 	}
 }
@@ -58,8 +61,8 @@ func TestTheAudienceSpaceDoesNotOverlapTheExistingFamilies(t *testing.T) {
 	t.Parallel()
 
 	audienceSubjects := []string{
-		DeliverSubject(Everyone(), "sdeBuildUpdated"),
-		DeliverSubject(Subscribers("account:acct-1"), "archiveStatsProcessed"),
+		DeliverSubject(Everyone(), ClientMessageStaticData, "sdeBuildUpdated"),
+		DeliverSubject(Subscribers("account:acct-1"), ClientMessageNotification, "archiveStatsProcessed"),
 	}
 	for _, subject := range audienceSubjects {
 		if subjectMatchesFilter(subject, SubjectDocUpdate+".>") {

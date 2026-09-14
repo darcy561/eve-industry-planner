@@ -7,24 +7,33 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 )
 
 // outboundDeliveryOutcome summarizes fan-out on this websocket replica.
 type outboundDeliveryOutcome struct {
-	RouteKind                      string
+	RouteKind string
+	OwnerKind string
+	// Family names the kind of traffic. Two families can share an audience, so
+	// RouteKind alone no longer tells an operator what was being delivered.
+	// Subtype narrows it for a family that has kinds; most do not.
+	Family  string
+	Subtype string
+	// Undeliverable says why nothing could carry the message, for the cases that
+	// are a defect rather than an empty audience. Kept apart from RouteKind so
+	// that field stays one vocabulary an operator can filter on.
+	Undeliverable                  string
 	RecipientCount                 int
 	CandidateCount                 int
 	AccountID                      string
 	OwnerRef                       string
 	SourceClientID                 string
 	SourceSessionID                string
-	SuppressSessionID              string
 	RecipientClientIDs             []string
 	RecipientSessionIDs            []string
 	RecipientAccountIDs            []string
 	SkippedEchoClientIDs           []string
-	SkippedSessionClientIDs        []string
 	SkippedSyncClientIDs           []string
 	SkippedNotConnectedClientIDs   []string
 	SkippedScopeClientIDs          []string
@@ -55,10 +64,6 @@ func (o *outboundDeliveryOutcome) recordEchoSkip(clientID string) {
 	o.SkippedEchoClientIDs = append(o.SkippedEchoClientIDs, clientID)
 }
 
-func (o *outboundDeliveryOutcome) recordSessionSkip(clientID string) {
-	o.SkippedSessionClientIDs = append(o.SkippedSessionClientIDs, clientID)
-}
-
 func (o *outboundDeliveryOutcome) recordSyncSkip(clientID string) {
 	o.SkippedSyncClientIDs = append(o.SkippedSyncClientIDs, clientID)
 }
@@ -75,129 +80,70 @@ func (o *outboundDeliveryOutcome) recordSendBufferFull(clientID string) {
 	o.SkippedSendBufferFullClientIDs = append(o.SkippedSendBufferFullClientIDs, clientID)
 }
 
-func (o *outboundDeliveryOutcome) hasSuppression() bool {
-	return len(o.SkippedEchoClientIDs) > 0 ||
-		len(o.SkippedSessionClientIDs) > 0 ||
-		len(o.SkippedSyncClientIDs) > 0 ||
-		len(o.SkippedNotConnectedClientIDs) > 0 ||
-		len(o.SkippedScopeClientIDs) > 0 ||
-		len(o.SkippedSendBufferFullClientIDs) > 0 ||
-		o.SuppressSessionID != ""
+// everySkipWasDeliberate reports whether nothing was lost: a candidate held back
+// because it caused the change or is rebuilding its state gets the message it
+// missed by other means, where one dropped for a full buffer or a stale index
+// does not.
+//
+// The walk records every candidate it does not deliver to, so a fan-out with
+// candidates and no recipients has at least one of these lists filled.
+func (o *outboundDeliveryOutcome) everySkipWasDeliberate() bool {
+	return len(o.SkippedNotConnectedClientIDs) == 0 &&
+		len(o.SkippedScopeClientIDs) == 0 &&
+		len(o.SkippedSendBufferFullClientIDs) == 0
 }
 
-// deliverOutboundDocUpdate routes a NATS doc.update payload to local WebSocket clients.
-// The owner's kind selects the branch; a message stating no readable owner goes to
-// explicit doc subscribers.
+// deliverOutboundDocUpdate converts a NATS doc.update payload and delivers it.
+//
+// The owner the message states chooses the audience: a readable one addresses
+// the connections working in it, and a message stating none addresses whoever
+// asked for that document by name — a delete without a preimage, or a producer
+// that named no owner.
 func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedDocID string, messageData []byte) outboundDeliveryOutcome {
 	decoded, err := outgoinglogic.DecodeOutboundMessage(messageData)
 	if err != nil {
 		logs.WarnCtx(ctx, "outbound doc update: invalid JSON",
 			"doc_id", collectionScopedDocID,
 			"error", err.Error())
-		return outboundDeliveryOutcome{RouteKind: "invalid"}
+		return outboundDeliveryOutcome{Undeliverable: "unreadable_message"}
 	}
 
+	owner := decoded.Route.Owner
 	// Routing metadata names internal identities and the document body carries
 	// refs; rewrite once here rather than per recipient, after routing has been
 	// decided from the untouched message, so no ref reaches a browser.
-	clientData := outgoinglogic.ClientPayload(messageData, decoded.Route.Owner, s.entityCipher)
+	out := Outbound{
+		Family: eipnats.ClientMessageDocument,
+		Source: Source{
+			ClientID:  decoded.Route.SourceClientID,
+			SessionID: decoded.Route.SourceSessionID,
+		},
+		Frame: outgoinglogic.ClientPayload(messageData, owner, s.entityCipher),
+	}
 
-	switch decoded.Route.Owner.Kind {
-	case models.OwnerAccount:
-		return s.broadcastToAccountClients(ctx, collectionScopedDocID, clientData, decoded.Route)
-	case models.OwnerCorporation, models.OwnerAlliance:
-		return s.broadcastToOwnerScope(ctx, collectionScopedDocID, clientData, decoded)
+	switch owner.Kind {
+	case models.OwnerAccount, models.OwnerCorporation, models.OwnerAlliance:
+		out.Audience = eipnats.AudienceSubscribers
+		out.Target = owner
 	case "":
-		// No readable owner: a delete without a preimage, or a message from a
-		// producer that stated none.
 	default:
 		// A kind the owner model accepts but this service cannot deliver to. Named
-		// rather than passed to explicit subscribers unremarked, which would report
+		// rather than passed to by-name subscribers unremarked, which would report
 		// a near-empty fan-out as an ordinary one.
 		logs.WarnCtx(ctx, "outbound doc update: no delivery branch for owner kind",
 			"doc_id", collectionScopedDocID,
-			"owner_kind", string(decoded.Route.Owner.Kind))
+			"owner_kind", string(owner.Kind))
 	}
-	return s.deliverToExplicitDocSubscribers(ctx, collectionScopedDocID, clientData, decoded.Route.SourceClientID, decoded.Route.SourceSessionID)
-}
-
-// broadcastToAccountClients sends a payload to every connection for the account except the source client.
-func (s *Server) broadcastToAccountClients(ctx context.Context, docID string, messageData []byte, route outgoinglogic.RouteInfo) outboundDeliveryOutcome {
-	out := outboundDeliveryOutcome{
-		RouteKind:       "account",
-		AccountID:       route.Owner.ID,
-		SourceClientID:  route.SourceClientID,
-		SourceSessionID: route.SourceSessionID,
-	}
-	accountID := route.Owner.ID
-	if accountID == "" {
-		logs.WarnCtx(ctx, "message missing accountID for account broadcast", "doc_id", docID)
-		return outboundDeliveryOutcome{RouteKind: "invalid"}
-	}
-	sourceClientID := route.SourceClientID
-	sourceSessionID := route.SourceSessionID
-
-	s.userConnMu.RLock()
-	clientIDs, hasConnections := s.userConnections[accountID]
-	if !hasConnections {
-		s.userConnMu.RUnlock()
-		return out
+	if out.Audience == "" {
+		out.Audience = audienceDocSubscribers
+		out.DocID = collectionScopedDocID
 	}
 
-	clientsToNotify := make([]string, 0, len(clientIDs))
-	for clientID := range clientIDs {
-		clientsToNotify = append(clientsToNotify, clientID)
+	outcome := s.deliverOutbound(out)
+	if out.Target.Kind == models.OwnerAccount {
+		s.recordDocUpdateSent(ctx, out.Target.ID, collectionScopedDocID, outcome.RecipientCount)
 	}
-	s.userConnMu.RUnlock()
-	out.CandidateCount = len(clientsToNotify)
-
-	broadcastCount := 0
-	s.ClientsMu.RLock()
-	for _, clientID := range clientsToNotify {
-		client, exists := s.Clients[clientID]
-		if !exists {
-			out.recordNotConnectedSkip(clientID)
-			continue
-		}
-		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
-			out.recordEchoSkip(clientID)
-			continue
-		}
-
-		if client.AccountID != accountID {
-			logs.WarnCtx(client.LogContext(), "client accountID mismatch",
-				"client_id", clientID,
-				"expected_account_id", accountID,
-				"client_account_id", client.AccountID)
-			continue
-		}
-
-		client.SyncMu.Lock()
-		if client.SyncInProgress {
-			client.SyncMu.Unlock()
-			out.recordSyncSkip(clientID)
-			continue
-		}
-		client.SyncMu.Unlock()
-
-		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
-			broadcastCount++
-			out.recordRecipient(clientID, client)
-		} else {
-			out.recordSendBufferFull(clientID)
-			logs.WarnCtx(client.LogContext(), "client send buffer full, dropping message",
-				"client_id", clientID,
-				"account_id", accountID)
-		}
-	}
-	s.ClientsMu.RUnlock()
-
-	out.RecipientCount = broadcastCount
-	if broadcastCount > 0 {
-		s.recordDocUpdateSent(ctx, accountID, docID, broadcastCount)
-		out.RecipientAccountIDs = appendUniqueString(out.RecipientAccountIDs, accountID)
-	}
-	return out
+	return outcome
 }
 
 func copyClientIDSet(m map[string]bool) []string {
@@ -211,131 +157,6 @@ func copyClientIDSet(m map[string]bool) []string {
 	return out
 }
 
-// broadcastToOwnerScope delivers an owner's changes to the clients subscribed to
-// that owner.
-//
-// Subscription is the whole rule: a client's scopes name the account key and the
-// planner it is working in, so holding the owner's key is what entitles it to the
-// message. There is nothing further to narrow by.
-func (s *Server) broadcastToOwnerScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
-	owner := decoded.Route.Owner
-	sourceClientID := decoded.Route.SourceClientID
-	sourceSessionID := decoded.Route.SourceSessionID
-
-	out := outboundDeliveryOutcome{
-		RouteKind:       string(owner.Kind),
-		OwnerRef:        owner.ID,
-		SourceClientID:  sourceClientID,
-		SourceSessionID: sourceSessionID,
-	}
-
-	clientIDs := s.clientsForOwner(owner)
-	out.CandidateCount = len(clientIDs)
-	if len(clientIDs) == 0 {
-		return out
-	}
-
-	var sent int
-	s.ClientsMu.RLock()
-	for _, clientID := range clientIDs {
-		client, ok := s.Clients[clientID]
-		if !ok {
-			out.recordNotConnectedSkip(clientID)
-			continue
-		}
-		client.SyncMu.Lock()
-		syncing := client.SyncInProgress
-		client.SyncMu.Unlock()
-		if !client.Scopes.Has(owner) {
-			out.recordScopeSkip(clientID)
-			continue
-		}
-		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
-			out.recordEchoSkip(clientID)
-			continue
-		}
-		if syncing {
-			out.recordSyncSkip(clientID)
-			continue
-		}
-		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
-			sent++
-			out.recordRecipient(clientID, client)
-		} else {
-			out.recordSendBufferFull(clientID)
-			logs.WarnCtx(client.LogContext(), "owner scope: send buffer full",
-				"client_id", client.id,
-				"owner_kind", string(owner.Kind),
-				"owner_ref", owner.ID)
-		}
-	}
-	s.ClientsMu.RUnlock()
-
-	out.RecipientCount = sent
-	return out
-}
-
-// deliverToExplicitDocSubscribers delivers to clients that subscribed to this
-// doc id by name, rather than reaching it through account or org scope.
-func (s *Server) deliverToExplicitDocSubscribers(ctx context.Context, docID string, messageData []byte, sourceClientID, sourceSessionID string) outboundDeliveryOutcome {
-	out := outboundDeliveryOutcome{
-		RouteKind:       "explicit",
-		SourceClientID:  sourceClientID,
-		SourceSessionID: sourceSessionID,
-	}
-
-	s.explicitDocSubMu.RLock()
-	subSet := s.explicitDocSubscribers[docID]
-	if len(subSet) == 0 {
-		s.explicitDocSubMu.RUnlock()
-		return out
-	}
-	clientIDs := make([]string, 0, len(subSet))
-	for cid := range subSet {
-		clientIDs = append(clientIDs, cid)
-	}
-	s.explicitDocSubMu.RUnlock()
-	out.CandidateCount = len(clientIDs)
-
-	var sent int
-	s.ClientsMu.RLock()
-	for _, clientID := range clientIDs {
-		client, ok := s.Clients[clientID]
-		if !ok {
-			out.recordNotConnectedSkip(clientID)
-			continue
-		}
-		client.SyncMu.Lock()
-		syncing := client.SyncInProgress
-		client.SyncMu.Unlock()
-		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
-			out.recordEchoSkip(clientID)
-			continue
-		}
-		if docID == "" || !client.explicitDocIDs[docID] {
-			out.recordScopeSkip(clientID)
-			continue
-		}
-		if syncing {
-			out.recordSyncSkip(clientID)
-			continue
-		}
-		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
-			sent++
-			out.recordRecipient(clientID, client)
-		} else {
-			out.recordSendBufferFull(clientID)
-			logs.WarnCtx(client.LogContext(), "explicit doc: send buffer full",
-				"client_id", clientID,
-				"doc_id", docID)
-		}
-	}
-	s.ClientsMu.RUnlock()
-
-	out.RecipientCount = sent
-	return out
-}
-
 func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) map[string]any {
 	detail := map[string]any{
 		"doc_id":          docID,
@@ -346,8 +167,20 @@ func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) ma
 	if subject != "" {
 		detail["subject"] = subject
 	}
+	if o.Undeliverable != "" {
+		detail["undeliverable"] = o.Undeliverable
+	}
+	if o.Family != "" {
+		detail["family"] = o.Family
+	}
+	if o.Subtype != "" {
+		detail["subtype"] = o.Subtype
+	}
 	if o.AccountID != "" {
 		detail["account_id"] = o.AccountID
+	}
+	if o.OwnerKind != "" {
+		detail["owner_kind"] = o.OwnerKind
 	}
 	if o.OwnerRef != "" {
 		detail["owner_ref"] = o.OwnerRef
@@ -358,11 +191,7 @@ func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) ma
 	if o.SourceSessionID != "" {
 		detail["source_session_id"] = o.SourceSessionID
 	}
-	if o.SuppressSessionID != "" {
-		detail["suppress_session_id"] = o.SuppressSessionID
-	}
 	appendSkipDetail(detail, "skipped_echo_suppression_client_ids", o.SkippedEchoClientIDs)
-	appendSkipDetail(detail, "skipped_session_suppression_client_ids", o.SkippedSessionClientIDs)
 	appendSkipDetail(detail, "skipped_sync_in_progress_client_ids", o.SkippedSyncClientIDs)
 	appendSkipDetail(detail, "skipped_not_connected_client_ids", o.SkippedNotConnectedClientIDs)
 	appendSkipDetail(detail, "skipped_scope_client_ids", o.SkippedScopeClientIDs)

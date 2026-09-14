@@ -1,10 +1,6 @@
 package outgoinglogic
 
-import (
-	"slices"
-
-	"eve-industry-planner/shared/models"
-)
+import "eve-industry-planner/shared/models"
 
 // RouteInfo is the routing metadata carried by a doc.update payload.
 //
@@ -14,13 +10,6 @@ type RouteInfo struct {
 	Owner           models.Owner
 	SourceClientID  string
 	SourceSessionID string
-}
-
-func ScopeContains(ids []string, want string) bool {
-	if want == "" || len(ids) == 0 {
-		return false
-	}
-	return slices.Contains(ids, want)
 }
 
 // ShouldSuppressRecipient implements realtime echo suppression for outbound NATS payloads.

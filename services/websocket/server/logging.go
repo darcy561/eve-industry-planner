@@ -270,11 +270,20 @@ func wsUpgradeRejectAuthSession(
 }
 
 // finishReplicaFanoutOperation emits one consolidated NATS outcome log for fan-out on this
-// websocket replica. Successful delivery logs at info with recipient account/session/client ids;
-// idle replicas and no-recipient outcomes log at debug with an explicit message suffix.
-func finishReplicaFanoutOperation(ctx context.Context, msg, docID, subject string, outcome outboundDeliveryOutcome, extra map[string]any) {
+// websocket replica, composing its message from what was being delivered.
+//
+// A message nothing could carry logs at warn: it is a defect, and every other
+// outcome that reaches nobody is ordinary. Delivery to at least one client logs
+// at info with the recipient account, session and client ids; the rest log at
+// debug with a suffix saying which kind of nobody it reached.
+func finishReplicaFanoutOperation(ctx context.Context, what, docID, subject string, outcome outboundDeliveryOutcome, extra map[string]any) {
 	detail := outboundDeliveryDetail(docID, subject, outcome)
 	maps.Copy(detail, extra)
+	if outcome.Undeliverable != "" {
+		eipnats.FinishNATSConsumerOperation(ctx, "warn", what+" rejected", detail)
+		return
+	}
+	msg := what + " delivered"
 	level := "debug"
 	logMsg := msg
 	switch {
@@ -283,7 +292,7 @@ func finishReplicaFanoutOperation(ctx context.Context, msg, docID, subject strin
 	case outcome.CandidateCount == 0:
 		detail["replica_idle"] = true
 		logMsg = msg + " (idle replica)"
-	case outcome.hasSuppression():
+	case outcome.everySkipWasDeliberate():
 		logMsg = msg + " (suppressed on replica)"
 	default:
 		logMsg = msg + " (no recipients on replica)"

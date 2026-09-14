@@ -34,5 +34,5 @@ func PublishNotification(n *NATS, ownerKey, subtype string, body any) error {
 	if err != nil {
 		return fmt.Errorf("marshal notification envelope: %w", err)
 	}
-	return PublishToAudience(n, Subscribers(ownerKey), subtype, frame)
+	return PublishToAudience(n, Subscribers(ownerKey), ClientMessageNotification, subtype, frame)
 }

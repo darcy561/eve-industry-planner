@@ -2,16 +2,19 @@ package server
 
 import (
 	"context"
+	"strings"
 
 	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/natslogic"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// subscribeToDocLockNotifications fans out API-published lock events to all tabs for the account.
+// subscribeToDocLockNotifications delivers API-published lock events to the tabs
+// working in the account the subject names.
 func (s *Server) subscribeToDocLockNotifications() {
 	ctx := context.Background()
 	if s.Stack == nil || s.Stack.NATS.JS() == nil {
@@ -40,11 +43,8 @@ func (s *Server) subscribeToDocLockNotifications() {
 				return eipnats.Terminate("unreadable lock payload on %s: %v", subject, err)
 			}
 
-			outcome := s.broadcastRawToAccount("doc_lock", accountID, wire, suppressSessionID)
-			// Reports recipients, suppression and an idle replica, which the
-			// generic outcome cannot express; the wrapper leaves it as the one
-			// outcome for this message.
-			finishReplicaFanoutOperation(ctx, "doc lock notification delivered", "", subject, outcome, nil)
+			outcome := s.deliverDocumentLock(accountID, wire, suppressSessionID)
+			finishReplicaFanoutOperation(ctx, "doc lock notification", "", subject, outcome, nil)
 			return nil
 		})
 
@@ -59,4 +59,19 @@ func (s *Server) subscribeToDocLockNotifications() {
 	logs.DebugCtx(ctx, "subscribed to doc.lock notifications",
 		"consumer", docLockDurable,
 		"container_id", container.ID())
+}
+
+// deliverDocumentLock addresses a lock event to the tabs working in an account.
+//
+// The source is a session rather than a tab: a viewer join or leave is one fact
+// about a whole session, and the id the payload carries is the JWT session id
+// every tab of it shares.
+func (s *Server) deliverDocumentLock(accountID string, wire []byte, suppressSessionID string) outboundDeliveryOutcome {
+	return s.deliverOutbound(Outbound{
+		Family:   eipnats.ClientMessageDocumentLock,
+		Audience: eipnats.AudienceSubscribers,
+		Target:   models.Owner{Kind: models.OwnerAccount, ID: accountID},
+		Source:   Source{SessionID: strings.TrimSpace(suppressSessionID)},
+		Frame:    wire,
+	})
 }

@@ -9,14 +9,34 @@ import (
 	eipnats "eve-industry-planner/shared/nats"
 )
 
-// everyoneMessage addresses a frame to every socket.
+// everyoneMessage addresses a frame to every socket, as it arrives on the wire.
 func everyoneMessage(frame []byte) eipnats.AudienceMessage {
 	return eipnats.AudienceMessage{
 		Audience: eipnats.AudienceEveryone,
 		Target:   eipnats.TargetEveryone,
+		Family:   eipnats.ClientMessageStaticData,
 		Subtype:  eipnats.SubtypeStaticDataBuildUpdated,
 		Payload:  frame,
 	}
+}
+
+// subscribersMessage addresses a frame to the people working in an owner.
+func subscribersMessage(owner models.Owner, frame []byte) eipnats.AudienceMessage {
+	return eipnats.AudienceMessage{
+		Audience: eipnats.AudienceSubscribers,
+		Target:   owner.Key(),
+		Family:   eipnats.ClientMessageNotification,
+		Subtype:  eipnats.NotificationArchiveStatsProcessed,
+		Payload:  frame,
+	}
+}
+
+// delivered runs a message through the adapter and the walk, as the subscription
+// does, reporting recipients and whether anything could deliver it.
+func (f *integFixture) delivered(msg eipnats.AudienceMessage) (int, bool) {
+	f.t.Helper()
+	outcome := f.Server.deliverOutbound(audienceOutbound(msg))
+	return outcome.RecipientCount, outcome.Undeliverable == ""
 }
 
 // staticDataFrame is the frame a producer publishes for a new build.
@@ -62,7 +82,7 @@ func TestEveryoneAudienceReachesEverySocket(t *testing.T) {
 	member := f.orgClient("member-tab", "acct-member", []string{corpRef}, nil)
 	stranger := f.orgClient("stranger-tab", "acct-stranger", nil, nil)
 
-	recipients, routed := f.Server.deliverToAudience(everyoneMessage(staticDataFrame(t, 42, "2026-09-13")))
+	recipients, routed := f.delivered(everyoneMessage(staticDataFrame(t, 42, "2026-09-13")))
 	if !routed || recipients != 2 {
 		t.Fatalf("routed=%v recipients=%d, want both sockets", routed, recipients)
 	}
@@ -82,12 +102,8 @@ func TestSubscribersAudienceReachesOnlyThatOwnersConnections(t *testing.T) {
 	member := f.orgClient("member-tab", "acct-member", []string{corpRef}, nil)
 	outsider := f.orgClient("outsider-tab", "acct-outsider", nil, nil)
 
-	recipients, routed := f.Server.deliverToAudience(eipnats.AudienceMessage{
-		Audience: eipnats.AudienceSubscribers,
-		Target:   models.Owner{Kind: models.OwnerCorporation, ID: corpRef}.Key(),
-		Subtype:  "archiveStatsProcessed",
-		Payload:  audienceFrame("archiveStatsProcessed"),
-	})
+	recipients, routed := f.delivered(subscribersMessage(
+		models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, audienceFrame("archiveStatsProcessed")))
 	if !routed || recipients != 1 {
 		t.Fatalf("routed=%v recipients=%d, want the one member", routed, recipients)
 	}
@@ -110,12 +126,8 @@ func TestSubscribersAudienceReachesAnAccountsOwnTabs(t *testing.T) {
 	two := f.orgClient("tab-two", "acct-owner", nil, nil)
 	other := f.orgClient("other-tab", "acct-other", nil, nil)
 
-	recipients, routed := f.Server.deliverToAudience(eipnats.AudienceMessage{
-		Audience: eipnats.AudienceSubscribers,
-		Target:   models.AccountOwner("acct-owner").Key(),
-		Subtype:  "archiveStatsProcessed",
-		Payload:  audienceFrame("archiveStatsProcessed"),
-	})
+	recipients, routed := f.delivered(subscribersMessage(
+		models.AccountOwner("acct-owner"), audienceFrame("archiveStatsProcessed")))
 	if !routed || recipients != 2 {
 		t.Fatalf("routed=%v recipients=%d, want both of the account's tabs", routed, recipients)
 	}
@@ -136,9 +148,10 @@ func TestAnUnknownAudienceIsReportedRatherThanDroppedQuietly(t *testing.T) {
 	f := newIntegFixture(t)
 	f.orgClient("a-tab", "acct-any", nil, nil)
 
-	if recipients, routed := f.Server.deliverToAudience(eipnats.AudienceMessage{
+	if recipients, routed := f.delivered(eipnats.AudienceMessage{
 		Audience: eipnats.Audience("members"),
 		Target:   models.AccountOwner("acct-any").Key(),
+		Family:   eipnats.ClientMessageNotification,
 		Subtype:  "somethingHappened",
 		Payload:  audienceFrame("somethingHappened"),
 	}); routed || recipients != 0 {
@@ -147,19 +160,23 @@ func TestAnUnknownAudienceIsReportedRatherThanDroppedQuietly(t *testing.T) {
 }
 
 // A target that names no owner reaches nothing rather than falling through to a
-// shared bucket, which is what an unparsed key would address.
-func TestSubscribersAudienceWithAnUnreadableTargetReachesNothing(t *testing.T) {
+// shared bucket, which is what an unparsed key would address. It is reported as
+// a defect too: a key the owner model cannot read is a producer problem, not an
+// audience that happened to be empty.
+func TestSubscribersAudienceWithAnUnreadableTargetIsReported(t *testing.T) {
 	f := newIntegFixture(t)
 	c := f.orgClient("a-tab", "acct-any", nil, nil)
 
-	recipients, routed := f.Server.deliverToAudience(eipnats.AudienceMessage{
+	outcome := f.Server.deliverOutbound(audienceOutbound(eipnats.AudienceMessage{
 		Audience: eipnats.AudienceSubscribers,
 		Target:   "not-an-owner-key",
+		Family:   eipnats.ClientMessageNotification,
 		Subtype:  "archiveStatsProcessed",
 		Payload:  audienceFrame("archiveStatsProcessed"),
-	})
-	if !routed || recipients != 0 {
-		t.Fatalf("routed=%v recipients=%d, want nothing delivered", routed, recipients)
+	}))
+	if outcome.Undeliverable != "unaddressable_target" || outcome.RecipientCount != 0 {
+		t.Fatalf("undeliverable=%q recipients=%d, want an unaddressable report",
+			outcome.Undeliverable, outcome.RecipientCount)
 	}
 	if got := receivedFrames(t, c); len(got) != 0 {
 		t.Fatalf("a client received %d frames addressed to an unreadable owner", len(got))
@@ -177,7 +194,7 @@ func TestAnEveryoneAnnouncementLeavesTheSocketOpen(t *testing.T) {
 	_ = f.readJSONMessage(conn, 2*time.Second) // connected
 	f.waitClients(1, 2*time.Second)
 
-	if sent, routed := f.Server.deliverToAudience(everyoneMessage(staticDataFrame(t, 42, "2026-09-13"))); !routed || sent != 1 {
+	if sent, routed := f.delivered(everyoneMessage(staticDataFrame(t, 42, "2026-09-13"))); !routed || sent != 1 {
 		t.Fatalf("routed=%v sent=%d, want the one socket", routed, sent)
 	}
 
@@ -214,7 +231,7 @@ func TestAnEveryoneAnnouncementSkipsAFullBuffer(t *testing.T) {
 
 	done := make(chan int, 1)
 	go func() {
-		sent, _ := f.Server.deliverToAudience(everyoneMessage(staticDataFrame(t, 9, "2026-09-13")))
+		sent, _ := f.delivered(everyoneMessage(staticDataFrame(t, 9, "2026-09-13")))
 		done <- sent
 	}()
 
@@ -225,5 +242,165 @@ func TestAnEveryoneAnnouncementSkipsAFullBuffer(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the fan-out blocked on a client that could not take the message")
+	}
+}
+
+// Audience delivery reports what every other path already reports.
+//
+// It returned a bare recipient count when it was written, which reads in the
+// logs as a delivery with nothing to say about who was skipped and why. An
+// operator asking "who missed this?" needs the same answer here as for a
+// document.
+func TestAudienceDeliveryReportsTheSameOutcomeAsEveryOtherPath(t *testing.T) {
+	f := newIntegFixture(t)
+
+	const corpRef = "corp_56_JxK"
+	member := f.orgClient("member-tab", "acct-member", []string{corpRef}, nil)
+	gone := f.orgClient("departed-tab", "acct-gone", []string{corpRef}, nil)
+	full := f.orgClient("stalled-tab", "acct-stalled", []string{corpRef}, nil)
+
+	// One candidate the index still names but the client map does not, and one
+	// that cannot take the message.
+	f.Server.ClientsMu.Lock()
+	delete(f.Server.Clients, gone.id)
+	f.Server.ClientsMu.Unlock()
+	for len(full.Send) < cap(full.Send) {
+		full.Send <- []byte(`{"type":"filler"}`)
+	}
+
+	owner := models.Owner{Kind: models.OwnerCorporation, ID: corpRef}
+	outcome := f.Server.deliverOutbound(audienceOutbound(
+		subscribersMessage(owner, audienceFrame("archiveStatsProcessed"))))
+
+	if outcome.RouteKind != string(eipnats.AudienceSubscribers) {
+		t.Fatalf("route kind = %q, want the audience that routed it", outcome.RouteKind)
+	}
+	if outcome.OwnerRef != corpRef {
+		t.Fatalf("owner ref = %q, want %q", outcome.OwnerRef, corpRef)
+	}
+	if outcome.CandidateCount != 3 {
+		t.Fatalf("candidates = %d, want the three in the pool", outcome.CandidateCount)
+	}
+	if outcome.RecipientCount != 1 {
+		t.Fatalf("recipients = %d, want the one that could take it", outcome.RecipientCount)
+	}
+	if len(outcome.SkippedNotConnectedClientIDs) != 1 || outcome.SkippedNotConnectedClientIDs[0] != gone.id {
+		t.Fatalf("not-connected skips = %v, want [%s]", outcome.SkippedNotConnectedClientIDs, gone.id)
+	}
+	if len(outcome.SkippedSendBufferFullClientIDs) != 1 || outcome.SkippedSendBufferFullClientIDs[0] != full.id {
+		t.Fatalf("buffer-full skips = %v, want [%s]", outcome.SkippedSendBufferFullClientIDs, full.id)
+	}
+	if len(outcome.RecipientClientIDs) != 1 || outcome.RecipientClientIDs[0] != member.id {
+		t.Fatalf("recipients = %v, want [%s]", outcome.RecipientClientIDs, member.id)
+	}
+}
+
+// A client left in an owner's pool after losing the grant is refused.
+//
+// The pool and a client's scopes are written at different moments — a revoked
+// grant, a reconnect, a planner switch racing a delivery — so the pool alone is
+// not authority for this path any more than it is for that owner's documents.
+func TestSubscribersAudienceRefusesAClientLeftInThePool(t *testing.T) {
+	f := newIntegFixture(t)
+
+	const corpRef = "corp_56_JxK"
+	stale := f.orgClient("stale-tab", "acct-stale", []string{corpRef}, nil)
+
+	// The grant goes away while the pool entry stays.
+	stale.Scopes = nil
+
+	owner := models.Owner{Kind: models.OwnerCorporation, ID: corpRef}
+	recipients, routed := f.delivered(subscribersMessage(owner, audienceFrame("archiveStatsProcessed")))
+	if !routed || recipients != 0 {
+		t.Fatalf("routed=%v recipients=%d, want nothing delivered", routed, recipients)
+	}
+	if got := receivedFrames(t, stale); len(got) != 0 {
+		t.Fatalf("a client outside the grant received %d frames", len(got))
+	}
+}
+
+// An account's tab that no longer belongs to the account is refused for the same
+// reason, through the other index.
+func TestSubscribersAudienceRefusesATabThatChangedAccount(t *testing.T) {
+	f := newIntegFixture(t)
+
+	drifted := f.orgClient("drifted-tab", "acct-owner", nil, nil)
+	drifted.AccountID = "acct-somebody-else"
+
+	recipients, _ := f.delivered(subscribersMessage(
+		models.AccountOwner("acct-owner"), audienceFrame("archiveStatsProcessed")))
+	if recipients != 0 {
+		t.Fatalf("recipients = %d, want nothing delivered", recipients)
+	}
+	if got := receivedFrames(t, drifted); len(got) != 0 {
+		t.Fatalf("a client holding %q received %d frames addressed to acct-owner", drifted.AccountID, len(got))
+	}
+}
+
+// The walk skips the connection a message came from, and its siblings still get
+// it. No adapter names a source yet — the audience families carry none — so this
+// holds the gate for the paths that will.
+func TestTheWalkSkipsTheConnectionAMessageCameFrom(t *testing.T) {
+	f := newIntegFixture(t)
+
+	const (
+		corpRef = "corp_56_JxK"
+		session = "sess-shared"
+	)
+	writer := f.orgClient("writer-tab", "acct-member", []string{corpRef}, nil)
+	sibling := f.orgClient("sibling-tab", "acct-member", []string{corpRef}, nil)
+	writer.SessionID = session
+	sibling.SessionID = session
+
+	out := audienceOutbound(subscribersMessage(
+		models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, audienceFrame("archiveStatsProcessed")))
+	out.Source = Source{ClientID: writer.id, SessionID: session}
+
+	if outcome := f.Server.deliverOutbound(out); outcome.RecipientCount != 1 {
+		t.Fatalf("recipients = %d, want only the sibling", outcome.RecipientCount)
+	}
+	if got := receivedFrames(t, writer); len(got) != 0 {
+		t.Fatalf("the connection that caused the message received %d frames back", len(got))
+	}
+	if got := receivedFrames(t, sibling); len(got) != 1 {
+		t.Fatalf("the sibling received %d frames, want 1", len(got))
+	}
+}
+
+// A family the table does not hold is refused rather than fanned out on a
+// default. A policy nobody wrote is not a policy, and delivering on one would
+// give a new family whatever gates the last one happened to need.
+func TestAFamilyWithNoPolicyIsRefused(t *testing.T) {
+	f := newIntegFixture(t)
+	c := f.orgClient("a-tab", "acct-any", nil, nil)
+
+	out := audienceOutbound(everyoneMessage(audienceFrame("somethingNew")))
+	out.Family = "aFamilyNobodyWroteARowFor"
+
+	outcome := f.Server.deliverOutbound(out)
+	if outcome.Undeliverable != "unknown_family" {
+		t.Fatalf("undeliverable = %q, want unknown_family", outcome.Undeliverable)
+	}
+	if outcome.RecipientCount != 0 {
+		t.Fatalf("recipients = %d, want nothing delivered", outcome.RecipientCount)
+	}
+	if got := receivedFrames(t, c); len(got) != 0 {
+		t.Fatalf("a client received %d frames for a family with no policy", len(got))
+	}
+}
+
+// A message with no frame reaches nobody rather than queueing an empty one,
+// which a browser would read as a message it cannot parse.
+func TestAMessageWithNoFrameReachesNobody(t *testing.T) {
+	f := newIntegFixture(t)
+	c := f.orgClient("a-tab", "acct-any", nil, nil)
+
+	out := audienceOutbound(everyoneMessage(nil))
+	if outcome := f.Server.deliverOutbound(out); outcome.RecipientCount != 0 || outcome.Undeliverable != "" {
+		t.Fatalf("recipients=%d undeliverable=%q, want an empty delivery and no defect",
+			outcome.RecipientCount, outcome.Undeliverable)
+	}
+	if got := receivedFrames(t, c); len(got) != 0 {
+		t.Fatalf("a client was queued %d empty frames", len(got))
 	}
 }
