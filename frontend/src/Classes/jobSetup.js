@@ -145,17 +145,12 @@ class Setup {
   /**
    * Calculates the estimated install cost for this setup.
    *
-   * @param {Object} additionalMaterialPrices - Additional material prices to use
    * @param {Object} additionalSystemIndexValues - Additional system index values to use
    * @returns {number} The estimated install cost for the setup
    */
-  caclulateEstimatedInstallCost(
-    additionalMaterialPrices = {},
-    additionalSystemIndexValues = {},
-  ) {
+  caclulateEstimatedInstallCost(additionalSystemIndexValues = {}) {
     this.estimatedInstallCost = calculateInstallCostfromSetup(
       this,
-      additionalMaterialPrices,
       additionalSystemIndexValues,
     );
   }
@@ -165,7 +160,6 @@ class Setup {
    * @param {Array} rawMaterialQuantities - Raw material quantities from the job
    * @param {Array} jobSkillRequirements - The job skill requirements
    * @param {QueryClient} queryClient - The query client to use
-   * @param {Object} additionalMaterialPrices - Additional material prices to use
    * @param {Object} additionalSystemIndexValues - Additional system index values to use
    */
 
@@ -173,7 +167,6 @@ class Setup {
     rawMaterialQuantities,
     jobSkillRequirements,
     queryClient,
-    additionalMaterialPrices = {},
     additionalSystemIndexValues = {},
   ) {
     this.materialCount = materialQuantitiesForSetup(
@@ -181,10 +174,7 @@ class Setup {
       rawMaterialQuantities,
     );
     this.caclulateEstimatedTime(jobSkillRequirements, queryClient);
-    this.caclulateEstimatedInstallCost(
-      additionalMaterialPrices,
-      additionalSystemIndexValues,
-    );
+    this.caclulateEstimatedInstallCost(additionalSystemIndexValues);
   }
 
   /**

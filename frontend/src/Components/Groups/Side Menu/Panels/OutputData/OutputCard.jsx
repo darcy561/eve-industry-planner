@@ -1,8 +1,11 @@
 import HighlightIcon from "@mui/icons-material/Highlight";
+import { useMemo } from "react";
+import { PRICING_SIDE } from "../../../../../Functions/MarketData/pricingSide.js";
 import {
-  PRICING_SIDE,
-  resolvePricingSide,
-} from "../../../../../Functions/MarketData/pricingSide.js";
+  resolveFor,
+  sideDefaults,
+} from "../../../../../Functions/MarketData/priceResolution";
+import { getMarketPriceForType } from "../../../../../Functions/MarketData/marketPriceForType";
 import {
   Avatar,
   Card,
@@ -22,22 +25,29 @@ import { formatNumberForLocale } from "../../../../../Functions/Helper/numberPar
 
 function OutputJobCard({ inputJob, state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
-  const { marketLocation, listingType } = resolvePricingSide({
-    accountPricing: useUsersStore(
-      (state) => state.applicationSettings.defaultPricing,
-    ),
-    side: PRICING_SIDE.SELLING,
-  });
+  const accountPricing = useUsersStore(
+    (state) => state.applicationSettings.defaultPricing,
+  );
 
   const CurrentBuildCost =
     calculateCurrentJobBuildCostFromChildren(inputJob, {
       installCostMode: "actual",
     }) || 0;
 
-  const currentMarketPrice =
-    useUsersStore.getState().worldData.marketData[inputJob.itemID]?.[
-      marketLocation
-    ]?.[listingType] || 0;
+  // The job's own choice included, because the group's fetch resolved it that
+  // way: reading the account's market for a job that names another would read
+  // an entry nobody asked for and show a zero.
+  const currentMarketPrice = useMemo(() => {
+    const { marketLocation, listingType } = resolveFor(
+      sideDefaults(PRICING_SIDE.SELLING, {
+        jobPricing: inputJob.layout?.localPricing,
+        accountPricing,
+      }),
+      inputJob.layout,
+      inputJob.itemID,
+    );
+    return getMarketPriceForType(inputJob.itemID, marketLocation, listingType);
+  }, [inputJob.layout, inputJob.itemID, accountPricing]);
 
   const isHighlighted = state.highlightedItems.has(inputJob.jobID);
 

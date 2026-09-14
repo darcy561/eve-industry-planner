@@ -251,16 +251,21 @@ export function materialPurchaseState(material) {
  * the stalest price inside it.
  *
  * @param {Array<{typeID: number}>} materials
- * @param {(typeID: number) => object|undefined} findMarketData
+ * @param {(typeID: number) => number|undefined} refreshedAt - When a type's
+ *   figures were last refreshed. Passed in rather than imported, so this module
+ *   stays free of the store and testable without one
  * @returns {number|null} Milliseconds since the oldest was refreshed, or null
  *   where nothing has a timestamp
  */
-export function priceAge(materials = [], findMarketData) {
+export function priceAge(materials = [], refreshedAt) {
   let oldest = null;
 
   for (const material of materials) {
-    const updated = findMarketData?.(material.typeID)?.lastUpdated;
-    if (!Number.isFinite(updated)) continue;
+    const updated = refreshedAt?.(material.typeID);
+    // Zero is nothing held rather than the epoch. A reader answering from the
+    // store's zero-filled row for an unpriced type would otherwise date the
+    // whole job to 1970.
+    if (!Number.isFinite(updated) || updated <= 0) continue;
     if (oldest === null || updated < oldest) oldest = updated;
   }
 

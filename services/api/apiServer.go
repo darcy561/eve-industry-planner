@@ -151,8 +151,8 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients, esi esi
 			Handler: v1.SystemIndexesHandler,
 		},
 		{
-			Path:    "/api/v1/market-prices",
-			Handler: v1.MarketPricesHandler,
+			Path:    "/api/v1/market-prices/query",
+			Handler: v1.MarketPricesQueryHandler,
 		},
 		{
 			Path:    "/api/v1/analytics/events",

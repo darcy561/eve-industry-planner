@@ -6,6 +6,7 @@ const useSellingRates = vi.fn();
 const useAccountTotalsQuery = vi.fn();
 
 vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+  getPriceRefreshedAt: () => undefined,
   getMarketPriceForType: (...args) => getMarketPriceForType(...args),
 }));
 

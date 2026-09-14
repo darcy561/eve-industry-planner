@@ -18,6 +18,7 @@ const marketPrices = {
 };
 
 vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+  getPriceRefreshedAt: () => undefined,
   getMarketPriceForType: (typeID, hub, listing) =>
     marketPrices[typeID]?.[hub]?.[listing] ?? 0,
 }));
@@ -83,7 +84,6 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
       jobArray: [],
       actions: { findJobInJobArray: (id) => parentJobs[id] },
     },
-    worldData: { actions: { findMarketData: () => undefined } },
   });
 });
 

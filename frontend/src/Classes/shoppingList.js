@@ -1,10 +1,9 @@
-import useUsersStore from "../Zustand/usersStore";
-import { getEffectiveMaterialPriceHub } from "../Functions/MarketData/materialPricing";
-import { groupPricingFor } from "../Functions/MarketData/marketGroupData";
+import { PRICING_SIDE } from "../Functions/MarketData/pricingSide.js";
 import {
-  PRICING_SIDE,
-  resolvePricingSideRungs,
-} from "../Functions/MarketData/pricingSide.js";
+  resolveFor,
+  sideDefaults,
+} from "../Functions/MarketData/priceResolution";
+import { getMarketPriceForType } from "../Functions/MarketData/marketPriceForType";
 
 /**
  * ShoppingList class for EVE Online industry material purchasing management.
@@ -118,29 +117,13 @@ class ShoppingList {
    * - Calculating value based on quantity still needed (after assets), matching volume
    * - Summing up the total value
    *
-   * @param {Object} [alternativePriceLocation={}] - Alternative price location for market data
    */
-  calculateTotalValue(alternativePriceLocation = {}) {
-    const accountPricing =
-      useUsersStore.getState().applicationSettings.defaultPricing;
-    const {
-      marketLocation: defaultMarketLocation,
-      listingType: defaultListingType,
-      marketLocationRung,
-      listingTypeRung,
-    } = resolvePricingSideRungs({
-      accountPricing,
-      side: PRICING_SIDE.BUYING,
-    });
-
-    // A list carries no job and no per-item override, so the group walk is the
-    // only rung above the account's here — and it answers per item, which is why
-    // it is resolved inside the loop rather than once for the list.
-    const groupPricing = groupPricingFor({
-      groupDefaults: accountPricing?.[PRICING_SIDE.BUYING]?.groups,
-      marketLocationRung,
-      listingTypeRung,
-    });
+  calculateTotalValue() {
+    // The same resolution the fetch used, so the market a row is read at is the
+    // market its price was asked for at. A list carries no job and no per-item
+    // override, so the group walk is the only rung above the account's — and it
+    // answers per item, which is why it is resolved inside the loop.
+    const buying = sideDefaults(PRICING_SIDE.BUYING);
 
     this.totalValue = 0;
     this.items.forEach((item) => {
@@ -149,21 +132,14 @@ class ShoppingList {
         item.quantityToPurchase - item.assetQuantity,
         0,
       );
-      const { marketLocation, listingType } = getEffectiveMaterialPriceHub(
+      const { marketLocation, listingType } = resolveFor(
+        buying,
         null,
         item.typeID,
-        defaultMarketLocation,
-        defaultListingType,
-        groupPricing,
       );
       this.totalValue +=
         quantityAfterAssets *
-        (useUsersStore
-          .getState()
-          .worldData.actions.findMarketData(
-            item.typeID,
-            alternativePriceLocation,
-          )?.[marketLocation]?.[listingType] ?? 0);
+        getMarketPriceForType(item.typeID, marketLocation, listingType);
     });
   }
 

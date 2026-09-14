@@ -1,13 +1,20 @@
-import getMarketData from "../MarketData/findMarketData";
+import { fetchPrices } from "../MarketData/priceCache";
+import { pricesWantedBy } from "../MarketData/pricesWanted";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
 
 /**
- * Retrieves missing ESI data (market data and system indexes) for a collection of jobs.
- * Collects all required material IDs and system IDs from jobs and fetches the data.
+ * Fetches what a job needs priced and what its setups cost to install.
+ *
+ * Prices resolve into the cache rather than being returned: a caller reads them
+ * through `getMarketPriceForType` once this settles, so there is no interval in
+ * which the caller holds figures the readers cannot see.
+ *
+ * Each material is asked for at the market it is actually priced against, which
+ * is per material — an override, a market group, or the job's own choice can each
+ * name one.
  *
  * @param {Object|Array<Object>} inputJobs - Job object(s) to get missing data for
- * @returns {Promise<Object>} Promise that resolves to object with market data and system indexes
- *
+ * @returns {Promise<{requestedSystemIndexes: Object}>}
  * @throws {Error} Throws error if inputJobs is missing
  */
 async function getMissingESIData(inputJobs) {
@@ -17,24 +24,21 @@ async function getMissingESIData(inputJobs) {
 
   const jobsAsArray = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
 
-  let requiredMarketData = new Set();
   let requiredSystemIndexes = new Set();
-
-  for (let job of jobsAsArray) {
-    requiredMarketData = new Set([...requiredMarketData, ...job.materialIDs]);
+  for (const job of jobsAsArray) {
     requiredSystemIndexes = new Set([
       ...requiredSystemIndexes,
       ...job.setupSystemIDs,
     ]);
   }
 
-  const requestedMarketDataPromise = getMarketData(requiredMarketData);
-  const requestedSystemIndexesPromise = getSystemIndexes(requiredSystemIndexes);
+  const { wants, adjustedTypeIDs } = pricesWantedBy(jobsAsArray);
 
-  const requestedSystemIndexes = await requestedSystemIndexesPromise;
-  const requestedMarketData = await requestedMarketDataPromise;
+  const pricesSettled = fetchPrices({ wants, adjustedTypeIDs });
+  const requestedSystemIndexes = await getSystemIndexes(requiredSystemIndexes);
+  await pricesSettled;
 
-  return { requestedMarketData, requestedSystemIndexes };
+  return { requestedSystemIndexes };
 }
 
 export default getMissingESIData;

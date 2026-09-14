@@ -1200,7 +1200,6 @@ class Job {
   recalculateSelectedSetup(
     setupId,
     queryClient,
-    additionalMaterialPrices = {},
     additionalSystemIndexValues = {},
   ) {
     if (!setupId || !this.build.setup[setupId]) {
@@ -1213,7 +1212,6 @@ class Job {
       this.rawData.materials,
       this.skills,
       queryClient,
-      additionalMaterialPrices,
       additionalSystemIndexValues,
     );
   }

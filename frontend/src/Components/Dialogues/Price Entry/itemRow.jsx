@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import GLOBAL_CONFIG from "../../../global-config-app";
-import useUsersStore from "../../../Zustand/usersStore";
+import { getMarketPriceForType } from "../../../Functions/MarketData/marketPriceForType";
 import { useHasChanged } from "../../../Hooks/useHasChanged";
 import {
   numberToShortText,
@@ -25,17 +25,15 @@ export function ItemPriceRow({
   index,
   listingType,
   marketLocation,
+  pricesSettled,
   priceEntryListData,
   setPriceEntryListData,
 }) {
-  const marketData = useUsersStore((state) => state.worldData.marketData);
-  const { findMarketData } = useUsersStore.getState().worldData.actions;
-
-  const materialPrice = findMarketData(item.typeID);
-  const rawDefault = materialPrice?.[marketLocation]?.[listingType];
-  const defaultPrice = Number.isFinite(Number(rawDefault))
-    ? Number(rawDefault)
-    : 0;
+  const defaultPrice = getMarketPriceForType(
+    item.typeID,
+    marketLocation,
+    listingType,
+  );
 
   const lastListingKeyRef = useRef(null);
   const lastSyncedDefaultRef = useRef(null);
@@ -91,14 +89,11 @@ export function ItemPriceRow({
   // Sync unconfirmed row prices when hub/listing changes, or when market data fills in / updates
   // (without clobbering a value the user edited away from the last synced default).
   useEffect(() => {
-    const { findMarketData: findMd } =
-      useUsersStore.getState().worldData.actions;
-    const mp = findMd(item.typeID);
-    const raw = mp?.[marketLocation]?.[listingType];
-    const nextDefault = Number(raw);
-    if (!Number.isFinite(nextDefault)) {
-      return;
-    }
+    const nextDefault = getMarketPriceForType(
+      item.typeID,
+      marketLocation,
+      listingType,
+    );
 
     const listingKey = `${marketLocation}:${listingType}`;
     const listingChanged =
@@ -137,7 +132,9 @@ export function ItemPriceRow({
     });
 
     lastSyncedDefaultRef.current = nextDefault;
-  }, [marketData, marketLocation, listingType, item.typeID]);
+    // `pricesSettled` rather than the figures themselves: nothing re-renders
+    // when a cache entry is written, so the dialogue says when its fetch landed.
+  }, [pricesSettled, marketLocation, listingType, item.typeID]);
 
   const updateConfirmedEntries = (newConfirmedEntries) => {
     let newList = [...priceEntryListData.list];

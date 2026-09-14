@@ -25,6 +25,7 @@ vi.mock(
   }),
 );
 vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+  getPriceRefreshedAt: () => undefined,
   getMarketPriceForType: (typeID, hub, basis) =>
     ({
       jita: { sell: 10, buy: 8, buyP95: 9, sellP05: 11 },
@@ -74,7 +75,6 @@ vi.mock("../../../../../../Zustand/usersStore.js", async () => {
           };
         },
       },
-      worldData: { actions: { findMarketData: () => undefined } },
     }),
   );
 });

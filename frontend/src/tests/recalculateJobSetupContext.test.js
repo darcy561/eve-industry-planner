@@ -43,14 +43,11 @@ vi.mock("../Zustand/usersStore", async () => {
         },
       },
       worldData: {
-        marketData: {},
         systemIndexes: {},
         actions: {
           findSystemIndex: (systemID, alternativeLocation) =>
             alternativeLocation?.[systemID] ?? null,
-          findMarketData: () => null,
           addSystemIndex: () => {},
-          addMarketData: () => {},
         },
       },
       applicationSettings: {

@@ -35,13 +35,10 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   const { setUserWatchlistItems } = useUsersStore.getState().jobData.actions;
 
-  const { buying, sellingMarket } = useWatchlistPricing();
-  const marketData = useUsersStore((state) => state.worldData.marketData);
+  const { buyingPrice, sellWorth } = useWatchlistPricing();
 
   const { getCustomStructureWithID } =
     useUsersStore.getState().applicationSettings.actions;
-
-  const { findMarketData } = useUsersStore.getState().worldData.actions;
 
   const queryClient = useQueryClient();
   async function handleRemove() {
@@ -61,30 +58,21 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
   }
 
   const buildCosts = useCallback(() => {
-    const mainItemPrice = findMarketData(item.typeID);
-
     let totalBuild = calculateInstallCostfromSetup(item?.buildData);
     let totalPurchase = calculateInstallCostfromSetup(item?.buildData);
 
     item.materials.forEach((mat) => {
-      const itemPrice = findMarketData(mat.typeID);
+      const matPrice = buyingPrice(mat.typeID);
 
-      totalPurchase +=
-        (itemPrice?.[buying.marketLocation]?.[buying.listingType] ?? 0) *
-        mat.quantity;
+      totalPurchase += matPrice * mat.quantity;
 
       if (mat.materials.length === 0) {
-        totalBuild +=
-          (itemPrice?.[buying.marketLocation]?.[buying.listingType] ?? 0) *
-          mat.quantity;
+        totalBuild += matPrice * mat.quantity;
         return;
       }
       let matBuild = calculateInstallCostfromSetup(mat?.buildData);
       mat.materials.forEach((cMat) => {
-        let itemCPrice = findMarketData(cMat.typeID);
-        matBuild +=
-          (itemCPrice?.[buying.marketLocation]?.[buying.listingType] ?? 0) *
-          cMat.quantity;
+        matBuild += buyingPrice(cMat.typeID) * cMat.quantity;
       });
 
       matBuild = matBuild / mat.quantityProduced;
@@ -95,11 +83,11 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
     return {
       totalBuild,
       totalPurchase,
-      mainItemWorth: mainItemPrice?.[sellingMarket]?.sell ?? 0,
+      mainItemWorth: sellWorth(item.typeID),
     };
-    // The resolved ids rather than the objects: those are rebuilt every render,
-    // and this recomputes the whole tree.
-  }, [marketData, buying.marketLocation, buying.listingType, sellingMarket]);
+    // The readers rather than the item: it is rebuilt every render, and this
+    // recomputes the whole tree.
+  }, [buyingPrice, sellWorth]);
 
   const isItemDataOutdated = !item?.buildData;
 

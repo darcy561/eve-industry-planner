@@ -1,9 +1,9 @@
 import parseInputMineralString from "./parseMineralInput";
 import ReprocessingItem from "../../Classes/reprocessingItem";
-import getMarketData from "../MarketData/findMarketData";
+import { fetchPrices } from "../MarketData/priceCache";
+import { getMarketPriceForType } from "../MarketData/marketPriceForType";
 import oreSelector from "./oreSelector";
 import { primeReprocessing, selectableItems } from "../Static/reprocessing";
-import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * Which ore to buy to produce the minerals a player asked for, priced against the market.
@@ -18,7 +18,8 @@ import useUsersStore from "../../Zustand/usersStore";
  * @param {string} listingType - buy or sell orders
  * @param {Array<number>} oreIDsToBeIgnored - ores the player has excluded
  * @param {Object} reprocessingCalculationSettings - how selection weighs its options
- * @returns {Promise<{oreSelection: Object, newMarketPrices: Object, requestedMinerals: Object}>}
+ * @returns {Promise<{oreSelection: Object, requestedMinerals: Object}>} Prices
+ *   resolve into the cache rather than being returned
  */
 async function reprocessFromMinerals(
   inputString,
@@ -44,16 +45,21 @@ async function reprocessFromMinerals(
 
     reprocessingObjects[obj.id] = obj;
   }
-  const marketDataRequest = getMarketData(priceRequest);
+  const pricesSettled = fetchPrices({
+    wants: [...priceRequest].map((typeID) => ({
+      typeID,
+      sourceID: marketLocation,
+    })),
+  });
   const mineralRequestObjects = await parseInputMineralString(inputString);
-  const newMarketPrices = await marketDataRequest;
+  await pricesSettled;
 
   Object.values(reprocessingObjects).forEach((item) => {
-    const itemPriceObject = useUsersStore
-      .getState()
-      .worldData.actions.findMarketData(item.id, newMarketPrices);
-
-    item.unitPrice = itemPriceObject[marketLocation][listingType] ?? 0;
+    item.unitPrice = getMarketPriceForType(
+      item.id,
+      marketLocation,
+      listingType,
+    );
   });
 
   const oreSelection = oreSelector(
@@ -64,7 +70,6 @@ async function reprocessFromMinerals(
   );
   return {
     oreSelection,
-    newMarketPrices,
     requestedMinerals: mineralRequestObjects,
   };
 }

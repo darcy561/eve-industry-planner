@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { TRITANIUM } from "../../../tests/editJobFixtures.js";
+import seedPrices, { clearSeededPrices } from "../../../tests/seedPrices.js";
 
 const { store } = vi.hoisted(() => ({ store: { current: null } }));
 
@@ -16,12 +17,9 @@ const { ItemPriceRow } = await import("./itemRow.jsx");
 const theme = createTheme();
 
 function pricedAt(sell) {
-  const marketData = { [TRITANIUM]: { jita: { sell, buy: sell - 1 } } };
+  clearSeededPrices();
+  seedPrices({ jita: { [TRITANIUM]: { sell, buy: sell - 1 } } });
   store.current = {
-    worldData: {
-      marketData,
-      actions: { findMarketData: (typeID) => marketData[typeID] },
-    },
     // Figures are formatted against the reader's locale.
     applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
   };

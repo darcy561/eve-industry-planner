@@ -7,6 +7,7 @@ const { getMarketPriceForType, sellingGroups } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+  getPriceRefreshedAt: () => undefined,
   getMarketPriceForType: (...args) => getMarketPriceForType(...args),
 }));
 

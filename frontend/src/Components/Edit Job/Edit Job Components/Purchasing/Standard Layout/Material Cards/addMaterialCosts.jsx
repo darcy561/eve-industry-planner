@@ -9,9 +9,9 @@ import { useFormStatus } from "react-dom";
 import AddIcon from "@mui/icons-material/Add";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useEffectiveMarketHubFromLayout } from "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
+import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
 
 export function AddMaterialCost_Purchasing({
   state,
@@ -25,9 +25,11 @@ export function AddMaterialCost_Purchasing({
     PRICING_SIDE.BUYING,
   );
 
-  const materialPrice = useUsersStore
-    .getState()
-    .worldData.actions.findMarketData(material.typeID);
+  const materialPrice = getMarketPriceForType(
+    material.typeID,
+    marketLocation,
+    listingType,
+  );
 
   // A child job's output is not promised to this job until its cost is
   // imported, so the form offers what the children cannot be counted on for.
@@ -117,7 +119,7 @@ export function AddMaterialCost_Purchasing({
             type="number"
             label="Price"
             name="itemCostInput"
-            defaultValue={materialPrice?.[marketLocation]?.[listingType] ?? 0}
+            defaultValue={materialPrice}
             fullWidth
             sx={{
               "& .MuiInputBase-root": {

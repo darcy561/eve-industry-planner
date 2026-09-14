@@ -101,9 +101,7 @@ const sliceDefaults = {
 
   worldData: () => ({
     ...worldDataDefault(),
-    actions: {
-      findMarketData: () => null,
-    },
+    actions: {},
   }),
 
   documentLock: () => ({

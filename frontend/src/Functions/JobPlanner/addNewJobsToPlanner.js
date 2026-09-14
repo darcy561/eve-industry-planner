@@ -74,14 +74,9 @@ export default async function addNewJobsToPlanner(
   }
   updateOrAddJobsToJobArray(createdJobs);
 
-  const { requestedMarketData, requestedSystemIndexes } =
-    await getMissingESIData(createdJobs);
+  const { requestedSystemIndexes } = await getMissingESIData(createdJobs);
 
-  recalculateInstallCostsWithNewData(
-    createdJobs,
-    requestedMarketData,
-    requestedSystemIndexes,
-  );
+  recalculateInstallCostsWithNewData(createdJobs, requestedSystemIndexes);
 
   if (createdGroup) {
     addGroupToGroupArray(createdGroup);
@@ -90,8 +85,6 @@ export default async function addNewJobsToPlanner(
   if (modifiedGroupsByID.size > 0) {
     updateModifiedGroups([...modifiedGroupsByID.values()]);
   }
-
-  useUsersStore.getState().worldData.actions.addMarketData(requestedMarketData);
   useUsersStore
     .getState()
     .worldData.actions.addSystemIndex(requestedSystemIndexes);

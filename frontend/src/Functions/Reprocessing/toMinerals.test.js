@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { reprocessingItemTypes } from "../../Context/defaultValues";
 
 const getReprocessingData = vi.fn();
-const getMarketData = vi.fn();
+const fetchPrices = vi.fn();
 
 vi.mock("../Helper/getCachedData", async () => {
   const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
@@ -11,8 +11,8 @@ vi.mock("../Helper/getCachedData", async () => {
   });
 });
 
-vi.mock("../MarketData/findMarketData", () => ({
-  default: (...args) => getMarketData(...args),
+vi.mock("../MarketData/priceCache", () => ({
+  fetchPrices: (...args) => fetchPrices(...args),
 }));
 
 const { resetReprocessing } = await import("../Static/reprocessing.js");
@@ -37,7 +37,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetReprocessing();
   getReprocessingData.mockResolvedValue({ 1230: VELDSPAR });
-  getMarketData.mockResolvedValue({});
+  fetchPrices.mockResolvedValue(undefined);
 });
 
 describe("turning pasted ore into minerals", () => {
@@ -62,11 +62,18 @@ describe("turning pasted ore into minerals", () => {
     expect(getReprocessingData).toHaveBeenCalledTimes(1);
   });
 
+  // Each type is asked for at the market the page prices against, rather than at
+  // every market the server holds.
   it("asks the market about what it found", async () => {
-    await reprocessIntoMinerals("Veldspar\t100", {}, structure());
+    await reprocessIntoMinerals("Veldspar\t100", {}, structure(), "jita");
 
-    const asked = getMarketData.mock.calls[0][0];
-    expect([...asked]).toEqual(expect.arrayContaining(["1230", "34"]));
+    const { wants } = fetchPrices.mock.calls[0][0];
+    expect(wants.map((want) => String(want.typeID))).toEqual(
+      expect.arrayContaining(["1230", "34"]),
+    );
+    expect(new Set(wants.map((want) => want.sourceID))).toEqual(
+      new Set(["jita"]),
+    );
   });
 
   it("reads nothing from a line naming no ore it carries", async () => {

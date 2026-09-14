@@ -138,14 +138,8 @@ export async function instantiateGroupTemplate({
     });
   }
 
-  const { requestedMarketData, requestedSystemIndexes } =
-    await getMissingESIData(built);
-  recalculateInstallCostsWithNewData(
-    built,
-    requestedMarketData,
-    requestedSystemIndexes,
-  );
-  useUsersStore.getState().worldData.actions.addMarketData(requestedMarketData);
+  const { requestedSystemIndexes } = await getMissingESIData(built);
+  recalculateInstallCostsWithNewData(built, requestedSystemIndexes);
   useUsersStore
     .getState()
     .worldData.actions.addSystemIndex(requestedSystemIndexes);

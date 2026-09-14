@@ -5,7 +5,6 @@
 import {
   stateDefault,
   coreActions,
-  marketDataActions,
   systemIndexesActions,
 } from "./worldDataSlice/index.js";
 
@@ -23,9 +22,6 @@ const worldDataSlice = (set, get) => ({
     actions: {
       // Core actions
       ...coreActions(set, get),
-
-      // Market data actions
-      ...marketDataActions(set, get),
 
       // System indexes actions
       ...systemIndexesActions(set, get),

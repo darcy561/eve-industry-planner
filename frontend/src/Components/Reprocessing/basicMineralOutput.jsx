@@ -15,23 +15,23 @@ import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
 } from "../../Context/defaultValues";
-import useUsersStore from "../../Zustand/usersStore";
+import { getMarketPriceForType } from "../../Functions/MarketData/marketPriceForType";
 import ItemMarketActions from "../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 
 function BasicMineralOutput({ pageState }) {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("md"));
-  const findMarketData =
-    useUsersStore.getState().worldData.actions.findMarketData;
   const { records: itemRecords, isLoading } = useItemList();
 
   const totalReprocessingValue = useMemo(() => {
     if (isLoading) return 0;
     return pageState.processedInput.reduce((acc, item) => {
       if (item.quantity === 0) return acc;
-      const itemPriceObject = findMarketData(item.id);
-      const unitPrice =
-        itemPriceObject[pageState.marketLocation][pageState.listingType] ?? 0;
+      const unitPrice = getMarketPriceForType(
+        item.id,
+        pageState.marketLocation,
+        pageState.listingType,
+      );
       return acc + unitPrice * item.quantity;
     }, 0);
   }, [
@@ -45,9 +45,11 @@ function BasicMineralOutput({ pageState }) {
     if (isLoading) return 0;
     return pageState.reprocessingObjects.reduce((acc, item) => {
       if (item.batchSize > item.totalQuantity) return acc;
-      const itemPriceObject = findMarketData(item.id);
-      const unitPrice =
-        itemPriceObject[pageState.marketLocation][pageState.listingType] ?? 0;
+      const unitPrice = getMarketPriceForType(
+        item.id,
+        pageState.marketLocation,
+        pageState.listingType,
+      );
       return acc + unitPrice * item.totalQuantity;
     }, 0);
   }, [
@@ -183,10 +185,11 @@ function BasicMineralOutput({ pageState }) {
         {pageState.processedInput.map((item) => {
           if (item.quantity === 0) return null;
           const matchedName = itemNameFrom(item.id, itemRecords);
-          const itemPriceObject = findMarketData(item.id);
-          const unitPrice =
-            itemPriceObject[pageState.marketLocation][pageState.listingType] ??
-            0;
+          const unitPrice = getMarketPriceForType(
+            item.id,
+            pageState.marketLocation,
+            pageState.listingType,
+          );
           const totalValue = unitPrice * item.quantity;
 
           return (

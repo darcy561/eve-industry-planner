@@ -1,4 +1,4 @@
-import getMarketData from "../MarketData/findMarketData";
+import { fetchPrices } from "../MarketData/priceCache";
 import gatherMaterialTotals from "./combineMinerals";
 import parseReprocessingInput from "./parseOreInput";
 import { primeReprocessing } from "../Static/reprocessing";
@@ -9,12 +9,15 @@ import { primeReprocessing } from "../Static/reprocessing";
  * @param {string} inputString - ore names and quantities, one per line
  * @param {Object} skillsMap - the player's reprocessing skills by level
  * @param {Object} reprocessingStructure - the structure the reprocessing is done in
- * @returns {Promise<{reprocessingObjects: Array<Object>, mineralTotals: Object, newMarketPrices: Object}>}
+ * @param {string} marketLocation - the market the page prices against
+ * @returns {Promise<{reprocessingObjects: Array<Object>, mineralTotals: Object}>}
+ *   Prices resolve into the cache rather than being returned
  */
 async function reprocessIntoMinerals(
   inputString,
   skillsMap,
   reprocessingStructure,
+  marketLocation,
 ) {
   const priceRequest = new Set();
   await primeReprocessing();
@@ -24,15 +27,16 @@ async function reprocessIntoMinerals(
     priceRequest.add(material.id);
     Object.keys(material.materials).forEach((id) => priceRequest.add(id));
   }
-  const marketPricesRequest = getMarketData(priceRequest);
+  const pricesSettled = fetchPrices({
+    wants: [...priceRequest].map((typeID) => ({
+      typeID,
+      sourceID: marketLocation,
+    })),
+  });
   const mineralTotals = gatherMaterialTotals(reprocessingObjects);
-  const newMarketPrices = await marketPricesRequest;
+  await pricesSettled;
 
-  return {
-    reprocessingObjects,
-    mineralTotals,
-    newMarketPrices,
-  };
+  return { reprocessingObjects, mineralTotals };
 }
 
 export default reprocessIntoMinerals;

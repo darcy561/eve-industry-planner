@@ -24,7 +24,6 @@ export function ChildJobMaterials({
       material,
       childJobIds,
       state.temporaryChildJobs?.[material.typeID],
-      {},
       marketLocation,
       listingType,
     );

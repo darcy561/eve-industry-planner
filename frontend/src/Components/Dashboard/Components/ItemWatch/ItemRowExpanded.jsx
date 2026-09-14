@@ -2,30 +2,24 @@ import { useMemo } from "react";
 import { useWatchlistPricing } from "./useWatchlistPricing.js";
 import { Typography, Grid } from "@mui/material";
 
-import useUsersStore from "../../../../Zustand/usersStore";
 import ItemMarketActions from "../../../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
 
 export function ExpandedWatchlistRow({ mat }) {
-  const { buying, sellingMarket } = useWatchlistPricing();
-  const { findMarketData } = useUsersStore.getState().worldData.actions;
-  const marketData = useUsersStore((state) => state.worldData.marketData);
+  const { buyingPrice, sellWorth } = useWatchlistPricing();
 
-  const matWorth = findMarketData(mat.typeID)?.[sellingMarket]?.sell ?? 0;
+  const matWorth = sellWorth(mat.typeID);
   const matBuildPrice = useMemo(() => {
     let buildPrice = calculateInstallCostfromSetup(mat?.buildData);
     mat.materials.forEach((x) => {
       let matBuildCalc = 0;
-      let xPrice = findMarketData(x.typeID);
       matBuildCalc +=
-        ((xPrice?.[buying.marketLocation]?.[buying.listingType] ?? 0) *
-          x.quantity) /
-        mat.quantityProduced;
+        (buyingPrice(x.typeID) * x.quantity) / mat.quantityProduced;
       buildPrice += matBuildCalc * mat.quantity;
     });
     return buildPrice / mat.quantity;
-  }, [marketData, buying.marketLocation, buying.listingType]);
+  }, [buyingPrice]);
 
   return (
     <Grid

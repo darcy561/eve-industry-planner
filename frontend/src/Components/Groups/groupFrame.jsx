@@ -129,17 +129,13 @@ function GroupPageFrame() {
           );
 
         hint("Gathering market data…");
-        const { requestedMarketData, requestedSystemIndexes } =
+        const { requestedSystemIndexes } =
           await getMissingESIData(allJobObjects);
 
         recalculateInstallCostsWithNewData(
           allJobObjects,
-          requestedMarketData,
           requestedSystemIndexes,
         );
-        useUsersStore
-          .getState()
-          .worldData.actions.addMarketData(requestedMarketData);
         useUsersStore
           .getState()
           .worldData.actions.addSystemIndex(requestedSystemIndexes);

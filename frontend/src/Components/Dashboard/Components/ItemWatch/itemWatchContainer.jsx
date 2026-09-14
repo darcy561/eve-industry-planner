@@ -5,14 +5,13 @@ import { useMemo } from "react";
 import { WatchListRow } from "./ItemRow";
 import { WatchlistGroup } from "./watchlistGroup";
 import useUsersStore from "../../../../Zustand/usersStore";
-import { collectWatchlistTypeIds } from "../../../../Functions/MarketData/collectWatchlistTypeIds";
+import { pricesWantedByWatchlist } from "../../../../Functions/MarketData/pricesWanted";
 import { useMarketPricesQuery } from "../../../../Hooks/React Query/World/marketPrices";
 
 function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   // Both columns state a build cost, which is what the materials cost to buy.
-  const { buying } = useWatchlistPricing();
-  const { listingType } = buying;
+  const { listingType } = useWatchlistPricing();
 
   const hasItems = userWatchlist.items.length > 0;
   const hasGroups = userWatchlist.groups?.length > 0;
@@ -128,14 +127,20 @@ function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
 }
 
 /**
- * Holds the watchlist behind its prices: the rows read `worldData.marketData`, so
+ * Holds the watchlist behind its prices: the rows read them synchronously, so
  * they wait for the first fetch and are drawn without prices if it fails.
  */
 export function WatchlistContainer(props) {
   const items = useUsersStore((state) => state.jobData.userWatchlist.items);
+  const accountPricing = useUsersStore(
+    (state) => state.applicationSettings.defaultPricing,
+  );
 
-  const typeIDs = useMemo(() => collectWatchlistTypeIds(items), [items]);
-  const { isLoading } = useMarketPricesQuery(typeIDs);
+  const { wants } = useMemo(
+    () => pricesWantedByWatchlist(items, accountPricing),
+    [items, accountPricing],
+  );
+  const { isLoading } = useMarketPricesQuery(wants);
 
   if (items.length > 0 && isLoading) {
     return (

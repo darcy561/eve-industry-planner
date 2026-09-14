@@ -19,7 +19,10 @@ import {
   buildMaterialSourcingRow,
   summariseSourcing,
 } from "../../../../../../Functions/MarketData/materialSourcingRow.js";
-import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
+import {
+  getMarketPriceForType,
+  getPriceRefreshedAt,
+} from "../../../../../../Functions/MarketData/marketPriceForType";
 import {
   resolveMaterialChildJobStatus,
   resolveMaterialChildJobs,
@@ -137,10 +140,7 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
       marketLocation,
       listingType,
       basisUsage: summariseBasisUse(rows, marketLocation, listingType),
-      priceAge: priceAge(
-        materials,
-        useUsersStore.getState().worldData.actions.findMarketData,
-      ),
+      priceAge: priceAge(materials, getPriceRefreshedAt),
       basisOptions: materialCostByBasis({
         materials,
         layout,

@@ -170,13 +170,8 @@ export async function finalBuildRequests(itemArray, queryClient) {
     matchedGroup.addJobsToGroup(normalizedNewJobs);
   }
 
-  const { requestedMarketData, requestedSystemIndexes } =
-    await getMissingESIData(normalizedNewJobs);
-  recalculateInstallCostsWithNewData(
-    normalizedNewJobs,
-    requestedMarketData,
-    requestedSystemIndexes,
-  );
+  const { requestedSystemIndexes } = await getMissingESIData(normalizedNewJobs);
+  recalculateInstallCostsWithNewData(normalizedNewJobs, requestedSystemIndexes);
 
   if (isLoggedIn) {
     for (const id of [...jobsToSave]) {
@@ -192,7 +187,6 @@ export async function finalBuildRequests(itemArray, queryClient) {
     queueJobGroupWritesAndSchedule(matchedGroup.groupID);
   }
   updateOrAddJobsToJobArray(newJobArray);
-  useUsersStore.getState().worldData.actions.addMarketData(requestedMarketData);
   useUsersStore
     .getState()
     .worldData.actions.addSystemIndex(requestedSystemIndexes);

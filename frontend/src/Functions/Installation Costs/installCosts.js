@@ -16,18 +16,17 @@ import {
   ALPHA_CLONE_TAX,
 } from "../../Context/defaultValues";
 import useUsersStore from "../../Zustand/usersStore";
+import { getAdjustedPriceForType } from "../MarketData/marketPriceForType";
 
 /**
  * Calculates the install cost for a single setup (per job slot, before × jobCount).
  *
  * @param {Setup} setup
- * @param {Object} [additionalMaterialPrices]
  * @param {Object} [additionalSystemIndexValues]
  * @returns {number}
  */
 export function calculateInstallCostfromSetup(
   setup,
-  additionalMaterialPrices = {},
   additionalSystemIndexValues = {},
 ) {
   if (!(setup instanceof Setup)) return 0;
@@ -35,7 +34,6 @@ export function calculateInstallCostfromSetup(
   const estimatedItemValue = estimatedItemPriceCalc(
     setup.materialCount,
     setup.jobCount,
-    additionalMaterialPrices,
   );
 
   const facilityModifier = findFacilityModifier(
@@ -124,32 +122,20 @@ export function getJobInstallCostForPlanning(job) {
  */
 export function recalculateInstallCostsWithNewData(
   inputJobs,
-  newMarketData,
   newSystemIndexData,
 ) {
   const jobsArray = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
-  if (
-    (!newMarketData || Object.keys(newMarketData).length === 0) &&
-    (!newSystemIndexData || Object.keys(newSystemIndexData).length === 0)
-  ) {
-    return;
-  }
   jobsArray.forEach((job) => {
     Object.values(job.build.setup).forEach((setup) => {
       setup.estimatedInstallCost = calculateInstallCostfromSetup(
         setup,
-        newMarketData,
         newSystemIndexData,
       );
     });
   });
 }
 
-function estimatedItemPriceCalc(
-  materialArray,
-  jobCount,
-  additionalMaterialPrices,
-) {
+function estimatedItemPriceCalc(materialArray, jobCount) {
   if (!materialArray || typeof materialArray !== "object") {
     return 0;
   }
@@ -161,24 +147,14 @@ function estimatedItemPriceCalc(
         estimatedMaterialPriceCalc(
           material.quantity / jobCount,
           material.typeID,
-          additionalMaterialPrices,
         )
       );
     }, 0),
   );
 }
 
-function estimatedMaterialPriceCalc(
-  materialQuantity,
-  materialTypeID,
-  additionalMaterialPrices,
-) {
-  const adjustedPrice = useUsersStore
-    .getState()
-    .worldData.actions.findMarketData(
-      materialTypeID,
-      additionalMaterialPrices,
-    )?.adjustedPrice;
+function estimatedMaterialPriceCalc(materialQuantity, materialTypeID) {
+  const adjustedPrice = getAdjustedPriceForType(materialTypeID);
 
   return materialQuantity * adjustedPrice;
 }

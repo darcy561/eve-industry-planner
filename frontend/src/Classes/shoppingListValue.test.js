@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ShoppingList from "./shoppingList.js";
 import useUsersStore from "../Zustand/usersStore";
+import seedPrices, { clearSeededPrices } from "../tests/seedPrices.js";
 
 vi.mock("../Functions/Helper/getCachedData", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -13,7 +14,7 @@ import {
   resetMarketGroupData,
 } from "../Functions/MarketData/marketGroupData";
 
-const seed = ({ market, marketData, groups }) => {
+const seed = ({ market, prices, groups }) => {
   useUsersStore.setState((state) => ({
     ...state,
     applicationSettings: {
@@ -23,8 +24,8 @@ const seed = ({ market, marketData, groups }) => {
         selling: { market: "amarr", basis: "buy" },
       },
     },
-    worldData: { ...state.worldData, marketData },
   }));
+  seedPrices(prices);
 };
 
 const listOf = (typeID, quantity) => {
@@ -43,16 +44,13 @@ const listOf = (typeID, quantity) => {
 
 describe("what a shopping list is worth", () => {
   beforeEach(() => {
-    useUsersStore.setState((state) => ({
-      ...state,
-      worldData: { ...state.worldData, marketData: {} },
-    }));
+    clearSeededPrices();
   });
 
   it("totals against the buying side", () => {
     seed({
       market: "jita",
-      marketData: { 34: { jita: { sell: 10 }, amarr: { buy: 999 } } },
+      prices: { jita: { 34: { sell: 10 } }, amarr: { 34: { buy: 999 } } },
     });
 
     const list = listOf(34, 5);
@@ -61,13 +59,13 @@ describe("what a shopping list is worth", () => {
     expect(list.totalValue).toBe(50);
   });
 
-  // findMarketData builds its empty default from the four hubs, so a market it
-  // does not carry misses. Indexing that twice used to raise a TypeError, which
-  // took the whole dialogue down rather than pricing one row at nothing.
+  // A market nothing was fetched at holds no entry at all. Reading one used to
+  // raise a TypeError, which took the whole dialogue down rather than pricing
+  // one row at nothing.
   it("prices at nothing rather than throwing on a market it has no figures for", () => {
     seed({
       market: "some-player-citadel",
-      marketData: { 34: { jita: { sell: 10 } } },
+      prices: { jita: { 34: { sell: 10 } } },
     });
 
     const list = listOf(34, 5);
@@ -82,6 +80,7 @@ describe("what a shopping list is worth", () => {
 // Planning stage and not here would price the same material two ways.
 describe("a shopping list against a market group default", () => {
   beforeEach(async () => {
+    clearSeededPrices();
     resetMarketGroupData();
     await primeMarketGroupData();
   });
@@ -90,7 +89,7 @@ describe("a shopping list against a market group default", () => {
     seed({
       market: "jita",
       groups: { 1857: { market: "amarr", basis: "buy" } },
-      marketData: { 34: { jita: { sell: 10 }, amarr: { buy: 3 } } },
+      prices: { jita: { 34: { sell: 10 } }, amarr: { 34: { buy: 3 } } },
     });
 
     const list = listOf(34, 5);
@@ -103,7 +102,7 @@ describe("a shopping list against a market group default", () => {
     seed({
       market: "jita",
       groups: { 9999: { market: "amarr", basis: "buy" } },
-      marketData: { 34: { jita: { sell: 10 }, amarr: { buy: 3 } } },
+      prices: { jita: { 34: { sell: 10 } }, amarr: { 34: { buy: 3 } } },
     });
 
     const list = listOf(34, 5);

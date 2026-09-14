@@ -16,22 +16,15 @@ export async function buildChildJobs(buildRequest, { queryClient } = {}) {
 export async function hydrateChildJobsWithMissingData(inputJobs) {
   const jobs = asJobArray(inputJobs).filter(Boolean);
   if (jobs.length === 0) {
-    return { requestedMarketData: {}, requestedSystemIndexes: {} };
+    return { requestedSystemIndexes: {} };
   }
 
-  const { requestedMarketData, requestedSystemIndexes } =
-    await getMissingESIData(jobs);
+  const { requestedSystemIndexes } = await getMissingESIData(jobs);
 
-  recalculateInstallCostsWithNewData(
-    jobs,
-    requestedMarketData,
-    requestedSystemIndexes,
-  );
-
-  useUsersStore.getState().worldData.actions.addMarketData(requestedMarketData);
+  recalculateInstallCostsWithNewData(jobs, requestedSystemIndexes);
   useUsersStore
     .getState()
     .worldData.actions.addSystemIndex(requestedSystemIndexes);
 
-  return { requestedMarketData, requestedSystemIndexes };
+  return { requestedSystemIndexes };
 }

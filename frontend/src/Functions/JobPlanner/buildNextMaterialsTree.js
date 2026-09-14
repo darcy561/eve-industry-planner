@@ -72,11 +72,12 @@ export default async function buildNextMaterialsTree(
       (job, requiredQuantity) =>
         recalculateJobForNewTotal(job, requiredQuantity, queryClient),
     );
-    const { requestedMarketData, requestedSystemIndexes } =
-      await getMissingESIData([...allJobObjects, ...newJobs]);
+    const { requestedSystemIndexes } = await getMissingESIData([
+      ...allJobObjects,
+      ...newJobs,
+    ]);
     recalculateInstallCostsWithNewData(
       [...allJobObjects, ...newJobs],
-      requestedMarketData,
       requestedSystemIndexes,
     );
 
@@ -88,9 +89,6 @@ export default async function buildNextMaterialsTree(
     }
 
     updateOrAddJobsToJobArray(newJobs);
-    useUsersStore
-      .getState()
-      .worldData.actions.addMarketData(requestedMarketData);
     useUsersStore
       .getState()
       .worldData.actions.addSystemIndex(requestedSystemIndexes);

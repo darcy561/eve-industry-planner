@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { Box, Button, Grid, Typography } from "@mui/material";
 import { ItemPriceRow, itemPriceEntryFactory } from "./itemRow";
 import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
@@ -9,6 +9,7 @@ import {
   showSnackbarError,
 } from "../../../Events/snackbarEvents";
 import useUsersStore from "../../../Zustand/usersStore";
+import { getMarketPriceForType } from "../../../Functions/MarketData/marketPriceForType";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import importMultibuyFromClipboard from "../../../Functions/Clipboard/importMultibuy";
 import { requestClipboardPermissions } from "../../../Functions/Clipboard/clipboardPermissions";
@@ -19,6 +20,7 @@ import {
 } from "../../../Functions/Shared/passBuildCosts";
 import ContentDialogue from "../../../Styled Components/Dialogue/ContentDialogue";
 import { hidePriceEntryDialogue } from "../../../Events/priceEntryEvents";
+import { useMarketPricesQuery } from "../../../Hooks/React Query/World/marketPrices";
 
 export function PriceEntryDialogueContent({ state, actions }) {
   const {
@@ -30,6 +32,19 @@ export function PriceEntryDialogueContent({ state, actions }) {
   const displayHelpCards = useUsersStore(
     (s) => s.applicationSettings.displayHelpCards,
   );
+
+  // The reader picks the market here, so the dialogue asks for the list at
+  // whichever one they land on rather than relying on what the planner happened
+  // to fetch at the account's.
+  const wants = useMemo(
+    () =>
+      state.priceEntryList.map(({ typeID }) => ({
+        typeID,
+        sourceID: state.marketLocation,
+      })),
+    [state.priceEntryList, state.marketLocation],
+  );
+  const { isLoading: pricesLoading } = useMarketPricesQuery(wants);
 
   const buildItemPriceEntry = useCallback(async (inputJobIDs) => {
     const finalPriceEntry = [];
@@ -275,6 +290,7 @@ export function PriceEntryDialogueContent({ state, actions }) {
                     index={index}
                     listingType={state.listingType}
                     marketLocation={state.marketLocation}
+                    pricesSettled={!pricesLoading}
                     priceEntryListData={{ list: state.priceEntryList }}
                     setPriceEntryListData={(updater) => {
                       if (typeof updater === "function") {
@@ -359,11 +375,10 @@ export function PriceEntryDialogueContent({ state, actions }) {
                   const remainingQty = item.remainingQuantity - confirmedQty;
 
                   if (remainingQty > 0) {
-                    const materialPrice = useUsersStore
-                      .getState()
-                      .worldData.actions.findMarketData(item.typeID);
-                    const defaultPrice = Number(
-                      materialPrice[state.marketLocation][state.listingType],
+                    const defaultPrice = getMarketPriceForType(
+                      item.typeID,
+                      state.marketLocation,
+                      state.listingType,
                     );
 
                     if (

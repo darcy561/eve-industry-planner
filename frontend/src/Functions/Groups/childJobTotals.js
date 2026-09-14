@@ -34,7 +34,6 @@ export function calculateChildJobTotals(
         material,
         childJob.build.childJobs[material.typeID],
         temporaryChildJobs[material.typeID],
-        {},
         marketLocation,
         listingType,
       ),

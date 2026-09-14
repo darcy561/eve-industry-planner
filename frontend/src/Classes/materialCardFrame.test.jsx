@@ -15,11 +15,6 @@ const store = {
   applicationSettings: {
     actions: { getCurrentLocale: () => "en-GB" },
   },
-  worldData: {
-    actions: {
-      findMarketData: () => ({ jita: { sell: 5, buy: 4 } }),
-    },
-  },
   documentLock: { scopes: {} },
 };
 

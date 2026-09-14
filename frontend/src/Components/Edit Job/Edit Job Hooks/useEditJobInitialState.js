@@ -39,8 +39,7 @@ export function useEditJobInitialState({
           await prefetchAccountTotalsQuery(queryClient, matchedJob.itemID);
         }
 
-        const { requestedMarketData, requestedSystemIndexes } =
-          await getMissingESIData(linkedJobs);
+        const { requestedSystemIndexes } = await getMissingESIData(linkedJobs);
 
         const getCustomStructureWithID =
           useUsersStore.getState().applicationSettings.actions
@@ -53,7 +52,6 @@ export function useEditJobInitialState({
         for (const setup of Object.values(matchedJob.build.setup)) {
           setup.estimatedInstallCost = calculateInstallCostfromSetup(
             setup,
-            requestedMarketData,
             requestedSystemIndexes,
           );
         }
@@ -62,10 +60,6 @@ export function useEditJobInitialState({
           matchedJob.layout.setupToEdit =
             Object.keys(matchedJob.build.setup)[0] || null;
         }
-
-        useUsersStore
-          .getState()
-          .worldData.actions.addMarketData(requestedMarketData);
         useUsersStore
           .getState()
           .worldData.actions.addSystemIndex(requestedSystemIndexes);

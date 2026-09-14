@@ -86,6 +86,32 @@ func (o *DatasetCache) Entry(ctx context.Context, id int32, target any) error {
 	return o.redis.GetJSON(ctx, o.dataset.entryKey(id), target)
 }
 
+// Entries reads many of this dataset's values in a single round trip. An id with
+// no stored entry, or one that will not decode, is absent from the result rather
+// than an error.
+//
+// Generic rather than a method because Go methods take no type parameters, and
+// the caller is the only one that knows what its values decode to.
+func Entries[T any](ctx context.Context, o *DatasetCache, ids []int32) (map[int32]*T, error) {
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = o.dataset.entryKey(id)
+	}
+
+	found, err := GetManyJSON[T](ctx, o.redis, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	values := make(map[int32]*T, len(found))
+	for i, id := range ids {
+		if value, ok := found[keys[i]]; ok {
+			values[id] = value
+		}
+	}
+	return values, nil
+}
+
 // PutETag stores the ETag of the response the values came from. An empty ETag
 // is not stored.
 func (o *DatasetCache) PutETag(ctx context.Context, etag string) error {

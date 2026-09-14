@@ -23,7 +23,6 @@ export default async function recalculateJobFromSetup(
   state.activeJob.recalculateSelectedSetup(
     setupObject.id,
     queryClient,
-    undefined,
     systemIndexResults,
   );
 

@@ -6,11 +6,9 @@
  * Default state configuration for world data.
  *
  * @returns {Object} Default world data state
- * @property {Object} marketData - Market price data by type ID
  * @property {Object} systemIndexes - System cost index data
  */
 export const stateDefault = () => ({
-  marketData: {},
   systemIndexes: {},
 });
 
@@ -25,7 +23,7 @@ export const coreActions = (set) => ({
   /**
    * Resets the world data store to its default state.
    *
-   * Clears all world data including market data and system indexes,
+   * Clears all world data including system indexes,
    * while preserving the actions object.
    */
   resetWorldDataStore: () => {

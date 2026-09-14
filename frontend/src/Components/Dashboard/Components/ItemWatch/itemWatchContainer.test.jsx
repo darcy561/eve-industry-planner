@@ -4,10 +4,9 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { testQueryClient } from "../../../../tests/queryClients.js";
 
-const { store, getMarketData, addMarketData } = vi.hoisted(() => ({
+const { store, fetchPrices } = vi.hoisted(() => ({
   store: { current: null },
-  getMarketData: vi.fn(async () => ({})),
-  addMarketData: vi.fn(),
+  fetchPrices: vi.fn(async () => {}),
 }));
 
 vi.mock("../../../../Zustand/usersStore", async () => {
@@ -16,8 +15,8 @@ vi.mock("../../../../Zustand/usersStore", async () => {
   return usersStoreMock(() => usersStoreState(store.current));
 });
 
-vi.mock("../../../../Functions/MarketData/findMarketData", () => ({
-  default: getMarketData,
+vi.mock("../../../../Functions/MarketData/priceCache", () => ({
+  fetchPrices,
 }));
 
 vi.mock("./ItemRow", () => ({
@@ -43,7 +42,6 @@ function watching({ items = [], groups = [] } = {}) {
         selling: { market: "amarr", basis: "buy" },
       },
     },
-    worldData: { actions: { addMarketData } },
   };
 }
 
@@ -67,7 +65,7 @@ function show() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getMarketData.mockResolvedValue({ 34: { buy: 5 } });
+  fetchPrices.mockResolvedValue(undefined);
   watching({ items: [item("i-1", "Tritanium", 34)] });
 });
 
@@ -96,16 +94,19 @@ describe("the watchlist", () => {
     expect(await screen.findByText("row for Tritanium")).toBeInTheDocument();
   });
 
-  it("keeps the prices it fetched", async () => {
+  // The item's own figure is what it would fetch, so it is wanted at the
+  // selling market rather than the one its materials are bought at.
+  it("asks for the item at the selling market", async () => {
     show();
 
-    await waitFor(() =>
-      expect(addMarketData).toHaveBeenCalledWith({ 34: { buy: 5 } }),
-    );
+    await waitFor(() => expect(fetchPrices).toHaveBeenCalled());
+    expect(fetchPrices.mock.calls[0][0].wants).toEqual([
+      { typeID: 34, sourceID: "amarr" },
+    ]);
   });
 
   it("shows its rows even if the prices cannot be fetched", async () => {
-    getMarketData.mockRejectedValue(new Error("no market"));
+    fetchPrices.mockRejectedValue(new Error("no market"));
 
     show();
 
@@ -117,7 +118,7 @@ describe("the watchlist", () => {
 
     show();
 
-    expect(getMarketData).not.toHaveBeenCalled();
+    expect(fetchPrices).not.toHaveBeenCalled();
     expect(screen.getByText("group Minerals")).toBeInTheDocument();
   });
 });

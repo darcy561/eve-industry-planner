@@ -14,8 +14,9 @@ import {
 } from "../../../Context/defaultValues";
 import { ListDataFrame_ShoppingListDialogue } from "./shoppingListDataFrame";
 import { AssetsFromClipboardButton_ShoppingList } from "./assetsFromClipboardButton";
-import getMarketData from "../../../Functions/MarketData/findMarketData";
-import useUsersStore from "../../../Zustand/usersStore";
+import { fetchPrices } from "../../../Functions/MarketData/priceCache";
+import { pricesWantedForTypes } from "../../../Functions/MarketData/pricesWanted";
+import { PRICING_SIDE } from "../../../Functions/MarketData/pricingSide.js";
 import ShoppingList from "../../../Classes/shoppingList";
 import UseAssetsButton_ShoppingList from "./useAssetsButton";
 import SelectAssetLocation_ShoppingListDialogue from "./assetLocationsSelection";
@@ -67,15 +68,15 @@ export function ShoppingListDialogueContent({
 
       if (state.shoppingList) {
         actions.setIsLoading(true, "Fetching market prices…");
-        const newItemPriceObjects = await getMarketData(
-          state.shoppingList.getItemIDs(),
+        await fetchPrices(
+          pricesWantedForTypes(
+            state.shoppingList.getItemIDs(),
+            PRICING_SIDE.BUYING,
+          ),
         );
         state.shoppingList.calculateVisibleItems(state);
         state.shoppingList.calculateTotalVolume();
-        state.shoppingList.calculateTotalValue(newItemPriceObjects);
-        useUsersStore
-          .getState()
-          .worldData.actions.addMarketData(newItemPriceObjects);
+        state.shoppingList.calculateTotalValue();
         actions.setIsLoading(false);
       }
     }

@@ -68,14 +68,13 @@ func (m *MarketOrdersStore) PutPrice(ctx context.Context, typeID, locationID int
 	return m.redis.PutJSON(ctx, priceKey(typeID, locationID), value, ttlRegionPrice)
 }
 
-// PricesByType reads one type's prices at each of the given locations in a
-// single round trip. Locations with no stored entry, or an entry that will not
-// decode, are absent from the result rather than an error.
-func (m *MarketOrdersStore) PricesByType(ctx context.Context, typeID int32, locationIDs []int32) (map[int32]*MarketPriceEntry, error) {
-	prices := make(map[int32]*MarketPriceEntry, len(locationIDs))
-
-	keys := make([]string, len(locationIDs))
-	for i, locationID := range locationIDs {
+// PricesAtLocation reads many types' prices at one location in a single round
+// trip. Types with no stored entry, or an entry that will not decode, are absent
+// from the result rather than an error — a market holding no order for a type is
+// a normal answer, not a failure.
+func (m *MarketOrdersStore) PricesAtLocation(ctx context.Context, locationID int32, typeIDs []int32) (map[int32]*MarketPriceEntry, error) {
+	keys := make([]string, len(typeIDs))
+	for i, typeID := range typeIDs {
 		keys[i] = priceKey(typeID, locationID)
 	}
 
@@ -84,9 +83,10 @@ func (m *MarketOrdersStore) PricesByType(ctx context.Context, typeID int32, loca
 		return nil, err
 	}
 
-	for i, locationID := range locationIDs {
+	prices := make(map[int32]*MarketPriceEntry, len(found))
+	for i, typeID := range typeIDs {
 		if entry, ok := found[keys[i]]; ok {
-			prices[locationID] = entry
+			prices[typeID] = entry
 		}
 	}
 	return prices, nil

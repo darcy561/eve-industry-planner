@@ -73,18 +73,12 @@ export function ImportNewJob_WatchlistDialogue({
       materialMap[job.itemID] = job;
     }
 
-    const { requestedMarketData, requestedSystemIndexes } =
-      await getMissingESIData([...MaterialJobs, WatchlistItemJob]);
+    const { requestedSystemIndexes } = await getMissingESIData([
+      ...MaterialJobs,
+      WatchlistItemJob,
+    ]);
 
-    recalculateInstallCostsWithNewData(
-      MaterialJobs,
-      requestedMarketData,
-      requestedSystemIndexes,
-    );
-
-    useUsersStore
-      .getState()
-      .worldData.actions.addMarketData(requestedMarketData);
+    recalculateInstallCostsWithNewData(MaterialJobs, requestedSystemIndexes);
     useUsersStore
       .getState()
       .worldData.actions.addSystemIndex(requestedSystemIndexes);

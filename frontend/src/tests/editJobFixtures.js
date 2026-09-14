@@ -180,9 +180,7 @@ export function editJobStore({
       },
     },
     worldData: {
-      marketData: {},
       actions: {
-        findMarketData: () => ({ jita: { sell: 5, buy: 4 } }),
         findSystemIndex: () => ({ manufacturing: 0.01 }),
       },
     },

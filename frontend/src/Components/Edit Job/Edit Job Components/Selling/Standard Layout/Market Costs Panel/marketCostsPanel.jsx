@@ -1,18 +1,15 @@
 import { Box, Typography, useMediaQuery, Grid } from "@mui/material";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 import ItemMarketActions from "../../../../../../Styled Components/Item/marketActions";
-import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { useMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
+import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
 
 export function MarketCostsPanel({ state }) {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("sm"));
   const marketSources = useMarketSources();
-  const itemCosts = useUsersStore
-    .getState()
-    .worldData.actions.findMarketData(state.activeJob.itemID);
 
   return (
     <ContentPanel
@@ -42,7 +39,7 @@ export function MarketCostsPanel({ state }) {
         }}
       >
         {marketSources.map(({ id, name }) => {
-          const optionCosts = itemCosts[id];
+          const itemID = state.activeJob.itemID;
           return (
             <Grid
               container
@@ -72,10 +69,15 @@ export function MarketCostsPanel({ state }) {
               >
                 <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
                   Sell:{" "}
-                  {itemCosts ? formatNumberForLocale(optionCosts.sell) : 0}
+                  {formatNumberForLocale(
+                    getMarketPriceForType(itemID, id, "sell"),
+                  )}
                 </Typography>
                 <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-                  Buy: {itemCosts ? formatNumberForLocale(optionCosts.buy) : 0}
+                  Buy:{" "}
+                  {formatNumberForLocale(
+                    getMarketPriceForType(itemID, id, "buy"),
+                  )}
                 </Typography>
               </Grid>
             </Grid>

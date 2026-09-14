@@ -82,7 +82,6 @@ const GLOBAL_CONFIG = Object.freeze({
    * @type {number}
    * @unit hours
    */
-  DEFAULT_ITEM_REFRESH_PERIOD: 4,
 
   /**
    * System index refresh period in hours.

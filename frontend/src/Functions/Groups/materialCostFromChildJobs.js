@@ -1,5 +1,6 @@
 import useUsersStore from "../../Zustand/usersStore.js";
 import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts.js";
+import { getMarketPriceForType } from "../MarketData/marketPriceForType";
 
 /**
  * First matching job per ID (same as repeated `.find()` on a concatenated list).
@@ -70,7 +71,6 @@ function calculateJobUnitCost(inputJob, ctx) {
  * @param {*} inputMaterial
  * @param {string[]} childJobs
  * @param {unknown} [alternativeJobLocation]
- * @param {*} alternativePriceLocation
  * @param {string} marketLocation - The market the caller resolved for its side
  * @param {string} listingType - The listing type the caller resolved for its side
  */
@@ -78,7 +78,6 @@ export function calculateMaterialCostFromChildJobs(
   inputMaterial,
   childJobs,
   alternativeJobLocation = [],
-  alternativePriceLocation,
   marketLocation,
   listingType,
 ) {
@@ -92,12 +91,8 @@ export function calculateMaterialCostFromChildJobs(
   const visiting = new Set();
 
   const getMaterialPrice = (materialObject) =>
-    useUsersStore
-      .getState()
-      .worldData.actions.findMarketData(
-        materialObject.typeID,
-        alternativePriceLocation,
-      )?.[marketLocation]?.[listingType] || materialObject.purchasedCost;
+    getMarketPriceForType(materialObject.typeID, marketLocation, listingType) ||
+    materialObject.purchasedCost;
 
   if (inputMaterial.purchaseComplete) {
     return inputMaterial.purchasedCost;

@@ -155,16 +155,8 @@ export default async function massBuildMaterials(inputJobIDs, options) {
       updateOrAddJobsToJobArray(jobsToCommit);
     }
 
-    const { requestedMarketData, requestedSystemIndexes } =
-      await getMissingESIData(newJobs);
-    recalculateInstallCostsWithNewData(
-      newJobs,
-      requestedMarketData,
-      requestedSystemIndexes,
-    );
-    useUsersStore
-      .getState()
-      .worldData.actions.addMarketData(requestedMarketData);
+    const { requestedSystemIndexes } = await getMissingESIData(newJobs);
+    recalculateInstallCostsWithNewData(newJobs, requestedSystemIndexes);
     useUsersStore
       .getState()
       .worldData.actions.addSystemIndex(requestedSystemIndexes);
