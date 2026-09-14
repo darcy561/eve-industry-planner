@@ -33,7 +33,7 @@ import {
 } from "../../../../Hooks/Static/useMarketGroups";
 import useUsersStore from "../../../../Zustand/usersStore";
 import MarketLocationSelect from "../../../../Styled Components/Select/marketLocation";
-import MarketListingSelect from "../../../../Styled Components/Select/marketListing";
+import ListingTypeSelect from "../../../../Styled Components/Select/listingType";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 /**
@@ -97,7 +97,7 @@ function GroupRow({ side, groupID, choice }) {
             </ExplainerTooltip>
           ) : (
             <ExplainerTooltip title="Which side of the order book a price comes from — the ask you would pay, or the bid you would be offered">
-              <MarketListingSelect
+              <ListingTypeSelect
                 value={choice?.basis}
                 onChange={(option) => commit("basis", option.id)}
                 labelText="Prices"

@@ -5,20 +5,20 @@ import { eventEmitter } from "../utils/EventSystem";
  * Emits an event to display the price entry dialogue for manual price input.
  *
  * @param {Array<string>} jobIDs - Array of job IDs to show price entry for
- * @param {string|null} [displayMarket=null] - Market location to display (e.g., "jita", "amarr")
- * @param {string|null} [displayOrder=null] - Order type to display ("buy" or "sell")
+ * @param {string|null} [marketLocation=null] - Market location to display (e.g., "jita", "amarr")
+ * @param {string|null} [listingType=null] - Order type to display ("buy" or "sell")
  * @returns {void}
  */
 export function showPriceEntryDialogue(
   jobIDs,
-  displayMarket = null,
-  displayOrder = null,
+  marketLocation = null,
+  listingType = null,
 ) {
   eventEmitter.emit("priceEntry", {
     isOpen: true,
     jobIDs,
-    displayMarket,
-    displayOrder,
+    marketLocation,
+    listingType,
   });
 }
 
@@ -32,7 +32,7 @@ export function hidePriceEntryDialogue() {
   eventEmitter.emit("priceEntry", {
     isOpen: false,
     jobIDs: [],
-    displayMarket: null,
-    displayOrder: null,
+    marketLocation: null,
+    listingType: null,
   });
 }

@@ -31,13 +31,13 @@ function BasicMineralOutput({ pageState }) {
       if (item.quantity === 0) return acc;
       const itemPriceObject = findMarketData(item.id);
       const unitPrice =
-        itemPriceObject[pageState.marketLocation][pageState.marketListing] ?? 0;
+        itemPriceObject[pageState.marketLocation][pageState.listingType] ?? 0;
       return acc + unitPrice * item.quantity;
     }, 0);
   }, [
     pageState.processedInput,
     pageState.marketLocation,
-    pageState.marketListing,
+    pageState.listingType,
     isLoading,
   ]);
 
@@ -47,13 +47,13 @@ function BasicMineralOutput({ pageState }) {
       if (item.batchSize > item.totalQuantity) return acc;
       const itemPriceObject = findMarketData(item.id);
       const unitPrice =
-        itemPriceObject[pageState.marketLocation][pageState.marketListing] ?? 0;
+        itemPriceObject[pageState.marketLocation][pageState.listingType] ?? 0;
       return acc + unitPrice * item.totalQuantity;
     }, 0);
   }, [
     pageState.reprocessingObjects,
     pageState.marketLocation,
-    pageState.marketListing,
+    pageState.listingType,
     isLoading,
   ]);
 
@@ -185,9 +185,8 @@ function BasicMineralOutput({ pageState }) {
           const matchedName = itemNameFrom(item.id, itemRecords);
           const itemPriceObject = findMarketData(item.id);
           const unitPrice =
-            itemPriceObject[pageState.marketLocation][
-              pageState.marketListing
-            ] ?? 0;
+            itemPriceObject[pageState.marketLocation][pageState.listingType] ??
+            0;
           const totalValue = unitPrice * item.quantity;
 
           return (

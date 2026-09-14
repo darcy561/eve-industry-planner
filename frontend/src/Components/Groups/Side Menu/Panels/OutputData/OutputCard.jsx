@@ -22,13 +22,12 @@ import { formatNumberForLocale } from "../../../../../Functions/Helper/numberPar
 
 function OutputJobCard({ inputJob, state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
-  const { marketLocation: defaultMarket, listingType: defaultOrders } =
-    resolvePricingSide({
-      accountPricing: useUsersStore(
-        (state) => state.applicationSettings.defaultPricing,
-      ),
-      side: PRICING_SIDE.SELLING,
-    });
+  const { marketLocation, listingType } = resolvePricingSide({
+    accountPricing: useUsersStore(
+      (state) => state.applicationSettings.defaultPricing,
+    ),
+    side: PRICING_SIDE.SELLING,
+  });
 
   const CurrentBuildCost =
     calculateCurrentJobBuildCostFromChildren(inputJob, {
@@ -37,8 +36,8 @@ function OutputJobCard({ inputJob, state, actions }) {
 
   const currentMarketPrice =
     useUsersStore.getState().worldData.marketData[inputJob.itemID]?.[
-      defaultMarket
-    ]?.[defaultOrders] || 0;
+      marketLocation
+    ]?.[listingType] || 0;
 
   const isHighlighted = state.highlightedItems.has(inputJob.jobID);
 

@@ -12,8 +12,8 @@ export const PRICE_ENTRY_ACTION_TYPES = {
   SET_IS_LOADING: "SET_IS_LOADING",
   SET_REQUESTED_JOB_IDS: "SET_REQUESTED_JOB_IDS",
   SET_PRICE_ENTRY_LIST: "SET_PRICE_ENTRY_LIST",
-  SET_DISPLAY_MARKET: "SET_DISPLAY_MARKET",
-  SET_DISPLAY_ORDER: "SET_DISPLAY_ORDER",
+  SET_MARKET_LOCATION: "SET_MARKET_LOCATION",
+  SET_LISTING_TYPE: "SET_LISTING_TYPE",
   RESET_STATE: "RESET_STATE",
 };
 
@@ -38,10 +38,10 @@ export function priceEntryReducer(state, action, createInitialState) {
       return { ...state, requestedJobIDs: action.payload };
     case PRICE_ENTRY_ACTION_TYPES.SET_PRICE_ENTRY_LIST:
       return { ...state, priceEntryList: action.payload };
-    case PRICE_ENTRY_ACTION_TYPES.SET_DISPLAY_MARKET:
-      return { ...state, displayMarket: action.payload };
-    case PRICE_ENTRY_ACTION_TYPES.SET_DISPLAY_ORDER:
-      return { ...state, displayOrder: action.payload };
+    case PRICE_ENTRY_ACTION_TYPES.SET_MARKET_LOCATION:
+      return { ...state, marketLocation: action.payload };
+    case PRICE_ENTRY_ACTION_TYPES.SET_LISTING_TYPE:
+      return { ...state, listingType: action.payload };
     case PRICE_ENTRY_ACTION_TYPES.RESET_STATE:
       return createInitialState();
     default:

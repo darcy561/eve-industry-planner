@@ -70,7 +70,7 @@ export const REPROCESSING_ACTION_TYPES = {
  * @param {Object} state.rigSlotErrors - Rig slot validation errors
  * @param {Array} state.oreIDsToBeIgnored - Array of ore IDs to ignore
  * @param {string} state.marketLocation - Market location for pricing
- * @param {string} state.marketListing - Market listing type (buy/sell)
+ * @param {string} state.listingType - Market listing type (buy/sell)
  * @param {boolean} state.inputModified - Whether input has been modified
  * @param {Object} state.requestedMinerals - Requested minerals data
  * @param {Object} state.reprocessingCalculationSettings - Calculation settings
@@ -151,7 +151,7 @@ export function reprocessingReducer(state, action) {
     case REPROCESSING_ACTION_TYPES.SET_MARKET_LOCATION:
       return { ...state, marketLocation: action.payload };
     case REPROCESSING_ACTION_TYPES.SET_MARKET_LISTING:
-      return { ...state, marketListing: action.payload };
+      return { ...state, listingType: action.payload };
     case REPROCESSING_ACTION_TYPES.SET_INPUT_MODIFIED:
       return { ...state, inputModified: action.payload };
     case REPROCESSING_ACTION_TYPES.SET_REQUESTED_MINERALS:

@@ -6,7 +6,7 @@ import {
 import ExitRouteSelect from "../../../Styled Components/Select/exitRoute";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
-import MarketListingSelect from "../../../Styled Components/Select/marketListing";
+import ListingTypeSelect from "../../../Styled Components/Select/listingType";
 import AssignUsersSelect from "../../../Styled Components/Select/users";
 import useUsersStore from "../../../Zustand/usersStore";
 import useAssetLocations from "../../../Hooks/EveEsi/useAssetLocations";
@@ -72,7 +72,7 @@ function JobSettingsFrame() {
                   labelText={`${noun} sold by`}
                 />
               ) : (
-                <MarketListingSelect
+                <ListingTypeSelect
                   value={defaultPricing?.[side]?.basis}
                   onChange={(e) => {
                     updatePricingDefault(side, "basis", e.id);

@@ -23,8 +23,8 @@ const { PRIMARY_THEME } = GLOBAL_CONFIG;
 export function ItemPriceRow({
   item,
   index,
-  displayOrder,
-  displayMarket,
+  listingType,
+  marketLocation,
   priceEntryListData,
   setPriceEntryListData,
 }) {
@@ -32,7 +32,7 @@ export function ItemPriceRow({
   const { findMarketData } = useUsersStore.getState().worldData.actions;
 
   const materialPrice = findMarketData(item.typeID);
-  const rawDefault = materialPrice?.[displayMarket]?.[displayOrder];
+  const rawDefault = materialPrice?.[marketLocation]?.[listingType];
   const defaultPrice = Number.isFinite(Number(rawDefault))
     ? Number(rawDefault)
     : 0;
@@ -94,13 +94,13 @@ export function ItemPriceRow({
     const { findMarketData: findMd } =
       useUsersStore.getState().worldData.actions;
     const mp = findMd(item.typeID);
-    const raw = mp?.[displayMarket]?.[displayOrder];
+    const raw = mp?.[marketLocation]?.[listingType];
     const nextDefault = Number(raw);
     if (!Number.isFinite(nextDefault)) {
       return;
     }
 
-    const listingKey = `${displayMarket}:${displayOrder}`;
+    const listingKey = `${marketLocation}:${listingType}`;
     const listingChanged =
       lastListingKeyRef.current === null ||
       lastListingKeyRef.current !== listingKey;
@@ -137,7 +137,7 @@ export function ItemPriceRow({
     });
 
     lastSyncedDefaultRef.current = nextDefault;
-  }, [marketData, displayMarket, displayOrder, item.typeID]);
+  }, [marketData, marketLocation, listingType, item.typeID]);
 
   const updateConfirmedEntries = (newConfirmedEntries) => {
     let newList = [...priceEntryListData.list];

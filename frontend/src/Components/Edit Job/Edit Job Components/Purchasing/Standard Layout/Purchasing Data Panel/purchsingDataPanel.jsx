@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import { MarketLocationSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketLocation.jsx";
-import { MarketListingSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketListing.jsx";
+import { ListingTypeSelectApplicationSettings } from "../../../../../../Styled Components/Select/listingType.jsx";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { showShoppingList } from "../../../../../../Events/shoppingListEvents";
@@ -226,13 +226,13 @@ export function PurchasingDataPanel_EditJob(props) {
               />
             </Grid>
             <Grid size={6}>
-              <MarketListingSelectApplicationSettings
+              <ListingTypeSelectApplicationSettings
                 side={PRICING_SIDE.BUYING}
-                overrideOrderType={
+                overrideListingType={
                   state.activeJob.layout.localPricing?.buying?.basis ??
                   undefined
                 }
-                onOrderTypeCommit={(id) => {
+                onListingTypeCommit={(id) => {
                   actions.updateActiveJobLayout({
                     localPricing: setJobPricingSide(
                       state.activeJob.layout.localPricing,

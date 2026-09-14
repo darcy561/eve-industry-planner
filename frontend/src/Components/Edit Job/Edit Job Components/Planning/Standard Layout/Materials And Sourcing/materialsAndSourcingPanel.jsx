@@ -270,13 +270,15 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
               currentMaterialPrice={row.buyPrice ?? 0}
               coverage={row.coverage}
               pricing={{
-                overrideMarket: overrideFor(state, row.typeID).marketDisplay,
-                overrideListing: overrideFor(state, row.typeID).orderDisplay,
-                panelMarket: marketLocation,
-                panelListing: listingType,
-                onMarketCommit: (typeID, id) =>
+                overrideMarketLocation: overrideFor(state, row.typeID)
+                  .marketDisplay,
+                overrideListingType: overrideFor(state, row.typeID)
+                  .orderDisplay,
+                panelMarketLocation: marketLocation,
+                panelListingType: listingType,
+                onMarketLocationCommit: (typeID, id) =>
                   updateMaterialLayoutPreference(typeID, "marketDisplay", id),
-                onListingCommit: (typeID, id) =>
+                onListingTypeCommit: (typeID, id) =>
                   updateMaterialLayoutPreference(typeID, "orderDisplay", id),
                 onReset: resetMaterialLayoutPreference,
                 disabled: readOnly,

@@ -30,7 +30,7 @@ import { calculateReprocessing } from "../../../Functions/Reprocessing/calculate
  * @param {Object} pageState.activeSkills - Active skill levels
  * @param {Object} pageState.currentStructure - Current reprocessing structure
  * @param {string} pageState.marketLocation - Market location for pricing
- * @param {string} pageState.marketListing - Market listing type
+ * @param {string} pageState.listingType - Market listing type
  * @param {Object} pageState.reprocessingCalculationSettings - Calculation settings
  * @param {Object} pageActions - Page action functions
  * @param {Function} pageActions.calculateReprocessing - Function to trigger recalculation
@@ -84,7 +84,7 @@ export default function useAutoRecalculation(pageState, pageActions) {
     pageState.activeSkills,
     pageState.currentStructure,
     pageState.marketLocation,
-    pageState.marketListing,
+    pageState.listingType,
     pageState.reprocessingCalculationSettings,
   ]);
 }

@@ -90,7 +90,7 @@ vi.mock("./materialDrawer", () => ({
       {isOpen ? `open at ${marketLocation}` : "shut"}
       <span data-testid={`pricing-${material.typeID}`}>
         {pricing
-          ? `panel ${pricing.panelMarket}/${pricing.panelListing}`
+          ? `panel ${pricing.panelMarketLocation}/${pricing.panelListingType}`
           : "none"}
       </span>
     </div>

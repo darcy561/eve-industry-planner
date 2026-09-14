@@ -3,7 +3,7 @@ import { Box, Button, Grid, Typography } from "@mui/material";
 import { ItemPriceRow, itemPriceEntryFactory } from "./itemRow";
 import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
-import MarketListingSelect from "../../../Styled Components/Select/marketListing";
+import ListingTypeSelect from "../../../Styled Components/Select/listingType";
 import {
   showSnackbarSuccess,
   showSnackbarError,
@@ -273,8 +273,8 @@ export function PriceEntryDialogueContent({ state, actions }) {
                     key={item.typeID}
                     item={item}
                     index={index}
-                    displayOrder={state.displayOrder}
-                    displayMarket={state.displayMarket}
+                    listingType={state.listingType}
+                    marketLocation={state.marketLocation}
                     priceEntryListData={{ list: state.priceEntryList }}
                     setPriceEntryListData={(updater) => {
                       if (typeof updater === "function") {
@@ -330,18 +330,18 @@ export function PriceEntryDialogueContent({ state, actions }) {
           <Box sx={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <MarketLocationSelect
-                value={state.displayMarket}
+                value={state.marketLocation}
                 onChange={(e) => {
-                  actions.setDisplayMarket(e.id);
+                  actions.setMarketLocation(e.id);
                 }}
                 customFormStyling={{
                   width: "100%",
                 }}
               />
-              <MarketListingSelect
-                value={state.displayOrder}
+              <ListingTypeSelect
+                value={state.listingType}
                 onChange={(e) => {
-                  actions.setDisplayOrder(e.id);
+                  actions.setListingType(e.id);
                 }}
                 customFormStyling={{
                   width: "100%",
@@ -363,7 +363,7 @@ export function PriceEntryDialogueContent({ state, actions }) {
                       .getState()
                       .worldData.actions.findMarketData(item.typeID);
                     const defaultPrice = Number(
-                      materialPrice[state.displayMarket][state.displayOrder],
+                      materialPrice[state.marketLocation][state.listingType],
                     );
 
                     if (

@@ -24,10 +24,10 @@ function renderControl(props = {}) {
   render(
     <RowPricingOverride
       typeID={34}
-      panelMarket="jita"
-      panelListing="sell"
-      onMarketCommit={() => {}}
-      onListingCommit={() => {}}
+      panelMarketLocation="jita"
+      panelListingType="sell"
+      onMarketLocationCommit={() => {}}
+      onListingTypeCommit={() => {}}
       onReset={() => {}}
       {...props}
     />,
@@ -52,7 +52,7 @@ describe("where a single material is priced", () => {
   });
 
   it("offers a way back once the row has its own hub", () => {
-    renderControl({ overrideMarket: "amarr" });
+    renderControl({ overrideMarketLocation: "amarr" });
 
     expect(
       screen.getByRole("button", { name: /use panel pricing/i }),
@@ -60,7 +60,7 @@ describe("where a single material is priced", () => {
   });
 
   it("offers a way back once the row has its own basis", () => {
-    renderControl({ overrideListing: "buyP95" });
+    renderControl({ overrideListingType: "buyP95" });
 
     expect(
       screen.getByRole("button", { name: /use panel pricing/i }),
@@ -70,7 +70,7 @@ describe("where a single material is priced", () => {
   it("names the material when putting it back on the panel's basis", async () => {
     const onReset = vi.fn();
     const user = userEvent.setup();
-    renderControl({ overrideMarket: "amarr", onReset });
+    renderControl({ overrideMarketLocation: "amarr", onReset });
 
     await user.click(
       screen.getByRole("button", { name: /use panel pricing/i }),
@@ -80,7 +80,7 @@ describe("where a single material is priced", () => {
   });
 
   it("cannot be changed while the job is read only", () => {
-    renderControl({ overrideMarket: "amarr", disabled: true });
+    renderControl({ overrideMarketLocation: "amarr", disabled: true });
 
     expect(
       screen.getByRole("button", { name: /use panel pricing/i }),
@@ -95,10 +95,10 @@ describe("a locked job", () => {
     const { container } = render(
       <RowPricingOverride
         typeID={34}
-        panelMarket="jita"
-        panelListing="sell"
-        onMarketCommit={() => {}}
-        onListingCommit={() => {}}
+        panelMarketLocation="jita"
+        panelListingType="sell"
+        onMarketLocationCommit={() => {}}
+        onListingTypeCommit={() => {}}
         onReset={() => {}}
         disabled
       />,

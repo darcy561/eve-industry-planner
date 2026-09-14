@@ -26,15 +26,13 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * What the dialogue opens on: the account's buying default, read fresh rather
  * than closed over, because the reducer rebuilds its initial state on reset.
  *
- * @returns {{displayMarket: string, displayOrder: string}}
+ * @returns {{marketLocation: string, listingType: string}}
  */
 function resolveBuyingDefault() {
-  const { marketLocation, listingType } = resolvePricingSide({
+  return resolvePricingSide({
     accountPricing: useUsersStore.getState().applicationSettings.defaultPricing,
     side: PRICING_SIDE.BUYING,
   });
-
-  return { displayMarket: marketLocation, displayOrder: listingType };
 }
 
 /**
@@ -43,7 +41,7 @@ function resolveBuyingDefault() {
 export default function usePriceEntryReducer() {
   const {
     marketLocation: defaultMarketLocation,
-    listingType: defaultOrderType,
+    listingType: defaultListingType,
   } = resolvePricingSide({
     accountPricing: useUsersStore((s) => s.applicationSettings.defaultPricing),
     side: PRICING_SIDE.BUYING,
@@ -69,18 +67,18 @@ export default function usePriceEntryReducer() {
 
   useAdvanceWhenFollowingAppDefault({
     applicationDefault: defaultMarketLocation,
-    committedValue: state.displayMarket,
+    committedValue: state.marketLocation,
     fallback: DEFAULT_MARKET_OPTION,
     dispatch,
-    advanceActionType: PRICE_ENTRY_ACTION_TYPES.SET_DISPLAY_MARKET,
+    advanceActionType: PRICE_ENTRY_ACTION_TYPES.SET_MARKET_LOCATION,
   });
 
   useAdvanceWhenFollowingAppDefault({
-    applicationDefault: defaultOrderType,
-    committedValue: state.displayOrder,
+    applicationDefault: defaultListingType,
+    committedValue: state.listingType,
     fallback: DEFAULT_ORDER_OPTION,
     dispatch,
-    advanceActionType: PRICE_ENTRY_ACTION_TYPES.SET_DISPLAY_ORDER,
+    advanceActionType: PRICE_ENTRY_ACTION_TYPES.SET_LISTING_TYPE,
   });
 
   /**
@@ -113,15 +111,15 @@ export default function usePriceEntryReducer() {
           payload: list,
         });
       },
-      setDisplayMarket: (market) => {
+      setMarketLocation: (market) => {
         dispatch({
-          type: PRICE_ENTRY_ACTION_TYPES.SET_DISPLAY_MARKET,
+          type: PRICE_ENTRY_ACTION_TYPES.SET_MARKET_LOCATION,
           payload: market,
         });
       },
-      setDisplayOrder: (order) => {
+      setListingType: (order) => {
         dispatch({
-          type: PRICE_ENTRY_ACTION_TYPES.SET_DISPLAY_ORDER,
+          type: PRICE_ENTRY_ACTION_TYPES.SET_LISTING_TYPE,
           payload: order,
         });
       },

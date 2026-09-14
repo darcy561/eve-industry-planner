@@ -12,7 +12,7 @@ function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   // Both columns state a build cost, which is what the materials cost to buy.
   const { buying } = useWatchlistPricing();
-  const defaultOrders = buying.listingType;
+  const { listingType } = buying;
 
   const hasItems = userWatchlist.items.length > 0;
   const hasGroups = userWatchlist.groups?.length > 0;
@@ -73,7 +73,7 @@ function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
               align="center"
               sx={{ typography: { xs: "caption", sm: "body2" } }}
             >
-              ({defaultOrders.charAt(0).toUpperCase() + defaultOrders.slice(1)}{" "}
+              ({listingType.charAt(0).toUpperCase() + listingType.slice(1)}{" "}
               Orders)
             </Typography>
           </Grid>
@@ -93,7 +93,7 @@ function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
               align="center"
               sx={{ typography: { xs: "caption", sm: "body2" } }}
             >
-              ({defaultOrders.charAt(0).toUpperCase() + defaultOrders.slice(1)}{" "}
+              ({listingType.charAt(0).toUpperCase() + listingType.slice(1)}{" "}
               Orders)
             </Typography>
           </Grid>

@@ -47,7 +47,7 @@ export async function calculateReprocessing({ pageState, pageActions }) {
           pageState.activeSkills,
           pageState.currentStructure,
           pageState.marketLocation,
-          pageState.marketListing,
+          pageState.listingType,
           pageState.oreIDsToBeIgnored,
           pageState.reprocessingCalculationSettings,
         );
@@ -81,7 +81,7 @@ export async function calculateReprocessing({ pageState, pageActions }) {
         toMinerals: pageState?.toMinerals,
         selectedUser: pageState?.selectedUser,
         marketLocation: pageState?.marketLocation,
-        marketListing: pageState?.marketListing,
+        listingType: pageState?.listingType,
         oreIDsToBeIgnored: pageState?.oreIDsToBeIgnored,
         reprocessingCalculationSettings:
           pageState?.reprocessingCalculationSettings,

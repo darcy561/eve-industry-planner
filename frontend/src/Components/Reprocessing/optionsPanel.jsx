@@ -1,6 +1,6 @@
 import { Box, ToggleButtonGroup, ToggleButton } from "@mui/material";
 import MarketLocationSelect from "../../Styled Components/Select/marketLocation";
-import MarketListingSelect from "../../Styled Components/Select/marketListing";
+import ListingTypeSelect from "../../Styled Components/Select/listingType";
 
 function OptionsPanel({ pageState, pageActions }) {
   return (
@@ -134,8 +134,8 @@ function OptionsPanel({ pageState, pageActions }) {
             minWidth: 120,
           }}
         />
-        <MarketListingSelect
-          value={pageState.marketListing}
+        <ListingTypeSelect
+          value={pageState.listingType}
           onChange={({ id }) => pageActions.setMarketListing(id)}
           customFormStyling={{
             width: "auto",

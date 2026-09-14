@@ -49,7 +49,7 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * @returns {Object} returns.state.rigSlotErrors - Rig slot validation errors
  * @returns {Array} returns.state.oreIDsToBeIgnored - Array of ore IDs to ignore
  * @returns {string} returns.state.marketLocation - Market location for pricing
- * @returns {string} returns.state.marketListing - Market listing type (buy/sell)
+ * @returns {string} returns.state.listingType - Market listing type (buy/sell)
  * @returns {boolean} returns.state.inputModified - Whether input has been modified
  * @returns {Object} returns.state.requestedMinerals - Requested minerals data
  * @returns {Object} returns.state.reprocessingCalculationSettings - Calculation settings
@@ -106,7 +106,7 @@ export default function useReprocessingReducer() {
     useUsersStore.getState().applicationSettings.actions;
   const {
     marketLocation: defaultMarketLocation,
-    listingType: defaultOrderType,
+    listingType: defaultListingType,
   } = resolvePricingSide({
     accountPricing: useUsersStore(
       (state) => state.applicationSettings.defaultPricing,
@@ -135,7 +135,7 @@ export default function useReprocessingReducer() {
     rigSlotErrors: { slot1: false, slot2: false },
     oreIDsToBeIgnored: [],
     marketLocation: defaultMarketLocation || DEFAULT_MARKET_OPTION,
-    marketListing: defaultOrderType || DEFAULT_ORDER_OPTION,
+    listingType: defaultListingType || DEFAULT_ORDER_OPTION,
     inputModified: false,
     requestedMinerals: {},
     reprocessingCalculationSettings: (() => {
@@ -154,8 +154,8 @@ export default function useReprocessingReducer() {
   const [state, dispatch] = useReducer(reprocessingReducer, initialState);
 
   useAdvanceWhenFollowingAppDefault({
-    applicationDefault: defaultOrderType,
-    committedValue: state.marketListing,
+    applicationDefault: defaultListingType,
+    committedValue: state.listingType,
     fallback: DEFAULT_ORDER_OPTION,
     dispatch,
     advanceActionType: REPROCESSING_ACTION_TYPES.SET_MARKET_LISTING,

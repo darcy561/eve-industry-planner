@@ -10,7 +10,7 @@ import useUsersStore from "../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../Functions/Debounce/userDocumentsPersistSchedule";
 import CustomStructuresForm from "../../Settings/Standard Layout/Custom Structures/CustomStructuresForm";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
-import MarketListingSelect from "../../../Styled Components/Select/marketListing";
+import ListingTypeSelect from "../../../Styled Components/Select/listingType";
 import useAssetLocations from "../../../Hooks/EveEsi/useAssetLocations";
 import { SectionPanel } from "../../../Styled Components/Paper/SectionPanel";
 import { FirstLoginJobCardPreview } from "./FirstLoginJobCardPreview";
@@ -87,7 +87,7 @@ export function FirstLoginPlannerSetupStep() {
                     labelText={`${noun} sold by`}
                   />
                 ) : (
-                  <MarketListingSelect
+                  <ListingTypeSelect
                     {...appShellMarketSelectProps}
                     value={defaultPricing?.[side]?.basis}
                     onChange={(e) => {

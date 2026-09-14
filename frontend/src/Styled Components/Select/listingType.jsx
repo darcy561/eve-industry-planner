@@ -23,14 +23,14 @@ const { DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * @returns {JSX.Element} Market listing select component
  *
  * @example
- * <MarketListingSelect
+ * <ListingTypeSelect
  *   value="buy"
  *   onChange={(listing) => setListingType(listing)}
  *   error={{ isError: false, errorText: "" }}
  *   labelText="Order Type"
  * />
  */
-function MarketListingSelect({
+function ListingTypeSelect({
   value = GLOBAL_CONFIG.DEFAULT_ORDER_OPTION,
   onChange,
   error = { isError: false, errorText: "" },
@@ -105,23 +105,23 @@ function MarketListingSelect({
   );
 }
 
-export default MarketListingSelect;
+export default ListingTypeSelect;
 
 /**
  * Pricing basis select, falling back to the account's default basis for the side
  * of the job being priced.
  *
  * @param {Object} props
- * @param {string | null | undefined} props.overrideOrderType
- * @param {(orderTypeId: string | undefined) => void} props.onOrderTypeCommit — `undefined` clears override when choice matches default
+ * @param {string | null | undefined} props.overrideListingType
+ * @param {(orderTypeId: string | undefined) => void} props.onListingTypeCommit — `undefined` clears override when choice matches default
  * @param {string} props.side — One of PRICING_SIDE: which side of the job this control prices
- * @param {string | undefined} [props.alternativeDefaultOrderType]
+ * @param {string | undefined} [props.alternativeDefaultListingType]
  */
-export function MarketListingSelectApplicationSettings({
-  overrideOrderType,
-  onOrderTypeCommit,
+export function ListingTypeSelectApplicationSettings({
+  overrideListingType,
+  onListingTypeCommit,
   side,
-  alternativeDefaultOrderType,
+  alternativeDefaultListingType,
   ...rest
 }) {
   // The selling side stores a route rather than a basis, so its basis is derived
@@ -132,15 +132,16 @@ export function MarketListingSelectApplicationSettings({
     (s) => s.applicationSettings.defaultPricing?.[side],
   );
   const storeDefault = storeSide?.basis || basisForExit(storeSide?.exit);
-  const applicationDefault = alternativeDefaultOrderType ?? storeDefault;
-  const value = overrideOrderType ?? applicationDefault ?? DEFAULT_ORDER_OPTION;
+  const applicationDefault = alternativeDefaultListingType ?? storeDefault;
+  const value =
+    overrideListingType ?? applicationDefault ?? DEFAULT_ORDER_OPTION;
 
   return (
-    <MarketListingSelect
+    <ListingTypeSelect
       {...rest}
       value={value}
       onChange={(listing) =>
-        onOrderTypeCommit(
+        onListingTypeCommit(
           normalizedOverrideWhenMatchesDefault(
             listing.id,
             applicationDefault,
