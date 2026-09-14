@@ -57,10 +57,17 @@ export function useMarketPricesQuery(
       adjusted,
     ],
     queryFn: async () => {
-      await fetchPrices({
+      const { asked: attempted, failed } = await fetchPrices({
         wants: asked.map(([, want]) => want),
         adjustedTypeIDs: adjusted ? adjusted.split(",") : [],
       });
+
+      // Every want failing is a fetch that did not happen, and a surface told
+      // only that loading finished would wait on prices that are never coming.
+      // One market failing among several is not this: the rest are drawable.
+      if (attempted > 0 && failed === attempted) {
+        throw new Error("no market could be reached for any wanted price");
+      }
 
       // The clocks the rows came back with, rather than the wants that were
       // asked. A surface reads its figures synchronously and subscribes to no

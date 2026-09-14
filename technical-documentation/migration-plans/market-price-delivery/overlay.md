@@ -399,6 +399,38 @@ want can be for a station rather than a hub, which is a change to the one place
 the transports differ and belongs with the persistent tier that holds what it
 fetches, not bolted on ahead of either.
 
+### What only an end-to-end test could say
+
+Every other test on this path stands something in — the endpoint client, the
+loader, the cache or the accessor. Each is right to, but the result was that
+nothing said a price actually arrives:
+`Functions/MarketData/priceDelivery.e2e.test.jsx` mocks `fetch` and nothing else,
+so the real client parses, the real loader batches, the real cache holds, and a
+component draws synchronously the way every priced surface does.
+
+It confirmed the happy path end to end — the narrowed request carries exactly the
+wanted pairs and no cross product, the clock is recorded on the way through, an
+absent type reads as no price, and a held price is not asked for twice.
+
+**And it found a defect none of the unit tests could.** A request that failed left
+`useMarketPricesQuery` reporting `isLoading` **for ever**: a surface waiting on
+prices showed a loading state that never resolved and never learned the fetch had
+failed. `fetchPrices` awaits `Promise.allSettled`, which is right for the cache —
+one unreachable market must not stop the others — but it resolves successfully
+even when every want rejected, so the query above it never saw a failure.
+
+`fetchPrices` now returns `{asked, failed}` and the hook throws when every want
+failed. One market failing among several is deliberately not an error: the rest
+are drawable, which is the behaviour `allSettled` is there for.
+
+**Two things made this look like a hang rather than a defect.** The shared retry
+layer makes four attempts at an escalating 350ms base, so a test that waits half a
+second reads a request still being retried as one that never settles. And a plain
+`{ok: false, status: 503}` stand-in is not enough for that layer, which clones the
+response — the failure then surfaces as `response.clone is not a function` and
+reads like a fault in the code under test. Both cost real time here; a `Response`
+and a wait past the backoff are what the test needs.
+
 ### Still to land
 
 Sections to fill: the shared per-character walk extracted from `nameLoader` and what both callers pass

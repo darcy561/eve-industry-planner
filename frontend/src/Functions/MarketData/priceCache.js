@@ -110,7 +110,9 @@ export function readAdjustedPrice(typeID) {
  * @param {Iterable<{typeID: number|string, sourceID: string}>} params.wants
  * @param {Iterable<number|string>} [params.adjustedTypeIDs] - Types whose
  *   adjusted price is also wanted. Source-independent, so named apart
- * @returns {Promise<void>}
+ * @returns {Promise<{asked: number, failed: number}>} How many wants were put to
+ *   the loader and how many could not be answered, so a caller can tell one
+ *   unreachable market from nothing having worked at all
  */
 export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
   const asked = [];
@@ -144,8 +146,15 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
   }
 
   // A market that could not be reached leaves its own entries unwritten and must
-  // not stop the rest: the view draws what resolved rather than nothing.
-  await Promise.allSettled(asked);
+  // not stop the rest: the view draws what resolved rather than nothing. The
+  // count is what lets a caller tell that apart from every want failing, which
+  // is a fetch that did not happen rather than a set of empty markets.
+  const settled = await Promise.allSettled(asked);
+
+  return {
+    asked: settled.length,
+    failed: settled.filter((result) => result.status === "rejected").length,
+  };
 }
 
 /**
