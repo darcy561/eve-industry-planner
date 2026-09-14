@@ -688,8 +688,7 @@ export function AdvancedMineralOutput(props) {
                   >
                     {Object.entries(item.reprocessedMaterials).map(
                       ([key, quantity]) => {
-                        const matchedName =
-                          itemNameFrom(key, itemRecords);
+                        const matchedName = itemNameFrom(key, itemRecords);
                         const itemPriceObject = findMarketData(key);
                         const unitPrice =
                           itemPriceObject[pageState.marketLocation][

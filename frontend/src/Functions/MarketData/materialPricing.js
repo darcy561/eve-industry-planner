@@ -1,4 +1,4 @@
-import { listingType } from "../../Context/defaultValues";
+import { LISTING_TYPES } from "../../Context/defaultValues";
 import { MATERIAL_PLAN } from "./materialSourcingRow";
 import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
 
@@ -14,8 +14,8 @@ import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
  *   The account side's group table
  * @property {(typeID: number) => number|undefined} marketGroupOf - An item's own
  *   market group
- * @property {string} marketRung - Which rung answered defaultMarketSelect
- * @property {string} listingRung - Which rung answered defaultListingSelect
+ * @property {string} marketLocationRung - Which rung answered defaultMarketLocation
+ * @property {string} listingTypeRung - Which rung answered defaultListingType
  */
 
 /**
@@ -34,17 +34,17 @@ import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
  *
  * @param {object} layout - The job's layout, holding materialPriceOverrides
  * @param {number} materialTypeID
- * @param {string} defaultMarketSelect
- * @param {string} defaultListingSelect
+ * @param {string} defaultMarketLocation
+ * @param {string} defaultListingType
  * @param {GroupPricing} [groupPricing] - Absent until the tree has loaded, which
  *   is a normal early state: the ladder then reads as it did before rung 3
- * @returns {{marketSelect: string, listingSelect: string}}
+ * @returns {{marketLocation: string, listingType: string}}
  */
 export function getEffectiveMaterialPriceHub(
   layout,
   materialTypeID,
-  defaultMarketSelect,
-  defaultListingSelect,
+  defaultMarketLocation,
+  defaultListingType,
   groupPricing,
 ) {
   const override = layout?.materialPriceOverrides?.[materialTypeID];
@@ -58,14 +58,14 @@ export function getEffectiveMaterialPriceHub(
     : null;
 
   return {
-    marketSelect:
+    marketLocation:
       override?.marketDisplay ??
-      beneathTheJob(group?.market, groupPricing?.marketRung) ??
-      defaultMarketSelect,
-    listingSelect:
+      beneathTheJob(group?.marketLocation, groupPricing?.marketLocationRung) ??
+      defaultMarketLocation,
+    listingType:
       override?.orderDisplay ??
-      beneathTheJob(group?.basis, groupPricing?.listingRung) ??
-      defaultListingSelect,
+      beneathTheJob(group?.listingType, groupPricing?.listingTypeRung) ??
+      defaultListingType,
   };
 }
 
@@ -101,7 +101,7 @@ function beneathTheJob(chosen, rung) {
 
 /**
  * @typedef {object} BasisOption
- * @property {string} id - One of the listingType ids
+ * @property {string} id - One of the LISTING_TYPES ids
  * @property {string} label - Display name
  * @property {number} total - What the job's materials cost on this basis
  * @property {number} delta - That total less the current basis's total
@@ -119,8 +119,8 @@ function beneathTheJob(chosen, rung) {
  * @param {object} params
  * @param {Array<object>} params.materials - The job's materials
  * @param {object} params.layout - The job's layout, holding materialPriceOverrides
- * @param {string} params.marketSelect - The hub in effect
- * @param {string} params.listingSelect - The basis in effect
+ * @param {string} params.marketLocation - The market in effect
+ * @param {string} params.listingType - The listing type in effect
  * @param {(typeID: number, hub: string, basis: string) => number} params.getPrice
  * @param {GroupPricing} [params.groupPricing]
  * @returns {BasisOption[]}
@@ -128,8 +128,8 @@ function beneathTheJob(chosen, rung) {
 export function materialCostByBasis({
   materials,
   layout,
-  marketSelect,
-  listingSelect,
+  marketLocation,
+  listingType,
   getPrice,
   groupPricing,
 }) {
@@ -141,32 +141,32 @@ export function materialCostByBasis({
   // applies, because that axis is not the one being asked about.
   const perCandidate = groupPricing && {
     ...groupPricing,
-    listingRung: SUPPRESSED,
+    listingTypeRung: SUPPRESSED,
   };
 
-  const totalOn = (basis) =>
+  const totalOn = (candidate) =>
     rows.reduce((total, material) => {
       const resolved = getEffectiveMaterialPriceHub(
         layout,
         material.typeID,
-        marketSelect,
-        basis,
+        marketLocation,
+        candidate,
         perCandidate,
       );
       const price = getPrice(
         material.typeID,
-        resolved.marketSelect,
-        resolved.listingSelect,
+        resolved.marketLocation,
+        resolved.listingType,
       );
       return total + price * material.quantity;
     }, 0);
 
   const totalsById = new Map(
-    listingType.map((entry) => [entry.id, totalOn(entry.id)]),
+    LISTING_TYPES.map((entry) => [entry.id, totalOn(entry.id)]),
   );
-  const current = totalsById.get(listingSelect) ?? 0;
+  const current = totalsById.get(listingType) ?? 0;
 
-  return listingType.map((entry) => {
+  return LISTING_TYPES.map((entry) => {
     const total = totalsById.get(entry.id) ?? 0;
     return {
       id: entry.id,
@@ -175,7 +175,7 @@ export function materialCostByBasis({
       description: entry.description,
       total,
       delta: total - current,
-      isCurrent: entry.id === listingSelect,
+      isCurrent: entry.id === listingType,
     };
   });
 }
@@ -189,18 +189,18 @@ export function materialCostByBasis({
  * dialogue. Counting departures makes one discoverable without opening anything.
  *
  * @param {Array<object>} rows - Rows from buildMaterialSourcingRow
- * @param {string} marketSelect - The panel's hub
- * @param {string} listingSelect - The panel's basis
+ * @param {string} marketLocation - The panel's market
+ * @param {string} listingType - The panel's listing type
  * @returns {{overridden: number, purchased: number}}
  */
-export function summariseBasisUse(rows, marketSelect, listingSelect) {
+export function summariseBasisUse(rows, marketLocation, listingType) {
   const list = Array.isArray(rows) ? rows : [];
 
   return {
     overridden: list.filter(
       (row) =>
-        (row.marketSelect && row.marketSelect !== marketSelect) ||
-        (row.listingSelect && row.listingSelect !== listingSelect),
+        (row.marketLocation && row.marketLocation !== marketLocation) ||
+        (row.listingType && row.listingType !== listingType),
     ).length,
     purchased: list.filter((row) => row.plan === MATERIAL_PLAN.PAID).length,
   };

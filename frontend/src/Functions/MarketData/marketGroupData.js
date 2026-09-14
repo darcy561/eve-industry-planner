@@ -202,11 +202,15 @@ export function marketGroupOf(typeID) {
  *
  * @param {object} params
  * @param {Object<string, {market?: string, basis?: string}>|undefined} params.groupDefaults
- * @param {string} params.marketRung
- * @param {string} params.listingRung
+ * @param {string} params.marketLocationRung
+ * @param {string} params.listingTypeRung
  * @returns {import("./materialPricing.js").GroupPricing|undefined}
  */
-export function groupPricingFor({ groupDefaults, marketRung, listingRung }) {
+export function groupPricingFor({
+  groupDefaults,
+  marketLocationRung,
+  listingTypeRung,
+}) {
   if (Object.keys(groupDefaults ?? {}).length === 0) return undefined;
 
   const marketGroups = readMarketGroups();
@@ -216,8 +220,8 @@ export function groupPricingFor({ groupDefaults, marketRung, listingRung }) {
     marketGroups,
     groupDefaults,
     marketGroupOf,
-    marketRung,
-    listingRung,
+    marketLocationRung,
+    listingTypeRung,
   };
 }
 

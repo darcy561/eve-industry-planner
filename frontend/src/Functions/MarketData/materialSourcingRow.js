@@ -46,8 +46,8 @@ export const MATERIAL_PLAN = {
  * @property {object} mark - What kind of material it is and whether anything builds it
  * @property {object} material - The material itself, for a drawer opened on this row
  * @property {Array<object>} matchedChildJobs - The child jobs behind it
- * @property {string} marketSelect - The hub this row resolved to
- * @property {string} listingSelect - The basis this row resolved to
+ * @property {string} marketLocation - The market this row resolved to
+ * @property {string} listingType - The listing type this row is priced from
  */
 
 /**
@@ -61,8 +61,8 @@ export const MATERIAL_PLAN = {
  * @param {boolean} params.isLinked - Whether child jobs are linked for it
  * @param {boolean} [params.isSpeculative] - Whether the build price is a guess
  * @param {Array<object>} [params.matchedChildJobs] - The child jobs behind it
- * @param {string} [params.marketSelect] - The hub the row resolved to
- * @param {string} [params.listingSelect] - The basis the row resolved to
+ * @param {string} [params.marketLocation] - The market the row resolved to
+ * @param {string} [params.listingType] - The listing type the row is priced from
  * @param {number} [params.quantity] - Overrides the material's own requirement,
  *   for a row stating one setup's need rather than the whole job's
  * @param {import("../Groups/childJobCoverage").ChildJobCoverage} [params.coverage]
@@ -77,8 +77,8 @@ export function buildMaterialSourcingRow({
   isSpeculative = false,
   matchedChildJobs = [],
   mark = null,
-  marketSelect,
-  listingSelect,
+  marketLocation,
+  listingType,
   quantity: quantityOverride,
   coverage = null,
 }) {
@@ -109,8 +109,8 @@ export function buildMaterialSourcingRow({
     material,
     matchedChildJobs,
     mark,
-    marketSelect,
-    listingSelect,
+    marketLocation,
+    listingType,
   };
 }
 

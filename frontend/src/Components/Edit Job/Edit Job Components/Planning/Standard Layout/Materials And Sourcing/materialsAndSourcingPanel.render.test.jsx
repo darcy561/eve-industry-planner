@@ -19,8 +19,8 @@ const sourcing = {
       volume: 10,
       material: { typeID: 34, name: "Tritanium" },
       matchedChildJobs: [],
-      marketSelect: "jita",
-      listingSelect: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
     },
   ],
   summary: {
@@ -32,8 +32,8 @@ const sourcing = {
     savingAvailable: 450,
     cheaperToBuild: 1,
   },
-  marketSelect: "jita",
-  listingSelect: "sell",
+  marketLocation: "jita",
+  listingType: "sell",
   basisUsage: { overridden: 1, purchased: 0 },
   basisOptions: [
     {
@@ -85,9 +85,9 @@ vi.mock("./planChip", () => ({
 // Stood in for, so the test proves the panel reaches the drawer rather than
 // standing up the whole child-job stack.
 vi.mock("./materialDrawer", () => ({
-  default: ({ isOpen, material, marketSelect, pricing }) => (
+  default: ({ isOpen, material, marketLocation, pricing }) => (
     <div data-testid={`drawer-${material.typeID}`}>
-      {isOpen ? `open at ${marketSelect}` : "shut"}
+      {isOpen ? `open at ${marketLocation}` : "shut"}
       <span data-testid={`pricing-${material.typeID}`}>
         {pricing
           ? `panel ${pricing.panelMarket}/${pricing.panelListing}`

@@ -89,7 +89,7 @@ const state = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useMaterialsSourcing.mockReturnValue({ rows: [], marketSelect: "jita" });
+  useMaterialsSourcing.mockReturnValue({ rows: [], marketLocation: "jita" });
   useJobEconomics.mockReturnValue(economics());
 });
 

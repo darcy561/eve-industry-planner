@@ -349,7 +349,7 @@ describe("the mark at the head of a row", () => {
 // the row says which, two rows priced differently look like the same figure.
 describe("the source column", () => {
   it("names the hub and the price mode behind the buy figure", () => {
-    renderTable([row({ marketSelect: "jita", listingSelect: "buyP95" })]);
+    renderTable([row({ marketLocation: "jita", listingType: "buyP95" })]);
 
     expect(
       within(rowFor("Tritanium")).getByText("Jita · Buy 95%"),

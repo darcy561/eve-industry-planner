@@ -43,17 +43,13 @@ import useUsersStore from "../../../../../../Zustand/usersStore.js";
 export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
   const { activeJob } = state;
   const { layout } = activeJob;
-  const {
-    marketDisplay: marketSelect,
-    orderDisplay: listingSelect,
-    marketRung,
-    orderRung,
-  } = useEffectiveMarketHubFromLayout(layout, PRICING_SIDE.BUYING);
+  const { marketLocation, listingType, marketLocationRung, listingTypeRung } =
+    useEffectiveMarketHubFromLayout(layout, PRICING_SIDE.BUYING);
 
   const groupPricing = useMaterialGroupPricing({
     side: PRICING_SIDE.BUYING,
-    marketRung,
-    listingRung: orderRung,
+    marketLocationRung,
+    listingTypeRung,
   });
 
   const checkTypeIDisExempt = useUsersStore(
@@ -72,8 +68,8 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
       const resolved = getEffectiveMaterialPriceHub(
         layout,
         material.typeID,
-        marketSelect,
-        listingSelect,
+        marketLocation,
+        listingType,
         groupPricing,
       );
       const { childJobsById, hasChildJobs } = resolveMaterialChildJobs({
@@ -100,8 +96,8 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
 
       const buyPrice = getMarketPriceForType(
         material.typeID,
-        resolved.marketSelect,
-        resolved.listingSelect,
+        resolved.marketLocation,
+        resolved.listingType,
       );
 
       const coverage = coverageFor({
@@ -130,17 +126,17 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
           hasPending: hasTemp || hasPendingAdd,
           isExempt: checkTypeIDisExempt(material.typeID),
         }),
-        marketSelect: resolved.marketSelect,
-        listingSelect: resolved.listingSelect,
+        marketLocation: resolved.marketLocation,
+        listingType: resolved.listingType,
       });
     });
 
     return {
       rows,
       summary: summariseSourcing(rows),
-      marketSelect,
-      listingSelect,
-      basisUsage: summariseBasisUse(rows, marketSelect, listingSelect),
+      marketLocation,
+      listingType,
+      basisUsage: summariseBasisUse(rows, marketLocation, listingType),
       priceAge: priceAge(
         materials,
         useUsersStore.getState().worldData.actions.findMarketData,
@@ -148,8 +144,8 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
       basisOptions: materialCostByBasis({
         materials,
         layout,
-        marketSelect,
-        listingSelect,
+        marketLocation,
+        listingType,
         getPrice: getMarketPriceForType,
         groupPricing,
       }),
@@ -161,11 +157,11 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
     activeJob,
     displayType,
     layout,
-    listingSelect,
+    listingType,
     checkTypeIDisExempt,
     automaticRecalculation,
     groupPricing,
-    marketSelect,
+    marketLocation,
     state.parentChildToEdit.childJobs,
     state.speculativeChildJobs,
     state.temporaryChildJobs,
@@ -198,8 +194,8 @@ function coverageFor({
     const totals = calculateChildJobTotals(
       job,
       state.temporaryChildJobs,
-      resolved.marketSelect,
-      resolved.listingSelect,
+      resolved.marketLocation,
+      resolved.listingType,
     );
 
     return {

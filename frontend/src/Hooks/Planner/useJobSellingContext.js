@@ -23,31 +23,31 @@ import useUsersStore from "../../Zustand/usersStore.js";
  *
  * @param {object} activeJob
  * @returns {{seller: import("../../Functions/MarketOrders/sellerCharacter").SellerCharacter,
- *   saleLocation: object|null, marketSelect: string, exitRoute: string}}
+ *   saleLocation: object|null, marketLocation: string, exitRoute: string}}
  */
 export function useJobSellingContext(activeJob) {
   const {
-    marketDisplay: sideMarket,
-    orderDisplay: sideBasis,
-    marketRung,
-    orderRung,
+    marketLocation: sideMarketLocation,
+    listingType: sideListingType,
+    marketLocationRung,
+    listingTypeRung,
   } = useEffectiveMarketHubFromLayout(activeJob?.layout, PRICING_SIDE.SELLING);
 
   const groupPricing = useMaterialGroupPricing({
     side: PRICING_SIDE.SELLING,
-    marketRung,
-    listingRung: orderRung,
+    marketLocationRung,
+    listingTypeRung,
   });
 
   // The output's own market group, if it has one and the account priced it. The
   // rung sits beneath a job's own choice and above the account's, which is the
   // order `getEffectiveMaterialPriceHub` already holds — a job has no per-item
   // override for its own output, so the layout it is passed is empty.
-  const { marketSelect } = getEffectiveMaterialPriceHub(
+  const { marketLocation } = getEffectiveMaterialPriceHub(
     null,
     activeJob?.itemID,
-    sideMarket,
-    sideBasis,
+    sideMarketLocation,
+    sideListingType,
     groupPricing,
   );
 
@@ -63,9 +63,9 @@ export function useJobSellingContext(activeJob) {
     () =>
       resolveSaleLocation(
         plan.saleLocationID ?? getDefaultSaleStructure()?.id,
-        marketSelect,
+        marketLocation,
       ),
-    [plan.saleLocationID, marketSelect],
+    [plan.saleLocationID, marketLocation],
   );
 
   // The seller, not the builder. Market skills and standings live on whichever
@@ -80,5 +80,5 @@ export function useJobSellingContext(activeJob) {
   // The route out belongs here rather than in the panel: it decides which figure
   // Returns leads with *and* whether the broker fee this hook's seller is quoted
   // for applies at all, so the two have to be read from the same place.
-  return { seller, saleLocation, marketSelect, exitRoute };
+  return { seller, saleLocation, marketLocation, exitRoute };
 }

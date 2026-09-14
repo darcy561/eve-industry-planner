@@ -34,8 +34,8 @@ export function resolveMarketLinkTarget({
   }
   if (given) return given;
 
-  const { marketDisplay } = resolvePricingSide({ accountPricing, side });
-  const chosen = MARKET_OPTIONS.find((option) => option.id === marketDisplay);
+  const { marketLocation } = resolvePricingSide({ accountPricing, side });
+  const chosen = MARKET_OPTIONS.find((option) => option.id === marketLocation);
   if (chosen || !needsRegion) return chosen;
 
   // Price history is drawn per region, so a market the list does not carry still

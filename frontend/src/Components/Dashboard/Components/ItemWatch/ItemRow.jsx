@@ -70,12 +70,12 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
       const itemPrice = findMarketData(mat.typeID);
 
       totalPurchase +=
-        (itemPrice?.[buying.marketDisplay]?.[buying.orderDisplay] ?? 0) *
+        (itemPrice?.[buying.marketLocation]?.[buying.listingType] ?? 0) *
         mat.quantity;
 
       if (mat.materials.length === 0) {
         totalBuild +=
-          (itemPrice?.[buying.marketDisplay]?.[buying.orderDisplay] ?? 0) *
+          (itemPrice?.[buying.marketLocation]?.[buying.listingType] ?? 0) *
           mat.quantity;
         return;
       }
@@ -83,7 +83,7 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
       mat.materials.forEach((cMat) => {
         let itemCPrice = findMarketData(cMat.typeID);
         matBuild +=
-          (itemCPrice?.[buying.marketDisplay]?.[buying.orderDisplay] ?? 0) *
+          (itemCPrice?.[buying.marketLocation]?.[buying.listingType] ?? 0) *
           cMat.quantity;
       });
 
@@ -99,7 +99,7 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
     };
     // The resolved ids rather than the objects: those are rebuilt every render,
     // and this recomputes the whole tree.
-  }, [marketData, buying.marketDisplay, buying.orderDisplay, sellingMarket]);
+  }, [marketData, buying.marketLocation, buying.listingType, sellingMarket]);
 
   const isItemDataOutdated = !item?.buildData;
 

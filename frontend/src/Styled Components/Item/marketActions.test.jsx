@@ -39,7 +39,6 @@ const renderRow = () =>
     </ItemMarketActions>,
   );
 
-
 describe("an item's market actions above its name", () => {
   it("offers nothing until the name is hovered", () => {
     renderRow();

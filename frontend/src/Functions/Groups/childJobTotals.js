@@ -17,15 +17,15 @@ import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts
  *
  * @param {object} childJob - The job being costed, real or speculative
  * @param {object} temporaryChildJobs - Speculative jobs by material type id
- * @param {string} marketSelect
- * @param {string} listingSelect
+ * @param {string} marketLocation
+ * @param {string} listingType
  * @returns {ChildJobTotals}
  */
 export function calculateChildJobTotals(
   childJob,
   temporaryChildJobs = {},
-  marketSelect,
-  listingSelect,
+  marketLocation,
+  listingType,
 ) {
   const totalCostOfMaterials = (childJob?.build?.materials || []).reduce(
     (total, material) =>
@@ -35,8 +35,8 @@ export function calculateChildJobTotals(
         childJob.build.childJobs[material.typeID],
         temporaryChildJobs[material.typeID],
         {},
-        marketSelect,
-        listingSelect,
+        marketLocation,
+        listingType,
       ),
     0,
   );

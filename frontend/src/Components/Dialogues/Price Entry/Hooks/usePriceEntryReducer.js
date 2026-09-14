@@ -29,12 +29,12 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * @returns {{displayMarket: string, displayOrder: string}}
  */
 function resolveBuyingDefault() {
-  const { marketDisplay, orderDisplay } = resolvePricingSide({
+  const { marketLocation, listingType } = resolvePricingSide({
     accountPricing: useUsersStore.getState().applicationSettings.defaultPricing,
     side: PRICING_SIDE.BUYING,
   });
 
-  return { displayMarket: marketDisplay, displayOrder: orderDisplay };
+  return { displayMarket: marketLocation, displayOrder: listingType };
 }
 
 /**
@@ -42,8 +42,8 @@ function resolveBuyingDefault() {
  */
 export default function usePriceEntryReducer() {
   const {
-    marketDisplay: defaultMarketLocation,
-    orderDisplay: defaultOrderType,
+    marketLocation: defaultMarketLocation,
+    listingType: defaultOrderType,
   } = resolvePricingSide({
     accountPricing: useUsersStore((s) => s.applicationSettings.defaultPricing),
     side: PRICING_SIDE.BUYING,

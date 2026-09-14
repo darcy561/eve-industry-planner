@@ -22,7 +22,7 @@ import { formatNumberForLocale } from "../../../../../Functions/Helper/numberPar
 
 function OutputJobCard({ inputJob, state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
-  const { marketDisplay: defaultMarket, orderDisplay: defaultOrders } =
+  const { marketLocation: defaultMarket, listingType: defaultOrders } =
     resolvePricingSide({
       accountPricing: useUsersStore(
         (state) => state.applicationSettings.defaultPricing,

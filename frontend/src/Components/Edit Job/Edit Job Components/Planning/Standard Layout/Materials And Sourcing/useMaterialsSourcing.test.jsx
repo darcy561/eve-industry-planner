@@ -6,10 +6,10 @@ vi.mock(
   "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js",
   () => ({
     useEffectiveMarketHubFromLayout: () => ({
-      marketDisplay: "jita",
-      orderDisplay: "sell",
-      marketRung: "account",
-      orderRung: "account",
+      marketLocation: "jita",
+      listingType: "sell",
+      marketLocationRung: "account",
+      listingTypeRung: "account",
     }),
   }),
 );
@@ -140,8 +140,8 @@ describe("useMaterialsSourcing", () => {
       [
         "basisOptions",
         "basisUsage",
-        "listingSelect",
-        "marketSelect",
+        "listingType",
+        "marketLocation",
         "priceAge",
         "rows",
         "summary",
@@ -167,8 +167,8 @@ describe("useMaterialsSourcing", () => {
     const result = render(setup());
 
     expect(result.rows[0]).toMatchObject({
-      marketSelect: "jita",
-      listingSelect: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
       matchedChildJobs: [],
     });
     expect(result.rows[0].material).toBeDefined();
@@ -329,8 +329,8 @@ describe("a material priced from its market group", () => {
     const { rows } = render(setup());
 
     expect(rows[0]).toMatchObject({
-      marketSelect: "amarr",
-      listingSelect: "buy",
+      marketLocation: "amarr",
+      listingType: "buy",
       buyPrice: 16,
     });
   });
@@ -341,8 +341,8 @@ describe("a material priced from its market group", () => {
     const { rows } = render(setup());
 
     expect(rows[0]).toMatchObject({
-      marketSelect: "jita",
-      listingSelect: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
       buyPrice: 10,
     });
   });
@@ -350,7 +350,7 @@ describe("a material priced from its market group", () => {
   it("reads as it did before the rung where the account set no groups", () => {
     const { rows } = render(setup());
 
-    expect(rows[0]).toMatchObject({ marketSelect: "jita", buyPrice: 10 });
+    expect(rows[0]).toMatchObject({ marketLocation: "jita", buyPrice: 10 });
   });
 
   // The basis comparison varies the basis itself, so a group naming one must not

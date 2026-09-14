@@ -16,7 +16,7 @@ import {
  * listed, so the sell price is the figure it wants whatever basis the account
  * prices its own sales on.
  *
- * @returns {{buying: {marketDisplay: string, orderDisplay: string},
+ * @returns {{buying: {marketLocation: string, listingType: string},
  *   sellingMarket: string}}
  */
 export function useWatchlistPricing() {
@@ -32,6 +32,6 @@ export function useWatchlistPricing() {
     sellingMarket: resolvePricingSide({
       accountPricing,
       side: PRICING_SIDE.SELLING,
-    }).marketDisplay,
+    }).marketLocation,
   };
 }

@@ -64,8 +64,8 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
     basisOptions,
     basisUsage,
     priceAge,
-    marketSelect,
-    listingSelect,
+    marketLocation,
+    listingType,
   } = useMaterialsSourcing({ state, actions, displayType });
 
   const {
@@ -265,15 +265,15 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
               actions={actions}
               material={row.material}
               matchedChildJobs={row.matchedChildJobs}
-              marketSelect={row.marketSelect}
-              listingSelect={row.listingSelect}
+              marketLocation={row.marketLocation}
+              listingType={row.listingType}
               currentMaterialPrice={row.buyPrice ?? 0}
               coverage={row.coverage}
               pricing={{
                 overrideMarket: overrideFor(state, row.typeID).marketDisplay,
                 overrideListing: overrideFor(state, row.typeID).orderDisplay,
-                panelMarket: marketSelect,
-                panelListing: listingSelect,
+                panelMarket: marketLocation,
+                panelListing: listingType,
                 onMarketCommit: (typeID, id) =>
                   updateMaterialLayoutPreference(typeID, "marketDisplay", id),
                 onListingCommit: (typeID, id) =>

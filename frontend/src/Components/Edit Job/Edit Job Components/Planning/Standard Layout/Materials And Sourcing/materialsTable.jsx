@@ -205,7 +205,7 @@ function MaterialRow({
           // build total counts it for nothing either way.
           <ExplainerTooltip
             title={`No orders for ${row.name} at ${getMarketLocationLabel(
-              row.marketSelect,
+              row.marketLocation,
             )}, so the build cost does not include it`}
           >
             <StatusChip label="No orders" tone={STATUS_TONE.WARN} />
@@ -462,8 +462,8 @@ function SourceCell({ row }) {
 
   return (
     <Typography variant="caption" color="text.secondary" noWrap>
-      {getMarketLocationLabel(row.marketSelect)} ·{" "}
-      {getListingModeLabel(row.listingSelect)}
+      {getMarketLocationLabel(row.marketLocation)} ·{" "}
+      {getListingModeLabel(row.listingType)}
     </Typography>
   );
 }

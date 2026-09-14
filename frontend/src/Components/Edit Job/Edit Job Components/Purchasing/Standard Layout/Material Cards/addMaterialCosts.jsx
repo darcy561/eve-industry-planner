@@ -20,7 +20,7 @@ export function AddMaterialCost_Purchasing({
   childSupply,
   childJobs,
 }) {
-  const { marketDisplay, orderDisplay } = useEffectiveMarketHubFromLayout(
+  const { marketLocation, listingType } = useEffectiveMarketHubFromLayout(
     state.activeJob.layout,
     PRICING_SIDE.BUYING,
   );
@@ -117,7 +117,7 @@ export function AddMaterialCost_Purchasing({
             type="number"
             label="Price"
             name="itemCostInput"
-            defaultValue={materialPrice?.[marketDisplay]?.[orderDisplay] ?? 0}
+            defaultValue={materialPrice?.[marketLocation]?.[listingType] ?? 0}
             fullWidth
             sx={{
               "& .MuiInputBase-root": {

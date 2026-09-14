@@ -123,19 +123,23 @@ class ShoppingList {
   calculateTotalValue(alternativePriceLocation = {}) {
     const accountPricing =
       useUsersStore.getState().applicationSettings.defaultPricing;
-    const { marketDisplay, orderDisplay, marketRung, orderRung } =
-      resolvePricingSideRungs({
-        accountPricing,
-        side: PRICING_SIDE.BUYING,
-      });
+    const {
+      marketLocation: defaultMarketLocation,
+      listingType: defaultListingType,
+      marketLocationRung,
+      listingTypeRung,
+    } = resolvePricingSideRungs({
+      accountPricing,
+      side: PRICING_SIDE.BUYING,
+    });
 
     // A list carries no job and no per-item override, so the group walk is the
     // only rung above the account's here — and it answers per item, which is why
     // it is resolved inside the loop rather than once for the list.
     const groupPricing = groupPricingFor({
       groupDefaults: accountPricing?.[PRICING_SIDE.BUYING]?.groups,
-      marketRung,
-      listingRung: orderRung,
+      marketLocationRung,
+      listingTypeRung,
     });
 
     this.totalValue = 0;
@@ -145,11 +149,11 @@ class ShoppingList {
         item.quantityToPurchase - item.assetQuantity,
         0,
       );
-      const { marketSelect, listingSelect } = getEffectiveMaterialPriceHub(
+      const { marketLocation, listingType } = getEffectiveMaterialPriceHub(
         null,
         item.typeID,
-        marketDisplay,
-        orderDisplay,
+        defaultMarketLocation,
+        defaultListingType,
         groupPricing,
       );
       this.totalValue +=
@@ -159,7 +163,7 @@ class ShoppingList {
           .worldData.actions.findMarketData(
             item.typeID,
             alternativePriceLocation,
-          )?.[marketSelect]?.[listingSelect] ?? 0);
+          )?.[marketLocation]?.[listingType] ?? 0);
     });
   }
 

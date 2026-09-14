@@ -76,16 +76,16 @@ export const PRICING_RUNG = {
  * @param {object|null|undefined} params.jobPricing - `layout.localPricing`
  * @param {object|null|undefined} params.accountPricing - `defaultPricing`
  * @param {string} params.side - One of PRICING_SIDE
- * @returns {{marketDisplay: string, orderDisplay: string}}
+ * @returns {{marketLocation: string, listingType: string}}
  */
 export function resolvePricingSide({ jobPricing, accountPricing, side }) {
-  const { marketDisplay, orderDisplay } = resolvePricingSideRungs({
+  const { marketLocation, listingType } = resolvePricingSideRungs({
     jobPricing,
     accountPricing,
     side,
   });
 
-  return { marketDisplay, orderDisplay };
+  return { marketLocation, listingType };
 }
 
 /**
@@ -105,28 +105,32 @@ export function resolvePricingSide({ jobPricing, accountPricing, side }) {
  * @param {object|null|undefined} params.jobPricing - `layout.localPricing`
  * @param {object|null|undefined} params.accountPricing - `defaultPricing`
  * @param {string} params.side - One of PRICING_SIDE
- * @returns {{marketDisplay: string, orderDisplay: string,
- *   marketRung: string, orderRung: string}}
+ * @returns {{marketLocation: string, listingType: string,
+ *   marketLocationRung: string, listingTypeRung: string}}
  */
 export function resolvePricingSideRungs({ jobPricing, accountPricing, side }) {
   const job = jobPricing?.[side];
   const account = accountPricing?.[side];
 
-  const market = answer(job?.market, account?.market, DEFAULT_MARKET_OPTION);
+  const marketAnswer = answer(
+    job?.market,
+    account?.market,
+    DEFAULT_MARKET_OPTION,
+  );
   // The selling side answers its basis with a route; the buying side stores one
   // directly. A job's own basis still outranks either, because a job that named
   // one has answered for itself.
-  const basis = answer(
+  const basisAnswer = answer(
     job?.basis,
     account?.basis || basisForExit(account?.exit),
     DEFAULT_ORDER_OPTION,
   );
 
   return {
-    marketDisplay: market.value,
-    orderDisplay: basis.value,
-    marketRung: market.rung,
-    orderRung: basis.rung,
+    marketLocation: marketAnswer.value,
+    listingType: basisAnswer.value,
+    marketLocationRung: marketAnswer.rung,
+    listingTypeRung: basisAnswer.rung,
   };
 }
 
@@ -212,28 +216,28 @@ const MAX_GROUP_DEPTH = 32;
  * @param {number|undefined} params.marketGroupID - The item's own market group
  * @param {Object<string, {parent_id?: number}>} params.marketGroups - The tree
  * @param {Object<string, {market?: string, basis?: string}>} [params.groupDefaults]
- * @returns {{market: string|null, basis: string|null}}
+ * @returns {{marketLocation: string|null, listingType: string|null}}
  */
 export function resolveGroupDefault({
   marketGroupID,
   marketGroups,
   groupDefaults,
 }) {
-  const answer = { market: null, basis: null };
+  const answer = { marketLocation: null, listingType: null };
   if (!marketGroupID || !groupDefaults) return answer;
 
   let id = marketGroupID;
   for (let step = 0; step < MAX_GROUP_DEPTH && id; step += 1) {
     const chosen = groupDefaults[String(id)];
     if (chosen) {
-      answer.market ||= chosen.market || null;
+      answer.marketLocation ||= chosen.market || null;
       // A group answers its side's own axis: the selling side names a route out,
       // which decides the basis, and the buying side names the basis directly.
       // Both reach the caller as a basis, because that is what a price is read
       // on — the route's other half, the broker fee, belongs to the side rather
       // than to a group beneath it.
-      answer.basis ||= chosen.basis || basisForExit(chosen.exit) || null;
-      if (answer.market && answer.basis) return answer;
+      answer.listingType ||= chosen.basis || basisForExit(chosen.exit) || null;
+      if (answer.marketLocation && answer.listingType) return answer;
     }
     id = marketGroups?.[String(id)]?.parent_id;
   }

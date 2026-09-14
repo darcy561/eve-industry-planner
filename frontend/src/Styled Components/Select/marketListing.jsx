@@ -1,5 +1,5 @@
 import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
-import { listingType } from "../../Context/defaultValues";
+import { LISTING_TYPES } from "../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../global-config-app";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
@@ -68,7 +68,7 @@ function MarketListingSelect({
         error={error.isError}
         onChange={(e) => {
           if (onChange) {
-            onChange(listingType.find((i) => i.id == e.target.value));
+            onChange(LISTING_TYPES.find((i) => i.id == e.target.value));
           } else {
             console.error(
               "Market Listing Select is missing an onChange Function",
@@ -83,7 +83,7 @@ function MarketListingSelect({
           ...customSelectStyling,
         }}
       >
-        {listingType.map((entry) => {
+        {LISTING_TYPES.map((entry) => {
           return (
             <MenuItem key={entry.id} value={entry.id}>
               {entry.name}

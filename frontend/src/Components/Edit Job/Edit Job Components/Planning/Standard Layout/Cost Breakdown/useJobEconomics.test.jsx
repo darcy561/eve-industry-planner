@@ -231,7 +231,7 @@ describe("a job whose output is owed to a parent", () => {
         state: fixture.state,
         actions: fixture.actions,
         rows,
-        marketSelect: "jita",
+        marketLocation: "jita",
       }),
     ).result;
   };

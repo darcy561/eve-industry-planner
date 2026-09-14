@@ -20,12 +20,12 @@ const resolve = (jobPricing, side = PRICING_SIDE.BUYING) =>
 describe("resolvePricingSide", () => {
   it("answers each side from its own account default", () => {
     expect(resolve(null, PRICING_SIDE.BUYING)).toEqual({
-      marketDisplay: "jita",
-      orderDisplay: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
     });
     expect(resolve(null, PRICING_SIDE.SELLING)).toEqual({
-      marketDisplay: "amarr",
-      orderDisplay: "buy",
+      marketLocation: "amarr",
+      listingType: "buy",
     });
   });
 
@@ -33,12 +33,12 @@ describe("resolvePricingSide", () => {
     const job = { selling: { market: "hek", basis: "buyP95" } };
 
     expect(resolve(job, PRICING_SIDE.SELLING)).toEqual({
-      marketDisplay: "hek",
-      orderDisplay: "buyP95",
+      marketLocation: "hek",
+      listingType: "buyP95",
     });
     expect(resolve(job, PRICING_SIDE.BUYING)).toEqual({
-      marketDisplay: "jita",
-      orderDisplay: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
     });
   });
 
@@ -46,19 +46,19 @@ describe("resolvePricingSide", () => {
   // still answers it. Resolving the pair together would silently take both.
   it("resolves market and basis independently", () => {
     expect(resolve({ buying: { market: "dodixie" } })).toEqual({
-      marketDisplay: "dodixie",
-      orderDisplay: "sell",
+      marketLocation: "dodixie",
+      listingType: "sell",
     });
     expect(resolve({ buying: { basis: "buy" } })).toEqual({
-      marketDisplay: "jita",
-      orderDisplay: "buy",
+      marketLocation: "jita",
+      listingType: "buy",
     });
   });
 
   it("treats an empty value as no choice at any rung", () => {
     expect(resolve({ buying: { market: "", basis: "" } })).toEqual({
-      marketDisplay: "jita",
-      orderDisplay: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
     });
     expect(
       resolvePricingSide({
@@ -66,7 +66,7 @@ describe("resolvePricingSide", () => {
         accountPricing: { buying: { market: "", basis: "" } },
         side: PRICING_SIDE.BUYING,
       }),
-    ).toEqual({ marketDisplay: "jita", orderDisplay: "sell" });
+    ).toEqual({ marketLocation: "jita", listingType: "sell" });
   });
 
   it("falls through to the global default when nothing has said", () => {
@@ -76,7 +76,7 @@ describe("resolvePricingSide", () => {
         accountPricing: null,
         side: PRICING_SIDE.SELLING,
       }),
-    ).toEqual({ marketDisplay: "jita", orderDisplay: "sell" });
+    ).toEqual({ marketLocation: "jita", listingType: "sell" });
   });
 });
 
@@ -177,15 +177,15 @@ const groupWalk = (groupDefaults, marketGroupID = 1857) =>
 describe("resolveGroupDefault", () => {
   it("answers from the item's own group", () => {
     expect(groupWalk({ 1857: { market: "jita", basis: "sell" } })).toEqual({
-      market: "jita",
-      basis: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
     });
   });
 
   it("climbs to an ancestor when the item's group says nothing", () => {
     expect(groupWalk({ 1849: { market: "amarr" } })).toEqual({
-      market: "amarr",
-      basis: null,
+      marketLocation: "amarr",
+      listingType: null,
     });
   });
 
@@ -197,13 +197,13 @@ describe("resolveGroupDefault", () => {
       1857: { market: "hek" },
     });
 
-    expect(answer).toEqual({ market: "hek", basis: "buy" });
+    expect(answer).toEqual({ marketLocation: "hek", listingType: "buy" });
   });
 
   it("answers nothing when no ancestor names anything", () => {
     expect(groupWalk({ 516: { market: "dodixie" } })).toEqual({
-      market: null,
-      basis: null,
+      marketLocation: null,
+      listingType: null,
     });
   });
 
@@ -211,8 +211,8 @@ describe("resolveGroupDefault", () => {
   // is a normal early state rather than a reason to throw on every row.
   it("answers nothing when the defaults have not loaded", () => {
     expect(resolveGroupDefault({ marketGroupID: 1857, marketGroups })).toEqual({
-      market: null,
-      basis: null,
+      marketLocation: null,
+      listingType: null,
     });
   });
 
@@ -223,13 +223,13 @@ describe("resolveGroupDefault", () => {
         marketGroups,
         groupDefaults: { 1857: { market: "jita" } },
       }),
-    ).toEqual({ market: null, basis: null });
+    ).toEqual({ marketLocation: null, listingType: null });
   });
 
   it("reads an empty value as no choice, and keeps climbing", () => {
     expect(
       groupWalk({ 1857: { market: "", basis: "" }, 1855: { market: "hek" } }),
-    ).toEqual({ market: "hek", basis: null });
+    ).toEqual({ marketLocation: "hek", listingType: null });
   });
 
   // A cycle should not reach the published file, but this runs once per material
@@ -243,7 +243,7 @@ describe("resolveGroupDefault", () => {
         marketGroups: circular,
         groupDefaults: { 99: { market: "jita" } },
       }),
-    ).toEqual({ market: null, basis: null });
+    ).toEqual({ marketLocation: null, listingType: null });
   });
 });
 
@@ -254,15 +254,15 @@ describe("resolvePricingSideRungs", () => {
   it("names the job when the job answered", () => {
     const answer = rungs({ buying: { market: "hek", basis: "buy" } });
 
-    expect(answer.marketRung).toBe(PRICING_RUNG.JOB);
-    expect(answer.orderRung).toBe(PRICING_RUNG.JOB);
+    expect(answer.marketLocationRung).toBe(PRICING_RUNG.JOB);
+    expect(answer.listingTypeRung).toBe(PRICING_RUNG.JOB);
   });
 
   it("names the account when the job said nothing", () => {
     const answer = rungs(null);
 
-    expect(answer.marketRung).toBe(PRICING_RUNG.ACCOUNT);
-    expect(answer.orderRung).toBe(PRICING_RUNG.ACCOUNT);
+    expect(answer.marketLocationRung).toBe(PRICING_RUNG.ACCOUNT);
+    expect(answer.listingTypeRung).toBe(PRICING_RUNG.ACCOUNT);
   });
 
   // The rung is per axis for the same reason the value is: a job naming a market
@@ -270,8 +270,8 @@ describe("resolvePricingSideRungs", () => {
   it("names a rung per axis", () => {
     const answer = rungs({ buying: { market: "hek" } });
 
-    expect(answer.marketRung).toBe(PRICING_RUNG.JOB);
-    expect(answer.orderRung).toBe(PRICING_RUNG.ACCOUNT);
+    expect(answer.marketLocationRung).toBe(PRICING_RUNG.JOB);
+    expect(answer.listingTypeRung).toBe(PRICING_RUNG.ACCOUNT);
   });
 
   it("names the global default when nothing else did", () => {
@@ -281,8 +281,8 @@ describe("resolvePricingSideRungs", () => {
       side: PRICING_SIDE.BUYING,
     });
 
-    expect(answer.marketRung).toBe(PRICING_RUNG.GLOBAL);
-    expect(answer.orderRung).toBe(PRICING_RUNG.GLOBAL);
+    expect(answer.marketLocationRung).toBe(PRICING_RUNG.GLOBAL);
+    expect(answer.listingTypeRung).toBe(PRICING_RUNG.GLOBAL);
   });
 
   // Two functions answering the same ladder is exactly how a quoted total comes
@@ -290,8 +290,8 @@ describe("resolvePricingSideRungs", () => {
   it("resolves the same values resolvePricingSide does", () => {
     const job = { buying: { market: "dodixie" } };
 
-    const { marketDisplay, orderDisplay } = rungs(job);
-    expect({ marketDisplay, orderDisplay }).toEqual(
+    const { marketLocation, listingType } = rungs(job);
+    expect({ marketLocation, listingType }).toEqual(
       resolvePricingSide({
         jobPricing: job,
         accountPricing: account,

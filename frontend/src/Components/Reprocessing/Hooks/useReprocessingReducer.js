@@ -105,8 +105,8 @@ export default function useReprocessingReducer() {
   const { getDefaultReprocessingCharacter } =
     useUsersStore.getState().applicationSettings.actions;
   const {
-    marketDisplay: defaultMarketLocation,
-    orderDisplay: defaultOrderType,
+    marketLocation: defaultMarketLocation,
+    listingType: defaultOrderType,
   } = resolvePricingSide({
     accountPricing: useUsersStore(
       (state) => state.applicationSettings.defaultPricing,

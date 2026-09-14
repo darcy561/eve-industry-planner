@@ -1,4 +1,4 @@
-import { listingType } from "../../../../../../../Context/defaultValues.jsx";
+import { LISTING_TYPES } from "../../../../../../../Context/defaultValues.jsx";
 import GLOBAL_CONFIG from "../../../../../../../global-config-app";
 
 const marketLabelById = Object.fromEntries(
@@ -6,7 +6,7 @@ const marketLabelById = Object.fromEntries(
 );
 
 const listingLabelById = Object.fromEntries(
-  listingType.map((entry) => [entry.id, entry.name]),
+  LISTING_TYPES.map((entry) => [entry.id, entry.name]),
 );
 
 const listingModeLabelById = {
@@ -16,20 +16,18 @@ const listingModeLabelById = {
   sellP05: "Sell 5%",
 };
 
-export function getListingModeLabel(listingSelect) {
-  return listingModeLabelById[listingSelect] || listingSelect;
+export function getListingModeLabel(listingType) {
+  return listingModeLabelById[listingType] || listingType;
 }
 
-export function getListingOrdersLabel(listingSelect) {
-  return listingLabelById[listingSelect] || listingSelect;
+export function getListingOrdersLabel(listingType) {
+  return listingLabelById[listingType] || listingType;
 }
 
-export function getMarketLocationLabel(marketSelect) {
-  return marketLabelById[marketSelect] || marketSelect;
+export function getMarketLocationLabel(marketLocation) {
+  return marketLabelById[marketLocation] || marketLocation;
 }
 
-export function buildRowSourceText(marketSelect, listingSelect) {
-  return `${getMarketLocationLabel(marketSelect)} | ${getListingOrdersLabel(
-    listingSelect,
-  )}`;
+export function buildRowSourceText(marketLocation, listingType) {
+  return `${getMarketLocationLabel(marketLocation)} | ${getListingOrdersLabel(listingType)}`;
 }

@@ -57,7 +57,7 @@ export const permanentExtrasCategories = new Set(["0", "5"]);
  * @property {string} id - Unique identifier for the listing type
  * @property {string} name - Display name for the listing type
  */
-export let listingType = [
+export let LISTING_TYPES = [
   {
     id: "buy",
     name: "Buy Orders",

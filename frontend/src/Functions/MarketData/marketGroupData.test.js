@@ -96,8 +96,8 @@ describe("groupPricingFor", () => {
   const build = (groupDefaults) =>
     groupPricingFor({
       groupDefaults,
-      marketRung: PRICING_RUNG.ACCOUNT,
-      listingRung: PRICING_RUNG.ACCOUNT,
+      marketLocationRung: PRICING_RUNG.ACCOUNT,
+      listingTypeRung: PRICING_RUNG.ACCOUNT,
     });
 
   it("answers with the tree, the defaults and a reader", async () => {
@@ -113,8 +113,8 @@ describe("groupPricingFor", () => {
     await primeMarketGroupData();
 
     const answer = build({ 1857: { market: "jita" } });
-    expect(answer.marketRung).toBe(PRICING_RUNG.ACCOUNT);
-    expect(answer.listingRung).toBe(PRICING_RUNG.ACCOUNT);
+    expect(answer.marketLocationRung).toBe(PRICING_RUNG.ACCOUNT);
+    expect(answer.listingTypeRung).toBe(PRICING_RUNG.ACCOUNT);
   });
 
   // Each of these leaves the ladder reading as it did before the rung existed,

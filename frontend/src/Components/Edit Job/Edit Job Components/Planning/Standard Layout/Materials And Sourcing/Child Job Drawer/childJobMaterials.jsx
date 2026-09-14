@@ -7,8 +7,8 @@ export function ChildJobMaterials({
   state,
   jobDisplay,
   childJobObjects,
-  marketSelect,
-  listingSelect,
+  marketLocation,
+  listingType,
 }) {
   const row = childJobObjects?.[jobDisplay];
   const materials = row?.build?.materials;
@@ -25,8 +25,8 @@ export function ChildJobMaterials({
       childJobIds,
       state.temporaryChildJobs?.[material.typeID],
       {},
-      marketSelect,
-      listingSelect,
+      marketLocation,
+      listingType,
     );
 
     return (

@@ -34,8 +34,8 @@ describe("materialCostByBasis", () => {
     const options = materialCostByBasis({
       materials,
       layout: {},
-      marketSelect: "jita",
-      listingSelect: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
       getPrice,
     });
 
@@ -51,8 +51,8 @@ describe("materialCostByBasis", () => {
       materialCostByBasis({
         materials,
         layout: {},
-        marketSelect: "jita",
-        listingSelect: "sell",
+        marketLocation: "jita",
+        listingType: "sell",
         getPrice,
       }),
     );
@@ -73,8 +73,8 @@ describe("materialCostByBasis", () => {
       materialCostByBasis({
         materials,
         layout,
-        marketSelect: "jita",
-        listingSelect: "sell",
+        marketLocation: "jita",
+        listingType: "sell",
         getPrice,
       }),
     );
@@ -94,8 +94,8 @@ describe("materialCostByBasis", () => {
       materialCostByBasis({
         materials: [{ typeID: 36, quantity: 1 }],
         layout,
-        marketSelect: "jita",
-        listingSelect: "sell",
+        marketLocation: "jita",
+        listingType: "sell",
         getPrice,
       }),
     );
@@ -107,8 +107,8 @@ describe("materialCostByBasis", () => {
     const options = materialCostByBasis({
       materials: [],
       layout: {},
-      marketSelect: "jita",
-      listingSelect: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
       getPrice,
     });
 
@@ -121,8 +121,8 @@ describe("materialCostByBasis", () => {
       materialCostByBasis({
         materials: [{ typeID: 999, quantity: 5 }],
         layout: {},
-        marketSelect: "jita",
-        listingSelect: "sell",
+        marketLocation: "jita",
+        listingType: "sell",
         getPrice,
       }),
     );
@@ -214,26 +214,26 @@ describe("a material the job needs none of", () => {
 
 describe("summariseBasisUse", () => {
   const row = (overrides) => ({
-    marketSelect: "jita",
-    listingSelect: "sell",
+    marketLocation: "jita",
+    listingType: "sell",
     plan: "buy",
     ...overrides,
   });
 
   it("counts a row priced against another hub", () => {
-    const rows = [row(), row({ marketSelect: "amarr" })];
+    const rows = [row(), row({ marketLocation: "amarr" })];
 
     expect(summariseBasisUse(rows, "jita", "sell").overridden).toBe(1);
   });
 
   it("counts a row priced on another basis", () => {
-    const rows = [row(), row({ listingSelect: "buyP95" })];
+    const rows = [row(), row({ listingType: "buyP95" })];
 
     expect(summariseBasisUse(rows, "jita", "sell").overridden).toBe(1);
   });
 
   it("counts a row departing on both as one row, not two", () => {
-    const rows = [row({ marketSelect: "amarr", listingSelect: "buy" })];
+    const rows = [row({ marketLocation: "amarr", listingType: "buy" })];
 
     expect(summariseBasisUse(rows, "jita", "sell").overridden).toBe(1);
   });
@@ -307,8 +307,8 @@ function groupPricing(groupDefaults, rung = PRICING_RUNG.ACCOUNT) {
     marketGroups: MARKET_GROUPS,
     groupDefaults,
     marketGroupOf: (typeID) => GROUP_OF[typeID],
-    marketRung: rung,
-    listingRung: rung,
+    marketLocationRung: rung,
+    listingTypeRung: rung,
   };
 }
 
@@ -322,7 +322,7 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
     );
 
-    expect(resolved).toEqual({ marketSelect: "amarr", listingSelect: "buy" });
+    expect(resolved).toEqual({ marketLocation: "amarr", listingType: "buy" });
   });
 
   it("climbs to an ancestor group", () => {
@@ -334,9 +334,9 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       groupPricing({ 1849: { market: "hek" } }),
     );
 
-    expect(resolved.marketSelect).toBe("hek");
+    expect(resolved.marketLocation).toBe("hek");
     // Nothing named a basis, so the panel still answers it.
-    expect(resolved.listingSelect).toBe("sell");
+    expect(resolved.listingType).toBe("sell");
   });
 
   it("leaves an item with no market group on the panel default", () => {
@@ -348,7 +348,7 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       groupPricing({ 1857: { market: "amarr" } }),
     );
 
-    expect(resolved).toEqual({ marketSelect: "jita", listingSelect: "sell" });
+    expect(resolved).toEqual({ marketLocation: "jita", listingType: "sell" });
   });
 
   // The whole reason the rung arrives with the panel's: a group sits beneath a
@@ -365,17 +365,17 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       ),
     );
 
-    expect(resolved).toEqual({ marketSelect: "jita", listingSelect: "sell" });
+    expect(resolved).toEqual({ marketLocation: "jita", listingType: "sell" });
   });
 
   it("yields per axis, where the job named only one", () => {
     const resolved = getEffectiveMaterialPriceHub({}, 34, "jita", "sell", {
       ...groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
-      marketRung: PRICING_RUNG.JOB,
-      listingRung: PRICING_RUNG.ACCOUNT,
+      marketLocationRung: PRICING_RUNG.JOB,
+      listingTypeRung: PRICING_RUNG.ACCOUNT,
     });
 
-    expect(resolved).toEqual({ marketSelect: "jita", listingSelect: "buy" });
+    expect(resolved).toEqual({ marketLocation: "jita", listingType: "buy" });
   });
 
   it("loses to the row's own override", () => {
@@ -391,9 +391,9 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
     );
 
-    expect(resolved.marketSelect).toBe("dodixie");
+    expect(resolved.marketLocation).toBe("dodixie");
     // The override named no basis, so the group still answers that axis.
-    expect(resolved.listingSelect).toBe("buy");
+    expect(resolved.listingType).toBe("buy");
   });
 
   // Rung 1 clears to null rather than to an empty string — the override writers
@@ -410,7 +410,7 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       groupPricing({ 1857: { market: "amarr" } }),
     );
 
-    expect(resolved.marketSelect).toBe("");
+    expect(resolved.marketLocation).toBe("");
   });
 
   // Safer to lose the rung than to overrule a job that answered: a caller that
@@ -419,17 +419,17 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
   it("yields where the rung that answered was not named", () => {
     const resolved = getEffectiveMaterialPriceHub({}, 34, "jita", "sell", {
       ...groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
-      marketRung: undefined,
-      listingRung: undefined,
+      marketLocationRung: undefined,
+      listingTypeRung: undefined,
     });
 
-    expect(resolved).toEqual({ marketSelect: "jita", listingSelect: "sell" });
+    expect(resolved).toEqual({ marketLocation: "jita", listingType: "sell" });
   });
 
   it("reads as it did before the rung when the tree has not loaded", () => {
     expect(getEffectiveMaterialPriceHub({}, 34, "jita", "sell")).toEqual({
-      marketSelect: "jita",
-      listingSelect: "sell",
+      marketLocation: "jita",
+      listingType: "sell",
     });
   });
 
@@ -440,8 +440,8 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       materialCostByBasis({
         materials,
         layout: {},
-        marketSelect: "jita",
-        listingSelect: "sell",
+        marketLocation: "jita",
+        listingType: "sell",
         getPrice,
         groupPricing: groupPricing({ 1857: { basis: "buy" } }),
       }),
@@ -458,8 +458,8 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       materialCostByBasis({
         materials: [{ typeID: 34, quantity: 1 }],
         layout: {},
-        marketSelect: "amarr",
-        listingSelect: "sell",
+        marketLocation: "amarr",
+        listingType: "sell",
         getPrice,
         groupPricing: groupPricing({ 1857: { market: "jita" } }),
       }),

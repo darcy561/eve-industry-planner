@@ -17,8 +17,8 @@ import { resolvePricingSideRungs } from "../../Functions/MarketData/pricingSide.
  *
  * @param {object} layout - The job's layout
  * @param {string} side - One of PRICING_SIDE
- * @returns {{marketDisplay: string, orderDisplay: string,
- *   marketRung: string, orderRung: string}}
+ * @returns {{marketLocation: string, listingType: string,
+ *   marketLocationRung: string, listingTypeRung: string}}
  */
 export function useEffectiveMarketHubFromLayout(layout, side) {
   const accountPricing = useUsersStore(

@@ -24,8 +24,8 @@ import RowPricingOverride from "./rowPricingOverride";
  * @param {object} props.material
  * @param {object} props.state - Edit Job state
  * @param {object} props.actions - Edit Job actions
- * @param {string} props.marketSelect
- * @param {string} props.listingSelect
+ * @param {string} props.marketLocation
+ * @param {string} props.listingType
  * @param {number} props.currentMaterialPrice
  * @param {Array<object>} props.matchedChildJobs
  * @param {object} [props.pricing] - Where this row is priced, and how to change it
@@ -39,8 +39,8 @@ export default function MaterialDrawer({
   actions,
   currentMaterialPrice,
   matchedChildJobs,
-  marketSelect,
-  listingSelect,
+  marketLocation,
+  listingType,
   pricing,
   coverage,
   ...rest
@@ -76,8 +76,8 @@ export default function MaterialDrawer({
   const totals = calculateChildJobTotals(
     childJobObjects[jobDisplay],
     state.temporaryChildJobs,
-    marketSelect,
-    listingSelect,
+    marketLocation,
+    listingType,
   );
 
   const shared = {
@@ -86,8 +86,8 @@ export default function MaterialDrawer({
     actions,
     material,
     matchedChildJobs,
-    marketSelect,
-    listingSelect,
+    marketLocation,
+    listingType,
   };
 
   return (

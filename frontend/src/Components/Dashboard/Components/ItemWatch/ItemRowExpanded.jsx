@@ -19,13 +19,13 @@ export function ExpandedWatchlistRow({ mat }) {
       let matBuildCalc = 0;
       let xPrice = findMarketData(x.typeID);
       matBuildCalc +=
-        ((xPrice?.[buying.marketDisplay]?.[buying.orderDisplay] ?? 0) *
+        ((xPrice?.[buying.marketLocation]?.[buying.listingType] ?? 0) *
           x.quantity) /
         mat.quantityProduced;
       buildPrice += matBuildCalc * mat.quantity;
     });
     return buildPrice / mat.quantity;
-  }, [marketData, buying.marketDisplay, buying.orderDisplay]);
+  }, [marketData, buying.marketLocation, buying.listingType]);
 
   return (
     <Grid

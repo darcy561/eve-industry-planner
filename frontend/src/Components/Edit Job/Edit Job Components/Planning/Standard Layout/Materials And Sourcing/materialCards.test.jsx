@@ -24,8 +24,8 @@ const row = (overrides = {}) => ({
   isLinked: true,
   volume: 10,
   mark: { kind: "buildable", label: "Buildable", jobType: 1 },
-  marketSelect: "jita",
-  listingSelect: "buyP95",
+  marketLocation: "jita",
+  listingType: "buyP95",
   ...overrides,
 });
 

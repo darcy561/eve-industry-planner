@@ -12,7 +12,7 @@ function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   // Both columns state a build cost, which is what the materials cost to buy.
   const { buying } = useWatchlistPricing();
-  const defaultOrders = buying.orderDisplay;
+  const defaultOrders = buying.listingType;
 
   const hasItems = userWatchlist.items.length > 0;
   const hasGroups = userWatchlist.groups?.length > 0;

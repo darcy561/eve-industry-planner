@@ -102,8 +102,8 @@ function renderDrawer(overrides = {}) {
       actions={{ getCurrentMaterialChildJobs: () => [] }}
       currentMaterialPrice={5}
       matchedChildJobs={[]}
-      marketSelect="jita"
-      listingSelect="sell"
+      marketLocation="jita"
+      listingType="sell"
       {...overrides}
     />,
   );
