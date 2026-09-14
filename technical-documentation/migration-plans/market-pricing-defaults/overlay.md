@@ -414,3 +414,56 @@ what it would fetch — which makes the watchlist the only surface reading both 
 three other files. It was not reachable to throw — every rung feeding it draws from `MARKET_OPTIONS`,
 which `findMarketData`'s empty default always carries — but a market group id is not drawn from that
 list, so wiring the group rung into that component would have made it the fourth throw site.
+
+## Stage N — One name for each axis
+
+### N1 — What the SPA calls the two values
+
+`marketLocation` is which market a figure is priced against; `listingType` is which side of the order
+book it comes from. Every in-memory name in the SPA is one of those two, and the rung that answered
+each is `marketLocationRung` / `listingTypeRung`.
+
+Six vocabularies became one. A material row said `marketSelect` / `listingSelect`, the resolution
+ladder said `marketDisplay` / `orderDisplay`, the rung was `listingRung` on one side and `orderRung`
+on the other, the Select and the Reprocessing page said `marketListing`, and Price Entry said
+`displayMarket` / `displayOrder`. Each layer converted once and passed on, so nothing was wrong — a
+reader tracing a price simply changed vocabulary at every boundary.
+
+**`listingType` is the name the app already used for the list of values this axis may take.** That
+list is now `LISTING_TYPES`, because a value and the set it is drawn from cannot share a name in the
+three modules that read both.
+
+### N2 — Where the stored names stop
+
+`MaterialPriceOverride` persists `marketDisplay` and `orderDisplay`; `PricingChoice` persists `market`
+and `basis`. Neither moved, and neither should: the SPA writes those as literal string keys, so a
+rename reaches Mongo and drops a player's saved override.
+
+The boundary is visible in one expression. `getEffectiveMaterialPriceHub` reads
+`override?.marketDisplay` and returns `marketLocation` — the document's name on the right, the app's on
+the left. The four places that name a stored override key are `materialsAndSourcingPanel.jsx`,
+`useMaterialOverrides.js`, `materialPriceOverridesState.js` and `materialPricing.js`.
+
+**So the SPA does not match the documents, on purpose.** One conversion survives, at the store
+boundary, where it can be seen. The problem this stage set out to fix was never that the wire
+disagreed with the SPA; it was that the SPA disagreed with itself six ways.
+
+### N3 — What the rename deleted rather than renamed
+
+Four conversions existed only to cross between two names for one value, and none of them survives:
+the three `listingRung: orderRung` lines in `useJobSellingContext`, `useMaterialsSourcing` and
+`shoppingList`, and Price Entry's `resolveBuyingDefault`, which had become a wrapper returning its own
+argument and is now the `resolvePricingSide` call it was wrapping.
+
+The two Selects are named for the two axes rather than one for an axis and one for a widget:
+`marketLocation.jsx` holds `MarketLocationSelect`, and `listingType.jsx` holds `ListingTypeSelect`.
+
+### N4 — The rename's own failure mode
+
+Destructuring a key that no longer exists is neither a lint error nor a type error in this SPA. It
+yields `undefined` and renders — a dialogue seeded with no market, a price field defaulting to zero, a
+reducer silently falling through to the global default. Three call sites were left that way mid-stage
+and the full suite stayed green over all three, because none of those files has a test.
+
+The check that finds it is reading every caller of a function whose return shape moved, not running
+the suite.

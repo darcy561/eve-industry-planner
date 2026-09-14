@@ -2,8 +2,8 @@
 
 **Status:** Stage A steps 1-6 landed; step 7 waits on the shared-planners release. Stage B is done
 through B6: the group rung resolves end to end on both sides, the selling side names an exit route,
-and Settings can set, edit and remove a group default. Stage N is under way: steps 0-2 of the rename
-have landed, steps 3-4 are open.
+and Settings can set, edit and remove a group default. Stage N is done: the SPA has one name for each
+axis. Only Stage A step 7 remains, and it waits on the shared-planners release.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Hooks/Planner/`, `Functions/MarketData/`,
 `Styled Components/Select/`, `Zustand/applicationSettings/`, `Classes/shoppingList.js` and the panels
 and dialogues listed in § Stage A; [`services/shared/models/`](../../../services/shared/models/),
@@ -455,6 +455,7 @@ The layers still to move:
 | A material row | `marketSelect` / `listingSelect` | 54 / 50 |
 | The ladder | `marketDisplay` / `orderDisplay` | 34 / 32 |
 | The rungs | `marketRung` / `listingRung` **and** `orderRung` | crossed at three call sites |
+| Price Entry's own state and its app event | `displayMarket` / `displayOrder` | found during step 4 |
 | The Select components and the panels wiring them | `marketLocation` / `marketListing` | 46 / 36 |
 | The Reprocessing reducer's own state | `marketLocation` / `marketListing` | counted above |
 
@@ -485,12 +486,15 @@ in the row layer.
 2. ~~The ladder layer: `marketDisplay` / `orderDisplay` — **in-memory uses only**, per § The ladder layer
    is half a stored shape.~~ Done. Eleven occurrences of `marketDisplay` / `orderDisplay` remain and are
    meant to: every one is a `MaterialPriceOverride` key.
-3. The Select components, their props, and every panel wiring them — including the Reprocessing
-   reducer's state, which is the same names and cannot be split off. Check each `marketLocation` for
-   whether it is naming a stored key before moving it, as § The ladder layer is half a stored shape
-   required of `marketDisplay`.
-4. Delete the conversion points the layers above needed, which is what is left once both ends of each
-   speak the same words.
+3. ~~The Select components, their props, and every panel wiring them — including the Reprocessing
+   reducer's state, which is the same names and cannot be split off.~~ Done. `marketListing.jsx`
+   became `listingType.jsx` and `MarketListingSelect` became `ListingTypeSelect`, so the two Selects
+   are now named for the two axes.
+4. ~~Delete the conversion points the layers above needed.~~ Done — and a **sixth** vocabulary turned
+   up while doing it: Price Entry called the pair `displayMarket` / `displayOrder` across its reducer,
+   its dialogue, its rows and the app event that opens it. Nothing persisted it and nothing outside the
+   browser saw it, so it moved with the rest, and `resolveBuyingDefault` collapsed from a conversion
+   into the resolver call it was wrapping.
 
 One layer per slice, with the suite run between: a rename is exactly the change whose failures do not
 say where they came from, and four revertable steps cost nothing next to one diff large enough to
@@ -622,7 +626,7 @@ until then a key naming something the other side never had throws only when firs
 | Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
 | Stage B5 — the selling side names a route, and the controls for it | Done |
 | Stage B6 — a surface for setting a group default | Done |
-| Stage N — one vocabulary for a market and a basis | Steps 0-2 landed: the row layer, the rungs and the ladder's in-memory uses all speak `marketLocation` / `listingType`. Step 3 (the Select components and the panels) and step 4 (deleting the conversions) are open — see § Stage N |
+| Stage N — one vocabulary for a market and a listing type | **Done.** Every in-memory name is `marketLocation` / `listingType`. What survives is `marketDisplay` / `orderDisplay` where they name a `MaterialPriceOverride` key — in `materialsAndSourcingPanel.jsx`, `useMaterialOverrides.js`, `materialPriceOverridesState.js` and `materialPricing.js` — plus one legacy read in `Classes/job.js` that goes with Stage A step 7 |
 
 ## Start here
 
@@ -644,11 +648,14 @@ server never overwrites a filled side.
 stage and on the shopping list, a group default outranks the account default while losing to a job's
 own choice, and Settings browses the tree to set, edit and remove one on either side.
 
-**What is left is Stage N**, the rename, now part-landed. The axes are `marketLocation` and
-`listingType`; the row layer, the rungs and the ladder's in-memory uses are converted and the suite is
-green. What remains is step 3 — the Select components, their props and the panels wiring them,
-including the Reprocessing reducer — and step 4, deleting the conversion points that are left once both
-ends of each speak the same words. § Stage N.
+**Stage N is finished.** The SPA says `marketLocation` and `listingType` everywhere it is not naming a
+stored key: six vocabularies became one, and three conversion sites plus one wrapper function were
+deleted rather than renamed. What survives is deliberate and listed in § The ladder layer is half a
+stored shape.
+
+**Only Stage A step 7 is left in this project**, and it waits on a `prepareRelease` backfill step that
+shared-planners has planned and not yet written — see § Start here above and
+[shared-planners/plan.md](../shared-planners/plan.md) § Schema versioning.
 
 Read § Two axes, both called buy and sell before naming anything, and § Traps this work has already
 fallen into before changing a stored shape. Both cost a slice each the first time.
