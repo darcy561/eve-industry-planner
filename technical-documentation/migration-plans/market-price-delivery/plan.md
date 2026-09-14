@@ -1,9 +1,12 @@
 # Market price delivery — plan
 
-**Status:** Phase 1 complete. **Stages A, B and C landed.** Every price in the SPA now comes from the
-query cache, `worldData.marketData` is retired, the old `/api/v1/market-prices` endpoint is deleted,
-and a market's own clock now decides what survives rather than an age guess. Next is Stage D, the
-price cache's persistent tier.
+**Status:** Phase 1 complete. **Stages A, B and C landed, and Stage E is part way.** Every price in
+the SPA comes from the query cache, `worldData.marketData` is retired, the old
+`/api/v1/market-prices` endpoint is deleted, and a market's own clock decides what survives rather
+than an age guess. The browser can now derive the four prices itself — held to the server's answer by
+a committed fixture — and fetch a reader-saved NPC station's book. Next is teaching the loader that a
+want can be for a station rather than a hub, which is what makes that fetcher reachable and brings
+the persistent tier with it. No open decisions remain.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/MarketData/`,
 `Functions/EveESI/World/`, `Functions/Endpoints/Public/`, `Functions/Shared/getMissingESIData.js`,
 `Hooks/React Query/World/`, `Zustand/worldDataSlice/`, `Styled Components/Select/`,
@@ -568,8 +571,8 @@ hub can be priced against, and the placeholder is gone.
 
 ## What Stage D and E actually need
 
-Checked against the tree on 2026-09-14, because the stage text was written before Stages B and C
-landed and several of its items have since been done elsewhere.
+Checked against the tree on 2026-09-14 and kept current since, because the stage text was written
+before Stages B and C landed and several of its items have been done elsewhere or have since landed.
 
 **Stage D is nearly empty.** Items 1, 2 and 3 landed in Stage B or are inherited from it; what is
 left is item 4, the persistent tier, and item 5's sequencing note. The stage's most vivid section —
@@ -582,18 +585,25 @@ four hubs stay session-only by design (§ Two tiers of storage). Building D firs
 store with nothing to put in it, and guessing at what it must hold — per-type clocks for a station,
 one clock for a citadel — before Stage E has settled either. **Take D and E together, E leading.**
 
-**Stage E's two hard parts are in better shape than the stage text assumes.**
+**Stage E's hard parts were in better shape than the stage text assumed, and two have landed.**
 
-- The per-character citadel walk item 3 wants *extended rather than copied* already exists as
+- **The derivation (item 1) is done.** It was `percentilePrice` in
+  `services/worker/tasks/esi/refreshRegionMarketOrders.go` — roughly fifteen lines, nearest-rank
+  `ceil(p × N)` clamped into the sorted slice, with a fallback below `minOrdersForPercentile` — small
+  enough to port exactly, which is what made the fixture cheap rather than a project of its own. See
+  [overlay.md](./overlay.md) § E1, including which sizes of order book a case has to use before the
+  fixture states anything at all.
+- **The station fetch (item 2) is done** bar its caller — see § Start here for why that caller is the
+  next slice rather than a loose end.
+- **The per-character citadel walk item 3 wants *extended rather than copied* already exists** as
   `settleStructureName` in `Functions/EveESI/World/nameLoader.js`. It asks each linked character in
   turn, keeps one refusal from settling the account's answer, skips a character whose token lacks the
   scope, and refuses to cache a transient failure as an answer — which is the whole contract item 3
-  describes.
-- The Go derivation item 1 must reproduce is `percentilePrice` in
-  `services/worker/tasks/esi/refreshRegionMarketOrders.go`: roughly fifteen lines, nearest-rank
-  `ceil(p × N)` clamped into the sorted slice, with a fallback below `minOrdersForPercentile`. Small
-  enough to port exactly, which makes the fixture in § Open decisions cheap to honour rather than a
-  project of its own.
+  describes. The scope question that looked like a gate on it is closed: § Open decisions.
+- **The pacing item 4 needs has a home**, `priceRefreshSchedule.js`, owned by no component — see
+  [overlay.md](./overlay.md) § C2. Add each source's expiry there. `Expires` is readable in the
+  browser, so that item works as written; [overlay.md](./overlay.md) § E2 carries why that was not
+  obvious.
 
 **Stage F's seam is intact.** `saleLocations.js` still returns the two placeholder citadels,
 unexported and deliberately disagreeing on every field that changes a figure, so replacing them with
@@ -690,21 +700,30 @@ browser a legitimate version of this path for custom sources, where there is no 
 
 ## Start here
 
-**Stage D.** Stages A, B and C are done — the registry is read everywhere, every price travels through
-the narrowed query into one cache entry per type per market, and each market's own clock decides what
-survives ([overlay.md](./overlay.md) § A1-A4, § B1-B5, § C1-C5). What is left of Stage D is the
-persistent tier alone; its items 1 and 2 moved into Stage B and have landed.
+**Teaching the loader that a want can be for a station.** Stages A, B and C are done, and Stage E has
+its three foundations: the derivation, the pacing, and a fetcher for a reader-saved NPC station
+([overlay.md](./overlay.md) § A1-A4, § B1-B5, § C1-C5, § E1, § E2).
+
+**Nothing calls that fetcher, and the gap is sharper than it looks.** `priceLoader` sends every want
+in a tick to `fetchMarketPricesQuery`, and the server answers **400 for the whole request** when it
+sees a source it does not price. So a single station want would not merely fail itself — it would
+take out every hub price batched alongside it. The loader has to split its wants by source kind
+before anything can ask for a station, and § Where a price is read from already names it as the one
+place the three transports differ.
+
+That slice carries the persistent tier with it, because a station's rows are what Stage D stores, and
+it is the same seam Stage E item 3 lands in.
 
 **Read [overlay.md](./overlay.md) § C5 before touching the cache.** A priced surface subscribes to no
 row entry — it reads figures synchronously while rendering — so anything that changes what is held
 must also wake `useMarketPricesQuery`, and that query only notifies on fields its caller actually
 reads. A change to the cache that does not account for this is invisible in unit tests and visible to
-a reader as figures that never update.
+a reader as figures that never update. § What only an end-to-end test could say carries the same
+lesson from the other side: every test on this path mocks something, and the one that mocks only
+`fetch` is what found a failed fetch leaving a surface loading for ever.
 
-**Stage E is the persistent tier's first consumer**, so expect it close behind rather than a stage
-finished in isolation — § Stage D item 5 says the same, and § What Stage D and E actually need
-recommends taking the two together with E leading, having checked each stage's items against the
-tree. Read that section before planning either: most of Stage D is already done.
+**Take Stage D and E together, E leading** — § What Stage D and E actually need has the reasoning and
+the check against the tree. Most of Stage D is already done.
 
 **What the wait bought.** The one project this one depends on,
 [market-pricing-defaults](../market-pricing-defaults/contents.md), is finished bar a deploy, and it
