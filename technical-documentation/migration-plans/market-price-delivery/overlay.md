@@ -384,6 +384,21 @@ A 304 still carries a **new expiry**, which is what moves the next refresh on.
 every station in it: a reader pricing several saved stations in one region pays
 for the region once and splits the answer, rather than paying per station.
 
+**Nothing calls it yet, and that is the honest state rather than an oversight.**
+`deriveBookPrices` has its consumer in `fetchStationBook`; `fetchStationBook` has
+none, because the seam it plugs into does not exist. § Where a price is read from
+puts the three transports in one place — `priceLoader.js` — and that loader does
+not branch on `SOURCE_KIND` at all today, because every source it has ever served
+is a hub.
+
+Stage A's rule is that an unused export is an untested rule, and it removed
+speculative surface for exactly that reason. This is the other case: the module is
+exercised by its own tests against a fixture the server writes, so the rule *is*
+tested — what is missing is the caller. Wiring it means teaching the loader that a
+want can be for a station rather than a hub, which is a change to the one place
+the transports differ and belongs with the persistent tier that holds what it
+fetches, not bolted on ahead of either.
+
 ### Still to land
 
 Sections to fill: the shared per-character walk extracted from `nameLoader` and what both callers pass
