@@ -338,10 +338,16 @@ Those three helpers each have a component above them — `AppShellPanel`, `Actio
 component that owns it. That is how a header or a card comes to be redrawn beside the one that
 already exists.
 
-**Seven files outside this project's scope still do**, in the item tree, the group template and
-asset template dialogues, the blueprint card, the Edit Job cost-over-time panel and the Accounts
-main character card. They are not defects and this project does not claim them: each converts when
-the design reaches its screen, or with the redesign that owns it. The grep is where that starts.
+**Eight files still name one.** Seven are outside this project's scope — the item tree, the two
+group template dialogues, the asset template, the blueprint card, the Edit Job cost-over-time panel
+and the Accounts main character card. They are not defects and this project does not claim them:
+each converts when the design reaches its screen, or with the redesign that owns it.
+
+The eighth is this project's own `FirstLoginPage`, and it belongs there. A page frame is not a
+panel: it holds the stepper, the step viewport and the navigation, and `AppShellPanel` would wrap
+all of that in a title header, an error boundary and loading states it has no use for. The helper on
+an outlined `Paper` is the right answer for a frame, so the grep names it every time and the answer
+is the same every time.
 
 Not every `Context/appShell` import is a candidate. The module also holds form-control and picker
 props — `getAppShellPickerSlotProps` and the like — which have no component above them and are meant
