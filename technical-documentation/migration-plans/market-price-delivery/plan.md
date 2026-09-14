@@ -119,11 +119,8 @@ schema, not from memory — see [measurements.md](./measurements.md) § ESI mark
   fetch, which is what makes IndexedDB load-bearing here rather than a convenience: a book walked once
   must not be walked again next session.
 
-Two consequences worth settling before any code:
+One consequence worth settling before any code:
 
-- **A new ESI scope.** `esi-markets.structure_markets.v1` is not among the scopes the SPA requests
-  today. Adding it re-authorises every linked character, which is an operational event, not a code
-  change.
 - **Which character can read the book.** Nothing records which character holds docking access at a
   structure, so the book is attempted per character in turn and one character's refusal is not the
   account's answer. This is the same rule the SPA already follows for resolving structure *names*, and
@@ -323,7 +320,7 @@ nothing in IndexedDB today, so the persistent tier is new ground.
 |---------|--------|------|
 | `POST /api/v1/market-prices` → `/query` | **Breaking** | Request becomes a market-to-types map plus its own adjusted-price list, in place of a flat type list; response is reshaped and the flattened top-level hub keys go. The endpoint is public and unauthenticated, but the SPA is its only consumer and the two ship together, so the shape is cut over rather than versioned |
 | `worldData.marketData` | **Breaking, SPA-internal** | Retired. Prices move to a React Query entry per type and source, read through one accessor. Nothing replaces it in the store: the source registry is composed outside it (Stage A), so `worldData` loses market data entirely |
-| ESI scopes | **Migrate-required** | Citadel sources need `esi-markets.structure_markets.v1`, which the SPA does not request today. Every linked character must re-authorise. Scopes are operator configuration, not in-repo, so this is a deployment step and needs its own call-out at Stage E |
+| ESI scopes | **No change** | Citadel sources need `esi-markets.structure_markets.v1`, and the deployment already requests it. Scopes are operator configuration — `EVE_SCOPE`, not in-repo — so the Deployment Tool's template default is a starter value and says nothing about what a deployment asks for. A character linked before a scope was added still holds a token without it, which the SPA already handles: `tokenHasScope` asks per call, and a character whose token lacks the scope is skipped the same way one without docking access is |
 | Stored documents | **Additive** | Saved market locations are saved sale locations, a `CustomStructures` lane on the planner document. An additive field plus an upgrader step, with the Invention lane's v0→v1 addition as a worked precedent. The price *data* is IndexedDB and touches no server shape |
 | IndexedDB store | **Additive** | New, versioned from the first write |
 
@@ -676,7 +673,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 |----------|-------|
 | ~~How the Go and JavaScript derivations are held in agreement~~ | **Answered: the fixture.** `testing/fixtures/market-derivation/books.json`, written from the real Go derivation and read by a test on each side. Its cases twice passed an implementation that was wrong — see [overlay.md](./overlay.md) § E1 for which sizes of book a case has to use for the fixture to state anything |
 | ~~Persistent storage — TanStack's own persister, Dexie, or `idb`~~ | **Decided: read-through on `idb-keyval`**, the persister spiked against a real IndexedDB and backed out. `gcTime` decided it — see § How the persistent tier is stored, which also carries what persistence must do about the clock |
-| When the `esi-markets.structure_markets.v1` scope is added — with Stage E, or earlier so the re-authorisation rides a release that is already asking for one | Adding a scope re-authorises every character; it should not be its own event if it can avoid being one |
+| ~~When the `esi-markets.structure_markets.v1` scope is added~~ | **Closed: it is already requested.** Read from the running deployment's `EVE_SCOPE` rather than from the Deployment Tool's template default, which carries three scopes and is only a starting point. There is no re-authorisation event to time, and Stage E item 3 is not gated on one. A character linked before the scope was added holds a token without it and is skipped per call, which is the behaviour a character without docking access already gets |
 | Whether a citadel book walk is bounded, and what happens to a reader who saves a structure with a very large book | Unknown until measured. Stage E |
 
 ## Stage status

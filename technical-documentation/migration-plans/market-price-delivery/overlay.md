@@ -436,8 +436,8 @@ and a wait past the backoff are what the test needs.
 Sections to fill: the shared per-character walk extracted from `nameLoader` and what both callers pass
 it; the derivation in the SPA and what holds it in agreement with the Go one; the
 per-type path for a custom NPC station; the token-authenticated whole-book walk that reaches a
-private market through a citadel, and how a character without access is remembered; the ESI scope and
-when it was added; how several stations in one region share a request; what paces each kind.
+private market through a citadel, and how a character without access is remembered, including one
+whose token predates the scope; how several stations in one region share a request; what paces each kind.
 
 ## Stage F — Custom market locations
 
