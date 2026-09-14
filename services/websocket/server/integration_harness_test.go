@@ -300,13 +300,38 @@ func (f *integFixture) readJSONMessageIfAny(conn *websocket.Conn, timeout time.D
 func (f *integFixture) connectAccount(accountID, sessionID string) *websocket.Conn {
 	f.t.Helper()
 	f.seedSession(accountID, sessionID)
+	conn, _ := f.connectTab(sessionID)
+	f.waitClients(1, 2*time.Second)
+	return conn
+}
+
+// connectTab dials an already-seeded session and returns the connection with the
+// client id the server told it, which is the id delivery suppresses on. Use it
+// where a scenario needs to name one tab among several.
+func (f *integFixture) connectTab(sessionID string) (*websocket.Conn, string) {
+	f.t.Helper()
 	conn := f.dial(sessionID)
 	msg := f.readJSONMessage(conn, 2*time.Second)
 	if got, _ := msg["type"].(string); got != "connected" {
 		f.t.Fatalf("want connected, got %v", msg)
 	}
-	f.waitClients(1, 2*time.Second)
-	return conn
+	clientID, _ := msg["clientID"].(string)
+	if clientID == "" {
+		f.t.Fatalf("connected frame named no clientID: %v", msg)
+	}
+	return conn, clientID
+}
+
+// scopesOf reads the owner keys a live connection holds.
+func (f *integFixture) scopesOf(clientID string) models.OwnerKeys {
+	f.t.Helper()
+	f.Server.ClientsMu.RLock()
+	defer f.Server.ClientsMu.RUnlock()
+	client, ok := f.Server.Clients[clientID]
+	if !ok {
+		f.t.Fatalf("no live client %q", clientID)
+	}
+	return client.Scopes
 }
 
 func (f *integFixture) writeJSON(conn *websocket.Conn, payload any) {

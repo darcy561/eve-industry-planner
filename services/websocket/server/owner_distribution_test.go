@@ -10,8 +10,12 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// docUpdateFor builds the payload the watcher publishes for an owner.
-func docUpdateFor(t *testing.T, owner models.Owner, docID string) []byte {
+// docUpdateFrom builds the payload the watcher publishes for an owner, naming the
+// connection that made the change as it does when a browser write caused it. An
+// empty id is simply absent, which is how a change no connection claims arrives.
+//
+// This is the one place the tests state the message shape; vary it here.
+func docUpdateFrom(t *testing.T, owner models.Owner, docID, sourceClientID, sourceSessionID string) []byte {
 	t.Helper()
 	body := map[string]any{
 		"collection":    eipmongo.CollectionJobDocuments,
@@ -21,11 +25,24 @@ func docUpdateFor(t *testing.T, owner models.Owner, docID string) []byte {
 	if !owner.IsZero() {
 		body["ownerKey"] = owner.Key()
 	}
+	if sourceClientID != "" {
+		body["sourceClientID"] = sourceClientID
+	}
+	if sourceSessionID != "" {
+		body["sourceSessionID"] = sourceSessionID
+	}
 	raw, err := json.Marshal(body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+// docUpdateFor builds the payload the watcher publishes for an owner, as a change
+// no connection claims: nothing is suppressed on delivery.
+func docUpdateFor(t *testing.T, owner models.Owner, docID string) []byte {
+	t.Helper()
+	return docUpdateFrom(t, owner, docID, "", "")
 }
 
 // received drains a client's send channel, returning the docIDs it was given.
@@ -281,32 +298,44 @@ func TestOneClientHoldingSeveralKindsReceivesEach(t *testing.T) {
 	}
 }
 
-// A corporation message narrowed to named accounts reaches only those accounts,
-// even though every recipient holds the corporation ref.
-func TestCorporationScopeNarrowedToAccounts(t *testing.T) {
+// Every member of a corporation planner receives its changes. Holding the owner's
+// key is the whole entitlement; which account a member signs in as decides
+// nothing.
+func TestCorporationScopeReachesEveryMember(t *testing.T) {
 	f := newIntegFixture(t)
 
 	const corpRef = "corp_56_JxK"
-	inScope := f.orgClient("in-scope", "acct-in", []string{corpRef}, nil)
-	outOfScope := f.orgClient("out-of-scope", "acct-out", []string{corpRef}, nil)
+	one := f.orgClient("member-one", "acct-one", []string{corpRef}, nil)
+	two := f.orgClient("member-two", "acct-two", []string{corpRef}, nil)
 
-	raw, err := json.Marshal(map[string]any{
-		"collection":    eipmongo.CollectionJobDocuments,
-		"docID":         "narrowed",
-		"operationType": "update",
-		"ownerKey":      models.Owner{Kind: models.OwnerCorporation, ID: corpRef}.Key(),
-		"scopes":        map[string]any{"accountIDs": []string{"acct-in"}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.narrowed", raw)
+	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.shared",
+		docUpdateFor(t, models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, "shared"))
 
-	if got := received(t, inScope); len(got) != 1 || got[0] != "narrowed" {
-		t.Fatalf("the named account received %v, want [narrowed]", got)
+	for _, c := range []*Client{one, two} {
+		if got := received(t, c); len(got) != 1 || got[0] != "shared" {
+			t.Fatalf("%s received %v, want [shared]", c.id, got)
+		}
 	}
-	if got := received(t, outOfScope); len(got) != 0 {
-		t.Fatalf("an account outside the downward scope received %v", got)
+}
+
+// A client working in an alliance planner holds the alliance key and nothing
+// else: scopes are the account key plus the active planner, so there is no
+// corporation key to sit under. Delivery must not ask for one.
+func TestAllianceScopeReachesAClientHoldingNoCorporationKey(t *testing.T) {
+	f := newIntegFixture(t)
+
+	const allyRef = "alliance_9_Qm"
+	c := f.orgClient("ally-tab", "acct-ally", nil, []string{allyRef})
+
+	if ids := c.Scopes.IDsForKind(models.OwnerCorporation); len(ids) != 0 {
+		t.Fatalf("the client holds corporation keys %v, which this case is about not having", ids)
+	}
+
+	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.ally-doc",
+		docUpdateFor(t, models.Owner{Kind: models.OwnerAlliance, ID: allyRef}, "ally-doc"))
+
+	if got := received(t, c); len(got) != 1 || got[0] != "ally-doc" {
+		t.Fatalf("an alliance-planner client received %v, want [ally-doc]", got)
 	}
 }
 
@@ -332,5 +361,100 @@ func TestCorporationScopeRefusesAClientLeftInThePool(t *testing.T) {
 
 	if got := received(t, c); len(got) != 0 {
 		t.Fatalf("a client that no longer holds %s received %v", corpRef, got)
+	}
+}
+
+// The tab that made the change has already applied it and would be told to apply
+// it again; its siblings have not. Suppression is per tab rather than per session
+// for that reason, so a second tab of the same login is a recipient.
+//
+// Each delivery path checks this for itself, so each is exercised: a shared owner
+// by the owner walk, an account by the user-connection index, and a doc someone
+// subscribed to by name.
+func TestDeliveryPathsSuppressTheTabThatMadeTheChange(t *testing.T) {
+	const (
+		corpRef = "corp_56_JxK"
+		session = "sess-shared"
+	)
+
+	for _, tc := range []struct {
+		name  string
+		owner models.Owner
+		docID string
+		// deliver runs the path under test after both tabs are registered.
+		setUp func(f *integFixture, writer, sibling *Client)
+	}{
+		{
+			name:  "owner walk",
+			owner: models.Owner{Kind: models.OwnerCorporation, ID: corpRef},
+			docID: "corp-doc",
+		},
+		{
+			name:  "account",
+			owner: models.AccountOwner("acct-writer"),
+			docID: "account-doc",
+		},
+		{
+			name:  "explicit doc subscribers",
+			owner: models.Owner{},
+			docID: "watched-doc",
+			setUp: func(f *integFixture, writer, sibling *Client) {
+				const scoped = "job_documents.watched-doc"
+				for _, c := range []*Client{writer, sibling} {
+					c.explicitDocIDs = map[string]bool{scoped: true}
+					f.Server.addExplicitSubscriber(c.id, scoped)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newIntegFixture(t)
+
+			corps := []string{corpRef}
+			if tc.owner.Kind != models.OwnerCorporation {
+				corps = nil
+			}
+			writer := f.orgClient("writer-tab", "acct-writer", corps, nil)
+			sibling := f.orgClient("sibling-tab", "acct-writer", corps, nil)
+			writer.SessionID = session
+			sibling.SessionID = session
+			if tc.setUp != nil {
+				tc.setUp(f, writer, sibling)
+			}
+
+			f.Server.deliverOutboundDocUpdate(context.Background(),
+				"job_documents."+tc.docID,
+				docUpdateFrom(t, tc.owner, tc.docID, writer.id, session))
+
+			if got := received(t, writer); len(got) != 0 {
+				t.Fatalf("the tab that made the change received %v back", got)
+			}
+			if got := received(t, sibling); len(got) != 1 || got[0] != tc.docID {
+				t.Fatalf("the sibling tab received %v, want [%s]", got, tc.docID)
+			}
+		})
+	}
+}
+
+// A write that names no tab — a server-side job, a task, anything not made in a
+// browser — suppresses the whole session instead, which is the only identifier
+// it has. Nothing outside that session is affected.
+func TestOwnerWalkFallsBackToSuppressingTheWholeSession(t *testing.T) {
+	f := newIntegFixture(t)
+
+	const corpRef = "corp_56_JxK"
+	writerSession := f.orgClient("writer-tab", "acct-writer", []string{corpRef}, nil)
+	writerSession.SessionID = "sess-writer"
+	otherMember := f.orgClient("other-tab", "acct-other", []string{corpRef}, nil)
+	otherMember.SessionID = "sess-other"
+
+	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.corp-doc",
+		docUpdateFrom(t, models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, "corp-doc", "", "sess-writer"))
+
+	if got := received(t, writerSession); len(got) != 0 {
+		t.Fatalf("a tab of the originating session received %v back", got)
+	}
+	if got := received(t, otherMember); len(got) != 1 || got[0] != "corp-doc" {
+		t.Fatalf("another member received %v, want [corp-doc]", got)
 	}
 }

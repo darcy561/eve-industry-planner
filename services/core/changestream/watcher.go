@@ -29,12 +29,6 @@ const changestreamLogComponent = "changestream"
 // regains control.
 const changeStreamMaxAwaitTime = 30 * time.Second
 
-// ScopesPayload narrows websocket fan-out under alliance/corporation roots (optional metadata).
-type ScopesPayload struct {
-	CorporationRefs []string `json:"corporationRefs,omitempty"`
-	AccountIDs      []string `json:"accountIDs,omitempty"`
-}
-
 // ChangeStreamMessage represents the message payload sent to NATS
 type ChangeStreamMessage struct {
 	Subject                 string         `json:"subject"`
@@ -44,7 +38,6 @@ type ChangeStreamMessage struct {
 	SourceClientID          string         `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
 	SourceSessionID         string         `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
 	OwnerKey                string         `json:"ownerKey,omitempty"`        // kind:id of the changed document's owner; the websocket routes on it
-	Scopes                  *ScopesPayload `json:"scopes,omitempty"`
 	Document                map[string]any `json:"document,omitempty"`
 	PreviousDocument        map[string]any `json:"previousDocument,omitempty"`
 	RefreshTokensChanged    bool           `json:"refreshTokensChanged,omitempty"`
@@ -413,7 +406,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 
 	// A document states its owner. A delete without a preimage has none to read,
 	// leaving only the account id recovered above.
-	docOwner, scopePayload := ownerFromDocument(docToExtract)
+	docOwner := ownerFromDocument(docToExtract)
 	if docOwner.IsZero() && !docOwnerFromID.IsZero() {
 		docOwner = docOwnerFromID
 	}
@@ -445,7 +438,6 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		SourceClientID:          sourceClientID,
 		SourceSessionID:         sourceSessionID,
 		OwnerKey:                tenantString,
-		Scopes:                  scopePayload,
 		Document:                document,
 		PreviousDocument:        previousDocument,
 		RefreshTokensChanged:    refreshTokensChanged,
@@ -634,30 +626,27 @@ func stripUsersRefreshTokenFields(doc map[string]any) {
 	delete(doc, "refresh_tokens")
 }
 
-// ownerFromDocument reads the owner a document states, and the scopes it carries.
+// ownerFromDocument reads the owner a document states.
 //
 // One field, whatever the kind. This replaced reading a corporation ref and an
 // alliance ref and inferring the scope from which was set — a shape that could
 // not answer "who owns this" without knowing the answer first.
-func ownerFromDocument(doc bson.M) (models.Owner, *ScopesPayload) {
+func ownerFromDocument(doc bson.M) models.Owner {
 	if doc == nil {
-		return models.Owner{}, nil
+		return models.Owner{}
 	}
 	meta := subDocumentToMap(doc["_meta"])
-	var owner models.Owner
-	if raw := subDocumentToMap(meta[models.MetaFieldOwner]); raw != nil {
-		kind, _ := raw["kind"].(string)
-		id, _ := raw["id"].(string)
-		owner = models.Owner{Kind: models.OwnerKind(kind), ID: id}
-		if owner.Validate() != nil {
-			owner = models.Owner{}
-		}
+	raw := subDocumentToMap(meta[models.MetaFieldOwner])
+	if raw == nil {
+		return models.Owner{}
 	}
-	var scopes *ScopesPayload
-	if sp := scopesFromDocOrMeta(doc, meta); sp != nil && (len(sp.CorporationRefs) > 0 || len(sp.AccountIDs) > 0) {
-		scopes = sp
+	kind, _ := raw["kind"].(string)
+	id, _ := raw["id"].(string)
+	owner := models.Owner{Kind: models.OwnerKind(kind), ID: id}
+	if owner.Validate() != nil {
+		return models.Owner{}
 	}
-	return owner, scopes
+	return owner
 }
 
 func docFieldString(doc, meta bson.M, keys ...string) string {
@@ -693,61 +682,6 @@ func bsonValueToString(v any) string {
 	default:
 		return strings.TrimSpace(fmt.Sprint(t))
 	}
-}
-
-func scopesFromDocOrMeta(doc, meta bson.M) *ScopesPayload {
-	var raw bson.M
-	if meta != nil {
-		raw = asBsonM(meta["scopes"])
-	}
-	if raw == nil {
-		raw = asBsonM(doc["scopes"])
-	}
-	if raw == nil {
-		return nil
-	}
-	cids := bsonArrayToStrings(raw["corporationRefs"])
-	aids := bsonArrayToStrings(raw["accountIDs"])
-	if len(cids) == 0 && len(aids) == 0 {
-		return nil
-	}
-	return &ScopesPayload{CorporationRefs: cids, AccountIDs: aids}
-}
-
-func asBsonM(v any) bson.M {
-	switch m := v.(type) {
-	case bson.M:
-		return m
-	case map[string]any:
-		return bson.M(m)
-	default:
-		return nil
-	}
-}
-
-func bsonArrayToStrings(v any) []string {
-	if v == nil {
-		return nil
-	}
-	var elems []any
-	switch t := v.(type) {
-	case bson.A:
-		elems = []any(t)
-	case []any:
-		elems = t
-	default:
-		return nil
-	}
-	out := make([]string, 0, len(elems))
-	for _, el := range elems {
-		if s := bsonValueToString(el); s != "" {
-			out = append(out, s)
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }
 
 // StartService starts the MongoDB change stream watcher service (parallel watches per CollectionGroups entry).

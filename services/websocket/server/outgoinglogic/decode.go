@@ -9,21 +9,13 @@ import (
 	"eve-industry-planner/shared/models"
 )
 
-// DownwardScopes narrows delivery under an alliance or corporation root (message metadata).
-// Empty lists mean "no extra filter" on that dimension (full fan-out under the root).
-type DownwardScopes struct {
-	CorporationRefs []string
-	AccountIDs      []string
-}
-
 // DecodedOutbound is the result of parsing a single NATS doc.update JSON payload.
 type DecodedOutbound struct {
 	Route      RouteInfo
-	Scopes     DownwardScopes
 	Collection string
 }
 
-// DecodeOutboundMessage unmarshals the payload once for routing and scope filtering.
+// DecodeOutboundMessage unmarshals the payload once for routing.
 func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
 	var msgData map[string]any
 	if err := json.Unmarshal(messageData, &msgData); err != nil {
@@ -35,7 +27,6 @@ func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
 			SourceClientID:  asString(msgData["sourceClientID"]),
 			SourceSessionID: asString(msgData["sourceSessionID"]),
 		},
-		Scopes:     parseScopes(msgData["scopes"]),
 		Collection: asString(msgData["collection"]),
 	}, nil
 }
@@ -56,40 +47,6 @@ func ownerFromKey(v any) models.Owner {
 		return models.Owner{}
 	}
 	return owner
-}
-
-func parseScopes(v any) DownwardScopes {
-	m, ok := v.(map[string]any)
-	if !ok || m == nil {
-		return DownwardScopes{}
-	}
-	return DownwardScopes{
-		CorporationRefs: stringSliceFromJSONField(m, "corporationRefs"),
-		AccountIDs:      stringSliceFromJSONField(m, "accountIDs"),
-	}
-}
-
-func stringSliceFromJSONField(m map[string]any, key string) []string {
-	raw, ok := m[key]
-	if !ok {
-		return nil
-	}
-	arr, ok := raw.([]any)
-	if !ok || len(arr) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(arr))
-	for _, el := range arr {
-		s := stringFromScalar(el)
-		s = strings.TrimSpace(s)
-		if s != "" {
-			out = append(out, s)
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }
 
 func stringFromScalar(v any) string {
@@ -114,66 +71,12 @@ func stringFromScalar(v any) string {
 	}
 }
 
-// AllianceRecipientMatchesDownward returns whether a pooled alliance client should receive
-// the message given alliance-level scopes (union semantics for corp vs account lists).
-func AllianceRecipientMatchesDownward(
-	clientCorpScope []string,
-	clientAccountID string,
-	scopes DownwardScopes,
-) bool {
-	hasCorpFilter := len(scopes.CorporationRefs) > 0
-	hasAcctFilter := len(scopes.AccountIDs) > 0
-	if !hasCorpFilter && !hasAcctFilter {
-		return true
-	}
-	corpHit := false
-	if hasCorpFilter {
-		for _, want := range scopes.CorporationRefs {
-			if ScopeContains(clientCorpScope, want) {
-				corpHit = true
-				break
-			}
-		}
-	}
-	acctHit := false
-	if hasAcctFilter {
-		for _, want := range scopes.AccountIDs {
-			if want != "" && clientAccountID == want {
-				acctHit = true
-				break
-			}
-		}
-	}
-	if hasCorpFilter && hasAcctFilter {
-		return corpHit || acctHit
-	}
-	if hasCorpFilter {
-		return corpHit
-	}
-	return acctHit
-}
-
-// CorporationRecipientMatchesDownward returns whether a pooled corporation client should receive
-// the message given corporation-level scopes (account id list).
-func CorporationRecipientMatchesDownward(clientAccountID string, scopes DownwardScopes) bool {
-	if len(scopes.AccountIDs) == 0 {
-		return true
-	}
-	for _, want := range scopes.AccountIDs {
-		if want != "" && clientAccountID == want {
-			return true
-		}
-	}
-	return false
-}
-
 // routingOnlyFields are the message keys this service routes on. They name
 // internal identities — refs and source ids — and are stripped before a payload
 // reaches a browser, which has no use for them and should not learn them.
 var routingOnlyFields = []string{
 	// Replaced by `owner`, the same owner as a handle rather than a key.
 	"ownerKey",
-	"scopes",
 	"sourceClientID",
 	"sourceSessionID",
 }

@@ -23,14 +23,13 @@ func TestClientPayloadStripsRoutingRefs(t *testing.T) {
 	  "collection":"user_job_documents",
 	  "docID":"job-1",
 	  "ownerKey":"corporation:corp_abc123",
-	  "scopes":{"corporationRefs":["corp_abc123"],"accountIDs":["acct-1"]},
 	  "sourceClientID":"c1",
 	  "sourceSessionID":"s1",
 	  "document":{"jobID":"job-1"}
 	}`)
 
 	got := string(ClientPayload(in, testOwner, keys.EntityCipher(t)))
-	for _, leaked := range []string{"ownerKey", "scopes", "corp_abc123", "sourceClientID", "sourceSessionID"} {
+	for _, leaked := range []string{"ownerKey", "corp_abc123", "sourceClientID", "sourceSessionID"} {
 		if strings.Contains(got, leaked) {
 			t.Fatalf("%q survived into the client payload:\n%s", leaked, got)
 		}

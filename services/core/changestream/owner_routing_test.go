@@ -48,7 +48,7 @@ func TestOwnerFromDocument(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, _ := ownerFromDocument(tc.doc)
+			got := ownerFromDocument(tc.doc)
 			if got != tc.want {
 				t.Fatalf("owner = %+v, want %+v", got, tc.want)
 			}
@@ -70,7 +70,7 @@ func TestOwnerKeyMatchesTheSubjectTenant(t *testing.T) {
 		doc := bson.M{"_meta": bson.M{"owner": bson.M{
 			"kind": string(owner.Kind), "id": owner.ID,
 		}}}
-		got, _ := ownerFromDocument(doc)
+		got := ownerFromDocument(doc)
 		if got != owner {
 			t.Fatalf("owner = %+v, want %+v", got, owner)
 		}
@@ -86,7 +86,7 @@ func TestGroupsRouteFromTheRootAccountID(t *testing.T) {
 	t.Parallel()
 	doc := bson.M{"_id": "group-1", "accountID": "acct-1"}
 
-	owner, _ := ownerFromDocument(doc)
+	owner := ownerFromDocument(doc)
 	if !owner.IsZero() {
 		t.Fatalf("a root accountID is not an owner block: got %+v", owner)
 	}

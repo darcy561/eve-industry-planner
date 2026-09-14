@@ -16,8 +16,7 @@ type outboundDeliveryOutcome struct {
 	RecipientCount                 int
 	CandidateCount                 int
 	AccountID                      string
-	CorporationRef                 string
-	AllianceRef                    string
+	OwnerRef                       string
 	SourceClientID                 string
 	SourceSessionID                string
 	SuppressSessionID              string
@@ -106,10 +105,8 @@ func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedD
 	switch decoded.Route.Owner.Kind {
 	case models.OwnerAccount:
 		return s.broadcastToAccountClients(ctx, collectionScopedDocID, clientData, decoded.Route)
-	case models.OwnerCorporation:
-		return s.broadcastToCorporationScope(ctx, collectionScopedDocID, clientData, decoded)
-	case models.OwnerAlliance:
-		return s.broadcastToAllianceScope(ctx, collectionScopedDocID, clientData, decoded)
+	case models.OwnerCorporation, models.OwnerAlliance:
+		return s.broadcastToOwnerScope(ctx, collectionScopedDocID, clientData, decoded)
 	case "":
 		// No readable owner: a delete without a preimage, or a message from a
 		// producer that stated none.
@@ -214,21 +211,26 @@ func copyClientIDSet(m map[string]bool) []string {
 	return out
 }
 
-func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
-	out := outboundDeliveryOutcome{
-		RouteKind:       "corporation",
-		CorporationRef:  decoded.Route.Owner.ID,
-		SourceClientID:  decoded.Route.SourceClientID,
-		SourceSessionID: decoded.Route.SourceSessionID,
-	}
-	corporationRef := decoded.Route.Owner.ID
+// broadcastToOwnerScope delivers an owner's changes to the clients subscribed to
+// that owner.
+//
+// Subscription is the whole rule: a client's scopes name the account key and the
+// planner it is working in, so holding the owner's key is what entitles it to the
+// message. There is nothing further to narrow by.
+func (s *Server) broadcastToOwnerScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
+	owner := decoded.Route.Owner
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
-	scopes := decoded.Scopes
 
-	clientIDs := s.clientsForOwner(models.CorporationOwner(corporationRef))
+	out := outboundDeliveryOutcome{
+		RouteKind:       string(owner.Kind),
+		OwnerRef:        owner.ID,
+		SourceClientID:  sourceClientID,
+		SourceSessionID: sourceSessionID,
+	}
+
+	clientIDs := s.clientsForOwner(owner)
 	out.CandidateCount = len(clientIDs)
-
 	if len(clientIDs) == 0 {
 		return out
 	}
@@ -241,14 +243,10 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 			out.recordNotConnectedSkip(clientID)
 			continue
 		}
-		if !outgoinglogic.CorporationRecipientMatchesDownward(client.AccountID, scopes) {
-			out.recordScopeSkip(clientID)
-			continue
-		}
 		client.SyncMu.Lock()
 		syncing := client.SyncInProgress
 		client.SyncMu.Unlock()
-		if !client.Scopes.Has(models.CorporationOwner(corporationRef)) {
+		if !client.Scopes.Has(owner) {
 			out.recordScopeSkip(clientID)
 			continue
 		}
@@ -265,72 +263,10 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 			out.recordRecipient(clientID, client)
 		} else {
 			out.recordSendBufferFull(clientID)
-			logs.WarnCtx(client.LogContext(), "corporation scope: send buffer full",
+			logs.WarnCtx(client.LogContext(), "owner scope: send buffer full",
 				"client_id", client.id,
-				"corporation_ref", corporationRef)
-		}
-	}
-	s.ClientsMu.RUnlock()
-
-	out.RecipientCount = sent
-	return out
-}
-
-func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
-	out := outboundDeliveryOutcome{
-		RouteKind:       "alliance",
-		AllianceRef:     decoded.Route.Owner.ID,
-		SourceClientID:  decoded.Route.SourceClientID,
-		SourceSessionID: decoded.Route.SourceSessionID,
-	}
-	allianceRef := decoded.Route.Owner.ID
-	sourceClientID := decoded.Route.SourceClientID
-	sourceSessionID := decoded.Route.SourceSessionID
-	scopes := decoded.Scopes
-
-	clientIDs := s.clientsForOwner(models.AllianceOwner(allianceRef))
-	out.CandidateCount = len(clientIDs)
-
-	if len(clientIDs) == 0 {
-		return out
-	}
-
-	var sent int
-	s.ClientsMu.RLock()
-	for _, clientID := range clientIDs {
-		client, ok := s.Clients[clientID]
-		if !ok {
-			out.recordNotConnectedSkip(clientID)
-			continue
-		}
-		corpScope := client.Scopes.IDsForKind(models.OwnerCorporation)
-		if !outgoinglogic.AllianceRecipientMatchesDownward(corpScope, client.AccountID, scopes) {
-			out.recordScopeSkip(clientID)
-			continue
-		}
-		client.SyncMu.Lock()
-		syncing := client.SyncInProgress
-		client.SyncMu.Unlock()
-		if !client.Scopes.Has(models.AllianceOwner(allianceRef)) {
-			out.recordScopeSkip(clientID)
-			continue
-		}
-		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
-			out.recordEchoSkip(clientID)
-			continue
-		}
-		if syncing {
-			out.recordSyncSkip(clientID)
-			continue
-		}
-		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
-			sent++
-			out.recordRecipient(clientID, client)
-		} else {
-			out.recordSendBufferFull(clientID)
-			logs.WarnCtx(client.LogContext(), "alliance scope: send buffer full",
-				"client_id", client.id,
-				"alliance_ref", allianceRef)
+				"owner_kind", string(owner.Kind),
+				"owner_ref", owner.ID)
 		}
 	}
 	s.ClientsMu.RUnlock()
@@ -413,11 +349,8 @@ func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) ma
 	if o.AccountID != "" {
 		detail["account_id"] = o.AccountID
 	}
-	if o.CorporationRef != "" {
-		detail["corporation_ref"] = o.CorporationRef
-	}
-	if o.AllianceRef != "" {
-		detail["alliance_ref"] = o.AllianceRef
+	if o.OwnerRef != "" {
+		detail["owner_ref"] = o.OwnerRef
 	}
 	if o.SourceClientID != "" {
 		detail["source_client_id"] = o.SourceClientID
