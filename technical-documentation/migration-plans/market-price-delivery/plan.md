@@ -595,6 +595,42 @@ one clock for a citadel — before Stage E has settled either. **Take D and E to
 unexported and deliberately disagreeing on every field that changes a figure, so replacing them with
 the stored list stays a change to that one file.
 
+## What the persister can and cannot do
+
+Read from the installed `@tanstack/query-core` 5.102.8 rather than the docs, which do not cover
+selective persistence. This settles most of the storage open decision.
+
+**Selective persistence is supported, per query.** `dehydrate` takes
+`shouldDehydrateQuery?: (query: Query) => boolean` and applies it across the whole cache —
+`getQueryCache().getAll().flatMap((query) => filterQuery(query) ? [dehydrateQuery(query, …)] : [])`.
+The callback receives the whole `Query`, so it can read `queryKey` and decide on the source id in it.
+That is exactly the tier split § Two tiers of storage describes: persist a reader-saved source's
+rows, skip the four hubs. The default is `query.state.status === "success"`, so a filter narrows
+rather than widens.
+
+**Restore needs no filter of its own.** `hydrate` only builds what was persisted, and where a query
+already exists it writes only when `state.dataUpdatedAt` is newer than what is in memory. A restored
+row cannot clobber a fresher one fetched during startup.
+
+**`gcTime` is the catch, and it bites this design specifically.** `Removable` defaults it to `3e5` —
+five minutes — and `queryClient.js` sets only `staleTime`, so every price entry is currently
+collected five minutes after its last observer unmounts. A persisted cache whose `maxAge` exceeds
+`gcTime` loses entries before they are ever written, so the persistent tier needs `gcTime` raised on
+the entries it covers.
+
+This is worth noticing beyond storage: **Stage C made rows survive by clock rather than by age, but
+`gcTime` still evicts an unobserved entry after five minutes** regardless of whether its market has
+moved. A price nothing is looking at is dropped and re-fetched on the next read even though the clock
+says it is current — which is the age guess Stage C removed, surviving one layer down. Whether to
+raise `gcTime` for price entries is a Stage C follow-up, not only a Stage D concern.
+
+**The storage adapter is small.** `createAsyncStoragePersister` wants only
+`getItem` / `setItem` / `removeItem` (`entries` optional), each free to be async — which `idb-keyval`'s
+`get` / `set` / `del` satisfy directly. So "TanStack persister" and "IndexedDB" are not competing
+choices: the persister is the cache integration and `idb-keyval` is the store beneath it. Dexie earns
+its place only if something later needs querying by index rather than by key, which nothing in this
+project does.
+
 ## Left out on purpose
 
 **The Market Data and Price History dialogues** read region order books and history straight from ESI
@@ -615,7 +651,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Question | Notes |
 |----------|-------|
 | **How the Go and JavaScript derivations are held in agreement.** Options: a fixture file in the repo (order books in, expected rows out) that a test on each side reads, so a change to one without the other fails; or generating the JavaScript from the Go; or accepting drift and testing each alone | The fixture is the cheapest thing that actually catches a divergence, and the repo already keeps shared fixtures for the SPA. Decide before Stage E writes a line of derivation |
-| Persistent storage — TanStack's own persister, Dexie, or `idb` | Stage D. Versions checked 2026-09-14: `@tanstack/query-persist-client-core` **5.102.8**, matching the `@tanstack/react-query` the SPA already runs; Dexie **4.4.6**, shipped four days before; `idb` **8.0.3**, last shipped May 2025. The persister is first-party and needs no new vendor, but it is built to persist the **whole** cache while this design persists only reader-saved sources — whether `dehydrateOptions` narrows it cleanly is the thing to settle before choosing. See § What Stage D and E actually need |
+| ~~Persistent storage — TanStack's own persister, Dexie, or `idb`~~ | **Answered.** The persister's `shouldDehydrateQuery` filters per query, which is the tier split this design needs, and its storage interface is three methods that `idb-keyval` satisfies directly — so the two are layers rather than alternatives. Versions checked 2026-09-14: `@tanstack/query-persist-client-core` and `@tanstack/react-query-persist-client` **5.102.8**, matching the client the SPA runs; `idb-keyval` **6.3.0** (Jul 2026); Dexie **4.4.6**; `idb` **8.0.3**, last shipped May 2025. See § What the persister can and cannot do, including the `gcTime` trap it uncovered |
 | When the `esi-markets.structure_markets.v1` scope is added — with Stage E, or earlier so the re-authorisation rides a release that is already asking for one | Adding a scope re-authorises every character; it should not be its own event if it can avoid being one |
 | Whether a citadel book walk is bounded, and what happens to a reader who saves a structure with a very large book | Unknown until measured. Stage E |
 
