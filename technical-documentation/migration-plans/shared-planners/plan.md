@@ -1296,10 +1296,30 @@ none of the constants above.
 
 Because `account_settings` is already being stamped in this release's window, the backfill belongs in
 `prepareRelease` beside the owner stamp instead, where it writes once for every account rather than
-on every read for the life of the field. Its step is idempotent for the same reason the read-time seed
-is — an already-filled side is left alone — and it sits after `completeSchemaMaintenance`, as C2's does.
+on every read for the life of the field. **Landed** as `seed each account's buying and selling pricing
+defaults` in `core/commands/release_pricing_defaults.go`, after the owner stamp: the settings it writes
+go through the owner-preserving upsert, so they need the owner already on the document.
+
+It calls `documentschema`'s seed rather than carrying its own copy of the rules — a second
+implementation could disagree with the one every read goes through, and the disagreement would be
+invisible until a player's default changed under them. It selects only the accounts owing an answer, so
+a side the player has chosen is never visited, and re-running finds nothing.
+
+**Why the read-time seed cannot do this on its own.** `LoadApplicationSettings` writes back only when
+the schema version moved, and this seed is gated on an empty market instead — an unversioned document
+is stamped with the current version before the seed is reached, so a version test would never fire for
+exactly the rows needing the fill. The read path therefore fills the field for its caller and leaves
+the document as it was, every time.
+
 Once it has run and the gate has passed, the read-time seed has nothing left to find and retires with
 it.
+
+**On dev it finds nothing, and that is the expected result.** The SPA writes the whole settings
+document whenever any setting changes, and the read-time seed fills the field before the SPA sees it,
+so every account that has saved a setting since the split already carries the value. The accounts the
+step exists for are the dormant ones, which live has and dev does not — run the dry run first and the
+number it reports is the real answer. Counts and the sample document:
+[measurements/pricing-defaults-backfill.md](./measurements/pricing-defaults-backfill.md).
 
 This stays a backfill, not a migration: no constant moves, and no `vN → vN+1` step is written for it.
 

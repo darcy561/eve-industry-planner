@@ -62,4 +62,5 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | Know what happens to same-account force-release once the lock is planner-wide | [plan.md](./plan.md) § Stage H |
 | Decide where the websocket's grant ceiling is read from | [plan.md](./plan.md) § Stage I |
 | Know how a document states its owner today | [overlay.md](./overlay.md) § Stage A — The owner block cutover |
+| Know what the pricing-defaults backfill will actually find | [measurements/pricing-defaults-backfill.md](./measurements/pricing-defaults-backfill.md) |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |

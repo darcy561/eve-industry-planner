@@ -1,9 +1,13 @@
 # Market pricing defaults — plan
 
-**Status:** Stage A steps 1-6 landed; step 7 waits on the shared-planners release. Stage B is done
-through B6: the group rung resolves end to end on both sides, the selling side names an exit route,
-and Settings can set, edit and remove a group default. Stage N is done: the SPA has one name for each
-axis. Only Stage A step 7 remains, and it waits on the shared-planners release.
+**Status:** **Every stage is built.** Stage A steps 1-6, Stage B through B6, and Stage N have all
+landed: a job's two sides are priced separately, a market group default resolves on both of them and
+can be set from Settings, and the SPA has one name for each pricing axis.
+
+**Nothing here is waiting on work — it is waiting on a deploy.** Stage A step 7 drops the retired
+`defaultMarketLocation` / `defaultOrderType`, and it cannot until the stored documents are backfilled.
+The step that backfills them is written and tested (§ Wire compatibility); what remains is the
+shared-planners release running it against live, which this project does not schedule.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Hooks/Planner/`, `Functions/MarketData/`,
 `Styled Components/Select/`, `Zustand/applicationSettings/`, `Classes/shoppingList.js` and the panels
 and dialogues listed in § Stage A; [`services/shared/models/`](../../../services/shared/models/),
@@ -230,8 +234,9 @@ never fire for exactly the legacy rows that need filling.
 **The stored backfill rides the shared-planners release rather than a schema step.**
 `account_settings` is already being stamped in that project's release window, so writing
 `DefaultPricing` once per account belongs in its `prepareRelease` run beside the owner stamp — see
-[shared-planners/plan.md](../shared-planners/plan.md) § Schema versioning. The read-time seed is what
-carries the field until then, and retires once that step has run and its gate has passed. Either way
+[shared-planners/plan.md](../shared-planners/plan.md) § Schema versioning. **That step now exists**, as
+`seed each account's buying and selling pricing defaults`. The read-time seed is what carries the field
+until the release runs, and retires once it has. Either way
 no `*SchemaCurrent` constant moves: this is a backfill, not a migration.
 
 Nothing in `services/` computes anything from these two fields; the backend only stores them.
@@ -253,7 +258,10 @@ again, and the old pair stops being written and ages out with the documents.
 4. ~~Point each surface in the table at a side, explicitly.~~ Done.
 5. ~~Guard the unguarded price reads in the three files above.~~ Done, with the rest of step 4.
 6. ~~Settings and first-login controls offer both pairs.~~ Done.
-7. Stop writing the old fields, once the shared-planners release has backfilled the stored ones.
+7. Stop writing the old fields, once the shared-planners release has backfilled the stored ones. The
+   backfill step is written; **what remains is the release running against live.** Until then the SPA
+   keeps carrying and persisting the single pair, because a stored value has to survive a session on
+   older code.
 
 **Done when** every surface in the table names a side, no code reads `defaultMarketLocation` or
 `defaultOrderType`, and a player can buy against one market and sell against another without touching
@@ -619,7 +627,7 @@ until then a key naming something the other side never had throws only when firs
 | Stage | State |
 |-------|-------|
 | Phase 1 — project folder and docs | Done |
-| Stage A — retire the single account default | Steps 1-6 landed; step 7 waits on the release |
+| Stage A — retire the single account default | Steps 1-6 landed. Step 7 waits on the shared-planners release **running**, not on anything unwritten: its backfill step exists and its live test passes |
 | Stage B1 — publishing the market group data | Done |
 | Stage B2 — the stored shape and the walk | Done |
 | Stage B3 — the rung in the ladder | Done |
@@ -634,6 +642,12 @@ until then a key naming something the other side never had throws only when firs
 single `defaultMarketLocation` / `defaultOrderType` and the job's `localMarketDisplay` /
 `localOrderDisplay` — is the only step left, and it waits on that release backfilling the stored
 documents (§ Wire compatibility).
+
+The backfill itself is no longer outstanding: `seed each account's buying and selling pricing
+defaults` is in `prepareRelease`, its live test passes against stack Mongo, and on a dev database it
+correctly finds nothing — see
+[shared-planners/measurements/pricing-defaults-backfill.md](../shared-planners/measurements/pricing-defaults-backfill.md)
+for why a zero there is the expected result rather than a doubt about the step.
 
 What is deliberately still there in the meantime: `Zustand/applicationSettings` carries and persists
 the single pair so a stored value survives, and the `Job` constructor reads the job's legacy pair to
@@ -653,9 +667,11 @@ stored key: six vocabularies became one, and three conversion sites plus one wra
 deleted rather than renamed. What survives is deliberate and listed in § The ladder layer is half a
 stored shape.
 
-**Only Stage A step 7 is left in this project**, and it waits on a `prepareRelease` backfill step that
-shared-planners has planned and not yet written — see § Start here above and
-[shared-planners/plan.md](../shared-planners/plan.md) § Schema versioning.
+**Only Stage A step 7 is left in this project**, and it now waits on nothing but the release itself:
+the `prepareRelease` step that backfills the stored documents is written and its live test passes
+against stack Mongo. Step 7 drops the old fields once that release has run against live, which is not
+this project's to schedule — see [shared-planners/plan.md](../shared-planners/plan.md) § Schema
+versioning.
 
 Read § Two axes, both called buy and sell before naming anything, and § Traps this work has already
 fallen into before changing a stored shape. Both cost a slice each the first time.
