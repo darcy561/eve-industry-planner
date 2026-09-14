@@ -1,9 +1,6 @@
 import { LISTING_TYPES } from "../../../../../../../Context/defaultValues.jsx";
-import GLOBAL_CONFIG from "../../../../../../../global-config-app";
-
-const marketLabelById = Object.fromEntries(
-  GLOBAL_CONFIG.MARKET_OPTIONS.map((entry) => [entry.id, entry.name]),
-);
+import { sourceNameIn } from "../../../../../../../Functions/MarketData/marketSources";
+import { readMarketSources } from "../../../../../../../Hooks/Static/useMarketSources";
 
 const listingLabelById = Object.fromEntries(
   LISTING_TYPES.map((entry) => [entry.id, entry.name]),
@@ -25,7 +22,10 @@ export function getListingOrdersLabel(listingType) {
 }
 
 export function getMarketLocationLabel(marketLocation) {
-  return marketLabelById[marketLocation] || marketLocation;
+  // Read per call rather than mapped once at module load: the registry gains
+  // reader-saved markets while the app runs, and a map built at import time
+  // would name only the four it started with.
+  return sourceNameIn(readMarketSources(), marketLocation);
 }
 
 export function buildRowSourceText(marketLocation, listingType) {

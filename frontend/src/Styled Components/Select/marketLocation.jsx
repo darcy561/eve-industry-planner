@@ -9,6 +9,8 @@ import GLOBAL_CONFIG from "../../global-config-app";
 import { getAppShellMarketSelectProps } from "../../Context/appShell";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
+import { sourceIn } from "../../Functions/MarketData/marketSources";
+import { useMarketSources } from "../../Hooks/Static/useMarketSources";
 
 const { DEFAULT_MARKET_OPTION } = GLOBAL_CONFIG;
 
@@ -50,17 +52,18 @@ function MarketLocationSelect({
   useAppShellStyling = false,
 }) {
   const theme = useTheme();
-  const { MARKET_OPTIONS } = GLOBAL_CONFIG;
+  const marketSources = useMarketSources();
   const appShell = useAppShellStyling
     ? getAppShellMarketSelectProps(theme)
     : null;
   const resolvedSelectVariant = appShell?.selectVariant ?? selectVariant;
   const resolvedMenuProps = { ...(appShell?.menuProps || {}), ...menuProps };
 
-  // Ensure value is valid, fallback to "jita" if not
-  const validValue = MARKET_OPTIONS.find((option) => option.id === value)
+  // A value the registry does not carry falls back to the default rather than
+  // leaving the select showing nothing.
+  const validValue = sourceIn(marketSources, value)
     ? value
-    : "jita";
+    : GLOBAL_CONFIG.DEFAULT_MARKET_OPTION;
 
   return (
     <FormControl
@@ -92,7 +95,7 @@ function MarketLocationSelect({
         error={error.isError}
         onChange={(e) => {
           if (onChange) {
-            onChange(MARKET_OPTIONS.find((i) => i.id == e.target.value));
+            onChange(sourceIn(marketSources, e.target.value));
           } else {
             console.error(
               "Market Location Select is missing an onChange Function",
@@ -112,7 +115,7 @@ function MarketLocationSelect({
           ...customSelectStyling,
         }}
       >
-        {MARKET_OPTIONS.map((entry) => {
+        {marketSources.map((entry) => {
           return (
             <MenuItem key={entry.id} value={entry.id}>
               {entry.name}

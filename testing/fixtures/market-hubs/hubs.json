@@ -1,0 +1,25 @@
+{
+  "why": "The markets this server prices against, from esicore.DefaultMarketLocations. The SPA carries its own copy to offer and label them, and nothing but this file connects the two. Regenerate with: EIP_UPDATE_MARKET_HUBS=1 go test ./shared/core/esi/ -run TestTheMarketHubListIsCurrent",
+  "hubs": {
+    "amarr": {
+      "name": "Amarr",
+      "regionID": 10000043,
+      "stationID": 60008494
+    },
+    "dodixie": {
+      "name": "Dodixie",
+      "regionID": 10000032,
+      "stationID": 60011866
+    },
+    "hek": {
+      "name": "Hek",
+      "regionID": 10000042,
+      "stationID": 60005686
+    },
+    "jita": {
+      "name": "Jita",
+      "regionID": 10000002,
+      "stationID": 60003760
+    }
+  }
+}

@@ -10,6 +10,7 @@ import {
 import { alpha } from "@mui/material/styles";
 import { useMemo, useState } from "react";
 import GLOBAL_CONFIG from "../../global-config-app";
+import { useMarketSources } from "../../Hooks/Static/useMarketSources";
 import {
   appShellInsetSurfaceSx,
   getAppShellMarketSelectProps,
@@ -19,8 +20,6 @@ import { normalizeLocaleForIntl } from "../../Functions/Helper/localeDetection";
 import { useHasChanged } from "../../Hooks/useHasChanged";
 import { useItemNames } from "../../Hooks/Static/useItems";
 import { ChartRangeSlider, TimeSeriesChart, trailingRange } from "../Charts";
-
-const { MARKET_OPTIONS } = GLOBAL_CONFIG;
 
 function PriceHistoryItemName({ typeID }) {
   const rows = useMemo(() => (typeID ? [{ typeID }] : []), [typeID]);
@@ -49,6 +48,7 @@ function PriceHistoryLineGraph({
   regionNames,
 }) {
   const theme = useTheme();
+  const marketSources = useMarketSources();
   const regionSelectShell = getAppShellMarketSelectProps(theme);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const userLocale = normalizeLocaleForIntl(
@@ -198,7 +198,7 @@ function PriceHistoryLineGraph({
               "& .MuiSelect-icon": { color: "primary.main" },
             }}
           >
-            {MARKET_OPTIONS.map((option) => (
+            {marketSources.map((option) => (
               <MenuItem key={option.id} value={option.regionID}>
                 {option.name}
               </MenuItem>

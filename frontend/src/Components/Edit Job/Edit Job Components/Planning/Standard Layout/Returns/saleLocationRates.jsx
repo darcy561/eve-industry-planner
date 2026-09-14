@@ -20,8 +20,8 @@ import {
   getSaleStructures,
 } from "../../../../../../Functions/MarketOrders/saleLocations";
 import { BROKER_FEE_TERMS } from "../../../../../../Functions/MarketOrders/sellingRates";
-import GLOBAL_CONFIG from "../../../../../../global-config-app";
 import AssignUsersSelect from "../../../../../../Styled Components/Select/users";
+import { readMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
 
 /**
  * Where the build is sold from, and what selling there costs.
@@ -308,7 +308,7 @@ function saleLocationGroups() {
     },
     {
       label: "NPC stations",
-      options: GLOBAL_CONFIG.MARKET_OPTIONS.map(({ id, name }) => ({
+      options: readMarketSources().map(({ id, name }) => ({
         id,
         name,
       })),

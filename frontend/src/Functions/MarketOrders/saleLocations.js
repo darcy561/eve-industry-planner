@@ -1,6 +1,6 @@
 import GLOBAL_CONFIG from "../../global-config-app";
-
-const { MARKET_OPTIONS } = GLOBAL_CONFIG;
+import { sourceIn } from "../MarketData/marketSources";
+import { readMarketSources } from "../../Hooks/Static/useMarketSources";
 
 /**
  * The kinds of location a job can be sold from. A preset hub's broker fee is
@@ -54,7 +54,7 @@ const PLACEHOLDER_SALE_STRUCTURES = [
  * @property {number} structureID - The in-game structure
  * @property {string} name - What the structure is called
  * @property {number} brokerFee - The rate its owner set, as a percentage
- * @property {string} priceHub - Which MARKET_OPTIONS id its figures price against
+ * @property {string} priceHub - Which market source its figures price against
  * @property {boolean} default - Whether it is the one used when none is chosen
  */
 
@@ -97,7 +97,7 @@ export function getDefaultSaleStructure() {
  *
  * @param {string|null} [saleLocationID] - A saved citadel's id or an NPC station's,
  *   or null to fall back to the hub
- * @param {string} [hubID] - A MARKET_OPTIONS id, used when no location is named
+ * @param {string} [hubID] - A market source id, used when no location is named
  * @returns {SaleLocation|null}
  */
 export function resolveSaleLocation(saleLocationID, hubID) {
@@ -108,13 +108,14 @@ export function resolveSaleLocation(saleLocationID, hubID) {
     // A named NPC station is a choice like any other. Falling through to the
     // hub argument here sold the job from whichever hub the materials happened
     // to be priced against, quietly ignoring the station that was picked.
-    const chosen = MARKET_OPTIONS.find((i) => i.id === saleLocationID);
+    const chosen = sourceIn(readMarketSources(), saleLocationID);
     if (chosen) return saleLocationFromHub(chosen);
   }
 
+  const sources = readMarketSources();
   const hub =
-    MARKET_OPTIONS.find((i) => i.id === hubID) ??
-    MARKET_OPTIONS.find((i) => i.id === GLOBAL_CONFIG.DEFAULT_MARKET_OPTION);
+    sourceIn(sources, hubID) ??
+    sourceIn(sources, GLOBAL_CONFIG.DEFAULT_MARKET_OPTION);
   if (!hub) return null;
 
   return saleLocationFromHub(hub);
@@ -142,9 +143,10 @@ function saleLocationFromHub(hub) {
  */
 function saleLocationFromStructure(structure) {
   // A structure has no market of its own, so its figures price against a hub.
+  const sources = readMarketSources();
   const hub =
-    MARKET_OPTIONS.find((i) => i.id === structure.priceHub) ??
-    MARKET_OPTIONS.find((i) => i.id === GLOBAL_CONFIG.DEFAULT_MARKET_OPTION);
+    sourceIn(sources, structure.priceHub) ??
+    sourceIn(sources, GLOBAL_CONFIG.DEFAULT_MARKET_OPTION);
 
   return {
     kind: SALE_LOCATION_KIND.STRUCTURE,

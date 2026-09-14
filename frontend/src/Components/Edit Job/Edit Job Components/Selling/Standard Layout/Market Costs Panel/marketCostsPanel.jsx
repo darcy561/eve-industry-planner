@@ -1,16 +1,15 @@
 import { Box, Typography, useMediaQuery, Grid } from "@mui/material";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
-import GLOBAL_CONFIG from "../../../../../../global-config-app";
 import ItemMarketActions from "../../../../../../Styled Components/Item/marketActions";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
-
-const { MARKET_OPTIONS } = GLOBAL_CONFIG;
+import { useMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
 
 export function MarketCostsPanel({ state }) {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("sm"));
+  const marketSources = useMarketSources();
   const itemCosts = useUsersStore
     .getState()
     .worldData.actions.findMarketData(state.activeJob.itemID);
@@ -42,7 +41,7 @@ export function MarketCostsPanel({ state }) {
           width: "100%",
         }}
       >
-        {MARKET_OPTIONS.map(({ id, name }) => {
+        {marketSources.map(({ id, name }) => {
           const optionCosts = itemCosts[id];
           return (
             <Grid

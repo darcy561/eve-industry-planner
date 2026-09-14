@@ -9,9 +9,7 @@
  * @author EVE Industry Planner Team
  */
 
-import GLOBAL_CONFIG from "../../global-config-app";
-
-const { MARKET_OPTIONS } = GLOBAL_CONFIG;
+import { allMarketSources } from "../../Functions/MarketData/marketSources";
 
 /**
  * Market data management actions for world data slice.
@@ -73,9 +71,11 @@ export const marketDataActions = (set, get) => ({
     return (
       state.worldData.marketData[requestedID] ||
       alternativeLocation[requestedID] ||
-      MARKET_OPTIONS.reduce(
-        (res, obj) => {
-          res[obj.id] = {
+      // A zero for every market the registry carries, so a caller indexing by
+      // source finds a shape rather than throwing.
+      allMarketSources().reduce(
+        (res, source) => {
+          res[source.id] = {
             buy: 0,
             sell: 0,
             buyP95: 0,

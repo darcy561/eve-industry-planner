@@ -11,7 +11,7 @@ import useUsersStore from "../../Zustand/usersStore";
  *
  * @param {Object} props - Component props
  * @param {number} props.itemTypeID - EVE Online type ID of the item to view price history for
- * @param {string|Object} [props.regionID] - Market hub `id` from `MARKET_OPTIONS` or row object. If not provided, uses default market or `MARKET_OPTIONS` row where `regionID` is `DEFAULT_REGION` (The Forge).
+ * @param {string|Object} [props.regionID] - A market source id or the source itself. Absent, the account's own market answers, falling back to the source whose `regionID` is `DEFAULT_REGION` (The Forge).
  * @param {Object} [props.iconButtonStyle] - Custom styling for the icon button
  * @param {Object} [props.iconStyle] - Custom styling for the timeline icon
  * @param {string} [props.tooltipText="Item Price History"] - Text to display in the tooltip
