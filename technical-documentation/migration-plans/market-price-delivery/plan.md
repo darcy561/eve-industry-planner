@@ -499,13 +499,15 @@ a second one.
 
 ## Stage E — Sources the browser fetches
 
-1. Derivation in the SPA: best bid, best ask, nearest-rank percentile with the under-five fallback,
+1. ~~Derivation in the SPA: best bid, best ask, nearest-rank percentile with the under-five fallback,
    producing the same row shape the server produces, held in agreement with the Go implementation by
-   whatever § Open decisions settles on.
-2. **Custom NPC station:** per-type region orders filtered to the station's `location_id`, built on
-   the existing `getMarketData` call and its ETag handling. Rows and per-type clocks to the persistent
-   tier.
-   Several stations in one region share one request per type, split back out by `location_id`.
+   whatever § Open decisions settles on.~~ Done, as `deriveBookPrices.js` against a committed fixture
+   — see [overlay.md](./overlay.md) § E1.
+2. **Custom NPC station:** ~~per-type region orders filtered to the station's `location_id`, built on
+   the existing `getMarketData` call and its ETag handling.~~ Done as `fetchStationBook.js`; the
+   region's orders come back beside the prices so several stations in one region split one answer —
+   see [overlay.md](./overlay.md) § E2. **Still open:** writing the rows and per-type clocks to the
+   persistent tier, which is Stage D's read-through.
 3. **Custom citadel:** the whole-book walk on the reader's own token, through `nameLoader`'s
    per-character machinery **extended** rather than copied — it already asks each linked character in
    turn, keeps one refusal from settling the account's answer, skips a character whose token lacks the
@@ -672,7 +674,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 
 | Question | Notes |
 |----------|-------|
-| **How the Go and JavaScript derivations are held in agreement.** Options: a fixture file in the repo (order books in, expected rows out) that a test on each side reads, so a change to one without the other fails; or generating the JavaScript from the Go; or accepting drift and testing each alone | The fixture is the cheapest thing that actually catches a divergence, and the repo already keeps shared fixtures for the SPA. Decide before Stage E writes a line of derivation |
+| ~~How the Go and JavaScript derivations are held in agreement~~ | **Answered: the fixture.** `testing/fixtures/market-derivation/books.json`, written from the real Go derivation and read by a test on each side. Its cases twice passed an implementation that was wrong — see [overlay.md](./overlay.md) § E1 for which sizes of book a case has to use for the fixture to state anything |
 | ~~Persistent storage — TanStack's own persister, Dexie, or `idb`~~ | **Decided: read-through on `idb-keyval`**, the persister spiked against a real IndexedDB and backed out. `gcTime` decided it — see § How the persistent tier is stored, which also carries what persistence must do about the clock |
 | When the `esi-markets.structure_markets.v1` scope is added — with Stage E, or earlier so the re-authorisation rides a release that is already asking for one | Adding a scope re-authorises every character; it should not be its own event if it can avoid being one |
 | Whether a citadel book walk is bounded, and what happens to a reader who saves a structure with a very large book | Unknown until measured. Stage E |

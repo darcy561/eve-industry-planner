@@ -9,7 +9,10 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingData={}] - Existing data for caching
  * @param {Object} [params.config={}] - Additional configuration options
- * @returns {Promise<Object>} Promise that resolves to market data with etag and totalPages
+ * @returns {Promise<{data: Array, etag: string, totalPages: number,
+ *   headers: Headers, unchanged: boolean}>} The orders, what identifies this
+ *   answer, and the response's own headers — `expires` says when the book can
+ *   next have changed, and a caller pacing its own refresh needs it
  *
  * @throws {Error} Throws error if regionID or typeID is missing
  *
@@ -62,6 +65,10 @@ async function getMarketData({
         data: existingData.data || [],
         etag: existingData.etag || "",
         totalPages: existingData.totalPages || 1,
+        headers: response.headers,
+        // The book has not moved, so a caller holding it can keep what it has
+        // and only take the new expiry from the headers above.
+        unchanged: true,
       };
     }
 
@@ -83,6 +90,8 @@ async function getMarketData({
       data,
       etag,
       totalPages,
+      headers: response.headers,
+      unchanged: false,
     };
   } catch (err) {
     console.error(`Error fetching market data: ${err}`);

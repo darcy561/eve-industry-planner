@@ -77,6 +77,8 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know what decides that a price has gone stale | [overlay.md](./overlay.md) § C1, § C3 |
 | Know how a moved book reaches a surface someone is already looking at | [overlay.md](./overlay.md) § C5 |
 | Know what paces the refresh cycle, and why no component owns it | [overlay.md](./overlay.md) § C2 |
+| Know how the browser turns an order book into the four prices, and what holds it to the server's answer | [overlay.md](./overlay.md) § E1 |
+| Know how a reader-saved station is fetched, and what tells the browser when its book expires | [overlay.md](./overlay.md) § E2 |
 | Know what is genuinely left in Stages D and E, and why they go together | [plan.md](./plan.md) § What Stage D and E actually need |
 | Know how prices survive a reload, and why it is not the query persister | [plan.md](./plan.md) § How the persistent tier is stored |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |

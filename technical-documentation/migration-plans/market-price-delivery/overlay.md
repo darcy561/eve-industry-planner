@@ -340,7 +340,51 @@ version and its eviction path.
 
 ## Stage E — Sources the browser fetches
 
-*Nothing landed yet.*
+### E1 — The derivation, held to the server's by a fixture
+
+`Functions/MarketData/deriveBookPrices.js` turns an order book into the four
+prices: the location filter, the buy and sell split, best bid and ask, and the
+nearest-rank percentiles with the under-five fallback.
+`testing/fixtures/market-derivation/books.json` is written from the server's own
+`buildMarketPriceEntry` by `derivation_parity_test.go` and read by
+`deriveBookPrices.parity.test.js`, the same way the hub list is held together.
+
+**The fixture's cases were twice worthless and looked fine.** First every book was
+small enough that `ceil(0.95 × n)` lands on the last index, so `buyP95` equalled
+`buy` in all eight cases and a port ignoring percentiles entirely would have
+passed. Then, with larger books, `floor(p × n)` still passed every case — the two
+formulas agree except where `p × n` is whole. Twenty orders makes both `0.95n`
+and `0.05n` whole, so a book that size is what states which rule is in force. Both
+holes were found by mutating the implementation, not by reading the cases.
+
+The SPA side also meets shapes the server never does, because it reads ESI
+directly: an empty or absent book, a location id given as a number against one
+held as a string, and an order carrying no usable price — which must not become a
+`NaN` that spreads through every figure derived from it.
+
+### E2 — A station the reader saved
+
+`Functions/MarketData/fetchStationBook.js` walks a region's pages for one type,
+and `fetchStationPrices` puts the result through the derivation for one station.
+
+**`Expires` is readable, so the plan's per-source expiry works as written.** It is
+a CORS-safelisted response header, so a browser reads it without ESI naming it in
+`Access-Control-Expose-Headers` — where the exposed list caused a first reading
+that the browser could not see it at all. ESI's `Cache-Control` on this route is
+`public` with no `max-age`, so `Expires` is the only statement of when the book
+can have changed; the Go worker parses `max-age` instead because it reads a
+different header server-side.
+
+**The etag is offered on the first page only.** A region's pages are generated
+together and the etag identifies the whole book, so an unchanged book answers 304
+on page one and costs a single conditional request rather than every page again.
+A 304 still carries a **new expiry**, which is what moves the next refresh on.
+
+**The region's orders come back beside the prices**, because a region answers for
+every station in it: a reader pricing several saved stations in one region pays
+for the region once and splits the answer, rather than paying per station.
+
+### Still to land
 
 Sections to fill: the shared per-character walk extracted from `nameLoader` and what both callers pass
 it; the derivation in the SPA and what holds it in agreement with the Go one; the
