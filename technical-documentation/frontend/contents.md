@@ -12,8 +12,8 @@ step-navigation controls and parent-job linking, the job planner's job status
 accordions, the reprocessing settings panel, the dashboard's watchlist and
 tutorial-card row, the shared price history and price entry surfaces, and the
 app-shell component layer a panel is built from — its panel and card surfaces,
-figure and status atoms, labelled fields, scrolling tables and item market
-actions.
+figure and status atoms, labelled fields, scrolling tables, item market actions,
+and how a picture from EVE's image server is asked for and drawn.
 
 ## Does not own
 
@@ -42,4 +42,5 @@ actions.
 | Change the price history chart or the price entry dialogue | [pricing/contents.md](./pricing/contents.md) |
 | Change the dashboard's watchlist panel or its tutorial-card row | [dashboard/contents.md](./dashboard/contents.md) |
 | Change a shared panel, card, figure, field or table atom, or an item's market actions | [components/contents.md](./components/contents.md) |
+| Ask EVE's image server for a picture, or change what a missing one shows | [components/avatars.md](./components/avatars.md) |
 | Frontend test entrypoints / depth | [../testing/frontend/contents.md](../testing/frontend/contents.md) |

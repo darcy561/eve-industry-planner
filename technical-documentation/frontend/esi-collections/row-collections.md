@@ -61,6 +61,7 @@ against the other compares like with like. It carries no user-store read of its 
 collection builders that need it are pure.
 
 `Functions/Shared/eveOwner.js` resolves what the vocabulary names into what a person sees: `ownerName`
-looks a character or corporation up on the roster, and `ownerImageUrl` picks the portrait or
-corporation logo, rounding up to the nearest size EVE's image server actually serves. Both read the
-user store, which is why they sit apart from the pure builders rather than inside them.
+looks a character or corporation up on the roster, and `ownerImageUrl` resolves a character hash or a
+corporation id to a picture URL, picking portrait or logo from the owner's kind and leaving the URL
+itself to the image module ([avatars.md](../components/avatars.md)). Both read the user store, which
+is why they sit apart from the pure builders rather than inside them.

@@ -368,9 +368,9 @@ picture comes from one of the group's own items, which is a picture of the same 
 from the branch beneath it. Across the branches this app prices, 28 groups of 1,108 have nothing to
 borrow, and every one of them is obsolete.
 
-Surveying that call added a forty-first place the SPA builds an image URL inline, which is what opened
-[eve-image-server](../eve-image-server/contents.md). That project owns how a picture is asked for;
-which item a group borrows stays here.
+How a picture is asked for is owned by
+[frontend/components/avatars.md](../../frontend/components/avatars.md); which item a group borrows
+stays here.
 
 **Nothing caps a walk downward.** The upward walk has `MAX_GROUP_DEPTH` because a cycle would hang a
 page rendering once per material; a browse is driven by a reader and stops when they stop, so it has no
