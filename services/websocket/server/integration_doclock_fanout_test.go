@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/models"
 	"testing"
 	"time"
 
@@ -55,7 +56,7 @@ func TestIntegrationDocLockFanoutReachesEveryTabOfTheAccount(t *testing.T) {
 		t.Fatalf("requested event should not suppress, got %q", suppress)
 	}
 
-	outcome := f.Server.deliverDocumentLock(accountID, wire, suppress)
+	outcome := f.Server.deliverDocumentLock(models.AccountOwner(accountID), wire, suppress)
 	if outcome.RecipientCount < 2 {
 		t.Fatalf("recipients=%d want >=2 outcome=%+v", outcome.RecipientCount, outcome)
 	}
@@ -100,7 +101,7 @@ func TestIntegrationDocLockViewerEventSkipsTheSessionThatCausedIt(t *testing.T) 
 		t.Fatalf("viewer event should suppress its session, got %q", suppress)
 	}
 
-	outcome := f.Server.deliverDocumentLock(accountID, wire, suppress)
+	outcome := f.Server.deliverDocumentLock(models.AccountOwner(accountID), wire, suppress)
 	if outcome.RecipientCount != 1 {
 		t.Fatalf("recipients=%d want 1 outcome=%+v", outcome.RecipientCount, outcome)
 	}
@@ -126,7 +127,7 @@ func TestIntegrationDocLockReachesASocketFromTheSubject(t *testing.T) {
 	conn := f.connectAccount(accountID, "sess-lock-e2e")
 	nats := f.withDocLockDelivery()
 
-	if err := documentlock.PublishDocLockNotification(context.Background(), nats, accountID, map[string]any{
+	if err := documentlock.PublishDocLockNotification(context.Background(), nats, models.AccountOwner(accountID), map[string]any{
 		documentlock.LockPayloadEventKey: documentlock.LockEventRequested,
 		"collection":                     "jobs",
 		"docID":                          "job-e2e",

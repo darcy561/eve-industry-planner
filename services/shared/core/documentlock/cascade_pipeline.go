@@ -14,6 +14,7 @@ import (
 
 	eipmongo "eve-industry-planner/shared/mongo"
 
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 )
 
@@ -47,7 +48,7 @@ type CascadeRelease struct {
 func pipelinedDecideAndReleaseJobLocks(
 	ctx context.Context,
 	rdb *eipredis.Redis,
-	accountID string,
+	owner models.Owner,
 	jobIDs []string,
 	decide func(*LockRecord) (release bool, evictedSessionID string),
 ) ([]CascadeRelease, error) {
@@ -71,7 +72,7 @@ func pipelinedDecideAndReleaseJobLocks(
 	}
 	get := make([]*eipredis.StringResult, len(keep))
 	for i, jobID := range keep {
-		get[i] = pipe.Get(ctx, LockKey(accountID, eipmongo.CollectionJobDocuments, jobID))
+		get[i] = pipe.Get(ctx, LockKey(owner, eipmongo.CollectionJobDocuments, jobID))
 	}
 	if err := pipe.Exec(ctx); err != nil {
 		return nil, err
@@ -108,7 +109,7 @@ func pipelinedDecideAndReleaseJobLocks(
 		return releases, err
 	}
 	for _, r := range releases {
-		delPipe.Delete(ctx, LockKey(accountID, eipmongo.CollectionJobDocuments, r.JobID))
+		delPipe.Delete(ctx, LockKey(owner, eipmongo.CollectionJobDocuments, r.JobID))
 	}
 	if err := delPipe.Exec(ctx); err != nil {
 		// Return the decided releases along with the error so the caller

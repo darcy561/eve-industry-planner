@@ -12,16 +12,17 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 )
 
-func seedLock(t *testing.T, rdb *eipredis.Redis, accountID, collection, docID string, rec LockRecord) {
+func seedLock(t *testing.T, rdb *eipredis.Redis, owner models.Owner, collection, docID string, rec LockRecord) {
 	t.Helper()
 	b, err := json.Marshal(rec)
 	if err != nil {
 		t.Fatalf("marshal lock: %v", err)
 	}
-	if err := rdb.Driver().Set(context.Background(), LockKey(accountID, collection, docID), b, DefaultLockTTL).Err(); err != nil {
+	if err := rdb.Driver().Set(context.Background(), LockKey(owner, collection, docID), b, DefaultLockTTL).Err(); err != nil {
 		t.Fatalf("seed lock: %v", err)
 	}
 }
@@ -35,7 +36,7 @@ func TestStatusBatchFetch_AllUnheld(t *testing.T) {
 		{Collection: eipmongo.CollectionJobDocuments, DocID: "job-a"},
 		{Collection: eipmongo.CollectionJobDocuments, DocID: "job-b"},
 	}
-	results, err := statusBatchFetch(ctx, rdb, testAccountID, refs)
+	results, err := statusBatchFetch(ctx, rdb, testOwner, refs)
 	if err != nil {
 		t.Fatalf("statusBatchFetch: %v", err)
 	}
@@ -67,30 +68,30 @@ func TestStatusBatchFetch_HeldWithViewersAndWaitlist(t *testing.T) {
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 		ExtendCount:     2,
 	}
-	seedLock(t, rdb, testAccountID, testCollection, docID, rec)
+	seedLock(t, rdb, testOwner, testCollection, docID, rec)
 
 	// Two live viewers + one expired viewer (score in the past).
-	if _, err := AddViewer(ctx, rdb, testAccountID, testCollection, docID, "viewer-a"); err != nil {
+	if _, err := AddViewer(ctx, rdb, testOwner, testCollection, docID, "viewer-a"); err != nil {
 		t.Fatalf("AddViewer a: %v", err)
 	}
-	if _, err := AddViewer(ctx, rdb, testAccountID, testCollection, docID, "viewer-b"); err != nil {
+	if _, err := AddViewer(ctx, rdb, testOwner, testCollection, docID, "viewer-b"); err != nil {
 		t.Fatalf("AddViewer b: %v", err)
 	}
-	if err := rdb.Driver().ZAddArgs(ctx, ViewerPresenceKey(testAccountID, testCollection, docID), redis.ZAddArgs{
+	if err := rdb.Driver().ZAddArgs(ctx, ViewerPresenceKey(testOwner, testCollection, docID), redis.ZAddArgs{
 		Members: []redis.Z{{Score: float64(time.Now().Add(-time.Hour).Unix()), Member: "viewer-stale"}},
 	}).Err(); err != nil {
 		t.Fatalf("seed stale viewer: %v", err)
 	}
 
 	// Two waitlist entries (LLen counts raw entries).
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, docID, "wait-a"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, docID, "wait-a", testAccountID); err != nil {
 		t.Fatalf("enqueue wait-a: %v", err)
 	}
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, docID, "wait-b"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, docID, "wait-b", testAccountID); err != nil {
 		t.Fatalf("enqueue wait-b: %v", err)
 	}
 
-	results, err := statusBatchFetch(ctx, rdb, testAccountID, []statusDocRef{
+	results, err := statusBatchFetch(ctx, rdb, testOwner, []statusDocRef{
 		{Collection: testCollection, DocID: docID},
 	})
 	if err != nil {
@@ -131,11 +132,11 @@ func TestStatusBatchFetch_ExpiredRecordReturnsUnheldAndDeletes(t *testing.T) {
 	// Bypass DefaultLockTTL here so miniredis still has the key for us to
 	// observe the expired-record cleanup path inside statusBatchFetch.
 	b, _ := json.Marshal(rec)
-	if err := rdb.Driver().Set(ctx, LockKey(testAccountID, testCollection, docID), b, 0).Err(); err != nil {
+	if err := rdb.Driver().Set(ctx, LockKey(testOwner, testCollection, docID), b, 0).Err(); err != nil {
 		t.Fatalf("seed expired: %v", err)
 	}
 
-	results, err := statusBatchFetch(ctx, rdb, testAccountID, []statusDocRef{
+	results, err := statusBatchFetch(ctx, rdb, testOwner, []statusDocRef{
 		{Collection: testCollection, DocID: docID},
 	})
 	if err != nil {
@@ -146,7 +147,7 @@ func TestStatusBatchFetch_ExpiredRecordReturnsUnheldAndDeletes(t *testing.T) {
 	}
 
 	// The follow-up DEL pipeline should have removed the key.
-	if n, err := rdb.Driver().Exists(ctx, LockKey(testAccountID, testCollection, docID)).Result(); err != nil {
+	if n, err := rdb.Driver().Exists(ctx, LockKey(testOwner, testCollection, docID)).Result(); err != nil {
 		t.Fatalf("Exists: %v", err)
 	} else if n != 0 {
 		t.Fatalf("expected expired key to be DELed, still exists")
@@ -158,7 +159,7 @@ func TestStatusBatchFetch_EmptyRefs(t *testing.T) {
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 	ctx := context.Background()
 
-	results, err := statusBatchFetch(ctx, rdb, testAccountID, nil)
+	results, err := statusBatchFetch(ctx, rdb, testOwner, nil)
 	if err != nil {
 		t.Fatalf("statusBatchFetch nil: %v", err)
 	}
@@ -177,13 +178,13 @@ func TestStatusBatchFetch_PreservesInputOrder(t *testing.T) {
 		{Collection: testCollection, DocID: "doc-2-held"},
 		{Collection: testCollection, DocID: "doc-3"},
 	}
-	seedLock(t, rdb, testAccountID, testCollection, "doc-2-held", LockRecord{
+	seedLock(t, rdb, testOwner, testCollection, "doc-2-held", LockRecord{
 		HolderSessionID: "sess-middle",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 	})
 
-	results, err := statusBatchFetch(ctx, rdb, testAccountID, refs)
+	results, err := statusBatchFetch(ctx, rdb, testOwner, refs)
 	if err != nil {
 		t.Fatalf("statusBatchFetch: %v", err)
 	}
@@ -201,7 +202,7 @@ func TestStatusBatchFetch_PreservesInputOrder(t *testing.T) {
 func TestStatusBatchResults_EmptyError(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
-	if _, _, err := StatusBatchResults(context.Background(), rdb, testAccountID, nil, nil); err != ErrStatusBatchEmpty {
+	if _, _, err := StatusBatchResults(context.Background(), rdb, testOwner, nil, nil); err != ErrStatusBatchEmpty {
 		t.Fatalf("expected ErrStatusBatchEmpty, got %v", err)
 	}
 }
@@ -213,14 +214,14 @@ func TestStatusBatchResults_TooManyError(t *testing.T) {
 	for i := range tooMany {
 		tooMany[i] = "id-" + strconv.Itoa(i)
 	}
-	if _, _, err := StatusBatchResults(context.Background(), rdb, testAccountID, tooMany, nil); err != ErrStatusBatchTooMany {
+	if _, _, err := StatusBatchResults(context.Background(), rdb, testOwner, tooMany, nil); err != ErrStatusBatchTooMany {
 		t.Fatalf("expected ErrStatusBatchTooMany, got %v", err)
 	}
 }
 
 func TestStatusBatchResults_NilRedisError(t *testing.T) {
 	t.Parallel()
-	if _, _, err := StatusBatchResults(context.Background(), nil, testAccountID, []string{"a"}, nil); err != ErrLocksUnavailable {
+	if _, _, err := StatusBatchResults(context.Background(), nil, testOwner, []string{"a"}, nil); err != ErrLocksUnavailable {
 		t.Fatalf("expected ErrLocksUnavailable, got %v", err)
 	}
 }
@@ -233,18 +234,18 @@ func TestStatusBatchResults_RoutesJobsAndGroupsIntoSeparateBuckets(t *testing.T)
 	jobID := "job-x"
 	groupID := "group-x"
 
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testOwner, eipmongo.CollectionJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-job",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 	})
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobGroups, groupID, LockRecord{
+	seedLock(t, rdb, testOwner, eipmongo.CollectionJobGroups, groupID, LockRecord{
 		HolderSessionID: "sess-group",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 	})
 
-	jobs, groups, err := StatusBatchResults(ctx, rdb, testAccountID, []string{jobID, "missing-job"}, []string{groupID, "", "missing-group"})
+	jobs, groups, err := StatusBatchResults(ctx, rdb, testOwner, []string{jobID, "missing-job"}, []string{groupID, "", "missing-group"})
 	if err != nil {
 		t.Fatalf("StatusBatchResults: %v", err)
 	}
@@ -285,13 +286,13 @@ func TestStatusPayloadForDoc_MatchesBatchPath(t *testing.T) {
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 		ExtendCount:     1,
 	}
-	seedLock(t, rdb, testAccountID, testCollection, docID, rec)
+	seedLock(t, rdb, testOwner, testCollection, docID, rec)
 
-	single, err := StatusPayloadForDoc(ctx, rdb, testAccountID, testCollection, docID)
+	single, err := StatusPayloadForDoc(ctx, rdb, testOwner, testCollection, docID)
 	if err != nil {
 		t.Fatalf("StatusPayloadForDoc: %v", err)
 	}
-	batch, err := statusBatchFetch(ctx, rdb, testAccountID, []statusDocRef{
+	batch, err := statusBatchFetch(ctx, rdb, testOwner, []statusDocRef{
 		{Collection: testCollection, DocID: docID},
 	})
 	if err != nil {

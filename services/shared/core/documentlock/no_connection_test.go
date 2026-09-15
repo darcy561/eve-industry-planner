@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 )
 
@@ -14,18 +15,19 @@ import (
 func TestEntryPointsSkipQuietlyWithoutAConnection(t *testing.T) {
 	ctx := context.Background()
 	d := Deps{Redis: eipredis.NewRedis(nil)}
+	owner := models.AccountOwner("acct")
 
 	for name, call := range map[string]func() error{
 		"add viewer": func() error {
-			_, err := AddViewer(ctx, d.Redis, "acct", "jobs", "doc", "sess")
+			_, err := AddViewer(ctx, d.Redis, owner, "jobs", "doc", "sess")
 			return err
 		},
 		"remove viewer": func() error {
-			_, err := RemoveViewer(ctx, d.Redis, "acct", "jobs", "doc", "sess")
+			_, err := RemoveViewer(ctx, d.Redis, owner, "jobs", "doc", "sess")
 			return err
 		},
 		"touch waitlist pulse": func() error {
-			return TouchWaitlistPulse(ctx, d.Redis, "acct", "jobs", "doc", "sess")
+			return TouchWaitlistPulse(ctx, d.Redis, owner, "jobs", "doc", "sess")
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -43,10 +45,10 @@ func TestWaitlistReadsReportRatherThanPanic(t *testing.T) {
 	ctx := context.Background()
 	r := eipredis.NewRedis(nil)
 
-	if _, err := PeekWaitlistHead(ctx, r, "acct", "jobs", "doc"); err == nil {
+	if _, err := PeekWaitlistHead(ctx, r, models.AccountOwner("acct"), "jobs", "doc"); err == nil {
 		t.Error("peek with no connection reported success")
 	}
-	if _, err := WaitlistLen(ctx, r, "acct", "jobs", "doc"); err == nil {
+	if _, err := WaitlistLen(ctx, r, models.AccountOwner("acct"), "jobs", "doc"); err == nil {
 		t.Error("length with no connection reported success")
 	}
 }
@@ -55,7 +57,8 @@ func TestWaitlistReadsReportRatherThanPanic(t *testing.T) {
 func TestIngressHelpersSurviveNoConnection(t *testing.T) {
 	ctx := context.Background()
 	d := Deps{Redis: eipredis.NewRedis(nil)}
+	owner := models.AccountOwner("acct")
 
-	HandleViewerArrivedIngress(ctx, d, "acct", "sess", "jobs", "doc")
-	HandleViewerDepartedIngress(ctx, d, "acct", "sess", "jobs", "doc")
+	HandleViewerArrivedIngress(ctx, d, owner, "sess", "jobs", "doc")
+	HandleViewerDepartedIngress(ctx, d, owner, "sess", "jobs", "doc")
 }

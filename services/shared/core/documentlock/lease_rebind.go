@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 )
 
@@ -77,7 +78,7 @@ type rebindTxResult struct {
 }
 
 // RebindHolderLeaseContested moves the active holder into contested (5m) mode.
-func RebindHolderLeaseContested(ctx context.Context, rdb *eipredis.Redis, accountID, collection, docID string) (*rebindTxResult, error) {
+func RebindHolderLeaseContested(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, collection, docID string) (*rebindTxResult, error) {
 	if rdb.Driver() == nil {
 		return nil, eipredis.ErrNoClient
 	}
@@ -85,7 +86,7 @@ func RebindHolderLeaseContested(ctx context.Context, rdb *eipredis.Redis, accoun
 	raw, err := rdb.Run(
 		ctx,
 		rebindContestedLockScript,
-		[]string{LockKey(accountID, collection, docID)},
+		[]string{LockKey(owner, collection, docID)},
 		now,
 		ContestedLockTTLSeconds(),
 	).Text()
@@ -100,7 +101,7 @@ func RebindHolderLeaseContested(ctx context.Context, rdb *eipredis.Redis, accoun
 }
 
 // RebindHolderLeaseSolo moves the active holder into solo (long TTL) mode.
-func RebindHolderLeaseSolo(ctx context.Context, rdb *eipredis.Redis, accountID, collection, docID string) (*rebindTxResult, error) {
+func RebindHolderLeaseSolo(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, collection, docID string) (*rebindTxResult, error) {
 	if rdb.Driver() == nil {
 		return nil, eipredis.ErrNoClient
 	}
@@ -108,7 +109,7 @@ func RebindHolderLeaseSolo(ctx context.Context, rdb *eipredis.Redis, accountID, 
 	raw, err := rdb.Run(
 		ctx,
 		rebindSoloLockScript,
-		[]string{LockKey(accountID, collection, docID)},
+		[]string{LockKey(owner, collection, docID)},
 		now,
 		SoloLockTTLSeconds(),
 	).Text()
@@ -124,11 +125,11 @@ func RebindHolderLeaseSolo(ctx context.Context, rdb *eipredis.Redis, accountID, 
 
 // TryRebindHolderLeaseSoloIfUncontested switches back to solo when there are no
 // viewers, no waitlist entries, and no active handoff probe.
-func TryRebindHolderLeaseSoloIfUncontested(ctx context.Context, rdb *eipredis.Redis, accountID, collection, docID string) error {
+func TryRebindHolderLeaseSoloIfUncontested(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, collection, docID string) error {
 	if rdb.Driver() == nil {
 		return nil
 	}
-	rec, err := GetLock(ctx, rdb, accountID, collection, docID)
+	rec, err := GetLock(ctx, rdb, owner, collection, docID)
 	if err != nil || rec == nil || rec.HolderSessionID == "" {
 		return err
 	}
@@ -139,20 +140,20 @@ func TryRebindHolderLeaseSoloIfUncontested(ctx context.Context, rdb *eipredis.Re
 	if rec.ProbeTargetSessionID != "" && rec.ProbeExpiresAtUnix > now {
 		return nil
 	}
-	vc, err := PruneAndCountViewers(ctx, rdb, accountID, collection, docID)
+	vc, err := PruneAndCountViewers(ctx, rdb, owner, collection, docID)
 	if err != nil {
 		return err
 	}
 	if vc > 0 {
 		return nil
 	}
-	wl, err := WaitlistLen(ctx, rdb, accountID, collection, docID)
+	wl, err := WaitlistLen(ctx, rdb, owner, collection, docID)
 	if err != nil {
 		return err
 	}
 	if wl > 0 {
 		return nil
 	}
-	_, err = RebindHolderLeaseSolo(ctx, rdb, accountID, collection, docID)
+	_, err = RebindHolderLeaseSolo(ctx, rdb, owner, collection, docID)
 	return err
 }

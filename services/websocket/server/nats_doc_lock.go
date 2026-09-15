@@ -34,16 +34,20 @@ func (s *Server) subscribeToDocLockNotifications() {
 	processor := eipnats.Handle("websocket/nats", "nats.doc_lock_notification",
 		func(ctx context.Context, msg jetstream.Msg) error {
 			subject := msg.Subject()
-			accountID, err := eipnats.ExtractIDFromSubject(subject, eipnats.SubjectDocLock)
+			ownerKey, err := eipnats.ExtractIDFromSubject(subject, eipnats.SubjectDocLock)
 			if err != nil {
 				return eipnats.Terminate("bad subject %s: %v", subject, err)
+			}
+			owner, err := models.ParseOwnerKey(ownerKey)
+			if err != nil {
+				return eipnats.Terminate("lock subject %s names no planner: %v", subject, err)
 			}
 			wire, suppressSessionID, err := natslogic.BuildDocumentLockWire(msg.Data())
 			if err != nil {
 				return eipnats.Terminate("unreadable lock payload on %s: %v", subject, err)
 			}
 
-			outcome := s.deliverDocumentLock(accountID, wire, suppressSessionID)
+			outcome := s.deliverDocumentLock(owner, wire, suppressSessionID)
 			finishReplicaFanoutOperation(ctx, "doc lock notification", "", subject, outcome, nil)
 			return nil
 		})
@@ -61,16 +65,18 @@ func (s *Server) subscribeToDocLockNotifications() {
 		"container_id", container.ID())
 }
 
-// deliverDocumentLock addresses a lock event to the tabs working in an account.
+// deliverDocumentLock addresses a lock event to the connections working in the
+// planner that holds the document. On a personal planner that is one account's
+// tabs; on a shared one it is every member currently in it.
 //
 // The source is a session rather than a tab: a viewer join or leave is one fact
 // about a whole session, and the id the payload carries is the JWT session id
 // every tab of it shares.
-func (s *Server) deliverDocumentLock(accountID string, wire []byte, suppressSessionID string) outboundDeliveryOutcome {
+func (s *Server) deliverDocumentLock(owner models.Owner, wire []byte, suppressSessionID string) outboundDeliveryOutcome {
 	return s.deliverOutbound(Outbound{
 		Family:   eipnats.ClientMessageDocumentLock,
 		Audience: eipnats.AudienceSubscribers,
-		Target:   models.Owner{Kind: models.OwnerAccount, ID: accountID},
+		Target:   owner,
 		Source:   Source{SessionID: strings.TrimSpace(suppressSessionID)},
 		Frame:    wire,
 	})

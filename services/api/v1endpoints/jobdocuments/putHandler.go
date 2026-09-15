@@ -61,6 +61,13 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
+	// Resolved before the lock gate as well as the write: a lock names the planner
+	// the document belongs to, so the gate has to ask about the one being written.
+	owner, ok := helper.RequestPlannerOwner(w, r, h.Mongo, h.EntityCipher, metrics, "job_documents")
+	if !ok {
+		return
+	}
+
 	if h.locks.Redis != nil {
 		if sessionID == "" {
 			metrics.Error("auth_error")
@@ -78,7 +85,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 				jobGroupBypass[j.JobID] = j.GroupID
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobDocuments, jobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -106,11 +113,6 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	}
 	for i := range reqBody.Jobs {
 		reqBody.Jobs[i].SchemaVersion = models.JobSchemaCurrent
-	}
-
-	owner, ok := helper.RequestPlannerOwner(w, r, h.Mongo, h.EntityCipher, metrics, "job_documents")
-	if !ok {
-		return
 	}
 
 	now := time.Now()

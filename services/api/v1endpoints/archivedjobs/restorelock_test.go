@@ -17,6 +17,12 @@ import (
 
 const (
 	lockTestAccount = "account-1"
+)
+
+// A personal planner is keyed by its account, so the two name one scope.
+var lockTestOwner = models.AccountOwner(lockTestAccount)
+
+const (
 	lockTestSession = "sess-restoring"
 	lockTestOther   = "sess-editing"
 )
@@ -39,7 +45,7 @@ func seedLock(t *testing.T, rdb *eipredis.Redis, collection, docID, holder strin
 	if err != nil {
 		t.Fatalf("marshal lock: %v", err)
 	}
-	key := documentlock.LockKey(lockTestAccount, collection, docID)
+	key := documentlock.LockKey(lockTestOwner, collection, docID)
 	if err := rdb.Driver().Set(context.Background(), key, b, time.Minute).Err(); err != nil {
 		t.Fatalf("seed lock: %v", err)
 	}
@@ -58,7 +64,7 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheGroup(t *testing.T) {
 	seedLock(t, rdb, eipmongo.CollectionJobGroups, "group-1", lockTestOther)
 	h := handlersWithRedis(t, rdb)
 
-	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
+	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestOwner, lockTestSession,
 		[]models.Job{archivedMemberOf("job-a", "group-1")})
 
 	if err != nil {
@@ -83,7 +89,7 @@ func TestRestoreProceedsWhenTheRestoringSessionHoldsTheGroup(t *testing.T) {
 	seedLock(t, rdb, eipmongo.CollectionJobGroups, "group-1", lockTestSession)
 	h := handlersWithRedis(t, rdb)
 
-	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
+	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestOwner, lockTestSession,
 		[]models.Job{archivedMemberOf("job-a", "group-1")})
 
 	if err != nil || collection != "" || len(rejects) != 0 {
@@ -99,7 +105,7 @@ func TestRestoreIsRefusedWhenAnyGroupInTheSetIsHeld(t *testing.T) {
 	seedLock(t, rdb, eipmongo.CollectionJobGroups, "group-2", lockTestOther)
 	h := handlersWithRedis(t, rdb)
 
-	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession, []models.Job{
+	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestOwner, lockTestSession, []models.Job{
 		archivedMemberOf("job-a", "group-1"),
 		archivedMemberOf("job-b", "group-2"),
 	})
@@ -120,7 +126,7 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheJob(t *testing.T) {
 	seedLock(t, rdb, eipmongo.CollectionJobDocuments, "job-a", lockTestOther)
 	h := handlersWithRedis(t, rdb)
 
-	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
+	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestOwner, lockTestSession,
 		[]models.Job{{JobID: "job-a"}})
 
 	if err != nil {
@@ -139,7 +145,7 @@ func TestAGroupedJobIsGatedOnItsGroupNotItself(t *testing.T) {
 	seedLock(t, rdb, eipmongo.CollectionJobDocuments, "job-a", lockTestOther)
 	h := handlersWithRedis(t, rdb)
 
-	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
+	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestOwner, lockTestSession,
 		[]models.Job{archivedMemberOf("job-a", "group-1")})
 
 	if err != nil || collection != "" || len(rejects) != 0 {
@@ -154,7 +160,7 @@ func TestTheGroupHolderMayRestoreItsMembers(t *testing.T) {
 	seedLock(t, rdb, eipmongo.CollectionJobGroups, "group-1", lockTestSession)
 	h := handlersWithRedis(t, rdb)
 
-	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
+	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestOwner, lockTestSession,
 		[]models.Job{archivedMemberOf("job-a", "group-1")})
 
 	if err != nil || collection != "" || len(rejects) != 0 {
@@ -167,7 +173,7 @@ func TestRestoreLockGateRequiresASession(t *testing.T) {
 	t.Parallel()
 	h := handlersWithRedis(t, eipredis.NewRedis(redisfake.New(t).Client))
 
-	if _, _, err := h.restoreLockRejects(context.Background(), lockTestAccount, "", []models.Job{{JobID: "job-a"}}); err == nil {
+	if _, _, err := h.restoreLockRejects(context.Background(), lockTestOwner, "", []models.Job{{JobID: "job-a"}}); err == nil {
 		t.Fatal("expected the gate to require a session")
 	}
 }
@@ -177,7 +183,7 @@ func TestRestoreLockGateIsInertWithoutRedis(t *testing.T) {
 	t.Parallel()
 	h := New(&apideps.Deps{})
 
-	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestAccount, lockTestSession,
+	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestOwner, lockTestSession,
 		[]models.Job{archivedMemberOf("job-a", "group-1")})
 
 	if err != nil || collection != "" || rejects != nil {

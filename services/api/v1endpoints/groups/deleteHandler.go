@@ -118,7 +118,7 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.locks.Redis != nil {
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobGroups, resolvedIDs, nil)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, resolvedIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -158,7 +158,7 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if h.locks.Redis != nil {
 		for _, gid := range resolvedIDs {
-			_ = documentlock.DeleteDocLock(ctx, h.locks.Redis, accountID, eipmongo.CollectionJobGroups, gid)
+			_ = documentlock.DeleteDocLock(ctx, h.locks.Redis, owner, eipmongo.CollectionJobGroups, gid)
 		}
 	}
 

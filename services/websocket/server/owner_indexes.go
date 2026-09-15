@@ -60,6 +60,30 @@ func (s *Server) setClientScopes(client *Client, next models.OwnerKeys) {
 	s.scheduleDocFanoutFilterReconcile()
 }
 
+// setClientActivePlanner records which planner the connection is working in.
+//
+// Written under the owner-index lock, but in its own critical section rather
+// than with the scopes derived from it: every reader today runs on that
+// connection's single message goroutine, which is also what writes both. A
+// second writer off that goroutine would need the two taken together.
+func (s *Server) setClientActivePlanner(client *Client, owner models.Owner) {
+	s.ownerIndexMu.Lock()
+	client.ActivePlanner = owner
+	s.ownerIndexMu.Unlock()
+}
+
+// clientActivePlanner is the planner a connection works in, the account's own
+// until it names one.
+func (s *Server) clientActivePlanner(client *Client) models.Owner {
+	s.ownerIndexMu.RLock()
+	active := client.ActivePlanner
+	s.ownerIndexMu.RUnlock()
+	if active.IsZero() {
+		return models.AccountOwner(client.AccountID)
+	}
+	return active
+}
+
 // removeClientFromOwnerPools drops a client from every pool its scopes name, for
 // a connection that is going away.
 func (s *Server) removeClientFromOwnerPools(client *Client) {

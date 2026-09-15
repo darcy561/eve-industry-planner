@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"eve-industry-planner/shared/core/documentlock"
+	"eve-industry-planner/shared/models"
 
 	eipredis "eve-industry-planner/shared/redis"
 )
@@ -32,7 +33,7 @@ func (r BatchResult) OK() bool {
 
 // RunLockStateBatch loads lock status maps for the parsed request.
 // Caller must have a non-nil Redis for the success path; nil Redis yields unavailable.
-func RunLockStateBatch(ctx context.Context, rdb *eipredis.Redis, accountID string, req LockStateBatchRequest) BatchResult {
+func RunLockStateBatch(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, req LockStateBatchRequest) BatchResult {
 	base := BatchResult{
 		RequestID:     req.RequestID,
 		JobDocCount:   len(req.JobDocIDs),
@@ -45,7 +46,7 @@ func RunLockStateBatch(ctx context.Context, rdb *eipredis.Redis, accountID strin
 		base.FailureClass = documentlock.FailureUnavailable
 		return base
 	}
-	jobResults, groupResults, err := documentlock.StatusBatchResults(ctx, rdb, accountID, req.JobDocIDs, req.GroupDocIDs)
+	jobResults, groupResults, err := documentlock.StatusBatchResults(ctx, rdb, owner, req.JobDocIDs, req.GroupDocIDs)
 	if err != nil {
 		base.AckOK = false
 		switch {

@@ -3,8 +3,6 @@ package nats
 import (
 	"fmt"
 	"strings"
-
-	"eve-industry-planner/shared/models"
 )
 
 // DocUpdateSubject builds doc.update.{tenantString}.{collection}.{docID}.
@@ -44,17 +42,30 @@ func DocUpdateFiltersForHostedTenants(tenants []string) []string {
 	return out
 }
 
-// DocLockFiltersForHostedTenants maps hosted account:{id} → doc.lock.{id}.
-// Corp/alliance lock selectivity waits on doc-lock tenantString cutover.
-// Empty account hosts → inert.
+// DocLockFilterForTenant returns doc.lock.{tenantString} for JetStream
+// FilterSubjects. The tenant string is taken as given, as the update filters
+// take it: these are the server's own hosted-tenant keys, not client input.
+func DocLockFilterForTenant(tenantString string) string {
+	tenantString = strings.TrimSpace(tenantString)
+	if tenantString == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s", SubjectDocLock, tenantString)
+}
+
+// DocLockFiltersForHostedTenants maps each hosted tenant to doc.lock.{ownerKey}.
+//
+// The owner key is the subject segment, as it is for document updates, so a lock
+// event for a planner reaches the planner's members rather than one account's
+// tabs.
+//
+// Empty hosted set → inert (never empty list / never doc.lock.>).
 func DocLockFiltersForHostedTenants(tenants []string) []string {
 	out := make([]string, 0, len(tenants))
 	for _, t := range tenants {
-		owner, err := models.ParseOwnerKey(strings.TrimSpace(t))
-		if err != nil || owner.Kind != models.OwnerAccount {
-			continue
+		if f := DocLockFilterForTenant(t); f != "" {
+			out = append(out, f)
 		}
-		out = append(out, fmt.Sprintf("%s.%s", SubjectDocLock, owner.ID))
 	}
 	out = NormalizeFilterSubjects(out)
 	if len(out) == 0 {

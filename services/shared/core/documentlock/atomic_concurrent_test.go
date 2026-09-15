@@ -51,7 +51,7 @@ func TestAtomic_AcquireRace(t *testing.T) {
 		wg.Go(func() {
 			<-start
 			sess := sessionIDForIndex(i)
-			out, err := svc.Acquire(ctx, testAccountID, sess, testCollection, testDocID)
+			out, err := svc.Acquire(ctx, testOwner, testAccountID, sess, testCollection, testDocID)
 			if err != nil {
 				t.Errorf("Acquire[%d]: %v", i, err)
 				return
@@ -110,14 +110,14 @@ func TestAtomic_ReleaseRespectsHolder(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, sess := range []string{"sess-impostor-a", "sess-impostor-b"} {
 		wg.Go(func() {
-			if err := svc.Release(ctx, testAccountID, sess, testCollection, testDocID); err != nil {
+			if err := svc.Release(ctx, testOwner, sess, testCollection, testDocID); err != nil {
 				t.Errorf("Release(%s): %v", sess, err)
 			}
 		})
 	}
 	wg.Wait()
 
-	rec, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	rec, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
@@ -125,10 +125,10 @@ func TestAtomic_ReleaseRespectsHolder(t *testing.T) {
 		t.Fatalf("lock should still be held by sess-real, got %+v", rec)
 	}
 
-	if err := svc.Release(ctx, testAccountID, "sess-real", testCollection, testDocID); err != nil {
+	if err := svc.Release(ctx, testOwner, "sess-real", testCollection, testDocID); err != nil {
 		t.Fatalf("legitimate Release: %v", err)
 	}
-	rec, err = GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	rec, err = GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock after legit release: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestAtomic_HandOverRace(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 2 {
 		wg.Go(func() {
-			out, err := svc.HandOver(ctx, testAccountID, "sess-holder", testCollection, testDocID)
+			out, err := svc.HandOver(ctx, testOwner, "sess-holder", testCollection, testDocID)
 			if err != nil {
 				t.Errorf("HandOver: %v", err)
 				return
@@ -189,14 +189,14 @@ func TestAtomic_HandOverRace(t *testing.T) {
 	}
 
 	// The remaining waiter must still be in the queue (no double-dequeue).
-	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("WaitlistLen: %v", err)
 	}
 	if n != 1 {
 		t.Fatalf("expected 1 waiter remaining (sess-wait-2), got %d", n)
 	}
-	head, err := PeekWaitlistHead(ctx, rdb, testAccountID, testCollection, testDocID)
+	head, err := PeekWaitlistHead(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("PeekWaitlistHead: %v", err)
 	}
@@ -219,13 +219,13 @@ func TestAtomic_ClaimHandoffOnlyProbeTargetWins(t *testing.T) {
 	mustEnqueueWithPulse(t, ctx, rdb, "sess-impostor")
 
 	// Manually paint a probe targeting sess-target.
-	rec, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	rec, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
 	rec.ProbeTargetSessionID = "sess-target"
 	rec.ProbeExpiresAtUnix = time.Now().Unix() + ProbeAckWaitSeconds
-	if err := SetLock(ctx, rdb, testAccountID, testCollection, testDocID, *rec); err != nil {
+	if err := SetLock(ctx, rdb, testOwner, testCollection, testDocID, *rec); err != nil {
 		t.Fatalf("SetLock: %v", err)
 	}
 
@@ -237,7 +237,7 @@ func TestAtomic_ClaimHandoffOnlyProbeTargetWins(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, s := range []string{"sess-target", "sess-impostor"} {
 		wg.Go(func() {
-			out, err := svc.ClaimHandoff(ctx, testAccountID, s, testCollection, testDocID)
+			out, err := svc.ClaimHandoff(ctx, testOwner, testAccountID, s, testCollection, testDocID)
 			if err != nil {
 				t.Errorf("ClaimHandoff(%s): %v", s, err)
 				return
@@ -265,7 +265,7 @@ func TestAtomic_ClaimHandoffOnlyProbeTargetWins(t *testing.T) {
 	}
 
 	// Lock must now be held by sess-target.
-	rec, err = GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	rec, err = GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock after claim: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestAtomic_RequestAccessRace(t *testing.T) {
 	for i, s := range []string{"sess-a", "sess-b"} {
 		wg.Go(func() {
 			<-start
-			out, err := svc.RequestAccess(ctx, testAccountID, s, testCollection, testDocID)
+			out, err := svc.RequestAccess(ctx, testOwner, testAccountID, s, testCollection, testDocID)
 			results[i] = req{sess: s, out: out, err: err}
 		})
 	}
@@ -323,7 +323,7 @@ func TestAtomic_RequestAccessRace(t *testing.T) {
 		t.Fatalf("expected 1 grant + 1 queue, got grants=%d queues=%d", grants, queues)
 	}
 
-	rec, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	rec, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
@@ -345,7 +345,7 @@ func TestAtomic_ExtendCycle(t *testing.T) {
 	// Renew up to MaxExtensionsBeforeHandoffConsult times — every one should
 	// be a plain extend (no probe).
 	for i := range MaxExtensionsBeforeHandoffConsult {
-		out, err := svc.Extend(ctx, testAccountID, "sess-holder", testCollection, testDocID)
+		out, err := svc.Extend(ctx, testOwner, "sess-holder", testCollection, testDocID)
 		if err != nil {
 			t.Fatalf("Extend[%d]: %v", i, err)
 		}
@@ -358,7 +358,7 @@ func TestAtomic_ExtendCycle(t *testing.T) {
 	}
 
 	t.Run("cycle_reset_when_no_waitlist", func(t *testing.T) {
-		out, err := svc.Extend(ctx, testAccountID, "sess-holder", testCollection, testDocID)
+		out, err := svc.Extend(ctx, testOwner, "sess-holder", testCollection, testDocID)
 		if err != nil {
 			t.Fatalf("Extend cycle reset: %v", err)
 		}
@@ -374,13 +374,13 @@ func TestAtomic_ExtendCycle(t *testing.T) {
 		// Bump back up to the threshold, then enqueue a live waiter and
 		// trigger the consult step.
 		for i := range MaxExtensionsBeforeHandoffConsult {
-			if _, err := svc.Extend(ctx, testAccountID, "sess-holder", testCollection, testDocID); err != nil {
+			if _, err := svc.Extend(ctx, testOwner, "sess-holder", testCollection, testDocID); err != nil {
 				t.Fatalf("pre-probe Extend[%d]: %v", i, err)
 			}
 		}
 		mustEnqueueWithPulse(t, ctx, rdb, "sess-waiter")
 
-		out, err := svc.Extend(ctx, testAccountID, "sess-holder", testCollection, testDocID)
+		out, err := svc.Extend(ctx, testOwner, "sess-holder", testCollection, testDocID)
 		if err != nil {
 			t.Fatalf("Extend probe-set: %v", err)
 		}
@@ -391,7 +391,7 @@ func TestAtomic_ExtendCycle(t *testing.T) {
 			t.Fatalf("expected probe target=sess-waiter, got %q", out.Extras.ProbeTargetSessionID)
 		}
 
-		rec, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+		rec, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 		if err != nil {
 			t.Fatalf("GetLock: %v", err)
 		}
@@ -410,11 +410,11 @@ func TestAtomic_HandOverFallsBackToReleaseWhenNoLiveWaiter(t *testing.T) {
 	ctx := context.Background()
 
 	mustAcquire(t, ctx, svc, "sess-holder")
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-stale"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, "sess-stale", testAccountID); err != nil {
 		t.Fatalf("enqueue stale: %v", err)
 	}
 
-	out, err := svc.HandOver(ctx, testAccountID, "sess-holder", testCollection, testDocID)
+	out, err := svc.HandOver(ctx, testOwner, "sess-holder", testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("HandOver: %v", err)
 	}
@@ -422,14 +422,14 @@ func TestAtomic_HandOverFallsBackToReleaseWhenNoLiveWaiter(t *testing.T) {
 		t.Fatalf("expected 204 fallback release, got %d", out.StatusCode)
 	}
 
-	rec, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	rec, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
 	if rec != nil {
 		t.Fatalf("expected lock cleared after HandOver fallback, got %+v", rec)
 	}
-	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("WaitlistLen: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestHandOverNoopWhenCallerNotRedisHolder(t *testing.T) {
 	ctx := context.Background()
 
 	mustAcquire(t, ctx, svc, "redis-holder")
-	out, err := svc.HandOver(ctx, testAccountID, "wrong-jwt-session", testCollection, testDocID)
+	out, err := svc.HandOver(ctx, testOwner, "wrong-jwt-session", testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("HandOver: %v", err)
 	}
@@ -471,7 +471,7 @@ func sessionIDForIndex(i int) string {
 
 func mustAcquire(t *testing.T, ctx context.Context, svc *Service, sessionID string) {
 	t.Helper()
-	out, err := svc.Acquire(ctx, testAccountID, sessionID, testCollection, testDocID)
+	out, err := svc.Acquire(ctx, testOwner, testAccountID, sessionID, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("seed Acquire(%s): %v", sessionID, err)
 	}
@@ -482,10 +482,10 @@ func mustAcquire(t *testing.T, ctx context.Context, svc *Service, sessionID stri
 
 func mustEnqueueWithPulse(t *testing.T, ctx context.Context, rdb *eipredis.Redis, sessionID string) {
 	t.Helper()
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, sessionID); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, sessionID, testAccountID); err != nil {
 		t.Fatalf("EnqueueWaitlistUnique(%s): %v", sessionID, err)
 	}
-	if err := TouchWaitlistPulse(ctx, rdb, testAccountID, testCollection, testDocID, sessionID); err != nil {
+	if err := TouchWaitlistPulse(ctx, rdb, testOwner, testCollection, testDocID, sessionID); err != nil {
 		t.Fatalf("TouchWaitlistPulse(%s): %v", sessionID, err)
 	}
 }
@@ -500,14 +500,14 @@ func TestForceReleaseSameAccount(t *testing.T) {
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   now + 300,
 	}
-	if err := SetLock(ctx, rdb, testAccountID, testCollection, testDocID, rec); err != nil {
+	if err := SetLock(ctx, rdb, testOwner, testCollection, testDocID, rec); err != nil {
 		t.Fatal(err)
 	}
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "waiter"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, "waiter", testAccountID); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := svc.ForceReleaseSameAccount(ctx, testAccountID, "other-sess", testCollection, testDocID)
+	out, err := svc.ForceReleaseSameAccount(ctx, testOwner, testAccountID, "other-sess", testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("ForceReleaseSameAccount: %v", err)
 	}
@@ -517,14 +517,14 @@ func TestForceReleaseSameAccount(t *testing.T) {
 	if holder, _ := out.Payload["holderSessionID"].(string); holder != "other-sess" {
 		t.Fatalf("expected holder other-sess, got %q", holder)
 	}
-	got, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	got, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got == nil || got.HolderSessionID != "other-sess" {
 		t.Fatalf("expected lock granted to other-sess, got %+v", got)
 	}
-	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -532,20 +532,20 @@ func TestForceReleaseSameAccount(t *testing.T) {
 		t.Fatalf("waitlist not cleared, len=%d", n)
 	}
 
-	if err := SetLock(ctx, rdb, testAccountID, testCollection, testDocID, LockRecord{
+	if err := SetLock(ctx, rdb, testOwner, testCollection, testDocID, LockRecord{
 		HolderSessionID: "holder2",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   now + 300,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = svc.ForceReleaseSameAccount(ctx, testAccountID, "holder2", testCollection, testDocID)
+	_, err = svc.ForceReleaseSameAccount(ctx, testOwner, testAccountID, "holder2", testCollection, testDocID)
 	if !errors.Is(err, ErrForceReleaseSameSession) {
 		t.Fatalf("want ErrForceReleaseSameSession, got %v", err)
 	}
 
-	_ = DeleteLock(ctx, rdb, testAccountID, testCollection, testDocID)
-	_, err = svc.ForceReleaseSameAccount(ctx, testAccountID, "x", testCollection, testDocID)
+	_ = DeleteLock(ctx, rdb, testOwner, testCollection, testDocID)
+	_, err = svc.ForceReleaseSameAccount(ctx, testOwner, testAccountID, "x", testCollection, testDocID)
 	if !errors.Is(err, ErrForceReleaseNoLock) {
 		t.Fatalf("want ErrForceReleaseNoLock, got %v", err)
 	}

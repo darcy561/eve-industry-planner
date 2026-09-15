@@ -91,7 +91,7 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	sessionID := helper.AuthenticatedSessionID(r)
-	collection, rejects, lerr := h.restoreLockRejects(ctx, accountID, sessionID, jobs)
+	collection, rejects, lerr := h.restoreLockRejects(ctx, owner, sessionID, jobs)
 	if lerr != nil {
 		if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 			metrics.Error("auth_error")
@@ -149,7 +149,7 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 //
 // An archived job holds no lock of its own, so its group's lock stands for it and
 // only an ungrouped job is gated on its own document.
-func (h *Handlers) restoreLockRejects(ctx context.Context, accountID, sessionID string, jobs []models.Job) (string, []documentlock.LockHeldElsewhereItem, error) {
+func (h *Handlers) restoreLockRejects(ctx context.Context, owner models.Owner, sessionID string, jobs []models.Job) (string, []documentlock.LockHeldElsewhereItem, error) {
 	if h.locks.Redis == nil {
 		return "", nil, nil
 	}
@@ -159,7 +159,7 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, accountID, sessionID 
 
 	groupIDs, _ := groupJobsByGroupID(jobs)
 	if len(groupIDs) > 0 {
-		rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobGroups, groupIDs, nil)
+		rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, groupIDs, nil)
 		if err != nil {
 			return "", nil, err
 		}
@@ -178,7 +178,7 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, accountID, sessionID 
 	if len(loose) == 0 {
 		return "", nil, nil
 	}
-	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionJobDocuments, loose, nil)
+	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, loose, nil)
 	if err != nil {
 		return "", nil, err
 	}

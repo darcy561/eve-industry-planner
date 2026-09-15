@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"eve-industry-planner/shared/models"
 	"fmt"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func TestIntegrationDocLockWaitlistPulseSetsRedis(t *testing.T) {
 		docID      = "job-1"
 	)
 	conn := f.connectAccount(accountID, sessionID)
-	pulseKey := documentlock.WaitlistPulseKey(accountID, collection, docID, sessionID)
+	pulseKey := documentlock.WaitlistPulseKey(models.AccountOwner(accountID), collection, docID, sessionID)
 
 	f.writeJSON(conn, map[string]any{
 		"type":       doclocklogic.MsgWaitlistPulse,
@@ -48,7 +49,7 @@ func TestIntegrationDocLockViewerArrivedAndDeparted(t *testing.T) {
 		docID      = "job-v1"
 	)
 	conn := f.connectAccount(accountID, sessionID)
-	viewersKey := documentlock.ViewerPresenceKey(accountID, collection, docID)
+	viewersKey := documentlock.ViewerPresenceKey(models.AccountOwner(accountID), collection, docID)
 
 	f.writeJSON(conn, map[string]any{
 		"type":       doclocklogic.MsgViewerArrived,

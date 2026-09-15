@@ -9,6 +9,7 @@ import (
 	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/logs"
 
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 )
 
@@ -21,7 +22,12 @@ import (
 // body, Redis unavailable). Handlers should `return` immediately when
 // `ok == false`.
 type lockHandlerContext struct {
-	Ctx        context.Context
+	Ctx context.Context
+	// Owner is the planner the document belongs to, which is what namespaces its
+	// lock. AccountID is who is asking, which is what a record names as the
+	// holder and what force-release compares. On a personal planner they are the
+	// same value; on a shared one they are not.
+	Owner      models.Owner
 	AccountID  string
 	SessionID  string
 	Collection string
@@ -286,7 +292,7 @@ func finishLockStateBatchSuccess(r *http.Request, accountID string, jobCount, gr
 // doc-lock HTTP handler in this package. See `lockHandlerContext` for the
 // fields. On any auth/parse/redis error the response has already been written
 // to `w`; the caller just returns.
-func lockHandlerContextOK(w http.ResponseWriter, r *http.Request, redisHandle *eipredis.Redis) (lockHandlerContext, bool) {
+func (h *Handlers) lockHandlerContextOK(w http.ResponseWriter, r *http.Request, redisHandle *eipredis.Redis) (lockHandlerContext, bool) {
 	accountID := helper.AuthenticatedAccountID(r)
 	sessionID := helper.AuthenticatedSessionID(r)
 	b, err := parseLockBody(r)
@@ -298,8 +304,18 @@ func lockHandlerContextOK(w http.ResponseWriter, r *http.Request, redisHandle *e
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", documentlock.FailureUnavailable, "document_lock", nil, nil)
 		return lockHandlerContext{}, false
 	}
+	// Refuses a planner the account holds no membership row for, so a lock cannot
+	// be taken in one it cannot reach.
+	// nil metrics: the lock handlers keep no tracker, and the guard's counters are
+	// nil-safe.
+	owner, ok := helper.RequestPlannerOwner(w, r, h.Mongo, h.EntityCipher, nil, "document_lock")
+	if !ok {
+		return lockHandlerContext{}, false
+	}
+
 	hc := lockHandlerContext{
 		Ctx:        r.Context(),
+		Owner:      owner,
 		AccountID:  accountID,
 		SessionID:  sessionID,
 		Collection: b.Collection,

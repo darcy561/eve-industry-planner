@@ -19,7 +19,7 @@ func (s *Server) handleDocumentLockWaitlistPulseWS(ctx context.Context, client *
 			documentlock.FailureWSInvalidMessage, "", "", nil)
 		return
 	}
-	out := doclocklogic.WaitlistPulse(ctx, documentlock.DepsFromClients(s.Stack), client.AccountID, client.SessionID, collection, docID)
+	out := doclocklogic.WaitlistPulse(ctx, documentlock.DepsFromClients(s.Stack), s.clientActivePlanner(client), client.SessionID, collection, docID)
 	if !out.OK() {
 		finishWSDocumentLockClientFailure(ctx, client, "waitlist-pulse", out.Msg, out.FailureClass, collection, docID, out.Extra)
 		return
@@ -48,9 +48,9 @@ func (s *Server) handleDocumentLockViewerPresenceWS(ctx context.Context, client 
 	deps := documentlock.DepsFromClients(s.Stack)
 	switch event {
 	case "arrived":
-		doclocklogic.ViewerArrived(ctx, deps, client.AccountID, client.SessionID, collection, docID)
+		doclocklogic.ViewerArrived(ctx, deps, s.clientActivePlanner(client), client.SessionID, collection, docID)
 	default:
-		doclocklogic.ViewerDeparted(ctx, deps, client.AccountID, client.SessionID, collection, docID)
+		doclocklogic.ViewerDeparted(ctx, deps, s.clientActivePlanner(client), client.SessionID, collection, docID)
 	}
 	wsAttachViewerPresenceStep(ctx, client, event, collection, docID)
 	finishWSDocumentLockSuccess(ctx, client, operation, "document lock "+operation, collection, docID, nil, "")
@@ -79,7 +79,7 @@ func (s *Server) handleDocumentLockLockStateBatch(ctx context.Context, client *C
 	if s.Stack != nil {
 		rdb = s.Stack.Redis
 	}
-	res := doclocklogic.RunLockStateBatch(ctx, rdb, client.AccountID, req)
+	res := doclocklogic.RunLockStateBatch(ctx, rdb, s.clientActivePlanner(client), req)
 	if !res.OK() {
 		s.queueDocumentLockLockStateBatchAck(client, res.RequestID, res.AckOK, res.JobResults, res.GroupResults, res.AckErrMsg)
 		finishWSLockStateBatchFailure(ctx, client, res.RequestID, res.LogMsg, res.FailureClass, res.Extra)

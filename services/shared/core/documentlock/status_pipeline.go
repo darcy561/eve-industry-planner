@@ -14,10 +14,11 @@ import (
 	"strconv"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 )
 
-// statusDocRef identifies one doc in a status fetch. accountID is hoisted
+// statusDocRef identifies one doc in a status fetch. owner is hoisted
 // to a function-level arg because the batch is always scoped to one account.
 type statusDocRef struct {
 	Collection string
@@ -35,12 +36,12 @@ type statusDocRef struct {
 //     a follow-up pipeline (Redis TTL would do this on its own; the
 //     explicit DEL keeps reads consistent for the rest of this request).
 //
-// `accountID` must be non-empty; an empty `refs` slice returns an empty
+// `owner` must be non-empty; an empty `refs` slice returns an empty
 // result with no Redis traffic.
 func statusBatchFetch(
 	ctx context.Context,
 	rdb *eipredis.Redis,
-	accountID string,
+	owner models.Owner,
 	refs []statusDocRef,
 ) ([]map[string]any, error) {
 	if rdb.Driver() == nil {
@@ -64,9 +65,9 @@ func statusBatchFetch(
 	llen := make([]*eipredis.IntResult, len(refs))
 
 	for i, r := range refs {
-		k := LockKey(accountID, r.Collection, r.DocID)
-		kv := ViewerPresenceKey(accountID, r.Collection, r.DocID)
-		kw := waitlistKey(accountID, r.Collection, r.DocID)
+		k := LockKey(owner, r.Collection, r.DocID)
+		kv := ViewerPresenceKey(owner, r.Collection, r.DocID)
+		kw := waitlistKey(owner, r.Collection, r.DocID)
 
 		get[i] = pipe.Get(ctx, k)
 		zrem[i] = pipe.DropScoredRange(ctx, kv, "0", nowScore)
@@ -135,7 +136,7 @@ func statusBatchFetch(
 	if len(expired) > 0 {
 		if delPipe, perr := rdb.Pipe(); perr == nil {
 			for _, r := range expired {
-				delPipe.Delete(ctx, LockKey(accountID, r.Collection, r.DocID))
+				delPipe.Delete(ctx, LockKey(owner, r.Collection, r.DocID))
 			}
 			_ = delPipe.Exec(ctx)
 		}

@@ -16,7 +16,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 	ctx := context.Background()
 	jobID := "job-new-member"
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testOwner, eipmongo.CollectionJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-other",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
@@ -24,9 +24,9 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *
 
 	ReleaseStaleDependentJobLocksOnGroupMembershipAdded(ctx, Deps{
 		Redis: rdb,
-	}, testAccountID, "group-x", []string{jobID}, "sess-group-holder")
+	}, testOwner, "group-x", []string{jobID}, "sess-group-holder")
 
-	rec, err := GetLock(ctx, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID)
+	rec, err := GetLock(ctx, rdb, testOwner, eipmongo.CollectionJobDocuments, jobID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_keepsAlignedHolder(
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 	ctx := context.Background()
 	jobID := "job-aligned"
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testOwner, eipmongo.CollectionJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-group-holder",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
@@ -48,9 +48,9 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_keepsAlignedHolder(
 
 	ReleaseStaleDependentJobLocksOnGroupMembershipAdded(ctx, Deps{
 		Redis: rdb,
-	}, testAccountID, "group-x", []string{jobID}, "sess-group-holder")
+	}, testOwner, "group-x", []string{jobID}, "sess-group-holder")
 
-	rec, err := GetLock(ctx, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID)
+	rec, err := GetLock(ctx, rdb, testOwner, eipmongo.CollectionJobDocuments, jobID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}

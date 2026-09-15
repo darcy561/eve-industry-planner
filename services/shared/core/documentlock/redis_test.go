@@ -7,6 +7,7 @@ import (
 
 	"eve-industry-planner/testing/redisfake"
 
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 )
 
@@ -16,18 +17,23 @@ const (
 	testDocID      = "doc-1"
 )
 
+// A personal planner's owner key is `account:{id}`, so a test naming the account
+// and one naming its planner name the same scope — which is the property H2
+// preserves for every planner that exists today.
+var testOwner = models.AccountOwner(testAccountID)
+
 func TestParseExpiredLockKey(t *testing.T) {
 	t.Parallel()
 
 	t.Run("lock_key_parses", func(t *testing.T) {
-		key := LockKey(testAccountID, testCollection, testDocID)
+		key := LockKey(testOwner, testCollection, testDocID)
 		acct, coll, doc, ok := ParseExpiredLockKey(key)
 		if !ok {
 			t.Fatalf("expected ok=true")
 		}
-		if acct != testAccountID || coll != testCollection || doc != testDocID {
+		if acct != testOwner || coll != testCollection || doc != testDocID {
 			t.Fatalf("expected (%q,%q,%q), got (%q,%q,%q)",
-				testAccountID, testCollection, testDocID, acct, coll, doc)
+				testOwner, testCollection, testDocID, acct, coll, doc)
 		}
 	})
 
@@ -51,10 +57,10 @@ func TestSetAndGetLockRoundtrip(t *testing.T) {
 		ExpiresAtUnix:   now + 300,
 		ExtendCount:     2,
 	}
-	if err := SetLock(ctx, rdb, testAccountID, testCollection, testDocID, rec); err != nil {
+	if err := SetLock(ctx, rdb, testOwner, testCollection, testDocID, rec); err != nil {
 		t.Fatalf("SetLock: %v", err)
 	}
-	got, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	got, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
@@ -71,10 +77,10 @@ func TestSetAndGetLockRoundtrip(t *testing.T) {
 			AccountID:       testAccountID,
 			ExpiresAtUnix:   now - 5,
 		}
-		if err := SetLock(ctx, rdb, testAccountID, testCollection, "doc-expired", expired); err != nil {
+		if err := SetLock(ctx, rdb, testOwner, testCollection, "doc-expired", expired); err != nil {
 			t.Fatalf("SetLock: %v", err)
 		}
-		got, err := GetLock(ctx, rdb, testAccountID, testCollection, "doc-expired")
+		got, err := GetLock(ctx, rdb, testOwner, testCollection, "doc-expired")
 		if err != nil {
 			t.Fatalf("GetLock: %v", err)
 		}
@@ -84,10 +90,10 @@ func TestSetAndGetLockRoundtrip(t *testing.T) {
 	})
 
 	t.Run("delete_clears_lock", func(t *testing.T) {
-		if err := DeleteLock(ctx, rdb, testAccountID, testCollection, testDocID); err != nil {
+		if err := DeleteLock(ctx, rdb, testOwner, testCollection, testDocID); err != nil {
 			t.Fatalf("DeleteLock: %v", err)
 		}
-		got, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+		got, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 		if err != nil {
 			t.Fatalf("GetLock: %v", err)
 		}
@@ -102,17 +108,17 @@ func TestEnqueueWaitlistUniqueAndPeek(t *testing.T) {
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 	ctx := context.Background()
 
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-a"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, "sess-a", testAccountID); err != nil {
 		t.Fatalf("enqueue sess-a: %v", err)
 	}
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-b"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, "sess-b", testAccountID); err != nil {
 		t.Fatalf("enqueue sess-b: %v", err)
 	}
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-a"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, "sess-a", testAccountID); err != nil {
 		t.Fatalf("re-enqueue sess-a: %v", err)
 	}
 
-	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("WaitlistLen: %v", err)
 	}
@@ -120,7 +126,7 @@ func TestEnqueueWaitlistUniqueAndPeek(t *testing.T) {
 		t.Fatalf("expected 2 entries, got %d", n)
 	}
 
-	head, err := PeekWaitlistHead(ctx, rdb, testAccountID, testCollection, testDocID)
+	head, err := PeekWaitlistHead(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("PeekWaitlistHead: %v", err)
 	}
@@ -135,15 +141,15 @@ func TestPeekWaitlistHeadAlive_PrunesStale(t *testing.T) {
 	ctx := context.Background()
 
 	for _, s := range []string{"sess-stale-1", "sess-stale-2", "sess-alive"} {
-		if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, s); err != nil {
+		if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, s, testAccountID); err != nil {
 			t.Fatalf("enqueue %s: %v", s, err)
 		}
 	}
-	if err := TouchWaitlistPulse(ctx, rdb, testAccountID, testCollection, testDocID, "sess-alive"); err != nil {
+	if err := TouchWaitlistPulse(ctx, rdb, testOwner, testCollection, testDocID, "sess-alive"); err != nil {
 		t.Fatalf("TouchWaitlistPulse: %v", err)
 	}
 
-	head, err := PeekWaitlistHeadAlive(ctx, rdb, testAccountID, testCollection, testDocID)
+	head, err := PeekWaitlistHeadAlive(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("PeekWaitlistHeadAlive: %v", err)
 	}
@@ -151,7 +157,7 @@ func TestPeekWaitlistHeadAlive_PrunesStale(t *testing.T) {
 		t.Fatalf("expected head=sess-alive, got %q", head)
 	}
 
-	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("WaitlistLen: %v", err)
 	}
@@ -166,12 +172,12 @@ func TestPeekWaitlistHeadAlive_EmptyAfterPruning(t *testing.T) {
 	ctx := context.Background()
 
 	for _, s := range []string{"sess-x", "sess-y"} {
-		if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, s); err != nil {
+		if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, s, testAccountID); err != nil {
 			t.Fatalf("enqueue %s: %v", s, err)
 		}
 	}
 
-	head, err := PeekWaitlistHeadAlive(ctx, rdb, testAccountID, testCollection, testDocID)
+	head, err := PeekWaitlistHeadAlive(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("PeekWaitlistHeadAlive: %v", err)
 	}
@@ -179,7 +185,7 @@ func TestPeekWaitlistHeadAlive_EmptyAfterPruning(t *testing.T) {
 		t.Fatalf("expected empty head, got %q", head)
 	}
 
-	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("WaitlistLen: %v", err)
 	}
@@ -195,23 +201,23 @@ func TestPromoteWaitlistHead_Success(t *testing.T) {
 
 	now := time.Now().Unix()
 	seed := LockRecord{HolderSessionID: "sess-old", AccountID: testAccountID, ExpiresAtUnix: now + 300}
-	if err := SetLock(ctx, rdb, testAccountID, testCollection, testDocID, seed); err != nil {
+	if err := SetLock(ctx, rdb, testOwner, testCollection, testDocID, seed); err != nil {
 		t.Fatalf("SetLock seed: %v", err)
 	}
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-next"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, "sess-next", testAccountID); err != nil {
 		t.Fatalf("enqueue sess-next: %v", err)
 	}
-	if err := TouchWaitlistPulse(ctx, rdb, testAccountID, testCollection, testDocID, "sess-next"); err != nil {
+	if err := TouchWaitlistPulse(ctx, rdb, testOwner, testCollection, testDocID, "sess-next"); err != nil {
 		t.Fatalf("TouchWaitlistPulse: %v", err)
 	}
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-after"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, "sess-after", testAccountID); err != nil {
 		t.Fatalf("enqueue sess-after: %v", err)
 	}
-	if err := TouchWaitlistPulse(ctx, rdb, testAccountID, testCollection, testDocID, "sess-after"); err != nil {
+	if err := TouchWaitlistPulse(ctx, rdb, testOwner, testCollection, testDocID, "sess-after"); err != nil {
 		t.Fatalf("TouchWaitlistPulse sess-after: %v", err)
 	}
 
-	head, rec, promoted, err := PromoteWaitlistHead(ctx, rdb, testAccountID, testCollection, testDocID)
+	head, rec, promoted, err := PromoteWaitlistHead(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("PromoteWaitlistHead: %v", err)
 	}
@@ -228,7 +234,7 @@ func TestPromoteWaitlistHead_Success(t *testing.T) {
 		t.Fatalf("expected cleared extend/probe state, got %+v", rec)
 	}
 
-	stored, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	stored, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
@@ -236,14 +242,14 @@ func TestPromoteWaitlistHead_Success(t *testing.T) {
 		t.Fatalf("expected lock now held by sess-next, got %+v", stored)
 	}
 
-	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("WaitlistLen: %v", err)
 	}
 	if n != 1 {
 		t.Fatalf("expected 1 remaining waitlist entry, got %d", n)
 	}
-	remaining, err := PeekWaitlistHead(ctx, rdb, testAccountID, testCollection, testDocID)
+	remaining, err := PeekWaitlistHead(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("PeekWaitlistHead: %v", err)
 	}
@@ -258,7 +264,7 @@ func TestPromoteWaitlistHead_NoAliveHead(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("empty_waitlist", func(t *testing.T) {
-		head, rec, promoted, err := PromoteWaitlistHead(ctx, rdb, testAccountID, testCollection, "empty")
+		head, rec, promoted, err := PromoteWaitlistHead(ctx, rdb, testOwner, testCollection, "empty")
 		if err != nil {
 			t.Fatalf("PromoteWaitlistHead: %v", err)
 		}
@@ -269,10 +275,10 @@ func TestPromoteWaitlistHead_NoAliveHead(t *testing.T) {
 
 	t.Run("stale_only", func(t *testing.T) {
 		const doc = "stale-only"
-		if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, doc, "sess-stale"); err != nil {
+		if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, doc, "sess-stale", testAccountID); err != nil {
 			t.Fatalf("enqueue: %v", err)
 		}
-		head, rec, promoted, err := PromoteWaitlistHead(ctx, rdb, testAccountID, testCollection, doc)
+		head, rec, promoted, err := PromoteWaitlistHead(ctx, rdb, testOwner, testCollection, doc)
 		if err != nil {
 			t.Fatalf("PromoteWaitlistHead: %v", err)
 		}
@@ -282,7 +288,7 @@ func TestPromoteWaitlistHead_NoAliveHead(t *testing.T) {
 	})
 
 	t.Run("nil_redis_returns_nothing", func(t *testing.T) {
-		head, rec, promoted, err := PromoteWaitlistHead(ctx, nil, testAccountID, testCollection, testDocID)
+		head, rec, promoted, err := PromoteWaitlistHead(ctx, nil, testOwner, testCollection, testDocID)
 		if err != nil {
 			t.Fatalf("expected no error with nil redis, got %v", err)
 		}
@@ -298,7 +304,7 @@ func TestLockHeldByOther(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().Unix()
-	if err := SetLock(ctx, rdb, testAccountID, testCollection, testDocID, LockRecord{
+	if err := SetLock(ctx, rdb, testOwner, testCollection, testDocID, LockRecord{
 		HolderSessionID: "sess-holder",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   now + 300,
@@ -307,7 +313,7 @@ func TestLockHeldByOther(t *testing.T) {
 	}
 
 	t.Run("holder_session_not_blocked", func(t *testing.T) {
-		blocked, err := LockHeldByOther(ctx, rdb, testAccountID, testCollection, testDocID, "sess-holder")
+		blocked, err := LockHeldByOther(ctx, rdb, testOwner, testCollection, testDocID, "sess-holder")
 		if err != nil {
 			t.Fatalf("LockHeldByOther: %v", err)
 		}
@@ -317,7 +323,7 @@ func TestLockHeldByOther(t *testing.T) {
 	})
 
 	t.Run("other_session_blocked", func(t *testing.T) {
-		blocked, err := LockHeldByOther(ctx, rdb, testAccountID, testCollection, testDocID, "sess-other")
+		blocked, err := LockHeldByOther(ctx, rdb, testOwner, testCollection, testDocID, "sess-other")
 		if err != nil {
 			t.Fatalf("LockHeldByOther: %v", err)
 		}
@@ -327,7 +333,7 @@ func TestLockHeldByOther(t *testing.T) {
 	})
 
 	t.Run("empty_requester_treated_as_blocking", func(t *testing.T) {
-		blocked, err := LockHeldByOther(ctx, rdb, testAccountID, testCollection, testDocID, "")
+		blocked, err := LockHeldByOther(ctx, rdb, testOwner, testCollection, testDocID, "")
 		if err != nil {
 			t.Fatalf("LockHeldByOther: %v", err)
 		}
@@ -337,7 +343,7 @@ func TestLockHeldByOther(t *testing.T) {
 	})
 
 	t.Run("unheld_doc_not_blocked", func(t *testing.T) {
-		blocked, err := LockHeldByOther(ctx, rdb, testAccountID, testCollection, "doc-free", "sess-other")
+		blocked, err := LockHeldByOther(ctx, rdb, testOwner, testCollection, "doc-free", "sess-other")
 		if err != nil {
 			t.Fatalf("LockHeldByOther: %v", err)
 		}
@@ -352,14 +358,14 @@ func TestHasWaitlistPulseAndRemoveFromWaitlist(t *testing.T) {
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 	ctx := context.Background()
 
-	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-a"); err != nil {
+	if err := EnqueueWaitlistUnique(ctx, rdb, testOwner, testCollection, testDocID, "sess-a", testAccountID); err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}
-	if err := TouchWaitlistPulse(ctx, rdb, testAccountID, testCollection, testDocID, "sess-a"); err != nil {
+	if err := TouchWaitlistPulse(ctx, rdb, testOwner, testCollection, testDocID, "sess-a"); err != nil {
 		t.Fatalf("TouchWaitlistPulse: %v", err)
 	}
 
-	ok, err := hasWaitlistPulse(ctx, rdb, testAccountID, testCollection, testDocID, "sess-a")
+	ok, err := hasWaitlistPulse(ctx, rdb, testOwner, testCollection, testDocID, "sess-a")
 	if err != nil {
 		t.Fatalf("hasWaitlistPulse: %v", err)
 	}
@@ -367,10 +373,10 @@ func TestHasWaitlistPulseAndRemoveFromWaitlist(t *testing.T) {
 		t.Fatalf("expected pulse for sess-a to be present")
 	}
 
-	if err := RemoveFromWaitlist(ctx, rdb, testAccountID, testCollection, testDocID, "sess-a"); err != nil {
+	if err := RemoveFromWaitlist(ctx, rdb, testOwner, testCollection, testDocID, "sess-a", testAccountID); err != nil {
 		t.Fatalf("RemoveFromWaitlist: %v", err)
 	}
-	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("WaitlistLen: %v", err)
 	}

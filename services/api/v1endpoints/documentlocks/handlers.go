@@ -43,11 +43,11 @@ func (h *Handlers) lockService() *documentlock.Service {
 }
 
 func (h *Handlers) handleAcquire(w http.ResponseWriter, r *http.Request) {
-	hc, ok := lockHandlerContextOK(w, r, h.Redis)
+	hc, ok := h.lockHandlerContextOK(w, r, h.Redis)
 	if !ok {
 		return
 	}
-	out, err := h.lockService().Acquire(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	out, err := h.lockService().Acquire(hc.Ctx, hc.Owner, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			respondLockUnavailable(w, r, "document_lock_acquire", hc, err)
@@ -63,11 +63,11 @@ func (h *Handlers) handleAcquire(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) handleExtend(w http.ResponseWriter, r *http.Request) {
-	hc, ok := lockHandlerContextOK(w, r, h.Redis)
+	hc, ok := h.lockHandlerContextOK(w, r, h.Redis)
 	if !ok {
 		return
 	}
-	out, err := h.lockService().Extend(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	out, err := h.lockService().Extend(hc.Ctx, hc.Owner, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			respondLockUnavailable(w, r, "document_lock_extend", hc, err)
@@ -88,11 +88,11 @@ func (h *Handlers) handleExtend(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) handleRelease(w http.ResponseWriter, r *http.Request) {
-	hc, ok := lockHandlerContextOK(w, r, h.Redis)
+	hc, ok := h.lockHandlerContextOK(w, r, h.Redis)
 	if !ok {
 		return
 	}
-	err := h.lockService().Release(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	err := h.lockService().Release(hc.Ctx, hc.Owner, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			respondLockUnavailable(w, r, "document_lock_release", hc, err)
@@ -106,11 +106,11 @@ func (h *Handlers) handleRelease(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) handleForceRelease(w http.ResponseWriter, r *http.Request) {
-	hc, ok := lockHandlerContextOK(w, r, h.Redis)
+	hc, ok := h.lockHandlerContextOK(w, r, h.Redis)
 	if !ok {
 		return
 	}
-	out, err := h.lockService().ForceReleaseSameAccount(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	out, err := h.lockService().ForceReleaseSameAccount(hc.Ctx, hc.Owner, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		switch {
 		case errors.Is(err, documentlock.ErrLocksUnavailable):
@@ -133,11 +133,11 @@ func (h *Handlers) handleForceRelease(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) handleHandOver(w http.ResponseWriter, r *http.Request) {
-	hc, ok := lockHandlerContextOK(w, r, h.Redis)
+	hc, ok := h.lockHandlerContextOK(w, r, h.Redis)
 	if !ok {
 		return
 	}
-	res, err := h.lockService().HandOver(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	res, err := h.lockService().HandOver(hc.Ctx, hc.Owner, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			respondLockUnavailable(w, r, "document_lock_handover", hc, err)
@@ -164,11 +164,11 @@ func (h *Handlers) handleHandOver(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) handleRequest(w http.ResponseWriter, r *http.Request) {
-	hc, ok := lockHandlerContextOK(w, r, h.Redis)
+	hc, ok := h.lockHandlerContextOK(w, r, h.Redis)
 	if !ok {
 		return
 	}
-	res, err := h.lockService().RequestAccess(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	res, err := h.lockService().RequestAccess(hc.Ctx, hc.Owner, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			respondLockUnavailable(w, r, "document_lock_request", hc, err)
@@ -209,7 +209,11 @@ func (h *Handlers) handleLockState(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	payload, err := documentlock.StatusPayloadForDoc(ctx, h.Redis, accountID, collection, docID)
+	owner, ok := helper.RequestPlannerOwner(w, r, h.Mongo, h.EntityCipher, nil, "document_lock_state")
+	if !ok {
+		return
+	}
+	payload, err := documentlock.StatusPayloadForDoc(ctx, h.Redis, owner, collection, docID)
 	if err != nil {
 		helper.RespondEndpointServerError(w, r, "Internal error", "document lock state failed", documentlock.FailureStateFailed, "document_lock_state", err, map[string]any{
 			"account_id": accountID, "collection": collection, "doc_id": docID,
@@ -237,7 +241,11 @@ func (h *Handlers) handleLockStateBatch(w http.ResponseWriter, r *http.Request) 
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "document lock state batch: invalid request body", documentlock.FailureStateBatchBadRequest, "document_lock_state_batch", err, nil)
 		return
 	}
-	jobResults, groupResults, err := documentlock.StatusBatchResults(ctx, h.Redis, accountID, b.JobDocIDs, b.GroupDocIDs)
+	owner, ok := helper.RequestPlannerOwner(w, r, h.Mongo, h.EntityCipher, nil, "document_lock_state_batch")
+	if !ok {
+		return
+	}
+	jobResults, groupResults, err := documentlock.StatusBatchResults(ctx, h.Redis, owner, b.JobDocIDs, b.GroupDocIDs)
 	if err != nil {
 		switch {
 		case errors.Is(err, documentlock.ErrStatusBatchEmpty):
@@ -268,11 +276,11 @@ func (h *Handlers) handleLockStateBatch(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handlers) handleClaimHandoff(w http.ResponseWriter, r *http.Request) {
-	hc, ok := lockHandlerContextOK(w, r, h.Redis)
+	hc, ok := h.lockHandlerContextOK(w, r, h.Redis)
 	if !ok {
 		return
 	}
-	out, err := h.lockService().ClaimHandoff(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	out, err := h.lockService().ClaimHandoff(hc.Ctx, hc.Owner, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			respondLockUnavailable(w, r, "document_lock_claim_handoff", hc, err)
@@ -295,11 +303,11 @@ func (h *Handlers) handleClaimHandoff(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) handleWaitlistPulse(w http.ResponseWriter, r *http.Request) {
-	hc, ok := lockHandlerContextOK(w, r, h.Redis)
+	hc, ok := h.lockHandlerContextOK(w, r, h.Redis)
 	if !ok {
 		return
 	}
-	if err := h.lockService().WaitlistPulse(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID); err != nil {
+	if err := h.lockService().WaitlistPulse(hc.Ctx, hc.Owner, hc.SessionID, hc.Collection, hc.DocID); err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			respondLockUnavailable(w, r, "document_lock_waitlist_pulse", hc, err)
 			return

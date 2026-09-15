@@ -25,15 +25,18 @@ func TestDocUpdateFiltersForHostedTenants(t *testing.T) {
 	}
 }
 
+// A lock belongs to the planner holding the document, so every owner kind gets a
+// filter — a corporation planner's members have to receive each other's locks.
 func TestDocLockFiltersForHostedTenants(t *testing.T) {
 	t.Parallel()
-	got := DocLockFiltersForHostedTenants([]string{"corporation:1", "alliance:2"})
-	if len(got) != 1 || got[0] != DocLockFilterInert {
-		t.Fatalf("no accounts → inert, got %v", got)
+	got := DocLockFiltersForHostedTenants([]string{"account:7", "corporation:1", "alliance:2"})
+	want := []string{"doc.lock.account:7", "doc.lock.corporation:1", "doc.lock.alliance:2"}
+	if !subjectsAsSetEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
 	}
-	got = DocLockFiltersForHostedTenants([]string{"account:7", "corporation:1"})
-	if !subjectsAsSetEqual(got, []string{"doc.lock.7"}) {
-		t.Fatalf("got %v", got)
+
+	if got := DocLockFiltersForHostedTenants([]string{"", "  "}); len(got) != 1 || got[0] != DocLockFilterInert {
+		t.Fatalf("no tenants → inert, got %v", got)
 	}
 }
 

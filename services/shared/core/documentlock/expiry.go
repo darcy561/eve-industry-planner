@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
@@ -60,16 +61,16 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 	if key == "" {
 		return
 	}
-	accountID, collection, docID, parsed := ParseExpiredLockKey(key)
+	owner, collection, docID, parsed := ParseExpiredLockKey(key)
 	if !parsed {
 		return
 	}
 
-	newHolder, exp, promoted, promoteErr := promoteWaitlistHeadOnExpiry(ctx, d, accountID, collection, docID)
+	newHolder, exp, promoted, promoteErr := promoteWaitlistHeadOnExpiry(ctx, d, owner, collection, docID)
 	if promoteErr != nil {
 		logs.WarnCtx(ctx, "doc lock expiry: waitlist promotion failed",
 			"error", promoteErr,
-			"account_id", accountID,
+			"owner_key", owner.Key(),
 			"collection", collection,
 			"doc_id", docID,
 		)
@@ -93,15 +94,15 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 		}
 	}
 
-	if err := PublishLockEvent(ctx, d.NATS, accountID, payload); err != nil {
+	if err := PublishLockEvent(ctx, d.NATS, owner, payload); err != nil {
 		logs.WarnCtx(ctx, "doc lock expiry: publish failed",
 			"error", err,
-			"account_id", accountID,
+			"owner_key", owner.Key(),
 			"promoted", promoted,
 		)
 	} else {
 		logs.DebugCtx(ctx, "doc lock expiry processed",
-			"account_id", accountID,
+			"owner_key", owner.Key(),
 			"collection", collection,
 			"doc_id", docID,
 			"promoted", promoted,
@@ -109,9 +110,9 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 	}
 
 	if promoted {
-		StripPassiveViewerOnHolderGrant(ctx, d, accountID, collection, docID, newHolder, true)
+		StripPassiveViewerOnHolderGrant(ctx, d, owner, collection, docID, newHolder, true)
 		if collection == eipmongo.CollectionJobGroups {
-			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, d, accountID, docID, newHolder)
+			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, d, owner, docID, newHolder)
 		}
 	}
 }
@@ -119,12 +120,12 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 func promoteWaitlistHeadOnExpiry(
 	ctx context.Context,
 	d Deps,
-	accountID, collection, docID string,
+	owner models.Owner, collection, docID string,
 ) (newHolder string, expiresAtUnix int64, promoted bool, err error) {
 	if d.Redis.Driver() == nil {
 		return "", 0, false, nil
 	}
-	head, rec, ok, err := PromoteWaitlistHead(ctx, d.Redis, accountID, collection, docID)
+	head, rec, ok, err := PromoteWaitlistHead(ctx, d.Redis, owner, collection, docID)
 	if err != nil {
 		return "", 0, false, err
 	}

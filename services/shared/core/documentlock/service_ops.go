@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
@@ -18,14 +19,14 @@ type AcquireResult struct {
 // Acquire grants the lock when uncontested or returns contended payload when
 // another session holds it. The grant/contended decision happens inside a
 // single Redis EVAL so two simultaneous Acquires cannot both win.
-func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection, docID string) (*AcquireResult, error) {
+func (s *Service) Acquire(ctx context.Context, owner models.Owner, accountID, sessionID, collection, docID string) (*AcquireResult, error) {
 	rdb := s.Deps.Redis
 	if rdb.Driver() == nil {
 		return nil, ErrLocksUnavailable
 	}
 	now := time.Now().Unix()
 
-	tx, err := runAcquireTx(ctx, rdb, accountID, sessionID, collection, docID, now, ContestedLockTTLSeconds(), SoloLockTTLSeconds())
+	tx, err := runAcquireTx(ctx, rdb, owner, accountID, sessionID, collection, docID, now, ContestedLockTTLSeconds(), SoloLockTTLSeconds())
 	if err != nil {
 		return nil, err
 	}
@@ -36,14 +37,14 @@ func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection,
 		payload["held"] = true
 		payload["acquired"] = false
 		payload["holderSessionID"] = tx.Record.HolderSessionID
-		if vc, vcErr := PruneAndCountViewers(ctx, rdb, accountID, collection, docID); vcErr == nil {
+		if vc, vcErr := PruneAndCountViewers(ctx, rdb, owner, collection, docID); vcErr == nil {
 			payload["viewerCount"] = vc
 		}
 		return &AcquireResult{StatusCode: http.StatusOK, Payload: payload}, nil
 
 	case "granted":
-		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, sessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, owner, collection, docID, sessionID, true)
+		_ = PublishLockEvent(ctx, s.Deps.NATS, owner, map[string]any{
 			LockPayloadEventKey: LockEventAcquired,
 			"collection":        collection,
 			"docID":             docID,
@@ -51,7 +52,7 @@ func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection,
 			"expiresAtUnix":     tx.Record.ExpiresAtUnix,
 		})
 		if collection == eipmongo.CollectionJobGroups {
-			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, sessionID)
+			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, owner, docID, sessionID)
 		}
 		payload := LockPayloadForRecord(tx.Record.ExpiresAtUnix, tx.Record.LeaseMode)
 		payload["acquired"] = true
@@ -77,7 +78,7 @@ type ExtendResult struct {
 // Extend renews the lease for the current holder, runs the renew→probe cycle
 // state machine, or returns a not-holder JSON. Cycle decisions (extend count,
 // probe target selection, probe expiry sweep) all happen inside a single EVAL.
-func (s *Service) Extend(ctx context.Context, accountID, sessionID, collection, docID string) (*ExtendResult, error) {
+func (s *Service) Extend(ctx context.Context, owner models.Owner, sessionID, collection, docID string) (*ExtendResult, error) {
 	rdb := s.Deps.Redis
 	if rdb.Driver() == nil {
 		return nil, ErrLocksUnavailable
@@ -88,7 +89,7 @@ func (s *Service) Extend(ctx context.Context, accountID, sessionID, collection, 
 
 	tx, err := runExtendTx(
 		ctx, rdb,
-		accountID, sessionID, collection, docID,
+		owner, sessionID, collection, docID,
 		now, ttlSeconds,
 		int64(MaxExtensionsBeforeHandoffConsult),
 		ProbeAckWaitSeconds,
@@ -146,7 +147,7 @@ func (s *Service) Extend(ctx context.Context, accountID, sessionID, collection, 
 
 	case "probe_set":
 		if tx.PublishProbe {
-			_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
+			_ = PublishLockEvent(ctx, s.Deps.NATS, owner, map[string]any{
 				LockPayloadEventKey:    LockEventHandoffProbe,
 				"collection":           collection,
 				"docID":                docID,
@@ -175,21 +176,21 @@ func (s *Service) Extend(ctx context.Context, accountID, sessionID, collection, 
 // The holder check and DEL happen inside a single EVAL so we never delete a
 // lock that has been rebound to a different session between the read and the
 // write.
-func (s *Service) Release(ctx context.Context, accountID, sessionID, collection, docID string) error {
+func (s *Service) Release(ctx context.Context, owner models.Owner, sessionID, collection, docID string) error {
 	rdb := s.Deps.Redis
 	if rdb.Driver() == nil {
 		return ErrLocksUnavailable
 	}
 	now := time.Now().Unix()
 
-	tx, err := runReleaseTx(ctx, rdb, accountID, sessionID, collection, docID, now)
+	tx, err := runReleaseTx(ctx, rdb, owner, sessionID, collection, docID, now)
 	if err != nil {
 		return err
 	}
 	if tx.Outcome != "released" {
 		return nil
 	}
-	_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
+	_ = PublishLockEvent(ctx, s.Deps.NATS, owner, map[string]any{
 		LockPayloadEventKey: LockEventReleased,
 		"collection":        collection,
 		"docID":             docID,
@@ -200,17 +201,21 @@ func (s *Service) Release(ctx context.Context, accountID, sessionID, collection,
 }
 
 // ForceReleaseSameAccount removes the lock when it is held by a *different*
-// session on the same account (JWT accountID) and atomically grants it to the
-// caller. The caller must not already be the holder — use Release instead.
+// session of the caller's own account and atomically grants it to the caller.
+// The caller must not already be the holder — use Release instead.
+//
+// A person may take their own work back from their own stale tab; between two
+// members of a planner that reasoning does not hold, which is why the account is
+// compared rather than assumed from the key.
 // Publishes `document_lock_released` (evicted holder) then `document_lock_acquired`
 // (caller). For group locks, cascades per-job locks on handoff and grant.
-func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, requesterSessionID, collection, docID string) (*AcquireResult, error) {
+func (s *Service) ForceReleaseSameAccount(ctx context.Context, owner models.Owner, accountID, requesterSessionID, collection, docID string) (*AcquireResult, error) {
 	rdb := s.Deps.Redis
 	if rdb.Driver() == nil {
 		return nil, ErrLocksUnavailable
 	}
 	now := time.Now().Unix()
-	tx, err := runForceReleaseSameAccountTx(ctx, rdb, accountID, requesterSessionID, collection, docID, now, SoloLockTTLSeconds())
+	tx, err := runForceReleaseSameAccountTx(ctx, rdb, owner, accountID, requesterSessionID, collection, docID, now, SoloLockTTLSeconds())
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +226,7 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 		return nil, ErrForceReleaseSameSession
 	case "released":
 		prev := tx.PreviousHolderSessionID
-		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, owner, map[string]any{
 			LockPayloadEventKey:  LockEventReleased,
 			"collection":         collection,
 			"docID":              docID,
@@ -230,10 +235,10 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 			"reason":             LockReleaseReasonForceReleasedSameAccount,
 		})
 		if collection == eipmongo.CollectionJobGroups {
-			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, prev)
+			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, owner, docID, prev)
 		}
-		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, requesterSessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, owner, collection, docID, requesterSessionID, true)
+		_ = PublishLockEvent(ctx, s.Deps.NATS, owner, map[string]any{
 			LockPayloadEventKey: LockEventAcquired,
 			"collection":        collection,
 			"docID":             docID,
@@ -241,7 +246,7 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 			"expiresAtUnix":     tx.Record.ExpiresAtUnix,
 		})
 		if collection == eipmongo.CollectionJobGroups {
-			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, requesterSessionID)
+			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, owner, docID, requesterSessionID)
 		}
 		payload := LockPayloadForRecord(tx.Record.ExpiresAtUnix, tx.Record.LeaseMode)
 		payload["acquired"] = true
@@ -265,7 +270,7 @@ type HandOverResult struct {
 // releases when no waitlist head is alive. Holder check + waitlist walk +
 // transfer all happen in a single EVAL so two concurrent HandOvers cannot
 // double-promote.
-func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, collection, docID string) (*HandOverResult, error) {
+func (s *Service) HandOver(ctx context.Context, owner models.Owner, holderSessionID, collection, docID string) (*HandOverResult, error) {
 	rdb := s.Deps.Redis
 	if rdb.Driver() == nil {
 		return nil, ErrLocksUnavailable
@@ -273,7 +278,7 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 	now := time.Now().Unix()
 	ttlSeconds := int64(DefaultLockTTL / time.Second)
 
-	tx, err := runHandOverTx(ctx, rdb, accountID, holderSessionID, collection, docID, now, ttlSeconds)
+	tx, err := runHandOverTx(ctx, rdb, owner, holderSessionID, collection, docID, now, ttlSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +295,7 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 		}, nil
 
 	case "released_no_queue":
-		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, owner, map[string]any{
 			LockPayloadEventKey: LockEventReleased,
 			"collection":        collection,
 			"docID":             docID,
@@ -303,8 +308,8 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 		}, nil
 
 	case "promoted":
-		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, tx.NewHolderSessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, BuildHandoffCompletedPayload(
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, owner, collection, docID, tx.NewHolderSessionID, true)
+		_ = PublishLockEvent(ctx, s.Deps.NATS, owner, BuildHandoffCompletedPayload(
 			collection,
 			docID,
 			tx.NewHolderSessionID,
@@ -315,7 +320,7 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 			},
 		))
 		if collection == eipmongo.CollectionJobGroups {
-			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, tx.PreviousHolderSessionID)
+			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, owner, docID, tx.PreviousHolderSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)
 		payload["held"] = true
@@ -342,7 +347,7 @@ type RequestLockResult struct {
 // RequestAccess auto-grants the lock when empty, returns same-holder when the
 // requester already holds it, or enqueues with a fresh pulse. All decisions
 // (auto-grant vs. enqueue vs. same-holder) are made inside a single EVAL.
-func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSessionID, collection, docID string) (*RequestLockResult, error) {
+func (s *Service) RequestAccess(ctx context.Context, owner models.Owner, accountID, requesterSessionID, collection, docID string) (*RequestLockResult, error) {
 	rdb := s.Deps.Redis
 	if rdb.Driver() == nil {
 		return nil, ErrLocksUnavailable
@@ -351,15 +356,15 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 	ttlSeconds := int64(DefaultLockTTL / time.Second)
 	pulseTTLSeconds := int64(WaitlistPulseTTL / time.Second)
 
-	tx, err := runRequestAccessTx(ctx, rdb, accountID, requesterSessionID, collection, docID, now, ttlSeconds, pulseTTLSeconds)
+	tx, err := runRequestAccessTx(ctx, rdb, owner, accountID, requesterSessionID, collection, docID, now, ttlSeconds, pulseTTLSeconds)
 	if err != nil {
 		return nil, err
 	}
 
 	switch tx.Outcome {
 	case "granted_empty":
-		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, requesterSessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, owner, collection, docID, requesterSessionID, true)
+		_ = PublishLockEvent(ctx, s.Deps.NATS, owner, map[string]any{
 			LockPayloadEventKey:    LockEventAcquired,
 			"collection":           collection,
 			"docID":                docID,
@@ -368,7 +373,7 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 			"accessRequestGranted": true,
 		})
 		if collection == eipmongo.CollectionJobGroups {
-			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, requesterSessionID)
+			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, owner, docID, requesterSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)
 		payload["acquired"] = true
@@ -386,7 +391,7 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 		return &RequestLockResult{StatusCode: http.StatusOK, Payload: payload}, nil
 
 	case "queued":
-		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, s.Deps.NATS, owner, map[string]any{
 			LockPayloadEventKey:  LockEventRequested,
 			"collection":         collection,
 			"docID":              docID,
@@ -411,7 +416,7 @@ type ClaimHandoffOutput struct {
 // ClaimHandoff completes a probe-driven handoff for the queued session. The
 // probe validation (target == requester, probe not expired, waitlist head is
 // requester) plus the lock rewrite all happen inside a single EVAL.
-func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionID, collection, docID string) (*ClaimHandoffOutput, error) {
+func (s *Service) ClaimHandoff(ctx context.Context, owner models.Owner, accountID, requesterSessionID, collection, docID string) (*ClaimHandoffOutput, error) {
 	rdb := s.Deps.Redis
 	if rdb.Driver() == nil {
 		return nil, ErrLocksUnavailable
@@ -420,7 +425,7 @@ func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionI
 	ttlSeconds := int64(DefaultLockTTL / time.Second)
 	pulseTTLSeconds := int64(WaitlistPulseTTL / time.Second)
 
-	tx, err := runClaimHandoffTx(ctx, rdb, accountID, requesterSessionID, collection, docID, now, ttlSeconds, pulseTTLSeconds)
+	tx, err := runClaimHandoffTx(ctx, rdb, owner, accountID, requesterSessionID, collection, docID, now, ttlSeconds, pulseTTLSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -435,8 +440,8 @@ func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionI
 	case "not_next_in_queue":
 		return &ClaimHandoffOutput{Status: http.StatusConflict, ErrText: "No longer next in queue"}, nil
 	case "granted":
-		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, tx.NewHolderSessionID, true)
-		_ = PublishLockEvent(ctx, s.Deps.NATS, accountID, BuildHandoffCompletedPayload(
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, owner, collection, docID, tx.NewHolderSessionID, true)
+		_ = PublishLockEvent(ctx, s.Deps.NATS, owner, BuildHandoffCompletedPayload(
 			collection,
 			docID,
 			tx.NewHolderSessionID,
@@ -444,7 +449,7 @@ func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionI
 			HandoffCompletedOpts{PreviousHolderSessionID: tx.PreviousHolderSessionID},
 		))
 		if collection == eipmongo.CollectionJobGroups {
-			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, tx.PreviousHolderSessionID)
+			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, owner, docID, tx.PreviousHolderSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)
 		payload["acquired"] = true
@@ -463,9 +468,9 @@ func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionI
 }
 
 // WaitlistPulse refreshes the requester's waitlist pulse key.
-func (s *Service) WaitlistPulse(ctx context.Context, accountID, sessionID, collection, docID string) error {
+func (s *Service) WaitlistPulse(ctx context.Context, owner models.Owner, sessionID, collection, docID string) error {
 	if s.Deps.Redis.Driver() == nil {
 		return ErrLocksUnavailable
 	}
-	return TouchWaitlistPulse(ctx, s.Deps.Redis, accountID, collection, docID, sessionID)
+	return TouchWaitlistPulse(ctx, s.Deps.Redis, owner, collection, docID, sessionID)
 }

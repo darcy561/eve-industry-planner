@@ -19,7 +19,7 @@ func TestPipelinedDecideAndReleaseJobLocks_NoLocksReturnsNoReleases(t *testing.T
 	releases, err := pipelinedDecideAndReleaseJobLocks(
 		context.Background(),
 		rdb,
-		testAccountID,
+		testOwner,
 		[]string{"job-a", "job-b"},
 		func(*LockRecord) (bool, string) { return true, "anyone" },
 	)
@@ -53,13 +53,13 @@ func TestPipelinedDecideAndReleaseJobLocks_PartialReleaseDelsOnlyChosen(t *testi
 		"job-e": "sess-old",
 	}
 	for _, jobID := range jobIDs {
-		seedLock(t, rdb, testAccountID, eipmongo.CollectionJobDocuments, jobID, heldBy(holders[jobID]))
+		seedLock(t, rdb, testOwner, eipmongo.CollectionJobDocuments, jobID, heldBy(holders[jobID]))
 	}
 
 	releases, err := pipelinedDecideAndReleaseJobLocks(
 		ctx,
 		rdb,
-		testAccountID,
+		testOwner,
 		jobIDs,
 		func(rec *LockRecord) (bool, string) {
 			if rec == nil || rec.HolderSessionID != "sess-old" {
@@ -86,7 +86,7 @@ func TestPipelinedDecideAndReleaseJobLocks_PartialReleaseDelsOnlyChosen(t *testi
 	}
 
 	for jobID, ownedBy := range holders {
-		key := LockKey(testAccountID, eipmongo.CollectionJobDocuments, jobID)
+		key := LockKey(testOwner, eipmongo.CollectionJobDocuments, jobID)
 		exists, err := rdb.Exists(ctx, key)
 		if err != nil {
 			t.Fatalf("Exists: %v", err)
@@ -113,7 +113,7 @@ func TestPipelinedDecideAndReleaseJobLocks_ExpiredRecordsBypassPredicate(t *test
 		ExpiresAtUnix:   time.Now().Add(-time.Minute).Unix(),
 	}
 	b, _ := json.Marshal(rec)
-	if err := rdb.Driver().Set(ctx, LockKey(testAccountID, eipmongo.CollectionJobDocuments, jobID), b, 0).Err(); err != nil {
+	if err := rdb.Driver().Set(ctx, LockKey(testOwner, eipmongo.CollectionJobDocuments, jobID), b, 0).Err(); err != nil {
 		t.Fatalf("seed expired: %v", err)
 	}
 
@@ -121,7 +121,7 @@ func TestPipelinedDecideAndReleaseJobLocks_ExpiredRecordsBypassPredicate(t *test
 	releases, err := pipelinedDecideAndReleaseJobLocks(
 		ctx,
 		rdb,
-		testAccountID,
+		testOwner,
 		[]string{jobID},
 		func(*LockRecord) (bool, string) {
 			called++
@@ -144,7 +144,7 @@ func TestPipelinedDecideAndReleaseJobLocks_BlankIDsSkipped(t *testing.T) {
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 	ctx := context.Background()
 
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionJobDocuments, "job-real", LockRecord{
+	seedLock(t, rdb, testOwner, eipmongo.CollectionJobDocuments, "job-real", LockRecord{
 		HolderSessionID: "sess-real",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
@@ -154,7 +154,7 @@ func TestPipelinedDecideAndReleaseJobLocks_BlankIDsSkipped(t *testing.T) {
 	releases, err := pipelinedDecideAndReleaseJobLocks(
 		ctx,
 		rdb,
-		testAccountID,
+		testOwner,
 		[]string{"", "job-real", ""},
 		func(*LockRecord) (bool, string) {
 			calls++
@@ -176,13 +176,13 @@ func TestPipelinedDecideAndReleaseJobLocks_NilRedisAndPredicateGuards(t *testing
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 
-	if r, err := pipelinedDecideAndReleaseJobLocks(context.Background(), nil, testAccountID, []string{"x"}, func(*LockRecord) (bool, string) { return true, "" }); err != nil || r != nil {
+	if r, err := pipelinedDecideAndReleaseJobLocks(context.Background(), nil, testOwner, []string{"x"}, func(*LockRecord) (bool, string) { return true, "" }); err != nil || r != nil {
 		t.Fatalf("nil rdb: expected (nil, nil), got (%v, %v)", r, err)
 	}
-	if r, err := pipelinedDecideAndReleaseJobLocks(context.Background(), rdb, testAccountID, []string{"x"}, nil); err != nil || r != nil {
+	if r, err := pipelinedDecideAndReleaseJobLocks(context.Background(), rdb, testOwner, []string{"x"}, nil); err != nil || r != nil {
 		t.Fatalf("nil decide: expected (nil, nil), got (%v, %v)", r, err)
 	}
-	if r, err := pipelinedDecideAndReleaseJobLocks(context.Background(), rdb, testAccountID, nil, func(*LockRecord) (bool, string) { return true, "" }); err != nil || r != nil {
+	if r, err := pipelinedDecideAndReleaseJobLocks(context.Background(), rdb, testOwner, nil, func(*LockRecord) (bool, string) { return true, "" }); err != nil || r != nil {
 		t.Fatalf("nil ids: expected (nil, nil), got (%v, %v)", r, err)
 	}
 }

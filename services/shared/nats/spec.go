@@ -35,7 +35,7 @@ const (
 	SubjectScheduledPrefix = "scheduled"
 
 	// SubjectDocLock is the NATS subject for document lock coordination (API → websocket fan-out).
-	// Format: doc.lock.{accountID}
+	// Format: doc.lock.{ownerKey}
 	SubjectDocLock = "doc.lock"
 
 	// SubjectHealthCommandPing is the core-NATS fan-out subject for controller health census.

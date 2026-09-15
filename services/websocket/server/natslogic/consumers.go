@@ -25,7 +25,7 @@ func DocLiveUpdatesConsumerConfig() (durable string, cfg jetstream.ConsumerConfi
 }
 
 // DocLockConsumerConfig is the JetStream consumer for doc.lock fan-out.
-// Starts inert; filters widen to doc.lock.{accountID} for hosted accounts.
+// Starts inert; filters widen to doc.lock.{ownerKey} for hosted planners.
 func DocLockConsumerConfig() (durable string, cfg jetstream.ConsumerConfig) {
 	durable = identity.DocLockJetStreamDurable()
 	return durable, jetstream.ConsumerConfig{

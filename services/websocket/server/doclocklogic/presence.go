@@ -5,15 +5,16 @@ import (
 	"errors"
 
 	"eve-industry-planner/shared/core/documentlock"
+	"eve-industry-planner/shared/models"
 )
 
-// WaitlistPulse runs the domain waitlist pulse for one account/session/doc.
-func WaitlistPulse(ctx context.Context, deps documentlock.Deps, accountID, sessionID, collection, docID string) Outcome {
+// WaitlistPulse runs the domain waitlist pulse for one planner/session/doc.
+func WaitlistPulse(ctx context.Context, deps documentlock.Deps, owner models.Owner, sessionID, collection, docID string) Outcome {
 	if deps.Redis.Driver() == nil {
 		return fail("document locks unavailable", documentlock.FailureUnavailable, documentlock.ErrLocksUnavailable, nil)
 	}
 	svc := documentlock.NewService(deps)
-	if err := svc.WaitlistPulse(ctx, accountID, sessionID, collection, docID); err != nil {
+	if err := svc.WaitlistPulse(ctx, owner, sessionID, collection, docID); err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			return fail("document locks unavailable", documentlock.FailureUnavailable, err, nil)
 		}
@@ -23,11 +24,11 @@ func WaitlistPulse(ctx context.Context, deps documentlock.Deps, accountID, sessi
 }
 
 // ViewerArrived runs viewer-arrived ingress (best-effort domain side effects).
-func ViewerArrived(ctx context.Context, deps documentlock.Deps, accountID, sessionID, collection, docID string) {
-	documentlock.HandleViewerArrivedIngress(ctx, deps, accountID, sessionID, collection, docID)
+func ViewerArrived(ctx context.Context, deps documentlock.Deps, owner models.Owner, sessionID, collection, docID string) {
+	documentlock.HandleViewerArrivedIngress(ctx, deps, owner, sessionID, collection, docID)
 }
 
 // ViewerDeparted runs viewer-departed ingress.
-func ViewerDeparted(ctx context.Context, deps documentlock.Deps, accountID, sessionID, collection, docID string) {
-	documentlock.HandleViewerDepartedIngress(ctx, deps, accountID, sessionID, collection, docID)
+func ViewerDeparted(ctx context.Context, deps documentlock.Deps, owner models.Owner, sessionID, collection, docID string) {
+	documentlock.HandleViewerDepartedIngress(ctx, deps, owner, sessionID, collection, docID)
 }

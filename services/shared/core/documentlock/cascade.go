@@ -34,10 +34,11 @@ func DecideStaleAfterGrantRelease(rec *LockRecord, newGroupHolderSessionID strin
 func ReleaseDependentJobLocksOnGroupHandoff(
 	ctx context.Context,
 	d Deps,
-	accountID, groupID, oldHolderSessionID string,
+	owner models.Owner,
+	groupID, oldHolderSessionID string,
 ) {
 	cascadeReleaseDependentJobLocks(
-		ctx, d, accountID, groupID,
+		ctx, d, owner, groupID,
 		func(rec *LockRecord) (bool, string) {
 			return DecideHandoffCascadeRelease(rec, oldHolderSessionID)
 		},
@@ -49,13 +50,14 @@ func ReleaseDependentJobLocksOnGroupHandoff(
 func ReleaseStaleDependentJobLocksAfterGroupGrant(
 	ctx context.Context,
 	d Deps,
-	accountID, groupID, newGroupHolderSessionID string,
+	owner models.Owner,
+	groupID, newGroupHolderSessionID string,
 ) {
 	if newGroupHolderSessionID == "" {
 		return
 	}
 	cascadeReleaseDependentJobLocks(
-		ctx, d, accountID, groupID,
+		ctx, d, owner, groupID,
 		func(rec *LockRecord) (bool, string) {
 			return DecideStaleAfterGrantRelease(rec, newGroupHolderSessionID)
 		},
@@ -70,25 +72,26 @@ func ReleaseStaleDependentJobLocksAfterGroupGrant(
 func ReleaseStaleDependentJobLocksOnGroupMembershipAdded(
 	ctx context.Context,
 	d Deps,
-	accountID, groupID string,
+	owner models.Owner,
+	groupID string,
 	addedJobIDs []string,
 	groupHolderSessionID string,
 ) {
 	if d.Redis.Driver() == nil {
 		return
 	}
-	if accountID == "" || groupID == "" || groupHolderSessionID == "" || len(addedJobIDs) == 0 {
+	if owner.IsZero() || groupID == "" || groupHolderSessionID == "" || len(addedJobIDs) == 0 {
 		return
 	}
 
-	releases, err := pipelinedDecideAndReleaseJobLocks(ctx, d.Redis, accountID, addedJobIDs,
+	releases, err := pipelinedDecideAndReleaseJobLocks(ctx, d.Redis, owner, addedJobIDs,
 		func(rec *LockRecord) (bool, string) {
 			return DecideStaleAfterGrantRelease(rec, groupHolderSessionID)
 		})
 	if err != nil {
 		logs.WarnCtx(ctx, "doc lock cascade: membership redis pipeline failed",
 			"error", err,
-			"account_id", accountID,
+			"owner_key", owner.Key(),
 			"group_id", groupID,
 			"added_jobs", len(addedJobIDs))
 		if len(releases) == 0 {
@@ -101,7 +104,7 @@ func ReleaseStaleDependentJobLocksOnGroupMembershipAdded(
 	if d.NATS == nil {
 		return
 	}
-	_ = PublishLockEvent(ctx, d.NATS, accountID, BuildGroupCascadePayload(
+	_ = PublishLockEvent(ctx, d.NATS, owner, BuildGroupCascadePayload(
 		eipmongo.CollectionJobGroups,
 		groupID,
 		eipmongo.CollectionJobDocuments,
@@ -113,27 +116,26 @@ func ReleaseStaleDependentJobLocksOnGroupMembershipAdded(
 func cascadeReleaseDependentJobLocks(
 	ctx context.Context,
 	d Deps,
-	accountID, groupID string,
+	owner models.Owner,
+	groupID string,
 	decide func(*LockRecord) (bool, string),
 	cascadeReason string,
 ) {
 	if d.Mongo == nil || d.Redis.Driver() == nil || d.NATS == nil {
 		return
 	}
-	if accountID == "" || groupID == "" {
+	if owner.IsZero() || groupID == "" {
 		return
 	}
 
-	// The lock namespace is still the account, so the group this cascade releases
-	// is the one in the account's own planner — see shared-planners § Stage H.
-	group, err := d.Mongo.Groups.LoadGroupByID(ctx, models.AccountOwner(accountID), groupID)
+	group, err := d.Mongo.Groups.LoadGroupByID(ctx, owner, groupID)
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return
 		}
 		logs.WarnCtx(ctx, "doc lock cascade: load group failed",
 			"error", err,
-			"account_id", accountID,
+			"owner_key", owner.Key(),
 			"group_id", groupID)
 		return
 	}
@@ -142,11 +144,11 @@ func cascadeReleaseDependentJobLocks(
 	// two Redis round-trips regardless of how many jobs the group has.
 	// JetStream publishing stays here so partial DEL failures don't
 	// silently swallow events.
-	releases, err := pipelinedDecideAndReleaseJobLocks(ctx, d.Redis, accountID, group.IncludedJobIDs, decide)
+	releases, err := pipelinedDecideAndReleaseJobLocks(ctx, d.Redis, owner, group.IncludedJobIDs, decide)
 	if err != nil {
 		logs.WarnCtx(ctx, "doc lock cascade: redis pipeline failed",
 			"error", err,
-			"account_id", accountID,
+			"owner_key", owner.Key(),
 			"group_id", groupID,
 			"job_count", len(group.IncludedJobIDs))
 		if len(releases) == 0 {
@@ -160,7 +162,7 @@ func cascadeReleaseDependentJobLocks(
 	if len(releases) == 0 {
 		return
 	}
-	_ = PublishLockEvent(ctx, d.NATS, accountID, BuildGroupCascadePayload(
+	_ = PublishLockEvent(ctx, d.NATS, owner, BuildGroupCascadePayload(
 		eipmongo.CollectionJobGroups,
 		groupID,
 		eipmongo.CollectionJobDocuments,

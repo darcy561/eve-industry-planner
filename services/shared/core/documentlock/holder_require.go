@@ -9,6 +9,7 @@ import (
 
 	eipmongo "eve-industry-planner/shared/mongo"
 
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 )
 
@@ -49,21 +50,21 @@ type HolderCheck struct {
 	LockExpiresAtUnix int64
 }
 
-// RequireHolder inspects the Redis lock for (accountID, collection, docID).
+// RequireHolder inspects the Redis lock for (owner, collection, docID).
 // When rdb is nil, returns Unheld (caller skips API enforcement). When
 // requesterSessionID is empty, returns an error — callers that enforce locks
 // must require a session first.
-func RequireHolder(ctx context.Context, rdb *eipredis.Redis, accountID, requesterSessionID, collection, docID string) (HolderCheck, error) {
+func RequireHolder(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, requesterSessionID, collection, docID string) (HolderCheck, error) {
 	if rdb.Driver() == nil {
 		return HolderCheck{Outcome: HolderOutcomeUnheld}, nil
 	}
 	if requesterSessionID == "" {
 		return HolderCheck{}, ErrSessionRequiredForLockGate
 	}
-	if accountID == "" || collection == "" || docID == "" {
+	if owner.IsZero() || collection == "" || docID == "" {
 		return HolderCheck{Outcome: HolderOutcomeUnheld}, nil
 	}
-	rec, err := GetLock(ctx, rdb, accountID, collection, docID)
+	rec, err := GetLock(ctx, rdb, owner, collection, docID)
 	if err != nil {
 		return HolderCheck{}, err
 	}
@@ -128,7 +129,8 @@ type JobGroupBypass map[string]string
 func CollectLockHeldElsewhereRejects(
 	ctx context.Context,
 	rdb *eipredis.Redis,
-	accountID, requesterSessionID, collection string,
+	owner models.Owner,
+	requesterSessionID, collection string,
 	docIDs []string,
 	jobGroupBypass JobGroupBypass,
 ) ([]LockHeldElsewhereItem, error) {
@@ -138,7 +140,7 @@ func CollectLockHeldElsewhereRejects(
 	if requesterSessionID == "" {
 		return nil, ErrSessionRequiredForLockGate
 	}
-	if accountID == "" || collection == "" {
+	if owner.IsZero() || collection == "" {
 		return nil, nil
 	}
 	uniq := dedupeDocIDs(docIDs)
@@ -152,7 +154,7 @@ func CollectLockHeldElsewhereRejects(
 	}
 	cmds := make([]*eipredis.StringResult, len(uniq))
 	for i, id := range uniq {
-		cmds[i] = pipe.Get(ctx, LockKey(accountID, collection, id))
+		cmds[i] = pipe.Get(ctx, LockKey(owner, collection, id))
 	}
 	if err := pipe.Exec(ctx); err != nil {
 		return nil, err
@@ -172,7 +174,7 @@ func CollectLockHeldElsewhereRejects(
 				continue
 			}
 			seenGroups[gid] = struct{}{}
-			check, err := RequireHolder(ctx, rdb, accountID, requesterSessionID, eipmongo.CollectionJobGroups, gid)
+			check, err := RequireHolder(ctx, rdb, owner, requesterSessionID, eipmongo.CollectionJobGroups, gid)
 			if err != nil {
 				return nil, err
 			}
