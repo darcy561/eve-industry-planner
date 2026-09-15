@@ -243,7 +243,7 @@ func TestTheBackupCoversEveryCollectionAStepWritesTo(t *testing.T) {
 	t.Parallel()
 
 	touched := releaseTouchedCollections()
-	for _, group := range [][]string{metaOwnerCollections, eipmongo.OwnerScopedIDCollections(), derivedStatisticsCollections} {
+	for _, group := range [][]string{metaOwnerCollections, eipmongo.OwnerScopedIDCollections(), derivedStatisticsCollections, accountPlannerCollections} {
 		for _, name := range group {
 			if !slices.Contains(touched, name) {
 				t.Errorf("%s is written by a step and not copied first", name)
@@ -347,5 +347,26 @@ func TestDropRetiredResumeTokensRemovesOnlyRetiredGroups(t *testing.T) {
 	}
 	if fake.Server.Exists(primaryhandoff.ResumeTokenKey("retired_group")) {
 		t.Error("the retired group kept its token")
+	}
+}
+
+// The planner steps insert documents into three collections, and a revert has to
+// be able to take all three back out.
+//
+// Named here rather than derived: the collections come from what EnsurePlanner
+// writes, which no exported list describes, so a fourth one added there has to be
+// added here too — and this test is what says so.
+func TestTheBackupCoversWhatThePlannerStepsCreate(t *testing.T) {
+	t.Parallel()
+
+	touched := releaseTouchedCollections()
+	for _, name := range []string{
+		eipmongo.CollectionPlanners,
+		eipmongo.CollectionPlannerMemberships,
+		eipmongo.CollectionPlannerSettings,
+	} {
+		if !slices.Contains(touched, name) {
+			t.Errorf("%s is written by the planner backfill and not copied first, so a revert would leave what it created", name)
+		}
 	}
 }

@@ -6,10 +6,25 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/stackservices"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+// accountPlannerCollections is everything the planner steps write: EnsurePlanner
+// inserts the planner, its membership row and its settings, and
+// backfillPlannerExtrasCategories changes the settings afterwards.
+//
+// They are copied before the release like every other collection it writes to.
+// A collection that holds nothing when the copy is taken is recorded as empty,
+// and that record is what makes revertRelease drop it rather than leave the
+// documents the release created standing.
+var accountPlannerCollections = []string{
+	eipmongo.CollectionPlanners,
+	eipmongo.CollectionPlannerMemberships,
+	eipmongo.CollectionPlannerSettings,
+}
 
 // backfillAccountPlanners gives every existing account the planner it works in,
 // and every planner the settings its work is done under.

@@ -45,6 +45,7 @@ func releaseTouchedCollections() []string {
 		metaOwnerCollections,
 		eipmongo.OwnerScopedIDCollections(),
 		derivedStatisticsCollections,
+		accountPlannerCollections,
 	} {
 		for _, name := range group {
 			if !slices.Contains(out, name) {
