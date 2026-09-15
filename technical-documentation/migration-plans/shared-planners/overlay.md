@@ -307,7 +307,7 @@ providers already describes.
 
 ## Stage D — What a second member breaks
 
-*D1 landed. The close gate is skipped — see the plan's D2. The extras picker is still owed.*
+*Landed. The close gate is skipped — see the plan's D2.*
 
 **Recalculating a job keeps what the job is built with.** A new total produces a new layout — the same
 runs may divide into a different number of setups — so the setups are still replaced rather than
@@ -364,9 +364,65 @@ This is a live defect on personal planners rather than only a sharing one: chang
 and editing an older job rebuilt it under the new default, and a job restored from a group template
 lost everything the template supplied if the quantity differed at all.
 
-Owed here: where the extras category ids live once they are the planner's. What recalculation preserves
-and how a job's build context survives another member editing it is written above. The close cascade's
-persist gate is not owed — the plan's D2 records why it is skipped and what replaces it.
+**Extras categories are the planner's, read and written.** One hook,
+`usePlannerExtrasCategories`, answers the active planner's list, and the three surfaces that used to
+read the account's — the category picker, the job's extras editor and the Settings page frame — all read
+it. It answers the defaults for a planner whose settings have not arrived, so a picker has a usable list
+from the first frame, and it selects straight off the held entry rather than through the store's
+accessor, which builds a fresh defaults object per call and would re-render on every store change.
+
+**The defaults can be read but not edited.** The hook says which of the two it answered, and the
+Settings page disables its controls until the planner's own list is held: editing the fallback and
+saving it would replace the planner's stored list with the defaults plus that one edit. The store
+action refuses the same case, so the rule does not depend on a call site remembering it.
+
+**The list is edited where it is read.** `PUT /api/v1/planners/{owner}/settings` takes a
+`SettingsUpdate` naming only the settings that changed, so a member editing one setting does not send
+back a copy of the rest that another member may have moved on from. The write is a `$set` of those
+fields with an `$inc` of `_meta.version` beside it, and stamps the writing session and tab. A planner
+with no settings document is refused rather than given one: the document is written when the planner is,
+so its absence means there is no planner.
+
+**The server refuses a list that would orphan a stored cost.** Every category needs an id and a label,
+ids cannot repeat, and `Unassigned` and `Other` must be present and not deleted — a cost already filed
+names its category by id, and the archive resolves a label against the list it was filed from. Deleting
+a category marks it rather than removing it, for the same reason.
+
+**The client holds the part of that rule a reader can trip over by accident.** A new category's name is
+checked *after* its markup is stripped, because stripping can leave nothing behind and a category with
+no label is one the whole write is refused for; the typed text stays in the field rather than being
+cleared, so the reader can see what was not accepted. The permanent categories carry no delete control
+for the same reason.
+
+The **size limits are the server's alone** — a label longer than 120 characters, or a list past 200
+entries — and the SPA does not restate them, because a second copy of a number is a second thing to keep
+in step. Reaching either needs deliberate effort rather than a slip, and the cost of not restating them
+is that such a write is refused rather than prevented: the refusal is logged and not shown, as every
+settings write in the SPA behaves.
+
+**The account document keeps its own copy for this release and stops being edited.**
+`backfillAccountPlanners` is what moves an account's list onto its planner, and
+`stampExtrasCategoryLabels` names the categories on jobs already archived; both read
+`application_settings.extrasCategories`, and the settings upsert writes the whole struct, so the SPA
+round-trips the field rather than clearing it out from under them. It no longer writes to it, and its
+editing actions are gone — which left `applicationSettings/extras.js` holding system indexes alone, so
+it is now `predefinedSystemIndexes.js`. The plan's § Stage D says what drops the field afterwards.
+
+**The release moves the list, because seeding alone would lose half of it.** A planner's settings are
+written the first time its account signs in, and the write is insert-only, so a category added at any
+later sign-in never reached the planner. `backfillPlannerExtrasCategories` merges those onto the account
+planner by id, leaving every category the planner already holds exactly as it is — a member's rename and
+a member's deletion both outrank the account's copy, which is what makes the step safe to run again.
+`planner_settings` is copied before the window for it, being the one step that changes such a document
+rather than inserting one.
+
+**A save is debounced per planner, not per tab.** `plannerSettingsPersistSchedule` remembers which
+planners have unsaved changes rather than only the last one, so a member who edits one planner's
+categories and switches before the window closes still has the first write. It flushes on tab hide and
+unload like the account's own settings do.
+
+The close cascade's persist gate is not owed — the plan's D2 records why it is skipped and what replaces
+it.
 
 ## Stage E — Custom planners
 

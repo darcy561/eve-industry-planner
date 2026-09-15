@@ -865,6 +865,23 @@ settings document: one the archive cannot reach, that a second member does not s
 the name entirely when a category is deleted. See
 [archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) § Extras categories name themselves.
 
+### Every other planner setting is in the same insert-only trap
+
+`EnsurePlannerSettings` seeds the whole of `planner.Settings` from the account once and never again, so
+what was true of `ExtrasCategories` is true of `CustomStructures`, `PredefinedSystemIndexes`,
+`DefaultMaterialEfficiencyValue`, `DefaultCitadelBrokersFee`, `ReprocessingSettings` and
+`ExemptTypeIDs`: a planner holds them as they stood at its account's first login.
+
+It is not a defect yet. `SettingsUpdate` carries only `ExtrasCategories`, so the endpoint cannot change
+the others, and the SPA still edits and reads every one of them from the account's own settings — so
+nothing reads the planner's copies and nothing can go stale. It becomes a defect the moment one of them
+moves, which § Settings split says they all eventually must.
+
+**So a slice moving one of these owes a release step, not just a reader and a writer.** The shape is
+`backfillPlannerExtrasCategories`: merge what the planner is missing, leave what it holds. A fourth copy
+of that pattern is the point at which it should become one step covering every field rather than one per
+field.
+
 For `JobStatuses` only the **set of ids** must be the planner's. Labels could stay personal without
 harming anything, since they name a column rather than identify it; whether that is worth the
 complexity is an open question rather than a decision.
@@ -1711,18 +1728,64 @@ Extras are further along too: the archive already denormalises each category's l
 and a release step stamps those labels onto existing jobs. So what is left is the offered list at the
 picker, not the id space or the archive.
 
-**Done when** a planner offers its own extras categories, an account's other settings are untouched,
-and a single-member planner sees exactly the categories it sees today.
+**Landed**, and larger than "the offered list at the picker" for one reason the stage did not see:
+`planner_settings` was insert-only and its API read-only, so repointing the picker alone would have
+frozen a personal planner's list at the moment it was seeded, and a category added afterwards would
+have vanished from the picker. Moving the *reading* of the list required moving the *editing* of it in
+the same slice.
+
+So the slice is: a field-scoped `PUT /planners/{owner}/settings` taking a `SettingsUpdate` that names
+only what changed; a `SettingsUpdate.Validate` that refuses a list with duplicate or unlabelled ids or
+without the two permanent categories, because costs already filed name their category by id; and on
+the client one hook over the planner settings store that the picker, the job extras editor and the
+Settings page frame all read, with the editing actions and the debounced write beside it.
+
+The account document keeps `extrasCategories` for this release and stops being edited. Two of this
+release's steps still read it — `backfillAccountPlanners`, which is what moves each account's list onto
+its planner, and `stampExtrasCategoryLabels`, which names the categories on jobs already archived — and
+`UpsertApplicationSettings` writes the whole struct, so a SPA that stopped sending the field would clear
+it before either step ran. The SPA therefore round-trips it untouched and its editing actions are gone.
+
+**It is dropped in the next release**, once those two steps have run: delete the field from
+`models.ApplicationSettings` and the `ExtrasCategories` clone from `SettingsFromAccount`, which is the
+only reader through the model. `stampExtrasCategoryLabels` decodes its own struct and is unaffected, and
+stored copies age out on their own — no upgrader step, per § Schema versioning.
+
+##### The move itself is a release step
+
+Seeding is not enough on its own. `EnsurePlannerSettings` is insert-only and **first login and every
+token refresh call it**, so any account that has signed in since Stage C already has a settings document
+holding the categories it had at that moment — and `backfillAccountPlanners` skips it, because it fills
+in what is missing rather than refreshing what is there. Every category added after that login is on the
+account document alone. With the picker reading the planner's list, those categories would disappear
+from it, which is the regression this stage's done-when forbids.
+
+`backfillPlannerExtrasCategories` is the step that closes it: for each account it merges the categories
+its planner's settings do not hold onto that planner. **Merged by id, never replaced** — a category the
+planner already carries is left as it is, a member's rename and a member's deletion included — so the
+step is safe to run again after a failed window, once members are editing the planner's own list. It
+runs after `backfillAccountPlanners`, because a planner has to exist before its settings can be changed.
+
+It is also the release's first step to *change* a `planner_settings` document rather than insert one, so
+`planner_settings` joins the collections copied before the window; without that, `revertRelease` would
+have nothing to put the pre-release lists back from.
+
+**Wire compatibility:** additive. `PUT` is a new method on an existing route, and no stored shape
+changed.
+
+**Still open, deliberately.** A category one member adds does not reach another member's open session:
+`planner_settings` is watched, but `documentMessage.js` has no handler for it, and adding one is Stage
+G's realtime work rather than this stage's. Until then a reader sees the new category on their next
+read of the settings. The SPA's `PLANNER_HELD_COLLECTIONS` mirror in `documentMessage.js` is also two
+entries short of `PlannerHeldCollections()` — `jobs` and `planner_settings` — which matters only once
+something consumes either message.
 
 #### Order
 
-D1 was a live defect on personal planners today and has landed. D2 is skipped — what it describes is
+D1 was a live defect on personal planners today and landed first. D2 is skipped — what it describes is
 already handled server-side, and the defect underneath it is
-[document-write-granularity](../document-write-granularity/plan.md) § Stage B.
-
-D3 needs planner-scoped settings storage to exist, so it sequences after the planner document, and it
-has shrunk to the extras picker alone. The stage's headline turns out to be its smallest slice, and
-with D2 out it is the only slice left here.
+[document-write-granularity](../document-write-granularity/plan.md) § Stage B. D3 needed the planner
+settings document to exist, so it followed Stage E. The stage is closed.
 
 #### A planner's id and its name
 
@@ -2288,9 +2351,38 @@ do not touch.
 | A — the owner block, in one cutover | **Landed.** Built under [archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) and now owned here. Model, vocabulary, writers, filters, index specs, renames, `ChangeStreamMessage.OwnerKey`, the `prepareRelease` stamp and its gate are all in, the rehearsal against a restored copy of live is done, and the stamp has run: every document carries an owner and the gate passes. Not yet confirmed against every environment — see § Stage A |
 | B — grants and scopes as owner lists | **Landed.** `models.SessionGrants` is the one grants type, a connection's scopes and the routing index are owner keys derived at connect, and `prepareRelease` rewrites stored grants. `upgrade_scopes` is removed rather than reshaped, and the `active_planner` message replacing it landed at Stage E — see § Why the client no longer asks for scopes. The § Go modernisation item is applied |
 | C — planner and membership documents | **Landed.** C1 the two collections and their indexes, C2 the account-planner backfill and the write first login repairs from, C3 membership as the source of grants with authorisation reading the rows rather than a cached list, C4 the collection set per owner kind and document-subscribe authorisation by membership. Invites moved to Stage E |
-| D — what a second member breaks | **D1 landed**, D2 skipped, D3 outstanding. D1 recalculation keeping a job's build context — a live defect on personal planners, now fixed. D2 is handled server-side already; the retry-queue defect it uncovered is [document-write-granularity](../document-write-granularity/plan.md) § Stage B. D3 is the extras picker; the settings document it waited on landed at Stage E, so it is unblocked. Job statuses turned out to need nothing, their id space already being a frozen catalog. See § Stage D — what a second member breaks |
+| D — what a second member breaks | **Landed.** D1 recalculation keeping a job's build context — a live defect on personal planners, now fixed. D2 is handled server-side already; the retry-queue defect it uncovered is [document-write-granularity](../document-write-granularity/plan.md) § Stage B. D3 the extras categories, which turned out to need a settings write path as well as a picker: the list is the planner's, edited through `PUT /planners/{owner}/settings`, and the account's copy stops being edited. Job statuses needed nothing, their id space already being a frozen catalog. See § Stage D — what a second member breaks |
 | E — custom planners | **Partly landed.** In: the planner settings document (seeded by value from the creating account, planner-held and watched), one write path for every planner, the planners listing, corporation planner creation with its name looked up server-side and NPC corporations refused, the `active_planner` message with the ceiling intersection and its restore across a reconnect, the owner handle on every delivered document, a client switcher that moves the header on every scoped request and the owner in every scoped query key alongside the connection, and invites as Redis records with the join path that redeems them. Outstanding: the revocation path, which waits on the session-record work that owns the grants ceiling. Keying the job and group stores by owner needs the owner-scoped baseline and runs with Stage G. See § Stage E and [overlay.md](./overlay.md) § Stage E |
 | F — ESI providers | **F1 landed.** Corporation and alliance membership rows are reconciled from the ids ESI reports, at login and on the cloud token sweep, completing a task that read as finished and wrote no rows. A row grants while it exists and nothing expires one: a revoked token is a positive answer the reconcile acts on, and a two-year dormant account is cleared by `InactiveAccountPlannerCleanup`. Owed: reshaping when the grant task fires and how it resolves, and access lists |
 | G — realtime state under more than one writer | **Not started.** The `lastModified` cursor, the account-shaped baseline and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped baseline — see § Stage G |
 | H — the document lock stops being account-shaped | **Not started.** The lock key, the waitlist, the viewer set and the fan-out subject are all namespaced by the calling account, so two members of one planner take two keys for one job and neither contends. Becomes the owner key, which leaves a personal planner's keys unchanged. Blocks a planner holding two people as surely as Stage D does — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
+
+## Recommended pickup order
+
+**Stage H next.** The document lock is the last blocker of the same class as Stage D: two members of
+one planner take two keys for one job and neither contends, so a planner holding two people corrupts
+work rather than refusing it. It is self-contained backend work and does not collide with Stage G.
+
+**Stage G if the larger unknown is worth clearing first.** It absorbs what survived the retired
+websocket-realtime project, and it unblocks two things nothing else will: keying the job and group
+stores by owner, which Stage E owes, and live propagation of a settings change between members —
+`planner_settings` is watched, but `documentMessage.js` has no handler for it, so a category one member
+adds reaches another only on their next read.
+
+The rest are blocked or parked. Stage E's revocation path waits on the session-record work that owns
+the grants ceiling; Stage F owes the grant-task reshaping and access lists; Stage I is a decision that
+depends on both.
+
+### Owed to the release, not to a stage
+
+One rehearsal has not been done: **the planner collections have never been copied while empty.** They
+are copied now — that was the fix for a revert that left the documents the release created standing —
+but on the database it was rehearsed against the app had already recreated one, so the copy recorded 1
+rather than 0, and it is the zero that makes `revertRelease` drop a collection instead of restoring it.
+Live is a genuine first run, so that is the path it will take.
+
+To prove it: stop the worker **and** user traffic, drop `planners`, `planner_memberships` and
+`planner_settings`, run `prepareRelease`, check the copy step reports 0 for each, then revert and check
+all three are dropped rather than restored. Figures from the run that prompted this are in
+[measurements/extras-categories-backfill.md](./measurements/extras-categories-backfill.md).

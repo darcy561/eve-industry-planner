@@ -50,6 +50,7 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | See the stages and their order | [plan.md](./plan.md) §§ Stage A – Stage F |
 | Pick up the planner and membership work slice by slice | [plan.md](./plan.md) § Stage C §§ C1–C4 |
 | Pick up what a second member breaks, slice by slice | [plan.md](./plan.md) § Stage D §§ D1–D3 |
+| Change a planner setting, or add one that can be changed | [overlay.md](./overlay.md) § Stage D |
 | Know how the live data migration runs | [plan.md](./plan.md) § Live data, and the cutover window |
 | Know where the grants list is filled from, and when that changes | [plan.md](./plan.md) § Grants, § Stage B |
 | Find the planner types that exist but are wired to nothing | [plan.md](./plan.md) § Data models |
@@ -63,4 +64,5 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | Decide where the websocket's grant ceiling is read from | [plan.md](./plan.md) § Stage I |
 | Know how a document states its owner today | [overlay.md](./overlay.md) § Stage A — The owner block cutover |
 | Know what the pricing-defaults backfill will actually find | [measurements/pricing-defaults-backfill.md](./measurements/pricing-defaults-backfill.md) |
+| Know what the extras categories backfill found, and on how many accounts | [measurements/extras-categories-backfill.md](./measurements/extras-categories-backfill.md) |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
