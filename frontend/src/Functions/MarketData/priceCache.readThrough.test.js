@@ -35,7 +35,8 @@ vi.mock("./marketSources", async (importOriginal) => {
 });
 
 const { queryClient } = await import("../../queryClient.js");
-const { fetchPrices, readPrice } = await import("./priceCache.js");
+const { expireSavedSourceRows, fetchPrices, readPrice } =
+  await import("./priceCache.js");
 
 const row = (sell) => ({
   buy: sell - 1,
@@ -156,5 +157,55 @@ describe("whichever tier answered", () => {
 
     expect(readPrice(34, "saved-station").expiresAt).toBe(9e12);
     expect(readPrice(34, "jita").expiresAt).toBeUndefined();
+  });
+});
+
+// A hub is asked where its book has got to, because only the server knows. A
+// saved market already said, on the rows it produced — so retiring those costs
+// nothing and asks nobody.
+describe("retiring what a reader-saved market has finished with", () => {
+  const priced = async (expiresAt) => {
+    readStoredPrice.mockResolvedValue(undefined);
+    requestPrice.mockImplementation(async (_typeID, sourceID) =>
+      sourceID === "saved-station" ? { ...row(10), expiresAt } : row(10),
+    );
+
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "saved-station" },
+        { typeID: 34, sourceID: "jita" },
+      ],
+    });
+  };
+
+  it("drops a row whose book has expired", async () => {
+    await priced(1000);
+
+    expect(expireSavedSourceRows(1001)).toBe(1);
+    expect(readPrice(34, "saved-station")).toBeUndefined();
+  });
+
+  it("keeps one whose book has not", async () => {
+    await priced(1000);
+
+    expect(expireSavedSourceRows(999)).toBe(0);
+    expect(readPrice(34, "saved-station")).toBeDefined();
+  });
+
+  // A hub's rows are not this rule's to touch: they go when their market's clock
+  // moves, which is the server's statement and not an expiry the browser holds.
+  it("leaves a hub's rows alone", async () => {
+    await priced(1000);
+
+    expireSavedSourceRows(9e12);
+
+    expect(readPrice(34, "jita")).toBeDefined();
+  });
+
+  it("drops nothing, and says so, when nothing has expired", async () => {
+    await priced(undefined);
+
+    expect(expireSavedSourceRows(9e12)).toBe(0);
+    expect(readPrice(34, "saved-station")).toBeDefined();
   });
 });

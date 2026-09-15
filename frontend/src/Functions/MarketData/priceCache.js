@@ -231,6 +231,50 @@ setClockMovedListener(({ sources, adjusted }) => {
 });
 
 /**
+ * Drops rows a reader-saved market has stated are finished with.
+ *
+ * **A saved source needs no probe.** A hub's clock is the server's to report, so
+ * learning whether its rows still stand costs a request; a station's book states
+ * its own expiry when it is fetched, and that expiry is carried on the row. So
+ * this asks nothing and reads nothing over the network — it is the local half of
+ * the same job `revalidateSourceClocks` does for the markets this server walks.
+ *
+ * Dropping rather than refetching, because a row nothing is reading does not
+ * need replacing: the next reader to want it fetches it, and the tier beneath
+ * refuses the expired copy on its way past. What this buys is that a surface
+ * already open stops showing a figure whose own source has declared it finished.
+ *
+ * @param {number} [now]
+ * @returns {number} How many rows were dropped
+ */
+export function expireSavedSourceRows(now = Date.now()) {
+  const sources = allMarketSources();
+  let dropped = 0;
+
+  for (const entry of queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["market", "price"] })) {
+    const [, , sourceID, typeID] = entry.queryKey;
+    if (!persistsAcrossSessions(sourceIn(sources, sourceID)?.kind)) continue;
+
+    const expiresAt = entry.state?.data?.expiresAt;
+    if (!Number.isFinite(expiresAt) || expiresAt > now) continue;
+
+    queryClient.removeQueries({ queryKey: priceQueryKey(typeID, sourceID) });
+    dropped += 1;
+  }
+
+  // The same waking § C4 needs: a priced surface subscribes to no row entry, so
+  // dropping rows reaches nobody until the query each surface waits on is asked
+  // again.
+  if (dropped > 0) {
+    queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
+  }
+
+  return dropped;
+}
+
+/**
  * Asks each market holding rows for one type it already holds, so that market
  * reports its clock.
  *

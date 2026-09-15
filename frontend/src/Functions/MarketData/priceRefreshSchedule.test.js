@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const revalidateSourceClocks = vi.fn();
+const expireSavedSourceRows = vi.fn();
 vi.mock("./priceCache.js", () => ({
   revalidateSourceClocks: (...args) => revalidateSourceClocks(...args),
+  expireSavedSourceRows: (...args) => expireSavedSourceRows(...args),
 }));
 
 // The module's own pacing, not a second copy of it: a test carrying its own
@@ -154,6 +156,58 @@ describe("when a probe cannot be made", () => {
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
 
+    expect(revalidateSourceClocks).toHaveBeenCalledTimes(2);
+  });
+});
+
+// A reader-saved market is not asked anything: its rows carry the expiry its own
+// book gave them, so the tick retires them locally and only the markets this
+// server walks cost a request.
+describe("what a tick does about a reader's own markets", () => {
+  it("retires their finished rows as well as probing the hubs", () => {
+    startPriceRefresh();
+
+    vi.advanceTimersByTime(PROBE_INTERVAL_MS);
+
+    expect(expireSavedSourceRows).toHaveBeenCalledTimes(1);
+    expect(revalidateSourceClocks).toHaveBeenCalledTimes(1);
+  });
+
+  // Retiring is local and cannot fail against the network, so it must not be
+  // skipped when the hubs cannot be reached.
+  it("retires them even when the hub probe fails", () => {
+    revalidateSourceClocks.mockRejectedValueOnce(new Error("offline"));
+    startPriceRefresh();
+
+    vi.advanceTimersByTime(PROBE_INTERVAL_MS);
+
+    expect(expireSavedSourceRows).toHaveBeenCalledTimes(1);
+  });
+
+  // And the other direction, which is the one that actually went wrong: the two
+  // halves once shared a `try`, so a fault in the local half withheld the probe
+  // that keeps every hub price fresh, with nothing reporting it.
+  it("probes the hubs even when retiring throws", () => {
+    expireSavedSourceRows.mockImplementationOnce(() => {
+      throw new TypeError("expireSavedSourceRows is not a function");
+    });
+    startPriceRefresh();
+
+    vi.advanceTimersByTime(PROBE_INTERVAL_MS);
+
+    expect(revalidateSourceClocks).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries on to the next tick after either half throws", () => {
+    expireSavedSourceRows.mockImplementationOnce(() => {
+      throw new TypeError("nope");
+    });
+    startPriceRefresh();
+
+    vi.advanceTimersByTime(PROBE_INTERVAL_MS);
+    vi.advanceTimersByTime(PROBE_INTERVAL_MS);
+
+    expect(expireSavedSourceRows).toHaveBeenCalledTimes(2);
     expect(revalidateSourceClocks).toHaveBeenCalledTimes(2);
   });
 });

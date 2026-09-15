@@ -12,7 +12,7 @@
  * find out.
  */
 
-import { revalidateSourceClocks } from "./priceCache.js";
+import { expireSavedSourceRows, revalidateSourceClocks } from "./priceCache.js";
 
 /**
  * How often to ask the markets holding rows whether their books have moved.
@@ -38,7 +38,8 @@ let stopListening = null;
 let lastProbedAt = 0;
 
 /**
- * Asks every market holding rows where its book has got to.
+ * Retires what a reader-saved market has finished with, then asks every market
+ * this server walks where its book has got to.
  *
  * A probe that could not be made is left alone: the rows held stay held, and the
  * next one asks again. A market not answering says nothing about whether the
@@ -48,6 +49,20 @@ let lastProbedAt = 0;
  */
 async function probe() {
   lastProbedAt = Date.now();
+  // The two halves fail independently, as the loader's transports do. Retiring
+  // is local and asks nothing; probing reaches the network. Sharing one `try`
+  // let a fault in the local half withhold the probe that keeps every hub price
+  // fresh, and silently — which is not hypothetical: a missing export threw here
+  // once and cancelled the probe for the whole tick with nothing reporting it.
+  try {
+    // A reader-saved source states its own expiry on the rows it produced, so
+    // whether those are finished with is already known here. Only the markets
+    // this server walks have to be asked.
+    expireSavedSourceRows();
+  } catch {
+    // Swallowed on purpose, per the contract above.
+  }
+
   try {
     await revalidateSourceClocks();
   } catch {
