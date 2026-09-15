@@ -24,6 +24,11 @@ price against, not only the four the server holds.
   for the session with nothing beneath them, and every reader-saved source — public station and
   private citadel alike — read through IndexedDB so it survives a reload.
 
+**Shelved.** Stages A to D and most of E have landed; what is left needs a citadel that is a market,
+which [custom-structure-model](../custom-structure-model/contents.md) makes expressible.
+[plan.md](./plan.md) § Start here lists what to pick up, in order, and what the shelf costs while it
+lasts.
+
 **Not live SoT** until this project is complete and promotion is approved.
 
 Named for the **work**, not a git branch. **Project close** = plan tracks done + live-SoT **promote**

@@ -14,6 +14,9 @@ row already carries, in place of four lanes filled by three classes.
   once there is no class of its own to hold them.
 - **What a screen reads** to list structures, once there is no lane to name.
 
+**[market-price-delivery](../market-price-delivery/contents.md) is shelved until this project lands a
+kind that is a market**, so its remaining work resumes on the back of Stage A.
+
 **Not live SoT** until this project is complete and promotion is approved.
 
 Named for the **work**, not a git branch. **Project close** = plan tracks done + live-SoT **promote**
@@ -49,4 +52,5 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know what must survive the fold | [plan.md](./plan.md) § What must not be lost |
 | Know what is additive, what breaks the wire, and what needs a migration | [plan.md](./plan.md) § Wire compatibility |
 | Know which project owns a question about structures | [plan.md](./plan.md) § Who owns what |
+| Know what this project owes market-price-delivery, and what it must not decide for it | [plan.md](./plan.md) § Stage D |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |

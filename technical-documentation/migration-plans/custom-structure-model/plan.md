@@ -1,7 +1,8 @@
 # Custom structure model — plan
 
-**Status:** Phase 1 complete. No product work started. No open decisions on the shape itself; one open
-question on ordering against [market-price-delivery](../market-price-delivery/contents.md).
+**Status:** Phase 1 complete. No product work started, no open decisions.
+**[market-price-delivery](../market-price-delivery/contents.md) is shelved waiting on this project**
+— specifically on a saved location being able to be a market, which Stage A makes expressible.
 **Code in scope:** [`frontend/src/Classes/`](../../../frontend/src/Classes/) —
 `customStructure.js`, `reprocessingStructure.js`, `inventionStructure.js`;
 [`frontend/src/Zustand/`](../../../frontend/src/Zustand/) — `applicationSettings/core.js`,
@@ -142,8 +143,23 @@ filtered by kind, rather than from four lanes. Most of this landed already as UI
 what feeds it.
 **Done when** no screen names a lane.
 
-**Done when** all three stages are, and adding a kind of structure is a `jobType` value plus the
-fields it needs.
+**Stage D — The kind that is a market.** A saved location that can be a market rather than only a
+selling point priced from a hub: the `jobType` value, the fields it needs, and the surface for saving
+one. This is the stage
+[market-price-delivery](../market-price-delivery/contents.md) is shelved on, and the first kind added
+under the new model rather than the last added under the old — which is what makes it a proof of the
+model as well as a feature.
+
+What it must produce for that project: a source whose kind says it is browser-fetched, carrying the
+structure id its book is walked by, reaching `allMarketSources()` through
+`Functions/MarketOrders/saleLocations.js` — the placeholder accessor it already reads. What it must
+**not** decide is how that market is fetched, priced or kept current; all three are
+[market-price-delivery](../market-price-delivery/plan.md) § Stage E.
+**Done when** a reader can save a location that a price can be asked for at, and the placeholder rows
+in `saleLocations.js` are gone.
+
+**Done when** all four stages are, adding a kind of structure is a `jobType` value plus the fields it
+needs, and market-price-delivery can come off the shelf.
 
 ## Who owns what
 
@@ -160,6 +176,12 @@ own what a structure is *for*.
   `SaleStructure` shape as a proposal and is explicit that it is not bound by it.
 - **The settings screens' look** is [accounts-page](../accounts-page/contents.md), already landed.
 
-**Open question, for the owner rather than this plan:** whether the sale kind lands inside this
-project — as the first kind added under the new model, which is the cheapest way to prove the model
-works — or waits until after it. Both are defensible; it is a sequencing call, not a design one.
+**Settled by the shelving.** The sale kind — a saved location that is a market rather than a selling
+point priced from a hub — lands **inside this project**.
+[market-price-delivery](../market-price-delivery/contents.md) is shelved until it exists, and that
+project is the only other place it could have gone, so leaving it out would shelve a project against
+work nobody had scheduled. It is also the cheapest way to prove the model: a kind added under the new
+shape, rather than a fifth lane and a fourth class under the old one.
+
+What that kind *means* still belongs elsewhere — pricing against it is market-price-delivery, what a
+sale costs is planning-stage-panels. This project makes it expressible and no more.

@@ -1,9 +1,11 @@
 # Market price delivery — plan
 
-**Status:** Phase 1 complete. **Stages A, B, C and D landed, Stage E is part way, and the project has
-reached its boundary.** What remains — the citadel walk, and the stage that makes a saved location a
-market at all — waits on [custom-structure-model](../custom-structure-model/contents.md); nothing else
-here is blocked. Every price in
+**Status: SHELVED.** Phase 1 complete, **Stages A, B, C and D landed and Stage E is done bar the
+citadel walk.** Everything this project can build without a citadel that is a market has been built.
+It resumes when [custom-structure-model](../custom-structure-model/contents.md) makes one
+expressible — § Start here says exactly what to pick up and in what order. Nothing here is waiting on
+a decision, and nothing is half-finished: each landed stage is whole, tested and documented in
+[overlay.md](./overlay.md). Every price in
 the SPA comes from the query cache, `worldData.marketData` is retired, the old
 `/api/v1/market-prices` endpoint is deleted, and a market's own clock decides what survives rather
 than an age guess. The browser derives the four prices itself — held to the server's answer by a
@@ -748,16 +750,38 @@ re-asked, because `PRICE_STALE_TIME` is `Infinity` and only a hub's moved clock 
 today. Each saved source's expiry belongs in `priceRefreshSchedule.js` beside the hub probe (§ C2),
 and `ordersByRegionAndType` already returns it.
 
-**Nothing, until the custom-structure work lands.** This project has reached its boundary. A saved
-citadel today is a selling point whose prices come from a hub — the placeholder rows carry a
-`priceHub` — so there is no citadel-as-market to walk and no row shape for one to produce, and the
-stage that would decide that shape belongs to the custom-structure project rather than this one
-(§ Stage F).
+**Nothing. This project is shelved**, and what unshelves it is
+[custom-structure-model](../custom-structure-model/contents.md) landing a citadel that is a market
+rather than a selling point priced from a hub (§ Stage F).
 
-**When it does land, the citadel walk is what resumes here** (Stage E item 3): it is the one kind
-whose clock *is* per source and so does go through `sourceClocks.js` — § What persistence must do
-about the clock says what restoring its rows must do that a station's does not. Nothing else in this
-project is waiting on anything.
+### What to pick up when it does, in order
+
+1. **The citadel walk** (§ Stage E item 3). The whole-book walk on the reader's own token, through
+   `nameLoader`'s per-character machinery **extended** rather than copied. The ESI scope is already
+   requested — § Open decisions.
+2. **Its clock, which is not a station's.** A citadel has one clock for the whole source, so unlike a
+   station it *does* go through `sourceClocks.js` — and restoring its rows from disk must record that
+   clock or reproduce the defect § What persistence must do about the clock describes. This is the one
+   piece of the persistent tier that was deliberately left unwritten.
+3. **Refetching ahead of the reader** (§ Stage E item 4's other half). A station re-reads with one
+   per-type query, so the schedule retires its rows and lets the next reader pay. A citadel's book is
+   one walk for every type, which is what that item's "does not pay for a book walk" was about.
+4. **End-to-end coverage of a browser-fetched source.** `priceDelivery.e2e.test.jsx` proves the hub
+   path only. That was honest while nothing in a running app could reach the station branch; the
+   moment a reader can save a market it is a real gap.
+
+### What the shelf does not hide
+
+**A live document is wrong in the meantime.** `frontend/pricing/price-entry.md` still describes the
+price store this project deleted — [overlay.md](./overlay.md) § Missing live SoT found on the way has
+what it should say. Live SoT is not edited before promote, and this project cannot promote while
+stages remain open, so that paragraph stays wrong for as long as the shelf lasts. It is the one cost
+of shelving rather than descoping, and it is recorded rather than accepted silently.
+
+**Descoping is the alternative, if the shelf turns out to be long.** Handing items 1 to 3 above to
+whichever project builds citadels would make this one complete and promotable, which would fix that
+live document. Not taken: the work is this project's design, and splitting it across two plans costs
+more than the wait.
 
 **Read [overlay.md](./overlay.md) § C5 before touching the cache.** A priced surface subscribes to no
 row entry — it reads figures synchronously while rendering — so anything that changes what is held
@@ -766,9 +790,6 @@ reads. A change to the cache that does not account for this is invisible in unit
 a reader as figures that never update. § What only an end-to-end test could say carries the same
 lesson from the other side: every test on this path mocks something, and the one that mocks only
 `fetch` is what found a failed fetch leaving a surface loading for ever.
-
-**Take Stage D and E together, E leading** — § What Stage D and E actually need has the reasoning and
-the check against the tree. Most of Stage D is already done.
 
 **What the wait bought.** The one project this one depends on,
 [market-pricing-defaults](../market-pricing-defaults/contents.md), is finished bar a deploy, and it

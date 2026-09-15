@@ -29,6 +29,14 @@ the fold happened; what the store slices hold.
 Sections to fill: what a screen reads to list structures of one kind; what the reprocessing panel
 reads; anything the accounts-page card work assumed about lanes that had to move with them.
 
+## Stage D — The kind that is a market
+
+*Nothing landed yet.*
+
+Sections to fill: the kind and the fields it carries; what replaced the placeholder rows in
+`saleLocations.js` and how a saved row reaches `allMarketSources()`; what became of `priceHub` once a
+structure can be priced directly; the surface for saving one.
+
 ## Missing live SoT found on the way
 
 *Nothing recorded yet.* Live documentation gaps discovered while working land here first and are
