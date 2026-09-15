@@ -180,6 +180,46 @@ function getMimeType(filePath) {
   return mimeTypes[ext] || "application/octet-stream";
 }
 
+const SHORT_CACHE = "public, max-age=3600, stale-while-revalidate=86400";
+const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
+
+const IMMUTABLE_EXTENSIONS = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".svg",
+  ".ico",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".eot",
+];
+
+/**
+ * Cache-Control for a built asset, keyed on whether its name pins its content.
+ *
+ * Vite names a versioned asset `<name>-<hash>.<ext>` with a base64url hash, so the match is
+ * anchored to that suffix rather than looking for hex anywhere in the name. Anchoring is also what
+ * keeps `env.js` — rewritten at every container start — out of the immutable tier.
+ *
+ * @param {string} fileName basename of the file being served
+ * @returns {string} the Cache-Control header value
+ */
+export function cacheControlFor(fileName) {
+  const ext = path.extname(fileName).toLowerCase();
+
+  if (ext === ".js" || ext === ".css") {
+    return /-[A-Za-z0-9_-]{8,}\.[^.]+$/.test(fileName)
+      ? IMMUTABLE_CACHE
+      : SHORT_CACHE;
+  }
+  if (IMMUTABLE_EXTENSIONS.includes(ext)) {
+    return IMMUTABLE_CACHE;
+  }
+  return SHORT_CACHE;
+}
+
 /**
  * Create HTTP server with compression support
  */
@@ -248,57 +288,8 @@ export function createServer(distDir, port = 80) {
         "Content-Type": mimeType,
       };
 
-      // Add Cache-Control headers for Cloudflare caching
-      // These headers help Cloudflare understand what can be cached and for how long
       const ext = path.extname(filePath).toLowerCase();
-      const fileName = path.basename(filePath);
-
-      // Check if file has a hash in the name (versioned assets)
-      // Versioned assets (e.g., app.abc123.js) can be cached indefinitely since the hash changes on updates
-      const hasHash = /[a-f0-9]{8,}/i.test(fileName);
-
-      if (ext === ".html" || fileName === "index.html") {
-        // HTML files - 1 hour cache (3600 seconds) with stale-while-revalidate
-        // HTML may contain dynamic content or need updates, so shorter cache is safer
-        // stale-while-revalidate allows Cloudflare to serve instantly while updating in background
-        headers["Cache-Control"] =
-          "public, max-age=3600, stale-while-revalidate=86400";
-      } else if ((ext === ".js" || ext === ".css") && hasHash) {
-        // Versioned JS/CSS files - 1 year cache (31536000 seconds), immutable
-        // These files have content hashes in their names, so they can be cached indefinitely
-        // The hash changes when content changes, ensuring users get updated files
-        headers["Cache-Control"] = "public, max-age=31536000, immutable";
-      } else if (ext === ".js" || ext === ".css") {
-        // Non-versioned JS/CSS files - 1 hour cache (3600 seconds) with stale-while-revalidate
-        // Without versioning, we use shorter cache to allow for updates
-        // stale-while-revalidate allows Cloudflare to serve instantly while updating in background
-        headers["Cache-Control"] =
-          "public, max-age=3600, stale-while-revalidate=86400";
-      } else if (
-        [
-          ".png",
-          ".jpg",
-          ".jpeg",
-          ".gif",
-          ".svg",
-          ".ico",
-          ".woff",
-          ".woff2",
-          ".ttf",
-          ".eot",
-        ].includes(ext)
-      ) {
-        // Images and fonts - 1 year cache (31536000 seconds), immutable
-        // These assets rarely change and can be cached long-term
-        // Cloudflare will serve these from cache, significantly reducing egress
-        headers["Cache-Control"] = "public, max-age=31536000, immutable";
-      } else {
-        // Other static files - 1 hour cache (3600 seconds) with stale-while-revalidate
-        // Default cache for unknown file types
-        // stale-while-revalidate allows Cloudflare to serve instantly while updating in background
-        headers["Cache-Control"] =
-          "public, max-age=3600, stale-while-revalidate=86400";
-      }
+      headers["Cache-Control"] = cacheControlFor(path.basename(filePath));
 
       // Skip compression for already-compressed assets (images, fonts, etc.)
       // These files are already optimised and compression provides minimal benefit

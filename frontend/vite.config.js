@@ -166,7 +166,7 @@ export default defineConfig(({ command, mode }) => {
     },
 
     build: {
-      sourcemap: true,
+      sourcemap: "hidden",
       chunkSizeWarningLimit: 1000, // kB — warn when a chunk exceeds this size after minification
     },
   };

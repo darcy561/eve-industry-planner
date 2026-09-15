@@ -244,8 +244,6 @@ services:
       <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env, *log-env]
       APP_VERSION: ${APP_VERSION}
     secrets: *secrets-api
-    volumes:
-      - api_data:/data
     deploy:
       <<: *app-deploy
       replicas: ${EIP_API_REPLICAS:-1}
@@ -296,8 +294,6 @@ services:
       WS_CLIENT_CUTOFF: "2000"
       WS_TARGET_CLIENTS: "1500"
     secrets: *secrets-websocket
-    volumes:
-      - api_data:/data
     deploy:
       <<: *app-deploy
       replicas: ${EIP_WEBSOCKET_REPLICAS:-1}
@@ -390,8 +386,6 @@ services:
       APP_VERSION: ${APP_VERSION}
       WORKER_ASYNQ_CONCURRENCY: "50"
     secrets: *secrets-worker
-    volumes:
-      - worker_data:/data
     deploy:
       <<: *app-deploy
       replicas: ${EIP_WORKER_REPLICAS:-1}
@@ -417,8 +411,6 @@ services:
       <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env, *log-env]
       APP_VERSION: ${APP_VERSION}
     secrets: *secrets-core
-    volumes:
-      - core_data:/data
     deploy:
       <<: *app-deploy
       replicas: 1
@@ -586,15 +578,6 @@ networks:
     attachable: false
 
 volumes:
-  api_data:
-    name: eve-industry-planner_api_data
-    external: true
-  worker_data:
-    name: eve-industry-planner_worker_data
-    external: true
-  core_data:
-    name: eve-industry-planner_core_data
-    external: true
   traefik_data:
     name: eve-industry-planner_traefik_data
     external: true

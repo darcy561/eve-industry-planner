@@ -42,8 +42,9 @@ COPY frontend/index.html ./
 COPY frontend/src ./src
 COPY frontend/public ./public
 
-# Build frontend
-RUN npm run build
+# Build frontend. Source maps are built hidden and uploaded to Sentry by the Vite plugin;
+# the image ships none, so a debug ID in the bundle is the only way back to source.
+RUN npm run build && find dist -name '*.map' -delete
 
 ############################
 # Runtime stage
@@ -51,18 +52,16 @@ RUN npm run build
 
 FROM node:24-alpine
 
+RUN addgroup -g 1001 -S appuser && \
+    adduser -u 1001 -S appuser -G appuser
+
 WORKDIR /app
 
 # Copy built frontend files
-COPY --from=frontend-builder /app/dist ./dist
+COPY --from=frontend-builder --chown=appuser:appuser /app/dist ./dist
 
 # Copy deployment scripts
 COPY --chown=appuser:appuser frontend/deployment ./deployment
-
-# Create non-root user
-RUN addgroup -g 1001 -S appuser && \
-    adduser -u 1001 -S appuser -G appuser && \
-    chown -R appuser:appuser /app
 
 USER appuser
 

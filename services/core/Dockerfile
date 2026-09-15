@@ -26,23 +26,16 @@ FROM alpine:3.20
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
 
 # wget: Swarm healthcheck probes :19100/ready
-RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
+RUN apk --no-cache add ca-certificates tzdata wget && \
     addgroup -g 1001 -S appuser && \
     adduser -u 1001 -S appuser -G appuser
 
 WORKDIR /app
 
-COPY --from=builder /app/core-service /app/core-service
-
-COPY core/entrypoint.sh /entrypoint.sh
+COPY --from=builder --chown=appuser:appuser /app/core-service /app/core-service
 
 # Wrapper for triggering core task commands
-COPY core/tasks.sh /usr/local/bin/tasks
-
-RUN mkdir -p /data && \
-    chmod +x /entrypoint.sh && \
-    chmod +x /usr/local/bin/tasks && \
-    chown -R appuser:appuser /app
+COPY --chmod=0755 core/tasks.sh /usr/local/bin/tasks
 
 # Label for GitHub Container Registry linking
 LABEL org.opencontainers.image.source=${IMAGE_SOURCE}
@@ -55,6 +48,6 @@ ENV APP_VERSION_NUMBER=${APP_VERSION}
 ENV FRONTEND_APP_VERSION=${FRONTEND_APP_VERSION}
 ENV APP_FEATURE_FLAGS_JSON=${APP_FEATURE_FLAGS_JSON}
 
-# Entrypoint runs as root to fix permissions, then switches to appuser
-ENTRYPOINT ["/entrypoint.sh"]
+USER appuser
+ENTRYPOINT ["/app/core-service"]
 

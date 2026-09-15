@@ -25,23 +25,18 @@ FROM alpine:3.20
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
 
 # wget: Swarm healthcheck probes :19100/ready
-RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
+RUN apk --no-cache add ca-certificates tzdata wget && \
     addgroup -g 1001 -S appuser && \
     adduser -u 1001 -S appuser -G appuser
 
 WORKDIR /app
 
-COPY --from=builder /app/websocket-service /app/websocket-service
-
-COPY websocket/entrypoint.sh /entrypoint.sh
-
-RUN mkdir -p /data && \
-    chmod +x /entrypoint.sh && \
-    chown -R appuser:appuser /app
+COPY --from=builder --chown=appuser:appuser /app/websocket-service /app/websocket-service
 
 LABEL org.opencontainers.image.source=${IMAGE_SOURCE}
 
 EXPOSE 80
 
-ENTRYPOINT ["/entrypoint.sh"]
+USER appuser
+ENTRYPOINT ["/app/websocket-service"]
 
