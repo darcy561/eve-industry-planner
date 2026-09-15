@@ -1,6 +1,9 @@
 # Market price delivery — plan
 
-**Status:** Phase 1 complete. **Stages A, B, C and D landed, and Stage E is part way.** Every price in
+**Status:** Phase 1 complete. **Stages A, B, C and D landed, Stage E is part way, and the project has
+reached its boundary.** What remains — the citadel walk, and the stage that makes a saved location a
+market at all — waits on [custom-structure-model](../custom-structure-model/contents.md); nothing else
+here is blocked. Every price in
 the SPA comes from the query cache, `worldData.marketData` is retired, the old
 `/api/v1/market-prices` endpoint is deleted, and a market's own clock decides what survives rather
 than an age guess. The browser derives the four prices itself — held to the server's answer by a
@@ -510,20 +513,32 @@ a second one.
    see [overlay.md](./overlay.md) § E2. The loader reaches it by sorting a tick's wants by transport
    (§ E3), and its rows and their per-type clocks are written to the persistent tier, the clock being
    the book's expiry carried on the row itself rather than a second fact beside it (§ D1).~~ Done.
-3. **Custom citadel:** the whole-book walk on the reader's own token, through `nameLoader`'s
+3. **Custom citadel — after Stage F.** The whole-book walk on the reader's own token, through `nameLoader`'s
    per-character machinery **extended** rather than copied — it already asks each linked character in
    turn, keeps one refusal from settling the account's answer, skips a character whose token lacks the
    scope, and refuses to cache a transient failure as an answer. One clock for the whole source.
-4. Each source refreshed on its own ESI expiry rather than on demand, so a panel pricing its first
+4. ~~Each source refreshed on its own ESI expiry rather than on demand, so a panel pricing its first
    material does not pay for a book walk. **Its home exists:**
    `Functions/MarketData/priceRefreshSchedule.js`, started from `index.jsx` and owned by no component
    — see [overlay.md](./overlay.md) § C2. Add each source's expiry there rather than building a second
-   mechanism beside the fetching.
+   mechanism beside the fetching.~~ Done for a station, in that home — the tick retires its expired
+   rows without asking anything, because its expiry is carried on the row — see
+   [overlay.md](./overlay.md) § E4. **A citadel will want the other half:** a station re-reads with one
+   per-type query, so letting the next reader pay for it is cheap, where a citadel is one whole-book
+   walk and this item's "does not pay for a book walk" means refetching ahead of the reader.
 5. The accessor from Stage D answers for these sources without its callers changing.
 
-This stage builds against the placeholder accessor that already exists for saved locations —
-`Functions/MarketOrders/saleLocations.js` returns placeholder rows today — so Stage F slides the real
-list in behind it.
+**Item 3 is blocked on the custom-structure work, and the placeholder does not unblock it.** The rest of this stage
+built against `Functions/MarketOrders/saleLocations.js`'s placeholder rows, which is what that
+accessor is for. Those rows model a citadel as a **selling point whose prices come from a hub** —
+they carry a `priceHub` — because that is what a saved citadel means today. Nothing in the tree models
+a citadel that *is* a market, so the walk has neither a source to walk nor a row shape to produce, and
+building it now would mean inventing both. Stage F item 1 is where that shape is decided, which is why
+**Stage F comes before item 3** rather than after the whole stage.
+
+The other items did not have this problem: a station's row shape is the same one the server already
+publishes for a hub, held to it by a fixture (§ E1), so they could be built against a registry that
+carries no stations yet.
 
 **Done when** a price at a reader-saved source reads through the same accessor as a hub price,
 survives a reload, stays current without being asked for, and costs one request per region rather
@@ -553,10 +568,19 @@ where a source resolves — not a parallel accessor.
 4. Replace the placeholder rows in `saleLocations.js` with the stored list — a change to that one
    file, which is what the placeholder was shaped to allow.
 
-**This project is the custom-structure work, for markets.**
-[planning-stage-panels](../planning-stage-panels/plan.md) and
-[market-pricing-defaults](../market-pricing-defaults/contents.md) both hand saved citadels to an
-unnamed "custom-structure work"; for anything to do with pricing against one, that work is this stage.
+**This stage is not this project's to build.** An earlier draft claimed it was — "this project is the
+custom-structure work, for markets" — which contradicted
+[planning-stage-panels](./../planning-stage-panels/plan.md) § Handed to the custom-structure work,
+where storing saved citadels and the surface for editing them are handed to a separate
+custom-structure project rather than to whichever project needs them first. That project now exists as
+[custom-structure-model](../custom-structure-model/contents.md), which folds the four structure lanes
+into one array keyed by kind — and a market source is a kind. It owns items 1 to 4 above; this one
+states what markets need from the result and no more.
+
+What this project owes that work is written down rather than assumed: a saved row has to be able to
+be **a market**, not only a selling point priced from a hub, which is what `priceHub` makes it today.
+Items 1 and 4 are the shape and the swap; the rest of this stage is that project's surface.
+
 The other `CustomStructures` lanes are not affected and stay wherever they are taken up.
 
 `CustomStructures` already carries per-planner lanes of named, player-defined locations, and that
@@ -709,8 +733,8 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage B — The price row and the narrowed query | **Done.** Every price is read from the query cache through one accessor; `worldData.marketData` and the alternative price table are retired; every surface resolves its market through `priceResolution.js`, so the fetch and the read cannot disagree; the old `/market-prices`, its `MarshalJSON` and the `PricesByType` reader are deleted — see [overlay.md](./overlay.md) § B1-B5 |
 | Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
 | Stage D — The price cache and its two tiers | **Done.** Items 1-3 landed in Stage B or are inherited from it; the persistent tier is read-through on `idb-keyval`, entered at one seam, holding reader-saved markets only, with a stored row refused once its book's expiry passes and rows abandoned by a version bump removed on first touch — see [overlay.md](./overlay.md) § D1. What it still owes is pacing while a row stays warm in memory, which is Stage E's remaining item |
-| Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation), item 2 (a saved NPC station, now reachable — the loader sorts a tick's wants by transport) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E2, § E3, § C2. Still open: writing what the browser fetches to the persistent tier, each saved source's own expiry in the schedule, the citadel walk (item 3), and end-to-end coverage of the station transport — `priceDelivery.e2e.test.jsx` proves the hub path against a mocked `fetch` and stops there, which is honest while nothing in a running app reaches a station, and a gap the moment Stage F stores one |
-| Stage F — Custom market locations | Not started |
+| Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation), item 2 (a saved NPC station, now reachable — the loader sorts a tick's wants by transport) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E2, § E3, § C2. Still open: the citadel walk (item 3), refetching a saved source ahead of the reader rather than retiring its rows, which only a citadel needs, and end-to-end coverage of the station transport — `priceDelivery.e2e.test.jsx` proves the hub path against a mocked `fetch` and stops there, which is honest while nothing in a running app reaches a station, and a gap the moment Stage F stores one |
+| Stage F — Custom market locations | **Not this project's to build.** It is what makes a saved location a market rather than a selling point priced from a hub, and it belongs to the separate custom-structure work — so this project and Stage E item 3 both wait on that, see § Stage F |
 
 ## Start here
 
@@ -724,9 +748,16 @@ re-asked, because `PRICE_STALE_TIME` is `Infinity` and only a hub's moved clock 
 today. Each saved source's expiry belongs in `priceRefreshSchedule.js` beside the hub probe (§ C2),
 and `ordersByRegionAndType` already returns it.
 
-**Then the citadel walk** (Stage E item 3), which is the one kind whose clock *is* per source and so
-does go through `sourceClocks.js` — § What persistence must do about the clock says what restoring
-its rows must do that a station's does not.
+**Nothing, until the custom-structure work lands.** This project has reached its boundary. A saved
+citadel today is a selling point whose prices come from a hub — the placeholder rows carry a
+`priceHub` — so there is no citadel-as-market to walk and no row shape for one to produce, and the
+stage that would decide that shape belongs to the custom-structure project rather than this one
+(§ Stage F).
+
+**When it does land, the citadel walk is what resumes here** (Stage E item 3): it is the one kind
+whose clock *is* per source and so does go through `sourceClocks.js` — § What persistence must do
+about the clock says what restoring its rows must do that a station's does not. Nothing else in this
+project is waiting on anything.
 
 **Read [overlay.md](./overlay.md) § C5 before touching the cache.** A priced surface subscribes to no
 row entry — it reads figures synchronously while rendering — so anything that changes what is held

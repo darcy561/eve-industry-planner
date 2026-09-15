@@ -84,5 +84,6 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know how prices survive a reload, and why it is not the query persister | [plan.md](./plan.md) § How the persistent tier is stored |
 | Know which markets are held on the reader's device, what expires a stored row, and what happens to rows a version bump abandons | [overlay.md](./overlay.md) § D1 |
 | Know which live documents this project has already falsified, and owes a rewrite at promote | [overlay.md](./overlay.md) § Missing live SoT found on the way |
+| Know why this project stops short of saved citadels, and what it waits on | [plan.md](./plan.md) § Stage F |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
 | The measurements this design was argued from | [measurements.md](./measurements.md) |

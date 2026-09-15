@@ -526,6 +526,50 @@ response — the failure then surfaces as `response.clone is not a function` and
 reads like a fault in the code under test. Both cost real time here; a `Response`
 and a wait past the backoff are what the test needs.
 
+### E4 — Pacing a market nobody reports on
+
+The schedule tick now retires a reader-saved market's finished rows before
+probing the hubs, and `expireSavedSourceRows` in `priceCache.js` is what does it.
+
+**A saved market is not asked anything.** A hub's clock belongs to the server, so
+learning whether its rows still stand costs a request; a station's book states
+its own expiry as it is fetched, and that expiry is carried on the row. So this
+half of the tick is local — it reads the cache, drops what has expired, and
+reaches no network at all. Retiring is done before the hub probe and outside its
+failure, because nothing about a market being unreachable changes whether a
+different market's book has run out.
+
+**Dropping rather than refetching.** A row nothing is reading does not need
+replacing: the next reader to want it fetches it, and the tier beneath refuses
+the expired copy on the way past. What this buys is the case that matters — a
+surface already open stops showing a figure whose own source has declared it
+finished. A citadel will want the other answer, because its book is one walk for
+every type and a panel should not pay for it; a station's re-read is a single
+per-type query.
+
+### What a surface subscribes to, and the bug that proved it
+
+Retiring rows changed nothing a reader could see, and the end-to-end test is what
+said so: the book was re-read, the new row reached the cache, and the panel went
+on showing the old figure through zero re-renders.
+
+A priced surface subscribes to no row entry — it reads figures synchronously
+while rendering — so the only thing that can re-render it is `useMarketPricesQuery`
+notifying, and React Query notifies only on the fields its caller reads. That
+query returns `clocksFor(asked)` precisely so that a refetch is visible. But it
+read clocks from `sourceClocks`, and **a saved market deliberately has none**
+(§ E3): its value was a constant zero, so a refetch could not be seen.
+
+`clocksFor` now keys a market the browser fetches for itself **per source and
+type**, from the row's own `refreshedAt`, which is where that kind's clock lives.
+The rule is the same one § E3 states about `sourceClocks`; what was missing was
+stating it in the second place that depends on it.
+
+**The hub path was checked rather than assumed** before concluding the gap was
+only in the new kind: removing the invalidation that wakes a surface breaks the
+hub's own end-to-end test, so that mechanism is load-bearing and was never the
+part at fault.
+
 ### Still to land
 
 The derivation, the per-type path for a custom NPC station, and the pacing are done — § E1, § E2 and
