@@ -1,12 +1,13 @@
 # Market price delivery — plan
 
-**Status:** Phase 1 complete. **Stages A, B and C landed, and Stage E is part way.** Every price in
+**Status:** Phase 1 complete. **Stages A, B, C and D landed, and Stage E is part way.** Every price in
 the SPA comes from the query cache, `worldData.marketData` is retired, the old
 `/api/v1/market-prices` endpoint is deleted, and a market's own clock decides what survives rather
-than an age guess. The browser can now derive the four prices itself — held to the server's answer by
-a committed fixture — and fetch a reader-saved NPC station's book. Next is teaching the loader that a
-want can be for a station rather than a hub, which is what makes that fetcher reachable and brings
-the persistent tier with it. No open decisions remain.
+than an age guess. The browser derives the four prices itself — held to the server's answer by a
+committed fixture — and the loader now sorts a tick's wants by transport, so a reader-saved NPC
+station is fetched from ESI and read back through the same accessor as a hub. Next is the persistent
+tier, and its rows now survive a reload. Next is pacing a saved source against its own expiry. No
+open decisions remain.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/MarketData/`,
 `Functions/EveESI/World/`, `Functions/Endpoints/Public/`, `Functions/Shared/getMissingESIData.js`,
 `Hooks/React Query/World/`, `Zustand/worldDataSlice/`, `Styled Components/Select/`,
@@ -360,9 +361,9 @@ but nothing above the registry may assume the set is those four, or that a sourc
    | `Market Costs Panel/marketCostsPanel.jsx` | |
    | `Functions/MarketOrders/saleLocations.js` | |
 
-   `basicMineralOutput.jsx` is off the list for the same reason, and `marketPriceForType.js` and both
-   `marketHistory` components now name `MARKET_OPTIONS` only in stale JSDoc rather than in code —
-   worth correcting as they are passed, not worth a visit of its own.
+   `basicMineralOutput.jsx` is off the list for the same reason. `marketPriceForType.js` and both
+   `marketHistory` components carried `MARKET_OPTIONS` in stale JSDoc rather than in code; that was
+   corrected as each was passed, and none of the three names it now.
 4. ~~`DEFAULT_MARKET_OPTION` stays in config: it is a default *choice*, not a copy of the list.~~ Done.
 
 **Done when** the SPA holds no hand-maintained market list, every surface reads sources from the
@@ -503,11 +504,12 @@ a second one.
    producing the same row shape the server produces, held in agreement with the Go implementation by
    whatever § Open decisions settles on.~~ Done, as `deriveBookPrices.js` against a committed fixture
    — see [overlay.md](./overlay.md) § E1.
-2. **Custom NPC station:** ~~per-type region orders filtered to the station's `location_id`, built on
-   the existing `getMarketData` call and its ETag handling.~~ Done as `fetchStationBook.js`; the
+2. ~~**Custom NPC station:** per-type region orders filtered to the station's `location_id`, built on
+   the existing `getMarketData` call and its ETag handling. Done as `fetchStationBook.js`; the
    region's orders come back beside the prices so several stations in one region split one answer —
-   see [overlay.md](./overlay.md) § E2. **Still open:** writing the rows and per-type clocks to the
-   persistent tier, which is Stage D's read-through.
+   see [overlay.md](./overlay.md) § E2. The loader reaches it by sorting a tick's wants by transport
+   (§ E3), and its rows and their per-type clocks are written to the persistent tier, the clock being
+   the book's expiry carried on the row itself rather than a second fact beside it (§ D1).~~ Done.
 3. **Custom citadel:** the whole-book walk on the reader's own token, through `nameLoader`'s
    per-character machinery **extended** rather than copied — it already asks each linked character in
    turn, keeps one refusal from settling the account's answer, skips a character whose token lacks the
@@ -577,8 +579,10 @@ before Stages B and C landed and several of its items have been done elsewhere o
 **Stage D is nearly empty.** Items 1, 2 and 3 landed in Stage B or are inherited from it; what is
 left is item 4, the persistent tier, and item 5's sequencing note. The stage's most vivid section —
 retiring the alternative price table threaded through eleven files — **is already done**: no
-`addMarketData` or `findMarketData` reference survives anywhere in the SPA. The seven remaining
-`alternativeLocation` references are all `findSystemIndex`, which this project scopes out.
+`addMarketData` or `findMarketData` reference survives anywhere in the SPA. Every surviving
+`alternativeLocation` reference is `findSystemIndex`, which this project scopes out — stated without
+a count, because the number moves with work that is not this project's and a stale one reads as a
+claim about prices.
 
 **Stage D has no consumer until Stage E.** Only reader-saved sources go in the persistent tier; the
 four hubs stay session-only by design (§ Two tiers of storage). Building D first means building a
@@ -654,6 +658,16 @@ clock as it does so.
 This is the same defect shape as rows seeded in tests without a clock, which `tests/seedPrices.js`
 already had to fix. A third occurrence would say the row and its clock should not be separable at all.
 
+**Satisfied by exemption for a station, still owed for a citadel.** The rule above was written for a
+source whose clock `sourceClocks.js` holds, and a station's is not one: it is per source *and* type,
+so it never enters that map at all — fresh or restored — and `clockedSources()` was never going to
+probe it ([overlay.md](./overlay.md) § E3 has why). What keeps a restored station row honest instead
+is the expiry its book came with, stored on the row and checked as it is read back
+([overlay.md](./overlay.md) § D1). A citadel is the case this rule was really about: one clock for the
+whole source, held in `sourceClocks.js`, and emptied by a reload — so whatever restores a citadel's
+rows from disk must record that source's clock as it does so, or reproduce the defect exactly as
+described above.
+
 ### Dependencies
 
 `idb-keyval` **6.3.0** (Jul 2026) is the store: `get` / `set` / `del`, and nothing else is needed
@@ -694,25 +708,25 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage A — The source registry | **Done.** A parity test holds the SPA's hub list and `esicore.DefaultMarketLocations` together with no endpoint; `allMarketSources()` is the registry every consumer reads, and `MARKET_OPTIONS` has one reader left. The registry is not in the world-data store — see [overlay.md](./overlay.md) § A1, § A2-A4 |
 | Stage B — The price row and the narrowed query | **Done.** Every price is read from the query cache through one accessor; `worldData.marketData` and the alternative price table are retired; every surface resolves its market through `priceResolution.js`, so the fetch and the read cannot disagree; the old `/market-prices`, its `MarshalJSON` and the `PricesByType` reader are deleted — see [overlay.md](./overlay.md) § B1-B5 |
 | Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
-| Stage D — The price cache and its two tiers | **Not started, and smaller than it reads.** Items 1-3 landed in Stage B or are inherited from it; what is left is the persistent tier alone. Store settled: read-through on `idb-keyval` — see § How the persistent tier is stored, and § What Stage D and E actually need for what remains |
-| Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation) and the fetching half of item 2 (a saved NPC station) have landed with the pacing item 4 needs — see [overlay.md](./overlay.md) § E1, § E2, § C2. Still open: writing what they fetch to the persistent tier, the citadel walk (item 3, blocked on the ESI scope), and the wiring that lets the loader ask for a station at all |
+| Stage D — The price cache and its two tiers | **Done.** Items 1-3 landed in Stage B or are inherited from it; the persistent tier is read-through on `idb-keyval`, entered at one seam, holding reader-saved markets only, with a stored row refused once its book's expiry passes and rows abandoned by a version bump removed on first touch — see [overlay.md](./overlay.md) § D1. What it still owes is pacing while a row stays warm in memory, which is Stage E's remaining item |
+| Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation), item 2 (a saved NPC station, now reachable — the loader sorts a tick's wants by transport) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E2, § E3, § C2. Still open: writing what the browser fetches to the persistent tier, each saved source's own expiry in the schedule, the citadel walk (item 3), and end-to-end coverage of the station transport — `priceDelivery.e2e.test.jsx` proves the hub path against a mocked `fetch` and stops there, which is honest while nothing in a running app reaches a station, and a gap the moment Stage F stores one |
 | Stage F — Custom market locations | Not started |
 
 ## Start here
 
-**Teaching the loader that a want can be for a station.** Stages A, B and C are done, and Stage E has
-its three foundations: the derivation, the pacing, and a fetcher for a reader-saved NPC station
-([overlay.md](./overlay.md) § A1-A4, § B1-B5, § C1-C5, § E1, § E2).
+**Pacing a reader-saved source.** Stages A, B, C and D are done: the loader sorts a tick's wants by
+transport, a saved station is fetched from ESI and read back through the same accessor as a hub, and
+its rows survive a reload ([overlay.md](./overlay.md) § E3, § D1).
 
-**Nothing calls that fetcher, and the gap is sharper than it looks.** `priceLoader` sends every want
-in a tick to `fetchMarketPricesQuery`, and the server answers **400 for the whole request** when it
-sees a source it does not price. So a single station want would not merely fail itself — it would
-take out every hub price batched alongside it. The loader has to split its wants by source kind
-before anything can ask for a station, and § Where a price is read from already names it as the one
-place the three transports differ.
+**What is left is the asking, not the holding.** A stored row is refused once its book's expiry has
+passed, but that check only fires on a read from disk — a row kept warm in the query cache is never
+re-asked, because `PRICE_STALE_TIME` is `Infinity` and only a hub's moved clock removes anything
+today. Each saved source's expiry belongs in `priceRefreshSchedule.js` beside the hub probe (§ C2),
+and `ordersByRegionAndType` already returns it.
 
-That slice carries the persistent tier with it, because a station's rows are what Stage D stores, and
-it is the same seam Stage E item 3 lands in.
+**Then the citadel walk** (Stage E item 3), which is the one kind whose clock *is* per source and so
+does go through `sourceClocks.js` — § What persistence must do about the clock says what restoring
+its rows must do that a station's does not.
 
 **Read [overlay.md](./overlay.md) § C5 before touching the cache.** A priced surface subscribes to no
 row entry — it reads figures synchronously while rendering — so anything that changes what is held

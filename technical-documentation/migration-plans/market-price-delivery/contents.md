@@ -79,7 +79,10 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know what paces the refresh cycle, and why no component owns it | [overlay.md](./overlay.md) § C2 |
 | Know how the browser turns an order book into the four prices, and what holds it to the server's answer | [overlay.md](./overlay.md) § E1 |
 | Know how a reader-saved station is fetched, and what tells the browser when its book expires | [overlay.md](./overlay.md) § E2 |
+| Know how one tick's wants are split between this server and ESI, and why a failure on one does not reach the other | [overlay.md](./overlay.md) § E3 |
 | Know what is genuinely left in Stages D and E, and why they go together | [plan.md](./plan.md) § What Stage D and E actually need |
 | Know how prices survive a reload, and why it is not the query persister | [plan.md](./plan.md) § How the persistent tier is stored |
+| Know which markets are held on the reader's device, what expires a stored row, and what happens to rows a version bump abandons | [overlay.md](./overlay.md) § D1 |
+| Know which live documents this project has already falsified, and owes a rewrite at promote | [overlay.md](./overlay.md) § Missing live SoT found on the way |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
 | The measurements this design was argued from | [measurements.md](./measurements.md) |

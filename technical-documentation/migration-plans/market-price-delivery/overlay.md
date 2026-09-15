@@ -332,11 +332,66 @@ done early in Stage B, and `doesMarketItemRequireRefresh` has no callers left an
 
 ## Stage D — The price cache and its two tiers
 
-*Nothing landed yet.*
+**Most of this stage was already written above.** The cache entry and the loader beneath it, the
+accessor and the two ways of asking, and what became of `worldData.marketData` and
+`getMissingESIData` all landed as part of Stage B — see § B2, § B3, § B4.
 
-Sections to fill: the cache entry and the loader beneath it; the accessor that reads and the two ways
-of asking, and what became of `worldData.marketData` and `getMissingESIData`; the IndexedDB store, its
-version and its eviction path.
+### D1 — The tier beneath the cache
+
+`Functions/MarketData/priceStore.js` holds rows for reader-saved markets on `idb-keyval`, and it sits
+**beneath** the query cache rather than beside it: a miss falls through to disk before reaching the
+network, and a resolve writes both. `resolvePrice` in `priceCache.js` is the only seam it enters at,
+so the accessor, the wrapper query and Stage C's clock machinery all carry on knowing nothing about
+tiers. plan.md § How the persistent tier is stored carries why the alternative — dumping the query
+cache to disk on change — was built as a spike and backed out.
+
+**Which sources persist is declared once**, as a table from source kind to tier in `marketSources.js`.
+A kind with no entry is session-only, which is the safe default: the worst it costs is a re-fetch.
+The hubs are session-only deliberately — shared infrastructure, walked hourly by the server, and
+cheap to ask for again — while a market the reader saved was fetched at their own expense and can
+never be had for free again.
+
+**A stored row carries its book's expiry, and refusing an expired one is the whole eviction path.**
+Without it the tier would have made freshness *worse* than not having it: `PRICE_STALE_TIME` is
+`Infinity` and nothing paces a saved station yet (§ E3), so a row written to disk would have been
+served as current for ever, across every reload — where today a reload at least re-fetches. A row is
+only ever read when something wants that exact type at that exact market, so the moment a reader
+stops pricing something is the moment its row stops being visited; sweeping on a timer would spend
+work to discover that.
+
+**A version bump abandons rows, which is not the same as removing them.** The version sits in the key,
+so old rows stop being addressed — and therefore stop being reachable by the per-row eviction above,
+which would leave them on the reader's device for good. One pass on first touch of the store removes
+anything under an earlier version, and touches nothing that is not a price row.
+
+**Nothing here may break pricing.** IndexedDB is absent in some browsing modes and blocked in others,
+so every call answers as a miss rather than throwing: a reader with no storage still gets prices,
+fetched every time.
+
+**A store that hangs is the case worth naming.** `idb-keyval` settles on `success`, `error` and
+`abort`; an open request that fires `blocked` instead — another tab holding the database through a
+version change — fires none of them, and WebKit has its own route there that the library comments on
+in `createStore`, closing the connection and merely being hoped to say so. A hang is worse than a
+failure: nothing above reports anything, and the price simply never arrives, which is the same defect
+shape as a want that never settles in § E3. So every call into the store is bounded, and a store that
+does not answer in time is a miss like any other.
+
+**The write is not awaited.** The price is already in hand by then and keeping it for next time is
+bookkeeping the reader is not waiting on — awaiting would let a slow or wedged store delay a figure
+that had already arrived.
+
+**A market holding no order is not stored.** It is the cheapest fact to learn again, and keeping it
+would hold a reader at "nothing here" for as long as the row survived.
+
+### What this stage still owes
+
+A row stays in memory at `staleTime: Infinity`, so the expiry check only fires on a **disk** read — a
+cold start, or after the query cache has evicted the entry. While a surface keeps a station's row
+warm, nothing re-asks. That is the pacing work § C2 names `priceRefreshSchedule.js` as the home for,
+and it is still open.
+
+There is no end-to-end test of the persistent tier, for the same reason § E3 gives: nothing in a
+running app reaches a saved source until Stage F stores one.
 
 ## Stage E — Sources the browser fetches
 
@@ -384,20 +439,60 @@ A 304 still carries a **new expiry**, which is what moves the next refresh on.
 every station in it: a reader pricing several saved stations in one region pays
 for the region once and splits the answer, rather than paying per station.
 
-**Nothing calls it yet, and that is the honest state rather than an oversight.**
-`deriveBookPrices` has its consumer in `fetchStationBook`; `fetchStationBook` has
-none, because the seam it plugs into does not exist. § Where a price is read from
-puts the three transports in one place — `priceLoader.js` — and that loader does
-not branch on `SOURCE_KIND` at all today, because every source it has ever served
-is a hub.
+### E3 — The loader sorts a tick by who can answer it
 
-Stage A's rule is that an unused export is an untested rule, and it removed
-speculative surface for exactly that reason. This is the other case: the module is
-exercised by its own tests against a fixture the server writes, so the rule *is*
-tested — what is missing is the caller. Wiring it means teaching the loader that a
-want can be for a station rather than a hub, which is a change to the one place
-the transports differ and belongs with the persistent tier that holds what it
-fetches, not bolted on ahead of either.
+`priceLoader` reads each want's kind from the registry and issues **one request
+per transport**: hub wants and adjusted prices to this server's query, station
+wants to ESI. A caller still names a source and learns nothing about its kind —
+the split is entirely beneath the accessor, which is what § Where a price is read
+from asks for.
+
+**The split is a correctness fix, not a tidying.** The server answers **400 for
+the whole request** when it names a source it does not price, so the two kinds
+were never merely inefficient together: one station want would have failed every
+hub price batched beside it. Each transport now settles only its own waiters, and
+the tests hold both directions of that — a station whose book cannot be read
+leaves the hub prices standing, and an unreachable server leaves the station's.
+
+**A region is read once per type, not once per station.** Wants are grouped by
+the book they need rather than by the station that asked, so a reader with two
+saved stations in one region pays for that region once and derives twice from it.
+
+**A source the registry cannot name is rejected rather than settled.** It is not
+"this market holds no order" — it is the absence of anywhere to ask, which is the
+name cache's rule that a lookup which did not settle must not be cached as an
+answer. A stored choice can outlive the market it named, and a reader needs the
+difference. It is also what keeps such a want away from the server, which would
+have refused the whole request over it.
+
+**Station rows are deliberately not recorded into `sourceClocks`.** A hub has one
+clock for its whole book, and § C4 drops every row a market holds when that clock
+moves — correct there, because the server walked the whole book at once. A saved
+station's clock is **one per source and type** (§ What a market source is): the
+browser reads one type's orders, so a moved clock says nothing about the other
+types held for that station, and feeding it to the per-source machinery would
+discard rows nothing had refreshed. A station row therefore carries the moment
+the browser read it and nothing writes a station clock yet. The per-type expiry
+that `ordersByRegionAndType` already returns is what the pacing work reads, and
+that is where it lands — § C2 names `priceRefreshSchedule.js` as its home.
+
+**Every want settles, including when nothing asked it to.** Each transport fails
+only its own waiters, so a throw from outside them — reading the registry, which
+stops being a static list the moment a reader's own markets are stored in it —
+would have escaped a timer callback and been reported nowhere, leaving every
+cache entry in that tick waiting for ever. A reader sees that as a figure that
+never arrives with no error anywhere, which is worse than a failure. The tick
+fails as a whole instead, and a test forces it rather than a comment claiming it.
+
+**What this owes.** The station transport holds nothing across a reload, because
+the persistent tier is not built — a reader-saved station is re-fetched from ESI
+on every boot. Stage D is what closes that, and it now has its consumer.
+
+**`allMarketSources()` still returns the four hubs**, so nothing reaches the
+station branch in a running app until Stage F stores a reader's markets. That is
+the placeholder-behind-an-accessor shape rather than an oversight: the registry is
+the single seam, the branch is exercised by its own tests, and Stage F adds rows
+to one function without touching the loader.
 
 ### What only an end-to-end test could say
 
@@ -433,11 +528,17 @@ and a wait past the backoff are what the test needs.
 
 ### Still to land
 
-Sections to fill: the shared per-character walk extracted from `nameLoader` and what both callers pass
-it; the derivation in the SPA and what holds it in agreement with the Go one; the
-per-type path for a custom NPC station; the token-authenticated whole-book walk that reaches a
-private market through a citadel, and how a character without access is remembered, including one
-whose token predates the scope; how several stations in one region share a request; what paces each kind.
+The derivation, the per-type path for a custom NPC station, and the pacing are done — § E1, § E2 and
+§ C2 above. What is left is the wiring and the walk.
+
+Sections to fill: how `priceLoader` splits a tick's wants by source kind, which is what makes the
+station fetcher reachable at all — it cannot ask for a station beside a hub, because the server
+answers 400 for the whole request when it sees a source it does not price, taking every hub price in
+the batch with it; writing what the browser fetches to the persistent tier; the shared per-character
+walk extracted from `nameLoader` and what both callers pass it; the token-authenticated whole-book
+walk that reaches a private market through a citadel, and how a character without access is
+remembered, including one whose token predates the scope; how several stations in one region share a
+request.
 
 ## Stage F — Custom market locations
 
@@ -448,5 +549,20 @@ surface for adding one; what `PriceHub` means once a structure can be priced dir
 
 ## Missing live SoT found on the way
 
-*Nothing recorded yet.* Live documentation gaps discovered while working land here first and are
-folded into the live topic docs on promote.
+Live documentation gaps discovered while working land here first and are folded into the live topic
+docs on promote.
+
+### `frontend/pricing/price-entry.md` describes the store this project deleted
+
+It says the row's default price is "read from stored market data for the selected market and listing
+side", and that "a market data update while the row's price still matches the previous default
+replaces it". Both describe `worldData.marketData`, which § B4 retired.
+
+What the dialogue does now: it asks for its own list at whichever market the reader picked — which it
+never did before, so a reader who switched markets used to see zeroes — and hands each row a
+`pricesSettled` flag saying when that fetch landed. The row re-reads on that flag rather than on a
+store update, because nothing re-renders when a cache entry is written (§ C5 is the same lesson from
+the cache's side). The rule the paragraph is really stating survives the change and is worth keeping
+in the rewrite: a value the reader has typed away from the default is left alone.
+
+That file is live SoT, so it is not edited here. This section is the note for promote.
