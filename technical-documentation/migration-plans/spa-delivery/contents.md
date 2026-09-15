@@ -42,7 +42,7 @@ Named for the **work**, not a git branch. **Project close** = plan stages done +
 | I need to… | Read |
 |------------|------|
 | Goals, stages, done-when, open questions | [plan.md](./plan.md) |
-| Know what is already written and what is still open | [plan.md](./plan.md) § Already written, § Stages |
+| Know what already landed and what is still open | [plan.md](./plan.md) § Already landed, § Stages |
 | Know why the server moves to `services/` but the SPA does not | [plan.md](./plan.md) § Naming |
 | Know what is additive, breaking, or migrate-required | [plan.md](./plan.md) § Wire compatibility |
 | See where the image's 242 MB actually is | [measurements/image.md](./measurements/image.md) |

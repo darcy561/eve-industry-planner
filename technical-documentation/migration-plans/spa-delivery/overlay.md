@@ -4,12 +4,11 @@ How the delivery path works **after** each slice lands. Live docs remain the tru
 is silent; where it speaks, it wins for this project's in-flight work.
 
 Sections are written as their stage lands, not in advance — an overlay describing work that has not
-happened is a plan, and the plan is [plan.md](./plan.md). A section marked *uncommitted* describes
-code that exists in the working tree and not yet in history.
+happened is a plan, and the plan is [plan.md](./plan.md).
 
 ## The image
 
-*Stage A — written, uncommitted.*
+*Stage A — landed.*
 
 The runtime stage creates `appuser` before anything is copied in, and both copies carry
 `--chown=appuser:appuser`. A recursive `chown` over `/app` after the copies would rewrite every file
@@ -29,7 +28,7 @@ is not there.
 
 ## Cache tiers
 
-*Stage A — written, uncommitted. Stage C will add the CDN tier.*
+*Stage A — landed. Stage C will add the CDN tier.*
 
 `cacheControlFor` in `frontend/deployment/server.js` owns the rule, and is the only place that decides
 it. A file is treated as versioned when its name ends `-<hash>.<ext>` with at least eight base64url

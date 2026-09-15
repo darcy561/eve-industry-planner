@@ -1,7 +1,7 @@
 # SPA delivery — plan
 
-**Status:** Phase 1 done. Stage A written ahead of the project as direct fixes and **uncommitted**
-(see § Already written). Stages B–E open.
+**Status:** Phase 1 done. Stage A landed ahead of the project as direct fixes
+(see § Already landed). Stages B–E open.
 **Code in scope:** [`frontend/Dockerfile`](../../../frontend/Dockerfile),
 [`frontend/vite.config.js`](../../../frontend/vite.config.js),
 [`frontend/deployment/`](../../../frontend/deployment/) (retired by Stage D), a new
@@ -38,13 +38,11 @@ Raw data: [measurements/image.md](./measurements/image.md),
 [measurements/edge-cache.md](./measurements/edge-cache.md),
 [measurements/compression.md](./measurements/compression.md).
 
-## Already written
+## Already landed
 
-Two fixes were written before this project was opened, as direct responses to what the measurements
-found. They sit in the working tree and **are not committed** — this checkout is worked by more than
-one session at a time, so until they are in history they are one stray `checkout` or sweeping stage
-away from not existing. They are recorded here because this project owns their surfaces from now on,
-not because they are outstanding work.
+Two fixes were made before this project was opened, as direct responses to what the measurements
+found, and are committed. They are recorded here because this project owns their surfaces from now
+on, not because they are outstanding work.
 
 - **The image lost 72 MB.** The runtime stage creates its user before copying, so the recursive
   `chown` no longer rewrites the whole of `dist` into a second layer; and `build.sourcemap` is
@@ -55,7 +53,7 @@ not because they are outstanding work.
   if/else chain and a regex that had never matched a real filename, covered by
   `server.test.js` beside it.
 
-The second is live-visible only after the change is committed, built and deployed; the probe in
+The second is live-visible only once the change is built and deployed; the probe in
 [measurements/edge-cache.md](./measurements/edge-cache.md) shows the state still running in
 production.
 
