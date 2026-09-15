@@ -2,6 +2,7 @@ package mongo_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"eve-industry-planner/testing/mongolive"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const plannerScratchAccount = "eip-parity-planner-account"
@@ -326,11 +328,13 @@ func TestLive_ensureAccountPlanner_seedsSettingsFromTheAccount(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 
 	t.Cleanup(func() {
-		_, _ = mongo.Planners.Collection().DeleteOne(ctx, bson.M{"_id": owner.Key()})
-		_, _ = mongo.PlannerMemberships.Collection().DeleteOne(ctx,
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancelCleanup()
+		_, _ = mongo.Planners.Collection().DeleteOne(cleanupCtx, bson.M{"_id": owner.Key()})
+		_, _ = mongo.PlannerMemberships.Collection().DeleteOne(cleanupCtx,
 			bson.M{"_id": planner.MembershipID(owner.Key(), account)})
-		_, _ = mongo.PlannerSettings.Collection().DeleteOne(ctx, bson.M{"_id": owner.Key()})
-		_, _ = mongo.ApplicationSettings.Collection().DeleteOne(ctx, bson.M{"_id": account})
+		_, _ = mongo.PlannerSettings.Collection().DeleteOne(cleanupCtx, bson.M{"_id": owner.Key()})
+		_, _ = mongo.ApplicationSettings.Collection().DeleteOne(cleanupCtx, bson.M{"_id": account})
 	})
 
 	seed := models.DefaultApplicationSettings(account, now)
@@ -461,5 +465,88 @@ func TestLive_ensurePlanner_differsOnlyInMembershipAndSeed(t *testing.T) {
 	}
 	if theirs.DefaultMaterialEfficiencyValue == 9 {
 		t.Error("a shared planner inherited the settings of whoever named it")
+	}
+}
+
+// An update sets the settings it names and leaves the rest of the document as it
+// was, so one member's edit does not carry back a stale copy of another's.
+// Requires EIP_MONGO_PARITY_LIVE=1.
+func TestLive_updatePlannerSettings_setsOnlyWhatItNames(t *testing.T) {
+	mongo := mongolive.Require(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	account := plannerScratchAccount + "-update"
+	owner := models.AccountOwner(account)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+
+	t.Cleanup(func() {
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancelCleanup()
+		_, _ = mongo.Planners.Collection().DeleteOne(cleanupCtx, bson.M{"_id": owner.Key()})
+		_, _ = mongo.PlannerMemberships.Collection().DeleteOne(cleanupCtx,
+			bson.M{"_id": planner.MembershipID(owner.Key(), account)})
+		_, _ = mongo.PlannerSettings.Collection().DeleteOne(cleanupCtx, bson.M{"_id": owner.Key()})
+		_, _ = mongo.ApplicationSettings.Collection().DeleteOne(cleanupCtx, bson.M{"_id": account})
+	})
+
+	seed := models.DefaultApplicationSettings(account, now)
+	seed.DefaultMaterialEfficiencyValue = 7
+	if _, _, err := mongo.ApplicationSettings.UpsertApplicationSettings(ctx, account, seed); err != nil {
+		t.Fatalf("seed account settings: %v", err)
+	}
+	if err := mongo.EnsureAccountPlanner(ctx, account, now); err != nil {
+		t.Fatalf("EnsureAccountPlanner: %v", err)
+	}
+	before, _, err := mongo.LoadPlannerSettings(ctx, owner)
+	if err != nil {
+		t.Fatalf("LoadPlannerSettings: %v", err)
+	}
+
+	added := append(models.DefaultExtrasCategories(),
+		models.ExtraCategory{ID: "courier", Label: "Courier"})
+	stored, err := mongo.UpdatePlannerSettings(ctx, owner,
+		planner.SettingsUpdate{ExtrasCategories: &added},
+		models.MetaData{ClientID: "tab-1"}, now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("UpdatePlannerSettings: %v", err)
+	}
+
+	if len(stored.ExtrasCategories) != len(added) {
+		t.Errorf("categories = %d, want the %d written", len(stored.ExtrasCategories), len(added))
+	}
+	if stored.DefaultMaterialEfficiencyValue != 7 {
+		t.Errorf("ME = %d, want the 7 the update did not name", stored.DefaultMaterialEfficiencyValue)
+	}
+	if stored.MetaData.Version != before.MetaData.Version+1 {
+		t.Errorf("version = %d, want %d — the write counts itself",
+			stored.MetaData.Version, before.MetaData.Version+1)
+	}
+	if stored.MetaData.ClientID != "tab-1" {
+		t.Errorf("clientID = %q, want the writing tab's", stored.MetaData.ClientID)
+	}
+	if !stored.MetaData.LastModified.After(before.MetaData.LastModified) {
+		t.Error("the realtime cursor did not move")
+	}
+	if stored.MetaData.Owner != owner {
+		t.Errorf("owner = %+v, want %+v", stored.MetaData.Owner, owner)
+	}
+}
+
+// A planner with no settings document is refused rather than given one: the
+// document is written when the planner is, so its absence means no planner.
+// Requires EIP_MONGO_PARITY_LIVE=1.
+func TestLive_updatePlannerSettings_refusesAPlannerThatDoesNotExist(t *testing.T) {
+	mongo := mongolive.Require(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	categories := models.DefaultExtrasCategories()
+	_, err := mongo.UpdatePlannerSettings(ctx,
+		models.AccountOwner(plannerScratchAccount+"-missing"),
+		planner.SettingsUpdate{ExtrasCategories: &categories},
+		models.MetaData{}, time.Now().UTC())
+	if !errors.Is(err, mongodriver.ErrNoDocuments) {
+		t.Fatalf("err = %v, want mongo.ErrNoDocuments", err)
 	}
 }

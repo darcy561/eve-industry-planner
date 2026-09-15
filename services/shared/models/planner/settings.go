@@ -1,11 +1,16 @@
 package planner
 
 import (
+	"errors"
+	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"eve-industry-planner/shared/models"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Settings is the settings a planner's work is done under, as opposed to the
@@ -89,4 +94,67 @@ func SettingsFromAccount(owner models.Owner, settings models.ApplicationSettings
 		seeded.ExemptTypeIDs = slices.Clone(settings.ExemptTypeIDs)
 	}
 	return seeded
+}
+
+// Settings field names, as SettingsUpdate writes them.
+const fieldExtrasCategories = "extrasCategories"
+
+// A list long enough to be a mistake rather than a preference, and a label
+// longer than anything a picker can show.
+const (
+	maxExtrasCategories    = 200
+	maxExtrasCategoryLabel = 120
+)
+
+// SettingsUpdate is the part of a planner's settings a member may change. A nil
+// field is left as it is stored, so a client sends only what it edited.
+type SettingsUpdate struct {
+	ExtrasCategories *[]models.ExtraCategory `json:"extrasCategories"`
+}
+
+// Validate refuses an update that would leave the planner's settings unusable.
+func (u SettingsUpdate) Validate() error {
+	if u.ExtrasCategories == nil {
+		return nil
+	}
+	categories := *u.ExtrasCategories
+	if len(categories) > maxExtrasCategories {
+		return fmt.Errorf("extras categories: %d is more than the %d allowed", len(categories), maxExtrasCategories)
+	}
+
+	seen := make(map[string]models.ExtraCategory, len(categories))
+	for _, category := range categories {
+		id := strings.TrimSpace(category.ID)
+		if id == "" {
+			return errors.New("extras categories: a category has no id")
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return fmt.Errorf("extras categories: id %q appears twice", id)
+		}
+		if strings.TrimSpace(category.Label) == "" {
+			return fmt.Errorf("extras categories: category %q has no label", id)
+		}
+		if len(category.Label) > maxExtrasCategoryLabel {
+			return fmt.Errorf("extras categories: label for %q is longer than %d characters", id, maxExtrasCategoryLabel)
+		}
+		seen[id] = category
+	}
+
+	for _, id := range models.PermanentExtrasCategoryIDs() {
+		category, present := seen[id]
+		if !present || category.Deleted {
+			return fmt.Errorf("extras categories: %q must be present and not deleted", id)
+		}
+	}
+	return nil
+}
+
+// Fields is what the update sets, as stored. An empty result means the update
+// carried nothing.
+func (u SettingsUpdate) Fields() bson.M {
+	fields := bson.M{}
+	if u.ExtrasCategories != nil {
+		fields[fieldExtrasCategories] = *u.ExtrasCategories
+	}
+	return fields
 }

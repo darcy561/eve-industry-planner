@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { snackbarSpies } from "../../../../../../tests/snackbarHarness.js";
+import { withQueryClient } from "../../../../../../tests/utils.js";
 
 const { showSnackbarError } = snackbarSpies;
 
@@ -15,9 +16,12 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../../../tests/usersStoreHarness.js");
   return usersStoreMock({
-    applicationSettings: {
-      extrasCategories: [{ id: 0, label: "Unassigned" }],
-      actions: { getCurrentLocale: () => "en-GB" },
+    plannerSettings: {
+      byOwner: {
+        "account:acc-1": {
+          extrasCategories: [{ id: "0", label: "Unassigned" }],
+        },
+      },
     },
   });
 });
@@ -36,7 +40,9 @@ const job = (rows = []) => ({
 
 const renderEditor = (activeJob) => {
   const actions = { updateActiveJob: vi.fn() };
-  render(<ExtrasEditor state={{ activeJob }} actions={actions} />);
+  render(
+    withQueryClient(<ExtrasEditor state={{ activeJob }} actions={actions} />),
+  );
   return actions;
 };
 

@@ -53,6 +53,17 @@ func DefaultExtrasCategories() []ExtraCategory {
 	}
 }
 
+// ExtrasCategoryOther is the catch-all a user files a cost under when none of
+// the named categories fit.
+const ExtrasCategoryOther = "5"
+
+// PermanentExtrasCategoryIDs are the categories every list must keep. Stored
+// costs resolve their label against the list they were filed from, so removing
+// either of these would leave a cost naming a category nothing lists.
+func PermanentExtrasCategoryIDs() []string {
+	return []string{ExtrasCategoryUnassigned, ExtrasCategoryOther}
+}
+
 // DefaultApplicationSettings returns a full new-account application_settings document for Mongo.
 func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSettings {
 	return ApplicationSettings{

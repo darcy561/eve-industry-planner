@@ -65,6 +65,16 @@ export const stateDefault = () => ({
   byOwner: {},
   /** @type {Object<string, boolean>} owner handle -> whether the planner has settings of its own */
   seededByOwner: {},
+  /**
+   * Owner handles carrying an edit that has not reached the server yet.
+   *
+   * A read must not overwrite one of these: the held settings are ahead of the
+   * stored ones, and replacing them with what the server still has would discard
+   * the edit and then save the result over it.
+   *
+   * @type {Object<string, boolean>}
+   */
+  unsavedByOwner: {},
 });
 
 /**

@@ -22,6 +22,15 @@ vi.mock("../../../Realtime/realtimeClient.js", () => ({
   sendActivePlanner: (...args) => sendActivePlanner(...args),
 }));
 
+const flushPendingPlannerSettingsSaves = vi.fn();
+vi.mock(
+  "../../../Functions/Debounce/plannerSettingsPersistSchedule.js",
+  () => ({
+    flushPendingPlannerSettingsSaves: (...args) =>
+      flushPendingPlannerSettingsSaves(...args),
+  }),
+);
+
 const planners = [
   { owner: "account:acct-1", kind: "account", name: "", named: true },
   {
@@ -44,17 +53,24 @@ const { PlannerSwitcher } = await import("./plannerSwitcher.jsx");
 
 function renderSwitcher() {
   const client = testQueryClient();
-  return render(
+  render(
     <QueryClientProvider client={client}>
       <PlannerSwitcher />
     </QueryClientProvider>,
   );
+  return client;
+}
+
+function chooseKarkur() {
+  fireEvent.mouseDown(screen.getByRole("combobox"));
+  fireEvent.click(screen.getByRole("option", { name: "Karkur" }));
 }
 
 beforeEach(() => {
   storeState.activePlanner.owner = null;
   ensurePlannerViaApi.mockReset().mockResolvedValue({});
   sendActivePlanner.mockReset().mockReturnValue(true);
+  flushPendingPlannerSettingsSaves.mockReset().mockResolvedValue(undefined);
 });
 
 describe("the planner switcher", () => {
@@ -103,6 +119,34 @@ describe("the planner switcher", () => {
     expect(await screen.findByText("Not connected")).toBeInTheDocument();
     // Scoped reads must not move to a planner the connection is not delivering.
     expect(storeState.activePlanner.owner).toBeNull();
+  });
+
+  // The entries under the planner being left are dropped, so switching straight
+  // back re-reads its settings. A settings edit still inside its debounce window
+  // has to reach the server before that read can happen, or the read lands first
+  // and the pending write saves the server's own copy back over the edit.
+  it("writes pending settings edits before dropping the planner's cached reads", async () => {
+    const client = renderSwitcher();
+    const removeQueries = vi.spyOn(client, "removeQueries");
+
+    chooseKarkur();
+
+    await waitFor(() => expect(removeQueries).toHaveBeenCalled());
+    expect(
+      flushPendingPlannerSettingsSaves.mock.invocationCallOrder[0],
+    ).toBeLessThan(removeQueries.mock.invocationCallOrder[0]);
+  });
+
+  it("drops nothing when the connection did not take the switch", async () => {
+    sendActivePlanner.mockReturnValue(false);
+    const client = renderSwitcher();
+    const removeQueries = vi.spyOn(client, "removeQueries");
+
+    chooseKarkur();
+
+    expect(await screen.findByText("Not connected")).toBeInTheDocument();
+    expect(flushPendingPlannerSettingsSaves).not.toHaveBeenCalled();
+    expect(removeQueries).not.toHaveBeenCalled();
   });
 
   it("reports a planner it could not name", async () => {

@@ -15,4 +15,4 @@ export {
 } from "./core.js";
 export { structureActions } from "./structures.js";
 export { preferencesActions } from "./preferences.js";
-export { extrasActions } from "./extras.js";
+export { predefinedSystemIndexActions } from "./predefinedSystemIndexes.js";

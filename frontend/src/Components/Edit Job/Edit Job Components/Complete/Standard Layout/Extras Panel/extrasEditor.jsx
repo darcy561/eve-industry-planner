@@ -21,8 +21,8 @@ import {
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ExtrasCategoriesSelect from "../../../../../../Styled Components/Select/extrasCategories";
 import InsetSurface from "../../../../../../Styled Components/Paper/InsetSurface";
-import useUsersStore from "../../../../../../Zustand/usersStore";
 import ExtraCost from "../../../../../../Classes/extraCost";
+import { usePlannerExtrasCategories } from "../../../../../../Hooks/React Query/plannerSettings.js";
 
 /**
  * The costs a build carries that nothing else accounts for, and the means to add
@@ -38,9 +38,7 @@ import ExtraCost from "../../../../../../Classes/extraCost";
  */
 export default function ExtrasEditor({ state, actions }) {
   const [extrasCategory, setExtrasCategory] = useState("0");
-  const extrasCategories = useUsersStore(
-    (store) => store.applicationSettings.extrasCategories,
-  );
+  const { categories: extrasCategories } = usePlannerExtrasCategories();
 
   // Consulted when an extra is added, to name the category it was filed under.
   // A stored row already carries its name and does not come back here.

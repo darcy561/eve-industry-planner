@@ -3,7 +3,11 @@
  * owner.
  */
 
-import { fetchPlannerSettingsFromApi } from "../../Functions/Endpoints/Private/planners.js";
+import {
+  fetchPlannerSettingsFromApi,
+  savePlannerSettingsToApi,
+} from "../../Functions/Endpoints/Private/planners.js";
+import { permanentExtrasCategories } from "../../Context/defaultValues";
 import {
   mergePlannerSettings,
   plannerSettingsDefault,
@@ -30,15 +34,141 @@ export const plannerSettingsActions = (set, get) => ({
     get().plannerSettings.seededByOwner[ownerHandle] ?? false,
 
   /**
-   * The extras categories a planner offers, deleted ones removed.
+   * Adds a category to the planner's list.
    *
    * @param {string} ownerHandle
-   * @returns {{id: string, label: string}[]}
+   * @param {{id: string, label: string}} category
    */
-  getPlannerExtrasCategories: (ownerHandle) => {
-    const settings =
-      get().plannerSettings.actions.getPlannerSettings(ownerHandle);
-    return (settings.extrasCategories ?? []).filter((entry) => !entry?.deleted);
+  addPlannerExtrasCategory: (ownerHandle, category) => {
+    // The same rule the server holds the list to: a category with no id or no
+    // label cannot be shown, and would have the whole write refused.
+    if (!category?.id || !category.label?.trim()) return;
+    get().plannerSettings.actions.writePlannerExtrasCategories(
+      ownerHandle,
+      (categories) => [
+        ...categories,
+        { ...category, deleted: false, deletedAt: null },
+      ],
+    );
+  },
+
+  /**
+   * Marks a category deleted, or brings it back.
+   *
+   * A category is marked rather than removed because costs already filed under
+   * it name it by id, and the two permanent categories cannot be marked at all.
+   *
+   * @param {string} ownerHandle
+   * @param {string} categoryID
+   * @param {boolean} deleted
+   */
+  setPlannerExtrasCategoryDeleted: (ownerHandle, categoryID, deleted) => {
+    if (permanentExtrasCategories.has(categoryID)) return;
+    get().plannerSettings.actions.writePlannerExtrasCategories(
+      ownerHandle,
+      (categories) =>
+        categories.map((entry) =>
+          entry.id === categoryID
+            ? {
+                ...entry,
+                deleted,
+                deletedAt: deleted ? new Date().toISOString() : null,
+              }
+            : entry,
+        ),
+    );
+  },
+
+  /**
+   * Applies a change to one planner's categories. The caller schedules the
+   * write, as the account's own settings do.
+   *
+   * @param {string} ownerHandle
+   * @param {(categories: object[]) => object[]} change
+   */
+  writePlannerExtrasCategories: (ownerHandle, change) => {
+    if (!ownerHandle) return;
+    // Only a planner whose settings have arrived: editing the fallback defaults
+    // and saving them would replace the planner's stored list with them.
+    const settings = get().plannerSettings.byOwner[ownerHandle];
+    if (!settings) return;
+    const next = change(settings.extrasCategories ?? []);
+    set(
+      (state) => ({
+        ...state,
+        plannerSettings: {
+          ...state.plannerSettings,
+          byOwner: {
+            ...state.plannerSettings.byOwner,
+            [ownerHandle]: { ...settings, extrasCategories: next },
+          },
+          unsavedByOwner: {
+            ...state.plannerSettings.unsavedByOwner,
+            [ownerHandle]: true,
+          },
+          actions: state.plannerSettings.actions,
+        },
+      }),
+      false,
+      "plannerSettings/writePlannerExtrasCategories",
+    );
+  },
+
+  /**
+   * Writes one planner's extras categories to the API and holds what came back.
+   *
+   * @param {string} ownerHandle
+   * @returns {Promise<void>}
+   */
+  savePlannerExtrasCategories: async (ownerHandle) => {
+    if (!ownerHandle || !get().account.isLoggedIn) return;
+    // Held settings only, for the reason writePlannerExtrasCategories refuses
+    // the same case: the fallback defaults are not this planner's list, and
+    // sending them would replace it.
+    const settings = get().plannerSettings.byOwner[ownerHandle];
+    if (!settings) return;
+    const response = await savePlannerSettingsToApi(ownerHandle, {
+      extrasCategories: settings.extrasCategories ?? [],
+    });
+    // Marked saved only once the server has it: a failed write leaves the edit
+    // held and still ahead of the stored settings, which is what stops a later
+    // read replacing it with what was never changed.
+    get().plannerSettings.actions.markPlannerSettingsSaved(ownerHandle);
+    get().plannerSettings.actions.setPlannerSettings(
+      ownerHandle,
+      response?.settings,
+      response?.seeded,
+    );
+  },
+
+  /**
+   * Whether a planner holds an edit the server has not taken yet.
+   *
+   * @param {string} ownerHandle
+   * @returns {boolean}
+   */
+  hasUnsavedPlannerSettings: (ownerHandle) =>
+    get().plannerSettings.unsavedByOwner[ownerHandle] ?? false,
+
+  /** @param {string} ownerHandle */
+  markPlannerSettingsSaved: (ownerHandle) => {
+    if (!get().plannerSettings.unsavedByOwner[ownerHandle]) return;
+    set(
+      (state) => {
+        const unsavedByOwner = { ...state.plannerSettings.unsavedByOwner };
+        delete unsavedByOwner[ownerHandle];
+        return {
+          ...state,
+          plannerSettings: {
+            ...state.plannerSettings,
+            unsavedByOwner,
+            actions: state.plannerSettings.actions,
+          },
+        };
+      },
+      false,
+      "plannerSettings/markPlannerSettingsSaved",
+    );
   },
 
   /**
@@ -73,25 +203,24 @@ export const plannerSettingsActions = (set, get) => ({
    * Reads one planner's settings from the API and holds them.
    *
    * @param {string} ownerHandle
-   * @returns {Promise<object|null>} the merged settings, or null if the read failed
+   * @returns {Promise<object|null>} the merged settings, or null with nobody signed in
    */
   loadPlannerSettings: async (ownerHandle) => {
     if (!ownerHandle) return null;
     // The planner works signed out on default settings, and a private request
     // from a signed-out user can redirect the page into a login flow.
     if (!get().account.isLoggedIn) return null;
-    try {
-      const response = await fetchPlannerSettingsFromApi(ownerHandle);
+    const response = await fetchPlannerSettingsFromApi(ownerHandle);
+    // An edit still on its way to the server is ahead of what this read
+    // returned, so the read is dropped rather than applied over it.
+    if (!get().plannerSettings.actions.hasUnsavedPlannerSettings(ownerHandle)) {
       get().plannerSettings.actions.setPlannerSettings(
         ownerHandle,
         response?.settings,
         response?.seeded,
       );
-      return get().plannerSettings.byOwner[ownerHandle] ?? null;
-    } catch (e) {
-      console.error("[plannerSettings] read failed", ownerHandle, e);
-      return null;
     }
+    return get().plannerSettings.byOwner[ownerHandle] ?? null;
   },
 
   /** Drops every planner's settings, for a sign-out. */

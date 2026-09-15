@@ -1,25 +1,17 @@
-import useUsersStore from "../../Zustand/usersStore";
 import { Select, MenuItem, FormControl, FormHelperText } from "@mui/material";
+import { usePlannerExtrasCategories } from "../../Hooks/React Query/plannerSettings.js";
 
 /**
- * A select component for choosing extras categories.
- * Displays categories from the user's application settings.
+ * Chooses the category a cost is filed under, from those the active planner
+ * offers.
  *
  * @param {Object} props - Component props
  * @param {string} props.value - Currently selected category ID
  * @param {Function} props.onChange - Callback function called when selection changes. Receives the category ID.
  * @returns {JSX.Element} Extras categories select component
- *
- * @example
- * <ExtrasCategoriesSelect
- *   value={selectedCategoryId}
- *   onChange={(categoryId) => setCategory(categoryId)}
- * />
  */
 export default function ExtrasCategoriesSelect({ value, onChange }) {
-  const extrasCategories = useUsersStore(
-    (state) => state.applicationSettings.extrasCategories,
-  );
+  const { categories } = usePlannerExtrasCategories();
   return (
     <FormControl
       sx={{
@@ -45,7 +37,7 @@ export default function ExtrasCategoriesSelect({ value, onChange }) {
           }
         }}
       >
-        {extrasCategories.map((entry) => {
+        {categories.map((entry) => {
           if (entry?.deleted) return null;
           return (
             <MenuItem key={entry.id} value={entry.id}>

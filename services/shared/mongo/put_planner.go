@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
+	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/models/planner"
 
@@ -177,4 +179,50 @@ func (m *Mongo) EnsurePlannerSettings(ctx context.Context, owner models.Owner, s
 		return fmt.Errorf("write settings for %s: %w", owner.Key(), err)
 	}
 	return nil
+}
+
+// UpdatePlannerSettings changes part of the settings a planner's work is done
+// under, and answers the settings as they now stand.
+//
+// Field-scoped rather than a document replacement: two members editing one
+// planner each send what they changed, so neither carries the other's stale copy
+// back over it.
+//
+// A planner with no settings document is reported as [mongo.ErrNoDocuments]
+// rather than given one. The document is written when the planner is, so its
+// absence means the planner does not exist.
+func (m *Mongo) UpdatePlannerSettings(ctx context.Context, owner models.Owner, update planner.SettingsUpdate, meta models.MetaData, now time.Time) (planner.Settings, error) {
+	fields := update.Fields()
+	if m == nil || owner.IsZero() || len(fields) == 0 {
+		return planner.Settings{}, fmt.Errorf("UpdatePlannerSettings: invalid arguments")
+	}
+	meta.Owner = owner
+	meta.LastModified = now.UTC()
+	raw, err := bson.Marshal(meta)
+	if err != nil {
+		return planner.Settings{}, fmt.Errorf("marshal settings meta: %w", err)
+	}
+	var metaFields bson.D
+	if err := bson.Unmarshal(raw, &metaFields); err != nil {
+		return planner.Settings{}, fmt.Errorf("decode settings meta: %w", err)
+	}
+	maps.Copy(fields, MetaSetByPath(metaFields))
+
+	var stored planner.Settings
+	err = Retry(ctx, "UpdatePlannerSettings", func() error {
+		return m.PlannerSettings.Collection().FindOneAndUpdate(ctx,
+			bson.M{"_id": owner.Key()},
+			bson.M{"$set": fields, "$inc": bson.M{FieldMetaVersion: 1}},
+			options.FindOneAndUpdate().SetReturnDocument(options.After),
+		).Decode(&stored)
+	})
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return planner.Settings{}, err
+		}
+		return planner.Settings{}, fmt.Errorf("update settings for %s: %w", owner.Key(), err)
+	}
+
+	documentschema.Upgrader{}.PlannerSettings(&stored)
+	return stored, nil
 }

@@ -19,30 +19,36 @@ import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import DOMPurify from "dompurify";
 import UndoIcon from "@mui/icons-material/Undo";
-import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
+import { scheduleDebouncedPlannerSettingsSave } from "../../../../Functions/Debounce/plannerSettingsPersistSchedule.js";
+import { usePlannerExtrasCategories } from "../../../../Hooks/React Query/plannerSettings.js";
 
 export default function CustomExtrasFrame() {
   const [newCategoryName, setNewCategoryName] = useState("");
-  const extrasCategories = useUsersStore(
-    (state) => state.applicationSettings.extrasCategories,
+  const { categories: extrasCategories, isHeld } = usePlannerExtrasCategories();
+  const owner = useUsersStore((state) =>
+    state.activePlanner.actions.getActivePlannerOwner(),
   );
-  const {
-    markExtrasCategoryAsDeleted,
-    addExtrasCategory,
-    unmarkExtrasCategoryAsDeleted,
-  } = useUsersStore.getState().applicationSettings.actions;
+  const { addPlannerExtrasCategory, setPlannerExtrasCategoryDeleted } =
+    useUsersStore.getState().plannerSettings.actions;
 
-  const handleAddCategory = async () => {
-    const sanitizedCategoryName = DOMPurify.sanitize(newCategoryName, {
+  const handleAddCategory = () => {
+    // Stripping markup can leave nothing behind, and a category with no label is
+    // one the server refuses — so the name is checked after sanitising, not
+    // before. The typed text stays, so the reader can see what was not accepted.
+    const label = DOMPurify.sanitize(newCategoryName, {
       ALLOWED_TAGS: [],
       ALLOWED_ATTR: [],
-    });
-    addExtrasCategory({
-      id: crypto.randomUUID(),
-      label: sanitizedCategoryName,
-    });
+    }).trim();
+    if (!label) return;
+
+    addPlannerExtrasCategory(owner, { id: crypto.randomUUID(), label });
     setNewCategoryName("");
-    scheduleDebouncedApplicationSettingsSave();
+    scheduleDebouncedPlannerSettingsSave(owner);
+  };
+
+  const setDeleted = (categoryID, deleted) => {
+    setPlannerExtrasCategoryDeleted(owner, categoryID, deleted);
+    scheduleDebouncedPlannerSettingsSave(owner);
   };
 
   return (
@@ -70,8 +76,9 @@ export default function CustomExtrasFrame() {
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
               Extras categories are used to group costs together when
-              calculating monthly expenses. The application provides a set of
-              default categories, which can be customised as needed.
+              calculating monthly expenses. Each planner keeps its own list,
+              starting from a set of defaults, so everyone working in a planner
+              files costs under the same categories.
               <br />
               <br />
               The <strong>Unassigned</strong> and <strong>Other</strong>{" "}
@@ -109,7 +116,7 @@ export default function CustomExtrasFrame() {
               <IconButton
                 aria-label="Add extras category"
                 onClick={handleAddCategory}
-                disabled={!newCategoryName.trim()}
+                disabled={!isHeld || !newCategoryName.trim()}
                 color="primary"
               >
                 <AddIcon />
@@ -149,11 +156,8 @@ export default function CustomExtrasFrame() {
                   }
                   variant="outlined"
                   onDelete={
-                    !permanentExtrasCategories.has(extra.id)
-                      ? async () => {
-                          markExtrasCategoryAsDeleted(extra.id);
-                          scheduleDebouncedApplicationSettingsSave();
-                        }
+                    isHeld && !permanentExtrasCategories.has(extra.id)
+                      ? () => setDeleted(extra.id, true)
                       : undefined
                   }
                 />
@@ -179,11 +183,10 @@ export default function CustomExtrasFrame() {
                     boxShadow: 1,
                   }}
                   variant="outlined"
-                  deleteIcon={<UndoIcon />}
-                  onDelete={async () => {
-                    unmarkExtrasCategoryAsDeleted(extra.id);
-                    scheduleDebouncedApplicationSettingsSave();
-                  }}
+                  deleteIcon={isHeld ? <UndoIcon /> : undefined}
+                  onDelete={
+                    isHeld ? () => setDeleted(extra.id, false) : undefined
+                  }
                 />
               );
             })}

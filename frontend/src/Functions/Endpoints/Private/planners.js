@@ -90,6 +90,16 @@ export async function ensurePlannerViaApi(ownerHandle) {
  */
 
 /**
+ * @param {string} ownerHandle
+ * @returns {string}
+ */
+function plannerSettingsPath(ownerHandle) {
+  // The colon separates the halves, so only the id is escaped.
+  const { kind, id } = splitOwnerHandle(ownerHandle);
+  return `${PLANNERS_ROOT}/${kind}:${encodeURIComponent(id)}/settings`;
+}
+
+/**
  * @typedef {object} PlannerSettingsResponse
  * @property {string} owner - the owner handle the settings belong to
  * @property {boolean} seeded - whether the planner has settings of its own
@@ -109,9 +119,7 @@ export async function fetchPlannerSettingsFromApi(ownerHandle) {
   if (!ownerHandle) {
     throw new Error("fetchPlannerSettingsFromApi: an owner handle is required");
   }
-  // The colon separates the halves, so only the id is escaped.
-  const { kind, id } = splitOwnerHandle(ownerHandle);
-  const path = `${PLANNERS_ROOT}/${kind}:${encodeURIComponent(id)}/settings`;
+  const path = plannerSettingsPath(ownerHandle);
 
   const url = new URL(path, window.location.origin);
   const res = await requestWithPrivateHeaders(
@@ -123,6 +131,41 @@ export async function fetchPlannerSettingsFromApi(ownerHandle) {
     const text = await res.text().catch(() => "");
     throw new Error(
       `GET ${path} failed: ${res.status} ${text || res.statusText}`,
+    );
+  }
+  return res.json();
+}
+
+/**
+ * Changes part of the settings a planner's work is done under.
+ *
+ * The body names only what changed, so a member editing one setting does not
+ * send back a copy of the rest that another member may have moved on from.
+ *
+ * @param {string} ownerHandle - `kind:id`, from a {@link PlannerSummary}
+ * @param {object} update - the settings to change
+ * @returns {Promise<PlannerSettingsResponse>}
+ */
+export async function savePlannerSettingsToApi(ownerHandle, update) {
+  if (!ownerHandle) {
+    throw new Error("savePlannerSettingsToApi: an owner handle is required");
+  }
+  const path = plannerSettingsPath(ownerHandle);
+
+  const url = new URL(path, window.location.origin);
+  const res = await requestWithPrivateHeaders(
+    url.toString(),
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(update),
+    },
+    { requestName: "savePlannerSettings" },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `PUT ${path} failed: ${res.status} ${text || res.statusText}`,
     );
   }
   return res.json();

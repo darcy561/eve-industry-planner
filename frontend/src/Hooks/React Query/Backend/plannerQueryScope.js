@@ -12,10 +12,14 @@ export const STATISTICS_QUERY_KEY_ROOT = "statistics";
 /** Key prefix for reads over the archive itself, as opposed to its statistics. */
 export const ARCHIVE_QUERY_KEY_ROOT = "archive";
 
+/** Key prefix for the settings a planner's work is done under. */
+export const PLANNER_SETTINGS_QUERY_KEY_ROOT = "plannerSettings";
+
 /** Every root whose keys hold one planner's documents. */
 const PLANNER_SCOPED_QUERY_ROOTS = [
   STATISTICS_QUERY_KEY_ROOT,
   ARCHIVE_QUERY_KEY_ROOT,
+  PLANNER_SETTINGS_QUERY_KEY_ROOT,
 ];
 
 /**

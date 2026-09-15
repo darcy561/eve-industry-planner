@@ -7,7 +7,7 @@ import {
   coreActions,
   structureActions,
   preferencesActions,
-  extrasActions,
+  predefinedSystemIndexActions,
 } from "./applicationSettings";
 
 /**
@@ -25,7 +25,7 @@ const applicationSettingsSlice = (set, get) => ({
       ...coreActions(set, get),
       ...structureActions(set, get),
       ...preferencesActions(set, get),
-      ...extrasActions(set, get),
+      ...predefinedSystemIndexActions(set, get),
     },
   },
 });

@@ -48,14 +48,17 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 					map[string]any{"path": path})
 				return
 			}
-			if r.Method != http.MethodGet {
+			switch r.Method {
+			case http.MethodGet:
+				h.GetPlannerSettingsHandler(w, r, handle)
+			case http.MethodPut:
+				h.PutPlannerSettingsHandler(w, r, handle)
+			default:
 				helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed,
-					"Method not allowed. Use GET /api/v1/planners/{owner}/settings",
+					"Method not allowed. Use GET or PUT /api/v1/planners/{owner}/settings",
 					"invalid method for planner settings endpoint", "method_not_allowed", "planners", nil,
 					map[string]any{"method": r.Method})
-				return
 			}
-			h.GetPlannerSettingsHandler(w, r, handle)
 			return
 		}
 

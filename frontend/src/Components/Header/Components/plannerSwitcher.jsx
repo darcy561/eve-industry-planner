@@ -16,6 +16,7 @@ import { ensurePlannerViaApi } from "../../../Functions/Endpoints/Private/planne
 import { sendActivePlanner } from "../../../Realtime/realtimeClient.js";
 import useUsersStore from "../../../Zustand/usersStore";
 import { plannerScopedQueryRoots } from "../../../Hooks/React Query/Backend/plannerQueryScope.js";
+import { flushPendingPlannerSettingsSaves } from "../../../Functions/Debounce/plannerSettingsPersistSchedule.js";
 
 /**
  * Switches which planner the app works in.
@@ -54,6 +55,10 @@ export function PlannerSwitcher() {
           setFailure("Not connected");
           return;
         }
+        // Before the entries go: a settings edit still inside its debounce
+        // window would otherwise be read back from the server on a switch
+        // straight back, and the pending write would then save that over it.
+        await flushPendingPlannerSettingsSaves();
         // Scoped keys carry the owner, so the entries under the planner being
         // left are of no further use to this session.
         for (const root of leaving) {

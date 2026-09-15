@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"eve-industry-planner/shared/models"
@@ -89,13 +90,7 @@ func SetVersionedDocument(doc any, unset bson.M) (bson.M, error) {
 		if !ok {
 			return nil, fmt.Errorf("document %s is not a subdocument", metaField)
 		}
-		// By path rather than whole, so the $inc below has no conflict to hit.
-		for _, element := range meta {
-			if element.Key == MetaFieldVersionKey {
-				continue
-			}
-			set[metaField+"."+element.Key] = element.Value
-		}
+		maps.Copy(set, MetaSetByPath(meta))
 	}
 
 	update := bson.M{
@@ -118,4 +113,17 @@ func OwnerFromDocumentID(storedID string) (models.Owner, error) {
 		return models.Owner{}, fmt.Errorf("document id %q carries no owner", storedID)
 	}
 	return models.ParseOwnerKey(key)
+}
+
+// MetaSetByPath is a `_meta` block as the field paths that set it, the version
+// left out so an $inc of it in the same update has no conflict to hit.
+func MetaSetByPath(meta bson.D) bson.M {
+	set := bson.M{}
+	for _, element := range meta {
+		if element.Key == MetaFieldVersionKey {
+			continue
+		}
+		set[metaField+"."+element.Key] = element.Value
+	}
+	return set
 }

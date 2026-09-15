@@ -20,7 +20,8 @@ func TestRouterSeparatesSettingsFromTheHandle(t *testing.T) {
 		want   int
 	}{
 		{"settings takes GET", http.MethodGet, "/api/v1/planners/account:acct-1/settings", http.StatusUnauthorized},
-		{"settings refuses PUT", http.MethodPut, "/api/v1/planners/account:acct-1/settings", http.StatusMethodNotAllowed},
+		{"settings takes PUT", http.MethodPut, "/api/v1/planners/account:acct-1/settings", http.StatusUnauthorized},
+		{"settings refuses DELETE", http.MethodDelete, "/api/v1/planners/account:acct-1/settings", http.StatusMethodNotAllowed},
 		{"the planner itself takes PUT", http.MethodPut, "/api/v1/planners/account:acct-1", http.StatusUnauthorized},
 		{"the planner itself refuses GET", http.MethodGet, "/api/v1/planners/account:acct-1", http.StatusMethodNotAllowed},
 		{"settings with no handle is not found", http.MethodGet, "/api/v1/planners//settings", http.StatusNotFound},
