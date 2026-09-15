@@ -27,6 +27,11 @@ import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDoc
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import useLocationNames from "../../../../../../Hooks/EveEsi/useLocationNames";
 import { UNNAMED_LOCATION_LABEL } from "../../../../../../Functions/Assets/assetLocationConstants";
+import {
+  characterImageUrl,
+  corporationImageUrl,
+  typeImageUrl,
+} from "../../../../../../Functions/Shared/eveImage";
 
 /**
  * Unlinking an ESI job removes a run from `activeJob.build.costs.linkedJobs` (persisted), so
@@ -192,11 +197,10 @@ export function LinkedJobsTab(props) {
                             }}
                             badgeContent={
                               <Avatar
-                                src={
-                                  jobOwner
-                                    ? `https://images.evetech.net/characters/${jobOwner.CharacterID}/portrait`
-                                    : ""
-                                }
+                                src={characterImageUrl(
+                                  jobOwner?.CharacterID,
+                                  48,
+                                )}
                                 variant="circular"
                                 sx={{
                                   height: "24px",
@@ -207,7 +211,11 @@ export function LinkedJobsTab(props) {
                             }
                           >
                             <Avatar
-                              src={`https://images.evetech.net/types/${job.blueprint_type_id}/${blueprintType}?size=64`}
+                              src={typeImageUrl(
+                                job.blueprint_type_id,
+                                blueprintType,
+                                64,
+                              )}
                               variant="square"
                               sx={{ width: 40, height: 40 }}
                             />
@@ -218,7 +226,7 @@ export function LinkedJobsTab(props) {
                         job.is_corporation && (
                           <Tooltip title="Corporation Job" arrow>
                             <Avatar
-                              src={`https://images.evetech.net/corporations/${job.corporation_id}/logo?size=32`}
+                              src={corporationImageUrl(job.corporation_id, 32)}
                               sx={{
                                 width: 32,
                                 height: 32,

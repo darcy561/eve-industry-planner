@@ -1,7 +1,6 @@
-import { Avatar } from "@mui/material";
 import CategoryIcon from "@mui/icons-material/Category";
 
-import { eveImageSize } from "../../Functions/Shared/eveOwner";
+import EveImageAvatar from "./EveImageAvatar";
 
 /**
  * The picture a market group is recognised by.
@@ -22,18 +21,14 @@ import { eveImageSize } from "../../Functions/Shared/eveOwner";
  */
 export default function MarketGroupIcon({ typeID, size = 24, ...rest }) {
   return (
-    <Avatar
-      src={
-        typeID
-          ? `https://images.evetech.net/types/${typeID}/icon?size=${eveImageSize(size * 2)}`
-          : undefined
-      }
-      alt=""
+    <EveImageAvatar
+      type={typeID}
+      size={size}
       variant="square"
-      sx={{ height: size, width: size, backgroundColor: "transparent" }}
+      sx={{ backgroundColor: "transparent" }}
       {...rest}
     >
       <CategoryIcon sx={{ fontSize: size, color: "text.disabled" }} />
-    </Avatar>
+    </EveImageAvatar>
   );
 }

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   Autocomplete,
-  Avatar,
   Box,
   Button,
   Divider,
@@ -39,6 +38,7 @@ import { makeTemplateFilter } from "./helpers/templateDialogueUtils";
 import { appShellSetupSectionPaperSx } from "../../../Context/appShell";
 import { trackAppEvent } from "../../../analytics/trackAppEvent";
 import { AppEvent } from "../../../analytics/appEventNames";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 
 const defaultState = () => ({
   isOpen: false,
@@ -267,10 +267,10 @@ function ApplyGroupTemplateDialogueBody({ messageData, onDismiss }) {
                       key={`${selected.templateID}-${out.templateJobId}-${out.itemID}`}
                       sx={{ display: "flex", alignItems: "center", gap: 1 }}
                     >
-                      <Avatar
-                        src={`https://images.evetech.net/types/${out.itemID}/icon?size=64`}
+                      <EveImageAvatar
+                        type={out.itemID}
                         alt={itemName}
-                        sx={{ width: 24, height: 24 }}
+                        size={24}
                       />
                       <Typography variant="body2" sx={{ flex: 1 }}>
                         {itemName}

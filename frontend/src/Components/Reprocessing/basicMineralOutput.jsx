@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import {
-  Avatar,
   Box,
   Grid,
   Typography,
@@ -18,6 +17,7 @@ import {
 import { getMarketPriceForType } from "../../Functions/MarketData/marketPriceForType";
 import ItemMarketActions from "../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
+import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
 
 function BasicMineralOutput({ pageState }) {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("md"));
@@ -209,11 +209,11 @@ function BasicMineralOutput({ pageState }) {
                 }}
                 size={1}
               >
-                <Avatar
-                  src={`https://images.evetech.net/types/${item.id}/icon?size=32`}
+                <EveImageAvatar
+                  type={item.id}
                   alt={matchedName}
+                  size={32}
                   variant="square"
-                  sx={{ height: 32, width: 32 }}
                 />
               </Grid>
               <Grid

@@ -5,6 +5,7 @@ import useUsersStore from "../../Zustand/usersStore";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
+import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
 
 /**
  * The jobs the job being edited can be linked to as a parent, as the body of a
@@ -71,7 +72,7 @@ export function ParentJobOptions({ state, actions, onLinked }) {
                 }}
               >
                 <img
-                  src={`https://images.evetech.net/types/${job.itemID}/icon?size=32`}
+                  src={typeImageUrl(job.itemID, TYPE_IMAGE.ICON, 32)}
                   alt=""
                 />
               </Grid>

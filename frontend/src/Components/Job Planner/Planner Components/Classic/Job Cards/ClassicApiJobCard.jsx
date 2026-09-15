@@ -3,6 +3,11 @@ import { Avatar, Badge, Paper, Tooltip, Typography, Grid } from "@mui/material";
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 import { blueGrey, grey } from "@mui/material/colors";
 import { useApiJobCardSorter } from "../ClassicApiJobCardSorter";
+import {
+  characterImageUrl,
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../../Functions/Shared/eveImage";
 
 function ClassiceAPIJobCard({ job, searchData }) {
   const { apiCardContent, jobCardText } = useApiJobCardSorter(job);
@@ -73,7 +78,7 @@ function ClassiceAPIJobCard({ job, searchData }) {
                     anchorOrigin={{ vertical: "top", horizontal: "right" }}
                     badgeContent={
                       <Avatar
-                        src={`https://images.evetech.net/characters/${job.installer_id}/portrait`}
+                        src={characterImageUrl(job.installer_id, 64)}
                         variant="circular"
                         sx={{
                           height: { xs: "16px", sm: "24px", md: "32px" },
@@ -83,7 +88,11 @@ function ClassiceAPIJobCard({ job, searchData }) {
                     }
                   >
                     <Avatar
-                      src={`https://images.evetech.net/types/${job.blueprint_type_id}/bp?size=64`}
+                      src={typeImageUrl(
+                        job.blueprint_type_id,
+                        TYPE_IMAGE.BLUEPRINT,
+                        64,
+                      )}
                       alt={matchedItemName}
                       variant="square"
                       sx={{

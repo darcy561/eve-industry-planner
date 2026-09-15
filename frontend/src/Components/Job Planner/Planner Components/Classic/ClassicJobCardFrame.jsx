@@ -29,6 +29,10 @@ import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import { getJobTypeAccentColour } from "../../../../Functions/Helper/jobTypeDividerColour";
 import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../Functions/Shared/eveImage";
 
 function DisplaySwitch({ job }) {
   switch (job.jobStatus) {
@@ -192,7 +196,7 @@ export function JobCardFrame({ job, previewStandalone = false }) {
               }}
             >
               <Avatar
-                src={`https://images.evetech.net/types/${job.itemID}/icon?size=64`}
+                src={typeImageUrl(job.itemID, TYPE_IMAGE.ICON, 64)}
                 alt={job.name}
                 variant="square"
                 sx={{

@@ -56,4 +56,23 @@ describe("a classic group card", () => {
     expect(link).toHaveAttribute("href", "/group/group-3");
     expect(link).toHaveAttribute("draggable", "false");
   });
+
+  // AvatarGroup rings each of its children, and this card has always drawn its stack without one.
+  // The rule is a two-class selector, so an `sx` override loses to it and only the inline style
+  // wins — a distinction nothing but a rendered card would catch.
+  it("stacks the group's items without the ring AvatarGroup would draw", async () => {
+    await renderWithRouter(
+      <ClassicGroupJobCard
+        group={{ ...group, includedTypeIDs: new Set([34, 35]) }}
+      />,
+    );
+
+    const avatars = document.querySelectorAll(
+      ".MuiAvatarGroup-root .MuiAvatar-root",
+    );
+    expect(avatars).toHaveLength(2);
+    for (const avatar of avatars) {
+      expect(getComputedStyle(avatar).borderStyle).toBe("none");
+    }
+  });
 });

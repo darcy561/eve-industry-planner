@@ -46,6 +46,7 @@ import {
   getLastStepIndex,
   isFinalStepLockedForJob,
 } from "../../Functions/Job/jobStepNavigation";
+import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
 
 export default function EditJob_New() {
   const { state, actions } = useEditJobReducer();
@@ -159,7 +160,11 @@ export default function EditJob_New() {
                   }}
                 >
                   <Avatar
-                    src={`https://images.evetech.net/types/${state.activeJob.itemID}/icon?size=32`}
+                    src={typeImageUrl(
+                      state.activeJob.itemID,
+                      TYPE_IMAGE.ICON,
+                      32,
+                    )}
                     alt={state.activeJob.name}
                     variant="square"
                     sx={{

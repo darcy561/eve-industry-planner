@@ -10,6 +10,10 @@ import { ChildJobItem } from "./childJobItem";
 import { useState } from "react";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import { WatchListSetupOptions_WatchlistDialogue } from "./watchlistOptions";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../../Functions/Shared/eveImage";
 
 export function EditItemDisplay_WatchlistDialogue({
   watchlistItemRequest,
@@ -32,7 +36,7 @@ export function EditItemDisplay_WatchlistDialogue({
       >
         <Grid align="center" size={12}>
           <img
-            src={`https://images.evetech.net/types/${watchlistItemRequest}/icon?size=64 `}
+            src={typeImageUrl(watchlistItemRequest, TYPE_IMAGE.ICON, 64)}
             alt=""
           />
         </Grid>

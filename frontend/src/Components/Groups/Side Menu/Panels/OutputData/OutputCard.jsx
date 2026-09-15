@@ -7,7 +7,6 @@ import {
 } from "../../../../../Functions/MarketData/priceResolution";
 import { getMarketPriceForType } from "../../../../../Functions/MarketData/marketPriceForType";
 import {
-  Avatar,
   Card,
   CardActions,
   CardContent,
@@ -22,6 +21,7 @@ import useUsersStore from "../../../../../Zustand/usersStore";
 import { RouterCardActionArea } from "../../../../../Styled Components/Navigation/routerControls.jsx";
 import ItemMarketActions from "../../../../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../../../../Functions/Helper/numberParser";
+import EveImageAvatar from "../../../../../Styled Components/Avatar/EveImageAvatar";
 
 function OutputJobCard({ inputJob, state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
@@ -73,11 +73,11 @@ function OutputJobCard({ inputJob, state, actions }) {
               <Typography variant="caption">{inputJob.name}</Typography>
             </Grid>
             <Grid size={2}>
-              <Avatar
-                src={`https://images.evetech.net/types/${inputJob.itemID}/icon?size=32`}
+              <EveImageAvatar
+                type={inputJob.itemID}
                 alt={inputJob.name}
+                size={32}
                 variant="square"
-                sx={{ height: 32, width: 32 }}
               />
             </Grid>
             <Grid size={12}>

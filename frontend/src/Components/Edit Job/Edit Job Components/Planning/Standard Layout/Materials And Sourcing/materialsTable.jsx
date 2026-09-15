@@ -28,7 +28,6 @@ import {
 import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
 import ItemMarketActions from "../../../../../../Styled Components/Item/marketActions";
 import { getJobTypeAccentColour } from "../../../../../../Functions/Helper/jobTypeDividerColour";
-import { eveImageSize } from "../../../../../../Functions/Shared/eveOwner";
 import {
   getListingModeLabel,
   getMarketLocationLabel,
@@ -42,6 +41,7 @@ import {
   hasSavingAvailable,
 } from "../../../../../../Functions/MarketData/materialSourcingRow";
 import ShortfallChip from "./shortfallChip";
+import EveImageAvatar from "../../../../../../Styled Components/Avatar/EveImageAvatar";
 
 /**
  * The material list, rendered once for the stage.
@@ -171,12 +171,11 @@ function MaterialRow({
           <MaterialMark mark={row.mark} />
           {/* The item's own artwork: a player picks a row out by its icon well
               before reading the name beside it. */}
-          <Box
-            component="img"
-            src={`https://images.evetech.net/types/${row.typeID}/icon?size=${eveImageSize(22)}`}
-            alt=""
-            loading="lazy"
-            sx={{ width: 22, height: 22, borderRadius: "3px", flexShrink: 0 }}
+          <EveImageAvatar
+            type={row.typeID}
+            size={22}
+            variant="rounded"
+            sx={{ borderRadius: "3px" }}
           />
           <ItemMarketActions typeID={row.typeID} sx={{ minWidth: 0 }}>
             <Typography variant="body2" component="span" noWrap>

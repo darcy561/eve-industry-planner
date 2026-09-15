@@ -1,6 +1,10 @@
 import { Avatar, Checkbox, Box, Typography } from "@mui/material";
 import { SMALL_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../Functions/Shared/eveImage";
 
 function FittingImportRow({ item, index, updateImportedFitData }) {
   if (!item.buildable) return null;
@@ -15,7 +19,7 @@ function FittingImportRow({ item, index, updateImportedFitData }) {
       }}
     >
       <Avatar
-        src={`https://images.evetech.net/types/${item.itemID}/icon?size=32`}
+        src={typeImageUrl(item.itemID, TYPE_IMAGE.ICON, 32)}
         alt={item.itemName}
         variant="square"
         sx={{

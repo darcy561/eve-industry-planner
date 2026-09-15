@@ -1,7 +1,8 @@
-import { Avatar, Typography, Grid, Checkbox, Tooltip } from "@mui/material";
+import { Typography, Grid, Checkbox, Tooltip } from "@mui/material";
 
 import { LARGE_TEXT_FORMAT } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 
 export function ShoppingListItem_ShoppingListDialogue({
   item,
@@ -62,12 +63,7 @@ export function ShoppingListItem_ShoppingListDialogue({
           sm: 1,
         }}
       >
-        <Avatar
-          src={`https://images.evetech.net/types/${typeID}/icon?size=32`}
-          alt={name}
-          variant="square"
-          sx={{ height: 32, width: 32 }}
-        />
+        <EveImageAvatar type={typeID} alt={name} size={32} variant="square" />
       </Grid>
       <Grid
         size={{

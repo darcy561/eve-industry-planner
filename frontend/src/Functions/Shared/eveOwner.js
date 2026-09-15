@@ -1,4 +1,5 @@
 import useUsersStore from "../../Zustand/usersStore";
+import { characterImageUrl, corporationImageUrl } from "./eveImage";
 import { OWNER_KIND } from "./ownerKind";
 
 /**
@@ -20,25 +21,6 @@ export function ownerName(owner) {
 }
 
 /**
- * The only sizes EVE's image server serves. Anything else is answered with a 400 and no image.
- *
- * @type {number[]}
- */
-const IMAGE_SIZES = [32, 64, 128, 256, 512, 1024];
-
-/**
- * The size to ask the image server for, given how many pixels it will be drawn at.
- *
- * Rounds up, so an avatar is never scaled up from a smaller image.
- *
- * @param {number} pixels
- * @returns {number}
- */
-export function eveImageSize(pixels) {
-  return IMAGE_SIZES.find((size) => size >= pixels) ?? IMAGE_SIZES.at(-1);
-}
-
-/**
  * EVE's own portrait or logo for an owner.
  *
  * A corporation is addressed by the id the image server wants; a character is held by hash, which
@@ -51,17 +33,13 @@ export function eveImageSize(pixels) {
 export function ownerImageUrl(owner, pixels = 32) {
   if (!owner?.id) return undefined;
 
-  const size = eveImageSize(pixels);
-
   if (owner.kind === OWNER_KIND.CORPORATION) {
-    return `https://images.evetech.net/corporations/${owner.id}/logo?size=${size}`;
+    return corporationImageUrl(owner.id, pixels);
   }
 
   const character = useUsersStore
     .getState()
     .account.actions.findCharacterByHash(owner.id);
 
-  return character?.CharacterID
-    ? `https://images.evetech.net/characters/${character.CharacterID}/portrait?size=${size}`
-    : undefined;
+  return characterImageUrl(character?.CharacterID, pixels);
 }

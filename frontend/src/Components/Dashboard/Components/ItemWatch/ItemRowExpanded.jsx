@@ -5,6 +5,10 @@ import { Typography, Grid } from "@mui/material";
 import ItemMarketActions from "../../../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../Functions/Shared/eveImage";
 
 export function ExpandedWatchlistRow({ mat }) {
   const { buyingPrice, sellWorth } = useWatchlistPricing();
@@ -30,10 +34,7 @@ export function ExpandedWatchlistRow({ mat }) {
       }}
     >
       <Grid align="center" size={12}>
-        <img
-          src={`https://images.evetech.net/types/${mat.typeID}/icon?size=32`}
-          alt=""
-        />
+        <img src={typeImageUrl(mat.typeID, TYPE_IMAGE.ICON, 32)} alt="" />
       </Grid>
       <Grid align="center" size={12}>
         <ItemMarketActions typeID={mat.typeID}>

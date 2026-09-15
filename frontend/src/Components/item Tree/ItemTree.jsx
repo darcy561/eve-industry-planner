@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  Avatar,
   Box,
   Button,
   Chip,
@@ -27,6 +26,7 @@ import {
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 import { AppEvent } from "../../analytics/appEventNames";
 import { LoadingBrandBackdrop } from "../loadingBrand";
+import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
 
 const treeSurfaceSx = {
   ...appShellSetupSectionPaperSx,
@@ -250,10 +250,7 @@ export function ItemTree() {
                               )
                             }
                             avatar={
-                              <Avatar
-                                src={`https://image.eveonline.com/Type/${itemObj.itemID}_32.png`}
-                                sx={{ width: 24, height: 24 }}
-                              />
+                              <EveImageAvatar type={itemObj.itemID} size={18} />
                             }
                             variant="outlined"
                             sx={(theme) => ({

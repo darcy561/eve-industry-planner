@@ -8,11 +8,11 @@ import blueprintHolderLabel, {
   blueprintOwner,
 } from "../../Functions/Blueprints/blueprintHolderLabel";
 import { stackCount } from "../../Functions/Blueprints/consolidateBlueprints";
-import { eveImageSize } from "../../Functions/Shared/eveOwner";
 import OwnerAvatar from "../../Styled Components/Avatar/OwnerAvatar";
 import { Figure } from "../../Styled Components/Typography/figures";
 import { ActiveBPPopout } from "./ActiveBPPout";
 import { blueprintAccentColour } from "./blueprintStatus";
+import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
 
 /**
  * How much room a card is given. The two library views differ in this and nothing else.
@@ -112,17 +112,11 @@ export default function BlueprintCard({
             />
           }
         >
-          <Box
-            component="img"
-            src={`https://images.evetech.net/types/${blueprint.typeId}/${kind}?size=${eveImageSize(density.art)}`}
-            alt=""
-            sx={{
-              height: density.art,
-              width: density.art,
-              display: "block",
-              borderRadius: 1,
-              flexShrink: 0,
-            }}
+          <EveImageAvatar
+            type={blueprint.typeId}
+            variation={kind}
+            size={density.art}
+            variant="rounded"
           />
         </Badge>
       </Tooltip>

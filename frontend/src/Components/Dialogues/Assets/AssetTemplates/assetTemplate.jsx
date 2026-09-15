@@ -1,4 +1,4 @@
-import { Avatar, Badge, Box, Tooltip } from "@mui/material";
+import { Badge, Box, Tooltip } from "@mui/material";
 
 import { appShellNestedCardSx } from "../../../../Context/appShell";
 import {
@@ -9,6 +9,7 @@ import { ownerName } from "../../../../Functions/Shared/eveOwner";
 import OwnerAvatar from "../../../../Styled Components/Avatar/OwnerAvatar";
 import { Figure } from "../../../../Styled Components/Typography/figures";
 import { useItemList } from "../../../../Hooks/Static/useItems";
+import EveImageAvatar from "../../../../Styled Components/Avatar/EveImageAvatar";
 
 /**
  * One stack of what was asked for.
@@ -51,16 +52,18 @@ export default function AssetTemplate_AssetDialogueWindow({
             anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
             badgeContent={<OwnerAvatar owner={node.owner} size={18} />}
           >
-            <Avatar
+            <EveImageAvatar
               src={assetImageUrl(node, itemRecords)}
               alt={itemName}
+              size={40}
               variant="square"
             />
           </Badge>
         ) : (
-          <Avatar
+          <EveImageAvatar
             src={assetImageUrl(node, itemRecords)}
             alt={itemName}
+            size={40}
             variant="square"
           />
         )}

@@ -1,5 +1,4 @@
 import {
-  Avatar,
   Box,
   Chip,
   Divider,
@@ -18,6 +17,7 @@ import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/vir
 import { useItemNames } from "../../../Hooks/Static/useItems";
 import ClearIcon from "@mui/icons-material/Clear";
 import useUsersStore from "../../../Zustand/usersStore";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 function BlueprintSettingsFrame() {
   const defaultMaterialEfficiencyValue = useUsersStore(
     (state) => state.applicationSettings.defaultMaterialEfficiencyValue,
@@ -172,11 +172,7 @@ function BlueprintSettingsFrame() {
                   removeExemptTypeID(id);
                   await saveApplicationSettings();
                 }}
-                avatar={
-                  <Avatar
-                    src={`https://image.eveonline.com/Type/${id}_32.png`}
-                  />
-                }
+                avatar={<EveImageAvatar type={id} size={18} />}
                 sx={{
                   margin: 0.5,
                   boxShadow: 3,

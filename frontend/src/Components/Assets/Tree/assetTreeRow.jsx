@@ -1,10 +1,4 @@
-import {
-  Avatar,
-  Box,
-  IconButton,
-  Typography,
-  useMediaQuery,
-} from "@mui/material";
+import { Box, IconButton, Typography, useMediaQuery } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -16,6 +10,7 @@ import {
 } from "../../../Functions/Assets/assetPresentation";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import { Figure } from "../../../Styled Components/Typography/figures";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 
 /** One level of nesting, as an indent rather than a margin that narrows the row. */
 const INDENT = 16;
@@ -140,14 +135,10 @@ export default function AssetTreeRow({
           onToggle={onToggle}
           name={itemName}
         />
-        <Avatar
+        <EveImageAvatar
           src={assetImageUrl(node, itemRecords)}
-          alt=""
+          size={deviceNotMobile ? 32 : 24}
           variant="square"
-          sx={{
-            height: deviceNotMobile ? 32 : 24,
-            width: deviceNotMobile ? 32 : 24,
-          }}
         />
         <Typography
           noWrap

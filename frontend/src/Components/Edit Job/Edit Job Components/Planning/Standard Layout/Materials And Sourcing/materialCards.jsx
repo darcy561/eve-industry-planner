@@ -11,7 +11,6 @@ import {
 import StatusChip, {
   STATUS_TONE,
 } from "../../../../../../Styled Components/Chip/statusChip";
-import { eveImageSize } from "../../../../../../Functions/Shared/eveOwner";
 import { formatCompactNumber } from "../../../../../../Functions/Helper/numberParser";
 import {
   ExpandAffordance,
@@ -21,6 +20,7 @@ import {
   accentStripe,
   cheaperTone,
 } from "./materialsTable";
+import EveImageAvatar from "../../../../../../Styled Components/Avatar/EveImageAvatar";
 
 /**
  * The material list at phone width.
@@ -118,12 +118,11 @@ function MaterialCard({
           sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}
         >
           <MaterialMark mark={row.mark} />
-          <Box
-            component="img"
-            src={`https://images.evetech.net/types/${row.typeID}/icon?size=${eveImageSize(18)}`}
-            alt=""
-            loading="lazy"
-            sx={{ width: 18, height: 18, borderRadius: "3px", flexShrink: 0 }}
+          <EveImageAvatar
+            type={row.typeID}
+            size={18}
+            variant="rounded"
+            sx={{ borderRadius: "3px" }}
           />
           <Typography variant="body2" noWrap>
             {row.name}

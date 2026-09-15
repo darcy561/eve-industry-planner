@@ -1,11 +1,4 @@
-import {
-  Avatar,
-  IconButton,
-  Paper,
-  Stack,
-  Typography,
-  Grid,
-} from "@mui/material";
+import { IconButton, Paper, Stack, Typography, Grid } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import BusinessIcon from "@mui/icons-material/Business";
 import { alpha } from "@mui/material/styles";
@@ -16,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { scheduleDebouncedUserAccountDocumentSave } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData.js";
 import { deleteCloudStoredEsiRefreshTokens } from "../../Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js";
+import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
 
 export function AccountEntry({ character }) {
   const cloudAccounts = useUsersStore(
@@ -73,10 +67,10 @@ export function AccountEntry({ character }) {
         }}
       >
         <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-          <Avatar
+          <EveImageAvatar
             alt={`${character.CharacterName} portrait`}
-            src={`https://images.evetech.net/characters/${character.CharacterID}/portrait?size=128`}
-            sx={{ width: 42, height: 42 }}
+            character={character.CharacterID}
+            size={42}
           />
           <Stack spacing={0.1} sx={{ flex: 1, minWidth: 0 }}>
             <Typography
@@ -96,10 +90,10 @@ export function AccountEntry({ character }) {
               sx={{ minWidth: 0, alignItems: "center" }}
             >
               {corporationId ? (
-                <Avatar
+                <EveImageAvatar
                   alt={`${corporationName} logo`}
-                  src={`https://images.evetech.net/corporations/${corporationId}/logo?size=32`}
-                  sx={{ width: 18, height: 18 }}
+                  corporation={corporationId}
+                  size={18}
                   variant="rounded"
                 />
               ) : (

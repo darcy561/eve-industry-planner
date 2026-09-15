@@ -29,6 +29,11 @@ import { useCurrentTime } from "../../../../../../Hooks/useCurrentTime";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import useLocationNames from "../../../../../../Hooks/EveEsi/useLocationNames";
 import { UNNAMED_LOCATION_LABEL } from "../../../../../../Functions/Assets/assetLocationConstants";
+import {
+  characterImageUrl,
+  corporationImageUrl,
+  typeImageUrl,
+} from "../../../../../../Functions/Shared/eveImage";
 
 /**
  * Linking an ESI job adds a run to `activeJob.build.costs.linkedJobs` (persisted),
@@ -242,7 +247,10 @@ export function AvailableJobsTab(props) {
                             }}
                             badgeContent={
                               <Avatar
-                                src={`https://images.evetech.net/characters/${jobOwner.CharacterID}/portrait`}
+                                src={characterImageUrl(
+                                  jobOwner.CharacterID,
+                                  48,
+                                )}
                                 variant="circular"
                                 sx={{
                                   height: "24px",
@@ -253,7 +261,11 @@ export function AvailableJobsTab(props) {
                             }
                           >
                             <Avatar
-                              src={`https://images.evetech.net/types/${job.blueprint_type_id}/${blueprintType}?size=64`}
+                              src={typeImageUrl(
+                                job.blueprint_type_id,
+                                blueprintType,
+                                64,
+                              )}
                               variant="square"
                               sx={{ width: 40, height: 40 }}
                             />
@@ -264,7 +276,7 @@ export function AvailableJobsTab(props) {
                         job.is_corporation && (
                           <Tooltip title="Corporation Job" arrow>
                             <Avatar
-                              src={`https://images.evetech.net/corporations/${job.corporation_id}/logo?size=32`}
+                              src={corporationImageUrl(job.corporation_id, 32)}
                               sx={{
                                 width: 32,
                                 height: 32,

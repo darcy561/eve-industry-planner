@@ -1,6 +1,5 @@
-import { Avatar } from "@mui/material";
-
 import { ownerImageUrl, ownerName } from "../../Functions/Shared/eveOwner";
+import EveImageAvatar from "./EveImageAvatar";
 
 /**
  * Whoever holds a thing, as EVE's own portrait or corporation logo.
@@ -11,12 +10,11 @@ export default function OwnerAvatar({ owner, size = 24, ...rest }) {
   const name = ownerName(owner);
 
   return (
-    <Avatar
+    <EveImageAvatar
       src={ownerImageUrl(owner, size * 2)}
       alt={name}
       title={name || undefined}
-      variant="circular"
-      sx={{ height: size, width: size }}
+      size={size}
       {...rest}
     />
   );

@@ -11,6 +11,7 @@ import OwnerAvatar from "../../../../../../Styled Components/Avatar/OwnerAvatar"
 import useGetAllIndustryJobs from "../../../../../../Hooks/EveEsi/useGetAllIndustryJobs";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import recalculateJobFromSetup from "../../../../../../Functions/JobPlanner/recalculateJobFromSetup";
+import { typeImageUrl } from "../../../../../../Functions/Shared/eveImage";
 const inUse = yellow[800];
 const expiring = red[600];
 
@@ -81,10 +82,10 @@ const BlueprintItem = ({ print, esiJob, state, actions }) => {
             <picture>
               <source
                 media="(max-width:700px)"
-                srcSet={`https://images.evetech.net/types/${print.typeId}/${blueprintTypeUrl}?size=32`}
+                srcSet={typeImageUrl(print.typeId, blueprintTypeUrl, 32)}
               />
               <img
-                src={`https://images.evetech.net/types/${print.typeId}/${blueprintTypeUrl}?size=64`}
+                src={typeImageUrl(print.typeId, blueprintTypeUrl, 64)}
                 alt=""
               />
             </picture>

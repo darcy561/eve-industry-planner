@@ -3,6 +3,10 @@ import { Avatar, IconButton, Typography, Grid } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import { LockGatedTooltip } from "../../../../../DocumentLock/LockGatedTooltip";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../../../Functions/Shared/eveImage";
 
 export function AvailableChildJobs_Purchasing(props) {
   const { availableChildJobs } = props;
@@ -61,7 +65,7 @@ function AvailableJobEntry({ job, actions, siblingLinkLock }) {
         }}
       >
         <Avatar
-          src={`https://image.eveonline.com/Type/${job.itemID}_32.png`}
+          src={typeImageUrl(job.itemID, TYPE_IMAGE.ICON, 32)}
           alt={job.name}
           variant="square"
           sx={{ height: 32, width: 32 }}

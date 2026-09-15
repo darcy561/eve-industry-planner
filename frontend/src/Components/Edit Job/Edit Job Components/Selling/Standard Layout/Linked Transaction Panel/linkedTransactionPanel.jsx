@@ -12,6 +12,10 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
+import {
+  characterImageUrl,
+  corporationImageUrl,
+} from "../../../../../../Functions/Shared/eveImage";
 
 export function LinkedTransactionPanel(props) {
   const { state, actions, activeOrder } = props;
@@ -97,12 +101,11 @@ export function LinkedTransactionPanel(props) {
                         <Avatar
                           src={
                             tData.is_corp
-                              ? corpData
-                                ? `https://images.evetech.net/corporations/${corpData.corporation_id}/logo`
-                                : ""
-                              : charData
-                                ? `https://images.evetech.net/characters/${charData.CharacterID}/portrait`
-                                : ""
+                              ? corporationImageUrl(
+                                  corpData?.corporation_id,
+                                  64,
+                                )
+                              : characterImageUrl(charData?.CharacterID, 64)
                           }
                           variant="circular"
                           sx={{

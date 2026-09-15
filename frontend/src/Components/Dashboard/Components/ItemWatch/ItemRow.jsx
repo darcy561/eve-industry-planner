@@ -29,6 +29,10 @@ import ItemMarketActions from "../../../../Styled Components/Item/marketActions"
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
 import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPlanner";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../Functions/Shared/eveImage";
 
 export function WatchListRow({ item, index, onEditWatchlistItem }) {
   const [expanded, setExpanded] = useState(false);
@@ -135,7 +139,7 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
               </Tooltip>
             ) : (
               <img
-                src={`https://images.evetech.net/types/${item.typeID}/icon?size=32`}
+                src={typeImageUrl(item.typeID, TYPE_IMAGE.ICON, 32)}
                 alt=""
               />
             )}

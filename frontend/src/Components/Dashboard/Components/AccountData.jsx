@@ -1,10 +1,11 @@
-import { Avatar, AvatarGroup, Typography, Grid } from "@mui/material";
+import { AvatarGroup, Typography, Grid } from "@mui/material";
 
 import { useState } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useJobStatuses } from "../../../Hooks/useJobStatuses";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 
 export function AccountData() {
   const { jobStatuses } = useJobStatuses();
@@ -27,21 +28,12 @@ export function AccountData() {
             <AvatarGroup max={5}>
               {characters.map((user) => {
                 return (
-                  <Avatar
+                  <EveImageAvatar
                     key={user.CharacterHash}
                     alt={`${user.CharacterName} Portrait Card`}
-                    src={`https://images.evetech.net/characters/${user.CharacterID}/portrait`}
-                    sx={{
-                      height: {
-                        xs: "35px",
-                        md: "45px",
-                      },
-                      width: {
-                        xs: "35px",
-                        md: "45px",
-                      },
-                      border: "none",
-                    }}
+                    character={user.CharacterID}
+                    size={{ xs: 35, md: 45 }}
+                    sx={{ border: "none" }}
                   />
                 );
               })}

@@ -1,3 +1,4 @@
+import { TYPE_IMAGE, typeImageUrl } from "../Shared/eveImage";
 import { isAncientRelic } from "../Shared/itemCategories";
 import { itemNameFrom } from "../Static/items";
 
@@ -9,13 +10,13 @@ import { itemNameFrom } from "../Static/items";
  *
  * @param {import("./buildAssetNodes").AssetNode} node
  * @param {Object<string, {category_id?: number}>} [itemRecords]
- * @returns {string}
+ * @returns {string|undefined} undefined when there is no id to ask about
  */
 export function assetImageUrl(node, itemRecords) {
-  const variant = isAncientRelic(itemRecords?.[node.typeId]?.category_id)
-    ? "relic"
-    : "icon";
-  return `https://images.evetech.net/types/${node.typeId}/${variant}?size=32`;
+  const variation = isAncientRelic(itemRecords?.[node.typeId]?.category_id)
+    ? TYPE_IMAGE.RELIC
+    : TYPE_IMAGE.ICON;
+  return typeImageUrl(node.typeId, variation, 32);
 }
 
 /**

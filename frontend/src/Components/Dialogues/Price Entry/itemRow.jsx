@@ -1,11 +1,4 @@
-import {
-  Avatar,
-  Checkbox,
-  Grid,
-  TextField,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+import { Checkbox, Grid, TextField, Tooltip, Typography } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import { getMarketPriceForType } from "../../../Functions/MarketData/marketPriceForType";
@@ -18,6 +11,7 @@ import {
   STANDARD_TEXT_FORMAT,
   SMALL_TEXT_FORMAT,
 } from "../../../Context/defaultValues";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 const { PRIMARY_THEME } = GLOBAL_CONFIG;
 
 export function ItemPriceRow({
@@ -241,11 +235,11 @@ export function ItemPriceRow({
           align="center"
           size={{ sm: 1 }}
         >
-          <Avatar
-            src={`https://images.evetech.net/types/${item.typeID}/icon?size=32`}
+          <EveImageAvatar
+            type={item.typeID}
             alt={item.name}
+            size={32}
             variant="square"
-            sx={{ height: 32, width: 32 }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 7 }}>

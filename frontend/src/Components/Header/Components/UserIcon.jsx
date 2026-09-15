@@ -1,6 +1,7 @@
 import { Avatar, Box, Grid, Skeleton, Tooltip } from "@mui/material";
 
 import useUsersStore from "../../../Zustand/usersStore";
+import { characterImageUrl } from "../../../Functions/Shared/eveImage";
 
 const avatarSlotSx = {
   height: { xs: "36px", sm: "48px" },
@@ -24,7 +25,7 @@ export function UserIcon() {
             <Tooltip title={mainCharacter.CharacterName} arrow>
               <Avatar
                 alt="Account Logo"
-                src={`https://images.evetech.net/characters/${mainCharacter.CharacterID}/portrait`}
+                src={characterImageUrl(mainCharacter.CharacterID, 96)}
                 sx={avatarSlotSx}
               />
             </Tooltip>

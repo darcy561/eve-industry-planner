@@ -6,6 +6,7 @@ import {
   Figure,
 } from "../../../../../../Styled Components/Typography/figures";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
+import EveImageAvatar from "../../../../../../Styled Components/Avatar/EveImageAvatar";
 
 /**
  * What the job makes, and what the market pays for one.
@@ -30,12 +31,7 @@ export default function OutputHeader({
 }) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-      <Box
-        component="img"
-        src={`https://images.evetech.net/types/${typeID}/icon?size=32`}
-        alt=""
-        sx={{ width: 32, height: 32, flexShrink: 0 }}
-      />
+      <EveImageAvatar type={typeID} size={32} variant="square" />
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <ItemMarketActions typeID={typeID} regionID={priceHubID}>
           <Typography variant="body1" sx={{ fontWeight: 500 }}>

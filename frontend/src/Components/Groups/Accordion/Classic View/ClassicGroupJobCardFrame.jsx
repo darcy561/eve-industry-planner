@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import {
-  Avatar,
   Box,
   Checkbox,
   Grid,
@@ -33,6 +32,7 @@ import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultip
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { getJobTypeAccentColour } from "../../../../Functions/Helper/jobTypeDividerColour";
 import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
+import EveImageAvatar from "../../../../Styled Components/Avatar/EveImageAvatar";
 
 function DisplaySwitch({ job }) {
   switch (job.jobStatus) {
@@ -238,14 +238,11 @@ export function ClassicGroupJobCardFrame({
                   flex: { xs: "0 0 16.666%", sm: "0 0 25%" },
                 }}
               >
-                <Avatar
-                  src={`https://images.evetech.net/types/${job.itemID}/icon?size=64`}
+                <EveImageAvatar
+                  type={job.itemID}
                   alt={job.name}
+                  size={{ xs: 24, sm: 32 }}
                   variant="square"
-                  sx={{
-                    height: { xs: 24, sm: 32 },
-                    width: { xs: 24, sm: 32 },
-                  }}
                 />
               </Box>
               <Box sx={{ flex: 1, minWidth: 0 }}>

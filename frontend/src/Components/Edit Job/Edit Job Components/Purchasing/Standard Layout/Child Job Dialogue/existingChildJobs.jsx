@@ -4,6 +4,10 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import ClearIcon from "@mui/icons-material/Clear";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import { LockGatedTooltip } from "../../../../../DocumentLock/LockGatedTooltip";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../../../Functions/Shared/eveImage";
 
 export function ExistingChildJobs_Purchasing(props) {
   const { existingChildJobs } = props;
@@ -72,7 +76,7 @@ function ChildJobEntry({ actions, childJobID, siblingLinkLock }) {
         }}
       >
         <Avatar
-          src={`https://image.eveonline.com/Type/${job.itemID}_32.png`}
+          src={typeImageUrl(job.itemID, TYPE_IMAGE.ICON, 32)}
           alt={job.name}
           variant="square"
           sx={{ height: 32, width: 32 }}

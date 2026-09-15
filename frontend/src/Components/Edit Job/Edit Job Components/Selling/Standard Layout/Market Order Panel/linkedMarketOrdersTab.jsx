@@ -21,6 +21,10 @@ import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDoc
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import useLocationNames from "../../../../../../Hooks/EveEsi/useLocationNames";
 import { UNNAMED_LOCATION_LABEL } from "../../../../../../Functions/Assets/assetLocationConstants";
+import {
+  characterImageUrl,
+  corporationImageUrl,
+} from "../../../../../../Functions/Shared/eveImage";
 
 export function LinkedMarketOrdersTab({
   state,
@@ -95,12 +99,8 @@ export function LinkedMarketOrdersTab({
                     <Avatar
                       src={
                         order.is_corporation
-                          ? corpData
-                            ? `https://images.evetech.net/corporations/${corpData.corporation_id}/logo`
-                            : ""
-                          : charData
-                            ? `https://images.evetech.net/characters/${charData.CharacterID}/portrait`
-                            : ""
+                          ? corporationImageUrl(corpData?.corporation_id, 64)
+                          : characterImageUrl(charData?.CharacterID, 64)
                       }
                       variant="circular"
                       sx={{

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Avatar,
   Box,
   Button,
   Chip,
@@ -19,6 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPlanner";
 import VirtualisedRecipeSearch from "../../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import toggleRightDrawerColapse from "../../Functions/toggleRightMenuDrawerColapse";
+import EveImageAvatar from "../../../../Styled Components/Avatar/EveImageAvatar";
 
 function AddNewJobSharedContentPanel({ state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
@@ -171,9 +171,7 @@ function AddNewJobSharedContentPanel({ state, actions }) {
                         );
                       }}
                       avatar={
-                        <Avatar
-                          src={`https://image.eveonline.com/Type/${itemObj.itemID}_32.png`}
-                        />
+                        <EveImageAvatar type={itemObj.itemID} size={18} />
                       }
                       variant="outlined"
                       sx={{

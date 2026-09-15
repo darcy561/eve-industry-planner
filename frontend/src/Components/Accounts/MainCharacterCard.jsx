@@ -1,8 +1,9 @@
-import { Avatar, Paper, Stack, Typography } from "@mui/material";
+import { Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import useUsersStore from "../../Zustand/usersStore";
 import { appShellNestedCardSx } from "../../Context/appShell";
+import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
 
 /**
  * The character an account signs in as.
@@ -36,17 +37,11 @@ export function MainCharacterCard({ children }) {
         },
       ]}
     >
-      <Avatar
+      <EveImageAvatar
         alt={`${name} portrait`}
-        src={
-          characterId != null
-            ? `https://images.evetech.net/characters/${characterId}/portrait?size=256`
-            : undefined
-        }
+        character={characterId ?? undefined}
+        size={112}
         sx={{
-          width: 112,
-          height: 112,
-          flexShrink: 0,
           boxShadow: (theme) =>
             `0 0 0 3px ${alpha(theme.palette.primary.main, 0.25)}`,
         }}

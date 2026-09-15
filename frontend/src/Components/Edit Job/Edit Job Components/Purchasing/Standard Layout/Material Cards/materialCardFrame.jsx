@@ -18,6 +18,10 @@ import ItemMarketActions from "../../../../../../Styled Components/Item/marketAc
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { MaterialQuantityInfoSingleRow } from "./materialQuantityInfoSingleRow";
 import { MaterialQuantityInfoDoubleRow } from "./materialQuantityInfoDoubleRow";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../../../Functions/Shared/eveImage";
 
 export function MaterialCardFrame_Purchasing(props) {
   const { state, material } = props;
@@ -152,7 +156,7 @@ export function MaterialCardFrame_Purchasing(props) {
             }}
           >
             <Avatar
-              src={`https://images.evetech.net/types/${material.typeID}/icon?size=32`}
+              src={typeImageUrl(material.typeID, TYPE_IMAGE.ICON, 32)}
               alt={material.name}
               variant="square"
               sx={{

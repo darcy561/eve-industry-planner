@@ -6,6 +6,10 @@ import useBlueprintIndex, {
 } from "../../../../../../Hooks/EveEsi/useBlueprintIndex";
 import OwnerAvatar from "../../../../../../Styled Components/Avatar/OwnerAvatar";
 import useGetAllIndustryJobs from "../../../../../../Hooks/EveEsi/useGetAllIndustryJobs";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../../../Functions/Shared/eveImage";
 
 export function ReactionLayout_BlueprintOptions({ state }) {
   const {
@@ -149,10 +153,18 @@ export function ReactionLayout_BlueprintOptions({ state }) {
                 <picture>
                   <source
                     media="(max-width:700px)"
-                    srcSet={`https://images.evetech.net/types/${state.activeJob.blueprintTypeID}/bpc?size=32`}
+                    srcSet={typeImageUrl(
+                      state.activeJob.blueprintTypeID,
+                      TYPE_IMAGE.BLUEPRINT_COPY,
+                      32,
+                    )}
                   />
                   <img
-                    src={`https://images.evetech.net/types/${state.activeJob.blueprintTypeID}/bpc?size=64`}
+                    src={typeImageUrl(
+                      state.activeJob.blueprintTypeID,
+                      TYPE_IMAGE.BLUEPRINT_COPY,
+                      64,
+                    )}
                     alt=""
                   />
                 </picture>

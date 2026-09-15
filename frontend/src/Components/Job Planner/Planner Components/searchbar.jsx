@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Avatar,
   Button,
   Chip,
   FormControlLabel,
@@ -16,6 +15,7 @@ import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/vir
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { useActiveGroupLockReadOnly } from "../../../Hooks/DocumentLock/useDocumentLockState";
 import addNewJobsToPlanner from "../../../Functions/JobPlanner/addNewJobsToPlanner";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 
 export function SearchBar({ actions }) {
   const readOnly = useActiveGroupLockReadOnly();
@@ -137,11 +137,7 @@ export function SearchBar({ actions }) {
                         prev.filter((i) => i.itemID !== itemObj.itemID),
                       );
                     }}
-                    avatar={
-                      <Avatar
-                        src={`https://image.eveonline.com/Type/${itemObj.itemID}_32.png`}
-                      />
-                    }
+                    avatar={<EveImageAvatar type={itemObj.itemID} size={18} />}
                     variant="outlined"
                     sx={{
                       margin: 0.5,

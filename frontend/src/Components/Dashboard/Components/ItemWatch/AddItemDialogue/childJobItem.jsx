@@ -1,4 +1,8 @@
 import { Typography, Grid } from "@mui/material";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../../Functions/Shared/eveImage";
 
 export function ChildJobItem({ job, itemToModify, updateItemToModify }) {
   return (
@@ -23,10 +27,7 @@ export function ChildJobItem({ job, itemToModify, updateItemToModify }) {
         sx={{ minHeight: "35px", minWidth: "35px" }}
         size={12}
       >
-        <img
-          src={`https://images.evetech.net/types/${job.itemID}/icon?size=32`}
-          alt=""
-        />
+        <img src={typeImageUrl(job.itemID, TYPE_IMAGE.ICON, 32)} alt="" />
       </Grid>
       <Grid align="center" size={12}>
         <Typography

@@ -7,6 +7,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Handle, Position } from "@xyflow/react";
 import { getJobTypeAccentColour } from "../../Functions/Helper/jobTypeDividerColour";
 import { JobTreeInteractionContext } from "./jobTreeInteractionContext";
+import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
 
 const HANDLE_TO_PARENT = "to-parent";
 const HANDLE_FROM_CHILDREN = "from-children";
@@ -141,7 +142,7 @@ function JobDependencyNodeImpl({ id, data }) {
         >
           {itemID ? (
             <Avatar
-              src={`https://images.evetech.net/types/${itemID}/icon?size=64`}
+              src={typeImageUrl(itemID, TYPE_IMAGE.ICON, 64)}
               alt={data.label ?? ""}
               variant="square"
               slotProps={{ img: { loading: "lazy", decoding: "async" } }}

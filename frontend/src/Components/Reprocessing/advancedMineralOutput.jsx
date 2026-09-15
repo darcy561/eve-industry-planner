@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
 import {
-  Avatar,
   Box,
   Button,
   Divider,
@@ -29,6 +28,7 @@ import ReprocessingSettingsPanel from "./reprocessingSettingsPanel";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import writeTextToClipboard from "../../Functions/Clipboard/writeTextToClipboard";
+import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
 
 export function AdvancedMineralOutput(props) {
   const { pageState, pageActions } = props;
@@ -567,11 +567,11 @@ export function AdvancedMineralOutput(props) {
                         md: 1,
                       }}
                     >
-                      <Avatar
-                        src={`https://images.evetech.net/types/${item.id}/icon?size=32`}
+                      <EveImageAvatar
+                        type={item.id}
                         alt={matchedName}
+                        size={32}
                         variant="square"
-                        sx={{ height: 32, width: 32 }}
                       />
                     </Grid>
                     <Grid

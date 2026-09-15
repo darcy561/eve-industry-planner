@@ -21,6 +21,7 @@ import {
 import { useLoginState } from "../Hooks/useLoginState";
 import { LARGE_TEXT_FORMAT } from "../../../Context/defaultValues";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
+import { characterImageUrl } from "../../../Functions/Shared/eveImage";
 
 /**
  * One step of the login progress row.
@@ -162,7 +163,7 @@ export function UserLogInUI() {
                   >
                     <Grid align="center" size={12}>
                       <Avatar
-                        src={`https://images.evetech.net/characters/${user.CharacterID}/portrait`}
+                        src={characterImageUrl(user.CharacterID, 256)}
                         variant="circular"
                         sx={{
                           height: { xs: "48px", sm: "64px", lg: "128px" },

@@ -1,4 +1,4 @@
-import { Avatar, Box, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import AssetLocationLogic_AssetDialogueWindow from "./templateLogic";
@@ -9,6 +9,7 @@ import {
 import { ownerName } from "../../../../Functions/Shared/eveOwner";
 import OwnerAvatar from "../../../../Styled Components/Avatar/OwnerAvatar";
 import { useItemList } from "../../../../Hooks/Static/useItems";
+import EveImageAvatar from "../../../../Styled Components/Avatar/EveImageAvatar";
 
 /**
  * A container holding what was asked for, and what is inside it.
@@ -46,11 +47,10 @@ export default function AssetContainerTemplate_AssetDialogueWindow({
           marginBottom: 0.5,
         }}
       >
-        <Avatar
+        <EveImageAvatar
           src={assetImageUrl(branch.node, itemRecords)}
-          alt=""
+          size={24}
           variant="square"
-          sx={{ height: 24, width: 24 }}
         />
         <Typography variant="body2" color="text.secondary">
           {itemName}

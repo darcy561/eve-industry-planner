@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
-import { Avatar, Box, Divider, Typography } from "@mui/material";
+import { Box, Divider, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import useUsersStore from "../../../Zustand/usersStore";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import { getJobTypeAccentColour } from "../../../Functions/Helper/jobTypeDividerColour";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 
 export default function ItemBreakdownFrame({ outputJob = null }) {
   const theme = useTheme();
@@ -83,11 +84,11 @@ export default function ItemBreakdownFrame({ outputJob = null }) {
       <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           {outputJob?.itemID != null && (
-            <Avatar
-              src={`https://images.evetech.net/types/${outputJob.itemID}/icon?size=64`}
+            <EveImageAvatar
+              type={outputJob.itemID}
               alt={outputJob?.name ?? ""}
+              size={40}
               variant="square"
-              sx={{ width: 40, height: 40, flexShrink: 0 }}
             />
           )}
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>

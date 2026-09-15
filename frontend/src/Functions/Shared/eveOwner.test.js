@@ -8,7 +8,7 @@ vi.mock("../../Zustand/usersStore", async () => {
   return usersStoreMock(() => usersStoreState({ account }));
 });
 
-import { eveImageSize, ownerImageUrl, ownerName } from "./eveOwner";
+import { ownerImageUrl, ownerName } from "./eveOwner";
 import { OWNER_KIND } from "./ownerKind";
 
 const CHARACTER = { kind: OWNER_KIND.CHARACTER, id: "hash-a" };
@@ -25,28 +25,12 @@ beforeEach(() => {
   };
 });
 
-// EVE's image server answers any other size with a 400 and no image, which shows as an avatar that
-// silently never loads.
-describe("the size asked of EVE's image server", () => {
-  it("is a size the server serves", () => {
-    for (const pixels of [1, 18, 24, 32, 48, 64, 200, 4000]) {
-      expect([32, 64, 128, 256, 512, 1024]).toContain(eveImageSize(pixels));
-    }
-  });
-
-  it("never asks for less than what is drawn", () => {
-    expect(eveImageSize(36)).toBe(64);
-    expect(eveImageSize(48)).toBe(64);
-    expect(eveImageSize(64)).toBe(64);
-  });
-
-  it("puts a servable size in the url", () => {
+describe("an owner", () => {
+  it("is drawn at the size it is shown at", () => {
     expect(ownerImageUrl(CHARACTER, 36)).toContain("size=64");
     expect(ownerImageUrl(CORPORATION, 36)).toContain("size=64");
   });
-});
 
-describe("an owner", () => {
   it("is drawn from the character's id, not the hash it is held by", () => {
     expect(ownerImageUrl(CHARACTER)).toBe(
       "https://images.evetech.net/characters/2114000001/portrait?size=32",

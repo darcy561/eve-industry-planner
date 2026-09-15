@@ -1,6 +1,7 @@
-import { Avatar, Checkbox, Typography, Grid } from "@mui/material";
+import { Checkbox, Typography, Grid } from "@mui/material";
 
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
+import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
 
 export function ImportFittingItemRow({ updateImportedItemList, item, index }) {
   if (!item.buildable) return null;
@@ -17,11 +18,11 @@ export function ImportFittingItemRow({ updateImportedItemList, item, index }) {
           justifyContent: "center",
         }}
       >
-        <Avatar
-          src={`https://images.evetech.net/types/${item.itemID}/icon?size=32`}
+        <EveImageAvatar
+          type={item.itemID}
           alt={item.itemName}
+          size={32}
           variant="square"
-          sx={{ height: 32, width: 32 }}
         />
       </Grid>
       <Grid
