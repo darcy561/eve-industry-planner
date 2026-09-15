@@ -45,27 +45,27 @@ func asAccount(t *testing.T, accountID, path string) *http.Request {
 func seedFigures(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, accountID string, amount float64) {
 	t.Helper()
 	month := models.TimelineMonthBucket{
-		ID:     accountID + "|34|2026-08",
-		Owner:  models.AccountOwner(accountID),
-		TypeID: 34,
-		Year:   2026,
-		Month:  8,
+		ID:               accountID + "|34|2026-08",
+		Owner:            models.AccountOwner(accountID),
+		TypeID:           34,
+		Year:             2026,
+		Month:            8,
+		SalesTotal:       amount,
+		JobCostTotal:     amount / 2,
+		ProfitLoss:       amount / 2,
+		ContributingRows: 1,
 	}
-	month.SalesTotal = amount
-	month.JobCostTotal = amount / 2
-	month.ProfitLoss = amount / 2
-	month.ContributingRows = 1
 	if _, err := mongo.StatisticsTimeline.UpsertStructPreservingMeta(ctx, month, month.ID); err != nil {
 		t.Fatalf("seed month for %s: %v", accountID, err)
 	}
 
 	totals := models.ProductionTotalsRow{
-		ID:     accountID + "|34",
-		Owner:  models.AccountOwner(accountID),
-		TypeID: 34,
+		ID:         accountID + "|34",
+		Owner:      models.AccountOwner(accountID),
+		TypeID:     34,
+		TotalJobs:  1,
+		SalesTotal: amount,
 	}
-	totals.TotalJobs = 1
-	totals.SalesTotal = amount
 	if _, err := mongo.StatisticsTotals.UpsertStructPreservingMeta(ctx, totals, totals.ID); err != nil {
 		t.Fatalf("seed totals for %s: %v", accountID, err)
 	}
@@ -222,12 +222,12 @@ func TestLive_aSharedPlannerIsReachedByItsMembers(t *testing.T) {
 	// Figures owned by the planner rather than by either account, written from the
 	// model so the stored shape is the one the read decodes.
 	totals := models.ProductionTotalsRow{
-		ID:     eipmongo.ProductionTotalsDocumentID(sharedOwner, 34),
-		Owner:  sharedOwner,
-		TypeID: 34,
+		ID:         eipmongo.ProductionTotalsDocumentID(sharedOwner, 34),
+		Owner:      sharedOwner,
+		TypeID:     34,
+		TotalJobs:  1,
+		SalesTotal: 123456.0,
 	}
-	totals.TotalJobs = 1
-	totals.SalesTotal = 123456.0
 	if _, err := mongo.StatisticsTotals.UpsertStructPreservingMeta(ctx, totals, totals.ID); err != nil {
 		t.Fatalf("seed planner figures: %v", err)
 	}

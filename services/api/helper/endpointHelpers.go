@@ -36,8 +36,7 @@ func DecodeJSONOrBadRequest(
 			metrics.Error("invalid_json")
 		}
 		detail := map[string]any{"reason": err.Error()}
-		var jsonErr *JSONRequestError
-		if errors.As(err, &jsonErr) {
+		if jsonErr, ok := errors.AsType[*JSONRequestError](err); ok {
 			if jsonErr.Detail != "" {
 				detail["reason"] = jsonErr.Detail
 			}

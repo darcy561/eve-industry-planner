@@ -33,7 +33,7 @@ func RunSdeVersion() error {
 		return nil
 	}
 
-	out := map[string]interface{}{
+	out := map[string]any{
 		"backend": backend.Kind(),
 		"live":    version,
 	}
@@ -86,7 +86,7 @@ func RunSdeVersionHistory() error {
 		return previous[i].Directory > previous[j].Directory
 	})
 
-	out := map[string]interface{}{
+	out := map[string]any{
 		"backend":           backend.Kind(),
 		"previous_versions": previous,
 	}

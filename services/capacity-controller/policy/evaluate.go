@@ -4,6 +4,7 @@ package policy
 import (
 	"eve-industry-planner/shared/queuescale"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -334,9 +335,9 @@ func pickCordonVictim(backends []cluster.BackendState) string {
 	if best >= 0 {
 		return backends[best].ContainerID
 	}
-	for i := len(backends) - 1; i >= 0; i-- {
-		if backends[i].ContainerID != "" {
-			return backends[i].ContainerID
+	for _, b := range slices.Backward(backends) {
+		if b.ContainerID != "" {
+			return b.ContainerID
 		}
 	}
 	return ""

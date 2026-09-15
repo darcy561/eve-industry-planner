@@ -4,6 +4,8 @@ package clusterfake
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 
 	"eve-industry-planner/capacity-controller/cluster"
@@ -118,21 +120,10 @@ func cloneState(s cluster.State) cluster.State {
 	out.Services = make(map[cluster.Service]cluster.ServiceState, len(s.Services))
 	for k, v := range s.Services {
 		v2 := v
-		if v.Backends != nil {
-			v2.Backends = append([]cluster.BackendState(nil), v.Backends...)
-		}
-		if v.QueuePending != nil {
-			v2.QueuePending = make(map[string]int, len(v.QueuePending))
-			for qk, qv := range v.QueuePending {
-				v2.QueuePending[qk] = qv
-			}
-		}
-		if v.QueueScaleUpPct != nil {
-			v2.QueueScaleUpPct = make(map[string]float64, len(v.QueueScaleUpPct))
-			for qk, qv := range v.QueueScaleUpPct {
-				v2.QueueScaleUpPct[qk] = qv
-			}
-		}
+		// Clone returns nil for a nil source, which is the nil the caller gave us.
+		v2.Backends = slices.Clone(v.Backends)
+		v2.QueuePending = maps.Clone(v.QueuePending)
+		v2.QueueScaleUpPct = maps.Clone(v.QueueScaleUpPct)
 		out.Services[k] = v2
 	}
 	return out

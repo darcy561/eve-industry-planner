@@ -238,6 +238,8 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Per-tab sessions: client stores session_id + refresh_token in sessionStorage (X-Session-ID).
+	// Do not set shared HttpOnly cookies — they would collide across browser tabs.
 	response := SessionBootstrapResponse{
 		Kind:                sessionKindBootstrap,
 		EsiOAuthStorage:     esiOAuthStorageFromUserCloud(userOut.UserCloudAccounts),
@@ -251,9 +253,6 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		ApplicationSettings: loginDocs.Settings,
 		LinkedCharacters:    linkedCharacters,
 	}
-	// Per-tab sessions: client stores session_id + refresh_token in sessionStorage (X-Session-ID).
-	// Do not set shared HttpOnly cookies — they would collide across browser tabs.
-	response.RefreshToken = refreshToken
 	auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
 	auth.SetTenantAffinityCookieAccount(w, r, accountID)
 

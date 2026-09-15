@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ func TestLive_rewriteOwnerScopedIDs_enumeratesAndGatesOnBareIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ownersNeedingScopedIDs: %v", err)
 	}
-	if !containsOwner(owners, owner) {
+	if !slices.Contains(owners, owner) {
 		t.Fatalf("owners = %v, want one holding a bare-id document", owners)
 	}
 	report, err := verifyOwnerScopedIDs(ctx, clients, true)
@@ -58,16 +59,7 @@ func TestLive_rewriteOwnerScopedIDs_enumeratesAndGatesOnBareIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ownersNeedingScopedIDs after the move: %v", err)
 	}
-	if containsOwner(owners, owner) {
+	if slices.Contains(owners, owner) {
 		t.Fatal("an owner with nothing left to move was still enumerated")
 	}
-}
-
-func containsOwner(owners []models.Owner, want models.Owner) bool {
-	for _, owner := range owners {
-		if owner == want {
-			return true
-		}
-	}
-	return false
 }

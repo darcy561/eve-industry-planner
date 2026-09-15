@@ -156,10 +156,7 @@ func runAPIDown(ctx context.Context, obs *Observer, cfg Config) error {
 func startHold(ctx context.Context, cfg Config) *wsHold {
 	soakCtx, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
-	clients := cfg.Clients
-	if clients < 1 {
-		clients = 1
-	}
+	clients := max(cfg.Clients, 1)
 	go func() {
 		// Standardised WS clients: soaklib ProfileHold with Accounts == Clients.
 		done <- soaklib.Run(soakCtx, soaklib.Config{

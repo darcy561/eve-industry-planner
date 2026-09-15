@@ -49,7 +49,7 @@ func RunPurgeWorkerQueues() error {
 		}
 	}
 
-	out := map[string]interface{}{
+	out := map[string]any{
 		"purged":       true,
 		"pattern":      pattern,
 		"keys_deleted": totalDeleted,

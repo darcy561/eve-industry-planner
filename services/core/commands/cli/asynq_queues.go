@@ -71,7 +71,7 @@ func RunWorkerQueues() error {
 		})
 	}
 
-	out := map[string]interface{}{
+	out := map[string]any{
 		"retrieved_at": time.Now().UTC().Format(time.RFC3339),
 		"queue_count":  len(queues),
 		"queues":       queues,

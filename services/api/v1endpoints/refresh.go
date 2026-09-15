@@ -406,8 +406,8 @@ func (a *Handlers) refreshHandler(w http.ResponseWriter, r *http.Request, touchL
 			UserDocument:        userOut,
 			ApplicationSettings: loginDocs.Settings,
 			LinkedCharacters:    linkedCharacters,
+			RefreshToken:        newRefreshToken,
 		}
-		bootstrap.RefreshToken = newRefreshToken
 		auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
 		auth.SetTenantAffinityCookieAccount(w, r, tokenData.AccountID)
 
@@ -434,8 +434,8 @@ func (a *Handlers) refreshHandler(w http.ResponseWriter, r *http.Request, touchL
 		SessionID:         updatedTokenData.SessionID,
 		MainCharacterHash: tokenData.CharacterHash,
 		ReauthRequiredAt:  plannersession.ReauthRequiredAtUnix(updatedTokenData.SessionStart, time.Time{}),
+		RefreshToken:      newRefreshToken,
 	}
-	rotate.RefreshToken = newRefreshToken
 	auth.SetTenantAffinityCookieAccount(w, r, tokenData.AccountID)
 
 	w.Header().Set("Content-Type", "application/json")

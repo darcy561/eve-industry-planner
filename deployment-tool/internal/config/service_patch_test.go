@@ -52,10 +52,8 @@ func TestApplyServiceSpecPatchLabelsEnvMutate(t *testing.T) {
 	eng := enginetest.New(t)
 	var replicas uint64 = 1
 	eng.SetServiceOK("eip_worker", swarmtypes.Service{
-		ID: "worker-id",
-		Meta: swarmtypes.Meta{
-			Version: swarmtypes.Version{Index: 7},
-		},
+		ID:      "worker-id",
+		Version: swarmtypes.Version{Index: 7},
 		Spec: swarmtypes.ServiceSpec{
 			Annotations: swarmtypes.Annotations{
 				Name: "eip_worker",
@@ -137,10 +135,8 @@ func TestApplyServiceSpecPatchMissingContainerSpecWithEnv(t *testing.T) {
 	t.Parallel()
 	eng := enginetest.New(t)
 	eng.SetServiceOK("eip_bare", swarmtypes.Service{
-		ID: "bare-id",
-		Meta: swarmtypes.Meta{
-			Version: swarmtypes.Version{Index: 1},
-		},
+		ID:      "bare-id",
+		Version: swarmtypes.Version{Index: 1},
 		Spec: swarmtypes.ServiceSpec{
 			Annotations: swarmtypes.Annotations{Name: "eip_bare"},
 		},

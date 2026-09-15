@@ -22,8 +22,8 @@ func TestFlowCapacityApply(t *testing.T) {
 	eng := enginetest.New(t)
 	var replicas uint64 = 1
 	eng.SetServiceOK("eip_worker", swarmtypes.Service{
-		ID:   "worker-id",
-		Meta: swarmtypes.Meta{Version: swarmtypes.Version{Index: 3}},
+		ID:      "worker-id",
+		Version: swarmtypes.Version{Index: 3},
 		Spec: swarmtypes.ServiceSpec{
 			Annotations: swarmtypes.Annotations{
 				Name: "eip_worker",
@@ -88,8 +88,8 @@ func TestFlowCapacityUnchanged(t *testing.T) {
 	eng := enginetest.New(t)
 	var replicas uint64 = 2
 	eng.SetServiceOK("eip_worker", swarmtypes.Service{
-		ID:   "worker-id",
-		Meta: swarmtypes.Meta{Version: swarmtypes.Version{Index: 1}},
+		ID:      "worker-id",
+		Version: swarmtypes.Version{Index: 1},
 		Spec: swarmtypes.ServiceSpec{
 			Annotations: swarmtypes.Annotations{
 				Name: "eip_worker",
@@ -133,8 +133,8 @@ func TestFlowTraefikApply(t *testing.T) {
 	eng := enginetest.New(t)
 	ruleKey := "traefik.http.routers.traefik-dashboard.rule"
 	eng.SetServiceOK("eip_traefik", swarmtypes.Service{
-		ID:   "traefik-id",
-		Meta: swarmtypes.Meta{Version: swarmtypes.Version{Index: 5}},
+		ID:      "traefik-id",
+		Version: swarmtypes.Version{Index: 5},
 		Spec: swarmtypes.ServiceSpec{
 			Annotations: swarmtypes.Annotations{
 				Name: "eip_traefik",
@@ -192,8 +192,8 @@ func TestFlowGrafanaApply(t *testing.T) {
 	eng := enginetest.New(t)
 	ruleKey := "traefik.http.routers.grafana.rule"
 	eng.SetServiceOK("eip_grafana", swarmtypes.Service{
-		ID:   "grafana-id",
-		Meta: swarmtypes.Meta{Version: swarmtypes.Version{Index: 2}},
+		ID:      "grafana-id",
+		Version: swarmtypes.Version{Index: 2},
 		Spec: swarmtypes.ServiceSpec{
 			Annotations: swarmtypes.Annotations{
 				Name: "eip_grafana",
@@ -251,8 +251,8 @@ func TestFlowGrafanaApplyDefaultRootURL(t *testing.T) {
 	eng := enginetest.New(t)
 	ruleKey := "traefik.http.routers.grafana.rule"
 	eng.SetServiceOK("eip_grafana", swarmtypes.Service{
-		ID:   "grafana-id",
-		Meta: swarmtypes.Meta{Version: swarmtypes.Version{Index: 2}},
+		ID:      "grafana-id",
+		Version: swarmtypes.Version{Index: 2},
 		Spec: swarmtypes.ServiceSpec{
 			Annotations: swarmtypes.Annotations{
 				Name: "eip_grafana",

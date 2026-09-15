@@ -6,6 +6,7 @@ package natsprop
 
 import (
 	"context"
+	"maps"
 
 	natslib "github.com/nats-io/nats.go"
 	"go.opentelemetry.io/otel"
@@ -99,9 +100,7 @@ func AsynqHeadersForBridge(ctx context.Context, inbound natslib.Header) map[stri
 		return local
 	}
 	// Local wins: the inbound trace context is the one being replaced.
-	for k, v := range local {
-		out[k] = v
-	}
+	maps.Copy(out, local)
 	return out
 }
 

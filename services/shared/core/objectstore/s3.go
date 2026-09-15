@@ -168,8 +168,8 @@ func (b *S3Backend) ListChildNames(ctx context.Context, prefix string) ([]string
 			continue
 		}
 		name := rel
-		if i := strings.IndexByte(rel, '/'); i >= 0 {
-			name = rel[:i]
+		if before, _, ok := strings.Cut(rel, "/"); ok {
+			name = before
 		}
 		if _, ok := seen[name]; ok {
 			continue

@@ -31,7 +31,7 @@ func RunUnlockSdeVersion() error {
 		return fmt.Errorf("failed removing SDE version lock: %w", err)
 	}
 
-	out := map[string]interface{}{
+	out := map[string]any{
 		"backend":          backend.Kind(),
 		"unlocked":         true,
 		"removed_lock":     lock,
