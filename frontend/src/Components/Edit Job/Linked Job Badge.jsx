@@ -1,4 +1,12 @@
-import { Box, Chip, Grid, IconButton, Stack, Typography } from "@mui/material";
+import {
+  Avatar,
+  Box,
+  Chip,
+  Grid,
+  IconButton,
+  Stack,
+  Typography,
+} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import ClearIcon from "@mui/icons-material/Clear";
 import { ParentJobOptions } from "./parentJobOptions";
@@ -11,7 +19,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import { requestEditJobNavigation } from "../../Events/editJobNavigationEvents";
 import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
-import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
+import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
 
 export function LinkedJobBadge(props) {
   const { state, actions } = props;
@@ -79,7 +87,11 @@ export function LinkedJobBadge(props) {
                     label={parent.name}
                     size="large"
                     deleteIcon={jobLockReadOnly ? undefined : <ClearIcon />}
-                    avatar={<EveImageAvatar type={parent.itemID} size={24} />}
+                    avatar={
+                      <Avatar
+                        src={typeImageUrl(parent.itemID, TYPE_IMAGE.ICON, 32)}
+                      />
+                    }
                     clickable
                     onClick={async () => {
                       const navSearch = {};

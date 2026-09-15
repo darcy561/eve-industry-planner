@@ -1,4 +1,5 @@
 import {
+  Avatar,
   Box,
   Card,
   Chip,
@@ -9,7 +10,7 @@ import {
 import ItemMarketActions from "../../../Styled Components/Item/marketActions";
 import { reprocessingItemTypes } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
-import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
+import { TYPE_IMAGE, typeImageUrl } from "../../../Functions/Shared/eveImage";
 
 export default function MineralCard({
   mineralKey,
@@ -86,7 +87,10 @@ export default function MineralCard({
         )}
         {/* Mineral Icon */}
         <Tooltip title={`${matchedName} icon`} arrow placement="top">
-          <EveImageAvatar type={mineralKey} size={40} />
+          <Avatar
+            src={typeImageUrl(mineralKey, TYPE_IMAGE.ICON, 32)}
+            sx={{ width: 40, height: 40, flexShrink: 0 }}
+          />
         </Tooltip>
         {/* Mineral Info */}
         <Box
@@ -243,7 +247,10 @@ export default function MineralCard({
       {/* Mineral Icon */}
       <Tooltip title={`${matchedName} icon`} arrow placement="top">
         <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
-          <EveImageAvatar type={mineralKey} size={48} />
+          <Avatar
+            src={typeImageUrl(mineralKey, TYPE_IMAGE.ICON, 32)}
+            sx={{ width: 48, height: 48 }}
+          />
         </Box>
       </Tooltip>
       {/* Mineral Name */}

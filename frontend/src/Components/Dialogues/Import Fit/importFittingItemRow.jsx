@@ -1,7 +1,7 @@
-import { Checkbox, Typography, Grid } from "@mui/material";
+import { Avatar, Checkbox, Typography, Grid } from "@mui/material";
 
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
-import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
+import { TYPE_IMAGE, typeImageUrl } from "../../../Functions/Shared/eveImage";
 
 export function ImportFittingItemRow({ updateImportedItemList, item, index }) {
   if (!item.buildable) return null;
@@ -18,11 +18,11 @@ export function ImportFittingItemRow({ updateImportedItemList, item, index }) {
           justifyContent: "center",
         }}
       >
-        <EveImageAvatar
-          type={item.itemID}
+        <Avatar
+          src={typeImageUrl(item.itemID, TYPE_IMAGE.ICON, 32)}
           alt={item.itemName}
-          size={32}
           variant="square"
+          sx={{ height: 32, width: 32 }}
         />
       </Grid>
       <Grid

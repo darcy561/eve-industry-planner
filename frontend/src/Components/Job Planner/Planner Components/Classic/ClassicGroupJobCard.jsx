@@ -1,4 +1,5 @@
 import {
+  Avatar,
   AvatarGroup,
   Box,
   Checkbox,
@@ -23,7 +24,10 @@ import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { useGroupLockReadOnly } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 import { lockReasonText } from "../../../DocumentLock/LockGatedTooltip";
-import EveImageAvatar from "../../../../Styled Components/Avatar/EveImageAvatar";
+import {
+  TYPE_IMAGE,
+  typeImageUrl,
+} from "../../../../Functions/Shared/eveImage";
 
 export function ClassicGroupJobCard({ group }) {
   const groupLockReadOnly = useGroupLockReadOnly(group.groupID);
@@ -187,11 +191,16 @@ export function ClassicGroupJobCard({ group }) {
             <AvatarGroup max={4}>
               {[...group.includedTypeIDs].map((typeID) => {
                 return (
-                  <EveImageAvatar
+                  <Avatar
                     key={typeID}
-                    type={typeID}
-                    size={{ xs: 24, sm: 32 }}
-                    style={{ border: "none" }}
+                    src={typeImageUrl(typeID, TYPE_IMAGE.ICON, 64)}
+                    style={{
+                      border: "none",
+                    }}
+                    sx={{
+                      height: { xs: 24, sm: 32 },
+                      width: { xs: 24, sm: 32 },
+                    }}
                   />
                 );
               })}

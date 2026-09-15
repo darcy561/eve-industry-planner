@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
-import { Box, Divider, Typography } from "@mui/material";
+import { Avatar, Box, Divider, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import useUsersStore from "../../../Zustand/usersStore";
 import {
@@ -9,7 +9,7 @@ import {
 } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import { getJobTypeAccentColour } from "../../../Functions/Helper/jobTypeDividerColour";
-import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
+import { TYPE_IMAGE, typeImageUrl } from "../../../Functions/Shared/eveImage";
 
 export default function ItemBreakdownFrame({ outputJob = null }) {
   const theme = useTheme();
@@ -84,11 +84,11 @@ export default function ItemBreakdownFrame({ outputJob = null }) {
       <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           {outputJob?.itemID != null && (
-            <EveImageAvatar
-              type={outputJob.itemID}
+            <Avatar
+              src={typeImageUrl(outputJob.itemID, TYPE_IMAGE.ICON, 64)}
               alt={outputJob?.name ?? ""}
-              size={40}
               variant="square"
+              sx={{ width: 40, height: 40, flexShrink: 0 }}
             />
           )}
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>

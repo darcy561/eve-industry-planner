@@ -1,8 +1,8 @@
-import { Typography, Grid, Checkbox, Tooltip } from "@mui/material";
+import { Avatar, Typography, Grid, Checkbox, Tooltip } from "@mui/material";
 
 import { LARGE_TEXT_FORMAT } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
-import EveImageAvatar from "../../../Styled Components/Avatar/EveImageAvatar";
+import { TYPE_IMAGE, typeImageUrl } from "../../../Functions/Shared/eveImage";
 
 export function ShoppingListItem_ShoppingListDialogue({
   item,
@@ -63,7 +63,12 @@ export function ShoppingListItem_ShoppingListDialogue({
           sm: 1,
         }}
       >
-        <EveImageAvatar type={typeID} alt={name} size={32} variant="square" />
+        <Avatar
+          src={typeImageUrl(typeID, TYPE_IMAGE.ICON, 32)}
+          alt={name}
+          variant="square"
+          sx={{ height: 32, width: 32 }}
+        />
       </Grid>
       <Grid
         size={{
