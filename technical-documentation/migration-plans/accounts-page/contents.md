@@ -19,13 +19,13 @@ on it, and the two surfaces it grows.
 
 ## Does not own
 
-- **The app-shell design itself** → [app-shell-rollout/plan.md](../app-shell-rollout/plan.md).
-  What a panel, a card or a chosen state looks like is settled there; this project
-  builds the page out of those pieces and adds an atom only where a second screen
-  needs one.
-- **Converting other screens** onto the shared surface → the same project. This
-  one converts the Accounts page because it is redesigning it; the Settings tabs,
-  the first-login page shell and everything else stay with the rollout.
+- **The app-shell design itself** →
+  [frontend/components/contents.md](../../frontend/components/contents.md). What a
+  panel, a card or a chosen state looks like is settled there; this project builds
+  the page out of those pieces and adds an atom only where a second screen needs one.
+- **Converting other screens** onto the shared surface. This one converts the
+  Accounts page because it is redesigning it; the Settings tabs, the first-login
+  page shell and everything else convert when the design reaches them.
 - **Planners, membership, invites and the owner block** →
   [shared-planners/plan.md](../shared-planners/plan.md). That project owns what a
   planner *is*, who is in one and what grants access. This project owns only how
@@ -46,7 +46,7 @@ on it, and the two surfaces it grows.
 |------------|------|
 | Understand what is wrong with the page today and why a redesign rather than a conversion | [plan.md](./plan.md) § Why this is its own project |
 | See what the page is made of now, and what each piece carries of its own | [plan.md](./plan.md) § Starting position |
-| Know where the boundary with the app-shell rollout sits | [plan.md](./plan.md) § What this project takes from the rollout |
+| Know which shared atoms this project uses and which it added | [plan.md](./plan.md) § What this project takes from the component layer |
 | See the page's layout and the sections on it | [plan.md](./plan.md) § The page |
 | Understand how a linked character is presented | [plan.md](./plan.md) § The character row |
 | Add an action to a character's menu | [plan.md](./plan.md) § The action slot |

@@ -17,26 +17,21 @@ features behind them can land one at a time without the page being redrawn again
 
 ## Why this is its own project
 
-[app-shell-rollout](../app-shell-rollout/plan.md) already owns converting screens onto the shared
-surface, and already names this page's `AdditionalAccounts` as the next thing to convert. This work
-does not fit inside it, by that project's own boundary:
-
-> It does not convert a screen the design has not reached, and it does not redesign anything on the
-> way past. A screen either draws the shared surface or it draws the old one; a third variant
-> invented during a conversion is the failure this project exists to undo.
+Moving a screen onto the app-shell design is ordinary work: a screen composes the shared components
+instead of restyling a surface, and behaviour is preserved exactly. That is a conversion, and it is
+not what this page needs.
 
 What is wanted here is a conversion **and** a redesign **and** two sections that do not exist. A
 conversion preserves behaviour exactly; this changes what the page shows and what a reader can do
-from it. Running it as a rollout slice would either smuggle a redesign through a project that forbids
-one, or stall the redesign behind a conversion it does not need.
+from it. Running the two together inside one slice would either smuggle a redesign through as a
+conversion, or stall the redesign behind a conversion it does not need.
 
-So the split is: **the rollout keeps the mechanical conversions** — the remaining first-login screens,
-the Settings tabs, everything the design reaches later — and **this project owns the Accounts page**,
-including converting it, because a redesign converts it as a side effect.
+So the split is: **this project owns the Accounts page**, including converting it, because a redesign
+converts it as a side effect. Screens the design reaches later convert on their own terms.
 
-The two projects meet at the component layer. This project may **add** an atom to
-`Styled Components`, under the rollout's rule that a shape earns one when a second screen needs it,
-and the rollout's § The component layer table is where such an atom is recorded on promote.
+Where this project needs a shape the component layer does not carry, it **adds** an atom to
+`Styled Components` under the layer's own rule — a shape earns an atom when a second screen needs it
+— and documents it in [frontend/components/](../../frontend/components/contents.md) on promote.
 
 ## Starting position
 
@@ -71,15 +66,17 @@ alpha 0.2, background 0.72/0.9, and a blur it did not have). So it was a drifted
 surface standing in for a *panel*, which is why it read as nearly right. Moving it onto the section
 panel at Stage B was therefore a visible change rather than a no-op.
 
-The rollout had recorded it as a copy of the panel surface. That attribution was wrong, and following
-it would have consolidated onto the wrong target.
+It had been recorded elsewhere as a copy of the panel surface. That attribution was wrong, and
+following it would have consolidated onto the wrong target.
 
 **The page had no room for what it needs to say.** A linked character was a row with a name and a
 remove button: nowhere to act on a character, nothing about what the application holds for it, and no
 mention of planners at all — while the account may already reach several. Stages D and E are what
 that observation becomes.
 
-## What this project takes from the rollout
+## What this project takes from the component layer
+
+The layer itself is [frontend/components/](../../frontend/components/contents.md).
 
 Used as they are, not rebuilt: `AppShellPanel`, `SelectableCard`, `InsetSurface`, `StatusChip`,
 `AppShellSelect`, `Figure` and the `appShell` sx helpers under
@@ -371,9 +368,8 @@ The whole surface is untested today: `AdditionalAccounts`, `AccountEntry`, `Acco
 `CitadelNamesCommunityPanel` and all four Custom Structures components have no tests at all, and the
 SSO popup import flow in `AdditionalAccounts` is the most intricate thing on the page.
 
-The rollout's rule applies — *take the tests first where there are none* — so each stage writes the
-tests for what it is about to change before changing it, colocated beside the module, with anything
-reusable in [`frontend/src/tests/`](../../../frontend/src/tests/).
+Tests come first where there are none, so each stage writes the tests for what it is about to change
+before changing it, colocated beside the module, with anything reusable in [`frontend/src/tests/`](../../../frontend/src/tests/).
 
 Stage B is the one where this is not optional: deleting a branch from six components with no coverage
 is how a working screen is quietly lost.

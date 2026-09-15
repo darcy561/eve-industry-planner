@@ -87,18 +87,17 @@ is recorded there, not here.
   $ grep -rn 'planning-stage-panels/' --include='*.md' technical-documentation/ \
       | grep -v '^technical-documentation/migration-plans/planning-stage-panels/'
   technical-documentation/migration-plans/contents.md:29
-  technical-documentation/migration-plans/app-shell-rollout/contents.md:20
   technical-documentation/migration-plans/shared-planners/plan.md:2121
   technical-documentation/migration-plans/effect-state-sync/contents.md:27,29
   technical-documentation/migration-plans/job-document-drafts/contents.md:60
   technical-documentation/migration-plans/job-document-drafts/plan.md:749
   ```
 
-  Four **active** project folders cite this one directly (`app-shell-rollout`, `shared-planners`,
-  `job-document-drafts`, and `effect-state-sync`, which is itself closed and kept only because
-  `job-document-drafts` cites it). Per `migration-plans/documentation-rules.md` § A promoted project
+  Three **active** project folders cite this one directly (`shared-planners`, `job-document-drafts`,
+  and `effect-state-sync`, which is itself closed and kept only because `job-document-drafts` cites
+  it). Per `migration-plans/documentation-rules.md` § A promoted project
   folder is deleted, not archived, an active citation is a reason to keep the folder — deleting it now
   would leave those citations pointing at nothing. Each citing project's own reference should be
   checked against what has actually promoted (this project's `contents.md` row is not itself a reason
-  to keep the folder, but these other four are) before the folder goes.
+  to keep the folder, but these other three are) before the folder goes.
 - The custom-structure proposal still has no destination project folder — see § Not promoted.

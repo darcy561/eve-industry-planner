@@ -90,6 +90,30 @@ its own state says open, as the assets, shopping list and price entry dialogues 
 The cost of that rule is the closing transition: a dialogue disappears at once rather than fading.
 Opening still animates.
 
+## The app-shell surface has an owner
+
+A screen on the app-shell design composes `AppShellPanel`, `SectionPanel`, `SelectableCard`,
+`ActionCard` or `InsetSurface` rather than reaching for the sx underneath them —
+`appShellSetupSectionPaperSx`, `appShellNestedCardSx`, `appShellInsetSurfaceSx` under
+[`Context/appShell`](../../frontend/src/Context/appShell). Each of those three sx values has a
+component built on it; a screen naming the sx directly has the surface without the component that
+owns it, which is how a header or a card comes to be redrawn beside one that already exists rather
+than composed from it. The audit is one command:
+
+```
+grep -rEn "appShell(SetupSectionPaper|NestedCard|InsetSurface)Sx" --include=*.jsx frontend/src/Components/
+```
+
+A page frame is the one legitimate exception: `AppShellPanel` wraps its children in a title header, an
+error boundary and loading states, which a frame holding a stepper and its navigation has no use for
+— a frame takes the sx on a plain outlined `Paper` instead.
+
+Not every `Context/appShell` import is a candidate: the module also holds form-control and picker
+props — `getAppShellPickerSlotProps` and the like — which have no component above them and are meant
+to be imported directly.
+
+Component reference → [`components/contents.md`](./components/contents.md).
+
 ## Changing the job being edited
 
 A component on the Edit Job page never writes into `state.activeJob`. It says what changed and the

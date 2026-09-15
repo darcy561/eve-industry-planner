@@ -10,7 +10,10 @@ reads an item, a recipe or an ore yield through, the group page's scheduler char
 group name editing and job dependency tree, the Edit Job page's floating
 step-navigation controls and parent-job linking, the job planner's job status
 accordions, the reprocessing settings panel, the dashboard's watchlist and
-tutorial-card row, and the shared price history and price entry surfaces.
+tutorial-card row, the shared price history and price entry surfaces, and the
+app-shell component layer a panel is built from — its panel and card surfaces,
+figure and status atoms, labelled fields, scrolling tables and item market
+actions.
 
 ## Does not own
 
@@ -38,4 +41,5 @@ tutorial-card row, and the shared price history and price entry surfaces.
 | Change the reprocessing settings panel | [reprocessing/contents.md](./reprocessing/contents.md) |
 | Change the price history chart or the price entry dialogue | [pricing/contents.md](./pricing/contents.md) |
 | Change the dashboard's watchlist panel or its tutorial-card row | [dashboard/contents.md](./dashboard/contents.md) |
+| Change a shared panel, card, figure, field or table atom, or an item's market actions | [components/contents.md](./components/contents.md) |
 | Frontend test entrypoints / depth | [../testing/frontend/contents.md](../testing/frontend/contents.md) |
