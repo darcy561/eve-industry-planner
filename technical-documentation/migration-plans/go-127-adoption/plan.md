@@ -1,6 +1,6 @@
 # Go 1.27 adoption — plan
 
-**Status:** Phase 1 (docs) complete; no track work started. Re-measured against the tree at this update — Tracks A, B and C are all at zero. Track C's backlog has fallen from 47 files to 26 on its own as other work touched those areas, and the Redis seam Track B was waiting on is answered below.
+**Status:** Tracks A and B at zero. Track C has landed everything that needs no decision: only 4 files remain, all waiting on Track A or its Phase A3. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
 **Code in scope:** [`services/`](../../../services/) (all areas), [`testing/`](../../../testing/), [`deployment-tool/`](../../../deployment-tool/)
 **Live SoT (until promote):** [backend/core/core.md](../../backend/core/core.md), [backend/api/contents.md](../../backend/api/contents.md), [technical-rules.md](../../technical-rules.md) § Prefer modern Go
 
@@ -43,7 +43,7 @@ Two consequences that the tracks below depend on:
 
 Measured behaviour differences, the retag rule, and the house-options set: [json-semantics.md](./json-semantics.md). Read that before starting any phase here.
 
-Surface, re-counted at this update: 151 files under `services/` import `encoding/json` (45 shared, 31 websocket, 27 api, 24 core, 20 worker, 2 capacity-controller, 1 ws-router, 1 cmd); 326 `,omitempty` tags against 9 `omitzero`; six custom marshaler methods; one production `DisallowUnknownFields` site. There is **no** shared JSON helper today — every call site imports the stdlib directly. The surface grows with ordinary work, so recount for the area you open rather than working from these numbers.
+Surface, re-counted at this update: 160 files under `services/` import `encoding/json` (48 shared, 32 websocket, 31 api, 24 core, 21 worker, 2 capacity-controller, 1 ws-router, 1 cmd); 269 `,omitempty` in `json` tags against 7 `omitzero`; six custom marshaler methods; one production `DisallowUnknownFields` site. The `bson` half carries a further 90 `,omitempty`, which A1 must not touch. There is **no** shared JSON helper today — every call site imports the stdlib directly. The surface grows with ordinary work, so recount for the area you open rather than working from these numbers.
 
 By Go type, roughly two thirds of the `,omitempty` tags are on the scalars and pointers A1 can retag; the rest are on the maps, slices and non-pointer `time.Time` it must leave alone. They concentrate: `api/v1endpoints` (16 files) and `shared/models` (14 files) carry most of them.
 
@@ -73,7 +73,7 @@ Done when: every scalar `omitempty` in `shared/models` and the cross-process pay
 
 ### Phase A2 — `shared/jsonwire`
 
-One shared package owning the house options (`FormatNilSliceAsNull`, `FormatNilMapAsNull`, `EscapeForHTML`, `Deterministic`) plus thin `Marshal` / `Unmarshal` / encode / decode wrappers. This is the one-SoT home the codebase lacks; the options must not be re-declared per call site.
+One shared package owning the house options (`FormatNilSliceAsNull`, `FormatNilMapAsNull`, `EscapeForHTML`, `Deterministic`) plus thin `Marshal` / `Unmarshal` / encode / decode wrappers. `FormatNilSliceAsNull` is **transitional**: it holds output byte-identical while A3 moves call sites, and comes off for array-valued results at A4 — see § Decisions taken. This is the one-SoT home the codebase lacks; the options must not be re-declared per call site.
 
 Done when: the package exists with tests proving byte-identical output to v1 for the representative documents, and its options are the only place the policy is written down.
 
@@ -146,17 +146,37 @@ against a stopped miniredis, and it is the largest single item in the suite. The
 leads with are ceilings that rarely fire, so they cost little today. `changestream` is different again:
 its 5s is a literal sleep in a live-Mongo test, which this project's non-goals exclude.
 
-Done when: both unblocked targets run under `testing/synctest`, and the Redis seam decision is recorded here either as scheduled or as declined.
+Done when: both unblocked targets run under `testing/synctest`, and the `redisfake` bubble constructor exists with the three blocked targets moved onto it.
 
 ## Track C — `go fix` sweep
 
-`go fix -diff ./...` at the new language version reports `errors.As` → `errors.AsType`, `interface{}` → `any`, `wg.Go`, `slices` / `maps` adoption, `for range n`, `max()`, plus gofmt alignment.
+`go fix -diff ./...` at the new language version reports `errors.As` → `errors.AsType`, `interface{}` → `any`, `slices` / `maps` adoption, `strings.Cut`, `max()`, plus composite-literal folding, promoted fields in struct literals, and gofmt alignment. The `wg.Go` and `for range n` fixers no longer match anywhere in the tree.
 
-By area, re-counted at this update — **26 files**: `services/` 17 (api 7, core 5, shared 3, capacity-controller 2), separate module `testing/` 7, `deployment-tool/` 2. `worker`, `websocket` and `ws-router` are now clean.
+By area, re-counted at this update — **4 files**, all in `services/` (api 3, shared 1) and all waiting on a Track A decision. Every other area is clear: `capacity-controller`, `core`, `worker`, `websocket`, `ws-router`, and the separate `testing/` and `deployment-tool/` modules.
 
 The count is a snapshot, not an inventory: it falls on its own as areas are touched under the scoped `go fix` rule. Re-run the command for the area you are about to open rather than working from these numbers.
 
 Land **per area, scoped to that area**, per [technical-rules.md](../../technical-rules.md) § Prefer modern Go — not as one sweeping commit, and not widened into packages a slice does not otherwise touch. Where an area is already being opened by Track A Phase A3, its `go fix` slice should land first so the JSON change reviews clean.
+
+Both remaining groups are **not** mechanical and must not ride a sweep:
+
+| Where | Why it needs a decision |
+|-------|-------------------------|
+| [`shared/core/sde/files.go`](../../../services/shared/core/sde/files.go), [`api/staticdata/endpoints.go`](../../../services/api/staticdata/endpoints.go), [`api/v1endpoints/session_types.go`](../../../services/api/v1endpoints/session_types.go) | The fixer drops `,omitempty` from two `time.Time` fields and two struct fields. Measured inert under both engines for these four fields, so it is safe whenever it is taken — but its inertness is a property of the *referenced type*, not of the tag (see [json-semantics.md](./json-semantics.md) § The retag rule), and a mechanical sweep does not check that property. It is a wire tag either way, so Track A takes all of them in one place rather than one file at a time. Note it runs *opposite* to Phase A1, which retags rather than removes. |
+| [`api/helper/json.go`](../../../services/api/helper/json.go) | The proposed `errors.AsType[*json.SyntaxError]` / `[*json.UnmarshalTypeError]` rewrites land on the exact lines Phase A3 replaces with `*jsontext.SyntacticError` and `*json.SemanticError`. Leave this file to A3. The sibling [`endpointHelpers.go`](../../../services/api/helper/endpointHelpers.go) match survives v2 and has already landed. |
+
+A third group has landed — `authenticate.go`, `refresh.go` and `statistics/live_scope_test.go`, recorded
+in [overlay.md](./overlay.md) § `api`. It leaves a caution that outlives it: **composite-literal folding
+does not check whether the target field is already set in the literal.** In `authenticate.go` it folded
+in a duplicate `RefreshToken` and the package stopped compiling. Any future area whose `go fix` output
+includes that fixer needs a by-hand pass, not a blind sweep.
+
+The two `deployment-tool/` files have landed — see [overlay.md](./overlay.md) § `deployment-tool`.
+They turned out to be a **language** change, not the dependency change they were first read as: Go 1.27
+permits a promoted field in a struct literal, so `Meta: swarmtypes.Meta{Version: …}` becomes a direct
+`Version:`. Moby's `swarm.Service` still embeds `Meta` unchanged. Measured: the rewritten literal is
+rejected at language version 1.26 with *"use of promoted field Meta.Version in struct literal requires
+go1.27 or later"* and accepted at 1.27.
 
 Done when: `go fix -diff` is empty for every area, or a remaining suggestion is recorded here with the reason it was waived.
 
@@ -165,8 +185,21 @@ Done when: `go fix -diff` is empty for every area, or a remaining suggestion is 
 | # | Decision | Needed by |
 |---|----------|-----------|
 | 1 | Is v2's read-side strictness (duplicate names, case sensitivity, UTF-8 validation) worth the migration at all, given the measured ~13% unmarshal gain and no marshal gain? | Before A1 |
-| 2 | Does the frontend contract keep `null` for empty collections, or move to `[]`? Governs whether `FormatNilSliceAsNull` stays on permanently. The SPA collapses the two on the way in — its `Job` builds `[]` where the API sends `null` — so the choice is about what the wire says, not about what any current reader needs. | A4 |
-| 3 | Is the Redis seam worth building for test determinism alone? The transport half is settled — it works, costs a second constructor in `testing/redisfake`, and needs no fake lease behind `shared/redis` (see Track B). What is left is whether ~10s of the core suite and a deterministic failure justify the constructor. | Track B |
+
+## Decisions taken
+
+**A result that is a JSON array is emitted as `[]` when empty, never `null`.** This is v2's default, so
+`FormatNilSliceAsNull` is **not** carried permanently for array-valued results — A2's house options
+carry it only as long as A3 needs byte-identical output while call sites move. Nothing in the SPA
+distinguished the two: its `Job` already builds `[]` where the API sends `null`, and no reader compares
+a collection against `null`. The decision is about what the wire honestly says. It does not reach
+scalars, objects, or genuinely nullable fields, where `null` stays meaningful.
+
+**The Redis seam is being built.** A second constructor in [`testing/redisfake`](../../../testing/redisfake/)
+establishing server, client and first connection before the bubble opens, pinned to `PoolSize: 1`. The
+justification is deterministic failure, not wall clock — see Track B, where the measurements show the
+two lead targets are cheap ceilings and the real 4.97s item is a dial timeout the seam does not address.
+No fake lease behind `shared/redis`.
 
 ## Done-when (project)
 

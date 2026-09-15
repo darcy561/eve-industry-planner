@@ -36,6 +36,36 @@ v2: {"schemaVersion":0,"displayOnPlanner":false,…,"parentJobs":[],…,"build":
 | 4 | Map keys not sorted | Does not affect the ETag in [`api/helper/httpcache.go`](../../../services/api/helper/httpcache.go) — it re-parses and canonicalises with sorted keys before hashing. Any shape change does churn every ETag once on deploy. |
 | 5 | `time.Duration` has no default representation and is a **hard marshal error** | No `time.Duration` field carries a json tag today. Relevant before one is added: the `format:` tag that fixes it is still gated behind `ExperimentalSupportFormatTag`. |
 
+## What the strictness would actually reject — measured
+
+The read-side rules are the reason to migrate, so the question is what they would break. Measured
+against this repo's own models and its recorded payloads:
+
+| Check | Result |
+|-------|--------|
+| `json` tags scanned | 1,082 fields under `services/` that carry a wire name — of 1,122 json-tagged fields in all, the other 40 being 35 `json:"-"` and 5 name-less `,inline` tags that the case rule cannot reach |
+| Two tags in one struct differing only by case | **0** — nothing changes meaning under exact matching |
+| Tags carrying upper-case characters | 452, i.e. the surface the case rule can reach |
+| Recorded payloads decoded under v2 | 212 (every `.json` in `services/`, `testing/`, `frontend/src`, plus every JSON literal embedded in their sources) |
+| Duplicate object names | **0** |
+| Invalid UTF-8 | **0** |
+| Payload keys matching a tag only case-insensitively | **0** |
+
+The request-body boundary was checked separately because it is the one carrying
+`DisallowUnknownFields`, where a case mismatch becomes a 400 rather than a silently ignored field: 40
+tags across the 26 request structs, checked against every case variant appearing in the SPA. Four
+candidates surfaced and all four were false positives — JSX label text (`Setup Count:`) and an error
+message, not object keys.
+
+The detectors were validated against deliberately bad input — a duplicate name, a case-shifted key and
+an invalid UTF-8 byte — and all three fired, so the zeroes above are evidence rather than a silent
+harness.
+
+**Limit of this measurement.** The corpus is recorded test data and fixtures, not live traffic, and it
+does not include live ESI responses. ESI is the only producer here we do not control, so it is the one
+place a case-only difference could still be hiding; everything inside the stack is written by code in
+this repository.
+
 ## Differences that change acceptance
 
 Reading input that v1 accepted: duplicate object names now error (v1 took last-wins), lone surrogates now error (v1 substituted U+FFFD), and `JOBSTATUS` no longer matches a `jobStatus` tag.
@@ -60,6 +90,23 @@ zero struct   omitempty v1: {"t":"0001-01-01T00:00:00Z"}
 
 Safe to retag: `int`, `float`, `bool`, `string`, pointer.
 
+Two `bson` tags had already made this mistake and have been corrected. `JobMetaData.ArchivedAt` and
+`.DeletedAt` carried `bson:"…,omitzero"`, which the driver does not parse, so every job document was
+written with a year-1 date instead of an omitted field:
+
+```
+bson omitzero  -> {"archivedAt":{"$date":{"$numberLong":"-62135596800000"}}}
+bson omitempty -> {}
+```
+
+[`backfill_archived_at.go`](../../../services/core/commands/backfill_archived_at.go) already filtered
+for that zero time, so nothing read a wrong answer, but the stored dates were meaningless. The `bson`
+halves are now `,omitempty`, the `json` halves keep `omitzero`, and `TestNoBSONTagClaimsOmitzero` in
+[`shared/mongo/bson_tag_options_test.go`](../../../services/shared/mongo/bson_tag_options_test.go)
+fails if the pattern returns. It sweeps the module source rather than reflecting over a list of
+models, because the invariant is that no `bson` tag anywhere says this — a list only covers the models
+someone remembered to add, which is how this one survived.
+
 `omitzero` is a **JSON** tag option. The BSON driver (v2.8.0) does not read it — its tag parser knows
 `omitempty` only. A field's two tags are usually written as one pair, so a retag must change the
 `json` half alone and leave `bson:"…,omitempty"` where it is. Changing the BSON half instead silently
@@ -71,6 +118,21 @@ drops the option, and on a job document that changes what the upsert writes.
 |------|-------------|------------|
 | Empty-but-non-nil slice / map | omits | keeps `[]` / `{}` |
 | Zero `time.Time` | keeps `"0001-01-01T00:00:00Z"` | omits |
+
+A struct field is the one case where `omitempty` diverges by **engine** rather than by tag. Because v2
+reads "empty" off the marshalled output, a struct whose every field is itself omitted marshals to `{}`
+and is then dropped; v1 never omits a struct. Measured:
+
+```
+type AllOmitzero struct { A int `json:"a,omitzero"`; B string `json:"b,omitzero"` }
+type NeverEmpty  struct { A int `json:"a"` }
+Outer{}  omitempty v2: {"solid":{"a":0},"t":"0001-01-01T00:00:00Z"}   <- "empty" dropped
+```
+
+So a struct field's `,omitempty` is inert only while the struct carries at least one always-emitted
+field. `models.UserAccountDocument` (7 of 9) and `models.ApplicationSettings` (15 of 22) both do, which
+is why dropping their tags is safe today — but the safety is a property of those types, and it moves if
+their fields are ever all made omitting.
 
 ## The house options (Phase A2)
 
