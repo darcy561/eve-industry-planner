@@ -11,7 +11,6 @@ Live SoT for the **worker** service: per-process Asynq concurrency × Swarm repl
 | Capacity min / max | `1` / `5` | same (`services.worker.min` / `max`) |
 | `concurrency` | `50` (`WORKER_ASYNQ_CONCURRENCY`) | same — binary hard-caps at `MaxConcurrency` **50** |
 | `capacity_controller_managed` | `true` | same |
-| Volume | `worker_data` → `/data` | stack YAML |
 | Networks | `eip-core` only | [network.md](../../stack/network.md) |
 
 Secret attach: `x-secrets-worker`. Full service block → `services.worker` in that YAML.

@@ -10,7 +10,6 @@ Live SoT for the **core** control-plane service (schedulers, changestream, neste
 | Replicas | `1` | stack YAML `deploy.replicas` |
 | Update order | `start-first` (monitor `45s`, delay `10s`) | stack `deploy.update_config` |
 | `stop_grace_period` | `60s` | stack YAML |
-| Volume | `core_data` → `/data` | stack YAML |
 | Networks | `eip-core` only | [network.md](../../stack/network.md) |
 
 Secret attach: `x-secrets-core`. Full service block → `services.core` in that YAML.

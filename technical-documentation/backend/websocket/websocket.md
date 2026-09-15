@@ -14,7 +14,6 @@ Live SoT for the **websocket** service: per-replica soft/full placement signals,
 | `reserve_capacity` | `0.20` | same (capacity-controller policy only; not enforced here) |
 | `capacity_controller_managed` | `true` | same |
 | Process stop budget | **60s** (`lifecycle.AppStopGrace`; matches stack `x-app-stop-grace`) | [`app.go`](../../../services/websocket/app.go) / [`stop_grace.go`](../../../services/shared/lifecycle/stop_grace.go) |
-| Volume | `api_data` → `/data` | stack YAML |
 | Networks | `eip-core` only | [network.md](../../stack/network.md) |
 
 When both `target_clients` and `client_cutoff` are > 0, config validate requires `target_clients` ≤ `client_cutoff`. Stack YAML may keep bootstrap literals; **operator SoT** is `eip.config.yaml` via sync. Secret attach: `x-secrets-websocket` (mongo + redis). Full service block → `services.websocket` in that YAML.
