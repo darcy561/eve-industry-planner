@@ -1,7 +1,7 @@
 # Archived jobs statistics — behaviour overlay
 
-**Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
-and [`../technical-rules.md`](../technical-rules.md) (migration-plans).
+**Rules:** Read and following [`../documentation-rules.md`](../../documentation-rules.md)
+and [`../technical-rules.md`](../../technical-rules.md) (migration-plans).
 
 While this project is active, this file is the overlay on top of live SoT: where it describes a
 surface, it wins for that in-flight work. Where it is silent, live documentation remains the truth.
@@ -15,7 +15,7 @@ Archived jobs are aggregated into one flat document per account and item type, m
 the planner used before the Mongo move. There is no time dimension, no snapshot history, and no
 corporation-level view. The statistics API exposes a single build-stats read.
 
-Live detail: [backend/contents.md](../../backend/contents.md).
+Live detail: [backend/contents.md](../../../backend/contents.md).
 
 ## Stage A — data model and Mongo layer
 
@@ -30,7 +30,7 @@ never as raw ids. A ref is deterministic, so a caller holding an id derives the 
 queries on it; it is also reversible, so the response boundary restores the id a client is
 owed.
 
-Refs are owned by the [entity id encryption project](../entity-id-encryption/plan.md) — this
+Refs are owned by the [entity id encryption project](../../entity-id-encryption/plan.md) — this
 project consumes them. Mechanism, key handling and the single-key decision live there.
 
 **`shared/protectedfields`** is the framework. A `Declaration[T]` names a document type's
@@ -281,7 +281,7 @@ the `CorpRebuildQueue` (`corporation_stats_rebuild_queue`, with `QueueCorpRebuil
 committed to rather than deferred.
 
 These are **new** collections, so they take the convention in
-[collection-naming](../collection-naming/plan.md) from the start rather than being renamed later.
+[collection-naming](../../collection-naming/plan.md) from the start rather than being renamed later.
 Corporation-scoped data is the case the `<scope>_` prefix exists for, and it is the first
 collection set that is not account scoped. The names also follow the Stage D vocabulary — see
 [§ Naming](./plan.md#naming) — so `statistics_totals` and `statistics_timeline` rather than
@@ -530,7 +530,7 @@ the delta and the rota all take an owner, and the storage keys on one. A corpora
 second implementation.
 
 What is not open is the statistics route, which parses an owner and answers 403 for any kind but the
-account's own — deliberately, until [shared-planners](../shared-planners/plan.md) makes that a grant
+account's own — deliberately, until [shared-planners](../../shared-planners/plan.md) makes that a grant
 lookup. The rest of this section is the contract a non-account document has to meet for a change on it
 to reach a browser, traced through machinery that is built and carrying account traffic today.
 
@@ -1291,9 +1291,9 @@ panel distinguishes "no item profited" from "nothing archived" instead of report
 Any chart whose series differ by orders of magnitude has the same problem these cost charts have, so
 the control is shared rather than built into each of them — a chart that wants it takes the pair,
 never its own copy:
-[`useChartKeys`](../../../frontend/src/Styled Components/Charts/useChartKeys.js) owns which series a
+[`useChartKeys`](../../../../frontend/src/Styled Components/Charts/useChartKeys.js) owns which series a
 reader has set aside and hands the series back carrying it, and
-[`ChartKeys`](../../../frontend/src/Styled Components/Charts/ChartKeys.jsx) draws the row. A chart
+[`ChartKeys`](../../../../frontend/src/Styled Components/Charts/ChartKeys.jsx) draws the row. A chart
 takes the series it is given and skips what is marked hidden; the axis scales to what is drawn.
 
 ```jsx
@@ -1639,7 +1639,7 @@ alone, so the conversion is pinned for every field the SPA can now fill.
 
 This is a **producer** change only. It records which corporation a line's money moved through; it
 does not decide that a job belongs to a corporation. That decision is the owner written when the job
-is created, which [shared-planners](../shared-planners/plan.md) owns — so every stored job is owned by
+is created, which [shared-planners](../../shared-planners/plan.md) owns — so every stored job is owned by
 an account today and the account's archive counts them all.
 
 Historical jobs are unaffected. On dev no stored job carries a character on any line and none

@@ -26,7 +26,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   write is answered with, and how broad the document lock has to be →
   [document-write-granularity/contents.md](../document-write-granularity/contents.md). That project
   owns the write shape; this one owns what the shape is filled with.
-- Statistics rows and their derived extras totals → [archived-jobs-stats/contents.md](../archived-jobs-stats/contents.md).
+- Statistics rows and their derived extras totals → [archived-jobs-stats/contents.md](../accounts-page/archived-jobs-stats/contents.md).
   A row is rebuilt from the job, so it follows what this project settles rather than being changed by it.
 - The dead `apiJobs` / `apiOrders` / `apiTransactions` fields the sweep found in every job document.
   No project owns them; they are named in [plan.md](./plan.md) § Non-goals so the finding is not lost.

@@ -27,7 +27,7 @@ as the fields that changed.
 - Per-owner delivery ordering and the shard FIFOs → same stage. This project assumes ordering is
   solved and does not re-solve it.
 - Statistics deltas, which are already field-scoped `$inc` / `$set` operations →
-  [archived-jobs-stats/contents.md](../archived-jobs-stats/contents.md). Those are a different write
+  [archived-jobs-stats/contents.md](../accounts-page/archived-jobs-stats/contents.md). Those are a different write
   path that this project does not change.
 - What the document lock is **namespaced by** — the Redis key, the waitlist, the viewer set and the
   fan-out subject moving onto the owner key so a lock exists between two members at all →

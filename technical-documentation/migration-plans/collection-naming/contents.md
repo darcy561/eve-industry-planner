@@ -10,8 +10,8 @@ order collections move in.
 
 - Live Mongo access layer → [backend/shared/mongo.md](../../backend/shared/mongo.md)
 - Index ownership and `eip ensure-mongo` behaviour → [deployment/deployment-tool/cli/verbs.md](../../deployment/deployment-tool/cli/verbs.md)
-- Statistics collection names introduced by that project → [archived-jobs-stats/plan.md](../archived-jobs-stats/plan.md)
-- Corporation and alliance document shapes → [archived-jobs-stats/overlay.md](../archived-jobs-stats/overlay.md) § What a non-account owner needs before its statistics can be served
+- Statistics collection names introduced by that project → [archived-jobs-stats/plan.md](../accounts-page/archived-jobs-stats/plan.md)
+- Corporation and alliance document shapes → [archived-jobs-stats/overlay.md](../accounts-page/archived-jobs-stats/overlay.md) § What a non-account owner needs before its statistics can be served
 
 ## Task map
 

@@ -50,7 +50,7 @@ subjects, hosted-tenant filters and the affinity cookie are all built from those
 for what landed and [overlay.md](./overlay.md) § Stage A for how a document states its owner today. The
 cutover window against live has not been run.
 
-**Already landed since, under [archived-jobs-stats](../archived-jobs-stats/plan.md).** The statistics
+**Already landed since, under [archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md).** The statistics
 half is done: `models.Owner` exists, the three statistics documents carry a root owner with ids
 leading on the owner key, the collections took the names they hold, and the statistics API is
 `/api/v1/statistics/{owner}/{view}`. What remains is the `_meta` reshape above.
@@ -399,8 +399,8 @@ Two known gaps that this project inherits rather than creates.
 `DocLockFiltersForHostedTenants` only understands the `account:` prefix, so lock selectivity for
 non-account owners is already deferred; it becomes visible once shared planners carry real traffic.
 And the `account_*` collection names are shared by every kind under this model, so the rename that
-[archived-jobs-stats](../archived-jobs-stats/plan.md) deliberately parked as "the expensive part"
-now definitely happens. It has: [archived-jobs-stats](../archived-jobs-stats/plan.md) § 2 shipped ten
+[archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) deliberately parked as "the expensive part"
+now definitely happens. It has: [archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) § 2 shipped ten
 `CollectionRenames` entries, one per collection live actually holds and still needs.
 
 ## Collection layout
@@ -580,7 +580,7 @@ active planner on the request, checked against the ceiling. It is never derived 
 field on the document, and it never changes afterwards except by an explicit, audited move.
 
 This supersedes the open question in
-[archived-jobs-stats](../archived-jobs-stats/plan.md) § Stage C — that project's Stage C, not this
+[archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) § Stage C — that project's Stage C, not this
 plan's — which is blocked on "nothing yet
 decides from [the corporation and character ids the SPA records] that a job is corporation scoped and
 stamps `_meta.corporationRef`". Under this model that decision does not exist, and the half-built
@@ -863,7 +863,7 @@ a shared job under a category personal to them — not a migration of the id spa
 job was archived (`models.ArchivedExtraCategory`), because the id alone only resolves against a
 settings document: one the archive cannot reach, that a second member does not share, and that loses
 the name entirely when a category is deleted. See
-[archived-jobs-stats](../archived-jobs-stats/plan.md) § Extras categories name themselves.
+[archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) § Extras categories name themselves.
 
 For `JobStatuses` only the **set of ids** must be the planner's. Labels could stay personal without
 harming anything, since they name a column rather than identify it; whether that is worth the
@@ -1249,7 +1249,7 @@ others do not.
 
 **`ArchivedJobStats` has no schema version today,** and its `Version` field is dead: nothing reads or
 writes it, and every stored row holds the zero value. It is deleted with the owner collapse. Whether
-the row wants a `SchemaVersion` is [archived-jobs-stats](../archived-jobs-stats/plan.md) § Owner block
+the row wants a `SchemaVersion` is [archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) § Owner block
 item 1 to decide — the row is derived and rebuilt wholesale, so an upgrade of one is a rebuild.
 
 **`MetaData` takes no version of its own, and the cutover writes no upgrader — an approved
@@ -1345,7 +1345,7 @@ two, and no reader distinguishes which filled it — which is the point of conve
 ### Stage A — The owner block, in one cutover
 
 **Landed on the environment checked.** The owner block was built under
-[archived-jobs-stats](../archived-jobs-stats/plan.md), which was already shaping it for the statistics
+[archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md), which was already shaping it for the statistics
 documents. That work is finished, so this stage and everything the owner block touches are **owned
 here** from now on: this plan carries the design, this project's overlay carries the behaviour, and
 that plan is no longer the place to look.
@@ -2146,7 +2146,7 @@ is ready for the window.
 |---------|--------|
 | `_meta` owner block | **migrate-required** — one cutover; no forward-compatible shape. Rollback is `revertRelease` over the copies the release takes first — see § Live data, and the cutover window |
 | `_meta` on the wire | **not breaking** — the owner never leaves the server, and `accountID` had one SPA reader that already falls back to the store, so the client change is a deletion |
-| `ChangeStreamMessage` scope fields | **Landed** as one `ownerKey`, replacing the three. Breaking core to websocket only; internal, and both ship in the same window. JetStream holds `doc.update` for an hour, so the two shapes must not be split across deploys — see [archived-jobs-stats](../archived-jobs-stats/overlay.md) § How a change reaches the right clients |
+| `ChangeStreamMessage` scope fields | **Landed** as one `ownerKey`, replacing the three. Breaking core to websocket only; internal, and both ship in the same window. JetStream holds `doc.update` for an hour, so the two shapes must not be split across deploys — see [archived-jobs-stats](../accounts-page/archived-jobs-stats/overlay.md) § How a change reaches the right clients |
 | `ArchivedJobStats` owner | **migrate-required** — same window |
 | Collection names, document ids | **migrate-required**; client-facing via changestream groups and the subscribe allow-list, which are small and account-based today and move with the rename |
 | `job_documents`, `job_groups`, `archived_jobs`, template `_id` | **migrate-required** — each becomes `{ownerKey}\|{id}`, rewritten in the owner walk. **Not breaking on the wire**: the bare id is what a client sends and receives, and the server composes the stored form — see § Every owner-scoped document id carries its owner |
@@ -2163,7 +2163,7 @@ is ready for the window.
 
 ## What the other projects owe
 
-**[archived-jobs-stats](../archived-jobs-stats/plan.md)** — the four items below are written into that
+**[archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md)** — the four items below are written into that
 plan as § Owner block — owed to shared planners. Nothing built needs redoing; Stage J
 already keyed the queue, the delta, the rota and the tasks on `StatsOwner`. Four changes, of which
 the first two are only cheap while that project is still open and touching live data:
@@ -2227,7 +2227,7 @@ remaining suggestion. It is applied with the stage that touches the file rather 
 | ~~`api/helper/auth/refresh_token.go`~~ | **Applied** with Stage B — `session_start` and `session_seen_at` take `omitzero`, which omits a zero time as the original tag intended, and the dead `omitempty` on the two `Grants` fields was dropped once they became structs |
 | ~~`api/helper/sso/jwt.go`~~ | **Gone** — the file no longer exists; the SSO code lives under `api/v1endpoints/sso`, which the scan reports nothing for |
 | ~~`websocket/server/reader.go`~~ | **Applied** — `reader.go` uses `errors.AsType` |
-| ~~`core/changestream/resume.go`~~ | **Applied** — `errors.AsType` landed with the watcher's routing-log fix under [archived-jobs-stats](../archived-jobs-stats/plan.md), which put that package in its touch surface |
+| ~~`core/changestream/resume.go`~~ | **Applied** — `errors.AsType` landed with the watcher's routing-log fix under [archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md), which put that package in its touch surface |
 
 The remaining item does not block the plan. The scan is not a licence to modernise packages the stages
 do not touch.
@@ -2285,7 +2285,7 @@ do not touch.
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
-| A — the owner block, in one cutover | **Landed.** Built under [archived-jobs-stats](../archived-jobs-stats/plan.md) and now owned here. Model, vocabulary, writers, filters, index specs, renames, `ChangeStreamMessage.OwnerKey`, the `prepareRelease` stamp and its gate are all in, the rehearsal against a restored copy of live is done, and the stamp has run: every document carries an owner and the gate passes. Not yet confirmed against every environment — see § Stage A |
+| A — the owner block, in one cutover | **Landed.** Built under [archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) and now owned here. Model, vocabulary, writers, filters, index specs, renames, `ChangeStreamMessage.OwnerKey`, the `prepareRelease` stamp and its gate are all in, the rehearsal against a restored copy of live is done, and the stamp has run: every document carries an owner and the gate passes. Not yet confirmed against every environment — see § Stage A |
 | B — grants and scopes as owner lists | **Landed.** `models.SessionGrants` is the one grants type, a connection's scopes and the routing index are owner keys derived at connect, and `prepareRelease` rewrites stored grants. `upgrade_scopes` is removed rather than reshaped, and the `active_planner` message replacing it landed at Stage E — see § Why the client no longer asks for scopes. The § Go modernisation item is applied |
 | C — planner and membership documents | **Landed.** C1 the two collections and their indexes, C2 the account-planner backfill and the write first login repairs from, C3 membership as the source of grants with authorisation reading the rows rather than a cached list, C4 the collection set per owner kind and document-subscribe authorisation by membership. Invites moved to Stage E |
 | D — what a second member breaks | **D1 landed**, D2 skipped, D3 outstanding. D1 recalculation keeping a job's build context — a live defect on personal planners, now fixed. D2 is handled server-side already; the retry-queue defect it uncovered is [document-write-granularity](../document-write-granularity/plan.md) § Stage B. D3 is the extras picker; the settings document it waited on landed at Stage E, so it is unblocked. Job statuses turned out to need nothing, their id space already being a frozen catalog. See § Stage D — what a second member breaks |

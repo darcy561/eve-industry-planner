@@ -61,7 +61,7 @@ That is the shape of the problem: not a repair of what is stored, but the rule f
 
 The sweep found two things this project does not fix, listed under § Non-goals: stale copies of derived
 totals sitting in every job document, and the dead `apiJobs` / `apiOrders` / `apiTransactions` fields
-in 100% of them. The totals follow [archived-jobs-stats](../archived-jobs-stats/contents.md), which
+in 100% of them. The totals follow [archived-jobs-stats](../accounts-page/archived-jobs-stats/contents.md), which
 rebuilds them; the dead fields have no owner today.
 
 ## Track A — The server decides a document's shape

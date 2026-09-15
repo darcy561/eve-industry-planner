@@ -201,7 +201,7 @@ The body walk is exercised now — every job `doc.update` carries refs on the sa
 lines. The owner handle is exercised only for the account kind: no document carries an org owner
 until corporation and alliance documents land, and the org-scoped path is built ahead of them
 deliberately. What such a document has to supply for the existing machinery to carry it is set out
-in [archived-jobs-stats/overlay.md](../archived-jobs-stats/overlay.md) § What a corporation
+in [archived-jobs-stats/overlay.md](../accounts-page/archived-jobs-stats/overlay.md) § What a corporation
 document has to supply.
 
 ## Withdrawn — the authorization half

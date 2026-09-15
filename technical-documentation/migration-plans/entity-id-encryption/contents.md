@@ -12,7 +12,7 @@ written before refs existed.
 
 - Session grants and how an account's access is decided → [shared-planners/plan.md](../shared-planners/plan.md); refs are the values inside its owner keys, nothing more
 - Live auth and session behaviour → [backend/api/auth/overview.md](../../backend/api/auth/overview.md) (promoted only when this project closes)
-- Archived job statistics → [archived-jobs-stats/contents.md](../archived-jobs-stats/contents.md)
+- Archived job statistics → [archived-jobs-stats/contents.md](../accounts-page/archived-jobs-stats/contents.md)
 - Operator secret provisioning verbs → [deployment/deployment-tool/cli/verbs.md](../../deployment/deployment-tool/cli/verbs.md)
 
 ## Task map
