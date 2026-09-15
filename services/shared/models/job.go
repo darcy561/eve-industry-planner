@@ -796,9 +796,9 @@ type JobMetaData struct {
 	MetaData         `json:",inline" bson:",inline"`
 	CreatedAt        time.Time `json:"createdAt" bson:"createdAt"`
 	LastUpdatedBy    string    `json:"lastUpdatedBy" bson:"lastUpdatedBy"`
-	ArchivedAt       time.Time `json:"archivedAt,omitzero" bson:"archivedAt,omitzero"`
+	ArchivedAt       time.Time `json:"archivedAt,omitzero" bson:"archivedAt,omitempty"`
 	ArchivedBy       string    `json:"archivedBy,omitempty" bson:"archivedBy,omitempty"`
 	ArchiveProcessed bool      `json:"archiveProcessed,omitempty" bson:"archiveProcessed,omitempty"`
-	DeletedAt        time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitzero"`
+	DeletedAt        time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitempty"`
 	DeletedBy        string    `json:"deletedBy,omitempty" bson:"deletedBy,omitempty"`
 }
