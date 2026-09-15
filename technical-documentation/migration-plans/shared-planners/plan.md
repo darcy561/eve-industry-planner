@@ -2072,11 +2072,28 @@ fail — it silently stops being a lock, while every surface that reads it goes 
 uncontested hold. The waitlist, the pulse, the viewer presence set and the whole group cascade take
 `accountID` on the same footing, so all of them partition the same way.
 
-**The replacement is the owner key.** `doc_lock:{ownerKey}␞{collection}␞{docID}`, with the owner read
-from the document rather than from the caller's JWT. Because an account planner's owner key *is*
-`account:{id}`, every key a personal planner holds today keeps its exact present value — this is a
-rename at the call sites, not a migration of live keys, and the same property that kept NATS subjects
-and tenant strings stable across § The owner key is the identity applies here for the same reason.
+**The replacement is the planner**, with the owner read from the document rather than from the
+caller's JWT.
+
+**This stage first claimed the keys were unchanged for a personal planner because an account's owner
+key *is* `account:{id}`. That was wrong**, and it is worth keeping visible because it is the kind of
+error that ships quietly. The NATS *tenant string* has always been an owner key, which is where the
+reasoning came from; the Redis lock key never was. It held the bare account id, so rendering the owner
+key would have moved every live lock, waitlist entry and viewer row onto a key the readers then miss —
+and `SoloHolderLockTTL` is 24 hours, so an editor's protection would have lapsed silently for that long
+after the deploy, with another session free to take the document.
+
+So a key's first segment is the planner, rendered by `lockScope`: **an account planner as the bare id
+it has always used, every other kind as its full owner key.** The two are told apart on the colon,
+which an account id does not contain and an owner key always does; `parseLockScope` reads a segment
+with no kind back as an account, which is every key written before a planner could own one. A personal
+planner is then byte-for-byte unchanged, which is what the done-when asks for, and the kinds that never
+had a key carry theirs in full.
+
+**The `doc.lock` subject is a different matter and does change**, from `doc.lock.{accountID}` to
+`doc.lock.{ownerKey}`. Nothing is persisted under it: a subject names messages in flight, the consumer
+filters move with the publisher, and the cost is bounded by the deploy window rather than by a
+24-hour lease.
 
 Two details the slice has to get right rather than assume:
 
@@ -2117,6 +2134,74 @@ becomes one member evicting another.
 **Done when** two members of one planner contend for a single lock on one job, a personal planner's
 keys and behaviour are byte-for-byte unchanged, lock events reach a planner's members, and no caller
 can force-release a session belonging to another account.
+
+#### The scope and the holder's account stop being the same value
+
+This is what makes the stage more than a rename. Six Lua scripts take the account as `ARGV` and write
+it onto the record, and the force-release script compares `existing.accountID` against the caller's.
+Today one parameter serves both jobs, because the value namespacing the key *is* the holder's account.
+Once the key is namespaced by the owner they separate: the key needs the planner, the record needs the
+account, and both have to be threaded.
+
+Everywhere a caller knows who it is, that is bookkeeping. `PromoteWaitlistHead` is the exception:
+`EnqueueWaitlistUnique` appends a bare session id, so when a lock expires and the queue's head is
+promoted, nothing says which account that session belongs to. On a personal planner every waiter was
+the same account and the question never arose; on a shared planner the promoted session can be another
+member, and a record carrying the wrong account makes force-release either refuse a legitimate
+self-eviction or permit a cross-member one.
+
+**A waitlist entry carries the account.** One value, so the two cannot drift — a sidecar map keyed by
+session would be a second thing to keep in step and a leak whenever a removal missed it. The entries
+are transient and carry a TTL, so an entry written in the old shape ages out rather than needing a
+migration, and one that cannot be parsed is skipped rather than promoted.
+
+The cost is that every Lua site touching the waitlist changes with the format: `LREM` removes by exact
+value, so a caller removing an entry needs the whole entry rather than a session id — including
+`existing.probeTargetSessionID`, which the record stores bare today.
+
+#### Slices
+
+**H1 — a waitlist entry carries its account.** The format, the six scripts, and the stored probe
+target. Lands on its own with no behaviour change: the key is still account-shaped, so every waiter is
+still the same account and the value the entries now carry is the one they would have been given
+anyway.
+
+**H2 — the key namespace becomes the owner.** `LockKey`, `waitlistKey`, `WaitlistPulseKey` and
+`ViewerPresenceKey` take a `models.Owner`; the account is threaded separately to the scripts that write
+it onto the record. The owner comes from the request's planner through `helper.RequestPlannerOwner`,
+which refuses one the account holds no membership for, rather than from the caller's JWT. A typed owner
+rather than a rendered key string, because a caller passing an account id would otherwise compile, work
+on every personal planner, and silently fail to lock on a shared one.
+
+**A websocket connection has to be told which planner it is in.** At connect a
+connection's `Scopes` are the session's whole grants — every planner the account may reach — which
+cannot be read back for the one it is working in, because the account's own key is in all of them. So
+the connection holds `ActivePlanner`, set when the client sends `active_planner`, and the lock paths
+that run over the socket (waitlist pulse, viewer presence, the lock-state batch) read it.
+
+Until the client names one it falls back to the account's own planner, which is where a client that
+never names one is working. The window is between the socket opening and that message, and a client
+re-sends it on every reconnect before it sends presence — but the dependency is on client ordering
+rather than on anything the server enforces, and a lock operation landing inside that window is scoped
+to the wrong planner silently.
+
+**Proven end to end, not only per unit.** The unit tests show two members meeting on one Redis key;
+`TestDocLockReachesEveryMemberOfAPlanner` shows the other half, which no unit can see — two accounts,
+both members of one corporation planner, both connected over the websocket fixtures, both receiving a
+`doc.lock` fan-out. Its pair shows a non-member receiving nothing while a member receives the same
+event, so the silence means exclusion rather than a publish that never happened. Both apply the
+consumer's filter reconcile rather than waiting on its debounce, which would otherwise be a flake.
+
+**H3 — lock events reach the planner.** `doc.lock.{ownerKey}`, and `DocLockFiltersForHostedTenants`
+takes the shape `DocUpdateFiltersForHostedTenants` already has. It maps only account-kind tenants
+today, with a comment recording that corporation and alliance selectivity waits on this cutover — this
+is that cutover. Breaking on a cross-process surface: the API publishes and the websocket consumes, and
+the JetStream consumer filters change with it.
+
+**The same-account check is already explicit**, contrary to what this stage first assumed: the
+force-release script compares `existing.accountID` and refuses. What changes is that it stops being
+belt-and-braces behind an account-shaped key and becomes the only thing standing between two members.
+It needs a test at H2, not a change.
 
 **Ordering.** This stage is what makes the lock *exist* on a shared planner. It does not make it
 pleasant: the lock's breadth — a group lease standing in for every job in it, and a batch write refused
@@ -2355,7 +2440,7 @@ do not touch.
 | E — custom planners | **Partly landed.** In: the planner settings document (seeded by value from the creating account, planner-held and watched), one write path for every planner, the planners listing, corporation planner creation with its name looked up server-side and NPC corporations refused, the `active_planner` message with the ceiling intersection and its restore across a reconnect, the owner handle on every delivered document, a client switcher that moves the header on every scoped request and the owner in every scoped query key alongside the connection, and invites as Redis records with the join path that redeems them. Outstanding: the revocation path, which waits on the session-record work that owns the grants ceiling. Keying the job and group stores by owner needs the owner-scoped baseline and runs with Stage G. See § Stage E and [overlay.md](./overlay.md) § Stage E |
 | F — ESI providers | **F1 landed.** Corporation and alliance membership rows are reconciled from the ids ESI reports, at login and on the cloud token sweep, completing a task that read as finished and wrote no rows. A row grants while it exists and nothing expires one: a revoked token is a positive answer the reconcile acts on, and a two-year dormant account is cleared by `InactiveAccountPlannerCleanup`. Owed: reshaping when the grant task fires and how it resolves, and access lists |
 | G — realtime state under more than one writer | **Not started.** The `lastModified` cursor, the account-shaped baseline and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped baseline — see § Stage G |
-| H — the document lock stops being account-shaped | **Not started.** The lock key, the waitlist, the viewer set and the fan-out subject are all namespaced by the calling account, so two members of one planner take two keys for one job and neither contends. Becomes the owner key, which leaves a personal planner's keys unchanged. Blocks a planner holding two people as surely as Stage D does — see § Stage H |
+| H — the document lock stops being account-shaped | **Landed** (H1, H2, H3). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. Owed: the websocket's dependency on the client naming its planner — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
 
 ## Recommended pickup order
