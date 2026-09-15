@@ -1,4 +1,7 @@
 import { fetchMarketPricesQuery } from "../Endpoints/Public/marketPricesQuery";
+import { deriveBookPrices } from "./deriveBookPrices";
+import { ordersByRegionAndType } from "./fetchStationBook";
+import { allMarketSources, SOURCE_KIND, sourceIn } from "./marketSources";
 import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 
 /**
@@ -23,7 +26,7 @@ const adjustedKey = (typeID) => `adjusted|${typeID}`;
  * The cache above this is keyed by type and source, which is what makes two
  * panels wanting the same material one entry rather than two — but an entry per
  * want would be a request per want. Everything raised in one tick is collected
- * here and issued as a single query naming every market and every type it saw.
+ * here, sorted by who can answer it, and issued as one request per transport.
  *
  * @param {number|string} typeID
  * @param {string} sourceID - A market source id
@@ -68,34 +71,173 @@ async function flush() {
   flushScheduled = false;
   if (batch.size === 0) return;
 
-  // The keys are already the pairs, so the request is exactly what the tick
-  // asked for. Collecting the markets and the types into two flat lists instead
-  // would ask every market for every type the tick mentioned — a job pricing
-  // half its materials at one market and half at another would fetch both halves
-  // at both, which is the cost this whole stage exists to remove.
-  const wants = [];
-  const adjustedTypeIDs = [];
-
-  for (const key of batch.keys()) {
-    const [head, typeID] = key.split("|");
-    if (head === "adjusted") {
-      adjustedTypeIDs.push(typeID);
-    } else {
-      wants.push({ typeID, sourceID: head });
-    }
-  }
-
   try {
-    const answer = await fetchMarketPricesQuery({ wants, adjustedTypeIDs });
-    // Before the waiters, so a reader woken by one of them sees the clock that
-    // the rows it is about to read arrived with.
-    recordClocks(answer);
-    settle(batch, answer);
+    const { served, stations, adjusted, unaskable } = splitByTransport(batch);
+
+    // Each transport answers on its own, and that is the point of the split. A
+    // hub's price comes from this server and a saved station's book from ESI, so
+    // one being unreachable says nothing about the other. Sent as one request
+    // they were not independent at all: the server answers 400 for the whole
+    // request when it sees a source it does not price, so a single station want
+    // took every hub price batched beside it down with it.
+    await Promise.all([
+      serveServerHeld(served, adjusted),
+      serveSavedStations(stations),
+    ]);
+
+    // A source no registry entry answers for cannot be asked of anything. It
+    // settles as a failure rather than as nothing held, because "no order here"
+    // is an answer and this is the absence of anywhere to ask — a reader whose
+    // saved market has gone needs the difference.
+    for (const want of unaskable) {
+      rejectWant(want, new Error(`no market source named "${want.sourceID}"`));
+    }
   } catch (error) {
+    // Every want must settle. Each transport already fails only its own, so
+    // reaching here means something outside them threw — reading the registry,
+    // most likely, which stops being a static list the moment a reader's own
+    // markets are stored in it. This runs from a timer, so an escaping
+    // rejection would be reported nowhere and leave every cache entry in the
+    // tick waiting for ever. Failing them all is worse than one transport
+    // failing and better than silence.
     for (const waiters of batch.values()) {
       for (const waiter of waiters) waiter.reject(error);
     }
   }
+}
+
+/**
+ * Sorts a tick's wants by who can answer them.
+ *
+ * The kind is read from the registry rather than from the want, so a caller
+ * names a source and never learns what it is — `allMarketSources()` is the one
+ * seam a reader-saved market joins at, and this reads whatever it carries.
+ */
+function splitByTransport(batch) {
+  const sources = allMarketSources();
+  const served = [];
+  const stations = [];
+  const adjusted = [];
+  const unaskable = [];
+
+  for (const [key, waiters] of batch) {
+    const [head, typeID] = key.split("|");
+    if (head === "adjusted") {
+      adjusted.push({ typeID, waiters });
+      continue;
+    }
+
+    const source = sourceIn(sources, head);
+    const want = { typeID, sourceID: head, source, waiters };
+
+    if (source?.kind === SOURCE_KIND.HUB) {
+      served.push(want);
+    } else if (source?.kind === SOURCE_KIND.STATION) {
+      stations.push(want);
+    } else {
+      unaskable.push(want);
+    }
+  }
+
+  return { served, stations, adjusted, unaskable };
+}
+
+/** The markets this server prices, asked for in one query. */
+async function serveServerHeld(wants, adjusted) {
+  if (wants.length === 0 && adjusted.length === 0) return;
+
+  try {
+    const answer = await fetchMarketPricesQuery({
+      wants: wants.map(({ typeID, sourceID }) => ({ typeID, sourceID })),
+      adjustedTypeIDs: adjusted.map(({ typeID }) => typeID),
+    });
+
+    // Before the waiters, so a reader woken by one of them sees the clock that
+    // the rows it is about to read arrived with.
+    recordClocks(answer);
+
+    for (const want of wants) {
+      resolveWant(want, rowFrom(answer.sources?.[want.sourceID], want.typeID));
+    }
+    for (const want of adjusted) {
+      resolveWant(want, answer.adjusted?.prices?.[want.typeID] ?? null);
+    }
+  } catch (error) {
+    for (const want of [...wants, ...adjusted]) rejectWant(want, error);
+  }
+}
+
+/**
+ * The markets the browser reads itself, one region-and-type book at a time.
+ *
+ * **A region's orders cover every station in it.** Two stations in one region
+ * wanting the same type is one read of that book and two derivations from it,
+ * not two reads — which is the whole reason the wants are grouped by the book
+ * they need rather than by the station that asked.
+ */
+async function serveSavedStations(wants) {
+  if (wants.length === 0) return;
+
+  const books = new Map();
+  for (const want of wants) {
+    const bookKey = `${want.source.regionID}|${want.typeID}`;
+    const held = books.get(bookKey);
+    if (held) {
+      held.wants.push(want);
+    } else {
+      books.set(bookKey, {
+        regionID: want.source.regionID,
+        typeID: want.typeID,
+        wants: [want],
+      });
+    }
+  }
+
+  await Promise.all([...books.values()].map(readStationBook));
+}
+
+async function readStationBook({ regionID, typeID, wants }) {
+  try {
+    const book = await ordersByRegionAndType({ regionID, typeID });
+
+    // The moment the browser read it. A hub's clock is the server saying when
+    // it walked the book; nothing says that to a browser about ESI, so the read
+    // is the only moment it can state honestly.
+    const refreshedAt = Date.now();
+
+    for (const want of wants) {
+      const prices = deriveBookPrices(book.orders, want.source.stationID);
+      resolveWant(want, pricedOrNothing(prices, refreshedAt, book.expiresAt));
+    }
+  } catch (error) {
+    for (const want of wants) rejectWant(want, error);
+  }
+}
+
+/**
+ * Nothing on either side of the book is the station holding no order for the
+ * type — the same answer a hub gives by leaving the row out, rather than a
+ * price of zero.
+ *
+ * The row carries the expiry ESI gave its book, because this row can outlive the
+ * tab: the tier beneath the cache refuses to serve one whose book would have
+ * changed by the time it is read back. A hub row carries none, and needs none —
+ * it is asked for again on every reload.
+ */
+function pricedOrNothing(prices, refreshedAt, expiresAt) {
+  if (!prices.buy && !prices.sell) return null;
+
+  const row = { ...prices, refreshedAt };
+  if (Number.isFinite(expiresAt)) row.expiresAt = expiresAt;
+  return row;
+}
+
+function resolveWant(want, value) {
+  for (const waiter of want.waiters) waiter.resolve(value);
+}
+
+function rejectWant(want, error) {
+  for (const waiter of want.waiters) waiter.reject(error);
 }
 
 /**
@@ -146,25 +288,12 @@ export function setClockMovedListener(listener) {
 }
 
 /**
- * Hands each waiter what the answer held for it.
+ * What the answer held for one want.
  *
  * A want the answer says nothing about settles as null rather than throwing: a
  * market holding no order for a type is an answer, not a failure, and retrying
  * it would ask forever.
  */
-function settle(batch, answer) {
-  for (const [key, waiters] of batch) {
-    const [head, typeID] = key.split("|");
-
-    const value =
-      head === "adjusted"
-        ? (answer.adjusted?.prices?.[typeID] ?? null)
-        : rowFrom(answer.sources?.[head], typeID);
-
-    for (const waiter of waiters) waiter.resolve(value);
-  }
-}
-
 function rowFrom(block, typeID) {
   const row = block?.prices?.[typeID];
   if (!row) return null;

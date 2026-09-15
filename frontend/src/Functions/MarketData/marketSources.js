@@ -12,7 +12,40 @@ import GLOBAL_CONFIG from "../../global-config-app";
 export const SOURCE_KIND = {
   /** One of the hubs this server walks hourly and serves prices for. */
   HUB: "hub",
+  /**
+   * An NPC station a reader saved. Its region's orders are public and filterable
+   * by type, so the browser reads the types the planner needs and filters them
+   * to the station rather than walking a whole book.
+   */
+  STATION: "station",
 };
+
+/**
+ * Which tier a kind's rows live in, and the one place that decides it.
+ *
+ * The hubs are shared infrastructure: every account prices against them, the
+ * server walks them hourly, and asking again after a reload costs one request
+ * that was going to be cheap anyway. A market the reader saved was fetched at
+ * their own expense — a citadel's whole book especially — and can never be had
+ * for free again, so it is held on their device.
+ *
+ * A kind with no entry here is treated as session-only, which is the safe
+ * default: the worst it costs is a re-fetch.
+ */
+const TIER = {
+  [SOURCE_KIND.HUB]: "session",
+  [SOURCE_KIND.STATION]: "persistent",
+};
+
+/**
+ * Whether this kind's rows outlive the tab.
+ *
+ * @param {string|undefined} kind - One of SOURCE_KIND
+ * @returns {boolean}
+ */
+export function persistsAcrossSessions(kind) {
+  return TIER[kind] === "persistent";
+}
 
 /**
  * @typedef {object} MarketSource

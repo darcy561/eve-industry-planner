@@ -1,9 +1,15 @@
 import { queryClient } from "../../queryClient";
 import {
+  allMarketSources,
+  persistsAcrossSessions,
+  sourceIn,
+} from "./marketSources";
+import {
   requestAdjustedPrice,
   requestPrice,
   setClockMovedListener,
 } from "./priceLoader";
+import { readStoredPrice, writeStoredPrice } from "./priceStore";
 import { clockedSources } from "./sourceClocks";
 
 /**
@@ -127,7 +133,7 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
     asked.push(
       queryClient.ensureQueryData({
         queryKey: priceQueryKey(typeID, sourceID),
-        queryFn: () => requestPrice(typeID, sourceID),
+        queryFn: () => resolvePrice(typeID, sourceID),
         staleTime: PRICE_STALE_TIME,
         retry: false,
       }),
@@ -155,6 +161,42 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
     asked: settled.length,
     failed: settled.filter((result) => result.status === "rejected").length,
   };
+}
+
+/**
+ * One row, from whichever tier can answer for it.
+ *
+ * **This is the only seam the persistent tier enters at.** Everything above —
+ * the accessor, the wrapper query, the clock machinery — asks for a price and
+ * learns nothing about where it came from, which is what lets a reader-saved
+ * market behave exactly like a hub everywhere else.
+ *
+ * A session-tier source goes straight to the loader. A persistent one is read
+ * from disk first, because it was fetched at the reader's own expense: a miss
+ * falls through to the network and what comes back is written to both.
+ */
+async function resolvePrice(typeID, sourceID) {
+  const source = sourceIn(allMarketSources(), sourceID);
+
+  if (!persistsAcrossSessions(source?.kind)) {
+    return requestPrice(typeID, sourceID);
+  }
+
+  const stored = await readStoredPrice(sourceID, typeID);
+  if (stored) return stored;
+
+  const row = await requestPrice(typeID, sourceID);
+
+  // Not awaited: the price is already in hand, and keeping it for next time is
+  // bookkeeping this reader is not waiting on. Awaiting would let a slow or
+  // wedged store delay a figure that has already arrived.
+  //
+  // A market holding no order for a type resolves as null, and that is not
+  // worth keeping: it is the cheapest thing to learn again, and storing it
+  // would hold a reader at "nothing here" for as long as the row survived.
+  if (row) void writeStoredPrice(sourceID, typeID, row);
+
+  return row;
 }
 
 /**
