@@ -1,6 +1,6 @@
 # EVE image server — plan
 
-**Status:** Phase 1 only. No code work started.
+**Status:** Stage A done. Stage B widening area by area — 31 of 59 sites.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/Shared/eveOwner.js`,
 `Functions/Assets/assetPresentation.js`, `Styled Components/Avatar/`, and the ~40 components listed
 in [measurements/call-sites.md](./measurements/call-sites.md). No Go: nothing server-side asks the
@@ -33,10 +33,14 @@ and not one `onError` handler in the whole SPA.
 A call site should name what it wants and how big, and get back a URL or nothing:
 
 ```
-imageUrl.type(typeID, "icon", 32)
-imageUrl.character(characterID, 64)
-imageUrl.corporation(corporationID, 32)
+typeImageUrl(typeID, "icon", 32)
+characterImageUrl(characterID, 64)
+corporationImageUrl(corporationID, 32)
 ```
+
+Named exports rather than a namespace object or a single options-taking function: it is how
+`eveOwner.js` and `assetPresentation.js` already export their helpers, and a call site names the one
+thing it wants.
 
 Rather than assembling a host, a path and a query by hand. The size is validated by construction, so
 the 400 is unreachable; an absent id answers `undefined`, so a caller cannot accidentally ask for
@@ -65,7 +69,8 @@ One module owning the host, the categories, the variations and the size set. `ev
 `ownerImageUrl` move into it or call it; `assetImageUrl` keeps deciding *which* variation an asset
 wants and asks this for the URL.
 
-**Done when** no file outside the module names `images.evetech.net`, except the module's own test.
+**Done when** no file outside the module builds an `images.evetech.net` URL. Tests still name the
+host, because asserting the URL a component emits is what they are for.
 
 ### Stage B — One image component, with the absences handled
 
@@ -94,29 +99,33 @@ a one-line change once Stage A exists, and each is currently reachable.
   variations. That would turn one image into two requests, and the absences above are cheaper to
   handle by rendering something sensible.
 
-## Open decisions
+## Decisions taken
 
-- **What a missing picture should look like.** A glyph per category, one generic glyph, or the
-  server's own id-`1` fallback — which returns a real EVE placeholder portrait or logo rather than
-  an icon of ours. Undecided, and it is the question Stage B turns on.
+- **A missing picture is a static image the app serves**, not a MUI glyph and not the image server's
+  id-`1` fallback. It sits with the SPA's own artwork under `frontend/public/images/`, so it is a
+  picture rather than a symbol and costs no request to EVE.
+
+  The artwork does not exist yet. Stage A ships the slot — one accessor naming the path — and the
+  file drops in behind it without any call site changing.
 
 ## Stage status
 
 | Stage | State |
 |-------|-------|
 | Phase 1 — project folder and docs | Done |
-| Stage A — the module | Not started |
-| Stage B — the image component | Not started; waits on § Open decisions |
-| Stage C — the three defects | Not started; each is reachable today |
+| Stage A — the module | Done |
+| Stage B — the image component | Built; 31 of 59 sites converted, widening area by area |
+| Stage C — the three defects | Two closed with Stage A; the missing `onError` waits on Stage B |
 
 ## Start here
 
 Read [measurements/call-sites.md](./measurements/call-sites.md) first — the scope is an argument from
 spread, and the numbers are what make the case.
 
-**Stage C is separable and could go first.** The three defects are real today and each is a one-line
-fix; they are grouped here because they share a cause, not because they need the module. If the
-consolidation is deferred, fix them anyway.
+**Stage B starts small.** Build the component against a handful of real call sites, look at it in the
+running app, and widen from there. Converting all 59 at once was tried and reverted: every round of
+rework on the component then landed on all 59 again, and nobody can read a scripted diff that size
+closely enough to catch a dropped `key`.
 
 This project was found while giving market group rows an icon, which is recorded at
 [market-pricing-defaults/plan.md](../market-pricing-defaults/plan.md) § Stage B6. That work added

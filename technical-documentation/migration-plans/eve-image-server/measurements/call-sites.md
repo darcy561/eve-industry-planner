@@ -38,6 +38,13 @@ and requests it, so the fallback costs a request and still renders broken.
 `Avatar`-based components degrade because MUI renders a child when the image fails; the ~40 plain
 `<img>` sites show a broken image.
 
+## What this survey missed
+
+It grepped for `images.evetech.net`, so it never saw the **seven files still asking
+`https://image.eveonline.com/Type/<id>_32.png`** — the host EVE served images from before the current
+one. They were found while converting, and the real spread was 59 places, not 52. A survey scoped to
+one spelling of a thing finds one spelling of it.
+
 ## What the server offers that nothing uses
 
 - **Id `1` is a documented fallback** for characters, corporations and alliances — a real answer
