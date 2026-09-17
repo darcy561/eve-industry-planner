@@ -26,7 +26,7 @@ func TestLive_SetSubdocumentAndIncrementInsideItConflicts(t *testing.T) {
 
 	_, err := coll.UpdateOne(ctx, bson.M{"_id": id}, bson.M{
 		"$set": bson.M{"_meta": bson.M{"owner": models.AccountOwner("acct-probe")}},
-		"$inc": bson.M{eipmongo.FieldMetaVersion: 1},
+		"$inc": bson.M{eipmongo.FieldMetaRevision: 1},
 	}, nil)
 	if err == nil {
 		t.Fatal("expected a path conflict; the versioned update may set _meta whole")

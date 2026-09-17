@@ -120,7 +120,7 @@ func moveDocument(ctx context.Context, coll *mongodriver.Collection, doc bson.M,
 	moved := make(bson.M, len(doc))
 	maps.Copy(moved, doc)
 	moved["_id"] = newID
-	eipmongo.SeedDocumentVersion(moved)
+	eipmongo.SeedDocumentRevision(moved)
 
 	if _, err := coll.InsertOne(ctx, moved); err != nil && !mongodriver.IsDuplicateKeyError(err) {
 		return fmt.Errorf("insert under %s: %w", newID, err)

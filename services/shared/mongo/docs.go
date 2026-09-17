@@ -62,7 +62,7 @@ func (d *Docs) UpsertStructPreservingMeta(ctx context.Context, v any, docID stri
 		return nil, fmt.Errorf("convert struct to BSON: %w", err)
 	}
 	setDoc := buildSetDoc(doc, "_id", "_meta")
-	setOnInsert := bson.M{"_id": docID}
+	setOnInsert := insertDefaults(docID)
 	applyLastModified(setDoc, setOnInsert, doc, true)
 	result, err := coll.UpdateOne(
 		ctx,
@@ -449,17 +449,34 @@ func ensureMetaMap(metaRaw any) bson.M {
 
 // buildWithMetaUpsertModel writes the whole document, `_meta` included.
 func buildWithMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
-	setDoc := buildSetDoc(doc, "_id")
+	setDoc := buildSetDoc(doc, "_id", metaField)
 	applyLastModified(setDoc, nil, nil, false)
+	// `_meta` is this writer's to replace, but field by field rather than whole:
+	// the revision counts writes to the document and is no part of the struct
+	// being written, so a $set of the block would drop it on every rebuild.
+	if meta := AsDocumentM(doc[metaField]); meta != nil {
+		meta["lastModified"] = time.Now().UTC()
+		maps.Copy(setDoc, MetaSetByPath(meta))
+	}
 	return mongo.NewUpdateOneModel().
 		SetFilter(bson.M{"_id": docID}).
-		SetUpdate(bson.M{"$set": setDoc, "$setOnInsert": bson.M{"_id": docID}}).
+		SetUpdate(bson.M{"$set": setDoc, "$setOnInsert": insertDefaults(docID)}).
 		SetUpsert(true)
+}
+
+// insertDefaults is what a document is given the once, when it is created.
+//
+// The revision starts at [models.InitialDocumentRevision] rather than being left
+// absent: absent and zero are the same answer to a reader and different answers
+// to a Mongo filter, so a conditional write comparing what it read would never
+// match a document that had never been counted.
+func insertDefaults(docID string) bson.M {
+	return bson.M{"_id": docID, FieldMetaRevision: models.InitialDocumentRevision}
 }
 
 func buildPreservingMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
 	setDoc := buildSetDoc(doc, "_id", "_meta")
-	setOnInsert := bson.M{"_id": docID}
+	setOnInsert := insertDefaults(docID)
 	applyLastModified(setDoc, setOnInsert, doc, true)
 	return mongo.NewUpdateOneModel().
 		SetFilter(bson.M{"_id": docID}).

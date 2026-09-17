@@ -124,7 +124,7 @@ func TestOwnerFromDocumentIDRefusesAnUnknownKind(t *testing.T) {
 // Mongo refuses $set of a subdocument alongside $inc of a path inside it, so
 // `_meta` must be set field by field. Setting it whole would also reset the
 // counter to whatever the caller's struct held.
-func TestSetVersionedDocumentSetsMetaByPath(t *testing.T) {
+func TestSetDocumentWithRevisionSetsMetaByPath(t *testing.T) {
 	t.Parallel()
 
 	job := models.Job{
@@ -134,9 +134,9 @@ func TestSetVersionedDocumentSetsMetaByPath(t *testing.T) {
 		},
 	}
 
-	update, err := SetVersionedDocument(job, nil)
+	update, err := SetDocumentWithRevision(job, nil)
 	if err != nil {
-		t.Fatalf("SetVersionedDocument: %v", err)
+		t.Fatalf("SetDocumentWithRevision: %v", err)
 	}
 
 	set, ok := update["$set"].(bson.M)
@@ -149,23 +149,23 @@ func TestSetVersionedDocumentSetsMetaByPath(t *testing.T) {
 	if _, byPath := set["_meta.owner"]; !byPath {
 		t.Error("the owner was not set by path")
 	}
-	if _, versioned := set[FieldMetaVersion]; versioned {
+	if _, versioned := set[FieldMetaRevision]; versioned {
 		t.Error("the version was set as well as incremented")
 	}
 
 	inc, ok := update["$inc"].(bson.M)
-	if !ok || inc[FieldMetaVersion] != 1 {
+	if !ok || inc[FieldMetaRevision] != 1 {
 		t.Errorf("$inc = %v, want the version incremented by one", update["$inc"])
 	}
 }
 
 // A write that also clears retired fields keeps its $unset.
-func TestSetVersionedDocumentKeepsTheUnset(t *testing.T) {
+func TestSetDocumentWithRevisionKeepsTheUnset(t *testing.T) {
 	t.Parallel()
 
-	update, err := SetVersionedDocument(models.Job{JobID: "job-1"}, bson.M{"archived": ""})
+	update, err := SetDocumentWithRevision(models.Job{JobID: "job-1"}, bson.M{"archived": ""})
 	if err != nil {
-		t.Fatalf("SetVersionedDocument: %v", err)
+		t.Fatalf("SetDocumentWithRevision: %v", err)
 	}
 	unset, ok := update["$unset"].(bson.M)
 	if !ok {
@@ -177,12 +177,12 @@ func TestSetVersionedDocumentKeepsTheUnset(t *testing.T) {
 }
 
 // No retired fields means no $unset key at all, rather than an empty one.
-func TestSetVersionedDocumentOmitsAnEmptyUnset(t *testing.T) {
+func TestSetDocumentWithRevisionOmitsAnEmptyUnset(t *testing.T) {
 	t.Parallel()
 
-	update, err := SetVersionedDocument(models.Job{JobID: "job-1"}, nil)
+	update, err := SetDocumentWithRevision(models.Job{JobID: "job-1"}, nil)
 	if err != nil {
-		t.Fatalf("SetVersionedDocument: %v", err)
+		t.Fatalf("SetDocumentWithRevision: %v", err)
 	}
 	if _, present := update["$unset"]; present {
 		t.Error("an empty $unset was included")

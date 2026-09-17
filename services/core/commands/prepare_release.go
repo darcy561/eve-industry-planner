@@ -82,6 +82,9 @@ var releases = []release{{
 		// planner seeded at an earlier login does not hold the categories its
 		// account added afterwards, and the picker reads the planner's list.
 		{name: "move each account's extras categories onto its planner", run: backfillPlannerExtrasCategories},
+		// After the owner stamp, which is what decides the collections carrying a
+		// `_meta` block at all.
+		{name: "give every document a write counter at _meta.revision", run: ensureMetaRevision},
 		// Sessions outlive a deploy, so grants written by the previous release are
 		// rewritten rather than left to lapse at the next token refresh.
 		{name: "rewrite session grants as owner keys", run: repairSessionGrants},

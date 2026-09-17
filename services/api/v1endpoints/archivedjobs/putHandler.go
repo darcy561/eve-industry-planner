@@ -181,7 +181,7 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		job.MetaData.ArchivedAt = now
 		job.MetaData.ArchivedBy = accountID
 
-		update, uerr := eipmongo.SetVersionedDocument(job, eipmongo.ArchivedJobsUpsertUnset)
+		update, uerr := eipmongo.SetDocumentWithRevision(job, eipmongo.ArchivedJobsUpsertUnset)
 		if uerr != nil {
 			metrics.Error("build_update_failed")
 			helper.RespondEndpointServerError(w, r, "Failed to archive jobs",

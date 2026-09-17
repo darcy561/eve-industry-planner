@@ -212,7 +212,7 @@ func (m *Mongo) UpdatePlannerSettings(ctx context.Context, owner models.Owner, u
 	err = Retry(ctx, "UpdatePlannerSettings", func() error {
 		return m.PlannerSettings.Collection().FindOneAndUpdate(ctx,
 			bson.M{"_id": owner.Key()},
-			bson.M{"$set": fields, "$inc": bson.M{FieldMetaVersion: 1}},
+			bson.M{"$set": fields, "$inc": bson.M{FieldMetaRevision: 1}},
 			options.FindOneAndUpdate().SetReturnDocument(options.After),
 		).Decode(&stored)
 	})

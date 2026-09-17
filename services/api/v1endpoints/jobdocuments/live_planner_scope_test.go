@@ -258,15 +258,15 @@ func TestLive_AWriteIncrementsTheDocumentVersion(t *testing.T) {
 			FindOne(context.Background(), bson.M{"_id": eipmongo.OwnerScopedDocumentID(s.owner, job.JobID)}).Decode(&stored); err != nil {
 			t.Fatalf("read the stored job: %v", err)
 		}
-		return stored.MetaData.Version
+		return stored.MetaData.Revision
 	}
 
 	if rec := s.putJobs([]models.Job{job}, s.account, s.handle); rec.Code >= http.StatusBadRequest {
 		t.Fatalf("first write = %d: %s", rec.Code, rec.Body.String())
 	}
 	first := version()
-	if first != models.InitialDocumentVersion {
-		t.Fatalf("version after one write = %d, want %d", first, models.InitialDocumentVersion)
+	if first != models.InitialDocumentRevision {
+		t.Fatalf("version after one write = %d, want %d", first, models.InitialDocumentRevision)
 	}
 
 	job.Name = "edited"

@@ -58,17 +58,17 @@ func BareDocumentID(storedID string) string {
 	return bare
 }
 
-// SetVersionedDocument is the update for a write that replaces a document and
+// SetDocumentWithRevision is the update for a write that replaces a document and
 // counts itself.
 //
 // Mongo refuses to $set a subdocument and $inc a path inside it in one update —
 // "would create a conflict at _meta" — and every scoped document carries its
-// version inside `_meta`. So the document is marshalled, `_meta` lifted out and
-// set field by field, and the version left to $inc alone.
+// revision inside `_meta`. So the document is marshalled, `_meta` lifted out and
+// set field by field, and the revision left to $inc alone.
 //
 // Setting `_meta` whole would also reset the counter to whatever the caller's
 // struct held, which for a decoded request body is zero.
-func SetVersionedDocument(doc any, unset bson.M) (bson.M, error) {
+func SetDocumentWithRevision(doc any, unset bson.M) (bson.M, error) {
 	raw, err := bson.Marshal(doc)
 	if err != nil {
 		return nil, fmt.Errorf("marshal document: %w", err)
@@ -95,7 +95,7 @@ func SetVersionedDocument(doc any, unset bson.M) (bson.M, error) {
 
 	update := bson.M{
 		"$set": set,
-		"$inc": bson.M{FieldMetaVersion: 1},
+		"$inc": bson.M{FieldMetaRevision: 1},
 	}
 	if len(unset) > 0 {
 		update["$unset"] = unset
@@ -115,15 +115,23 @@ func OwnerFromDocumentID(storedID string) (models.Owner, error) {
 	return models.ParseOwnerKey(key)
 }
 
-// MetaSetByPath is a `_meta` block as the field paths that set it, the version
-// left out so an $inc of it in the same update has no conflict to hit.
-func MetaSetByPath(meta bson.D) bson.M {
+// MetaSetByPath is a `_meta` block as the field paths that set it, the revision
+// left out.
+//
+// Two reasons it is left out, and both matter: an $inc of it in the same update
+// would have a conflict to hit, and a writer that owns `_meta` outright still
+// does not own the counter — it belongs to the document's history rather than to
+// the struct being written, so a $set of the whole block would drop it.
+//
+// Takes either shape a decode can produce: a nested document arrives as bson.M
+// from the shared client and as bson.D from a caller that decoded it another way.
+func MetaSetByPath(meta any) bson.M {
 	set := bson.M{}
-	for _, element := range meta {
-		if element.Key == MetaFieldVersionKey {
+	for key, value := range AsDocumentM(meta) {
+		if key == MetaFieldRevisionKey {
 			continue
 		}
-		set[metaField+"."+element.Key] = element.Value
+		set[metaField+"."+key] = value
 	}
 	return set
 }

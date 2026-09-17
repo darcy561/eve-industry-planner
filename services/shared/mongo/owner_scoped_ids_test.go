@@ -101,7 +101,7 @@ func TestBareDocumentIDFilterUsesARegexLiteral(t *testing.T) {
 // Seeding has to take either. Asserting one shape seeds nothing when the other
 // turns up, and silently: every migrated document would arrive without the
 // version a conditional write compares, which is what happened.
-func TestSeedDocumentVersionWalksTheDecodedMetaBlock(t *testing.T) {
+func TestSeedDocumentRevisionWalksTheDecodedMetaBlock(t *testing.T) {
 	t.Parallel()
 
 	raw, err := bson.Marshal(bson.M{
@@ -133,14 +133,14 @@ func TestSeedDocumentVersionWalksTheDecodedMetaBlock(t *testing.T) {
 				t.Fatalf("_meta = %T, which is not the shape this case is for", tc.doc["_meta"])
 			}
 
-			SeedDocumentVersion(tc.doc)
+			SeedDocumentRevision(tc.doc)
 
 			meta := AsDocumentM(tc.doc["_meta"])
 			if meta == nil {
 				t.Fatalf("_meta = %T, want a subdocument", tc.doc["_meta"])
 			}
-			if meta[MetaFieldVersionKey] != models.InitialDocumentVersion {
-				t.Fatalf("version = %v, want %d", meta[MetaFieldVersionKey], models.InitialDocumentVersion)
+			if meta[MetaFieldRevisionKey] != models.InitialDocumentRevision {
+				t.Fatalf("version = %v, want %d", meta[MetaFieldRevisionKey], models.InitialDocumentRevision)
 			}
 			if meta["owner"] == nil {
 				t.Fatal("seeding the version dropped the owner block")
@@ -150,11 +150,11 @@ func TestSeedDocumentVersionWalksTheDecodedMetaBlock(t *testing.T) {
 }
 
 // A document that already counts its writes keeps the count it has.
-func TestSeedDocumentVersionLeavesAnExistingCountAlone(t *testing.T) {
+func TestSeedDocumentRevisionLeavesAnExistingCountAlone(t *testing.T) {
 	t.Parallel()
 
-	doc := bson.M{"_meta": bson.D{{Key: MetaFieldVersionKey, Value: int64(7)}}}
-	SeedDocumentVersion(doc)
+	doc := bson.M{"_meta": bson.D{{Key: MetaFieldRevisionKey, Value: int64(7)}}}
+	SeedDocumentRevision(doc)
 
 	meta := doc["_meta"].(bson.D)
 	if len(meta) != 1 || meta[0].Value != int64(7) {
@@ -163,11 +163,11 @@ func TestSeedDocumentVersionLeavesAnExistingCountAlone(t *testing.T) {
 }
 
 // A document with no meta block at all is left as it is rather than panicking.
-func TestSeedDocumentVersionToleratesAMissingMetaBlock(t *testing.T) {
+func TestSeedDocumentRevisionToleratesAMissingMetaBlock(t *testing.T) {
 	t.Parallel()
 
 	doc := bson.M{"_id": "job-1"}
-	SeedDocumentVersion(doc)
+	SeedDocumentRevision(doc)
 
 	if _, present := doc["_meta"]; present {
 		t.Fatal("a meta block was invented")

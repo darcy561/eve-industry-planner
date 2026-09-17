@@ -518,9 +518,9 @@ func TestLive_updatePlannerSettings_setsOnlyWhatItNames(t *testing.T) {
 	if stored.DefaultMaterialEfficiencyValue != 7 {
 		t.Errorf("ME = %d, want the 7 the update did not name", stored.DefaultMaterialEfficiencyValue)
 	}
-	if stored.MetaData.Version != before.MetaData.Version+1 {
+	if stored.MetaData.Revision != before.MetaData.Revision+1 {
 		t.Errorf("version = %d, want %d — the write counts itself",
-			stored.MetaData.Version, before.MetaData.Version+1)
+			stored.MetaData.Revision, before.MetaData.Revision+1)
 	}
 	if stored.MetaData.ClientID != "tab-1" {
 		t.Errorf("clientID = %q, want the writing tab's", stored.MetaData.ClientID)

@@ -262,12 +262,14 @@ inherits.
 
 - **Which documents.** Jobs are the case that motivates this. Whether groups, settings and the
   archive follow, or stay whole-document because they have one writer, is not answered here.
-- ~~**Where the version lives.**~~ **Settled provisionally, and seeded already.** `_meta.version` is a
+- ~~**Where the counter lives.**~~ **Settled provisionally, and seeded already.** `_meta.revision` is a
   per-document counter, incremented by every write. It was taken now rather than at Stage A because
   [shared-planners](../shared-planners/plan.md) § Every owner-scoped document id carries its owner
   rewrites every one of these documents in the cutover window, and seeding a field costs nothing in a
   pass that is already rewriting the row — where doing it later means a second walk or a long tail of
-  unversioned documents the conditional write must special-case forever.
+  uncounted documents the conditional write must special-case forever. It is named for what it counts
+  rather than `version`, which every model already carries as the shape of the document, and a document
+  is created holding it so that "absent" is never a state the conditional write has to answer for.
 
   A counter rather than Stage G's position token because they answer different questions: the token is
   per-owner and says *did I miss anything*, the counter is per-document and says *is this still the

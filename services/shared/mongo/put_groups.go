@@ -114,7 +114,7 @@ func (d *Docs) BulkUpsertGroups(ctx context.Context, owner models.Owner, account
 
 		bulkOps := make([]mongo.WriteModel, 0, len(valid))
 		for _, g := range valid {
-			update, uerr := SetVersionedDocument(g, nil)
+			update, uerr := SetDocumentWithRevision(g, nil)
 			if uerr != nil {
 				return uerr
 			}

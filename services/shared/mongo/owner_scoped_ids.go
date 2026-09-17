@@ -76,22 +76,22 @@ func StoredDocumentID(collection string, owner models.Owner, bareID string) stri
 	return bareID
 }
 
-// SeedDocumentVersion gives a decoded document the write counter a conditional
+// SeedDocumentRevision gives a decoded document the write counter a conditional
 // write compares, leaving one it already has alone.
 //
 // The shared client sets DefaultDocumentM, so a nested document arrives as
 // bson.M — but a caller that decoded it another way hands over a bson.D. Reading
 // it through AsDocumentM takes either, because asserting one shape seeds nothing
 // when the other turns up, and silently: every migrated document would arrive
-// without the version a conditional write compares.
-func SeedDocumentVersion(doc bson.M) {
+// without the revision a conditional write compares.
+func SeedDocumentRevision(doc bson.M) {
 	meta := AsDocumentM(doc[metaField])
 	if meta == nil {
 		return
 	}
-	if _, ok := meta[MetaFieldVersionKey]; ok {
+	if _, ok := meta[MetaFieldRevisionKey]; ok {
 		return
 	}
-	meta[MetaFieldVersionKey] = models.InitialDocumentVersion
+	meta[MetaFieldRevisionKey] = models.InitialDocumentRevision
 	doc[metaField] = meta
 }

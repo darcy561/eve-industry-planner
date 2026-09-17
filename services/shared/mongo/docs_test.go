@@ -3,6 +3,8 @@ package mongo
 import (
 	"testing"
 
+	"eve-industry-planner/shared/models"
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -27,8 +29,37 @@ func TestWithMetaUpsertWritesMetaOnEveryUpsert(t *testing.T) {
 	if !ok {
 		t.Fatalf("no $set in %#v", update)
 	}
-	if _, written := set["_meta"]; !written {
-		t.Fatalf("_meta must be in $set, got %#v", set)
+	// Field by field, not as a block: a $set of the whole `_meta` would drop the
+	// revision, which is no part of the struct this writer marshals.
+	if _, whole := set["_meta"]; whole {
+		t.Fatalf("_meta was set as a block, got %#v", set)
+	}
+	owner, written := set["_meta.owner"].(bson.M)
+	if !written {
+		t.Fatalf("the owner must be written on every upsert, got %#v", set)
+	}
+	if owner["id"] != "acct-1" {
+		t.Fatalf("owner = %#v, want the one the writer holds", owner)
+	}
+	if _, stamped := set["_meta.lastModified"]; !stamped {
+		t.Fatalf("lastModified must move with the write, got %#v", set)
+	}
+	if _, counted := set[FieldMetaRevision]; counted {
+		t.Fatalf("the revision was written on every upsert, which would undo the counting")
+	}
+}
+
+// A derived row is created with a counter like anything else, or the release
+// step's seeding is undone the first time the rebuild runs.
+func TestWithMetaUpsertStartsANewRowAtTheFirstRevision(t *testing.T) {
+	t.Parallel()
+	doc := bson.M{"_id": "row-1", "_meta": bson.M{"owner": bson.M{"kind": "account", "id": "acct-1"}}}
+
+	model := buildWithMetaUpsertModel("row-1", doc).(*mongo.UpdateOneModel)
+	setOnInsert := model.Update.(bson.M)["$setOnInsert"].(bson.M)
+
+	if got := setOnInsert[FieldMetaRevision]; got != models.InitialDocumentRevision {
+		t.Fatalf("a created row starts at revision %v, want %d", got, models.InitialDocumentRevision)
 	}
 }
 
@@ -124,5 +155,28 @@ func TestPreservingMetaUpsertWritesWithoutAnOwner(t *testing.T) {
 	}
 	if set["_meta.clientID"] != "tab-9" {
 		t.Fatalf("clientID must still be written, got %#v", set)
+	}
+}
+
+// A document is created at the first revision rather than without one.
+//
+// Absent and zero read the same to a caller and differently to Mongo: a filter
+// on zero does not match a missing field, so a conditional write comparing the
+// revision it read would never match a document that had never been counted —
+// failing every time rather than conflicting once.
+func TestPreservingMetaUpsertStartsANewDocumentAtTheFirstRevision(t *testing.T) {
+	t.Parallel()
+	doc := bson.M{"_id": "job-1", "_meta": bson.M{"clientID": "tab-9"}}
+
+	model := buildPreservingMetaUpsertModel("job-1", doc).(*mongo.UpdateOneModel)
+	update := model.Update.(bson.M)
+	setOnInsert := update["$setOnInsert"].(bson.M)
+
+	if got := setOnInsert[FieldMetaRevision]; got != models.InitialDocumentRevision {
+		t.Fatalf("a created document starts at revision %v, want %d", got, models.InitialDocumentRevision)
+	}
+	// Only on insert: an update that set it would put the counter back.
+	if _, written := update["$set"].(bson.M)[FieldMetaRevision]; written {
+		t.Fatal("the revision was set on every write, which would undo the counting")
 	}
 }
