@@ -261,10 +261,6 @@ func (s *Server) reader(client *Client) {
 				s.runWSMessageOperation(client, msgType, msg, s.handleSessionResumeWS)
 				continue
 
-			case "sync":
-				s.runWSMessageOperation(client, msgType, msg, s.handleSyncWS)
-				continue
-
 			case "subscribe":
 				s.runWSMessageOperation(client, msgType, msg, s.handleSubscribeWS)
 				continue

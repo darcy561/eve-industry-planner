@@ -8,10 +8,8 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/config"
-	syncpkg "eve-industry-planner/websocket/sync"
 
 	"eve-industry-planner/shared/crypto/entityid"
-	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
 )
 
@@ -44,9 +42,6 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 		return nil, fmt.Errorf("load authz hmac key for websocket scope upgrades: %w", err)
 	}
 
-	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialisation in processIncomingQueue.
-	syncPool := pond.NewPool(config.SyncPoolSize)
-
 	shardN := max(config.DocUpdateOutboundShardCount, 1)
 	shards := make([]chan docUpdateWork, shardN)
 	for i := range shards {
@@ -64,27 +59,17 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 		explicitDocSubscribers:  make(map[string]map[string]bool),
 		ownerKeyToClients:       make(map[string]map[string]bool),
 		docUpdateOutboundShards: shards,
-		SyncQueues:              make(map[string]*syncpkg.SyncQueue),
-		SyncSignals:             make(chan string, config.SignalChannelBuffer),
-		SyncPool:                syncPool,
 		upgrader:                upgrader,
 		Stack:                   clients,
 		intakeStopChan:          make(chan struct{}),
 		shutdownChan:            make(chan struct{}),
 	}
 
-	logs.DebugCtx(context.Background(), "websocket server instance created",
-		"sync_pool_size", config.SyncPoolSize)
+	logs.DebugCtx(context.Background(), "websocket server instance created")
 
 	s.initMetrics()
 
 	s.startIncomingCoordinator()
-
-	// Start sync coordinator
-	processFn := func(clientID string) error {
-		return syncpkg.ProcessSyncQueue(s, clientID, syncpkg.SyncTimeout)
-	}
-	syncpkg.StartSyncCoordinator(s, s.shutdownChan, processFn)
 
 	// Start NATS subscription for document updates
 	s.subscribeToDocUpdates()

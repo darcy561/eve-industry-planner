@@ -96,16 +96,6 @@ func (s *Server) Shutdown(ctx context.Context) {
 		s.deleteOwnDocFanoutConsumers(ctx)
 		s.stopConsumeLoops()
 
-		if s.SyncPool != nil {
-			stopperSync := s.SyncPool.Stop()
-			select {
-			case <-stopperSync.Done():
-				logs.DebugCtx(ctx, "sync pool stopped")
-			case <-ctx.Done():
-				logs.WarnCtx(ctx, "sync pool shutdown interrupted", "error", ctx.Err())
-			}
-		}
-
 		logs.DebugCtx(ctx, "websocket server shutdown complete")
 	})
 }

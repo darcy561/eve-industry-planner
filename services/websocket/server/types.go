@@ -10,10 +10,8 @@ import (
 	"eve-industry-planner/shared/appconfig"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
-	syncpkg "eve-industry-planner/websocket/sync"
 
 	"eve-industry-planner/shared/crypto/entityid"
-	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -61,14 +59,6 @@ type Server struct {
 	docUpdateOutboundShards []chan docUpdateWork
 	outboundInFlight        atomic.Int64 // work currently inside a shard worker
 	outboundWaitingForRoom  atomic.Int64 // messages taken from the stream, waiting for a shard slot
-
-	// client_id -> sync queue. The queue is what enforces one sync per client.
-	SyncQueues  map[string]*syncpkg.SyncQueue
-	SyncSignals chan string // Channel signaling sync work available (clientID)
-	SyncMu      sync.RWMutex
-
-	// Sync worker pool (pond); incoming/outgoing use per-doc mutex + goroutines instead of shared pools.
-	SyncPool pond.Pool // For sync operations (separate pool) - exported for sync package
 
 	// Configuration
 	upgrader websocket.Upgrader
@@ -139,9 +129,6 @@ type Client struct {
 
 	// Sync state tracking
 	// Exported fields for use by sync package
-	SyncInProgress bool       // True when client is syncing
-	SyncStartTime  time.Time  // When sync started (for timeout detection)
-	SyncMu         sync.Mutex // Protects sync state
 }
 
 type IncomingDocQueue struct {
@@ -154,88 +141,6 @@ type Event struct {
 	ClientID string
 	DocID    string
 	Msg      []byte
-}
-
-// SyncQueue and SyncMessage are now defined in the sync package
-// Use sync.SyncQueue and sync.SyncMessage instead
-
-// Implement syncpkg.SyncServer interface
-func (s *Server) GetSyncQueues() map[string]*syncpkg.SyncQueue {
-	return s.SyncQueues
-}
-
-func (s *Server) GetSyncSignals() chan string {
-	return s.SyncSignals
-}
-
-func (s *Server) GetSyncMu() interface {
-	Lock()
-	Unlock()
-} {
-	return &s.SyncMu
-}
-
-func (s *Server) GetClients() map[string]syncpkg.SyncClient {
-	result := make(map[string]syncpkg.SyncClient, len(s.Clients))
-	for k, v := range s.Clients {
-		result[k] = v
-	}
-	return result
-}
-
-func (s *Server) GetClientsMu() interface {
-	RLock()
-	RUnlock()
-} {
-	return &s.ClientsMu
-}
-
-func (s *Server) GetSyncPool() interface {
-	SubmitErr(func() error) any
-} {
-	// Wrap pond.Pool to match interface signature
-	return &poolWrapper{p: s.SyncPool}
-}
-
-// poolWrapper wraps pond.Pool to match the interface signature
-type poolWrapper struct {
-	p pond.Pool
-}
-
-func (pw *poolWrapper) SubmitErr(f func() error) any {
-	return pw.p.SubmitErr(f)
-}
-
-// Implement syncpkg.SyncClient interface
-func (c *Client) GetSyncInProgress() bool {
-	return c.SyncInProgress
-}
-
-func (c *Client) SetSyncInProgress(val bool) {
-	c.SyncInProgress = val
-}
-
-func (c *Client) GetSyncStartTime() time.Time {
-	return c.SyncStartTime
-}
-
-func (c *Client) SetSyncStartTime(t time.Time) {
-	c.SyncStartTime = t
-}
-
-func (c *Client) GetSyncMu() interface {
-	Lock()
-	Unlock()
-} {
-	return &c.SyncMu
-}
-
-func (c *Client) GetAccountID() string {
-	return c.AccountID
-}
-
-func (c *Client) GetSend() chan []byte {
-	return c.Send
 }
 
 // LogContext returns the connection-scoped context for structured logging.
@@ -258,12 +163,4 @@ func (s *Server) clientLogCtx(clientID string) context.Context {
 		return context.Background()
 	}
 	return c.LogContext()
-}
-
-// Implement syncpkg.SyncServer interface - MongoDB access
-func (s *Server) GetMongoClient() any {
-	if s.Stack == nil || s.Stack.Mongo == nil {
-		return nil
-	}
-	return s.Stack.Mongo
 }

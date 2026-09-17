@@ -30,9 +30,6 @@ const (
 	MessageRateLimit             = 200
 	MessageRateWindow            = 1 * time.Second
 
-	// Sync pool configuration.
-	SyncPoolSize = 20
-
 	// Doc update outbound: sharded queues route by account / corporation / alliance so each shard
 	// preserves FIFO for that scope while different scopes process in parallel (per replica).
 	DocUpdateOutboundShardCount    = 32

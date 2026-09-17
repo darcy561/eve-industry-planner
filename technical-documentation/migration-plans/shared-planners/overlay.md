@@ -748,9 +748,18 @@ without a live stack — `testing/natsfake` exists, and `testing/redisfake` now 
 inside a `testing/synctest` bubble, where a thirty-second deadline costs no wall clock — but whether the
 NATS client can be driven from inside a bubble without a real socket is untried.
 
+**The standing sync path is gone.** A package of seven files — a queue, a coordinator, a processor and
+four frames — stood behind a `sync` message no client has ever sent, with a coordinator scanning every
+100ms for work that never arrived. Its Mongo layer asked per account, so it was not a start on an
+owner-scoped load: it was the same idea one scope down, and the loader that landed reads the endpoints
+that already carry the owner instead.
+
+`skipWhileSyncing` went with it. It was the one per-family gate in the delivery table, held a document
+change back from a client rebuilding its state, and never fired because nothing ever set the flag it
+read. What a client that is behind gets now is the resume telling it so, and a load.
+
 Owed here: keying the job and group stores by owner rather than replacing one planner's array with
-another's, the fate of the `websocket/sync` package, and replaying a gap rather than reloading through
-it.
+another's, and replaying a gap rather than reloading through it.
 
 ## The write counter says what it counts
 

@@ -33,7 +33,6 @@ import (
 	"eve-industry-planner/testing/redisfake"
 	"eve-industry-planner/testing/wait"
 	"github.com/alicebob/miniredis/v2"
-	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
 )
 
@@ -82,7 +81,6 @@ func newIntegFixture(t *testing.T) *integFixture {
 		explicitDocSubscribers: make(map[string]map[string]bool),
 		ownerKeyToClients:      make(map[string]map[string]bool),
 		Stack:                  &stackservices.Clients{Redis: eipredis.NewRedis(rdb)},
-		SyncPool:               pond.NewPool(1),
 		upgrader:               upgrader,
 		intakeStopChan:         make(chan struct{}),
 		shutdownChan:           make(chan struct{}),

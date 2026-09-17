@@ -34,7 +34,6 @@ type outboundDeliveryOutcome struct {
 	RecipientSessionIDs            []string
 	RecipientAccountIDs            []string
 	SkippedEchoClientIDs           []string
-	SkippedSyncClientIDs           []string
 	SkippedNotConnectedClientIDs   []string
 	SkippedScopeClientIDs          []string
 	SkippedSendBufferFullClientIDs []string
@@ -62,10 +61,6 @@ func (o *outboundDeliveryOutcome) recordRecipient(clientID string, client *Clien
 
 func (o *outboundDeliveryOutcome) recordEchoSkip(clientID string) {
 	o.SkippedEchoClientIDs = append(o.SkippedEchoClientIDs, clientID)
-}
-
-func (o *outboundDeliveryOutcome) recordSyncSkip(clientID string) {
-	o.SkippedSyncClientIDs = append(o.SkippedSyncClientIDs, clientID)
 }
 
 func (o *outboundDeliveryOutcome) recordNotConnectedSkip(clientID string) {
@@ -192,7 +187,6 @@ func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) ma
 		detail["source_session_id"] = o.SourceSessionID
 	}
 	appendSkipDetail(detail, "skipped_echo_suppression_client_ids", o.SkippedEchoClientIDs)
-	appendSkipDetail(detail, "skipped_sync_in_progress_client_ids", o.SkippedSyncClientIDs)
 	appendSkipDetail(detail, "skipped_not_connected_client_ids", o.SkippedNotConnectedClientIDs)
 	appendSkipDetail(detail, "skipped_scope_client_ids", o.SkippedScopeClientIDs)
 	appendSkipDetail(detail, "skipped_send_buffer_full_client_ids", o.SkippedSendBufferFullClientIDs)

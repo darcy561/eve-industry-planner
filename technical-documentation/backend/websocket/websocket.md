@@ -63,7 +63,7 @@ On Swarm stop / start-first replace (process **SIGTERM**), cleanup budget shares
 3. Stop **intake only** (pull loops); keep outbound shard workers up.
 4. Flush outbound shard FIFOs + in-flight work (bounded by cleanup ctx) while sockets are still open.
 5. `ForceCloseLocalClients` — sync `please_reconnect` (includes `container_id`) then close (**1001** GoingAway); wait until local clients empty or cleanup ctx done (re-kick late joiners).
-6. Stop shard workers / consume loops; `Shutdown` (sync pool) then HTTP/probes/deps teardown.
+6. Stop shard workers / consume loops; `Shutdown` then HTTP/probes/deps teardown.
 
 Router drops non-ready backends on probe refresh and skips draining via placement state → reconnects land on remaining/new backends (prefer newest bake among eligible).
 
@@ -140,13 +140,12 @@ takes the owner index for the target's key; the internal `doc_subscribers` takes
 asked for one document by name, which is where a change stating no readable owner goes. An adapter
 may pick that last one but no producer can address it, so publishing its string reaches nobody. Each
 candidate is then checked to still hold the owner, skipped if it is the connection that caused the
-message, held back if the family's policy says so, and written to otherwise.
+message, and written to otherwise.
 
-**The family selects policy only.** `deliveryPolicies` is keyed by family and carries one gate today,
-`skipWhileSyncing`, set for `document` alone: a client rebuilding its baseline is held back from a
-document change, because a change applied on top of a half-written baseline lands in a document about
-to be replaced. A family absent from the table cannot be delivered — the walk reports
-`undeliverable: unknown_family` rather than fanning out on a default.
+**A family is addressable or it is not.** `deliverableFamilies` lists what this build can deliver, and
+a family absent from it is reported as `undeliverable: unknown_family` rather than fanned out on a
+default. It carries no per-family gates: a client that is behind is told so when it resumes and reads
+the documents again, rather than having changes withheld while it catches up.
 
 **Suppression is what the message carries.** Documents suppress the tab that made the change and fall
 back to the session when no tab is named; locks suppress the session, since a viewer joining or

@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/stackservices"
-
-	"github.com/alitto/pond/v2"
 )
 
 func testServerChans() (intake, shutdown chan struct{}) {
@@ -17,7 +15,6 @@ func testServerChans() (intake, shutdown chan struct{}) {
 func TestShutdownClosesChanAndIsIdempotent(t *testing.T) {
 	intake, shutdown := testServerChans()
 	s := &Server{
-		SyncPool:       pond.NewPool(1),
 		intakeStopChan: intake,
 		shutdownChan:   shutdown,
 	}
@@ -97,7 +94,6 @@ func TestDeleteOwnDocFanoutConsumersNilSafe(t *testing.T) {
 func TestShutdownRespectsCanceledContext(t *testing.T) {
 	intake, shutdown := testServerChans()
 	s := &Server{
-		SyncPool:       pond.NewPool(1),
 		intakeStopChan: intake,
 		shutdownChan:   shutdown,
 	}

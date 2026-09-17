@@ -50,27 +50,13 @@ type Outbound struct {
 	Frame []byte
 }
 
-// deliveryPolicy is how a family is delivered, held in one table rather than in
-// whichever function a message happens to reach.
-type deliveryPolicy struct {
-	// skipWhileSyncing holds a message back from a client rebuilding its state,
-	// which would otherwise apply a change on top of a half-loaded document set.
-	skipWhileSyncing bool
-}
-
-// deliveryPolicies is keyed by family. A family absent from it cannot be
-// delivered: the walk reports that rather than fanning out on a default, because
-// a policy nobody wrote is not a policy.
-var deliveryPolicies = map[string]deliveryPolicy{
+// deliverableFamilies is every message family this service can deliver. A family
+// absent from it is reported rather than fanned out on a default, because a
+// family nobody wrote down is not one this build knows how to address.
+var deliverableFamilies = map[string]struct{}{
 	eipnats.ClientMessageNotification: {},
 	eipnats.ClientMessageStaticData:   {},
-	// A client rebuilding its state holds a half-loaded document set, and a
-	// change applied on top of one lands in a document that is about to be
-	// replaced. It refetches what it missed when the rebuild finishes.
-	eipnats.ClientMessageDocument: {skipWhileSyncing: true},
-	// A lock event says who is holding or waiting for a document rather than what
-	// the document says, so a client rebuilding its state has nothing to apply it
-	// on top of and is told like any other.
+	eipnats.ClientMessageDocument:     {},
 	eipnats.ClientMessageDocumentLock: {},
 }
 
@@ -92,8 +78,7 @@ func (s *Server) deliverOutbound(out Outbound) outboundDeliveryOutcome {
 		outcome.AccountID = out.Target.ID
 	}
 
-	policy, known := deliveryPolicies[out.Family]
-	if !known {
+	if _, known := deliverableFamilies[out.Family]; !known {
 		outcome.Undeliverable = "unknown_family"
 		return outcome
 	}
@@ -127,10 +112,6 @@ func (s *Server) deliverOutbound(out Outbound) outboundDeliveryOutcome {
 			outcome.recordNotConnectedSkip(clientID)
 			continue
 		}
-		client.SyncMu.Lock()
-		syncing := client.SyncInProgress
-		client.SyncMu.Unlock()
-
 		if !s.clientHoldsTarget(client, out) {
 			outcome.recordScopeSkip(clientID)
 			continue
@@ -138,10 +119,6 @@ func (s *Server) deliverOutbound(out Outbound) outboundDeliveryOutcome {
 		if out.Source.suppresses() &&
 			outgoinglogic.ShouldSuppressRecipient(out.Source.SessionID, out.Source.ClientID, client.SessionID, clientID) {
 			outcome.recordEchoSkip(clientID)
-			continue
-		}
-		if policy.skipWhileSyncing && syncing {
-			outcome.recordSyncSkip(clientID)
 			continue
 		}
 		if outgoinglogic.TrySendNonBlocking(client.Send, out.Frame) {

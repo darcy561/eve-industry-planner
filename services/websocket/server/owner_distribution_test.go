@@ -467,54 +467,6 @@ func TestOwnerWalkFallsBackToSuppressingTheWholeSession(t *testing.T) {
 	}
 }
 
-// A client rebuilding its state is held back from a document change.
-//
-// The document set it is loading is half there, so a change applied on top of one
-// lands in a document about to be replaced. It refetches what it missed when the
-// rebuild finishes, which is why skipping costs nothing.
-func TestADocumentIsHeldBackFromAClientMidSync(t *testing.T) {
-	f := newIntegFixture(t)
-
-	syncing := f.orgClient("syncing-tab", "acct-owner", nil, nil)
-	settled := f.orgClient("settled-tab", "acct-owner", nil, nil)
-	syncing.SyncMu.Lock()
-	syncing.SyncInProgress = true
-	syncing.SyncMu.Unlock()
-
-	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1",
-		docUpdateFor(t, models.AccountOwner("acct-owner"), "job-1"), 0)
-
-	if len(out.SkippedSyncClientIDs) != 1 || out.SkippedSyncClientIDs[0] != syncing.id {
-		t.Fatalf("sync skips = %v, want [%s]", out.SkippedSyncClientIDs, syncing.id)
-	}
-	if got := received(t, syncing); len(got) != 0 {
-		t.Fatalf("a client mid-sync received %v", got)
-	}
-	if got := received(t, settled); len(got) != 1 || got[0] != "job-1" {
-		t.Fatalf("the settled tab received %v, want [job-1]", got)
-	}
-}
-
-// The sync gate belongs to the document family rather than to delivery. An
-// announcement is one fact with nothing to apply it on top of, so a client
-// rebuilding still gets it — which is what makes the policy table worth having
-// rather than a check every message runs.
-func TestAnAnnouncementStillReachesAClientMidSync(t *testing.T) {
-	f := newIntegFixture(t)
-
-	syncing := f.orgClient("syncing-tab", "acct-owner", nil, nil)
-	syncing.SyncMu.Lock()
-	syncing.SyncInProgress = true
-	syncing.SyncMu.Unlock()
-
-	if sent, routed := f.delivered(everyoneMessage(staticDataFrame(t, 42, "2026-09-13"))); !routed || sent != 1 {
-		t.Fatalf("routed=%v sent=%d, want the announcement delivered", routed, sent)
-	}
-	if got := receivedFrames(t, syncing); len(got) != 1 {
-		t.Fatalf("a client mid-sync received %d announcements, want 1", len(got))
-	}
-}
-
 // A client left in a document's subscriber index after dropping the document is
 // refused.
 //
