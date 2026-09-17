@@ -40,6 +40,7 @@ Where the live Mongo test suite writes, and where it runs.
 | Know how the database name resolves, and why `authSource` does not follow | [plan.md](./plan.md) § The database name |
 | Understand how a test gets isolation | [plan.md](./plan.md) § Isolation |
 | Know how CI gets a replica set, and why not a `services:` block | [plan.md](./plan.md) § CI |
+| See what a trial provisioning measured, and which tests it left failing | [plan.md](./plan.md) § What a trial provisioning measured |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See the stages and their order | [plan.md](./plan.md) § Stages |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
