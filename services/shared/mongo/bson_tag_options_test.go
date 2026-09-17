@@ -8,14 +8,10 @@ import (
 	"eve-industry-planner/testing/gosource"
 )
 
-// bsonOmitzero matches an ",omitzero" inside a bson struct tag.
-//
 // The driver's tag parser knows omitempty, minsize, truncate and inline only, so
-// ",omitzero" on a bson tag is not an option it declines, it is no option at all,
-// and the zero value is written. A zero time.Time reaches the document as a year-1
-// date that every reader then has to filter for. The json half of the same tag
-// pair legitimately wants omitzero, which is what makes the mistake easy to make
-// and invisible once made: both halves are usually written as one pair.
+// ",omitzero" on a bson tag is no option at all and the zero is written — a zero
+// time.Time reaching the document as a year-1 date. The json half of the same
+// pair legitimately wants omitzero, which is what makes it easy to write.
 var bsonOmitzero = regexp.MustCompile(`bson:"[^"]*,omitzero`)
 
 func TestNoBSONTagClaimsOmitzero(t *testing.T) {

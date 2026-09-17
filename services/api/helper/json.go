@@ -1,13 +1,14 @@
 package helper
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 
 	"eve-industry-planner/shared/jsoncodec"
 )
@@ -84,68 +85,51 @@ func DecodeJSONRequest(r *http.Request, target any, maxBodySize int64) error {
 		}
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(rawBody))
-	decoder.DisallowUnknownFields() // Reject requests with unexpected fields
-
-	if err := decoder.Decode(target); err != nil {
-		if err == io.EOF {
+	if err := jsoncodec.UnmarshalRequest(rawBody, target); err != nil {
+		if errors.Is(err, jsoncodec.ErrTrailingData) {
 			return &JSONRequestError{
-				PublicMessage: "request body is required",
-				Detail:        "empty_body",
+				PublicMessage: "request body contains extra data",
+				Detail:        "extra_data",
+				BodyPreview:   makeJSONPreview(rawBody),
+				Cause:         err,
 			}
 		}
 		return buildJSONRequestError(err, rawBody)
 	}
 
-	// Ensure body was fully consumed (prevents extra data attacks)
-	if _, err := decoder.Token(); err != io.EOF {
-		return &JSONRequestError{
-			PublicMessage: "request body contains extra data",
-			Detail:        "extra_data",
-			BodyPreview:   makeJSONPreview(rawBody),
-			Cause:         err,
-		}
-	}
-
 	return nil
 }
 
+// buildJSONRequestError fills the shape the 400 body is written from. The field
+// path comes from the error's JSON pointer, not from parsing its message.
 func buildJSONRequestError(err error, rawBody []byte) error {
 	preview := makeJSONPreview(rawBody)
-	var syntaxErr *json.SyntaxError
-	if errors.As(err, &syntaxErr) {
+
+	if semantic, ok := errors.AsType[*jsonv2.SemanticError](err); ok {
+		if errors.Is(err, jsonv2.ErrUnknownName) {
+			return &JSONRequestError{
+				PublicMessage: "invalid request body",
+				Detail:        "unknown_field",
+				Field:         fieldPath(semantic.JSONPointer),
+				BodyPreview:   preview,
+				Cause:         err,
+			}
+		}
+		return &JSONRequestError{
+			PublicMessage: "invalid request body",
+			Detail:        fmt.Sprintf("type_mismatch (%s -> %s)", semantic.JSONKind, semantic.GoType),
+			Field:         fieldPath(semantic.JSONPointer),
+			Offset:        semantic.ByteOffset,
+			BodyPreview:   preview,
+			Cause:         err,
+		}
+	}
+
+	if syntactic, ok := errors.AsType[*jsontext.SyntacticError](err); ok {
 		return &JSONRequestError{
 			PublicMessage: "invalid request body",
 			Detail:        "syntax_error",
-			Offset:        syntaxErr.Offset,
-			BodyPreview:   preview,
-			Cause:         err,
-		}
-	}
-
-	var typeErr *json.UnmarshalTypeError
-	if errors.As(err, &typeErr) {
-		field := strings.TrimSpace(typeErr.Field)
-		if field == "" {
-			field = "(root)"
-		}
-		return &JSONRequestError{
-			PublicMessage: "invalid request body",
-			Detail:        fmt.Sprintf("type_mismatch (%s -> %s)", typeErr.Value, typeErr.Type.String()),
-			Field:         field,
-			Offset:        typeErr.Offset,
-			BodyPreview:   preview,
-			Cause:         err,
-		}
-	}
-
-	if after, ok := strings.CutPrefix(err.Error(), "json: unknown field "); ok {
-		field := after
-		field = strings.Trim(field, "\"")
-		return &JSONRequestError{
-			PublicMessage: "invalid request body",
-			Detail:        "unknown_field",
-			Field:         field,
+			Offset:        syntactic.ByteOffset,
 			BodyPreview:   preview,
 			Cause:         err,
 		}
@@ -157,6 +141,20 @@ func buildJSONRequestError(err error, rawBody []byte) error {
 		BodyPreview:   preview,
 		Cause:         err,
 	}
+}
+
+// fieldPath renders a pointer as the dotted path the 400 body carries, an array
+// index being one step: "list.0.count". Walked by token, not by trimming
+// slashes, because a pointer escapes "/" and "~" in a name.
+func fieldPath(p jsontext.Pointer) string {
+	var parts []string
+	for token := range p.Tokens() {
+		parts = append(parts, token)
+	}
+	if len(parts) == 0 {
+		return "(root)"
+	}
+	return strings.Join(parts, ".")
 }
 
 func makeJSONPreview(raw []byte) string {
@@ -173,11 +171,8 @@ func makeJSONPreview(raw []byte) string {
 	return trimmed[:maxJSONBodyPreview] + "...(truncated)"
 }
 
-// EncodeJSON writes data as the response body. Compression is nginx's job, so
-// this only encodes.
-//
-// It deliberately does not write a status: most callers have already chosen one,
-// and net/http sends 200 for those that have not.
+// EncodeJSON writes data as the response body, leaving the status to the caller:
+// most have already chosen one, and net/http sends 200 for the rest.
 func EncodeJSON(w http.ResponseWriter, data any) error {
 	w.Header().Set("Content-Type", "application/json")
 	return jsoncodec.Encode(w, data)
@@ -185,11 +180,9 @@ func EncodeJSON(w http.ResponseWriter, data any) error {
 
 // EncodeJSONStatus writes data as the response body under an explicit status.
 //
-// The status has to go first: once a byte of the body is written net/http has
-// already sent 200, and a later WriteHeader is dropped with a warning.
+// The content type is set here rather than by delegating to EncodeJSON, because
+// WriteHeader sends the header map as it stands and a Set after it is lost.
 func EncodeJSONStatus(w http.ResponseWriter, status int, data any) error {
-	// Set the content type before the status, not by delegating to EncodeJSON:
-	// WriteHeader sends the header map as it stands, and a Set after it is lost.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	return jsoncodec.Encode(w, data)

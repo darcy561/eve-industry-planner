@@ -1,9 +1,6 @@
-// Package gosource walks a Go module's own source files.
-//
-// It exists for tests asserting a tag or naming invariant that must hold
-// everywhere. Reflection can only reach types a test remembers to name, and the
-// types most likely to carry the mistake are unexported ones in packages the
-// test does not import — so those sweeps read the source instead.
+// Package gosource walks a Go module's own source files, for tests asserting an
+// invariant that must hold everywhere. Reflection reaches only types a test
+// names; the ones most likely to carry the mistake are unexported.
 package gosource
 
 import (
@@ -13,9 +10,8 @@ import (
 	"testing"
 )
 
-// ModuleRoot walks up from the working directory to the directory holding
-// go.mod, so a sweep covers the whole module rather than the package the test
-// happens to live in.
+// ModuleRoot finds the directory holding go.mod, so a sweep covers the module
+// rather than the package the test lives in.
 func ModuleRoot(t testing.TB) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -34,8 +30,8 @@ func ModuleRoot(t testing.TB) string {
 	}
 }
 
-// EachFile calls visit for every .go file under root, with the path relative to
-// root and slash-separated so a failure message reads the same on any platform.
+// EachFile calls visit for every .go file under root. Paths are relative and
+// slash-separated, so a failure message reads the same on any platform.
 func EachFile(t testing.TB, root string, visit func(rel string, body []byte)) {
 	t.Helper()
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {

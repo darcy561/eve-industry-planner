@@ -3,9 +3,10 @@ package helper
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"strconv"
 	"strings"
+
+	"eve-industry-planner/shared/jsoncodec"
 )
 
 func writeCanonicalJSONValue(b *strings.Builder, v any) {
@@ -66,12 +67,12 @@ func sortStrings(values []string) {
 
 // BuildJSONPayloadAndWeakETag marshals data and computes a weak ETag from a canonical JSON view.
 func BuildJSONPayloadAndWeakETag(data any) ([]byte, string, error) {
-	payload, err := json.Marshal(data)
+	payload, err := jsoncodec.Marshal(data)
 	if err != nil {
 		return nil, "", err
 	}
 	var generic any
-	if err := json.Unmarshal(payload, &generic); err != nil {
+	if err := jsoncodec.Unmarshal(payload, &generic); err != nil {
 		return nil, "", err
 	}
 	var canonical strings.Builder

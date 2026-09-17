@@ -1,9 +1,11 @@
 package helper
 
 import (
+	jsonv1 "encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -23,15 +25,13 @@ func TestEncodeJSONWritesTheBodyAndContentType(t *testing.T) {
 	if got := w.Header().Get("Content-Type"); got != "application/json" {
 		t.Fatalf("Content-Type = %q", got)
 	}
-	// The trailing newline is v1's Encoder behaviour, which every reader of these
-	// responses has seen since the first one shipped.
 	if got, want := w.Body.String(), "{\"name\":\"a\",\"tags\":[\"x\"]}\n"; got != want {
 		t.Fatalf("body = %q, want %q", got, want)
 	}
 }
 
-// A nil slice answers null, not []. The house options hold that while call sites
-// move; changing it is a wire decision, not a side effect of routing a handler.
+// A nil slice answers null, not []. Changing that is a wire decision, not a side
+// effect of routing a handler.
 func TestEncodeJSONWritesNilSlicesAsNull(t *testing.T) {
 	t.Parallel()
 	w := httptest.NewRecorder()
@@ -44,8 +44,7 @@ func TestEncodeJSONWritesNilSlicesAsNull(t *testing.T) {
 	}
 }
 
-// Most callers pick their own status before calling, so EncodeJSON must not
-// spend the header on a 200 they did not ask for.
+// EncodeJSON must not spend the header on a 200 the caller did not ask for.
 func TestEncodeJSONLeavesTheCallersStatusAlone(t *testing.T) {
 	t.Parallel()
 	w := httptest.NewRecorder()
@@ -60,7 +59,7 @@ func TestEncodeJSONLeavesTheCallersStatusAlone(t *testing.T) {
 }
 
 // WriteHeader sends the header map as it stands, so a Content-Type set after it
-// never reaches the client. This is the ordering EncodeJSONStatus exists to keep.
+// never reaches the client.
 func TestEncodeJSONStatusSendsContentTypeWithTheStatus(t *testing.T) {
 	t.Parallel()
 	w := httptest.NewRecorder()
@@ -86,5 +85,36 @@ func TestEncodeJSONReportsAWriteFailure(t *testing.T) {
 	err := EncodeJSON(failingWriter{httptest.NewRecorder()}, body{Name: "a"})
 	if err == nil {
 		t.Fatal("a failed write must reach the caller, which is what decides whether to log it")
+	}
+}
+
+// The ETag hashes the payload, so a moved byte misses every cached app-config a
+// browser holds.
+func TestETagPayloadIsUnchangedFromV1(t *testing.T) {
+	t.Parallel()
+
+	data := struct {
+		Version  string         `json:"version"`
+		Flags    map[string]any `json:"flags"`
+		Missing  []string       `json:"missing"`
+		Disabled bool           `json:"disabled"`
+	}{
+		Version: "1.2.3",
+		Flags:   map[string]any{"b": true, "a": 1.0, "c": "x"},
+	}
+
+	payload, etag, err := BuildJSONPayloadAndWeakETag(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := jsonv1.Marshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(payload) != string(want) {
+		t.Fatalf("payload\n got %s\nwant %s", payload, want)
+	}
+	if etag == "" || !strings.HasPrefix(etag, `W/"`) {
+		t.Fatalf("etag = %q", etag)
 	}
 }

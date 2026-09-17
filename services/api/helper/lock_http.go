@@ -17,9 +17,7 @@ func RespondLockHeldElsewhereJSON(w http.ResponseWriter, r *http.Request, collec
 		"collection":     collection,
 		"rejected_count": len(rejected),
 	}))
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusConflict)
-	_ = EncodeJSON(w, map[string]any{
+	_ = EncodeJSONStatus(w, http.StatusConflict, map[string]any{
 		"error":      documentlock.ErrCodeLockHeldElsewhere,
 		"collection": collection,
 		"rejected":   rejected,

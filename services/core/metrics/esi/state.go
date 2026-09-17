@@ -31,7 +31,8 @@ type BucketState struct {
 	// ReportedRemaining is CCP's own count, from X-Ratelimit-Remaining, and is
 	// only meaningful while the header is fresh — an idle bucket's spend decays
 	// while the header stays frozen. Comparable says whether it is worth reading.
-	ReportedRemaining int  `json:"reported_remaining,omitzero"`
+	// Written even at zero: "nothing left" must not look like "no header seen".
+	ReportedRemaining int  `json:"reported_remaining"`
 	Comparable        bool `json:"comparable"`
 	// Unaccounted is the part of TokenUsed that ESI charged but this fleet never
 	// recorded. The ledger is reconciled to ESI on every response, so the two

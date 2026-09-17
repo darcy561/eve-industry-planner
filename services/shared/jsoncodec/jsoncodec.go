@@ -1,16 +1,11 @@
-// Package jsoncodec is how this codebase reads and writes JSON on a wire.
-//
-// It exists so the encoding policy is written once. Every call site used to
-// reach for encoding/json directly, which meant the answer to "what shape does
-// this emit" was whatever the stdlib defaulted to that day, in 160 files.
-//
-// What it buys over the v1 package is read-side strictness: a duplicate object
-// name is an error rather than last-wins, invalid UTF-8 is an error rather than
-// U+FFFD, and a field matches by name rather than by name-ignoring-case. Speed
-// is not the reason — the gain is small on reads and negative on writes.
+// Package jsoncodec holds this codebase's JSON encoding policy. Reads are
+// strict: a duplicate name, invalid UTF-8 and a case-only field match are errors
+// rather than a plausible-looking result.
 package jsoncodec
 
 import (
+	"bytes"
+	"errors"
 	"io"
 
 	"encoding/json/jsontext"
@@ -18,15 +13,9 @@ import (
 )
 
 // options is the house policy, and the only place it is written down.
-//
-// The three Format/Escape options hold output byte-identical to what the v1
-// package produced, so a call site can move here without changing what any
-// reader sees. Deterministic fixes map ordering, which v2 otherwise leaves
-// unspecified and which an ETag over the bytes would otherwise churn on.
-//
-// FormatNilSliceAsNull is transitional. A nil slice is emitted as null because
-// that is what v1 did, not because it is right: an empty array belongs on the
-// wire as []. It comes off per boundary once each one has been looked at.
+// Deterministic is load-bearing: an ETag over these bytes churns without it.
+// FormatNilSliceAsNull is not the shape an empty array should have on a wire —
+// endpoints owing the SPA an array build one.
 var options = jsonv2.JoinOptions(
 	jsonv2.FormatNilSliceAsNull(true),
 	jsonv2.FormatNilMapAsNull(true),
@@ -34,17 +23,12 @@ var options = jsonv2.JoinOptions(
 	jsonv2.Deterministic(true),
 )
 
-// Marshal encodes v under the house options.
 func Marshal(v any) ([]byte, error) { return jsonv2.Marshal(v, options) }
 
-// Unmarshal decodes data into v under the house options.
 func Unmarshal(data []byte, v any) error { return jsonv2.Unmarshal(data, v, options) }
 
-// Encode writes v to w, in place of json.NewEncoder(w).Encode(v).
-//
-// The trailing newline is the one v1's Encoder wrote and MarshalWrite does not.
-// It is here so a call site can move without changing a byte of what it sends:
-// every HTTP response this replaces ends with one today.
+// Encode writes v to w followed by a newline, which is part of the wire shape:
+// every HTTP response written through here carries one.
 func Encode(w io.Writer, v any) error {
 	if err := jsonv2.MarshalWrite(w, v, options); err != nil {
 		return err
@@ -53,5 +37,24 @@ func Encode(w io.Writer, v any) error {
 	return err
 }
 
-// Decode reads one value from r into v, in place of json.NewDecoder(r).Decode(v).
+// Decode reads one value from r. Lenient by design: this is the path for a
+// third-party response, where an unrecognised field means the other side added
+// one, not that the body is wrong.
 func Decode(r io.Reader, v any) error { return jsonv2.UnmarshalRead(r, v, options) }
+
+// ErrTrailingData reports a body carrying more than the one value asked for.
+// The underlying refusal is a syntax error, which reads as the wrong problem.
+var ErrTrailingData = errors.New("unexpected data after the JSON value")
+
+// UnmarshalRequest decodes one value from data into v, for a body another party
+// sent: an undeclared member errors, trailing data is [ErrTrailingData].
+func UnmarshalRequest(data []byte, v any) error {
+	dec := jsontext.NewDecoder(bytes.NewReader(data))
+	if err := jsonv2.UnmarshalDecode(dec, v, options, jsonv2.RejectUnknownMembers(true)); err != nil {
+		return err
+	}
+	if _, err := dec.ReadToken(); !errors.Is(err, io.EOF) {
+		return ErrTrailingData
+	}
+	return nil
+}

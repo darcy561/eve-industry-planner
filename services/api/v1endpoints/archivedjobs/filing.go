@@ -63,7 +63,7 @@ func (h *Handlers) FileArchivedJobMonthsHandler(w http.ResponseWriter, r *http.R
 	}
 
 	var req filingRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := helper.DecodeJSONRequest(r, &req, helper.DefaultMaxBodySize); err != nil {
 		metrics.Error("bad_request")
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid body", "file months: body unreadable", "archived_jobs_filing_body", "archived_jobs_filing", err, nil)
 		return

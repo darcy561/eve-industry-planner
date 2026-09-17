@@ -324,3 +324,42 @@ func TestV1AndV2ReadTheCustomUnmarshalersAlike(t *testing.T) {
 		})
 	}
 }
+
+func TestUnmarshalRequestRefusesAnUndeclaredMember(t *testing.T) {
+	t.Parallel()
+	var got struct {
+		Name string `json:"name"`
+	}
+	if err := jsoncodec.UnmarshalRequest([]byte(`{"name":"a","nope":1}`), &got); err == nil {
+		t.Fatal("an undeclared member must refuse: a client misspelling a field should be told, not ignored")
+	}
+	// Unmarshal is the lenient half of the pair, and stays that way — it reads
+	// what this codebase itself wrote.
+	if err := jsoncodec.Unmarshal([]byte(`{"name":"a","nope":1}`), &got); err != nil {
+		t.Fatalf("Unmarshal must keep discarding unknown members: %v", err)
+	}
+}
+
+func TestUnmarshalRequestRefusesTrailingData(t *testing.T) {
+	t.Parallel()
+	var got struct {
+		Name string `json:"name"`
+	}
+	err := jsoncodec.UnmarshalRequest([]byte(`{"name":"a"}{"name":"b"}`), &got)
+	if !errors.Is(err, jsoncodec.ErrTrailingData) {
+		t.Fatalf("err = %v, want ErrTrailingData — two documents in one body is not a syntax error", err)
+	}
+}
+
+func TestUnmarshalRequestAllowsTrailingWhitespace(t *testing.T) {
+	t.Parallel()
+	var got struct {
+		Name string `json:"name"`
+	}
+	if err := jsoncodec.UnmarshalRequest([]byte("{\"name\":\"a\"}\n  \t"), &got); err != nil {
+		t.Fatalf("whitespace after the value is not trailing data: %v", err)
+	}
+	if got.Name != "a" {
+		t.Fatalf("decoded %+v", got)
+	}
+}

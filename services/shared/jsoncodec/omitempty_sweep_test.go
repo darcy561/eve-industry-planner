@@ -13,12 +13,9 @@ import (
 	"eve-industry-planner/testing/gosource"
 )
 
-// zeroIsWritten names the Go types whose zero value `omitempty` does not omit.
-//
-// The tag omits an empty JSON value — null, "", {} and [] — so it covers strings,
-// pointers, slices and maps, and does nothing at all for a number or a bool. A
-// field tagged omitempty whose type is one of these is therefore a tag that reads
-// as a wish and behaves as nothing: the zero is written every time.
+// zeroIsWritten names the types whose zero `omitempty` does not omit. The tag
+// drops an empty JSON value — null, "", {} and [] — so on a number or a bool it
+// does nothing and the zero is written every time.
 var zeroIsWritten = map[string]bool{
 	"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
 	"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
@@ -26,15 +23,10 @@ var zeroIsWritten = map[string]bool{
 }
 
 // keptOmitempty are the fields deliberately left on omitempty, each with the
-// reason the zero cannot reach a document or must be written when it does.
-//
-// Everything else takes omitzero, so a field whose zero means "not set yet" is
-// absent from the encoded document rather than asserted as a value. Adding a
-// field here is a claim about the data, not a way to silence the sweep.
+// reason its zero cannot reach a document. An entry is a claim about the data,
+// not a way to silence the sweep.
 var keptOmitempty = map[string]string{
-	// A release step normalises a missing or 0 schemaVersion to 1, so no stored
-	// document holds the zero. Omitting it would also hide the one case worth
-	// seeing if that ever regressed.
+	// A release step normalises a missing or 0 schemaVersion to 1.
 	"shared/models/accountDocuments.go:ApplicationSettings.SchemaVersion":      "normalised to >= 1 before release",
 	"shared/models/group.go:Group.SchemaVersion":                               "normalised to >= 1 before release",
 	"shared/models/job.go:Job.SchemaVersion":                                   "normalised to >= 1 before release",
@@ -43,12 +35,9 @@ var keptOmitempty = map[string]string{
 	"shared/models/planner/planner_documents.go:Membership.SchemaVersion":      "every construction sets SchemaCurrent",
 	"shared/models/planner/settings.go:Settings.SchemaVersion":                 "every construction sets SchemaCurrent",
 
-	// Revision is a stronger case than the rest, and not because its zero is
-	// unreachable. Absence and zero mean different things to the release step,
-	// which seeds what `{_meta.revision: {$exists: false}}` matches: a missing
-	// counter is a document the step has not reached, a zero one is a bug. The
-	// counter must keep writing whatever it holds so neither can imitate the
-	// other.
+	// Absence and zero differ here: the release step seeds what
+	// `{_meta.revision: {$exists: false}}` matches, so a missing counter is a
+	// document it has not reached and a zero one is a bug.
 	"shared/models/metaData.go:MetaData.Revision": "absence is how the release step finds documents to seed",
 }
 
@@ -108,9 +97,8 @@ func TestScalarFieldsDoNotClaimOmitempty(t *testing.T) {
 	}
 }
 
-// scalarOmitempty reports the field's name when it carries a json omitempty tag
-// on a type whose zero that tag cannot omit. Embedded fields are skipped: they
-// have no name of their own and carry the tag of the type they promote.
+// scalarOmitempty names a field carrying json omitempty on a type whose zero the
+// tag cannot omit. Embedded fields are skipped: they carry the promoted tag.
 func scalarOmitempty(fld *ast.Field) (string, bool) {
 	if fld.Tag == nil || len(fld.Names) == 0 {
 		return "", false
