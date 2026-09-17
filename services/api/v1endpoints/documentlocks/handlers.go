@@ -1,7 +1,6 @@
 package documentlocks
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -57,9 +56,7 @@ func (h *Handlers) handleAcquire(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	finishLockAcquireSuccess(r, hc, out)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(out.StatusCode)
-	_ = json.NewEncoder(w).Encode(out.Payload)
+	_ = helper.EncodeJSONStatus(w, out.StatusCode, out.Payload)
 }
 
 func (h *Handlers) handleExtend(w http.ResponseWriter, r *http.Request) {
@@ -78,9 +75,7 @@ func (h *Handlers) handleExtend(w http.ResponseWriter, r *http.Request) {
 	}
 	if out.NotHolderPayload != nil {
 		finishLockExtendSuccess(r, hc, out)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(out.StatusCode)
-		_ = json.NewEncoder(w).Encode(out.NotHolderPayload)
+		_ = helper.EncodeJSONStatus(w, out.StatusCode, out.NotHolderPayload)
 		return
 	}
 	finishLockExtendSuccess(r, hc, out)
@@ -127,9 +122,7 @@ func (h *Handlers) handleForceRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	finishLockForceReleaseSuccess(r, hc, out)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(out.StatusCode)
-	_ = json.NewEncoder(w).Encode(out.Payload)
+	_ = helper.EncodeJSONStatus(w, out.StatusCode, out.Payload)
 }
 
 func (h *Handlers) handleHandOver(w http.ResponseWriter, r *http.Request) {
@@ -155,9 +148,7 @@ func (h *Handlers) handleHandOver(w http.ResponseWriter, r *http.Request) {
 		finishLockHandOverSuccess(r, hc, res)
 	}
 	if res.Payload != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(res.StatusCode)
-		_ = json.NewEncoder(w).Encode(res.Payload)
+		_ = helper.EncodeJSONStatus(w, res.StatusCode, res.Payload)
 		return
 	}
 	w.WriteHeader(res.StatusCode)
@@ -179,9 +170,7 @@ func (h *Handlers) handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	finishLockRequestSuccess(r, hc, res)
 	if res.Payload != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(res.StatusCode)
-		_ = json.NewEncoder(w).Encode(res.Payload)
+		_ = helper.EncodeJSONStatus(w, res.StatusCode, res.Payload)
 		return
 	}
 	w.WriteHeader(res.StatusCode)
@@ -221,8 +210,7 @@ func (h *Handlers) handleLockState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	finishLockStateSuccess(r, "lock-state", accountID, collection, docID, nil)
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(payload)
+	_ = helper.EncodeJSON(w, payload)
 }
 
 type lockStateBatchBody struct {
@@ -268,8 +256,7 @@ func (h *Handlers) handleLockStateBatch(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	finishLockStateBatchSuccess(r, accountID, len(b.JobDocIDs), len(b.GroupDocIDs))
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	_ = helper.EncodeJSON(w, map[string]any{
 		"jobResults":   jobResults,
 		"groupResults": groupResults,
 	})
@@ -297,9 +284,7 @@ func (h *Handlers) handleClaimHandoff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	finishLockClaimHandoffSuccess(r, hc, out)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(out.Status)
-	_ = json.NewEncoder(w).Encode(out.Payload)
+	_ = helper.EncodeJSONStatus(w, out.Status, out.Payload)
 }
 
 func (h *Handlers) handleWaitlistPulse(w http.ResponseWriter, r *http.Request) {

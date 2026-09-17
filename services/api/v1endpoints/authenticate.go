@@ -1,7 +1,6 @@
 package v1endpoints
 
 import (
-	"encoding/json"
 	"errors"
 	eipnats "eve-industry-planner/shared/nats"
 	"net/http"
@@ -256,12 +255,10 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
 	auth.SetTenantAffinityCookieAccount(w, r, accountID)
 
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := helper.EncodeJSONStatus(w, http.StatusOK, response); err != nil {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "encode_error",

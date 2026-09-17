@@ -1,7 +1,6 @@
 package sso
 
 import (
-	"encoding/json"
 	"errors"
 	"maps"
 	"net/http"
@@ -101,7 +100,5 @@ func isSSOGrantClientError(msg string) bool {
 }
 
 func writeTokenPayload(w http.ResponseWriter, payload EveSSOTokenPayload) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	return json.NewEncoder(w).Encode(payload)
+	return helper.EncodeJSONStatus(w, http.StatusOK, payload)
 }

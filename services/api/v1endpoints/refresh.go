@@ -1,7 +1,6 @@
 package v1endpoints
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -411,11 +410,9 @@ func (a *Handlers) refreshHandler(w http.ResponseWriter, r *http.Request, touchL
 		auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
 		auth.SetTenantAffinityCookieAccount(w, r, tokenData.AccountID)
 
-		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Pragma", "no-cache")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(bootstrap); err != nil {
+		if err := helper.EncodeJSONStatus(w, http.StatusOK, bootstrap); err != nil {
 			m.Errors.WithLabelValues("encode_error").Inc(ctx)
 			respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]any{})
 			return
@@ -438,12 +435,10 @@ func (a *Handlers) refreshHandler(w http.ResponseWriter, r *http.Request, touchL
 	}
 	auth.SetTenantAffinityCookieAccount(w, r, tokenData.AccountID)
 
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(rotate); err != nil {
+	if err := helper.EncodeJSONStatus(w, http.StatusOK, rotate); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]any{})
 		return

@@ -32,17 +32,24 @@ var zeroIsWritten = map[string]bool{
 // absent from the encoded document rather than asserted as a value. Adding a
 // field here is a claim about the data, not a way to silence the sweep.
 var keptOmitempty = map[string]string{
-	// A release step normalises a missing or 0 schemaVersion to 1 and the write
-	// path seeds revision, so no stored document holds the zero. Omitting them
-	// would also hide the one case worth seeing if that ever regressed.
+	// A release step normalises a missing or 0 schemaVersion to 1, so no stored
+	// document holds the zero. Omitting it would also hide the one case worth
+	// seeing if that ever regressed.
 	"shared/models/accountDocuments.go:ApplicationSettings.SchemaVersion":      "normalised to >= 1 before release",
 	"shared/models/group.go:Group.SchemaVersion":                               "normalised to >= 1 before release",
 	"shared/models/job.go:Job.SchemaVersion":                                   "normalised to >= 1 before release",
 	"shared/models/user_account_document.go:UserAccountDocument.SchemaVersion": "normalised to >= 1 before release",
-	"shared/models/metaData.go:MetaData.Revision":                              "seeded at 1 by the write path",
 	"shared/models/planner/planner_documents.go:Planner.SchemaVersion":         "every construction sets SchemaCurrent",
 	"shared/models/planner/planner_documents.go:Membership.SchemaVersion":      "every construction sets SchemaCurrent",
 	"shared/models/planner/settings.go:Settings.SchemaVersion":                 "every construction sets SchemaCurrent",
+
+	// Revision is a stronger case than the rest, and not because its zero is
+	// unreachable. Absence and zero mean different things to the release step,
+	// which seeds what `{_meta.revision: {$exists: false}}` matches: a missing
+	// counter is a document the step has not reached, a zero one is a bug. The
+	// counter must keep writing whatever it holds so neither can imitate the
+	// other.
+	"shared/models/metaData.go:MetaData.Revision": "absence is how the release step finds documents to seed",
 }
 
 func TestScalarFieldsDoNotClaimOmitempty(t *testing.T) {

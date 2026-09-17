@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
-	"eve-industry-planner/shared/httpmiddleware"
 	"net/http"
 
+	"eve-industry-planner/api/helper"
+	"eve-industry-planner/shared/httpmiddleware"
 	"eve-industry-planner/shared/logs"
 )
 
@@ -39,9 +39,7 @@ func MaintenanceModeConstructor(flag MaintenanceFlag) httpmiddleware.MiddlewareC
 
 			logs.InfoCtx(r.Context(), "request blocked during maintenance", "path", r.URL.Path, "method", r.Method)
 
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			_ = helper.EncodeJSONStatus(w, http.StatusServiceUnavailable, map[string]any{
 				"error":            "maintenance_mode",
 				"maintenance_mode": true,
 			})

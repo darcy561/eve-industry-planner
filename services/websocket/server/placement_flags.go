@@ -2,11 +2,11 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/shared/container"
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
@@ -128,7 +128,7 @@ func (s *Server) HandlePlacement(w http.ResponseWriter, r *http.Request) {
 	}
 	state := s.currentPlacementState(s.ConnectedCount())
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(state); err != nil {
+	if err := jsoncodec.Encode(w, state); err != nil {
 		logs.WarnCtx(r.Context(), "placement status encode failed", "error", err)
 	}
 }

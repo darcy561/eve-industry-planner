@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"eve-industry-planner/shared/jsoncodec"
 )
 
 const (
@@ -169,4 +171,26 @@ func makeJSONPreview(raw []byte) string {
 		return trimmed
 	}
 	return trimmed[:maxJSONBodyPreview] + "...(truncated)"
+}
+
+// EncodeJSON writes data as the response body. Compression is nginx's job, so
+// this only encodes.
+//
+// It deliberately does not write a status: most callers have already chosen one,
+// and net/http sends 200 for those that have not.
+func EncodeJSON(w http.ResponseWriter, data any) error {
+	w.Header().Set("Content-Type", "application/json")
+	return jsoncodec.Encode(w, data)
+}
+
+// EncodeJSONStatus writes data as the response body under an explicit status.
+//
+// The status has to go first: once a byte of the body is written net/http has
+// already sent 200, and a later WriteHeader is dropped with a warning.
+func EncodeJSONStatus(w http.ResponseWriter, status int, data any) error {
+	// Set the content type before the status, not by delegating to EncodeJSON:
+	// WriteHeader sends the header map as it stands, and a Set after it is lost.
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	return jsoncodec.Encode(w, data)
 }

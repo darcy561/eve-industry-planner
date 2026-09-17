@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -149,11 +148,9 @@ func (h *Handlers) ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *h
 
 	resp := *tok
 	resp.RefreshToken = ""
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	if err := helper.EncodeJSONStatus(w, http.StatusOK, resp); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode cloud-stored ESI refresh response", "linked_esi_encode_failed", "eve_sso_token_refresh", err, map[string]any{
 			"character_hash": targetHash,

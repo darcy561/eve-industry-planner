@@ -1,15 +1,13 @@
 package documentlocks
 
 import (
-	"encoding/json"
 	"net/http"
 
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
 )
 
 func writeExtendJSON(w http.ResponseWriter, status int, expUnix int64, extendCount int, x documentlock.ExtendExtras) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
 	payload := documentlock.LockPayload(expUnix)
 	payload["holding"] = true
 	payload["extendCount"] = extendCount
@@ -23,5 +21,5 @@ func writeExtendJSON(w http.ResponseWriter, status int, expUnix int64, extendCou
 	if x.CycleReset {
 		payload["cycleReset"] = true
 	}
-	_ = json.NewEncoder(w).Encode(payload)
+	_ = helper.EncodeJSONStatus(w, status, payload)
 }
