@@ -50,7 +50,8 @@ func archiveJobFor(t *testing.T, ctx context.Context, h *Handlers, job models.Jo
 	if err := jobidentity.Encrypt(&job, h.EntityCipher); err != nil {
 		t.Fatalf("encrypt %s: %v", job.JobID, err)
 	}
-	if _, err := h.Mongo.ArchivedJobs.UpsertStructPreservingMeta(ctx, job, job.JobID); err != nil {
+	if _, err := h.Mongo.ArchivedJobs.UpsertStructPreservingMeta(ctx, job,
+		eipmongo.OwnerScopedDocumentID(models.AccountOwner(accountID), job.JobID)); err != nil {
 		t.Fatalf("seed archived job %s: %v", job.JobID, err)
 	}
 }

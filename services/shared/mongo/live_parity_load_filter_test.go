@@ -95,8 +95,9 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 		t.Fatalf("seed other: failed=%d err=%v", failed, err)
 	}
 
-	// Filter omits account — only _id. Unique _id still finds the row; merge keeps account scope.
-	idOnly := bson.M{"_id": bson.M{"$in": []string{jobID}}}
+	// Filter omits account — only _id. The id already carries its owner, so it
+	// finds the row on its own; the merge is what keeps the read account-scoped.
+	idOnly := bson.M{"_id": bson.M{"$in": eipmongo.OwnerScopedDocumentIDs(models.AccountOwner(accountID), []string{jobID})}}
 	gotID, err := mongo.JobDocuments.LoadJobsByFilter(ctx, models.AccountOwner(accountID), cloneFilter(idOnly))
 	if err != nil {
 		t.Fatalf("id_only: %v", err)
@@ -109,7 +110,7 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 	// forces the parameter, so a filter naming another owner cannot widen the read.
 	wrongAccountFilter := bson.M{
 		eipmongo.FieldMetaOwnerID: "eip-parity-wrong-account",
-		"_id":                     jobID,
+		"_id":                     eipmongo.OwnerScopedDocumentID(models.AccountOwner(accountID), jobID),
 	}
 	gotWrong, err := mongo.JobDocuments.LoadJobsByFilter(ctx, models.AccountOwner(accountID), cloneFilter(wrongAccountFilter))
 	if err != nil {
@@ -120,7 +121,10 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 	}
 
 	// Broad filter without account — must stay on accountID (not otherAccount).
-	broad := bson.M{"displayOnPlanner": true, "_id": bson.M{"$in": []string{jobID, otherJobID}}}
+	broad := bson.M{"displayOnPlanner": true, "_id": bson.M{"$in": []string{
+		eipmongo.OwnerScopedDocumentID(models.AccountOwner(accountID), jobID),
+		eipmongo.OwnerScopedDocumentID(models.AccountOwner(otherAccount), otherJobID),
+	}}}
 	gotBroad, err := mongo.JobDocuments.LoadJobsByFilter(ctx, models.AccountOwner(accountID), cloneFilter(broad))
 	if err != nil {
 		t.Fatalf("planner_no_acct: %v", err)
@@ -230,7 +234,10 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	// Caller "forgets" account in filter (planner-shaped predicate only).
 	filterNoAccount := bson.M{
 		"displayOnPlanner": true,
-		"_id":              bson.M{"$in": []string{jobA.JobID, jobB.JobID}},
+		"_id": bson.M{"$in": []string{
+			eipmongo.OwnerScopedDocumentID(models.AccountOwner(accountA), jobA.JobID),
+			eipmongo.OwnerScopedDocumentID(models.AccountOwner(accountB), jobB.JobID),
+		}},
 	}
 
 	// Without merge: same Find the Docs layer would run if it trusted the filter alone.

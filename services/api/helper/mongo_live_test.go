@@ -299,7 +299,7 @@ func TestLive_JobDocumentsDeleteFlow(t *testing.T) {
 	filter := bson.M{
 		eipmongo.FieldMetaOwnerKind: models.OwnerAccount,
 		eipmongo.FieldMetaOwnerID:   apiLiveScratchAccount,
-		"_id":                       bson.M{"$in": []string{job.JobID}},
+		"_id":                       bson.M{"$in": eipmongo.OwnerScopedDocumentIDs(models.AccountOwner(apiLiveScratchAccount), []string{job.JobID})},
 	}
 	deleted, err := m.JobDocuments.DeleteManyAfterStampingMeta(ctx, filter, now, "api-live-sess", "api-live-client",
 		eipmongo.WithOpName("api live delete job documents"))
@@ -334,7 +334,7 @@ func TestLive_GroupsDeleteFlow(t *testing.T) {
 	filter := bson.M{
 		eipmongo.FieldMetaOwnerKind: models.OwnerAccount,
 		eipmongo.FieldMetaOwnerID:   apiLiveScratchAccount,
-		"_id":                       bson.M{"$in": []string{group.GroupID}},
+		"_id":                       bson.M{"$in": eipmongo.OwnerScopedDocumentIDs(models.AccountOwner(apiLiveScratchAccount), []string{group.GroupID})},
 	}
 	deleted, err := m.Groups.DeleteManyAfterStampingMeta(ctx, filter, now, "api-live-sess", "api-live-client",
 		eipmongo.WithOpName("api live delete groups"))
@@ -375,7 +375,7 @@ func TestLive_JobsGroupsListFlows(t *testing.T) {
 	byIDs, err := m.JobDocuments.LoadJobsByFilter(ctx, models.AccountOwner(apiLiveScratchAccount), bson.M{
 		eipmongo.FieldMetaOwnerKind: models.OwnerAccount,
 		eipmongo.FieldMetaOwnerID:   apiLiveScratchAccount,
-		"_id":                       bson.M{"$in": []string{jobA.JobID, jobB.JobID}},
+		"_id":                       bson.M{"$in": eipmongo.OwnerScopedDocumentIDs(models.AccountOwner(apiLiveScratchAccount), []string{jobA.JobID, jobB.JobID})},
 	})
 	if err != nil {
 		t.Fatalf("LoadJobsByFilter: %v", err)
