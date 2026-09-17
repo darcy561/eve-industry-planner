@@ -151,6 +151,20 @@ pays for it. CI provisions without auth and would not.
 This also sharpens what `ScratchDatabase` is for. Dropping a whole database is safe against a database
 one binary owns, and is not safe against one several binaries share — which is what they do today.
 
+### An unsatisfiable gate fails like a regression
+
+A gate says a dependency is wanted, not that it is there. `EIP_REDIS_PARITY_LIVE=1` with no Redis
+running produced **54 failures across `shared/esiclient` and `api/v1endpoints`** — every Redis-backed
+assertion failing on its own terms, spread over packages, with nothing saying the server was simply
+absent. It reads as a code regression, and it was nearly reported as one against another session's
+change.
+
+`redislive.Require` and `mongolive.Require` both dial and fail per test, which is correct per test and
+wrong in aggregate. A gate that is set and cannot be satisfied could say so once and stop the run.
+That would have turned a misread into a sentence, and it is the same hazard as § The suite is not
+isolated per package: a live run that fails in bulk for an environmental reason looks exactly like one
+failing for a code reason, and the cost is in what a reader concludes before checking.
+
 ### Two notes for whoever builds Stage C
 
 **`--auth` is a choice, not a constraint.** The trial ran with `--auth` and a generated keyfile, and

@@ -76,6 +76,27 @@ leaves the same three roles. `TestRunnerUsesTheTestDatabase` pins the script's d
 `mongolive.TestDatabase`: a shell script cannot read a Go constant, and the two disagreeing would
 point a run at a database the guard does not know about.
 
+**Running the suite from the host needs a Mongo of its own.** `config.MongoURL` appends
+`replicaSet=`, so the driver does topology discovery and connects to whatever host the set advertises
+rather than the seed it was given. The stack's set advertises `mongo:27017`, a name that resolves
+inside the stack network and not on the host, so a host-side run reaches a port that is open and then
+never uses it. The answer is not an `/etc/hosts` entry but a throwaway set whose advertised address is
+already reachable:
+
+```bash
+docker run -d --name eip-ci-mongo -p 27099:27099 mongo:8 bash -c \
+  "openssl rand -base64 756 > /tmp/kf && chmod 600 /tmp/kf && \
+   exec mongod --replSet rs0 --port 27099 --bind_ip_all --auth --keyFile /tmp/kf"
+# unauthenticated, through the localhost exception, before any user exists:
+#   rs.initiate({_id:'rs0', members:[{_id:0, host:'127.0.0.1:27099'}]})
+#   create root, then the app user with readWrite + dbAdmin on eve_industry_planner_test
+```
+
+mongod listens on the published port inside the container as well as outside, so `127.0.0.1:27099`
+means the same thing to the server and to the driver, and discovery advertises an address the host can
+reach. `scripts/testing/live-mongo.sh` does not need this — it runs the test binary inside the stack
+network, where the stack's own advertisement resolves.
+
 **What running it found.** Fifteen failures on a database of their own, across fourteen tests.
 Eleven were stale
 assumptions about the document id — production scopes an id to its owner and these still built filters
@@ -97,4 +118,5 @@ until the suite is isolated per package, which is outstanding work on this stage
 take. It also bounds `ScratchDatabase`: dropping a whole database is safe for a binary that
 owns one, and unsafe for a database several binaries share.
 
-Serialised, and with the statistics bug still open: 2,254 pass, 1 fail, 29 skip.
+Serialised, with the statistics handlers fixed in shared-planners: **2,256 pass, 0 fail, 29 skip**.
+The suite is green for the first time — it had never run anywhere but by hand before this stage.
