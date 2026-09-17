@@ -76,7 +76,7 @@ func run() error {
 	}
 
 	manifest := map[string]any{
-		"database": eipmongo.DatabaseName,
+		"database": eipmongo.DatabaseName(),
 		"limit":    limit,
 		"pulled":   map[string]int{},
 		"note":     "gitignored sample export for mongo rebuild parity; may contain PII — do not commit",

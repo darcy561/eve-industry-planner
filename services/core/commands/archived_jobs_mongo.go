@@ -111,6 +111,6 @@ func archivedJobsEmptyHint(scopeDesc string) string {
 	return fmt.Sprintf(
 		"note: no documents matched in %s.%s (scope: %s). "+
 			"If you expected rows here, confirm MONGO_URL points at the right cluster.\n",
-		eipmongo.DatabaseName, eipmongo.CollectionArchivedJobs, scopeDesc,
+		eipmongo.DatabaseName(), eipmongo.CollectionArchivedJobs, scopeDesc,
 	)
 }

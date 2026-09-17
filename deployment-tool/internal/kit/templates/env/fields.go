@@ -88,6 +88,11 @@ var envFields = []EnvField{
 		Help: "Shared app DB password. Locked once set (password roll is a later feature).",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
 	},
+	{
+		Key: "MONGO_DATABASE", Section: "Database", Label: "Mongo database",
+		Help: "Database the services work in. Leave blank for eve_industry_planner; the live test suite points itself elsewhere. Authentication always names eve_industry_planner, wherever this points.",
+		Type: FieldText, Required: false, Default: "",
+	},
 
 	{
 		Key: "REDIS_PASSWORD", Section: "Database", Label: "Redis password",

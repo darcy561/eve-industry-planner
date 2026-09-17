@@ -43,7 +43,7 @@ func NewMongo(client *mongo.Client) (*Mongo, error) {
 	}
 	m := &Mongo{
 		Client: client,
-		DB:     client.Database(DatabaseName),
+		DB:     client.Database(DatabaseName()),
 	}
 	m.Users = m.Docs(CollectionAccounts)
 	m.JobDocuments = m.Docs(CollectionJobDocuments)

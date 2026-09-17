@@ -116,7 +116,7 @@ func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group Collecti
 		"component", changestreamLogComponent,
 		"group_id", group.ID,
 		"collections", group.Collections,
-		"database", eipmongo.DatabaseName)
+		"database", eipmongo.DatabaseName())
 
 	reconnectCount := 0
 	pipeline := MatchPipelineForCollections(group.Collections)
@@ -176,7 +176,7 @@ func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group Collecti
 			logs.DebugCtx(ctx, "change stream created, watching for changes",
 				"component", changestreamLogComponent,
 				"group_id", group.ID,
-				"database", eipmongo.DatabaseName)
+				"database", eipmongo.DatabaseName())
 		}
 
 		eventCount := 0

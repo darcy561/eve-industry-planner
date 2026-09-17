@@ -1,12 +1,19 @@
 package mongo
 
-import "eve-industry-planner/shared/models"
+import (
+	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/models"
+)
 
 // Database and collection names for the product Mongo database.
 
-const (
-	DatabaseName = "eve_industry_planner"
+// DatabaseName is the database this package's handles bind to.
+//
+// It resolves rather than being declared here, so the name is written once: the
+// URI the client dials and the database its handles work in cannot disagree.
+func DatabaseName() string { return config.MongoDatabase() }
 
+const (
 	CollectionAccounts              = "accounts"
 	CollectionJobs                  = "jobs"
 	CollectionJobDocuments          = "job_documents"

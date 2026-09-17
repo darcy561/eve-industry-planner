@@ -28,8 +28,8 @@ func TestNewMongoBindsStatisticsCollections(t *testing.T) {
 		if got := tc.docs.Collection().Name(); got != tc.want {
 			t.Fatalf("%s: collection = %q, want %q", tc.name, got, tc.want)
 		}
-		if got := tc.docs.Collection().Database().Name(); got != DatabaseName {
-			t.Fatalf("%s: database = %q, want %q", tc.name, got, DatabaseName)
+		if got := tc.docs.Collection().Database().Name(); got != DatabaseName() {
+			t.Fatalf("%s: database = %q, want %q", tc.name, got, DatabaseName())
 		}
 	}
 }
