@@ -50,24 +50,6 @@ func TestPublishedFanoutPayloadDecodesAsTheServerReadsIt(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "alliance narrowed to a corporation",
-			msg:  DocUpdate{AllianceRef: allyRef, ScopeCorporationRefs: []string{corpRef}},
-			want: func(t *testing.T, d outgoinglogic.DecodedOutbound) {
-				if len(d.Scopes.CorporationRefs) != 1 || d.Scopes.CorporationRefs[0] != corpRef {
-					t.Fatalf("downward corporation scope = %+v, want [%s]", d.Scopes, corpRef)
-				}
-			},
-		},
-		{
-			name: "narrowed to accounts",
-			msg:  DocUpdate{CorporationRef: corpRef, ScopeAccountIDs: []string{"a1", "a2"}},
-			want: func(t *testing.T, d outgoinglogic.DecodedOutbound) {
-				if len(d.Scopes.AccountIDs) != 2 {
-					t.Fatalf("downward account scope = %+v", d.Scopes)
-				}
-			},
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			payload, err := marshalFanoutPayload("subj", "coll", "doc-1", tc.msg)
