@@ -145,3 +145,38 @@ func TestUntil_cancelIsNotReportedAsATimeout(t *testing.T) {
 		t.Fatalf("err = %v; a cancel must not read as a timeout", err)
 	}
 }
+
+func TestForTicking_stopsWhenTheConditionHolds(t *testing.T) {
+	ticks := 0
+	calls := 0
+	wait.ForTicking(t, time.Second, 10*time.Millisecond,
+		func(time.Duration) { ticks++ },
+		func() (bool, string) {
+			calls++
+			return calls == 3, "not yet"
+		})
+	if calls != 3 || ticks != 2 {
+		t.Fatalf("checked %d times after %d ticks; want 3 and 2", calls, ticks)
+	}
+}
+
+func TestForTicking_reportsTheLastDetail(t *testing.T) {
+	failed, msg := runForTicking(30*time.Millisecond, 10*time.Millisecond,
+		func(time.Duration) {},
+		func() (bool, string) { return false, "saw nothing" })
+	if !failed || !strings.Contains(msg, "saw nothing") {
+		t.Fatalf("timeout reported %q (failed=%v); want the condition's own detail", msg, failed)
+	}
+}
+
+func runForTicking(timeout, step time.Duration, tick func(time.Duration), cond func() (bool, string)) (failed bool, msg string) {
+	r := &recorder{}
+	defer func() {
+		if p := recover(); p != nil && p != any(r) {
+			panic(p)
+		}
+		failed, msg = r.failed, r.msg
+	}()
+	wait.ForTicking(r, timeout, step, tick, cond)
+	return r.failed, r.msg
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"eve-industry-planner/testing/wait"
@@ -51,35 +52,40 @@ func TestManaged_leaderStartFailKeepsReadyError(t *testing.T) {
 }
 
 // #28: lose-primary calls stop; standby Ready stays OK (handoff contract).
+// Simulated time: the signals below either arrive or the bubble runs out of
+// work, so a regression fails at once instead of hanging out to a real ceiling.
 func TestManaged_losePrimaryStopsWorkAndStayReady(t *testing.T) {
-	started := make(chan struct{}, 1)
-	stopped := make(chan struct{}, 1)
-	m := New("sched", func(context.Context) (func(), error) {
-		started <- struct{}{}
-		return func() { stopped <- struct{}{} }, nil
-	})
-	ch := make(chan primarycontroller.State, 4)
-	if err := m.Follow(context.Background(), ch); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { m.Stop(context.Background()) })
+	synctest.Test(t, func(t *testing.T) {
+		started := make(chan struct{}, 1)
+		stopped := make(chan struct{}, 1)
+		m := New("sched", func(context.Context) (func(), error) {
+			started <- struct{}{}
+			return func() { stopped <- struct{}{} }, nil
+		})
+		ch := make(chan primarycontroller.State, 4)
+		if err := m.Follow(context.Background(), ch); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { m.Stop(context.Background()) })
 
-	ch <- primarycontroller.State{IsLeader: true}
-	select {
-	case <-started:
-	case <-time.After(2 * time.Second):
-		t.Fatal("leader work never started")
-	}
+		ch <- primarycontroller.State{IsLeader: true}
+		synctest.Wait()
+		select {
+		case <-started:
+		default:
+			t.Fatal("leader work never started")
+		}
 
-	ch <- primarycontroller.State{IsLeader: false}
-	select {
-	case <-stopped:
-	case <-time.After(2 * time.Second):
-		t.Fatal("lose-primary did not stop leader work")
-	}
+		ch <- primarycontroller.State{IsLeader: false}
+		synctest.Wait()
+		select {
+		case <-stopped:
+		default:
+			t.Fatal("lose-primary did not stop leader work")
+		}
 
-	wait.For(t, 2*time.Second, func() (bool, string) {
-		err := m.Ready(context.Background())
-		return err == nil, fmt.Sprintf("standby not ready after lose-primary: %v", err)
+		if err := m.Ready(context.Background()); err != nil {
+			t.Fatalf("standby not ready after lose-primary: %v", err)
+		}
 	})
 }

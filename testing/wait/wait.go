@@ -44,6 +44,36 @@ func For(t testing.TB, timeout time.Duration, cond func() (bool, string)) {
 	t.Fatalf("condition not met within %v: %s", timeout, detail)
 }
 
+// ForTicking polls cond until it holds, calling tick between checks instead of
+// sleeping, and fails the test once the checks have covered timeout.
+//
+// This is the simulated-time form. Inside a testing/synctest bubble For works,
+// because its sleep runs on the bubble's clock — but a fake with a clock of its
+// own does not move with it, so a TTL the condition is waiting on never
+// expires. tick is what moves both clocks; redisfake's Advance has this shape.
+func ForTicking(t testing.TB, timeout, step time.Duration, tick func(time.Duration), cond func() (bool, string)) {
+	t.Helper()
+	if step <= 0 {
+		t.Fatalf("wait: step must be positive, got %v", step)
+	}
+	var detail string
+	for covered := time.Duration(0); ; covered += step {
+		var ok bool
+		ok, detail = cond()
+		if ok {
+			return
+		}
+		if covered >= timeout {
+			break
+		}
+		tick(step)
+	}
+	if detail == "" {
+		t.Fatalf("condition not met within %v of simulated time", timeout)
+	}
+	t.Fatalf("condition not met within %v of simulated time: %s", timeout, detail)
+}
+
 // Options configures Until.
 type Options struct {
 	Every       time.Duration
