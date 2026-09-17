@@ -595,7 +595,7 @@ notice. An owner is recorded, or it is not known.
 `PopulateRequestMeta` all stamp the writing account as owner, and every read filter is pinned the same
 way. So no document has ever been owned by a planner other than its writer's account, and the
 delivery branches for the other kinds — built and correct — have nothing to deliver. The owner on the
-request is therefore the first slice of the client work, ahead of the baseline: a baseline read by
+request is therefore the first slice of the client work, ahead of the document load: a read by
 owner is empty for every planner nothing writes to.
 
 While the SPA is being wired around, a request that names no owner is treated as the account's own,
@@ -1862,8 +1862,8 @@ looking at. The realtime layer holds no second copy, and the guard that drops an
 documents asks the same slice.
 
 What has not moved is the store itself, which still holds one planner's documents. That is Stage G's
-half of the same work: a switch addresses the right planner but nothing fetches its baseline, so the
-documents already held are what is shown until a change arrives. See § Stage G — the baseline is
+half of the same work: a switch addresses the right planner but nothing loads its documents, so the
+documents already held are what is shown until a change arrives. See § Stage G — the document load is
 account-shaped.
 
 Archiving names its destination planner in the UI, because a job archived into the wrong archive is
@@ -1921,7 +1921,7 @@ why they are not the same shape as the corporation and alliance providers.
 The realtime layer was built for a single writer and says so in three places. None of them is wrong
 for a personal planner; all three become defects the moment two members share one.
 
-**The cursor is a wall clock.** `realtimeSyncSlice` holds one number per logical document,
+**The cursor is a wall clock.** `websocketSyncSlice` holds one number per logical document,
 `_meta.lastModified` in epoch milliseconds, and an apply is accepted only when it is strictly newer
 than the number held. With one writer that is a sound way to drop a duplicate. With several it fails
 three ways: two writes inside the same millisecond produce equal cursors and the second apply is
@@ -1935,26 +1935,26 @@ document, so a client can say *I have everything through X* instead of comparing
 time. The change stream already carries a resume token with exactly that property; a per-owner
 sequence is the alternative if the token turns out to be awkward to expose.
 
-**The baseline is account-shaped.** `syncAccountDocumentsFromServer` fetches two singletons, `accounts`
+**The document load is account-shaped.** `loadAccountDocuments` fetches two singletons, `accounts`
 and `account_settings`, both `account:{id}`. The planner half of the pair in § What a connection
-subscribes to has no baseline at all: planner jobs are refetched only when the session identity
+subscribes to has no document load at all: planner jobs are refetched only when the session identity
 changes, and `planner_settings` is in neither path. Switching planner now moves every scoped read and
-its cache key, so what a refetch asks for is right; what is missing is anything that asks. Until a
-baseline exists the store keeps the documents it already held, which is why keying it by owner belongs
+its cache key, so what a refetch asks for is right; what is missing is anything that asks. Until something
+loads them the store keeps the documents it already held, which is why keying it by owner belongs
 with this stage rather than with Stage E. Switching and reconnecting are the same operation as far as the store is concerned, and
 both need the active owner's document set to arrive from somewhere.
 
-**An unbuilt baseline path is already standing, and this stage decides its fate** — see
+**An unbuilt document-load path is already standing, and this stage decides its fate** — see
 § Absorbed from the retired websocket-realtime project below.
 
 **Resume asserts rather than checks.** `session_resume` moves the previous connection's explicit
-document subscriptions across and answers `skipBaselineSync: true` having read no document and compared
+document subscriptions across and answers `skipDocumentLoad: true` having read no document and compared
 no version. Anything written during the gap is lost, because there is no replay. On a personal planner
 a blind window bounded by the handoff TTL is a fair bet against the client being its own only writer.
 On a shared planner the gap is exactly when another member's edit lands, and a slot drain reconnects
 every member at once, so the whole roster resumes blind together.
 
-`skipBaselineSync` should become an answer the server derives from the client's position rather than an
+`skipDocumentLoad` should become an answer the server derives from the client's position rather than an
 assumption it makes from the TTL — the server knows whether the connection missed anything, so it
 should say so, and send what was missed. That is the same push-rather-than-infer shape the rest of the
 realtime surface already follows.
@@ -1967,7 +1967,7 @@ discard an apply because two stamps compared equal, and never claim a client is 
 
 **Ordering.** This stage is not a prerequisite for a planner holding two people — Stage D is. It is a
 prerequisite for that planner being *trusted*. The owner-keyed query keys landed at Stage E; the
-baseline they refetch through is this stage, and keying the store by owner comes with it.
+document load they refetch through is this stage, and keying the store by owner comes with it.
 
 #### Ordering is a construction, not a token
 
@@ -2021,6 +2021,75 @@ writes, with no shared-planner premise, and they are tracked as
 at making loss visible; that project decides whether two members editing one job can both keep their
 edit.
 
+#### Slices
+
+**G1 — a planner has its documents loaded, and the store is keyed by owner.** The one slice that delivers on its
+own: switching planner already moves every scoped read and its cache key, and nothing fetches the
+planner's documents, so the store shows what it already held until a change happens to arrive. Stage E
+owes this and cannot close without it.
+
+*The loading part has landed.* It needed no new transport: `GET /api/v1/job-documents/planner` and
+`GET /api/v1/groups` already carry the owner header and already serve the login bootstrap, so what was
+missing was a caller on the switch. `loadPlannerDocuments` is that caller, and the reconnect and
+background-tab wake paths now reload the planner through it rather than reloading jobs alone, which is
+a gap those two had before shared planners: neither ever refetched groups after a gap. Only the newest
+load reaches the store — an answer still in flight when another load starts is discarded, because
+switching away and back arrives at the same planner and the owner alone cannot tell the two apart.
+The store now records which planner its arrays hold, which is what the switch needed: a load for another
+planner replaces rather than merges, and a queued job or group write is flushed before the planner moves
+so it cannot be written into the planner being switched to.
+
+What that leaves of *keyed by owner* is a question rather than work. Holding several planners' arrays at
+once would buy an instant switch back and nothing else: the inbound guard already drops any document
+whose owner is not the planner the app is in, so a flat store paired with a load and a recorded owner is
+already correct. Against that, `jobArray` and `groupArray` are read in some 270 places. The judgement to
+take is whether instant switching is worth that, and the `sync` package decision below is still open.
+
+It carries the decision about the standing `sync` package. That package is an account-shaped answer to
+the question this slice asks per owner — a queue, a coordinator, a processor and four frames, wired
+into `server.go`, `types.go`, `ws_sync.go` and the reader's `case "sync"`, reached by no client that has
+ever existed in this repository. Either the owner-scoped document load is built on it or it is removed as
+part of this slice. `skipWhileSyncing` rides on the same decision: it holds a document back from a
+client rebuilding its state and never fires, so this slice either gives it a reason or retires it.
+
+**G2 — an apply is not dropped because two stamps compared equal.** The cursor is
+`_meta.lastModified` in epoch milliseconds, compared per document, and it is wrong three ways at once:
+equal milliseconds discard the second write, a stamp written by another process is not ordered against
+this one, and the comparison decides conflicts last-write-wins by accident. The replacement is a
+position that is totally ordered per subscription rather than per document.
+
+**G3 — resume answers from the client's position rather than from the TTL.** `session_resume` moves the
+previous connection's subscriptions across and answers `skipDocumentLoad: true` having read no document
+and compared no version, so anything written during the gap is lost. With G2's position the server can
+say what was missed and send it. A slot drain reconnects every member at once, so on a shared planner
+the whole roster resumes blind together.
+
+**G4 — the delivery construction stops lying about order.** `enqueueOutboundDocUpdate` delivers
+synchronously on the intake path when a shard FIFO is full, overtaking everything already queued for
+that owner — recorded as preserving ordering at the cost of back-pressure, when it does the opposite
+and does it exactly when an owner is busiest.
+
+**Order.** G1 first: it stands alone, it is what Stage E is waiting on, and its decision about the
+`sync` package shapes what G3 resumes into. G2 before G3, which needs its position. G4 is independent
+and can land whenever — it is a correctness fix to something that is already wrong for a single writer
+under load.
+
+#### Decisions this stage cannot take on its own
+
+**What the position is.** JetStream's stream sequence is monotonic across replicas, survives
+redelivery, and is already read in `shared/nats/ack.go` for logging — but it is per-stream, so a
+client's position is coarser than per-owner. A Redis counter per owner is finer and costs a round trip
+per delivered message. Coarse is sufficient for *did I miss anything*, which is what resume asks.
+
+**What a full shard queue does.** Either the enqueue blocks, which is the back-pressure the current
+comment claims, or the bypass stays and the position makes the gap visible so a client can ask for
+what overtook it. The first is simpler and slows intake for one owner; the second keeps intake fast and
+moves the cost onto the client.
+
+**Whether the `sync` package is the foundation or the thing being replaced.** It was left standing so
+that removing it would not throw away the precedent before its replacement was designed. That is the
+judgement this stage makes.
+
 #### Absorbed from the retired websocket-realtime project
 
 Two behaviours outlived that folder and are held here until this project promotes. A third survival
@@ -2043,7 +2112,7 @@ answer who the account may read for, and a bare id from a client is resolved wit
 looked up. This is C4's rewrite of a rule the retired folder documented against `ExistsByAccountID`;
 the rule survived, the mechanism did not.
 
-**The baseline sync path was never finished, and this stage decides whether to finish or remove it.**
+**The document load path was never finished, and this stage decides whether to finish or remove it.**
 The websocket service carries a `sync` package — a queue, a coordinator, a processor, a timeout, and
 the `sync_started` / `sync_data` / `sync_complete` / `sync_error` frames — reached from the reader's
 `case "sync":`. No client sends that message: the SPA sends `session_resume`, `subscribe`,
@@ -2053,7 +2122,7 @@ and the frames are never produced, while the coordinator scans for the life of t
 
 It is an account-shaped answer to the question this stage asks per owner, which is why it was left
 standing rather than deleted: removing it would throw away the precedent before its replacement is
-designed. Decide here whether the owner-scoped baseline builds on it or replaces it, and remove it as
+designed. Decide here whether the owner-scoped document load builds on it or replaces it, and remove it as
 part of that rather than as a tidy-up.
 
 The delivery table's `skipWhileSyncing` policy rides on the same decision: it holds a document back
@@ -2244,7 +2313,7 @@ owns.
 - **Stage F still owes "when the grant task fires and how it resolves".** The worker's ESI task writes
   the same list from a third place. Dropping the stored list removes that write; keeping it has to say
   which of the three writers wins when they disagree.
-- **Stage G's owner-scoped baseline** decides what a reconnecting or switching client is told it
+- **Stage G's owner-scoped document load** decides what a reconnecting or switching client is told it
   missed, which is the other half of what a switch costs.
 
 **What this stage has to answer**
@@ -2437,9 +2506,9 @@ do not touch.
 | B — grants and scopes as owner lists | **Landed.** `models.SessionGrants` is the one grants type, a connection's scopes and the routing index are owner keys derived at connect, and `prepareRelease` rewrites stored grants. `upgrade_scopes` is removed rather than reshaped, and the `active_planner` message replacing it landed at Stage E — see § Why the client no longer asks for scopes. The § Go modernisation item is applied |
 | C — planner and membership documents | **Landed.** C1 the two collections and their indexes, C2 the account-planner backfill and the write first login repairs from, C3 membership as the source of grants with authorisation reading the rows rather than a cached list, C4 the collection set per owner kind and document-subscribe authorisation by membership. Invites moved to Stage E |
 | D — what a second member breaks | **Landed.** D1 recalculation keeping a job's build context — a live defect on personal planners, now fixed. D2 is handled server-side already; the retry-queue defect it uncovered is [document-write-granularity](../document-write-granularity/plan.md) § Stage B. D3 the extras categories, which turned out to need a settings write path as well as a picker: the list is the planner's, edited through `PUT /planners/{owner}/settings`, and the account's copy stops being edited. Job statuses needed nothing, their id space already being a frozen catalog. See § Stage D — what a second member breaks |
-| E — custom planners | **Partly landed.** In: the planner settings document (seeded by value from the creating account, planner-held and watched), one write path for every planner, the planners listing, corporation planner creation with its name looked up server-side and NPC corporations refused, the `active_planner` message with the ceiling intersection and its restore across a reconnect, the owner handle on every delivered document, a client switcher that moves the header on every scoped request and the owner in every scoped query key alongside the connection, and invites as Redis records with the join path that redeems them. Outstanding: the revocation path, which waits on the session-record work that owns the grants ceiling. Keying the job and group stores by owner needs the owner-scoped baseline and runs with Stage G. See § Stage E and [overlay.md](./overlay.md) § Stage E |
+| E — custom planners | **Partly landed.** In: the planner settings document (seeded by value from the creating account, planner-held and watched), one write path for every planner, the planners listing, corporation planner creation with its name looked up server-side and NPC corporations refused, the `active_planner` message with the ceiling intersection and its restore across a reconnect, the owner handle on every delivered document, a client switcher that moves the header on every scoped request and the owner in every scoped query key alongside the connection, and invites as Redis records with the join path that redeems them. Outstanding: the revocation path, which waits on the session-record work that owns the grants ceiling. Keying the job and group stores by owner needs the owner-scoped document load and runs with Stage G. See § Stage E and [overlay.md](./overlay.md) § Stage E |
 | F — ESI providers | **F1 landed.** Corporation and alliance membership rows are reconciled from the ids ESI reports, at login and on the cloud token sweep, completing a task that read as finished and wrote no rows. A row grants while it exists and nothing expires one: a revoked token is a positive answer the reconcile acts on, and a two-year dormant account is cleared by `InactiveAccountPlannerCleanup`. Owed: reshaping when the grant task fires and how it resolves, and access lists |
-| G — realtime state under more than one writer | **Not started.** The `lastModified` cursor, the account-shaped baseline and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped baseline — see § Stage G |
+| G — realtime state under more than one writer | **Partly landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Outstanding: whether the stores should hold more than one planner at once, the `sync` package decision G1 carries, and G2–G4 whole. The `lastModified` cursor, the account-shaped document load and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped document load — see § Stage G |
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. Owed: the websocket's dependency on the client naming its planner — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
 

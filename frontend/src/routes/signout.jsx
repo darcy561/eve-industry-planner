@@ -3,7 +3,7 @@ import { queryClient } from "../queryClient.js";
 import { logoutPlannerSession } from "../Functions/Auth/sessionClient.js";
 import { getTabPlannerRefreshToken } from "../Functions/Auth/tabSessionStorage.js";
 import { clearPlannerAuthCookiesClientSide } from "../Functions/Auth/plannerAuthCookies.js";
-import { disconnectRealtime } from "../Realtime/realtimeClient.js";
+import { disconnectWebsocket } from "../WebSocket/websocketClient.js";
 import { clearInboundJobDocumentCoalesce } from "../Functions/Debounce/inboundJobDocumentsCoalesce.js";
 import useUsersStore from "../Zustand/usersStore";
 import esiCredentials from "../Functions/Auth/esiCredentials/provider.js";
@@ -22,7 +22,7 @@ function clearClientSessionState() {
   // Drop module-level WS coalesce queues before zustand resets; pending job upserts can
   // still flush and repopulate job data after `resetJobDataStore` if not cleared.
   clearInboundJobDocumentCoalesce();
-  // Clear session first so in-flight account GETs (e.g. syncAccountDocumentsFromServer) cannot
+  // Clear session first so in-flight account GETs (e.g. loadAccountDocuments) cannot
   // re-merge application_settings after we clear them in the same tick.
   resetAccountStore();
   resetJobDataStore();
@@ -47,7 +47,7 @@ export const Route = createFileRoute("/signout")({
   beforeLoad: async () => {
     let serverLogoutFailed = false;
     try {
-      disconnectRealtime();
+      disconnectWebsocket();
       await logoutPlannerSession(getTabPlannerRefreshToken());
     } catch (error) {
       console.error("Signout error:", error);

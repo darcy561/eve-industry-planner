@@ -1,12 +1,5 @@
 /**
- * Group Management for EVE Industry Planner.
- *
- * Handles group operations including adding, removing, updating, and managing
- * group arrays. Provides methods for group CRUD operations and group-related
- * functionality.
- *
- * @fileoverview Group management operations
- * @author EVE Industry Planner Team
+ * The job store's groups: the array itself, and the writes queued against it.
  */
 
 import { scheduleDebouncedGroupSave } from "../../Functions/Debounce/jobGroupsPersistSchedule.js";
@@ -32,7 +25,8 @@ export const groupManagementActions = (set, get) => ({
    *
    * @param {Array} groupArray - New group array
    *
-   * @param {{ fromServer?: boolean }} [opts] – `fromServer`: full REST sync (clears pending writes).
+   * @param {{ fromServer?: boolean, owner?: string|null }} [opts] – `fromServer`: full REST
+   *   sync (clears pending writes). `owner`: the planner the array is for.
    * @example
    * store.getState().jobData.actions.replaceGroupArray(newGroupArray);
    */
@@ -44,6 +38,7 @@ export const groupManagementActions = (set, get) => ({
         jobData: {
           ...state.jobData,
           groupArray: groupArray || [],
+          ...(opts.owner === undefined ? {} : { owner: opts.owner }),
           ...(fromServer ? { pendingJobGroupWrites: [] } : {}),
         },
       }),

@@ -2,6 +2,7 @@ import { useState, useTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Box,
+  Button,
   CircularProgress,
   FormControl,
   FormHelperText,
@@ -13,10 +14,13 @@ import {
   usePlannersQuery,
 } from "../../../Hooks/React Query/planners.js";
 import { ensurePlannerViaApi } from "../../../Functions/Endpoints/Private/planners.js";
-import { sendActivePlanner } from "../../../Realtime/realtimeClient.js";
+import { sendActivePlanner } from "../../../WebSocket/websocketClient.js";
 import useUsersStore from "../../../Zustand/usersStore";
 import { plannerScopedQueryRoots } from "../../../Hooks/React Query/Backend/plannerQueryScope.js";
 import { flushPendingPlannerSettingsSaves } from "../../../Functions/Debounce/plannerSettingsPersistSchedule.js";
+import { flushPendingJobDocumentsSave } from "../../../Functions/Debounce/jobDocumentsPersistSchedule.js";
+import { flushPendingGroupSave } from "../../../Functions/Debounce/jobGroupsPersistSchedule.js";
+import { loadPlannerDocuments } from "../../../Functions/DocumentLoad/loadPlannerDocuments.js";
 
 /**
  * Switches which planner the app works in.
@@ -37,6 +41,11 @@ export function PlannerSwitcher() {
   // planner it names is the one the connection has.
   const [busy, startSwitch] = useTransition();
   const [failure, setFailure] = useState("");
+  // The planner whose documents could not be loaded. The switch itself took, so
+  // the control already shows this planner and choosing it again fires no change
+  // — without somewhere to ask from, the reader is left on the previous
+  // planner's jobs with no way back.
+  const [unloaded, setUnloaded] = useState("");
 
   if (isLoading) {
     return <CircularProgress size={20} aria-label="Loading planners" />;
@@ -45,11 +54,41 @@ export function PlannerSwitcher() {
     return null;
   }
 
+  // The job store holds one planner at a time, so until this returns the page is
+  // showing the planner that was left.
+  async function loadPlanner(owner) {
+    setFailure("");
+    setUnloaded("");
+    try {
+      await loadPlannerDocuments(owner);
+    } catch (err) {
+      console.warn("[planner] loading the planner switched to failed", err);
+      setFailure("Switched, but could not load this planner");
+      setUnloaded(owner);
+    }
+  }
+
   function selectPlanner(owner) {
     startSwitch(async () => {
       setFailure("");
+      setUnloaded("");
       const leaving = plannerScopedQueryRoots();
       try {
+        // Before the planner moves, not after: a queued job or group write is
+        // sent for whichever planner the request names at the time it goes, so
+        // an edit still inside its debounce would be written into the planner
+        // being switched to.
+        await flushPendingJobDocumentsSave();
+        await flushPendingGroupSave();
+        // A write that did not land leaves its ids queued. Switching now would
+        // either send them to the planner being switched to or lose them, since
+        // loading the new planner clears the queue.
+        const { pendingJobDocumentWrites, pendingJobGroupWrites } =
+          useUsersStore.getState().jobData;
+        if (pendingJobDocumentWrites?.length || pendingJobGroupWrites?.length) {
+          setFailure("Unsaved changes could not be saved");
+          return;
+        }
         await ensurePlannerViaApi(owner);
         if (!sendActivePlanner(owner)) {
           setFailure("Not connected");
@@ -66,7 +105,11 @@ export function PlannerSwitcher() {
         }
       } catch (err) {
         setFailure(err?.message ?? "Could not switch planner");
+        return;
       }
+      // Reported apart from the switch above, which either happened or did not:
+      // past this line the planner has moved and only its documents are missing.
+      await loadPlanner(owner);
     });
   }
 
@@ -102,6 +145,16 @@ export function PlannerSwitcher() {
         >
           {failure || "Planner"}
         </FormHelperText>
+        {unloaded ? (
+          <Button
+            size="small"
+            variant="text"
+            disabled={busy}
+            onClick={() => startSwitch(() => loadPlanner(unloaded))}
+          >
+            Retry
+          </Button>
+        ) : null}
       </FormControl>
     </Box>
   );

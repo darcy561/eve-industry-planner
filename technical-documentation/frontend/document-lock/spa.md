@@ -19,7 +19,7 @@ frontend/src/
     headerDocumentLockEvents.js
     editJobReleaseRequestEvents.js
   Functions/Endpoints/Private/documentLockClient.js — REST/WS client
-  Realtime/realtimeClient.js   — WS envelope → CustomEvent dispatch
+  WebSocket/websocketClient.js   — WS envelope → CustomEvent dispatch
 ```
 
 Backend pairing: [locks.md](../../backend/api/document-lock/locks.md). Wire contract: [overview.md](../../backend/api/document-lock/overview.md#wire-contract-frontend--backend).
@@ -119,7 +119,7 @@ Server-gated writes (`PUT`/`DELETE` job-documents and groups, `PUT` archived-job
 ```mermaid
 flowchart TD
   WS["WebSocket frame<br/>{type:'document_lock', event, …fields}"]
-  RT["realtimeClient.js<br/>documentLockWireToDetail"]
+  RT["websocketClient.js<br/>documentLockWireToDetail"]
   CE["window CustomEvent<br/>eip-document-lock<br/>detail.{event,type,…fields}"]
   HK["useDocumentLock listener"]
 
@@ -135,7 +135,7 @@ flowchart TD
   HK -->|"VIEWER_JOINED / VIEWER_LEFT"| VC["patch viewerCount±1<br/>(ignore our own echo)"]
 ```
 
-`realtimeClient.js::documentLockWireToDetail` normalises the flat
+`websocketClient.js::documentLockWireToDetail` normalises the flat
 `{type, event, …fields}` envelope and copies the discriminator onto both
 `detail.event` and `detail.type` so listeners can read either field. The
 listener inside `useDocumentLock` branches on the discriminator value (a
@@ -482,9 +482,9 @@ Notable details:
   `X-WS-Client-ID`) and `retry: false` — these endpoints are stateful and
   idempotent only on the server side, not at the transport level.
 
-## Realtime envelope path
+## Websocket envelope path
 
-`frontend/src/Realtime/realtimeClient.js` is the only place that translates
+`frontend/src/WebSocket/websocketClient.js` is the only place that translates
 the WS envelope into the `eip-document-lock` CustomEvent. The server always
 emits the flat `{type, event, …fields}` shape:
 

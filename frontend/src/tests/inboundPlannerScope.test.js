@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { activePlannerStoreState } from "./utils.js";
 
 const storeState = activePlannerStoreState();
-storeState.realtimeSync = {
+storeState.websocketSync = {
   actions: {
     getCursorMs: () => 0,
     setCursorMs: () => {},
@@ -21,7 +21,7 @@ vi.mock("../Functions/Debounce/inboundJobDocumentsCoalesce.js", () => ({
 }));
 
 const groupUpserts = [];
-vi.mock("../Realtime/handlers/index.js", () => ({
+vi.mock("../WebSocket/handlers/index.js", () => ({
   handleUserJobGroupUpsert: (...args) => groupUpserts.push(args),
   handleUserJobGroupDelete: () => {},
   handleApplicationSettingsDocumentUpsert: () => {},
@@ -33,7 +33,7 @@ vi.mock("../Realtime/handlers/index.js", () => ({
 }));
 
 const { applyDocumentMessage } =
-  await import("../Realtime/handlers/documentMessage.js");
+  await import("../WebSocket/handlers/documentMessage.js");
 
 function groupMessage(owner) {
   return {

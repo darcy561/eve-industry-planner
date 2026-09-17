@@ -11,31 +11,31 @@ vi.mock("../Zustand/usersStore.js", async () => {
 vi.mock("../Functions/Endpoints/Private/applyPrivateHeaders.js", () => ({
   getSessionIDFromStore: () => "session-1",
 }));
-vi.mock("../Functions/Endpoints/Private/jobDocuments.js", () => ({
-  fetchPlannerJobDocumentsFromApi: vi.fn(),
+vi.mock("../Functions/DocumentLoad/loadPlannerDocuments.js", () => ({
+  loadPlannerDocuments: vi.fn(),
 }));
 vi.mock("../Functions/App/appVersionCheck.js", () => ({
   considerRemoteAppVersion: vi.fn(),
   isClientAppVersionOutdated: () => false,
 }));
-vi.mock("../Realtime/applyRemoteMessage.js", () => ({
+vi.mock("../WebSocket/applyRemoteMessage.js", () => ({
   applyRemoteMessage: vi.fn(),
 }));
 vi.mock("../Events/appConfigEvents.js", () => ({
   requestAppConfigRecheck: vi.fn(),
 }));
-vi.mock("../Realtime/syncAccountDocumentsFromServer.js", () => ({
-  syncAccountDocumentsFromServer: vi.fn(),
+vi.mock("../Functions/DocumentLoad/loadAccountDocuments.js", () => ({
+  loadAccountDocuments: vi.fn(),
 }));
-vi.mock("../Realtime/wsClientIdentity.js", () => ({
-  clearRealtimeClientID: vi.fn(),
-  clearRealtimeClientIdentityHard: vi.fn(),
-  getRealtimeClientID: () => null,
-  setRealtimeClientID: vi.fn(),
+vi.mock("../WebSocket/wsClientIdentity.js", () => ({
+  clearWsClientID: vi.fn(),
+  clearWsClientIdentityHard: vi.fn(),
+  getWsClientID: () => null,
+  setWsClientID: vi.fn(),
 }));
 
 const { sendActivePlanner, restoreActivePlanner } =
-  await import("../Realtime/realtimeClient.js");
+  await import("../WebSocket/websocketClient.js");
 
 beforeEach(() => {
   storeState.activePlanner.owner = null;

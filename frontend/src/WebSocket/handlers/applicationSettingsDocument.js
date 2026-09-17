@@ -61,7 +61,7 @@ export function handleApplicationSettingsDocumentUpsert(ctx) {
       ),
     }),
     false,
-    "realtime/applyApplicationSettings",
+    "websocket/applyApplicationSettings",
   );
   rs.setCursorMs(docKey, remoteMs);
 

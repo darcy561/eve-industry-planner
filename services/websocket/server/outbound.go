@@ -54,7 +54,7 @@ type Outbound struct {
 // whichever function a message happens to reach.
 type deliveryPolicy struct {
 	// skipWhileSyncing holds a message back from a client rebuilding its state,
-	// which would otherwise apply a change on top of a half-written baseline.
+	// which would otherwise apply a change on top of a half-loaded document set.
 	skipWhileSyncing bool
 }
 
@@ -64,7 +64,7 @@ type deliveryPolicy struct {
 var deliveryPolicies = map[string]deliveryPolicy{
 	eipnats.ClientMessageNotification: {},
 	eipnats.ClientMessageStaticData:   {},
-	// A client rebuilding its state is holding a half-written baseline, and a
+	// A client rebuilding its state holds a half-loaded document set, and a
 	// change applied on top of one lands in a document that is about to be
 	// replaced. It refetches what it missed when the rebuild finishes.
 	eipnats.ClientMessageDocument: {skipWhileSyncing: true},

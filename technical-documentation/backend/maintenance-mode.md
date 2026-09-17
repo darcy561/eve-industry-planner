@@ -118,7 +118,7 @@ The `maintenance` message is the signal. The SPA applies it directly to the shar
 fetch — so every tab flips at the same instant without a burst of identical GETs against the one
 endpoint that has to stay up.
 
-That one state change shows the banner and parks the realtime client. Parked is not disconnected:
+That one state change shows the banner and parks the websocket client. Parked is not disconnected:
 `scheduleReconnect` returns without arming a timer, so the client stops retrying but does not tear
 itself down. Backoff resets to zero on resume.
 

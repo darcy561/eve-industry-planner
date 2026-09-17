@@ -157,7 +157,7 @@ sequenceDiagram
     M-->>A: users / settings / linked characters
     A-->>S: SessionBootstrapResponse + cookies\n  Set-Cookie eip_session, eip_app_refresh (cloud), eip_esi_oauth_storage
     S->>S: applyLoginAuthResponse + setLoggedIn(true)
-    S->>S: connectRealtime (cookie-authenticated /ws)
+    S->>S: connectWebsocket (cookie-authenticated /ws)
 ```
 
 ### 6.2 Cookie cloud resume (cold reload, no SSO round-trip)
@@ -214,7 +214,7 @@ sequenceDiagram
     participant R as Redis
     participant W as Websocket
 
-    S->>W: disconnectRealtime()
+    S->>W: disconnectWebsocket()
     S->>A: POST /api/v1/auth/sessions/logout { refresh_token? }\nCookie: eip_session, eip_app_refresh
     A->>A: RequireAccountID (from session cookie context)
     A->>R: RefreshToken -> verify token.AccountID matches context
@@ -241,7 +241,7 @@ sequenceDiagram
     W->>R: Touch (LastSeenAt)
     W-->>S: 101 Switching Protocols
     W->>S: { type: "connected", clientID: "..." }
-    S->>S: setRealtimeClientID(clientID)
+    S->>S: setWsClientID(clientID)
 ```
 
 ---

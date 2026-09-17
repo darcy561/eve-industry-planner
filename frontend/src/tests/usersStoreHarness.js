@@ -80,6 +80,7 @@ const sliceDefaults = {
   }),
 
   jobData: () => ({
+    owner: null,
     jobArray: [],
     groupArray: [],
     multiSelect: [],
@@ -122,7 +123,7 @@ const sliceDefaults = {
     },
   }),
 
-  realtimeSync: () => ({
+  websocketSync: () => ({
     cursors: {},
     actions: {
       getCursorMs: () => 0,

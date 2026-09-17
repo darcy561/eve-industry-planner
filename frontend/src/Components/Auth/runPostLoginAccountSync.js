@@ -4,7 +4,7 @@ import { canonicalCharacterHashKey } from "../../Functions/Auth/characterHashCan
 import {
   enqueueReconcile,
   reconcileAfterRemoteUserDoc,
-} from "../../Realtime/handlers/accountReconcile.js";
+} from "../../WebSocket/handlers/accountReconcile.js";
 import {
   hydrateLinkedCharactersFromAccessSessions,
   buildUsersFromRefreshTokens,

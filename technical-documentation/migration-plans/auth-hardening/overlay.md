@@ -112,7 +112,7 @@ paths call it; the three separately maintained copies of that struct are gone, w
 upgrade drift into plain text in the first place.
 
 **The upgrade body is for operators, not browsers.** A refused handshake reaches a browser as a close
-with no status and no body — the SPA states this in `realtimeClient.js` and reacts by rechecking
+with no status and no body — the SPA states this in `websocketClient.js` and reacts by rechecking
 app-config and reconnecting on backoff. So the envelope buys one vocabulary in logs and proxy traces,
 and nothing more. What actually detects a terminal session is the rotate path: `runScheduledTokenRefresh`
 and `runTabVisibleAuthRefresh` call rotate, which answers the coded 401 that

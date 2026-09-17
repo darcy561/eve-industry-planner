@@ -22,6 +22,12 @@ import separateGroupAndJobIDs from "../../Functions/Helper/separateGroupAndJobID
  */
 export const stateDefault = () => ({
   multiSelect: [],
+  /**
+   * The planner `jobArray` and `groupArray` hold, as an owner handle. A load for
+   * a different planner replaces them rather than merging, so one planner's jobs
+   * cannot survive among another's.
+   */
+  owner: null,
   jobArray: [],
   /**
    * Inbound WS jobs not yet flushed into `jobArray`: jobID -> { stageId, groupID }.
@@ -92,7 +98,8 @@ export const coreActions = (set, get) => ({
    * Replaces the entire job array.
    *
    * @param {Array} jobArray - New job array
-   * @param {{ fromServer?: boolean }} [opts] - `fromServer`: full REST sync (clears pending job-document writes).
+   * @param {{ fromServer?: boolean, owner?: string|null }} [opts] - `fromServer`: full REST
+   *   sync (clears pending job-document writes). `owner`: the planner the array is for.
    */
   replaceJobArray: (jobArray, opts = {}) => {
     const fromServer = opts.fromServer === true;
@@ -102,6 +109,7 @@ export const coreActions = (set, get) => ({
         jobData: {
           ...state.jobData,
           jobArray: jobArray || [],
+          ...(opts.owner === undefined ? {} : { owner: opts.owner }),
           ...(fromServer ? { pendingJobDocumentWrites: [] } : {}),
         },
       }),

@@ -26,4 +26,4 @@ _None — verbs Day-2 section corrected when #22 closed._
 - `LiveImageRefs` = app + data (+ obs when on).
 - Do not invent a data-only ship verb.
 - **Removed (2026-08-04):** Redis advertised-version key/channel + websocket PUBLISH fan-out (`eip:app:advertised_version:v1`). Not part of day-2 ship. Version surfaces: bake/`APP_VERSION`, `GET /api/v1/app-config`, WS `connected.app_version`.
-- **Later (FE):** `realtimeClient.js` still handles WS `{type: app_version}` for the deleted fan-out — see roadmap Follow-ups § frontend realtime polish; not blocking day-2 or #8.
+- **Later (FE):** `websocketClient.js` still handles WS `{type: app_version}` for the deleted fan-out — see roadmap Follow-ups § frontend realtime polish; not blocking day-2 or #8.

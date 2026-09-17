@@ -5,7 +5,7 @@
  */
 
 import useUsersStore from "../../Zustand/usersStore.js";
-import { metaLastModifiedMs } from "../../Zustand/realtimeSyncSlice.js";
+import { metaLastModifiedMs } from "../../Zustand/websocketSyncSlice.js";
 import { enqueueInboundJobDocumentChange } from "../../Functions/Debounce/inboundJobDocumentsCoalesce.js";
 import {
   handleApplicationSettingsDocumentDelete,
@@ -63,7 +63,7 @@ export async function applyDocumentMessage(msg) {
   if (!accountId) return;
 
   const docKey = `${collection}.${docID}`;
-  const rs = useUsersStore.getState().realtimeSync.actions;
+  const rs = useUsersStore.getState().websocketSync.actions;
 
   const ctxBase = { accountId, docKey, docID, rs };
 

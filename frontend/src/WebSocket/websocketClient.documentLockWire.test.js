@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { documentLockWireToDetail } from "./realtimeClient.js";
+import { documentLockWireToDetail } from "./websocketClient.js";
 import {
   DOCUMENT_LOCK_DOMAIN_EVENTS,
   DOCUMENT_LOCK_FRAME_TYPES,

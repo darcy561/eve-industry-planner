@@ -13,7 +13,7 @@ behaviour itself is [frontend/static-data/](../../frontend/static-data/contents.
 | What ore selection may choose from, and matching a pasted ore name | [`Functions/Static/reprocessing.test.js`](../../../frontend/src/Functions/Static/reprocessing.test.js) |
 | Recipes by id, either form, and when the API is asked instead | [`Functions/Static/recipes.test.js`](../../../frontend/src/Functions/Static/recipes.test.js), [`Functions/Job Build/getItemRecipes.test.js`](../../../frontend/src/Functions/Job%20Build/getItemRecipes.test.js) |
 | When the files are read again: load, a websocket announcement with its spread, and waking | [`Functions/Static/staticDataSync.test.js`](../../../frontend/src/Functions/Static/staticDataSync.test.js) |
-| Acting on an announced build, and ignoring one already held | [`Realtime/handlers/staticDataMessage.test.js`](../../../frontend/src/Realtime/handlers/staticDataMessage.test.js) |
+| Acting on an announced build, and ignoring one already held | [`WebSocket/handlers/staticDataMessage.test.js`](../../../frontend/src/WebSocket/handlers/staticDataMessage.test.js) |
 | The parsers that read what a player pasted | [`Functions/Reprocessing/parseOreInput.test.js`](../../../frontend/src/Functions/Reprocessing/parseOreInput.test.js), [`Functions/Reprocessing/toMinerals.test.js`](../../../frontend/src/Functions/Reprocessing/toMinerals.test.js) |
 
 ## Mocking a static file

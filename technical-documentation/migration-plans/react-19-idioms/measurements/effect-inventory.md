@@ -163,7 +163,7 @@ reproducible and so a later reader does not re-litigate them.
 both driving React Flow's `fitView`.
 
 **Connection and presence lifecycle (7).** `useAccountWebSocket.js:23`,
-`useMaintenanceRealtimePark.js:14`, `useAppConfig.jsx:52`, `useLockAcquireRelease.js:150`,
+`useMaintenanceWebsocketPark.js:14`, `useAppConfig.jsx:52`, `useLockAcquireRelease.js:150`,
 `useLockAcquireRelease.js:223`, `useLockViewerPresence.js:25`, `useAuthUrlLogin.js:16`.
 
 **Unmount-only cleanup (3).** `AdditionalAccounts.jsx:84`, `Popover/iconButtons.jsx:69`,

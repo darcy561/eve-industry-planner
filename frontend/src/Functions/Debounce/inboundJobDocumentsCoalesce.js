@@ -4,7 +4,7 @@
 
 import Job from "../../Classes/job.js";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { metaLastModifiedMs } from "../../Zustand/realtimeSyncSlice.js";
+import { metaLastModifiedMs } from "../../Zustand/websocketSyncSlice.js";
 import { createCoalesceFlush } from "./helpers/createCoalesceFlush.js";
 
 const FLUSH_MS = 80;
@@ -42,7 +42,7 @@ function flush() {
   const {
     account,
     jobData: { actions },
-    realtimeSync: { actions: rs },
+    websocketSync: { actions: rs },
   } = useUsersStore.getState();
   if (!account.isLoggedIn || account.accountID == null) {
     pendingUpserts = new Map();

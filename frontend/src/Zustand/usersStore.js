@@ -10,7 +10,7 @@ import activePlannerSlice from "./activePlannerSlice";
 import accountSlice from "./accountSlice";
 import worldDataSlice from "./worldDataSlIce";
 import jobsSlice from "./jobsSlice";
-import realtimeSyncSlice from "./realtimeSyncSlice";
+import websocketSyncSlice from "./websocketSyncSlice";
 import documentLockSlice from "./documentLockSlice";
 import headerDocumentLockUISlice from "./headerDocumentLockUISlice";
 
@@ -32,7 +32,7 @@ const createUsersStore = () =>
         ...accountSlice(set, get),
         ...worldDataSlice(set, get),
         ...jobsSlice(set, get),
-        ...realtimeSyncSlice(set, get),
+        ...websocketSyncSlice(set, get),
         ...documentLockSlice(set, get),
         ...headerDocumentLockUISlice(set, get),
       }),

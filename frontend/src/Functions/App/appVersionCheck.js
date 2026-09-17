@@ -1,6 +1,6 @@
 /**
  * Shared app-version compare / snackbar path for app-config poll and WS nudge.
- * Outdated clients should not auto-reconnect realtime (avoid mixed-version sockets).
+ * Outdated clients should not auto-reconnect websocket (avoid mixed-version sockets).
  *
  * "Outdated" means the advertised version is *ahead of* this SPA bake (client must refresh).
  * A client that is *ahead of* Redis advertise (new bake before advertise flip) is not outdated.

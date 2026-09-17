@@ -4,16 +4,16 @@
  */
 
 import { getSessionIDFromStore } from "../Functions/Endpoints/Private/applyPrivateHeaders.js";
-import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Private/jobDocuments.js";
+import { loadPlannerDocuments } from "../Functions/DocumentLoad/loadPlannerDocuments.js";
 import { applyRemoteMessage } from "./applyRemoteMessage.js";
 import { requestAppConfigRecheck } from "../Events/appConfigEvents.js";
-import { syncAccountDocumentsFromServer } from "./syncAccountDocumentsFromServer.js";
+import { loadAccountDocuments } from "../Functions/DocumentLoad/loadAccountDocuments.js";
 import useUsersStore from "../Zustand/usersStore.js";
 import {
-  clearRealtimeClientID,
-  clearRealtimeClientIdentityHard,
-  getRealtimeClientID,
-  setRealtimeClientID,
+  clearWsClientID,
+  clearWsClientIdentityHard,
+  getWsClientID,
+  setWsClientID,
 } from "./wsClientIdentity.js";
 import {
   DOCUMENT_LOCK_CUSTOM_EVENT,
@@ -71,9 +71,9 @@ function rejectAllDocumentLockLockStateBatchPending(message) {
 const WS_CLOSE_NORMAL = 1000;
 
 /**
- * Reconnect backoff: must stay aligned with `services/websocket/server/realtime_timing.go` (wsReconnect* / handoff TTL).
+ * Reconnect backoff: must stay aligned with `services/websocket/server/websocket_timing.go` (wsReconnect* / handoff TTL).
  *
- * @see services/websocket/server/realtime_timing.go
+ * @see services/websocket/server/websocket_timing.go
  */
 export const WS_RECONNECT_BASE_MS = 750;
 /** Cap backoff so a bad stretch of failures does not strand the UI for a long time between retries. */
@@ -81,7 +81,7 @@ export const WS_RECONNECT_MAX_MS = 20_000;
 /**
  * Server handoff TTL = WS_RECONNECT_MAX_MS + this (ms). Handoff should outlive one max-delay retry.
  *
- * @see services/websocket/server/realtime_timing.go (wsSessionHandoffSlackMS)
+ * @see services/websocket/server/websocket_timing.go (wsSessionHandoffSlackMS)
  */
 export const WS_SESSION_HANDOFF_SLACK_MS = 5_000;
 export const WS_SESSION_HANDOFF_MS =
@@ -100,16 +100,16 @@ let lastSuccessfulOpenSessionId = null;
 let resumeHint = null;
 
 /** Resolves when `resume_ack` arrives after `session_resume` handoff. */
-/** @type {{ resolve: (v: { skipBaselineSync: boolean, restoredDocIDs?: string[] }) => void } | null} */
+/** @type {{ resolve: (v: { skipDocumentLoad: boolean, restoredDocIDs?: string[] }) => void } | null} */
 let resumeBootstrap = null;
 
 /**
- * Call immediately before `disconnectRealtime()` when the hook will reconnect with a new session identity
+ * Call immediately before `disconnectWebsocket()` when the hook will reconnect with a new session identity
  * (same logged-in account). Uses current store + live client id so logout cleanup does not stash.
  */
-export function stashRealtimeSessionResumeHint() {
+export function stashWebsocketSessionResumeHint() {
   const { isLoggedIn, accountID } = useUsersStore.getState().account;
-  const cid = getRealtimeClientID();
+  const cid = getWsClientID();
   if (!isLoggedIn || !accountID || !cid) return;
   resumeHint = { accountId: accountID, clientId: cid };
 }
@@ -169,12 +169,12 @@ function scheduleReconnect(connectFn) {
 }
 
 /**
- * Account-scoped realtime: the server fans out all `accountID`-tagged doc updates after session upgrade.
+ * Account-scoped websocket: the server fans out all `accountID`-tagged doc updates after session upgrade.
  * Optional explicit `subscribe` messages are only for escape-hatch doc ids (see `subscribeDocIDs`).
  *
  * @param {{ accountId: string }} params
  */
-export function connectRealtime(params) {
+export function connectWebsocket(params) {
   const { accountId } = params;
   if (!accountId) return;
 
@@ -210,7 +210,7 @@ export function connectRealtime(params) {
       /* ignore */
     }
     socket = null;
-    clearRealtimeClientID();
+    clearWsClientID();
   }
 
   /** Guard listeners so a lagging close from a replaced socket cannot clear the active connection or its timers. */
@@ -220,9 +220,9 @@ export function connectRealtime(params) {
     ws = new WebSocket(wsUrl());
     socket = ws;
   } catch (e) {
-    console.error("[realtime] WebSocket construct failed", e);
+    console.error("[websocket] WebSocket construct failed", e);
     scheduleReconnect(() => {
-      if (lastConnectParams) connectRealtime(lastConnectParams);
+      if (lastConnectParams) connectWebsocket(lastConnectParams);
     });
     return;
   }
@@ -238,7 +238,7 @@ export function connectRealtime(params) {
       const attemptedSessionResume = Boolean(
         sessionResumePreviousId && socket === ws,
       );
-      let resumeSkippedBaseline = false;
+      let resumeSkippedDocumentLoad = false;
 
       if (attemptedSessionResume) {
         try {
@@ -253,12 +253,12 @@ export function connectRealtime(params) {
               resumeBootstrap = { resolve };
             }),
             new Promise((resolve) =>
-              setTimeout(() => resolve({ skipBaselineSync: false }), 400),
+              setTimeout(() => resolve({ skipDocumentLoad: false }), 400),
             ),
           ]);
-          resumeSkippedBaseline = !!resumeAck.skipBaselineSync;
+          resumeSkippedDocumentLoad = !!resumeAck.skipDocumentLoad;
         } catch {
-          resumeSkippedBaseline = false;
+          resumeSkippedDocumentLoad = false;
         } finally {
           resumeBootstrap = null;
         }
@@ -267,27 +267,27 @@ export function connectRealtime(params) {
       if (socket !== ws) return;
 
       /**
-       * Baseline GET for `users` + `application_settings` after (re)open when the in-store `sessionID`
-       * changed, or when we attempted `session_resume` but did not receive `resume_ack.skipBaselineSync`
+       * Loads `users` + `application_settings` after (re)open when the in-store `sessionID`
+       * changed, or when we attempted `session_resume` but did not receive `resume_ack.skipDocumentLoad`
        * (handoff uncertain). Same-session reconnect with a matched handoff skips duplicate GETs.
        */
       const sessionIdentityChanged =
         prevOpenSessionId == null || prevOpenSessionId !== sessionIdForWs;
       const shouldSync =
         sessionIdentityChanged ||
-        (attemptedSessionResume && !resumeSkippedBaseline);
+        (attemptedSessionResume && !resumeSkippedDocumentLoad);
       if (shouldSync) {
-        void syncAccountDocumentsFromServer();
+        void loadAccountDocuments();
       }
 
-      // Events during a reconnect gap are lost, so re-merge from the API when the
-      // session id changed (not on first open).
-      const shouldRefetchPlannerJobs =
+      // Events during a reconnect gap are lost, so re-load the planner from the
+      // API when the session id changed (not on first open).
+      const shouldReloadPlanner =
         prevOpenSessionId != null && prevOpenSessionId !== sessionIdForWs;
-      if (shouldRefetchPlannerJobs) {
-        void fetchPlannerJobDocumentsFromApi().catch((e) => {
+      if (shouldReloadPlanner) {
+        void loadPlannerDocuments().catch((e) => {
           console.warn(
-            "[realtime] planner job documents refetch after session identity change failed",
+            "[websocket] planner reload after session identity change failed",
             e,
           );
         });
@@ -320,7 +320,7 @@ export function connectRealtime(params) {
         if (parsed.type === "resume_ack") {
           if (resumeBootstrap) {
             resumeBootstrap.resolve({
-              skipBaselineSync: !!parsed.skipBaselineSync,
+              skipDocumentLoad: !!parsed.skipDocumentLoad,
               restoredDocIDs: Array.isArray(parsed.restoredDocIDs)
                 ? parsed.restoredDocIDs
                 : undefined,
@@ -330,11 +330,11 @@ export function connectRealtime(params) {
           return;
         }
         if (parsed.type === "connected") {
-          setRealtimeClientID(parsed.clientID);
+          setWsClientID(parsed.clientID);
           // app_version here is process bake (slot identity) — do NOT feed the
           // advertised-version snackbar path (that would clear "outdated" on OLD).
           // eslint-disable-next-line no-console -- ops/test: which Swarm websocket slot hosts us
-          console.info("[realtime] connected", {
+          console.info("[websocket] connected", {
             clientID: parsed.clientID,
             slot: parsed.slot,
             app_version: parsed.app_version,
@@ -345,7 +345,7 @@ export function connectRealtime(params) {
           // Drain / evacuate (#8 / #21): console only — makes ops moves easy to follow in DevTools.
           // eslint-disable-next-line no-console -- intentional ops/test visibility for slot moves
           console.info(
-            "[realtime] please_reconnect:",
+            "[websocket] please_reconnect:",
             typeof parsed.message === "string" && parsed.message
               ? parsed.message
               : "(no message)",
@@ -402,7 +402,7 @@ export function connectRealtime(params) {
     rejectAllDocumentLockLockStateBatchPending("websocket closed");
     clearTimers();
     socket = null;
-    clearRealtimeClientID();
+    clearWsClientID();
     if (!manualClose && connectKey === nextKey) {
       const p = lastConnectParams;
       if (!p) {
@@ -414,7 +414,7 @@ export function connectRealtime(params) {
         requestAppConfigRecheck();
       }
       scheduleReconnect(() => {
-        if (lastConnectParams) connectRealtime(lastConnectParams);
+        if (lastConnectParams) connectWebsocket(lastConnectParams);
       });
     }
   });
@@ -425,32 +425,32 @@ export function connectRealtime(params) {
 }
 
 /**
- * Parks the realtime layer, stopping the retry schedule. Driven from app-config:
+ * Parks the websocket layer, stopping the retry schedule. Driven from app-config:
  * a refused upgrade reaches the browser as an opaque close with no status.
  */
-export function parkRealtimeForMaintenance() {
+export function parkWebsocketForMaintenance() {
   parkedForMaintenance = true;
   clearTimers();
 }
 
 /** Lifts the park and reconnects if a connection is still wanted; backoff restarts. */
-export function resumeRealtimeAfterMaintenance() {
+export function resumeWebsocketAfterMaintenance() {
   if (!parkedForMaintenance) return;
   parkedForMaintenance = false;
   reconnectAttempt = 0;
   if (manualClose || socket || !lastConnectParams) return;
-  connectRealtime(lastConnectParams);
+  connectWebsocket(lastConnectParams);
 }
 
-/** True while the realtime layer is parked for maintenance (tests / diagnostics). */
-export function isRealtimeParkedForMaintenance() {
+/** True while the websocket layer is parked for maintenance (tests / diagnostics). */
+export function isWebsocketParkedForMaintenance() {
   return parkedForMaintenance;
 }
 
-export function disconnectRealtime() {
-  rejectAllDocumentLockLockStateBatchPending("realtime disconnected");
+export function disconnectWebsocket() {
+  rejectAllDocumentLockLockStateBatchPending("websocket disconnected");
   if (resumeBootstrap) {
-    resumeBootstrap.resolve({ skipBaselineSync: false });
+    resumeBootstrap.resolve({ skipDocumentLoad: false });
     resumeBootstrap = null;
   }
   manualClose = true;
@@ -462,7 +462,7 @@ export function disconnectRealtime() {
   /** New session should not inherit exponential backoff from prior failures. */
   reconnectAttempt = 0;
   parkedForMaintenance = false;
-  clearRealtimeClientIdentityHard();
+  clearWsClientIdentityHard();
   clearTimers();
   if (socket) {
     try {
@@ -565,7 +565,7 @@ export function sendDocumentLockEphemeralCommand(
 }
 
 /** True when the singleton same-origin `/ws` connection is open (cookie session auth). */
-export function isRealtimeSocketOpen() {
+export function isWebsocketOpen() {
   return socket !== null && socket.readyState === WebSocket.OPEN;
 }
 
@@ -576,7 +576,7 @@ export function isRealtimeSocketOpen() {
  * @param {{ jobDocIDs?: string[], groupDocIDs?: string[], timeoutMs?: number }} params
  * @returns {Promise<{ jobResults: Record<string, unknown>, groupResults: Record<string, unknown> }>}
  */
-export function requestDocumentLockLockStateBatchOverRealtime(params = {}) {
+export function requestDocumentLockLockStateBatchOverWebsocket(params = {}) {
   const timeoutMs =
     typeof params.timeoutMs === "number" && params.timeoutMs > 0
       ? params.timeoutMs

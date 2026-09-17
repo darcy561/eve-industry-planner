@@ -7,60 +7,60 @@ vi.mock("../Events/appConfigEvents.js", () => ({
 }));
 
 const {
-  connectRealtime,
-  parkRealtimeForMaintenance,
-  resumeRealtimeAfterMaintenance,
-  isRealtimeParkedForMaintenance,
-  disconnectRealtime,
-} = await import("./realtimeClient.js");
+  connectWebsocket,
+  parkWebsocketForMaintenance,
+  resumeWebsocketAfterMaintenance,
+  isWebsocketParkedForMaintenance,
+  disconnectWebsocket,
+} = await import("./websocketClient.js");
 
-describe("realtime maintenance park", () => {
+describe("websocket maintenance park", () => {
   beforeEach(() => {
     vi.spyOn(console, "info").mockImplementation(() => {});
   });
 
   afterEach(() => {
     // disconnect clears the park so one test cannot leak into the next.
-    disconnectRealtime();
+    disconnectWebsocket();
     vi.restoreAllMocks();
   });
 
   test("starts unparked", () => {
-    expect(isRealtimeParkedForMaintenance()).toBe(false);
+    expect(isWebsocketParkedForMaintenance()).toBe(false);
   });
 
   test("parking is what stops the retry schedule", () => {
-    parkRealtimeForMaintenance();
-    expect(isRealtimeParkedForMaintenance()).toBe(true);
+    parkWebsocketForMaintenance();
+    expect(isWebsocketParkedForMaintenance()).toBe(true);
   });
 
   test("resuming lifts the park", () => {
-    parkRealtimeForMaintenance();
-    resumeRealtimeAfterMaintenance();
-    expect(isRealtimeParkedForMaintenance()).toBe(false);
+    parkWebsocketForMaintenance();
+    resumeWebsocketAfterMaintenance();
+    expect(isWebsocketParkedForMaintenance()).toBe(false);
   });
 
   // Resuming when never parked is a no-op rather than a stray reconnect.
   test("resuming when not parked does nothing", () => {
-    expect(isRealtimeParkedForMaintenance()).toBe(false);
-    resumeRealtimeAfterMaintenance();
-    expect(isRealtimeParkedForMaintenance()).toBe(false);
+    expect(isWebsocketParkedForMaintenance()).toBe(false);
+    resumeWebsocketAfterMaintenance();
+    expect(isWebsocketParkedForMaintenance()).toBe(false);
   });
 
   // Logging out during a window must not leave the next session parked.
   test("disconnecting clears the park", () => {
-    parkRealtimeForMaintenance();
-    disconnectRealtime();
-    expect(isRealtimeParkedForMaintenance()).toBe(false);
+    parkWebsocketForMaintenance();
+    disconnectWebsocket();
+    expect(isWebsocketParkedForMaintenance()).toBe(false);
   });
 
   // Parking twice is what a repeated announce or a re-render would do.
   test("parking is idempotent", () => {
-    parkRealtimeForMaintenance();
-    parkRealtimeForMaintenance();
-    expect(isRealtimeParkedForMaintenance()).toBe(true);
-    resumeRealtimeAfterMaintenance();
-    expect(isRealtimeParkedForMaintenance()).toBe(false);
+    parkWebsocketForMaintenance();
+    parkWebsocketForMaintenance();
+    expect(isWebsocketParkedForMaintenance()).toBe(true);
+    resumeWebsocketAfterMaintenance();
+    expect(isWebsocketParkedForMaintenance()).toBe(false);
   });
 });
 
@@ -92,21 +92,21 @@ describe("a socket that will not open", () => {
   });
 
   afterEach(() => {
-    disconnectRealtime();
+    disconnectWebsocket();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
   test("closing before it opened asks app-config to recheck", () => {
-    connectRealtime({ accountId: "acct-1" });
+    connectWebsocket({ accountId: "acct-1" });
     FakeSocket.last.dispatch("close");
     expect(requestAppConfigRecheck).toHaveBeenCalledTimes(1);
   });
 
   test("a deliberate disconnect asks nothing", () => {
-    connectRealtime({ accountId: "acct-1" });
+    connectWebsocket({ accountId: "acct-1" });
     const sock = FakeSocket.last;
-    disconnectRealtime();
+    disconnectWebsocket();
     sock.dispatch("close");
     expect(requestAppConfigRecheck).not.toHaveBeenCalled();
   });

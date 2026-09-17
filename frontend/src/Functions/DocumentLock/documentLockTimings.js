@@ -69,7 +69,7 @@ export const LOCK_WAITLIST_PULSE_INTERVAL_MS = 35 * 1000;
 export const LOCK_READONLY_GRACE_MS = 5000;
 
 /**
- * Coalesce rapid job/group list churn (Zustand updates from realtime fan-out)
+ * Coalesce rapid job/group list churn (Zustand updates from websocket fan-out)
  * into a single planner lock sync batch.
  */
 export const LOCK_SCOPE_SYNC_DEBOUNCE_MS = 200;

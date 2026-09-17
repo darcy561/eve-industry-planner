@@ -10,7 +10,7 @@ import esiCredentials from "../../Functions/Auth/esiCredentials/provider.js";
 
 /**
  * Appends characters, replacing any existing row with the same canonical CharacterHash.
- * Needed when realtime reconcile and post-login both hydrate linked alts from the same tokens.
+ * Needed when websocket reconcile and post-login both hydrate linked alts from the same tokens.
  *
  * @param {unknown[]} existing
  * @param {unknown[]} incoming

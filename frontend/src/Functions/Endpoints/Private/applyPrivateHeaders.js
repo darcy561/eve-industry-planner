@@ -5,7 +5,7 @@ import withRequestRetries, {
   mergeApiRetryOptions,
   splitRetryConfig,
 } from "../withRequestRetries.js";
-import { getRealtimeClientID } from "../../../Realtime/wsClientIdentity.js";
+import { getWsClientID } from "../../../WebSocket/wsClientIdentity.js";
 import { activePlannerOwnerHandle } from "../../../Zustand/activePlanner/read.js";
 import {
   getTabPlannerSessionID,
@@ -87,7 +87,7 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
  * when the planner session was validated recently — see cooldown in `plannerSessionActions.ensurePlannerSession`),
  * then performs `fetch` with tab session headers.
  * Session identity is **`X-Session-ID`**; **`X-WS-Client-ID`** is sent when the
- * realtime layer has assigned a tab id (echo suppression / locks); **`X-Planner-Owner`**
+ * websocket layer has assigned a tab id (echo suppression / locks); **`X-Planner-Owner`**
  * names the planner the request works in.
  * **Retries** (408 / 429 / 5xx by default) use {@link apiRateLimitRetryConfig}; on 429 the client waits for
  * the API fixed-window `Retry-After` header (`ratelimiter.go`) before retrying. Disable with `config.retry: false`.
@@ -152,7 +152,7 @@ export function getSessionIDFromStore() {
 
 /**
  * Merge optional request metadata into fetch options. Private routes send per-tab **`X-Session-ID`**
- * (from sessionStorage); adds **`X-WS-Client-ID`** when the realtime layer has assigned a tab id,
+ * (from sessionStorage); adds **`X-WS-Client-ID`** when the websocket layer has assigned a tab id,
  * and **`X-Planner-Owner`** naming the planner the request works in.
  *
  * @param {Object} options - Fetch options
@@ -166,8 +166,8 @@ function applyPrivateHeaders(options = {}, config = {}) {
     ...options.headers,
     ...tabPlannerSessionRequestHeaders(),
     ...(config.requestName && { "X-Request-Name": config.requestName }),
-    ...(getRealtimeClientID() && {
-      "X-WS-Client-ID": getRealtimeClientID(),
+    ...(getWsClientID() && {
+      "X-WS-Client-ID": getWsClientID(),
     }),
     // Every scoped read and write is for one planner, so the header goes on
     // every private request rather than on the call sites that remembered it.

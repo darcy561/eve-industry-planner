@@ -16,7 +16,7 @@ const corpusPath = resolve(
 );
 const corpus = JSON.parse(readFileSync(corpusPath, "utf8"));
 
-describe("realtime message kinds", () => {
+describe("websocket message kinds", () => {
   test("every family in the corpus is defined here", () => {
     for (const family of corpus.families) {
       expect(MESSAGE_KINDS, family.why).toHaveProperty(family.type);

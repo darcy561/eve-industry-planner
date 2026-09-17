@@ -8,8 +8,8 @@ vi.mock("../Zustand/usersStore", async () => {
     await import("../tests/usersStoreHarness.js");
   return usersStoreMock(() => usersStoreState(storeState));
 });
-vi.mock("../Realtime/wsClientIdentity.js", () => ({
-  getRealtimeClientID: () => null,
+vi.mock("../WebSocket/wsClientIdentity.js", () => ({
+  getWsClientID: () => null,
 }));
 vi.mock("../Functions/Auth/tabSessionStorage.js", () => ({
   getTabPlannerSessionID: () => "session-1",

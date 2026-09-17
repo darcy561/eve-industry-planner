@@ -1,5 +1,5 @@
 /**
- * Shared realtime reconcile helpers for account-scoped documents (`users`,
+ * Shared websocket reconcile helpers for account-scoped documents (`users`,
  * `application_settings`): refresh tokens, Character models, system indexes.
  */
 
@@ -62,7 +62,7 @@ export function enqueueReconcile(task) {
   reconcileQueue = reconcileQueue
     .then(task)
     .catch((error) =>
-      console.error("[realtime] account reconcile failed", error),
+      console.error("[websocket] account reconcile failed", error),
     );
 }
 

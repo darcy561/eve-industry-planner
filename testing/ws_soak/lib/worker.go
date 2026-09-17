@@ -226,7 +226,7 @@ func needsScopeUpgrade(id clientIdentity) bool {
 	return id.CorpID != 0 || id.AllianceID != 0
 }
 
-// App text heartbeat — same interval/payload as frontend realtimeClient.js.
+// App text heartbeat — same interval/payload as frontend websocketClient.js.
 // Written from a side goroutine; gorilla allows WriteMessage concurrent with the
 // default PingHandler's WriteControl pongs. Do not drive pings off read deadlines
 // (ReadMessage errors are permanent in gorilla).

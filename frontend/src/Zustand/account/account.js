@@ -51,7 +51,7 @@ export const accountStateDefault = () => ({
    */
   linkedCharacterHashesFromBootstrapSession: null,
   /**
-   * True while `runPostLoginAccountSync` hydrates cloud `linked_characters` — realtime reconcile
+   * True while `runPostLoginAccountSync` hydrates cloud `linked_characters` — websocket reconcile
    * must not mint duplicate ESI access or strip alts from an empty effective roster mid-flight.
    */
   linkedBootstrapHydrationPending: false,
@@ -94,7 +94,7 @@ export const accountActions = (set, get) => ({
 
   resetAccountStore: () => {
     clearTabPlannerSession();
-    get().realtimeSync?.actions?.reset?.();
+    get().websocketSync?.actions?.reset?.();
     set(
       (state) => ({
         ...state,
@@ -127,7 +127,7 @@ export const accountActions = (set, get) => ({
   },
 
   /**
-   * Add/remove linked ESI order/job/transaction IDs (realtime sync, job lifecycle).
+   * Add/remove linked ESI order/job/transaction IDs (websocket sync, job lifecycle).
    */
   addLinkedEsiData: (esiData) => {
     if (!esiData) return;

@@ -28,7 +28,7 @@ How a realtime message says **who receives it**, separately from what it means.
   owners that project defines.
 - **The `type` / `subtype` vocabulary** and what each family means to a browser. Those are live SoT
   in [`shared/nats/client_messages.go`](../../../services/shared/nats/client_messages.go),
-  [`messageKinds.js`](../../../frontend/src/Realtime/messageKinds.js) and the corpus they are both
+  [`messageKinds.js`](../../../frontend/src/WebSocket/messageKinds.js) and the corpus they are both
   checked against. Audience is a separate dimension and does not enter them.
 - **The document lock's delivery** — its key, its fan-out subject `doc.lock.{accountID}` and the
   corporation and alliance selectivity that waits on them →

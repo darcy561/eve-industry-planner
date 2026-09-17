@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import getAllRelatedJobs from "../Functions/Helper/getAllRelatedJobs";
-import { getRealtimeClientID } from "../Realtime/wsClientIdentity.js";
+import { getWsClientID } from "../WebSocket/wsClientIdentity.js";
 import {
   addIDsToSet,
   asIDList,
@@ -106,7 +106,7 @@ class Group {
     };
     const meta = { ...this._meta };
     delete meta.buildVer;
-    const cid = getRealtimeClientID();
+    const cid = getWsClientID();
     if (cid) {
       meta.clientID = cid;
     }

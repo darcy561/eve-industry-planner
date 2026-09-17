@@ -90,7 +90,7 @@ export function SideMenu({ open, setOpen }) {
             <Divider />
             {isLoggedIn && (
               <>
-                {/* Exercises the planner endpoints and the realtime switch. The
+                {/* Exercises the planner endpoints and the websocket switch. The
                     app still works in the account's own planner; this points the
                     connection somewhere else without moving the data. */}
                 <PlannerSwitcher />

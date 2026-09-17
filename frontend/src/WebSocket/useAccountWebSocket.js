@@ -1,12 +1,12 @@
 import { useEffect } from "react";
 import useUsersStore from "../Zustand/usersStore.js";
 import {
-  connectRealtime,
-  disconnectRealtime,
-  stashRealtimeSessionResumeHint,
-} from "./realtimeClient.js";
+  connectWebsocket,
+  disconnectWebsocket,
+  stashWebsocketSessionResumeHint,
+} from "./websocketClient.js";
 import { scheduleDebouncedAccountDocumentsSync } from "../Functions/Debounce/accountSingletonsSyncSchedule.js";
-import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Private/jobDocuments.js";
+import { loadPlannerDocuments } from "../Functions/DocumentLoad/loadPlannerDocuments.js";
 
 /**
  * Account-scoped WebSocket lifecycle: connect when the user has a valid app session
@@ -22,15 +22,15 @@ export function useAccountWebSocket() {
 
   useEffect(() => {
     if (!isLoggedIn || !accountID) {
-      disconnectRealtime();
+      disconnectWebsocket();
       return;
     }
 
-    connectRealtime({ accountId: accountID });
+    connectWebsocket({ accountId: accountID });
 
     return () => {
-      stashRealtimeSessionResumeHint();
-      disconnectRealtime();
+      stashWebsocketSessionResumeHint();
+      disconnectWebsocket();
     };
   }, [isLoggedIn, accountID]);
 
@@ -53,7 +53,7 @@ export function useAccountWebSocket() {
           if (!logged || !acc) return;
 
           scheduleDebouncedAccountDocumentsSync();
-          await fetchPlannerJobDocumentsFromApi().catch(() => {});
+          await loadPlannerDocuments().catch(() => {});
         })();
       }, 800);
     };

@@ -25,11 +25,11 @@ Endpoint list → [session-esi.md](../../backend/api/session-esi.md). Test depth
 | Tranquility rate-limit retry | up to 50 attempts, delay from the error or 1s | same |
 | Request retry | 4 attempts, 350ms base, on 408 / 429 / 5xx; 429 waits the server `Retry-After`, capped at 120s | `frontend/src/Functions/Endpoints/withRequestRetries.js` |
 | React Query `staleTime` | 60s | `frontend/src/queryClient.js` |
-| WebSocket ping | 45s | `frontend/src/Realtime/realtimeClient.js` |
+| WebSocket ping | 45s | `frontend/src/WebSocket/websocketClient.js` |
 | WebSocket reconnect | 750ms doubling, capped at 20s | same |
 | Session handoff window | reconnect cap + 5s = 25s | same |
 | `resume_ack` wait | 400ms, then continue without it | same |
-| Visibility re-sync delay | 800ms after a background tab becomes visible | `frontend/src/Realtime/useAccountWebSocket.js` |
+| Visibility re-sync delay | 800ms after a background tab becomes visible | `frontend/src/WebSocket/useAccountWebSocket.js` |
 
 Nothing here runs on a schedule of its own. Every value above is either a *staleness* bound React
 Query enforces, or a floor that stops a caller repeating work — never a timer that acquires a
@@ -135,7 +135,7 @@ in-memory job array, awaits the post-login account sync that adopts the linked c
 the watchlist, job-group and job-document bootstrap steps without waiting on them. It releases
 `plannerPrivateAuthReady` in a `finally`, so a login that failed part-way still opens the gate.
 
-`connectRealtime` follows from `isLoggedIn` flipping, not from anything the login flow calls.
+`connectWebsocket` follows from `isLoggedIn` flipping, not from anything the login flow calls.
 
 ### Login progress
 
@@ -365,13 +365,13 @@ session. ESI domain queries make their own decision from the same cache, in
 
 ## The realtime connection
 
-`useAccountWebSocket` (`frontend/src/Realtime/useAccountWebSocket.js`) connects on
+`useAccountWebSocket` (`frontend/src/WebSocket/useAccountWebSocket.js`) connects on
 `[isLoggedIn, accountID]` and disconnects on anything else. It does **no** auth work — a credential is
 acquired by whatever needs one. A second effect in the same hook re-syncs account singletons and
 planner job documents 800ms after a background tab becomes visible, because a background socket is
 throttled and may have missed fan-out.
 
-`frontend/src/Realtime/realtimeClient.js` is a module singleton on same-origin `/ws`, upgraded to
+`frontend/src/WebSocket/websocketClient.js` is a module singleton on same-origin `/ws`, upgraded to
 `wss:` on an https page. The tab's planner session id travels as the `planner_session_id` query
 parameter and the browser attaches `eip_session` on the upgrade; the server checks both
 ([sessions.md](../../backend/api/auth/sessions.md) § WebSocket upgrade auth). A baked app version is
@@ -395,7 +395,7 @@ immediately after open. An acknowledged handoff skips the duplicate baseline GET
 falls back to fetching them, because an uncertain handoff must not be trusted with what the tab
 already believes.
 
-`frontend/src/Realtime/wsClientIdentity.js` holds the `clientID` the server sends in its `connected`
+`frontend/src/WebSocket/wsClientIdentity.js` holds the `clientID` the server sends in its `connected`
 message. That value is what `X-WS-Client-ID` carries on private calls, and it is best-effort: before
 the socket is open there is nothing to send, and the API simply treats such a change as coming from
 another tab.
@@ -430,7 +430,7 @@ checked against the real route table before it is used — see
 `routes/signout.jsx` has no component. Its teardown runs in an async `beforeLoad`, which the router
 awaits before rendering anything, and which ends by throwing a redirect to `/`:
 
-1. `disconnectRealtime()` — close `/ws` before anything else, so no fan-out lands mid-teardown.
+1. `disconnectWebsocket()` — close `/ws` before anything else, so no fan-out lands mid-teardown.
 2. `logoutPlannerSession(tabRefreshToken)` — `POST /api/v1/auth/sessions/logout`, carrying the tab's
    raw refresh token when it holds one; a cloud account's server reads the value from
    `eip_app_refresh` instead.

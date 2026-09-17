@@ -1,5 +1,5 @@
 /**
- * Realtime change-stream message handlers (per collection / file).
+ * Websocket change-stream message handlers (per collection / file).
  * Routed from `applyRemoteMessage.js`.
  */
 

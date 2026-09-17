@@ -199,7 +199,7 @@ export const stateDefault = () => ({
  * @param {object} prev - `state.applicationSettings` including `actions`
  * @param {object} incoming - partial API `application_settings`
  * @param {string|undefined} mainCharacterHashFallback - fallback for default reprocessing character when server omits it
- * @param {{ authoritativeFullDocument?: boolean }} [options] - When true (GET / realtime full doc), missing optional keys mean cleared defaults, not “keep local”. Login payloads stay false/partial.
+ * @param {{ authoritativeFullDocument?: boolean }} [options] - When true (GET / websocket full doc), missing optional keys mean cleared defaults, not “keep local”. Login payloads stay false/partial.
  * @returns {object} merged application settings (including `actions`)
  */
 export function mergeApplicationSettingsState(

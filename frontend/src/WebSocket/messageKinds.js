@@ -1,5 +1,5 @@
 /**
- * The vocabulary a realtime message uses to describe itself: `type` routes the
+ * The vocabulary a websocket message uses to describe itself: `type` routes the
  * message, `subtype` says what to do with it inside that family.
  *
  * The backend defines the same vocabulary in Go. Neither side can import across

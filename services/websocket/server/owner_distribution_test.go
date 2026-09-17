@@ -469,7 +469,7 @@ func TestOwnerWalkFallsBackToSuppressingTheWholeSession(t *testing.T) {
 
 // A client rebuilding its state is held back from a document change.
 //
-// The baseline it is writing is half there, so a change applied on top of one
+// The document set it is loading is half there, so a change applied on top of one
 // lands in a document about to be replaced. It refetches what it missed when the
 // rebuild finishes, which is why skipping costs nothing.
 func TestADocumentIsHeldBackFromAClientMidSync(t *testing.T) {

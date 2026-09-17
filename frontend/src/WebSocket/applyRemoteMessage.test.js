@@ -69,7 +69,7 @@ describe("applyRemoteMessage", () => {
       subtype: "somethingElse",
     });
     expect(console.warn).toHaveBeenCalledWith(
-      "[realtime] no handler for notification",
+      "[websocket] no handler for notification",
       "somethingElse",
     );
     expect(invalidateArchiveQueries).not.toHaveBeenCalled();
@@ -78,7 +78,7 @@ describe("applyRemoteMessage", () => {
   test("an unrecognised family is reported too", async () => {
     await applyRemoteMessage({ type: "somethingNew" });
     expect(console.warn).toHaveBeenCalledWith(
-      "[realtime] no handler for message family",
+      "[websocket] no handler for message family",
       "somethingNew",
     );
   });

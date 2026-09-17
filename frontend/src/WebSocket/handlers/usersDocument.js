@@ -23,7 +23,7 @@ export function handleUsersDocumentDelete(ctx) {
   if (docID !== accountId) return false;
 
   rs.setCursorMs(docKey, Date.now());
-  console.warn("[realtime] users document delete — session may be invalid");
+  console.warn("[websocket] users document delete — session may be invalid");
   return true;
 }
 

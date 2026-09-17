@@ -525,8 +525,8 @@ because the selector is the id's own shape. `prepareRelease` does not perform th
 gate fails if any bare id is left.
 
 **The store still holds one planner's documents.** Keying the job and group stores by owner is Stage G
-work rather than this stage's: a switch now reads and writes the right planner, but nothing fetches
-that planner's baseline, so the documents already in the store are what it shows until a change
+work rather than this stage's: a switch now reads and writes the right planner, but nothing loads
+that planner's documents, so the documents already in the store are what it shows until a change
 arrives. Group template keys carry no owner because the collections carry no owner block yet.
 
 **An invite is a Redis record, not a document.** `plannerinvites` owns the namespace
@@ -591,6 +591,69 @@ block.
 
 Owed here: how a corporation or alliance roster is reconciled and when, and what a corporation planner
 does not offer that a custom one does.
+
+## Stage G — Realtime state under more than one writer
+
+*Partly landed: a planner is loaded when the app enters it.*
+
+**The job store holds one planner, and `loadPlannerDocuments` is what puts a planner in it.** It
+lives in `frontend/src/Functions/DocumentLoad/` beside `loadAccountDocuments`, which loads the account's
+own singletons: both read the server over HTTP, so neither belongs with the socket.
+
+It reads `GET /api/v1/job-documents/planner` and `GET /api/v1/groups` together — both already carry the owner
+header — and replaces the job and group arrays from what comes back. Three paths call it: the switcher,
+which awaits it inside its transition so the control stays disabled until the planner it names is the
+one on screen; the reconnect, when the session identity changed and events during the gap were lost; and
+the background-tab wake, whose socket was throttled. The last two previously reloaded jobs alone, so
+groups were never refetched after a gap.
+
+The switcher reports a load that failed apart from a switch that failed. Past the point the connection
+took the planner the switch has happened and only the documents are missing, so it says so and offers
+the load again rather than leaving the reader on the previous planner's jobs with the control already
+showing the new one. That banner is cleared by the next switch or by taking the offer, so a load from
+the reconnect or the wake succeeding for the same planner in the meantime leaves it saying something
+that is no longer true.
+
+**Only the newest load reaches the store, and it reaches it whole.** Each call takes a number, and the
+pair of answers is dropped unless that call is still the newest and the app is still in the planner it
+asked for. The owner check alone is not enough: switching away and back arrives at the same planner, so
+two loads for one owner are both wanted by it and the slower would land last with the older answer. The
+check is made once for the pair rather than once per request, because the two requests answer at their
+own speeds and a load overtaken between them would leave its groups beside another load's jobs. Fetching
+and writing are separate steps in the endpoint modules for that reason: the loader holds both answers
+until both have arrived.
+
+**The job store records which planner it holds.** `jobData.owner` is that planner, written by the same
+action that replaces either array. A load for a different planner drops the jobs held inside groups,
+which are the one thing a planner load does not answer for and so were previously kept across the
+switch: a group's jobs would otherwise outlive the planner they belong to, invisible among another
+planner's because their own group had gone. A load for the planner already held keeps them, which is
+what a reconnect needs.
+
+**A queued job or group write is flushed before the planner moves.** Those writes name their planner on
+the request at the moment they go, not when they were queued, so an edit still inside its two-second
+debounce would be written into the planner being switched to. The settings flush is after the switch
+instead, because a settings write carries the owner it was queued for.
+
+A flush resolves when the write has finished, which is what makes that ordering real: a persist schedule
+returns its work from `onRun` rather than discarding it, so `flushPending` has something to wait for. A
+write that failed leaves its ids queued, and the switch is refused while any remain — moving would send
+them under the new planner's name, and loading the new planner clears the queue, so the edit would be
+lost rather than delayed.
+
+Switching is covered end to end from the click: only the network is faked, so the header, the endpoint
+modules, the store actions and the merge are the real ones, and the test that matters names the planner
+a queued edit is finally sent under. Moving the flush to the far side of the switch makes it fail with
+the new planner's name on the old planner's job, which is the defect it was written for.
+
+A load answers from a snapshot and writes it whole, so a change delivered over the socket while the
+load was in flight is rolled back by it. The window is the length of the two requests, and it is the
+same shape the reconnect reload has always had; what the position in G2 is for is making a delivery and
+a snapshot comparable, which is what would close it.
+
+Owed here: keying the job and group stores by owner rather than replacing one planner's array with
+another's, the fate of the `websocket/sync` package, and the whole of the ordering position, the
+resume that answers from it, and the outbound delivery construction.
 
 ## Decisions taken, with their reasons
 

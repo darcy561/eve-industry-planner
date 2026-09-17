@@ -18,8 +18,19 @@ vi.mock("../../../Functions/Endpoints/Private/planners.js", () => ({
 }));
 
 const sendActivePlanner = vi.fn();
-vi.mock("../../../Realtime/realtimeClient.js", () => ({
+vi.mock("../../../WebSocket/websocketClient.js", () => ({
   sendActivePlanner: (...args) => sendActivePlanner(...args),
+}));
+
+const flushPendingJobDocumentsSave = vi.fn();
+vi.mock("../../../Functions/Debounce/jobDocumentsPersistSchedule.js", () => ({
+  flushPendingJobDocumentsSave: (...args) =>
+    flushPendingJobDocumentsSave(...args),
+}));
+
+const flushPendingGroupSave = vi.fn();
+vi.mock("../../../Functions/Debounce/jobGroupsPersistSchedule.js", () => ({
+  flushPendingGroupSave: (...args) => flushPendingGroupSave(...args),
 }));
 
 const flushPendingPlannerSettingsSaves = vi.fn();
@@ -30,6 +41,11 @@ vi.mock(
       flushPendingPlannerSettingsSaves(...args),
   }),
 );
+
+const loadPlannerDocuments = vi.fn();
+vi.mock("../../../Functions/DocumentLoad/loadPlannerDocuments.js", () => ({
+  loadPlannerDocuments: (...args) => loadPlannerDocuments(...args),
+}));
 
 const planners = [
   { owner: "account:acct-1", kind: "account", name: "", named: true },
@@ -71,6 +87,11 @@ beforeEach(() => {
   ensurePlannerViaApi.mockReset().mockResolvedValue({});
   sendActivePlanner.mockReset().mockReturnValue(true);
   flushPendingPlannerSettingsSaves.mockReset().mockResolvedValue(undefined);
+  loadPlannerDocuments.mockReset().mockResolvedValue(true);
+  flushPendingJobDocumentsSave.mockReset().mockResolvedValue(undefined);
+  flushPendingGroupSave.mockReset().mockResolvedValue(undefined);
+  storeState.jobData.pendingJobDocumentWrites = [];
+  storeState.jobData.pendingJobGroupWrites = [];
 });
 
 describe("the planner switcher", () => {
@@ -121,6 +142,38 @@ describe("the planner switcher", () => {
     expect(storeState.activePlanner.owner).toBeNull();
   });
 
+  // A queued job or group write names its planner on the request when it goes,
+  // not when it was queued, so an edit inside its debounce window would be
+  // written into the planner being switched to.
+  it("writes pending job and group edits before the planner moves", async () => {
+    renderSwitcher();
+
+    chooseKarkur();
+
+    await waitFor(() => expect(sendActivePlanner).toHaveBeenCalled());
+    expect(
+      flushPendingJobDocumentsSave.mock.invocationCallOrder[0],
+    ).toBeLessThan(sendActivePlanner.mock.invocationCallOrder[0]);
+    expect(flushPendingGroupSave.mock.invocationCallOrder[0]).toBeLessThan(
+      sendActivePlanner.mock.invocationCallOrder[0],
+    );
+  });
+
+  // The write's ids are still queued when it failed, and loading the new planner
+  // clears that queue — so moving would lose the edit rather than delay it.
+  it("refuses to switch while an edit is still unsaved", async () => {
+    storeState.jobData.pendingJobDocumentWrites = ["job-1"];
+    renderSwitcher();
+
+    chooseKarkur();
+
+    expect(
+      await screen.findByText("Unsaved changes could not be saved"),
+    ).toBeInTheDocument();
+    expect(sendActivePlanner).not.toHaveBeenCalled();
+    expect(storeState.activePlanner.owner).toBeNull();
+  });
+
   // The entries under the planner being left are dropped, so switching straight
   // back re-reads its settings. A settings edit still inside its debounce window
   // has to reach the server before that read can happen, or the read lands first
@@ -137,6 +190,18 @@ describe("the planner switcher", () => {
     ).toBeLessThan(removeQueries.mock.invocationCallOrder[0]);
   });
 
+  // The job store holds one planner at a time: without this the reader is left
+  // looking at the jobs and groups of the planner they just left.
+  it("loads the planner it switched to", async () => {
+    renderSwitcher();
+
+    chooseKarkur();
+
+    await waitFor(() =>
+      expect(loadPlannerDocuments).toHaveBeenCalledWith("corporation:98000001"),
+    );
+  });
+
   it("drops nothing when the connection did not take the switch", async () => {
     sendActivePlanner.mockReturnValue(false);
     const client = renderSwitcher();
@@ -147,6 +212,52 @@ describe("the planner switcher", () => {
     expect(await screen.findByText("Not connected")).toBeInTheDocument();
     expect(flushPendingPlannerSettingsSaves).not.toHaveBeenCalled();
     expect(removeQueries).not.toHaveBeenCalled();
+    expect(loadPlannerDocuments).not.toHaveBeenCalled();
+  });
+
+  // The switch has already happened by the time the load runs, so "could not
+  // switch" would be a lie: the planner moved and only its documents are missing.
+  it("says the switch took when only the documents failed", async () => {
+    loadPlannerDocuments.mockRejectedValue(new Error("Network down"));
+    renderSwitcher();
+
+    chooseKarkur();
+
+    expect(
+      await screen.findByText("Switched, but could not load this planner"),
+    ).toBeInTheDocument();
+  });
+
+  // Choosing the planner again fires no change, because the control is already
+  // showing it, so asking again has to be its own control.
+  it("asks again for a planner whose documents failed", async () => {
+    loadPlannerDocuments.mockRejectedValue(new Error("Network down"));
+    renderSwitcher();
+
+    chooseKarkur();
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    // It is held while the load it offers is still running, and a click on a
+    // disabled control is swallowed rather than reported.
+    await waitFor(() => expect(retry).toBeEnabled());
+    loadPlannerDocuments.mockResolvedValue(true);
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(loadPlannerDocuments).toHaveBeenCalledTimes(2));
+    expect(loadPlannerDocuments).toHaveBeenLastCalledWith(
+      "corporation:98000001",
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Retry" })).toBeNull(),
+    );
+  });
+
+  it("offers nothing to retry when the planner loaded", async () => {
+    renderSwitcher();
+
+    chooseKarkur();
+
+    await waitFor(() => expect(loadPlannerDocuments).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
   it("reports a planner it could not name", async () => {

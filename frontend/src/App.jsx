@@ -12,8 +12,8 @@ import PageTransition, { usePageKey } from "./Components/pageTransition";
 import ErrorBoundary from "./Components/ErrorBoundary";
 import { useTranquilityServerStatusQuery } from "./Hooks/React Query/tranquilityServerStatus.js";
 import useAppConfig from "./Hooks/App/useAppConfig";
-import useMaintenanceRealtimePark from "./Hooks/App/useMaintenanceRealtimePark.js";
-import { useAccountWebSocket } from "./Realtime/useAccountWebSocket.js";
+import useMaintenanceWebsocketPark from "./Hooks/App/useMaintenanceWebsocketPark.js";
+import { useAccountWebSocket } from "./WebSocket/useAccountWebSocket.js";
 import { useAccountAffiliationQuery } from "./Hooks/React Query/accountAffiliation.js";
 const { ENABLE_FEEDBACK_ICON } = GLOBAL_CONFIG;
 
@@ -25,7 +25,7 @@ export default function App() {
 
   const pageKey = usePageKey(isMaintenanceMode);
 
-  useMaintenanceRealtimePark(isMaintenanceMode);
+  useMaintenanceWebsocketPark(isMaintenanceMode);
   useAccountWebSocket();
   useTranquilityServerStatusQuery();
   useAccountAffiliationQuery();

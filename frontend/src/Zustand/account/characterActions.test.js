@@ -97,7 +97,7 @@ describe("adding characters", () => {
     ]);
   });
 
-  // Realtime reconcile and the post-login sync both hydrate linked alts from the
+  // Websocket reconcile and the post-login sync both hydrate linked alts from the
   // same tokens, so the same character arrives twice and must not be duplicated.
   it("replaces a row whose hash differs only in case", () => {
     const existing = character("AbC", { CharacterName: "Stale" });

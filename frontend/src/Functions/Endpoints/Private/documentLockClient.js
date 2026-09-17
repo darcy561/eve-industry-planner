@@ -1,8 +1,8 @@
 import {
-  isRealtimeSocketOpen,
-  requestDocumentLockLockStateBatchOverRealtime,
+  isWebsocketOpen,
+  requestDocumentLockLockStateBatchOverWebsocket,
   sendDocumentLockEphemeralCommand,
-} from "../../../Realtime/realtimeClient.js";
+} from "../../../WebSocket/websocketClient.js";
 import { DOCUMENT_LOCK_FRAME_TYPES } from "../../DocumentLock/documentLockEvents.js";
 import { requestWithPrivateHeaders } from "./applyPrivateHeaders.js";
 import {
@@ -91,7 +91,7 @@ async function mergeLockStateBatchOverWs(jobsNorm, groupsNorm) {
     const jobChunk = jobs.splice(0, MAX_STATUS_BATCH_DOC_IDS);
     const groupChunk = groups.splice(0, MAX_STATUS_BATCH_DOC_IDS);
     const { jobResults, groupResults } =
-      await requestDocumentLockLockStateBatchOverRealtime({
+      await requestDocumentLockLockStateBatchOverWebsocket({
         jobDocIDs: jobChunk,
         groupDocIDs: groupChunk,
       });
@@ -298,7 +298,7 @@ export async function getDocumentLockStateBatch({
     });
   }
 
-  if (isRealtimeSocketOpen()) {
+  if (isWebsocketOpen()) {
     try {
       const { jobResults, groupResults } = await mergeLockStateBatchOverWs(
         jobs,

@@ -9,7 +9,7 @@ The planner as a first-class thing a user works in, and the ownership model unde
 - **Membership providers**: how a planner's roster is decided, whether from rows we own (`invite`), from the account itself (`self`), or from ESI (`esi-corporation`, `esi-alliance`).
 - The **grants ceiling** as a list of owner keys, and how a removed member loses access.
 - The **active planner** on the client, and the owner parameter on every scoped read.
-- **Realtime consistency under more than one writer** — the ordering token, the owner-scoped baseline, and what `session_resume` may assert. Absorbed from the retired websocket-realtime project.
+- **Realtime consistency under more than one writer** — the ordering token, the owner-scoped document load, and what `session_resume` may assert. Absorbed from the retired websocket-realtime project.
 - **What the document lock is namespaced by** — the Redis key, the waitlist, the viewer set and the fan-out subject moving off the calling account and onto the owner key, so two members of one planner contend for one lock.
 - The rule that a document's owner is **decided when it is created**, never inferred from correlated fields.
 
@@ -57,7 +57,7 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See what other projects must change before they close | [plan.md](./plan.md) § What the other projects owe |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
-| Understand why the realtime cursor and baseline sync do not survive a second writer | [plan.md](./plan.md) § Stage G |
+| Understand why the websocket cursor and document load do not survive a second writer | [plan.md](./plan.md) § Stage G |
 | Find what the retired websocket-realtime project left behind | [plan.md](./plan.md) § Stage G — Absorbed from the retired websocket-realtime project |
 | Understand why two members take two different locks on one job | [plan.md](./plan.md) § Stage H |
 | Know what happens to same-account force-release once the lock is planner-wide | [plan.md](./plan.md) § Stage H |

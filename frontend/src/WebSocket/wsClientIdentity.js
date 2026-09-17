@@ -12,7 +12,7 @@ let wsClientID = null;
 /**
  * Last id before `wsClientID` became null due to transient disconnect (socket close /
  * reconnect). Lets us pair Redis doc-lock rebind after session refresh / reconnect: old id → new id even
- * when {@link setRealtimeClientID} runs with `prev === null` because the cookie was cleared first.
+ * when {@link setWsClientID} runs with `prev === null` because the cookie was cleared first.
  */
 let lastWsClientIDBeforeDisconnect = null;
 
@@ -26,12 +26,12 @@ function dispatchClientIdChanged(previousClientID, clientID) {
 
 /**
  * Normal clear while the session may reconnect (temporary socket drop). Preserves id for
- * {@link lastWsClientIDBeforeDisconnect} once so {@link setRealtimeClientID} can emit a
+ * {@link lastWsClientIDBeforeDisconnect} once so {@link setWsClientID} can emit a
  * `(old,new)` transition for doc-lock rebind.
  *
  * @param {string|null|undefined} value
  */
-export function setRealtimeClientID(value) {
+export function setWsClientID(value) {
   const next = typeof value === "string" ? value.trim() : "";
   const prev = wsClientID;
   const newID = next || null;
@@ -69,7 +69,7 @@ export function setRealtimeClientID(value) {
 }
 
 /** Used on socket close / reconnect path (not logout). Still receives `(prev,null)` events. */
-export function clearRealtimeClientID() {
+export function clearWsClientID() {
   const prev = wsClientID;
   wsClientID = null;
   if (prev !== null) {
@@ -79,7 +79,7 @@ export function clearRealtimeClientID() {
 }
 
 /** Logout / intentional teardown: forget cached ids so the next login never rebinds against a stale ws id. */
-export function clearRealtimeClientIdentityHard() {
+export function clearWsClientIdentityHard() {
   const prev = wsClientID;
   wsClientID = null;
   lastWsClientIDBeforeDisconnect = null;
@@ -91,6 +91,6 @@ export function clearRealtimeClientIdentityHard() {
   }
 }
 
-export function getRealtimeClientID() {
+export function getWsClientID() {
   return wsClientID;
 }

@@ -132,7 +132,7 @@ realtime channel tag and the domain discriminator is `event` at the top level
 ```
 
 Wrapper: `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`.
-Frontend normalisation (`documentLockWireToDetail` in `realtimeClient.js`)
+Frontend normalisation (`documentLockWireToDetail` in `websocketClient.js`)
 sets both `detail.event` and `detail.type` on the dispatched
 `eip-document-lock` CustomEvent.
 

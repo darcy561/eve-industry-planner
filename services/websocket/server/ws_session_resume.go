@@ -48,7 +48,7 @@ func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg 
 			})
 	}
 
-	ackDelivered := s.queueResumeAck(client, result.SkipBaselineSync, result.RestoredDocIDs)
+	ackDelivered := s.queueResumeAck(client, result.SkipDocumentLoad, result.RestoredDocIDs)
 	if !ackDelivered {
 		logs.AttachHandlerCaveatCtx(ctx, "session_resume_ack_buffer_full",
 			"resume_ack not delivered", map[string]any{
@@ -58,7 +58,7 @@ func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg 
 	extra := map[string]any{
 		"previous_client_id":   prev,
 		"handoff_applied":      result.HandoffApplied,
-		"skip_baseline_sync":   result.SkipBaselineSync,
+		"skip_document_load":   result.SkipDocumentLoad,
 		"restored_doc_count":   len(result.RestoredDocIDs),
 		"ack_delivered":        ackDelivered,
 		"unauthorized_skipped": len(result.UnauthorizedDocIDs),

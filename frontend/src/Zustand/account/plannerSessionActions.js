@@ -21,7 +21,7 @@ import {
 import GLOBAL_CONFIG from "../../global-config-app.js";
 import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
-import { metaLastModifiedMs } from "../realtimeSyncSlice.js";
+import { metaLastModifiedMs } from "../websocketSyncSlice.js";
 import { asNumberIDSet } from "../../Functions/Helper/ids";
 
 /**
@@ -103,7 +103,7 @@ function userCloudAccountsFromUserDocument(userDoc) {
 }
 
 /**
- * Mongo `users.hasCompletedFirstLoginFlow` from login / realtime `user_document`.
+ * Mongo `users.hasCompletedFirstLoginFlow` from login / websocket `user_document`.
  *
  * @param {object|null|undefined} userDoc
  * @returns {boolean|undefined}
@@ -122,7 +122,7 @@ function hasCompletedFirstLoginFlowFromUserDocument(userDoc) {
 }
 
 /**
- * Mongo `users.shareCitadelNames` from login / realtime `user_document`.
+ * Mongo `users.shareCitadelNames` from login / websocket `user_document`.
  *
  * @param {object|null|undefined} userDoc
  * @returns {boolean|undefined}
@@ -278,7 +278,7 @@ export const plannerSessionActions = (set, get) => ({
 
     const aid = response.account_id;
     if (aid) {
-      const rs = get().realtimeSync?.actions;
+      const rs = get().websocketSync?.actions;
       if (rs) {
         const u = metaLastModifiedMs(response.user_document);
         if (u != null) rs.setCursorMs(`users.${aid}`, u);

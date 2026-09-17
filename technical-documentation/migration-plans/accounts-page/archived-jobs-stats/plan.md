@@ -1154,7 +1154,7 @@ account therefore receives **every** change event for that account, whether or n
 The per-document allowlist in `subscribe_auth.go` governs only the explicit subscriber path, which is
 the last resort in that precedence, not the way these documents arrive.
 
-What receives them is `Realtime/applyRemoteMessage.js`, and it handles five collections: `accounts`,
+What receives them is `WebSocket/applyRemoteMessage.js`, and it handles five collections: `accounts`,
 `account_settings`, `account_job_groups`, `account_watchlist_deprecated` and
 `account_job_documents`. Anything else falls through its checks and is discarded. Archive and
 statistics documents are in that second category.

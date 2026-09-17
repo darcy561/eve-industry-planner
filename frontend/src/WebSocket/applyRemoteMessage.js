@@ -1,5 +1,5 @@
 /**
- * Routes an inbound realtime message to the family that handles it.
+ * Routes an inbound websocket message to the family that handles it.
  *
  * A message no family claims is warned about rather than dropped silently, so an
  * unrouted producer is visible on its first message.
@@ -34,7 +34,7 @@ export async function applyRemoteMessage(raw) {
   if (family === MESSAGE_TYPE_NOTIFICATION) {
     if (!applyNotificationMessage(msg)) {
       console.warn(
-        "[realtime] no handler for notification",
+        "[websocket] no handler for notification",
         typeof msg.subtype === "string" ? msg.subtype : "(none)",
       );
     }
@@ -43,17 +43,17 @@ export async function applyRemoteMessage(raw) {
 
   if (family === MESSAGE_TYPE_MAINTENANCE) {
     if (!applyMaintenanceMessage(msg)) {
-      console.warn("[realtime] maintenance message without enabled", msg);
+      console.warn("[websocket] maintenance message without enabled", msg);
     }
     return;
   }
 
   if (family === MESSAGE_TYPE_STATIC_DATA) {
     if (!applyStaticDataMessage(msg)) {
-      console.warn("[realtime] static data message without a build", msg);
+      console.warn("[websocket] static data message without a build", msg);
     }
     return;
   }
 
-  console.warn("[realtime] no handler for message family", family);
+  console.warn("[websocket] no handler for message family", family);
 }

@@ -7,6 +7,7 @@ import {
   requestWithPrivateHeaders,
   privateBatchRetryConfig,
 } from "./applyPrivateHeaders.js";
+import { activePlannerOwnerHandle } from "../../../Zustand/activePlanner/read.js";
 
 /** Must match `mongocore.CollectionUserJobGroups` / changestream `collection` field. */
 export const USER_JOB_GROUPS_COLLECTION = "job_groups";
@@ -18,9 +19,11 @@ const MAX_PUT_JOB_GROUPS_BATCH = 100;
 const MAX_DELETE_JOB_GROUPS_BATCH = 200;
 
 /**
- * Fetches all job groups for the account and replaces `jobData.groupArray`.
+ * Fetches the planner's job groups.
+ *
+ * @returns {Promise<Group[]>}
  */
-export async function fetchJobGroupsFromApi() {
+export async function fetchJobGroups() {
   const url = new URL("/api/v1/groups", window.location.origin);
   const res = await requestWithPrivateHeaders(
     url.toString(),
@@ -35,10 +38,19 @@ export async function fetchJobGroupsFromApi() {
   }
   const data = await res.json();
   const rows = Array.isArray(data) ? data : [];
-  const groupArray = rows.map((row) => new Group(normalizeGroupApiRow(row)));
+  return rows.map((row) => new Group(normalizeGroupApiRow(row)));
+}
+
+/**
+ * Replaces `jobData.groupArray` and takes the ESI rows the groups link to.
+ *
+ * @param {Group[]} groupArray
+ * @param {string} owner - the planner these groups are for
+ */
+export function applyJobGroups(groupArray, owner) {
   useUsersStore
     .getState()
-    .jobData.actions.replaceGroupArray(groupArray, { fromServer: true });
+    .jobData.actions.replaceGroupArray(groupArray, { fromServer: true, owner });
 
   const newLinkedOrderIDs = new Set();
   const newLinkedJobIDs = new Set();
@@ -53,6 +65,12 @@ export async function fetchJobGroupsFromApi() {
     jobsToAdd: newLinkedJobIDs,
     transactionsToAdd: newLinkedTransIDs,
   });
+}
+
+/** Fetches the planner's job groups and replaces `jobData.groupArray`. */
+export async function fetchJobGroupsFromApi() {
+  const owner = activePlannerOwnerHandle();
+  applyJobGroups(await fetchJobGroups(), owner);
 }
 
 /**

@@ -22,7 +22,7 @@ describe("usersStoreState", () => {
       "headerDocumentLockUI",
       "jobData",
       "plannerSettings",
-      "realtimeSync",
+      "websocketSync",
       "worldData",
     ]);
   });

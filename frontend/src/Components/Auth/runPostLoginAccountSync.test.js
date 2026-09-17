@@ -26,7 +26,7 @@ vi.mock("../../Functions/Auth/refreshAccountSessionGrants.js", () => ({
 vi.mock("../../Functions/Debugging/queryWaterfallLogger", () => ({
   clearQueryTimings: vi.fn(),
 }));
-vi.mock("../../Realtime/handlers/accountReconcile.js", () => ({
+vi.mock("../../WebSocket/handlers/accountReconcile.js", () => ({
   enqueueReconcile: vi.fn(),
   reconcileAfterRemoteUserDoc: vi.fn(),
 }));

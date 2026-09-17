@@ -154,7 +154,7 @@ func (s *Server) popSessionHandoff(ctx context.Context, accountID, previousClien
 type SessionResumeResult struct {
 	PreviousClientID   string
 	HandoffApplied     bool
-	SkipBaselineSync   bool
+	SkipDocumentLoad   bool
 	RestoredDocIDs     []string
 	UnauthorizedDocIDs []string
 }
@@ -182,17 +182,17 @@ func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previou
 		res.RestoredDocIDs = append(res.RestoredDocIDs, docID)
 	}
 
-	res.SkipBaselineSync = true
+	res.SkipDocumentLoad = true
 	return res
 }
 
-func (s *Server) queueResumeAck(client *Client, skipBaselineSync bool, restoredDocIDs []string) bool {
+func (s *Server) queueResumeAck(client *Client, skipDocumentLoad bool, restoredDocIDs []string) bool {
 	if client == nil || client.Send == nil {
 		return false
 	}
 	msg := map[string]any{
 		"type":             "resume_ack",
-		"skipBaselineSync": skipBaselineSync,
+		"skipDocumentLoad": skipDocumentLoad,
 	}
 	if len(restoredDocIDs) > 0 {
 		msg["restoredDocIDs"] = restoredDocIDs

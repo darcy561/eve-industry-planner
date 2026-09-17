@@ -9,6 +9,7 @@ import {
   privateBatchRetryConfig,
 } from "./applyPrivateHeaders.js";
 import { requestJobDocumentsByIdsFromApi } from "./requestJobDocumentsByIds.js";
+import { activePlannerOwnerHandle } from "../../../Zustand/activePlanner/read.js";
 
 export const USER_JOB_DOCUMENTS_COLLECTION = "job_documents";
 
@@ -43,9 +44,11 @@ const MAX_PUT_JOB_DOCUMENTS_BATCH = 100;
 const MAX_DELETE_JOB_DOCUMENTS_BATCH = 200;
 
 /**
- * Fetches jobs with `displayOnPlanner: true` and merges into `jobArray` (planner + login bootstrap).
+ * Fetches the jobs carrying `displayOnPlanner: true`.
+ *
+ * @returns {Promise<import("../../../Classes/job.js").default[]>}
  */
-export async function fetchPlannerJobDocumentsFromApi() {
+export async function fetchPlannerJobDocuments() {
   const url = new URL("/api/v1/job-documents/planner", window.location.origin);
   const res = await requestWithPrivateHeaders(
     url.toString(),
@@ -65,9 +68,23 @@ export async function fetchPlannerJobDocumentsFromApi() {
     "GET /api/v1/job-documents/planner",
   );
   const rows = Array.isArray(data) ? data : [];
-  const plannerJobs = rows.map((row) => new Job(row));
-  const prev = useUsersStore.getState().jobData.jobArray;
-  const nonPlanner = prev.filter((j) => !j.displayOnPlanner);
+  return rows.map((row) => new Job(row));
+}
+
+/**
+ * Merges fetched planner jobs into `jobArray`.
+ *
+ * Jobs inside a group are not in the planner's answer, so they are kept — but
+ * only while the array still holds the same planner. A group's jobs would
+ * otherwise outlive the planner they belong to, invisible among another's.
+ *
+ * @param {import("../../../Classes/job.js").default[]} plannerJobs
+ * @param {string} owner - the planner these jobs are for
+ */
+export function applyPlannerJobDocuments(plannerJobs, owner) {
+  const { jobArray, owner: held } = useUsersStore.getState().jobData;
+  const nonPlanner =
+    held && held !== owner ? [] : jobArray.filter((j) => !j.displayOnPlanner);
   const mergedById = new Map(nonPlanner.map((j) => [j.jobID, j]));
   for (const j of plannerJobs) {
     mergedById.set(j.jobID, j);
@@ -76,7 +93,14 @@ export async function fetchPlannerJobDocumentsFromApi() {
     .getState()
     .jobData.actions.replaceJobArray([...mergedById.values()], {
       fromServer: true,
+      owner,
     });
+}
+
+/** Fetches the planner's jobs and merges them into `jobArray`. */
+export async function fetchPlannerJobDocumentsFromApi() {
+  const owner = activePlannerOwnerHandle();
+  applyPlannerJobDocuments(await fetchPlannerJobDocuments(), owner);
 }
 
 /**

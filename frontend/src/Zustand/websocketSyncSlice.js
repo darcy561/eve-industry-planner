@@ -6,7 +6,7 @@
 /**
  * Mongo / Go JSON may send dates as RFC3339 strings or BSON extended JSON
  * (`{ "$date": ... }`). `new Date(object)` is invalid — that would drop every
- * realtime apply (cursor never advances).
+ * websocket apply (cursor never advances).
  *
  * @param {unknown} value
  * @returns {number|null} epoch ms
@@ -43,13 +43,13 @@ export function metaLastModifiedMs(doc) {
   return t;
 }
 
-const realtimeSyncSlice = (set, get) => ({
-  realtimeSync: {
+const websocketSyncSlice = (set, get) => ({
+  websocketSync: {
     /** @type {Record<string, number>} docKey -> last applied server lastModified (ms) */
     cursors: {},
     actions: {
       /** @returns {number} */
-      getCursorMs: (docKey) => get().realtimeSync.cursors[docKey] ?? 0,
+      getCursorMs: (docKey) => get().websocketSync.cursors[docKey] ?? 0,
 
       /**
        * @param {string} docKey
@@ -60,17 +60,17 @@ const realtimeSyncSlice = (set, get) => ({
         set(
           (state) => ({
             ...state,
-            realtimeSync: {
-              ...state.realtimeSync,
+            websocketSync: {
+              ...state.websocketSync,
               cursors: {
-                ...state.realtimeSync.cursors,
+                ...state.websocketSync.cursors,
                 [docKey]: ms,
               },
-              actions: state.realtimeSync.actions,
+              actions: state.websocketSync.actions,
             },
           }),
           false,
-          "realtimeSync/setCursorMs",
+          "websocketSync/setCursorMs",
         );
       },
 
@@ -92,14 +92,14 @@ const realtimeSyncSlice = (set, get) => ({
         set(
           (state) => ({
             ...state,
-            realtimeSync: {
-              ...state.realtimeSync,
-              cursors: { ...state.realtimeSync.cursors, ...patch },
-              actions: state.realtimeSync.actions,
+            websocketSync: {
+              ...state.websocketSync,
+              cursors: { ...state.websocketSync.cursors, ...patch },
+              actions: state.websocketSync.actions,
             },
           }),
           false,
-          "realtimeSync/setCursorMsBatch",
+          "websocketSync/setCursorMsBatch",
         );
       },
 
@@ -107,16 +107,16 @@ const realtimeSyncSlice = (set, get) => ({
         set(
           (state) => ({
             ...state,
-            realtimeSync: {
+            websocketSync: {
               cursors: {},
-              actions: state.realtimeSync.actions,
+              actions: state.websocketSync.actions,
             },
           }),
           false,
-          "realtimeSync/reset",
+          "websocketSync/reset",
         ),
     },
   },
 });
 
-export default realtimeSyncSlice;
+export default websocketSyncSlice;

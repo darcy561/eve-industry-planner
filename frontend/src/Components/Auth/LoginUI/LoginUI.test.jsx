@@ -12,7 +12,7 @@ const { calls } = vi.hoisted(() => ({
 }));
 
 // Only the three fetches are stood in for: rendering the real component reaches
-// the realtime layer, which reads other exports of these same modules.
+// the websocket layer, which reads other exports of these same modules.
 vi.mock(
   "../../../Functions/Endpoints/Private/jobDocuments.js",
   async (importOriginal) => ({
