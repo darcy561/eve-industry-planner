@@ -21,7 +21,7 @@ type totalsResponse struct {
 	// Embedded, so its field appears beside the figures rather than nested.
 	recalculationEnvelope
 	// TypeID echoes the item filter when one was applied.
-	TypeID int                          `json:"typeID,omitempty"`
+	TypeID int                          `json:"typeID,omitzero"`
 	Items  []models.ProductionTotalsRow `json:"items"`
 	// Total is the whole archive folded into one row, served for `summary=1`.
 	// Summing client-side instead would ship every type's unbounded per-job

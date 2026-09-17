@@ -29,7 +29,7 @@ type serverStoredAccessToken struct {
 	CharacterHash string `json:"character_hash"`
 	AccessToken   string `json:"access_token,omitempty"`
 	TokenType     string `json:"token_type,omitempty"`
-	ExpiresIn     int    `json:"expires_in,omitempty"`
+	ExpiresIn     int    `json:"expires_in,omitzero"`
 	Error         string `json:"error,omitempty"`
 }
 

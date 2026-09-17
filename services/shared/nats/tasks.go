@@ -185,7 +185,7 @@ func PublishDispatchStatisticsRebuilds(ctx context.Context, n *NATS, req DrainRe
 // is not that case — they are usually inside a maintenance window waiting on the
 // queue — so the command sets it and every waiting owner goes at once.
 type DrainRebuildQueueRequest struct {
-	IgnoreDebounce bool `json:"ignoreDebounce,omitempty"`
+	IgnoreDebounce bool `json:"ignoreDebounce,omitzero"`
 }
 
 // PublishApplyOwnerStatisticsDelta asks the worker to fold one owner's uncounted

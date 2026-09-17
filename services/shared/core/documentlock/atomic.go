@@ -54,11 +54,11 @@ import (
 type docLockTxResultLockRecord struct {
 	HolderSessionID      string `json:"holderSessionID,omitempty"`
 	AccountID            string `json:"accountID,omitempty"`
-	ExpiresAtUnix        int64  `json:"expiresAtUnix,omitempty"`
+	ExpiresAtUnix        int64  `json:"expiresAtUnix,omitzero"`
 	LeaseMode            string `json:"leaseMode,omitempty"`
-	ExtendCount          int    `json:"extendCount,omitempty"`
+	ExtendCount          int    `json:"extendCount,omitzero"`
 	ProbeTargetSessionID string `json:"probeTargetSessionID,omitempty"`
-	ProbeExpiresAtUnix   int64  `json:"probeExpiresAtUnix,omitempty"`
+	ProbeExpiresAtUnix   int64  `json:"probeExpiresAtUnix,omitzero"`
 }
 
 // --- Shared Lua snippet pieces ---------------------------------------------
@@ -318,11 +318,11 @@ return cjson.encode({
 type extendTxResult struct {
 	Outcome              string                    `json:"outcome"`
 	Record               docLockTxResultLockRecord `json:"record"`
-	ExpiresAtUnix        int64                     `json:"expiresAtUnix,omitempty"`
-	ExtendCount          int                       `json:"extendCount,omitempty"`
+	ExpiresAtUnix        int64                     `json:"expiresAtUnix,omitzero"`
+	ExtendCount          int                       `json:"extendCount,omitzero"`
 	ProbeTargetSessionID string                    `json:"probeTargetSessionID,omitempty"`
-	ProbeExpiresAtUnix   int64                     `json:"probeExpiresAtUnix,omitempty"`
-	PublishProbe         bool                      `json:"publishProbe,omitempty"`
+	ProbeExpiresAtUnix   int64                     `json:"probeExpiresAtUnix,omitzero"`
+	PublishProbe         bool                      `json:"publishProbe,omitzero"`
 }
 
 func runExtendTx(
@@ -556,7 +556,7 @@ type handOverTxResult struct {
 	Outcome                 string `json:"outcome"`
 	NewHolderSessionID      string `json:"newHolderSessionID,omitempty"`
 	PreviousHolderSessionID string `json:"previousHolderSessionID,omitempty"`
-	ExpiresAtUnix           int64  `json:"expiresAtUnix,omitempty"`
+	ExpiresAtUnix           int64  `json:"expiresAtUnix,omitzero"`
 }
 
 func runHandOverTx(
@@ -655,7 +655,7 @@ return cjson.encode({
 type requestAccessTxResult struct {
 	Outcome       string                    `json:"outcome"`
 	Record        docLockTxResultLockRecord `json:"record"`
-	ExpiresAtUnix int64                     `json:"expiresAtUnix,omitempty"`
+	ExpiresAtUnix int64                     `json:"expiresAtUnix,omitzero"`
 }
 
 func runRequestAccessTx(
@@ -759,7 +759,7 @@ type claimHandoffTxResult struct {
 	Outcome                 string `json:"outcome"`
 	PreviousHolderSessionID string `json:"previousHolderSessionID,omitempty"`
 	NewHolderSessionID      string `json:"newHolderSessionID,omitempty"`
-	ExpiresAtUnix           int64  `json:"expiresAtUnix,omitempty"`
+	ExpiresAtUnix           int64  `json:"expiresAtUnix,omitzero"`
 }
 
 func runClaimHandoffTx(
@@ -840,7 +840,7 @@ type promoteWaitlistTxResult struct {
 	Outcome            string `json:"outcome"`
 	NewHolderSessionID string `json:"newHolderSessionID,omitempty"`
 	NewHolderAccountID string `json:"newHolderAccountID,omitempty"`
-	ExpiresAtUnix      int64  `json:"expiresAtUnix,omitempty"`
+	ExpiresAtUnix      int64  `json:"expiresAtUnix,omitzero"`
 }
 
 func runPromoteWaitlistTx(

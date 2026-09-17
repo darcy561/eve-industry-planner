@@ -31,17 +31,17 @@ type listEntry struct {
 	// AwaitingTotals says this job's figures are not in the account's aggregates
 	// yet. The measures beside it are still correct: they are the job's own, and
 	// are written when it is archived. Sent only when true.
-	AwaitingTotals bool `json:"awaitingTotals,omitempty"`
+	AwaitingTotals bool `json:"awaitingTotals,omitzero"`
 
 	// FiguresStale says the last rebuild could not read this job, so its measures
 	// are the last ones that could be computed rather than what it is worth now.
 	// Sent only when true.
-	FiguresStale bool `json:"figuresStale,omitempty"`
+	FiguresStale bool `json:"figuresStale,omitzero"`
 
 	// MonthsFiled says the user chose which months this job's figures count in,
 	// so a row whose dates and months disagree reads as a choice. Sent only when
 	// true.
-	MonthsFiled bool `json:"monthsFiled,omitempty"`
+	MonthsFiled bool `json:"monthsFiled,omitzero"`
 
 	// CostMonth is where this job's costs currently count, filed or derived, so a
 	// dialogue offering to change it can show what it is changing from.
@@ -54,7 +54,7 @@ type listEntry struct {
 
 	// SalesFromMarket says ESI recorded at least one of the sales, which is what
 	// makes the income side unmovable.
-	SalesFromMarket bool `json:"salesFromMarket,omitempty"`
+	SalesFromMarket bool `json:"salesFromMarket,omitzero"`
 }
 
 // listMeasures is what a row reports about a job's money.
@@ -79,7 +79,7 @@ type listPaging struct {
 type listFilters struct {
 	From    string `json:"from,omitempty"`
 	To      string `json:"to,omitempty"`
-	TypeID  int    `json:"typeID,omitempty"`
+	TypeID  int    `json:"typeID,omitzero"`
 	GroupID string `json:"groupID,omitempty"`
 	Search  string `json:"search,omitempty"`
 }

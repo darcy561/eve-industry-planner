@@ -64,6 +64,6 @@ type AccountRecord struct {
 	AccountID     string               `json:"account_id"`
 	Grants        models.SessionGrants `json:"grants"`
 	Sessions      map[string]Session   `json:"sessions"`
-	GrantsVersion int64                `json:"grants_version,omitempty"`
+	GrantsVersion int64                `json:"grants_version,omitzero"`
 	UpdatedAt     time.Time            `json:"updated_at"`
 }

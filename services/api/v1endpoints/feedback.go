@@ -48,7 +48,7 @@ type FeedbackBody struct {
 type DiscordEmbedField struct {
 	Name   string `json:"name"`
 	Value  string `json:"value"`
-	Inline bool   `json:"inline,omitempty"`
+	Inline bool   `json:"inline,omitzero"`
 }
 
 // DiscordEmbed represents a Discord embed message

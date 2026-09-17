@@ -41,7 +41,7 @@ func (a *RecipeActivities) ActivityMap(key string) (map[string]any, bool) {
 type InventionSource struct {
 	Materials []InventionMaterial `json:"materials,omitempty"`
 	Skills    []InventionSkill    `json:"skills,omitempty"`
-	Time      float64             `json:"time,omitempty"`
+	Time      float64             `json:"time,omitzero"`
 	Products  []InventionProduct  `json:"products,omitempty"`
 }
 
@@ -49,8 +49,8 @@ type InventionMaterial struct {
 	TypeID   float64 `json:"typeID"`
 	Quantity float64 `json:"quantity"`
 	Name     string  `json:"name,omitempty"`
-	JobType  int     `json:"jobType,omitempty"`
-	Volume   float64 `json:"volume,omitempty"`
+	JobType  int     `json:"jobType,omitzero"`
+	Volume   float64 `json:"volume,omitzero"`
 }
 
 type InventionSkill struct {
@@ -60,26 +60,26 @@ type InventionSkill struct {
 
 type InventionProduct struct {
 	TypeID      float64 `json:"typeID"`
-	Quantity    float64 `json:"quantity,omitempty"`
-	Probability float64 `json:"probability,omitempty"`
+	Quantity    float64 `json:"quantity,omitzero"`
+	Probability float64 `json:"probability,omitzero"`
 }
 
 type EVEType struct {
 	Key                int               `json:"_key"`
 	ItemID             int               `json:"itemID"`
 	Name               string            `json:"name"`
-	MarketSectionID    int               `json:"marketSectionID,omitempty"`
-	MarketGroupID      int               `json:"marketGroupID,omitempty"`
-	MetaGroupID        int               `json:"metaGroupID,omitempty"`
-	RaceID             int               `json:"raceID,omitempty"`
-	Volume             float64           `json:"volume,omitempty"`
-	BasePrice          float64           `json:"basePrice,omitempty"`
-	GraphicID          int               `json:"graphicID,omitempty"`
-	PortionSize        int               `json:"portionSize,omitempty"`
+	MarketSectionID    int               `json:"marketSectionID,omitzero"`
+	MarketGroupID      int               `json:"marketGroupID,omitzero"`
+	MetaGroupID        int               `json:"metaGroupID,omitzero"`
+	RaceID             int               `json:"raceID,omitzero"`
+	Volume             float64           `json:"volume,omitzero"`
+	BasePrice          float64           `json:"basePrice,omitzero"`
+	GraphicID          int               `json:"graphicID,omitzero"`
+	PortionSize        int               `json:"portionSize,omitzero"`
 	JobType            int               `json:"jobType"`
 	Activities         *RecipeActivities `json:"activities,omitempty"`
-	BlueprintTypeID    int               `json:"blueprintTypeID,omitempty"`
-	MaxProductionLimit int               `json:"maxProductionLimit,omitempty"`
+	BlueprintTypeID    int               `json:"blueprintTypeID,omitzero"`
+	MaxProductionLimit int               `json:"maxProductionLimit,omitzero"`
 	// ExcludeFromRecipeList: invention was merged onto the manufactured item (same blueprint row); omit duplicate BPC-only recipe row.
 	ExcludeFromRecipeList bool `json:"-"`
 }
@@ -94,13 +94,13 @@ type ItemName struct {
 type FullItem struct {
 	TypeID int    `json:"type_id"`
 	Name   string `json:"name"`
-	// CategoryID is the SDE inventory category the type's group belongs to; 0 when unknown.
-	CategoryID int `json:"category_id,omitempty"`
+	// CategoryID is the SDE inventory category the type's group belongs to, absent when unknown.
+	CategoryID int `json:"category_id,omitzero"`
 	// MarketGroupID is where the type sits in the market's own tree — the SDE's
 	// `marketGroupID`, which `EVEType` carries as `MarketSectionID`. It is not
 	// `EVEType.MarketGroupID`, which is the inventory group CategoryID comes from.
-	// 0 for a type with no market group, which is most unpublished ones.
-	MarketGroupID int `json:"market_group_id,omitempty"`
+	// Absent for a type with no market group, which is most unpublished ones.
+	MarketGroupID int `json:"market_group_id,omitzero"`
 }
 
 // MarketGroup is one node of the market tree: what to call it, and what contains
@@ -108,8 +108,8 @@ type FullItem struct {
 // parent link is what makes the tree walkable rather than a flat list.
 type MarketGroup struct {
 	Name string `json:"name"`
-	// ParentID is 0 at a root, which is the only place the walk can stop.
-	ParentID int `json:"parent_id,omitempty"`
+	// ParentID is absent at a root, which is the only place the walk can stop.
+	ParentID int `json:"parent_id,omitzero"`
 	// Children names what sits directly inside this group, so a reader can walk
 	// down as well as up. The SPA browses the tree to let a player choose a group
 	// to price against, and deriving this from the parent links there means
@@ -119,7 +119,7 @@ type MarketGroup struct {
 	// HasTypes says whether items sit in this group directly, as against only in
 	// groups beneath it. Both are choosable — a default set on a container covers
 	// everything under it — but a reader picking one deserves to know which it is.
-	HasTypes bool `json:"has_types,omitempty"`
+	HasTypes bool `json:"has_types,omitzero"`
 	// IconTypeID is an item from this group, for a reader to recognise it by.
 	//
 	// A market group has an icon of its own in the SDE, but it names a file inside
@@ -129,9 +129,9 @@ type MarketGroup struct {
 	// shows Tritanium.
 	//
 	// A group holding nothing directly takes the first from the branch beneath it,
-	// so a container is still recognisable. 0 where a group and everything under
-	// it is obsolete and holds no published type at all.
-	IconTypeID int `json:"icon_type_id,omitempty"`
+	// so a container is still recognisable. Absent where a group and everything
+	// under it is obsolete and holds no published type at all.
+	IconTypeID int `json:"icon_type_id,omitzero"`
 }
 
 type ReprocessingItem struct {

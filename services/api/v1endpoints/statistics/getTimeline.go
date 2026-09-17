@@ -22,10 +22,10 @@ type timelinePeriod struct {
 	// an account with little history.
 	Defaulted bool `json:"defaulted"`
 	// TypeID echoes the item filter when one was applied.
-	TypeID int `json:"typeID,omitempty"`
+	TypeID int `json:"typeID,omitzero"`
 	// All reports that the response covers every month the account has, which is
 	// what an empty from and to mean when it is set.
-	All bool `json:"all,omitempty"`
+	All bool `json:"all,omitzero"`
 	// IncludesProductionChain reports whether output consumed by a parent build
 	// is counted. A caller cannot otherwise tell a request it was refused from
 	// one it never made, and the figures differ.

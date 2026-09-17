@@ -40,8 +40,8 @@ type ChangeStreamMessage struct {
 	OwnerKey                string         `json:"ownerKey,omitempty"`        // kind:id of the changed document's owner; the websocket routes on it
 	Document                map[string]any `json:"document,omitempty"`
 	PreviousDocument        map[string]any `json:"previousDocument,omitempty"`
-	RefreshTokensChanged    bool           `json:"refreshTokensChanged,omitempty"`
-	LinkedCharactersChanged bool           `json:"linkedCharactersChanged,omitempty"`
+	RefreshTokensChanged    bool           `json:"refreshTokensChanged,omitzero"`
+	LinkedCharactersChanged bool           `json:"linkedCharactersChanged,omitzero"`
 	ChangeEvent             map[string]any `json:"changeEvent,omitempty"`
 }
 

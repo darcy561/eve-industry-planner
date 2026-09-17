@@ -54,7 +54,7 @@ const (
 // retained stock, or a standalone recorded sale.
 type ArchiveSegmentTotals struct {
 	BuildMeasures     `bson:",inline"`
-	TotalSoldQuantity float64 `bson:"totalSoldQuantity,omitempty" json:"totalSoldQuantity,omitempty"`
+	TotalSoldQuantity float64 `bson:"totalSoldQuantity,omitempty" json:"totalSoldQuantity,omitzero"`
 }
 
 func (s ArchiveSegmentTotals) Plus(src ArchiveSegmentTotals) ArchiveSegmentTotals {

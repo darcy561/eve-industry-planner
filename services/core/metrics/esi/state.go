@@ -26,22 +26,22 @@ type BucketState struct {
 	// Charges age out one at a time rather than at a window boundary, so what
 	// there is to report is when the bucket stops refusing, not a reset instant.
 	GatedUntil        string  `json:"gated_until,omitempty"`
-	SecondsUntilOpen  float64 `json:"seconds_until_open,omitempty"`
+	SecondsUntilOpen  float64 `json:"seconds_until_open,omitzero"`
 	LastObservedAtUTC string  `json:"last_observed_at,omitempty"`
 	// ReportedRemaining is CCP's own count, from X-Ratelimit-Remaining, and is
 	// only meaningful while the header is fresh — an idle bucket's spend decays
 	// while the header stays frozen. Comparable says whether it is worth reading.
-	ReportedRemaining int  `json:"reported_remaining,omitempty"`
+	ReportedRemaining int  `json:"reported_remaining,omitzero"`
 	Comparable        bool `json:"comparable"`
 	// Unaccounted is the part of TokenUsed that ESI charged but this fleet never
 	// recorded. The ledger is reconciled to ESI on every response, so the two
 	// counts agree by construction and subtracting them would only measure how
 	// long ago that happened. This is what the difference actually was.
-	Unaccounted int `json:"unaccounted,omitempty"`
+	Unaccounted int `json:"unaccounted,omitzero"`
 	// Overdrawn counts tokens a reversal took out of a slot that was not holding
 	// them. Above zero means a reservation was given back twice and the fleet
 	// believes it has budget it does not.
-	Overdrawn int `json:"overdrawn,omitempty"`
+	Overdrawn int `json:"overdrawn,omitzero"`
 }
 
 // Read is every bucket the fleet has learned about, sorted by name.

@@ -74,7 +74,7 @@ return cjson.encode({
 type rebindTxResult struct {
 	Outcome       string                    `json:"outcome"`
 	Record        docLockTxResultLockRecord `json:"record"`
-	ExpiresAtUnix int64                     `json:"expiresAtUnix,omitempty"`
+	ExpiresAtUnix int64                     `json:"expiresAtUnix,omitzero"`
 }
 
 // RebindHolderLeaseContested moves the active holder into contested (5m) mode.

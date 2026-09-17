@@ -529,9 +529,9 @@ type LinkedESIJob struct {
 	Duration        int     `json:"duration" bson:"duration"`                                 // Duration in seconds
 	BlueprintID     int     `json:"blueprint_id" bson:"blueprint_id"`                         // Blueprint ID
 	IsCorporation   bool    `json:"is_corporation" bson:"is_corporation"`                     // Whether it's a corporation job
-	CorporationID   int     `json:"corporation_id,omitempty" bson:"corporation_id,omitempty"` // client-facing; converted to CorporationRef before write
+	CorporationID   int     `json:"corporation_id,omitzero" bson:"corporation_id,omitempty"`  // client-facing; converted to CorporationRef before write
 	CorporationRef  string  `json:"-" bson:"corporation_ref,omitempty"`
-	CharacterID     int     `json:"character_id,omitempty" bson:"-"` // client-facing only
+	CharacterID     int     `json:"character_id,omitzero" bson:"-"` // client-facing only
 	CharacterRef    string  `json:"-" bson:"character_ref,omitempty"`
 	JobType         int     `json:"job_type" bson:"job_type"` // Job type
 }
@@ -607,9 +607,9 @@ type MarketOrder struct {
 	VolumeTotal    int      `json:"volume_total" bson:"volume_total"`                       // Total volume
 	TimeStamps     []string `json:"timeStamps" bson:"timeStamps"`                           // Array of timestamp history
 	CharacterHash  string   `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
-	CorporationID  int      `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
+	CorporationID  int      `json:"corporation_id,omitzero" bson:"-"`                       // client-facing only
 	CorporationRef string   `json:"-" bson:"corporation_ref,omitempty"`
-	CharacterID    int      `json:"character_id,omitempty" bson:"-"` // client-facing only
+	CharacterID    int      `json:"character_id,omitzero" bson:"-"` // client-facing only
 	CharacterRef   string   `json:"-" bson:"character_ref,omitempty"`
 	State          string   `json:"state" bson:"state"` // Order state (active, etc.)
 }
@@ -617,7 +617,7 @@ type MarketOrder struct {
 // Transaction is a completed sale linked to a job. Tax is what EVE charged on
 // it, which is the figure a job's cost is built from.
 type Transaction struct {
-	OrderID        int     `json:"order_id,omitempty" bson:"order_id,omitempty"`           // zero = none
+	OrderID        int     `json:"order_id,omitzero" bson:"order_id,omitempty"`            // zero = none
 	JournalRefID   int64   `json:"journal_ref_id" bson:"journal_ref_id"`                   // Journal reference ID
 	UnitPrice      float64 `json:"unit_price" bson:"unit_price"`                           // Price per unit
 	Amount         float64 `json:"amount" bson:"amount"`                                   // Transaction amount
@@ -630,9 +630,9 @@ type Transaction struct {
 	TypeID         int     `json:"type_id" bson:"type_id"`                                 // Item type ID
 	Description    string  `json:"description" bson:"description"`                         // Transaction description
 	CharacterHash  string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
-	CorporationID  int     `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
+	CorporationID  int     `json:"corporation_id,omitzero" bson:"-"`                       // client-facing only
 	CorporationRef string  `json:"-" bson:"corporation_ref,omitempty"`
-	CharacterID    int     `json:"character_id,omitempty" bson:"-"` // client-facing only
+	CharacterID    int     `json:"character_id,omitzero" bson:"-"` // client-facing only
 	CharacterRef   string  `json:"-" bson:"character_ref,omitempty"`
 }
 
@@ -798,7 +798,7 @@ type JobMetaData struct {
 	LastUpdatedBy    string    `json:"lastUpdatedBy" bson:"lastUpdatedBy"`
 	ArchivedAt       time.Time `json:"archivedAt,omitzero" bson:"archivedAt,omitempty"`
 	ArchivedBy       string    `json:"archivedBy,omitempty" bson:"archivedBy,omitempty"`
-	ArchiveProcessed bool      `json:"archiveProcessed,omitempty" bson:"archiveProcessed,omitempty"`
+	ArchiveProcessed bool      `json:"archiveProcessed,omitzero" bson:"archiveProcessed,omitempty"`
 	DeletedAt        time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitempty"`
 	DeletedBy        string    `json:"deletedBy,omitempty" bson:"deletedBy,omitempty"`
 }

@@ -1,10 +1,10 @@
 package mongo
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"eve-industry-planner/testing/gosource"
 )
 
 // retiredFieldPaths are storage fields no document carries any more.
@@ -35,57 +35,24 @@ var retiredFieldExceptions = map[string]string{
 
 func TestNoQueryNamesARetiredField(t *testing.T) {
 	t.Parallel()
-	root := moduleRoot(t)
 
 	var found []string
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return err
+	gosource.EachFile(t, gosource.ModuleRoot(t), func(rel string, body []byte) {
+		if strings.HasSuffix(rel, "_test.go") {
+			return
 		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return relErr
-		}
-		if _, allowed := retiredFieldExceptions[filepath.ToSlash(rel)]; allowed {
-			return nil
-		}
-		body, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
+		if _, allowed := retiredFieldExceptions[rel]; allowed {
+			return
 		}
 		for _, field := range retiredFieldPaths {
 			// Quoted only: a bare mention in prose is a comment, not a query.
 			if strings.Contains(string(body), `"`+field+`"`) {
-				found = append(found, filepath.ToSlash(rel)+" names "+field)
+				found = append(found, rel+" names "+field)
 			}
 		}
-		return nil
 	})
-	if err != nil {
-		t.Fatalf("walk: %v", err)
-	}
 	if len(found) > 0 {
 		t.Fatalf("retired storage fields are still named in queries:\n  %s\n\nThe owner lives at %s / %s.",
 			strings.Join(found, "\n  "), FieldMetaOwnerKind, FieldMetaOwnerID)
-	}
-}
-
-// moduleRoot walks up to the directory holding go.mod, so the test scans the
-// whole module rather than the package it happens to live in.
-func moduleRoot(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("cwd: %v", err)
-	}
-	for {
-		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("no go.mod above the test")
-		}
-		dir = parent
 	}
 }

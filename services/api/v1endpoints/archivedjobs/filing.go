@@ -32,7 +32,7 @@ type filingResponse struct {
 	// SalesLockedByMarket counts the jobs in the selection whose income ESI
 	// recorded, so the caller can say what it left alone rather than implying it
 	// moved everything.
-	SalesLockedByMarket int `json:"salesLockedByMarket,omitempty"`
+	SalesLockedByMarket int `json:"salesLockedByMarket,omitzero"`
 }
 
 // FileArchivedJobMonthsHandler serves the three filing routes: one job, a group,

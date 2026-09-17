@@ -16,10 +16,10 @@ type RefreshToken struct {
 	RTokenCiphertext   string `bson:"rTokenCiphertext,omitempty" json:"rTokenCiphertext,omitempty"`
 	RTokenNonce        string `bson:"rTokenNonce,omitempty" json:"rTokenNonce,omitempty"`
 	RTokenKeyVersion   string `bson:"rTokenKeyVersion,omitempty" json:"rTokenKeyVersion,omitempty"`
-	TokenFormatVersion int    `bson:"tokenFormatVersion,omitempty" json:"tokenFormatVersion,omitempty"`
+	TokenFormatVersion int    `bson:"tokenFormatVersion,omitempty" json:"tokenFormatVersion,omitzero"`
 	// CloudMaintRefreshFailures counts consecutive failed cloud-maintenance SSO refreshes for this row.
 	// Reset on success. At 2 the row is removed. OAuth invalid_grant removes the row immediately.
-	CloudMaintRefreshFailures int `bson:"cloudMaintRefreshFailures,omitempty" json:"cloudMaintRefreshFailures,omitempty"`
+	CloudMaintRefreshFailures int `bson:"cloudMaintRefreshFailures,omitempty" json:"cloudMaintRefreshFailures,omitzero"`
 }
 
 // PlainRefreshMaterial returns the refresh token plaintext, preferring encrypted-at-rest fields

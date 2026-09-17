@@ -47,9 +47,9 @@ type LockRecord struct {
 	AccountID            string `json:"accountID"`
 	ExpiresAtUnix        int64  `json:"expiresAtUnix"`
 	LeaseMode            string `json:"leaseMode,omitempty"` // solo | contested
-	ExtendCount          int    `json:"extendCount,omitempty"`
+	ExtendCount          int    `json:"extendCount,omitzero"`
 	ProbeTargetSessionID string `json:"probeTargetSessionID,omitempty"`
-	ProbeExpiresAtUnix   int64  `json:"probeExpiresAtUnix,omitempty"`
+	ProbeExpiresAtUnix   int64  `json:"probeExpiresAtUnix,omitzero"`
 }
 
 // SoloLockTTLSeconds returns SoloHolderLockTTL as whole seconds for Lua ARGV.

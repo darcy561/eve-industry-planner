@@ -36,7 +36,7 @@ type VersionJSON struct {
 	Key          string    `json:"key"`
 	DownloadURL  string    `json:"download_url"`
 	DownloadedAt time.Time `json:"downloaded_at"`
-	GeneratedAt  time.Time `json:"generated_at,omitempty"`
+	GeneratedAt  time.Time `json:"generated_at"`
 	Source       string    `json:"source"`
 }
 

@@ -50,12 +50,12 @@ type HealthStatus struct {
 
 	// Optional census fields (capacity Observe / dashboards). Omitempty keeps replies lean.
 	AppVersion        string `json:"app_version,omitempty"`
-	Clients           int    `json:"clients,omitempty"`
-	Soft              bool   `json:"soft,omitempty"`
-	Full              bool   `json:"full,omitempty"`
-	Draining          bool   `json:"draining,omitempty"`
-	HostedTenantCount int    `json:"hosted_tenant_count,omitempty"`
-	ActiveTasks       int    `json:"active_tasks,omitempty"`
+	Clients           int    `json:"clients,omitzero"`
+	Soft              bool   `json:"soft,omitzero"`
+	Full              bool   `json:"full,omitzero"`
+	Draining          bool   `json:"draining,omitzero"`
+	HostedTenantCount int    `json:"hosted_tenant_count,omitzero"`
+	ActiveTasks       int    `json:"active_tasks,omitzero"`
 }
 
 // MaintenanceState is the raw JSON payload for SubjectAppConfigMaintenanceState

@@ -16,7 +16,7 @@ type ArchivedJobCostTotals struct {
 
 // ArchivedJobLine is the shared shape of a sale line on an archived job.
 type ArchivedJobLine struct {
-	OrderID       int       `bson:"orderID,omitempty" json:"orderID,omitempty"`
+	OrderID       int       `bson:"orderID,omitempty" json:"orderID,omitzero"`
 	Date          time.Time `bson:"date" json:"date"`
 	CalendarMonth `bson:",inline"`
 	Amount        float64 `bson:"amount" json:"amount"`

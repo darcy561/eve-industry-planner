@@ -31,7 +31,7 @@ type AccountSessionGrantsRequest struct {
 type RotateRefreshTokenKeysRequest struct {
 	AccountID   string `json:"account_id"`
 	FromVersion string `json:"from_version,omitempty"`
-	DryRun      bool   `json:"dry_run,omitempty"`
+	DryRun      bool   `json:"dry_run,omitzero"`
 }
 
 // EncodeJobIdentityRequest is the per-account payload for the entity-ref
@@ -39,7 +39,7 @@ type RotateRefreshTokenKeysRequest struct {
 type EncodeJobIdentityRequest struct {
 	AccountID  string `json:"account_id"`
 	Collection string `json:"collection"`
-	DryRun     bool   `json:"dry_run,omitempty"`
+	DryRun     bool   `json:"dry_run,omitzero"`
 }
 
 // RewriteOwnerScopedIDsRequest is the per-owner payload for the document id
@@ -47,26 +47,26 @@ type EncodeJobIdentityRequest struct {
 type RewriteOwnerScopedIDsRequest struct {
 	OwnerKey   string `json:"owner_key"`
 	Collection string `json:"collection"`
-	DryRun     bool   `json:"dry_run,omitempty"`
+	DryRun     bool   `json:"dry_run,omitzero"`
 }
 
 // SchemaVersionMaintenanceBatchRequest scopes one schema-maintenance batch run.
 type SchemaVersionMaintenanceBatchRequest struct {
 	Collection string `json:"collection"`
-	BatchSize  int    `json:"batch_size,omitempty"`
+	BatchSize  int    `json:"batch_size,omitzero"`
 }
 
 // InactiveAccountPlannerCleanupRequest removes planner jobs/groups for one account (worker task).
 type InactiveAccountPlannerCleanupRequest struct {
 	AccountID     string `json:"account_id"`
-	StaleAgeYears int    `json:"stale_age_years,omitempty"` // default 2 when 0 or unset; worker recomputes cutoff from this
+	StaleAgeYears int    `json:"stale_age_years,omitzero"` // default 2 when 0 or unset; worker recomputes cutoff from this
 }
 
 // CloudStoredEsiRefreshMaintenanceRequest rotates encrypted cloud ESI refresh tokens for one account.
 type CloudStoredEsiRefreshMaintenanceRequest struct {
 	AccountID               string `json:"account_id"`
-	RotateAfterLoginDays    int    `json:"rotate_after_login_days,omitempty"`    // default 25
-	AbandonAfterLoginMonths int    `json:"abandon_after_login_months,omitempty"` // default 6
+	RotateAfterLoginDays    int    `json:"rotate_after_login_days,omitzero"`    // default 25
+	AbandonAfterLoginMonths int    `json:"abandon_after_login_months,omitzero"` // default 6
 }
 
 // RebuildOwnerStatisticsRequest names one owner's statistics to recompute, and

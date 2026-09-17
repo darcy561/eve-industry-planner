@@ -13,7 +13,7 @@ type EveSSOTokenPayload = evesso.EveSSOTokenPayload
 
 type EveSSOExchangeRequest struct {
 	AuthCode    string `json:"auth_code"`
-	AccountType bool   `json:"account_type,omitempty"`
+	AccountType bool   `json:"account_type,omitzero"`
 }
 
 type EveSSORefreshRequest struct {

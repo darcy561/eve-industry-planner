@@ -29,9 +29,9 @@ type SessionBootstrapResponse struct {
 	MainCharacterHash   string                          `json:"main_character_hash,omitempty"`
 	RefreshToken        string                          `json:"refresh_token,omitempty"`
 	ReauthRequiredAt    int64                           `json:"reauth_required_at"`
-	FirstLogin          bool                            `json:"first_login,omitempty"`
-	UserDocument        models.UserAccountDocument      `json:"user_document,omitempty"`
-	ApplicationSettings models.ApplicationSettings      `json:"application_settings,omitempty"`
+	FirstLogin          bool                            `json:"first_login,omitzero"`
+	UserDocument        models.UserAccountDocument      `json:"user_document"`
+	ApplicationSettings models.ApplicationSettings      `json:"application_settings"`
 	LinkedCharacters    []models.LinkedCharacterSession `json:"linked_characters,omitempty"`
 }
 

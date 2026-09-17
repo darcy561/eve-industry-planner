@@ -70,7 +70,7 @@ func (h *Handlers) ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *h
 
 	var req struct {
 		CharacterHash        string `json:"character_hash"`
-		ClientAccessTokenExp int64  `json:"client_access_token_exp,omitempty"`
+		ClientAccessTokenExp int64  `json:"client_access_token_exp,omitzero"`
 	}
 	if err := helper.DecodeJSONRequest(r, &req, 2048); err != nil {
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)

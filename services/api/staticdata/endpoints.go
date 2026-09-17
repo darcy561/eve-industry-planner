@@ -31,7 +31,7 @@ type fileMeta struct {
 	VersionedURL string    `json:"versioned_url"`
 	Exists       bool      `json:"exists"`
 	Size         int64     `json:"size"`
-	ModTime      time.Time `json:"mod_time,omitempty"`
+	ModTime      time.Time `json:"mod_time"`
 }
 
 // FileRoutes returns one handler per published static data file, keyed by the

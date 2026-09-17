@@ -23,9 +23,9 @@ const DefaultInviteLifetime = 7 * 24 * time.Hour
 // issueInviteRequest is what a caller may choose about an invite. Nothing here
 // widens what it grants, which is one membership row and nothing else.
 type issueInviteRequest struct {
-	MaxUses        int    `json:"maxUses,omitempty"`
+	MaxUses        int    `json:"maxUses,omitzero"`
 	BoundAccountID string `json:"boundAccountID,omitempty"`
-	ExpiresInHours int    `json:"expiresInHours,omitempty"`
+	ExpiresInHours int    `json:"expiresInHours,omitzero"`
 }
 
 // issueInviteResponse carries the token, which is shown once and never stored.
