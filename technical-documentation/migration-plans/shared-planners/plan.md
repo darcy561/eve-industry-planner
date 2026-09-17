@@ -2342,6 +2342,105 @@ owns.
 **Done when** the ceiling has one stated source, a removed member loses a live planner by a mechanism
 that follows from that source, and auth-hardening #53 closes against the answer.
 
+### Stage J — The SPA stops assuming it is the only writer
+
+The client work in this project was scoped to prove the backend: a dropdown that switches planner, the
+scoped reads and keys behind it, and the document load that follows a switch. That was the whole intent
+and it worked. Converting the planner itself into something two people can work in was never planned,
+never costed, and is not what the dropdown did.
+
+An audit of `frontend/src` found what that leaves. The findings are not a list of bugs against a design;
+they are the absence of a design, and they fall into four groups.
+
+#### A page reads the store once and keeps its own copy
+
+`useEditJobInitialState` seeds the editor from `findJobInJobArray(jobID)` behind
+`if (jobID === currentActiveJobID) return;` and never reads again, so a change another member makes is
+in the store and not on the screen. Closing the job writes `backupJobRef.current` — a copy taken when it
+opened — back over whatever arrived since. The group page has the same shape deliberately:
+`groupFrame.jsx` keys its load effect on `[groupID]` with a comment saying it must not re-run when
+`groupArray` updates, so a job another member adds to the open group is never fetched and never costed.
+The shopping list and the price entry dialogue each build their rows once per open, so a reader buys
+what is already bought and prices quantities already filled. Archive queries never refetch on their own.
+Planner settings are held with a five-minute stale time and no stream at all, and a local edit
+deliberately suppresses re-reads while it is pending.
+
+Nothing tells an open editor that its job was deleted, either: there is a `clearActiveGroupIfMatches`
+and an `eip-group-deleted-remotely` event for groups, and no equivalent for jobs. The editor stays open
+on a document that no longer exists, and saving resurrects it.
+
+#### A write assumes nothing moved underneath it
+
+Every write is a whole document with no precondition, and most of them are built from a snapshot taken
+earlier. `closeActiveJob` rewrites every related job in the tree from this client's copies.
+`deleteMultipleJobs` reads the arrays, then awaits three round trips before committing what it read.
+`mergeJobs` and `closeGroup` recompute group membership from the local job array, and membership is
+lazily loaded — a member this client never fetched is dropped from the document. The price entry
+dialogue writes job documents and takes no lock at all; a member holding the edit lock has their work
+overwritten by a dialogue that never asked.
+
+The one that scales worst is `releaseJobsAfterGroupRemoved`, called from the inbound websocket delete
+handler: when one member deletes a group, every other connected member's tab writes all of that group's
+job documents back from its own copies. N members means N racing wholesale writes, last one wins, and
+none of them is the authority.
+
+#### The scope of what a reader sees is still their account
+
+Six of the seven planner settings are fetched, merged, and read by nothing — only extras categories
+has a consumer. Structures, system indexes, broker fee, ME default, exempt types and reprocessing all
+still resolve from the reader's own account, and `defaultPricing` and `jobStatuses` have no planner copy
+at all. Two members open one planner and see different costs, different profit and different columns.
+Stage expansion is keyed by account id in `localStorage`. Linked ESI id sets are the account's, so a job
+another member linked reads as unlinked and is offered for linking again.
+
+Identity resolves the same way. A job another member built shows "No Matching Character Found" on its
+setup card and "Unknown Character" on its linked runs; the skills query fires against a hash this reader
+does not have and fails four times; and `calculateTimeForSetup` falls back to an empty skills object, so
+the build time is recalculated as though the builder had no skills — a wrong number rather than an
+error. `AssignUsersSelect` falls back to the reader's own main character when the stored hash is not
+theirs, so the control shows the wrong person as selected and any interaction writes the reader's
+character into a shared job. `_meta.lastUpdatedBy` is written on every document and displayed nowhere.
+
+#### The other actor is assumed to be another tab of your own
+
+The lock state carries no holder identity: the server sends `holderSessionID`, the client compares it
+with its own and discards it, so *another tab of mine* and *another member* collapse into one boolean.
+Every blocked affordance says "another session", every snackbar says "another tab", and the passive
+viewer signal is a count with a comment recording that identity was deliberately left out.
+
+The sharpest edge is the force-release control. It is rendered for every read-only viewer, captioned "if
+another tab on your account crashed", and confirms with "Remove the edit lock from the other tab on this
+account?" — so a member blocked by a colleague is told their own tab is responsible and offered a button
+to evict them. Clicking it does something worse than nothing: the release script treats a lock held by another
+account exactly as it treats no lock at all, which the API answers 404, which the client reports as
+"No active lock to remove." The member is blocked by a lock the app has just told them does not
+exist.
+
+#### What this stage has to decide before it builds
+
+The audit is an inventory, not a plan, and the questions it raises are product ones:
+
+**What a reader sees when someone else changes what they are looking at.** Apply it and say so, or
+surface it and let them take it. The project already has a view for a neighbouring case — a child job
+does not resize when its parent's requirement changes, because the planner surfaces the mismatch rather
+than recalculating live — and the same instinct probably applies here.
+
+**Whether a shared planner has roles at all.** There is no permission concept in the SPA: if a planner is
+in the dropdown, every button is enabled and every delete is offered. Membership is the only fact the
+client holds, and `PlannerSummary.joinMethod` is declared and never read. Whether that is right is a
+decision about what a shared planner is, not a gap to fill in.
+
+**Whether identity is shown.** Naming a holder, an author or a viewer needs the server to send it and a
+decision that it should be seen at all. Every piece of copy above changes depending on that answer, and
+none of it can be written until it is taken.
+
+**How much of the single-writer machinery is worth repairing rather than replacing.** Whole-document
+writes from stale snapshots are the shape of the SPA's persistence everywhere, and the
+[document-write-granularity](../document-write-granularity/contents.md) project already exists to change
+it. A conditional write on `_meta.revision` — seeded and ready, read by nothing — is what would turn a
+lost update into a refusal the client can act on. Much of this group may be that project's work rather
+than this one's.
+
 ## Live data, and the cutover window
 
 `Public` is deployed with real data, and the next deployment takes the stack down. Every data change
@@ -2524,6 +2623,7 @@ do not touch.
 | G — realtime state under more than one writer | **Partly landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Also in: G2, the ordering position — a delivery carries its place in the stream, the client holds one per document and applies only what is beyond it, and a delete carries a position as readily as an upsert. And G4, the delivery construction — a full shard waits for room instead of overtaking what is queued for that owner, renewing the acknowledgement deadline while it waits and counting itself in the drain. Also in: G3 — a resume carries how far the tab applied and is answered by comparing it with what was published for the tenants that connection reads, rather than asserting that nothing happened. Also in: the `websocket/sync` package and `skipWhileSyncing` are removed, which closes what G1 carried. Outstanding: whether the stores should hold more than one planner at once, and replaying a gap rather than reloading through it. The `lastModified` cursor, the account-shaped document load and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped document load — see § Stage G |
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. Owed: the websocket's dependency on the client naming its planner — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
+| J — the SPA stops assuming it is the only writer | **Not started, and newly scoped.** The client work in this project was a dropdown to prove the backend, which is what it was for; converting the planner into something two people can work in was never planned. An audit found four groups: a page that reads the store once and keeps its own copy, a write built from a snapshot with no precondition, a scope that is still the reader's account rather than the planner, and copy that calls another member "another tab". Four decisions come before any of it — what a reader sees when someone else changes their screen, whether a shared planner has roles, whether identity is shown, and how much belongs to document-write-granularity instead. See § Stage J |
 
 ## Recommended pickup order
 
@@ -2540,6 +2640,10 @@ adds reaches another only on their next read.
 The rest are blocked or parked. Stage E's revocation path waits on the session-record work that owns
 the grants ceiling; Stage F owes the grant-task reshaping and access lists; Stage I is a decision that
 depends on both.
+
+**Stage J is not sequenced against the others at all.** It is an inventory of what the SPA does not do
+yet, and the four decisions it closes with have to be taken before any of it can be sized — two of them
+may hand most of the work to another project. It does not block G or H, and neither blocks it.
 
 ### Owed to the release, not to a stage
 
