@@ -32,6 +32,36 @@ fi
 user="$(MSYS_NO_PATHCONV=1 docker exec "$core" cat //run/secrets/MONGO_USERNAME)"
 pass="$(MSYS_NO_PATHCONV=1 docker exec "$core" cat //run/secrets/MONGO_PASSWORD)"
 
+# The suite works in its own database and refuses to run in the stack's. The app
+# user authenticates against the stack's database whatever database it then
+# works in, so it needs rights granted on this one: readWrite to use it, and
+# dbAdmin because enabling change-stream pre-images is a collMod.
+#
+# The root credentials are environment on the mongo service, not Docker secrets:
+# only the shared app user is mounted under /run/secrets, and never on eip_core.
+DATABASE="${MONGO_DATABASE:-eve_industry_planner_test}"
+mongo_cid="$(docker ps -q -f name=eip_mongo | head -1)"
+if [ -z "$mongo_cid" ]; then
+  echo "no running eip_mongo: cannot grant $user rights on $DATABASE" >&2
+  exit 1
+fi
+root_user="$(MSYS_NO_PATHCONV=1 docker exec "$mongo_cid" printenv MONGO_ROOT_USERNAME)"
+root_pass="$(MSYS_NO_PATHCONV=1 docker exec "$mongo_cid" printenv MONGO_ROOT_PASSWORD)"
+if [ -z "$root_user" ] || [ -z "$root_pass" ]; then
+  echo "eip_mongo carries no root credentials: cannot grant $user rights on $DATABASE" >&2
+  exit 1
+fi
+
+echo "granting $user readWrite + dbAdmin on $DATABASE…"
+MSYS_NO_PATHCONV=1 docker exec "$mongo_cid" mongosh --quiet \
+  -u "$root_user" -p "$root_pass" --authenticationDatabase admin --eval "
+    const home = db.getSiblingDB('eve_industry_planner');
+    const roles = home.getUser('$user').roles.filter(r => r.db !== '$DATABASE');
+    roles.push({ role: 'readWrite', db: '$DATABASE' });
+    roles.push({ role: 'dbAdmin', db: '$DATABASE' });
+    home.updateUser('$user', { roles });
+  "
+
 mkdir -p "$ROOT/.tmp"
 bin="$ROOT/.tmp/live-$(echo "$PKG" | tr -c 'a-zA-Z0-9' '-').test"
 
@@ -48,6 +78,7 @@ echo "running -test.run '$RUN' on network $NETWORK…"
 MSYS_NO_PATHCONV=1 docker run --rm --network "$NETWORK" \
   -e EIP_MONGO_PARITY_LIVE=1 \
   -e MONGO_HOST=mongo -e MONGO_PORT=27017 \
+  -e MONGO_DATABASE="$DATABASE" \
   -e MONGO_USERNAME="$user" -e MONGO_PASSWORD="$pass" \
   -e NATS_URL="${NATS_URL:-nats://nats:4222}" \
   -e LOG_LEVEL="${LOG_LEVEL:-error}" \

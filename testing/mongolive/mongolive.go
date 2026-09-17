@@ -8,9 +8,11 @@ package mongolive
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
+	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
@@ -19,6 +21,12 @@ import (
 
 // Gate is the environment variable that opts a run in to live Mongo.
 const Gate = "EIP_MONGO_PARITY_LIVE"
+
+// TestDatabase is the database a live run works in. The runner points
+// MONGO_DATABASE at it; nothing here sets the variable, because a test helper
+// that rewrote the environment would be deciding where the writes land on
+// behalf of a caller who thought they had chosen.
+const TestDatabase = "eve_industry_planner_test"
 
 const dial = 15 * time.Second
 
@@ -89,7 +97,73 @@ func connect(t *testing.T, what string, dialFn func() (*eipmongo.Mongo, error)) 
 	if err := mongo.Ping(ctx); err != nil {
 		t.Fatalf("ping: %v", err)
 	}
+	requireTestDatabase(t, mongo)
+	ensureSchemaOnce(t, mongo)
 	return mongo
+}
+
+// The schema work happens once per test binary. The creates are idempotent, but
+// a fresh database needs them before the first test reads, and no caller should
+// have to remember that.
+//
+// The error is kept rather than failed on inside the Once. A t.Fatalf there runs
+// runtime.Goexit, and sync.Once marks itself done on the way out regardless — so
+// the test that tripped it fails and every later test in the binary takes a
+// no-op Do and runs green against a database with no indexes and no pre-images.
+var (
+	schemaOnce sync.Once
+	schemaErr  error
+)
+
+func ensureSchemaOnce(t *testing.T, mongo *eipmongo.Mongo) {
+	t.Helper()
+	schemaOnce.Do(func() { schemaErr = ensureSchema(mongo) })
+	if schemaErr != nil {
+		t.Fatalf("live schema: %v", schemaErr)
+	}
+}
+
+// requireTestDatabase refuses a handle bound to the database the stack serves.
+//
+// These tests write real documents and delete what they think they created. Run
+// against the stack's database they are one missed filter away from deleting a
+// player's jobs, and the failure would look like a bug in the product rather
+// than in a test. The guard is the same one redislive makes about port 6379.
+func requireTestDatabase(t *testing.T, mongo *eipmongo.Mongo) {
+	t.Helper()
+	if got := mongo.DB.Name(); got == config.DefaultMongoDatabase {
+		t.Fatalf("live tests are bound to %q, the database the stack serves. "+
+			"Set %s=%s (scripts/testing/live-mongo.sh does this) and grant the app user readWrite on it.",
+			got, config.EnvMongoDatabase, TestDatabase)
+	}
+}
+
+// ScratchDatabase drops the whole database the handle is bound to, at both ends
+// of the test.
+//
+// ScratchAccount has to know every collection an account touches; a collection
+// added without updating that list leaves rows behind. Dropping the database
+// needs no list and cannot fall behind one. It is only safe because the handle
+// cannot be bound to the stack's database — see requireTestDatabase.
+//
+// It takes the whole database, not a namespace within it, so it is a per-binary
+// device and not a per-test one. Two things follow for a caller. It must not run
+// from a t.Parallel test, where a sibling's documents go with it. And it drops
+// the indexes and pre-images Require applied, which Require will not apply again
+// — the schema work is once per binary — so a test that drops and then depends
+// on a change stream has to put them back itself.
+func ScratchDatabase(t *testing.T, mongo *eipmongo.Mongo) {
+	t.Helper()
+	requireTestDatabase(t, mongo)
+	drop := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := mongo.DB.Drop(ctx); err != nil {
+			t.Fatalf("drop %s: %v", mongo.DB.Name(), err)
+		}
+	}
+	drop()
+	t.Cleanup(drop)
 }
 
 // ScratchAccount clears every document an account owns — its own row and
