@@ -778,6 +778,31 @@ edit is ahead of it.
 Owed here: keying the job and group stores by owner rather than replacing one planner's array with
 another's, and replaying a gap rather than reloading through it.
 
+## Stage H — The document lock between two members
+
+*Landed.*
+
+**A lock operation over the socket says which planner it is for.** The waitlist pulse, the two viewer
+presence frames and the lock-state batch each carry an `owner` handle, the same handle the client names
+a planner by everywhere else. The server parses it, re-encrypts an organisation id to the ref its keys
+are built from, and refuses a planner outside the grants the session was given at connect.
+
+It used to read the planner from the connection instead — a record set by the separate `active_planner`
+message. A lock frame that arrived before that message, or ahead of it after a reconnect, was scoped to
+whatever the record held, which is the account's own planner. On a shared planner that is the wrong
+namespace and nothing said so: two members would each pulse against their own account's key and neither
+would contend. The client kept the ordering in practice; nothing made it.
+
+The HTTP endpoints for these same operations always took the planner from the request and refused one
+the account holds no membership row for, so the two surfaces now say the same thing. The socket checks
+the ceiling it already holds in memory rather than reading membership per frame, because a pulse is
+frequent enough that a database round trip behind each one would be felt. An account's own planner is
+admitted whether or not it appears in that ceiling, matching the scopes a planner switch builds: working
+alone needs no membership row.
+
+A frame that names no planner is refused. There is no scope to fall back to that is not a guess, and the
+guess is what this replaced.
+
 ## The write counter says what it counts
 
 *Landed.*
