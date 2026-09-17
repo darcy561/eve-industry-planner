@@ -79,34 +79,77 @@ So provisioning turns roughly 145 skips into runs, and 159 of those pass the fir
 ever run anywhere. The suite is larger than this plan's Goal records: 132 `TestLive_` functions
 today against the 108 counted when it was written.
 
-### Fifteen tests do not stand up on a fresh database
+### What the fifteen turned out to be
 
-| Package | Tests |
-|---------|-------|
-| `api/v1endpoints/archivedjobs` | 6 — the filing and restore flows |
-| `api/helper` | 3 — the job-document, groups and list flows |
-| `shared/mongo` | 2 — `TestLive_LoadJobsByFilter_accountScope`, `_docsLayerSlip` |
-| `api/v1endpoints/statistics` | 1 — `TestLive_aSharedPlannerIsReachedByItsMembers` |
-| `core/commands` | 1 — `TestLive_backfillAccountPlanners_completesEveryPartialState` |
-| `worker/tasks/documentids` | 1 — `TestLive_RewriteMovesADocumentOntoAnIDCarryingItsOwner` |
+They were not tests that needed a populated database, which is what this section
+first recorded. The fifteen failures fell across fourteen tests, one of them contributing a failing
+subtest as well. Eleven were **stale assumptions about the document id**, two were real product
+bugs, and one is non-deterministic.
 
-They fail as `deleted count: got 0 want 1` and `id_only: got []` — a seed that does not land where the
-read-back looks. Two of them pass beside their siblings and fail alone, so at least part of it is
-order dependence rather than a missing server feature.
+Production scopes a document id to its owner — `{"_id": {"$in": OwnerScopedDocumentIDs(owner, ids)}}`
+in the delete route, `OwnerScopedDocumentID(owner, job.JobID)` in the archive write. These tests still
+built filters from bare job ids, so they found nothing. They would have failed against any database,
+including the stack's; nothing noticed because the live suite has never run anywhere but by hand.
+`archiveJobFor` is the clearest case: its comment says it writes "the way the PUT route leaves it",
+and the one detail it got wrong was the id the route actually uses.
 
-**Stage B's schema step does not explain them.** The trial applied neither pre-images nor indexes, but
-neither could account for these failures: all 26 specs in `IndexSpecs()` are non-unique, so they
-change how a query is served and not what it matches, and `changeStreamPreAndPostImages` reaches
-change streams only. Nothing in either list makes a delete match a row it otherwise would not.
+| Package | Was |
+|---------|-----|
+| `api/v1endpoints/archivedjobs` | 6 — one helper seeding under a bare id |
+| `api/helper` | 3 — three filters built from bare ids |
+| `shared/mongo` | 2 — four filters, and a comment asserting `_id` is the bare job id |
+| `worker/tasks/documentids` | 1 — not an id assumption at all: the `SeedDocumentVersion` bug below |
+| `api/v1endpoints/statistics` | 1 — a product bug in another project's area |
+| `core/commands` | 1 — not fixed: non-deterministic, see § The suite is not isolated per package |
 
-What does fit is this plan's own § Starting position: these tests were written to land in the
-database the running stack is serving, and some read what is already there. A scratch database of
-their own is the same empty database the trial gave them.
+Eleven were the id assumption. The other three were not, and two of them were real bugs.
 
-**This is scope the stages do not yet carry.** § Done when asks for a live suite that "runs to
-completion on a GitHub runner", and provisioning does not reach it — those fifteen have to seed what
-they read. It belongs with Stage B, which is where isolation makes each test responsible for its own
-data, rather than with Stage C.
+### The bug the suite was there to find
+
+`SeedDocumentVersion` type-asserted its nested `_meta` to `bson.D` and silently did nothing when it
+was not, so the owner-scoped id rewrite never stamped a version on the documents it moved. The shared
+client sets `DefaultDocumentM`, so a cursor hands the block back as `bson.M`.
+
+**Its unit test passed against a shape the production path cannot produce.** It decoded with plain
+`bson.Unmarshal`, which does give `bson.D`, and its comment stated that as how a cursor behaves. That
+is the reusable lesson rather than the individual bug: a test that builds its input by a different
+route than the code under test is asserting something about the route, not the code. It now covers
+both shapes, and fails on the `bson.M` one if the assertion comes back.
+
+The remaining failure, `TestLive_aSharedPlannerIsReachedByItsMembers`, is also a real product bug and
+also one this suite is the only thing to catch: the membership gate resolves the owner a request names
+and then throws it away, so three statistics handlers read the calling account's figures rather than
+the planner's. It belongs to [shared-planners](../shared-planners/contents.md) and is being fixed
+there.
+
+### The suite is not isolated per package
+
+`go test ./...` runs one binary per package, and those binaries run in parallel. This stage gives the
+suite one database per *run*, so every live package writes into `eve_industry_planner_test` at the
+same time. The result is not stable:
+
+| | default (parallel) | `-p 1` (serial) |
+|---|---|---|
+| run 1 | 2253 pass, 3 fail, 28 skip | **2254 pass, 1 fail, 29 skip** |
+| run 2 | 2256 pass, 1 fail, 27 skip | **2254 pass, 1 fail, 29 skip** |
+| run 3 | 2252 pass, 3 fail, 29 skip | — |
+
+Each run started from a dropped database. Three parallel runs gave three different answers; two serial
+runs were identical. `TestLive_backfillAccountPlanners_completesEveryPartialState` is the test that
+moves, and the skip counts move with it, so the interference is not confined to one test.
+
+**`-p 1` is the answer for now.** A live run of more than one package is `go test -p 1 ./...`, which
+costs wall clock and nothing else. Stage C's job runs it that way, and until it does, a green parallel
+run is not evidence.
+
+A database per binary is the better answer and is **outstanding work on this stage**: `mongolive`
+would derive the name from the test binary rather than from a constant, which keeps the suite parallel
+and makes `ScratchDatabase` safe by construction. It is not free — the app user needs rights on each
+database, and MongoDB has no wildcard for that short of `anyDatabase`, so the authenticated local path
+pays for it. CI provisions without auth and would not.
+
+This also sharpens what `ScratchDatabase` is for. Dropping a whole database is safe against a database
+one binary owns, and is not safe against one several binaries share — which is what they do today.
 
 ### Two notes for whoever builds Stage C
 
@@ -216,9 +259,9 @@ is a `collMod`. Measured: with `readWrite` alone the run fails with *"not author
 eve_industry_planner_test to execute command { collMod … }"*. CI sidesteps this by provisioning
 without `--auth`; a developer running against the stack's Mongo does not.
 
-Fifteen tests also have to seed what they read, or they fail on the empty database this stage hands
-them — see § What a trial provisioning measured for the list and the evidence that the schema step
-does not cover it.
+Eleven tests also had to stop assuming a bare document id before they would stand up on the empty
+database this stage hands them, and the suite needs isolating per package — see §§ What the fifteen
+turned out to be, The suite is not isolated per package.
 
 **Stage C — CI.** The `live-mongo` job under `workflow_dispatch`, provisioning mongod, applying the
 schema, running the suite.
@@ -234,7 +277,7 @@ Stage A is a prerequisite for B; B for C. D depends only on B and may land last 
 | Stage | Status |
 |-------|--------|
 | A — one database name | Landed — see [overlay.md](./overlay.md) |
-| B — isolation | Landed, except the fifteen — see [overlay.md](./overlay.md) |
+| B — isolation | Landed per run; **per package outstanding** — see § The suite is not isolated per package |
 | C — CI | Not started |
 | D — remove the workaround | Not started |
 
@@ -242,7 +285,6 @@ Stage A is a prerequisite for B; B for C. D depends only on B and may land last 
 
 - No package declares the database name independently of the resolver.
 - A live test run leaves the stack's database untouched.
-- The live suite runs to completion on a GitHub runner, including the fifteen tests that today
-  depend on documents the stack's database already holds.
+- The live suite runs to completion on a GitHub runner, and gives the same answer twice.
 - `cmd/mongo_parity_sample` and the fixture branch are gone, and the gate is named for what it does.
 - `testing/harness.md` § Live Mongo describes all of the above as current behaviour.

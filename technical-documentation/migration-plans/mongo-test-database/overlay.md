@@ -76,26 +76,25 @@ leaves the same three roles. `TestRunnerUsesTheTestDatabase` pins the script's d
 `mongolive.TestDatabase`: a shell script cannot read a Go constant, and the two disagreeing would
 point a run at a database the guard does not know about.
 
-**What this stage does not finish.** Fifteen tests still fail on a database of their own, unchanged
-by the schema — see [plan.md](./plan.md) § What a trial provisioning measured. Measured against a
-throwaway replica set with the schema applied and both roles granted: 2,236 pass, 15 fail, 28 skip.
-Those fifteen read documents the stack's database already holds, and have to seed what they read
-before § Done when is true.
+**What running it found.** Fifteen failures on a database of their own, across fourteen tests.
+Eleven were stale
+assumptions about the document id — production scopes an id to its owner and these still built filters
+from bare job ids, so they would have failed against any database and nothing noticed, because the
+suite had never run anywhere but by hand. They are fixed.
 
-## Stage C — CI
+Two were real product bugs that only this suite catches: `SeedDocumentVersion` never stamped a version
+on a migrated document, and three statistics handlers read the calling account's figures rather than
+the planner's. The first is fixed here; the second belongs to
+[shared-planners](../shared-planners/contents.md) and is being fixed there. See [plan.md](./plan.md)
+§§ What the fifteen turned out to be, The bug the suite was there to find.
 
-*Not started.* Will record: how the job provisions a replica set, how `mongo:27017` resolves at both
-ends, what the job skips, which tests skip inside it, and how it is triggered.
+**The last one is not fixed, and is a gap in this stage.** A run gives the suite one database, but
+`go test ./...` runs a binary per package and runs them in parallel, so every live package writes into
+it at once. Three runs from a dropped database gave three different answers; the same runs with `-p 1`
+gave identical ones. A run of more than one live package is therefore `go test -p 1 ./...`
+until the suite is isolated per package, which is outstanding work on this stage —
+[plan.md](./plan.md) § The suite is not isolated per package has the measurements and what it would
+take. It also bounds `ScratchDatabase`: dropping a whole database is safe for a binary that
+owns one, and unsafe for a database several binaries share.
 
-## Stage D — Remove the workaround
-
-*Not started.* Will record: the gate's name, and what a test that once fell back to fixtures does
-now.
-
-## Deliberate differences from the setup being replaced
-
-Every intended behavioural change lands here as a row, so a reader can tell a fix from a regression.
-
-| Behaviour | Was | Is | Why |
-|-----------|-----|----|-----|
-| *(none yet)* | | | |
+Serialised, and with the statistics bug still open: 2,254 pass, 1 fail, 29 skip.
