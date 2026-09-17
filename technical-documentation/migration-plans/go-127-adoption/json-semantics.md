@@ -17,6 +17,25 @@ Performance is **not** a reason to do the second one. On the representative plan
 | Marshal | 9.6µs | 10.0µs | 9.7µs |
 | Allocations | 38 / 11 | identical | identical |
 
+Where the gain would land, counted in production code (`_test.go` excluded):
+
+| Read side | | Write side | |
+|---|---|---|---|
+| `json.Unmarshal` | 87 | `json.Marshal` | 34 |
+| `json.NewDecoder` | 5 | `json.NewEncoder` | 21 |
+| | | `json.MarshalIndent` | 13 |
+| **total** | **92** | **total** | **68**, or 55 without `MarshalIndent` |
+
+`MarshalIndent` is the `eip cli` operator output this project's non-goals exclude, so the migration-
+relevant split is **92 reads to 55 writes**. The reads concentrate in `shared` (56 of 92), then
+`websocket` 16, `worker` 11, `api` 6.
+
+The ratio leans the way the benchmark favours and does not rescue it. These are call sites in the
+source, not operations at run time — one decoder in a polling loop outweighs forty rarely-hit sites —
+and 3µs per 3.4KB document is a rounding error beside the Mongo round trip or the ESI call that
+produced the bytes. Judge the migration on strictness; the ratio is consistent with that rather than
+an argument of its own.
+
 The reason to migrate is read-side strictness: duplicate object names rejected, invalid UTF-8 rejected, case-sensitive field matching, and a real `ErrUnknownName` sentinel.
 
 ## Differences that change bytes

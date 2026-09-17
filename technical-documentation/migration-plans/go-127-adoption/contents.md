@@ -18,6 +18,6 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 
 | I need to… | Read |
 |------------|------|
-| Goals, tracks, done-when, open decisions | [plan.md](./plan.md) |
+| Goals, tracks, done-when, decisions taken | [plan.md](./plan.md) |
 | Measured v1 vs v2 JSON behaviour differences | [json-semantics.md](./json-semantics.md) |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |

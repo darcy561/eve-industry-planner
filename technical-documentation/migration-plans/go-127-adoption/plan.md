@@ -1,6 +1,6 @@
 # Go 1.27 adoption — plan
 
-**Status:** Track A at zero; Track B is done. Track C has landed everything that needs no decision: only 4 files remain, all waiting on Track A or its Phase A3. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
+**Status:** Track A is decided and not started; Track B is done. Track C has landed everything that needs no decision: only 4 files remain, and they are Track A's to take — three wire tags at A1 and `json.go` at A3. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
 **Code in scope:** [`services/`](../../../services/) (all areas), [`testing/`](../../../testing/), [`deployment-tool/`](../../../deployment-tool/)
 **Live SoT (until promote):** [backend/core/core.md](../../backend/core/core.md), [backend/api/contents.md](../../backend/api/contents.md), [technical-rules.md](../../technical-rules.md) § Prefer modern Go
 
@@ -180,13 +180,25 @@ go1.27 or later"* and accepted at 1.27.
 
 Done when: `go fix -diff` is empty for every area, or a remaining suggestion is recorded here with the reason it was waived.
 
-## Open decisions
-
-| # | Decision | Needed by |
-|---|----------|-----------|
-| 1 | Is v2's read-side strictness (duplicate names, case sensitivity, UTF-8 validation) worth the migration at all, given the measured ~13% unmarshal gain and no marshal gain? | Before A1 |
-
 ## Decisions taken
+
+**The migration is worth it for the read-side strictness, and for nothing else.** Duplicate object
+names rejected, invalid UTF-8 rejected, case-sensitive field matching, and a real `ErrUnknownName`
+sentinel in place of a string prefix check. Performance is explicitly not a reason: the measured gain
+is ~13% on unmarshal and none on marshal, and it disappears entirely under `DefaultOptionsV1` — see
+[json-semantics.md](./json-semantics.md), which also records the 92-reads-to-55-writes split that
+leans the right way without carrying the argument.
+
+What made the decision safe to take was measuring what the strictness would reject rather than
+reasoning about it: across 1,082 named tags and 212 recorded payloads there is no case-only mismatch,
+no duplicate name and no invalid UTF-8, with the detectors proved against deliberately bad input. The
+one producer not covered is ESI, whose responses are not in the corpus — close that during A3 by
+decoding a live response, rather than treating it as a reason to wait.
+
+The phases stay as A1 → A4 for the same reason they were written that way: A1 is provable while still
+on v1, A2 has no call sites, A3 moves one area at a time, and only A4 changes a wire shape — by which
+point § Decisions taken already says what an empty array looks like.
+
 
 **A result that is a JSON array is emitted as `[]` when empty, never `null`.** This is v2's default, so
 `FormatNilSliceAsNull` is **not** carried permanently for array-valued results — A2's house options
