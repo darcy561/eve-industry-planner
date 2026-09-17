@@ -1,92 +1,61 @@
 /**
- * Monotonic cursors for WebSocket `ChangeStreamMessage` applies (`_meta.lastModified` per logical doc).
- * Keys: `users.<accountId>`, `application_settings.<accountId>`, etc.
- */
-
-/**
- * Mongo / Go JSON may send dates as RFC3339 strings or BSON extended JSON
- * (`{ "$date": ... }`). `new Date(object)` is invalid — that would drop every
- * websocket apply (cursor never advances).
+ * How far each document has been applied, as the delivery's position in the
+ * stream. Keys: `users.<accountId>`, `job_documents.<jobId>`, etc.
  *
- * @param {unknown} value
- * @returns {number|null} epoch ms
+ * The position belongs to the delivery rather than to the document, so a delete
+ * carries one as readily as an upsert and a redelivery carries the same one
+ * twice. A stamp taken from a document's own `lastModified` could do neither: a
+ * delete has no stamp of its own, which is what drove the delete paths to the
+ * browser's clock and left one comparison deciding between two clocks.
  */
-function lastModifiedToEpochMs(value) {
-  if (value == null) return null;
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const t = new Date(value).getTime();
-    return Number.isFinite(t) ? t : null;
-  }
-  if (value instanceof Date) {
-    const t = value.getTime();
-    return Number.isFinite(t) ? t : null;
-  }
-  if (typeof value === "object") {
-    const o = /** @type {Record<string, unknown>} */ (value);
-    if ("$date" in o) return lastModifiedToEpochMs(o.$date);
-    if ("$numberLong" in o) {
-      const n = Number(o.$numberLong);
-      return Number.isFinite(n) ? n : null;
-    }
-  }
-  return null;
-}
-
-/** @param {unknown} doc */
-export function metaLastModifiedMs(doc) {
-  if (!doc || typeof doc !== "object") return null;
-  const meta = /** @type {Record<string, unknown>} */ (doc)._meta;
-  if (!meta || typeof meta !== "object") return null;
-  const lm = /** @type {Record<string, unknown>} */ (meta).lastModified;
-  const t = lastModifiedToEpochMs(lm);
-  return t;
-}
 
 const websocketSyncSlice = (set, get) => ({
   websocketSync: {
-    /** @type {Record<string, number>} docKey -> last applied server lastModified (ms) */
-    cursors: {},
+    /** @type {Record<string, number>} docKey -> last applied stream position */
+    positions: {},
     actions: {
-      /** @returns {number} */
-      getCursorMs: (docKey) => get().websocketSync.cursors[docKey] ?? 0,
+      /**
+       * @param {string} docKey
+       * @returns {number} 0 when nothing has been applied for that document
+       */
+      getPosition: (docKey) => get().websocketSync.positions[docKey] ?? 0,
 
       /**
        * @param {string} docKey
-       * @param {number} ms
+       * @param {number} position
        */
-      setCursorMs: (docKey, ms) => {
-        if (!docKey || !Number.isFinite(ms)) return;
+      setPosition: (docKey, position) => {
+        if (!docKey || !Number.isFinite(position)) return;
         set(
           (state) => ({
             ...state,
             websocketSync: {
               ...state.websocketSync,
-              cursors: {
-                ...state.websocketSync.cursors,
-                [docKey]: ms,
+              positions: {
+                ...state.websocketSync.positions,
+                [docKey]: position,
               },
               actions: state.websocketSync.actions,
             },
           }),
           false,
-          "websocketSync/setCursorMs",
+          "websocketSync/setPosition",
         );
       },
 
       /**
-       * One store update for many docs — avoids dozens of nested React updates when WS
-       * coalesce flushes bulk deletes (React max nested updates ≈ 50).
+       * One store update for many documents — a bulk delete flushed from the
+       * coalescer would otherwise nest dozens of React updates (max ≈ 50).
        *
-       * @param {Array<[string, number]>} entries - `[docKey, ms]` pairs
+       * @param {Array<[string, number]>} entries - `[docKey, position]` pairs
        */
-      setCursorMsBatch: (entries) => {
+      setPositionBatch: (entries) => {
         if (!entries?.length) return;
         const patch = {};
         for (const pair of entries) {
           const docKey = pair?.[0];
-          const ms = pair?.[1];
-          if (docKey && Number.isFinite(ms)) patch[docKey] = ms;
+          const position = pair?.[1];
+          if (docKey && Number.isFinite(position)) patch[docKey] = position;
         }
         if (Object.keys(patch).length === 0) return;
         set(
@@ -94,12 +63,58 @@ const websocketSyncSlice = (set, get) => ({
             ...state,
             websocketSync: {
               ...state.websocketSync,
-              cursors: { ...state.websocketSync.cursors, ...patch },
+              positions: { ...state.websocketSync.positions, ...patch },
               actions: state.websocketSync.actions,
             },
           }),
           false,
-          "websocketSync/setCursorMsBatch",
+          "websocketSync/setPositionBatch",
+        );
+      },
+
+      /**
+       * The furthest this client has applied, which is what a resume is answered
+       * from: the server compares it with what was published while the socket
+       * was down.
+       *
+       * @returns {number} 0 when nothing has been applied
+       */
+      getHighestPosition: () => {
+        let highest = 0;
+        for (const position of Object.values(get().websocketSync.positions)) {
+          if (position > highest) highest = position;
+        }
+        return highest;
+      },
+
+      /**
+       * Forgets what has been applied for a set of documents.
+       *
+       * A load replaces the store from a snapshot the stream knows nothing
+       * about, so the positions it held no longer describe what is there. Left
+       * standing, the first change to arrive after a load could carry a position
+       * below one of them and be discarded.
+       *
+       * @param {string} prefix - a collection key, e.g. `job_documents`
+       */
+      forgetCollection: (prefix) => {
+        if (!prefix) return;
+        const held = get().websocketSync.positions;
+        const kept = {};
+        for (const [docKey, position] of Object.entries(held)) {
+          if (!docKey.startsWith(`${prefix}.`)) kept[docKey] = position;
+        }
+        set(
+          (state) => ({
+            ...state,
+            websocketSync: {
+              ...state.websocketSync,
+              positions: kept,
+              actions: state.websocketSync.actions,
+            },
+          }),
+          false,
+          "websocketSync/forgetCollection",
         );
       },
 
@@ -108,7 +123,7 @@ const websocketSyncSlice = (set, get) => ({
           (state) => ({
             ...state,
             websocketSync: {
-              cursors: {},
+              positions: {},
               actions: state.websocketSync.actions,
             },
           }),

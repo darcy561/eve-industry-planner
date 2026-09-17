@@ -21,7 +21,6 @@ import {
 import GLOBAL_CONFIG from "../../global-config-app.js";
 import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
-import { metaLastModifiedMs } from "../websocketSyncSlice.js";
 import { asNumberIDSet } from "../../Functions/Helper/ids";
 
 /**
@@ -276,15 +275,12 @@ export const plannerSessionActions = (set, get) => ({
     clearPlannerSessionRotateFailure();
     persistTabPlannerSessionFromAuthResponse(response);
 
-    const aid = response.account_id;
-    if (aid) {
+    // The response carries the account's documents, so what the stream had
+    // applied for them no longer describes what is held.
+    if (response.account_id) {
       const rs = get().websocketSync?.actions;
-      if (rs) {
-        const u = metaLastModifiedMs(response.user_document);
-        if (u != null) rs.setCursorMs(`users.${aid}`, u);
-        const ap = metaLastModifiedMs(response.application_settings);
-        if (ap != null) rs.setCursorMs(`application_settings.${aid}`, ap);
-      }
+      rs?.forgetCollection("accounts");
+      rs?.forgetCollection("account_settings");
     }
   },
 

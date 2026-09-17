@@ -78,7 +78,7 @@ func TestIntegrationGrantedOwnerReachesTheBrowser(t *testing.T) {
 	})
 
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.e2e",
-		docUpdateFor(t, corp, "e2e-doc"))
+		docUpdateFor(t, corp, "e2e-doc"), 0)
 
 	got := f.readJSONMessage(conn, 2*time.Second)
 	if got["docID"] != "e2e-doc" {
@@ -107,7 +107,7 @@ func TestIntegrationOwnerOutsideTheCeilingReachesNothing(t *testing.T) {
 	}
 
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.refused",
-		docUpdateFor(t, ungranted, "refused-doc"))
+		docUpdateFor(t, ungranted, "refused-doc"), 0)
 
 	if got, ok := f.readJSONMessageIfAny(conn, 300*time.Millisecond); ok {
 		t.Fatalf("a client outside the ceiling received %v", got)
@@ -154,7 +154,7 @@ func TestIntegrationRepairedGrantsRestoreScopeOnReconnect(t *testing.T) {
 	f.waitClients(1, 2*time.Second)
 
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.repaired",
-		docUpdateFor(t, corp, "repaired-doc"))
+		docUpdateFor(t, corp, "repaired-doc"), 0)
 
 	got := f.readJSONMessage(conn, 2*time.Second)
 	if got["docID"] != "repaired-doc" {

@@ -82,17 +82,21 @@ var routingOnlyFields = []string{
 }
 
 // ClientPayload returns messageData shaped for a browser: routing metadata
-// removed, the owner named as the handle a client can read, and every entity ref
-// in the document body converted back to the raw id the client is owed.
+// removed, the owner named as the handle a client can read, the delivery's
+// position added, and every entity ref in the document body converted back to
+// the raw id the client is owed.
 //
 // This runs after routing has been decided, and only on the copy handed to
 // delivery. Routing matches on refs, so converting any earlier would leave a
 // message that matches nothing.
 //
+// The position is the stream's, not the document's. A delete carries one as
+// readily as an upsert, and a redelivery carries the same one twice, which is
+// what lets a client tell a change it has not seen from a copy of one it has.
+//
 // It returns the original bytes unchanged when nothing needs rewriting, which is
-// now only a message with no owner to name: naming the owner re-encodes every
-// other, which the client needs to tell one planner's documents from another's.
-func ClientPayload(messageData []byte, owner models.Owner, cipher *entityid.Cipher) []byte {
+// now only a message with no owner to name and no position to add.
+func ClientPayload(messageData []byte, owner models.Owner, cipher *entityid.Cipher, position uint64) []byte {
 	var m map[string]any
 	if err := json.Unmarshal(messageData, &m); err != nil {
 		return messageData
@@ -110,6 +114,10 @@ func ClientPayload(messageData []byte, owner models.Owner, cipher *entityid.Ciph
 			m["owner"] = handle
 			changed = true
 		}
+	}
+	if position > 0 {
+		m["position"] = position
+		changed = true
 	}
 	if restoreEntityIDs(m, cipher) {
 		changed = true

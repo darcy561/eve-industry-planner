@@ -3,16 +3,33 @@
  */
 
 import Job from "../../Classes/job.js";
+import { USER_JOB_DOCUMENTS_COLLECTION } from "../Endpoints/Private/jobDocuments.js";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { metaLastModifiedMs } from "../../Zustand/websocketSyncSlice.js";
 import { createCoalesceFlush } from "./helpers/createCoalesceFlush.js";
 
 const FLUSH_MS = 80;
 
-/** @type {Map<string, Record<string, unknown>>} */
+/** @type {Map<string, {document: Record<string, unknown>, position: number|null}>} */
 let pendingUpserts = new Map();
-/** @type {Set<string>} */
-let pendingDeletes = new Set();
+/** @type {Map<string, number|null>} */
+let pendingDeletes = new Map();
+
+/**
+ * Which of two deliveries for one document happened later.
+ *
+ * Without positions there is no answer, and a delete wins — the older rule, kept
+ * for a server that sends none, because resurrecting a deleted row is the worse
+ * of the two mistakes.
+ *
+ * @param {number|null} candidate
+ * @param {number|null} queued
+ * @returns {boolean} true when the candidate is known to be the later one
+ */
+function isLaterThan(candidate, queued) {
+  return (
+    Number.isFinite(candidate) && Number.isFinite(queued) && candidate > queued
+  );
+}
 
 /**
  * Registers a per-stage skeleton for remote upserts that are new to this client.
@@ -46,39 +63,42 @@ function flush() {
   } = useUsersStore.getState();
   if (!account.isLoggedIn || account.accountID == null) {
     pendingUpserts = new Map();
-    pendingDeletes = new Set();
+    pendingDeletes = new Map();
     return;
   }
 
   if (pendingDeletes.size > 0) {
-    const ids = [...pendingDeletes];
-    for (const id of ids) {
-      pendingUpserts.delete(id);
-    }
-    pendingDeletes = new Set();
+    const entries = [...pendingDeletes.entries()];
+    const ids = entries.map(([id]) => id);
+    pendingDeletes = new Map();
     actions.removePendingInboundNewJobSkeletons(ids);
     actions.removeJobsFromJobArray(ids);
     actions.clearPendingJobDocumentWrites(ids);
-    const now = Date.now();
-    rs.setCursorMsBatch(ids.map((jobID) => [`job_documents.${jobID}`, now]));
+    rs.setPositionBatch(
+      entries
+        .filter(([, position]) => Number.isFinite(position))
+        .map(([jobID, position]) => [
+          `${USER_JOB_DOCUMENTS_COLLECTION}.${jobID}`,
+          position,
+        ]),
+    );
   }
 
   if (pendingUpserts.size > 0) {
     const entries = [...pendingUpserts.entries()];
     pendingUpserts = new Map();
     actions.removePendingInboundNewJobSkeletons(entries.map(([id]) => id));
-    const jobs = entries.map(([, doc]) => new Job(doc));
-    actions.updateOrAddJobsToJobArray(jobs);
-    const cursorPairs = [];
-    for (const [jobID, doc] of entries) {
-      const ms = metaLastModifiedMs(doc);
-      if (ms != null) {
-        cursorPairs.push([`job_documents.${jobID}`, ms]);
-      }
-    }
-    if (cursorPairs.length > 0) {
-      rs.setCursorMsBatch(cursorPairs);
-    }
+    actions.updateOrAddJobsToJobArray(
+      entries.map(([, held]) => new Job(held.document)),
+    );
+    rs.setPositionBatch(
+      entries
+        .filter(([, held]) => Number.isFinite(held.position))
+        .map(([jobID, held]) => [
+          `${USER_JOB_DOCUMENTS_COLLECTION}.${jobID}`,
+          held.position,
+        ]),
+    );
     actions.clearPendingJobDocumentWrites(entries.map(([id]) => id));
   }
 }
@@ -96,29 +116,42 @@ const coalesce = createCoalesceFlush({
 export function clearInboundJobDocumentCoalesce() {
   coalesce.cancel();
   pendingUpserts = new Map();
-  pendingDeletes = new Set();
+  pendingDeletes = new Map();
 }
 
 /**
  * @param {"upsert"|"delete"} kind
  * @param {string} docID - Mongo _id / jobID
  * @param {Record<string, unknown>|undefined} document - full document for upsert
+ * @param {number|null} [position] - the delivery's place in the stream
  */
-export function enqueueInboundJobDocumentChange(kind, docID, document) {
+export function enqueueInboundJobDocumentChange(
+  kind,
+  docID,
+  document,
+  position = null,
+) {
   if (!docID) return;
   if (kind === "delete") {
-    pendingDeletes.add(docID);
+    // An upsert known to be later is the one that happened: restoring an archived
+    // job writes the same id back, and both deliveries can land inside one flush.
+    const queued = pendingUpserts.get(docID);
+    if (queued && isLaterThan(queued.position, position)) {
+      return;
+    }
+    pendingDeletes.set(docID, position);
     pendingUpserts.delete(docID);
     useUsersStore
       .getState()
       .jobData.actions.removePendingInboundNewJobSkeletons([docID]);
   } else if (document && typeof document === "object") {
-    // Out-of-order WS: a delete may already be queued; never let a stale upsert cancel it
-    // or the next flush would resurrect the row (intermittent missing deletes / ghost jobs).
-    if (pendingDeletes.has(docID)) {
+    if (
+      pendingDeletes.has(docID) &&
+      !isLaterThan(position, pendingDeletes.get(docID))
+    ) {
       return;
     }
-    pendingUpserts.set(docID, document);
+    pendingUpserts.set(docID, { document, position });
     pendingDeletes.delete(docID);
     maybeRegisterInboundNewJobSkeleton(docID, document);
   }

@@ -1,9 +1,15 @@
 import {
   applyPlannerJobDocuments,
   fetchPlannerJobDocuments,
+  USER_JOB_DOCUMENTS_COLLECTION,
 } from "../Endpoints/Private/jobDocuments.js";
-import { applyJobGroups, fetchJobGroups } from "../Endpoints/Private/groups.js";
+import {
+  applyJobGroups,
+  fetchJobGroups,
+  USER_JOB_GROUPS_COLLECTION,
+} from "../Endpoints/Private/groups.js";
 import { activePlannerOwnerHandle } from "../../Zustand/activePlanner/read.js";
+import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
  * Counts loads rather than comparing planners, because switching away and back
@@ -40,5 +46,10 @@ export async function loadPlannerDocuments(owner) {
 
   applyPlannerJobDocuments(plannerJobs, forOwner);
   applyJobGroups(groups, forOwner);
+  // The arrays now hold a snapshot the stream knows nothing about, so what it had
+  // applied for these collections describes documents that are no longer there.
+  const ws = useUsersStore.getState().websocketSync.actions;
+  ws.forgetCollection(USER_JOB_DOCUMENTS_COLLECTION);
+  ws.forgetCollection(USER_JOB_GROUPS_COLLECTION);
   return true;
 }

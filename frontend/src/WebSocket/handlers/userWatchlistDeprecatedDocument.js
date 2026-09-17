@@ -8,14 +8,14 @@ import useUsersStore from "../../Zustand/usersStore.js";
  * @param {{
  *   docID: string;
  *   docKey: string;
- *   rs: { setCursorMs: (k: string, ms: number) => void };
+ *   rs: { setPosition: (k: string, position: number|null) => void };
  * }} ctx
  */
 export function handleWatchlistDeprecatedDelete(ctx) {
-  const { docKey, rs } = ctx;
+  const { docKey, rs, position } = ctx;
   const actions = useUsersStore.getState().jobData.actions;
   actions.setUserWatchlist([], []);
-  rs.setCursorMs(docKey, Date.now());
+  rs.setPosition(docKey, position);
 }
 
 /**
@@ -23,15 +23,14 @@ export function handleWatchlistDeprecatedDelete(ctx) {
  *   accountId: string;
  *   docKey: string;
  *   document: Record<string, unknown>;
- *   rs: { setCursorMs: (k: string, ms: number) => void };
- *   remoteMs: number;
+ *   rs: { setPosition: (k: string, position: number|null) => void };
  * }} ctx
  */
 export function handleWatchlistDeprecatedUpsert(ctx) {
-  const { document, rs, docKey, remoteMs } = ctx;
+  const { document, rs, docKey, position } = ctx;
   const items = Array.isArray(document?.items) ? document.items : [];
   const groups = Array.isArray(document?.groups) ? document.groups : [];
   const actions = useUsersStore.getState().jobData.actions;
   actions.setUserWatchlist(items, groups);
-  rs.setCursorMs(docKey, remoteMs);
+  rs.setPosition(docKey, position);
 }

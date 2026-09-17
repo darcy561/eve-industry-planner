@@ -1,5 +1,4 @@
 import useUsersStore from "../../Zustand/usersStore.js";
-import { metaLastModifiedMs } from "../../Zustand/websocketSyncSlice.js";
 import {
   reconcileAfterRemoteApplicationSettings,
   reconcileAfterRemoteUserDoc,
@@ -51,16 +50,14 @@ export async function loadAccountDocuments() {
           settingsDoc,
           mainHash,
         );
-      const sMs = metaLastModifiedMs(settingsDoc);
-      if (sMs != null) rs.setCursorMs(`application_settings.${accountId}`, sMs);
+      rs.forgetCollection("account_settings");
     }
 
     if (userDoc && typeof userDoc === "object") {
       useUsersStore
         .getState()
         .account.actions.applyUserDocumentFromRemote(userDoc);
-      const uMs = metaLastModifiedMs(userDoc);
-      if (uMs != null) rs.setCursorMs(`users.${accountId}`, uMs);
+      rs.forgetCollection("accounts");
     }
 
     const userPayload = userDoc && typeof userDoc === "object" ? userDoc : {};

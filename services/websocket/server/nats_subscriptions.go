@@ -43,7 +43,8 @@ func (s *Server) subscribeToDocUpdates() {
 			}
 			// Handing the message to a shard worker is the point it has been
 			// received: the queue is in-process, so nothing is gained by holding
-			// the acknowledgement until delivery.
+			// the acknowledgement until delivery. Placing it can wait for room,
+			// which is how a busy owner slows intake rather than losing its order.
 			s.enqueueOutboundDocUpdate(ctx, docID, subject, msg)
 			return nil
 		})

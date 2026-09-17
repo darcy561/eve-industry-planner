@@ -507,10 +507,10 @@ paths do not, and should not. Those are server-side rewrites — schema maintena
 rebuild, the SDE import — and a document a person has not touched has not changed for the purpose a
 conditional write asks about.
 
-**The same pass seeds `_meta.version`.** A per-document write counter is owed by
+**The same pass seeds `_meta.revision`.** A per-document write counter is owed by
 [document-write-granularity](../document-write-granularity/contents.md) § Stage A, and a field costs
 nothing in a pass already rewriting the row. Nothing here reads it; it is seeded so that stage never
-meets a document without one. Writes increment it through `SetVersionedDocument`, which sets `_meta`
+meets a document without one. Writes increment it through `SetDocumentWithRevision`, which sets `_meta`
 by path — Mongo refuses `$set` of a subdocument alongside `$inc` of a path inside it, and setting the
 block whole would reset the counter to whatever the caller's struct held.
 
@@ -2052,22 +2052,35 @@ ever existed in this repository. Either the owner-scoped document load is built 
 part of this slice. `skipWhileSyncing` rides on the same decision: it holds a document back from a
 client rebuilding its state and never fires, so this slice either gives it a reason or retires it.
 
-**G2 — an apply is not dropped because two stamps compared equal.** The cursor is
-`_meta.lastModified` in epoch milliseconds, compared per document, and it is wrong three ways at once:
-equal milliseconds discard the second write, a stamp written by another process is not ordered against
-this one, and the comparison decides conflicts last-write-wins by accident. The replacement is a
-position that is totally ordered per subscription rather than per document.
+**G2 — an apply is not dropped because two clocks were compared.** *Landed.* The cursor was `_meta.lastModified`
+in epoch milliseconds, held per document and compared with `remoteMs < prevCursor`.
 
-**G3 — resume answers from the client's position rather than from the TTL.** `session_resume` moves the
+The comparison itself is not the equality trap this plan first recorded: equal stamps are applied, and
+the `<` is deliberate. What is wrong is what gets written into the cursor. An upsert stores the server's
+stamp, while a delete stores `Date.now()` — `WebSocket/handlers/userJobGroupsDocument.js`,
+`applicationSettingsDocument.js` and the job-document coalescer all do this — so one comparison decides
+between a server clock and a browser clock. Restoring an archived job re-upserts the same `jobID`
+(`archivedjobs/restore.go`), so an account whose browser clock runs ahead of the server by more than the
+gap between archiving and restoring watches the restore arrive and be discarded, and the job does not
+come back until the page is reloaded.
+
+The rest stands: a stamp written by another process is not ordered against this one, which is what a
+second writer adds, and last-write-wins falls out of the comparison rather than being chosen. The
+replacement is a position that is totally ordered per subscription rather than per document, and one
+that a delete carries as readily as an upsert, because it belongs to the delivery rather than to a
+document's own history.
+
+**G3 — resume answers from the client's position rather than from the TTL.** *Landed, short of replay.* `session_resume` moves the
 previous connection's subscriptions across and answers `skipDocumentLoad: true` having read no document
 and compared no version, so anything written during the gap is lost. With G2's position the server can
 say what was missed and send it. A slot drain reconnects every member at once, so on a shared planner
 the whole roster resumes blind together.
 
-**G4 — the delivery construction stops lying about order.** `enqueueOutboundDocUpdate` delivers
-synchronously on the intake path when a shard FIFO is full, overtaking everything already queued for
-that owner — recorded as preserving ordering at the cost of back-pressure, when it does the opposite
-and does it exactly when an owner is busiest.
+**G4 — the delivery construction stops lying about order.** *Landed.* `enqueueOutboundDocUpdate`
+delivered synchronously on the intake path whenever a shard FIFO was full, overtaking everything already
+queued for that owner — recorded as preserving ordering at the cost of back-pressure, when it did the
+opposite and did it exactly when an owner was busiest. It waits for room instead, and what that costs in
+held messages and drain accounting is in [overlay.md](./overlay.md) § Stage G.
 
 **Order.** G1 first: it stands alone, it is what Stage E is waiting on, and its decision about the
 `sync` package shapes what G3 resumes into. G2 before G3, which needs its position. G4 is independent
@@ -2508,7 +2521,7 @@ do not touch.
 | D — what a second member breaks | **Landed.** D1 recalculation keeping a job's build context — a live defect on personal planners, now fixed. D2 is handled server-side already; the retry-queue defect it uncovered is [document-write-granularity](../document-write-granularity/plan.md) § Stage B. D3 the extras categories, which turned out to need a settings write path as well as a picker: the list is the planner's, edited through `PUT /planners/{owner}/settings`, and the account's copy stops being edited. Job statuses needed nothing, their id space already being a frozen catalog. See § Stage D — what a second member breaks |
 | E — custom planners | **Partly landed.** In: the planner settings document (seeded by value from the creating account, planner-held and watched), one write path for every planner, the planners listing, corporation planner creation with its name looked up server-side and NPC corporations refused, the `active_planner` message with the ceiling intersection and its restore across a reconnect, the owner handle on every delivered document, a client switcher that moves the header on every scoped request and the owner in every scoped query key alongside the connection, and invites as Redis records with the join path that redeems them. Outstanding: the revocation path, which waits on the session-record work that owns the grants ceiling. Keying the job and group stores by owner needs the owner-scoped document load and runs with Stage G. See § Stage E and [overlay.md](./overlay.md) § Stage E |
 | F — ESI providers | **F1 landed.** Corporation and alliance membership rows are reconciled from the ids ESI reports, at login and on the cloud token sweep, completing a task that read as finished and wrote no rows. A row grants while it exists and nothing expires one: a revoked token is a positive answer the reconcile acts on, and a two-year dormant account is cleared by `InactiveAccountPlannerCleanup`. Owed: reshaping when the grant task fires and how it resolves, and access lists |
-| G — realtime state under more than one writer | **Partly landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Outstanding: whether the stores should hold more than one planner at once, the `sync` package decision G1 carries, and G2–G4 whole. The `lastModified` cursor, the account-shaped document load and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped document load — see § Stage G |
+| G — realtime state under more than one writer | **Partly landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Also in: G2, the ordering position — a delivery carries its place in the stream, the client holds one per document and applies only what is beyond it, and a delete carries a position as readily as an upsert. And G4, the delivery construction — a full shard waits for room instead of overtaking what is queued for that owner, renewing the acknowledgement deadline while it waits and counting itself in the drain. Also in: G3 — a resume carries how far the tab applied and is answered by comparing it with what was published for the tenants that connection reads, rather than asserting that nothing happened. Outstanding: whether the stores should hold more than one planner at once, the `sync` package decision G1 carries, and replaying a gap rather than reloading through it. The `lastModified` cursor, the account-shaped document load and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped document load — see § Stage G |
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. Owed: the websocket's dependency on the client naming its planner — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
 

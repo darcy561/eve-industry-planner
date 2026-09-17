@@ -154,6 +154,7 @@ func (s *Server) popSessionHandoff(ctx context.Context, accountID, previousClien
 type SessionResumeResult struct {
 	PreviousClientID   string
 	HandoffApplied     bool
+	Position           uint64
 	SkipDocumentLoad   bool
 	RestoredDocIDs     []string
 	UnauthorizedDocIDs []string
@@ -161,7 +162,12 @@ type SessionResumeResult struct {
 
 // ApplySessionResume moves NATS/outgoing subscription state from a disconnected client to this
 // connection when the browser reconnects with the same session (same tab).
-func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previousClientID string) SessionResumeResult {
+//
+// position is how far the browser had applied when it dropped. Whether it may
+// keep what it holds is answered from that and the stream, rather than asserted:
+// the handoff says the subscriptions moved across, not that nothing happened in
+// the gap.
+func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previousClientID string, position uint64) SessionResumeResult {
 	res := SessionResumeResult{PreviousClientID: previousClientID}
 	if client == nil || previousClientID == "" || previousClientID == client.id {
 		return res
@@ -182,7 +188,13 @@ func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previou
 		res.RestoredDocIDs = append(res.RestoredDocIDs, docID)
 	}
 
-	res.SkipDocumentLoad = true
+	missed, err := resumeMissedChanges(ctx, position, resumeTenants(client), s.streamLastSequence())
+	if err != nil {
+		logs.WarnCtx(ctx, "session resume could not read the stream; answering that a load is owed",
+			"client_id", client.id, "error", err)
+	}
+	res.Position = position
+	res.SkipDocumentLoad = !missed
 	return res
 }
 

@@ -6,19 +6,33 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/config"
+	"eve-industry-planner/websocket/server/natslogic"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// docUpdateWork hands a JetStream message to an outbound shard worker so the Consume callback
-// returns quickly while we still ack only after browser fan-out (or inline fallback).
+// docUpdateWork hands a JetStream message to an outbound shard worker so the
+// Consume callback returns without waiting for browser fan-out.
 type docUpdateWork struct {
 	ctx                   context.Context
 	msg                   jetstream.Msg
 	collectionScopedDocID string
 	subject               string
+	position              uint64
+}
+
+// streamPosition is the message's place in the stream, which every replica reads
+// the same and a redelivery repeats. Zero when the message carries no metadata,
+// which a client reads as "no position" and applies rather than discards.
+func streamPosition(msg jetstream.Msg) uint64 {
+	md, err := msg.Metadata()
+	if err != nil {
+		return 0
+	}
+	return md.Sequence.Stream
 }
 
 // outboundDocPartitionKey groups work by owner so ordering is preserved per owner
@@ -43,34 +57,87 @@ func shardIndexForDocUpdate(partitionKey string, shardCount int) int {
 	return int(h.Sum32() % uint32(shardCount))
 }
 
-// enqueueOutboundDocUpdate routes to a shard FIFO. If that shard is full, delivers synchronously and acks immediately.
+// enqueueOutboundDocUpdate hands a message to its owner's shard FIFO, waiting for
+// room rather than going around the queue.
+//
+// Waiting is what keeps the partition in order, and it cannot deadlock: delivery
+// never blocks on a slow client — a full client buffer costs that recipient its
+// copy — so a worker always drains. Intake for this shard slows while an owner is
+// busy, which is the back-pressure the queue is for.
+//
+// A wait holds an unacknowledged message, so it renews the ack deadline as it
+// goes. Without that, a wait longer than the consumer's AckWait has the server
+// redeliver a message this process is still holding, and both copies reach the
+// browser.
 func (s *Server) enqueueOutboundDocUpdate(ctx context.Context, collectionScopedDocID, subject string, msg jetstream.Msg) {
-	payloadCopy := append([]byte(nil), msg.Data()...)
+	position := streamPosition(msg)
 	shards := s.docUpdateOutboundShards
 	if len(shards) == 0 {
-		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
+		payloadCopy := append([]byte(nil), msg.Data()...)
+		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy, position)
 		finishReplicaFanoutOperation(ctx, "doc update", collectionScopedDocID, subject, outcome, nil)
 		return
 	}
-	key := outboundDocPartitionKey(collectionScopedDocID, payloadCopy)
+	key := outboundDocPartitionKey(collectionScopedDocID, msg.Data())
 	idx := shardIndexForDocUpdate(key, len(shards))
-	select {
-	case shards[idx] <- docUpdateWork{
+	work := docUpdateWork{
 		ctx:                   ctx,
 		msg:                   msg,
 		collectionScopedDocID: collectionScopedDocID,
 		subject:               subject,
-	}:
-		// Shard worker delivers, acks, and emits the consolidated outcome log.
-	default:
-		logs.WarnCtx(ctx, "doc update outbound shard queue full; delivering synchronously",
-			"doc_id", collectionScopedDocID,
-			"shard", idx,
-			"partition", key,
-			"shard_queue_cap", config.DocUpdateOutboundShardQueueCap)
-		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
-		finishReplicaFanoutOperation(ctx, "doc update", collectionScopedDocID, subject, outcome, nil)
+		position:              position,
 	}
+
+	select {
+	case shards[idx] <- work:
+		// Shard worker delivers and emits the consolidated outcome log.
+		return
+	default:
+	}
+
+	logs.WarnCtx(ctx, "doc update outbound shard queue full; waiting for room",
+		"doc_id", collectionScopedDocID,
+		"shard", idx,
+		"partition", key,
+		"shard_queue_cap", config.DocUpdateOutboundShardQueueCap)
+
+	// Counted while parked: a message here has left the stream and is not yet in a
+	// shard, so a drain that only looked at the queues and the workers would call
+	// itself finished and close the sockets this message is for.
+	s.outboundWaitingForRoom.Add(1)
+	defer s.outboundWaitingForRoom.Add(-1)
+
+	renew := time.NewTicker(natslogic.DocUpdateAckRenewInterval)
+	defer renew.Stop()
+	for {
+		select {
+		case shards[idx] <- work:
+			return
+		case <-renew.C:
+			eipnats.InProgressMessage(ctx, msg)
+		case <-ctx.Done():
+			// The same answer as a shutdown, for the same reason: what is held here
+			// reaches nobody if it is simply dropped.
+			s.deliverLateOutboundDocUpdate(ctx, collectionScopedDocID, subject, msg, position)
+			return
+		case <-s.shutdownChan:
+			s.deliverLateOutboundDocUpdate(ctx, collectionScopedDocID, subject, msg, position)
+			return
+		}
+	}
+}
+
+// deliverLateOutboundDocUpdate delivers a message that never found room, out of
+// its owner's order.
+//
+// This container's durable is deleted at the start of a drain, and the consumer
+// delivers from new, so nothing would redeliver a message given up on here — it
+// would simply be lost. Delivering it late to whatever sockets remain is the
+// better of the two, and order stops meaning anything once the process is going
+// away.
+func (s *Server) deliverLateOutboundDocUpdate(ctx context.Context, collectionScopedDocID, subject string, msg jetstream.Msg, position uint64) {
+	outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, append([]byte(nil), msg.Data()...), position)
+	finishReplicaFanoutOperation(ctx, "doc update", collectionScopedDocID, subject, outcome, nil)
 }
 
 func (s *Server) runDocUpdateOutboundShardWorker(shard int) {
@@ -95,7 +162,7 @@ func (s *Server) runDocUpdateOutboundShardWorker(shard int) {
 					ctx = context.Background()
 				}
 				payload := append([]byte(nil), w.msg.Data()...)
-				outcome := s.deliverOutboundDocUpdate(ctx, w.collectionScopedDocID, payload)
+				outcome := s.deliverOutboundDocUpdate(ctx, w.collectionScopedDocID, payload, w.position)
 				finishReplicaFanoutOperation(ctx, "doc update", w.collectionScopedDocID, w.subject, outcome, nil)
 			}()
 		}
@@ -126,7 +193,8 @@ func (s *Server) flushOutboundShards(ctx context.Context) {
 	t := time.NewTicker(5 * time.Millisecond)
 	defer t.Stop()
 	for {
-		if s.outboundQueuedCount() == 0 && s.outboundInFlight.Load() == 0 {
+		if s.outboundQueuedCount() == 0 && s.outboundInFlight.Load() == 0 &&
+			s.outboundWaitingForRoom.Load() == 0 {
 			logs.DebugCtx(ctx, "outbound shard flush complete")
 			return
 		}
@@ -135,7 +203,8 @@ func (s *Server) flushOutboundShards(ctx context.Context) {
 			logs.WarnCtx(ctx, "outbound shard flush interrupted",
 				"error", ctx.Err(),
 				"queued", s.outboundQueuedCount(),
-				"in_flight", s.outboundInFlight.Load())
+				"in_flight", s.outboundInFlight.Load(),
+				"waiting_for_room", s.outboundWaitingForRoom.Load())
 			return
 		case <-t.C:
 		}

@@ -36,7 +36,7 @@ const (
 	// Doc update outbound: sharded queues route by account / corporation / alliance so each shard
 	// preserves FIFO for that scope while different scopes process in parallel (per replica).
 	DocUpdateOutboundShardCount    = 32
-	DocUpdateOutboundShardQueueCap = 128 // per shard; inline fallback if a shard is full
+	DocUpdateOutboundShardQueueCap = 128 // per shard; intake waits for room when one fills
 
 	// Session handoff timing; keep in sync with frontend reconnect constants.
 	WSReconnectMaxMS        = 20_000

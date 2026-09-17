@@ -69,7 +69,7 @@ func NackMessage(ctx context.Context, msg jetstream.Msg) {
 }
 
 // InProgressMessage extends the ack deadline; failure is logged and processing continues.
-func inProgressMessage(ctx context.Context, msg jetstream.Msg) {
+func InProgressMessage(ctx context.Context, msg jetstream.Msg) {
 	if msg == nil {
 		return
 	}

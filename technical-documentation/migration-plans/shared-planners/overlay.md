@@ -379,7 +379,7 @@ action refuses the same case, so the rule does not depend on a call site remembe
 **The list is edited where it is read.** `PUT /api/v1/planners/{owner}/settings` takes a
 `SettingsUpdate` naming only the settings that changed, so a member editing one setting does not send
 back a copy of the rest that another member may have moved on from. The write is a `$set` of those
-fields with an `$inc` of `_meta.version` beside it, and stamps the writing session and tab. A planner
+fields with an `$inc` of `_meta.revision` beside it, and stamps the writing session and tab. A planner
 with no settings document is refused rather than given one: the document is written when the planner is,
 so its absence means there is no planner.
 
@@ -506,7 +506,7 @@ segment. A writer that addresses documents across collections builds the id thro
 `StoredDocumentID`, so it cannot upsert a bare-id copy of a document it meant to update. The stored id
 also carries a deleted document's owner, so a delete with no preimage still routes to the planner.
 
-**Every user write counts itself.** `_meta.version` is incremented by `SetVersionedDocument`, which
+**Every user write counts itself.** `_meta.revision` is incremented by `SetDocumentWithRevision`, which
 sets `_meta` by path — Mongo refuses `$set` of a subdocument alongside `$inc` of a path inside it, and
 setting the block whole would reset the counter to whatever the request body held. Server-side
 rewrites — schema maintenance, the statistics rebuild, the SDE import — do not count.
@@ -519,7 +519,7 @@ from them — refusing when nothing was recorded. `dropReleaseBackups` removes t
 
 **The id rewrite is a fan-out, and the release gates on it.** `eip cli -- rewriteOwnerScopedIDs`
 enumerates the owners holding bare-id documents and queues one worker task each; a task inserts each
-document under its new id, seeds `_meta.version`, then removes the old one, and a duplicate key on the
+document under its new id, seeds `_meta.revision`, then removes the old one, and a duplicate key on the
 insert means a previous run got that far. Re-running with `--dry-run` reports the work remaining,
 because the selector is the id's own shape. `prepareRelease` does not perform the rewrite; its last
 gate fails if any bare id is left.
@@ -585,6 +585,23 @@ elsewhere. A newly joined account likewise does not reach its planner until its 
 derived. Also owed: the group template collections joining the id rewrite once they carry an owner
 block.
 
+## Statistics are read for the planner the path names
+
+*Landed.*
+
+`/api/v1/statistics/{owner}/{view}` reads the figures of the planner in the path. `requireOwnedBySession`
+resolves that owner, checks the account's membership rows against it, and now answers with the owner
+rather than a bare yes — the three views and the recalculation state all read what it returns.
+
+They did not before: the gate checked the planner while every read below it was scoped to the calling
+account, so a member of a shared planner was refused nothing and shown nothing. Returning the owner is
+what stops the two drifting apart again, since a caller can no longer resolve it a second time and
+differently.
+
+Covered by `TestLive_aSharedPlannerIsReachedByItsMembers` in
+`services/api/v1endpoints/statistics/live_scope_test.go`, which seeds a planner-owned row, joins an
+account by membership and reads it back.
+
 ## Stage F — ESI providers
 
 *Not landed.*
@@ -648,12 +665,118 @@ the new planner's name on the old planner's job, which is the defect it was writ
 
 A load answers from a snapshot and writes it whole, so a change delivered over the socket while the
 load was in flight is rolled back by it. The window is the length of the two requests, and it is the
-same shape the reconnect reload has always had; what the position in G2 is for is making a delivery and
-a snapshot comparable, which is what would close it.
+same shape the reconnect reload has always had. The position G2 added orders deliveries against each
+other; what would close this is a load that reports the position it read at, so a delivery and a
+snapshot become comparable — an endpoint change, and not part of G2.
+
+**A delivery carries its place in the stream, and that is what decides whether it applies.** The server
+puts JetStream's stream sequence on every document frame as `position`; the client holds one per
+document and applies a change only when it is beyond what that document has already had. A redelivery
+repeats its position exactly, which is what makes an apply idempotent — a stamp read off the document
+never could be.
+
+A delete carries one as readily as an upsert, which is the point. The cursor it replaces was
+`_meta.lastModified`, and a delete has no stamp of its own, so those paths reached for `Date.now()` and
+left one comparison deciding between a browser clock and a server clock. Restoring an archived job
+writes the same id back, so an account whose clock ran ahead watched the restore be discarded. The
+job-document queue compares positions for the same reason: a delete used to beat a queued upsert
+unconditionally, which swallowed a restore that landed in the same flush window.
+
+A message with no position — an older server, or metadata that could not be read — applies rather than
+being discarded, on both sides of the wire. An HTTP load forgets the positions for the collections it
+replaced, because a snapshot is not something the stream can place.
+
+**A resume is answered from where the client got to.** `session_resume` carries the furthest position
+the tab applied, and the server compares it with the last message published for each tenant that
+connection reads — its account's own and whatever its session grants reach. `skipDocumentLoad` is the
+answer to that comparison rather than an assertion that the handoff was found, which is what it was:
+the handoff says the subscriptions moved across and says nothing about the gap.
+
+Per tenant rather than stream-wide, because lock events share the stream with document changes and a
+stream-wide comparison would report a gap every time anybody anywhere took a lock. The tenants come
+from the connection rather than from the message, so a client cannot ask about a planner it does not
+read.
+
+Every uncertain answer is a gap: an unreadable stream, no stream, a client that has applied nothing.
+Saying a client is current when it is not leaves it holding documents that have moved on with nothing
+to correct it, while the opposite costs two reads. An older client sends no position, which reads as
+nothing applied and so as a load being owed.
+
+What this does not do yet is send what was missed. The client reloads the planner instead, which is
+what G1 made possible; replaying the gap needs a read of the stream from a sequence, and is a further
+slice rather than part of this one.
+
+**A busy owner slows intake rather than losing its order.** `enqueueOutboundDocUpdate` hands a document
+change to its owner's shard queue and waits for room when that queue is full, where it used to deliver
+there and then — putting the newest change ahead of everything already queued for that owner, at the
+moment that owner was busiest. Waiting cannot deadlock, because delivery sends to each client without
+blocking: a full client buffer costs that recipient its copy, so a worker always drains.
+
+Two things follow from holding an unacknowledged message. It renews the acknowledgement deadline as it
+waits, every `DocUpdateAckRenewInterval` against the consumer's `DocUpdateAckWait` — declared together
+in `natslogic` because they are one decision, and pinned by a test that reads the deadline off the
+consumer the server is actually built with, so lowering either is what fails. And it counts itself in
+`outboundWaitingForRoom`, which the drain's flush waits for: a message here has left the stream and is
+in no queue, so a drain counting only queues and workers would close the very sockets it was for.
+
+At shutdown the wait delivers rather than refusing. A drain deletes this container's durable before it
+closes the shutdown channel, and the consumer delivers from new, so a refusal there is a lost change
+rather than a redelivered one — and order stops meaning anything once the process is going away.
+
+**A save leaves the SPA and comes back into it, in a test.** `frontend/src/tests/live/deliveryRoundTrip.live.test.js`
+runs the SPA's own persist path, header assembly, socket client, handlers and store against the real
+websocket service — the Go integration fixture, served by `TestHarnessServe` and standing in for the api
+and the change stream. It needs a Go toolchain and no stack, and runs under `EIP_WS_E2E=1`. Disabling the
+harness's delivery makes it time out, which is what says it is exercising the round trip rather than the
+SPA's own write.
+
+Two things that cost time and are worth knowing. The server checks the `Origin` a browser sends, so a
+jsdom caller is refused unless its document origin is allowed — correct behaviour that reads as a broken
+harness. And `go test` hands the test binary `/dev/null` for stdin, so a harness cannot be held open by a
+pipe; it serves until it is told to stop, with a time to live in case nobody does.
+
+What that file cannot do is be two readers. The store is a module singleton and `vi.resetModules()` does
+not give a second socket client a private one, so both "browsers" write into one store and the second
+asserts against the first one's data — which is what the first version of this test did, passing while
+proving nothing. What two readers see of each other is covered on the server instead, over real sockets,
+by `integration_position_test.go`: two members of a planner are told the same change with the same
+position, and an account outside it is told nothing. Joining both halves needs a browser per process.
+
+Not proven: that the renewal actually prevents a redelivery. The test pins the arithmetic, not the
+behaviour, which needs a live stream and a shard held full past the deadline. The shape looks available
+without a live stack — `testing/natsfake` exists, and `testing/redisfake` now drives a real fake from
+inside a `testing/synctest` bubble, where a thirty-second deadline costs no wall clock — but whether the
+NATS client can be driven from inside a bubble without a real socket is untried.
 
 Owed here: keying the job and group stores by owner rather than replacing one planner's array with
-another's, the fate of the `websocket/sync` package, and the whole of the ordering position, the
-resume that answers from it, and the outbound delivery construction.
+another's, the fate of the `websocket/sync` package, and replaying a gap rather than reloading through
+it.
+
+## The write counter says what it counts
+
+*Landed.*
+
+`_meta.revision` counts writes to a document, which is what a conditional write compares. It was
+`_meta.version`, beside a `SchemaVersion` on every model that means the shape of the document rather
+than how many times it has been written — two numbers, one word. `SetDocumentWithRevision` is the update
+that increments it, and `SeedDocumentRevision` gives a migrated document one so the conditional write
+that will compare it never meets a document without one.
+
+**A document starts at the first revision and is never without one.** Absent and zero read the same to a
+caller and differently to Mongo — a filter on zero does not match a missing field — so a conditional
+write comparing the revision it read would never match a document that had never been counted, failing
+every time rather than conflicting once. Both preserving-meta insert paths take their `$setOnInsert`
+from one place, which is where that default lives, and the release step seeds every document that
+predates it.
+
+The stored key moves with the release: a step renames `_meta.version` on every collection the release
+touches, seeds a first revision where there was no counter under either name, and where a document has
+already been written since the deploy and carries both, removes the stale key rather than renaming it
+onto the newer count. Nothing reads the counter yet, so no behaviour turns on when this runs.
+
+The SPA never read it. What did notice was `testing/fixtures/session-responses/surface.json`, the
+committed shape the SPA checks its parsing against, which failed until it was regenerated — the cross-
+process contract doing exactly what it is for.
 
 ## Decisions taken, with their reasons
 

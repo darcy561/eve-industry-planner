@@ -99,7 +99,7 @@ func (o *outboundDeliveryOutcome) everySkipWasDeliberate() bool {
 // the connections working in it, and a message stating none addresses whoever
 // asked for that document by name — a delete without a preimage, or a producer
 // that named no owner.
-func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedDocID string, messageData []byte) outboundDeliveryOutcome {
+func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedDocID string, messageData []byte, position uint64) outboundDeliveryOutcome {
 	decoded, err := outgoinglogic.DecodeOutboundMessage(messageData)
 	if err != nil {
 		logs.WarnCtx(ctx, "outbound doc update: invalid JSON",
@@ -118,7 +118,7 @@ func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedD
 			ClientID:  decoded.Route.SourceClientID,
 			SessionID: decoded.Route.SourceSessionID,
 		},
-		Frame: outgoinglogic.ClientPayload(messageData, owner, s.entityCipher),
+		Frame: outgoinglogic.ClientPayload(messageData, owner, s.entityCipher, position),
 	}
 
 	switch owner.Kind {

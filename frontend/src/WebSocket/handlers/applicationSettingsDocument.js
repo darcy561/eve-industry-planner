@@ -14,15 +14,15 @@ import {
  *   accountId: string;
  *   docKey: string;
  *   docID: string;
- *   rs: { setCursorMs: (k: string, ms: number) => void };
+ *   rs: { setPosition: (k: string, position: number|null) => void };
  * }} ctx
  * @returns {boolean}
  */
 export function handleApplicationSettingsDocumentDelete(ctx) {
-  const { accountId, docID, docKey, rs } = ctx;
+  const { accountId, docID, docKey, rs, position } = ctx;
   if (docID !== accountId) return false;
 
-  rs.setCursorMs(docKey, Date.now());
+  rs.setPosition(docKey, position);
   useUsersStore
     .getState()
     .applicationSettings.actions.resetApplicationSettingsStore();
@@ -36,13 +36,12 @@ export function handleApplicationSettingsDocumentDelete(ctx) {
  *   docID: string;
  *   document: Record<string, unknown>;
  *   previousDocument?: Record<string, unknown>;
- *   rs: { setCursorMs: (k: string, ms: number) => void };
- *   remoteMs: number;
+ *   rs: { setPosition: (k: string, position: number|null) => void };
  * }} ctx
  * @returns {boolean}
  */
 export function handleApplicationSettingsDocumentUpsert(ctx) {
-  const { accountId, docID, docKey, document, rs, remoteMs } = ctx;
+  const { accountId, docID, docKey, document, rs, position } = ctx;
   if (docID !== accountId) return false;
 
   const prevCloudAccounts =
@@ -63,7 +62,7 @@ export function handleApplicationSettingsDocumentUpsert(ctx) {
     false,
     "websocket/applyApplicationSettings",
   );
-  rs.setCursorMs(docKey, remoteMs);
+  rs.setPosition(docKey, position);
 
   enqueueReconcile(async () => {
     await reconcileAfterRemoteApplicationSettings(prevCloudAccounts);

@@ -28,7 +28,7 @@ func TestClientPayloadStripsRoutingRefs(t *testing.T) {
 	  "document":{"jobID":"job-1"}
 	}`)
 
-	got := string(ClientPayload(in, testOwner, keys.EntityCipher(t)))
+	got := string(ClientPayload(in, testOwner, keys.EntityCipher(t), 0))
 	for _, leaked := range []string{"ownerKey", "corp_abc123", "sourceClientID", "sourceSessionID"} {
 		if strings.Contains(got, leaked) {
 			t.Fatalf("%q survived into the client payload:\n%s", leaked, got)
@@ -52,7 +52,7 @@ func TestClientPayloadPassesThroughWhenThereIsNoOwnerToName(t *testing.T) {
 	t.Parallel()
 	in := []byte(`{"collection":"user_job_documents","docID":"job-1"}`)
 
-	got := ClientPayload(in, models.Owner{}, keys.EntityCipher(t))
+	got := ClientPayload(in, models.Owner{}, keys.EntityCipher(t), 0)
 	if &got[0] != &in[0] {
 		t.Fatal("expected the original slice to be returned unchanged")
 	}
@@ -66,7 +66,7 @@ func TestClientPayloadNamesTheOwnerAsAHandle(t *testing.T) {
 	owner := models.AccountOwner("acct-1")
 	in := []byte(`{"collection":"user_job_documents","docID":"job-1","ownerKey":"account:acct-1"}`)
 
-	got := decodeJSONMap(t, ClientPayload(in, owner, keys.EntityCipher(t)))
+	got := decodeJSONMap(t, ClientPayload(in, owner, keys.EntityCipher(t), 0))
 	if _, present := got["ownerKey"]; present {
 		t.Error("the routing key survived into the client payload")
 	}
@@ -86,7 +86,7 @@ func TestClientPayloadNamesAnOrgOwnerByItsID(t *testing.T) {
 	}
 	in := []byte(`{"collection":"user_job_documents","docID":"job-1"}`)
 
-	got := decodeJSONMap(t, ClientPayload(in, models.CorporationOwner(ref), cipher))
+	got := decodeJSONMap(t, ClientPayload(in, models.CorporationOwner(ref), cipher, 0))
 	if got["owner"] != "corporation:98000001" {
 		t.Errorf("owner = %v, want the corporation's id", got["owner"])
 	}
@@ -104,7 +104,7 @@ func decodeJSONMap(t *testing.T, raw []byte) map[string]any {
 func TestClientPayloadLeavesMalformedJSONAlone(t *testing.T) {
 	t.Parallel()
 	in := []byte(`not json`)
-	if string(ClientPayload(in, testOwner, keys.EntityCipher(t))) != string(in) {
+	if string(ClientPayload(in, testOwner, keys.EntityCipher(t), 0)) != string(in) {
 		t.Fatal("malformed input must pass through rather than be dropped")
 	}
 }
@@ -138,7 +138,7 @@ func TestClientPayloadRestoresIDsInTheDocumentBody(t *testing.T) {
 	  }
 	}`)
 
-	got := ClientPayload(in, testOwner, c)
+	got := ClientPayload(in, testOwner, c, 0)
 	if strings.Contains(string(got), corpRef) || strings.Contains(string(got), charRef) {
 		t.Fatalf("a ref survived into the client payload:\n%s", got)
 	}
@@ -192,7 +192,7 @@ func TestClientPayloadDropsRefsItCannotDecrypt(t *testing.T) {
 
 	in := []byte(`{"collection":"c","document":{"corporation_ref":"` + foreign + `"}}`)
 
-	got := ClientPayload(in, testOwner, c)
+	got := ClientPayload(in, testOwner, c, 0)
 	if strings.Contains(string(got), foreign) {
 		t.Fatalf("an undecryptable ref survived:\n%s", got)
 	}
@@ -218,7 +218,7 @@ func TestClientPayloadWithoutACipherStillRemovesRefs(t *testing.T) {
 	}
 
 	in := []byte(`{"collection":"c","document":{"corporation_ref":"` + ref + `"}}`)
-	got := ClientPayload(in, testOwner, nil)
+	got := ClientPayload(in, testOwner, nil, 0)
 	if strings.Contains(string(got), ref) {
 		t.Fatalf("a ref survived without a cipher:\n%s", got)
 	}
@@ -229,7 +229,7 @@ func TestClientPayloadLeavesNonRefFieldsAlone(t *testing.T) {
 	t.Parallel()
 	in := []byte(`{"collection":"c","document":{"journal_ref_id":77,"some_ref":"not-a-ref","nested":{"other_ref":""}}}`)
 
-	got := ClientPayload(in, testOwner, keys.EntityCipher(t))
+	got := ClientPayload(in, testOwner, keys.EntityCipher(t), 0)
 	var m map[string]any
 	if err := json.Unmarshal(got, &m); err != nil {
 		t.Fatalf("client payload is not valid JSON: %v", err)
@@ -240,5 +240,31 @@ func TestClientPayloadLeavesNonRefFieldsAlone(t *testing.T) {
 	}
 	if doc["some_ref"] != "not-a-ref" {
 		t.Fatalf("some_ref was rewritten: %v", doc["some_ref"])
+	}
+}
+
+// The position tells a client whether a change is one it has already applied, so
+// it has to survive the rewrite that strips routing and restores ids.
+func TestClientPayloadCarriesTheDeliveryPosition(t *testing.T) {
+	t.Parallel()
+	in := []byte(`{"collection":"job_documents","docID":"job-1","document":{"jobID":"job-1"}}`)
+
+	got := decodeJSONMap(t, ClientPayload(in, testOwner, keys.EntityCipher(t), 4242))
+
+	if got["position"] != float64(4242) {
+		t.Fatalf("position = %v, want 4242", got["position"])
+	}
+}
+
+// A message with no metadata to read carries no position rather than a zero one,
+// which a client would otherwise compare against and discard the change.
+func TestClientPayloadLeavesOutAnUnknownPosition(t *testing.T) {
+	t.Parallel()
+	in := []byte(`{"collection":"job_documents","docID":"job-1","document":{"jobID":"job-1"}}`)
+
+	got := decodeJSONMap(t, ClientPayload(in, testOwner, keys.EntityCipher(t), 0))
+
+	if _, present := got["position"]; present {
+		t.Fatalf("position present with nothing to report: %v", got["position"])
 	}
 }

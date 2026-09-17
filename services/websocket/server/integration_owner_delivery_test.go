@@ -36,7 +36,7 @@ func TestIntegrationTheTabThatMadeTheChangeIsNotToldAboutIt(t *testing.T) {
 
 	corp := models.CorporationOwner(wsTestCorpRef(t, 10))
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.echo",
-		docUpdateFrom(t, corp, "echo-doc", writerID, sessionID))
+		docUpdateFrom(t, corp, "echo-doc", writerID, sessionID), 0)
 
 	got := f.readJSONMessage(sibling, 2*time.Second)
 	if got["docID"] != "echo-doc" {
@@ -66,7 +66,7 @@ func TestIntegrationAChangeNamingNoTabSuppressesTheWholeSession(t *testing.T) {
 
 	corp := models.CorporationOwner(wsTestCorpRef(t, 10))
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.task",
-		docUpdateFrom(t, corp, "task-doc", "", writerSession))
+		docUpdateFrom(t, corp, "task-doc", "", writerSession), 0)
 
 	got := f.readJSONMessage(reader, 2*time.Second)
 	if got["docID"] != "task-doc" {
@@ -98,7 +98,7 @@ func TestIntegrationAllianceOwnerReachesAMemberHoldingNoCorporation(t *testing.T
 
 	ally := models.AllianceOwner(wsTestAllianceRef(t, 9))
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.alliance",
-		docUpdateFor(t, ally, "alliance-doc"))
+		docUpdateFor(t, ally, "alliance-doc"), 0)
 
 	got := f.readJSONMessage(conn, 2*time.Second)
 	if got["docID"] != "alliance-doc" {

@@ -14,15 +14,15 @@ import {
  *   accountId: string;
  *   docKey: string;
  *   docID: string;
- *   rs: { setCursorMs: (k: string, ms: number) => void };
+ *   rs: { setPosition: (k: string, position: number|null) => void };
  * }} ctx
  * @returns {boolean} true if handled
  */
 export function handleUsersDocumentDelete(ctx) {
-  const { accountId, docID, docKey, rs } = ctx;
+  const { accountId, docID, docKey, rs, position } = ctx;
   if (docID !== accountId) return false;
 
-  rs.setCursorMs(docKey, Date.now());
+  rs.setPosition(docKey, position);
   console.warn("[websocket] users document delete — session may be invalid");
   return true;
 }
@@ -36,8 +36,7 @@ export function handleUsersDocumentDelete(ctx) {
  *   previousDocument?: Record<string, unknown>;
  *   refreshTokensChanged?: boolean;
  *   linkedCharactersChanged?: boolean;
- *   rs: { setCursorMs: (k: string, ms: number) => void };
- *   remoteMs: number;
+ *   rs: { setPosition: (k: string, position: number|null) => void };
  * }} ctx
  * @returns {boolean}
  */
@@ -51,7 +50,7 @@ export function handleUsersDocumentUpsert(ctx) {
     refreshTokensChanged = false,
     linkedCharactersChanged = false,
     rs,
-    remoteMs,
+    position,
   } = ctx;
   if (docID !== accountId) return false;
 
@@ -80,7 +79,7 @@ export function handleUsersDocumentUpsert(ctx) {
   useUsersStore
     .getState()
     .account.actions.applyUserDocumentFromRemote(document);
-  rs.setCursorMs(docKey, remoteMs);
+  rs.setPosition(docKey, position);
 
   enqueueReconcile(async () => {
     await reconcileAfterRemoteUserDoc(snap, document);

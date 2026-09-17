@@ -55,7 +55,7 @@ func TestClientPayloadKeysMatchTheAPIResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal envelope: %v", err)
 	}
-	wsDoc := decodeJSON(t, ClientPayload(envelope, models.AccountOwner("acct-parity"), cipher))["document"].(map[string]any)
+	wsDoc := decodeJSON(t, ClientPayload(envelope, models.AccountOwner("acct-parity"), cipher, 0))["document"].(map[string]any)
 
 	for _, path := range [][]string{
 		{"build", "costs", "linkedJobs"},

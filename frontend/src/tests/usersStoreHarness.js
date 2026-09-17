@@ -124,11 +124,13 @@ const sliceDefaults = {
   }),
 
   websocketSync: () => ({
-    cursors: {},
+    positions: {},
     actions: {
-      getCursorMs: () => 0,
-      setCursorMs: vi.fn(),
-      setCursorMsBatch: vi.fn(),
+      getPosition: () => 0,
+      getHighestPosition: () => 0,
+      setPosition: vi.fn(),
+      setPositionBatch: vi.fn(),
+      forgetCollection: vi.fn(),
       reset: vi.fn(),
     },
   }),

@@ -35,3 +35,16 @@ func TestDocFanoutConsumerConfigsHaveInactiveThreshold(t *testing.T) {
 		t.Fatalf("lock should start inert FilterSubjects, got subject=%q subjects=%v", lock.FilterSubject, lock.FilterSubjects)
 	}
 }
+
+// A consumer that holds a message while it waits for somewhere to put it has to
+// say it is still working more often than the server waits for the
+// acknowledgement, or the same change is delivered to a browser twice.
+//
+// Read from the consumer the server is actually built with rather than from the
+// constant beside it, so lowering one of the two is what fails.
+func TestTheRenewIntervalStaysUnderTheAckWaitTheConsumerIsBuiltWith(t *testing.T) {
+	_, live := DocLiveUpdatesConsumerConfig()
+	if DocUpdateAckRenewInterval <= 0 || DocUpdateAckRenewInterval >= live.AckWait {
+		t.Fatalf("renewing every %v against an AckWait of %v", DocUpdateAckRenewInterval, live.AckWait)
+	}
+}

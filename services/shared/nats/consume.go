@@ -56,7 +56,7 @@ func Consume(consumer jetstream.Consumer, subject string, processor MessageProce
 	}
 
 	handle := func(msg jetstream.Msg) {
-		inProgressMessage(bg, msg)
+		InProgressMessage(bg, msg)
 		processor(msg)
 	}
 

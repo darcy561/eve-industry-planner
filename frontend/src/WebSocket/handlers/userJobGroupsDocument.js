@@ -10,11 +10,11 @@ import { releaseJobsAfterGroupRemoved } from "../../Functions/Groups/releaseJobs
  * @param {{
  *   docID: string;
  *   docKey: string;
- *   rs: { setCursorMs: (k: string, ms: number) => void };
+ *   rs: { setPosition: (k: string, position: number|null) => void };
  * }} ctx
  */
 export async function handleUserJobGroupDelete(ctx) {
-  const { docID, docKey, rs } = ctx;
+  const { docID, docKey, rs, position } = ctx;
   const { groupArray } = useUsersStore.getState().jobData;
   const actions = useUsersStore.getState().jobData.actions;
   const chosenGroup = groupArray.find((g) => g.groupID === docID);
@@ -29,7 +29,7 @@ export async function handleUserJobGroupDelete(ctx) {
       }),
     );
     actions.clearPendingJobGroupWrites(docID);
-    rs.setCursorMs(docKey, Date.now());
+    rs.setPosition(docKey, position);
     return;
   }
 
@@ -39,7 +39,7 @@ export async function handleUserJobGroupDelete(ctx) {
 
   const next = groupArray.filter((g) => g.groupID !== docID);
   if (next.length === groupArray.length) {
-    rs.setCursorMs(docKey, Date.now());
+    rs.setPosition(docKey, position);
     return;
   }
 
@@ -51,7 +51,7 @@ export async function handleUserJobGroupDelete(ctx) {
 
   actions.replaceGroupArray(next);
   actions.clearPendingJobGroupWrites(docID);
-  rs.setCursorMs(docKey, Date.now());
+  rs.setPosition(docKey, position);
 }
 
 /**
@@ -60,12 +60,11 @@ export async function handleUserJobGroupDelete(ctx) {
  *   docKey: string;
  *   docID: string;
  *   document: Record<string, unknown>;
- *   rs: { setCursorMs: (k: string, ms: number) => void };
- *   remoteMs: number;
+ *   rs: { setPosition: (k: string, position: number|null) => void };
  * }} ctx
  */
 export function handleUserJobGroupUpsert(ctx) {
-  const { docID, docKey, document, rs, remoteMs } = ctx;
+  const { docID, docKey, document, rs, position } = ctx;
   const gid =
     typeof document.groupID === "string" && document.groupID
       ? document.groupID
@@ -85,5 +84,5 @@ export function handleUserJobGroupUpsert(ctx) {
   }
   actions.replaceGroupArray(copy);
   actions.clearPendingJobGroupWrites(gid);
-  rs.setCursorMs(docKey, remoteMs);
+  rs.setPosition(docKey, position);
 }

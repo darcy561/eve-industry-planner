@@ -60,6 +60,7 @@ type Server struct {
 	// JetStream doc.update fan-out: one FIFO per shard (see outbound_doc_update.go).
 	docUpdateOutboundShards []chan docUpdateWork
 	outboundInFlight        atomic.Int64 // work currently inside a shard worker
+	outboundWaitingForRoom  atomic.Int64 // messages taken from the stream, waiting for a shard slot
 
 	// client_id -> sync queue. The queue is what enforces one sync per client.
 	SyncQueues  map[string]*syncpkg.SyncQueue

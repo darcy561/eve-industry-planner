@@ -11,6 +11,9 @@ import (
 func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg []byte) {
 	var resume struct {
 		PreviousClientID string `json:"previousClientID"`
+		// Position is how far the browser had applied. Absent from an older
+		// client, which reads as nothing applied and so as a load being owed.
+		Position uint64 `json:"position"`
 	}
 	if err := json.Unmarshal(msg, &resume); err != nil {
 		finishWSOperationFailure(ctx, client, "session_resume",
@@ -40,7 +43,7 @@ func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg 
 		"previous_client_id": prev,
 	})
 
-	result := s.ApplySessionResume(ctx, client, prev)
+	result := s.ApplySessionResume(ctx, client, prev, resume.Position)
 	if len(result.UnauthorizedDocIDs) > 0 {
 		logs.AttachHandlerCaveatCtx(ctx, "session_resume_unauthorized_docs",
 			"skipped unauthorized doc ids during session resume", map[string]any{
@@ -59,6 +62,7 @@ func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg 
 		"previous_client_id":   prev,
 		"handoff_applied":      result.HandoffApplied,
 		"skip_document_load":   result.SkipDocumentLoad,
+		"resume_position":      result.Position,
 		"restored_doc_count":   len(result.RestoredDocIDs),
 		"ack_delivered":        ackDelivered,
 		"unauthorized_skipped": len(result.UnauthorizedDocIDs),

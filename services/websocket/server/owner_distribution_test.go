@@ -93,7 +93,7 @@ func TestAccountBroadcastReachesOnlyTheOwningAccount(t *testing.T) {
 	}
 
 	payload := docUpdateFor(t, models.AccountOwner(ownerAcct), "job-1")
-	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1", payload)
+	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1", payload, 0)
 
 	// The route kind names the audience that carried it and the owner kind the
 	// owner it addressed, which together say what one field used to.
@@ -126,7 +126,7 @@ func TestAccountBroadcastKeysOnTheOwnerNotTheDocument(t *testing.T) {
 	// The same document id under two owners, as two accounts holding a job with
 	// the same generated id would produce.
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.shared-id",
-		docUpdateFor(t, models.AccountOwner("acct-first"), "shared-id"))
+		docUpdateFor(t, models.AccountOwner("acct-first"), "shared-id"), 0)
 
 	if got := received(t, first); len(got) != 1 {
 		t.Fatalf("the owning account received %v, want one message", got)
@@ -153,7 +153,7 @@ func TestUnreadableOwnerDoesNotBroadcast(t *testing.T) {
 		"no separator":   []byte(`{"collection":"job_documents","docID":"job-2","ownerKey":"account"}`),
 	} {
 		t.Run(name, func(t *testing.T) {
-			out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-2", raw)
+			out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-2", raw, 0)
 			if out.OwnerKind != "" {
 				t.Fatalf("an unreadable owner routed to owner kind %q", out.OwnerKind)
 			}
@@ -179,7 +179,7 @@ func TestAccountBroadcastRefusesAClientIndexedUnderAnotherAccount(t *testing.T) 
 	c.AccountID = "acct-somebody-else"
 
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-3",
-		docUpdateFor(t, models.AccountOwner("acct-owner"), "job-3"))
+		docUpdateFor(t, models.AccountOwner("acct-owner"), "job-3"), 0)
 
 	if got := received(t, c); len(got) != 0 {
 		t.Fatalf("a client holding %q received %v addressed to acct-owner", c.AccountID, got)
@@ -221,7 +221,7 @@ func TestMixedOwnerKindsEachReachOnlyTheirOwn(t *testing.T) {
 	deliver := func(owner models.Owner, docID string) {
 		t.Helper()
 		f.Server.deliverOutboundDocUpdate(context.Background(),
-			"job_documents."+docID, docUpdateFor(t, owner, docID))
+			"job_documents."+docID, docUpdateFor(t, owner, docID), 0)
 	}
 
 	// An account document reaches its account and neither org member.
@@ -294,7 +294,7 @@ func TestOneClientHoldingSeveralKindsReceivesEach(t *testing.T) {
 		{models.Owner{Kind: models.OwnerAlliance, ID: unheldAlly}, "other-alliance", false},
 	} {
 		f.Server.deliverOutboundDocUpdate(context.Background(),
-			"job_documents."+tc.docID, docUpdateFor(t, tc.owner, tc.docID))
+			"job_documents."+tc.docID, docUpdateFor(t, tc.owner, tc.docID), 0)
 
 		got := received(t, c)
 		if tc.want && (len(got) != 1 || got[0] != tc.docID) {
@@ -317,7 +317,7 @@ func TestCorporationScopeReachesEveryMember(t *testing.T) {
 	two := f.orgClient("member-two", "acct-two", []string{corpRef}, nil)
 
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.shared",
-		docUpdateFor(t, models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, "shared"))
+		docUpdateFor(t, models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, "shared"), 0)
 
 	for _, c := range []*Client{one, two} {
 		if got := received(t, c); len(got) != 1 || got[0] != "shared" {
@@ -340,7 +340,7 @@ func TestAllianceScopeReachesAClientHoldingNoCorporationKey(t *testing.T) {
 	}
 
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.ally-doc",
-		docUpdateFor(t, models.Owner{Kind: models.OwnerAlliance, ID: allyRef}, "ally-doc"))
+		docUpdateFor(t, models.Owner{Kind: models.OwnerAlliance, ID: allyRef}, "ally-doc"), 0)
 
 	if got := received(t, c); len(got) != 1 || got[0] != "ally-doc" {
 		t.Fatalf("an alliance-planner client received %v, want [ally-doc]", got)
@@ -365,7 +365,7 @@ func TestCorporationScopeRefusesAClientLeftInThePool(t *testing.T) {
 	c.Scopes = nil
 
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.stale",
-		docUpdateFor(t, models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, "stale"))
+		docUpdateFor(t, models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, "stale"), 0)
 
 	if got := received(t, c); len(got) != 0 {
 		t.Fatalf("a client that no longer holds %s received %v", corpRef, got)
@@ -432,7 +432,7 @@ func TestDeliveryPathsSuppressTheTabThatMadeTheChange(t *testing.T) {
 
 			f.Server.deliverOutboundDocUpdate(context.Background(),
 				"job_documents."+tc.docID,
-				docUpdateFrom(t, tc.owner, tc.docID, writer.id, session))
+				docUpdateFrom(t, tc.owner, tc.docID, writer.id, session), 0)
 
 			if got := received(t, writer); len(got) != 0 {
 				t.Fatalf("the tab that made the change received %v back", got)
@@ -457,7 +457,7 @@ func TestOwnerWalkFallsBackToSuppressingTheWholeSession(t *testing.T) {
 	otherMember.SessionID = "sess-other"
 
 	f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.corp-doc",
-		docUpdateFrom(t, models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, "corp-doc", "", "sess-writer"))
+		docUpdateFrom(t, models.Owner{Kind: models.OwnerCorporation, ID: corpRef}, "corp-doc", "", "sess-writer"), 0)
 
 	if got := received(t, writerSession); len(got) != 0 {
 		t.Fatalf("a tab of the originating session received %v back", got)
@@ -482,7 +482,7 @@ func TestADocumentIsHeldBackFromAClientMidSync(t *testing.T) {
 	syncing.SyncMu.Unlock()
 
 	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1",
-		docUpdateFor(t, models.AccountOwner("acct-owner"), "job-1"))
+		docUpdateFor(t, models.AccountOwner("acct-owner"), "job-1"), 0)
 
 	if len(out.SkippedSyncClientIDs) != 1 || out.SkippedSyncClientIDs[0] != syncing.id {
 		t.Fatalf("sync skips = %v, want [%s]", out.SkippedSyncClientIDs, syncing.id)
@@ -532,7 +532,7 @@ func TestByNameDeliveryRefusesAClientLeftInTheIndex(t *testing.T) {
 
 	// A message stating no owner is the one that addresses by-name subscribers.
 	out := f.Server.deliverOutboundDocUpdate(context.Background(), scoped,
-		docUpdateFor(t, models.Owner{}, "watched-doc"))
+		docUpdateFor(t, models.Owner{}, "watched-doc"), 0)
 
 	if out.RecipientCount != 0 {
 		t.Fatalf("recipients = %d, want nothing delivered", out.RecipientCount)
@@ -576,7 +576,7 @@ func TestAnOwnerWithNoIDIsReportedRatherThanEmpty(t *testing.T) {
 func TestAnUndeliverableDocumentIsReportedOnTheOutcome(t *testing.T) {
 	f := newIntegFixture(t)
 
-	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1", []byte(`{not json`))
+	out := f.Server.deliverOutboundDocUpdate(context.Background(), "job_documents.job-1", []byte(`{not json`), 0)
 	if out.Undeliverable != "unreadable_message" {
 		t.Fatalf("undeliverable = %q, want unreadable_message", out.Undeliverable)
 	}

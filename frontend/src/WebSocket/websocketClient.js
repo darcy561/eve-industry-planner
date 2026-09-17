@@ -246,6 +246,12 @@ export function connectWebsocket(params) {
             JSON.stringify({
               type: "session_resume",
               previousClientID: sessionResumePreviousId,
+              // How far this tab had applied. The server answers whether it may
+              // keep what it holds by comparing this with what was published
+              // while the socket was down.
+              position: useUsersStore
+                .getState()
+                .websocketSync.actions.getHighestPosition(),
             }),
           );
           const resumeAck = await Promise.race([

@@ -5,8 +5,8 @@ import { activePlannerStoreState } from "./utils.js";
 const storeState = activePlannerStoreState();
 storeState.websocketSync = {
   actions: {
-    getCursorMs: () => 0,
-    setCursorMs: () => {},
+    getPosition: () => 0,
+    setPosition: () => {},
   },
 };
 
