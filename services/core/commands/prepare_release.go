@@ -74,6 +74,9 @@ var releases = []release{{
 		// not a fallback.
 		{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
 		{name: "queue every account for rebuild", run: queueEveryAccountForRebuild},
+		// The SDE writes its own documents, so a release that changes their shape
+		// asks for them to be written again rather than reaching into them.
+		{name: "rebuild the current SDE version", run: rebuildCurrentSDEVersion},
 		// After the owner stamp, because a planner's id is the owner key those
 		// documents now carry; before the grants below, which are derived from the
 		// membership rows this writes.

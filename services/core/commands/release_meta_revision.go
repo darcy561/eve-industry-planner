@@ -11,8 +11,15 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// ensureMetaRevision leaves every document carrying a `_meta` block with a write
+// ensureMetaRevision leaves every document the release touches carrying a write
 // counter at `_meta.revision`, moved from `_meta.version` where there was one.
+//
+// Only the collections a user's writes reach. Anything a task reproduces —
+// the SDE's blueprints, the statistics a recalculation rewrites — gets its
+// counter from the write that reproduces it, which is a step of its own further
+// down. Retired collections get nothing: `build_stats` is left behind for the
+// recalculation to reproduce, and a counter on data nothing writes says the
+// opposite of what is true.
 //
 // The counter says how many times a document has been written, which a
 // conditional write compares; `version` read as the shape of the document, which

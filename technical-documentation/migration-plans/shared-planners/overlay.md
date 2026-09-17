@@ -783,6 +783,13 @@ touches, seeds a first revision where there was no counter under either name, an
 already been written since the deploy and carries both, removes the stale key rather than renaming it
 onto the newer count. Nothing reads the counter yet, so no behaviour turns on when this runs.
 
+That step walks only what a user's writes reach. A collection some task reproduces is not migrated but
+rebuilt: the release asks for the current SDE version to be built again, and the blueprints come back
+through the writer that owns them, carrying whatever a new document is owed. Reaching into those
+documents instead would mean the migration holding a second opinion about their shape, and the two
+would drift. Retired collections get neither — `build_stats` is left for the recalculation to reproduce
+into `statistics_totals`.
+
 The SPA never read it. What did notice was `testing/fixtures/session-responses/surface.json`, the
 committed shape the SPA checks its parsing against, which failed until it was regenerated — the cross-
 process contract doing exactly what it is for.
