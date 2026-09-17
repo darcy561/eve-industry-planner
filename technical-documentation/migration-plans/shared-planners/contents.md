@@ -62,6 +62,8 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | Understand why two members take two different locks on one job | [plan.md](./plan.md) § Stage H |
 | Know what happens to same-account force-release once the lock is planner-wide | [plan.md](./plan.md) § Stage H |
 | Decide where the websocket's grant ceiling is read from | [plan.md](./plan.md) § Stage I |
+| See what the SPA assumes about being the only writer, and what has to be decided before that changes | [plan.md](./plan.md) § Stage J |
+| Know what happens when another member changes a planner setting | [overlay.md](./overlay.md) § Stage G |
 | Know how a document states its owner today | [overlay.md](./overlay.md) § Stage A — The owner block cutover |
 | Know what the pricing-defaults backfill will actually find | [measurements/pricing-defaults-backfill.md](./measurements/pricing-defaults-backfill.md) |
 | Know what the extras categories backfill found, and on how many accounts | [measurements/extras-categories-backfill.md](./measurements/extras-categories-backfill.md) |

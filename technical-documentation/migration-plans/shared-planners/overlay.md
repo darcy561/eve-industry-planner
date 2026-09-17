@@ -37,8 +37,10 @@ filter naming a dead field matches nothing and reports no error.
 **Delivery.** `ChangeStreamMessage` carries one `OwnerKey` in place of the three route fields, and the
 websocket parses it back into an owner for routing and hosted-tenant filtering.
 
-**On the wire.** The owner does not leave the server: it is `json:"-"` on `MetaData`, and the SPA
-strips `_meta.owner` from anything it sends, which a client-side test pins.
+**On the wire.** The owner does not leave the server by the API: it is `json:"-"` on `MetaData`, and
+the SPA strips `_meta.owner` from anything it sends, which a client-side test pins. A change delivery
+is the exception, and an unintended one — the watcher copies `_meta` as a raw map, where the json tag
+means nothing — see [plan.md](./plan.md) § Stage G, G5.
 
 **The release path.** `tasks prepareRelease` carries every step this release owes, oldest version
 first, and is safe to re-run: a step with nothing to do reports zero. Schema maintenance and the owner
@@ -611,7 +613,8 @@ does not offer that a custom one does.
 
 ## Stage G — Realtime state under more than one writer
 
-*Partly landed: a planner is loaded when the app enters it.*
+*Partly landed: a planner is loaded when the app enters it, and its settings stay current while it is
+open.*
 
 **The job store holds one planner, and `loadPlannerDocuments` is what puts a planner in it.** It
 lives in `frontend/src/Functions/DocumentLoad/` beside `loadAccountDocuments`, which loads the account's
@@ -757,6 +760,20 @@ that already carry the owner instead.
 `skipWhileSyncing` went with it. It was the one per-family gate in the delivery table, held a document
 change back from a client rebuilding its state, and never fired because nothing ever set the flag it
 read. What a client that is behind gets now is the resume telling it so, and a load.
+
+**A settings change reaches the members it is for.** `planner_settings` was watched, routed and
+delivered, and then dropped on arrival — `documentMessage.js` knew jobs, groups and the deprecated
+watchlist and let everything else fall out of the bottom, so a category one member added reached
+another only on their next read. It has a handler now, in `WebSocket/handlers/plannerSettingsDocument.js`.
+
+Two things about it differ from the collections beside it. The settings store keys by owner and holds
+every planner at once, so the active-planner check the job and group stores need is not applied: a
+member is told about a planner they are not working in, and there is somewhere to put it. And the owner
+comes from the delivery's `owner` handle, never from its `docID` — a settings document's `_id` is the
+owner *key*, which spells a corporation as the ref a client never sees, so for the two org kinds the
+two strings differ. A delivery arriving while an edit is still on its way to the server is read and
+its position recorded, but not applied, for the reason a read of the same settings is dropped: the held
+edit is ahead of it.
 
 Owed here: keying the job and group stores by owner rather than replacing one planner's array with
 another's, and replaying a gap rather than reloading through it.

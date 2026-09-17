@@ -1773,12 +1773,11 @@ have nothing to put the pre-release lists back from.
 **Wire compatibility:** additive. `PUT` is a new method on an existing route, and no stored shape
 changed.
 
-**Still open, deliberately.** A category one member adds does not reach another member's open session:
-`planner_settings` is watched, but `documentMessage.js` has no handler for it, and adding one is Stage
-G's realtime work rather than this stage's. Until then a reader sees the new category on their next
-read of the settings. The SPA's `PLANNER_HELD_COLLECTIONS` mirror in `documentMessage.js` is also two
-entries short of `PlannerHeldCollections()` — `jobs` and `planner_settings` — which matters only once
-something consumes either message.
+**Deferred to Stage G, and landed there.** A category one member added used to reach another member
+only on their next read of the settings; `documentMessage.js` now routes `planner_settings` to a
+handler of its own. The SPA's `PLANNER_HELD_COLLECTIONS` is still one entry short of
+`PlannerHeldCollections()` — `jobs` — and the gap is now deliberate rather than an oversight: that set
+names the collections the store holds for one planner at a time, which the settings are not.
 
 #### Order
 
@@ -2082,10 +2081,36 @@ queued for that owner — recorded as preserving ordering at the cost of back-pr
 opposite and did it exactly when an owner was busiest. It waits for room instead, and what that costs in
 held messages and drain accounting is in [overlay.md](./overlay.md) § Stage G.
 
+**G5 — a settings change reaches the members it is for.** *Landed.* `planner_settings` was watched,
+routed and delivered, and then dropped on arrival: `documentMessage.js` handled jobs, groups and the
+deprecated watchlist and let everything else fall out of the bottom. A category one member added
+reached another only on their next read. It now has a handler, which writes the delivered document into
+the settings store under the owner the delivery names.
+
+Two things about that keying are worth recording, because they are not what the other collections do.
+The store holds settings per owner and can hold every planner's at once, so the active-planner guard
+the job and group stores need is deliberately not applied — a member is told about a planner they are
+not currently working in, and the store has somewhere to put it. And the owner is taken from the
+delivery's `owner` handle rather than from its `docID`: a settings document is stored under the owner
+*key*, which spells a corporation as the ref a client never sees, so for the two org kinds the two
+strings are not the same.
+
+That second point is also an observation this stage did not act on. Because the `_id` is the owner key
+and `BareDocumentID` only strips what sits before a `|`, the ref reaches the browser as the delivery's
+`docID` and again as `document._id` — `restoreEntityIDs` rewrites keys ending `_ref`/`Ref` and neither
+of those does. `document._meta.owner.id` is a third: `MetaData.Owner` is hidden from the API by
+`json:"-"`, but the watcher copies the stored `_meta` as a raw map, where that tag means nothing. So
+this is not particular to settings — every delivered document from an org-owned planner carries it. It is opaque ciphertext and nothing reads it, so it is a hygiene question rather than a
+live defect, but `routingOnlyFields` says a browser "should not learn" refs and
+`TestOwnerHandleKeepsRefsOffTheWire` exists to hold that line. The planner document has the same shape.
+Deciding what a delivery should carry as the id of an owner-keyed document belongs with the wire
+questions, not with this slice.
+
 **Order.** G1 first: it stands alone, it is what Stage E is waiting on, and its decision about the
 `sync` package shapes what G3 resumes into. G2 before G3, which needs its position. G4 is independent
 and can land whenever — it is a correctness fix to something that is already wrong for a single writer
-under load.
+under load. G5 is independent of all of them: it touches one collection nothing else in this stage
+reads.
 
 #### Decisions this stage cannot take on its own
 
@@ -2474,7 +2499,7 @@ is ready for the window.
 | Surface | Change |
 |---------|--------|
 | `_meta` owner block | **migrate-required** — one cutover; no forward-compatible shape. Rollback is `revertRelease` over the copies the release takes first — see § Live data, and the cutover window |
-| `_meta` on the wire | **not breaking** — the owner never leaves the server, and `accountID` had one SPA reader that already falls back to the store, so the client change is a deletion |
+| `_meta` on the wire | **not breaking** — the owner does not leave the server by the API, and `accountID` had one SPA reader that already falls back to the store, so the client change is a deletion. A change delivery carries `_meta.owner` regardless, which § Stage G, G5 records |
 | `ChangeStreamMessage` scope fields | **Landed** as one `ownerKey`, replacing the three. Breaking core to websocket only; internal, and both ship in the same window. JetStream holds `doc.update` for an hour, so the two shapes must not be split across deploys — see [archived-jobs-stats](../accounts-page/archived-jobs-stats/overlay.md) § How a change reaches the right clients |
 | `ArchivedJobStats` owner | **migrate-required** — same window |
 | Collection names, document ids | **migrate-required**; client-facing via changestream groups and the subscribe allow-list, which are small and account-based today and move with the rename |
@@ -2620,22 +2645,21 @@ do not touch.
 | D — what a second member breaks | **Landed.** D1 recalculation keeping a job's build context — a live defect on personal planners, now fixed. D2 is handled server-side already; the retry-queue defect it uncovered is [document-write-granularity](../document-write-granularity/plan.md) § Stage B. D3 the extras categories, which turned out to need a settings write path as well as a picker: the list is the planner's, edited through `PUT /planners/{owner}/settings`, and the account's copy stops being edited. Job statuses needed nothing, their id space already being a frozen catalog. See § Stage D — what a second member breaks |
 | E — custom planners | **Partly landed.** In: the planner settings document (seeded by value from the creating account, planner-held and watched), one write path for every planner, the planners listing, corporation planner creation with its name looked up server-side and NPC corporations refused, the `active_planner` message with the ceiling intersection and its restore across a reconnect, the owner handle on every delivered document, a client switcher that moves the header on every scoped request and the owner in every scoped query key alongside the connection, and invites as Redis records with the join path that redeems them. Outstanding: the revocation path, which waits on the session-record work that owns the grants ceiling. Keying the job and group stores by owner needs the owner-scoped document load and runs with Stage G. See § Stage E and [overlay.md](./overlay.md) § Stage E |
 | F — ESI providers | **F1 landed.** Corporation and alliance membership rows are reconciled from the ids ESI reports, at login and on the cloud token sweep, completing a task that read as finished and wrote no rows. A row grants while it exists and nothing expires one: a revoked token is a positive answer the reconcile acts on, and a two-year dormant account is cleared by `InactiveAccountPlannerCleanup`. Owed: reshaping when the grant task fires and how it resolves, and access lists |
-| G — realtime state under more than one writer | **Partly landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Also in: G2, the ordering position — a delivery carries its place in the stream, the client holds one per document and applies only what is beyond it, and a delete carries a position as readily as an upsert. And G4, the delivery construction — a full shard waits for room instead of overtaking what is queued for that owner, renewing the acknowledgement deadline while it waits and counting itself in the drain. Also in: G3 — a resume carries how far the tab applied and is answered by comparing it with what was published for the tenants that connection reads, rather than asserting that nothing happened. Also in: the `websocket/sync` package and `skipWhileSyncing` are removed, which closes what G1 carried. Outstanding: whether the stores should hold more than one planner at once, and replaying a gap rather than reloading through it. The `lastModified` cursor, the account-shaped document load and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped document load — see § Stage G |
+| G — realtime state under more than one writer | **Partly landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Also in: G2, the ordering position — a delivery carries its place in the stream, the client holds one per document and applies only what is beyond it, and a delete carries a position as readily as an upsert. And G4, the delivery construction — a full shard waits for room instead of overtaking what is queued for that owner, renewing the acknowledgement deadline while it waits and counting itself in the drain. Also in: G5, a settings change reaching the members it is for — `planner_settings` was delivered and dropped on arrival, and now has a handler that files it under the owner the delivery names rather than the owner key its `_id` carries. Also in: G3 — a resume carries how far the tab applied and is answered by comparing it with what was published for the tenants that connection reads, rather than asserting that nothing happened. Also in: the `websocket/sync` package and `skipWhileSyncing` are removed, which closes what G1 carried. Outstanding: whether the stores should hold more than one planner at once, and replaying a gap rather than reloading through it. The `lastModified` cursor, the account-shaped document load and the asserting `session_resume` are all single-writer assumptions, and each becomes a defect on a shared planner. Absorbs what survived the retired websocket-realtime project. Now also carries keying the job and group stores by owner, which waits on the owner-scoped document load — see § Stage G |
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. Owed: the websocket's dependency on the client naming its planner — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
 | J — the SPA stops assuming it is the only writer | **Not started, and newly scoped.** The client work in this project was a dropdown to prove the backend, which is what it was for; converting the planner into something two people can work in was never planned. An audit found four groups: a page that reads the store once and keeps its own copy, a write built from a snapshot with no precondition, a scope that is still the reader's account rather than the planner, and copy that calls another member "another tab". Four decisions come before any of it — what a reader sees when someone else changes their screen, whether a shared planner has roles, whether identity is shown, and how much belongs to document-write-granularity instead. See § Stage J |
 
 ## Recommended pickup order
 
-**Stage H next.** The document lock is the last blocker of the same class as Stage D: two members of
-one planner take two keys for one job and neither contends, so a planner holding two people corrupts
-work rather than refusing it. It is self-contained backend work and does not collide with Stage G.
+**What is left of Stage G next.** Its four slices are in and so is the settings propagation it owed, so
+what remains is the two questions those slices deferred — whether the stores should hold more than one
+planner at once, and whether a gap is replayed or reloaded through — plus keying the job and group
+stores by owner, which Stage E owes and nothing else unblocks.
 
-**Stage G if the larger unknown is worth clearing first.** It absorbs what survived the retired
-websocket-realtime project, and it unblocks two things nothing else will: keying the job and group
-stores by owner, which Stage E owes, and live propagation of a settings change between members —
-`planner_settings` is watched, but `documentMessage.js` has no handler for it, so a category one member
-adds reaches another only on their next read.
+**Then what Stage H owes.** The lock itself is done — key namespace, waitlist account, fan-out and
+filters — and what is left is the websocket's dependency on the client naming its planner, a smaller
+and better-understood piece than anything remaining in Stage G.
 
 The rest are blocked or parked. Stage E's revocation path waits on the session-record work that owns
 the grants ceiling; Stage F owes the grant-task reshaping and access lists; Stage I is a decision that
