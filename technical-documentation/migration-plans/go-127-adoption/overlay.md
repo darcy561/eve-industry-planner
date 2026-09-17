@@ -24,7 +24,37 @@ _Not started._ One row per boundary once decided — Redis blobs, asynq / NATS p
 
 ## Track B — Simulated-time tests
 
-_Not started._ Record here: which tests moved to `testing/synctest`, and the outcome of the Redis seam decision.
+**The seam.** [`redisfake.NewForBubble`](../../../testing/redisfake/redisfake.go) gives a test a fake
+Redis it can drive from inside a bubble, over `net.Pipe` rather than a socket. It is called outside the
+bubble and used inside. `Advance` moves the bubble's clock and the fake's own clock together in steps:
+they are two clocks, and sleeping the whole span first would let a renewal loop run many times against
+a store where no time had passed, so a lease under test would never expire.
+
+Warming the pool is part of the seam, not an optimisation. go-redis keeps a **package-level
+`sync.Pool` of timers** that its connection semaphore reaches for only when a caller has to wait for a
+connection. A timer taken inside one bubble returns to that shared pool and is reused by the next
+test's bubble, aborting the run with *"select on synctest channel from outside bubble"*. Each test
+passed alone and the pair failed together until the pool was warmed to `bubbleConns`, which keeps every
+acquire on the fast path where no timer is taken. This is why pinning `PoolSize: 1`, which the plan
+first measured as the answer, does not survive a second bubble in the same process.
+
+Connections are warmed one at a time. go-redis races on its own connection setup when several
+goroutines initialise connections together, which `-race` catches with no product code involved.
+
+Polling inside a bubble goes through [`wait.ForTicking`](../../../testing/wait/wait.go), added for
+this: `wait.For` works in a bubble, because its sleep runs on the bubble's clock, but it has no way to
+move a fake's own clock between checks. `ForTicking` takes that tick, and `Advance` has its shape.
+
+**Converted.** [`servicemanager`](../../../services/core/servicemanager/managed_test.go) and
+[`scheduler`](../../../services/core/scheduler/cancel_on_shutdown_test.go) needed no seam;
+[`primarycontroller`](../../../services/core/primarycontroller/controller_test.go),
+[`leadership`](../../../services/core/leadership/failover_test.go) and
+[`singleton`](../../../services/core/singleton/service_test.go) take the bubble fixture.
+
+Measured on `./core/...`, before → after: `primarycontroller` 5.017s → 0.010s, `leadership` 0.331s →
+0.012s, `singleton` 0.408s → 0.020s. The two that keep their seconds are the ones this project's
+non-goals exclude: `primaryhandoff` 5.1s is a real dial timeout against a stopped miniredis, and
+`changestream` 5.0s is a literal sleep in a live-Mongo test.
 
 ## Track C — `go fix` sweep
 

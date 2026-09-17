@@ -1,6 +1,6 @@
 # Go 1.27 adoption — plan
 
-**Status:** Tracks A and B at zero. Track C has landed everything that needs no decision: only 4 files remain, all waiting on Track A or its Phase A3. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
+**Status:** Track A at zero; Track B is done. Track C has landed everything that needs no decision: only 4 files remain, all waiting on Track A or its Phase A3. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
 **Code in scope:** [`services/`](../../../services/) (all areas), [`testing/`](../../../testing/), [`deployment-tool/`](../../../deployment-tool/)
 **Live SoT (until promote):** [backend/core/core.md](../../backend/core/core.md), [backend/api/contents.md](../../backend/api/contents.md), [technical-rules.md](../../technical-rules.md) § Prefer modern Go
 
@@ -146,7 +146,7 @@ against a stopped miniredis, and it is the largest single item in the suite. The
 leads with are ceilings that rarely fire, so they cost little today. `changestream` is different again:
 its 5s is a literal sleep in a live-Mongo test, which this project's non-goals exclude.
 
-Done when: both unblocked targets run under `testing/synctest`, and the `redisfake` bubble constructor exists with the three blocked targets moved onto it.
+Done: both unblocked targets run under `testing/synctest`, and `redisfake.NewForBubble` carries the three that needed the seam — see [overlay.md](./overlay.md) § Track B, including why pinning the pool to one connection did not survive a second bubble.
 
 ## Track C — `go fix` sweep
 
@@ -195,10 +195,11 @@ distinguished the two: its `Job` already builds `[]` where the API sends `null`,
 a collection against `null`. The decision is about what the wire honestly says. It does not reach
 scalars, objects, or genuinely nullable fields, where `null` stays meaningful.
 
-**The Redis seam is being built.** A second constructor in [`testing/redisfake`](../../../testing/redisfake/)
-establishing server, client and first connection before the bubble opens, pinned to `PoolSize: 1`. The
-justification is deterministic failure, not wall clock — see Track B, where the measurements show the
-two lead targets are cheap ceilings and the real 4.97s item is a dial timeout the seam does not address.
+**The Redis seam was built.** `redisfake.NewForBubble` establishes server, client and every connection
+before the bubble opens. Pinning `PoolSize: 1`, which this decision first called for, turned out to
+fail as soon as a second bubble ran in the same process — the shipped constructor warms a pool instead.
+[overlay.md](./overlay.md) § Track B has the reason and the measured result. The justification was
+deterministic failure rather than wall clock; it delivered both.
 No fake lease behind `shared/redis`.
 
 ## Done-when (project)
