@@ -163,8 +163,11 @@ whole job, such as the dependency tree or the shopping list, which gets plain da
 
 ## The document shape
 
-Four changes. Each one reduces how many paths a single player action has to touch, which is what makes
-the log short enough to reason about and the undo entries small enough to invert.
+Six changes. The first four reduce how many paths a single player action has to touch, which is what
+makes the log short enough to reason about and the undo entries small enough to invert. The last two
+say each fact once, in the place it belongs — found while deciding the JSON v2 field tags in
+[go-127-adoption](../go-127-adoption/contents.md), where both showed up as fields whose zero had to be
+suppressed to keep the wire unchanged.
 
 ### Row collections become id-keyed maps
 
@@ -185,6 +188,60 @@ Everything a patch needs to address already carries an id and is stored as an ar
 to. `build.materials.4.purchasing.2.itemCost` becomes `build.materials.34317.purchasing.<uuid>.itemCost`:
 stable under another member's concurrent insert, and expressible as a Mongo `$set`, which an array index
 is not. Where display order matters it becomes an explicit field or a sort at render.
+
+### An owner is stated once, not four ways
+
+`LinkedESIJob`, `MarketOrder` and `Transaction` each carry four fields for one fact:
+
+```go
+// MarketOrder and Transaction:
+CorporationID  int    `json:"corporation_id,omitzero" bson:"-"`
+CorporationRef string `json:"-"                       bson:"corporation_ref,omitempty"`
+CharacterID    int    `json:"character_id,omitzero"   bson:"-"`
+CharacterRef   string `json:"-"                       bson:"character_ref,omitempty"`
+
+// LinkedESIJob, whose corporation id is not held out of storage by its tag:
+CorporationID  int    `json:"corporation_id,omitzero" bson:"corporation_id,omitempty"`
+```
+
+That last line is the asymmetry. `MarketOrder` and `Transaction` keep a raw id out of Mongo
+structurally, by `bson:"-"`; `LinkedESIJob` relies on `jobidentity.Encrypt` zeroing the id after
+deriving its ref, so `omitempty` finds nothing to write. Both are empty in practice today, but one is
+guaranteed by the type and the other by a function every write path has to remember to apply.
+
+The id/ref split is deliberate and stays: ids face the client, refs are what is stored, which is the
+entity-id encryption boundary. What is redundant is the pair. Exactly one of character and corporation
+is ever set, and each struct **already carries the discriminator** — `IsCorporation` on the first two,
+`IsCorp` on `Transaction`. So the type cannot express its own invariant, and every reader re-derives it.
+
+One id and one ref, read through the flag already beside them. The invariant stops being a convention.
+
+The cost is the SPA: `corporation_id` appears in 71 of its files and `character_id` in 15, and
+`marketOrder.js` writes them back out through `toDocument()`, so this is a wire change with a client
+migration rather than a storage change alone. `models.Owner` is deliberately **not** the answer here —
+these structs speak ESI's vocabulary, which the SPA and ESI both read, and translating at this layer
+would put a boundary in the middle of an ESI mirror.
+
+### Archive metadata is not a live job's
+
+`JobMetaData` carries five fields that only mean anything once a job has been archived:
+
+```go
+ArchivedAt, ArchivedBy, ArchiveProcessed, DeletedAt, DeletedBy
+```
+
+Every writer of them is in the archive path — `putHandler` stamps, `restore` clears, the statistics
+rota reads. An ordinary job carries all five as absences. The archived copy is the same shape as a job;
+only the meta differs, so the fix is a block on `_meta` that is simply absent until a job is archived,
+not a second type.
+
+That block is where `archiveProcessed` stops needing `omitzero` at all: a nil block omits under either
+engine.
+
+The cost is that `_meta.archivedAt` is queried, sorted and indexed — `archivelist.go` maps the API's
+`sort=archivedAt` onto it and filters on it, `backfill_archived_at` filters on it in three forms, and
+one of the 26 application indexes is on it. So the path change carries an index change and a public
+sort parameter with it.
 
 ### Stored derived figures come out
 
@@ -588,6 +645,19 @@ it.
 
 **This is the only stage with a deadline.** It ships with the shared-planners release or it waits for the
 next release that migrates documents.
+
+### Stage 2b — An owner once, and the archive block
+
+The two shape changes in § An owner is stated once and § Archive metadata is not a live job's. Both
+move stored paths, so both need a release window.
+
+They are numbered beside Stage 2 rather than after it because they want the same window, not because
+they must ship together: if Stage 2's window is already spoken for, these wait for the next release
+that migrates documents rather than widening that one. The id collapse also needs the SPA released with
+it, which Stage 2 does not.
+
+Neither is urgent. `omitzero` already keeps both out of the wire, so what is left is the modelling: a
+type that cannot express its own invariant, and a live job carrying an archived job's fields.
 
 ### Stage 3 — Base, log, scratch and draft in the editor
 

@@ -7,7 +7,9 @@ is a set of changed fields rather than a rebuilt object.
 
 - **The job document's shape**: row collections keyed by the id they already carry instead of stored as
   arrays; derived figures removed from storage; `rawData` leaving the document; `layout` split between
-  per-reader view state and the planning decision hiding in it.
+  per-reader view state and the planning decision hiding in it; an owner stated once rather than as a
+  character/corporation pair beside the flag that already discriminates them; and the archive fields
+  living in a block a live job does not carry.
 - **How the SPA holds a job while it is open**: an untouched base, an ordered log of what the player
   changed, and a draft derived from the two — replacing the reducer that rebuilds a `Job` instance on
   every edit.
