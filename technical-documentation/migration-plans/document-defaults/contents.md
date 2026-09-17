@@ -31,8 +31,8 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 - The dead `apiJobs` / `apiOrders` / `apiTransactions` fields the sweep found in every job document.
   No project owns them; they are named in [plan.md](./plan.md) § Non-goals so the finding is not lost.
 - JSON tag semantics, `omitempty` versus `omitzero`, and `encoding/json/v2` →
-  [go-127-adoption/contents.md](../go-127-adoption/contents.md). Phase A1 there and the retag rule
-  interact with the tags this project touches; neither owns the other.
+  [backend/shared/jsoncodec.md](../../backend/shared/jsoncodec.md). The tag rule there and the tags this
+  project touches interact; neither owns the other.
 - The model parity sweep that measures all of this → live SoT at
   [testing/harness.md](../../testing/harness.md) § Model parity. This project reads its output; it does
   not own the tool.

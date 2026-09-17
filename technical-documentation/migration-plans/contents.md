@@ -18,7 +18,6 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Shared planners (planner as a scope, membership, invites, the owner block, realtime consistency and the document lock under more than one writer) | [shared-planners/contents.md](./shared-planners/contents.md) |
 | Archived jobs statistics (rollups, snapshots, corp aggregation) | [archived-jobs-stats/contents.md](accounts-page/archived-jobs-stats/contents.md) |
 | Collection naming (**promoted** — kept only because archived-jobs-stats cites its renames; live SoT in [backend/shared/mongo.md](../backend/shared/mongo.md)) | [collection-naming/contents.md](./collection-naming/contents.md) |
-| Go 1.27 adoption (json/v2, simulated-time tests, `go fix` sweep) | [go-127-adoption/contents.md](./go-127-adoption/contents.md) |
 | Mongo test database (a database of the tests' own, dropped between runs, and the live suite in CI) | [mongo-test-database/contents.md](./mongo-test-database/contents.md) |
 | Document write granularity (whole-document writes to field-scoped ones, and how broad the document lock has to be; **found by shared-planners Stage G**) | [document-write-granularity/contents.md](./document-write-granularity/contents.md) |
 | Document defaults (the defaults a job and a group are born with, the schema upgrader on their read path, and the extras category id space; **found by the model parity sweep**) | [document-defaults/contents.md](./document-defaults/contents.md) |

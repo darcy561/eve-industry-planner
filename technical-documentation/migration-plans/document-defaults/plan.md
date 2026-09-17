@@ -96,8 +96,8 @@ them.
 
 Only after A2. A field the model holds and the document lacks currently decodes to a Go zero, and a
 server-side write-back materialises it. Whether that is right per field is a decision, not a default —
-and it is the same question as `omitempty` versus `omitzero`, which
-[go-127-adoption](../go-127-adoption/plan.md) § Phase A1 owns the tag half of.
+and it is the same question as `omitempty` versus `omitzero`, whose tag half
+[backend/shared/jsoncodec.md](../../backend/shared/jsoncodec.md) § The `json` / `bson` tag pair owns.
 
 Done when: each unprotected field either carries a deliberate default or is tagged so an absent value
 stays absent, and `Group.archivedJobIDs` is one of them.

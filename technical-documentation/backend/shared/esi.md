@@ -30,6 +30,10 @@ count that crossed the wire, so transfer accounting survives gzip.
 
 `NewTransport` is the shared traced transport; `NewUnixTransport` is the same over a socket.
 
+A caller decoding a `Stream` body as a JSON array without holding it whole reads it through
+[`jsoncodec.StreamArray`](./jsoncodec.md) — the ESI market-order and price feeds are megabytes, large
+enough that decoding them whole costs the peak this avoids.
+
 **HTTP/2 where the origin offers it.** ESI and EVE SSO both negotiate h2, and `Response.Proto`
 reports what was actually used so a downgrade is visible rather than silent. Cleartext is always
 HTTP/1.1 — net/http has no h2c — so the unix socket path is HTTP/1.1 by nature. The h2 layer is

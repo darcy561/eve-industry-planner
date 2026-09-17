@@ -4,17 +4,24 @@
 
 Shared Go libraries under `services/shared` that are not owned by a single service topic, including
 the messaging layer — streams, subjects, publish and consume, and schedules — the Redis handle and
-its keyspace, the backoff loop every retried operation runs through, and the outbound HTTP client and
-ESI rate limiter.
+its keyspace, the backoff loop every retried operation runs through, the outbound HTTP client and ESI
+rate limiter, and the JSON encoding policy every service reads and writes through.
 
 ## Does not own
 
 - Feature contracts exposed via HTTP → [api/](../api/contents.md)
-- EVE SSO token exchange and JWT validation → `services/shared/evesso`, documented with sessions in [api/auth/sessions.md](../api/auth/sessions.md)
-- Planner session state and HTTP auth middleware → `services/shared/plannersession`, `services/shared/httpmiddleware`, documented with sessions in [api/auth/sessions.md](../api/auth/sessions.md)
-- Stack topology / EnsureMongo → [stack/](../../stack/contents.md), [deploy.md](../../deployment/deployment-tool/cli/deploy.md)
+- Request/response JSON handling at the HTTP boundary → [api/json.md](../api/json.md) (the codec
+  policy underneath is this section's; the HTTP wiring on top of it is api's)
+- EVE SSO token exchange and JWT validation → `services/shared/evesso`, documented with sessions in
+  [api/auth/sessions.md](../api/auth/sessions.md)
+- Planner session state and HTTP auth middleware → `services/shared/plannersession`,
+  `services/shared/httpmiddleware`, documented with sessions in
+  [api/auth/sessions.md](../api/auth/sessions.md)
+- Stack topology / EnsureMongo → [stack/](../../stack/contents.md),
+  [deploy.md](../../deployment/deployment-tool/cli/deploy.md)
 - Test depth for shared packages → [testing/services/shared.md](../../testing/services/shared.md)
-- Recurring cron jobs and what each one does → [core/](../core/contents.md) (this section owns schedules, not the crons that use them)
+- Recurring cron jobs and what each one does → [core/](../core/contents.md) (this section owns
+  schedules, not the crons that use them)
 
 ## Task map
 
@@ -60,3 +67,7 @@ ESI rate limiter.
 | Work out whether ESI is down, and how that was decided | [esi.md](./esi.md) § Downtime is observed, never scheduled |
 | See what ESI activity is reported to Grafana | [esi.md](./esi.md) § What it reports |
 | Read or reset ESI bucket state as an operator | [esi.md](./esi.md) § Operating it |
+| Marshal or unmarshal JSON anywhere in `services/` | [jsoncodec.md](./jsoncodec.md) |
+| Decide whether a decode should be strict or lenient | [jsoncodec.md](./jsoncodec.md) § Strict vs lenient |
+| Tag a new numeric or bool model field `omitzero` vs `omitempty` | [jsoncodec.md](./jsoncodec.md) § The `json` / `bson` tag pair |
+| Stream a JSON array without holding the body whole | [jsoncodec.md](./jsoncodec.md) § Functions |

@@ -172,3 +172,23 @@ stage for the binary — and that is inherent rather than a smell.
   strongest form of Stage B and the most work; Stage B's SPA-side recovery may be enough on its own.
 - **Which shared logging shape fits a static server?** Per-request logging at the volume a static
   server sees may want sampling rather than the per-request line `shared/httpmiddleware` gives an API.
+- **Should the SDE static-data table stop being written indented?** It is the largest payload the
+  system produces and every browser downloads it. `addJSONFile` in
+  [`conversionStage.go`](../../../services/worker/tasks/sde/update/conversionStage.go) writes it
+  through `jsoncodec.MarshalIndent`, and the indentation is roughly half its uncompressed size.
+  Measured on five of the seven files a local conversion produced — `marketGroups` and `solarSystems`
+  were absent from that run, so the real totals are larger:
+
+  | | Indented | Compact | Saved |
+  |---|---|---|---|
+  | Those five, on disk | 11.8 MB | 6.3 MB | **46%** |
+  | `recipeList.json` alone | 9.9 MB | 4.7 MB | 52% |
+  | Those five, gzipped as served | 0.71 MB | 0.60 MB | **16%** |
+
+  Gzip absorbs most of the whitespace but not all: about 110 KB per cold load, and the browser still
+  decompresses and parses 11.8 MB rather than 6.3 MB. Nothing reads these files by eye — `recipeList`
+  is far past that — so the indentation buys a reader nothing.
+
+  It sits here rather than with the writer because the cost is a delivery cost and the risk is a cache
+  one: changing it rewrites every byte of the table, so every cached copy misses once. Re-measure
+  across a full conversion before deciding.

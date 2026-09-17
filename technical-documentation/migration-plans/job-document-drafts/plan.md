@@ -165,9 +165,9 @@ whole job, such as the dependency tree or the shopping list, which gets plain da
 
 Six changes. The first four reduce how many paths a single player action has to touch, which is what
 makes the log short enough to reason about and the undo entries small enough to invert. The last two
-say each fact once, in the place it belongs — found while deciding the JSON v2 field tags in
-[go-127-adoption](../go-127-adoption/contents.md), where both showed up as fields whose zero had to be
-suppressed to keep the wire unchanged.
+say each fact once, in the place it belongs. Both surfaced as fields whose zero had to be suppressed
+to keep the wire unchanged — the tag rule that decides which is in
+[backend/shared/jsoncodec.md](../../backend/shared/jsoncodec.md) § The `json` / `bson` tag pair.
 
 ### Row collections become id-keyed maps
 
@@ -658,6 +658,41 @@ it, which Stage 2 does not.
 
 Neither is urgent. `omitzero` already keeps both out of the wire, so what is left is the modelling: a
 type that cannot express its own invariant, and a live job carrying an archived job's fields.
+
+### Stage 2c — An extras id is a string, in the documents too
+
+`ExtraCost.ID` and `InventionEntry.ID` are app-minted ids, and every other app-minted id in this
+codebase is a string: `jobID`, `groupID`, `plannerID`, `accountID`, `inviteID`, `templateID`. EVE's
+ids are numbers because ESI sends numbers. These two broke that line once, years ago, because they
+were minted from the clock before they were minted as uuids.
+
+**The generator is already right.** The SPA mints `crypto.randomUUID()` for both, and nothing can
+produce a numeric id any more. Both models coerce on the way in and on the way out, so a stored number
+is read as a string, sent as a string, and written back as a string the first time anything saves that
+job. Nothing is broken and nothing is leaking.
+
+What is left is the documents that have not been saved since, and they will not fix themselves: a job
+nobody opens is never rewritten. That is a prepare-release step, and it has to run against live —
+counts taken in dev say nothing about how many exist in production.
+
+**The step must normalise the row, not patch the field.** The trap is the shape
+[`release_extras_labels.go`](../../../services/core/commands/release_extras_labels.go) uses: it reads
+extras rows as `[]bson.M`, stamps one key, and `$set`s the array back, which preserves every other
+value's original type. A step written that way fixes what it targets and carries the numeric ids
+through untouched. Decoding each row through `models.ExtraCost` and writing the struct back normalises
+the whole row by construction, and cannot miss a field.
+
+It covers more than the id. The same two types tolerate `category`, `categoryLabel` and `extraText`
+arriving as numbers, `extraValue` arriving as a string, and `deletedAt` arriving as epoch
+milliseconds — all of which the same rewrite settles.
+
+**Only after live is clean does the read-side coercion come out**, and it should: `extraCostScalarString`,
+`extraCostScalarFloat64`, `stringFromDocumentValue`, both `UnmarshalJSON` methods and both
+`UnmarshalBSON` methods exist solely to absorb these shapes. Four dead `case json.Number` branches go
+with them — they are the last thing keeping `encoding/json` in the tree outside operator output, as
+[backend/shared/jsoncodec.md](../../backend/shared/jsoncodec.md) § What still imports `encoding/json`
+directly records. Retiring them is its own change, after
+the data is known good, not part of the release that cleans it.
 
 ### Stage 3 — Base, log, scratch and draft in the editor
 

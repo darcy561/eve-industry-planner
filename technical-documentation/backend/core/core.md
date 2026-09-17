@@ -42,6 +42,11 @@ The owner is read from `_meta.owner` on the changed document. A delete without a
 owner, so the message routes to explicit subscribers rather than an owner's clients — singleton account
 documents recover it from the `_id`, which is the account id.
 
+**A document carrying invalid UTF-8 does not publish.** Encoding the message payload refuses a string
+that cannot be represented — see [shared/jsoncodec.md](../shared/jsoncodec.md) — so the watcher logs
+the failure and the write to the changed document produces no `doc.update` message. A client watching
+that document goes stale rather than receiving mangled text.
+
 Lock notifications are published by the API/document-lock path (`doc.lock.{accountID}`), not by this changestream subject shape.
 
 ## Triggering a task

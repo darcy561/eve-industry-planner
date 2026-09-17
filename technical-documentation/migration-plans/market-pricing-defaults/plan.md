@@ -27,7 +27,8 @@ Live SoT will not be edited until this project is complete and promotion is appr
 `./shared/core/sde/...` and `./api/staticdata/...`: two suggestions, both `omitempty` to `omitzero`,
 which `go fix` itself marks a behaviour change — `VersionJSON.GeneratedAt` in `shared/core/sde/files.go`
 and `fileMeta.ModTime` in `api/staticdata/endpoints.go`. Both are on fields this project does not
-touch, and JSON tag semantics belong to [go-127-adoption](../go-127-adoption/contents.md). Left alone
+touch, and JSON tag semantics belong to
+[backend/shared/jsoncodec.md](../../backend/shared/jsoncodec.md) § The `json` / `bson` tag pair. Left alone
 deliberately, and named here so a later scan coming back non-empty is not mistaken for new debt.
 
 Three further suggestions appeared on this project's **own** new code and were taken: a

@@ -34,7 +34,7 @@ suggestions in `authenticate.go`, `refresh.go`, `session_types.go` and `statisti
 — struct-literal consolidation and the `omitempty`/`omitzero` pair that `go fix` itself marks a
 behaviour change. None is in a file this project touches, so all are left alone deliberately; JSON
 tag semantics belong to
-[go-127-adoption](../go-127-adoption/contents.md). Named here so a later scan coming back non-empty is
+[backend/shared/jsoncodec.md](../../backend/shared/jsoncodec.md). Named here so a later scan coming back non-empty is
 not mistaken for new debt.
 
 ## Why this project exists

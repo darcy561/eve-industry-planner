@@ -70,6 +70,11 @@ work out why a document did not reach a client, because the changestream routes 
 | `_meta.sessionID` / `_meta.clientID` | which session and browser tab made the change, so the writer's own tab can be excluded from the fan-out |
 | `_meta.lastModified` | stamped on every write |
 
+A field's `json` and `bson` tags are usually written as one pair. The `omitzero` vs `omitempty` choice
+on the `json` half is decided in [jsoncodec.md](./jsoncodec.md) § The `json` / `bson` tag pair — the
+`bson` half must stay `omitempty` even where the `json` half is `omitzero`, because the driver's tag
+parser does not read `omitzero` and silently writes the zero value if it is asked to.
+
 `ApplyMetaSessionClient` stamps the session and client from request inputs. Upserts come in two
 shapes: `UpsertStructWithMeta` writes the metadata from the struct, and `UpsertStructPreservingMeta`
 keeps what is already stored and bumps `lastModified` — the second is what a partial update wants.
