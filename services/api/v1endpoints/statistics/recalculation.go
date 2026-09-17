@@ -20,16 +20,16 @@ type recalculationEnvelope struct {
 	Recalculation eipmongo.RecalculationState `json:"recalculation,omitempty"`
 }
 
-// recalculationFor reads whether an account is waiting on a rebuild.
+// recalculationFor reads whether a planner is waiting on a rebuild.
 //
 // A failure to read it is not a failure to serve the figures: the figures are
 // what was asked for, and the worst case is a client that is not told they are
 // being replaced. It is logged and the response says nothing.
-func recalculationFor(ctx context.Context, mongo *eipmongo.Mongo, accountID string) recalculationEnvelope {
-	if mongo == nil || accountID == "" {
+func recalculationFor(ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner) recalculationEnvelope {
+	if mongo == nil || owner.IsZero() {
 		return recalculationEnvelope{}
 	}
-	state, err := mongo.OwnerRecalculationState(ctx, models.AccountOwner(accountID))
+	state, err := mongo.OwnerRecalculationState(ctx, owner)
 	if err != nil {
 		logs.WarnCtx(ctx, "recalculation state unread",
 			"component", "statistics", "error", err)

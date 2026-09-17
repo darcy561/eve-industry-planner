@@ -69,7 +69,8 @@ func (h *Handlers) GetTimelineItemsHandler(w http.ResponseWriter, r *http.Reques
 	}
 	accountID := helper.AuthenticatedAccountID(r)
 
-	if !requireOwnedBySession(ctx, w, r, h.Mongo, metrics, "statistics_timeline_items", accountID) {
+	owner, mayRead := requireOwnedBySession(ctx, w, r, h.Mongo, metrics, "statistics_timeline_items", accountID)
+	if !mayRead {
 		return
 	}
 
@@ -96,7 +97,7 @@ func (h *Handlers) GetTimelineItemsHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	page, err := h.Mongo.TimelineItems(ctx, eipmongo.TimelineQuery{
-		Owner:   models.AccountOwner(accountID),
+		Owner:   owner,
 		From:    window.From,
 		To:      window.To,
 		AllTime: window.All,
@@ -128,7 +129,7 @@ func (h *Handlers) GetTimelineItemsHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	resp := timelineItemsResponse{
-		recalculationEnvelope: recalculationFor(ctx, h.Mongo, accountID),
+		recalculationEnvelope: recalculationFor(ctx, h.Mongo, owner),
 		Period: timelinePeriod{
 			From:      periodBound(window.All, window.From),
 			To:        periodBound(window.All, window.To),

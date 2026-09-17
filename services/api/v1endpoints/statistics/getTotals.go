@@ -54,7 +54,8 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	accountID := helper.AuthenticatedAccountID(r)
 
-	if !requireOwnedBySession(ctx, w, r, h.Mongo, metrics, "statistics_totals", accountID) {
+	owner, mayRead := requireOwnedBySession(ctx, w, r, h.Mongo, metrics, "statistics_totals", accountID)
+	if !mayRead {
 		return
 	}
 
@@ -70,9 +71,9 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	recalc := recalculationFor(ctx, h.Mongo, accountID)
+	recalc := recalculationFor(ctx, h.Mongo, owner)
 
-	rows, err := h.Mongo.LoadProductionTotals(ctx, models.AccountOwner(accountID), typeID)
+	rows, err := h.Mongo.LoadProductionTotals(ctx, owner, typeID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve statistics", "totals get: query failed", "statistics_totals_query_failed", "statistics_totals", err, map[string]any{"type_id": typeID})

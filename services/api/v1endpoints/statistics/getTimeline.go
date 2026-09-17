@@ -81,7 +81,8 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	accountID := helper.AuthenticatedAccountID(r)
 
-	if !requireOwnedBySession(ctx, w, r, h.Mongo, metrics, "statistics_timeline", accountID) {
+	owner, mayRead := requireOwnedBySession(ctx, w, r, h.Mongo, metrics, "statistics_timeline", accountID)
+	if !mayRead {
 		return
 	}
 
@@ -106,7 +107,7 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	includeChain := resolveProductionChainScope(r, typeID)
 
 	rows, err := h.Mongo.TimelineMonths(ctx, eipmongo.TimelineQuery{
-		Owner:                  models.AccountOwner(accountID),
+		Owner:                  owner,
 		From:                   window.From,
 		To:                     window.To,
 		AllTime:                window.All,
@@ -137,7 +138,7 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := timelineResponse{
-		recalculationEnvelope: recalculationFor(ctx, h.Mongo, accountID),
+		recalculationEnvelope: recalculationFor(ctx, h.Mongo, owner),
 		Period: timelinePeriod{
 			From:      periodBound(window.All, window.From),
 			To:        periodBound(window.All, window.To),
