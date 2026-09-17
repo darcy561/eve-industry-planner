@@ -1,6 +1,6 @@
 # Go 1.27 adoption — plan
 
-**Status:** Track A has A1 and A2 landed and A3's write side done; Track B is done. Track C has landed everything that needs no decision: one file remains, and it is Track A's to take — `json.go` at A3. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
+**Status:** Track A has A1 and A2 landed, and A3's HTTP request and response paths routed — its other call sites are open. Track B is done. Track C is clear: `go fix -diff` reports nothing across `services/`, the last file having been rewritten by A3 rather than patched. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
 **Code in scope:** [`services/`](../../../services/) (all areas), [`testing/`](../../../testing/), [`deployment-tool/`](../../../deployment-tool/)
 **Live SoT (until promote):** [backend/core/core.md](../../backend/core/core.md), [backend/api/contents.md](../../backend/api/contents.md), [technical-rules.md](../../technical-rules.md) § Prefer modern Go
 
@@ -43,7 +43,7 @@ Two consequences that the tracks below depend on:
 
 Measured behaviour differences, the retag rule, and the house-options set: [json-semantics.md](./json-semantics.md). Read that before starting any phase here.
 
-Surface, re-counted at this update: 160 files under `services/` import `encoding/json` (49 shared, 31 websocket, 31 api, 24 core, 21 worker, 2 capacity-controller, 1 ws-router, 1 cmd); 169 `,omitempty` in `json` tags against 96 `omitzero`; six custom marshaler methods; one production `DisallowUnknownFields` site. The `bson` half carries a further 90 `,omitempty`, which A1 does not touch. A2 has landed, so [`shared/jsoncodec`](../../../services/shared/jsoncodec/) is the house-options home; call sites still import the stdlib directly until A3 moves them. The surface grows with ordinary work, so recount for the area you open rather than working from these numbers.
+Surface, re-counted at this update: 74 non-test files under `services/` still import `encoding/json` directly (148 counting tests); 169 `,omitempty` in `json` tags against 96 `omitzero`; six custom unmarshaler methods; one `RejectUnknownMembers` site, in `shared/jsoncodec`. A per-area split is deliberately not written down here — it moves with every slice and with ordinary work on other branches; `grep -rl '"encoding/json"' --include='*.go' services/<area>` answers it for the area you are opening. The `bson` half carries a further 90 `,omitempty`, which A1 does not touch. A2 has landed, so [`shared/jsoncodec`](../../../services/shared/jsoncodec/) is the house-options home; call sites still import the stdlib directly until A3 moves them. The surface grows with ordinary work, so recount for the area you open rather than working from these numbers.
 
 The `,omitempty` tags that remain are on the strings, pointers, maps, slices and non-pointer `time.Time` A1 leaves alone: the tag already does what it says for those, and for slices and maps the two tags genuinely differ. They concentrate in `api/v1endpoints` (15 files) and `shared/models` (12 files).
 
@@ -126,7 +126,7 @@ Done when: the package exists with tests proving byte-identical output to v1 for
 
 `shared` → `core` → `worker` → `websocket` → `api`, finishing each area's cutover within its own slice. No forwarding wrappers left behind.
 
-Includes rewriting [`api/helper/json.go`](../../../services/api/helper/json.go) error handling: it currently matches `*json.SyntaxError` / `*json.UnmarshalTypeError` and string-prefixes `"json: unknown field "`. v2 replaces these with `*jsontext.SyntacticError`, `*json.SemanticError`, the `json.ErrUnknownName` sentinel, and a `jsontext.Pointer` field path — strictly better, and it deletes the stringly check.
+The helper layer is done — both halves of [`api/helper/json.go`](../../../services/api/helper/json.go) plus the response sites that hand-rolled around it. What remains is the direct call sites: the `json.Unmarshal` reads of Redis blobs, NATS envelopes, asynq payloads and websocket frames, and the `json.RawMessage` fields that want `jsontext.Value`.
 
 Done when: no product file outside `shared/jsoncodec` imports `encoding/json` directly, except the `MarshalIndent` operator-output sites named under non-goals.
 
@@ -139,7 +139,13 @@ parity sweep decodes every stored document and reports what the model does not r
 corpus drives the SPA-side check — [testing harness.md](../../testing/harness.md) § Model parity.
 Run it before and after a boundary decision.
 
-**Wire compatibility:** A1–A3 are **additive/neutral** by construction. A4 is **breaking** per boundary for any consumer distinguishing `null` from `[]`, and the read-side strictness is **breaking** for any producer sending duplicate keys or mismatched field case. No such in-tree producer was found; `eip cli` output and Firestore import data are external enough to need a check before A4 touches them. Mixed-version rolling deploys are low risk in the other direction — extra zero-valued fields are ignored by v1 readers.
+**Wire compatibility:** A1–A3 are **additive/neutral** by construction. A4 splits in two, and the halves do not carry the same risk.
+
+For **array-valued API results** the SPA's settled expectation is already `[]`, and the endpoints hold it themselves by building with `make([]T, 0, n)` rather than by relying on the encoder. Dropping `FormatNilSliceAsNull` there only changes the cases where a nil slice currently leaks past that discipline — which are already answering `null` against the contract. That half is a **fix**, not a break.
+
+The breaking half is the **internal Go-to-Go boundaries** — Redis blobs, NATS envelopes, asynq payloads — where a reader can test a slice against nil and see the difference. Those are the ones to take one at a time.
+
+The read-side strictness is **breaking** for any producer sending duplicate keys or mismatched field case. No such in-tree producer was found; `eip cli` output and Firestore import data are external enough to need a check before A4 touches them. Mixed-version rolling deploys are low risk in the other direction — extra zero-valued fields are ignored by v1 readers.
 
 ## Track B — Simulated-time tests
 
@@ -197,23 +203,21 @@ Done: both unblocked targets run under `testing/synctest`, and `redisfake.NewFor
 
 `go fix -diff ./...` at the new language version reports `errors.As` → `errors.AsType`, `interface{}` → `any`, `slices` / `maps` adoption, `strings.Cut`, `max()`, plus composite-literal folding, promoted fields in struct literals, and gofmt alignment. The `wg.Go` and `for range n` fixers no longer match anywhere in the tree.
 
-By area, re-counted at this update — **1 file**, in `services/api` and waiting on a Track A decision. Every other area is clear: `capacity-controller`, `core`, `worker`, `websocket`, `ws-router`, and the separate `testing/` and `deployment-tool/` modules.
+By area, re-counted at this update — **nothing outstanding**. `api` was the last, and its one file was `api/helper/json.go`, whose `errors.As` lines A3 replaced with the v2 error types rather than patching in place. `capacity-controller`, `core`, `worker`, `websocket`, `ws-router` and the separate `testing/` and `deployment-tool/` modules are all clear.
 
 The count is a snapshot, not an inventory: it falls on its own as areas are touched under the scoped `go fix` rule. Re-run the command for the area you are about to open rather than working from these numbers.
 
 Land **per area, scoped to that area**, per [technical-rules.md](../../technical-rules.md) § Prefer modern Go — not as one sweeping commit, and not widened into packages a slice does not otherwise touch. Where an area is already being opened by Track A Phase A3, its `go fix` slice should land first so the JSON change reviews clean.
 
-Both remaining groups are **not** mechanical and must not ride a sweep:
+Every group has landed. The two that were held back were held because they were tag and error-handling
+decisions rather than mechanical rewrites, and Track A took both: the wire tags at A1, and
+`api/helper/json.go` at A3, whose `errors.As` lines were replaced by the v2 error types rather than
+patched.
 
-| Where | Why it needs a decision |
-|-------|-------------------------|
-| [`api/helper/json.go`](../../../services/api/helper/json.go) | The proposed `errors.AsType[*json.SyntaxError]` / `[*json.UnmarshalTypeError]` rewrites land on the exact lines Phase A3 replaces with `*jsontext.SyntacticError` and `*json.SemanticError`. Leave this file to A3. The sibling [`endpointHelpers.go`](../../../services/api/helper/endpointHelpers.go) match survives v2 and has already landed. |
-
-A third group has landed — `authenticate.go`, `refresh.go` and `statistics/live_scope_test.go`, recorded
-in [overlay.md](./overlay.md) § `api`. It leaves a caution that outlives it: **composite-literal folding
-does not check whether the target field is already set in the literal.** In `authenticate.go` it folded
-in a duplicate `RefreshToken` and the package stopped compiling. Any future area whose `go fix` output
-includes that fixer needs a by-hand pass, not a blind sweep.
+One caution outlives the sweep. **Composite-literal folding does not check whether the target field is
+already set in the literal.** In `authenticate.go` it folded in a duplicate `RefreshToken` and the
+package stopped compiling — recorded in [overlay.md](./overlay.md) § `api`. Any future area whose
+`go fix` output includes that fixer needs a by-hand pass, not a blind sweep.
 
 The two `deployment-tool/` files have landed — see [overlay.md](./overlay.md) § `deployment-tool`.
 They turned out to be a **language** change, not the dependency change they were first read as: Go 1.27
@@ -234,10 +238,18 @@ is ~13% on unmarshal and none on marshal, and it disappears entirely under `Defa
 leans the right way without carrying the argument.
 
 What made the decision safe to take was measuring what the strictness would reject rather than
-reasoning about it: across 1,082 named tags and 212 recorded payloads there is no case-only mismatch,
-no duplicate name and no invalid UTF-8, with the detectors proved against deliberately bad input. The
-one producer not covered is ESI, whose responses are not in the corpus — close that during A3 by
-decoding a live response, rather than treating it as a reason to wait.
+reasoning about it: across 1,076 named tags and 212 recorded payloads there is no case-only mismatch,
+no duplicate name and no invalid UTF-8, with the detectors proved against deliberately bad input.
+
+**The strictness is for producers whose schema we hold, and for nothing else.** That is the SPA and
+our own services: an undeclared member there means a client is sending something we did not agree to,
+and refusing it is the point. ESI and EVE SSO are the opposite case — CCP adds fields to responses
+without asking, and a decoder that refused them would turn an ordinary upstream release into a failed
+login. Sampling a live response does not settle this, because it only says what ESI sent today.
+
+So third-party responses take the lenient `Decode`, never `UnmarshalRequest`. The two waiting call
+sites are in [`shared/evesso/jwks.go`](../../../services/shared/evesso/jwks.go), which reads SSO
+metadata and the JWKS; the ESI client's own decode path goes the same way.
 
 The phases stay as A1 → A4 for the same reason they were written that way: A1 is provable while still
 on v1, A2 has no call sites, A3 moves one area at a time, and only A4 changes a wire shape — by which

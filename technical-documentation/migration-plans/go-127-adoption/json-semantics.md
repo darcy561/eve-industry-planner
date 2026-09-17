@@ -62,7 +62,7 @@ against this repo's own models and its recorded payloads:
 
 | Check | Result |
 |-------|--------|
-| `json` tags scanned | 1,082 fields under `services/` that carry a wire name — of 1,122 json-tagged fields in all, the other 40 being 35 `json:"-"` and 5 name-less `,inline` tags that the case rule cannot reach |
+| `json` tags scanned | 1,076 fields under `services/` that carry a wire name — of 1,116 json-tagged fields in all, the other 40 being 35 `json:"-"` and 5 name-less `,inline` tags that the case rule cannot reach |
 | Two tags in one struct differing only by case | **0** — nothing changes meaning under exact matching |
 | Tags carrying upper-case characters | 452, i.e. the surface the case rule can reach |
 | Recorded payloads decoded under v2 | 212 (every `.json` in `services/`, `testing/`, `frontend/src`, plus every JSON literal embedded in their sources) |
@@ -70,9 +70,9 @@ against this repo's own models and its recorded payloads:
 | Invalid UTF-8 | **0** |
 | Payload keys matching a tag only case-insensitively | **0** |
 
-The request-body boundary was checked separately because it is the one carrying
-`DisallowUnknownFields`, where a case mismatch becomes a 400 rather than a silently ignored field: 40
-tags across the 26 request structs, checked against every case variant appearing in the SPA. Four
+The request-body boundary was checked separately because it is the one that refuses an undeclared
+member, where a case mismatch becomes a 400 rather than a silently ignored field: 40 tags across the
+26 request structs, checked against every case variant appearing in the SPA. Four
 candidates surfaced and all four were false positives — JSX label text (`Setup Count:`) and an error
 message, not object keys.
 

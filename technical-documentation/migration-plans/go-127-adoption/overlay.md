@@ -62,32 +62,38 @@ byte from every response — in a package whose whole purpose is that a call sit
 changing what a reader sees.
 
 Two behaviours are pinned by tests because they are easy to assume wrongly. Case sensitivity is
-**silent**: `{"JOBID":…}` does not match `jobID` and does not error either, so the one
-`DisallowUnknownFields` site needs `RejectUnknownMembers` to keep refusing. And the test that lists the
-fields still carrying `,omitempty` is swept from the type graph rather than sampled — sampling hid nine
-of the twelve, because a field on a nested row is only reached if a fixture populates the slice holding
-it.
+**silent**: `{"JOBID":…}` does not match `jobID` and does not error either, which is why the request
+path refuses an undeclared member rather than relying on the mismatch surfacing on its own. And the
+test that lists the fields still carrying `,omitempty` reads the source rather than sampling fixtures
+— a sample only reaches a field on a nested row when something populates the slice holding it, which
+hid most of them.
 
 ### A3 — Call-site routing
 
-**Write side landed; read side open.** Every HTTP response in `services/` now encodes through
+**The HTTP request and response paths are routed; the other call sites are not.** Every HTTP response in `services/` now encodes through
 [`jsoncodec`](../../../services/shared/jsoncodec/). The only `json.NewEncoder` calls left are the two
 in `capacity-controller/ctl`, which write operator output to stdout and are outside the project.
 
 It needed no new abstraction, because the layer was already there and under-used.
-[`helper.EncodeJSON`](../../../services/api/helper/json.go) had 36 callers — 35 qualified plus one
-inside the package — and wanted one line changed; none of them were touched. What it lacked was a
-status code, which is why 18 sites hand-rolled `Content-Type` + `WriteHeader` + `Encode` around it,
-eight of them in `documentlocks/handlers.go` alone. `EncodeJSONStatus` closes that: 16 of the 18 now
-go through the pair, and the other two call `jsoncodec` directly.
+[`helper.EncodeJSON`](../../../services/api/helper/json.go) already had its callers and wanted one
+line changed; none of them were touched. What it lacked was a status code, which is why 19 sites
+hand-rolled `Content-Type` + `WriteHeader` + `Encode` around it — eight in `documentlocks/handlers.go`
+alone, and one in `api/helper` itself, beside the helper that should have owned it.
+`EncodeJSONStatus` closes that: 17 of the 19 go through the pair, and the other two call `jsoncodec`
+directly because they are outside `api` and cannot reach it.
+
+Counts of callers are left out on purpose. They moved twice while this section was being written —
+once from a slice of this project, once from endpoints landing on the branch beside it — and a figure
+that rots between the writing and the reading is worse than none. `grep -rn 'helper.EncodeJSON' services/`
+answers it.
 
 `EncodeJSONStatus` sets the content type **before** the status. `WriteHeader` sends the header map as
 it stands, so delegating to `EncodeJSON` after writing the status would lose the type silently — the
 response still carries a body and still looks right in a browser. The test asserts the header on the
 *sent* response rather than on the recorder, which is the difference that catches it.
 
-`EncodeJSON` deliberately still writes no status: 15 of its callers choose their own — twelve 200s, a
-201, a 409, and one computed at runtime.
+`EncodeJSON` deliberately still writes no status: many of its callers choose their own, including a
+201 and one decided at runtime, so writing a 200 on their behalf would take that away.
 
 `websocket/server` and `shared/plannersession/request` call `jsoncodec` directly. They cannot reach
 `api/helper` — one service never imports another's packages — and neither needs the status variant.
@@ -95,12 +101,52 @@ response still carries a body and still looks right in a browser. The test asser
 `api/helper/compression.go` is gone. It held one JSON function under a name describing what nginx
 does; it now sits in `json.go` with the request side.
 
-**Still open on this phase:** the read side. `DecodeJSONRequest` keeps `DisallowUnknownFields`, which
-needs `RejectUnknownMembers` to go on refusing, and `buildJSONRequestError` still matches
-`*json.SyntaxError` / `*json.UnmarshalTypeError` and string-prefixes `"json: unknown field "`. That is
-the one file `go fix` still reports, held deliberately. It has **no tests** — none of the JSON helpers
-did before this slice, and the encode side got the first five — so coverage goes on before the error
-types are rewritten, not after.
+The ESI metrics bucket keeps writing `reported_remaining` at zero. It is CCP's own count, so zero is a
+reading and not an absence — an operator looking at a rate-limit dump must not see the same thing for
+"nothing left" as for "no header seen".
+
+**Read side landed too.** `DecodeJSONRequest` reads through
+[`jsoncodec.UnmarshalRequest`](../../../services/shared/jsoncodec/jsoncodec.go), which is the strict
+half of the package: it refuses a member the target does not declare, and returns `ErrTrailingData`
+rather than a syntax error for a body carrying more than the one value asked for. Those are the two
+things a body from another party can get wrong that a lenient read would accept as meaning something
+else.
+
+The order mattered. Ten tests went on **first**, pinning what v1 refused and how — `empty_body`,
+`body_too_large`, `extra_data`, `syntax_error` with its offset, `type_mismatch` with its field,
+`unknown_field` with its name, `read_error`, the default-limit rule and the preview's bounds. None of
+it had ever been tested. All ten passed unchanged against v2 afterwards, which is what says the
+rewrite kept the contract rather than merely compiling.
+
+Those `Detail`, `Field`, `Offset` and `BodyPreview` values are not internal: `DecodeJSONOrBadRequest`
+copies them into the 400 body, so each is a shape the SPA already sees.
+
+**The field name is now read, not parsed.** v1 named an unknown field only inside its error message,
+which is why this string-prefixed `"json: unknown field "` — a check that broke on any rewording and
+said nothing about a nested field. v2 carries a `jsontext.Pointer`, so `rows.0.count` comes out of the
+error rather than out of its prose. The path is walked with the pointer's own `Tokens()`, which
+unescapes a field name containing `/` or `~`.
+
+**What the strictness changes.** A duplicate member, a miscased field and invalid UTF-8 were all
+accepted by v1 — last-wins, matched case-insensitively, and U+FFFD respectively. Each turned a body
+into a document nobody sent. All three now refuse. Checked against the SPA before landing: of the
+keys it sends in hand-written request payloads, none matches a Go tag only case-insensitively, and
+the documents it round-trips carry the tags the same structs produced. `filing.go` was the one
+handler decoding raw, so it had no body limit, no strictness and no trailing-data check; it goes
+through the helper now, and its `json.RawMessage` fields keep telling an omitted field from an
+explicit null exactly as before.
+
+`BuildJSONPayloadAndWeakETag` encodes through `jsoncodec` as well. It builds a response payload and
+hashes it, so a byte moving there would miss every cached app-config a browser holds — a test pins
+the payload against v1's bytes.
+
+With this, `go fix -diff` is clean across `services/`: the one file it had been reporting was this
+one, and the lines it wanted patched were replaced instead.
+
+**Still open on Track A:** A3's remaining direct `json.Unmarshal` call sites — the Redis blobs, NATS
+envelopes, asynq payloads and websocket frames — and the `json.RawMessage` values that want
+`jsontext.Value`. The `core/scheduler` ones are one decision rather than ten: `contract.TaskHandler`
+declares `data json.RawMessage`, and nine handlers conform to it, so the type moves and they follow. Then A4.
 
 ### A4 — Boundary shape decisions
 
