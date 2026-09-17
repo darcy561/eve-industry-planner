@@ -103,12 +103,6 @@ type Client struct {
 	// connect from the session's grants rather than requested by the browser and
 	// narrowed to one planner when the client names an active one.
 	Scopes models.OwnerKeys
-	// ActivePlanner is the planner this connection is working in, which is what
-	// namespaces a document lock. Scopes is derived from it and the account, and
-	// cannot be read back for it: the account's own key is in both.
-	//
-	// Zero until the client names one, which resolves to the account's own.
-	ActivePlanner models.Owner
 	// Ceiling is every owner the session may reach, which Scopes can never exceed.
 	//
 	// Held separately because a switch replaces Scopes rather than widening them:

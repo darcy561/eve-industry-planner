@@ -9,6 +9,7 @@ import { applyRemoteMessage } from "./applyRemoteMessage.js";
 import { requestAppConfigRecheck } from "../Events/appConfigEvents.js";
 import { loadAccountDocuments } from "../Functions/DocumentLoad/loadAccountDocuments.js";
 import useUsersStore from "../Zustand/usersStore.js";
+import { activePlannerOwnerHandle } from "../Zustand/activePlanner/read.js";
 import {
   clearWsClientID,
   clearWsClientIdentityHard,
@@ -556,12 +557,15 @@ export function sendDocumentLockEphemeralCommand(
   if (!messageType || !collection || !docID) {
     return false;
   }
+  const owner = activePlannerOwnerHandle();
+  if (!owner) return false;
   try {
     socket.send(
       JSON.stringify({
         type: messageType,
         collection,
         docID,
+        owner,
       }),
     );
     return true;
@@ -589,6 +593,12 @@ export function requestDocumentLockLockStateBatchOverWebsocket(params = {}) {
       : LOCK_LOCK_STATE_BATCH_WS_TIMEOUT_MS;
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return Promise.reject(new Error("websocket not connected"));
+  }
+  // Rejecting sends the caller to the HTTP path, which resolves the planner from
+  // the request headers and so needs nothing named here.
+  const owner = activePlannerOwnerHandle();
+  if (!owner) {
+    return Promise.reject(new Error("no active planner"));
   }
   const jobDocIDs = Array.isArray(params.jobDocIDs) ? params.jobDocIDs : [];
   const groupDocIDs = Array.isArray(params.groupDocIDs)
@@ -624,6 +634,7 @@ export function requestDocumentLockLockStateBatchOverWebsocket(params = {}) {
           requestId,
           jobDocIDs,
           groupDocIDs,
+          owner,
         }),
       );
     } catch (e) {

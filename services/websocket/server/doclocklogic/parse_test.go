@@ -7,14 +7,19 @@ import (
 
 func TestParsePresence(t *testing.T) {
 	t.Parallel()
-	c, d, ok := ParsePresence([]byte(`{"collection":"jobs","docID":"j1"}`))
-	if !ok || c != "jobs" || d != "j1" {
-		t.Fatalf("got %q %q ok=%v", c, d, ok)
+	f, ok := ParsePresence([]byte(`{"collection":"jobs","docID":"j1","owner":"corporation:98000001"}`))
+	if !ok || f.Collection != "jobs" || f.DocID != "j1" || f.Owner != "corporation:98000001" {
+		t.Fatalf("got %+v ok=%v", f, ok)
 	}
-	if _, _, ok := ParsePresence([]byte(`{"collection":"jobs"}`)); ok {
+	// An owner is not parsing's to refuse: the handler decides, because only it
+	// knows what the session was granted.
+	if f, ok := ParsePresence([]byte(`{"collection":"jobs","docID":"j1"}`)); !ok || f.Owner != "" {
+		t.Fatalf("a frame naming no owner should parse with none, got %+v ok=%v", f, ok)
+	}
+	if _, ok := ParsePresence([]byte(`{"collection":"jobs"}`)); ok {
 		t.Fatal("expected missing docID to fail")
 	}
-	if _, _, ok := ParsePresence([]byte(`not-json`)); ok {
+	if _, ok := ParsePresence([]byte(`not-json`)); ok {
 		t.Fatal("expected bad json to fail")
 	}
 }

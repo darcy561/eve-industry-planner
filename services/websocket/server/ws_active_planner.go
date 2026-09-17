@@ -63,7 +63,6 @@ func (s *Server) handleActivePlannerWS(ctx context.Context, client *Client, msg 
 
 	next := activeScopes(client.AccountID, owner)
 	s.setClientScopes(client, next)
-	s.setClientActivePlanner(client, owner)
 
 	wsAppendDebugStep(ctx, "active_planner_set", map[string]any{
 		"owner_kind":  string(owner.Kind),

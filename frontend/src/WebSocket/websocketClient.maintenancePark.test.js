@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { makeFakeWebSocket } from "../tests/fakeWebSocket.js";
 
 const requestAppConfigRecheck = vi.fn();
 vi.mock("../Events/appConfigEvents.js", () => ({
@@ -67,23 +68,7 @@ describe("websocket maintenance park", () => {
 // The browser gives a refused handshake no status, so the only thing the client
 // can do is ask app-config why the socket would not open.
 describe("a socket that will not open", () => {
-  class FakeSocket {
-    static OPEN = 1;
-    static last = null;
-    constructor() {
-      this.listeners = {};
-      this.readyState = 0;
-      FakeSocket.last = this;
-    }
-    addEventListener(type, fn) {
-      (this.listeners[type] ||= []).push(fn);
-    }
-    dispatch(type) {
-      for (const fn of this.listeners[type] || []) fn({});
-    }
-    close() {}
-    send() {}
-  }
+  const FakeSocket = makeFakeWebSocket({ readyState: 0 });
 
   beforeEach(() => {
     vi.stubGlobal("WebSocket", FakeSocket);

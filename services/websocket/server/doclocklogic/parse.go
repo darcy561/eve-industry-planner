@@ -8,26 +8,43 @@ import (
 type presenceIncoming struct {
 	Collection string `json:"collection"`
 	DocID      string `json:"docID"`
+	Owner      string `json:"owner"`
 }
 
 type lockStateBatchIncoming struct {
 	RequestID   string   `json:"requestId"`
 	JobDocIDs   []string `json:"jobDocIDs"`
 	GroupDocIDs []string `json:"groupDocIDs"`
+	Owner       string   `json:"owner"`
 }
 
-// ParsePresence extracts collection + docID from a waitlist/viewer WS frame.
-func ParsePresence(msg []byte) (collection, docID string, ok bool) {
+// PresenceFrame is a parsed waitlist/viewer WS frame.
+//
+// Owner is the planner the operation is for, as the handle a client knows. Every
+// lock frame names it: the connection's own record of which planner it is in is
+// set by a separate message, so a frame that arrived first would otherwise be
+// scoped to whatever that record happened to hold.
+type PresenceFrame struct {
+	Collection string
+	DocID      string
+	Owner      string
+}
+
+// ParsePresence extracts a waitlist/viewer WS frame.
+func ParsePresence(msg []byte) (PresenceFrame, bool) {
 	var in presenceIncoming
 	if err := json.Unmarshal(msg, &in); err != nil {
-		return "", "", false
+		return PresenceFrame{}, false
 	}
-	c := strings.TrimSpace(in.Collection)
-	d := strings.TrimSpace(in.DocID)
-	if c == "" || d == "" {
-		return "", "", false
+	f := PresenceFrame{
+		Collection: strings.TrimSpace(in.Collection),
+		DocID:      strings.TrimSpace(in.DocID),
+		Owner:      strings.TrimSpace(in.Owner),
 	}
-	return c, d, true
+	if f.Collection == "" || f.DocID == "" {
+		return PresenceFrame{}, false
+	}
+	return f, true
 }
 
 // LockStateBatchRequest is a parsed lock-state-batch WS frame.
@@ -35,6 +52,7 @@ type LockStateBatchRequest struct {
 	RequestID   string
 	JobDocIDs   []string
 	GroupDocIDs []string
+	Owner       string
 }
 
 // ParseLockStateBatch parses a lock-state-batch WS frame.
@@ -52,5 +70,6 @@ func ParseLockStateBatch(msg []byte) (req LockStateBatchRequest, ok bool, parseE
 		RequestID:   reqID,
 		JobDocIDs:   in.JobDocIDs,
 		GroupDocIDs: in.GroupDocIDs,
+		Owner:       strings.TrimSpace(in.Owner),
 	}, true, nil
 }

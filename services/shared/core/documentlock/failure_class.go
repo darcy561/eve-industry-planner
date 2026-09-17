@@ -12,4 +12,6 @@ const (
 	FailureStateBatchFailed     = "doc_lock_state_batch_failed"
 	FailureWaitlistPulseFailed  = "doc_lock_waitlist_pulse_failed"
 	FailureWSInvalidMessage     = "doc_lock_ws_invalid_message"
+	// The frame named a planner the connection was not granted, or named none.
+	FailureWSOwnerNotGranted = "doc_lock_ws_owner_not_granted"
 )
