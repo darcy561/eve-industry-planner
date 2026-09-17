@@ -2,8 +2,8 @@ package documentlock
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"strings"
 	"time"
 
@@ -90,7 +90,7 @@ func decodeLockRecordFromRedisString(s string, nowUnix int64) (*LockRecord, bool
 		return nil, false
 	}
 	var rec LockRecord
-	if err := json.Unmarshal([]byte(s), &rec); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(s), &rec); err != nil {
 		return nil, false
 	}
 	if rec.ExpiresAtUnix > 0 && nowUnix > rec.ExpiresAtUnix {

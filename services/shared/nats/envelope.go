@@ -1,7 +1,8 @@
 package nats
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strings"
 )
@@ -29,8 +30,8 @@ type Message struct {
 	// described the same way between services as it is to a browser and a new
 	// kind is one definition rather than two that must be kept aligned. A message
 	// without one keeps the meaning its Type already carries.
-	Subtype string          `json:"subtype,omitempty"`
-	Data    json.RawMessage `json:"data,omitempty"` // Optional JSON-encoded payload data
+	Subtype string         `json:"subtype,omitempty"`
+	Data    jsontext.Value `json:"data,omitempty"` // Optional JSON-encoded payload data
 }
 
 // HealthPing is an optional payload on health.command.ping (raw or Message.Data).
@@ -90,7 +91,7 @@ type WSCommandAck struct {
 // ParsePlacementState decodes raw PlacementState JSON (not a Message envelope).
 func ParsePlacementState(data []byte) (PlacementState, error) {
 	var s PlacementState
-	if err := json.Unmarshal(data, &s); err != nil {
+	if err := jsoncodec.Unmarshal(data, &s); err != nil {
 		return PlacementState{}, err
 	}
 	s.ContainerID = strings.TrimSpace(s.ContainerID)

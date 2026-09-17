@@ -2,9 +2,9 @@ package update
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/worker/tasks/sde/update/conversion"
 )
@@ -90,7 +90,7 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 }
 
 func addJSONFile(out map[string][]byte, basePath string, v any) error {
-	jsonData, err := json.MarshalIndent(v, "", "  ")
+	jsonData, err := jsoncodec.MarshalIndent(v)
 	if err != nil {
 		return fmt.Errorf("marshal %s failed: %w", basePath, err)
 	}

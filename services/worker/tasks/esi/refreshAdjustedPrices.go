@@ -2,6 +2,7 @@ package esi
 
 import (
 	"context"
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"net/http"
@@ -109,7 +110,7 @@ func streamAdjustedPrices(
 			LastUpdated:   stamped,
 		})
 	}
-	if err := httpclient.StreamJSON(stream.Body, walk); err != nil {
+	if err := jsoncodec.StreamArray(stream.Body, walk); err != nil {
 		return "", false, 0, err
 	}
 	return stream.ETag, false, stream.MaxAge, nil

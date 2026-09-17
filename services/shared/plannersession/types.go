@@ -1,7 +1,7 @@
 package plannersession
 
 import (
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"time"
 
 	"eve-industry-planner/shared/models"
@@ -12,7 +12,7 @@ type CorporationIDs []int64
 
 func (c *CorporationIDs) UnmarshalJSON(data []byte) error {
 	var ints []int64
-	if err := json.Unmarshal(data, &ints); err != nil {
+	if err := jsoncodec.Unmarshal(data, &ints); err != nil {
 		*c = CorporationIDs{}
 		return nil
 	}
@@ -25,7 +25,7 @@ type AllianceIDs []int64
 
 func (a *AllianceIDs) UnmarshalJSON(data []byte) error {
 	var ints []int64
-	if err := json.Unmarshal(data, &ints); err != nil {
+	if err := jsoncodec.Unmarshal(data, &ints); err != nil {
 		*a = AllianceIDs{}
 		return nil
 	}

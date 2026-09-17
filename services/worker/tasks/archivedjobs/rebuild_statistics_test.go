@@ -2,6 +2,7 @@ package archivedjobs
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	"slices"
 	"testing"
 	"time"
@@ -108,7 +109,7 @@ func TestDispatchStatisticsRebuildsTaskRequiresDependencies(t *testing.T) {
 	}
 }
 
-func mustJSON(t *testing.T, v any) json.RawMessage {
+func mustJSON(t *testing.T, v any) jsontext.Value {
 	t.Helper()
 	raw, err := json.Marshal(v)
 	if err != nil {

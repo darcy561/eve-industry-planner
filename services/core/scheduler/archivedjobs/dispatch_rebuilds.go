@@ -2,7 +2,7 @@ package archivedjobs
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	eipnats "eve-industry-planner/shared/nats"
 
 	"eve-industry-planner/core/scheduler/contract"
@@ -19,7 +19,7 @@ const logComponent = "archivedjobs"
 // checking the queue first costs one message against a read the worker makes
 // anyway.
 func DispatchStatisticsRebuilds(deps contract.Dependencies, jobName string) contract.TaskHandler {
-	return func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data jsontext.Value) error {
 		_ = data
 		logs.DebugCtx(ctx, "account statistics rebuild drain publishing", "component", logComponent)
 		if err := eipnats.PublishDispatchStatisticsRebuilds(ctx, deps.NATS, eipnats.DrainRebuildQueueRequest{}); err != nil {

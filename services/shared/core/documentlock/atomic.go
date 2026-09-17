@@ -36,7 +36,7 @@ package documentlock
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 
 	"eve-industry-planner/shared/models"
@@ -184,7 +184,7 @@ func runAcquireTx(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, 
 		return nil, fmt.Errorf("acquire tx: %w", err)
 	}
 	var out acquireTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("acquire tx: decode: %w", err)
 	}
 	return &out, nil
@@ -351,7 +351,7 @@ func runExtendTx(
 		return nil, fmt.Errorf("extend tx: %w", err)
 	}
 	var out extendTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("extend tx: decode: %w", err)
 	}
 	return &out, nil
@@ -399,7 +399,7 @@ func runReleaseTx(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, 
 		return nil, fmt.Errorf("release tx: %w", err)
 	}
 	var out releaseTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("release tx: decode: %w", err)
 	}
 	return &out, nil
@@ -490,7 +490,7 @@ func runForceReleaseSameAccountTx(ctx context.Context, rdb *eipredis.Redis, owne
 		return nil, fmt.Errorf("force-release same-account tx: %w", err)
 	}
 	var out forceReleaseSameAccountTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("force-release same-account tx: decode: %w", err)
 	}
 	return &out, nil
@@ -581,7 +581,7 @@ func runHandOverTx(
 		return nil, fmt.Errorf("hand-over tx: %w", err)
 	}
 	var out handOverTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("hand-over tx: decode: %w", err)
 	}
 	return &out, nil
@@ -682,7 +682,7 @@ func runRequestAccessTx(
 		return nil, fmt.Errorf("request-access tx: %w", err)
 	}
 	var out requestAccessTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("request-access tx: decode: %w", err)
 	}
 	return &out, nil
@@ -786,7 +786,7 @@ func runClaimHandoffTx(
 		return nil, fmt.Errorf("claim-handoff tx: %w", err)
 	}
 	var out claimHandoffTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("claim-handoff tx: decode: %w", err)
 	}
 	return &out, nil
@@ -864,7 +864,7 @@ func runPromoteWaitlistTx(
 		return nil, fmt.Errorf("promote-waitlist tx: %w", err)
 	}
 	var out promoteWaitlistTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("promote-waitlist tx: decode: %w", err)
 	}
 	return &out, nil

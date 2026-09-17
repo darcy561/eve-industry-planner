@@ -2,12 +2,12 @@ package sde
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
 	"eve-industry-planner/shared/core/objectstore"
+	"eve-industry-planner/shared/jsoncodec"
 )
 
 const (
@@ -59,7 +59,7 @@ func ReadVersionJSON(ctx context.Context, b objectstore.Backend, key string) (*V
 		return nil, err
 	}
 	var v VersionJSON
-	if err := json.Unmarshal(data, &v); err != nil {
+	if err := jsoncodec.Unmarshal(data, &v); err != nil {
 		return nil, err
 	}
 	return &v, nil
@@ -67,7 +67,7 @@ func ReadVersionJSON(ctx context.Context, b objectstore.Backend, key string) (*V
 
 // WriteVersionJSON marshals and writes version metadata at key.
 func WriteVersionJSON(ctx context.Context, b objectstore.Backend, key string, v VersionJSON) error {
-	data, err := json.MarshalIndent(v, "", "  ")
+	data, err := jsoncodec.MarshalIndent(v)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func ReadVersionLock(ctx context.Context, b objectstore.Backend) (*VersionLock, 
 		return nil, err
 	}
 	var lock VersionLock
-	if err := json.Unmarshal(data, &lock); err != nil {
+	if err := jsoncodec.Unmarshal(data, &lock); err != nil {
 		return nil, err
 	}
 	return &lock, nil
@@ -93,7 +93,7 @@ func WriteVersionLock(ctx context.Context, b objectstore.Backend, lock VersionLo
 	if lock.LockedAt.IsZero() {
 		lock.LockedAt = time.Now().UTC()
 	}
-	data, err := json.MarshalIndent(lock, "", "  ")
+	data, err := jsoncodec.MarshalIndent(lock)
 	if err != nil {
 		return err
 	}

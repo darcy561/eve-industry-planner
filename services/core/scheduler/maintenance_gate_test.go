@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,7 +19,7 @@ import (
 // test can watch what the next fire does.
 func fireCron(t *testing.T, s *TaskScheduler, taskType string, ran *atomic.Int32) {
 	t.Helper()
-	s.registerHandler(taskType, func(context.Context, json.RawMessage) error {
+	s.registerHandler(taskType, func(context.Context, jsontext.Value) error {
 		ran.Add(1)
 		return nil
 	})

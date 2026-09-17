@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 
 	"eve-industry-planner/shared/models"
 )
@@ -36,7 +36,7 @@ func (s *Server) handleActivePlannerWS(ctx context.Context, client *Client, msg 
 	const op = "active_planner"
 
 	var parsed activePlannerMessage
-	if err := json.Unmarshal(msg, &parsed); err != nil {
+	if err := jsoncodec.Unmarshal(msg, &parsed); err != nil {
 		finishWSOperationFailure(ctx, client, op,
 			"websocket active planner: invalid message",
 			"ws_active_planner_invalid_message", map[string]any{"error": err.Error()})

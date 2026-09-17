@@ -2,7 +2,7 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -129,7 +129,7 @@ func GetManyJSON[T any](ctx context.Context, r *Redis, keys []string) (map[strin
 			continue
 		}
 		value := new(T)
-		if err := json.Unmarshal([]byte(raw), value); err != nil {
+		if err := jsoncodec.Unmarshal([]byte(raw), value); err != nil {
 			continue
 		}
 		found[key] = value

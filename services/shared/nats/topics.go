@@ -2,7 +2,8 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/shared/logs"
 	"fmt"
 	"strings"
@@ -43,7 +44,7 @@ const SubtypeStaticDataBuildUpdated = "sdeBuildUpdated"
 // goes to every socket whether or not anyone is signed in, and it carries the
 // build so a client already holding it stays quiet.
 func AnnounceStaticDataBuild(n *NATS, buildNumber int, version string) error {
-	frame, err := json.Marshal(StaticDataMessage{
+	frame, err := jsoncodec.Marshal(StaticDataMessage{
 		Type:        ClientMessageStaticData,
 		BuildNumber: buildNumber,
 		Version:     version,
@@ -92,7 +93,7 @@ func AskMaintenanceState(ctx context.Context, n *NATS, wait time.Duration) (Main
 		return MaintenanceState{}, fmt.Errorf("%s: %w", SubjectAppConfigMaintenanceAsk, err)
 	}
 	var state MaintenanceState
-	if err := json.Unmarshal(msg.Data, &state); err != nil {
+	if err := jsoncodec.Unmarshal(msg.Data, &state); err != nil {
 		return MaintenanceState{}, fmt.Errorf("%s: unreadable reply: %w", SubjectAppConfigMaintenanceAsk, err)
 	}
 	return state, nil
@@ -156,7 +157,7 @@ func decodeHealthStatus(envelope Message) (HealthStatus, bool) {
 		return HealthStatus{}, false
 	}
 	var status HealthStatus
-	if err := json.Unmarshal(envelope.Data, &status); err != nil {
+	if err := jsoncodec.Unmarshal(envelope.Data, &status); err != nil {
 		return HealthStatus{}, false
 	}
 	return status, true
@@ -169,18 +170,18 @@ func parseHealthPing(data []byte) HealthPing {
 		return HealthPing{}
 	}
 	var envelope Message
-	if err := json.Unmarshal(data, &envelope); err == nil && envelope.Type != "" {
+	if err := jsoncodec.Unmarshal(data, &envelope); err == nil && envelope.Type != "" {
 		if len(envelope.Data) == 0 {
 			return HealthPing{}
 		}
 		var ping HealthPing
-		if err := json.Unmarshal(envelope.Data, &ping); err != nil {
+		if err := jsoncodec.Unmarshal(envelope.Data, &ping); err != nil {
 			return HealthPing{}
 		}
 		return ping
 	}
 	var ping HealthPing
-	if err := json.Unmarshal(data, &ping); err != nil {
+	if err := jsoncodec.Unmarshal(data, &ping); err != nil {
 		return HealthPing{}
 	}
 	return ping
@@ -198,7 +199,7 @@ func RequestWSCommand(ctx context.Context, n *NATS, subject, containerID string,
 	if containerID == "" {
 		return WSCommandAck{}, fmt.Errorf("%s: container id is required", subject)
 	}
-	raw, err := json.Marshal(WSCommand{ContainerID: containerID})
+	raw, err := jsoncodec.Marshal(WSCommand{ContainerID: containerID})
 	if err != nil {
 		return WSCommandAck{}, err
 	}
@@ -229,7 +230,7 @@ func SubscribeWSCommands(n *NATS, reply func(subject string, cmd WSCommand) (WSC
 	for _, subject := range []string{SubjectWSCommandCordon, SubjectWSCommandDrain, SubjectWSCommandUncordon} {
 		sub, err := n.conn.Subscribe(subject, func(msg *natslib.Msg) {
 			var cmd WSCommand
-			if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+			if err := jsoncodec.Unmarshal(msg.Data, &cmd); err != nil {
 				return
 			}
 			ack, answer := reply(msg.Subject, cmd)
@@ -256,18 +257,18 @@ func SubscribeWSCommands(n *NATS, reply func(subject string, cmd WSCommand) (WSC
 // decodeWSCommandAck reads an ack, which arrives in the shared envelope.
 func decodeWSCommandAck(data []byte) (WSCommandAck, bool) {
 	var envelope Message
-	if err := json.Unmarshal(data, &envelope); err == nil && envelope.Type != "" {
+	if err := jsoncodec.Unmarshal(data, &envelope); err == nil && envelope.Type != "" {
 		if len(envelope.Data) == 0 {
 			return WSCommandAck{}, false
 		}
 		var ack WSCommandAck
-		if err := json.Unmarshal(envelope.Data, &ack); err != nil {
+		if err := jsoncodec.Unmarshal(envelope.Data, &ack); err != nil {
 			return WSCommandAck{}, false
 		}
 		return ack, true
 	}
 	var ack WSCommandAck
-	if err := json.Unmarshal(data, &ack); err != nil {
+	if err := jsoncodec.Unmarshal(data, &ack); err != nil {
 		return WSCommandAck{}, false
 	}
 	return ack, true
@@ -282,7 +283,7 @@ func (n *NATS) publishTopic(subject string, payload any) error {
 	if n == nil || n.conn == nil {
 		return fmt.Errorf("nats connection is required")
 	}
-	data, err := json.Marshal(payload)
+	data, err := jsoncodec.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal %s: %w", subject, err)
 	}
@@ -301,7 +302,7 @@ func subscribeTopic[T any](n *NATS, subject string, handle func(T)) (stop func()
 	}
 	sub, err := n.conn.Subscribe(subject, func(msg *natslib.Msg) {
 		var payload T
-		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+		if err := jsoncodec.Unmarshal(msg.Data, &payload); err != nil {
 			logs.WarnCtx(context.Background(), "dropping undecodable message", "subject", subject, "error", err)
 			return
 		}
@@ -320,7 +321,7 @@ func gather[T any](ctx context.Context, n *NATS, subject string, request any, wa
 	if n == nil || n.conn == nil {
 		return nil, fmt.Errorf("nats connection is required")
 	}
-	data, err := json.Marshal(request)
+	data, err := jsoncodec.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("marshal %s request: %w", subject, err)
 	}
@@ -353,7 +354,7 @@ func gather[T any](ctx context.Context, n *NATS, subject string, request any, wa
 		select {
 		case raw := <-replies:
 			var reply T
-			if err := json.Unmarshal(raw, &reply); err != nil {
+			if err := jsoncodec.Unmarshal(raw, &reply); err != nil {
 				logs.WarnCtx(ctx, "dropping undecodable reply", "subject", subject, "error", err)
 				continue
 			}
@@ -371,7 +372,7 @@ func respondJSON(msg *natslib.Msg, v any) error {
 	if msg == nil {
 		return fmt.Errorf("nats: RespondJSON nil msg")
 	}
-	data, err := json.Marshal(v)
+	data, err := jsoncodec.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("nats: RespondJSON marshal: %w", err)
 	}
@@ -383,9 +384,9 @@ func respondJSON(msg *natslib.Msg, v any) error {
 
 // RespondEnvelope wraps payload in Message{Type, Data} and Responds.
 func RespondEnvelope(msg *natslib.Msg, typ string, payload any) error {
-	var data json.RawMessage
+	var data jsontext.Value
 	if payload != nil {
-		b, err := json.Marshal(payload)
+		b, err := jsoncodec.Marshal(payload)
 		if err != nil {
 			return fmt.Errorf("nats: RespondEnvelope marshal payload: %w", err)
 		}

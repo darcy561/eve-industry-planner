@@ -2,11 +2,11 @@ package esiclient_test
 
 import (
 	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"strings"
 	"testing"
 
 	"eve-industry-planner/shared/esiclient"
-	"eve-industry-planner/shared/httpclient"
 )
 
 func TestMarketOrderDecodesTheWireShape(t *testing.T) {
@@ -124,7 +124,7 @@ func TestWireTypesStreamThroughTheClientDecoder(t *testing.T) {
 	b.WriteByte(']')
 
 	seen := 0
-	err := httpclient.StreamJSON(strings.NewReader(b.String()), func(p esiclient.TypePrice) error {
+	err := jsoncodec.StreamArray(strings.NewReader(b.String()), func(p esiclient.TypePrice) error {
 		if p.TypeID != 34 {
 			t.Errorf("TypeID = %d", p.TypeID)
 		}
@@ -132,7 +132,7 @@ func TestWireTypesStreamThroughTheClientDecoder(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("StreamJSON: %v", err)
+		t.Fatalf("StreamArray: %v", err)
 	}
 	if seen != 500 {
 		t.Errorf("streamed %d, want 500", seen)

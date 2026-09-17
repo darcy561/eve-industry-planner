@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"io"
 	"maps"
@@ -222,7 +222,7 @@ func (b *backendRegistry) fetchRunning(ctx context.Context) (map[string]backend,
 		return nil, err
 	}
 	var tasks dockerTaskList
-	if err := json.Unmarshal(body, &tasks); err != nil {
+	if err := jsoncodec.Unmarshal(body, &tasks); err != nil {
 		return nil, fmt.Errorf("decode tasks: %w", err)
 	}
 	out := map[string]backend{}
@@ -294,7 +294,7 @@ func (b *backendRegistry) resolveServiceID(ctx context.Context) (string, error) 
 			Name string `json:"Name"`
 		} `json:"Spec"`
 	}
-	if err := json.Unmarshal(body, &services); err != nil {
+	if err := jsoncodec.Unmarshal(body, &services); err != nil {
 		return "", fmt.Errorf("decode services: %w", err)
 	}
 	for _, s := range services {

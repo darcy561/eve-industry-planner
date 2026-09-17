@@ -1,7 +1,7 @@
 package natslogic
 
 import (
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strings"
 
@@ -30,7 +30,7 @@ func innerLockEventName(inner map[string]any) string {
 // would skip the lock-holding tab as well; the SPA gates the snackbar on heldRef.
 func BuildDocumentLockWire(rawPayload []byte) (wire []byte, suppressSessionID string, err error) {
 	var inner map[string]any
-	if err := json.Unmarshal(rawPayload, &inner); err != nil {
+	if err := jsoncodec.Unmarshal(rawPayload, &inner); err != nil {
 		return nil, "", err
 	}
 
@@ -57,7 +57,7 @@ func BuildDocumentLockWire(rawPayload []byte) (wire []byte, suppressSessionID st
 		}
 	}
 
-	wire, err = json.Marshal(out)
+	wire, err = jsoncodec.Marshal(out)
 	if err != nil {
 		return nil, "", err
 	}

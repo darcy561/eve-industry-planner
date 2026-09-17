@@ -2,7 +2,8 @@ package plannersession
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"slices"
 
@@ -97,7 +98,7 @@ func (s *Store) RepairGrants(ctx context.Context, dryRun bool) (GrantsRepairRepo
 // grantsNeedingRepair returns the grants a record should hold, or nil when it
 // already holds them.
 func grantsNeedingRepair(ctx context.Context, r *eipredis.Redis, key, accountID string) (*models.SessionGrants, error) {
-	var raw map[string]json.RawMessage
+	var raw map[string]jsontext.Value
 	if err := r.GetJSON(ctx, key, &raw); err != nil {
 		return nil, err
 	}
@@ -107,7 +108,7 @@ func grantsNeedingRepair(ctx context.Context, r *eipredis.Redis, key, accountID 
 		legacySessionGrants
 	}
 	if grants, ok := raw["grants"]; ok {
-		if err := json.Unmarshal(grants, &storedGrants); err != nil {
+		if err := jsoncodec.Unmarshal(grants, &storedGrants); err != nil {
 			return nil, err
 		}
 	}

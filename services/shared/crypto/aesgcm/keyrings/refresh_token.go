@@ -2,8 +2,8 @@ package keyrings
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"os"
 	"sort"
@@ -89,7 +89,7 @@ func parseLegacyRefreshTokenKeys(raw string, keyLen int, activeVersion string) (
 		return nil, nil
 	}
 	entries := map[string]string{}
-	if err := json.Unmarshal([]byte(trimmed), &entries); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(trimmed), &entries); err != nil {
 		return nil, errors.New("REFRESH_TOKEN_AES_LEGACY_KEYS must be valid JSON object: {\"v1\":\"base64-key\"}")
 	}
 	legacy := make(map[string][]byte, len(entries))

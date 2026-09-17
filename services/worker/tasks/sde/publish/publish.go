@@ -3,7 +3,6 @@ package publish
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 
 	objectstore "eve-industry-planner/shared/core/objectstore"
 	sdecore "eve-industry-planner/shared/core/sde"
+	"eve-industry-planner/shared/jsoncodec"
 )
 
 type PublishResult struct {
@@ -204,7 +204,7 @@ func PrunePreviousVersions(ctx context.Context, b objectstore.Backend, keep int)
 		genTime := time.Time{}
 		if data, err := b.Get(ctx, sdecore.PreviousVersionKey(name, sdecore.VersionObjectKey)); err == nil {
 			var v sdecore.VersionJSON
-			if json.Unmarshal(data, &v) == nil && !v.GeneratedAt.IsZero() {
+			if jsoncodec.Unmarshal(data, &v) == nil && !v.GeneratedAt.IsZero() {
 				genTime = v.GeneratedAt
 			}
 		}
@@ -248,7 +248,7 @@ func GetLatestPreviousVersion(ctx context.Context, b objectstore.Backend) (name 
 		genTime := time.Time{}
 		if data, err := b.Get(ctx, sdecore.PreviousVersionKey(n, sdecore.VersionObjectKey)); err == nil {
 			var v sdecore.VersionJSON
-			if json.Unmarshal(data, &v) == nil {
+			if jsoncodec.Unmarshal(data, &v) == nil {
 				parsed = &v
 				if !v.GeneratedAt.IsZero() {
 					genTime = v.GeneratedAt

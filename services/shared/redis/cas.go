@@ -2,8 +2,8 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"time"
 
 	"eve-industry-planner/shared/retry"
@@ -56,7 +56,7 @@ func Update[T any](ctx context.Context, r *Redis, key string, ttl time.Duration,
 			case err != nil:
 				return err
 			default:
-				if err := json.Unmarshal(stored, &doc); err != nil {
+				if err := jsoncodec.Unmarshal(stored, &doc); err != nil {
 					return err
 				}
 			}
@@ -65,7 +65,7 @@ func Update[T any](ctx context.Context, r *Redis, key string, ttl time.Duration,
 			if err != nil {
 				return err
 			}
-			payload, err := json.Marshal(next)
+			payload, err := jsoncodec.Marshal(next)
 			if err != nil {
 				return err
 			}

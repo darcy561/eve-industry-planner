@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"strings"
 
 	"eve-industry-planner/shared/logs"
@@ -15,7 +15,7 @@ func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg 
 		// client, which reads as nothing applied and so as a load being owed.
 		Position uint64 `json:"position"`
 	}
-	if err := json.Unmarshal(msg, &resume); err != nil {
+	if err := jsoncodec.Unmarshal(msg, &resume); err != nil {
 		finishWSOperationFailure(ctx, client, "session_resume",
 			"websocket session resume: invalid message",
 			"ws_session_resume_invalid_message", map[string]any{

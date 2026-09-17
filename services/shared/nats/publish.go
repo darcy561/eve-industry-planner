@@ -2,7 +2,8 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 
 	"eve-industry-planner/shared/logs"
@@ -28,9 +29,9 @@ import (
 // logs.InfoCtx and friends stays linked to the API span.
 func (n *NATS) PublishTask(ctx context.Context, subject string, taskType string, payload any) (err error) {
 
-	var payloadJSON json.RawMessage
+	var payloadJSON jsontext.Value
 	if payload != nil {
-		payloadJSON, err = json.Marshal(payload)
+		payloadJSON, err = jsoncodec.Marshal(payload)
 		if err != nil {
 			return err
 		}
@@ -117,7 +118,7 @@ func encodeMessage(msg any) ([]byte, error) {
 	if bytes, ok := msg.([]byte); ok {
 		return bytes, nil
 	}
-	return json.Marshal(msg)
+	return jsoncodec.Marshal(msg)
 }
 
 const otelTracerNameNATS = "eve-industry-planner/shared/nats"

@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"strings"
 
 	"eve-industry-planner/shared/logs"
@@ -12,7 +12,7 @@ func (s *Server) handleSubscribeWS(ctx context.Context, client *Client, msg []by
 	var subscribeMsg struct {
 		DocIDs []string `json:"docIDs"`
 	}
-	if err := json.Unmarshal(msg, &subscribeMsg); err != nil {
+	if err := jsoncodec.Unmarshal(msg, &subscribeMsg); err != nil {
 		finishWSOperationFailure(ctx, client, "subscribe",
 			"websocket subscribe: invalid message",
 			"ws_subscribe_invalid_message", map[string]any{
@@ -109,7 +109,7 @@ func (s *Server) handleUnsubscribeWS(ctx context.Context, client *Client, msg []
 	var unsubscribeMsg struct {
 		DocIDs []string `json:"docIDs"`
 	}
-	if err := json.Unmarshal(msg, &unsubscribeMsg); err != nil {
+	if err := jsoncodec.Unmarshal(msg, &unsubscribeMsg); err != nil {
 		finishWSOperationFailure(ctx, client, "unsubscribe",
 			"websocket unsubscribe: invalid message",
 			"ws_unsubscribe_invalid_message", map[string]any{

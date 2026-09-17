@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -57,7 +58,7 @@ func TestResponseJSONReportsStatusBeforeDecoding(t *testing.T) {
 	}
 }
 
-func TestStreamJSONWalksElements(t *testing.T) {
+func TestStreamedResponseWalksElements(t *testing.T) {
 	const count = 2500
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		var b strings.Builder
@@ -83,7 +84,7 @@ func TestStreamJSONWalksElements(t *testing.T) {
 		OrderID int `json:"order_id"`
 	}
 	seen := 0
-	err = StreamJSON(stream.Body, func(o order) error {
+	err = jsoncodec.StreamArray(stream.Body, func(o order) error {
 		if o.OrderID != seen {
 			return fmt.Errorf("out of order at %d: got %d", seen, o.OrderID)
 		}
@@ -91,35 +92,10 @@ func TestStreamJSONWalksElements(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("StreamJSON: %v", err)
+		t.Fatalf("StreamArray: %v", err)
 	}
 	if seen != count {
 		t.Errorf("walked %d elements, want %d", seen, count)
-	}
-}
-
-func TestStreamJSONStopsOnCallbackError(t *testing.T) {
-	stop := errors.New("enough")
-	seen := 0
-	err := StreamJSON(strings.NewReader(`[1,2,3,4,5]`), func(int) error {
-		seen++
-		if seen == 2 {
-			return stop
-		}
-		return nil
-	})
-	if !errors.Is(err, stop) {
-		t.Fatalf("err = %v, want the callback's error", err)
-	}
-	if seen != 2 {
-		t.Errorf("walked %d elements, want 2", seen)
-	}
-}
-
-func TestStreamJSONRejectsNonArray(t *testing.T) {
-	err := StreamJSON(strings.NewReader(`{"not":"an array"}`), func(int) error { return nil })
-	if err == nil || !strings.Contains(err.Error(), "expected a json array") {
-		t.Fatalf("err = %v", err)
 	}
 }
 

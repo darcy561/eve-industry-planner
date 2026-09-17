@@ -2,8 +2,9 @@ package archivedjobs
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"net/http"
 	"time"
@@ -21,8 +22,8 @@ import (
 // left as it was; a field sent as null returns that side to what the reduction
 // derives, which is how a filing is undone.
 type filingRequest struct {
-	CostMonth  json.RawMessage `json:"costMonth"`
-	SalesMonth json.RawMessage `json:"salesMonth"`
+	CostMonth  jsontext.Value `json:"costMonth"`
+	SalesMonth jsontext.Value `json:"salesMonth"`
 }
 
 type filingResponse struct {
@@ -175,7 +176,7 @@ func (h *Handlers) FileArchivedJobMonthsHandler(w http.ResponseWriter, r *http.R
 
 // readFiledMonth reads one field of the request: absent leaves the month as it
 // was, null clears it, and a value replaces it.
-func readFiledMonth(raw json.RawMessage, current *models.CalendarMonth, now time.Time) (*models.CalendarMonth, error) {
+func readFiledMonth(raw jsontext.Value, current *models.CalendarMonth, now time.Time) (*models.CalendarMonth, error) {
 	if len(raw) == 0 {
 		return current, nil
 	}
@@ -184,7 +185,7 @@ func readFiledMonth(raw json.RawMessage, current *models.CalendarMonth, now time
 	}
 
 	var wire string
-	if err := json.Unmarshal(raw, &wire); err != nil {
+	if err := jsoncodec.Unmarshal(raw, &wire); err != nil {
 		return nil, fmt.Errorf("must be a YYYY-MM string or null")
 	}
 	key, err := eipmongo.ParseMonthKey(wire)

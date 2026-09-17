@@ -7,7 +7,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"net/http"
 	"strings"
@@ -70,7 +70,7 @@ func (s *Server) ForceCloseLocalClients(sig drainSignal) int {
 	if sig.ContainerID == "" {
 		sig.ContainerID = container.ID()
 	}
-	payload, _ := json.Marshal(map[string]string{
+	payload, _ := jsoncodec.Marshal(map[string]string{
 		"type":         "please_reconnect",
 		"action":       sig.Action,
 		"via":          sig.Via,

@@ -2,7 +2,7 @@ package documentlock
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"time"
 
@@ -94,7 +94,7 @@ func RebindHolderLeaseContested(ctx context.Context, rdb *eipredis.Redis, owner 
 		return nil, fmt.Errorf("rebind contested: %w", err)
 	}
 	var out rebindTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("rebind contested: decode: %w", err)
 	}
 	return &out, nil
@@ -117,7 +117,7 @@ func RebindHolderLeaseSolo(ctx context.Context, rdb *eipredis.Redis, owner model
 		return nil, fmt.Errorf("rebind solo: %w", err)
 	}
 	var out rebindTxResult
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &out); err != nil {
 		return nil, fmt.Errorf("rebind solo: decode: %w", err)
 	}
 	return &out, nil

@@ -2,7 +2,6 @@ package changestream
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"reflect"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"eve-industry-planner/core/primaryhandoff"
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -444,7 +444,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		LinkedCharactersChanged: linkedCharactersChanged,
 	}
 
-	messageData, err := json.Marshal(message)
+	messageData, err := jsoncodec.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal change stream message: %w", err)
 	}

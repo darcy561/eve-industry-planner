@@ -4,7 +4,7 @@ package contract
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 
 	"eve-industry-planner/shared/esiclient"
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -25,4 +25,4 @@ type Dependencies struct {
 
 // TaskHandler defines a function that triggers a task
 // data is the optional JSON-encoded data passed in the schedule request
-type TaskHandler func(ctx context.Context, data json.RawMessage) error
+type TaskHandler func(ctx context.Context, data jsontext.Value) error

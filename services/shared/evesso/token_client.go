@@ -3,8 +3,8 @@ package evesso
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"io"
 	"net/http"
@@ -80,7 +80,7 @@ func performEveSSOTokenRequestWithRetry(ctx context.Context, req *http.Request) 
 		}
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			var errorResp EveSSOErrorResponse
-			if err := json.Unmarshal(body, &errorResp); err == nil {
+			if err := jsoncodec.Unmarshal(body, &errorResp); err == nil {
 				if msg := formatEveSSOClientError(errorResp); msg != "" {
 					return errors.New(msg)
 				}
@@ -90,14 +90,14 @@ func performEveSSOTokenRequestWithRetry(ctx context.Context, req *http.Request) 
 		if resp.StatusCode >= 500 {
 			var serverErr error
 			var errorResp EveSSOErrorResponse
-			if err := json.Unmarshal(body, &errorResp); err == nil && errorResp.ErrorDescription != "" {
+			if err := jsoncodec.Unmarshal(body, &errorResp); err == nil && errorResp.ErrorDescription != "" {
 				serverErr = fmt.Errorf("EVE SSO Error: %s", errorResp.ErrorDescription)
 			} else {
 				serverErr = fmt.Errorf("EVE SSO Error: Server error (status %d)", resp.StatusCode)
 			}
 			return eveSSORetryableError{err: serverErr}
 		}
-		if err := json.Unmarshal(body, &tokenResp); err != nil {
+		if err := jsoncodec.Unmarshal(body, &tokenResp); err != nil {
 			return fmt.Errorf("failed to parse token response: %w", err)
 		}
 		return nil

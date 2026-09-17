@@ -61,10 +61,13 @@ function record(into, path) {
 }
 
 /**
- * Go marshals a nil slice or map as `null` and the SPA builds `[]` or `{}` in
- * its place. Both say the collection is empty, so treating them as different
- * would report every untouched job. Whether the wire should settle on one of
- * them is a separate question from whether anything was lost here.
+ * Empty says nothing was lost, however it is spelled.
+ *
+ * The API sends an empty collection as `[]` or `{}`, which is what the SPA
+ * builds, so those agree. `null` is still treated as empty here for two reasons:
+ * a corpus captured before the wire settled on the empty forms carries it, and a
+ * field that is genuinely absent is null on purpose. Neither means a round trip
+ * dropped anything, which is the only question this test asks.
  *
  * @param {*} value
  * @returns {boolean}
@@ -160,7 +163,15 @@ describe("a job survives the API boundary", () => {
       );
       return;
     }
-    const schemaPath = corpus.replace(/\.[^.]*$/, "") + ".schema.json";
+    // The committed fixture rather than one written beside the corpus: this side
+    // cannot produce the paths — they come from Go reflection — and a file only
+    // written when the Go sweep runs goes stale the moment the model gains a
+    // field, which this test then reports as the SPA inventing one. A Go test
+    // fails when the fixture and the model disagree.
+    const schemaPath = resolve(
+      import.meta.dirname,
+      "../../../testing/fixtures/model-parity/job-schema.json",
+    );
     const modelled = new Set(JSON.parse(fs.readFileSync(schemaPath, "utf8")));
 
     const found = { added: new Map(), dropped: new Map(), changed: new Map() };

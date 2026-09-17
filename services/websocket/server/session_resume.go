@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"time"
 
@@ -69,7 +69,7 @@ func (s *Server) storeRedisSessionHandoff(ctx context.Context, accountID, oldCli
 		AccountID: accountID,
 		Docs:      docList,
 	}
-	b, err := json.Marshal(payload)
+	b, err := jsoncodec.Marshal(payload)
 	if err != nil {
 		logs.WarnCtx(ctx, "session handoff redis marshal failed", "error", err)
 		return
@@ -104,7 +104,7 @@ func (s *Server) popSessionHandoff(ctx context.Context, accountID, previousClien
 		val, err := s.Stack.Redis.Driver().GetDel(rctx, key).Result()
 		if err == nil && val != "" {
 			var payload redisSessionHandoffPayload
-			if errUnmarshal := json.Unmarshal([]byte(val), &payload); errUnmarshal != nil {
+			if errUnmarshal := jsoncodec.Unmarshal([]byte(val), &payload); errUnmarshal != nil {
 				logs.WarnCtx(ctx, "session handoff Redis payload invalid", "error", errUnmarshal)
 			} else if payload.AccountID == accountID {
 				docs := make(map[string]struct{})
@@ -209,7 +209,7 @@ func (s *Server) queueResumeAck(client *Client, skipDocumentLoad bool, restoredD
 	if len(restoredDocIDs) > 0 {
 		msg["restoredDocIDs"] = restoredDocIDs
 	}
-	b, err := json.Marshal(msg)
+	b, err := jsoncodec.Marshal(msg)
 	if err != nil {
 		return false
 	}

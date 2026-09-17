@@ -2,7 +2,7 @@ package esi
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/worker/taskrun"
 	"fmt"
 	"net/http"
@@ -210,7 +210,7 @@ func fetchCharacterAffiliations(
 		end := min(start+maxCharacterAffiliationBatch, len(characterIDs))
 		chunk := characterIDs[start:end]
 
-		payload, err := json.Marshal(chunk)
+		payload, err := jsoncodec.Marshal(chunk)
 		if err != nil {
 			logs.ErrorCtx(ctx, "failed to marshal character ID batch for affiliation",
 				"account_id", accountID, "batch_size", len(chunk), "error", err)
@@ -252,7 +252,7 @@ func fetchCharacterAffiliations(
 		}
 
 		var affiliations []esiclient.CharacterAffiliation
-		if err := json.Unmarshal(resp.Body, &affiliations); err != nil {
+		if err := jsoncodec.Unmarshal(resp.Body, &affiliations); err != nil {
 			logs.ErrorCtx(ctx, "failed to parse affiliation response",
 				"account_id", accountID, "batch_size", len(chunk), "error", err)
 			failed += len(chunk)

@@ -2,7 +2,7 @@ package esi
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 	"time"
@@ -34,7 +34,7 @@ func RegionMarketOrdersRefresh(deps contract.Dependencies, jobName string) contr
 	r := deps.Redis
 	esi := deps.ESI
 
-	return func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data jsontext.Value) error {
 		if deferred, err := DeferPublicationUntilAfterDowntime(ctx, natsHandle, jobName, esi); err != nil || deferred {
 			return err
 		}

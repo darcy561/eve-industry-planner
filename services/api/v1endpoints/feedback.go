@@ -2,7 +2,7 @@ package v1endpoints
 
 import (
 	"bytes"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"net/http"
 	"sort"
@@ -117,7 +117,7 @@ func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	var metadataNorm map[string]string
 	if reqBody.Metadata != nil {
-		metaJSON, err := json.Marshal(reqBody.Metadata)
+		metaJSON, err := jsoncodec.Marshal(reqBody.Metadata)
 		if err != nil {
 			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid metadata", "feedback invalid metadata", "feedback_invalid_metadata", "feedback", err, nil)
 			return
@@ -235,7 +235,7 @@ func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 				Embeds:   embeds,
 			}
 
-			payloadJSON, err := json.Marshal(payload)
+			payloadJSON, err := jsoncodec.Marshal(payload)
 			if err != nil {
 				helper.RespondEndpointServerError(w, r, "Internal server error", "failed to marshal Discord payload", "feedback_marshal_failed", "feedback", err, nil)
 				return

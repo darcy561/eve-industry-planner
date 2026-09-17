@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"time"
 
 	"eve-industry-planner/shared/appconfig"
@@ -43,7 +43,7 @@ func (s *Server) applyMaintenanceState(ctx context.Context, enabled bool) {
 		logs.InfoCtx(ctx, "websocket maintenance cleared, accepting upgrades")
 		return
 	}
-	payload, err := json.Marshal(eipnats.MaintenanceMessage{
+	payload, err := jsoncodec.Marshal(eipnats.MaintenanceMessage{
 		Type:    eipnats.ClientMessageMaintenance,
 		Enabled: true,
 		Message: "The service is in maintenance; the app reconnects when it ends.",

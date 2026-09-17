@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strconv"
 
@@ -61,7 +61,7 @@ func parseJSONLToKeyedMap(data []byte) (map[string]any, error) {
 		}
 
 		var obj map[string]any
-		if err := json.Unmarshal(line, &obj); err != nil {
+		if err := jsoncodec.Unmarshal(line, &obj); err != nil {
 			return nil, fmt.Errorf("invalid jsonl row: %w", err)
 		}
 

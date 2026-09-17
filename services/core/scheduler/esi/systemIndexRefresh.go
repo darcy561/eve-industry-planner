@@ -2,7 +2,7 @@ package esi
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
@@ -17,7 +17,7 @@ func IndustrySystemsRefresh(deps contract.Dependencies, jobName string) contract
 	natsHandle := deps.NATS
 	esi := deps.ESI
 	redisClient := deps.Redis
-	return func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data jsontext.Value) error {
 		publish := func(publishCtx context.Context) error {
 			logs.DebugCtx(publishCtx, "publishing industry systems refresh trigger", "component", schedulerLogComponent)
 			if err := eipnats.TriggerRefreshSystemIndexes(publishCtx, natsHandle); err != nil {

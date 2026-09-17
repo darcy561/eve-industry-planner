@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	sdecore "eve-industry-planner/shared/core/sde"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"sort"
 	"strings"
@@ -75,7 +76,7 @@ func RunSdeVersionHistory() error {
 		info := previousVersionInfo{Directory: dirName}
 		if data, err := backend.Get(ctx, sdecore.PreviousVersionKey(dirName, sdecore.VersionObjectKey)); err == nil {
 			var parsed sdecore.VersionJSON
-			if json.Unmarshal(data, &parsed) == nil {
+			if jsoncodec.Unmarshal(data, &parsed) == nil {
 				info.Version = &parsed
 			}
 		}

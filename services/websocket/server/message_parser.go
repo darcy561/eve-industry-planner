@@ -1,7 +1,7 @@
 package server
 
 import (
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 
 	"eve-industry-planner/shared/logs"
@@ -40,7 +40,7 @@ func (s *Server) parseEventFull(event Event) (string, string, *MessageFormat, er
 
 	// Parse message as JSON
 	var msgFormat MessageFormat
-	if err := json.Unmarshal(messageData, &msgFormat); err != nil {
+	if err := jsoncodec.Unmarshal(messageData, &msgFormat); err != nil {
 		return "", "", nil, fmt.Errorf("failed to parse message: %w", err)
 	}
 

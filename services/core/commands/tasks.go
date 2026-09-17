@@ -2,7 +2,7 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
@@ -318,11 +318,11 @@ func runTrigger(ctx context.Context, args []string) error {
 	return nil
 }
 
-func payloadToInterface(payload json.RawMessage) any {
+func payloadToInterface(payload jsontext.Value) any {
 	if payload == nil {
 		return nil
 	}
-	// json.RawMessage preserves the original JSON bytes when marshaled, so the
+	// jsontext.Value preserves the original JSON bytes when marshaled, so the
 	// operator's payload reaches the handler as they wrote it.
 	return payload
 }

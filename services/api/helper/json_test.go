@@ -1,7 +1,6 @@
 package helper
 
 import (
-	jsonv1 "encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -30,16 +29,16 @@ func TestEncodeJSONWritesTheBodyAndContentType(t *testing.T) {
 	}
 }
 
-// A nil slice answers null, not []. Changing that is a wire decision, not a side
-// effect of routing a handler.
-func TestEncodeJSONWritesNilSlicesAsNull(t *testing.T) {
+// A collection answers [] when it is empty, whether or not the slice behind it
+// was ever allocated. The SPA already assumed this; the wire now says it.
+func TestEncodeJSONWritesNilSlicesAsEmptyArrays(t *testing.T) {
 	t.Parallel()
 	w := httptest.NewRecorder()
 
 	if err := EncodeJSON(w, body{Name: "a"}); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := w.Body.String(), "{\"name\":\"a\",\"tags\":null}\n"; got != want {
+	if got, want := w.Body.String(), "{\"name\":\"a\",\"tags\":[]}\n"; got != want {
 		t.Fatalf("body = %q, want %q", got, want)
 	}
 }
@@ -89,8 +88,9 @@ func TestEncodeJSONReportsAWriteFailure(t *testing.T) {
 }
 
 // The ETag hashes the payload, so a moved byte misses every cached app-config a
-// browser holds.
-func TestETagPayloadIsUnchangedFromV1(t *testing.T) {
+// browser holds. That is a reason to know when the payload changes, not a reason
+// it never may: this pins the shape we mean to send.
+func TestETagPayloadIsTheShapeWeIntend(t *testing.T) {
 	t.Parallel()
 
 	data := struct {
@@ -107,11 +107,8 @@ func TestETagPayloadIsUnchangedFromV1(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := jsonv1.Marshal(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(payload) != string(want) {
+	const want = `{"version":"1.2.3","flags":{"a":1,"b":true,"c":"x"},"missing":[],"disabled":false}`
+	if string(payload) != want {
 		t.Fatalf("payload\n got %s\nwant %s", payload, want)
 	}
 	if etag == "" || !strings.HasPrefix(etag, `W/"`) {

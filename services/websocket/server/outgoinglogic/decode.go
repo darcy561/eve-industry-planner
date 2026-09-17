@@ -2,6 +2,7 @@ package outgoinglogic
 
 import (
 	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strings"
 
@@ -18,7 +19,7 @@ type DecodedOutbound struct {
 // DecodeOutboundMessage unmarshals the payload once for routing.
 func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
 	var msgData map[string]any
-	if err := json.Unmarshal(messageData, &msgData); err != nil {
+	if err := jsoncodec.Unmarshal(messageData, &msgData); err != nil {
 		return DecodedOutbound{}, err
 	}
 	return DecodedOutbound{
@@ -98,7 +99,7 @@ var routingOnlyFields = []string{
 // now only a message with no owner to name and no position to add.
 func ClientPayload(messageData []byte, owner models.Owner, cipher *entityid.Cipher, position uint64) []byte {
 	var m map[string]any
-	if err := json.Unmarshal(messageData, &m); err != nil {
+	if err := jsoncodec.Unmarshal(messageData, &m); err != nil {
 		return messageData
 	}
 
@@ -126,7 +127,7 @@ func ClientPayload(messageData []byte, owner models.Owner, cipher *entityid.Ciph
 		return messageData
 	}
 
-	out, err := json.Marshal(m)
+	out, err := jsoncodec.Marshal(m)
 	if err != nil {
 		return messageData
 	}

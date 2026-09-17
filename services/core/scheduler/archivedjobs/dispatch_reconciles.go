@@ -2,7 +2,7 @@ package archivedjobs
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/shared/logs"
@@ -15,7 +15,7 @@ import (
 // this carries no payload and holds no Mongo dependency. How often it fires sets
 // throughput; how long an owner may go unreconciled is the worker's window.
 func DispatchStatisticsReconciles(deps contract.Dependencies, jobName string) contract.TaskHandler {
-	return func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data jsontext.Value) error {
 		_ = data
 		logs.DebugCtx(ctx, "statistics reconcile rota publishing", "component", logComponent)
 		if err := eipnats.PublishDispatchStatisticsReconciles(ctx, deps.NATS); err != nil {

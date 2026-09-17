@@ -2,7 +2,8 @@ package models
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"eve-industry-planner/shared/jsoncodec"
 	"strconv"
 	"strings"
 	"time"
@@ -11,20 +12,20 @@ import (
 )
 
 // ParseExtrasDeletedAtJSON interprets a JSON deletedAt value: null, number (epoch ms from legacy clients), or ISO/RFC3339 string.
-func ParseExtrasDeletedAtJSON(raw json.RawMessage) *string {
+func ParseExtrasDeletedAtJSON(raw jsontext.Value) *string {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil
 	}
 	if bytes.HasPrefix(raw, []byte(`"`)) {
 		var s string
-		if err := json.Unmarshal(raw, &s); err != nil {
+		if err := jsoncodec.Unmarshal(raw, &s); err != nil {
 			return nil
 		}
 		return coerceDeletedAtFromString(s)
 	}
 	var f float64
-	if err := json.Unmarshal(raw, &f); err == nil && f != 0 {
+	if err := jsoncodec.Unmarshal(raw, &f); err == nil && f != 0 {
 		out := time.UnixMilli(int64(f)).UTC().Format(time.RFC3339Nano)
 		return &out
 	}
@@ -112,12 +113,12 @@ func (e *ExtraCategory) UnmarshalBSON(data []byte) error {
 // UnmarshalJSON accepts string, number (epoch ms), or null for deletedAt.
 func (e *ExtraCategory) UnmarshalJSON(data []byte) error {
 	var w struct {
-		ID        string          `json:"id"`
-		Label     string          `json:"label"`
-		Deleted   bool            `json:"deleted"`
-		DeletedAt json.RawMessage `json:"deletedAt"`
+		ID        string         `json:"id"`
+		Label     string         `json:"label"`
+		Deleted   bool           `json:"deleted"`
+		DeletedAt jsontext.Value `json:"deletedAt"`
 	}
-	if err := json.Unmarshal(data, &w); err != nil {
+	if err := jsoncodec.Unmarshal(data, &w); err != nil {
 		return err
 	}
 	e.ID = w.ID

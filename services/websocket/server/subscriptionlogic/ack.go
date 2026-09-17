@@ -1,10 +1,10 @@
 package subscriptionlogic
 
-import "encoding/json"
+import "eve-industry-planner/shared/jsoncodec"
 
 // MarshalSubscribeAck builds the subscribe_ack wire payload.
 func MarshalSubscribeAck(docIDs []string) ([]byte, error) {
-	return json.Marshal(map[string]any{
+	return jsoncodec.Marshal(map[string]any{
 		"type":   "subscribe_ack",
 		"docIDs": docIDs,
 	})

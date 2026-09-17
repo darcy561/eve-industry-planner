@@ -2,7 +2,7 @@ package asynq
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"slices"
 	"time"
@@ -141,7 +141,7 @@ func decodeRequest[T any](t *asynq.Task) (T, error) {
 	if len(payload) == 0 || string(payload) == "null" {
 		return req, eipnats.Terminate("carries no request")
 	}
-	if err := json.Unmarshal(payload, &req); err != nil {
+	if err := jsoncodec.Unmarshal(payload, &req); err != nil {
 		return req, eipnats.Terminate("request will not decode: %v", err)
 	}
 	return req, nil

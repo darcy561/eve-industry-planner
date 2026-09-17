@@ -1,7 +1,7 @@
 package nats
 
 import (
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strings"
 )
@@ -22,11 +22,11 @@ func PublishNotification(n *NATS, ownerKey, subtype string, body any) error {
 	if subtype == "" {
 		return fmt.Errorf("a notification needs a subtype")
 	}
-	data, err := json.Marshal(body)
+	data, err := jsoncodec.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshal %s notification: %w", subtype, err)
 	}
-	frame, err := json.Marshal(Message{
+	frame, err := jsoncodec.Marshal(Message{
 		Type:    ClientMessageNotification,
 		Subtype: subtype,
 		Data:    data,

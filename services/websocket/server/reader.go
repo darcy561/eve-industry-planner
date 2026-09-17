@@ -1,8 +1,8 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strings"
 	"time"
@@ -21,7 +21,7 @@ func peekWSMessageType(msg []byte) string {
 	var header struct {
 		Type string `json:"type"`
 	}
-	if err := json.Unmarshal(msg, &header); err != nil {
+	if err := jsoncodec.Unmarshal(msg, &header); err != nil {
 		return ""
 	}
 	return header.Type
@@ -234,7 +234,7 @@ func (s *Server) reader(client *Client) {
 		// Parse JSON messages and handle by type field
 		if len(msg) > 0 && msg[0] == '{' {
 			var msgData map[string]any
-			if err := json.Unmarshal(msg, &msgData); err != nil {
+			if err := jsoncodec.Unmarshal(msg, &msgData); err != nil {
 				logs.WarnCtx(ctx, "websocket message is not valid JSON",
 					"client_id", client.id,
 					"account_id", client.AccountID,

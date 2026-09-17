@@ -2,6 +2,7 @@ package outgoinglogic
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	"slices"
 	"testing"
 
@@ -50,7 +51,7 @@ func TestClientPayloadKeysMatchTheAPIResponse(t *testing.T) {
 		"collection": "user_job_documents",
 		"docID":      "job-1",
 		"accountID":  "acct-1",
-		"document":   json.RawMessage(storedBSON),
+		"document":   jsontext.Value(storedBSON),
 	})
 	if err != nil {
 		t.Fatalf("marshal envelope: %v", err)

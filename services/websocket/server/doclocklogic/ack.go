@@ -1,6 +1,6 @@
 package doclocklogic
 
-import "encoding/json"
+import "eve-industry-planner/shared/jsoncodec"
 
 // MarshalLockStateBatchAck builds the lock-state-batch ack WS payload.
 func MarshalLockStateBatchAck(requestID string, ok bool, jobResults, groupResults map[string]any, errMsg string) ([]byte, error) {
@@ -15,5 +15,5 @@ func MarshalLockStateBatchAck(requestID string, ok bool, jobResults, groupResult
 	} else if errMsg != "" {
 		payload["error"] = errMsg
 	}
-	return json.Marshal(payload)
+	return jsoncodec.Marshal(payload)
 }

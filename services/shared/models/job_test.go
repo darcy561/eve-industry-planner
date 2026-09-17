@@ -186,8 +186,9 @@ func TestTheSalesTaxEstimateStaysOutOfACostTotal(t *testing.T) {
 }
 
 // The id was minted from the clock and stored as a number until it became a
-// uuid, so the collection holds both. A document written then still has to
-// decode: 184 archived jobs and 12 live ones carry numeric ids today.
+// uuid, so the collection holds both, and a document written then still has to
+// decode. The counts that were taken — 184 archived jobs and 12 live ones — are
+// from dev and say nothing about how many exist in production.
 func TestAnInventionEntryDecodesAnIDWrittenAsANumber(t *testing.T) {
 	t.Parallel()
 

@@ -3,6 +3,7 @@ package v1endpoints
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"testing"
 
 	"eve-industry-planner/shared/models"
@@ -44,7 +45,7 @@ func TestSessionBootstrapResponseJSONIncludesEsiOAuthStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var raw map[string]json.RawMessage
+	var raw map[string]jsontext.Value
 	if err := json.Unmarshal(b, &raw); err != nil {
 		t.Fatal(err)
 	}

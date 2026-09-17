@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"sync/atomic"
 	"testing"
 
@@ -22,7 +22,7 @@ import (
 func observedFire(t *testing.T, s *TaskScheduler, taskType string) (*observer.ObservedLogs, *atomic.Int32) {
 	t.Helper()
 	var ran atomic.Int32
-	s.registerHandler(taskType, func(context.Context, json.RawMessage) error {
+	s.registerHandler(taskType, func(context.Context, jsontext.Value) error {
 		ran.Add(1)
 		return nil
 	})

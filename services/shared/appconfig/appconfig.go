@@ -1,7 +1,7 @@
 package appconfig
 
 import (
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"os"
 	"strings"
 )
@@ -23,7 +23,7 @@ func FeatureFlags() map[string]any {
 		return map[string]any{}
 	}
 	var out map[string]any
-	if err := json.Unmarshal([]byte(s), &out); err != nil || out == nil {
+	if err := jsoncodec.Unmarshal([]byte(s), &out); err != nil || out == nil {
 		return map[string]any{}
 	}
 	return out

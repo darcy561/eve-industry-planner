@@ -2,6 +2,7 @@ package esi
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"net/http"
@@ -219,13 +220,13 @@ func TestAffiliationRecoversFromABatchThatFailsOnce(t *testing.T) {
 
 // createMockTask builds the asynq payload envelope a handler unwraps.
 func createMockTask(taskType string, data any) *asynq.Task {
-	var payloadData json.RawMessage
+	var payloadData jsontext.Value
 	if data != nil {
 		payloadData, _ = json.Marshal(data)
 	}
 	payloadBytes, _ := json.Marshal(struct {
-		TaskType string          `json:"task_type"`
-		Data     json.RawMessage `json:"data"`
+		TaskType string         `json:"task_type"`
+		Data     jsontext.Value `json:"data"`
 	}{TaskType: taskType, Data: payloadData})
 	return asynq.NewTask(taskType, payloadBytes)
 }

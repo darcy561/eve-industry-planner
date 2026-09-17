@@ -2,7 +2,7 @@ package maintenance
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	eipnats "eve-industry-planner/shared/nats"
 	"time"
 
@@ -25,7 +25,7 @@ const (
 // the threshold (via Redis bookmark on user _id), and publishes one worker task per account to
 // delete that account's planner jobs and groups.
 func InactiveAccountPlannerCleanup(deps contract.Dependencies, jobName string) contract.TaskHandler {
-	return func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data jsontext.Value) error {
 		_ = data
 		if deps.Mongo == nil {
 			logs.ErrorCtx(ctx, "inactive account planner cleanup: mongo client is nil", "component", schedulerLogComponent)

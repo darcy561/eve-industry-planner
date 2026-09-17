@@ -9,7 +9,7 @@ package documentlock
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"maps"
 	"strconv"
 	"time"
@@ -95,7 +95,7 @@ func statusBatchFetch(
 		var rec *LockRecord
 		if raw != "" {
 			var lr LockRecord
-			if jerr := json.Unmarshal([]byte(raw), &lr); jerr == nil {
+			if jerr := jsoncodec.Unmarshal([]byte(raw), &lr); jerr == nil {
 				if lr.ExpiresAtUnix > 0 && now > lr.ExpiresAtUnix {
 					expired = append(expired, r)
 				} else {

@@ -2,8 +2,9 @@
 package staticdata
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -201,8 +202,8 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		return
 	}
 
-	var raw json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
+	var raw jsontext.Value
+	if err := jsoncodec.Unmarshal(data, &raw); err != nil {
 		duration := time.Since(start)
 		shared.Errors.WithLabelValues(errPrefix + "_invalid_json").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "invalid_json",

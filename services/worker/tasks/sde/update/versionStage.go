@@ -2,9 +2,9 @@ package update
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	sdecore "eve-industry-planner/shared/core/sde"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"io"
 	"net/http"
@@ -118,7 +118,7 @@ func fetchLatestBuild(ctx context.Context) (*latestBuildInfo, error) {
 	}
 
 	var latest latestBuildInfo
-	if err := json.Unmarshal(body, &latest); err != nil {
+	if err := jsoncodec.Unmarshal(body, &latest); err != nil {
 		return nil, err
 	}
 	latest.DownloadURL = buildJSONDataURL(latest.BuildNumber)

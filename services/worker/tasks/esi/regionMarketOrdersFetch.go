@@ -3,6 +3,7 @@ package esi
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -135,7 +136,7 @@ func fetchRegionOrdersPage(
 	// The page is collected rather than streamed straight through, because it is
 	// cached whole for the next pass to replay on a 304.
 	orders := make([]esiclient.MarketOrder, 0, 1000)
-	if err := httpclient.StreamJSON(stream.Body, func(order esiclient.MarketOrder) error {
+	if err := jsoncodec.StreamArray(stream.Body, func(order esiclient.MarketOrder) error {
 		orders = append(orders, order)
 		return nil
 	}); err != nil {

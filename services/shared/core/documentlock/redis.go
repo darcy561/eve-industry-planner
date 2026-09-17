@@ -2,7 +2,7 @@ package documentlock
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strings"
 	"time"
@@ -242,7 +242,7 @@ func GetLock(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, colle
 		return nil, err
 	}
 	var rec LockRecord
-	if err := json.Unmarshal([]byte(s), &rec); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(s), &rec); err != nil {
 		return nil, err
 	}
 	now := time.Now().Unix()
@@ -255,7 +255,7 @@ func GetLock(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, colle
 
 // SetLock writes the lock record with DefaultLockTTL.
 func SetLock(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, collection, docID string, rec LockRecord) error {
-	b, err := json.Marshal(rec)
+	b, err := jsoncodec.Marshal(rec)
 	if err != nil {
 		return err
 	}

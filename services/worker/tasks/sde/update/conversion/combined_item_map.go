@@ -1,7 +1,7 @@
 package conversion
 
 import (
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strconv"
 )
@@ -166,12 +166,12 @@ func blueprintTypeIDKey(blueprintRow map[string]any) string {
 }
 
 func inventionSourceFromSDEMap(m map[string]any) InventionSource {
-	b, err := json.Marshal(m)
+	b, err := jsoncodec.Marshal(m)
 	if err != nil {
 		return InventionSource{}
 	}
 	var s InventionSource
-	if err := json.Unmarshal(b, &s); err != nil {
+	if err := jsoncodec.Unmarshal(b, &s); err != nil {
 		return InventionSource{}
 	}
 	return s

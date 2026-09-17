@@ -2,6 +2,7 @@ package nats_test
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	"testing"
 	"time"
 
@@ -147,9 +148,9 @@ func TestANotificationIsAddressedToItsOwnersSubscribers(t *testing.T) {
 	}
 
 	var frame struct {
-		Type    string          `json:"type"`
-		Subtype string          `json:"subtype"`
-		Data    json.RawMessage `json:"data"`
+		Type    string         `json:"type"`
+		Subtype string         `json:"subtype"`
+		Data    jsontext.Value `json:"data"`
 	}
 	if err := json.Unmarshal(got.Payload, &frame); err != nil {
 		t.Fatalf("the frame is not the envelope a browser reads: %v", err)

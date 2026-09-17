@@ -1,7 +1,7 @@
 package doclocklogic
 
 import (
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"strings"
 )
 
@@ -33,7 +33,7 @@ type PresenceFrame struct {
 // ParsePresence extracts a waitlist/viewer WS frame.
 func ParsePresence(msg []byte) (PresenceFrame, bool) {
 	var in presenceIncoming
-	if err := json.Unmarshal(msg, &in); err != nil {
+	if err := jsoncodec.Unmarshal(msg, &in); err != nil {
 		return PresenceFrame{}, false
 	}
 	f := PresenceFrame{
@@ -59,7 +59,7 @@ type LockStateBatchRequest struct {
 // ok is false when JSON is invalid or requestId is missing.
 func ParseLockStateBatch(msg []byte) (req LockStateBatchRequest, ok bool, parseErr error) {
 	var in lockStateBatchIncoming
-	if err := json.Unmarshal(msg, &in); err != nil {
+	if err := jsoncodec.Unmarshal(msg, &in); err != nil {
 		return LockStateBatchRequest{}, false, err
 	}
 	reqID := strings.TrimSpace(in.RequestID)

@@ -9,7 +9,7 @@ package documentlock
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"time"
 
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -87,7 +87,7 @@ func pipelinedDecideAndReleaseJobLocks(
 			continue
 		}
 		var rec LockRecord
-		if jerr := json.Unmarshal([]byte(raw), &rec); jerr != nil {
+		if jerr := jsoncodec.Unmarshal([]byte(raw), &rec); jerr != nil {
 			continue
 		}
 		if rec.ExpiresAtUnix > 0 && now > rec.ExpiresAtUnix {

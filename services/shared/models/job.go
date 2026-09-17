@@ -3,6 +3,8 @@ package models
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/json/jsontext"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"sort"
 	"strconv"
@@ -338,26 +340,26 @@ func ExtrasCategoryOrUnassigned(category string) string {
 	return category
 }
 
-func isJSONNullOrEmpty(raw json.RawMessage) bool {
+func isJSONNullOrEmpty(raw jsontext.Value) bool {
 	b := bytes.TrimSpace(raw)
 	return len(b) == 0 || string(b) == "null"
 }
 
-func extraCostScalarString(raw json.RawMessage) string {
+func extraCostScalarString(raw jsontext.Value) string {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || string(raw) == "null" {
 		return ""
 	}
 	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
+	if err := jsoncodec.Unmarshal(raw, &s); err == nil {
 		return strings.TrimSpace(s)
 	}
 	var f float64
-	if err := json.Unmarshal(raw, &f); err == nil {
+	if err := jsoncodec.Unmarshal(raw, &f); err == nil {
 		return strings.TrimSpace(strconv.FormatFloat(f, 'f', -1, 64))
 	}
 	var n json.Number
-	if err := json.Unmarshal(raw, &n); err == nil {
+	if err := jsoncodec.Unmarshal(raw, &n); err == nil {
 		f, err := n.Float64()
 		if err != nil {
 			return ""
@@ -367,17 +369,17 @@ func extraCostScalarString(raw json.RawMessage) string {
 	return strings.TrimSpace(string(raw))
 }
 
-func extraCostScalarFloat64(raw json.RawMessage) float64 {
+func extraCostScalarFloat64(raw jsontext.Value) float64 {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || string(raw) == "null" {
 		return 0
 	}
 	var f float64
-	if err := json.Unmarshal(raw, &f); err == nil {
+	if err := jsoncodec.Unmarshal(raw, &f); err == nil {
 		return f
 	}
 	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
+	if err := jsoncodec.Unmarshal(raw, &s); err == nil {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			return 0
@@ -389,7 +391,7 @@ func extraCostScalarFloat64(raw json.RawMessage) float64 {
 		return v
 	}
 	var n json.Number
-	if err := json.Unmarshal(raw, &n); err == nil {
+	if err := jsoncodec.Unmarshal(raw, &n); err == nil {
 		f, _ := n.Float64()
 		return f
 	}
@@ -402,8 +404,8 @@ func extraCostScalarFloat64(raw json.RawMessage) float64 {
 // misses it writes an empty label back over a stamped one, and the name a deleted
 // category had is only recoverable from the row that carries it.
 func (e *ExtraCost) UnmarshalJSON(data []byte) error {
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(data, &m); err != nil {
+	var m map[string]jsontext.Value
+	if err := jsoncodec.Unmarshal(data, &m); err != nil {
 		return err
 	}
 	if raw, ok := m["id"]; ok {
@@ -568,7 +570,7 @@ func (e *InventionEntry) UnmarshalJSON(data []byte) error {
 		ItemName string  `json:"itemName"`
 		ItemCost float64 `json:"itemCost"`
 	}
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := jsoncodec.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
@@ -770,7 +772,7 @@ func (l *JobLayout) UnmarshalJSON(data []byte) error {
 
 		MaterialPriceOverrides map[string]MaterialPriceOverride `json:"materialPriceOverrides"`
 	}
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := jsoncodec.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 	l.LocalMarketDisplay = aux.LocalMarketDisplay

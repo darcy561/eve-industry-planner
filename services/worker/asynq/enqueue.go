@@ -2,8 +2,8 @@ package asynq
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"time"
 
@@ -25,7 +25,7 @@ func Enqueue(ctx context.Context, msg jetstream.Msg, client *asynq.Client, task 
 	payload := msg.Data()
 
 	var natsMsg eipnats.Message
-	if err := json.Unmarshal(payload, &natsMsg); err != nil {
+	if err := jsoncodec.Unmarshal(payload, &natsMsg); err != nil {
 		return fmt.Errorf("failed to unmarshal NATS message: %w", err)
 	}
 

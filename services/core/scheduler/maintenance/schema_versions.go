@@ -2,7 +2,7 @@ package maintenance
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	eipnats "eve-industry-planner/shared/nats"
 	"fmt"
 	"strconv"
@@ -24,7 +24,7 @@ var schemaMaintenanceCollections = eipmongo.SchemaMaintainedCollections()
 // upgrades legacy schema versions in small batches. It rotates one collection per run
 // to avoid touching all collections on every tick.
 func SchemaVersionMaintenance(deps contract.Dependencies, jobName string) contract.TaskHandler {
-	return func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data jsontext.Value) error {
 		_ = data
 		collection, err := nextSchemaMaintenanceCollection(ctx, deps)
 		if err != nil {

@@ -2,8 +2,8 @@ package plannerinvites
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"strings"
 	"time"
@@ -54,7 +54,7 @@ func (s *Store) Issue(ctx context.Context, invite planner.Invite, now time.Time)
 		return ErrTooManyInvites
 	}
 
-	encoded, err := json.Marshal(invite)
+	encoded, err := jsoncodec.Marshal(invite)
 	if err != nil {
 		return fmt.Errorf("encode invite: %w", err)
 	}
@@ -221,7 +221,7 @@ func (s *Store) Spend(ctx context.Context, inviteID, token, accountID string, no
 	}
 
 	var spent planner.Invite
-	if err := json.Unmarshal([]byte(raw), &spent); err != nil {
+	if err := jsoncodec.Unmarshal([]byte(raw), &spent); err != nil {
 		return planner.Invite{}, fmt.Errorf("spend invite: decode: %w", err)
 	}
 	return spent, nil

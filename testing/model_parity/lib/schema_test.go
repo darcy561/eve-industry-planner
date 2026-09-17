@@ -33,7 +33,6 @@ func TestJSONPathsOmitsUnserialisedFields(t *testing.T) {
 		"protected",                              // json:"-"
 		"build.costs.linkedJobs[].character_ref", // json:"-"
 		"_meta.owner",                            // json:"-"
-		"layout.materialPriceOverrides",          // no field at all
 	} {
 		if slices.Contains(paths, unwanted) {
 			t.Errorf("JSONPaths should not carry %q", unwanted)

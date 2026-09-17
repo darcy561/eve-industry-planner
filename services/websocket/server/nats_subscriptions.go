@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 
 	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/logs"
@@ -71,7 +71,7 @@ func collectionScopedDocIDFromDocUpdate(payload []byte, subject string) (string,
 		Collection string `json:"collection"`
 		DocID      string `json:"docID"`
 	}
-	if err := json.Unmarshal(payload, &meta); err == nil {
+	if err := jsoncodec.Unmarshal(payload, &meta); err == nil {
 		if id := eipnats.CollectionScopedDocID(meta.Collection, meta.DocID); id != "" {
 			return id, nil
 		}

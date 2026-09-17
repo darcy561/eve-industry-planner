@@ -2,7 +2,7 @@ package sde
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	eipnats "eve-industry-planner/shared/nats"
 
 	"eve-industry-planner/core/scheduler/contract"
@@ -16,7 +16,7 @@ const schedulerLogComponent = "scheduler"
 func CheckSDEUpdates(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	natsHandle := deps.NATS
 
-	return func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data jsontext.Value) error {
 		logs.DebugCtx(ctx, "publishing SDE update check trigger", "component", schedulerLogComponent)
 		if err := eipnats.TriggerCheckSDEUpdates(ctx, natsHandle); err != nil {
 			logs.ErrorCtx(ctx, "failed to publish SDE update check trigger", "component", schedulerLogComponent, "error", err)

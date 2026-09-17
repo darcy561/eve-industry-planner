@@ -3,6 +3,7 @@ package mongo_test
 import (
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"eve-industry-planner/testing/mongolive"
 	"os"
 	"path/filepath"
@@ -127,7 +128,7 @@ func loadFixtureSampleDocs(t *testing.T) []bson.M {
 			t.Fatalf("read %s: %v", e.Name(), err)
 		}
 		var file struct {
-			Docs []json.RawMessage `json:"docs"`
+			Docs []jsontext.Value `json:"docs"`
 		}
 		if err := json.Unmarshal(raw, &file); err != nil {
 			t.Fatalf("parse %s: %v", e.Name(), err)

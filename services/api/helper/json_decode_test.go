@@ -197,3 +197,31 @@ func TestDecodeJSONRequestRefusesInvalidUTF8(t *testing.T) {
 		t.Fatalf("decoded %+v from invalid UTF-8", target)
 	}
 }
+
+// A target refusing its own value is still classified, not dropped into the
+// fallback: the decoder wraps the refusal, so it reaches the caller as a type
+// mismatch naming the field. Worth pinning because the `decode_error` branch
+// beneath it looks like where this would land, and nothing goes there.
+type refusingField struct{}
+
+func (refusingField) UnmarshalJSON([]byte) error { return errors.New("this field refuses") }
+
+func TestDecodeJSONRequestClassifiesARefusingTarget(t *testing.T) {
+	t.Parallel()
+
+	var target struct {
+		Name string        `json:"name"`
+		Odd  refusingField `json:"odd"`
+	}
+	err := DecodeJSONRequest(postBody(`{"name":"a","odd":1}`), &target, DefaultMaxBodySize)
+	jsonErr, ok := errors.AsType[*JSONRequestError](err)
+	if !ok {
+		t.Fatalf("err = %v (%T)", err, err)
+	}
+	if !strings.HasPrefix(jsonErr.Detail, "type_mismatch") {
+		t.Fatalf("detail = %q, want a type_mismatch", jsonErr.Detail)
+	}
+	if jsonErr.Field != "odd" {
+		t.Fatalf("field = %q, want odd", jsonErr.Field)
+	}
+}

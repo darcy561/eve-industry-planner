@@ -2,7 +2,7 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"time"
 )
 
@@ -12,7 +12,7 @@ func (r *Redis) PutJSON(ctx context.Context, key string, value any, ttl time.Dur
 	if err != nil {
 		return err
 	}
-	b, err := json.Marshal(value)
+	b, err := jsoncodec.Marshal(value)
 	if err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func (r *Redis) GetJSON(ctx context.Context, key string, target any) error {
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal([]byte(value), target)
+	return jsoncodec.Unmarshal([]byte(value), target)
 }
 
 // PutString stores a string. A zero ttl stores it without an expiry.

@@ -3,6 +3,7 @@ package plannersession
 import (
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"strings"
 	"sync"
 	"testing"
@@ -349,7 +350,7 @@ func TestRepairGrantsDryRunWritesNothing(t *testing.T) {
 		t.Fatalf("dry run repaired = %d, want 1 reported", report.Repaired)
 	}
 
-	var raw map[string]json.RawMessage
+	var raw map[string]jsontext.Value
 	if err := r.Handle.GetJSON(ctx, AccountSessionsKeyPrefix+"acct-dry", &raw); err != nil {
 		t.Fatalf("reload raw: %v", err)
 	}

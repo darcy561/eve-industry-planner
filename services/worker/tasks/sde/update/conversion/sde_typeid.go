@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-// parseSDETypeID reads type IDs from SDE JSONL rows (json.Unmarshal uses float64; some paths may use int or json.Number).
+// parseSDETypeID reads type IDs from SDE JSONL rows, which decode as float64.
 func parseSDETypeID(v any) (int, bool) {
 	switch t := v.(type) {
 	case float64:

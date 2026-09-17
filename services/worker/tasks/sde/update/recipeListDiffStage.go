@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"slices"
 	"strconv"
@@ -32,14 +33,14 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 	}
 
 	var newRecipes []*conversion.EVEType
-	if err := json.Unmarshal(newBytes, &newRecipes); err != nil {
+	if err := jsoncodec.Unmarshal(newBytes, &newRecipes); err != nil {
 		return fmt.Errorf("failed parsing current recipeList.json: %w", err)
 	}
 
 	var prevRecipes []*conversion.EVEType
 	prevIDs := make(map[int]bool)
 	if persistResult.HasPreviousVersion && len(persistResult.PreviousRecipeBytes) > 0 {
-		if err := json.Unmarshal(persistResult.PreviousRecipeBytes, &prevRecipes); err != nil {
+		if err := jsoncodec.Unmarshal(persistResult.PreviousRecipeBytes, &prevRecipes); err != nil {
 			return fmt.Errorf("failed parsing previous recipeList.json: %w", err)
 		}
 
@@ -209,7 +210,7 @@ func addReprocessingTypeIDs(typeIDs map[int32]struct{}, reprocessingBytes []byte
 	}
 
 	var reprocessingData map[string]*conversion.ReprocessingItem
-	if err := json.Unmarshal(b, &reprocessingData); err != nil {
+	if err := jsoncodec.Unmarshal(b, &reprocessingData); err != nil {
 		return 0, fmt.Errorf("failed parsing reprocessingData.json: %w", err)
 	}
 

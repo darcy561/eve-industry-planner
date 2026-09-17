@@ -9,7 +9,7 @@ package entitynames
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"net/http"
 
@@ -96,7 +96,7 @@ func readPublic(ctx context.Context, client esiclient.API, path string, into any
 	if resp.Status != http.StatusOK {
 		return fmt.Errorf("entitynames: read %s: status %d", path, resp.Status)
 	}
-	if err := json.Unmarshal(resp.Body, into); err != nil {
+	if err := jsoncodec.Unmarshal(resp.Body, into); err != nil {
 		return fmt.Errorf("entitynames: decode %s: %w", path, err)
 	}
 	return nil

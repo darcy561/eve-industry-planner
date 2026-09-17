@@ -2,7 +2,7 @@ package maintenance
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	eipnats "eve-industry-planner/shared/nats"
 	"math"
 	"time"
@@ -37,7 +37,7 @@ const (
 // staggering across the cron window.
 func CloudStoredEsiRefreshMaintenance(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	task := eipnats.CloudStoredEsiRefreshMaintenance
-	return func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data jsontext.Value) error {
 		_ = data
 		publish := func(pctx context.Context) error {
 			return publishCloudEsiRefreshMaintenanceBatch(pctx, deps, task)

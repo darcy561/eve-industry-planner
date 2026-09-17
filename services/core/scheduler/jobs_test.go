@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -94,4 +94,4 @@ func newSchedulerWithDeclaredJobs(t *testing.T) *TaskScheduler {
 	return s
 }
 
-var _ contract.TaskHandler = func(context.Context, json.RawMessage) error { return nil }
+var _ contract.TaskHandler = func(context.Context, jsontext.Value) error { return nil }

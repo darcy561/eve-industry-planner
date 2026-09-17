@@ -3,6 +3,7 @@ package httpclient
 import (
 	"bytes"
 	"compress/gzip"
+	"eve-industry-planner/shared/jsoncodec"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -76,8 +77,8 @@ func TestStreamOverTLSAndHTTP2(t *testing.T) {
 		ID int `json:"id"`
 	}
 	seen := 0
-	if err := StreamJSON(stream.Body, func(row) error { seen++; return nil }); err != nil {
-		t.Fatalf("StreamJSON: %v", err)
+	if err := jsoncodec.StreamArray(stream.Body, func(row) error { seen++; return nil }); err != nil {
+		t.Fatalf("StreamArray: %v", err)
 	}
 	if seen != 3 {
 		t.Errorf("walked %d rows, want 3", seen)

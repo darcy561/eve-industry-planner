@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"net/http"
 	"strings"
@@ -289,7 +289,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			"alliance":    false,
 		},
 	}
-	connectionMsgBytes, err := json.Marshal(connectionMsg)
+	connectionMsgBytes, err := jsoncodec.Marshal(connectionMsg)
 	if err == nil {
 		select {
 		case client.Send <- connectionMsgBytes:

@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -21,7 +21,7 @@ func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
 
 		var running atomic.Bool
 		cancelled := make(chan struct{})
-		s.registerHandler("refreshRegionMarketOrders", func(ctx context.Context, _ json.RawMessage) error {
+		s.registerHandler("refreshRegionMarketOrders", func(ctx context.Context, _ jsontext.Value) error {
 			running.Store(true)
 			select {
 			case <-ctx.Done():

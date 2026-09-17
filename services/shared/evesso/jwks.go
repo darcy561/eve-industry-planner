@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -63,7 +63,7 @@ func fetchJWKSKeys() (map[string]*rsa.PublicKey, error) {
 	var metadata struct {
 		JWKSUri string `json:"jwks_uri"`
 	}
-	if err := json.NewDecoder(metadataResp.Body).Decode(&metadata); err != nil {
+	if err := jsoncodec.Decode(metadataResp.Body, &metadata); err != nil {
 		return nil, fmt.Errorf("failed to decode metadata: %w", err)
 	}
 
@@ -88,7 +88,7 @@ func fetchJWKSKeys() (map[string]*rsa.PublicKey, error) {
 	}
 
 	var jwks JWKSet
-	if err := json.NewDecoder(jwksResp.Body).Decode(&jwks); err != nil {
+	if err := jsoncodec.Decode(jwksResp.Body, &jwks); err != nil {
 		return nil, fmt.Errorf("failed to decode JWKS: %w", err)
 	}
 
