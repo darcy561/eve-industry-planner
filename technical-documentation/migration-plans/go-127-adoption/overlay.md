@@ -70,7 +70,37 @@ it.
 
 ### A3 — Call-site routing
 
-_Not started._ Record here, per area: cutover state, and the new shape of JSON request-error handling in the API.
+**Write side landed; read side open.** Every HTTP response in `services/` now encodes through
+[`jsoncodec`](../../../services/shared/jsoncodec/). The only `json.NewEncoder` calls left are the two
+in `capacity-controller/ctl`, which write operator output to stdout and are outside the project.
+
+It needed no new abstraction, because the layer was already there and under-used.
+[`helper.EncodeJSON`](../../../services/api/helper/json.go) had 36 callers — 35 qualified plus one
+inside the package — and wanted one line changed; none of them were touched. What it lacked was a
+status code, which is why 18 sites hand-rolled `Content-Type` + `WriteHeader` + `Encode` around it,
+eight of them in `documentlocks/handlers.go` alone. `EncodeJSONStatus` closes that: 16 of the 18 now
+go through the pair, and the other two call `jsoncodec` directly.
+
+`EncodeJSONStatus` sets the content type **before** the status. `WriteHeader` sends the header map as
+it stands, so delegating to `EncodeJSON` after writing the status would lose the type silently — the
+response still carries a body and still looks right in a browser. The test asserts the header on the
+*sent* response rather than on the recorder, which is the difference that catches it.
+
+`EncodeJSON` deliberately still writes no status: 15 of its callers choose their own — twelve 200s, a
+201, a 409, and one computed at runtime.
+
+`websocket/server` and `shared/plannersession/request` call `jsoncodec` directly. They cannot reach
+`api/helper` — one service never imports another's packages — and neither needs the status variant.
+
+`api/helper/compression.go` is gone. It held one JSON function under a name describing what nginx
+does; it now sits in `json.go` with the request side.
+
+**Still open on this phase:** the read side. `DecodeJSONRequest` keeps `DisallowUnknownFields`, which
+needs `RejectUnknownMembers` to go on refusing, and `buildJSONRequestError` still matches
+`*json.SyntaxError` / `*json.UnmarshalTypeError` and string-prefixes `"json: unknown field "`. That is
+the one file `go fix` still reports, held deliberately. It has **no tests** — none of the JSON helpers
+did before this slice, and the encode side got the first five — so coverage goes on before the error
+types are rewritten, not after.
 
 ### A4 — Boundary shape decisions
 

@@ -1,6 +1,6 @@
 # Go 1.27 adoption — plan
 
-**Status:** Track A has A1 and A2 landed; Track B is done. Track C has landed everything that needs no decision: one file remains, and it is Track A's to take — `json.go` at A3. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
+**Status:** Track A has A1 and A2 landed and A3's write side done; Track B is done. Track C has landed everything that needs no decision: one file remains, and it is Track A's to take — `json.go` at A3. Re-measured against the tree at this update, and the Redis seam Track B was waiting on is answered below.
 **Code in scope:** [`services/`](../../../services/) (all areas), [`testing/`](../../../testing/), [`deployment-tool/`](../../../deployment-tool/)
 **Live SoT (until promote):** [backend/core/core.md](../../backend/core/core.md), [backend/api/contents.md](../../backend/api/contents.md), [technical-rules.md](../../technical-rules.md) § Prefer modern Go
 
