@@ -96,9 +96,11 @@ func TestBareDocumentIDFilterUsesARegexLiteral(t *testing.T) {
 	}
 }
 
-// A cursor decodes a nested document as bson.D, so seeding has to walk it as
-// one. Asserting a map here seeds nothing, and silently: every migrated document
-// would arrive without the version a conditional write compares.
+// The shared client sets DefaultDocumentM, so a cursor hands back a nested
+// document as bson.M; decoding the same bytes without that option gives bson.D.
+// Seeding has to take either. Asserting one shape seeds nothing when the other
+// turns up, and silently: every migrated document would arrive without the
+// version a conditional write compares, which is what happened.
 func TestSeedDocumentVersionWalksTheDecodedMetaBlock(t *testing.T) {
 	t.Parallel()
 
@@ -109,26 +111,42 @@ func TestSeedDocumentVersionWalksTheDecodedMetaBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+
+	asClient, err := UnmarshalDocumentM(raw)
+	if err != nil {
+		t.Fatalf("decode as the client does: %v", err)
+	}
+	var asPlain bson.M
+	if err := bson.Unmarshal(raw, &asPlain); err != nil {
+		t.Fatalf("decode without the option: %v", err)
 	}
 
-	SeedDocumentVersion(doc)
-
-	meta, ok := doc["_meta"].(bson.D)
-	if !ok {
-		t.Fatalf("_meta = %T, want bson.D as a cursor gives it", doc["_meta"])
-	}
-	for _, element := range meta {
-		if element.Key == MetaFieldVersionKey {
-			if element.Value != models.InitialDocumentVersion {
-				t.Fatalf("version = %v, want %d", element.Value, models.InitialDocumentVersion)
+	for _, tc := range []struct {
+		name string
+		doc  bson.M
+	}{
+		{"nested bson.M, as the shared client decodes", asClient},
+		{"nested bson.D, as a plain decode gives", asPlain},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, ok := tc.doc["_meta"].(bson.M); ok != (tc.name == "nested bson.M, as the shared client decodes") {
+				t.Fatalf("_meta = %T, which is not the shape this case is for", tc.doc["_meta"])
 			}
-			return
-		}
+
+			SeedDocumentVersion(tc.doc)
+
+			meta := AsDocumentM(tc.doc["_meta"])
+			if meta == nil {
+				t.Fatalf("_meta = %T, want a subdocument", tc.doc["_meta"])
+			}
+			if meta[MetaFieldVersionKey] != models.InitialDocumentVersion {
+				t.Fatalf("version = %v, want %d", meta[MetaFieldVersionKey], models.InitialDocumentVersion)
+			}
+			if meta["owner"] == nil {
+				t.Fatal("seeding the version dropped the owner block")
+			}
+		})
 	}
-	t.Fatal("the document was not seeded with a version")
 }
 
 // A document that already counts its writes keeps the count it has.

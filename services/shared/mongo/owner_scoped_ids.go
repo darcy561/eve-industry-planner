@@ -79,15 +79,19 @@ func StoredDocumentID(collection string, owner models.Owner, bareID string) stri
 // SeedDocumentVersion gives a decoded document the write counter a conditional
 // write compares, leaving one it already has alone.
 //
-// A nested document decodes as bson.D, not bson.M, so the meta block is walked
-// as one — asserting a map here would silently seed nothing.
+// The shared client sets DefaultDocumentM, so a nested document arrives as
+// bson.M — but a caller that decoded it another way hands over a bson.D. Reading
+// it through AsDocumentM takes either, because asserting one shape seeds nothing
+// when the other turns up, and silently: every migrated document would arrive
+// without the version a conditional write compares.
 func SeedDocumentVersion(doc bson.M) {
-	meta, ok := doc[metaField].(bson.D)
-	if !ok {
+	meta := AsDocumentM(doc[metaField])
+	if meta == nil {
 		return
 	}
-	if slices.ContainsFunc(meta, func(e bson.E) bool { return e.Key == MetaFieldVersionKey }) {
+	if _, ok := meta[MetaFieldVersionKey]; ok {
 		return
 	}
-	doc[metaField] = append(meta, bson.E{Key: MetaFieldVersionKey, Value: models.InitialDocumentVersion})
+	meta[MetaFieldVersionKey] = models.InitialDocumentVersion
+	doc[metaField] = meta
 }
