@@ -4,9 +4,7 @@ import { createPersistDebounce } from "./helpers/createPersistDebounce.js";
 const debounce = createPersistDebounce({
   delayMs: 2000,
   attachTabLifecycleFlush: true,
-  onRun: () => {
-    void persistJobGroupsToApi();
-  },
+  onRun: () => persistJobGroupsToApi(),
 });
 
 /** Schedules a debounced persist of all groups (`PUT /api/v1/groups`). */

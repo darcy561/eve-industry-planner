@@ -4,9 +4,7 @@ import { createPersistDebounce } from "./helpers/createPersistDebounce.js";
 const debounce = createPersistDebounce({
   delayMs: 2000,
   attachTabLifecycleFlush: true,
-  onRun: () => {
-    void persistJobDocumentsToApi();
-  },
+  onRun: () => persistJobDocumentsToApi(),
 });
 
 /** Schedules a debounced persist of queued job documents (`PUT /api/v1/job-documents`). */

@@ -33,7 +33,11 @@ export function createTrailingDebounce(opts) {
     return timer != null;
   }
 
-  /** Clears any pending timer and runs `onRun` now (matches prior save modules: hide/unload always persists). */
+  /**
+   * Clears any pending timer and runs `onRun` now, resolving once it has finished —
+   * so `onRun` must return its work rather than discarding it, or a caller awaiting
+   * a flush before moving on carries on while the write is still in the air.
+   */
   function flushPending() {
     cancel();
     if (!shouldSchedule()) return;

@@ -16,19 +16,19 @@ function isLoggedIn() {
 const debounceApplicationSettings = createPersistDebounce({
   delayMs: DELAY_MS,
   shouldSchedule: isLoggedIn,
-  onRun: () => void saveApplicationSettings(),
+  onRun: () => saveApplicationSettings(),
 });
 
 const debounceUserAccount = createPersistDebounce({
   delayMs: DELAY_MS,
   shouldSchedule: isLoggedIn,
-  onRun: () => void saveUserAccountDocument(),
+  onRun: () => saveUserAccountDocument(),
 });
 
 const debounceCombined = createPersistDebounce({
   delayMs: DELAY_MS,
   shouldSchedule: isLoggedIn,
-  onRun: () => void saveUserAccountAndApplicationSettings(),
+  onRun: () => saveUserAccountAndApplicationSettings(),
 });
 
 /**

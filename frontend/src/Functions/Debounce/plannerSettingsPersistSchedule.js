@@ -9,7 +9,7 @@ const pendingOwners = new Set();
 
 const debounce = createPersistDebounce({
   delayMs: DELAY_MS,
-  onRun: () => void flushPendingPlannerSettingsSaves(),
+  onRun: () => flushPendingPlannerSettingsSaves(),
   attachTabLifecycleFlush: true,
 });
 
