@@ -29,6 +29,8 @@ vi.mock("../../Functions/Debounce/inboundJobDocumentsCoalesce.js", () => ({
 
 const groupUpserts = [];
 const groupDeletes = [];
+const settingsUpserts = [];
+const settingsDeletes = [];
 vi.mock("./index.js", () => ({
   handleUserJobGroupUpsert: (...args) => groupUpserts.push(args),
   handleUserJobGroupDelete: (...args) => groupDeletes.push(args),
@@ -38,6 +40,8 @@ vi.mock("./index.js", () => ({
   handleUsersDocumentDelete: () => {},
   handleWatchlistDeprecatedUpsert: () => {},
   handleWatchlistDeprecatedDelete: () => {},
+  handlePlannerSettingsUpsert: (...args) => settingsUpserts.push(args),
+  handlePlannerSettingsDelete: (...args) => settingsDeletes.push(args),
 }));
 
 const { applyDocumentMessage } = await import("./documentMessage.js");
@@ -60,6 +64,8 @@ beforeEach(() => {
   enqueued.length = 0;
   groupUpserts.length = 0;
   groupDeletes.length = 0;
+  settingsUpserts.length = 0;
+  settingsDeletes.length = 0;
   for (const key of Object.keys(positions)) delete positions[key];
 });
 
@@ -144,5 +150,69 @@ describe("deciding whether a delivery has already been applied", () => {
     await applyDocumentMessage(jobMessage(undefined));
 
     expect(enqueued).toHaveLength(1);
+  });
+});
+
+// A planner's settings are held per owner rather than for the one being worked
+// in, so the active-planner guard the job and group stores need must not reach
+// them.
+describe("routing a planner's settings", () => {
+  function settingsMessage(owner, operationType) {
+    return {
+      collection: "planner_settings",
+      docID: "corporation:corp_ref_x",
+      owner,
+      operationType,
+      position: 7,
+      document: { extrasCategories: [] },
+    };
+  }
+
+  it("hands an upsert to the settings handler with the owner it named", async () => {
+    await applyDocumentMessage(
+      settingsMessage("corporation:98000001", "update"),
+    );
+
+    expect(settingsUpserts).toHaveLength(1);
+    expect(settingsUpserts[0][0].owner).toBe("corporation:98000001");
+  });
+
+  it("hands a delete to the settings handler", async () => {
+    await applyDocumentMessage(
+      settingsMessage("corporation:98000001", "delete"),
+    );
+
+    expect(settingsDeletes).toHaveLength(1);
+  });
+
+  // The guard is generic, but a settings document's key is built from a docID
+  // that is the owner key rather than an id inside a planner, so the pairing is
+  // worth pinning rather than assuming.
+  it("discards a redelivery of a settings change already applied", async () => {
+    positions["planner_settings.corporation:corp_ref_x"] = 7;
+
+    await applyDocumentMessage(
+      settingsMessage("corporation:98000001", "update"),
+    );
+
+    expect(settingsUpserts).toHaveLength(0);
+  });
+
+  it("discards a settings delete from behind the document's position", async () => {
+    positions["planner_settings.corporation:corp_ref_x"] = 9;
+
+    await applyDocumentMessage(
+      settingsMessage("corporation:98000001", "delete"),
+    );
+
+    expect(settingsDeletes).toHaveLength(0);
+  });
+
+  it("takes settings for a planner other than the one being worked in", async () => {
+    await applyDocumentMessage(
+      settingsMessage("corporation:98000002", "update"),
+    );
+
+    expect(settingsUpserts).toHaveLength(1);
   });
 });

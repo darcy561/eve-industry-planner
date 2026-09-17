@@ -100,6 +100,13 @@ function plannerSettingsPath(ownerHandle) {
 }
 
 /**
+ * The collection a planner's settings are stored in, as a change delivery names
+ * it. Its documents are keyed by owner key rather than by an id inside a planner,
+ * so a delivery's `owner` handle is what identifies one and `docID` is not.
+ */
+export const PLANNER_SETTINGS_COLLECTION = "planner_settings";
+
+/**
  * @typedef {object} PlannerSettingsResponse
  * @property {string} owner - the owner handle the settings belong to
  * @property {boolean} seeded - whether the planner has settings of its own

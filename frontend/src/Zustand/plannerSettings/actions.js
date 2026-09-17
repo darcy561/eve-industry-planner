@@ -200,6 +200,41 @@ export const plannerSettingsActions = (set, get) => ({
   },
 
   /**
+   * Drops one planner's settings, so it falls back to the defaults again.
+   *
+   * For a settings document that no longer exists. An edit still on its way to
+   * the server is left alone for the same reason a read is: it is ahead of what
+   * the server holds, and the save that follows will recreate the document.
+   *
+   * @param {string} ownerHandle
+   */
+  clearPlannerSettings: (ownerHandle) => {
+    if (!ownerHandle) return;
+    if (get().plannerSettings.actions.hasUnsavedPlannerSettings(ownerHandle)) {
+      return;
+    }
+    set(
+      (state) => {
+        const byOwner = { ...state.plannerSettings.byOwner };
+        const seededByOwner = { ...state.plannerSettings.seededByOwner };
+        delete byOwner[ownerHandle];
+        delete seededByOwner[ownerHandle];
+        return {
+          ...state,
+          plannerSettings: {
+            ...state.plannerSettings,
+            byOwner,
+            seededByOwner,
+            actions: state.plannerSettings.actions,
+          },
+        };
+      },
+      false,
+      "plannerSettings/clearPlannerSettings",
+    );
+  },
+
+  /**
    * Reads one planner's settings from the API and holds them.
    *
    * @param {string} ownerHandle

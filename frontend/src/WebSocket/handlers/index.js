@@ -27,6 +27,11 @@ export {
 } from "./userJobGroupsDocument.js";
 
 export {
+  handlePlannerSettingsDelete,
+  handlePlannerSettingsUpsert,
+} from "./plannerSettingsDocument.js";
+
+export {
   handleWatchlistDeprecatedDelete,
   handleWatchlistDeprecatedUpsert,
 } from "./userWatchlistDeprecatedDocument.js";

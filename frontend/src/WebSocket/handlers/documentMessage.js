@@ -9,6 +9,8 @@ import { enqueueInboundJobDocumentChange } from "../../Functions/Debounce/inboun
 import {
   handleApplicationSettingsDocumentDelete,
   handleApplicationSettingsDocumentUpsert,
+  handlePlannerSettingsDelete,
+  handlePlannerSettingsUpsert,
   handleUserJobGroupDelete,
   handleUserJobGroupUpsert,
   handleUsersDocumentDelete,
@@ -19,6 +21,7 @@ import {
 import { USER_JOB_GROUPS_COLLECTION } from "../../Functions/Endpoints/Private/groups.js";
 import { USER_JOB_DOCUMENTS_COLLECTION } from "../../Functions/Endpoints/Private/jobDocuments.js";
 import { USER_WATCHLIST_DEPRECATED_COLLECTION } from "../../Functions/Endpoints/Private/watchlistDeprecated.js";
+import { PLANNER_SETTINGS_COLLECTION } from "../../Functions/Endpoints/Private/planners.js";
 
 /**
  * @param {unknown} raw - parsed JSON from WebSocket
@@ -68,7 +71,7 @@ export async function applyDocumentMessage(msg) {
   // carries one too, and a redelivery repeats it. An older server sends none,
   // which reads as "unknown" and applies rather than discards.
   const position = Number.isFinite(msg?.position) ? msg.position : null;
-  const ctxBase = { accountId, docKey, docID, rs, position };
+  const ctxBase = { accountId, docKey, docID, owner, rs, position };
 
   if (isPlannerHeld(collection) && !isFromActivePlanner(owner)) return;
 
@@ -99,6 +102,10 @@ export async function applyDocumentMessage(msg) {
     }
     if (collection === USER_JOB_DOCUMENTS_COLLECTION) {
       enqueueInboundJobDocumentChange("delete", docID, undefined, position);
+      return;
+    }
+    if (collection === PLANNER_SETTINGS_COLLECTION) {
+      handlePlannerSettingsDelete(ctxBase);
       return;
     }
     return;
@@ -136,12 +143,22 @@ export async function applyDocumentMessage(msg) {
 
   if (collection === USER_JOB_DOCUMENTS_COLLECTION) {
     enqueueInboundJobDocumentChange("upsert", docID, document, position);
+    return;
+  }
+
+  if (collection === PLANNER_SETTINGS_COLLECTION) {
+    handlePlannerSettingsUpsert(upsertCtx);
   }
 }
 
 /**
- * Mirrors `PlannerHeldCollections` in services/shared/mongo/names.go. A
- * collection added there and not here is one the store takes from any planner.
+ * The collections whose documents the store holds for one planner at a time, so
+ * a delivery from any other has nowhere to go and is dropped.
+ *
+ * Narrower than `PlannerHeldCollections` in services/shared/mongo/names.go,
+ * which is every collection a planner owns: `planner_settings` is owned by a
+ * planner and still absent here, because the store keys it by owner and can
+ * hold every planner's at once.
  *
  * @type {ReadonlySet<string>}
  */
