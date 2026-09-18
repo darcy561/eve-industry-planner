@@ -232,6 +232,13 @@ a list and whether each is allowed or blocked. Only a character who **manages** 
 The exact scope name, field names and cache timing are not settled here and must be taken from the
 OpenAPI spec before implementation.
 
+**Access lists are out of scope until the access models are built.** An access list is not really a
+membership provider: it is a permission scheme EVE already holds, with allow and block entries a
+planner would have to mean something by. Building the provider first would fix what a list entry
+grants before there is a model to grant it in, which is the merge § Permissions are separate work,
+and must be pluggable exists to prevent. The reading above stays as the design note it is, and the
+slice waits on that work rather than on the spec.
+
 Four consequences make this a different shape from the corporation and alliance providers, which
 reconcile as a side effect of each member's own token refresh:
 
@@ -1924,8 +1931,12 @@ anything has changed, and resolves the whole set each time. That is more often t
 and does more work per run than it needs to, but it is correct as it stands and nothing waits on it.
 Reshaping when it fires and how it resolves is deferred rather than dropped.
 
-Access lists are the other slice, and § Access lists differ from the other ESI providers already says
-why they are not the same shape as the corporation and alliance providers.
+Access lists are the other slice, and they are **out of scope until the access models are built** —
+§ Access lists differ from the other ESI providers says why they are a permission scheme rather than
+another membership provider, and the reading there stands as a design note until then.
+
+**Nothing in this stage is being picked up at present.** The reshaping is deferred by choice and the
+access lists wait on work outside this project, so the stage stays where F1 left it.
 
 ### Stage G — Realtime state under more than one writer
 
@@ -2642,10 +2653,11 @@ do not touch.
 
 ## Open questions
 
-- **Access list details.** The scope name, response field names and cache timing, to be read from the
-  OpenAPI spec. Also what happens when the managing character's token lapses, and how often the list
-  is polled. Shape and consequences are described in § Access lists differ from the other ESI
-  providers.
+- **Access list details.** Not open here any more than the slice is: access lists wait on the access
+  models being built, so the scope name, response field names and cache timing — to be read from the
+  OpenAPI spec — and what happens when the managing character's token lapses are questions for
+  whoever takes that work. Shape and consequences are described in § Access lists differ from the
+  other ESI providers.
 - **Archive attribution.** A job archived in a shared planner belongs to that planner's archive. Does
   the row also record which account archived it, for a per-member contribution view? Assumed yes, as
   a field on the row, with no second archive written.
@@ -2702,7 +2714,7 @@ do not touch.
 | C — planner and membership documents | **Landed.** C1 the two collections and their indexes, C2 the account-planner backfill and the write first login repairs from, C3 membership as the source of grants with authorisation reading the rows rather than a cached list, C4 the collection set per owner kind and document-subscribe authorisation by membership. Invites moved to Stage E |
 | D — what a second member breaks | **Landed.** D1 recalculation keeping a job's build context — a live defect on personal planners, now fixed. D2 is handled server-side already; the retry-queue defect it uncovered is [document-write-granularity](../document-write-granularity/plan.md) § Stage B. D3 the extras categories, which turned out to need a settings write path as well as a picker: the list is the planner's, edited through `PUT /planners/{owner}/settings`, and the account's copy stops being edited. Job statuses needed nothing, their id space already being a frozen catalog. See § Stage D — what a second member breaks |
 | E — custom planners | **Landed.** In: the planner settings document (seeded by value from the creating account, planner-held and watched), one write path for every planner, the planners listing, corporation planner creation with its name looked up server-side and NPC corporations refused, the `active_planner` message with the ceiling intersection and its restore across a reconnect, the owner handle on every delivered document, a client switcher that moves the header on every scoped request and the owner in every scoped query key alongside the connection, and invites as Redis records with the join path that redeems them. Also in: grants in both directions — every path that changes a membership row rewrites the account's stored ceiling from the rows and announces it, and every replica narrows the connections it holds for that account. **Nothing outstanding.** Keying the job and group stores by owner is met by G1: the store records the planner its arrays hold and a load for another replaces rather than merges, and Stage G has since settled that it holds that one planner and no more. See § Stage E and [overlay.md](./overlay.md) § Stage E |
-| F — ESI providers | **F1 landed.** Corporation and alliance membership rows are reconciled from the ids ESI reports, at login and on the cloud token sweep, completing a task that read as finished and wrote no rows. A row grants while it exists and nothing expires one: a revoked token is a positive answer the reconcile acts on, and a two-year dormant account is cleared by `InactiveAccountPlannerCleanup`. Owed: reshaping when the grant task fires and how it resolves, and access lists |
+| F — ESI providers | **F1 landed.** Corporation and alliance membership rows are reconciled from the ids ESI reports, at login and on the cloud token sweep, completing a task that read as finished and wrote no rows. A row grants while it exists and nothing expires one: a revoked token is a positive answer the reconcile acts on, and a two-year dormant account is cleared by `InactiveAccountPlannerCleanup`. Not being picked up: reshaping when the grant task fires and how it resolves is deferred by choice, and access lists are out of scope until the access models are built — an access list is a permission scheme rather than another membership provider |
 | G — realtime state under more than one writer | **Landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Also in: G2, the ordering position — a delivery carries its place in the stream, the client holds one per document and applies only what is beyond it, and a delete carries a position as readily as an upsert. And G4, the delivery construction — a full shard waits for room instead of overtaking what is queued for that owner, renewing the acknowledgement deadline while it waits and counting itself in the drain. Also in: G5, a settings change reaching the members it is for — `planner_settings` was delivered and dropped on arrival, and now has a handler that files it under the owner the delivery names rather than the owner key its `_id` carries. Also in: G3 — a resume carries how far the tab applied and is answered by comparing it with what was published for the tenants that connection reads, rather than asserting that nothing happened. Also in: the `websocket/sync` package and `skipWhileSyncing` are removed, which closes what G1 carried. Both questions the slices deferred are now answered: the stores hold the active planner only, and a gap is reloaded through rather than replayed. Absorbs what survived the retired websocket-realtime project, including keying the job and group stores by owner. **Nothing outstanding** — see § Stage G |
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3, H4). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. H4 moved the socket paths off the connection's last-known planner: every lock frame names its own, refused against the session's ceiling, as the HTTP paths already did — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
@@ -2716,17 +2728,18 @@ write, the editor that was never told its job was deleted, the force-release con
 whether the lock holder shares the reader's account as a boolean naming nobody, and the setup figures,
 which stopped being stored and are worked out for whoever is reading.
 
-**Stage F's grant-task reshaping is the only buildable work left**, and it is an efficiency change
-rather than a repair. The task fires on every login and every token refresh whether or not anything has
-changed, and resolves the whole set each time: more often than the design wants and more work per run
-than it needs, but correct as it stands with nothing waiting on it — see § Stage F.
+**Stage F is not being picked up.** Its grant-task reshaping is buildable — the task fires on every
+login and every token refresh whether or not anything has changed, and resolves the whole set each
+time, which is more often and more work than the design wants — but it is correct as it stands with
+nothing waiting on it, so it stays deferred by choice rather than by blocker.
 
 Stage G is closed: both questions its slices deferred are answered, the stores holding the active
 planner only and a gap being reloaded through rather than replayed.
 
-**Blocked.** Stage F's other slice, access lists, waits on the scope and field names being read from
-the OpenAPI spec. Stage I stays undecided and cannot be taken until Stage E's revocation path and
-Stage F's grant task settle.
+**Out of scope.** Stage F's other slice, access lists, waits on the access models being built: a list
+carries allow and block entries, which is a permission scheme rather than a roster, and there is
+nothing yet for it to grant *in*. Stage I stays undecided and cannot be taken until Stage E's
+revocation path and Stage F's grant task settle.
 
 Stage E is closed. Its grants work leaves two trade-offs Stage I should revisit: the announcement is
 fire-and-forget, so a replica that misses one keeps a revoked planner on that connection until it
