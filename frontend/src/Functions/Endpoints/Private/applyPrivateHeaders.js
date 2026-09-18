@@ -15,8 +15,15 @@ import {
   enforceReauthDemand,
   parsePlannerAuthCodeFromResponse,
 } from "../../Auth/plannerSessionRedirect.js";
-import { applyLockHeldElsewhereFromApiBody } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
+import {
+  applyLockHeldElsewhereFromApiBody,
+  parseLockHeldElsewhereBody,
+} from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
+import {
+  parseRevisionConflictBody,
+  CLIENT_ERROR_REVISION_CONFLICT,
+} from "../../JobDocuments/revisionConflict.js";
 
 /**
  * Shared private API retry options (honours server `Retry-After` on 429).
@@ -35,6 +42,12 @@ function throwIfAnySettledFailed(settled, label) {
   const failed = settled.filter((s) => s.status === "rejected");
   if (failed.length === 0) return;
   const err = /** @type {PromiseRejectedResult} */ (failed[0]).reason;
+  // A recognised conflict is rethrown as it stands. Wrapping it would keep the
+  // message and drop `code`, leaving a caller that branches on the code unable
+  // to tell a conflict from any other failed chunk.
+  if (err instanceof Error && err.code) {
+    throw err;
+  }
   const msg = err instanceof Error ? err.message : String(err);
   throw new Error(
     `${label}: ${failed.length}/${settled.length} batch(es) failed — ${msg}`,
@@ -54,7 +67,25 @@ function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
     const label = errorLabel || `${methodLabel} ${url}`;
     const err = new Error(`${label}: document lock held elsewhere (409)`);
     err.code = DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE;
+    // The held documents travel on the error, as a revision conflict's rows do:
+    // a batch can now write part of itself, so a caller holding a queue keeps
+    // the held ids and drops the rest rather than keeping all of them.
+    err.lockHeldDocIDs = parseLockHeldElsewhereBody(text);
     throw err;
+  }
+  if (res.status === 409) {
+    const conflict = parseRevisionConflictBody(text);
+    if (conflict) {
+      const label = errorLabel || `${methodLabel} ${url}`;
+      const err = new Error(
+        `${label}: document revision conflict (409), ${conflict.rejected.length} refused`,
+      );
+      err.code = CLIENT_ERROR_REVISION_CONFLICT;
+      // The refused rows travel on the error: a caller that clears its queue
+      // needs to know which documents to clear, and the body is read here.
+      err.revisionConflict = conflict;
+      throw err;
+    }
   }
   const err = new Error(
     `${methodLabel} ${url} failed: ${res.status} ${text || res.statusText}`,

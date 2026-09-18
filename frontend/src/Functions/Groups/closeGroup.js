@@ -2,6 +2,7 @@ import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
 import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
 import { canPersistGroupClose } from "../DocumentLock/canPersistDocumentEditClose.js";
+import { showSnackbarWarning } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
@@ -68,9 +69,16 @@ export default async function closeActiveGroup(groupJobs) {
       );
       await Promise.all([flushPendingGroupSave(), saveJobsViaApi(updatedJobs)]);
     } else if (isLoggedIn && groupID) {
+      // The group's changes are applied to the store and its queued write
+      // cleared, so the work is on screen and will not survive a reload. Saying
+      // so is the difference between losing it and choosing to.
       useUsersStore
         .getState()
         .jobData.actions.clearPendingJobGroupWrites(groupID);
+      showSnackbarWarning(
+        "You do not hold the lock on this group, so your changes were not saved.",
+        8,
+      );
     }
   } catch (error) {
     console.error("Error saving group close changes:", error);

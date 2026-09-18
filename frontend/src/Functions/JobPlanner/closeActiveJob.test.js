@@ -165,6 +165,67 @@ describe("closeActiveJob", () => {
     ).toHaveBeenCalled();
   });
 
+  // The edits are applied to the store and the queued writes cleared either way,
+  // so a close that cannot persist leaves the work on screen and loses it at the
+  // next reload. Without this the user is told nothing at all.
+  it("warns when a signed-in editor could not persist", async () => {
+    storeHolder.current
+      .getState()
+      .documentLock.actions.patchDocumentLockForScope(
+        USER_JOBS_COLLECTION,
+        "j1",
+        { readOnly: true, lockHeld: false },
+      );
+
+    await closeActiveJob(makeJob(), true, {}, {}, {}, null);
+
+    expect(showSnackbarWarning).toHaveBeenCalledWith(
+      expect.stringContaining("not saved"),
+      8,
+    );
+    expect(showSnackbarInfo).not.toHaveBeenCalled();
+  });
+
+  // The summary reports what was saved, so following a refusal with it would
+  // contradict the warning the refusal already raised.
+  it("does not claim a refused write saved", async () => {
+    storeHolder.current
+      .getState()
+      .documentLock.actions.patchDocumentLockForScope(
+        USER_JOBS_COLLECTION,
+        "j1",
+        { readOnly: false, lockHeld: true },
+      );
+    saveJobsViaApi.mockResolvedValueOnce("conflict");
+
+    await closeActiveJob(makeJob(), true, {}, {}, {}, null);
+
+    expect(saveJobsViaApi).toHaveBeenCalled();
+    expect(showSnackbarInfo).not.toHaveBeenCalled();
+  });
+
+  // A lock taken since this tab last checked, and a write that simply failed,
+  // save no more than a refused one does. Reporting the adjustment summary for
+  // any of them tells the reader a figure was stored when it was not.
+  it.each([["locked"], ["failed"]])(
+    "does not claim a %s write saved",
+    async (outcome) => {
+      storeHolder.current
+        .getState()
+        .documentLock.actions.patchDocumentLockForScope(
+          USER_JOBS_COLLECTION,
+          "j1",
+          { readOnly: false, lockHeld: true },
+        );
+      saveJobsViaApi.mockResolvedValueOnce(outcome);
+
+      await closeActiveJob(makeJob(), true, {}, {}, {}, null);
+
+      expect(saveJobsViaApi).toHaveBeenCalled();
+      expect(showSnackbarInfo).not.toHaveBeenCalled();
+    },
+  );
+
   it("persists when this tab holds the job lock", async () => {
     storeHolder.current
       .getState()

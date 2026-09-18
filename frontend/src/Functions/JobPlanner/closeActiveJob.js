@@ -150,8 +150,15 @@ export default async function closeActiveJob(
     ...batchUpdates,
   ];
 
+  let saveRefused = false;
   if (persistToServer) {
-    await saveJobsViaApi(jobsToPersist);
+    // Every outcome that is not a write landing suppresses the summary below —
+    // refused, blocked and failed alike, because none of them saved anything.
+    // An unrecognised answer is treated as saved rather than as failure, so a
+    // caller that resolves nothing is not reported as an error.
+    const outcome = await saveJobsViaApi(jobsToPersist);
+    saveRefused =
+      outcome === "conflict" || outcome === "locked" || outcome === "failed";
   }
 
   const esl = esiDataToLink ?? {};
@@ -199,6 +206,22 @@ export default async function closeActiveJob(
   updateOrAddJobsToJobArray([inputJob, ...tempJobs, ...batchUpdates]);
   setActiveJobID(null);
   if (persistToServer) {
-    showSnackbarInfo(closeAdjustmentSummary(inputJob, adjustments), 5);
+    // The adjustment summary reports what was saved, so it is shown only for a
+    // write that landed. A refused write has already raised its own warning,
+    // and following that with a summary would contradict it.
+    if (!saveRefused) {
+      showSnackbarInfo(closeAdjustmentSummary(inputJob, adjustments), 5);
+    }
+    return;
+  }
+  // A signed-in editor that cannot persist has had its edits applied to the
+  // store and its queued writes cleared, so the work is on screen and will not
+  // survive a reload. Saying so is the difference between losing it and
+  // choosing to.
+  if (isLoggedIn) {
+    showSnackbarWarning(
+      "You do not hold the lock on this job, so your changes were not saved.",
+      8,
+    );
   }
 }

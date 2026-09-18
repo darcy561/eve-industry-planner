@@ -18,6 +18,11 @@ vi.mock("../Shared/normaliseParentChildRelationships.js", () => ({
   default: () => [],
 }));
 
+vi.mock("../../Events/snackbarEvents", async () => {
+  const { snackbarMock } = await import("../../tests/snackbarHarness.js");
+  return snackbarMock();
+});
+
 const storeHolder = { current: null };
 
 vi.mock("../../Zustand/usersStore.js", () => ({
@@ -28,6 +33,9 @@ vi.mock("../../Zustand/usersStore.js", () => ({
 }));
 
 import closeActiveGroup from "./closeGroup.js";
+import { snackbarSpies } from "../../tests/snackbarHarness.js";
+
+const { showSnackbarWarning } = snackbarSpies;
 
 function makeGroup(id = "g1") {
   return {
@@ -89,6 +97,26 @@ describe("closeActiveGroup", () => {
     expect(
       storeHolder.current.getState().jobData.actions.updateModifiedGroups,
     ).toHaveBeenCalledWith(expect.anything(), { queuePersist: false });
+  });
+
+  // The group's changes are applied to the store and its queued write cleared,
+  // so the work is on screen and lost at the next reload. Without this the user
+  // is told nothing at all.
+  it("warns when a signed-in editor could not persist", async () => {
+    storeHolder.current
+      .getState()
+      .documentLock.actions.patchDocumentLockForScope(
+        USER_JOB_GROUPS_COLLECTION,
+        "g1",
+        { readOnly: true, lockHeld: false },
+      );
+
+    await closeActiveGroup([makeJob()]);
+
+    expect(showSnackbarWarning).toHaveBeenCalledWith(
+      expect.stringContaining("not saved"),
+      8,
+    );
   });
 
   it("persists when this tab holds the group lock", async () => {

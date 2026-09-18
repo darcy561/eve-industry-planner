@@ -12,7 +12,11 @@ export function scheduleDebouncedJobDocumentsSave() {
   debounce.schedule();
 }
 
-/** Clears the debounce timer and saves immediately. */
+/**
+ * Clears the debounce timer and saves immediately.
+ *
+ * @returns {Promise<import("../JobDocuments/persistJobDocumentsToApi.js").JobDocumentPersistOutcome>}
+ */
 export async function flushPendingJobDocumentsSave() {
-  await debounce.flushPending();
+  return (await debounce.flushPending()) ?? "saved";
 }
