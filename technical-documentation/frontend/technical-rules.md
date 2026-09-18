@@ -131,6 +131,43 @@ one file per stage, with their data in
 [`frontend/src/tests/editJobFixtures.js`](../../frontend/src/tests/editJobFixtures.js). A new way of
 changing the job gets one.
 
+## Writing to a store slice
+
+`set` is given a **partial**, not the next state. Zustand merges it with
+`Object.assign({}, state, nextState)` for every call that does not pass `replace`, and nothing in the
+SPA does — neither the slice actions in [`frontend/src/Zustand`](../../frontend/src/Zustand) nor a
+handler reaching for `setState` directly. So an updater names the slices it changes
+and nothing else — a leading `...state` spreads the store into an object the store is about to be
+spread under anyway.
+
+```js
+set((state) => ({
+  applicationSettings: { ...state.applicationSettings, userCloudAccounts: true },
+}), false, "setCloudAccountsEnabled");
+```
+
+The merge is **one key deep and no further**, which is what makes the inner `...state.applicationSettings`
+required: whatever the updater returns for a slice replaces that slice whole. Dropping it loses every
+field the updater did not name, including the slice's own `actions`.
+
+That is also why a **reset restates the actions**. An updater that rebuilds a slice from its defaults
+— `...stateDefault()`, or a literal — is not spreading the current slice, so nothing carries `actions`
+across and the reset has to put them back by hand:
+
+```js
+plannerSettings: { ...stateDefault(), actions: state.plannerSettings.actions }
+```
+
+What decides it is whether the current slice is spread at all, not the order things appear in. A
+reset that spreads the slice and then the defaults over it — `{ ...state.jobData, ...stateDefault() }`
+— already carries `actions` from the first spread, so it restates nothing. The one other place the
+line stays is above a caller-supplied patch — `{ ...state.slice, ...partial, actions: ... }` — where
+it stops an arbitrary incoming object replacing the slice's actions.
+
+An updater that returns `state` itself is how a no-change path says so: the store compares with
+`Object.is` and skips the subscriber notification entirely. Returning a rebuilt equal object instead
+wakes every subscriber.
+
 ## A value that follows another
 
 A component that holds its own copy of something it was handed — a prop, a store value, a route
