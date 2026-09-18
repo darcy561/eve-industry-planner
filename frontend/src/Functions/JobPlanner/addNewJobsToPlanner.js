@@ -1,6 +1,5 @@
 import Group from "../../Classes/group";
 import getMissingESIData from "../Shared/getMissingESIData";
-import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
@@ -75,8 +74,6 @@ export default async function addNewJobsToPlanner(
   updateOrAddJobsToJobArray(createdJobs);
 
   const { requestedSystemIndexes } = await getMissingESIData(createdJobs);
-
-  recalculateInstallCostsWithNewData(createdJobs, requestedSystemIndexes);
 
   if (createdGroup) {
     addGroupToGroupArray(createdGroup);

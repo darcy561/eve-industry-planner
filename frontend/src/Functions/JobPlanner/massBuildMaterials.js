@@ -5,7 +5,6 @@ import checkJobTypeIsBuildable from "../Helper/checkJobTypeIsBuildable";
 import { getAvailableBlueprintsByMaterialID } from "../Helper/getAvailableBlueprints";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import getMissingESIData from "../Shared/getMissingESIData";
-import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 import {
   showMassBuildFeedback,
   hideMassBuildFeedback,
@@ -156,7 +155,6 @@ export default async function massBuildMaterials(inputJobIDs, options) {
     }
 
     const { requestedSystemIndexes } = await getMissingESIData(newJobs);
-    recalculateInstallCostsWithNewData(newJobs, requestedSystemIndexes);
     useUsersStore
       .getState()
       .worldData.actions.addSystemIndex(requestedSystemIndexes);

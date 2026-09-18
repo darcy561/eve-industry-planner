@@ -10,24 +10,21 @@ import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
  * @param {Object} setupObject
  * @param {Object} state
  * @param {Object} actions
- * @param {import("@tanstack/react-query").QueryClient} queryClient
  */
 export default async function recalculateJobFromSetup(
   setupObject,
   state,
   actions,
-  queryClient,
 ) {
   const systemIndexResults = await getSystemIndexes(setupObject.systemID);
 
-  state.activeJob.recalculateSelectedSetup(
-    setupObject.id,
-    queryClient,
-    systemIndexResults,
-  );
-
-  actions.updateActiveJob(state.activeJob);
+  // The index lands before the job does: install costs are worked out while
+  // rendering, and a job shown against an index the store has not been given
+  // yet is costed at zero.
   useUsersStore.getState().worldData.actions.addSystemIndex(systemIndexResults);
+
+  state.activeJob.recalculateSelectedSetup(setupObject.id);
+  actions.updateActiveJob(state.activeJob);
 }
 
 /**
@@ -46,10 +43,7 @@ export function recalculateWatchListItemsFromSetup(
   materialObject,
   queryClient,
 ) {
-  materialObject[requestedTypeID].recalculateSelectedSetup(
-    setupID,
-    queryClient,
-  );
+  materialObject[requestedTypeID].recalculateSelectedSetup(setupID);
 
   if (requestedTypeID !== mainTypeID) return;
 

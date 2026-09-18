@@ -406,13 +406,11 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 					"systemTypeID": 0,
 					"systemID": 30000142,
 					"taxValue": 0.25,
-					"estimatedInstallCost": 225877995.92,
 					"customStructureID": "manStruct-26e6a2d9-4778-8a1b-bdb4-c61e857bc3b5",
 					"selectedCharacter": "8XGnAtq8QEEQ76LfinJaI8MA6T4=",
 					"materialCount": {
 						"57478": {"quantity": 360, "rawQuantity": 400, "typeID": 57478}
 					},
-					"estimatedTime": 836400,
 					"rawTime": 1500000,
 					"jobType": 1,
 					"appliedRequirementID": -1,

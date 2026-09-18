@@ -509,7 +509,7 @@
     },
     {
       "name": "installs are what the linked jobs cost",
-      "why": "Nothing is linked, so the installs cost nothing: the setup estimate is a planning figure, not what the job cost. The install line and the build cost read the same figure \u2014 the planner and the archive must not disagree about it.",
+      "why": "Nothing is linked, so the installs cost nothing: what a setup would cost to install is a planning figure, not what the job cost. The install line and the build cost read the same figure \u2014 the planner and the archive must not disagree about it.",
       "job": {
         "jobID": "corpus-install-nothing-linked",
         "itemID": 587,
@@ -519,7 +519,6 @@
             "setup-1": {
               "id": "setup-1",
               "jobCount": 2,
-              "estimatedInstallCost": 15,
               "runCount": 1,
               "materialCount": {
                 "34": {

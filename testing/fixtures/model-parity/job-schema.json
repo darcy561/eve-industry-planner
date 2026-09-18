@@ -117,8 +117,6 @@
   "build.setup.{id}.alternativeSystemIndexValue",
   "build.setup.{id}.appliedRequirementID",
   "build.setup.{id}.customStructureID",
-  "build.setup.{id}.estimatedInstallCost",
-  "build.setup.{id}.estimatedTime",
   "build.setup.{id}.id",
   "build.setup.{id}.jobCount",
   "build.setup.{id}.jobType",

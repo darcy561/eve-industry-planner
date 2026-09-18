@@ -11,6 +11,7 @@ import {
 import { useGetCharacterSkills } from "../../../../../../Hooks/EveEsi/Character/useGetCharacterSkills";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { groupJobSkills } from "../../../../../../Functions/Skills/jobSkillGroups";
+import { quotedCharacterHash } from "../../../../../../Functions/Skills/quotedCharacter";
 import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSellingContext";
 import { useSellingRates } from "../../../../../../Hooks/React Query/Character/useSellingRates";
 import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
@@ -33,7 +34,7 @@ import { useJobCommitment } from "../../../../../../Hooks/Planner/useJobCommitme
  */
 export function SkillsPanel({ state, actions }) {
   const { activeJob } = state;
-  const buildCharacterHash = activeJob.selectedSetup?.selectedCharacter ?? null;
+  const buildCharacterHash = quotedCharacterHash(activeJob.selectedSetup);
   const { seller, saleLocation } = useJobSellingContext(activeJob);
 
   const findCharacterByHash = useUsersStore(

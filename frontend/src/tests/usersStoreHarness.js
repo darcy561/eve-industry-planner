@@ -198,6 +198,9 @@ export function usersStoreState(overrides = {}) {
     getMainCharacterName: () =>
       state.account.characters?.find((c) => c?.isMainCharacter)
         ?.CharacterName || null,
+    getMainCharacterHash: () =>
+      state.account.characters?.find((c) => c?.isMainCharacter)
+        ?.CharacterHash || "",
     ...state.account.actions,
   };
 

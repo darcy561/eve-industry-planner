@@ -1,6 +1,5 @@
 import { CircularProgress, Grid } from "@mui/material";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { jobTypes } from "../../../../../../Context/defaultValues";
 import VirtualisedSystemSearch from "../../../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 import MaterialEfficiencySelect from "../../../../../../Styled Components/Select/materialEfficiency";
@@ -23,7 +22,6 @@ import { setupShowsManualStructureFields } from "../../../../../../Functions/Hel
 export function EditJobSetup(props) {
   const { state, actions } = props;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const queryClient = useQueryClient();
 
   const getCustomStructureWithID =
     useUsersStore.getState().applicationSettings.actions
@@ -41,12 +39,7 @@ export function EditJobSetup(props) {
               initialState={selectedSetup.runCount}
               onChange={async (value) => {
                 selectedSetup.updateRunCount(value);
-                await recalculateJobFromSetup(
-                  selectedSetup,
-                  state,
-                  actions,
-                  queryClient,
-                );
+                await recalculateJobFromSetup(selectedSetup, state, actions);
               }}
             />
           </Grid>
@@ -55,12 +48,7 @@ export function EditJobSetup(props) {
               initialState={selectedSetup.jobCount}
               onChange={async (value) => {
                 selectedSetup.updateJobCount(value);
-                await recalculateJobFromSetup(
-                  selectedSetup,
-                  state,
-                  actions,
-                  queryClient,
-                );
+                await recalculateJobFromSetup(selectedSetup, state, actions);
               }}
             />
           </Grid>
@@ -75,7 +63,6 @@ export function EditJobSetup(props) {
                       selectedSetup,
                       state,
                       actions,
-                      queryClient,
                     );
                   }}
                 />
@@ -89,7 +76,6 @@ export function EditJobSetup(props) {
                       selectedSetup,
                       state,
                       actions,
-                      queryClient,
                     );
                   }}
                 />
@@ -97,11 +83,7 @@ export function EditJobSetup(props) {
             </>
           )}
 
-          <ManualStructureSelection
-            {...props}
-            selectedSetup={selectedSetup}
-            queryClient={queryClient}
-          />
+          <ManualStructureSelection {...props} selectedSetup={selectedSetup} />
           <Grid container size={12}>
             <Grid size={6}>
               <UseAlternativeCheckbox
@@ -113,12 +95,7 @@ export function EditJobSetup(props) {
                   if (!value) {
                     selectedSetup.updateAlternativeSystemIndexValue(null);
                   }
-                  await recalculateJobFromSetup(
-                    selectedSetup,
-                    state,
-                    actions,
-                    queryClient,
-                  );
+                  await recalculateJobFromSetup(selectedSetup, state, actions);
                 }}
               />
             </Grid>
@@ -134,12 +111,7 @@ export function EditJobSetup(props) {
                 }
                 onChange={async (value) => {
                   selectedSetup.updateAlternativeSystemIndexValue(value);
-                  await recalculateJobFromSetup(
-                    selectedSetup,
-                    state,
-                    actions,
-                    queryClient,
-                  );
+                  await recalculateJobFromSetup(selectedSetup, state, actions);
                 }}
               />
             </Grid>
@@ -161,7 +133,6 @@ export function EditJobSetup(props) {
                       selectedSetup,
                       state,
                       actions,
-                      queryClient,
                     );
                   }}
                 />
@@ -180,7 +151,6 @@ export function EditJobSetup(props) {
                       selectedSetup,
                       state,
                       actions,
-                      queryClient,
                     );
                   }}
                 />
@@ -193,12 +163,7 @@ export function EditJobSetup(props) {
   );
 }
 
-function ManualStructureSelection({
-  state,
-  actions,
-  selectedSetup,
-  queryClient,
-}) {
+function ManualStructureSelection({ state, actions, selectedSetup }) {
   const [fetchSystemDataTrigger, updateFetchSystemDataTrigger] =
     useState(false);
 
@@ -220,12 +185,7 @@ function ManualStructureSelection({
           jobType={state.activeJob.jobType}
           onChange={async (selectedEntry) => {
             selectedSetup.updateStructureID(selectedEntry);
-            await recalculateJobFromSetup(
-              selectedSetup,
-              state,
-              actions,
-              queryClient,
-            );
+            await recalculateJobFromSetup(selectedSetup, state, actions);
           }}
         />
       </Grid>
@@ -235,12 +195,7 @@ function ManualStructureSelection({
           jobType={state.activeJob.jobType}
           onChange={async (selectedEntry) => {
             selectedSetup.updateRigID(selectedEntry);
-            await recalculateJobFromSetup(
-              selectedSetup,
-              state,
-              actions,
-              queryClient,
-            );
+            await recalculateJobFromSetup(selectedSetup, state, actions);
           }}
         />
       </Grid>
@@ -250,12 +205,7 @@ function ManualStructureSelection({
           jobType={state.activeJob.jobType}
           onChange={async (selectedEntry) => {
             selectedSetup.updateSystemType(selectedEntry);
-            await recalculateJobFromSetup(
-              selectedSetup,
-              state,
-              actions,
-              queryClient,
-            );
+            await recalculateJobFromSetup(selectedSetup, state, actions);
           }}
         />
       </Grid>
@@ -267,12 +217,7 @@ function ManualStructureSelection({
             updateSelectedValue={async (value) => {
               updateFetchSystemDataTrigger((prev) => !prev);
               selectedSetup.updateSystemID(Number(value));
-              await recalculateJobFromSetup(
-                selectedSetup,
-                state,
-                actions,
-                queryClient,
-              );
+              await recalculateJobFromSetup(selectedSetup, state, actions);
               updateFetchSystemDataTrigger((prev) => !prev);
             }}
           />
@@ -285,12 +230,7 @@ function ManualStructureSelection({
           initialState={selectedSetup.taxValue}
           onBlur={async (value) => {
             selectedSetup.updateTaxValue(value);
-            await recalculateJobFromSetup(
-              selectedSetup,
-              state,
-              actions,
-              queryClient,
-            );
+            await recalculateJobFromSetup(selectedSetup, state, actions);
           }}
         />
       </Grid>

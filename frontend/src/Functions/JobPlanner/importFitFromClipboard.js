@@ -1,5 +1,4 @@
 import getMissingESIData from "../Shared/getMissingESIData";
-import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { primeItemSearchIndex, searchEntryByName } from "../Static/items";
 import useUsersStore from "../../Zustand/usersStore";
@@ -171,7 +170,6 @@ export async function finalBuildRequests(itemArray, queryClient) {
   }
 
   const { requestedSystemIndexes } = await getMissingESIData(normalizedNewJobs);
-  recalculateInstallCostsWithNewData(normalizedNewJobs, requestedSystemIndexes);
 
   if (isLoggedIn) {
     for (const id of [...jobsToSave]) {

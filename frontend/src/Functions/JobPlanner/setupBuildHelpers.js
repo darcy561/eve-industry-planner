@@ -156,6 +156,6 @@ export function buildSetupFromQuantity(
     jobType: job.jobType,
   });
 
-  newSetup.recalculate(job.rawData.materials, job.skills, queryClient);
+  newSetup.recalculateMaterials(job.rawData.materials);
   return newSetup;
 }

@@ -16,9 +16,11 @@ function toFinite(n, fallback = 0) {
  *
  * The walk costs one visit per path rather than per job, so a job reachable more
  * than one way is walked more than once. Measured against the live data that is
- * not worth removing: the largest chain there is 118 jobs over 986 visits and
- * costs well under a millisecond. Caching a job's cost, or folding bottom-up
- * instead, both save fractions of that.
+ * not worth removing: the largest chain there is 118 jobs over 986 visits, and
+ * the whole walk took well under a millisecond when a visit read a stored
+ * install figure. A visit now works that figure out from the setup's materials,
+ * and the walk has not been timed since. Caching a job's cost, or folding
+ * bottom-up instead, are the levers if it ever matters.
  *
  * @param {import("../../Classes/job").default} outputJob
  * @param {{ installCostMode?: "actual" | "planning" }} [options]

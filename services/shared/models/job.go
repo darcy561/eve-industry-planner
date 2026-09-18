@@ -101,11 +101,9 @@ type JobSetup struct {
 	SystemTypeID                   int                      `json:"systemTypeID" bson:"systemTypeID"`
 	SystemID                       int                      `json:"systemID" bson:"systemID"`
 	TaxValue                       float64                  `json:"taxValue" bson:"taxValue"`
-	EstimatedInstallCost           float64                  `json:"estimatedInstallCost" bson:"estimatedInstallCost"`
 	CustomStructureID              string                   `json:"customStructureID" bson:"customStructureID"`
 	SelectedCharacter              string                   `json:"selectedCharacter" bson:"selectedCharacter"`
 	MaterialCount                  map[string]MaterialCount `json:"materialCount" bson:"materialCount"`
-	EstimatedTime                  float64                  `json:"estimatedTime" bson:"estimatedTime"`
 	RawTime                        float64                  `json:"rawTime" bson:"rawTime"`
 	JobType                        int                      `json:"jobType" bson:"jobType"`
 	AppliedRequirementID           int64                    `json:"appliedRequirementID" bson:"appliedRequirementID"`

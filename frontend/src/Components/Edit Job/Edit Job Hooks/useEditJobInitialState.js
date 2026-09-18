@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { calculateInstallCostfromSetup } from "../../../Functions/Installation Costs/installCosts";
 import { clearOrphanedCustomStructureOnSetups } from "../../../Functions/Helper/customStructureSetup";
 import Job from "../../../Classes/job";
 import { prefetchAccountTotalsQuery } from "../../../Hooks/React Query/Backend/statisticsTotals";
 import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
+import { loadAllRelatedJobs } from "../../../Functions/Helper/getAllRelatedJobs";
 import useUsersStore from "../../../Zustand/usersStore";
 
 export function useEditJobInitialState({
@@ -28,12 +28,10 @@ export function useEditJobInitialState({
         .jobData.actions.findJobInJobArray(jobID);
 
       try {
-        const linkedJobs = await useUsersStore
-          .getState()
-          .jobData.actions.jobsFromIdsOrObjects([
-            ...matchedJob.relatedJobIDs,
-            jobID,
-          ]);
+        // The whole chain, not the jobs one step away: what a material costs is
+        // walked all the way down, so a job further along that nothing has been
+        // fetched for drops its install cost out of every figure above it.
+        const linkedJobs = await loadAllRelatedJobs(jobID);
 
         if (useUsersStore.getState().account.isLoggedIn) {
           await prefetchAccountTotalsQuery(queryClient, matchedJob.itemID);
@@ -48,13 +46,6 @@ export function useEditJobInitialState({
           matchedJob.build.setup,
           getCustomStructureWithID,
         );
-
-        for (const setup of Object.values(matchedJob.build.setup)) {
-          setup.estimatedInstallCost = calculateInstallCostfromSetup(
-            setup,
-            requestedSystemIndexes,
-          );
-        }
 
         if (!matchedJob.layout.setupToEdit) {
           matchedJob.layout.setupToEdit =

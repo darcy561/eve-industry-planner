@@ -15,8 +15,8 @@ import RightSideMenuContent_GroupPage from "./Side Menu/rightSideMenuContent";
 import GroupNameFrame from "./Group Name/groupNameFrame";
 import { useGroupPageSideMenuFunctions } from "./Side Menu/Buttons/buttonFunctions";
 import { PriceEntryDialogue } from "../Dialogues/Price Entry/PriceEntry";
-import { recalculateInstallCostsWithNewData } from "../../Functions/Installation Costs/installCosts";
 import getMissingESIData from "../../Functions/Shared/getMissingESIData";
+import { loadAllRelatedJobs } from "../../Functions/Helper/getAllRelatedJobs";
 import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
 import MarketDataDialogue from "../Dialogues/Market Data/dialogueFrame";
 import useGroupPageReducer from "./Hooks/useGroupPageReducer";
@@ -122,20 +122,17 @@ function GroupPageFrame() {
         }
 
         hint("Preparing job data…");
-        const allJobObjects = await useUsersStore
-          .getState()
-          .jobData.actions.jobsFromIdsOrObjects(
-            currentActiveGroupObject.liveMemberIDs,
-          );
+        // A group's members plus whatever their chains reach: a child job is
+        // not obliged to be in the same group as its parent, and one left out
+        // costs nothing to install rather than being left out of the walk.
+        const allJobObjects = await loadAllRelatedJobs(
+          currentActiveGroupObject.liveMemberIDs,
+        );
 
         hint("Gathering market data…");
         const { requestedSystemIndexes } =
           await getMissingESIData(allJobObjects);
 
-        recalculateInstallCostsWithNewData(
-          allJobObjects,
-          requestedSystemIndexes,
-        );
         useUsersStore
           .getState()
           .worldData.actions.addSystemIndex(requestedSystemIndexes);

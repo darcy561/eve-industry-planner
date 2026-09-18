@@ -20,8 +20,10 @@ import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystemNames"
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
+import { calculateInstallCostfromSetup } from "../../../../../../Functions/Installation Costs/installCosts";
 
 export function JobSetupCard({ setupEntry, state, actions }) {
+  const installCostPerJob = calculateInstallCostfromSetup(setupEntry);
   const assignedCharacterName =
     useUsersStore
       .getState()
@@ -100,7 +102,7 @@ export function JobSetupCard({ setupEntry, state, actions }) {
 
               <Tooltip
                 title={`Install Cost Per Job: ${formatNumberForLocale(
-                  setupEntry.estimatedInstallCost,
+                  installCostPerJob,
                 )}`}
                 arrow
                 placement="bottom"
@@ -114,7 +116,7 @@ export function JobSetupCard({ setupEntry, state, actions }) {
                   >
                     Est Total Install Costs:{" "}
                     {formatNumberForLocale(
-                      setupEntry.estimatedInstallCost * setupEntry.jobCount,
+                      installCostPerJob * setupEntry.jobCount,
                     )}
                   </Typography>
                 </Grid>

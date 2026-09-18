@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { Typography, Grid } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import {
   formatNumberForLocale,
@@ -7,12 +8,14 @@ import {
 } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { resolveParentRequirements } from "../../../../../../Functions/Groups/parentRequirements";
+import calculateTimeForSetup from "../../../../../../Functions/Blueprint Calculations/calculateTimeForSetup";
 
 export function ProductionStats({ state, actions }) {
   const { activeJob } = state;
   const { jobArray } = useUsersStore((state) => state.jobData);
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
   const selectedSetup = activeJob.selectedSetup;
+  const queryClient = useQueryClient();
 
   const calculateParentRequirements = useCallback(
     () =>
@@ -27,7 +30,9 @@ export function ProductionStats({ state, actions }) {
 
   if (!selectedSetup) return null;
 
-  const timeDisplayFigure = formatTimeDuration(selectedSetup.estimatedTime);
+  const timeDisplayFigure = formatTimeDuration(
+    calculateTimeForSetup(selectedSetup, activeJob.skills, queryClient),
+  );
   const parentRequirements = calculateParentRequirements();
 
   return (

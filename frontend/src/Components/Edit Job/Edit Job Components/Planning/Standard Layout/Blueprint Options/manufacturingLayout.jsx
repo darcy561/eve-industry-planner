@@ -1,7 +1,5 @@
 import { useMemo } from "react";
 import { Badge, Tooltip, Typography, Grid } from "@mui/material";
-import { useQueryClient } from "@tanstack/react-query";
-
 import { red, yellow } from "@mui/material/colors";
 import useBlueprintIndex, {
   BLUEPRINT_SCOPE,
@@ -17,8 +15,6 @@ const expiring = red[600];
 
 // Extracted component for individual blueprint item
 const BlueprintItem = ({ print, esiJob, state, actions }) => {
-  const queryClient = useQueryClient();
-
   const blueprintType = print.isCopy ? "copy" : "original";
   const blueprintTypeUrl = print.isCopy ? "bpc" : "bp";
 
@@ -56,12 +52,7 @@ const BlueprintItem = ({ print, esiJob, state, actions }) => {
           const currentSetup = state.activeJob.selectedSetup;
           currentSetup.updateMEValue(print.me);
           currentSetup.updateTEValue(print.te / 2);
-          await recalculateJobFromSetup(
-            currentSetup,
-            state,
-            actions,
-            queryClient,
-          );
+          await recalculateJobFromSetup(currentSetup, state, actions);
         }}
         size={{
           xs: 6,

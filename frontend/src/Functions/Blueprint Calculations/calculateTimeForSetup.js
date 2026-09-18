@@ -3,9 +3,10 @@ import { industrySkillIDs, jobTypes } from "../../Context/defaultValues";
 import manufacturingTimeModifierCalculation from "./manufacturingTimeModifierCalculation";
 import reactionTimeModifierCalculation from "./reactionTimeModifierCalculation";
 import { getCachedCharacterSkills } from "../../Hooks/EveEsi/Character/useGetCharacterSkills";
+import { quotedCharacterHash } from "../Skills/quotedCharacter";
 
 /**
- * Calculates the time for a job setup based on the user's skills, structure, and rig.
+ * How long this setup takes the account reading it.
  *
  * @param {Setup} setupObject - The job setup object
  * @param {Array} jobSkillRequirements - The job skill requirements
@@ -22,7 +23,7 @@ export default function calculateTimeForSetup(
     return;
 
   const usersSkills =
-    getCachedCharacterSkills(queryClient, setupObject.selectedCharacter)
+    getCachedCharacterSkills(queryClient, quotedCharacterHash(setupObject))
       ?.data || {};
 
   return timeForSetup(setupObject, jobSkillRequirements, usersSkills);

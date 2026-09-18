@@ -1,9 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
 
 const cachedSkills = { data: {} };
+/** Whose skills the last calculation read. */
+const asked = { hash: null };
+const reader = { own: ["hash-1"], main: "hash-main" };
 
 vi.mock("../../Hooks/EveEsi/Character/useGetCharacterSkills", () => ({
-  getCachedCharacterSkills: () => cachedSkills,
+  getCachedCharacterSkills: (_queryClient, characterHash) => {
+    asked.hash = characterHash;
+    return cachedSkills;
+  },
+}));
+vi.mock("../../Zustand/usersStore", () => ({
+  default: {
+    getState: () => ({
+      account: {
+        actions: {
+          findCharacterByHash: (hash) =>
+            reader.own.includes(hash) ? { CharacterHash: hash } : null,
+          getMainCharacterHash: () => reader.main,
+        },
+      },
+    }),
+  },
 }));
 vi.mock("../Helper/getStructureInfo", () => ({
   getStructureInfoFromID: () => ({ time: 0 }),
@@ -28,6 +47,7 @@ function setup({
   rawTime = 1000,
   runCount = 1,
   TE = 0,
+  selectedCharacter = "hash-1",
 } = {}) {
   return new Setup({
     jobType,
@@ -36,7 +56,7 @@ function setup({
     TE,
     structureID: 0,
     rigID: 0,
-    selectedCharacter: "hash-1",
+    selectedCharacter,
   });
 }
 
@@ -114,6 +134,25 @@ describe("calculateTimeForSetup", () => {
     expect(calculateTimeForSetup(setup(), requirements, {})).toBe(
       calculateTimeForSetup(setup(), [], {}),
     );
+  });
+
+  it("quotes the setup's own character when the reader has them", () => {
+    withSkills([]);
+
+    calculateTimeForSetup(setup(), [], {});
+
+    expect(asked.hash).toBe("hash-1");
+  });
+
+  // A setup on a shared planner names the member who planned it, and this
+  // account holds no skills for them: reading that hash returns nothing and
+  // quotes the job as though nobody had trained anything.
+  it("quotes the reader's main when the setup names another member", () => {
+    withSkills([]);
+
+    calculateTimeForSetup(setup({ selectedCharacter: "hash-theirs" }), [], {});
+
+    expect(asked.hash).toBe("hash-main");
   });
 
   it("rounds down to a whole second", () => {

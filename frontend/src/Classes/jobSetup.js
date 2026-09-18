@@ -9,8 +9,6 @@ import {
   getRigInfoFromID,
   getSystemTypeFromID,
 } from "../Functions/Helper/getStructureInfo";
-import calculateTimeForSetup from "../Functions/Blueprint Calculations/calculateTimeForSetup";
-import calculateInstallCostfromSetup from "../Functions/Installation Costs/installCosts";
 import materialQuantitiesForSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
 import { asStringID } from "../Functions/Helper/ids";
 /**
@@ -35,12 +33,10 @@ class Setup {
    * @param {number} [setupInstructions.systemTypeID] - System type ID
    * @param {number} [setupInstructions.systemID] - System ID
    * @param {number} [setupInstructions.taxValue] - Tax rate (0-1)
-   * @param {number} [setupInstructions.estimatedInstallCost] - Estimated installation cost
    * @param {string} [setupInstructions.customStructureID] - Custom structure ID
    * @param {string} [setupInstructions.selectedCharacter] - Character hash for execution
    * @param {string} [setupInstructions.characterToUse] - Alternative character property
    * @param {Object} [setupInstructions.materialCount] - Material count tracking
-   * @param {number} [setupInstructions.estimatedTime] - Estimated job time
    * @param {number} [setupInstructions.rawTime] - Raw time value
    * @param {number} [setupInstructions.rawTimeValue] - Alternative raw time property
    * @param {number} setupInstructions.jobType - Type of job (manufacturing, reaction, etc.)
@@ -59,7 +55,6 @@ class Setup {
     this.systemTypeID = setupInstructions?.systemTypeID || 0;
     this.systemID = setupInstructions?.systemID || DEFAULT_SYSTEM;
     this.taxValue = setupInstructions?.taxValue || 0.25;
-    this.estimatedInstallCost = setupInstructions?.estimatedInstallCost || 0;
     if (setupInstructions?.customStructureID == null) {
       this.customStructureID = "";
     } else {
@@ -70,7 +65,6 @@ class Setup {
       setupInstructions?.characterToUse ||
       null;
     this.materialCount = setupInstructions?.materialCount || {};
-    this.estimatedTime = setupInstructions?.estimatedTime || 0;
     this.rawTime =
       setupInstructions?.rawTime || setupInstructions?.rawTimeValue || 0;
     this.jobType = setupInstructions.jobType;
@@ -116,11 +110,9 @@ class Setup {
       systemTypeID: this.systemTypeID,
       systemID: this.systemID,
       taxValue: this.taxValue,
-      estimatedInstallCost: this.estimatedInstallCost,
       customStructureID: this.customStructureID,
       selectedCharacter: this.selectedCharacter,
       materialCount: this.materialCount,
-      estimatedTime: this.estimatedTime,
       rawTime: this.rawTime,
       jobType: this.jobType,
       appliedRequirementID: this.appliedRequirementID,
@@ -130,51 +122,15 @@ class Setup {
   }
 
   /**
-   * Calculates the estimated time and installation cost for this setup.
-   *
-   * @param {Array<Object>} skillsContext - Array of character skills data
-   * @param {Array<Object>} usersContext - Array of user/character data
-   */
-  caclulateEstimatedTime(jobSkillRequirements, queryClient) {
-    this.estimatedTime = calculateTimeForSetup(
-      this,
-      jobSkillRequirements,
-      queryClient,
-    );
-  }
-  /**
-   * Calculates the estimated install cost for this setup.
-   *
-   * @param {Object} additionalSystemIndexValues - Additional system index values to use
-   * @returns {number} The estimated install cost for the setup
-   */
-  caclulateEstimatedInstallCost(additionalSystemIndexValues = {}) {
-    this.estimatedInstallCost = calculateInstallCostfromSetup(
-      this,
-      additionalSystemIndexValues,
-    );
-  }
-  /**
-   * Recalculates the setup against its job's raw data.
+   * Rebuilds the material quantities this setup calls for.
    *
    * @param {Array} rawMaterialQuantities - Raw material quantities from the job
-   * @param {Array} jobSkillRequirements - The job skill requirements
-   * @param {QueryClient} queryClient - The query client to use
-   * @param {Object} additionalSystemIndexValues - Additional system index values to use
    */
-
-  recalculate(
-    rawMaterialQuantities,
-    jobSkillRequirements,
-    queryClient,
-    additionalSystemIndexValues = {},
-  ) {
+  recalculateMaterials(rawMaterialQuantities) {
     this.materialCount = materialQuantitiesForSetup(
       this,
       rawMaterialQuantities,
     );
-    this.caclulateEstimatedTime(jobSkillRequirements, queryClient);
-    this.caclulateEstimatedInstallCost(additionalSystemIndexValues);
   }
 
   /**

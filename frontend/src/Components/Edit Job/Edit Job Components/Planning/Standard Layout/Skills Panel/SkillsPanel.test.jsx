@@ -43,13 +43,22 @@ vi.mock(
   },
 );
 
+/** The characters this account holds, which decides whose levels are quoted. */
+const reader = { own: ["builder"], main: "my-main" };
+
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../../../tests/usersStoreHarness.js");
   return usersStoreMock({
     account: {
       actions: {
-        findCharacterByHash: () => ({ CharacterName: "Builder Pilot" }),
+        findCharacterByHash: (hash) =>
+          reader.own.includes(hash)
+            ? {
+                CharacterName: hash === "builder" ? "Builder Pilot" : "My Main",
+              }
+            : null,
+        getMainCharacterHash: () => reader.main,
       },
     },
     jobData: { actions: { findJobInJobArray: (id) => jobsInStore[id] } },
@@ -81,6 +90,7 @@ const state = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reader.own = ["builder"];
   useSellingRates.mockReturnValue({ data: undefined, isLoading: false });
   resolveSellerCharacter.mockReturnValue({
     hash: "trader",
@@ -133,6 +143,18 @@ describe("the Skills panel", () => {
 
     expect(useGetCharacterSkills).toHaveBeenCalledWith("builder");
     expect(useGetCharacterSkills).toHaveBeenCalledWith("trader");
+  });
+
+  // On a shared planner the setup names the member who planned it, and this
+  // account holds no skills for them: quoting that character would fill the
+  // panel with levels nobody has.
+  it("quotes the reader's main when the setup names another member", () => {
+    reader.own = [];
+
+    render(<SkillsPanel state={state} actions={noParents} />);
+
+    expect(useGetCharacterSkills).toHaveBeenCalledWith("my-main");
+    expect(useGetCharacterSkills).not.toHaveBeenCalledWith("builder");
   });
 
   // A skill vanishing from a panel reads as a defect rather than as an answer.

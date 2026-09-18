@@ -1,6 +1,6 @@
 /**
- * Install cost estimates — the setup formula, the sum of those estimates across a
- * job's setups, and their recalculation when market or system index data changes.
+ * Install cost estimates — the setup formula and the sum of those estimates
+ * across a job's setups.
  *
  * What a job's installs actually cost is Job.totalInstallCost: the ESI jobs
  * linked to it. Only getJobInstallCostForPlanning mixes the two, and only to
@@ -17,6 +17,7 @@ import {
 } from "../../Context/defaultValues";
 import useUsersStore from "../../Zustand/usersStore";
 import { getAdjustedPriceForType } from "../MarketData/marketPriceForType";
+import { quotedCharacterHash } from "../Skills/quotedCharacter";
 
 /**
  * Calculates the install cost for a single setup (per job slot, before × jobCount).
@@ -56,7 +57,7 @@ export function calculateInstallCostfromSetup(
     additionalSystemIndexValues,
   );
 
-  const cloneValue = findCloneValue(setup.selectedCharacter);
+  const cloneValue = findCloneValue(quotedCharacterHash(setup));
 
   const taxModifierTotal =
     estimatedItemValue *
@@ -77,18 +78,17 @@ export function calculateInstallCostfromSetup(
 }
 
 /**
- * Sum of `estimatedInstallCost × jobCount` across all setups on a job.
+ * What installing every setup on a job would cost, across all of its job slots.
  *
- * @param {Record<string, { estimatedInstallCost?: number, jobCount?: number }> | null | undefined} setups
+ * @param {Record<string, Setup> | null | undefined} setups
  * @returns {number}
  */
-export function sumSetupEstimatedInstallCosts(setups) {
+export function sumSetupInstallCostEstimates(setups) {
   if (!setups) return 0;
 
   return Object.values(setups).reduce((sum, setup) => {
-    const perJob = Number(setup?.estimatedInstallCost) || 0;
     const slots = Number(setup?.jobCount) || 1;
-    return sum + perJob * slots;
+    return sum + calculateInstallCostfromSetup(setup) * slots;
   }, 0);
 }
 
@@ -110,29 +110,7 @@ export function getJobInstallCostForPlanning(job) {
     return job.totalInstallCost;
   }
 
-  return sumSetupEstimatedInstallCosts(job.build.setup);
-}
-
-/**
- * Refreshes `setup.estimatedInstallCost` on jobs when market or system index data updates.
- *
- * @param {Array|Object} inputJobs
- * @param {Object} newMarketData
- * @param {Object} newSystemIndexData
- */
-export function recalculateInstallCostsWithNewData(
-  inputJobs,
-  newSystemIndexData,
-) {
-  const jobsArray = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
-  jobsArray.forEach((job) => {
-    Object.values(job.build.setup).forEach((setup) => {
-      setup.estimatedInstallCost = calculateInstallCostfromSetup(
-        setup,
-        newSystemIndexData,
-      );
-    });
-  });
+  return sumSetupInstallCostEstimates(job.build.setup);
 }
 
 function estimatedItemPriceCalc(materialArray, jobCount) {

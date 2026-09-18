@@ -284,15 +284,13 @@ describe("recalculating a job's setups", () => {
     ).toBe(true);
   });
 
-  it("recomputes the derived figures rather than carrying them", () => {
+  it("rebuilds the material count rather than carrying it", () => {
     const job = jobBuiltByAnotherMember();
     const before = onlySetup(job);
     before.materialCount = {
       34: { typeID: 34, quantity: 999999, rawQuantity: 999999 },
       35: { typeID: 35, quantity: 1, rawQuantity: 1 },
     };
-    before.estimatedTime = 123456;
-    before.estimatedInstallCost = 987654;
 
     recalculateJobForNewTotal(job, 5, emptyQueryClient());
 
@@ -300,8 +298,6 @@ describe("recalculating a job's setups", () => {
     const rebuilt = onlySetup(job);
     expect(rebuilt.materialCount[34].rawQuantity).toBe(10);
     expect(rebuilt.materialCount[35]).toBeUndefined();
-    expect(rebuilt.estimatedTime).not.toBe(123456);
-    expect(rebuilt.estimatedInstallCost).not.toBe(987654);
   });
 
   it("leaves the setup it was built from untouched", () => {
@@ -493,46 +489,16 @@ describe("recalculating one setup in place", () => {
   it("recomputes its materials from the blueprint's list", () => {
     const job = jobBuiltByAnotherMember();
     const setup = onlySetup(job);
-    job.recalculateSelectedSetup(setup.id, emptyQueryClient());
+    job.recalculateSelectedSetup(setup.id);
     const atFullEfficiency = setup.materialCount[34].quantity;
 
     setup.updateMEValue(0);
-    job.recalculateSelectedSetup(setup.id, emptyQueryClient());
+    job.recalculateSelectedSetup(setup.id);
 
     // Rebuilt from the blueprint's list, so the map holds exactly its rows.
     expect(Object.keys(setup.materialCount)).toEqual(["34"]);
     expect(setup.materialCount[34].rawQuantity).toBe(10);
     expect(setup.materialCount[34].quantity).toBeGreaterThan(atFullEfficiency);
-  });
-
-  it("takes the system index values it is given", async () => {
-    const { default: findSystemIndexForJob } =
-      await import("../Functions/Helper/findSystemIndexValue");
-    const job = jobBuiltByAnotherMember();
-    const setup = onlySetup(job);
-    const additionalSystemIndexValues = {
-      [JOB_AS_BUILT.systemID]: { manufacturing: 0.5 },
-    };
-
-    job.recalculateSelectedSetup(
-      setup.id,
-      emptyQueryClient(),
-      undefined,
-      additionalSystemIndexValues,
-    );
-
-    // The install cost these feed is NaN for a material with no adjusted price,
-    // so assert the lookup they are passed to rather than the figure.
-    expect(findSystemIndexForJob(setup.systemID, setup.jobType)).toBe(0);
-    expect(
-      findSystemIndexForJob(
-        setup.systemID,
-        setup.jobType,
-        false,
-        0,
-        additionalSystemIndexValues,
-      ),
-    ).toBe(0.5);
   });
 });
 
@@ -552,8 +518,8 @@ describe("calculating materials for a job type", () => {
     const manufacturing = new Setup({ ...fields, jobType: 1 });
     const reaction = new Setup({ ...fields, jobType: 2 });
 
-    manufacturing.recalculate(raw, [], emptyQueryClient());
-    reaction.recalculate(raw, [], emptyQueryClient());
+    manufacturing.recalculateMaterials(raw);
+    reaction.recalculateMaterials(raw);
 
     // The reaction formula reads neither the structure bonus nor ME, so it
     // cannot land on the manufacturing figure for the same fields.

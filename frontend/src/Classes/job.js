@@ -1197,23 +1197,13 @@ class Job {
     return true;
   }
 
-  recalculateSelectedSetup(
-    setupId,
-    queryClient,
-    additionalSystemIndexValues = {},
-  ) {
+  recalculateSelectedSetup(setupId) {
     if (!setupId || !this.build.setup[setupId]) {
       console.error("Setup ID not provided or setup not found");
       return;
     }
 
-    const setup = this.build.setup[setupId];
-    setup.recalculate(
-      this.rawData.materials,
-      this.skills,
-      queryClient,
-      additionalSystemIndexValues,
-    );
+    this.build.setup[setupId].recalculateMaterials(this.rawData.materials);
   }
   /**
    * Calculates the total number of involved characters for the job.

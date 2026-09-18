@@ -51,8 +51,15 @@ describe("pricing a material with no child job", () => {
 });
 
 describe("calculateMaterialCostFromChildJobs install rollup", () => {
-  it("includes child setup install estimates in material cost", () => {
-    // The helper asks the job what it produces, so this is a real Job.
+  beforeEach(() => {
+    clearSeededPrices();
+    seedPrices({}, { adjusted: { 34: 100 } });
+  });
+
+  it("includes what a child's setups would cost to install", () => {
+    // The helper asks the job what it produces, so this is a real Job. Its
+    // setup carries its own system index, so what installing it costs is fixed
+    // here rather than read from whatever the store happens to hold.
     const childJob = new Job({
       jobID: "child-1",
       itemID: 587,
@@ -60,7 +67,17 @@ describe("calculateMaterialCostFromChildJobs install rollup", () => {
       itemsProducedPerRun: 5,
       build: {
         setup: {
-          s1: { id: "s1", estimatedInstallCost: 100, runCount: 1, jobCount: 2 },
+          s1: {
+            id: "s1",
+            jobType: 1,
+            runCount: 1,
+            jobCount: 2,
+            structureID: 0,
+            rigID: 0,
+            useAlternativeSystemIndexValue: true,
+            alternativeSystemIndexValue: 0.055,
+            materialCount: { 34: { typeID: 34, quantity: 20 } },
+          },
         },
         costs: { linkedJobs: [] },
         materials: [],

@@ -5,7 +5,6 @@ import normaliseParentChildRelationships from "../Shared/normaliseParentChildRel
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 import getMissingESIData from "../Shared/getMissingESIData";
-import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 
 /**
  * Apply a template payload: build jobs (setups-first + optional reconcile), remap graph, persist.
@@ -139,7 +138,6 @@ export async function instantiateGroupTemplate({
   }
 
   const { requestedSystemIndexes } = await getMissingESIData(built);
-  recalculateInstallCostsWithNewData(built, requestedSystemIndexes);
   useUsersStore
     .getState()
     .worldData.actions.addSystemIndex(requestedSystemIndexes);

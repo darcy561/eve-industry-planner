@@ -101,7 +101,6 @@ describe("what the installs cost", () => {
       "setup-1": new Setup({
         id: "setup-1",
         jobType: 1,
-        estimatedInstallCost: 15,
         jobCount: 2,
         materialCount: { 34: { typeID: 34, quantity: 100 } },
       }),

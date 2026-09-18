@@ -1,5 +1,4 @@
 import getMissingESIData from "../../../../../../../Functions/Shared/getMissingESIData";
-import { recalculateInstallCostsWithNewData } from "../../../../../../../Functions/Installation Costs/installCosts";
 import { buildJob } from "../../../../../../../Functions/JobPlanner/buildJob";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
 
@@ -21,7 +20,6 @@ export async function hydrateChildJobsWithMissingData(inputJobs) {
 
   const { requestedSystemIndexes } = await getMissingESIData(jobs);
 
-  recalculateInstallCostsWithNewData(jobs, requestedSystemIndexes);
   useUsersStore
     .getState()
     .worldData.actions.addSystemIndex(requestedSystemIndexes);
