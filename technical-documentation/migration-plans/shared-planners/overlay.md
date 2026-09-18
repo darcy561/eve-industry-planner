@@ -915,6 +915,82 @@ paths.
 fixtures and tells a reader to reach for one before writing a mock. This harness belongs on that list,
 and the entry cannot go in while this project is open.
 
+## Stage J — What the SPA does when it is not the only writer
+
+*Landed.*
+
+The client work in this project was scoped to prove the backend, and an audit of `frontend/src` found
+what that left. Most of it is design the project never planned; four things are wrong whatever design
+arrives, and those are what this stage is.
+
+**A delete arriving for a job the reader has open is surfaced, not applied.** The editor keeps the page
+— the reader is part-way through something with nowhere to put it — and is told the job is gone and that
+their changes cannot be saved. The coalescer that applies inbound job deliveries announces which ids it
+removed, and the editor listens for its own.
+
+What stops the deletion being undone is that nothing writes a job the store no longer holds. Every way
+out of the editor is guarded, in two places because they are two different acts. Saving checks the store
+before it persists, and a missing job ends the save: the reader is told it was removed while they had it
+open and the editor closes without writing. Leaving without saving restores the copy taken when the job
+opened, which would put a deleted job straight back, so the three paths that do it — the close button
+and both branches of the leave-confirm dialogue — go through one function that restores only a job the
+store still holds.
+
+Before this, the editor never re-read the store after it seeded, and closing wrote its copy over whatever
+had arrived since. A member deleting a job watched it reappear.
+
+**A group delete is written once, by the member who made it.** The member removing a group releases its
+jobs and saves them. Every other connected member applies the
+release to its own copies and **writes nothing**: the author's writes arrive as ordinary job deliveries,
+so fetching and saving on each client would repeat one member's work once per member, each from its own
+snapshot, and the last one to land would win.
+
+**The lock offers a control only when it can work.** Lock state carries `heldByThisAccount` — whether the session holding the lock is one of the reader's
+own. It is computed per reader from the account on the lock record and answers *may I take this back*,
+not *who has it*: no member is named, which is the position the stage took.
+
+The force-release control is offered only when that flag is true. It used to be rendered for every
+read-only viewer, captioned for a crashed tab of your own, so a member blocked by a colleague was told
+their own tab was responsible and offered a button to evict them — and the button made it worse. The
+Redis release script treated a lock held by another account exactly as it treated no lock at all, which
+the api answered 404, which the client reported as "No active lock to remove": the member was blocked by
+a lock the app had just told them did not exist. The script now says the two apart, the api answers 409,
+and a reader who reaches it is told to ask the holder for access.
+
+**A setup's figures are quoted against whoever is reading.** A setup names the character it was planned for, and on a shared planner that character belongs to
+somebody whose skills and clone state this account cannot read. Both stored estimates on a setup are
+gone — the job time and the install cost — along with the methods that wrote them and the passes that
+stamped the install cost onto setups after fetching system indexes. Each is worked out where it is
+shown.
+
+`quotedCharacterHash` decides whose character a setup is quoted against: its own when the reader holds
+that character, and the reader's main when it names somebody else. One function, because the Skills
+panel had the same defect in its own read.
+
+**Why the field went rather than its writer being fixed.** A figure whose value depends on who is
+looking has no single correct value to persist. The stored one was right for the member who last wrote
+it and silently wrong for everybody else — an unresolvable character read as an untrained one, so
+another member's job was costed as though the builder knew nothing and the alpha clone surcharge was
+charged to every reader. Deriving it also removes the write paths, which is where the corruption
+entered.
+
+**What deriving exposed.** The install cost is worked out from the system's cost index and the
+materials' adjusted prices, both held client-side, and the build-cost walk reaches every job beneath the
+one being costed. The Edit Job page fetched only the jobs one step away and the group page only the
+group's own members, so a job further along contributed **nothing** where it had previously contributed
+whatever was stamped into its document. Both screens now open on the whole chain — `loadAllRelatedJobs`
+is the same transitive walk as `getAllRelatedJobs` but resolves each level through the store *and* the
+api, so it reaches jobs the store does not hold. It costs one round trip per level of the chain where
+both screens previously made one in total.
+
+The stamped figure was not right either: it was whatever prices and indexes were current when it was
+written, and nothing refreshed it. The change trades a stale number for a live one, and closing the
+fetch gap is what stops it trading it for a missing one.
+
+**Still reader-relative and not resolved:** a setup naming a character the reader cannot resolve is
+shown as "No Matching Character Found" on the setup card, where the SPA's rule elsewhere is that an
+unresolvable identity reads as unreadable rather than as a sentence.
+
 ## Decisions taken, with their reasons
 
 Kept here so a later reader finds the reasoning without reconstructing it from the plan's prose.
@@ -962,5 +1038,6 @@ Kept here so a later reader finds the reasoning without reconstructing it from t
 | A member is never named on screen | Naming a holder, an author or a viewer is a product change this project does not want. What remains is telling *another tab of mine* from *another member*, which decides whether a control is offered at all — a fact about the viewer, not an identity |
 | A remote change is applied silently where it is only being read, and surfaced where it is being edited | The same instinct as a child job that does not resize under its parent: what a reader is working in is not overwritten beneath them, and what they are merely looking at has no edit to lose |
 | A shared planner has no roles yet, and gets them as designed | Permissions are separate, pluggable work with three hooks already reserved; every member may do everything until that lands, which is a stated position rather than an oversight |
+| A figure whose value depends on the reader is not stored on the document | Both of a setup's estimates were written into the shared job — the time and the install cost — and both are derived from the skills and clone state of the character the setup names, which on a shared planner belongs to somebody whose data this account cannot read. A stored figure has one value for every reader, so it was wrong for all but the member who last wrote it, and silently. Working each out where it is shown removes the write paths that were corrupting them, and one function decides whose character a setup is quoted against |
 | Stale-snapshot writing is document-write-granularity's | Whole-document writes with no precondition are the shape of the SPA's persistence everywhere, so the fix is that project's conditional write on `_meta.revision`; Stage J keeps only what is wrong without it |
 | Where the grants ceiling is read from is still open | It cannot be taken until Stage E's revocation path and Stage F's grant task settle, because the stored list is where a revocation is applied rather than only a cache |

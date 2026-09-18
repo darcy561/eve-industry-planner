@@ -2497,9 +2497,27 @@ sessions is a boolean the lock state carries — computed per reader from the ac
 the control is offered only when it can work and the caption stops telling a blocked member that a tab
 of their own crashed. Nobody is named: the flag answers *may I take this back*, not *who has it*.
 
-*Still open.* `calculateTimeForSetup` costing another member's job as though the builder had no skills,
-which is the last of the four and needs a decision before it can be built: what a reader should be shown
-for a job whose builder's skills they cannot resolve.
+*Landed, and wider than the audit found it.* A setup's figures are now quoted against whoever is
+reading. `calculateTimeForSetup` had been costing another member's job as though the builder had no
+skills, because it read the skills of the character the setup names and this account holds none for
+them. The answer was not to pick a different character to read: it was that a figure whose value
+depends on who is looking has no single correct value to store. Both stored estimates are gone — the
+job time and the install cost — along with the `Setup` methods that wrote them, the eight passes that
+stamped the install cost onto setups after fetching system indexes, and the two fields from the stored
+document and the Go model. Each figure is now worked out where it is shown, and one function,
+`quotedCharacterHash`, decides whose character a setup is quoted against: its own, when the reader
+holds that character, and the reader's main when it names somebody else. The Skills panel had the same
+defect in its own read and goes through the same function.
+
+Deriving the figures exposed what storing them had hidden. The install cost is worked out from the
+system's cost index and the materials' adjusted prices, and the chain walk reaches every job beneath
+the one being costed — but the Edit Job page fetched only the jobs one step away, and the group page
+only the group's own members. A job further along contributed nothing rather than an approximation,
+where before it had contributed whatever was stamped into its document the last time anything touched
+it. Both screens now open on the whole chain. The stamped figure was not right either — it was
+whatever the prices and indexes were when it was written, and it never refreshed — so the change
+traded a stale number for a live one, and closing the fetch gap is what stops it trading it for a
+missing one.
 
 ## Live data, and the cutover window
 
@@ -2647,7 +2665,9 @@ do not touch.
   undecided. See § Settings split between the planner and the account.
 - **Blueprint ownership.** Whose blueprints — and whose ME/TE on them — apply on a shared planner is
   not answered here. It follows the same test as the settings above: is the value baked into the job
-  at write time, or read live?
+  at write time, or read live? Stage J set the precedent for the second half of that test — a figure
+  read live is worked out for the reader and not stored — but ME and TE are inputs a member chose,
+  not figures derived from them, so the answer does not follow automatically.
 
 ## Done when
 
@@ -2664,6 +2684,8 @@ do not touch.
   changes no figure in another.
 - Editing another member's job never rewrites its structure, efficiency or character, and never
   writes a related job whose lock someone else holds.
+- A figure that depends on whose character is reading it is worked out for the reader rather than
+  stored on the shared document, and says so wherever it cannot be resolved.
 - Corporation and alliance planners are a row reconcile and nothing else — grants, routing, archive
   and UI need no branch on which provider a planner uses.
 - A reconnecting or planner-switching client is told what it missed rather than assuming it missed
@@ -2684,19 +2706,15 @@ do not touch.
 | G — realtime state under more than one writer | **Landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Also in: G2, the ordering position — a delivery carries its place in the stream, the client holds one per document and applies only what is beyond it, and a delete carries a position as readily as an upsert. And G4, the delivery construction — a full shard waits for room instead of overtaking what is queued for that owner, renewing the acknowledgement deadline while it waits and counting itself in the drain. Also in: G5, a settings change reaching the members it is for — `planner_settings` was delivered and dropped on arrival, and now has a handler that files it under the owner the delivery names rather than the owner key its `_id` carries. Also in: G3 — a resume carries how far the tab applied and is answered by comparing it with what was published for the tenants that connection reads, rather than asserting that nothing happened. Also in: the `websocket/sync` package and `skipWhileSyncing` are removed, which closes what G1 carried. Both questions the slices deferred are now answered: the stores hold the active planner only, and a gap is reloaded through rather than replayed. Absorbs what survived the retired websocket-realtime project, including keying the job and group stores by owner. **Nothing outstanding** — see § Stage G |
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3, H4). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. H4 moved the socket paths off the connection's last-known planner: every lock frame names its own, refused against the session's ceiling, as the HTTP paths already did — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
-| J — the SPA stops assuming it is the only writer | **Partly landed.** The client work in this project was a dropdown to prove the backend, which is what it was for; converting the planner into something two people can work in was never planned. An audit found four groups, and the four decisions that gated them are taken: no member is named on screen, a remote change is applied where it is only read and surfaced where it is being edited, roles come later as designed, and stale-snapshot writing goes to document-write-granularity. Three of its four defects are fixed: the group delete that made every member write, the editor that was never told its job was deleted — where a save recreated what somebody else removed — and the force-release control, which offered a blocked member a button the server would always refuse and reported a colleague's lock as no lock at all. Still open: the skills fallback that mis-costs another member's job, which needs a decision rather than code. See § Stage J |
+| J — the SPA stops assuming it is the only writer | **Landed.** The client work in this project was a dropdown to prove the backend, which is what it was for; converting the planner into something two people can work in was never planned. An audit found four groups, and the four decisions that gated them are taken: no member is named on screen, a remote change is applied where it is only read and surfaced where it is being edited, roles come later as designed, and stale-snapshot writing goes to document-write-granularity. All four of its defects are fixed: the group delete that made every member write, the editor that was never told its job was deleted — where a save recreated what somebody else removed — the force-release control, which offered a blocked member a button the server would always refuse and reported a colleague's lock as no lock at all, and the skills fallback that mis-costed another member's job. The last of those took the stored estimates with it: a figure whose value depends on the reader is worked out where it is shown rather than written into the document, which is both estimates on a setup, and the two screens that open a chain now fetch the whole of it rather than one link. See § Stage J |
 
 ## Recommended pickup order
 
-**Stage J next, and it is the only stage with buildable work left.** Its four decisions are taken, which
-left four defects that are wrong whatever else changes, and three are done: the group delete that made
-every other connected member write, the editor that was never told its job was deleted, and the
-force-release control, which now carries the one fact it was missing — whether the lock holder shares
-the reader's account, as a boolean that names nobody.
-
-What remains is `calculateTimeForSetup` costing another member's job at no skills. It is not blocked on
-anything built; it is blocked on a decision, because *whose* skills a reader should see a job costed
-against is a product question with more than one defensible answer.
+**Nothing here has buildable work left.** Stage J was the last of it, and it is closed: its four
+decisions are taken and all four defects are fixed — the group delete that made every other connected
+member write, the editor that was never told its job was deleted, the force-release control that now
+carries whether the lock holder shares the reader's account as a boolean naming nobody, and the setup
+figures, which stopped being stored and are worked out for whoever is reading.
 
 Stage G is closed: both questions its slices deferred are answered, the stores holding the active
 planner only and a gap being reloaded through rather than replayed.
