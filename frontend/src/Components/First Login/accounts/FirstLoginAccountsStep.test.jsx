@@ -85,4 +85,16 @@ describe("the accounts step of first login", () => {
     expect(toggleShareCitadelNames).toHaveBeenCalledTimes(1);
     expect(scheduleSave).toHaveBeenCalledTimes(1);
   });
+
+  // The choice governs the characters linked on this very step, so it cannot wait until the reader
+  // finds the Accounts page afterwards: an account that linked characters under the default would
+  // have to add them again to change it.
+  it("lets a reader choose where linked character tokens are kept", () => {
+    renderStep();
+
+    expect(screen.getByRole("button", { name: "Cloud" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "This browser" }),
+    ).toBeInTheDocument();
+  });
 });

@@ -51,8 +51,9 @@ export const preferencesActions = (set, get) => ({
   /**
    * Sets cloud accounts mode to an explicit value.
    *
-   * Prefer this over `toggleCloudAccounts` when the target state is known
-   * (e.g. accounts panel / first-login radio choices) to avoid stale-toggle drift.
+   * Prefer this over `toggleCloudAccounts` when the target state is known — the storage choice on
+   * the Accounts page and in first login both name the mode they are switching to — to avoid
+   * stale-toggle drift.
    *
    * @param {boolean} enabled
    */

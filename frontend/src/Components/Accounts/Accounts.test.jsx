@@ -46,7 +46,7 @@ describe("the accounts page", () => {
     );
 
     expect(screen.getByText("Account")).toBeInTheDocument();
-    expect(screen.getByText("Linked characters")).toBeInTheDocument();
+    expect(screen.getByText("Characters")).toBeInTheDocument();
     expect(screen.getByText("Community citadel names")).toBeInTheDocument();
   });
 
@@ -59,5 +59,21 @@ describe("the accounts page", () => {
 
     expect(screen.getByText("Account ID")).toBeInTheDocument();
     expect(screen.getByText("acc-1")).toBeInTheDocument();
+  });
+
+  // The layout renders a page as a flex item in a row. A page that does not claim the row shrinks
+  // to its widest section and sits against the left edge with the rest of the window empty —
+  // which is what happened here once the sections stopped being full-width grids.
+  it("claims the width of the layout row it sits in", () => {
+    const { container } = render(
+      <QueryClientProvider client={testQueryClient()}>
+        <AccountsPage />
+      </QueryClientProvider>,
+    );
+
+    const page = getComputedStyle(container.firstChild);
+
+    expect(page.flexGrow).toBe("1");
+    expect(page.width).toBe("100%");
   });
 });

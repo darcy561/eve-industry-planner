@@ -1,9 +1,9 @@
 import { Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
-import useUsersStore from "../../Zustand/usersStore";
 import { appShellNestedCardSx } from "../../Context/appShell";
 import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
+import { useMainCharacter } from "./useMainCharacter";
 
 /**
  * The character an account signs in as.
@@ -12,13 +12,7 @@ import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
  * @param {React.ReactNode} [props.children] - shown under the description
  */
 export function MainCharacterCard({ children }) {
-  const main = useUsersStore((state) =>
-    state.account.characters?.find((ch) => ch?.isMainCharacter),
-  );
-  const fallbackName = useUsersStore((state) =>
-    state.account.actions.getMainCharacterName(),
-  );
-  const name = main?.CharacterName ?? fallbackName ?? "—";
+  const { character: main, name } = useMainCharacter();
   const characterId = main?.CharacterID;
 
   return (

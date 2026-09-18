@@ -13,14 +13,21 @@ import AppShellPanel from "./AppShellPanel";
  * @param {object} props
  * @param {React.ReactNode} props.title
  * @param {React.ReactNode} [props.subtitle]
+ * @param {React.ReactNode} [props.action] - the section's own control, opposite its title
  * @param {React.ReactNode} props.children
  * @param {string} [props.componentName] - error boundary label; the title names it otherwise
  */
-export function SectionPanel({ title, subtitle, children, componentName }) {
+export function SectionPanel({
+  title,
+  subtitle,
+  action,
+  children,
+  componentName,
+}) {
   return (
     // No fallback of its own: the panel already names an unlabelled section after
     // its title, and a constant here would report every section under one name.
-    <AppShellPanel title={title} componentName={componentName}>
+    <AppShellPanel title={title} action={action} componentName={componentName}>
       <Stack spacing={1.5}>
         {subtitle ? (
           <Typography variant="body2" color="text.secondary">

@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import { AdditionalAccounts } from "./AdditionalAccounts";
 import { testQueryClient } from "../../tests/queryClients.js";
 
-const setCloudAccountsEnabled = vi.fn();
 const addCharacter = vi.fn();
-const upsertCloudStoredEsiRefreshTokens = vi.fn(async () => true);
 const updateLocalRefreshTokens = vi.fn();
 
 let characters = [];
@@ -29,10 +27,7 @@ vi.mock("../../Zustand/usersStore", async () => {
           getMainCharacterHash: () => "main-hash",
         },
       },
-      applicationSettings: {
-        userCloudAccounts: cloudAccounts,
-        actions: { setCloudAccountsEnabled },
-      },
+      applicationSettings: { userCloudAccounts: cloudAccounts },
     }),
   );
 });
@@ -40,8 +35,7 @@ vi.mock("../../Zustand/usersStore", async () => {
 vi.mock(
   "../../Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js",
   () => ({
-    upsertCloudStoredEsiRefreshTokens: (...args) =>
-      upsertCloudStoredEsiRefreshTokens(...args),
+    upsertCloudStoredEsiRefreshTokens: vi.fn(async () => true),
     deleteCloudStoredEsiRefreshTokens: vi.fn(async () => true),
   }),
 );
@@ -93,24 +87,28 @@ describe("the characters linked to an account", () => {
       aCharacter(),
     ];
     cloudAccounts = false;
-    setCloudAccountsEnabled.mockClear();
-    upsertCloudStoredEsiRefreshTokens.mockClear();
     updateLocalRefreshTokens.mockClear();
   });
 
-  it("lists the linked characters and not the main one", () => {
+  // One roster, one row shape. The main character is a character, and a reader who has learnt the
+  // list should not have to learn a second treatment for the one at the top of it.
+  it("lists every character, the main one first and marked", () => {
     characters = [
+      aCharacter({ CharacterName: "Linked Alt" }),
       aCharacter({
         CharacterHash: "main",
         CharacterName: "Main Character",
         isMainCharacter: true,
       }),
-      aCharacter({ CharacterName: "Linked Alt" }),
     ];
     renderAccounts();
 
-    expect(screen.getByText("Linked Alt")).toBeInTheDocument();
-    expect(screen.queryByText("Main Character")).not.toBeInTheDocument();
+    const named = screen
+      .getAllByText(/Main Character|Linked Alt/)
+      .map((node) => node.textContent);
+
+    expect(named).toEqual(["Main Character", "Linked Alt"]);
+    expect(screen.getByText("main")).toBeInTheDocument();
   });
 
   it("offers a way to link another character", () => {
@@ -131,72 +129,76 @@ describe("the characters linked to an account", () => {
   });
 });
 
-describe("where linked character tokens are kept", () => {
+describe("how the roster is laid out", () => {
   beforeEach(() => {
     characters = [
       aCharacter({ CharacterHash: "main", isMainCharacter: true }),
       aCharacter(),
     ];
-    cloudAccounts = false;
-    setCloudAccountsEnabled.mockClear();
-    upsertCloudStoredEsiRefreshTokens.mockClear();
-    updateLocalRefreshTokens.mockClear();
-    window.localStorage.clear();
   });
 
-  it("says which of the two a reader is on", () => {
-    renderAccounts();
-
-    const local = screen.getByRole("radio", { name: /local/i });
-    expect(local).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("radio", { name: /cloud/i })).toHaveAttribute(
-      "aria-checked",
-      "false",
+  // First login shows the main character on its own card above this roster, so the roster there is
+  // the characters linked to it.
+  it("leaves the main character out where it is already shown beside the roster", () => {
+    characters = [
+      aCharacter({
+        CharacterHash: "main",
+        CharacterName: "Main Character",
+        isMainCharacter: true,
+      }),
+      aCharacter({ CharacterName: "Linked Alt" }),
+    ];
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <AdditionalAccounts includeMainCharacter={false} />
+      </QueryClientProvider>,
     );
+
+    expect(screen.getByText("Linked Alt")).toBeInTheDocument();
+    expect(screen.queryByText("Main Character")).not.toBeInTheDocument();
   });
 
-  it("moves the stored tokens to the cloud when asked", async () => {
-    const user = userEvent.setup();
-    window.localStorage.setItem(
-      "main-hash AdditionalAccounts",
-      JSON.stringify([{ CharacterHash: "hash-1", rToken: "token-1" }]),
-    );
+  // The roster was a grid of content-sized cards, so a row that opened its ESI data reflowed the
+  // rest and characters moved past each other. jsdom runs no layout, so the guard is the container
+  // itself: a column cannot reflow, and this fails if the rows go back into a grid.
+  it("lays the roster out as a column", () => {
+    characters = [
+      aCharacter({ CharacterHash: "alt-1", CharacterName: "Linked Alt" }),
+      aCharacter({ CharacterHash: "alt-2", CharacterName: "Second Alt" }),
+    ];
     renderAccounts();
 
-    await user.click(screen.getByRole("radio", { name: /cloud/i }));
+    const roster = screen
+      .getByText("Linked Alt")
+      .closest(".MuiPaper-root").parentElement;
+    const layout = getComputedStyle(roster);
 
-    await waitFor(() => {
-      expect(upsertCloudStoredEsiRefreshTokens).toHaveBeenCalledWith([
-        { CharacterHash: "hash-1", rToken: "token-1" },
-      ]);
-    });
-    expect(setCloudAccountsEnabled).toHaveBeenCalledWith(true);
-    // What was moved is not left behind in the browser as well.
-    expect(
-      window.localStorage.getItem("main-hash AdditionalAccounts"),
-    ).toBeNull();
+    expect(layout.display).toBe("flex");
+    expect(layout.flexDirection).toBe("column");
   });
 
-  it("writes the tokens back to the browser when leaving the cloud", async () => {
+  it("keeps the roster in order when a row opens its ESI data", async () => {
     const user = userEvent.setup();
-    cloudAccounts = true;
+    characters = [
+      aCharacter({
+        CharacterHash: "main",
+        CharacterName: "Main Character",
+        isMainCharacter: true,
+      }),
+      aCharacter({ CharacterHash: "alt-1", CharacterName: "Linked Alt" }),
+      aCharacter({ CharacterHash: "alt-2", CharacterName: "Second Alt" }),
+    ];
     renderAccounts();
 
-    await user.click(screen.getByRole("radio", { name: /local/i }));
+    const order = () =>
+      screen
+        .getAllByText(/Main Character|Linked Alt|Second Alt/)
+        .map((node) => node.textContent);
+    const before = order();
 
-    await waitFor(() => {
-      expect(setCloudAccountsEnabled).toHaveBeenCalledWith(false);
-    });
-    expect(updateLocalRefreshTokens).toHaveBeenCalled();
-  });
+    await user.click(screen.getAllByRole("button", { name: "ESI data" })[1]);
 
-  it("does nothing when the mode chosen is the one already set", async () => {
-    const user = userEvent.setup();
-    renderAccounts();
-
-    await user.click(screen.getByRole("radio", { name: /local/i }));
-
-    expect(setCloudAccountsEnabled).not.toHaveBeenCalled();
-    expect(upsertCloudStoredEsiRefreshTokens).not.toHaveBeenCalled();
+    expect(order()).toEqual(before);
+    expect(screen.getByText("Character Skills")).toBeInTheDocument();
   });
 });

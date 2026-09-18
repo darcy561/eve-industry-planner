@@ -121,4 +121,19 @@ describe("a child that throws", () => {
       }),
     );
   });
+
+  // A section whose one control belongs beside its title — the citadel switch, the roster's link
+  // button — rather than below whatever the section is explaining.
+  it("carries a control opposite its title", () => {
+    render(
+      <SectionPanel
+        title="Community citadel names"
+        action={<button type="button">Share</button>}
+      >
+        <p>body</p>
+      </SectionPanel>,
+    );
+
+    expect(screen.getByRole("button", { name: "Share" })).toBeVisible();
+  });
 });

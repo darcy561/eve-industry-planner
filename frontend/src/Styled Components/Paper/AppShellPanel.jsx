@@ -1,15 +1,6 @@
-import { useState } from "react";
-import {
-  Box,
-  Grid,
-  IconButton,
-  Menu,
-  MenuItem,
-  Paper,
-  Typography,
-} from "@mui/material";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { Box, Paper, Typography } from "@mui/material";
 
+import ActionMenu from "../Menu/ActionMenu";
 import ContentErrorBoundary from "./ContentErrorBoundary";
 import PanelFallBack from "./panelStates";
 import { LoadingPage } from "../../Components/loadingPage";
@@ -40,7 +31,7 @@ import { appShellSetupSectionPaperSx } from "../../Context/appShell";
  * @param {Object} [props.contentSx]
  * @param {boolean} [props.visible]
  * @param {boolean} [props.enableMenu]
- * @param {Array<{label: string, onClick?: Function, disabled?: boolean}>} [props.menuItems]
+ * @param {Array<{label: string, onClick?: Function, disabled?: boolean, disabledReason?: string}>} [props.menuItems]
  */
 export default function AppShellPanel({
   children,
@@ -59,7 +50,6 @@ export default function AppShellPanel({
   menuItems = [],
   ...otherProps
 }) {
-  const [menuAnchor, setMenuAnchor] = useState(null);
   if (!visible) return null;
 
   const hasMenu = enableMenu && menuItems.length > 0;
@@ -78,69 +68,52 @@ export default function AppShellPanel({
       }}
       {...otherProps}
     >
+      {/* The breakpoints are the twelve-column header's, in flex: a control takes its own line on
+          a phone and shares the title's line from `sm` up. Eighteen panels draw this header, so
+          the conversion off `Grid` had to leave every one of them where it was. */}
       {hasHeader && (
-        <Grid container spacing={1.5} sx={{ alignItems: "center", mb: 1.5 }}>
-          <Grid size={{ xs: 12, sm: action ? 7 : 12 }}>
-            {title && (
-              <Typography
-                color="text.secondary"
-                sx={{ typography: { xs: "caption", md: "body2" } }}
-              >
-                {title}
-              </Typography>
-            )}
-          </Grid>
-          <Grid
-            size={{ xs: 12, sm: action ? 5 : "auto" }}
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 1.5,
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 1.5,
+          }}
+        >
+          {title && (
+            <Typography
+              color="text.secondary"
+              sx={{
+                typography: { xs: "caption", md: "body2" },
+                flexGrow: 1,
+                flexBasis: { xs: "100%", sm: 0 },
+                minWidth: 0,
+              }}
+            >
+              {title}
+            </Typography>
+          )}
+          <Box
             sx={{
               display: "flex",
               gap: 1,
               alignItems: "center",
               justifyContent: "flex-end",
+              flexShrink: 0,
+              flexBasis: { xs: "100%", sm: "auto" },
             }}
           >
             {action}
             {hasMenu && (
-              <>
-                <IconButton
-                  id="appShellPanel_menu_button"
-                  size="small"
-                  onClick={(event) => setMenuAnchor(event.currentTarget)}
-                  aria-controls={menuAnchor ? "appShellPanel_menu" : undefined}
-                  aria-haspopup="true"
-                  aria-expanded={menuAnchor ? "true" : undefined}
-                >
-                  <MoreVertIcon fontSize="small" color="primary" />
-                </IconButton>
-                <Menu
-                  id="appShellPanel_menu"
-                  anchorEl={menuAnchor}
-                  open={Boolean(menuAnchor)}
-                  onClose={() => setMenuAnchor(null)}
-                  slotProps={{
-                    list: { "aria-labelledby": "appShellPanel_menu_button" },
-                  }}
-                >
-                  {menuItems.map((item) => (
-                    <MenuItem
-                      key={item.label}
-                      disabled={item.disabled || false}
-                      onClick={() => {
-                        item.onClick?.({
-                          closeMenu: () => setMenuAnchor(null),
-                          anchorEl: menuAnchor,
-                        });
-                        setMenuAnchor(null);
-                      }}
-                    >
-                      {item.label}
-                    </MenuItem>
-                  ))}
-                </Menu>
-              </>
+              <ActionMenu
+                items={menuItems}
+                label={title ? `${title} actions` : "Panel actions"}
+              />
             )}
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       )}
 
       <Box

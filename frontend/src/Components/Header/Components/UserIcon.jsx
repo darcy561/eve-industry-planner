@@ -1,7 +1,7 @@
-import { Avatar, Box, Grid, Skeleton, Tooltip } from "@mui/material";
+import { Avatar, Box, Skeleton, Tooltip } from "@mui/material";
 
-import useUsersStore from "../../../Zustand/usersStore";
 import { characterImageUrl } from "../../../Functions/Shared/eveImage";
+import { useMainCharacter } from "../../Accounts/useMainCharacter";
 
 const avatarSlotSx = {
   height: { xs: "36px", sm: "48px" },
@@ -10,36 +10,32 @@ const avatarSlotSx = {
 };
 
 export function UserIcon() {
-  // Subscribe to the main character row so the avatar updates when
-  // `setLoggedIn` is followed by `updateCharacters` (see applyClientSessionAfterAppTokens).
-  const mainCharacter = useUsersStore((state) =>
-    state.account.characters?.find((ch) => ch?.isMainCharacter),
-  );
+  // Subscribed rather than read once, so the avatar updates when `setLoggedIn` is followed by
+  // `updateCharacters` (see applyClientSessionAfterAppTokens).
+  const { character: mainCharacter } = useMainCharacter();
   const showPortrait = mainCharacter && mainCharacter.isPlaceholder !== true;
 
   return (
-    <Box>
-      <Grid container sx={{ flexDirection: "column" }}>
-        <Grid align="center">
-          {showPortrait ? (
-            <Tooltip title={mainCharacter.CharacterName} arrow>
-              <Avatar
-                alt="Account Logo"
-                src={characterImageUrl(mainCharacter.CharacterID, 96)}
-                sx={avatarSlotSx}
-              />
-            </Tooltip>
-          ) : (
-            <Skeleton
-              variant="circular"
-              animation="wave"
-              aria-busy
-              aria-label="Loading main character"
-              sx={avatarSlotSx}
-            />
-          )}
-        </Grid>
-      </Grid>
+    <Box
+      sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+    >
+      {showPortrait ? (
+        <Tooltip title={mainCharacter.CharacterName} arrow>
+          <Avatar
+            alt="Account Logo"
+            src={characterImageUrl(mainCharacter.CharacterID, 96)}
+            sx={avatarSlotSx}
+          />
+        </Tooltip>
+      ) : (
+        <Skeleton
+          variant="circular"
+          animation="wave"
+          aria-busy
+          aria-label="Loading main character"
+          sx={avatarSlotSx}
+        />
+      )}
     </Box>
   );
 }
