@@ -48,12 +48,14 @@ on it, and the two surfaces it grows.
 | See what the page is made of now, and what each piece carries of its own | [plan.md](./plan.md) § Starting position |
 | Know which shared atoms this project uses and which it added | [plan.md](./plan.md) § What this project takes from the component layer |
 | See the page's layout and the sections on it | [plan.md](./plan.md) § The page |
+| Build a list of something the account holds | [plan.md](./plan.md) § The page, and `EntityRow` in the component layer |
 | Understand how a linked character is presented | [plan.md](./plan.md) § The character row |
 | Add an action to a character's menu | [plan.md](./plan.md) § The action slot |
 | Know what the ESI status section shows and what it needs behind it | [plan.md](./plan.md) § ESI data status |
 | Find what the status section needs that does not exist yet | [plan.md](./plan.md) § What the status section is waiting on |
 | See what the shared-planner section shows today | [plan.md](./plan.md) § Shared planner access |
+| Know why a corporation's data is its own section | [overlay.md](./overlay.md) § Stage F |
 | Tell a designed-ahead control from a wired one | [plan.md](./plan.md) § Drawn, not wired |
-| See the stages and their order | [plan.md](./plan.md) §§ Stage A – Stage E |
+| See the stages and their order | [plan.md](./plan.md) §§ Stage A – Stage F |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | Know how a part of the page works while the project is in flight | [overlay.md](./overlay.md) |

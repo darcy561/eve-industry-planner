@@ -82,7 +82,7 @@ and no reauth deadline — that lives per tab in `sessionStorage`, below.
 | `plannerPrivateAuthReady` | false from the moment a login response lands until the post-login sync finishes; gates work that must not race the first private request |
 | `isFirstTimeLogin` / `hasCompletedFirstLoginFlow` | a new account, and whether the guided flow has been completed — the second drives the `/first-login` redirect |
 | `linkedCharacterHashesFromBootstrapSession` / `linkedBootstrapHydrationPending` | the linked characters a cloud login reported, held until the post-login sync has adopted them |
-| `characters` / `corporations` | the roster, hydrated by the post-login sync rather than by login itself |
+| `characters` / `corporations` / `alliances` | the roster and what it is affiliated with, hydrated by the post-login sync rather than by login itself. An alliance is reached only through a corporation the account is in, and is dropped when the last of those corporations goes |
 
 The slice's actions live in `frontend/src/Zustand/account/plannerSessionActions.js`:
 `applyLoginAuthResponse` merges a login, bootstrap or rotate response onto the account and
@@ -130,10 +130,18 @@ does not exchange a second time.
 All modes converge on `applyClientSessionAfterAppTokens`
 (`frontend/src/Functions/Auth/appLoginFlow.js`), which applies the session response, pushes a cloud
 account's main ESI refresh secret into Mongo and drops the browser copy, flips `isLoggedIn`, hydrates
-the character and its corporation into the roster, prefetches that character's data, clears the
+the character and what it is affiliated with into the roster, prefetches that character's data, clears the
 in-memory job array, awaits the post-login account sync that adopts the linked characters, and starts
 the watchlist, job-group and job-document bootstrap steps without waiting on them. It releases
 `plannerPrivateAuthReady` in a `finally`, so a login that failed part-way still opens the gate.
+
+**What "affiliated with" resolves to is one call**, `buildCharacterAffiliations`
+(`frontend/src/Functions/Auth/characterAffiliations.js`): the character's public data, then its
+corporation, then that corporation's alliance. The order is forced — a character's public data is
+where its corporation id comes from, and the corporation's is where its alliance id comes from — and
+every surface that brings a character into an account goes through it, so the sequence is written
+once rather than at each of login, session resume and linking a character from the Accounts page. A
+corporation or alliance the account already holds gains the character and is not asked about again.
 
 `connectWebsocket` follows from `isLoggedIn` flipping, not from anything the login flow calls.
 

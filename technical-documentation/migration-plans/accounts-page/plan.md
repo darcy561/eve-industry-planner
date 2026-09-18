@@ -90,26 +90,36 @@ call sites were each assembling, at Stage C.
 
 ## The page
 
-One column of sections rather than a grid, because every section is full width and a grid of one
-column is a grid for no reason.
+One column of sections, each a list of one kind of thing, in the order an account is read: who you
+are, the characters you hold, the corporations they are in, the planners you can work in, and the
+one preference the page carries.
 
 ```
 Accounts
-├── Account                     — main character, account identity          ✓
-├── Linked characters           — the roster, storage mode                  ✓
-│     ├── per-character actions                                         Stage D
-│     └── ESI data status, expanded on demand                           Stage D
-├── Shared planners             — what this account can reach, and how   Stage E
-└── Community citadel names     — one switch, and why it is offered         ✓
+├── Account                     — the main character, the account id, token storage      ✓
+├── Characters                  — the roster, main first and marked                       ✓
+│     ├── per-character actions, removal among them                                       ✓
+│     └── ESI data status, expanded on demand                                             ✓
+├── Corporations                — one row per corporation, with its own ESI data          ✓
+├── Planners                    — what this account can reach, and how it got in         ✓
+└── Community citadel names     — the switch beside the title, and what it trades        ✓
 ```
 
-The sections marked ✓ are on the page; the rest is what Stages D and E add to it.
+**The lists share one row.** `EntityRow` in `Styled Components/Paper/` is EVE's own artwork, a name,
+a line of context, the state it is in, what can be done to it, and a disclosure beneath — in those
+positions. Characters and corporations are built on it and shared planners will be; that repetition
+is what stops three lists of different things reading as three unrelated surfaces.
 
-An earlier reading of this grouped citadel names and storage mode into a `Preferences` section, on
-the grounds that both are settings a reader visits once. Stage B settled it the other way: **storage
-mode belongs to the roster it governs**, because it decides where those characters' tokens are kept
-and means nothing without them. That leaves citadel names alone, so it keeps a section of its own
-rather than a section named for being miscellaneous.
+The lists are laid out with flexbox rather than MUI `Grid`, which is the direction the SPA is
+moving in generally, and here it is also what fixes the roster: a grid sizes its items by their
+content, so a row that opened its ESI data reflowed the rest and characters changed places.
+
+`Account` is a band rather than a list — one identity, not a row among rows — and citadel names is a
+single switch. Neither is an `EntityRow`, and neither pretends to be one.
+
+Storage mode sits with the account rather than at the head of the roster: it is an account-wide
+choice made once, and where it stood it was the first thing in a section named for characters. That
+reverses Stage B's placement, which § Stage F records.
 
 ## The character row
 
@@ -119,8 +129,8 @@ offered, and in the description beneath — not in layout, which is why there we
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ ( ) Character Name                            [status] [⋮]  [×]  │
-│  ⌄  ▣ Corporation Name                                           │
+│ ( ) Character Name                       [main] [status]  [⋮]    │
+│     ▣ Corporation Name                                           │
 │                                                                  │
 │  › ESI data                                        (collapsed)   │
 └──────────────────────────────────────────────────────────────────┘
@@ -141,14 +151,14 @@ Each character row carries a slot for actions on that character. The candidates 
 token, clear ESI cache, and more later — are all **operations on this character's ESI credentials or
 cached data**, which is what makes them one group rather than a menu of odds and ends.
 
-They go in an overflow menu on the row, and this is the one place to argue for it rather than
-against it. The house rule is that a redesign must keep existing controls reachable on the page and
-that tidying controls into a kebab counts as removing them. That rule protects **controls that are
-already there**: the remove button stays visible, as it is today. These are new, they are
-per-character maintenance actions rather than things a reader came to the page to do, and there will
-be several — an inline row of four buttons per character, repeated down a roster, buries the character
-behind its own tooling. If any of them turns out to be something a reader reaches for often, it earns
-a visible place and comes out of the menu.
+They go in an overflow menu on the row, and **removing the character goes in with them**, marked as
+destructive. The house rule that protects existing controls from being tidied into a kebab carves out
+exactly this case — an action that is occasional and destructive is what a menu is for — and an
+inline row of buttons per character, repeated down a roster, buries the character behind its own
+tooling. If any action turns out to be one a reader reaches for often, it earns a visible place and
+comes out of the menu.
+
+**The main character's row offers no removal at all**, because the account signs in as it.
 
 `AppShellPanel` already has `enableMenu` / `menuItems`, so the shape exists; what it does not have is
 a per-row equivalent, and that is the atom this section adds.
@@ -171,36 +181,52 @@ that table, not from a second list written beside it — a hard-coded list of co
 page would be a parallel copy of a table that already exists.
 
 ```
-ESI data
+ESI data                                            (per character)
 ┌──────────────────────────────────────────────────────────────────┐
 │ Character Skills              ✓ fresh          4 minutes ago     │
 │ Character Blueprints          ✓ fresh          4 minutes ago     │
 │ Character Industry Jobs       ⚠ stale          3 hours ago       │
-│ Character Assets              · on demand      not loaded        │
-│ Corporation Blueprints        ✗ unavailable    no access         │
+│ Character Assets              · on demand      fetched when opened│
+│ Corporation Assets            ✗ unavailable    no access         │
+└──────────────────────────────────────────────────────────────────┘
+
+Corporation data                                 (per corporation)
+┌──────────────────────────────────────────────────────────────────┐
+│ Corporation Blueprints        ✓ fresh          4 minutes ago     │
+│ Corporation Industry Jobs     ✗ failed         last fetch failed │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-Four states, each meaning something a reader can act on:
+Six states, each meaning something a reader can act on:
 
-- **fresh** — held, and recent enough to trust.
-- **stale** — held, but older than the collection's own refresh expectation.
+- **fresh** — held, and recent enough to trust, judged against the collection's own query
+  `staleTime` so the page carries no second opinion about how old is too old.
+- **stale** — held, but older than that.
 - **on demand** — not fetched at login by design (`PHASE.ON_DEMAND`), so absence is correct rather
   than a fault. Shown so its absence is not read as one.
-- **unavailable** — the character's token was not issued with the scope this collection needs, or
-  ESI refused it. `scopesFromAccessToken` in
+- **not held** — prefetched, but nothing has arrived: login may still be running, or its fetch
+  failed. Separate from *on demand* because the two mean opposite things — one absence is the
+  design working, the other is something to look into.
+- **unavailable** — the character's token was not issued with the scope this collection needs.
+  `scopesFromAccessToken` in
   [`Functions/Auth/esiCredentials/tokenScopes.js`](../../../frontend/src/Functions/Auth/esiCredentials/tokenScopes.js)
-  already answers the scope half: a token keeps the scopes it was authorised with, so a character
-  linked before a scope was added genuinely cannot serve that collection until it is re-authorised.
+  answers it: a token keeps the scopes it was authorised with, so a character linked before a scope
+  was added genuinely cannot serve that collection until it is re-authorised.
+- **failed** — the last fetch threw. Deliberately *not* folded into unavailable: the queries raise a
+  plain error for a spent rate-limit bucket as readily as for a refusal, so the reason cannot be
+  recovered, and telling a reader they have no access sends them to re-authorise for nothing.
 
-A corporation-scoped collection is shown once per corporation rather than once per character, because
-that is how it is fetched. The one trap worth recording: corporation **assets** are visibility-limited
-per character while corporation **blueprints** are not, so the two corporation rows do not mean the
-same thing and must not be collapsed into one.
+**A corporation-scoped collection is shown once per corporation**, in a card of its own under the
+roster, because that is how it is fetched — ESI returns the whole list to any member holding the
+role. Inside a character's own disclosure it would appear once per member of that corporation.
 
-The expansion is rendered only while open. A per-collection status list for every character on the
-roster is real work, and a closed disclosure that computes anyway is the failure the dialogue rule
-names.
+The one trap worth recording: corporation **assets** are visibility-limited per character while
+corporation **blueprints** are not. So corporation assets are fetched per character and belong in
+the *character's* list, and the two corporation rows must not be collapsed into one.
+
+The scope each collection needs is a field on the collection table (`esiScope`), read from the
+published ESI specification. `EVE_SCOPE`, the operator's setting, is not a second copy of it: that
+is what the application asks for at sign-in, while these are what each endpoint requires.
 
 ### What the status section is waiting on
 
@@ -224,8 +250,10 @@ A, B and C have landed and E is partly in — and the page says nothing about it
 of a planner is the switcher in the header.
 
 Read-only against the listing that exists, plus a management surface drawn but not fully wired.
-`usePlannersQuery` returns `{owner, kind, name, named, joinMethod}` per planner today, which is enough
-for the roster:
+`usePlannersQuery` returns `{owner, kind, name, named, joinMethod}` per planner today, which is more
+than the roster needs — `named` says whether a planner document exists yet, and the section does not
+show it. An account reaches every corporation it is in before any of them has a document, working in
+one creates it, and a reader can do nothing about the difference:
 
 ```
 Shared planners
@@ -248,8 +276,10 @@ account is in a planner and does not imply a permission it cannot answer.
 The planner switcher in the header is left alone. This section is about seeing and managing planners,
 not about choosing which one you are working in.
 
-Drawn but not wired here: the member roster (no endpoint lists members), invite creation and
-revocation, and leaving a planner. Invites exist server-side as Redis records with a redemption path,
+Drawn but not wired here, and **on custom planners only**: the member roster (no endpoint lists
+members), invite creation and revocation, and leaving a planner. Every kind of planner keeps
+membership rows, but only a custom planner's provider offers any way to change them — an ESI-sourced
+planner refuses roster mutation with a 403, since nobody can be kicked out of their own corporation. Invites exist server-side as Redis records with a redemption path,
 so the gap is an API surface and a client, not a mechanism.
 
 ## Drawn, not wired
@@ -267,10 +297,12 @@ This section is the register of them, and a control leaves it when it is wired.
 
 | Control | Waiting on |
 |---------|-----------|
-| Per-collection ESI age | A durable per-character, per-collection fetch record — see § What the status section is waiting on |
-| Character actions beyond refresh and cache clear | The actions themselves; the slot takes them as table entries |
-| Planner member roster | An endpoint that lists a planner's members |
-| Create planner / Invite / Leave | shared-planners Stage E's outstanding revocation path and an invite API surface |
+| Per-collection ESI age | A durable per-character, per-collection fetch record — see § What the status section is waiting on. The list ships saying so: its ages cover the browsing session only |
+| Character actions beyond renew, link again and clear | The actions themselves; the slot takes them as table entries |
+| See members | An endpoint that lists a planner's members. Drawn as a disabled row-menu item on custom planners, the only ones whose provider offers roster mutation at all |
+| Invite a character | An API surface over the invite records the server already keeps. Drawn as a disabled row-menu item, **on custom planners only** — roster mutation on an ESI-sourced planner refuses with a 403, and a button that looks like it works is worse than one that is absent |
+| Leave planner | shared-planners' outstanding revocation path, which drops the planner's owner key from the account's grants ceiling — a different blocker from the invite API, and the control says so. Custom planners only, and never the one the account owns |
+| Creating a custom planner | A creation endpoint. **Not drawn at all** — the design sketched a button, and a control for a thing the page cannot otherwise explain is noise rather than a promise |
 
 ## Wire compatibility
 
@@ -351,6 +383,23 @@ status expansion built on the collections table against the freshness function.
 
 The section, read-only against the planners listing, with the management controls drawn and inert.
 
+### Stage F — One row, and the sections around it
+
+The arrangement. Stages A to E each answered *what does this part show*; none of them answered *what
+does the page look like as a whole*, and by the end of Stage D it was four kinds of object drawn four
+ways: a card for the main character, a row for a linked one, a block appended under the roster for a
+corporation, and a section holding a single switch.
+
+`EntityRow` is the answer — one row anatomy for every list of things the account holds — with the
+sections rearranged around it: the Account band, the roster including its main character, and
+corporations in a section of their own. It is design work rather than a conversion, which is why it
+is a stage rather than a tidy-up.
+
+**Storage mode moved onto the Account band**, which reverses Stage B's placement of it with the
+roster. Stage B's reasoning — that it governs those characters' tokens — still holds; what settled it
+the other way is that it is chosen once, it is account-wide, and where it stood it was the first
+thing a reader met in a section named for characters.
+
 ## Stage status
 
 | Stage | Surface | Status |
@@ -359,22 +408,49 @@ The section, read-only against the planners listing, with the management control
 | A — the shared shells move | SPA | **Landed.** `SectionPanel` and `FormField` are in `Styled Components`, all eight call sites converted, the originals deleted and the Settings-into-first-login import retired. Two defects fixed on the way — see [overlay.md](./overlay.md) § Stage A |
 | B — the `appearance` fork is deleted | SPA | **Landed.** Nothing in the SPA carries an `appearance` prop. The four custom-structure components render one layout and share one `CustomStructuresForm`; `AccountEntry` and `AdditionalAccounts` render one each, the latter titling itself as a section. Settings → Custom Structures and the Accounts page both have the app-shell look — see [overlay.md](./overlay.md) § Stage B |
 | C — the page | SPA | **Landed.** The page is a stack of app-shell sections, one `MainCharacterCard` serves both screens, the citadel copy is one string, and `FormField` reads `FigureCaption` rather than its own label. The account id stays — see [overlay.md](./overlay.md) § Stage C |
-| D — the action slot and ESI status | SPA | Not started |
-| E — shared planners | SPA | Not started |
+| D — the action slot and ESI status | SPA | **Landed.** Each character row carries a credential-health chip, an overflow menu whose actions are table entries (renew ESI access, link the character again, clear ESI data, remove), and an ESI status list built from the collections table and mounted only while open. The overflow menu is a shared atom `AppShellPanel` also renders — see [overlay.md](./overlay.md) § Stage D |
+| E — shared planners | SPA | **Landed read-only.** The section lists every planner the account may work in with the join method it came in on, marks the active one, and carries the management actions inert — see [overlay.md](./overlay.md) § Stage E |
+| F — one row, and the sections around it | SPA | **Landed.** `EntityRow` carries characters, corporations and planners; removal is in the row menu; the main character is a row in the roster; the Account band carries the id, its copy control and token storage; corporations and planners are sections of their own; nothing on the page uses `Grid`; and the page narrows rather than shrinks below `sm` — see [overlay.md](./overlay.md) § Stage F |
+
+## What is left
+
+The stages are done. What the project cannot close on its own:
+
+| Waiting on | For |
+|------------|-----|
+| A durable per-character, per-collection fetch record | ESI ages that outlive a browsing session — § What the status section is waiting on |
+| An invite API surface | *Invite a character*, on custom planners |
+| shared-planners' revocation path | *Leave planner* |
+| An endpoint listing a planner's members | *See members* |
+
+None of it is this project's to build, and each control says which of them it is
+waiting for. Promotion into live SoT is the remaining step, and it needs a
+go-ahead rather than more work.
 
 ## Testing
 
-The whole surface is untested today: `AdditionalAccounts`, `AccountEntry`, `AccountInfo`,
-`CitadelNamesCommunityPanel` and all four Custom Structures components have no tests at all, and the
-SSO popup import flow in `AdditionalAccounts` is the most intricate thing on the page.
+The surface had no tests at all when this project opened — `AdditionalAccounts`, `AccountEntry`,
+`AccountInfo`, `CitadelNamesCommunityPanel` and the four Custom Structures components — so each stage
+wrote the tests for what it was about to change **before** changing it, colocated beside the module,
+with anything reusable in [`frontend/src/tests/`](../../../frontend/src/tests/). Stage B is where
+that mattered most: deleting a branch from six components with no coverage is how a working screen is
+quietly lost.
 
-Tests come first where there are none, so each stage writes the tests for what it is about to change
-before changing it, colocated beside the module, with anything reusable in [`frontend/src/tests/`](../../../frontend/src/tests/).
+Every component and hook the project added or rewrote now carries its own tests, including the SSO
+popup flow — the most intricate thing on the page, and the last part of it to get any.
 
-Stage B is the one where this is not optional: deleting a branch from six components with no coverage
-is how a working screen is quietly lost.
+Two kinds of defect on this page are invisible to the suite, and both have been met:
+
+- **Layout.** jsdom runs no layout and evaluates no media query, so a reflow or a breakpoint change
+  cannot be asserted. What a test can hold is the container's own shape: the roster asserts it is a
+  flex column, and the page asserts it claims the width of the layout row it sits in. Both were
+  written by breaking the thing they guard and watching them fail.
+- **What outlives a session.** A replaced refresh secret that reaches memory but not
+  `localStorage["Auth"]` works perfectly until the tab is closed. The relink tests use a main
+  character for exactly that reason.
 
 ## Open questions
 
-- **Which character actions exist beyond the first two.** Refresh token and clear ESI cache are named;
-  the slot takes a table, so the rest can arrive later without the row changing.
+- **Which character actions exist beyond the four.** Renew ESI access, link the character again,
+  clear ESI data and remove are the ones a row carries; the slot takes a table, so the rest arrive
+  later without the row changing.

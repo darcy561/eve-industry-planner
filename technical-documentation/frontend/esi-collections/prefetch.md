@@ -53,3 +53,12 @@ into a refusal (`isBucketExhausted`); when everything left in a pass is deferred
 those consumers fall back to fetching on mount. Each query's own `enabled` gate — a logged-out session,
 a Tranquility outage — is honoured rather than overridden, so an outage does not fire the whole table
 at an offline server.
+
+**The Tranquility status is awaited before anything is planned**, through
+`ensureQueryData(tranquilityServerStatusQueryOptions())`. Every collection query disables itself
+until `isTranquilityOnlineFromCache()` is true, and that status is fetched from `App.jsx` at app
+start — in parallel with login rather than before it. Planning on an unanswered status builds a
+table of disabled queries, drops all of them and reports success having fetched nothing, which is
+indistinguishable from a prefetch that ran: the collections simply arrive later, when a page mounts
+a consumer. An offline cluster, or a status that cannot be had, means no prefetch at all and those
+same on-mount fetches.
