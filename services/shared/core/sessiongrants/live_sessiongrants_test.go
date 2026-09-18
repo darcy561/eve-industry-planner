@@ -1,4 +1,4 @@
-package taskrun
+package sessiongrants
 
 import (
 	"context"
@@ -26,13 +26,13 @@ const grantsTestAccount = "scratch-session-grants"
 // is no longer in, and every surface that reads the ceiling keeps letting it in.
 //
 // Requires EIP_MONGO_PARITY_LIVE=1.
-func TestLive_WriteSessionGrantsFromMemberships_followsTheRows(t *testing.T) {
+func TestLive_WriteFromMemberships_followsTheRows(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	deps := &Dependencies{Mongo: mongo, Redis: eipredis.NewRedis(redisfake.New(t).Client)}
-	sessions := plannersession.NewStore(deps.Redis)
+	redis := eipredis.NewRedis(redisfake.New(t).Client)
+	sessions := plannersession.NewStore(redis)
 
 	kept := models.AccountOwner(grantsTestAccount)
 	left := models.CorporationOwner("corp_scratch_grants")
@@ -45,7 +45,7 @@ func TestLive_WriteSessionGrantsFromMemberships_followsTheRows(t *testing.T) {
 		}
 	})
 
-	if err := WriteSessionGrantsFromMemberships(ctx, deps, grantsTestAccount); err != nil {
+	if err := WriteFromMemberships(ctx, mongo, redis, nil, grantsTestAccount); err != nil {
 		t.Fatalf("write grants: %v", err)
 	}
 	if got := storedGrants(t, ctx, sessions); !slices.Contains(got, left.Key()) {
@@ -53,7 +53,7 @@ func TestLive_WriteSessionGrantsFromMemberships_followsTheRows(t *testing.T) {
 	}
 
 	dropMembership(t, mongo, left, grantsTestAccount)
-	if err := WriteSessionGrantsFromMemberships(ctx, deps, grantsTestAccount); err != nil {
+	if err := WriteFromMemberships(ctx, mongo, redis, nil, grantsTestAccount); err != nil {
 		t.Fatalf("rewrite grants: %v", err)
 	}
 

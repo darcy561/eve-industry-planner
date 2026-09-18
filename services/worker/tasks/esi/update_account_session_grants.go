@@ -2,6 +2,7 @@ package esi
 
 import (
 	"context"
+	"eve-industry-planner/shared/core/sessiongrants"
 	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/worker/taskrun"
 	"fmt"
@@ -163,7 +164,7 @@ func RefreshAccountSessionGrants(ctx context.Context, request eipnats.AccountSes
 			"error", err)
 	}
 
-	if err := taskrun.WriteSessionGrantsFromMemberships(ctx, deps, request.AccountID); err != nil {
+	if err := sessiongrants.WriteFromMemberships(ctx, deps.Mongo, deps.Redis, deps.NATS, request.AccountID); err != nil {
 		logs.WarnCtx(ctx, "failed to update account session grants from affiliation lookup",
 			"account_id", request.AccountID,
 			"error", err)

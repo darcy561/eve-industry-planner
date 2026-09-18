@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/shared/core/sessiongrants"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/models/planner"
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -111,6 +113,21 @@ func (h *Handlers) PostPlannerJoinHandler(w http.ResponseWriter, r *http.Request
 		helper.RespondEndpointServerError(w, r, "Failed to join planner",
 			"planner join: write failed", "planner_join_write_failed", "planner_join", err, nil)
 		return
+	}
+
+	// A membership row is what grants are derived from, so a join that stopped
+	// here would leave the account's stored ceiling without the planner it has
+	// just joined — and the ceiling is what every scoped surface reads, including
+	// the connection already open. Not fatal to the join: the row is written and
+	// the next derivation repairs it, so the member is in the planner either way.
+	if !alreadyIn {
+		if grantsErr := sessiongrants.WriteFromMemberships(ctx, h.Mongo, h.Redis, h.NATS, accountID); grantsErr != nil {
+			logs.AttachHandlerCaveat(r, "planner_join_grants_not_written",
+				"planner join: grants not rewritten", map[string]any{
+					"account_id": accountID,
+					"error":      grantsErr.Error(),
+				})
+		}
 	}
 
 	handle, err := models.OwnerHandle(owner, h.EntityCipher)

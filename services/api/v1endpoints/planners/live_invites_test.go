@@ -14,6 +14,7 @@ import (
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/models/planner"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/plannersession"
 	sessionreq "eve-industry-planner/shared/plannersession/request"
 	eipredis "eve-industry-planner/shared/redis"
 	"eve-industry-planner/testing/mongolive"
@@ -442,5 +443,40 @@ func TestLive_invite_refusesAnAccountPlanner(t *testing.T) {
 	}
 	if len(pending) != 0 {
 		t.Fatalf("%d invites stored for a planner that takes none", len(pending))
+	}
+}
+
+// Joining rewrites the grants the join made true.
+//
+// The row is what authorises, but every scoped surface reads the ceiling on the
+// session record — so a join that wrote the row alone would admit a member who
+// then reaches nothing until some unrelated task derives their grants again.
+func TestLive_invite_joiningRewritesTheStoredGrants(t *testing.T) {
+	mongo := mongolive.Require(t)
+	h := inviteHandlers(t, mongo)
+	owner := seedInvitePlanner(t, mongo, inviteOwnerAccount)
+	handle := owner.Key()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	sessions := plannersession.NewStore(h.Redis)
+
+	issued := issueInvite(t, h, inviteOwnerAccount, handle, nil)
+	w := httptest.NewRecorder()
+	h.PostPlannerJoinHandler(w, asAccountJSON(t, inviteThirdAccount, http.MethodPost,
+		"/api/v1/planners/join", joinRequest{InviteID: issued.Invite.ID, Token: issued.Token}))
+	if w.Code != http.StatusCreated {
+		t.Fatalf("join = %d, want 201: %s", w.Code, w.Body.String())
+	}
+
+	record, found, err := sessions.AccountRecord(ctx, inviteThirdAccount)
+	if err != nil {
+		t.Fatalf("read account record: %v", err)
+	}
+	if !found {
+		t.Fatal("joining wrote no account record to carry the grants")
+	}
+	if !record.Grants.OwnerKeys.Has(owner) {
+		t.Fatalf("grants = %v, want the planner just joined", record.Grants.OwnerKeys)
 	}
 }
