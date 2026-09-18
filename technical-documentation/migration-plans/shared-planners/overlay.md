@@ -10,7 +10,7 @@ behaviour is undocumented.
 
 *Landed on the environment checked; see the plan's § Stage A for what is still unconfirmed elsewhere.*
 This project owns the owner block, having taken it over from
-[archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md), which built it while shaping the statistics
+[archived-jobs-stats](../archived-jobs-stats/plan.md), which built it while shaping the statistics
 documents.
 
 **One statement of ownership.** Every scoped document carries `_meta.owner`, a `{kind, id}` pair.
@@ -428,8 +428,8 @@ it.
 
 ## Stage E — Custom planners
 
-*Partly landed: the settings document, the listing, creation, and the active planner. Invites, the
-join path and the revocation path are not.*
+*Partly landed: the settings document, the listing, creation, the active planner, invites, the join
+path and the revocation path.*
 
 **A planner is written through one function.** `EnsurePlanner` takes a `PlannerWrite` and is the only
 thing that creates a planner, its owner membership row and its settings document. `EnsureAccountPlanner`
@@ -581,11 +581,38 @@ the permission model here, and a member who did not create it is refused as 404 
 theirs, rather than existing for somebody else. Caps: 25 outstanding invites per planner, 100 members
 per planner, 30 days maximum lifetime.
 
-Owed here: the revocation path — removing a member has to drop the owner key from the session
-record's grants ceiling and push a scope revocation, which is the session surface being rebuilt
-elsewhere. A newly joined account likewise does not reach its planner until its grants are next
-derived. Also owed: the group template collections joining the id rewrite once they carry an owner
-block.
+**Grants follow the membership rows, and an open connection follows the grants.** Stored grants are a
+cache of one query over those rows, so a task that adds or removes one owes a rewrite:
+`WriteSessionGrantsFromMemberships` resolves the owners an account holds now, writes them to the
+session record, and announces the new ceiling. Both ESI reconcile paths call it. The token sweep did
+not, which was a live defect — an account whose last character could no longer prove a corporation
+kept that planner in its ceiling for the seven days a session record lives, and the ceiling is what
+every surface reads.
+
+The announcement is `session.grants.changed` on core NATS, carrying the account and its whole new
+ceiling rather than what was removed, so a replica that missed an earlier one still lands in the right
+place. Every websocket replica subscribes and narrows whatever connections it holds for that account:
+scopes become what they were within the new ceiling, and the account's own planner is unioned back in
+because it is not a grant and is never withdrawn. Ceiling and scopes move together under the owner-index
+lock — a reader seeing the new ceiling beside the old scopes would believe the connection still receives
+a planner the account has left.
+
+*Not the mechanism the plan first described.* There is no scope fan-out to ride and no
+`swapClientOrgScopesAndIndexes` to mirror; both are gone. A connection's scopes are set at connect and
+changed by one thing, the client's `active_planner` message, so this is a new subject rather than an
+existing one reused.
+
+*Two accepted trade-offs.* Core NATS is fire-and-forget, so a replica that misses the message keeps a
+revoked planner on that connection until it reconnects — bounded by nothing, unlike `doc.lock`, which
+rides the stream with durable consumers. It is tolerable because the stored record is already correct
+by the time the message goes out, so every surface but that one socket is closed. And the browser is
+told nothing: narrowing is server-side only, so a reader whose planner was revoked sees their screen
+stop updating without being told why. Both are worth revisiting with Stage I, which owns where the
+ceiling is read from.
+
+Owed here: a newly joined account does not reach its planner until its grants are next derived — the
+join path writes the row and nothing announces it. Also owed: the group template collections joining
+the id rewrite once they carry an owner block.
 
 ## Statistics are read for the planner the path names
 
@@ -873,8 +900,15 @@ Kept here so a later reader finds the reasoning without reconstructing it from t
 | The worker stops between the image roll and the stamp | Both statistics prunes drop their `$nin` clause when the keep list is empty, so an owner-scoped read that matches nothing deletes every aggregate for that owner; the drain cron runs every two minutes |
 | `MetaData` takes no `SchemaVersion` | Every persisted model already carries one at the document root, and the maintenance batch selects on that; a second inside `_meta` would be two sources for one fact |
 | No upgrader for the owner — an approved deviation | Once `AccountID` is off `MetaData` nothing remains to derive an owner from, so the release step sets owner and root version together and the version's job becomes detection, gated on zero documents without an owner |
-| The owner never goes on the wire | `_meta.accountID` had one SPA reader that already falls back to the store, so the client change is a deletion and no ref can reach a browser through `_meta` |
+| The owner does not go on the wire by the API | `_meta.accountID` had one SPA reader that already falls back to the store, so the client change is a deletion. A change delivery is the exception and an unintended one — the watcher copies `_meta` as a raw map, where `json:"-"` means nothing, so an organisation planner's ref reaches the browser in `_meta.owner.id`, in `document._id` and as the delivery's `docID`. Recorded rather than acted on: see [plan.md](./plan.md) § Stage G, G5 |
 | One cutover in the deployment window, not expand/contract | The stack is coming down anyway, so nothing reads or writes while the migration runs; that removes the dual-write machinery and the erase hazard, at the cost of rollback being a database restore |
 | The grant list's shape moves before its source | Converting while the values are still ESI-derived means the tolerate-both-shapes work ships against behaviour that can be checked; changing shape and source together would leave nothing to compare the result to |
 | The release verifies the owner gate itself | The stamp cannot derive an owner for a document with no account id, so it reports those and returns success; without a step that fails on any ownerless document, a release finishes green over documents nothing can read and no later save repairs |
 | Renames bundled with the backfill | The entire cost of a rename is touching live data, which the backfill is doing anyway, and the SPA subscriptions that a rename breaks are small and account-based today |
+| The stores hold the active planner only | Holding several planners' arrays would buy an instant switch back and nothing else — the inbound guard already drops a document from any other planner, so a flat store with a recorded owner is already correct — against changing `jobArray` and `groupArray` where they are read in some 270 places |
+| A gap is reloaded through, not replayed | JetStream holds `doc.update` for an hour, so a gap can outlive the history and the reload has to exist whatever else does; replay would be an optimisation on a path already built, and `loadPlannerDocuments` is that path |
+| A member is never named on screen | Naming a holder, an author or a viewer is a product change this project does not want. What remains is telling *another tab of mine* from *another member*, which decides whether a control is offered at all — a fact about the viewer, not an identity |
+| A remote change is applied silently where it is only being read, and surfaced where it is being edited | The same instinct as a child job that does not resize under its parent: what a reader is working in is not overwritten beneath them, and what they are merely looking at has no edit to lose |
+| A shared planner has no roles yet, and gets them as designed | Permissions are separate, pluggable work with three hooks already reserved; every member may do everything until that lands, which is a stated position rather than an oversight |
+| Stale-snapshot writing is document-write-granularity's | Whole-document writes with no precondition are the shape of the SPA's persistence everywhere, so the fix is that project's conditional write on `_meta.revision`; Stage J keeps only what is wrong without it |
+| Where the grants ceiling is read from is still open | It cannot be taken until Stage E's revocation path and Stage F's grant task settle, because the stored list is where a revocation is applied rather than only a cache |
