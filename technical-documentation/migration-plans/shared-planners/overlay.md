@@ -428,8 +428,7 @@ it.
 
 ## Stage E — Custom planners
 
-*Partly landed: the settings document, the listing, creation, the active planner, invites, the join
-path and the revocation path.*
+*Landed.*
 
 **A planner is written through one function.** `EnsurePlanner` takes a `PlannerWrite` and is the only
 thing that creates a planner, its owner membership row and its settings document. `EnsureAccountPlanner`
@@ -610,9 +609,16 @@ told nothing: narrowing is server-side only, so a reader whose planner was revok
 stop updating without being told why. Both are worth revisiting with Stage I, which owns where the
 ceiling is read from.
 
-Owed here: a newly joined account does not reach its planner until its grants are next derived — the
-join path writes the row and nothing announces it. Also owed: the group template collections joining
-the id rewrite once they carry an owner block.
+**Joining is the same call in the other direction.** `PostPlannerJoinHandler` writes the membership row
+and then rewrites the account's grants from it, so the planner is reachable on the connection the member
+already has open rather than at whatever later moment something else derives them. It is not fatal to
+the join: the row is written either way, and the next derivation repairs a rewrite that failed.
+
+`sessiongrants` holds that one call. It reads membership from Mongo, writes the session record in Redis
+and announces the result, which is three clients no single existing package owns — and both the API and
+the worker reach it, which is why it is shared rather than living beside either.
+
+Owed here: the group template collections joining the id rewrite once they carry an owner block.
 
 ## Statistics are read for the planner the path names
 
