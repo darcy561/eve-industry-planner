@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -42,6 +43,9 @@ func TestHarnessServe(t *testing.T) {
 	}
 
 	f := newIntegFixture(t)
+	// Which account a session belongs to, which the lock service needs and the
+	// request carries only as a session id.
+	accountOfSession := map[string]string{}
 	for spec := range strings.SplitSeq(os.Getenv("EIP_WS_HARNESS_SESSIONS"), ",") {
 		parts := strings.Split(strings.TrimSpace(spec), ":")
 		if len(parts) != 3 {
@@ -52,10 +56,15 @@ func TestHarnessServe(t *testing.T) {
 			t.Fatalf("harness: corporation id in %q: %v", spec, err)
 		}
 		f.seedSessionWithGrants(parts[0], parts[1], []int64{corp}, nil)
+		accountOfSession[parts[1]] = parts[0]
 	}
 
 	stop := make(chan struct{})
 	var stopOnce sync.Once
+
+	// The real lock service over the fixture's Redis, so a client takes a lock
+	// through the calls its own code makes rather than through a stand-in.
+	locks := documentlock.NewService(documentlock.DepsFromClients(f.Server.Stack))
 
 	var position atomic.Uint64
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,14 +95,76 @@ func TestHarnessServe(t *testing.T) {
 			return
 		}
 
+		// The lock endpoints a client calls over HTTP. Answered with the service
+		// the api uses, so a refusal here is the one a member would really meet.
+		if action, isLock := strings.CutPrefix(r.URL.Path, "/api/v1/document-locks/"); isLock {
+			owner, oErr := models.ParseOwnerHandle(r.Header.Get("X-Planner-Owner"), f.Server.entityCipher)
+			if oErr != nil {
+				http.Error(w, "unreadable planner owner: "+oErr.Error(), http.StatusBadRequest)
+				return
+			}
+			var lockBody struct {
+				Collection string `json:"collection"`
+				DocID      string `json:"docID"`
+			}
+			if dErr := json.NewDecoder(r.Body).Decode(&lockBody); dErr != nil {
+				http.Error(w, "unreadable body: "+dErr.Error(), http.StatusBadRequest)
+				return
+			}
+			// A lock is scoped to the session holding it, so a request that names
+			// none is not a request a browser makes — refused here rather than
+			// written as a lock nobody holds.
+			sessionID := r.Header.Get("X-Session-ID")
+			accountID, known := accountOfSession[sessionID]
+			if !known {
+				http.Error(w, "no session for "+strconv.Quote(sessionID), http.StatusBadRequest)
+				return
+			}
+
+			var out *documentlock.AcquireResult
+			var lErr error
+			switch action {
+			case "acquire":
+				out, lErr = locks.Acquire(r.Context(), owner, accountID, sessionID, lockBody.Collection, lockBody.DocID)
+			case "force-release":
+				out, lErr = locks.ForceReleaseSameAccount(r.Context(), owner, accountID, sessionID, lockBody.Collection, lockBody.DocID)
+			default:
+				http.Error(w, "harness serves no "+action, http.StatusNotFound)
+				return
+			}
+			if lErr != nil {
+				http.Error(w, action+": "+lErr.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(out.StatusCode)
+			_ = json.NewEncoder(w).Encode(out.Payload)
+			return
+		}
+
 		owner, err := models.ParseOwnerHandle(r.Header.Get("X-Planner-Owner"), f.Server.entityCipher)
 		if err != nil {
 			http.Error(w, "unreadable planner owner: "+err.Error(), http.StatusBadRequest)
 			return
 		}
+		// A read the app makes on the way up. Answered emptily rather than
+		// refused: the app treats a refusal on these as its session being gone
+		// and logs the tab out, which is not what a scenario is testing.
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(r.URL.Path, "/groups") ||
+				strings.Contains(r.URL.Path, "/job-documents") {
+				_, _ = w.Write([]byte("[]"))
+				return
+			}
+			_, _ = w.Write([]byte("{}"))
+			return
+		}
+
 		var body struct {
-			Jobs   []map[string]any `json:"jobs"`
-			JobIDs []string         `json:"jobIDs"`
+			Jobs     []map[string]any `json:"jobs"`
+			JobIDs   []string         `json:"jobIDs"`
+			GroupIDs []string         `json:"groupIDs"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "unreadable body: "+err.Error(), http.StatusBadRequest)
@@ -102,21 +173,32 @@ func TestHarnessServe(t *testing.T) {
 		// A delete travels the same path as a write and says so in its operation
 		// type, carrying no document — which is what makes the position it carries
 		// the only thing ordering it against the writes around it.
-		deliveries := make([]map[string]any, 0, len(body.Jobs)+len(body.JobIDs))
+		deliveries := make([]map[string]any, 0, len(body.Jobs)+len(body.JobIDs)+len(body.GroupIDs))
 		for _, job := range body.Jobs {
 			docID, _ := job["jobID"].(string)
 			deliveries = append(deliveries, map[string]any{
-				"docID": docID, "operationType": "update", "document": job,
+				"collection": eipmongo.CollectionJobDocuments,
+				"docID":      docID, "operationType": "update", "document": job,
 			})
 		}
 		for _, docID := range body.JobIDs {
 			deliveries = append(deliveries, map[string]any{
-				"docID": docID, "operationType": "delete",
+				"collection": eipmongo.CollectionJobDocuments,
+				"docID":      docID, "operationType": "delete",
+			})
+		}
+		// A group delete reaches the other members the same way a job write does,
+		// which is what lets a scenario delete one through the client's own path
+		// rather than asking the fixture to announce it.
+		for _, docID := range body.GroupIDs {
+			deliveries = append(deliveries, map[string]any{
+				"collection": eipmongo.CollectionJobGroups,
+				"docID":      docID, "operationType": "delete",
 			})
 		}
 		for _, delivery := range deliveries {
 			docID, _ := delivery["docID"].(string)
-			delivery["collection"] = eipmongo.CollectionJobDocuments
+			collection, _ := delivery["collection"].(string)
 			delivery["ownerKey"] = owner.Key()
 			frame, mErr := json.Marshal(delivery)
 			if mErr != nil {
@@ -124,7 +206,7 @@ func TestHarnessServe(t *testing.T) {
 				return
 			}
 			f.Server.deliverOutboundDocUpdate(context.Background(),
-				eipmongo.CollectionJobDocuments+"."+docID, frame, position.Add(1))
+				collection+"."+docID, frame, position.Add(1))
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
