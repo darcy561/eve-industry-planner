@@ -4,7 +4,7 @@
 
 import Group from "../../Classes/group.js";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { releaseJobsAfterGroupRemoved } from "../../Functions/Groups/releaseJobsAfterGroupRemoved.js";
+import { applyGroupRemovalToJobs } from "../../Functions/Groups/releaseJobsAfterGroupRemoved.js";
 
 /**
  * @param {{
@@ -21,7 +21,7 @@ export async function handleUserJobGroupDelete(ctx) {
 
   if (!chosenGroup) {
     // Group row may already be gone locally; jobs can still have this groupID — release by ID.
-    await releaseJobsAfterGroupRemoved({ groupID: docID });
+    applyGroupRemovalToJobs({ groupID: docID });
     actions.clearActiveGroupIfMatches(docID);
     window.dispatchEvent(
       new CustomEvent("eip-group-deleted-remotely", {
@@ -33,7 +33,7 @@ export async function handleUserJobGroupDelete(ctx) {
     return;
   }
 
-  await releaseJobsAfterGroupRemoved(chosenGroup);
+  applyGroupRemovalToJobs(chosenGroup);
 
   actions.clearActiveGroupIfMatches(docID);
 

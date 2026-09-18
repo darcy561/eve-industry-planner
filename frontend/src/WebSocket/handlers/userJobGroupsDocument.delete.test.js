@@ -17,10 +17,9 @@ vi.mock("../../Zustand/usersStore.js", async () => {
     await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() => usersStoreState(storeState));
 });
-const releaseJobsAfterGroupRemoved = vi.fn();
+const applyGroupRemovalToJobs = vi.fn();
 vi.mock("../../Functions/Groups/releaseJobsAfterGroupRemoved.js", () => ({
-  releaseJobsAfterGroupRemoved: (...args) =>
-    releaseJobsAfterGroupRemoved(...args),
+  applyGroupRemovalToJobs: (...args) => applyGroupRemovalToJobs(...args),
 }));
 
 const { handleUserJobGroupDelete } = await import("./userJobGroupsDocument.js");
@@ -33,7 +32,7 @@ beforeEach(() => {
   clearActiveGroupIfMatches.mockClear();
   clearPendingJobGroupWrites.mockClear();
   replaceGroupArray.mockClear();
-  releaseJobsAfterGroupRemoved.mockClear();
+  applyGroupRemovalToJobs.mockClear();
 });
 
 describe("recording that a delete has been applied", () => {
@@ -70,7 +69,7 @@ describe("what a group delete does to the store", () => {
       rs: { setPosition: vi.fn() },
     });
 
-    expect(releaseJobsAfterGroupRemoved).toHaveBeenCalledWith(GROUP);
+    expect(applyGroupRemovalToJobs).toHaveBeenCalledWith(GROUP);
     expect(clearActiveGroupIfMatches).toHaveBeenCalledWith("group-1");
     expect(clearPendingJobGroupWrites).toHaveBeenCalledWith("group-1");
     expect(replaceGroupArray).toHaveBeenCalledWith([{ groupID: "group-2" }]);
@@ -88,7 +87,7 @@ describe("what a group delete does to the store", () => {
       rs: { setPosition: vi.fn() },
     });
 
-    expect(releaseJobsAfterGroupRemoved).toHaveBeenCalledWith({
+    expect(applyGroupRemovalToJobs).toHaveBeenCalledWith({
       groupID: "group-gone",
     });
     expect(replaceGroupArray).not.toHaveBeenCalled();
