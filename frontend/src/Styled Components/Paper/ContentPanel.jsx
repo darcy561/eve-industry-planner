@@ -1,14 +1,6 @@
-import {
-  Paper,
-  Typography,
-  Grid,
-  IconButton,
-  Menu,
-  MenuItem,
-} from "@mui/material";
-import { useState } from "react";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { Paper, Typography, Grid } from "@mui/material";
 
+import ActionMenu from "../Menu/ActionMenu";
 import ContentErrorBoundary from "./ContentErrorBoundary";
 import PanelFallBack from "./panelStates";
 import { LoadingPage } from "../../Components/loadingPage";
@@ -77,7 +69,6 @@ export default function ContentPanel({
   menuItems = [],
   ...otherProps
 }) {
-  const [menuAnchor, setMenuAnchor] = useState(null);
   if (!visible) {
     return null;
   }
@@ -102,45 +93,12 @@ export default function ContentPanel({
       {...otherProps}
     >
       {enableMenu && menuItems.length > 0 && (
-        <>
-          <IconButton
-            id="contentPanel_menu_button"
-            onClick={(event) => setMenuAnchor(event.currentTarget)}
-            aria-controls={menuAnchor ? "contentPanel_menu" : undefined}
-            aria-haspopup="true"
-            aria-expanded={menuAnchor ? "true" : undefined}
-            sx={{ position: "absolute", top: "10px", right: "10px" }}
-          >
-            <MoreVertIcon size="small" color="primary" />
-          </IconButton>
-          <Menu
-            id="contentPanel_menu"
-            anchorEl={menuAnchor}
-            open={Boolean(menuAnchor)}
-            onClose={() => setMenuAnchor(null)}
-            slotProps={{
-              list: {
-                "aria-labelledby": "contentPanel_menu_button",
-              },
-            }}
-          >
-            {menuItems.map((item) => (
-              <MenuItem
-                key={item.label}
-                disabled={item.disabled || false}
-                onClick={() => {
-                  item.onClick?.({
-                    closeMenu: () => setMenuAnchor(null),
-                    anchorEl: menuAnchor,
-                  });
-                  setMenuAnchor(null);
-                }}
-              >
-                {item.label}
-              </MenuItem>
-            ))}
-          </Menu>
-        </>
+        <ActionMenu
+          items={menuItems}
+          label={title ? `${title} actions` : "Panel actions"}
+          size="medium"
+          sx={{ position: "absolute", top: "10px", right: "10px" }}
+        />
       )}
       <Grid
         container

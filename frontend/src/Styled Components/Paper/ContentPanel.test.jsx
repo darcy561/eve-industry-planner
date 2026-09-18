@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import ContentPanel from "./ContentPanel";
 
@@ -46,5 +47,42 @@ describe("the panel every page's content sits in", () => {
 
     expect(paddings.length).toBeGreaterThan(1);
     expect(Math.min(...paddings)).toBeLessThan(Math.max(...paddings));
+  });
+  // Two panels carrying a menu appear on one page, and the button and its list are wired to each
+  // other by id. Ids minted per instance are what keeps the second panel's button from claiming
+  // the first panel's list.
+  it("gives each panel's menu its own identity", async () => {
+    const chosen = vi.fn();
+
+    render(
+      <>
+        <ContentPanel
+          componentName="Test"
+          title="Setups"
+          enableMenu
+          menuItems={[{ label: "Add setup", onClick: chosen }]}
+        >
+          <p>One</p>
+        </ContentPanel>
+        <ContentPanel
+          componentName="Test"
+          title="Transactions"
+          enableMenu
+          menuItems={[{ label: "Link a sale" }]}
+        >
+          <p>Two</p>
+        </ContentPanel>
+      </>,
+    );
+
+    const first = screen.getByRole("button", { name: "Setups actions" });
+    const second = screen.getByRole("button", { name: "Transactions actions" });
+    expect(first.id).not.toBe(second.id);
+
+    await userEvent.click(first);
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Add setup" }),
+    );
+    expect(chosen).toHaveBeenCalledTimes(1);
   });
 });
