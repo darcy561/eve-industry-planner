@@ -5,17 +5,22 @@ import { stateDefault as activePlannerDefault } from "../Zustand/activePlanner/c
 // actions, and importing those reaches `usersStore` itself, which builds the
 // real store as a side effect of the harness being loaded.
 import { stateDefault as applicationSettingsDefault } from "../Zustand/applicationSettings/core.js";
+import { accountStateDefault } from "../Zustand/account/stateDefault.js";
+import { stateDefault as jobDataDefault } from "../Zustand/jobsSlice/stateDefault.js";
 import { stateDefault as plannerSettingsDefault } from "../Zustand/plannerSettings/core.js";
 import { stateDefault as worldDataDefault } from "../Zustand/worldDataSlice/core.js";
 
 /**
  * The `usersStore` as a test sees it: say what you need, inherit the rest.
  *
- * Slice state comes from the real `stateDefault()` wherever importing it is
- * safe. It is not safe for `account`, `jobData` and `documentLock`, whose
+ * Every slice's state comes from the store's own `stateDefault()`. The three
+ * that once could not — `account`, `jobData` and `documentLock`, whose slice
  * modules reach the API client, the snackbar events and the lock transport at
- * import time — those three are written out below, and are the only shapes here
- * that can drift from the store.
+ * import time — read theirs from a leaf module beside the slice instead. Only
+ * `documentLock` is still written out here, and it holds one field.
+ *
+ * What a slice entry adds is its actions, which are stubs: a component test
+ * asserts that one was called, not what it did.
  */
 
 /**
@@ -52,14 +57,11 @@ const BUILT = Symbol("usersStoreState");
  */
 const sliceDefaults = {
   account: () => ({
+    ...accountStateDefault(),
     accountID: TEST_ACCOUNT_ID,
-    isLoggedIn: false,
+    // No character until a test says so: the placeholder the store starts with
+    // renders as a real roster entry.
     characters: [],
-    corporations: [],
-    alliances: [],
-    linkedJobs: [],
-    linkedOrders: [],
-    linkedTrans: [],
     actions: {
       getIsLoggedIn: () => false,
       getRequiresFirstLoginFlow: () => false,
@@ -81,13 +83,7 @@ const sliceDefaults = {
   }),
 
   jobData: () => ({
-    owner: null,
-    jobArray: [],
-    groupArray: [],
-    multiSelect: [],
-    activeJobID: null,
-    activeGroupID: null,
-    userWatchlist: { groups: [], items: [] },
+    ...jobDataDefault(),
     actions: {
       findJobInJobArray: () => null,
       getGroupObject: () => null,

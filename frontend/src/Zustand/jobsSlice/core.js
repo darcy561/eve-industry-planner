@@ -5,47 +5,7 @@
 import { requestJobDocumentsByIdsFromApi } from "../../Functions/Endpoints/Private/requestJobDocumentsByIds.js";
 import retrieveJobIDsFromGroupObjects from "../../Functions/Helper/getJobIDsFromGroupObjects";
 import separateGroupAndJobIDs from "../../Functions/Helper/separateGroupAndJobIDs";
-
-/**
- * Default state configuration for jobs data.
- *
- * @returns {Object} Default jobs state
- * @property {Array} multiSelect - Array of selected job/group IDs
- * @property {Array} jobArray - Array of job objects
- * @property {Array} groupArray - Array of group objects
- * @property {string[]} pendingJobGroupWrites - Group IDs waiting to be persisted to the API
- * @property {string|null} activeJobID - Currently active job ID
- * @property {string|null} activeGroupID - Currently active group ID
- * @property {Object} userWatchlist - User's watchlist data
- * @property {Array} userWatchlist.groups - Watchlist group objects
- * @property {Array} userWatchlist.items - Watchlist item objects
- */
-export const stateDefault = () => ({
-  multiSelect: [],
-  /**
-   * The planner `jobArray` and `groupArray` hold, as an owner handle. A load for
-   * a different planner replaces them rather than merging, so one planner's jobs
-   * cannot survive among another's.
-   */
-  owner: null,
-  jobArray: [],
-  /**
-   * Inbound WS jobs not yet flushed into `jobArray`: jobID -> { stageId, groupID }.
-   * Used for per-stage skeleton tiles until inbound job-document coalesce (`Functions/Debounce/inboundJobDocumentsCoalesce.js`) applies.
-   */
-  pendingInboundNewJobSkeletonByJobId: {},
-  groupArray: [],
-  /** Group IDs with a pending write to the API (`PUT /api/v1/groups`; keeps WS fan-out to touched docs only). */
-  pendingJobGroupWrites: [],
-  /** Job IDs with a pending write to the API (`PUT /api/v1/job-documents`). */
-  pendingJobDocumentWrites: [],
-  activeJobID: null,
-  activeGroupID: null,
-  userWatchlist: {
-    groups: [],
-    items: [],
-  },
-});
+import { stateDefault } from "./stateDefault.js";
 
 /**
  * Core actions for jobs management.

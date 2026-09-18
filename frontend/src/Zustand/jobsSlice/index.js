@@ -9,7 +9,8 @@
  * @author EVE Industry Planner Team
  */
 
-export { stateDefault, coreActions } from "./core.js";
+export { coreActions } from "./core.js";
+export { stateDefault } from "./stateDefault.js";
 export { inboundSkeletonActions } from "./inboundSkeletonActions.js";
 export { multiSelectionActions } from "./multiSelection.js";
 export { activeTrackingActions } from "./activeTracking.js";
