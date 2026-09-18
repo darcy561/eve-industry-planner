@@ -22,6 +22,7 @@ import SchemaIcon from "@mui/icons-material/Schema";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import { ShoppingListDialogue } from "../Dialogues/Shopping List/ShoppingList";
 import useWarnBeforeUnload from "../../Hooks/GeneralHooks/useWarnBeforeUnload";
+import { useJobDeletedRemotely } from "./Edit Job Hooks/useJobDeletedRemotely.js";
 import { useIsScrolledOutOfView } from "../../Hooks/GeneralHooks/useIsScrolledOutOfView";
 import StepErrorBoundary from "./StepErrorBoundary";
 import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
@@ -70,6 +71,7 @@ export default function EditJob_New() {
   });
 
   useWarnBeforeUnload();
+  useJobDeletedRemotely(jobID);
 
   const { leaveConfirmDialogueProps } = useEditJobLeaveConfirm({
     backupJobRef: backupJob,

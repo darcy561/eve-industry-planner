@@ -58,19 +58,33 @@ function job(jobID, name = "Tritanium") {
   return { jobID, name, itemID: 34 };
 }
 
-function seed({ activeJob = job("job-1"), jobModified = false } = {}) {
+/**
+ * @param {object} [opts]
+ * @param {string[]} [opts.deletedJobIDs] - jobs the store no longer holds, as a
+ *   job deleted by another member while this reader had it open
+ */
+function seed({
+  activeJob = job("job-1"),
+  jobModified = false,
+  deletedJobIDs = [],
+} = {}) {
+  restored.length = 0;
   store.current = {
     jobData: {
       actions: {
         setActiveJobID: () => {},
-        findJobInJobArray: (id) => job(id, `Job ${id}`),
-        updateOrAddJobsToJobArray: () => {},
+        findJobInJobArray: (id) =>
+          deletedJobIDs.includes(id) ? null : job(id, `Job ${id}`),
+        updateOrAddJobsToJobArray: (job) => restored.push(job),
       },
     },
     documentLock: { actions: { handOverEditAccess: async () => {} } },
   };
   return { activeJob, jobModified };
 }
+
+/** Jobs put back into the array by a discard. */
+const restored = [];
 
 function mount(state) {
   return renderHook(
@@ -291,5 +305,73 @@ describe("saving from the prompt", () => {
     });
 
     expect(result.current.leaveConfirmDialogueProps.saveDisabled).toBe(true);
+  });
+
+  // Discarding restores the copy taken when editing began — unless the job went
+  // while the reader had it open, when putting it back would show them what they
+  // have just been told is gone.
+  it("does not put back a job deleted while it was open", async () => {
+    const { result } = mount(
+      seed({ jobModified: true, deletedJobIDs: ["job-1"] }),
+    );
+
+    await act(async () => {
+      requestEditJobNavigation({ jobID: "job-2" });
+    });
+    await act(async () => {
+      await result.current.leaveConfirmDialogueProps.onDiscard();
+    });
+
+    expect(restored).toEqual([]);
+  });
+
+  it("puts back a job the store still holds", async () => {
+    const { result } = mount(seed({ jobModified: true }));
+
+    await act(async () => {
+      requestEditJobNavigation({ jobID: "job-2" });
+    });
+    await act(async () => {
+      await result.current.leaveConfirmDialogueProps.onDiscard();
+    });
+
+    expect(restored.map((job) => job.jobID)).toEqual(["job-1"]);
+  });
+
+  // Handing the lock over discards the same way navigating away does, so it
+  // needs the same refusal: a job that went while this reader held it must not
+  // be put back for the session taking over.
+  it("does not put back a job deleted while the lock was handed over", async () => {
+    const { result } = mount(
+      seed({ jobModified: true, deletedJobIDs: ["job-1"] }),
+    );
+
+    await act(async () => {
+      requestEditJobReleaseConfirmation({
+        collection: "jobs",
+        docID: "job-1",
+      });
+    });
+    await act(async () => {
+      await result.current.leaveConfirmDialogueProps.onDiscard();
+    });
+
+    expect(restored).toEqual([]);
+  });
+
+  it("puts back a job the store still holds when handing the lock over", async () => {
+    const { result } = mount(seed({ jobModified: true }));
+
+    await act(async () => {
+      requestEditJobReleaseConfirmation({
+        collection: "jobs",
+        docID: "job-1",
+      });
+    });
+    await act(async () => {
+      await result.current.leaveConfirmDialogueProps.onDiscard();
+    });
+
+    expect(restored.map((job) => job.jobID)).toEqual(["job-1"]);
   });
 });

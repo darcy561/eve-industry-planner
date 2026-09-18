@@ -67,7 +67,7 @@ vi.mock("../../Zustand/usersStore.js", () => ({
 import closeActiveJob from "./closeActiveJob.js";
 import { snackbarSpies } from "../../tests/snackbarHarness.js";
 
-const { showSnackbarInfo } = snackbarSpies;
+const { showSnackbarInfo, showSnackbarWarning } = snackbarSpies;
 
 function makeJob(id = "j1", groupID = null) {
   return {
@@ -209,5 +209,30 @@ describe("closeActiveJob", () => {
     expect(
       storeHolder.current.getState().jobData.actions.updateModifiedGroups,
     ).toHaveBeenCalledWith(expect.anything(), { queuePersist: false });
+  });
+
+  // A job the store no longer holds is one that left while the editor had it
+  // open — deleted by another member. Writing it back would recreate a document
+  // somebody else removed, from a copy taken before they removed it.
+  it("does not write back a job that was deleted while it was open", async () => {
+    const job = makeJob();
+    storeHolder.current.setState((state) => ({
+      jobData: {
+        ...state.jobData,
+        jobArray: [],
+        actions: { ...state.jobData.actions, findJobInJobArray: () => null },
+      },
+    }));
+
+    await closeActiveJob(job, true, {}, {}, {}, null);
+
+    expect(saveJobsViaApi).not.toHaveBeenCalled();
+    expect(showSnackbarWarning).toHaveBeenCalledWith(
+      expect.stringContaining("removed while you had it open"),
+      expect.any(Number),
+    );
+    expect(
+      storeHolder.current.getState().jobData.actions.setActiveJobID,
+    ).toHaveBeenCalledWith(null);
   });
 });

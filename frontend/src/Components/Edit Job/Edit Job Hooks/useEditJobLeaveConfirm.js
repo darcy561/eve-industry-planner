@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { restoreJobIfStillHeld } from "../../../Functions/JobPlanner/restoreJobIfStillHeld.js";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
@@ -119,11 +120,9 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
       const resolve = pendingReleaseResolveRef.current;
       const target = pendingReleaseTargetRef.current;
       if (!resolve || !target) return;
-      const { updateOrAddJobsToJobArray } =
-        useUsersStore.getState().jobData.actions;
       const { handOverEditAccess } =
         useUsersStore.getState().documentLock.actions;
-      updateOrAddJobsToJobArray(backupJobRef.current);
+      restoreJobIfStillHeld(backupJobRef.current);
       // Hand the lock over BEFORE we navigate; the new holder is already a
       // queued waitlist entry server-side, so we mustn't unmount through the
       // neutral-release path (`/release` instead of `/hand-over`).
@@ -145,9 +144,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     const resolve = pendingNavigationResolveRef.current;
     const pending = pendingNavRef.current;
     if (!resolve || !pending) return;
-    const { updateOrAddJobsToJobArray } =
-      useUsersStore.getState().jobData.actions;
-    updateOrAddJobsToJobArray(backupJobRef.current);
+    restoreJobIfStillHeld(backupJobRef.current);
     await yieldLocksForCurrentEditJob();
     setActiveJobID(null);
     navigate({

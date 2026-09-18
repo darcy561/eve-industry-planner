@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import useUsersStore from "../../Zustand/usersStore";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
 import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
+import { restoreJobIfStillHeld } from "../../Functions/JobPlanner/restoreJobIfStillHeld.js";
 
 /**
  * Closing restores the job as it was before editing. The backup is taken from
@@ -12,8 +13,7 @@ import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/y
  * always follows, but the button should not depend on that remaining true.
  */
 export function CloseJobIcon({ backupJobRef }) {
-  const { setActiveJobID, updateOrAddJobsToJobArray } =
-    useUsersStore.getState().jobData.actions;
+  const { setActiveJobID } = useUsersStore.getState().jobData.actions;
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const search = useSearch({ from: "/editjob/$jobID" });
   const { jobID } = useParams({ from: "/editjob/$jobID" });
@@ -22,7 +22,7 @@ export function CloseJobIcon({ backupJobRef }) {
     const groupID = search.activeGroup;
     const backupJob = backupJobRef.current;
     await yieldEditJobDocumentLocksOnLeave({ jobID, groupID });
-    updateOrAddJobsToJobArray(backupJob);
+    restoreJobIfStillHeld(backupJob);
     setActiveJobID(null);
 
     if (groupID) {

@@ -74,6 +74,11 @@ function flush() {
     actions.removePendingInboundNewJobSkeletons(ids);
     actions.removeJobsFromJobArray(ids);
     actions.clearPendingJobDocumentWrites(ids);
+    // Announced as well as applied: a page holding one of these open is showing
+    // a copy of a document that no longer exists, and nothing else would tell it.
+    window.dispatchEvent(
+      new CustomEvent(JOBS_DELETED_REMOTELY_EVENT, { detail: { jobIDs: ids } }),
+    );
     rs.setPositionBatch(
       entries
         .filter(([, position]) => Number.isFinite(position))
@@ -118,6 +123,15 @@ export function clearInboundJobDocumentCoalesce() {
   pendingUpserts = new Map();
   pendingDeletes = new Map();
 }
+
+/**
+ * Raised when jobs this client held were deleted somewhere else, carrying the
+ * ids in `detail.jobIDs`.
+ *
+ * The job arrays are already correct by the time it fires; this is for whatever
+ * is looking at one of them.
+ */
+export const JOBS_DELETED_REMOTELY_EVENT = "eip-jobs-deleted-remotely";
 
 /**
  * @param {"upsert"|"delete"} kind

@@ -30,8 +30,11 @@ vi.mock("../../Classes/job.js", () => ({
   },
 }));
 
-const { enqueueInboundJobDocumentChange, clearInboundJobDocumentCoalesce } =
-  await import("./inboundJobDocumentsCoalesce.js");
+const {
+  enqueueInboundJobDocumentChange,
+  clearInboundJobDocumentCoalesce,
+  JOBS_DELETED_REMOTELY_EVENT,
+} = await import("./inboundJobDocumentsCoalesce.js");
 
 const JOB = { jobID: "job-1" };
 
@@ -86,5 +89,35 @@ describe("a delete and an upsert for the same job in one window", () => {
 
     expect(removeJobsFromJobArray).toHaveBeenCalledWith(["job-1"]);
     expect(updateOrAddJobsToJobArray).not.toHaveBeenCalled();
+  });
+});
+
+// A page holding a deleted job open is showing a document that no longer exists,
+// and the arrays being correct is not something it can notice.
+describe("telling the app a job it held was deleted elsewhere", () => {
+  it("names the deleted jobs once they are out of the store", async () => {
+    const seen = [];
+    const listener = (event) => seen.push(event.detail.jobIDs);
+    window.addEventListener(JOBS_DELETED_REMOTELY_EVENT, listener);
+
+    enqueueInboundJobDocumentChange("delete", "job-1", undefined, 5);
+    enqueueInboundJobDocumentChange("delete", "job-2", undefined, 6);
+    await flush();
+    window.removeEventListener(JOBS_DELETED_REMOTELY_EVENT, listener);
+
+    expect(seen).toEqual([["job-1", "job-2"]]);
+    expect(removeJobsFromJobArray).toHaveBeenCalledWith(["job-1", "job-2"]);
+  });
+
+  it("says nothing when nothing was deleted", async () => {
+    const seen = [];
+    const listener = () => seen.push(true);
+    window.addEventListener(JOBS_DELETED_REMOTELY_EVENT, listener);
+
+    enqueueInboundJobDocumentChange("upsert", "job-1", JOB, 5);
+    await flush();
+    window.removeEventListener(JOBS_DELETED_REMOTELY_EVENT, listener);
+
+    expect(seen).toEqual([]);
   });
 });

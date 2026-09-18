@@ -5,7 +5,10 @@ import materialTreeShaker from "../Helper/materialTreeShaker";
 import getAllRelatedJobs from "../Helper/getAllRelatedJobs";
 import { canPersistJobClose } from "../DocumentLock/canPersistDocumentEditClose.js";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
-import { showSnackbarInfo } from "../../Events/snackbarEvents";
+import {
+  showSnackbarInfo,
+  showSnackbarWarning,
+} from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
 import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
@@ -40,6 +43,20 @@ export default async function closeActiveJob(
   }
 
   if (!inputJob?.jobID) {
+    setActiveJobID(null);
+    return;
+  }
+
+  // The editor only ever opens a job it found in the store, so a job missing
+  // from it now is one that left while it was open — deleted by another member,
+  // or belonging to a planner this client has since switched away from. Writing
+  // it back would recreate a document somebody else removed, from a copy taken
+  // before they removed it.
+  if (!findJobInJobArray(inputJob.jobID)) {
+    showSnackbarWarning(
+      "This job was removed while you had it open, so your changes were not saved.",
+      8,
+    );
     setActiveJobID(null);
     return;
   }
