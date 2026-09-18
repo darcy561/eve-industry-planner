@@ -29,9 +29,10 @@ it — and the investigation that has to happen before each piece can be scoped.
   [entity-id-encryption/contents.md](../entity-id-encryption/contents.md). Encryption of the planner's
   own `refresh_token:*` rows in Redis is a separate question and is Stage F here.
 - What a session's grants mean, where the owner-key list is filled from, and the membership
-  revocation path → [shared-planners/contents.md](../shared-planners/contents.md). Stage B here
-  consumes that project's revocation work rather than duplicating it, and whether a failed grants fill
-  should refuse a session is that project's § Stage I.
+  revocation path → [shared-planners/contents.md](../shared-planners/contents.md). Revoking a
+  membership and revoking an account's sessions turned out to be separate operations — the first
+  rewrites stored grants, the second sweeps session keys — so Stage B here builds its own and
+  duplicates nothing. Whether a failed grants fill should refuse a session is that project's § Stage I.
 - The document lock, its namespacing, and realtime consistency under more than one writer →
   [shared-planners/contents.md](../shared-planners/contents.md) and
   [document-write-granularity/contents.md](../document-write-granularity/contents.md).
@@ -45,7 +46,7 @@ it — and the investigation that has to happen before each piece can be scoped.
 | See what is genuinely still missing, with the evidence | [current-state.md](./current-state.md) § What is still open |
 | Find out why an item from the old roadmap is not here | [current-state.md](./current-state.md) § Superseded or owned elsewhere |
 | Investigate why session rejection differs between REST and the WebSocket | [plan.md](./plan.md) § Stage A |
-| Pick up account-wide revocation, or find what it waits on | [plan.md](./plan.md) § Stage B |
+| Pick up account-wide revocation, and see why it is no longer blocked | [plan.md](./plan.md) § Stage B |
 | Work out what an operator can see when auth fails | [plan.md](./plan.md) § Stage C |
 | Work out what a user sees when a cloud ESI credential dies | [plan.md](./plan.md) § Stage D |
 | Understand what happens when bootstrap half-succeeds, and what was decided | [plan.md](./plan.md) § Stage E |

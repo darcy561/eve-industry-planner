@@ -158,7 +158,9 @@ is not a security boundary and must not be read as one.
 
 ### Stage B — revoking more than one session
 
-Not started. Waits on [shared-planners](../shared-planners/plan.md) Stage E.
+Not started. No longer waiting on anything: [shared-planners](../shared-planners/plan.md) Stage E has
+landed, and it revokes a membership by rewriting the account's stored grants rather than by sweeping
+session keys, so the account-wide revoke is separate work rather than a second copy of it.
 
 ### Stage C — what an operator sees when auth fails
 

@@ -2342,8 +2342,8 @@ A relaxation landed before this stage would be relaxing something that is not ho
 ### Stage I — Where the grants ceiling is read from
 
 **Not a planner feature — a decision about where one already-built check gets its answer.** Raised from
-[auth-hardening](../auth-hardening/plan.md) § Stage E and parked here because it cannot be taken until
-the membership model has settled.
+[auth-hardening](../auth-hardening/plan.md) § Stage E and parked here until the membership model
+settled, which it now has.
 
 **What is built.** `models.SessionGrants` sits on the account's session record in Redis, filled by
 `OwnerKeysForAccount` at login and at every bootstrap, and read exactly once — at websocket connect,
@@ -2362,19 +2362,24 @@ auth-hardening carries as #53, and it cannot be closed there: "make the fill fat
 Mongo at the reader" and "stop storing the list at all" are three answers to a question this project
 owns.
 
-**What has to be known before it can be decided**
+**What had to be known before it could be decided**
 
-- **§ Losing access is the case that argues for keeping the cache.** A kick has to bite on a member who
-  is already connected, and the mechanism designed for it mutates the stored ceiling and pushes a
-  revocation over the fan-out. Resolving membership per switch instead would leave a removed member
-  streaming a planner they had already switched into until they switch again or reconnect — so the
-  stored list is not only a cache, it is where a revocation is applied. That path is Stage E's one
-  outstanding item and is not built yet, which is what keeps this decision cheap to take now.
-- **Stage F still owes "when the grant task fires and how it resolves".** The worker's ESI task writes
-  the same list from a third place. Dropping the stored list removes that write; keeping it has to say
-  which of the three writers wins when they disagree.
-- **Stage G's owner-scoped document load** decides what a reconnecting or switching client is told it
-  missed, which is the other half of what a switch costs.
+All three have resolved, so this is now a decision to take rather than one waiting on anything.
+
+- **§ Losing access is the case that argues for keeping the cache, and it is built.** A kick has to
+  bite on a member who is already connected, and `sessiongrants.WriteFromMemberships` is what does it:
+  every path that changes a membership row rewrites the stored ceiling from the rows and announces the
+  change, and each replica narrows the connections it holds. Resolving membership per switch instead
+  would leave a removed member streaming a planner they had already switched into until they switch
+  again or reconnect. So the stored list is not only a cache — it is where a revocation is applied,
+  which is the argument for keeping it.
+- **Stage F's owed item does not bear on this.** "When the grant task fires and how it resolves" is a
+  question about firing more often than it needs to, and Stage F records that it is correct as it
+  stands and nothing waits on it. The three-writers worry it was raised for is gone as well: the join
+  endpoint, the grant task and the cloud token sweep all call the one helper, which resolves from the
+  membership rows, so there is one writer with three callers and nothing for them to disagree about.
+- **Stage G's owner-scoped document load has landed**, so what a reconnecting or switching client is
+  told it missed is settled — the other half of what a switch costs is known.
 
 **What this stage has to answer**
 
@@ -2717,7 +2722,7 @@ do not touch.
 | F — ESI providers | **F1 landed.** Corporation and alliance membership rows are reconciled from the ids ESI reports, at login and on the cloud token sweep, completing a task that read as finished and wrote no rows. A row grants while it exists and nothing expires one: a revoked token is a positive answer the reconcile acts on, and a two-year dormant account is cleared by `InactiveAccountPlannerCleanup`. Not being picked up: reshaping when the grant task fires and how it resolves is deferred by choice, and access lists are out of scope until the access models are built — an access list is a permission scheme rather than another membership provider |
 | G — realtime state under more than one writer | **Landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Also in: G2, the ordering position — a delivery carries its place in the stream, the client holds one per document and applies only what is beyond it, and a delete carries a position as readily as an upsert. And G4, the delivery construction — a full shard waits for room instead of overtaking what is queued for that owner, renewing the acknowledgement deadline while it waits and counting itself in the drain. Also in: G5, a settings change reaching the members it is for — `planner_settings` was delivered and dropped on arrival, and now has a handler that files it under the owner the delivery names rather than the owner key its `_id` carries. Also in: G3 — a resume carries how far the tab applied and is answered by comparing it with what was published for the tenants that connection reads, rather than asserting that nothing happened. Also in: the `websocket/sync` package and `skipWhileSyncing` are removed, which closes what G1 carried. Both questions the slices deferred are now answered: the stores hold the active planner only, and a gap is reloaded through rather than replayed. Absorbs what survived the retired websocket-realtime project, including keying the job and group stores by owner. **Nothing outstanding** — see § Stage G |
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3, H4). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. H4 moved the socket paths off the connection's last-known planner: every lock frame names its own, refused against the session's ceiling, as the HTTP paths already did — see § Stage H |
-| I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
+| I — where the grants ceiling is read from | **Not started, and no longer blocked.** A decision rather than a build: the ceiling is a stored snapshot read once at connect. Both things it waited on have resolved — Stage E built the revocation path, which applies a revocation *to* that snapshot, and Stage F's owed item turns out not to bear on it. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
 | J — the SPA stops assuming it is the only writer | **Landed.** The client work in this project was a dropdown to prove the backend, which is what it was for; converting the planner into something two people can work in was never planned. An audit found four groups, and the four decisions that gated them are taken: no member is named on screen, a remote change is applied where it is only read and surfaced where it is being edited, roles come later as designed, and stale-snapshot writing goes to document-write-granularity. All four of its defects are fixed: the group delete that made every member write, the editor that was never told its job was deleted — where a save recreated what somebody else removed — the force-release control, which offered a blocked member a button the server would always refuse and reported a colleague's lock as no lock at all, and the skills fallback that mis-costed another member's job. The last of those took the stored estimates with it: a figure whose value depends on the reader is worked out where it is shown rather than written into the document, which is both estimates on a setup, and the two screens that open a chain now fetch the whole of it rather than one link. See § Stage J |
 
 ## Recommended pickup order
@@ -2738,8 +2743,8 @@ planner only and a gap being reloaded through rather than replayed.
 
 **Out of scope.** Stage F's other slice, access lists, waits on the access models being built: a list
 carries allow and block entries, which is a permission scheme rather than a roster, and there is
-nothing yet for it to grant *in*. Stage I stays undecided and cannot be taken until Stage E's
-revocation path and Stage F's grant task settle.
+nothing yet for it to grant *in*. Stage I stays undecided, but is no longer waiting on anything:
+Stage E built the revocation path and Stage F's owed item turns out not to bear on it.
 
 Stage E is closed. Its grants work leaves two trade-offs Stage I should revisit: the announcement is
 fire-and-forget, so a replica that misses one keeps a revoked planner on that connection until it

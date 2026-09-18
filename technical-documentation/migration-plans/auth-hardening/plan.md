@@ -37,15 +37,16 @@ those, it says what it consumes.
 
 ## Stages
 
-The stages are ordered by what unblocks what, not by size. A, C and D are independent of each other
-and can run in any order. B waits on shared-planners. E has landed, which settles the two handlers
+The stages are ordered by what unblocks what, not by size. Nothing here is blocked on another project
+any more: B's wait on shared-planners ended when that project's Stage E landed. A, B, C, D and G are
+independent of each other and can run in any order. E has landed, which settles the two handlers
 everything else in `v1endpoints` edits. F is a set of decisions, not a set of changes, and should be
 taken deliberately rather than drifting.
 
 | Stage | Status |
 |-------|--------|
 | A — one shape for a rejected session | **Landed.** One shared refusal envelope across REST and the upgrade, the dependency split extended to the upgrade, and the upgrade's auth cases tested. The stage's premise was corrected on the way: a browser cannot read a refused handshake, so the envelope serves operators and the rotate path is what detects a terminal session. `Session.RevokedAt` has no writer, which passes to Stage B |
-| B — revoking more than one session | **Not started, and further out than its position suggests.** Waits on [shared-planners](../shared-planners/plan.md) Stage E, whose revocation path may itself be reshaped by that project's Stage I |
+| B — revoking more than one session | **Not started, and now unblocked.** [shared-planners](../shared-planners/plan.md) Stage E has landed, and what it built revokes a *membership* by rewriting stored grants rather than by sweeping session keys — so the two are separate operations and this one can be built. `Session.RevokedAt` comes here from Stage A |
 | C — what an operator sees when auth fails | **Not started.** The Redis outage runbook is owed regardless of the counters |
 | D — what a user sees when a cloud credential dies | **Not started.** Independent of everything else here |
 | E — bootstrap that half-succeeds | **Landed.** The login handler discards what it minted at both failure points, the lifecycle counters moved below the document read, the ESI secret strip is asserted, and the no-op cookie helpers are deleted. #52 closed unchanged and #53 moved to shared-planners § Stage I. Behaviour: [overlay.md](./overlay.md) § Stage E |
@@ -122,26 +123,44 @@ Logout revokes the session that presented itself. There is no way to revoke ever
 holds, which is what a support request after a compromised machine actually needs, and there is no
 way for a user to see what sessions exist. `sessions.md` § 14 names the gap directly.
 
-This stage **waits on** [shared-planners](../shared-planners/plan.md) Stage E, whose one outstanding
-item is the membership revocation path, described there as waiting on "the session-record work that
-owns the grants ceiling". It also waits on that project's § Stage I, which decides whether the ceiling
-remains a stored snapshot at all — a revocation that no longer writes one reaches a live session by a
-different route, and this stage consumes whichever route it turns out to be. Those two are the same work seen from opposite ends: revoking a membership
-has to reach every session that membership granted, and revoking every session an account holds has
-to reach the same records. Building an account-wide revoke here before that lands would produce a
-second sweep over the same keys.
+**No longer blocked, and the reason it was blocked did not survive.** The stage waited on
+[shared-planners](../shared-planners/plan.md) Stage E on the premise that revoking a membership and
+revoking an account's sessions were the same work seen from opposite ends, so building this first
+would produce a second sweep over the same keys. Stage E has landed and what it built is
+`sessiongrants.WriteFromMemberships`: it rewrites the account's stored **grants** from its membership
+rows and announces them, and touches no session row, no index and no refresh token. That is the right
+shape — losing one planner narrows a live session's ceiling rather than ending the session — and it
+means the two operations share a record, not a sweep.
+
+That answers the first half of this stage's own store question before it is asked, and it settles
+the § Stage I dependency too: the ceiling is where a revocation is applied, so the stored snapshot is
+load bearing and the route this stage consumes is not going to change under it.
 
 **What this stage has to answer**
 
-- What the store operation is: one method that revokes every session, index and refresh row for an
-  account, and whether the membership path calls the same one.
-- Whether a device list is a product feature or a support tool. A device list implies storing
-  something identifying per session, which is a privacy decision, not just a schema one.
-- Whether signout's ordering — disconnect the socket, call logout, clear the query cache — is load
-  bearing, and pinning it with a test (#54) either way.
+- What the store operation is. Enumerating an account's sessions is one read — `AccountRecord` holds
+  them all in a single row under the existing compare-and-set. The work is the refresh tokens:
+  `tokensForSession` walks the whole `refresh_token:*` keyspace per session, so composing the bulk
+  revoke from a loop over `RevokeSessionTokens` costs one full scan per session. It wants a single
+  scan matched against the whole session-id set.
+- Whether a revoked session leaves a tombstone. Deleting the rows gives every affected tab
+  `session_missing`; writing `RevokedAt` gives them `session_revoked` through the rotate path, which
+  Stage A established is the only surface a terminal code reaches a browser on. This is the first
+  producer that field would have, and taking the tombstone is what keeps the reader Stage A left
+  standing — see § Owed to Stage B under Stage A. The cost is keeping rows alive to carry it.
+- Whether a device list is a product feature or a support tool. Narrower than it looked: the session
+  record already carries `StartedAt`, `LastSeenAt`, `AppVersion`, `ReauthRequiredAt` and
+  `CharacterHash`, which is enough to answer "three sessions, one last seen Tuesday on an old app
+  version". No address and no user agent are stored, so a list can be built from what exists — only
+  adding something identifying is a privacy decision, and it may not be needed.
+- Whether signout's ordering — disconnect the socket, call logout, reset the stores, clear the query
+  cache — is load bearing, and pinning it with a test (#54). It is: `routes/signout.jsx` already
+  carries two comments saying why, one about coalesced job upserts flushing after the store reset and
+  one about an in-flight account read re-merging settings. Nothing covers the route, and
+  `frontend/src/routes/` has the end-to-end suite it belongs in.
 
-**Done when** an account's sessions can be revoked in one operation, the membership path uses it, and
-the signout ordering is pinned.
+**Done when** an account's sessions can be revoked in one operation, `Session.RevokedAt` either has a
+writer or is gone, and the signout ordering is pinned.
 
 ---
 
@@ -430,9 +449,8 @@ Then delete this folder and its row in [`../contents.md`](../contents.md).
 
 ## Recommended pickup order
 
-1. **Stage C** — makes the rest measurable, and the runbook is owed regardless.
-2. **Stage D** — independent; can run alongside any of the above.
-3. **Stage B** — once shared-planners Stage E lands, and once its Stage I has said whether the grants
-   ceiling stays a stored snapshot. A revocation that no longer writes that snapshot reaches live
-   sessions by a different route, which is the half this stage consumes.
+1. **Stage B** — unblocked, and the cheapest thing in the project sits inside it: #54 is one
+   end-to-end test over an ordering `signout.jsx` already documents and nothing covers.
+2. **Stage C** — makes the rest measurable, and the runbook is owed regardless.
+3. **Stage D** — independent; can run alongside any of the above.
 4. **Stage F** — decisions, whenever there is appetite to take them.
