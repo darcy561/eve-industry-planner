@@ -68,6 +68,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	var lockRejects []documentlock.LockHeldElsewhereItem
 	if h.locks.Redis != nil {
 		if sessionID == "" {
 			metrics.Error("auth_error")
@@ -96,14 +97,26 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents put lock gate failed", "job_docs_lock_gate_failed", "job_documents", lerr, nil)
 			return
 		}
+		// A held job is dropped from the batch rather than refusing the batch. One
+		// member editing one job used to cost every other job in the same save,
+		// which on a shared planner is most of a close: the jobs nobody holds are
+		// exactly the ones the writer may still save.
+		lockRejects = rejects
 		if len(rejects) > 0 {
+			reqBody.Jobs = dropHeldJobs(reqBody.Jobs, rejects)
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
-			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(jobIDs),
+			"held":      len(rejects),
 		})
+
+		// Nothing survived the gate, so there is no write to make and the refusal
+		// is the whole answer.
+		if len(reqBody.Jobs) == 0 {
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
+			return
+		}
 	}
 
 	if err := h.encryptJobs(reqBody.Jobs); err != nil {
@@ -116,7 +129,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	now := time.Now()
-	result, failedCount, err := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, owner, accountID, reqBody.Jobs, now, sessionID, wsClientID)
+	result, failedCount, conflicts, err := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, owner, accountID, reqBody.Jobs, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", err, nil)
@@ -128,6 +141,33 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
+
+	// Two refusals can arrive from one batch and a response carries one of them;
+	// refusalFor decides which, and says why.
+	switch refusalFor(len(lockRejects), len(conflicts)) {
+	case refusalLockHeld:
+		logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
+			"saved":     savedCount,
+			"held":      len(lockRejects),
+			"conflicts": len(conflicts),
+		})
+		helper.RespondPartialLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, savedCount, lockRejects)
+		return
+
+	// A refused write is answered even when the rest of the batch landed: a job
+	// whose document moved is the one thing the caller cannot discover from a
+	// success, and it is what the client reconciles against.
+	case refusalRevision:
+		metrics.Error("revision_conflict")
+		logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
+			"saved":     savedCount,
+			"failed":    failedCount,
+			"conflicts": len(conflicts),
+		})
+		helper.RespondRevisionConflictJSON(w, r, eipmongo.CollectionJobDocuments, savedCount, conflicts)
+		return
+	}
+
 	if failedCount > 0 {
 		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some job documents failed validation in batch", map[string]any{
 			"failed": failedCount,

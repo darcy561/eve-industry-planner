@@ -1,5 +1,30 @@
 import useUsersStore from "../../Zustand/usersStore.js";
+import { parseRefusalBody, refusalRowDocID } from "../Endpoints/refusalBody.js";
 import { DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE } from "./documentLockEvents.js";
+
+/**
+ * Reads a lock-conflict 409 body, or null when the body is not one.
+ *
+ * Separate from {@link applyLockHeldElsewhereFromApiBody} so a caller can learn
+ * which documents were held, without the scope patching that the transport
+ * helper wants.
+ *
+ * Answers the held documents alone. The envelope's `saved` count is not carried
+ * because nothing reads it here: a caller keeping a queue needs to know what was
+ * held, and derives what wrote from the ids it sent.
+ *
+ * @param {string} text - Raw response body (already read from `Response`).
+ * @returns {string[]|null}
+ */
+export function parseLockHeldElsewhereBody(text) {
+  return (
+    parseRefusalBody(
+      text,
+      DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE,
+      (row) => refusalRowDocID(row) || null,
+    )?.rejected ?? null
+  );
+}
 
 /**
  * Parses a 409 response body and patches document-lock scopes for each `rejected` row.
