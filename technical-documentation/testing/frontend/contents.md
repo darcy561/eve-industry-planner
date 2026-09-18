@@ -66,6 +66,40 @@ two of them import plenty — but that what they reach is constants and classes,
 evaluate. Check what a module does at import time before reaching for it, rather than avoiding the
 import or taking it on trust.
 
+Where a slice module is genuinely too heavy to import — `account` and `jobData` reach an API client,
+and build the store itself as a side effect, which drags in everything the rest of it touches —
+its `stateDefault()` lives in a **leaf module beside the slice**
+([`jobsSlice/stateDefault.js`](../../../frontend/src/Zustand/jobsSlice/stateDefault.js),
+[`account/stateDefault.js`](../../../frontend/src/Zustand/account/stateDefault.js)), which the slice
+and the harness both import. Move the shape rather than copying it: the two that were written out by
+hand here drifted thirteen fields behind the store before anything noticed, and a component asking
+the harness for one of them got `undefined` where the real store gives a value.
+[`documentLockSlice.js`](../../../frontend/src/Zustand/documentLockSlice.js) is the one still written
+out, because it has no `stateDefault()` to import — its single field is inlined where the store is
+built.
+
+### Testing the store itself
+
+The harness is for components. A test **about the store** — what an action does to a slice, what the
+merge leaves alone, what a reset carries over — imports the real
+[`usersStore.js`](../../../frontend/src/Zustand/usersStore.js) and drives its actions, because the
+mock replaces exactly the machinery under test. Those tests sit beside the slice, hold the store
+through a local `actions()` reader, and reset in `beforeEach`; mock the module a slice reaches for —
+a debounced save scheduler, an API client — rather than the slice.
+
+Vitest gives each file its own module registry, so the store singleton is fresh per file and shared
+within one. That is safe and worth keeping: a test that depends on another's leftovers passes under
+`--sequence.shuffle` only by luck.
+
+What such a test is for is the behaviour that is invisible when it breaks: a pending-write queue
+that starts replacing instead of merging loses an edit with nothing saying so. None of that shows up
+in a component test, and none of it fails loudly. Write the assertion, then break the source and
+watch it fail — a store test that has never been seen to fail is pinning nothing.
+
+What a store write has to get right, and what a reset owes its slice →
+[frontend/technical-rules.md](../../frontend/technical-rules.md) § Writing to a store slice,
+enforced by `store-partials/no-whole-state-spread`.
+
 ## Task map
 
 | I need to… | Read |
