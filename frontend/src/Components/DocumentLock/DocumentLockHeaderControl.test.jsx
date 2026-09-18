@@ -170,13 +170,10 @@ describe("the header lock's passive viewer flash", () => {
 
 /**
  * Opens the control's popover, which is where a read-only viewer is told what
- * they can do about the lock. Clicked through `act` rather than user-event,
- * because this file drives fake timers.
+ * they can do about the lock.
  */
 function openDetails() {
-  act(() => {
-    fireEvent.click(screen.getAllByRole("button")[0]);
-  });
+  fireEvent.click(screen.getAllByRole("button")[0]);
 }
 
 // Clearing a lock is something an account may do to its own other session and
