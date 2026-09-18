@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 )
@@ -63,6 +64,28 @@ func TestHarnessServe(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		// Reads back the key a lock frame wrote, so a browser can assert which
+		// planner the server scoped its pulse to rather than only that it sent
+		// one. Answered here because the key is built from the owner ref, which
+		// the browser never sees.
+		if r.URL.Path == "/waitlist-pulse" {
+			q := r.URL.Query()
+			owner, oErr := models.ParseOwnerHandle(q.Get("owner"), f.Server.entityCipher)
+			if oErr != nil {
+				http.Error(w, "unreadable owner: "+oErr.Error(), http.StatusBadRequest)
+				return
+			}
+			key := documentlock.WaitlistPulseKey(owner, q.Get("collection"), q.Get("docID"), q.Get("session"))
+			present, rErr := f.Redis.Driver().Exists(r.Context(), key).Result()
+			if rErr != nil {
+				http.Error(w, "read pulse: "+rErr.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]bool{"present": present == 1})
+			return
+		}
+
 		owner, err := models.ParseOwnerHandle(r.Header.Get("X-Planner-Owner"), f.Server.entityCipher)
 		if err != nil {
 			http.Error(w, "unreadable planner owner: "+err.Error(), http.StatusBadRequest)

@@ -111,7 +111,13 @@ async function openBrowser({ accountID, sessionID, planner = PLANNER }) {
 
   const client = await import("../../WebSocket/websocketClient.js");
   client.connectWebsocket({ accountId: accountID });
-  client.sendActivePlanner(planner);
+  // Named once the socket is open, because the message goes over it: a planner
+  // named before then is dropped, and the store keeps none — which leaves every
+  // scoped read and every lock frame naming the account instead.
+  await until(() => client.isWebsocketOpen(), "the socket to open");
+  if (!client.sendActivePlanner(planner)) {
+    throw new Error(`the socket did not take the planner ${planner}`);
+  }
   return { store, client, sessionID };
 }
 
@@ -119,7 +125,7 @@ async function openBrowser({ accountID, sessionID, planner = PLANNER }) {
 async function until(predicate, what, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (predicate()) return;
+    if (await predicate()) return;
     await new Promise((r) => setTimeout(r, 25));
   }
   throw new Error(`timed out waiting for ${what}`);
@@ -168,8 +174,6 @@ describe.skipIf(!RUN)("a save coming back as a delivery", () => {
       sessionID: SESSION_A,
     });
 
-    await until(() => reader.client.isWebsocketOpen(), "the socket to open");
-
     const { putJobDocumentsBatch } =
       await import("../../Functions/Endpoints/Private/jobDocuments.js");
     await putJobDocumentsBatch([{ jobID: "job-shared", name: "Shared build" }]);
@@ -190,9 +194,8 @@ describe.skipIf(!RUN)("a save coming back as a delivery", () => {
       ];
     expect(position).toBeGreaterThan(0);
 
-    // A delete travels the same path and carries no document, which is what the
-    // client used to have no way of ordering — the delete paths reached for the
-    // browser's clock instead.
+    // A delete travels the same path and carries no document, so the position it
+    // carries is the only thing ordering it against the writes around it.
     const { deleteJobDocumentsFromApi } =
       await import("../../Functions/Endpoints/Private/jobDocuments.js");
     await deleteJobDocumentsFromApi(["job-shared"]);
@@ -209,5 +212,35 @@ describe.skipIf(!RUN)("a save coming back as a delivery", () => {
         "job_documents.job-shared"
       ],
     ).toBeGreaterThan(position);
+  }, 60_000);
+
+  // The lock frames are the other contract crossing this seam, and the only one
+  // where the two sides can disagree silently: the SPA names the planner on
+  // every frame and the server refuses a frame that names none, so a mismatch
+  // leaves both suites green while no lock is ever taken.
+  it("takes a lock in the planner the SPA is working in", async () => {
+    await openBrowser({ accountID: ACCOUNT_B, sessionID: SESSION_B });
+
+    const { pulseDocumentLockWaitlist } =
+      await import("../../Functions/Endpoints/Private/documentLockClient.js");
+    pulseDocumentLockWaitlist("job_documents", "job-locked");
+
+    const pulsedUnder = async (owner) => {
+      const url = new URL(`${apiBase}/waitlist-pulse`);
+      url.searchParams.set("owner", owner);
+      url.searchParams.set("collection", "job_documents");
+      url.searchParams.set("docID", "job-locked");
+      url.searchParams.set("session", SESSION_B);
+      const res = await fetch(url.toString());
+      return (await res.json()).present;
+    };
+
+    await until(
+      async () => await pulsedUnder(PLANNER),
+      "the pulse to reach the planner's key",
+    );
+    // Not the account's own planner: the client names that only when no planner
+    // is active, and this frame names one.
+    expect(await pulsedUnder(`account:${ACCOUNT_B}`)).toBe(false);
   }, 60_000);
 });
