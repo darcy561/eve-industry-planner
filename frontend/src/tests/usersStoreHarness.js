@@ -56,6 +56,7 @@ const sliceDefaults = {
     isLoggedIn: false,
     characters: [],
     corporations: [],
+    alliances: [],
     linkedJobs: [],
     linkedOrders: [],
     linkedTrans: [],
@@ -187,6 +188,22 @@ export function usersStoreState(overrides = {}) {
   for (const [key, value] of Object.entries(sliceOverrides)) {
     if (!(key in sliceDefaults)) state[key] = value;
   }
+
+  // Resolved against `state` for the same reason the planner actions below are: they answer from
+  // the characters the test supplied, not from the empty roster the default carries. A test that
+  // names either of them keeps its own.
+  state.account.actions = {
+    getAlliance: (id) =>
+      state.account.alliances?.find(
+        (a) => Number(a?.alliance_id) === Number(id),
+      ) || null,
+    getMainCharacter: () =>
+      state.account.characters?.find((c) => c?.isMainCharacter) || null,
+    getMainCharacterName: () =>
+      state.account.characters?.find((c) => c?.isMainCharacter)
+        ?.CharacterName || null,
+    ...state.account.actions,
+  };
 
   state.activePlanner = { ...activePlannerDefault(), ...activePlannerOverride };
   // Built last, and against `state` itself: these actions read the planner and

@@ -13,7 +13,7 @@ import {
 } from "./buildCharacterFromCredentials.js";
 import useUsersStore from "../../Zustand/usersStore";
 import { emitUserDataUpdate } from "../../Events/loginEvents";
-import { buildCorporationObjectFromUserObject } from "../Corporations/buildCorporationObject";
+import { buildCharacterAffiliations } from "./characterAffiliations";
 import { prefetchCollections } from "../EveESI/prefetch/scheduler";
 import { runPostLoginAccountSync } from "../../Components/Auth/runPostLoginAccountSync";
 import { bootstrapJobGroupsLoginStep } from "../../Components/Auth/bootstrapJobGroupsLoginStep";
@@ -189,8 +189,7 @@ export async function applyClientSessionAfterAppTokens(input) {
     }
     useUsersStore.getState().account.actions.setLoggedIn(true);
 
-    await character.getPublicCharacterData();
-    await buildCorporationObjectFromUserObject(character);
+    await buildCharacterAffiliations(character);
 
     useUsersStore.getState().account.actions.updateCharacters([character]);
     // The account sync below builds only the characters not already in the store, so the main

@@ -1,6 +1,7 @@
 import { Avatar } from "@mui/material";
 
 import {
+  allianceImageUrl,
   characterImageUrl,
   corporationImageUrl,
   EVE_DEFAULT_OWNER_ID,
@@ -38,6 +39,7 @@ function largestDrawn(size) {
  * @param {string} [props.variation=TYPE_IMAGE.ICON] - see {@link TYPE_IMAGE}
  * @param {number|string} [props.character]
  * @param {number|string} [props.corporation]
+ * @param {number|string} [props.alliance]
  * @param {string} [props.src] - a URL already resolved; use instead of the subject props
  * @param {number|Object<string, number>} [props.size=32] - drawn pixels, or an sx breakpoint object
  * @param {"circular"|"rounded"|"square"} [props.variant="circular"] - MUI `Avatar`'s own default
@@ -50,6 +52,7 @@ export default function EveImageAvatar(props) {
     variation = TYPE_IMAGE.ICON,
     character,
     corporation,
+    alliance,
     src,
     size = 32,
     variant = "circular",
@@ -62,6 +65,7 @@ export default function EveImageAvatar(props) {
   // character, and that is what says whose default picture to ask for in its place.
   const isCharacter = "character" in props;
   const isCorporation = "corporation" in props;
+  const isAlliance = "alliance" in props;
 
   const pixels = largestDrawn(size) * 2;
   const url =
@@ -70,7 +74,9 @@ export default function EveImageAvatar(props) {
       ? characterImageUrl(character ?? EVE_DEFAULT_OWNER_ID, pixels)
       : isCorporation
         ? corporationImageUrl(corporation ?? EVE_DEFAULT_OWNER_ID, pixels)
-        : typeImageUrl(type, variation, pixels));
+        : isAlliance
+          ? allianceImageUrl(alliance, pixels)
+          : typeImageUrl(type, variation, pixels));
 
   return (
     <Avatar

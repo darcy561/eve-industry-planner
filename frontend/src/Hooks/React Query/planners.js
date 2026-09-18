@@ -22,7 +22,12 @@ export function plannerDisplayName(planner) {
     if (corporation?.corporationName) return corporation.corporationName;
     return "Corporation";
   }
-  if (planner.kind === "alliance") return "Alliance";
+  if (planner.kind === "alliance") {
+    const id = entityIDFromOwnerHandle(planner.owner);
+    const alliance = useUsersStore.getState().account.actions.getAlliance(id);
+    if (alliance?.allianceName) return alliance.allianceName;
+    return "Alliance";
+  }
   return "My planner";
 }
 

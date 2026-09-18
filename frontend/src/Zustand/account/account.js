@@ -13,6 +13,7 @@
 import Character from "../../Classes/character.js";
 import { characterActions } from "./characterActions.js";
 import { corporationsActions } from "./corporationsActions.js";
+import { alliancesActions } from "./alliancesActions.js";
 import { plannerSessionActions } from "./plannerSessionActions.js";
 import { clearTabPlannerSession } from "../../Functions/Auth/tabSessionStorage.js";
 import { asNumberIDSet } from "../../Functions/Helper/ids";
@@ -57,6 +58,8 @@ export const accountStateDefault = () => ({
   linkedBootstrapHydrationPending: false,
   /** Loaded `Corporation` instances for the account (see `corporationsActions`). */
   corporations: [],
+  /** Loaded `Alliance` instances, one per alliance those corporations are in. */
+  alliances: [],
 });
 
 export const accountActions = (set, get) => ({
@@ -236,4 +239,5 @@ export const accountActions = (set, get) => ({
 
   ...characterActions(set, get),
   ...corporationsActions(set, get),
+  ...alliancesActions(set, get),
 });

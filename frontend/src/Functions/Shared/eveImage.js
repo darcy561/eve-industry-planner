@@ -88,3 +88,17 @@ export function characterImageUrl(characterID, pixels = 32) {
 export function corporationImageUrl(corporationID, pixels = 32) {
   return imageUrl("corporations", corporationID, "logo", pixels);
 }
+
+/**
+ * EVE's logo for an alliance.
+ *
+ * The image server has no default for one, so an alliance the app holds no id for has no picture
+ * rather than a stand-in — which is why this is the one owner helper without a fallback id.
+ *
+ * @param {number|string} [allianceID]
+ * @param {number} [pixels=32]
+ * @returns {string|undefined} undefined when there is no id to ask about
+ */
+export function allianceImageUrl(allianceID, pixels = 32) {
+  return imageUrl("alliances", allianceID, "logo", pixels);
+}

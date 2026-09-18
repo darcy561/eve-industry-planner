@@ -1,27 +1,40 @@
 import { describe, expect, it } from "vitest";
 import Corporation from "../../Classes/corporation.js";
+import Alliance from "../../Classes/alliance.js";
 import { corporationsActions } from "./corporationsActions.js";
+import { alliancesActions } from "./alliancesActions.js";
 
 /**
  * The actions as the store calls them, over a local state object. `getCorporation`
- * is reached through `state.account.actions` by `getMainCorporation`, so the
- * actions are wired back onto the state the way the store wires them.
+ * is reached through `state.account.actions` by `getMainCorporation`, and dropping a corporation
+ * reaches the alliance actions the same way, so both are wired back onto the state exactly as the
+ * store wires them.
  *
  * @param {object[]} corporations
  * @param {object[]} [characters]
  */
-function actionsOver(corporations, characters = []) {
-  const state = { account: { corporations, characters, actions: {} } };
+function actionsOver(corporations, characters = [], alliances = []) {
+  const state = {
+    account: { corporations, characters, alliances, actions: {} },
+  };
   const get = () => state;
   const set = (updater) => {
     Object.assign(state, updater(state));
   };
-  const actions = corporationsActions(set, get);
   state.account.actions = {
-    ...actions,
+    ...corporationsActions(set, get),
+    ...alliancesActions(set, get),
     getMainCharacter: () => characters.find((c) => c.isMainCharacter) ?? null,
   };
   return { actions: state.account.actions, state };
+}
+
+/** A real Alliance, so the cascade under test drops a real object rather than a stub. */
+function allianceOf(allianceID, corporationID) {
+  return new Alliance(
+    { corporation_id: corporationID, alliance_id: allianceID },
+    { name: `Alliance ${allianceID}` },
+  );
 }
 
 /** A real Corporation, so the member and office merging under test is the real thing. */
@@ -161,5 +174,49 @@ describe("setting corporation offices", () => {
     actions.setCorporationOffices(9999, [60000002]);
 
     expect(state.account.corporations[0].officeLocations).toEqual([]);
+  });
+});
+
+describe("a corporation leaving takes its place in an alliance with it", () => {
+  // Both sides of this are proven on their own — the corporation drop, and the alliance removal.
+  // What is not proven by either is the join: that dropping the last member of a corporation
+  // reaches the alliance at all.
+  it("keeps the alliance while another of its corporations remains", () => {
+    const first = corporation(1000, "hash-a", { alliance_id: 99005338 });
+    const second = corporation(2000, "hash-b", { alliance_id: 99005338 });
+    const alliance = allianceOf(99005338, 1000);
+    alliance.addCorporation(2000);
+    const { actions, state } = actionsOver([first, second], [], [alliance]);
+
+    actions.removeCharacterFromCorporations("hash-a");
+
+    expect(state.account.corporations).toEqual([second]);
+    expect(state.account.alliances).toEqual([alliance]);
+    expect(alliance.corporations).toEqual([2000]);
+  });
+
+  it("drops the alliance once its last corporation has gone", () => {
+    const only = corporation(1000, "hash-a", { alliance_id: 99005338 });
+    const { actions, state } = actionsOver(
+      [only],
+      [],
+      [allianceOf(99005338, 1000)],
+    );
+
+    actions.removeCharacterFromCorporations("hash-a");
+
+    expect(state.account.corporations).toEqual([]);
+    expect(state.account.alliances).toEqual([]);
+  });
+
+  it("leaves the alliances alone for a corporation in none", () => {
+    const loner = corporation(3000, "hash-c");
+    const alliance = allianceOf(99005338, 1000);
+    const { actions, state } = actionsOver([loner], [], [alliance]);
+
+    actions.removeCharacterFromCorporations("hash-c");
+
+    expect(state.account.corporations).toEqual([]);
+    expect(state.account.alliances).toEqual([alliance]);
   });
 });

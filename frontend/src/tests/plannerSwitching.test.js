@@ -100,6 +100,8 @@ describe("naming a planner for display", () => {
     ).toBe("My planner");
   });
 
+  // The account knows an alliance only through a corporation it is in, so a planner for one it
+  // has never met is named by its kind rather than by a lookup that can only miss.
   it("labels an unnamed alliance", () => {
     expect(
       plannerDisplayName({

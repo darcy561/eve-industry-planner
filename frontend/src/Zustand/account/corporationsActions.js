@@ -59,11 +59,13 @@ export const corporationsActions = (set, get) => ({
   removeCharacterFromCorporations: (characterHash) => {
     const state = get();
     const nextList = [...state.account.corporations];
+    const dropped = [];
 
     for (let i = nextList.length - 1; i >= 0; i--) {
       const corp = nextList[i];
       corp.removeMember(characterHash);
       if (corp.members?.length === 0) {
+        dropped.push(corp.corporation_id);
         nextList.splice(i, 1);
       }
     }
@@ -80,6 +82,12 @@ export const corporationsActions = (set, get) => ({
       false,
       "account/corporations/removeCharacterFromCorporations",
     );
+
+    // An account sees an alliance only through a corporation it is in, so a corporation leaving
+    // takes its place in one with it.
+    for (const corporationID of dropped) {
+      state.account.actions.removeCorporationFromAlliances(corporationID);
+    }
   },
 
   setCorporationOffices: (corporationID, officeLocationIDs) => {

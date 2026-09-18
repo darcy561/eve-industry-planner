@@ -4,7 +4,7 @@ import {
   buildCharacterFromStoredCredential,
 } from "./buildCharacterFromCredentials.js";
 import { canonicalCharacterHashKey } from "./characterHashCanonical.js";
-import { buildCorporationObjectFromUserObject } from "../Corporations/buildCorporationObject";
+import { buildCharacterAffiliations } from "./characterAffiliations";
 import { emitUserDataUpdate } from "../../Events/loginEvents";
 import useUsersStore from "../../Zustand/usersStore";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
@@ -27,8 +27,7 @@ export async function hydrateLinkedCharactersFromAccessSessions(
     if (!s?.access_token || !hash) continue;
     try {
       const ch = buildCharacterFromAccessToken(s.access_token);
-      await ch.getPublicCharacterData();
-      await buildCorporationObjectFromUserObject(ch);
+      await buildCharacterAffiliations(ch);
       // Keep login progress UI behaviour consistent with refresh-token hydration:
       // surface each linked character as it finishes loading.
       emitUserDataUpdate({
@@ -71,8 +70,7 @@ export async function buildAccountDataFromRefreshToken(refreshToken) {
       throw character;
     }
 
-    await character.getPublicCharacterData();
-    await buildCorporationObjectFromUserObject(character);
+    await buildCharacterAffiliations(character);
 
     emitUserDataUpdate({
       eveLoginComplete: true,
@@ -165,8 +163,7 @@ export async function buildCharacterFromCloudStoredAccess(characterHash) {
   const character = await buildCharacterFromStoredCredential(characterHash);
   if (!character) return null;
   try {
-    await character.getPublicCharacterData();
-    await buildCorporationObjectFromUserObject(character);
+    await buildCharacterAffiliations(character);
     return character;
   } catch (e) {
     console.error(e);
