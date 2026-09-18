@@ -35,7 +35,6 @@ describe("private requests and the planner session", () => {
     mockEnsurePlannerSession.mockClear().mockResolvedValue(undefined);
     mockEnforceReauthDemand.mockClear();
     useUsersStore.setState((s) => ({
-      ...s,
       account: {
         ...s.account,
         sessionID: "session-1",

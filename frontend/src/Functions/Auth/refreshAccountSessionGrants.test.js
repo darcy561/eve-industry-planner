@@ -18,7 +18,6 @@ import refreshAccountSessionGrants from "./refreshAccountSessionGrants.js";
 
 function seedRoster(characters, { userCloudAccounts = false } = {}) {
   useUsersStore.setState((s) => ({
-    ...s,
     applicationSettings: {
       ...s.applicationSettings,
       userCloudAccounts,

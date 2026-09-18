@@ -33,7 +33,6 @@ function seedLoggedInAccount() {
     esiAccessToken({ exp: nowSec + 3600 }),
   );
   useUsersStore.setState((s) => ({
-    ...s,
     applicationSettings: {
       ...s.applicationSettings,
       userCloudAccounts: false,

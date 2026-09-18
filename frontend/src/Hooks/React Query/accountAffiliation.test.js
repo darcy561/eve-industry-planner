@@ -24,7 +24,6 @@ function character(hash, corporationID, nextCorporationID = corporationID) {
 
 function seed(characters) {
   useUsersStore.setState((s) => ({
-    ...s,
     account: { ...s.account, characters, actions: s.account.actions },
   }));
 }

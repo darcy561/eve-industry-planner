@@ -18,7 +18,6 @@ describe("refreshing an ESI access token", () => {
     esiCredentials.reset();
     mockClientRefresh.mockReset();
     useUsersStore.setState((s) => ({
-      ...s,
       applicationSettings: {
         ...s.applicationSettings,
         userCloudAccounts: false,

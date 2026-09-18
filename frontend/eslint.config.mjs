@@ -5,6 +5,7 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 import vitest from "@vitest/eslint-plugin";
 import testingLibrary from "eslint-plugin-testing-library";
 import prettier from "eslint-config-prettier/flat";
+import storePartials from "./eslint-rules/store-partials.js";
 
 export default [
   {
@@ -53,6 +54,16 @@ export default [
         },
       ],
     },
+  },
+
+  {
+    // A `set` / `setState` updater returns a partial the store merges onto the
+    // state it was handed, so spreading that state back in does nothing. The
+    // pattern reads as correct and had grown to 145 sites; a lint rule catches
+    // it where review kept not to.
+    files: ["src/**/*.{js,jsx}"],
+    plugins: { "store-partials": storePartials },
+    rules: { "store-partials/no-whole-state-spread": "error" },
   },
 
   {

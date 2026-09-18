@@ -29,7 +29,6 @@ const ROTATE_URL = "/api/v1/auth/sessions/rotate";
 
 function seed({ userCloudAccounts }) {
   useUsersStore.setState((s) => ({
-    ...s,
     applicationSettings: {
       ...s.applicationSettings,
       userCloudAccounts,

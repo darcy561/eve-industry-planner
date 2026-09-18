@@ -23,7 +23,6 @@ describe("held tokens do not outlive their character", () => {
       esiAccessToken({ exp: Math.floor(Date.now() / 1000) + 3600 }),
     );
     useUsersStore.setState((s) => ({
-      ...s,
       account: {
         ...s.account,
         characters: [

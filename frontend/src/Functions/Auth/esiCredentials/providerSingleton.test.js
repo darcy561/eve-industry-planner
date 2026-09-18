@@ -21,7 +21,6 @@ function seed({
   isMainCharacter = true,
 }) {
   useUsersStore.setState((s) => ({
-    ...s,
     applicationSettings: {
       ...s.applicationSettings,
       userCloudAccounts,
@@ -153,7 +152,6 @@ describe("the wired provider", () => {
       refresh_token: "secret-2",
     });
     useUsersStore.setState((s) => ({
-      ...s,
       account: { ...s.account, characters: [], actions: s.account.actions },
     }));
 
