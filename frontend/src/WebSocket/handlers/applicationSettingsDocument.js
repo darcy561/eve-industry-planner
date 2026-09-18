@@ -51,7 +51,6 @@ export function handleApplicationSettingsDocumentUpsert(ctx) {
     useUsersStore.getState().account.mainCharacterHash ?? undefined;
   useUsersStore.setState(
     (state) => ({
-      ...state,
       applicationSettings: mergeApplicationSettingsState(
         state.applicationSettings,
         document,

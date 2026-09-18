@@ -41,7 +41,6 @@ export const multiSelectionActions = (set) => ({
 
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           multiSelect: [
@@ -73,7 +72,6 @@ export const multiSelectionActions = (set) => ({
 
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           multiSelect: state.jobData.multiSelect.filter(
@@ -97,7 +95,6 @@ export const multiSelectionActions = (set) => ({
   clearMultiSelect: () => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           multiSelect: [],

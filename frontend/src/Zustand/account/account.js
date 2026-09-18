@@ -100,7 +100,6 @@ export const accountActions = (set, get) => ({
     get().websocketSync?.actions?.reset?.();
     set(
       (state) => ({
-        ...state,
         account: {
           ...accountStateDefault(),
           actions: state.account.actions,
@@ -117,11 +116,9 @@ export const accountActions = (set, get) => ({
   setLoggedIn: (value) => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           isLoggedIn: Boolean(value),
-          actions: state.account.actions,
         },
       }),
       false,
@@ -174,9 +171,7 @@ export const accountActions = (set, get) => ({
           );
         }
 
-        acc.actions = state.account.actions;
-
-        return { ...state, account: acc };
+        return { account: acc };
       },
       false,
       "account/addLinkedEsiData",
@@ -205,11 +200,9 @@ export const accountActions = (set, get) => ({
   toggleShareCitadelNames: () => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           shareCitadelNames: !state.account.shareCitadelNames,
-          actions: state.account.actions,
         },
       }),
       false,
@@ -225,11 +218,9 @@ export const accountActions = (set, get) => ({
   setHasCompletedFirstLoginFlow: (value) => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           hasCompletedFirstLoginFlow: Boolean(value),
-          actions: state.account.actions,
         },
       }),
       false,

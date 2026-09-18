@@ -8,7 +8,6 @@ const pricing = () =>
 
 const seed = (defaultPricing) =>
   useUsersStore.setState((state) => ({
-    ...state,
     applicationSettings: { ...state.applicationSettings, defaultPricing },
   }));
 

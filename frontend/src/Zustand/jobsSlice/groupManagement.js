@@ -34,7 +34,6 @@ export const groupManagementActions = (set, get) => ({
     const fromServer = opts.fromServer === true;
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           groupArray: groupArray || [],
@@ -56,7 +55,6 @@ export const groupManagementActions = (set, get) => ({
     if (!ids.length) return;
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           pendingJobGroupWrites: mergePendingJobGroupWrites(
@@ -91,13 +89,11 @@ export const groupManagementActions = (set, get) => ({
         const cur = state.jobData.pendingJobGroupWrites ?? [];
         if (groupIDs == null) {
           return {
-            ...state,
             jobData: { ...state.jobData, pendingJobGroupWrites: [] },
           };
         }
         const remove = new Set(Array.isArray(groupIDs) ? groupIDs : [groupIDs]);
         return {
-          ...state,
           jobData: {
             ...state.jobData,
             pendingJobGroupWrites: cur.filter((id) => !remove.has(id)),
@@ -120,7 +116,6 @@ export const groupManagementActions = (set, get) => ({
   addGroupToGroupArray: (group) => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           groupArray: [...state.jobData.groupArray, group],
@@ -147,7 +142,6 @@ export const groupManagementActions = (set, get) => ({
   removeGroupFromGroupArray: (groupID) => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           groupArray: state.jobData.groupArray.filter(
@@ -226,7 +220,6 @@ export const groupManagementActions = (set, get) => ({
         });
 
         return {
-          ...state,
           jobData: {
             ...state.jobData,
             groupArray: updatedGroupArray,

@@ -29,11 +29,9 @@ export const coreActions = (set) => ({
   resetWorldDataStore: () => {
     set(
       (state) => ({
-        ...state,
         worldData: {
           ...state.worldData,
           ...stateDefault(),
-          actions: state.worldData.actions,
         },
       }),
       false,

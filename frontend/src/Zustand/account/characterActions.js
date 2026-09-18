@@ -82,14 +82,12 @@ export const characterActions = (set, get) => ({
   addCharacter: (character) => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           characters: upsertCharactersByCanonicalHash(
             state.account.characters,
             [character],
           ),
-          actions: state.account.actions,
         },
       }),
       false,
@@ -105,13 +103,11 @@ export const characterActions = (set, get) => ({
     esiCredentials.forget(character.CharacterHash);
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           characters: state.account.characters.filter(
             (ch) => canonicalCharacterHashKey(ch?.CharacterHash || "") !== drop,
           ),
-          actions: state.account.actions,
         },
       }),
       false,
@@ -122,11 +118,9 @@ export const characterActions = (set, get) => ({
   updateCharacters: (characters) => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           characters,
-          actions: state.account.actions,
         },
       }),
       false,
@@ -137,14 +131,12 @@ export const characterActions = (set, get) => ({
   addCharacters: (characters) => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           characters: upsertCharactersByCanonicalHash(
             state.account.characters,
             characters,
           ),
-          actions: state.account.actions,
         },
       }),
       false,

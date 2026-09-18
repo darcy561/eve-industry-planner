@@ -122,7 +122,6 @@ describe("closeActiveJob", () => {
     });
     shakerAdjustments.current = [{ job, required: 3440 }];
     storeHolder.current.setState((state) => ({
-      ...state,
       applicationSettings: {
         ...state.applicationSettings,
         enableAutomaticJobRecalculation: true,

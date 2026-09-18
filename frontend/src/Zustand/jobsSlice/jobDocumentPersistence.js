@@ -17,7 +17,6 @@ export const jobDocumentPersistenceActions = (set, get) => ({
     if (!ids.length) return;
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           pendingJobDocumentWrites: mergePendingJobDocumentWrites(
@@ -67,13 +66,11 @@ export const jobDocumentPersistenceActions = (set, get) => ({
         const cur = state.jobData.pendingJobDocumentWrites ?? [];
         if (jobIDs == null) {
           return {
-            ...state,
             jobData: { ...state.jobData, pendingJobDocumentWrites: [] },
           };
         }
         const remove = new Set(Array.isArray(jobIDs) ? jobIDs : [jobIDs]);
         return {
-          ...state,
           jobData: {
             ...state.jobData,
             pendingJobDocumentWrites: cur.filter((id) => !remove.has(id)),

@@ -43,11 +43,9 @@ export const corporationsActions = (set, get) => ({
             ? prev.map((c, i) => (i === idx ? corporation : c))
             : [...prev, corporation];
         return {
-          ...state,
           account: {
             ...state.account,
             corporations: next,
-            actions: state.account.actions,
           },
         };
       },
@@ -72,11 +70,9 @@ export const corporationsActions = (set, get) => ({
 
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           corporations: nextList,
-          actions: state.account.actions,
         },
       }),
       false,
@@ -100,13 +96,11 @@ export const corporationsActions = (set, get) => ({
 
     set(
       (s) => ({
-        ...s,
         account: {
           ...s.account,
           corporations: s.account.corporations.map((c, i) =>
             i === idx ? corp : c,
           ),
-          actions: s.account.actions,
         },
       }),
       false,

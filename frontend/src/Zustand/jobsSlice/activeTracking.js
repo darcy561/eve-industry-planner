@@ -32,7 +32,6 @@ export const activeTrackingActions = (set, get) => ({
   setActiveJobID: (jobID) => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           activeJobID: jobID,
@@ -54,7 +53,6 @@ export const activeTrackingActions = (set, get) => ({
   setActiveGroupID: (groupID) => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           activeGroupID: groupID,
@@ -71,7 +69,6 @@ export const activeTrackingActions = (set, get) => ({
   clearActiveGroupID: () => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           activeGroupID: null,

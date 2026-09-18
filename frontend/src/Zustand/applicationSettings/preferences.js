@@ -38,7 +38,6 @@ export const preferencesActions = (set, get) => ({
   toggleCloudAccounts: () =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           userCloudAccounts: !state.applicationSettings.userCloudAccounts,
@@ -60,7 +59,6 @@ export const preferencesActions = (set, get) => ({
   setCloudAccountsEnabled: (enabled) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           userCloudAccounts: Boolean(enabled),
@@ -81,7 +79,6 @@ export const preferencesActions = (set, get) => ({
   toggleHideTutorials: () =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           displayHelpCards: !state.applicationSettings.displayHelpCards,
@@ -102,7 +99,6 @@ export const preferencesActions = (set, get) => ({
   toggleEnableCompactView: () =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           enableCompactLayoutView:
@@ -121,7 +117,6 @@ export const preferencesActions = (set, get) => ({
   setEnableCompactLayoutView: (compact) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           enableCompactLayoutView: Boolean(compact),
@@ -143,7 +138,6 @@ export const preferencesActions = (set, get) => ({
   updateEsiJobTab: (newValue) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           esiJobTab: newValue,
@@ -162,7 +156,6 @@ export const preferencesActions = (set, get) => ({
   setJobStatusLabel: (id, name) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           jobStatuses: {
@@ -186,7 +179,6 @@ export const preferencesActions = (set, get) => ({
   updateDefaultMaterialEfficiencyValue: (newValue) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           defaultMaterialEfficiencyValue: newValue,
@@ -221,7 +213,6 @@ export const preferencesActions = (set, get) => ({
         const { groups: _dropped, ...withoutGroups } = current ?? {};
 
         return {
-          ...state,
           applicationSettings: {
             ...state.applicationSettings,
             defaultPricing: {
@@ -254,7 +245,6 @@ export const preferencesActions = (set, get) => ({
   updatePricingDefault: (side, key, value) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           defaultPricing: {
@@ -281,7 +271,6 @@ export const preferencesActions = (set, get) => ({
   toggleHideCompleteMaterials: () =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           hideCompleteMaterials:
@@ -303,7 +292,6 @@ export const preferencesActions = (set, get) => ({
   updateDefaultAssetLocation: (newValue) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           defaultStationIDForAssets: newValue,
@@ -324,7 +312,6 @@ export const preferencesActions = (set, get) => ({
   updateCitadelBrokersFee: (newValue) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           defaultCitadelBrokersFee: newValue,
@@ -349,7 +336,6 @@ export const preferencesActions = (set, get) => ({
   updateExemptTypeIDs: (inputValue) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           exemptTypeIDs: new Set(
@@ -396,7 +382,6 @@ export const preferencesActions = (set, get) => ({
 
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           exemptTypeIDs: new Set([
@@ -429,7 +414,6 @@ export const preferencesActions = (set, get) => ({
 
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           exemptTypeIDs: new Set(
@@ -455,7 +439,6 @@ export const preferencesActions = (set, get) => ({
   toggleAutomaticJobRecalculation: () =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           enableAutomaticJobRecalculation:
@@ -477,7 +460,6 @@ export const preferencesActions = (set, get) => ({
   toggleIgnoreItemsWithoutBlueprints: () =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           enableSkipMissingBlueprints:
@@ -496,7 +478,6 @@ export const preferencesActions = (set, get) => ({
   setDefaultMarketCharacter: (characterHash) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           defaultMarketCharacter: characterHash ?? null,
@@ -514,7 +495,6 @@ export const preferencesActions = (set, get) => ({
   setDefaultReprocessingCharacter: (characterHash) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           reprocessingSettings: {
@@ -570,7 +550,6 @@ export const preferencesActions = (set, get) => ({
   updateReprocessingCalculationSettings: (newSettings) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           reprocessingSettings: {
@@ -594,7 +573,6 @@ export const preferencesActions = (set, get) => ({
   updateLocale: (newLocale) =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           locale: normalizeLocaleForIntl(newLocale),
@@ -629,7 +607,6 @@ export const preferencesActions = (set, get) => ({
   resetLocale: () =>
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           locale: detectUserLocale(),

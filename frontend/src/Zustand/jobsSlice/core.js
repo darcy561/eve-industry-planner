@@ -65,11 +65,9 @@ export const coreActions = (set, get) => ({
   resetJobDataStore: () => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           ...stateDefault(),
-          actions: state.jobData.actions,
         },
       }),
       false,
@@ -83,7 +81,6 @@ export const coreActions = (set, get) => ({
   clearJobArray: () => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           jobArray: [],
@@ -105,7 +102,6 @@ export const coreActions = (set, get) => ({
     const fromServer = opts.fromServer === true;
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           jobArray: jobArray || [],
@@ -130,7 +126,6 @@ export const coreActions = (set, get) => ({
 
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           jobArray: [...state.jobData.jobArray, ...newJobs],
@@ -154,7 +149,6 @@ export const coreActions = (set, get) => ({
 
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           jobArray: [...state.jobData.jobArray, ...newJobs],
@@ -193,7 +187,6 @@ export const coreActions = (set, get) => ({
 
         // Add all incoming jobs (replaces any duplicates)
         return {
-          ...state,
           jobData: {
             ...state.jobData,
             jobArray: [...jobsToKeep, ...inputJobs],
@@ -231,7 +224,6 @@ export const coreActions = (set, get) => ({
         );
 
         return {
-          ...state,
           jobData: {
             ...state.jobData,
             jobArray: filteredJobs,
@@ -259,7 +251,6 @@ export const coreActions = (set, get) => ({
         );
         if (next.length === state.jobData.jobArray.length) return state;
         return {
-          ...state,
           jobData: {
             ...state.jobData,
             jobArray: next,

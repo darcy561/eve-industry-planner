@@ -32,7 +32,6 @@ export const watchlistManagementActions = (set) => ({
   setUserWatchlist: (items, groups) => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           userWatchlist: {
@@ -57,7 +56,6 @@ export const watchlistManagementActions = (set) => ({
   setUserWatchlistGroups: (groups) => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           userWatchlist: {
@@ -82,7 +80,6 @@ export const watchlistManagementActions = (set) => ({
   setUserWatchlistItems: (items) => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           userWatchlist: {

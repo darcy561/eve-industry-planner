@@ -37,7 +37,6 @@ export const systemIndexesActions = (set, get) => ({
   addSystemIndex: (inputObject = {}) => {
     set(
       (state) => ({
-        ...state,
         worldData: {
           ...state.worldData,
           systemIndexes: {

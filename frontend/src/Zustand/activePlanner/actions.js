@@ -19,11 +19,9 @@ export const activePlannerActions = (set, get) => ({
     if (get().activePlanner.owner === owner) return;
     set(
       (state) => ({
-        ...state,
         activePlanner: {
           ...state.activePlanner,
           owner,
-          actions: state.activePlanner.actions,
         },
       }),
       false,
@@ -35,7 +33,6 @@ export const activePlannerActions = (set, get) => ({
   resetActivePlannerStore: () => {
     set(
       (state) => ({
-        ...state,
         activePlanner: {
           ...stateDefault(),
           actions: state.activePlanner.actions,

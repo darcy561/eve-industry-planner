@@ -330,7 +330,6 @@ export function mergeApplicationSettingsState(
       incoming.jobStatuses != null && typeof incoming.jobStatuses === "object"
         ? { ...incoming.jobStatuses }
         : prev.jobStatuses,
-    actions: prev.actions,
   };
 }
 
@@ -345,7 +344,6 @@ export const coreActions = (set, get) => ({
 
     set(
       (state) => ({
-        ...state,
         applicationSettings: mergeApplicationSettingsState(
           state.applicationSettings,
           incoming,
@@ -361,7 +359,6 @@ export const coreActions = (set, get) => ({
   resetApplicationSettingsStore: () => {
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...stateDefault(),
           actions: state.applicationSettings.actions,
@@ -490,14 +487,12 @@ export const coreActions = (set, get) => ({
 
     set(
       (state) => ({
-        ...state,
         applicationSettings: {
           ...state.applicationSettings,
           jobStatuses: {
             ...state.applicationSettings.jobStatuses,
             ...map,
           },
-          actions: state.applicationSettings.actions,
         },
       }),
       false,

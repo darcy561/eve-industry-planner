@@ -32,11 +32,9 @@ export const alliancesActions = (set, get) => ({
             ? prev.map((a, i) => (i === idx ? alliance : a))
             : [...prev, alliance];
         return {
-          ...state,
           account: {
             ...state.account,
             alliances: next,
-            actions: state.account.actions,
           },
         };
       },
@@ -65,11 +63,9 @@ export const alliancesActions = (set, get) => ({
 
     set(
       (s) => ({
-        ...s,
         account: {
           ...s.account,
           alliances: next,
-          actions: s.account.actions,
         },
       }),
       false,

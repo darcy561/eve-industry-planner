@@ -15,7 +15,6 @@ export const inboundSkeletonActions = (set) => ({
   addPendingInboundNewJobSkeleton: (jobID, meta) => {
     set(
       (state) => ({
-        ...state,
         jobData: {
           ...state.jobData,
           pendingInboundNewJobSkeletonByJobId: {
@@ -41,7 +40,6 @@ export const inboundSkeletonActions = (set) => ({
           delete next[id];
         }
         return {
-          ...state,
           jobData: {
             ...state.jobData,
             pendingInboundNewJobSkeletonByJobId: next,

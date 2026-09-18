@@ -51,11 +51,9 @@ const documentLockSlice = (set, get) => ({
       resetAllDocumentLocks: () =>
         set(
           (state) => ({
-            ...state,
             documentLock: {
               ...state.documentLock,
               scopes: {},
-              actions: state.documentLock.actions,
             },
           }),
           false,
@@ -94,11 +92,9 @@ const documentLockSlice = (set, get) => ({
             }
             if (!changed) return state;
             return {
-              ...state,
               documentLock: {
                 ...state.documentLock,
                 scopes: nextScopes,
-                actions: state.documentLock.actions,
               },
             };
           },
@@ -120,14 +116,12 @@ const documentLockSlice = (set, get) => ({
             const prev =
               state.documentLock.scopes[k] ?? initialScopedDocumentLockState();
             return {
-              ...state,
               documentLock: {
                 ...state.documentLock,
                 scopes: {
                   ...state.documentLock.scopes,
                   [k]: { ...prev, ...partial },
                 },
-                actions: state.documentLock.actions,
               },
             };
           },
@@ -148,11 +142,9 @@ const documentLockSlice = (set, get) => ({
             if (!state.documentLock.scopes[k]) return state;
             const { [k]: _removed, ...rest } = state.documentLock.scopes;
             return {
-              ...state,
               documentLock: {
                 ...state.documentLock,
                 scopes: rest,
-                actions: state.documentLock.actions,
               },
             };
           },
@@ -284,14 +276,12 @@ const documentLockSlice = (set, get) => ({
             const prev =
               state.documentLock.scopes[k] ?? initialScopedDocumentLockState();
             return {
-              ...state,
               documentLock: {
                 ...state.documentLock,
                 scopes: {
                   ...state.documentLock.scopes,
                   [k]: { ...prev, pendingAccessRequest: false },
                 },
-                actions: state.documentLock.actions,
               },
             };
           },

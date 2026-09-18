@@ -149,11 +149,9 @@ export const plannerSessionActions = (set, get) => ({
   setIsFirstTimeLogin: (value) => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           isFirstTimeLogin: Boolean(value),
-          actions: state.account.actions,
         },
       }),
       false,
@@ -222,7 +220,6 @@ export const plannerSessionActions = (set, get) => ({
           nextApplicationSettings = {
             ...nextApplicationSettings,
             userCloudAccounts,
-            actions: nextApplicationSettings.actions,
           };
         }
 
@@ -237,7 +234,6 @@ export const plannerSessionActions = (set, get) => ({
             : null;
 
         return {
-          ...state,
           account: {
             ...state.account,
             accountID: response.account_id,
@@ -263,7 +259,6 @@ export const plannerSessionActions = (set, get) => ({
               cloudResolved &&
               Array.isArray(response.linked_characters) &&
               response.linked_characters.length > 0,
-            actions: state.account.actions,
           },
           applicationSettings: nextApplicationSettings,
         };
@@ -290,11 +285,9 @@ export const plannerSessionActions = (set, get) => ({
   setPlannerPrivateAuthReady: (ready) => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           plannerPrivateAuthReady: Boolean(ready),
-          actions: state.account.actions,
         },
       }),
       false,
@@ -305,11 +298,9 @@ export const plannerSessionActions = (set, get) => ({
   clearLinkedBootstrapHydrationPending: () => {
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           linkedBootstrapHydrationPending: false,
-          actions: state.account.actions,
         },
       }),
       false,
@@ -330,7 +321,6 @@ export const plannerSessionActions = (set, get) => ({
     const shareCitadelNames = shareCitadelNamesFromUserDocument(doc);
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           ...linkedPatch,
@@ -340,13 +330,11 @@ export const plannerSessionActions = (set, get) => ({
           ...(shareCitadelNames !== undefined && {
             shareCitadelNames,
           }),
-          actions: state.account.actions,
         },
         ...(userCloudAccounts !== undefined && {
           applicationSettings: {
             ...state.applicationSettings,
             userCloudAccounts,
-            actions: state.applicationSettings.actions,
           },
         }),
       }),
@@ -375,7 +363,6 @@ export const plannerSessionActions = (set, get) => ({
     });
     set(
       (state) => ({
-        ...state,
         account: {
           ...state.account,
           ...(nextSessionID !== undefined && {
@@ -384,7 +371,6 @@ export const plannerSessionActions = (set, get) => ({
           ...(partial.refreshToken !== undefined && {
             refreshToken: partial.refreshToken,
           }),
-          actions: state.account.actions,
         },
       }),
       false,
@@ -485,11 +471,9 @@ export const plannerSessionActions = (set, get) => ({
         get().account.actions.setSessionTokens(tokenPatch);
         set(
           (s) => ({
-            ...s,
             account: {
               ...s.account,
               lastPlannerSessionValidatedAt: Date.now(),
-              actions: s.account.actions,
             },
           }),
           false,
@@ -515,11 +499,9 @@ export const plannerSessionActions = (set, get) => ({
             );
             set(
               (s) => ({
-                ...s,
                 account: {
                   ...s.account,
                   lastPlannerSessionValidatedAt: Date.now(),
-                  actions: s.account.actions,
                 },
               }),
               false,

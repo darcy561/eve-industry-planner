@@ -74,11 +74,9 @@ const headerDocumentLockUISlice = (set) => ({
               return state;
             }
             return {
-              ...state,
               headerDocumentLockUI: {
                 ...cur,
                 registrations: nextRegs,
-                actions: cur.actions,
               },
             };
           },
@@ -89,10 +87,11 @@ const headerDocumentLockUISlice = (set) => ({
       patchHeaderDocumentLockUI: (partial = {}) =>
         set(
           (state) => ({
-            ...state,
             headerDocumentLockUI: {
               ...state.headerDocumentLockUI,
               ...partial,
+              // Restated below the caller's patch, which could otherwise carry
+              // an `actions` key of its own and replace the slice's.
               actions: state.headerDocumentLockUI.actions,
             },
           }),
@@ -103,11 +102,9 @@ const headerDocumentLockUISlice = (set) => ({
       clearHeaderDocumentLockUI: () =>
         set(
           (state) => ({
-            ...state,
             headerDocumentLockUI: {
               ...state.headerDocumentLockUI,
               ...initialHeaderDocumentLockUIState(),
-              actions: state.headerDocumentLockUI.actions,
             },
           }),
           false,

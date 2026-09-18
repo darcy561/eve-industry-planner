@@ -28,14 +28,12 @@ const websocketSyncSlice = (set, get) => ({
         if (!docKey || !Number.isFinite(position)) return;
         set(
           (state) => ({
-            ...state,
             websocketSync: {
               ...state.websocketSync,
               positions: {
                 ...state.websocketSync.positions,
                 [docKey]: position,
               },
-              actions: state.websocketSync.actions,
             },
           }),
           false,
@@ -60,11 +58,9 @@ const websocketSyncSlice = (set, get) => ({
         if (Object.keys(patch).length === 0) return;
         set(
           (state) => ({
-            ...state,
             websocketSync: {
               ...state.websocketSync,
               positions: { ...state.websocketSync.positions, ...patch },
-              actions: state.websocketSync.actions,
             },
           }),
           false,
@@ -106,11 +102,9 @@ const websocketSyncSlice = (set, get) => ({
         }
         set(
           (state) => ({
-            ...state,
             websocketSync: {
               ...state.websocketSync,
               positions: kept,
-              actions: state.websocketSync.actions,
             },
           }),
           false,
@@ -121,7 +115,6 @@ const websocketSyncSlice = (set, get) => ({
       reset: () =>
         set(
           (state) => ({
-            ...state,
             websocketSync: {
               positions: {},
               actions: state.websocketSync.actions,

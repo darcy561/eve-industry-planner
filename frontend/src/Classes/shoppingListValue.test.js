@@ -16,7 +16,6 @@ import {
 
 const seed = ({ market, prices, groups }) => {
   useUsersStore.setState((state) => ({
-    ...state,
     applicationSettings: {
       ...state.applicationSettings,
       defaultPricing: {

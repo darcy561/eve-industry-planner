@@ -28,7 +28,6 @@ export const predefinedSystemIndexActions = (set, get) => ({
         });
 
         return {
-          ...state,
           applicationSettings: {
             ...state.applicationSettings,
             predefinedSystemIndexes: mergedIndexes,
@@ -75,7 +74,6 @@ export const predefinedSystemIndexActions = (set, get) => ({
         }
 
         return {
-          ...state,
           applicationSettings: {
             ...state.applicationSettings,
             predefinedSystemIndexes: newIndexes,

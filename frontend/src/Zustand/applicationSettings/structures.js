@@ -76,7 +76,6 @@ export const structureActions = (set, get) => ({
 
         structure.setDefault(storageLocation.length === 0);
         return {
-          ...state,
           applicationSettings: {
             ...state.applicationSettings,
             customStructures: {
@@ -134,7 +133,6 @@ export const structureActions = (set, get) => ({
         });
 
         return {
-          ...state,
           applicationSettings: {
             ...state.applicationSettings,
             customStructures: {
@@ -192,7 +190,6 @@ export const structureActions = (set, get) => ({
         }
 
         return {
-          ...state,
           applicationSettings: {
             ...state.applicationSettings,
             customStructures: {

@@ -95,7 +95,6 @@ export const plannerSettingsActions = (set, get) => ({
     const next = change(settings.extrasCategories ?? []);
     set(
       (state) => ({
-        ...state,
         plannerSettings: {
           ...state.plannerSettings,
           byOwner: {
@@ -106,7 +105,6 @@ export const plannerSettingsActions = (set, get) => ({
             ...state.plannerSettings.unsavedByOwner,
             [ownerHandle]: true,
           },
-          actions: state.plannerSettings.actions,
         },
       }),
       false,
@@ -158,11 +156,9 @@ export const plannerSettingsActions = (set, get) => ({
         const unsavedByOwner = { ...state.plannerSettings.unsavedByOwner };
         delete unsavedByOwner[ownerHandle];
         return {
-          ...state,
           plannerSettings: {
             ...state.plannerSettings,
             unsavedByOwner,
-            actions: state.plannerSettings.actions,
           },
         };
       },
@@ -180,7 +176,6 @@ export const plannerSettingsActions = (set, get) => ({
     if (!ownerHandle) return;
     set(
       (state) => ({
-        ...state,
         plannerSettings: {
           ...state.plannerSettings,
           byOwner: {
@@ -191,7 +186,6 @@ export const plannerSettingsActions = (set, get) => ({
             ...state.plannerSettings.seededByOwner,
             [ownerHandle]: !!seeded,
           },
-          actions: state.plannerSettings.actions,
         },
       }),
       false,
@@ -220,12 +214,10 @@ export const plannerSettingsActions = (set, get) => ({
         delete byOwner[ownerHandle];
         delete seededByOwner[ownerHandle];
         return {
-          ...state,
           plannerSettings: {
             ...state.plannerSettings,
             byOwner,
             seededByOwner,
-            actions: state.plannerSettings.actions,
           },
         };
       },
@@ -262,7 +254,6 @@ export const plannerSettingsActions = (set, get) => ({
   resetPlannerSettingsStore: () => {
     set(
       (state) => ({
-        ...state,
         plannerSettings: {
           ...stateDefault(),
           actions: state.plannerSettings.actions,
