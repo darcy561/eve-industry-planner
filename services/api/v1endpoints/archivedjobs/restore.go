@@ -87,7 +87,10 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		req.Jobs[i].MetaData.ArchiveProcessed = false
 	}
 
-	if _, failed, writeErr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, req.Archive.Owner, req.AccountID, req.Jobs, now, req.SessionID, req.WSClientID); writeErr != nil {
+	// A restored job is rebuilt from the archive rather than edited, so it carries
+	// no revision and is written unconditionally — there is no read for a
+	// conditional write to be conditional on.
+	if _, failed, _, writeErr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, req.Archive.Owner, req.AccountID, req.Jobs, now, req.SessionID, req.WSClientID); writeErr != nil {
 		return restoreResult{}, fmt.Errorf("write job documents: %w", writeErr)
 	} else if failed > 0 {
 		return restoreResult{}, fmt.Errorf("write job documents: %d of %d rejected", failed, len(req.Jobs))

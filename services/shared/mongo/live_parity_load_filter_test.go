@@ -88,10 +88,10 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 	otherJobID := fmt.Sprintf("eip-parity-scope-delta-other-%d", now.UnixNano())
 	job := scopeScratchJob(jobID, accountID)
 	other := scopeScratchJob(otherJobID, otherAccount)
-	if _, failed, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(accountID), accountID, []models.Job{job}, now, "scope-delta", "scope-delta"); err != nil || failed != 0 {
+	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(accountID), accountID, []models.Job{job}, now, "scope-delta", "scope-delta"); err != nil || failed != 0 {
 		t.Fatalf("seed: failed=%d err=%v", failed, err)
 	}
-	if _, failed, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(otherAccount), otherAccount, []models.Job{other}, now, "scope-delta", "scope-delta"); err != nil || failed != 0 {
+	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(otherAccount), otherAccount, []models.Job{other}, now, "scope-delta", "scope-delta"); err != nil || failed != 0 {
 		t.Fatalf("seed other: failed=%d err=%v", failed, err)
 	}
 
@@ -224,10 +224,10 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	jobA := scopeScratchJob(fmt.Sprintf("eip-parity-scope-a-%d", now.UnixNano()), accountA)
 	jobB := scopeScratchJob(fmt.Sprintf("eip-parity-scope-b-%d", now.UnixNano()), accountB)
-	if _, failed, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(accountA), accountA, []models.Job{jobA}, now, "scope-sess", "scope-client"); err != nil || failed != 0 {
+	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(accountA), accountA, []models.Job{jobA}, now, "scope-sess", "scope-client"); err != nil || failed != 0 {
 		t.Fatalf("seed A: failed=%d err=%v", failed, err)
 	}
-	if _, failed, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(accountB), accountB, []models.Job{jobB}, now, "scope-sess", "scope-client"); err != nil || failed != 0 {
+	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(accountB), accountB, []models.Job{jobB}, now, "scope-sess", "scope-client"); err != nil || failed != 0 {
 		t.Fatalf("seed B: failed=%d err=%v", failed, err)
 	}
 

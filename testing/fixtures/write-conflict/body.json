@@ -1,0 +1,36 @@
+{
+  "why": "The HTTP 409 a refused write is answered with. Read by a Go test and a vitest test, so a field renamed on one side without the other turns the other side red. A drift here is silent in production: the client stops recognising the refusal, falls through to a generic error, and the write is retried forever.",
+  "errorCodes": {
+    "revisionConflict": "revision_conflict",
+    "lockHeldElsewhere": "lock_held_elsewhere"
+  },
+  "why_two_codes": "Both are a 409 carrying a `rejected` array and they are told apart on `error` alone. A lock conflict means the write is blocked and can still succeed later, so its queue is kept; a revision conflict means the document moved and the write can never succeed as sent, so its queue is dropped. Reading one as the other loses work or loops forever.",
+  "body": {
+    "error": "revision_conflict",
+    "collection": "job_documents",
+    "saved": 2,
+    "rejected": [
+      {
+        "docID": "job-moved",
+        "expected": 4,
+        "current": 9,
+        "gone": false
+      },
+      {
+        "docID": "job-deleted",
+        "expected": 4,
+        "current": 0,
+        "gone": true
+      }
+    ]
+  },
+  "fields": {
+    "error": "The discriminator. A body whose error is not `revision_conflict` is not one, whatever else it carries.",
+    "collection": "Which collection the refused documents belong to.",
+    "saved": "How many of the batch landed. A batch in which one document moved writes the others, so a 409 does not mean nothing happened.",
+    "rejected[].docID": "The job id the client sent, not the owner-scoped stored id. Named docID to match every other document-scoped payload, including the lock conflict this endpoint also answers.",
+    "rejected[].expected": "The revision the client's write named in its filter.",
+    "rejected[].current": "The revision the document carries now, for the client to reconcile against. Zero when the document is gone.",
+    "rejected[].gone": "The document no longer exists, so there is nothing to reconcile against. Always present, including when false, because a client branches on it and an absent flag would be one more state to decide about."
+  }
+}

@@ -215,7 +215,7 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 	const contested, free = 4242, 4243
 	holder := seedJob("job-restore-holder")
 	holder.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: contested}}
-	if _, failed, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, []models.Job{holder}, now, "sess-3", ""); err != nil || failed > 0 {
+	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, []models.Job{holder}, now, "sess-3", ""); err != nil || failed > 0 {
 		t.Fatalf("seed holder job: %v, failed %d", err, failed)
 	}
 
