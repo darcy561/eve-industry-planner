@@ -153,4 +153,96 @@ describe.skipIf(!RUN)("two members of one planner", () => {
     );
     expect(wroteAnything).toEqual([]);
   }, 120_000);
+
+  // A job deleted while another member has it open must not come back.
+  //
+  // The editor keeps its own copy from the moment it opened, so the member
+  // holding it can still press save on a document nobody else has any more.
+  // Nothing about the store being correct stops that — the close path has to
+  // refuse, and only two clients can show it refusing.
+  it("does not let a member resurrect a job somebody else deleted", async () => {
+    await alice.call(
+      "/src/Functions/Endpoints/Private/jobDocuments.js",
+      "putJobDocumentsBatch",
+      [{ jobID: "job-doomed", name: "Doomed build" }],
+    );
+    await bob.until(
+      "jobData.jobArray",
+      (jobs) => jobs?.some((job) => job.jobID === "job-doomed"),
+      "Bob's store to hold the job",
+    );
+
+    // Bob is working in it, holding his own copy as the editor does.
+    const held = (await bob.read("jobData.jobArray")).find(
+      (job) => job.jobID === "job-doomed",
+    );
+    await bob.action("jobData", "setActiveJobID", "job-doomed");
+
+    await alice.call(
+      "/src/Functions/Endpoints/Private/jobDocuments.js",
+      "deleteJobDocumentsFromApi",
+      ["job-doomed"],
+    );
+    await bob.until(
+      "jobData.jobArray",
+      (jobs) => !jobs?.some((job) => job.jobID === "job-doomed"),
+      "Bob's store to drop the deleted job",
+    );
+
+    await bob.forgetRequests();
+    await bob.call(
+      "/src/Functions/JobPlanner/closeActiveJob.js",
+      "default",
+      held,
+      true,
+      {},
+      {},
+      {},
+      null,
+    );
+
+    expect(
+      (await bob.requests()).filter((request) => request.method !== "GET"),
+    ).toEqual([]);
+    expect(await bob.read("jobData.activeJobID")).toBeNull();
+  }, 60_000);
+
+  // A member cannot clear a lock another member holds, and must be told so.
+  //
+  // The two halves of this are proven separately — the server refuses, and the
+  // client has a message for the refusal — but only over the wire does the
+  // refusal a browser actually receives get checked against the one the server
+  // sends. It used to answer as though no lock existed at all.
+  it("refuses to let one member clear another's lock", async () => {
+    const LOCK_CLIENT =
+      "/src/Functions/Endpoints/Private/documentLockClient.js";
+    const DOC = ["job_documents", "job-contended"];
+
+    const taken = await alice.call(LOCK_CLIENT, "acquireDocumentLock", ...DOC);
+    expect(taken.status, `acquire said: ${taken.body}`).toBe(201);
+
+    const refused = await bob.call(
+      LOCK_CLIENT,
+      "forceReleaseDocumentLockSameAccount",
+      ...DOC,
+    );
+
+    expect(refused.status, `force-release said: ${refused.body}`).toBe(409);
+
+    // And it is still Alice's: a refused clear must not have moved the lock.
+    // Asked as Bob rather than as Alice, because Alice re-acquiring answers the
+    // same way whether the lock was always hers or had been cleared to nobody.
+    const contended = await bob.call(
+      LOCK_CLIENT,
+      "acquireDocumentLock",
+      ...DOC,
+    );
+
+    expect(contended.status).toBe(200);
+    expect(JSON.parse(contended.body)).toMatchObject({
+      held: true,
+      acquired: false,
+      holderSessionID: ALICE.sessionID,
+    });
+  }, 60_000);
 });

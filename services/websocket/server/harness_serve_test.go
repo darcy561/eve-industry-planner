@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -133,7 +134,9 @@ func TestHarnessServe(t *testing.T) {
 				return
 			}
 			if lErr != nil {
-				http.Error(w, action+": "+lErr.Error(), http.StatusInternalServerError)
+				// The statuses the api answers for these, because a scenario
+				// checking what a browser receives is checking exactly this.
+				http.Error(w, action+": "+lErr.Error(), lockRefusalStatus(lErr))
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -226,5 +229,23 @@ func TestHarnessServe(t *testing.T) {
 	case <-stop:
 	case <-time.After(ttl):
 		t.Logf("harness: no caller said stop within %s", ttl)
+	}
+}
+
+// lockRefusalStatus maps a lock service refusal the way
+// api/v1endpoints/documentlocks does, so the harness refuses with the status a
+// browser would really be given.
+func lockRefusalStatus(err error) int {
+	switch {
+	case errors.Is(err, documentlock.ErrForceReleaseOtherAccount):
+		return http.StatusConflict
+	case errors.Is(err, documentlock.ErrForceReleaseNoLock):
+		return http.StatusNotFound
+	case errors.Is(err, documentlock.ErrForceReleaseSameSession):
+		return http.StatusBadRequest
+	case errors.Is(err, documentlock.ErrLocksUnavailable):
+		return http.StatusServiceUnavailable
+	default:
+		return http.StatusInternalServerError
 	}
 }
