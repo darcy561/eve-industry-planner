@@ -48,9 +48,8 @@ func (s *Server) removeFromOwnerPoolsLocked(client *Client) {
 // setClientScopes replaces a client's scopes and moves it between owner pools to
 // match, as one locked step so no fan-out sees the two disagree.
 //
-// Scopes are derived at connect and do not change afterwards, so nothing calls
-// this on the connection path yet; it is what a planner switch will replace them
-// through.
+// Scopes are derived at connect; a planner switch replaces them through here,
+// and so does a grant ceiling that has narrowed under an open connection.
 func (s *Server) setClientScopes(client *Client, next models.OwnerKeys) {
 	s.ownerIndexMu.Lock()
 	s.removeFromOwnerPoolsLocked(client)
@@ -58,6 +57,29 @@ func (s *Server) setClientScopes(client *Client, next models.OwnerKeys) {
 	s.addToOwnerPoolsLocked(client)
 	s.ownerIndexMu.Unlock()
 	s.scheduleDocFanoutFilterReconcile()
+}
+
+// setClientCeilingAndScopes holds a connection to a ceiling that has moved under
+// it, in one locked step.
+//
+// Both together: a reader that saw the new ceiling beside the old scopes would
+// believe the connection still receives a planner the account has left.
+func (s *Server) setClientCeilingAndScopes(client *Client, ceiling, scopes models.OwnerKeys) {
+	s.ownerIndexMu.Lock()
+	s.removeFromOwnerPoolsLocked(client)
+	client.Ceiling = ceiling
+	client.Scopes = scopes
+	s.addToOwnerPoolsLocked(client)
+	s.ownerIndexMu.Unlock()
+	s.scheduleDocFanoutFilterReconcile()
+}
+
+// clientScopesSnapshot reads a connection's scopes under the index lock, for a
+// caller deciding what to narrow them to.
+func (s *Server) clientScopesSnapshot(client *Client) models.OwnerKeys {
+	s.ownerIndexMu.RLock()
+	defer s.ownerIndexMu.RUnlock()
+	return client.Scopes
 }
 
 // removeClientFromOwnerPools drops a client from every pool its scopes name, for

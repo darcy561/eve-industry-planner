@@ -106,7 +106,7 @@ func TestResumeTenantsAreTheConnectionsOwn(t *testing.T) {
 	}
 	client.Scopes = append(client.Scopes, "corporation:corp-ref")
 
-	got := resumeTenants(client)
+	got := (&Server{}).resumeTenants(client)
 
 	want := []string{"account:acct-1", "corporation:corp-ref"}
 	if len(got) != len(want) {

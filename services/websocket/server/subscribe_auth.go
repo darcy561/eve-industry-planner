@@ -37,7 +37,7 @@ func (s *Server) docSubscribeAuthorized(docID string, client *Client) bool {
 
 	case slices.Contains(eipmongo.PlannerHeldCollections(), collection):
 		authorised := false
-		client.Scopes.Each(func(key string) {
+		s.clientScopesSnapshot(client).Each(func(key string) {
 			owner, err := models.ParseOwnerKey(key)
 			if err != nil {
 				return

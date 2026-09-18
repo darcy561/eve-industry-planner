@@ -163,12 +163,7 @@ func RefreshAccountSessionGrants(ctx context.Context, request eipnats.AccountSes
 			"error", err)
 	}
 
-	granted, err := deps.Mongo.OwnerKeysForAccount(ctx, request.AccountID)
-	if err != nil {
-		logs.WarnCtx(ctx, "failed to resolve owners for session grants",
-			"account_id", request.AccountID,
-			"error", err)
-	} else if err := sessions.SetGrants(ctx, request.AccountID, granted); err != nil {
+	if err := taskrun.WriteSessionGrantsFromMemberships(ctx, deps, request.AccountID); err != nil {
 		logs.WarnCtx(ctx, "failed to update account session grants from affiliation lookup",
 			"account_id", request.AccountID,
 			"error", err)

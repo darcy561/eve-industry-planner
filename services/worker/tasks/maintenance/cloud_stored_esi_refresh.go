@@ -189,9 +189,12 @@ func revalidateMemberships(ctx context.Context, deps *taskrun.Dependencies, acco
 	if err != nil {
 		return err
 	}
-	if removed > 0 {
-		logs.InfoCtx(ctx, "removed entity memberships: no character can still prove them",
-			"account_id", accountID, "removed", removed)
+	if removed == 0 {
+		return nil
 	}
-	return nil
+	logs.InfoCtx(ctx, "removed entity memberships: no character can still prove them",
+		"account_id", accountID, "removed", removed)
+	// The rows are what grants are derived from, so a removal that stopped here
+	// would leave the account's stored grants naming planners it has just left.
+	return taskrun.WriteSessionGrantsFromMemberships(ctx, deps, accountID)
 }

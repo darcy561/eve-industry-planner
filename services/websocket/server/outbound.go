@@ -177,7 +177,7 @@ func (s *Server) clientHoldsTarget(client *Client, out Outbound) bool {
 		if out.Target.Kind == models.OwnerAccount {
 			return outgoinglogic.ClientBelongsToAccount(out.Target.ID, client.AccountID)
 		}
-		return client.Scopes.Has(out.Target)
+		return s.clientScopesSnapshot(client).Has(out.Target)
 	case audienceDocSubscribers:
 		return out.DocID != "" && client.explicitDocIDs[out.DocID]
 	default:

@@ -38,6 +38,11 @@ const (
 	// Format: doc.lock.{ownerKey}
 	SubjectDocLock = "doc.lock"
 
+	// SubjectSessionGrantsChanged announces that an account's grants were
+	// rewritten, so a connection holding the old ceiling narrows to the new one.
+	// Payload: SessionGrantsChanged (envelope.go).
+	SubjectSessionGrantsChanged = "session.grants.changed"
+
 	// SubjectHealthCommandPing is the core-NATS fan-out subject for controller health census.
 	// Every app replica Subscribe()s (no queue group) and Respond()s HealthStatus.
 	SubjectHealthCommandPing = "health.command.ping"

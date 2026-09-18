@@ -21,12 +21,12 @@ type lastSequenceLookup func(ctx context.Context, subject string) (sequence uint
 // Read from the connection rather than taken from the client, because it is the
 // answer to "what could I have missed" and a client naming its own list would be
 // asking about planners it may not reach.
-func resumeTenants(client *Client) []string {
+func (s *Server) resumeTenants(client *Client) []string {
 	if client == nil || client.AccountID == "" {
 		return nil
 	}
 	tenants := []string{models.AccountOwner(client.AccountID).Key()}
-	for _, key := range client.Scopes {
+	for _, key := range s.clientScopesSnapshot(client) {
 		if key != "" && key != tenants[0] {
 			tenants = append(tenants, key)
 		}

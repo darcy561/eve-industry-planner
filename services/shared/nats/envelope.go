@@ -3,6 +3,7 @@ package nats
 import (
 	"encoding/json/jsontext"
 	"eve-industry-planner/shared/jsoncodec"
+	"eve-industry-planner/shared/models"
 	"fmt"
 	"strings"
 )
@@ -57,6 +58,16 @@ type HealthStatus struct {
 	Draining          bool   `json:"draining,omitzero"`
 	HostedTenantCount int    `json:"hosted_tenant_count,omitzero"`
 	ActiveTasks       int    `json:"active_tasks,omitzero"`
+}
+
+// SessionGrantsChanged is the payload for SubjectSessionGrantsChanged: the
+// account whose ceiling moved, and what it is now.
+//
+// The whole list rather than what was removed, so a receiver narrows to it
+// without needing to have seen every earlier message.
+type SessionGrantsChanged struct {
+	AccountID string           `json:"account_id"`
+	Granted   models.OwnerKeys `json:"granted"`
 }
 
 // MaintenanceState is the raw JSON payload for SubjectAppConfigMaintenanceState

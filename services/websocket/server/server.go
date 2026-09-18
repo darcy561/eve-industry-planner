@@ -79,6 +79,7 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 
 	// Anything addressed to an audience (any producer → NATS deliver.{audience}.{target}.{family}.{subtype})
 	s.subscribeToAudienceMessages()
+	s.subscribeToSessionGrantsChanges()
 
 	s.reconcileDocUpdateFanoutConsumers()
 

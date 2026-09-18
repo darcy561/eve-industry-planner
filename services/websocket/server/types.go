@@ -23,7 +23,6 @@ type Server struct {
 	entityCipher *entityid.Cipher
 
 	// Client management
-	// Exported for use by sync package
 	Clients   map[string]*Client
 	ClientsMu sync.RWMutex
 

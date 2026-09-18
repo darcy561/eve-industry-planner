@@ -304,31 +304,35 @@ func (f *integFixture) connectAccount(accountID, sessionID string) *websocket.Co
 	return conn
 }
 
-// withAudienceDelivery attaches an in-process NATS server and starts the
-// audience subscription, so a scenario can publish on the real subject and watch
-// the frame arrive at a socket.
-func (f *integFixture) withAudienceDelivery() *eipnats.NATS {
+// withDelivery attaches an in-process NATS server and starts one of the server's
+// real subscriptions, so a scenario publishes on the subject production
+// publishes on rather than calling the handler behind it.
+func (f *integFixture) withDelivery(subscribe func()) *eipnats.NATS {
 	f.t.Helper()
 	fake := natsfake.New(f.t)
 	f.Server.Stack.NATS = fake.NATS
-	f.Server.subscribeToAudienceMessages()
+	subscribe()
 	return fake.NATS
 }
 
-// withDocLockDelivery attaches an in-process NATS server and starts the lock
-// subscription, so a scenario can publish on the real subject and watch the
-// frame arrive at a socket.
-//
-// Call it after the connections exist: subscribing reconciles the consumer's
-// filter subjects from the hosted tenants, which are derived from who is
-// connected, and a subject nothing is hosting is filtered out.
+// withAudienceDelivery watches a frame addressed to an audience arrive at a
+// socket.
+func (f *integFixture) withAudienceDelivery() *eipnats.NATS {
+	f.t.Helper()
+	return f.withDelivery(f.Server.subscribeToAudienceMessages)
+}
+
+// withSessionGrantsDelivery watches an account's ceiling change reach the
+// connections it holds.
+func (f *integFixture) withSessionGrantsDelivery() *eipnats.NATS {
+	f.t.Helper()
+	return f.withDelivery(f.Server.subscribeToSessionGrantsChanges)
+}
+
 func (f *integFixture) withDocLockDelivery() *eipnats.NATS {
 	f.t.Helper()
 	f.t.Setenv("HOSTNAME", "websocket-integ-doclock")
-	fake := natsfake.New(f.t)
-	f.Server.Stack.NATS = fake.NATS
-	f.Server.subscribeToDocLockNotifications()
-	return fake.NATS
+	return f.withDelivery(f.Server.subscribeToDocLockNotifications)
 }
 
 // connectTab dials an already-seeded session and returns the connection with the
@@ -349,15 +353,31 @@ func (f *integFixture) connectTab(sessionID string) (*websocket.Conn, string) {
 }
 
 // scopesOf reads the owner keys a live connection holds.
+//
+// Through the same accessor production uses: a scenario that publishes a grants
+// change watches this from the test goroutine while the subscription narrows the
+// connection on its own, and the field is a slice header.
 func (f *integFixture) scopesOf(clientID string) models.OwnerKeys {
 	f.t.Helper()
 	f.Server.ClientsMu.RLock()
-	defer f.Server.ClientsMu.RUnlock()
 	client, ok := f.Server.Clients[clientID]
+	f.Server.ClientsMu.RUnlock()
 	if !ok {
 		f.t.Fatalf("no live client %q", clientID)
 	}
-	return client.Scopes
+	return f.Server.clientScopesSnapshot(client)
+}
+
+// ownerPoolKeys is every owner key the routing index currently pools a client
+// under, for a test asserting on what delivery would walk.
+func (s *Server) ownerPoolKeys() []string {
+	s.ownerIndexMu.RLock()
+	defer s.ownerIndexMu.RUnlock()
+	keys := make([]string, 0, len(s.ownerKeyToClients))
+	for key := range s.ownerKeyToClients {
+		keys = append(keys, key)
+	}
+	return keys
 }
 
 func (f *integFixture) writeJSON(conn *websocket.Conn, payload any) {

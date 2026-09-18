@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	"fmt"
 	"strings"
 	"time"
@@ -64,6 +65,24 @@ func PublishPlacementState(n *NATS, state PlacementState) error {
 // SubscribePlacementState calls handle as replicas announce their load.
 func SubscribePlacementState(n *NATS, handle func(PlacementState)) (stop func(), err error) {
 	return subscribeTopic(n, SubjectWSPlacementState, handle)
+}
+
+// PublishSessionGrantsChanged announces an account's new ceiling.
+//
+// Core NATS rather than the stream: a replica that misses one re-derives every
+// connection's scopes from the stored record at connect, and the stored record
+// is already correct by the time this is published — so a miss costs one
+// connection's lifetime of staleness rather than a lost revocation.
+func PublishSessionGrantsChanged(n *NATS, accountID string, granted models.OwnerKeys) error {
+	return n.publishTopic(SubjectSessionGrantsChanged, SessionGrantsChanged{
+		AccountID: accountID,
+		Granted:   granted,
+	})
+}
+
+// SubscribeSessionGrantsChanged calls handle as accounts' ceilings change.
+func SubscribeSessionGrantsChanged(n *NATS, handle func(SessionGrantsChanged)) (stop func(), err error) {
+	return subscribeTopic(n, SubjectSessionGrantsChanged, handle)
 }
 
 // PublishMaintenanceState announces that the maintenance flag changed value.

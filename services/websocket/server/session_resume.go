@@ -188,7 +188,7 @@ func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previou
 		res.RestoredDocIDs = append(res.RestoredDocIDs, docID)
 	}
 
-	missed, err := resumeMissedChanges(ctx, position, resumeTenants(client), s.streamLastSequence())
+	missed, err := resumeMissedChanges(ctx, position, s.resumeTenants(client), s.streamLastSequence())
 	if err != nil {
 		logs.WarnCtx(ctx, "session resume could not read the stream; answering that a load is owed",
 			"client_id", client.id, "error", err)

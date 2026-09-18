@@ -87,16 +87,22 @@ func activeScopes(accountID string, active models.Owner) models.OwnerKeys {
 		Normalized()
 }
 
-// clientScopeCeiling is every owner the session may reach, which is what it was
-// granted at connect.
+// clientScopeCeiling is every owner the session may reach.
 //
-// Read from the connection rather than from Mongo: a membership removed since
-// connect is refused by the endpoints that write, and re-reading here would make
-// a switch cost a database round trip on a message that is meant to be cheap.
+// Read from the connection rather than from Mongo: re-reading here would make a
+// switch, and every lock frame, cost a database round trip on a message meant to
+// be cheap. What keeps it current instead is the grants announcement, which
+// narrows it in place when the account's memberships change.
+//
+// Under the owner-index lock because of that announcement: it arrives on the
+// subscription's goroutine while this runs on the connection's own, and the
+// value is a slice header rather than a word.
 func (s *Server) clientScopeCeiling(client *Client) models.OwnerKeys {
 	if client == nil {
 		return nil
 	}
+	s.ownerIndexMu.RLock()
+	defer s.ownerIndexMu.RUnlock()
 	if client.Ceiling != nil {
 		return client.Ceiling
 	}
