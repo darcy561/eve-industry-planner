@@ -237,6 +237,17 @@ coverage comes from `react-hooks`, which carries the React Compiler's rules —
 the section above asks you to migrate. The rules are a bar to write to, not a build step: the
 compiler itself is **not** enabled, so nothing here is memoised for you.
 
+One rule is the SPA's own, in [`frontend/eslint-rules/`](../../frontend/eslint-rules/):
+`store-partials/no-whole-state-spread` fails an updater that spreads the state it was given back into
+what it returns, per § Writing to a store slice. It matches a bare `set` — what a slice action is
+handed — and a `.setState` member call, which is how anything else reaches the store. A bare
+`setState` is React's own setter from `useState`, which replaces rather than merges, so the spread
+there is load-bearing and the rule leaves it alone. It is written as a rule rather
+than a `no-restricted-syntax` selector because the check is whether the spread names *that updater's*
+parameter, which a selector cannot ask. It autofixes. A rule of our own earns its place when the
+pattern is mechanical, has no legitimate form, and a reader keeps missing it — this one had reached
+145 sites.
+
 There is no `eslint-plugin-react`: its `recommended` set is almost entirely `react/prop-types`, and
 this SPA types through JSDoc.
 
