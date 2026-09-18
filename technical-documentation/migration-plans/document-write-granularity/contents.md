@@ -42,14 +42,17 @@ as the fields that changed.
 
 | I need to… | Read |
 |------------|------|
+| **Know what runs today** — how a write is refused and what a client does about it | [overlay.md](./overlay.md) |
+| Know what proves it works, and what is still only unit-tested | [overlay.md](./overlay.md) § What proves this works |
+| See the 409 a refused write answers with | [overlay.md](./overlay.md) § What a refused write answers with |
+| Understand why a conditional write is not batched | [plan.md](./plan.md) § Stage A |
+| Know which stage to pick up and what blocks the others | [plan.md](./plan.md) § Recommended pickup order |
+| Check what has landed | [plan.md](./plan.md) § Stage status |
 | Understand why whole-document writes are a problem | [plan.md](./plan.md) § Goal, § Starting position |
-| See what shared planners settled that this project depends on | [plan.md](./plan.md) § What this project inherits |
+| See what this project waits on, and what it no longer waits on | [plan.md](./plan.md) § What this project inherits |
+| See the options a conflicting write could have been answered with | [plan.md](./plan.md) § What a conflicting write is answered with |
+| Understand why the lock covers a whole group | [plan.md](./plan.md) § Why the lock is as broad as it is |
 | Know what the change stream already captures | [plan.md](./plan.md) § The delta is already there |
-| See the options for a conflicting write | [plan.md](./plan.md) § What a conflicting write is answered with |
-| Understand why the lock covers a whole group and a whole batch | [plan.md](./plan.md) § Why the lock is as broad as it is |
-| Find the ways a refused write currently reaches nobody | [plan.md](./plan.md) § A refused write is not currently an outcome |
-| Know what has to land before the lock can be relaxed | [plan.md](./plan.md) § Stage A, § Stage B, § Stage D |
+| See what Stage C has settled and what its blocker supplies | [plan.md](./plan.md) § Stage C |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See the stages and their order | [plan.md](./plan.md) § Stages |
-| Check what has landed | [plan.md](./plan.md) § Stage status |
-| See how a part works while the project is in flight | [overlay.md](./overlay.md) |
