@@ -2710,17 +2710,23 @@ do not touch.
 
 ## Recommended pickup order
 
-**Nothing here has buildable work left.** Stage J was the last of it, and it is closed: its four
-decisions are taken and all four defects are fixed — the group delete that made every other connected
-member write, the editor that was never told its job was deleted, the force-release control that now
-carries whether the lock holder shares the reader's account as a boolean naming nobody, and the setup
-figures, which stopped being stored and are worked out for whoever is reading.
+**No defect here is unfixed.** Stage J was the last stage carrying any, and it is closed: its four
+decisions are taken and all four are fixed — the group delete that made every other connected member
+write, the editor that was never told its job was deleted, the force-release control that now carries
+whether the lock holder shares the reader's account as a boolean naming nobody, and the setup figures,
+which stopped being stored and are worked out for whoever is reading.
+
+**Stage F's grant-task reshaping is the only buildable work left**, and it is an efficiency change
+rather than a repair. The task fires on every login and every token refresh whether or not anything has
+changed, and resolves the whole set each time: more often than the design wants and more work per run
+than it needs, but correct as it stands with nothing waiting on it — see § Stage F.
 
 Stage G is closed: both questions its slices deferred are answered, the stores holding the active
 planner only and a gap being reloaded through rather than replayed.
 
-**Blocked.** Stage F owes the grant-task reshaping, and its access lists wait on the scope and field
-names being read from the OpenAPI spec. Stage I stays undecided and cannot be taken until it settles.
+**Blocked.** Stage F's other slice, access lists, waits on the scope and field names being read from
+the OpenAPI spec. Stage I stays undecided and cannot be taken until Stage E's revocation path and
+Stage F's grant task settle.
 
 Stage E is closed. Its grants work leaves two trade-offs Stage I should revisit: the announcement is
 fire-and-forget, so a replica that misses one keeps a revoked planner on that connection until it
