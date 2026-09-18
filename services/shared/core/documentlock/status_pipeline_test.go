@@ -36,7 +36,7 @@ func TestStatusBatchFetch_AllUnheld(t *testing.T) {
 		{Collection: eipmongo.CollectionJobDocuments, DocID: "job-a"},
 		{Collection: eipmongo.CollectionJobDocuments, DocID: "job-b"},
 	}
-	results, err := statusBatchFetch(ctx, rdb, testOwner, refs)
+	results, err := statusBatchFetch(ctx, rdb, testOwner, testAccountID, refs)
 	if err != nil {
 		t.Fatalf("statusBatchFetch: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestStatusBatchFetch_HeldWithViewersAndWaitlist(t *testing.T) {
 		t.Fatalf("enqueue wait-b: %v", err)
 	}
 
-	results, err := statusBatchFetch(ctx, rdb, testOwner, []statusDocRef{
+	results, err := statusBatchFetch(ctx, rdb, testOwner, testAccountID, []statusDocRef{
 		{Collection: testCollection, DocID: docID},
 	})
 	if err != nil {
@@ -136,7 +136,7 @@ func TestStatusBatchFetch_ExpiredRecordReturnsUnheldAndDeletes(t *testing.T) {
 		t.Fatalf("seed expired: %v", err)
 	}
 
-	results, err := statusBatchFetch(ctx, rdb, testOwner, []statusDocRef{
+	results, err := statusBatchFetch(ctx, rdb, testOwner, testAccountID, []statusDocRef{
 		{Collection: testCollection, DocID: docID},
 	})
 	if err != nil {
@@ -159,7 +159,7 @@ func TestStatusBatchFetch_EmptyRefs(t *testing.T) {
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 	ctx := context.Background()
 
-	results, err := statusBatchFetch(ctx, rdb, testOwner, nil)
+	results, err := statusBatchFetch(ctx, rdb, testOwner, testAccountID, nil)
 	if err != nil {
 		t.Fatalf("statusBatchFetch nil: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestStatusBatchFetch_PreservesInputOrder(t *testing.T) {
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 	})
 
-	results, err := statusBatchFetch(ctx, rdb, testOwner, refs)
+	results, err := statusBatchFetch(ctx, rdb, testOwner, testAccountID, refs)
 	if err != nil {
 		t.Fatalf("statusBatchFetch: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestStatusBatchFetch_PreservesInputOrder(t *testing.T) {
 func TestStatusBatchResults_EmptyError(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
-	if _, _, err := StatusBatchResults(context.Background(), rdb, testOwner, nil, nil); err != ErrStatusBatchEmpty {
+	if _, _, err := StatusBatchResults(context.Background(), rdb, testOwner, testAccountID, nil, nil); err != ErrStatusBatchEmpty {
 		t.Fatalf("expected ErrStatusBatchEmpty, got %v", err)
 	}
 }
@@ -214,14 +214,14 @@ func TestStatusBatchResults_TooManyError(t *testing.T) {
 	for i := range tooMany {
 		tooMany[i] = "id-" + strconv.Itoa(i)
 	}
-	if _, _, err := StatusBatchResults(context.Background(), rdb, testOwner, tooMany, nil); err != ErrStatusBatchTooMany {
+	if _, _, err := StatusBatchResults(context.Background(), rdb, testOwner, testAccountID, tooMany, nil); err != ErrStatusBatchTooMany {
 		t.Fatalf("expected ErrStatusBatchTooMany, got %v", err)
 	}
 }
 
 func TestStatusBatchResults_NilRedisError(t *testing.T) {
 	t.Parallel()
-	if _, _, err := StatusBatchResults(context.Background(), nil, testOwner, []string{"a"}, nil); err != ErrLocksUnavailable {
+	if _, _, err := StatusBatchResults(context.Background(), nil, testOwner, testAccountID, []string{"a"}, nil); err != ErrLocksUnavailable {
 		t.Fatalf("expected ErrLocksUnavailable, got %v", err)
 	}
 }
@@ -245,7 +245,7 @@ func TestStatusBatchResults_RoutesJobsAndGroupsIntoSeparateBuckets(t *testing.T)
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 	})
 
-	jobs, groups, err := StatusBatchResults(ctx, rdb, testOwner, []string{jobID, "missing-job"}, []string{groupID, "", "missing-group"})
+	jobs, groups, err := StatusBatchResults(ctx, rdb, testOwner, testAccountID, []string{jobID, "missing-job"}, []string{groupID, "", "missing-group"})
 	if err != nil {
 		t.Fatalf("StatusBatchResults: %v", err)
 	}
@@ -288,11 +288,11 @@ func TestStatusPayloadForDoc_MatchesBatchPath(t *testing.T) {
 	}
 	seedLock(t, rdb, testOwner, testCollection, docID, rec)
 
-	single, err := StatusPayloadForDoc(ctx, rdb, testOwner, testCollection, docID)
+	single, err := StatusPayloadForDoc(ctx, rdb, testOwner, testAccountID, testCollection, docID)
 	if err != nil {
 		t.Fatalf("StatusPayloadForDoc: %v", err)
 	}
-	batch, err := statusBatchFetch(ctx, rdb, testOwner, []statusDocRef{
+	batch, err := statusBatchFetch(ctx, rdb, testOwner, testAccountID, []statusDocRef{
 		{Collection: testCollection, DocID: docID},
 	})
 	if err != nil {
@@ -303,5 +303,42 @@ func TestStatusPayloadForDoc_MatchesBatchPath(t *testing.T) {
 	}
 	if got, want := single["held"], batch[0]["held"]; got != want {
 		t.Fatalf("held mismatch: %v vs %v", got, want)
+	}
+}
+
+// Whether the holder is the reader's own account is the whole basis on which a
+// client decides to offer taking the lock back, and it is answered here — so a
+// reader must never be told a colleague's lock is theirs to clear.
+func TestStatusBatchFetch_SaysWhoseAccountHoldsIt(t *testing.T) {
+	t.Parallel()
+	rdb := eipredis.NewRedis(redisfake.New(t).Client)
+	ctx := context.Background()
+
+	docID := "doc-account"
+	seedLock(t, rdb, testOwner, testCollection, docID, LockRecord{
+		HolderSessionID: "sess-holder",
+		AccountID:       testAccountID,
+		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
+	})
+
+	forReader := func(readerAccountID string) map[string]any {
+		t.Helper()
+		results, err := statusBatchFetch(ctx, rdb, testOwner, readerAccountID,
+			[]statusDocRef{{Collection: testCollection, DocID: docID}})
+		if err != nil {
+			t.Fatalf("statusBatchFetch: %v", err)
+		}
+		return results[0]
+	}
+
+	if got := forReader(testAccountID)["heldByThisAccount"]; got != true {
+		t.Errorf("for the holding account = %v, want true", got)
+	}
+	if got := forReader("acct-somebody-else")["heldByThisAccount"]; got != false {
+		t.Errorf("for another member = %v, want false", got)
+	}
+	// An unauthenticated read must not be able to claim the lock as its own.
+	if got := forReader("")["heldByThisAccount"]; got != false {
+		t.Errorf("for no account at all = %v, want false", got)
 	}
 }

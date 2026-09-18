@@ -12,6 +12,13 @@ export function initialScopedDocumentLockState() {
   return {
     readOnly: false,
     lockHeld: false,
+    /**
+     * Whether the session holding this lock is one of the reader's own. Answered
+     * by the server as a boolean, because taking a lock back from your own other
+     * session is yours to do and taking one from another member is not — while
+     * who holds it is not something a reader is told.
+     */
+    heldByThisAccount: false,
     pendingAccessRequest: false,
     lockExpiresAtUnix: null,
     lockTtlSeconds: null,

@@ -42,6 +42,7 @@ func statusBatchFetch(
 	ctx context.Context,
 	rdb *eipredis.Redis,
 	owner models.Owner,
+	readerAccountID string,
 	refs []statusDocRef,
 ) ([]map[string]any, error) {
 	if rdb.Driver() == nil {
@@ -110,6 +111,11 @@ func statusBatchFetch(
 			maps.Copy(payload, LockPayloadForRecord(rec.ExpiresAtUnix, rec.LeaseMode))
 			payload["held"] = true
 			payload["holderSessionID"] = rec.HolderSessionID
+			// Whether the holder is the reader's own account, which is what
+			// decides whether taking the lock back is theirs to do. A boolean
+			// rather than the holder: who it is stays off the wire.
+			payload["heldByThisAccount"] = readerAccountID != "" &&
+				rec.AccountID == readerAccountID
 			payload["extendCount"] = rec.ExtendCount
 			if rec.LeaseMode != "" {
 				payload["leaseMode"] = rec.LeaseMode

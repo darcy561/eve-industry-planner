@@ -584,16 +584,37 @@ describe("documentLockSlice — async lock flows (regression)", () => {
     );
   });
 
-  it("forceReleaseSameAccountEditLock: network error on force-release is swallowed", async () => {
+  // A reader pressed a button. Saying nothing leaves them unable to tell a
+  // failure from the lock having been cleared.
+  it("forceReleaseSameAccountEditLock: says so when the request fails", async () => {
     forceReleaseDocumentLockSameAccount.mockRejectedValue(new Error("network"));
 
     await useStore
       .getState()
       .documentLock.actions.forceReleaseSameAccountEditLock(collection, docID);
 
+    expect(showSnackbarWarning).toHaveBeenCalledWith(
+      expect.stringContaining("could not be cleared"),
+      expect.any(Number),
+    );
     expect(showSnackbarSuccess).not.toHaveBeenCalled();
-    expect(showSnackbarWarning).not.toHaveBeenCalled();
     expect(acquireDocumentLock).not.toHaveBeenCalled();
+  });
+
+  // The lock is somebody else's. The server refuses, and the reader is told
+  // what to do instead rather than that there was no lock.
+  it("forceReleaseSameAccountEditLock: says a lock held by another member cannot be cleared", async () => {
+    forceReleaseDocumentLockSameAccount.mockResolvedValue({ status: 409 });
+
+    await useStore
+      .getState()
+      .documentLock.actions.forceReleaseSameAccountEditLock(collection, docID);
+
+    expect(showSnackbarWarning).toHaveBeenCalledWith(
+      expect.stringContaining("Someone else is editing this"),
+      expect.any(Number),
+    );
+    expect(showSnackbarSuccess).not.toHaveBeenCalled();
   });
 
   it("pulseWaitlist: no-op when not waitingInHandoffQueue", async () => {

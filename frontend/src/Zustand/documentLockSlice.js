@@ -241,6 +241,13 @@ const documentLockSlice = (set, get) => ({
             showSnackbarSuccess("No active lock to remove.", 3);
             return;
           }
+          if (res.status === 409) {
+            showSnackbarWarning(
+              "Someone else is editing this. Ask them for access instead — a lock you do not hold cannot be cleared.",
+              6,
+            );
+            return;
+          }
           if (res.status === 400) {
             showSnackbarWarning(
               "You already hold this lock — leave read-only or use the editor's release flow.",
@@ -248,8 +255,12 @@ const documentLockSlice = (set, get) => ({
             );
             return;
           }
+          // Every other answer is a refusal nobody has written copy for, and a
+          // reader who pressed a button and was told nothing cannot tell that
+          // from it having worked.
+          showSnackbarWarning("The lock could not be cleared.", 5);
         } catch {
-          /* ignore */
+          showSnackbarWarning("The lock could not be cleared.", 5);
         }
       },
 

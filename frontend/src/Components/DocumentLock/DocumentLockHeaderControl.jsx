@@ -20,6 +20,7 @@ import {
   selectActiveDlHandoffOfferForMe,
   selectActiveDlLockScopeBootstrapped,
   selectActiveDlHandoffPendingHolder,
+  selectActiveDlHeldByThisAccount,
   selectActiveDlLockExpiresAtUnix,
   selectActiveDlLockHeld,
   selectActiveDlLockTtlSeconds,
@@ -113,9 +114,11 @@ export default function DocumentLockHeaderControl() {
 
   const active = useUsersStore(selectHeaderDocumentLockActive);
   const readOnly = useUsersStore(selectActiveDlReadOnly);
+  const heldByThisAccount = useUsersStore(selectActiveDlHeldByThisAccount);
   const lockHeld = useUsersStore(selectActiveDlLockHeld);
   const handoffPendingHolder = useUsersStore(
     selectActiveDlHandoffPendingHolder,
+    selectActiveDlHeldByThisAccount,
   );
   const lockExpiresAtUnix = useUsersStore(selectActiveDlLockExpiresAtUnix);
   const lockTtlSeconds = useUsersStore(selectActiveDlLockTtlSeconds);
@@ -514,37 +517,46 @@ export default function DocumentLockHeaderControl() {
               >
                 {requestAccessPending ? "Requesting…" : "Request access"}
               </Button>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 0.5 }}
-              >
-                If another tab on your account crashed and you cannot get the
-                lock, you can clear it (confirms first — may disrupt an active
-                editor).
-              </Typography>
-              <Button
-                variant="outlined"
-                size="small"
-                color="warning"
-                disabled={requestAccessPending}
-                aria-busy={requestAccessPending}
-                onClick={() => {
-                  const p = primaryHeaderRegistration(useUsersStore.getState());
-                  if (!p?.collection || !p?.docID) return;
-                  startRequestAccess(async () => {
-                    await useUsersStore
-                      .getState()
-                      .documentLock.actions.forceReleaseSameAccountEditLock(
-                        p.collection,
-                        p.docID,
+              {/* Only when this account holds it. Against another member's lock
+                  the server refuses, so offering the button would promise
+                  something it cannot do. */}
+              {heldByThisAccount && (
+                <>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mt: 0.5 }}
+                  >
+                    Another session on your account is editing this. If it
+                    crashed and you cannot get the lock, you can clear it
+                    (confirms first — may disrupt an active editor).
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="warning"
+                    disabled={requestAccessPending}
+                    aria-busy={requestAccessPending}
+                    onClick={() => {
+                      const p = primaryHeaderRegistration(
+                        useUsersStore.getState(),
                       );
-                    setAnchorEl(null);
-                  });
-                }}
-              >
-                Clear lock (same account)
-              </Button>
+                      if (!p?.collection || !p?.docID) return;
+                      startRequestAccess(async () => {
+                        await useUsersStore
+                          .getState()
+                          .documentLock.actions.forceReleaseSameAccountEditLock(
+                            p.collection,
+                            p.docID,
+                          );
+                        setAnchorEl(null);
+                      });
+                    }}
+                  >
+                    Clear lock (same account)
+                  </Button>
+                </>
+              )}
             </>
           )}
 

@@ -22,6 +22,10 @@ var (
 	ErrLocksUnavailable = errors.New("locks unavailable")
 	// ErrForceReleaseNoLock is returned when POST /force-release finds no active lock.
 	ErrForceReleaseNoLock = errors.New("no active lock")
+	// ErrForceReleaseOtherAccount is returned when the lock belongs to another
+	// account, which force-release is not for: it exists so an account can take
+	// back a lock one of its own sessions left behind.
+	ErrForceReleaseOtherAccount = errors.New("lock is held by another account")
 	// ErrForceReleaseSameSession is returned when the caller already holds the lock (use POST /release).
 	ErrForceReleaseSameSession = errors.New("already holding lock; use release")
 )
@@ -30,8 +34,8 @@ var (
 //
 // This is a thin wrapper over `statusBatchFetch` so the single-doc and
 // batch paths share one pipelined Redis read implementation.
-func StatusPayloadForDoc(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, collection, docID string) (map[string]any, error) {
-	results, err := statusBatchFetch(ctx, rdb, owner, []statusDocRef{{Collection: collection, DocID: docID}})
+func StatusPayloadForDoc(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, readerAccountID, collection, docID string) (map[string]any, error) {
+	results, err := statusBatchFetch(ctx, rdb, owner, readerAccountID, []statusDocRef{{Collection: collection, DocID: docID}})
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +49,7 @@ func StatusPayloadForDoc(ctx context.Context, rdb *eipredis.Redis, owner models.
 //
 // All Redis reads for the entire batch run inside two pipelines (one per
 // collection bucket) so the round-trip cost is O(1) in the batch size.
-func StatusBatchResults(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, jobDocIDs, groupDocIDs []string) (jobResults map[string]any, groupResults map[string]any, err error) {
+func StatusBatchResults(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, readerAccountID string, jobDocIDs, groupDocIDs []string) (jobResults map[string]any, groupResults map[string]any, err error) {
 	if rdb.Driver() == nil {
 		return nil, nil, ErrLocksUnavailable
 	}
@@ -56,11 +60,11 @@ func StatusBatchResults(ctx context.Context, rdb *eipredis.Redis, owner models.O
 		return nil, nil, ErrStatusBatchTooMany
 	}
 
-	jobResults, err = pipelinedStatusForCollection(ctx, rdb, owner, eipmongo.CollectionJobDocuments, jobDocIDs)
+	jobResults, err = pipelinedStatusForCollection(ctx, rdb, owner, readerAccountID, eipmongo.CollectionJobDocuments, jobDocIDs)
 	if err != nil {
 		return nil, nil, err
 	}
-	groupResults, err = pipelinedStatusForCollection(ctx, rdb, owner, eipmongo.CollectionJobGroups, groupDocIDs)
+	groupResults, err = pipelinedStatusForCollection(ctx, rdb, owner, readerAccountID, eipmongo.CollectionJobGroups, groupDocIDs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -75,6 +79,7 @@ func pipelinedStatusForCollection(
 	ctx context.Context,
 	rdb *eipredis.Redis,
 	owner models.Owner,
+	readerAccountID string,
 	collection string,
 	docIDs []string,
 ) (map[string]any, error) {
@@ -96,7 +101,7 @@ func pipelinedStatusForCollection(
 		return out, nil
 	}
 
-	payloads, err := statusBatchFetch(ctx, rdb, owner, refs)
+	payloads, err := statusBatchFetch(ctx, rdb, owner, readerAccountID, refs)
 	if err != nil {
 		return nil, err
 	}

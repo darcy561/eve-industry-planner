@@ -13,7 +13,7 @@ import (
 
 func TestRunLockStateBatchNilRedis(t *testing.T) {
 	t.Parallel()
-	res := RunLockStateBatch(context.Background(), nil, models.AccountOwner("acct"), LockStateBatchRequest{
+	res := RunLockStateBatch(context.Background(), nil, models.AccountOwner("acct"), "acct", LockStateBatchRequest{
 		RequestID: "r1",
 		JobDocIDs: []string{"j1"},
 	})
@@ -26,12 +26,12 @@ func TestRunLockStateBatchEmptyAndOK(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 
-	empty := RunLockStateBatch(context.Background(), rdb, models.AccountOwner("acct"), LockStateBatchRequest{RequestID: "r1"})
+	empty := RunLockStateBatch(context.Background(), rdb, models.AccountOwner("acct"), "acct", LockStateBatchRequest{RequestID: "r1"})
 	if empty.FailureClass != documentlock.FailureStateBatchEmpty || empty.AckErrMsg != documentlock.ErrStatusBatchEmpty.Error() {
 		t.Fatalf("empty: %+v", empty)
 	}
 
-	ok := RunLockStateBatch(context.Background(), rdb, models.AccountOwner("acct"), LockStateBatchRequest{
+	ok := RunLockStateBatch(context.Background(), rdb, models.AccountOwner("acct"), "acct", LockStateBatchRequest{
 		RequestID: "r2",
 		JobDocIDs: []string{"job-1"},
 	})
@@ -43,7 +43,7 @@ func TestRunLockStateBatchEmptyAndOK(t *testing.T) {
 	for i := range tooMany {
 		tooMany[i] = "x"
 	}
-	many := RunLockStateBatch(context.Background(), rdb, models.AccountOwner("acct"), LockStateBatchRequest{
+	many := RunLockStateBatch(context.Background(), rdb, models.AccountOwner("acct"), "acct", LockStateBatchRequest{
 		RequestID: "r3",
 		JobDocIDs: tooMany,
 	})

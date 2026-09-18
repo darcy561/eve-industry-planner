@@ -128,7 +128,7 @@ func (s *Server) handleDocumentLockLockStateBatch(ctx context.Context, client *C
 	if s.Stack != nil {
 		rdb = s.Stack.Redis
 	}
-	res := doclocklogic.RunLockStateBatch(ctx, rdb, owner, req)
+	res := doclocklogic.RunLockStateBatch(ctx, rdb, owner, client.AccountID, req)
 	if !res.OK() {
 		s.queueDocumentLockLockStateBatchAck(client, res.RequestID, res.AckOK, res.JobResults, res.GroupResults, res.AckErrMsg)
 		finishWSLockStateBatchFailure(ctx, client, res.RequestID, res.LogMsg, res.FailureClass, res.Extra)

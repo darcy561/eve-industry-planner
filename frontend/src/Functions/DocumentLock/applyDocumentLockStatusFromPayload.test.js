@@ -80,4 +80,44 @@ describe("applyDocumentLockStatusFromPayload", () => {
     applyDocumentLockStatusFromPayload("job_documents", "", { held: false });
     expect(storeHolder.current.getState().documentLock.scopes).toEqual({});
   });
+
+  /** What the store kept for the document these cases use. */
+  function heldByThisAccount() {
+    const k = docLockScopeKey("job_documents", "j1");
+    return storeHolder.current.getState().documentLock.scopes[k]
+      ?.heldByThisAccount;
+  }
+
+  // Whether the holder is one of this account's own sessions decides whether
+  // taking the lock back is this reader's to do. The server answers it as a
+  // boolean, so the client never learns who holds it.
+  it("keeps whether the holder is this account's own session", () => {
+    applyDocumentLockStatusFromPayload("job_documents", "j1", {
+      held: true,
+      holderSessionID: "sess-other",
+      heldByThisAccount: true,
+    });
+
+    expect(heldByThisAccount()).toBe(true);
+  });
+
+  it("does not claim the account's own when the server did not say so", () => {
+    applyDocumentLockStatusFromPayload("job_documents", "j1", {
+      held: true,
+      holderSessionID: "sess-other",
+    });
+
+    expect(heldByThisAccount()).toBe(false);
+  });
+
+  it("claims nothing once the lock is gone", () => {
+    applyDocumentLockStatusFromPayload("job_documents", "j1", {
+      held: true,
+      holderSessionID: "sess-other",
+      heldByThisAccount: true,
+    });
+    applyDocumentLockStatusFromPayload("job_documents", "j1", { held: false });
+
+    expect(heldByThisAccount()).toBe(false);
+  });
 });

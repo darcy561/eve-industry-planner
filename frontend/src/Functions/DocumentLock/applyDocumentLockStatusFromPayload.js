@@ -86,6 +86,10 @@ export function applyDocumentLockStatusFromPayload(collection, docID, data) {
   const patch = {
     readOnly,
     lockHeld,
+    // Whether the holder is one of this account's own sessions, which is the
+    // difference between a lock this reader may take back and one they may not.
+    // It names nobody: who holds it stays off the wire.
+    heldByThisAccount: held ? data.heldByThisAccount === true : false,
     lockExpiresAtUnix: held ? numberOrNull(data, "expiresAtUnix") : null,
     lockTtlSeconds: held ? numberOrNull(data, "ttlSeconds") : null,
   };

@@ -110,6 +110,9 @@ func (h *Handlers) handleForceRelease(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, documentlock.ErrLocksUnavailable):
 			respondLockUnavailable(w, r, "document_lock_force_release", hc, err)
+		case errors.Is(err, documentlock.ErrForceReleaseOtherAccount):
+			attachLockHandlerClientFailure(r, "force-release", "document lock force-release: held by another account", "doc_lock_force_release_other_account", http.StatusConflict, hc, nil)
+			http.Error(w, "Lock is held by another account", http.StatusConflict)
 		case errors.Is(err, documentlock.ErrForceReleaseNoLock):
 			attachLockHandlerClientFailure(r, "force-release", "document lock force-release: no active lock", "doc_lock_force_release_not_found", http.StatusNotFound, hc, nil)
 			http.Error(w, "No active lock", http.StatusNotFound)
@@ -202,7 +205,7 @@ func (h *Handlers) handleLockState(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	payload, err := documentlock.StatusPayloadForDoc(ctx, h.Redis, owner, collection, docID)
+	payload, err := documentlock.StatusPayloadForDoc(ctx, h.Redis, owner, helper.AuthenticatedAccountID(r), collection, docID)
 	if err != nil {
 		helper.RespondEndpointServerError(w, r, "Internal error", "document lock state failed", documentlock.FailureStateFailed, "document_lock_state", err, map[string]any{
 			"account_id": accountID, "collection": collection, "doc_id": docID,
@@ -233,7 +236,7 @@ func (h *Handlers) handleLockStateBatch(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	jobResults, groupResults, err := documentlock.StatusBatchResults(ctx, h.Redis, owner, b.JobDocIDs, b.GroupDocIDs)
+	jobResults, groupResults, err := documentlock.StatusBatchResults(ctx, h.Redis, owner, helper.AuthenticatedAccountID(r), b.JobDocIDs, b.GroupDocIDs)
 	if err != nil {
 		switch {
 		case errors.Is(err, documentlock.ErrStatusBatchEmpty):

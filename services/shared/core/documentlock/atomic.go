@@ -423,7 +423,7 @@ func runReleaseTx(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, 
 // Outcome JSON:
 //
 //	{
-//	  "outcome": "released" | "noop_no_lock" | "noop_same_holder",
+//	  "outcome": "released" | "noop_no_lock" | "noop_other_account" | "noop_same_holder",
 //	  "previousHolderSessionID": "",   // set only when outcome == released
 //	  "record": {...}                  // new holder record when outcome == released
 //	}
@@ -439,8 +439,11 @@ local existing = read_lock(k_lock, now)
 if not existing then
   return cjson.encode({ outcome = "noop_no_lock" })
 end
+-- Held by somebody else's account. Answered apart from "no lock" because the
+-- two mean opposite things to a reader: one is a lock that is not there, the
+-- other is a lock this caller may not take.
 if existing.accountID ~= account_id then
-  return cjson.encode({ outcome = "noop_no_lock" })
+  return cjson.encode({ outcome = "noop_other_account" })
 end
 if existing.holderSessionID == "" then
   return cjson.encode({ outcome = "noop_no_lock" })

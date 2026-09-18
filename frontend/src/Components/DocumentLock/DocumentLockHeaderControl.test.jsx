@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { store } = vi.hoisted(() => ({ store: { current: null } }));
@@ -165,5 +165,62 @@ describe("the header lock's passive viewer flash", () => {
 
     expect(screen.queryAllByRole("button")).not.toHaveLength(0);
     expect(isPulsing()).toBe(false);
+  });
+});
+
+/**
+ * Opens the control's popover, which is where a read-only viewer is told what
+ * they can do about the lock. Clicked through `act` rather than user-event,
+ * because this file drives fake timers.
+ */
+function openDetails() {
+  act(() => {
+    fireEvent.click(screen.getAllByRole("button")[0]);
+  });
+}
+
+// Clearing a lock is something an account may do to its own other session and
+// never to another member's: the server refuses that, so offering the button
+// would promise what it cannot do — and the caption saying a tab of your own
+// crashed would be telling a blocked member the wrong thing about a colleague.
+describe("clearing a lock another session holds", () => {
+  it("offers it when the holder is this account's own session", () => {
+    watching("job-1", {
+      lockHeld: false,
+      readOnly: true,
+      heldByThisAccount: true,
+    });
+    show();
+
+    openDetails();
+
+    expect(
+      screen.getByRole("button", { name: /clear lock \(same account\)/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/another session on your account is editing this/i),
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing to clear when another member holds it", () => {
+    watching("job-1", {
+      lockHeld: false,
+      readOnly: true,
+      heldByThisAccount: false,
+    });
+    show();
+
+    openDetails();
+
+    expect(
+      screen.queryByRole("button", { name: /clear lock \(same account\)/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/on your account is editing this/i),
+    ).not.toBeInTheDocument();
+    // What is left is the thing that does work for them.
+    expect(
+      screen.getByRole("button", { name: /request access/i }),
+    ).toBeInTheDocument();
   });
 });

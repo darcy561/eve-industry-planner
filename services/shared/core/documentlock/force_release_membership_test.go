@@ -40,9 +40,12 @@ func TestForceReleaseRefusesAnotherMembersLock(t *testing.T) {
 		t.Fatalf("Ann acquires: %v", err)
 	}
 
+	// Refused, and said apart from there being no lock: a member blocked by
+	// somebody else is in a different position from one whose lock has gone, and
+	// a client that cannot tell them apart can only guess at what to offer.
 	_, err := svc.ForceReleaseSameAccount(ctx, owner, "acct-bo", "sess-bo", testCollection, testDocID)
-	if !errors.Is(err, ErrForceReleaseNoLock) {
-		t.Fatalf("err = %v, want the eviction refused", err)
+	if !errors.Is(err, ErrForceReleaseOtherAccount) {
+		t.Fatalf("err = %v, want the eviction refused as another account's", err)
 	}
 
 	rec, err := GetLock(ctx, rdb, owner, testCollection, testDocID)

@@ -222,6 +222,8 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, owner models.Owne
 	switch tx.Outcome {
 	case "noop_no_lock":
 		return nil, ErrForceReleaseNoLock
+	case "noop_other_account":
+		return nil, ErrForceReleaseOtherAccount
 	case "noop_same_holder":
 		return nil, ErrForceReleaseSameSession
 	case "released":

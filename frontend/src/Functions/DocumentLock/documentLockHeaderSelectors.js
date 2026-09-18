@@ -64,6 +64,19 @@ export function selectActiveDlReadOnly(s) {
   return selectScopedDocumentLock(s, p.collection, p.docID).readOnly;
 }
 
+/**
+ * Whether the session holding the active document's lock is one of this
+ * account's own — which is the difference between a lock this reader may take
+ * back and one they may not.
+ *
+ * @param {*} s — root `usersStore` state
+ */
+export function selectActiveDlHeldByThisAccount(s) {
+  const p = primaryHeaderRegistration(s);
+  if (!p?.collection || !p?.docID) return false;
+  return selectScopedDocumentLock(s, p.collection, p.docID).heldByThisAccount;
+}
+
 /** @param {*} s */
 export function selectActiveDlLockHeld(s) {
   const p = primaryHeaderRegistration(s);
