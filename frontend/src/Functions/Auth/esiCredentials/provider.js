@@ -13,7 +13,14 @@ import {
 import {
   EsiCredentialError,
   ESI_CREDENTIAL_REAUTH_REQUIRED,
+  isReauthRequired,
 } from "./errors.js";
+import {
+  CREDENTIAL_HEALTH,
+  forgetCredentialHealth,
+  recordCredentialHealth,
+  resetCredentialHealth,
+} from "./health.js";
 import useUsersStore from "../../../Zustand/usersStore.js";
 
 /** Refresh when fewer than this many seconds remain, matching the ESI access token's ~20m life. */
@@ -66,9 +73,20 @@ export function createEsiCredentialProvider({
     if (pending) return pending;
 
     const attempt = (async () => {
-      const token = await strategy().refresh(characterHash);
-      tokens.set(characterHash, token);
-      return token;
+      try {
+        const token = await strategy().refresh(characterHash);
+        tokens.set(characterHash, token);
+        recordCredentialHealth(characterHash, CREDENTIAL_HEALTH.OK);
+        return token;
+      } catch (error) {
+        recordCredentialHealth(
+          characterHash,
+          isReauthRequired(error)
+            ? CREDENTIAL_HEALTH.REAUTH_REQUIRED
+            : CREDENTIAL_HEALTH.DEGRADED,
+        );
+        throw error;
+      }
     })();
 
     inflight.set(characterHash, attempt);
@@ -98,6 +116,20 @@ export function createEsiCredentialProvider({
     }
     const exp = Number(decodeJwt(accessToken).exp) || 0;
     tokens.set(characterHash, { accessToken, exp });
+    recordCredentialHealth(characterHash, CREDENTIAL_HEALTH.OK);
+  }
+
+  /**
+   * Acquires a token for a character whether or not one is held, for a reader asking the
+   * application to try this character's credentials again.
+   *
+   * @param {string} characterHash
+   * @returns {Promise<{ accessToken: string, exp: number }>}
+   * @throws {EsiCredentialError}
+   */
+  function reacquireEsiAccessToken(characterHash) {
+    tokens.delete(characterHash);
+    return getEsiAccessToken(characterHash);
   }
 
   /** The token in hand without acquiring one — for callers that can proceed without it. */
@@ -110,15 +142,18 @@ export function createEsiCredentialProvider({
   function forget(characterHash) {
     tokens.delete(characterHash);
     inflight.delete(characterHash);
+    forgetCredentialHealth(characterHash);
   }
 
   function reset() {
     tokens.clear();
     inflight.clear();
+    resetCredentialHealth();
   }
 
   return {
     getEsiAccessToken,
+    reacquireEsiAccessToken,
     adoptEsiAccessToken,
     heldEsiAccessToken,
     forget,
@@ -135,12 +170,19 @@ function readClientSecret(characterHash) {
 }
 
 /**
- * Writes a rotated client-held refresh secret back. Mutates the roster entry in place rather than
- * going through `set` — a refresh secret is not rendered, and a store write here would undo the
+ * Writes a client-held refresh secret back. Mutates the roster entry in place rather than going
+ * through `set` — a refresh secret is not rendered, and a store write here would undo the
  * render-free property this module exists for. `localStorage["Auth"]` is what a cold reload resumes
  * the main character from, so it travels with the in-memory copy.
+ *
+ * Exported because a rotation is not the only way a character's secret is replaced: linking a
+ * character again hands back a new one, and it has to land in both places or the fix lasts only
+ * until the tab is closed.
+ *
+ * @param {string} characterHash
+ * @param {string} secret
  */
-function writeClientSecret(characterHash, secret) {
+export function writeClientSecret(characterHash, secret) {
   const { account } = useUsersStore.getState();
   const character = account.characters.find(
     (c) => c?.CharacterHash === characterHash,
@@ -169,5 +211,9 @@ const esiCredentials = createEsiCredentialProvider({
 });
 
 export default esiCredentials;
-export const { getEsiAccessToken, adoptEsiAccessToken, heldEsiAccessToken } =
-  esiCredentials;
+export const {
+  getEsiAccessToken,
+  reacquireEsiAccessToken,
+  adoptEsiAccessToken,
+  heldEsiAccessToken,
+} = esiCredentials;

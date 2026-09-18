@@ -2,6 +2,7 @@ import useUsersStore from "../../../Zustand/usersStore";
 import { getESIRateLimitStatus } from "../fetchWithCustomHeaders";
 import { COLLECTIONS, PHASE, PREFETCHED_PHASES, SCOPE } from "./collections";
 import { CORPORATION_WALLET_DIVISIONS } from "../../../Hooks/React Query/Corporation/journal";
+import { tranquilityServerStatusQueryOptions } from "../../../Hooks/React Query/tranquilityServerStatus.js";
 import {
   ENABLE_QUERY_WATERFALL_LOGGING,
   logWaterfall,
@@ -302,6 +303,28 @@ function ensureDraining(queryClient) {
 }
 
 /**
+ * Whether Tranquility is known to be online, waiting for the answer if it has not arrived.
+ *
+ * Every collection query disables itself until this is cached, and the status is fetched at app
+ * start in parallel with login — so a prefetch that plans before it lands builds a table of
+ * disabled queries, drops every one of them, and reports success having fetched nothing.
+ *
+ * @param {Object} queryClient
+ * @returns {Promise<boolean>}
+ */
+async function tranquilityIsOnline(queryClient) {
+  try {
+    const status = await queryClient.ensureQueryData(
+      tranquilityServerStatusQueryOptions(),
+    );
+    return status?.online === true;
+  } catch (error) {
+    console.error("Tranquility status unavailable; nothing prefetched", error);
+    return false;
+  }
+}
+
+/**
  * Warms the ESI collections an account needs, in phase order.
  *
  * This is the single entry point for login. Query definitions decide for themselves whether they
@@ -322,6 +345,8 @@ export async function prefetchCollections(
   if (hashes.length === 0) return;
 
   const start = performance.now();
+
+  if (!(await tranquilityIsOnline(queryClient))) return;
 
   for (const phase of PREFETCHED_PHASES) {
     const items = planPrefetch(hashes, phase).filter(

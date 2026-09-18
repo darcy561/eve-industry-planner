@@ -96,20 +96,23 @@ export const PHASE = Object.freeze({
  *
  * The scheduler computes its work from this table rather than from a list repeated per character,
  * so a collection is described in exactly one place. `group` names the ESI rate-limit bucket the
- * collection spends from, taken from the query module that spends it.
+ * collection spends from, taken from the query module that spends it. `esiScope` is the OAuth
+ * scope ESI requires of the token, so a character linked before a scope was added can be shown as
+ * lacking access rather than as failing.
  *
  * Assets are listed as `ON_DEMAND` rather than left out: they are by far the largest collection and
  * only three surfaces read them, so prefetching them would spend the greatest share of the login
  * budget on data most sessions never open. Their absence from the prefetch is a decision, and this
  * row is where it is recorded.
  *
- * @type {ReadonlyArray<{key: string, name: string, scope: string, phase: string, group: string, query: Function}>}
+ * @type {ReadonlyArray<{key: string, name: string, scope: string, esiScope: string, phase: string, group: string, query: Function}>}
  */
 export const COLLECTIONS = Object.freeze([
   {
     key: "characterSkills",
     name: "Character Skills",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-skills.read_skills.v1",
     phase: PHASE.FIRST_PAINT,
     group: characterSkillsQueryGroup,
     query: characterSkillsQuery,
@@ -118,6 +121,7 @@ export const COLLECTIONS = Object.freeze([
     key: "characterBlueprints",
     name: "Character Blueprints",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-characters.read_blueprints.v1",
     phase: PHASE.FIRST_PAINT,
     group: characterBlueprintsQueryGroup,
     query: characterBlueprintsQuery,
@@ -126,6 +130,7 @@ export const COLLECTIONS = Object.freeze([
     key: "characterIndustryJobs",
     name: "Character Industry Jobs",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-industry.read_character_jobs.v1",
     phase: PHASE.FIRST_PAINT,
     group: characterIndustryJobsQueryGroup,
     query: characterIndustryJobsQuery,
@@ -134,6 +139,7 @@ export const COLLECTIONS = Object.freeze([
     key: "corporationBlueprints",
     name: "Corporation Blueprints",
     scope: SCOPE.CORPORATION,
+    esiScope: "esi-corporations.read_blueprints.v1",
     phase: PHASE.FIRST_PAINT,
     group: corporationBlueprintsQueryGroup,
     query: corporationBlueprintsQuery,
@@ -142,6 +148,7 @@ export const COLLECTIONS = Object.freeze([
     key: "corporationIndustryJobs",
     name: "Corporation Industry Jobs",
     scope: SCOPE.CORPORATION,
+    esiScope: "esi-industry.read_corporation_jobs.v1",
     phase: PHASE.FIRST_PAINT,
     group: corporationIndustryJobsQueryGroup,
     query: corporationIndustryJobsQuery,
@@ -150,6 +157,7 @@ export const COLLECTIONS = Object.freeze([
     key: "characterStandings",
     name: "Character Standings",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-characters.read_standings.v1",
     phase: PHASE.DEFERRED,
     group: characterStandingsQueryGroup,
     query: characterStandingsQuery,
@@ -158,6 +166,7 @@ export const COLLECTIONS = Object.freeze([
     key: "characterMarketOrders",
     name: "Character Market Orders",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-markets.read_character_orders.v1",
     phase: PHASE.DEFERRED,
     group: characterMarketOrdersQueryGroup,
     query: characterMarketOrdersQuery,
@@ -166,6 +175,7 @@ export const COLLECTIONS = Object.freeze([
     key: "characterHistoricMarketOrders",
     name: "Character Historic Market Orders",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-markets.read_character_orders.v1",
     phase: PHASE.DEFERRED,
     group: characterHistoricMarketOrdersQueryGroup,
     query: characterHistoricMarketOrdersQuery,
@@ -174,6 +184,7 @@ export const COLLECTIONS = Object.freeze([
     key: "characterJournal",
     name: "Character Journal",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-wallet.read_character_wallet.v1",
     phase: PHASE.DEFERRED,
     group: characterJournalQueryGroup,
     query: characterJournalQuery,
@@ -182,6 +193,7 @@ export const COLLECTIONS = Object.freeze([
     key: "characterTransactions",
     name: "Character Transactions",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-wallet.read_character_wallet.v1",
     phase: PHASE.DEFERRED,
     group: characterTransactionsQueryGroup,
     query: characterTransactionsQuery,
@@ -190,6 +202,7 @@ export const COLLECTIONS = Object.freeze([
     key: "corporationMarketOrders",
     name: "Corporation Market Orders",
     scope: SCOPE.CORPORATION,
+    esiScope: "esi-markets.read_corporation_orders.v1",
     phase: PHASE.DEFERRED,
     group: corporationMarketOrdersQueryGroup,
     query: corporationMarketOrdersQuery,
@@ -198,6 +211,7 @@ export const COLLECTIONS = Object.freeze([
     key: "corporationHistoricMarketOrders",
     name: "Corporation Historic Market Orders",
     scope: SCOPE.CORPORATION,
+    esiScope: "esi-markets.read_corporation_orders.v1",
     phase: PHASE.DEFERRED,
     group: corporationHistoricMarketOrdersQueryGroup,
     query: corporationHistoricMarketOrdersQuery,
@@ -206,6 +220,7 @@ export const COLLECTIONS = Object.freeze([
     key: "corporationJournal",
     name: "Corporation Journal",
     scope: SCOPE.CORPORATION_DIVISION,
+    esiScope: "esi-wallet.read_corporation_wallets.v1",
     phase: PHASE.DEFERRED,
     group: corporationJournalQueryGroup,
     query: corporationJournalQuery,
@@ -214,6 +229,7 @@ export const COLLECTIONS = Object.freeze([
     key: "corporationTransactions",
     name: "Corporation Transactions",
     scope: SCOPE.CORPORATION_DIVISION,
+    esiScope: "esi-wallet.read_corporation_wallets.v1",
     phase: PHASE.DEFERRED,
     group: corporationTransactionsQueryGroup,
     query: corporationTransactionsQuery,
@@ -222,14 +238,19 @@ export const COLLECTIONS = Object.freeze([
     key: "characterAssets",
     name: "Character Assets",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-assets.read_assets.v1",
     phase: PHASE.ON_DEMAND,
     group: characterAssetsQueryGroup,
     query: characterAssetsQuery,
   },
   {
+    // Per character, unlike every other corporation collection: ESI limits a corporation's asset
+    // list to what the asking character has the office and container access to see, so one
+    // member's answer is not the corporation's.
     key: "corporationAssets",
     name: "Corporation Assets",
     scope: SCOPE.CHARACTER,
+    esiScope: "esi-assets.read_corporation_assets.v1",
     phase: PHASE.ON_DEMAND,
     group: corporationAssetsQueryGroup,
     query: corporationAssetsQuery,

@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createEsiCredentialProvider } from "./provider.js";
+import {
+  CREDENTIAL_HEALTH,
+  credentialHealth,
+  resetCredentialHealth,
+} from "./health.js";
 import {
   ESI_CREDENTIAL_REAUTH_REQUIRED,
   ESI_CREDENTIAL_RECOVERABLE,
@@ -30,6 +35,10 @@ function providerFor(strategy, nowSec = 1_000) {
 }
 
 describe("esi credential provider", () => {
+  beforeEach(() => {
+    resetCredentialHealth();
+  });
+
   it("returns the held token without refreshing when it is well inside the buffer", async () => {
     const strategy = countingStrategy(5_000);
     const provider = providerFor(strategy);
@@ -171,5 +180,54 @@ describe("esi credential provider", () => {
     await provider.getEsiAccessToken(HASH);
     expect(provider.heldEsiAccessToken(HASH)).toBe("token-1");
     expect(strategy.calls).toBe(1);
+  });
+
+  it("records what each acquisition found about the character's credentials", async () => {
+    const provider = providerFor(countingStrategy(5_000));
+
+    await provider.getEsiAccessToken(HASH);
+
+    expect(credentialHealth(HASH).state).toBe(CREDENTIAL_HEALTH.OK);
+  });
+
+  it("separates a spent refresh secret from a failure that may pass", async () => {
+    const spent = providerFor(
+      countingStrategy(5_000, {
+        fail: new EsiCredentialError("gone", ESI_CREDENTIAL_REAUTH_REQUIRED),
+      }),
+    );
+    const faulty = providerFor(
+      countingStrategy(5_000, {
+        fail: new EsiCredentialError("later", ESI_CREDENTIAL_RECOVERABLE),
+      }),
+    );
+
+    await expect(spent.getEsiAccessToken(HASH)).rejects.toThrow();
+    await expect(faulty.getEsiAccessToken("other")).rejects.toThrow();
+
+    expect(credentialHealth(HASH).state).toBe(
+      CREDENTIAL_HEALTH.REAUTH_REQUIRED,
+    );
+    expect(credentialHealth("other").state).toBe(CREDENTIAL_HEALTH.DEGRADED);
+  });
+
+  it("acquires again for a reader asking to renew, token in hand or not", async () => {
+    const strategy = countingStrategy(5_000);
+    const provider = providerFor(strategy);
+
+    await provider.getEsiAccessToken(HASH);
+    const renewed = await provider.reacquireEsiAccessToken(HASH);
+
+    expect(strategy.calls).toBe(2);
+    expect(renewed.accessToken).toBe("token-2");
+  });
+
+  it("forgets what it knew about a forgotten character's credentials", async () => {
+    const provider = providerFor(countingStrategy(5_000));
+
+    await provider.getEsiAccessToken(HASH);
+    provider.forget(HASH);
+
+    expect(credentialHealth(HASH).state).toBe(CREDENTIAL_HEALTH.UNKNOWN);
   });
 });

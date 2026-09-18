@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { account, rateLimits, queryGateOpen } = vi.hoisted(() => ({
+const { account, rateLimits, queryGateOpen, tranquility } = vi.hoisted(() => ({
   account: { characters: [], actions: {} },
   rateLimits: new Map(),
   queryGateOpen: { value: true },
+  tranquility: { value: { online: true } },
 }));
 
 vi.mock("../../Shared/queryExecutionEnabled", () => ({
@@ -52,12 +53,18 @@ function queryClientSpy() {
     fetchQuery: vi.fn(async (query) => {
       fetched.push(query.queryKey);
     }),
+    // The prefetch asks for the Tranquility status before planning; a test decides what it finds.
+    ensureQueryData: vi.fn(async () => {
+      if (tranquility.value instanceof Error) throw tranquility.value;
+      return tranquility.value;
+    }),
   };
 }
 
 beforeEach(() => {
   rateLimits.clear();
   queryGateOpen.value = true;
+  tranquility.value = { online: true };
   setAccount([]);
 });
 
@@ -213,6 +220,7 @@ describe("prefetchCollections", () => {
     setAccount([character("hash-a", 98000001)]);
     const order = [];
     const queryClient = {
+      ensureQueryData: async () => tranquility.value,
       fetchQuery: vi.fn(async (query) => {
         order.push(query.queryKey[0]);
       }),
@@ -250,6 +258,7 @@ describe("prefetchCollections", () => {
       .mockImplementation(() => {});
     let calls = 0;
     const queryClient = {
+      ensureQueryData: async () => tranquility.value,
       fetchQuery: vi.fn(async () => {
         calls += 1;
         if (calls === 1) throw new Error("esi down");
@@ -286,6 +295,7 @@ describe("prefetchCollections", () => {
     setAccount([character("hash-a", 98000001), character("hash-b", 98000002)]);
     const order = [];
     const queryClient = {
+      ensureQueryData: async () => tranquility.value,
       fetchQuery: vi.fn(async (query) => {
         order.push(query.queryKey);
       }),
@@ -353,6 +363,7 @@ describe("prefetchCollections", () => {
     let inFlight = 0;
     let peak = 0;
     const queryClient = {
+      ensureQueryData: async () => tranquility.value,
       fetchQuery: vi.fn(async () => {
         inFlight += 1;
         peak = Math.max(peak, inFlight);
@@ -379,6 +390,7 @@ describe("prefetchCollections", () => {
     let inFlight = 0;
     let peak = 0;
     const queryClient = {
+      ensureQueryData: async () => tranquility.value,
       fetchQuery: vi.fn(async () => {
         inFlight += 1;
         peak = Math.max(peak, inFlight);
@@ -424,5 +436,53 @@ describe("prefetchCollections", () => {
     await prefetchCollections(queryClient, ["hash-a"]);
 
     expect(queryClient.fetchQuery).toHaveBeenCalled();
+  });
+});
+
+describe("waiting for the Tranquility status", () => {
+  // The collection queries disable themselves until the status is cached, and it is fetched at app
+  // start in parallel with login. Planning first dropped every item and the prefetch reported
+  // success having fetched nothing — collections then arrived only when a page mounted a consumer.
+  it("plans nothing until the status has been answered", async () => {
+    let answer;
+    const held = new Promise((resolve) => {
+      answer = resolve;
+    });
+    setAccount([character("hash-1", 98000001)]);
+    const queryClient = queryClientSpy();
+    queryClient.ensureQueryData = vi.fn(() => held);
+    queryGateOpen.value = false;
+
+    const prefetching = prefetchCollections(queryClient, ["hash-1"]);
+    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+
+    queryGateOpen.value = true;
+    answer({ online: true });
+    await prefetching;
+
+    expect(queryClient.fetchQuery).toHaveBeenCalled();
+  });
+
+  it("fetches nothing at an offline server", async () => {
+    setAccount([character("hash-1", 98000001)]);
+    tranquility.value = { online: false };
+    const queryClient = queryClientSpy();
+
+    await prefetchCollections(queryClient, ["hash-1"]);
+
+    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+  });
+
+  it("fetches nothing when the status cannot be had", async () => {
+    setAccount([character("hash-1", 98000001)]);
+    tranquility.value = new Error("ESI unreachable");
+    const queryClient = queryClientSpy();
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await prefetchCollections(queryClient, ["hash-1"]);
+
+    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+    expect(reported).toHaveBeenCalled();
+    reported.mockRestore();
   });
 });

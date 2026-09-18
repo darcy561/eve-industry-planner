@@ -1,4 +1,5 @@
 import useUsersStore from "../../Zustand/usersStore";
+import { detectUserLocale } from "./localeDetection";
 
 /**
  * Parses a number string or number that may contain thousands separators and decimal points (US, European, etc.).
@@ -352,4 +353,37 @@ export function formatTimeRemaining(inputTime, options = {}) {
   } catch {
     return "Time Not Available";
   }
+}
+
+/** Units the relative formatter steps down through, largest first. */
+const TIME_SINCE_UNITS = [
+  ["day", 86_400_000],
+  ["hour", 3_600_000],
+  ["minute", 60_000],
+];
+
+/**
+ * How long ago a moment was, in words — "4 minutes ago", "3 hours ago".
+ *
+ * Phrased by `Intl.RelativeTimeFormat` in the reader's own locale rather than assembled from the
+ * duration formatter above, which names a length of time ("3H 20M") rather than a point in the past.
+ *
+ * @param {number} at - unix milliseconds
+ * @param {object} [options]
+ * @param {number} [options.now] - unix milliseconds
+ * @param {string} [options.locale]
+ * @returns {string} empty when `at` is not a usable time
+ */
+export function formatTimeSince(at, options = {}) {
+  if (typeof at !== "number" || !Number.isFinite(at) || at <= 0) return "";
+
+  const { now = Date.now(), locale = detectUserLocale() } = options;
+  const elapsed = Math.max(0, now - at);
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+
+  for (const [unit, size] of TIME_SINCE_UNITS) {
+    const count = Math.floor(elapsed / size);
+    if (count >= 1) return formatter.format(-count, unit);
+  }
+  return formatter.format(0, "minute");
 }
