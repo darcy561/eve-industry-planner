@@ -33,8 +33,8 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 - **What a sale costs** — broker fees, sales tax, the owner's rate →
   [planning-stage-panels/contents.md](../planning-stage-panels/contents.md), which handed the
   `SaleStructure` shape over as a proposal rather than a decision.
-- **The settings screens' appearance**, already landed →
-  [accounts-page/contents.md](../accounts-page/contents.md).
+- **The settings screens' appearance**, already landed: they render one layout per component, and
+  the four Custom Structures components share one form.
 - **Stored job setups**, which reference a structure by id and are untouched: ids are not rewritten.
 - Live SPA and backend behaviour → [frontend/](../../frontend/contents.md),
   [backend/](../../backend/contents.md) (promote targets).

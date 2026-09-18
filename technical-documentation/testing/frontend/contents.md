@@ -70,8 +70,10 @@ import or taking it on trust.
 
 | I need to… | Read |
 |------------|------|
-| SPA auth test depth — credentials, planner session, login | [auth.md](./auth.md) |
+| SPA auth test depth — credentials, credential health, planner session, login | [auth.md](./auth.md) |
 | Routing test depth — the guard, route loaders, and the screens a reader sees | [navigation.md](./navigation.md) |
-| Asset and blueprint collection test depth — builders, index hooks, scheduler, library rendering | [esi-collections.md](./esi-collections.md) |
+| Asset and blueprint collection test depth — builders, index hooks, scheduler, collection status, library rendering | [esi-collections.md](./esi-collections.md) |
+| Accounts page test depth — the roster, a character's row and action menu, ESI status, corporations, shared planners | [accounts.md](./accounts.md) |
+| Shared app-shell component test depth — rows, menus, the labelled-field shells | [components.md](./components.md) |
 | Static data test depth — the file owners, and how to mock or seed one | [static-data.md](./static-data.md) |
 | _(add rows as topic files land — e.g. document-lock, planner)_ | |

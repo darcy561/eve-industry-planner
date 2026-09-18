@@ -15,7 +15,7 @@ The planner as a first-class thing a user works in, and the ownership model unde
 
 ## Does not own
 
-- Statistics aggregation, the rebuild queue, the delta path, and the archived-jobs read/restore surfaces → [archived-jobs-stats/plan.md](../accounts-page/archived-jobs-stats/plan.md). Those are already owner-shaped; this project supplies the owners and retires that plan's Stage C ownership question.
+- Statistics aggregation, the rebuild queue, the delta path, and the archived-jobs read/restore surfaces → [archived-jobs-stats/plan.md](../archived-jobs-stats/plan.md). Those are already owner-shaped; this project supplies the owners and retires that plan's Stage C ownership question.
 - Entity refs (`corp_…`, `alliance_…`), the `shared/crypto/entityid` cipher, and the boundaries that convert refs to ids → [entity-id-encryption/plan.md](../entity-id-encryption/plan.md). Corporation and alliance planner ids **are** those refs; this project consumes them and mints none.
 - Websocket hosted tenants and placement → [changestream-tenant-scale/contents.md](../changestream-tenant-scale/contents.md). This project adds owner kinds to routing keys that already exist.
 - Collection rename mechanics → [collection-naming/contents.md](../collection-naming/contents.md). This project declares renames; that project owns how a rename is applied.

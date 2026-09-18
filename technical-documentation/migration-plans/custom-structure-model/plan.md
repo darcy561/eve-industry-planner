@@ -138,9 +138,8 @@ slices hold one array.
 reprocessing screens read the same array.
 
 **Stage C — The surfaces.** The settings screens and the reprocessing panel list from one array
-filtered by kind, rather than from four lanes. Most of this landed already as UI:
-[accounts-page](../accounts-page/contents.md) made one card body serve every kind, so what is left is
-what feeds it.
+filtered by kind, rather than from four lanes. Most of this landed already as UI — one card body
+serves every kind — so what is left is what feeds it.
 **Done when** no screen names a lane.
 
 **Stage D — The kind that is a market.** A saved location that can be a market rather than only a
@@ -174,7 +173,7 @@ own what a structure is *for*.
 - **What a sale costs** — broker fees, sales tax, the rate a structure's owner set — is
   [planning-stage-panels](../planning-stage-panels/contents.md), which handed over the
   `SaleStructure` shape as a proposal and is explicit that it is not bound by it.
-- **The settings screens' look** is [accounts-page](../accounts-page/contents.md), already landed.
+- **The settings screens' look** is already landed: one card body serves every kind.
 
 **Settled by the shelving.** The sale kind — a saved location that is a market rather than a selling
 point priced from a hub — lands **inside this project**.

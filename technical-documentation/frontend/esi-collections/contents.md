@@ -7,14 +7,16 @@ under [`frontend/src/Functions/Assets`](../../../frontend/src/Functions/Assets),
 [`frontend/src/Functions/Blueprints`](../../../frontend/src/Functions/Blueprints) and
 [`frontend/src/Hooks/EveEsi`](../../../frontend/src/Hooks/EveEsi): the row shapes and their
 resolution rules, the corporation access model for each, the index hooks and the cache that shares a
-derived collection, the shared location-name resolution, and how every prefetched ESI collection is
-fetched at login.
+derived collection, the shared location-name resolution, how every prefetched ESI collection is
+fetched at login, and what the application currently holds of a collection for one character or
+corporation.
 
 ## Does not own
 
 - Login, tokens, sessions, the private-request path → [../auth/spa.md](../auth/spa.md)
 - Document-lock UI → [../document-lock/spa.md](../document-lock/spa.md)
 - Routing and page chrome → [../navigation/spa.md](../navigation/spa.md)
+- Displaying a collection's state on the Accounts page → [../accounts/characters.md](../accounts/characters.md)
 - The ESI endpoints themselves, their caching and their rate limiting → [backend/contents.md](../../backend/contents.md)
 - Test depth → [testing/frontend/esi-collections.md](../../testing/frontend/esi-collections.md)
 
@@ -31,6 +33,7 @@ fetched at login.
 | Find where a blueprint sits | [blueprints.md](./blueprints.md) § Where a blueprint sits |
 | See what the login path fetches, in what order, and under what budget | [prefetch.md](./prefetch.md) |
 | Add a collection to the login prefetch, or change when one is fetched | [prefetch.md](./prefetch.md) § The collection table |
+| Know what state a collection reports for a character or corporation, or add a new state | [prefetch.md](./prefetch.md) § Collection status |
 | Decide whether a corporation endpoint is fetched once or per member | [blueprints.md](./blueprints.md) § Corporation blueprints as a single access point |
 | Resolve a location or container id into a name | [location-names.md](./location-names.md) |
 | Show a location whose name is refused, absent, or could not be resolved | [assets.md](./assets.md) § Assembling a view, [location-names.md](./location-names.md) § What a lookup can settle on |

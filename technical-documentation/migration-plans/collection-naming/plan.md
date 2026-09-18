@@ -218,7 +218,7 @@ as a **request field** rather than as an implementation detail.
 procedure as though it were routine work.
 
 This folder outlives the promote only because the active
-[archived-jobs-stats](../accounts-page/archived-jobs-stats/plan.md) plan cites its renames; it goes when that
+[archived-jobs-stats](../archived-jobs-stats/plan.md) plan cites its renames; it goes when that
 project closes.
 
 ## Done when

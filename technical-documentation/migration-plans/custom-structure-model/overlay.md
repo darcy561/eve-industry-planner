@@ -27,7 +27,7 @@ the fold happened; what the store slices hold.
 *Nothing landed yet.*
 
 Sections to fill: what a screen reads to list structures of one kind; what the reprocessing panel
-reads; anything the accounts-page card work assumed about lanes that had to move with them.
+reads; anything the one-card-body settings screens assumed about lanes that had to move with them.
 
 ## Stage D — The kind that is a market
 

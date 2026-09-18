@@ -1,7 +1,7 @@
 # Archived jobs statistics — plan
 
-**Rules:** Read and following [`../documentation-rules.md`](../../documentation-rules.md)
-and [`../technical-rules.md`](../../technical-rules.md) (migration-plans).
+**Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
+and [`../technical-rules.md`](../technical-rules.md) (migration-plans).
 Phase 1 (project folders/docs) before any product work.
 For Go surfaces in scope only: `go fix -diff` before planned work; again on edited packages (not unrelated code).
 Live SoT will not be edited until this project is complete and promotion is approved.
@@ -53,7 +53,7 @@ does not. Treat the branch as a specification.
 | **Reimplement against driver v2** | `worker/tasks/archivedjobs/` including its `helpers/` package, `api/v1endpoints/statistics/` endpoints, `core/scheduler/archivedjobs/publish_fanout.go`, and all Mongo query code. |
 | **Relocate** | The branch's `shared/core/mongo/indexing/` package. Index ownership sits in the Deployment Tool (`internal/dataplane/mongo/index_specs.go`, applied by `eip ensure-mongo`); Development has no index-creation code in `services/`. New collections get `IndexSpec` entries there rather than a services-side indexing package called from `main.go`. |
 | **Drop** | `services/shared/shared/*` renames (already landed on Development), all 19 `docs/` files (content re-targeted into this project folder), `go.mod` / `go.sum` changes, `frontend/package-lock.json` (regenerate). |
-| **Separate decision** | The branch's `core/crypto/authzhmac/` package implements [entity-id-encryption/plan.md](../../entity-id-encryption/plan.md), not this project. The `crypto/aesgcm_keyring.go` → `crypto/aesgcm/keyring.go` nesting is orthogonal to archived jobs and collides with recent auth work; land it separately if still wanted. |
+| **Separate decision** | The branch's `core/crypto/authzhmac/` package implements [entity-id-encryption/plan.md](../entity-id-encryption/plan.md), not this project. The `crypto/aesgcm_keyring.go` → `crypto/aesgcm/keyring.go` nesting is orthogonal to archived jobs and collides with recent auth work; land it separately if still wanted. |
 
 ## Phases
 
@@ -162,7 +162,7 @@ are account scoped, so no corporation collection is watched), and index specs in
 Tool.
 
 These are **new** collections, so they are named to the convention in
-[collection-naming](../../collection-naming/plan.md) from the start rather than renamed later:
+[collection-naming](../collection-naming/plan.md) from the start rather than renamed later:
 `corporation_archived_jobs`, `corporation_production_totals`, `corporation_timeline_months`,
 `corporation_stats_rebuild_queue`. Corporation-scoped data is the case the `<scope>_` prefix exists
 for, and it is the first collection set that will not be account scoped.
@@ -278,7 +278,7 @@ on the wire.
 
 | Surface | Was | Now |
 |---------|-----|-----|
-| Collection | `user_rollup_buckets` | `account_timeline_months` (renamed by [collection-naming](../../collection-naming/plan.md)) |
+| Collection | `user_rollup_buckets` | `account_timeline_months` (renamed by [collection-naming](../collection-naming/plan.md)) |
 | Model | `UserRollupMonthlyBucket` | `AccountTimelineMonthBucket` |
 | Model | `CorpRollupMonthlyBucket` | `CorpTimelineMonthBucket` |
 | Model | `BuildStatsRollupTotals` | `TimelineTotals` |
@@ -325,7 +325,7 @@ module boundary, so the two cases differ sharply:
 `build_stats` was held back because it is not contained: beyond `names.go` and `store.go` it appears
 in the changestream `archive_and_stats` collection group and the websocket subscribe-auth allow-list,
 so the name is part of a **live client-facing subscription surface**, not just storage.
-[collection-naming](../../collection-naming/plan.md) renamed it to `account_production_totals` anyway,
+[collection-naming](../collection-naming/plan.md) renamed it to `account_production_totals` anyway,
 moving the SPA's subscription strings in the same change.
 
 **This did not shorten Stage E.** What made the rename expensive was never the collection — it was
@@ -558,7 +558,7 @@ Three things the archive did are not reversed by simply copying the document bac
 
 **Entity ids became refs.** `jobidentity.Encrypt` ran on the way in. Restore decrypts back to raw
 ids, or the planner receives a job whose identities it cannot read. The conversion is owned by
-[entity-id-encryption](../../entity-id-encryption/plan.md); this stage only calls it.
+[entity-id-encryption](../entity-id-encryption/plan.md); this stage only calls it.
 
 **ESI links were released.** Archiving removes the job's linked runs, orders and transactions
 (`Job.LinkedESIJobIDs`, `LinkedOrderIDs`, `LinkedTransactionIDs`) from the account's linked-ESI set,
@@ -1023,7 +1023,7 @@ plus an id — rather than an account id:
 | `alliance` | the alliance ref |
 
 Corporation and alliance ids are refs, never raw ids, per
-[entity-id-encryption](../../entity-id-encryption/plan.md); an owner therefore carries whatever
+[entity-id-encryption](../entity-id-encryption/plan.md); an owner therefore carries whatever
 identifies its kind internally, and nothing here converts it back.
 
 This lands **now** rather than in Stage C because Stage J creates the surfaces that would otherwise
@@ -2034,14 +2034,14 @@ reduction is in a position to notice. A mutation test found this guard untested 
 
 ## Owner block — owed to shared planners
 
-[shared-planners](../../shared-planners/plan.md) makes the planner an explicit thing a user works in, and
+[shared-planners](../shared-planners/plan.md) makes the planner an explicit thing a user works in, and
 replaces the per-scope fields on stored documents with a single owner. Four items landed **here**,
 because they were cheap only while this project was still open and touching live data. The shapes below
 are settled; the reasoning for each lives in that plan.
 
 **This work is finished and has been handed over.** The owner block is now owned by
-[shared-planners](../../shared-planners/plan.md): its plan carries the design and the cutover window, and
-its [overlay](../../shared-planners/overlay.md) § Stage A carries how a document states its owner today.
+[shared-planners](../shared-planners/plan.md): its plan carries the design and the cutover window, and
+its [overlay](../shared-planners/overlay.md) § Stage A carries how a document states its owner today.
 The sections here record what this project built and why, and are not the place to read current
 behaviour from. Nothing further is owed.
 
@@ -2052,7 +2052,7 @@ behaviour from. Nothing further is owed.
 | 3. Route and query key take an owner | **Done.** The route is `/api/v1/statistics/{owner}/{view}` with the owner as a handle, and every statistics query key carries the owner under the shared root |
 | 4. Stage C's ownership inference is dropped | **Done.** `corpinference`, the per-line corporation fields and the lane on the corporation bucket are gone; nothing in `services/` or the SPA infers a scope |
 
-Nothing in [shared-planners](../../shared-planners/plan.md) blocks items 1 or 2 — the dependency runs the
+Nothing in [shared-planners](../shared-planners/plan.md) blocks items 1 or 2 — the dependency runs the
 other way. Item 1 includes the `StatsOwner` → `Owner` rename, because fifteen of the sixteen non-test
 files referencing that type are this project's own code and it is already opening them; and
 `ArchivedJobStats` carries flat fields rather than embedding `MetaData`, so it does not wait on that
@@ -2397,7 +2397,7 @@ statistics collections, so the renames it owes are over collections the owner ba
 and they ship as version 1 by themselves. `CollectionRenames` is version-gated — a database skips
 every entry at or below the version it records — so an entry added to a version already applied would
 never run; a later batch takes the next version. The wider owner migration,
-and the task that performs it, belong to [shared-planners](../../shared-planners/plan.md) § Stage A,
+and the task that performs it, belong to [shared-planners](../shared-planners/plan.md) § Stage A,
 which is now a single cutover inside the deployment window rather than a gradual switch.
 
 ## The owner block landed as one cutover
@@ -2406,7 +2406,7 @@ Item 1 owner-keyed the three statistics documents. The rest of the database stil
 different way — `_meta.accountID` on every scoped document, with `_meta.corporationRef` and
 `_meta.allianceRef` beside it — so the same fact had two vocabularies and the statistics collections
 were the odd ones out. This closed that, following
-[shared-planners](../../shared-planners/plan.md) § Stage A, whose design this implements.
+[shared-planners](../shared-planners/plan.md) § Stage A, whose design this implements.
 
 **One vocabulary.** `models.Owner` is the only way ownership is stated. The parallel tenant-key surface
 in `shared/wsplacement` — `TenantPrefixAccount`, `TenantKeyAccount/Corporation/Alliance`,
@@ -2485,7 +2485,7 @@ No spec examines more than it returns, which is what the check was for: an index
 winning its query still returns the right answer, just slowly, and reports nothing.
 
 **The check found something it was not looking for: `jobs` is not a built collection.** It is named in
-`knownCollections` and in [shared-planners](../../shared-planners/plan.md) § Collection layout, which
+`knownCollections` and in [shared-planners](../shared-planners/plan.md) § Collection layout, which
 splits a job's record from its body — but no environment holds it, nothing writes one, and every job
 lives in `job_documents`. That is why it has no index specs: there is nothing to index yet.
 
@@ -2582,7 +2582,7 @@ whichever work touches SSO next rather than widened into this stage.
 Re-run for the watchlist and dry-run work, against its touch surface (`shared/mongo/…`,
 `core/commands/…`, `core/changestream/…`, and `deployment-tool/internal/dataplane/mongo/…`). One
 suggestion, in `core/changestream/resume.go`: `errors.As` with a declared variable becomes
-`errors.AsType[mongo.CommandError]`. [shared-planners](../../shared-planners/plan.md) § Go modernisation
+`errors.AsType[mongo.CommandError]`. [shared-planners](../shared-planners/plan.md) § Go modernisation
 in scope had it listed against a stage that has not started; the routing-log fix put the package in
 this work's surface, so it landed here rather than waiting. Nothing else in either module's scope.
 
@@ -2593,7 +2593,7 @@ this work's surface, so it landed here rather than waiting. Nothing else in eith
 | Phase 1 — project docs | Complete |
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, its schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
-| C — corporation statistics pipeline | **Never needed, and not built.** The pipeline, the queue, the delta, the rota and the storage are all owner-generic, so a corporation is a kind the statistics route authorises rather than a second pipeline to build. [shared-planners](../../shared-planners/plan.md) decides a job's owner at creation and turns that route's kind check into a grant lookup; the inference producer that would have guessed a scope from recorded ids is gone. Nothing is owed here. See § Owner block — owed to shared planners |
+| C — corporation statistics pipeline | **Never needed, and not built.** The pipeline, the queue, the delta, the rota and the storage are all owner-generic, so a corporation is a kind the statistics route authorises rather than a second pipeline to build. [shared-planners](../shared-planners/plan.md) decides a job's owner at creation and turns that route's kind check into a grant lookup; the inference producer that would have guessed a scope from recorded ids is gone. Nothing is owed here. See § Owner block — owed to shared planners |
 | D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. Months carry the six components of a period's cost and its extras by category; `totals?summary=1` folds the archive into one row. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
 | E — frontend | **Complete for the account scope** — the SPA reads `totals`, `timeline` and `timeline/items`; build-stats is deleted; the dashboard carries the month-on-month comparison and the item breakdown; the archive dialogue is split into its four segment blocks. Corporation scope waits for Stage C |
 | F — archived jobs read API | **Complete** — `GET /api/v1/archived-jobs` serves a paged, filtered list of summaries and `GET /api/v1/archived-jobs/{jobID}` one full document. Rows report group and related-set membership, figures come from the shared `archivestats` reduction, and the query parsing both this and the statistics views use moved to `api/helper`. Indexes landed in the Deployment Tool |
@@ -2608,7 +2608,7 @@ this work's surface, so it landed here rather than waiting. Nothing else in eith
 - Statistics are produced by the new pipeline for **any owner**, with timelines and snapshots
   persisted and served. The pipeline, the queue, the delta, the rota and the storage are owner-generic;
   the statistics route parses an owner and currently authorises only the account kind, which
-  [shared-planners](../../shared-planners/plan.md) opens into a grant lookup. Corporation statistics are
+  [shared-planners](../shared-planners/plan.md) opens into a grant lookup. Corporation statistics are
   therefore a kind that plan authorises, not a pipeline this one still owes — which is why Stage C was
   never built.
 - The frontend reads the new endpoints and the previous flat aggregate has no remaining callers.
@@ -2646,28 +2646,28 @@ other is the work, and this table is what stops it being re-derived under time p
 
 | Overlay section | Live home | Note |
 |-----------------|-----------|------|
-| § The owner block | [backend/shared/mongo.md](../../../backend/shared/mongo.md) § What a document carries | The owner is how every scoped document states ownership; that topic already describes `_meta` |
+| § The owner block | [backend/shared/mongo.md](../../backend/shared/mongo.md) § What a document carries | The owner is how every scoped document states ownership; that topic already describes `_meta` |
 | § One place names the owner block… | same | Beside it: the field-path constants and why a query that groups needs the block |
-| § Stage A — Mongo layer, § Indexes | [backend/shared/mongo.md](../../../backend/shared/mongo.md) §§ Reading and writing, Collection naming | Owner-led index rule, the two upsert contracts, retired-index and hint-name pairing |
-| § Stage B — the transformation | new topic under [backend/worker/](../../../backend/worker) | The reduction, the rebuild, the claim protocol |
+| § Stage A — Mongo layer, § Indexes | [backend/shared/mongo.md](../../backend/shared/mongo.md) §§ Reading and writing, Collection naming | Owner-led index rule, the two upsert contracts, retired-index and hint-name pairing |
+| § Stage B — the transformation | new topic under [backend/worker/](../../backend/worker) | The reduction, the rebuild, the claim protocol |
 | § Stage J — delta, claim, dispatcher, rota | same new topic | The incremental path and reconciliation |
-| § Stage D — statistics API, § The window, § The aggregation | new topic under [backend/api/](../../../backend/api) | Routes, the owner handle, the window, what a period cost |
+| § Stage D — statistics API, § The window, § The aggregation | new topic under [backend/api/](../../backend/api) | Routes, the owner handle, the window, what a period cost |
 | § Stage F — archived jobs read API, § Stage G — restore | same new topic | List, read, restore; the order and why it holds |
 | § Group membership while a job is archived | same | Belongs with restore |
 | § Stage I — group derivation | that API topic, cross-linked to the frontend | The corpus is shared with the SPA |
-| § How a change reaches the right clients, § What the publish log reports | [backend/core/core.md](../../../backend/core/core.md) § Changestream → JetStream and [backend/websocket/](../../../backend/websocket) | Producer half to core, delivery half to websocket |
-| § Stage E, § Stage H — frontend | [frontend/](../../../frontend/contents.md) | The pages, charts and query keys |
-| § Ingest — entity ids on stored jobs | [entity-id-encryption](../../entity-id-encryption/plan.md) | That project owns refs; check before folding |
-| § Live Mongo tests — draft for `testing/harness.md` | [testing/harness.md](../../../testing/harness.md) | Already written as a draft, ready to lift |
+| § How a change reaches the right clients, § What the publish log reports | [backend/core/core.md](../../backend/core/core.md) § Changestream → JetStream and [backend/websocket/](../../backend/websocket) | Producer half to core, delivery half to websocket |
+| § Stage E, § Stage H — frontend | [frontend/](../../frontend/contents.md) | The pages, charts and query keys |
+| § Ingest — entity ids on stored jobs | [entity-id-encryption](../entity-id-encryption/plan.md) | That project owns refs; check before folding |
+| § Live Mongo tests — draft for `testing/harness.md` | [testing/harness.md](../../testing/harness.md) | Already written as a draft, ready to lift |
 | § Corrections to figures already served | **nowhere** | A record of what changed and why a rebuild was owed. Migration history: it goes with the folder |
 | § Current behaviour (before this project), §§ Stage C, Generated archive data for development | **nowhere** | Before-and-after framing, a stage never built, and a dev convenience |
 
 **Promoted.** The two topic docs that did not exist are written:
-[backend/worker/statistics.md](../../../backend/worker/statistics.md) and
-[backend/api/archive.md](../../../backend/api/archive.md), each with rows in its folder's `contents.md`.
-The owner block folded into [backend/shared/mongo.md](../../../backend/shared/mongo.md), the changestream
-half into [backend/core/core.md](../../../backend/core/core.md), and the live-Mongo harness into
-[testing/harness.md](../../../testing/harness.md).
+[backend/worker/statistics.md](../../backend/worker/statistics.md) and
+[backend/api/archive.md](../../backend/api/archive.md), each with rows in its folder's `contents.md`.
+The owner block folded into [backend/shared/mongo.md](../../backend/shared/mongo.md), the changestream
+half into [backend/core/core.md](../../backend/core/core.md), and the live-Mongo harness into
+[testing/harness.md](../../testing/harness.md).
 
 Folding also corrected live docs the renames had left behind: `mongo.md`'s handle table named
 `account_job_documents` and the other pre-rename collections, its `_meta` section described the
@@ -2675,9 +2675,9 @@ per-scope fields the owner replaced, `core.md` described a payload carrying thre
 four document-lock topics named collections that no longer exist.
 
 **The folder is not deleted on promote.** The rule's test names three active projects citing it:
-[shared-planners](../../shared-planners/plan.md) links to this plan's owner-block design and to the
-overlay's delivery section, [entity-id-encryption](../../entity-id-encryption/plan.md) cites the ingest
-overlay, and [collection-naming](../../collection-naming/plan.md) cites the renames. The folder goes when
+[shared-planners](../shared-planners/plan.md) links to this plan's owner-block design and to the
+overlay's delivery section, [entity-id-encryption](../entity-id-encryption/plan.md) cites the ingest
+overlay, and [collection-naming](../collection-naming/plan.md) cites the renames. The folder goes when
 the last of those closes.
 
 **Promotion is gated on the window, not on more work.** Live docs must describe what runs, and live has
@@ -2769,7 +2769,7 @@ the scratch-account cleanup the Go live tests share. Browser-level coverage (Pla
 deliberate later decision, not an oversight.
 
 **The owner block is landed.** All four items are done and
-[shared-planners](../../shared-planners/plan.md) § Stage A is implemented with them: `_meta.owner` is the
+[shared-planners](../shared-planners/plan.md) § Stage A is implemented with them: `_meta.owner` is the
 single ownership statement on every scoped document, `models.Owner` is the only vocabulary, the index
 specs moved with the queries, and the stamp is a `prepareRelease` step rather than a task an operator
 can skip. Design and reasoning → § The owner block landed as one cutover. Behaviour →
@@ -2791,13 +2791,13 @@ watchlist are all landed, and the second ownership vocabulary is gone. What stan
 promotion is evidence, not implementation:
 
 1. ~~`explain` the seven `job_documents` index specs.~~ **Done** — all seven win their query. The check
-   also found that `jobs` is not a built collection at all, which is [shared-planners](../../shared-planners/plan.md)'
+   also found that `jobs` is not a built collection at all, which is [shared-planners](../shared-planners/plan.md)'
    to settle. See § The indexes moved with the queries.
 2. ~~Look at the failing live tests.~~ **Done** — every gated package passes, and running them found the
    reconcile rota reconciling nothing. See § Handoff status.
 
 **Both verification steps are closed, so what remains is the window.** § Operational steps owed lists the commands, and
-[shared-planners](../../shared-planners/plan.md) § Stage A owns the order and the backup.
+[shared-planners](../shared-planners/plan.md) § Stage A owns the order and the backup.
 
 **The live tests now run, and the owner tests pass.** `scripts/testing/live-mongo.sh` builds a test
 binary for linux and runs it in a container on the stack network, so `mongo` resolves and the credentials
@@ -2889,7 +2889,7 @@ just means the corporation data arrives a rebuild late.
 
 | Step | Command | Why |
 |------|---------|-----|
-| 1. Convert stored entity ids | `tasks encodeJobIdentity` (`-dry-run` first) | On dev, `protected.spec` is null on all 9,130 archived jobs and 834 still hold a raw `corporation_id` on their linked jobs. Those are the only corporation ids in the database, and `archivestats` reads refs, so until they are converted the aggregation sees nothing. It is also the first thing that would give `character_ref` any value at all. Owned by [entity-id-encryption](../../entity-id-encryption/plan.md); this project only depends on it |
+| 1. Convert stored entity ids | `tasks encodeJobIdentity` (`-dry-run` first) | On dev, `protected.spec` is null on all 9,130 archived jobs and 834 still hold a raw `corporation_id` on their linked jobs. Those are the only corporation ids in the database, and `archivestats` reads refs, so until they are converted the aggregation sees nothing. It is also the first thing that would give `character_ref` any value at all. Owned by [entity-id-encryption](../entity-id-encryption/plan.md); this project only depends on it |
 | 2. Everything the release owes the database | `tasks prepareRelease` (`-dry-run` first) | One command. It runs every release's steps, oldest first — see `releases` in `core/commands/prepare_release.go`; these eight are 0.9.0. A step with nothing to do reports zero, so re-running against a current environment is safe, and an environment several versions behind catches up in one pass |
 
 The eight steps inside that command, in order, and why each is owed:
@@ -2916,11 +2916,11 @@ step 1 has already run against live was not checked; do not assume live matches 
 
 They run inside the deployment's maintenance window rather than against a serving system. The window,
 its order, and the backup the cutover relies on instead of a rollback path are
-[shared-planners](../../shared-planners/plan.md) § Stage A's; this plan owns only which commands are owed
+[shared-planners](../shared-planners/plan.md) § Stage A's; this plan owns only which commands are owed
 and why.
 
 A third command is owed in the same window but belongs to
-[shared-planners](../../shared-planners/plan.md): `tasks backfillMetaOwner` stamps `_meta.owner` on the
+[shared-planners](../shared-planners/plan.md): `tasks backfillMetaOwner` stamps `_meta.owner` on the
 documents that carry an account id, writing the owner block ahead of any code that reads it. It wants
 to run alongside step 1 rather than after step 2, because the rebuild derives from job documents and
 there is no reason to have it read them twice. It has run on dev — every stamped owner carrying the id
@@ -2939,7 +2939,7 @@ last only until something saves a job.
 
 **On live it is no longer a cross-release problem.** The deployment takes the stack down, so every
 data step in this release and in shared-planners rides one window with nothing serving and nothing
-writing — see [shared-planners](../../shared-planners/plan.md) § Stage A for the window and its order.
+writing — see [shared-planners](../shared-planners/plan.md) § Stage A for the window and its order.
 The constraint that survives is only the order inside it: the images carrying `Owner` on `MetaData`
 are deployed before `tasks backfillMetaOwner` runs, and no job is saved in between because no traffic
 is being served. What was a hazard spanning two releases becomes a step order in one.

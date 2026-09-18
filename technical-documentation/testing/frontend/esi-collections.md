@@ -1,11 +1,11 @@
 # ESI collections — tests
 
 Live SoT for test depth across the SPA's normalised asset and blueprint collections: the row
-builders, the index hooks and their shared cache, the login collection table and scheduler, the
-shared location-name resolution, and the consumers that read the collections instead of building
-their own structure. Behaviour →
-[frontend/esi-collections/contents.md](../../frontend/esi-collections/contents.md) for the task map
-into the five topics; each row below links the specific one it tests. Module entrypoints →
+builders, the index hooks and their shared cache, the login collection table and scheduler, what the
+application holds of a collection for one character or corporation, the shared location-name
+resolution, and the consumers that read the collections instead of building their own structure.
+Behaviour → [frontend/esi-collections/contents.md](../../frontend/esi-collections/contents.md) for
+the task map into the topics; each row below links the specific one it tests. Module entrypoints →
 [contents.md](./contents.md).
 
 ## Entrypoints
@@ -15,7 +15,7 @@ into the five topics; each row below links the specific one it tests. Module ent
 | Whole suite | From `frontend/`: `npm test -- --run` | Vitest; no browser, no stack |
 | Asset tree | `npx vitest run src/Functions/Assets` | Builder, resolution, and the consumer assemblies |
 | Blueprint tree | `npx vitest run src/Functions/Blueprints` | Row builder, consolidation, library filter |
-| Prefetch | `npx vitest run src/Functions/EveESI/prefetch` | Collection table and scheduler |
+| Prefetch | `npx vitest run src/Functions/EveESI/prefetch` | Collection table, scheduler and collection status |
 | Coverage | `npm run coverage` | `vitest run --coverage` |
 
 Fixture rows for both collections live in `frontend/src/tests/assetFixtures.js` and
@@ -24,9 +24,9 @@ same rows — where a shared meaning change between two consumers would otherwis
 
 ## Coverage map
 
-**Depth:** Strong on the builders, the index hooks and cache, the scheduler and location-name
-resolution, and the pure consumer-side assemblies. Thin on the components that render the two
-libraries — the tree, the cards, the scope and filter chrome — which carry targeted tests for
+**Depth:** Strong on the builders, the index hooks and cache, the scheduler, collection status and
+location-name resolution, and the pure consumer-side assemblies. Thin on the components that render
+the two libraries — the tree, the cards, the scope and filter chrome — which carry targeted tests for
 specific behaviours rather than exhaustive coverage of the reshaped page.
 
 ### Tested
@@ -39,6 +39,7 @@ specific behaviours rather than exhaustive coverage of the reshaped page.
 | `Functions/Shared/collectionCache.js` | [row-collections.md](../../frontend/esi-collections/row-collections.md) | A hit on unchanged sources, a rebuild when any source, the source count, or the extra key changes |
 | `Hooks/EveEsi/Character/useGetAllCharacterBlueprints.test.jsx` | [row-collections.md](../../frontend/esi-collections/row-collections.md) | The hook and its cache-reading counterpart return the same shape |
 | `Functions/EveESI/prefetch/scheduler.js` | [prefetch.md](../../frontend/esi-collections/prefetch.md) | The table's contents pinned by name, per-character, per-corporation and per-division expansion, on-demand collections planning nothing, phase order within and across callers, the concurrency cap for one caller and for two, one fetch claimed once across callers, a caller arriving after an earlier drain finished, deferral when a rate-limit bucket is spent, the query gate closing the prefetch, and a failure reported without abandoning the rest |
+| `Functions/EveESI/prefetch/collectionStatus.js` | [prefetch.md](../../frontend/esi-collections/prefetch.md) § Collection status | Fresh inside the collection's own refresh expectation and stale past it; a collection never prefetched told apart from one that is missing; unavailable when the token was never granted the scope; a failed fetch told apart from an access the character lacks; a wallet collection reported as its worst division; nothing to say about a corporation collection for a character in no corporation; the table split correctly between a character's rows and a corporation's |
 | `Functions/EveESI/World/locationOutcome.js` | [location-names.md](../../frontend/esi-collections/location-names.md) | The settled outcomes carrying the values the location-resolution status enum uses, and which HTTP statuses are a refusal against a failure |
 | `Functions/EveESI/World/getUniverseNames.js`, `getCitadelData.js` | [location-names.md](../../frontend/esi-collections/location-names.md) | A name, a refusal, an unacquirable token, a failed request and each failing status classified; the community rung reached only from a refusal, and not at all for an account that has opted out; the ids that reach the wire sent once each and never as an empty body, and a refused request marked as one not worth repeating |
 | `Functions/EveESI/World/communityNames.js` | [location-names.md](../../frontend/esi-collections/location-names.md) | Both directions of the community store: a name read back, many structures learned at once submitted in one request, only the last thing learned about a structure kept, nothing submitted for a structure ESI did not name, and what the store would not take kept and sent next time rather than dropped |
@@ -79,6 +80,9 @@ specific behaviours rather than exhaustive coverage of the reshaped page.
   `autocomplete/virtualisedListbox.jsx`, `autocomplete/virtualisedLocationSearch.jsx`) is tested in
   isolation for its own contract — value in, value out, what it shows with nothing to choose from —
   not for how the library pages compose it.
+- The Accounts page's own display of collection status — the roster and corporation lists a reader
+  actually sees — is covered on that page's own terms, not here → [accounts.md](./accounts.md) §
+  Tested.
 
 ### Little / none
 

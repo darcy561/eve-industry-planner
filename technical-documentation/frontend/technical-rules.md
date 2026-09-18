@@ -93,7 +93,7 @@ Opening still animates.
 ## The app-shell surface has an owner
 
 A screen on the app-shell design composes `AppShellPanel`, `SectionPanel`, `SelectableCard`,
-`ActionCard` or `InsetSurface` rather than reaching for the sx underneath them —
+`ActionCard`, `EntityRow` or `InsetSurface` rather than reaching for the sx underneath them —
 `appShellSetupSectionPaperSx`, `appShellNestedCardSx`, `appShellInsetSurfaceSx` under
 [`Context/appShell`](../../frontend/src/Context/appShell). Each of those three sx values has a
 component built on it; a screen naming the sx directly has the surface without the component that

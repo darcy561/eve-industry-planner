@@ -11,9 +11,10 @@ owner.
 `AppShellPanel`
 ([`Styled Components/Paper/AppShellPanel.jsx`](../../../frontend/src/Styled%20Components/Paper/AppShellPanel.jsx))
 is the app-shell panel itself: an outlined `Paper` on `appShellSetupSectionPaperSx`, an optional title
-and action row, an overflow menu (`enableMenu` / `menuItems`), an error boundary, and loading and error
-states (`isLoading`, `isError`, `error`, `loadingVariant`). A title with no `componentName` names the
-error boundary itself, so an unlabelled panel is still distinguishable from another one.
+and action row, an overflow menu (`enableMenu` / `menuItems`, drawn by [`ActionMenu`](./menus.md)), an
+error boundary, and loading and error states (`isLoading`, `isError`, `error`, `loadingVariant`). A
+title with no `componentName` names the error boundary itself, so an unlabelled panel is still
+distinguishable from another one.
 
 A page frame — a stepper, its viewport and its navigation — is not a panel: `AppShellPanel` would wrap
 it in a title header, an error boundary and loading states it has no use for. A frame takes
@@ -39,7 +40,7 @@ panel: a date picker and a clear button inside a dialogue are this, not a sectio
 | sx | Component above it | Reads as |
 |----|---------------------|----------|
 | `appShellSetupSectionPaperSx` | `AppShellPanel` / `SectionPanel` | A soft-bordered panel with a tinted fill |
-| `appShellNestedCardSx` | `SelectableCard` / `ActionCard` — see [cards.md](./cards.md) | A quieter card nested inside a panel |
+| `appShellNestedCardSx` | `SelectableCard` / `ActionCard` (see [cards.md](./cards.md)), `EntityRow` (see [rows.md](./rows.md)) | A quieter card nested inside a panel |
 | `appShellInsetSurfaceSx` | `InsetSurface` | A recessed block, `appShellNestedCardSx`'s neighbour for non-card content |
 
 The module also carries form-control and picker props with no component above them —

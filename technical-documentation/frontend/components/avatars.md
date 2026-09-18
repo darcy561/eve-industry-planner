@@ -6,18 +6,19 @@ one.
 ## The module
 
 `Functions/Shared/eveImage.js` is the only file in the SPA that names `images.evetech.net`. It
-exports three functions, one per category the server carries:
+exports four functions, one per category the server carries:
 
 ```js
-typeImageUrl(typeID, variation, pixels)    // variation defaults to TYPE_IMAGE.ICON
-characterImageUrl(characterID, pixels)     // the portrait
-corporationImageUrl(corporationID, pixels) // the logo
+typeImageUrl(typeID, variation, pixels)       // variation defaults to TYPE_IMAGE.ICON
+characterImageUrl(characterID, pixels)        // the portrait
+corporationImageUrl(corporationID, pixels)    // the logo
+allianceImageUrl(allianceID, pixels)          // the logo
 ```
 
 `TYPE_IMAGE` is the vocabulary, exported beside them: `ICON`, `BLUEPRINT`, `BLUEPRINT_COPY` and
 `RELIC`, frozen. A type is the only category with a choice to make, so it is the only one with a
-constant — a character has a portrait and a corporation has a logo, and the module asks for those
-itself.
+constant — a character has a portrait, a corporation has a logo and an alliance has a logo, and the
+module asks for those itself.
 
 `pixels` is how large the picture will be drawn, not a size the server serves — the server answers
 anything outside its published set (32, 64, 128, 256, 512, 1024) with a 400 and no image. The module
@@ -25,8 +26,11 @@ rounds up into that set internally, so a 45-pixel avatar asks for 64 and a calle
 400. **An absent id answers `undefined`**, so a call site guards nothing rather than building an
 empty URL.
 
-`EVE_DEFAULT_OWNER_ID` (`1`) is the id EVE serves its own default portrait and logo under. It has no
-equivalent for an item — `types/1/icon` is a 404.
+`EVE_DEFAULT_OWNER_ID` (`1`) is the id EVE serves its own default portrait and logo under, for a
+character or a corporation. It has no equivalent for an item — `types/1/icon` is a 404 — and none
+for an alliance: the image server carries no default alliance logo, so `allianceImageUrl` is the one
+owner helper with no fallback id, and an alliance the app holds no id for has no picture at all
+rather than a stand-in.
 
 ## `EveImageAvatar`
 
@@ -38,6 +42,7 @@ avatar, and hands both to `Avatar`.
 ```jsx
 <EveImageAvatar type={row.typeID} size={22} variant="rounded" />
 <EveImageAvatar character={characterId} size={112} />
+<EveImageAvatar alliance={allianceId} size={42} variant="rounded" />
 <EveImageAvatar src={assetImageUrl(node, itemRecords)} size={24} variant="square" />
 ```
 
@@ -50,8 +55,10 @@ responsive `size` (an sx breakpoint object) is fetched at the largest breakpoint
 **Which subject prop was passed decides the request, not what it holds**: `character={undefined}`
 is still a character, and an id the app has not got yet is exactly when the default is wanted. A
 character or corporation with no id is asked for under `EVE_DEFAULT_OWNER_ID`, so an account still
-loading shows EVE's own placeholder rather than an empty frame. An item with no id is asked for not
-at all, because the server has no default under an item category.
+loading shows EVE's own placeholder rather than an empty frame. An alliance with no id is asked for
+not at all, matching `allianceImageUrl`'s own lack of a fallback — a reader is never shown somebody
+else's logo standing in for an alliance the app does not hold. An item with no id is asked for not
+at all either, because the server has no default under an item category.
 
 A picture the server has no art for is `Avatar`'s own answer: it renders its `children` when the
 image fails to load, and where a caller gives it none, the first letter of `alt` or a person glyph.
@@ -74,11 +81,15 @@ the person outline `Avatar` would otherwise fall back to.
 ## Where a screen composes `EveImageAvatar` directly
 
 A screen already composing the app-shell surfaces reaches for `EveImageAvatar` itself rather than a
-bare `<img>` or `Avatar`: the accounts cards, the asset tree and its dialogue templates, the
+bare `<img>` or `Avatar`: the Accounts page (characters, corporations and — where a planner is owned
+by a corporation or alliance — the planners section), the asset tree and its dialogue templates, the
 blueprint library card, the Planning stage's output and materials panels, the group-template dialogue,
 and the item tree. A screen still on the SPA's older layout keeps its own markup and asks the module
 for its URL directly — the module is the one thing every image call site shares, whichever markup
 draws it.
+
+A planner that belongs to no EVE entity — a custom planner — wears no artwork at all rather than
+falling through to some other picture: there is no id of any kind to ask the image server for.
 
 ## Two MUI compositions worth knowing
 

@@ -20,13 +20,15 @@ one authored here — see [testing/services/api.md](../services/api.md) § Cover
 
 ## Coverage map
 
-**Depth:** Strong on credential acquisition, the planner session action and its recovery paths, login progress and step retry, and post-login prefetch. React component rendering of auth surfaces is thin. No browser-level end-to-end exists.
+**Depth:** Strong on credential acquisition, credential health, the planner session action and its recovery paths, login progress and step retry, and post-login prefetch. React component rendering of auth surfaces is thin. No browser-level end-to-end exists.
 
 ### Tested
 
 | Area | What the tests cover |
 |------|----------------------|
 | `Functions/Auth/esiCredentials/provider.js` | A held token inside the buffer is returned and outside it is refreshed; concurrent callers for one character produce one refresh; failure classes pass through unchanged; adoption guards; `forget` drops a character |
+| `Functions/Auth/esiCredentials/health.js` | Nothing is known of a character nothing has been asked of; a record change notifies its readers; a repeated identical state does not; `forget` drops one character's record without disturbing the rest |
+| `Components/Auth/Hooks/useCredentialHealth.jsx` | Exercised through the surface reading it — see [accounts.md](./accounts.md) § Tested — rather than in isolation |
 | `Functions/Auth/esiCredentials` singleton | Strategy resolved per call, including an account switching between cloud and local while running; a rotated client secret reaching both the roster and the main character's resume slot; blocked browser storage; a character no longer on the roster |
 | `Functions/Auth/esiCredentials/strategies.js` | Each mode's endpoint and failure class; classification from `err.status` and from a message; a response carrying no access token; batching — several characters in one tick become one request, a hash asked for twice is asked once, a window wider than the server's cap splits into two requests, a per-character `error` fails only that character, and a failed request is recoverable for every waiter rather than reauth-required |
 | `Functions/Auth/buildCharacterFromCredentials.js` | All three entry points; the main character's resume secret written on success, cleared on failure, and left alone for an alt |
@@ -36,6 +38,7 @@ one authored here — see [testing/services/api.md](../services/api.md) § Cover
 | `Functions/Auth/retryLoginStep.js` | Each of the three retryable steps re-emits its own completion without re-running the others; `characterData` is not retryable |
 | `Functions/Auth/authRefreshTranquilityGate.js` | Deferral only on a successful fetch reporting offline; an unfilled cache does not defer |
 | `Functions/Auth/characterHashCanonical.js` | Canonical form used for roster lookups and comparisons |
+| `Functions/Auth/characterAffiliations.js` | The forced order — public data, then corporation, then alliance — and that a corporation or alliance the account already holds gains the character without being asked about again |
 | `Functions/Endpoints/esiAccessClient.js` | All three calls, including that a refused batch carries its HTTP status — the value the strategy classifies on |
 | `Zustand/account/plannerSessionActions.js` — recovery | A coded terminal rejection redirects to full EVE SSO and clears the tab's credentials; an uncoded one does not; a failed rotate is not retried by the next call, including a forced one; it resumes after the backoff; a success clears the record |
 | `Zustand/account/plannerSessionActions.js` — storage modes | Cloud rotates with an empty `eve_token` when none can be acquired; local does not rotate at all and redirects when its credentials are dead |

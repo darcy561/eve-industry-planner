@@ -7,17 +7,17 @@ Plan, stage notes, and behaviour overlays for rebuilding archived-job build stat
 Also owns the salvage decisions for `feature/archived-jobs-redesign` — which parts of that branch are carried forward, reimplemented, or dropped.
 
 The live topic docs this project added are promoted and are now SoT:
-[backend/worker/statistics.md](../../../backend/worker/statistics.md) and
-[backend/api/archive.md](../../../backend/api/archive.md). This folder no longer describes their
+[backend/worker/statistics.md](../../backend/worker/statistics.md) and
+[backend/api/archive.md](../../backend/api/archive.md). This folder no longer describes their
 behaviour; it holds the decisions that produced it.
 
 ## Does not own
 
-- Live archived-jobs behaviour → [backend/contents.md](../../../backend/contents.md) (promoted only when this project closes)
-- Live Mongo access layer → [backend/shared/mongo.md](../../../backend/shared/mongo.md)
-- The owner block, the planner document, membership and everything that decides which planner a job belongs to → [shared-planners/plan.md](../../shared-planners/plan.md). This project applies the four items that plan hands it; it does not own the model.
-- Entity refs (`char_…` / `corp_…` / `alliance_…`), the `shared/crypto/entityid` cipher that derives them, and the `encodeJobIdentity` conversion → [entity-id-encryption/plan.md](../../entity-id-encryption/plan.md)
-- Frontend SPA conventions → [frontend/technical-rules.md](../../../frontend/technical-rules.md)
+- Live archived-jobs behaviour → [backend/contents.md](../../backend/contents.md) (promoted only when this project closes)
+- Live Mongo access layer → [backend/shared/mongo.md](../../backend/shared/mongo.md)
+- The owner block, the planner document, membership and everything that decides which planner a job belongs to → [shared-planners/plan.md](../shared-planners/plan.md). This project applies the four items that plan hands it; it does not own the model.
+- Entity refs (`char_…` / `corp_…` / `alliance_…`), the `shared/crypto/entityid` cipher that derives them, and the `encodeJobIdentity` conversion → [entity-id-encryption/plan.md](../entity-id-encryption/plan.md)
+- Frontend SPA conventions → [frontend/technical-rules.md](../../frontend/technical-rules.md)
 
 ## Task map
 

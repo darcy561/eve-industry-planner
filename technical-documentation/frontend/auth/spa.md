@@ -184,6 +184,7 @@ const { accessToken, exp } = await getEsiAccessToken(characterHash, { minRemaini
 | `getEsiAccessToken(hash, { minRemainingSec = 660 })` | returns the held token while more than `minRemainingSec` seconds remain, and refreshes otherwise; concurrent callers for one character share a single refresh |
 | `adoptEsiAccessToken(hash, accessToken)` | takes ownership of a token another flow already obtained — login and bootstrap exchange refresh material anyway, and the token that falls out is the one to hold |
 | `heldEsiAccessToken(hash)` | the token in hand, or `""`, for a caller that can proceed without one; never fetches |
+| `reacquireEsiAccessToken(hash)` | drops whatever is held for the character and acquires a fresh one, for a reader asking the application to try again |
 | `forget(hash)` / `reset()` | drop one character's token, or all of them |
 
 **An access token is not application state.** It lives in the provider's map rather than on a
@@ -191,10 +192,40 @@ const { accessToken, exp } = await getEsiAccessToken(characterHash, { minRemaini
 `account.characters` is subscribed to across the app — header, dashboard, account cards, asset pages,
 character pickers — and none of those surfaces display a token. Identity belongs in the store,
 credentials belong here. The same reasoning applies to a rotated client-held refresh secret, which is
-written onto the roster entry in place rather than through `set`.
+written onto the roster entry in place rather than through `set` — `writeClientSecret`, exported for a
+caller replacing a character's secret by some path other than a rotation, writes both the roster entry
+and, for the main character, `localStorage["Auth"]`, which is what a cold reload resumes from.
 
 Because nothing implicitly drops a held token, they are dropped explicitly: signout calls `reset()`,
 and `removeCharacter` calls `forget(hash)`.
+
+### Credential health
+
+Whether the application can currently use a character's credentials at all is a different question
+from whether one particular token is fresh, and is answered by
+[`esiCredentials/health.js`](../../../frontend/src/Functions/Auth/esiCredentials/health.js), kept
+beside the provider for the same render-freedom reason as the tokens themselves — a value nothing in
+`account.characters` displays must not write through the store.
+
+| State (`CREDENTIAL_HEALTH`) | Means |
+|------|-------|
+| `unknown` | nothing has been asked of this character's credentials yet |
+| `ok` | the last acquisition returned a token |
+| `degraded` | the last acquisition failed for a reason that may pass — a network fault, a server refusal |
+| `reauth-required` | the refresh material is spent; only signing in as the character again restores it |
+
+`recordCredentialHealth` is written by `getEsiAccessToken` on every acquisition, success or failure —
+classified through `isReauthRequired`, the same classification below that a caller reads for its own
+retry decision — and by `adoptEsiAccessToken` on adoption. `forget` and `reset` clear a character's
+record or all of them, alongside its tokens. An outcome matching the one already held is dropped
+rather than re-stamped: the record is read through `useSyncExternalStore`, which compares snapshots
+by identity, so a fresh object for an unchanged state would re-render every subscriber on each
+background refresh.
+
+`useCredentialHealth(characterHash)`
+([`Components/Auth/Hooks/useCredentialHealth.jsx`](../../../frontend/src/Components/Auth/Hooks/useCredentialHealth.jsx))
+is the read side, over the same subscription. It answers `{state, at}`; what a reader is shown for a
+given state is decided by whatever surface displays it, not by this module.
 
 **Failures are classified, not swallowed.** A rejection is an `EsiCredentialError` carrying
 `recoverable` or `reauth_required`, read back with `isReauthRequired(err)`. A 4xx means the stored
@@ -482,3 +513,6 @@ hint for a public route to read and bounce a signed-out user back into `/auth`.
 - Read the Tranquility status through its accessors: `useTranquilityServerStatusQuery()` for
   rendering, `shouldDeferAuthRefreshDueToTranquilityOffline(get)` for non-React code — both over the
   one cache.
+- Credential health (`unknown` / `ok` / `degraded` / `reauth-required`) is a separate record from the
+  token map, read through `useCredentialHealth`. It answers *can this character's credentials be used
+  at all*, never *is this particular token fresh*.

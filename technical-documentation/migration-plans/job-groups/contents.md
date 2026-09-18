@@ -34,7 +34,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   exist on a group; that one owns the mechanism that fills and upgrades them.
 - **The job document's own shape** → [job-document-drafts/contents.md](../job-document-drafts/contents.md).
   This project adds nothing to a job: `groupID` is already stored. It only stops writing the second copy.
-- **Rebuilding a group for the archive** → [archived-jobs-stats](../accounts-page/archived-jobs-stats/contents.md).
+- **Rebuilding a group for the archive** → [archived-jobs-stats](../archived-jobs-stats/contents.md).
   `RebuildFrom` serves that path and is not deleted by this project.
 - **The group page, scheduler, name panel and dependency tree** → live SoT under
   [frontend/group/contents.md](../../frontend/group/contents.md). Their behaviour does not change; what

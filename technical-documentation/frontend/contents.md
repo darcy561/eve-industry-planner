@@ -10,10 +10,11 @@ reads an item, a recipe or an ore yield through, the group page's scheduler char
 group name editing and job dependency tree, the Edit Job page's floating
 step-navigation controls and parent-job linking, the job planner's job status
 accordions, the reprocessing settings panel, the dashboard's watchlist and
-tutorial-card row, the shared price history and price entry surfaces, and the
-app-shell component layer a panel is built from — its panel and card surfaces,
-figure and status atoms, labelled fields, scrolling tables, item market actions,
-and how a picture from EVE's image server is asked for and drawn.
+tutorial-card row, the shared price history and price entry surfaces, the Accounts page — its
+roster and what a reader can do to a linked character, the corporations section, and how an
+account sees the planners it can work in — and the app-shell component layer a panel is built
+from — its panel and card surfaces, figure and status atoms, labelled fields, scrolling tables,
+item market actions, and how a picture from EVE's image server is asked for and drawn.
 
 ## Does not own
 
@@ -29,6 +30,9 @@ and how a picture from EVE's image server is asked for and drawn.
 | Change SPA auth, bootstrap, refresh UX, realtime auth client | [auth/spa.md](./auth/spa.md) |
 | Change document-lock UI / Zustand / hooks | [document-lock/spa.md](./document-lock/spa.md) |
 | Change routing, page chrome, or navigation behaviour | [navigation/spa.md](./navigation/spa.md) |
+| Change the Accounts page's layout, account band, token storage, or citadel names section | [accounts/page.md](./accounts/page.md) |
+| Change the linked-character roster, a character's action menu, or its ESI status display | [accounts/characters.md](./accounts/characters.md) |
+| Change what the Accounts page shows about shared planners | [accounts/planners.md](./accounts/planners.md) |
 | Change the asset row shape, its resolution rules, or how an asset view is assembled | [esi-collections/assets.md](./esi-collections/assets.md) |
 | Change the blueprint row shape, corporation blueprint access, consolidation or library filters | [esi-collections/blueprints.md](./esi-collections/blueprints.md) |
 | Change the index hooks, their scopes, or how a derived collection is shared | [esi-collections/row-collections.md](./esi-collections/row-collections.md) |
@@ -41,6 +45,6 @@ and how a picture from EVE's image server is asked for and drawn.
 | Change the reprocessing settings panel | [reprocessing/contents.md](./reprocessing/contents.md) |
 | Change the price history chart or the price entry dialogue | [pricing/contents.md](./pricing/contents.md) |
 | Change the dashboard's watchlist panel or its tutorial-card row | [dashboard/contents.md](./dashboard/contents.md) |
-| Change a shared panel, card, figure, field or table atom, or an item's market actions | [components/contents.md](./components/contents.md) |
+| Change a shared panel, card, row, menu, figure, field or table atom, or an item's market actions | [components/contents.md](./components/contents.md) |
 | Ask EVE's image server for a picture, or change what a missing one shows | [components/avatars.md](./components/avatars.md) |
 | Frontend test entrypoints / depth | [../testing/frontend/contents.md](../testing/frontend/contents.md) |
