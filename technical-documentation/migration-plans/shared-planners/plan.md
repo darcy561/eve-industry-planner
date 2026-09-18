@@ -2481,10 +2481,25 @@ Until then every member may do everything, which is now a stated position rather
 precondition are the shape of the SPA's persistence everywhere, and the conditional write on
 `_meta.revision` — seeded and ready, read by nothing — is that project's to turn on.
 
-**What stays here** is what is wrong whatever that project does: the group delete that makes every other
-connected member write the group's jobs back from their own copies, `calculateTimeForSetup` costing
-another member's job as though the builder had no skills, the editor that is never told its job was
-deleted, and the force-release control above.
+**What stays here** is what is wrong whatever that project does, and two of the four are now done.
+
+*Landed.* The group delete no longer makes every other connected member write: the member removing the
+group persists the release, and every other applies it to its own copies and writes nothing. And a job
+deleted while somebody has it open no longer comes back — the arrays announce what left them, the editor
+tells the reader without taking the page away, and the close refuses to write a job the store no longer
+holds.
+
+*Also landed.* The force-release control no longer offers a blocked member a button that cannot work.
+The release script answered a lock held by another account exactly as it answered no lock, which became
+a 404 and a success-toned "No active lock to remove." It now says the two apart, the api answers 409,
+and the client tells the reader to ask for access instead. Whether the holder is one of the reader's own
+sessions is a boolean the lock state carries — computed per reader from the account on the record, so
+the control is offered only when it can work and the caption stops telling a blocked member that a tab
+of their own crashed. Nobody is named: the flag answers *may I take this back*, not *who has it*.
+
+*Still open.* `calculateTimeForSetup` costing another member's job as though the builder had no skills,
+which is the last of the four and needs a decision before it can be built: what a reader should be shown
+for a job whose builder's skills they cannot resolve.
 
 ## Live data, and the cutover window
 
@@ -2669,17 +2684,19 @@ do not touch.
 | G — realtime state under more than one writer | **Landed.** In: the planner document load (G1's first half) — one loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded, the planner the job store holds recorded on it, and queued job and group writes flushed before the planner moves. Also in: G2, the ordering position — a delivery carries its place in the stream, the client holds one per document and applies only what is beyond it, and a delete carries a position as readily as an upsert. And G4, the delivery construction — a full shard waits for room instead of overtaking what is queued for that owner, renewing the acknowledgement deadline while it waits and counting itself in the drain. Also in: G5, a settings change reaching the members it is for — `planner_settings` was delivered and dropped on arrival, and now has a handler that files it under the owner the delivery names rather than the owner key its `_id` carries. Also in: G3 — a resume carries how far the tab applied and is answered by comparing it with what was published for the tenants that connection reads, rather than asserting that nothing happened. Also in: the `websocket/sync` package and `skipWhileSyncing` are removed, which closes what G1 carried. Both questions the slices deferred are now answered: the stores hold the active planner only, and a gap is reloaded through rather than replayed. Absorbs what survived the retired websocket-realtime project, including keying the job and group stores by owner. **Nothing outstanding** — see § Stage G |
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3, H4). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. H4 moved the socket paths off the connection's last-known planner: every lock frame names its own, refused against the session's ceiling, as the HTTP paths already did — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and deliberately unscheduled.** A decision rather than a build: the ceiling is a stored snapshot read once at connect, and whether it stays one depends on the revocation path Stage E owes and the grant-task reshaping Stage F owes. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
-| J — the SPA stops assuming it is the only writer | **Scoped and decided, not started.** The client work in this project was a dropdown to prove the backend, which is what it was for; converting the planner into something two people can work in was never planned. An audit found four groups, and the four decisions that gated them are taken: no member is named on screen, a remote change is applied where it is only read and surfaced where it is being edited, roles come later as designed, and stale-snapshot writing goes to document-write-granularity. What stays is the group delete that makes every member write, the skills fallback that mis-costs another member's job, the editor never told its job was deleted, and the force-release control. See § Stage J |
+| J — the SPA stops assuming it is the only writer | **Partly landed.** The client work in this project was a dropdown to prove the backend, which is what it was for; converting the planner into something two people can work in was never planned. An audit found four groups, and the four decisions that gated them are taken: no member is named on screen, a remote change is applied where it is only read and surfaced where it is being edited, roles come later as designed, and stale-snapshot writing goes to document-write-granularity. Three of its four defects are fixed: the group delete that made every member write, the editor that was never told its job was deleted — where a save recreated what somebody else removed — and the force-release control, which offered a blocked member a button the server would always refuse and reported a colleague's lock as no lock at all. Still open: the skills fallback that mis-costs another member's job, which needs a decision rather than code. See § Stage J |
 
 ## Recommended pickup order
 
 **Stage J next, and it is the only stage with buildable work left.** Its four decisions are taken, which
-leaves four defects that are wrong whatever else changes: the group delete that makes every other
-connected member write the group's jobs back, `calculateTimeForSetup` costing another member's job at no
-skills, the editor that is never told its job was deleted, and the force-release control that offers a
-blocked member a button captioned for their own crashed tab. The last needs one fact the client does not
-have — whether the lock holder shares the reader's account — which names nobody and is the reason no
-identity work follows from it.
+left four defects that are wrong whatever else changes, and three are done: the group delete that made
+every other connected member write, the editor that was never told its job was deleted, and the
+force-release control, which now carries the one fact it was missing — whether the lock holder shares
+the reader's account, as a boolean that names nobody.
+
+What remains is `calculateTimeForSetup` costing another member's job at no skills. It is not blocked on
+anything built; it is blocked on a decision, because *whose* skills a reader should see a job costed
+against is a product question with more than one defensible answer.
 
 Stage G is closed: both questions its slices deferred are answered, the stores holding the active
 planner only and a gap being reloaded through rather than replayed.
