@@ -869,6 +869,52 @@ The SPA never read it. What did notice was `testing/fixtures/session-responses/s
 committed shape the SPA checks its parsing against, which failed until it was regenerated — the cross-
 process contract doing exactly what it is for.
 
+## Two members, in two processes
+
+*Landed, and owed to live testing documentation on promote.*
+
+What a shared planner is for cannot be seen from one client, and the SPA cannot hold two: its store is
+a module singleton, and a module-registry reset hands the same instance back — measured, not assumed.
+So a client is a process. `frontend/src/tests/live/crossClientHarness.js` starts the websocket
+service's own integration fixture and opens as many clients as a scenario names;
+`clientProcess.js` is one of them, loading the app through Vite's SSR loader behind a small browser
+shim and taking commands on stdin — read a store path, call an app export, call a store action, list
+what it wrote.
+
+That last one is what makes the scenarios worth having. A member's store converging is only half of a
+claim like "one member deletes a group"; the other half is that every other member wrote nothing, and
+no client can observe that about itself.
+
+Three scenarios run on it today: a job one member saves arriving in another's store, both members
+recording the same delivery position, and a group one member deletes converged by the other without a
+write. The single-client round trip runs on the same harness, having previously claimed a freshness a
+module reset never gave it.
+
+Sessions of one account are a separate case from members of one planner, and the lock copy is written
+for it: `sameAccountSessions.live.test.js` opens two sessions of one account and shows the second being
+told the lock is held and by whom, then taking it over through the same-account force release. The
+server's own tests reach both sessions; what the SPA asks for was never shown until here.
+
+**What the harness is not.** It answers the lock endpoints through the service the api uses, but it
+resolves the planner from the request header alone — the api additionally refuses a planner the account
+holds no membership row for. So a scenario naming a planner its account is not in would pass here and be
+refused in production. Every scenario today names a planner its session was seeded into; a test *about*
+authorisation belongs against the api, not against this.
+
+**Two things found while building it, neither acted on.** A client has to be seeded as a tab that has
+just validated its session, because otherwise the first private request pre-flights `ensurePlannerSession`,
+which gets past its no-main-character guard — the store's default characters hold a placeholder whose
+`isMainCharacter` is true — fetches an ESI token for it, fails, and reads that as a demand to sign in
+again. The guard cannot tell *not yet logged in* from *logged in with credentials unavailable*. Nothing
+reaches it in production, because job data waits for login to finish, so it is a fragility rather than a
+defect; it belongs with [auth-hardening](../auth-hardening/plan.md) rather than here. And because the
+seed puts the session inside its own cooldown, no scenario exercises the rotate or session-recovery
+paths.
+
+**Owed on promote:** `technical-documentation/testing/frontend/contents.md` lists the SPA's reusable
+fixtures and tells a reader to reach for one before writing a mock. This harness belongs on that list,
+and the entry cannot go in while this project is open.
+
 ## Decisions taken, with their reasons
 
 Kept here so a later reader finds the reasoning without reconstructing it from the plan's prose.
