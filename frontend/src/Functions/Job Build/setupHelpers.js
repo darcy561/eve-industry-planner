@@ -59,7 +59,8 @@ export function getDefaultStrutureForJobType(inputJobType) {
   if (!matchedStructure) return {};
 
   return {
-    rigID: matchedStructure.rigType,
+    rigSlot1: matchedStructure.rigSlot1,
+    rigSlot2: matchedStructure.rigSlot2,
     structureID: matchedStructure.structureType,
     systemTypeID: matchedStructure.systemType,
     systemID: matchedStructure.systemID,

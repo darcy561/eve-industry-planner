@@ -144,11 +144,11 @@ describe("what a card says about each kind of structure", () => {
     deleteCustomStructure.mockClear();
   });
 
-  it("gives a manufacturing structure its rig, tax, security and system", () => {
+  it("gives a manufacturing structure its rigs, tax, security and system", () => {
     structures = [aStructure({ jobType: jobTypes.manufacturing })];
     renderFrame({ selectedJobType: jobTypes.manufacturing });
 
-    expect(screen.getByText("Rig")).toBeInTheDocument();
+    expect(screen.getByText("Rigs")).toBeInTheDocument();
     expect(screen.getByText("Tax")).toBeInTheDocument();
     expect(screen.getByText("Security")).toBeInTheDocument();
     expect(screen.getByText("System")).toBeInTheDocument();
@@ -173,6 +173,19 @@ describe("what a card says about each kind of structure", () => {
 
     expect(screen.getByText("A manufacturer")).toBeInTheDocument();
     expect(screen.queryByText("A refinery")).not.toBeInTheDocument();
+  });
+
+  // Manufacturing was the last kind reading a single rig field, so a card that
+  // names both fitted rigs is what proves it reads the slots like every other.
+  it("names both rigs fitted to a manufacturing structure", () => {
+    structures = [
+      aStructure({ jobType: jobTypes.manufacturing, rigSlot1: 2, rigSlot2: 3 }),
+    ];
+    renderFrame({ selectedJobType: jobTypes.manufacturing });
+
+    expect(
+      screen.getByText("T2 - ME - All · T1 - TE - All"),
+    ).toBeInTheDocument();
   });
 
   it("gives an invention structure both of its rig slots", () => {

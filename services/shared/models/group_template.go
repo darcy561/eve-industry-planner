@@ -52,7 +52,8 @@ type TemplatePresetSetup struct {
 	JobCount          int     `json:"jobCount" bson:"jobCount"`
 	ME                int     `json:"ME" bson:"ME"`
 	TE                int     `json:"TE" bson:"TE"`
-	RigID             int     `json:"rigID" bson:"rigID"`
+	RigSlot1          int     `json:"rigSlot1" bson:"rigSlot1"`
+	RigSlot2          int     `json:"rigSlot2" bson:"rigSlot2"`
 	StructureID       int     `json:"structureID" bson:"structureID"`
 	SystemTypeID      int     `json:"systemTypeID" bson:"systemTypeID"`
 	SystemID          int64   `json:"systemID" bson:"systemID"`

@@ -206,10 +206,7 @@ function structureFacts(
 
   return [
     { label: "Structure type", value: structureType },
-    {
-      label: "Rig",
-      value: rigTypeMap[selectedJobType][structure.rigType]?.label || "\u2014",
-    },
+    { label: "Rigs", value: pairedRigs },
     { label: "Tax", value: tax },
     { label: "Security", value: security },
     {

@@ -36,10 +36,7 @@ function buildShimUserDataFromMongo(userDocument) {
     userCloudAccounts: cloudFromUserDoc,
     settings: {
       userCloudAccounts: cloudFromUserDoc,
-      customStructures: {
-        manufacturing: app.customStructures.manufacturing,
-        reaction: app.customStructures.reaction,
-      },
+      customStructures: app.customStructures,
     },
   };
 }

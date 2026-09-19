@@ -1,5 +1,5 @@
+import { useMemo } from "react";
 import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
-import { customStructureMap } from "../../Context/defaultValues";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
@@ -21,11 +21,15 @@ import useUsersStore from "../../Zustand/usersStore";
  * />
  */
 function CustomStructureSelect({ value, jobType, onChange }) {
-  const structures = useUsersStore(
-    (state) =>
-      state.applicationSettings.customStructures?.[
-        customStructureMap[jobType]
-      ] ?? [],
+  const allStructures = useUsersStore(
+    (state) => state.applicationSettings.customStructures,
+  );
+  const structures = useMemo(
+    () =>
+      (allStructures ?? []).filter(
+        (structure) => structure.jobType === jobType,
+      ),
+    [allStructures, jobType],
   );
 
   const hasSelectedValue = Boolean(value);

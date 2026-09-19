@@ -22,6 +22,7 @@ vi.mock("../../Hooks/EveEsi/useBlueprintIndex", () => ({
 import {
   calculateSetupQuantitiesAcrossOwnedBlueprintOriginals,
   findHighestMaterialEfficiencyBlueprint,
+  getDefaultStrutureForJobType,
 } from "./setupHelpers";
 import buildBlueprintRows from "../Blueprints/buildBlueprintRows";
 import { jobTypes } from "../../Context/defaultValues";
@@ -155,5 +156,40 @@ describe("spreading runs across the originals a job can use", () => {
     );
 
     expect(segments.reduce((total, s) => total + s.jobCount, 0)).toBe(5);
+  });
+});
+
+describe("the setup fields a default structure supplies", () => {
+  function withDefaultStructure(structure) {
+    applicationSettings.actions = {
+      getDefaultCustomStructureWithJobType: () => structure,
+    };
+  }
+
+  // These fields are spread straight into a new Setup, which reads the two rig
+  // slots. A key under any other name is dropped without complaint, so a job
+  // built from a rigged structure would come out unrigged.
+  it("carries both rig slots through", () => {
+    withDefaultStructure({
+      id: "manStruct-1",
+      rigSlot1: 2,
+      rigSlot2: 3,
+      structureType: 4,
+      systemType: 3,
+      systemID: 30000142,
+      tax: 0.25,
+    });
+
+    const fields = getDefaultStrutureForJobType(jobTypes.manufacturing);
+
+    expect(fields.rigSlot1).toBe(2);
+    expect(fields.rigSlot2).toBe(3);
+    expect(fields.customStructureID).toBe("manStruct-1");
+  });
+
+  it("supplies nothing when no structure is the default", () => {
+    withDefaultStructure(null);
+
+    expect(getDefaultStrutureForJobType(jobTypes.manufacturing)).toEqual({});
   });
 });

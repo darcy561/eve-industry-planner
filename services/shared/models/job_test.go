@@ -255,3 +255,48 @@ func TestAnInventionEntryDecodesEitherIDFromJSON(t *testing.T) {
 		}
 	}
 }
+
+// The rig slots a release converts a setup to have to survive a save, which is
+// the one thing the conversion itself cannot prove. Every save builds its $set
+// from this struct, so a slot the struct does not name is written back as the
+// old single rig and the conversion is silently undone the first time anybody
+// opens the job.
+func TestJobSetupRigSlotsSurviveBSON(t *testing.T) {
+	t.Parallel()
+
+	job := Job{}
+	job.Build.Setup = map[string]JobSetup{"s1": {ID: "s1", RigSlot1: 2, RigSlot2: 3}}
+
+	encoded, err := bson.Marshal(job)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	// Decoded as raw keys rather than back into Job, so the assertion is about
+	// what Mongo holds and not about what the struct chooses to read.
+	var stored struct {
+		Build struct {
+			Setup map[string]bson.M `bson:"setup"`
+		} `bson:"build"`
+	}
+	if err := bson.Unmarshal(encoded, &stored); err != nil {
+		t.Fatalf("unmarshal to document: %v", err)
+	}
+	setup := stored.Build.Setup["s1"]
+	if setup["rigSlot1"] != int32(2) || setup["rigSlot2"] != int32(3) {
+		t.Errorf("stored slots = %v/%v, want 2/3", setup["rigSlot1"], setup["rigSlot2"])
+	}
+	// The field the fold removes must not come back, or a converted setup is
+	// re-converted on every release.
+	if _, held := setup["rigID"]; held {
+		t.Error("a saved setup wrote rigID back")
+	}
+
+	var back Job
+	if err := bson.Unmarshal(encoded, &back); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := back.Build.Setup["s1"]; got.RigSlot1 != 2 || got.RigSlot2 != 3 {
+		t.Errorf("read back slots = %d/%d, want 2/3", got.RigSlot1, got.RigSlot2)
+	}
+}
