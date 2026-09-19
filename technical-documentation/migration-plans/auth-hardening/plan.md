@@ -46,12 +46,12 @@ taken deliberately rather than drifting.
 | Stage | Status |
 |-------|--------|
 | A — one shape for a rejected session | **Landed.** One shared refusal envelope across REST and the upgrade, the dependency split extended to the upgrade, and the upgrade's auth cases tested. The stage's premise was corrected on the way: a browser cannot read a refused handshake, so the envelope serves operators and the rotate path is what detects a terminal session. `Session.RevokedAt` has no writer, which passes to Stage B |
-| B — revoking more than one session | **Not started, and now unblocked.** [shared-planners](../shared-planners/plan.md) Stage E has landed, and what it built revokes a *membership* by rewriting stored grants rather than by sweeping session keys — so the two are separate operations and this one can be built. `Session.RevokedAt` comes here from Stage A |
+| B — revoking more than one session | **Landed.** `RevokeAllSessions` tombstones every session an account holds in one keyspace walk, `POST /api/v1/auth/sessions/revoke-all` calls it, and the sign-out teardown is pinned (#54). `Session.RevokedAt` now has its writer, which closes what Stage A owed. The SPA control and the device list are **declined**: this is a support tool, not something a reader reaches for |
 | C — what an operator sees when auth fails | **Not started.** The Redis outage runbook is owed regardless of the counters |
 | D — what a user sees when a cloud credential dies | **Not started.** Independent of everything else here |
 | E — bootstrap that half-succeeds | **Landed.** The login handler discards what it minted at both failure points, the lifecycle counters moved below the document read, the ESI secret strip is asserted, and the no-op cookie helpers are deleted. #52 closed unchanged and #53 moved to shared-planners § Stage I. Behaviour: [overlay.md](./overlay.md) § Stage E |
 | F — the security decisions that were never taken | **Not started.** Three decisions, each of which may legitimately close as declined |
-| G — a callback the browser did not ask for | **Not started.** Independent of the rest; the only one where an attacker gains something rather than a defence being thin |
+| G — a callback the browser did not ask for | **Landed.** `/signout` ignores an arrival the app did not make, and the exchange refuses a callback carrying no state this browser was issued. The value is minted by a route of its own, held in `sessionStorage` and bound by an HttpOnly cookie |
 
 ---
 
@@ -86,12 +86,11 @@ for logs and proxy traces, but it is not what tells a user their session is dead
 - **#55 closes as documentation.** The guard answers "render or rebuild", the 401 answers "serve or
   refuse", and they are allowed to disagree — see [overlay.md](./overlay.md) § Stage A.
 
-**Owed to Stage B**
+**Owed to Stage B — closed**
 
-`Session.RevokedAt` has no writer. Revocation removes the row, so `session_revoked` never reaches a
-client, and the reader that would produce it is exercised only by a test that seeds the field. Stage
-B's account-wide revoke is where a tombstone would come from — either it writes one, or the code
-should go.
+`Session.RevokedAt` had no writer: logout removes the row, so `session_revoked` never reached a client
+and the reader was exercised only by a test that seeded the field. **Closed.** Stage B's account-wide
+revoke writes the tombstone, and leaves the session index in place so a refused request can read it.
 
 **Done when** the two surfaces answer with the same shape, cookie clearing has a stated rule per code,
 and `websocket/server` has upgrade tests for a revoked session, an elapsed reauth window and a failing
@@ -123,7 +122,11 @@ Logout revokes the session that presented itself. There is no way to revoke ever
 holds, which is what a support request after a compromised machine actually needs, and there is no
 way for a user to see what sessions exist. `sessions.md` § 14 names the gap directly.
 
-**No longer blocked, and the reason it was blocked did not survive.** The stage waited on
+**Landed.** The store operation, the endpoint that calls it, the tombstone decision and the sign-out
+test are in, and the SPA half is declined rather than outstanding. Behaviour:
+[overlay.md](./overlay.md) § Stage B.
+
+**The reason it was blocked did not survive.** The stage waited on
 [shared-planners](../shared-planners/plan.md) Stage E on the premise that revoking a membership and
 revoking an account's sessions were the same work seen from opposite ends, so building this first
 would produce a second sweep over the same keys. Stage E has landed and what it built is
@@ -136,31 +139,46 @@ That answers the first half of this stage's own store question before it is aske
 the § Stage I dependency too: the ceiling is where a revocation is applied, so the stored snapshot is
 load bearing and the route this stage consumes is not going to change under it.
 
-**What this stage has to answer**
+**Decisions taken**
 
-- What the store operation is. Enumerating an account's sessions is one read — `AccountRecord` holds
-  them all in a single row under the existing compare-and-set. The work is the refresh tokens:
-  `tokensForSession` walks the whole `refresh_token:*` keyspace per session, so composing the bulk
-  revoke from a loop over `RevokeSessionTokens` costs one full scan per session. It wants a single
-  scan matched against the whole session-id set.
-- Whether a revoked session leaves a tombstone. Deleting the rows gives every affected tab
-  `session_missing`; writing `RevokedAt` gives them `session_revoked` through the rotate path, which
-  Stage A established is the only surface a terminal code reaches a browser on. This is the first
-  producer that field would have, and taking the tombstone is what keeps the reader Stage A left
-  standing — see § Owed to Stage B under Stage A. The cost is keeping rows alive to carry it.
-- Whether a device list is a product feature or a support tool. Narrower than it looked: the session
-  record already carries `StartedAt`, `LastSeenAt`, `AppVersion`, `ReauthRequiredAt` and
-  `CharacterHash`, which is enough to answer "three sessions, one last seen Tuesday on an old app
-  version". No address and no user agent are stored, so a list can be built from what exists — only
-  adding something identifying is a privacy decision, and it may not be needed.
-- Whether signout's ordering — disconnect the socket, call logout, reset the stores, clear the query
-  cache — is load bearing, and pinning it with a test (#54). It is: `routes/signout.jsx` already
-  carries two comments saying why, one about coalesced job upserts flushing after the store reset and
-  one about an in-flight account read re-merging settings. Nothing covers the route, and
-  `frontend/src/routes/` has the end-to-end suite it belongs in.
+- **A revoked session is tombstoned, not deleted** (#21). `Store.RevokeAllSessions` writes `RevokedAt`
+  on every session and **leaves the `session_index` in place**, because the two together are what turn
+  a revoke into an answer: the next request the tab makes resolves its session, finds the tombstone and
+  is refused `session_revoked`, which the SPA already treats as terminal and acts on by going back to
+  EVE SSO. Deleting the rows would answer `session_missing` — what an unknown session answers — and the
+  reader would learn nothing. This gives `Session.RevokedAt` its first writer, which closes what Stage A
+  left owed. The cost is that rows live until their reauth deadline; pruning and the key TTLs already
+  bound that, and a test pins that a tombstone cannot outlive its session.
+- **The refusal comes from the middleware, not the rotate path.** Worth stating because this stage was
+  scoped believing otherwise: `ResolveTokenForValidSession` collapses a revoked session into
+  `ErrRefreshTokenNotFound`, so a rotate says only "no token". The code the browser acts on is raised by
+  `ExtractSession`, which every private request and the upgrade go through. Stage A's finding was that
+  the *socket* cannot carry a terminal code, not that only the rotate can.
+- **One keyspace walk, not one per session.** `tokensForAccount` collects an account's refresh tokens in
+  a single pass, matching either the account id on the row or a session id being revoked — the second
+  catches a token written before the account id was recorded on it. Building the revoke out of
+  `RevokeSessionTokens` would have walked the whole `refresh_token:*` keyspace once per session.
+- **The tab that asks is revoked with the rest.** This answers a machine somebody else has, and the
+  requesting tab is no more trustworthy than the others; it finds out the same way they do.
+
+- **The revoke stays server-side, and the device list is declined** (#30). No SPA control calls the
+  endpoint and none is planned: this answers a support request about a machine somebody else has, which
+  arrives as a support request rather than as something a reader reaches for in the app. A device list
+  was the other half of #30 and goes with it — it would be built from what the record already carries
+  (`StartedAt`, `LastSeenAt`, `AppVersion`, `ReauthRequiredAt`, `CharacterHash`; no address and no user
+  agent are stored), so it was never the privacy question it looked like, but a list nobody is shown is
+  not worth building. Reopening either is a product decision, not unfinished work.
+
+**Still owed here**
+
+Nothing.
+
+~~Whether signout's ordering is load bearing, and pinning it with a test (#54).~~ **Done.** It is, and
+`signoutJourney.e2e.test.js` pins it end to end. One of the two reasons written on the route turned out
+to be wrong about its own mechanism — see [overlay.md](./overlay.md) § Stage B.
 
 **Done when** an account's sessions can be revoked in one operation, `Session.RevokedAt` either has a
-writer or is gone, and the signout ordering is pinned.
+writer or is gone, and the signout ordering is pinned. **Met.**
 
 ---
 
@@ -378,20 +396,29 @@ extra click, and a pasted or bookmarked `/signout` stops being a logout too. Wat
 
 **The parts, smallest first**
 
-1. `/signout` declines to tear down unless the app marked the navigation. Frontend only, no API
-   change, and it stands alone.
-2. A route that mints a sign-in state, sets it in a short-lived `HttpOnly` cookie and returns the
-   value. Additive: nothing consumes it yet.
-3. `EveSSOExchangeHandler` takes `state`, compares it with the cookie, clears it, and refuses on a
-   mismatch. This is the part that closes the hole, and the breaking half.
-4. The SPA calls the mint before leaving for EVE, carries the value in `state`, and sends it with the
-   code.
+1. ~~`/signout` declines to tear down unless the app marked the navigation.~~ **Landed.** The mark is
+   router history state, which a URL cannot carry — behaviour in [overlay.md](./overlay.md) § Stage G.
+2. ~~A route that mints a sign-in state, sets it in a short-lived `HttpOnly` cookie and returns the
+   value.~~ **Landed** as `POST /api/v1/eve-sso/sign-in-state`.
+3. ~~`EveSSOExchangeHandler` takes `state`, compares it with the cookie, clears it, and refuses on a
+   mismatch.~~ **Landed**, and the comparison happens before the code is spent.
+4. ~~The SPA calls the mint before leaving for EVE and sends the value with the code.~~ **Landed**, for
+   signing in and for linking a character, which trades a code the same way.
 
-**Still to decide:** whether the mint is its own route or a field on a call the sign-in already
-makes. A route of its own is clearer and costs a round trip before every sign-in.
+**Decided: the mint is a route of its own.** The sign-in calls nothing before it leaves for EVE, so
+there was no existing request to hang it on; attaching it to an unrelated one would set the cookie on
+page loads that are not signing in. It costs a round trip before every sign-in.
+
+**Decided: the value does not ride in `state`.** It is held in `sessionStorage`, which survives the
+redirect without putting it in a URL a third party echoes. `state` keeps carrying only the return
+location, which was the settled behaviour this stage asked whether to keep.
+
+**Decided: a sign-in that cannot be started does not start.** The exchange refuses a callback with no
+state, so leaving for EVE without one spends a trip through CCP to fail on the way back and then
+repeats. Behaviour: [overlay.md](./overlay.md) § Stage G.
 
 **Done when** a callback whose `state` the API did not issue to that browser cannot mint a session,
-and arriving at `/signout` without the app having sent you there does not end a session.
+and arriving at `/signout` without the app having sent you there does not end a session. **Met.**
 
 ---
 
@@ -403,9 +430,9 @@ Assessed for every stage that could touch a client-visible surface.
 |--------|-------|------|
 | WebSocket upgrade rejection body becomes JSON (Stage A) | **Additive in practice** | The SPA's `parsePlannerAuthCodeFromText` already reads a code out of either a JSON body or a bare string, so a JSON body is understood by clients that predate the change. Anything else reading the upgrade body would see a changed string. |
 | Clearing cookies on a rejection code (Stage A) | **Additive** | A `Set-Cookie` on a 401 that carried none before. |
-| Account-wide revoke endpoint (Stage B) | **Additive** | A new route. |
-| Minting a sign-in state (Stage G) | **Additive** | A new route and a new short-lived cookie; nothing existing changes shape. |
-| The exchange requiring `state` (Stage G) | **Breaking for a client that does not send it** | Only this SPA calls `/api/v1/eve-sso/tokens/exchange`, and it ships with the change. A sign-in already in flight across the deploy fails and is retried by signing in again. |
+| Account-wide revoke endpoint (Stage B) | **Additive** | A new route, `POST /api/v1/auth/sessions/revoke-all`. Landed. |
+| Minting a sign-in state (Stage G) | **Additive** | A new route and a new short-lived cookie; nothing existing changes shape. Landed. |
+| The exchange requiring `state` (Stage G) | **Breaking for a client that does not send it** | Landed. Only this SPA calls `/api/v1/eve-sso/tokens/exchange`, and it ships with the change. A sign-in already in flight across the deploy fails and is retried by signing in again. |
 | New counters and log fields (Stage C) | **Additive** | Telemetry only. |
 | A credential-failure reason on the rotate and bootstrap responses (Stage D) | **Additive** | A new optional field; older clients ignore it. |
 | ~~Failing bootstrap where it currently warns (Stage E)~~ | **Withdrawn** | The grants fill it referred to is #53, now [shared-planners](../shared-planners/plan.md) § Stage I. Nothing left in this project makes a warned failure fatal. |
@@ -445,12 +472,20 @@ keeping is held in [overlay.md](./overlay.md) and promotes as follows.
    its § 7 upgrade walkthrough has no `503` dependency split; and it lists `Pragma: no-cache` on the
    middleware's error response, which the shared writer does not set.
 
+6. **[sessions.md](../../backend/api/auth/sessions.md) owes the account-wide revoke** once Stage B
+   promotes: § 3.6 gains `RevokeAllSessions`, § 6 gains the endpoint, § 10 gains the route, and § 14's
+   "Bulk revoke of every session an account holds is not built" is no longer true. § 3.3 should also say
+   that `revoked_at` now has a writer and that a revoked session keeps its `session_index` on purpose.
+
+7. **The sign-in state is new live surface** that Stage G added: `sessions.md` § 5 gains `eip_sso_state`
+   and § 10 the mint route, and [frontend/auth/spa.md](../../frontend/auth/spa.md) § Signing in has to
+   say that a sign-in starts with a mint and that the value is held per tab rather than carried in the
+   OAuth `state`.
+
 Then delete this folder and its row in [`../contents.md`](../contents.md).
 
 ## Recommended pickup order
 
-1. **Stage B** — unblocked, and the cheapest thing in the project sits inside it: #54 is one
-   end-to-end test over an ordering `signout.jsx` already documents and nothing covers.
-2. **Stage C** — makes the rest measurable, and the runbook is owed regardless.
-3. **Stage D** — independent; can run alongside any of the above.
-4. **Stage F** — decisions, whenever there is appetite to take them.
+1. **Stage C** — makes the rest measurable, and the runbook is owed regardless.
+2. **Stage D** — independent; can run alongside any of the above.
+3. **Stage F** — decisions, whenever there is appetite to take them.

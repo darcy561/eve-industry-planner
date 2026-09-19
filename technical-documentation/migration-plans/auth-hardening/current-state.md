@@ -51,7 +51,7 @@ Each of these was checked directly, not inferred from the roadmap's own status c
 | Old id | Item | Evidence that it is still open |
 |--------|------|-------------------------------|
 | #11 | The reauth deadline is never shown to the user | Narrowed. It is no longer inert: `isPlannerReauthDeadlinePassed` gates `ensurePlannerSession`, so a session past its deadline goes to a full EVE login instead of attempting a rotate that would be refused. What is still missing is any warning before that happens — the deadline is acted on, never displayed, so the redirect arrives without notice. |
-| #54 | Signout orchestration is untested | `frontend/src/routes/signout.jsx` has no test file; the disconnect → logout → cache clear ordering is unpinned. It now also drops the held ESI access tokens, which nothing pins either. |
+| ~~#54~~ | ~~Signout orchestration is untested~~ | **Closed under Stage B.** `signoutJourney.e2e.test.js` walks the real router to `/signout` and pins the whole teardown, the held ESI access tokens included. Behaviour: [overlay.md](./overlay.md) § Stage B. |
 | #14 | Rejection and contention are not measured | Session lifecycle metrics exist and are good — `api.auth_sessions.started_total`, `continued_total`, `ended_total`, `stored_total`, `store_errors_total` and the `api.session_refresh.*` family in `services/shared/telemetry/apimetrics/instruments.go`. What is missing is a counter for rejections keyed by code, a counter for the optimistic-locking retries in `shared/plannersession`, and counts from the maintenance sweep. |
 | #56 | Auth failure logs are not uniformly shaped | The middleware and the WebSocket upgrade both attach structured detail, and `refresh.go` attaches caveats; whether every auth handler failure carries `session_id`, `account_id` and the flow has not been checked handler by handler. |
 | #22 | No Redis outage runbook | The code half is done — the `503` split landed with #46 — but there is no operator document saying what a `503` on an auth route means or what to do about it. |
@@ -60,8 +60,8 @@ Each of these was checked directly, not inferred from the roadmap's own status c
 | #42 | CCP outage behaviour is undocumented | The limiter gate is exercised by `sso/refresh_route_test.go`, but how deferral is meant to line up with the SPA's Tranquility gate is written down nowhere. |
 | #19 | Planner refresh tokens are plaintext in Redis | [sessions.md](../../backend/api/auth/sessions.md) § 8 states it as current behaviour: Redis is the trust boundary. Never revisited. |
 | #32 | No CSRF defence | `grep -rni csrf services/ frontend/src` returns nothing. |
-| #30, #31 | Logout everywhere, device list, configurable reauth window | Nothing exists. |
-| #21 | Account-wide revocation | No `RevokeAllSessions`-shaped method on the store. `sessions.md` § 14 names it as absent. |
+| ~~#30~~, #31 | ~~Logout everywhere, device list~~, configurable reauth window | **#30 closed under Stage B**: logout everywhere is built as a server-side endpoint, and the device list is declined with it. #31 is Stage F. |
+| ~~#21~~ | ~~Account-wide revocation~~ | **Closed under Stage B.** `Store.RevokeAllSessions` and `POST /api/v1/auth/sessions/revoke-all`. `sessions.md` § 14 still says it is not built and is corrected on promote — see [plan.md](./plan.md) § Promote. |
 
 ## Superseded or owned elsewhere
 
