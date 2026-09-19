@@ -43,9 +43,13 @@ function jobNeeding(quantity, { materialJobType = 0 } = {}) {
           materialCount: { [TRITANIUM]: { typeID: TRITANIUM, quantity } },
         },
       },
-      materials: [
-        { typeID: TRITANIUM, name: "Tritanium", jobType: materialJobType },
-      ],
+      materials: {
+        [String(TRITANIUM)]: {
+          typeID: TRITANIUM,
+          name: "Tritanium",
+          jobType: materialJobType,
+        },
+      },
       childJobs: { [TRITANIUM]: [] },
     },
   });
@@ -59,7 +63,7 @@ function renderCard(job) {
       parentChildToEdit: { childJobs: {} },
     },
     actions: { updateActiveJob: vi.fn() },
-    material: job.build.materials[0],
+    material: job.build.materials[34],
   };
   return render(<MaterialCardFrame_Purchasing {...props} />);
 }

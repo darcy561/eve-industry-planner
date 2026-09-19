@@ -27,7 +27,9 @@ export function calculateChildJobTotals(
   marketLocation,
   listingType,
 ) {
-  const totalCostOfMaterials = (childJob?.build?.materials || []).reduce(
+  const totalCostOfMaterials = Object.values(
+    childJob?.build?.materials ?? {},
+  ).reduce(
     (total, material) =>
       total +
       calculateMaterialCostFromChildJobs(

@@ -212,9 +212,9 @@ class Job {
       this.rawData.products = itemJson.activities.manufacturing.products;
       this.rawData.time = itemJson.activities.manufacturing.time;
       this.skills = keyByTypeID(itemJson.activities.manufacturing.skills);
-      this.build.materials = itemJson.activities.manufacturing.materials.map(
-        (material) =>
-          new Material(material, (typeID) => this.materialRequirement(typeID)),
+      this.build.materials = keyMaterialsByTypeID(
+        itemJson.activities.manufacturing.materials,
+        (typeID) => this.materialRequirement(typeID),
       );
       this.itemsProducedPerRun =
         itemJson.activities.manufacturing.products[0].quantity;
@@ -224,34 +224,25 @@ class Job {
       this.rawData.products = itemJson.activities.reaction.products;
       this.rawData.time = itemJson.activities.reaction.time;
       this.skills = keyByTypeID(itemJson.activities.reaction.skills);
-      this.build.materials = itemJson.activities.reaction.materials.map(
-        (material) =>
-          new Material(material, (typeID) => this.materialRequirement(typeID)),
+      this.build.materials = keyMaterialsByTypeID(
+        itemJson.activities.reaction.materials,
+        (typeID) => this.materialRequirement(typeID),
       );
       this.itemsProducedPerRun =
         itemJson.activities.reaction.products[0].quantity;
     }
 
-    this.build.materials.forEach((material) => {
+    for (const typeID of Object.keys(this.build.materials)) {
       const buildItem = buildRequest?.childJobs?.find(
-        (i) => i.typeID === material.typeID,
+        (i) => String(i.typeID) === typeID,
       );
 
-      this.build.childJobs[material.typeID] = buildItem?.childJobs
+      this.build.childJobs[typeID] = buildItem?.childJobs
         ? [...buildItem.childJobs]
         : [];
-    });
+    }
 
     this.layout.setupToEdit = Object.keys(this.build.setup)[0];
-    this.build.materials.sort((a, b) => {
-      if (a.name < b.name) {
-        return -1;
-      }
-      if (a.name > b.name) {
-        return 1;
-      }
-      return 0;
-    });
   }
 
   /**
@@ -282,9 +273,12 @@ class Job {
           acc[key] = value.toDocument();
           return acc;
         }, {}),
-        materials: this.build.materials
-          ? this.build.materials.map((material) => material.toDocument())
-          : null,
+        materials: Object.fromEntries(
+          Object.entries(this.build.materials).map(([typeID, material]) => [
+            typeID,
+            material.toDocument(),
+          ]),
+        ),
         costs: {
           ...this.build.costs,
           linkedJobs: this.build.costs.linkedJobs.map((linkedJob) =>
@@ -509,8 +503,9 @@ class Job {
    * @returns {number} Number of completed materials
    */
   get completedMaterialCount() {
-    return this.build.materials.filter((material) => material.purchaseComplete)
-      .length;
+    return Object.values(this.build.materials).filter(
+      (material) => material.purchaseComplete,
+    ).length;
   }
 
   /**
@@ -520,9 +515,9 @@ class Job {
    * @returns {boolean}
    */
   get isReadyToBuild() {
-    const materials = this.build?.materials ?? [];
-    if (materials.length === 0) return false;
-    return materials.length === this.completedMaterialCount;
+    const count = Object.keys(this.build?.materials ?? {}).length;
+    if (count === 0) return false;
+    return count === this.completedMaterialCount;
   }
 
   /**
@@ -542,8 +537,9 @@ class Job {
    * @returns {number} Number of remaining materials
    */
   get remainingMaterialCount() {
-    return this.build.materials.filter((material) => !material.purchaseComplete)
-      .length;
+    return Object.values(this.build.materials).filter(
+      (material) => !material.purchaseComplete,
+    ).length;
   }
 
   /**
@@ -690,7 +686,7 @@ class Job {
    * @returns {number} Material cost
    */
   get totalMaterialCost() {
-    return this.build.materials.reduce(
+    return Object.values(this.build.materials).reduce(
       (total, material) => total + material.purchasedCost,
       0,
     );
@@ -946,7 +942,7 @@ class Job {
    *   what is left for the caller to offer elsewhere
    */
   importPurchaseToMaterial(materialID, purchase, options) {
-    const material = this.build.materials?.find((i) => i.typeID == materialID);
+    const material = this.build.materials?.[String(materialID)];
     if (!material || !purchase) return { taken: 0, leftOver: 0 };
 
     return material.importPurchase(purchase, options);
@@ -960,7 +956,7 @@ class Job {
    * @returns {boolean} Whether a purchase was removed
    */
   removeMaterialPurchase(materialID, purchaseID) {
-    const material = this.build.materials?.find((i) => i.typeID == materialID);
+    const material = this.build.materials?.[String(materialID)];
     if (!material) return false;
 
     return material.removePurchase(purchaseID);
@@ -974,7 +970,7 @@ class Job {
    * @returns {number} Bought material cost
    */
   get totalBoughtMaterialCost() {
-    return this.build.materials.reduce(
+    return Object.values(this.build.materials).reduce(
       (total, material) => total + material.boughtCost,
       0,
     );
@@ -1297,16 +1293,37 @@ function documentToLinkedJobs(object) {
 /**
  * Helper function that converts a document's material rows to Material instances.
  *
+ * Keyed by the typeID each row carries, which is how they are stored and how
+ * they are held. A job with no materials holds none rather than null: the empty
+ * collection says the same thing and every reader can walk it.
+ *
+ * An array is still read because the SDE's blueprint data arrives as one.
+ *
  * @param {Object} object - Object containing job data
  * @param {Function} requirement - Looks up how many of a material the job needs
- * @returns {Array<Material>|null} The job's materials, or null when it has none yet
+ * @returns {Object<string, Material>} The job's materials, keyed by typeID
  */
 function documentToMaterials(object, requirement) {
-  const rows = object?.build?.materials;
-  if (!Array.isArray(rows)) {
-    return null;
+  return keyMaterialsByTypeID(object?.build?.materials, requirement);
+}
+
+/**
+ * Helper function that keys material rows by the typeID each carries.
+ *
+ * A row without one is dropped rather than filed under `undefined`, which would
+ * collapse every such row onto a single key.
+ *
+ * @param {Object<string, Object>|Array<Object>|null} rows
+ * @param {Function} requirement - Looks up how many of a material the job needs
+ * @returns {Object<string, Material>} The rows keyed by typeID
+ */
+function keyMaterialsByTypeID(rows, requirement) {
+  const out = {};
+  for (const row of Array.isArray(rows) ? rows : Object.values(rows ?? {})) {
+    if (row?.typeID === undefined || row?.typeID === null) continue;
+    out[String(row.typeID)] = new Material(row, requirement);
   }
-  return rows.map((row) => new Material(row, requirement));
+  return out;
 }
 
 export default Job;

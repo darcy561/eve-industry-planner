@@ -52,7 +52,7 @@ export default async function massBuildMaterials(inputJobIDs, options) {
   const materialsIgnored = new Set();
 
   for (const inputJob of selectedJobs) {
-    for (const material of inputJob.build?.materials ?? []) {
+    for (const material of Object.values(inputJob.build?.materials ?? {})) {
       if ((inputJob.build?.childJobs?.[material.typeID] ?? []).length > 0)
         continue;
       if (!checkJobTypeIsBuildable(material.jobType)) continue;

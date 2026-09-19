@@ -51,7 +51,7 @@ export function MaterialCardFrame_Purchasing(props) {
           0,
         );
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
-          const matchingCostImport = material.purchasing.find(
+          const matchingCostImport = Object.values(material.purchasing).find(
             (i) => i.childID === job.jobID,
           );
 
@@ -70,7 +70,7 @@ export function MaterialCardFrame_Purchasing(props) {
         }, 0);
 
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
-          const matchingCostImport = material.purchasing.find(
+          const matchingCostImport = Object.values(material.purchasing).find(
             (i) => i.childID === job.jobID,
           );
 
@@ -239,7 +239,7 @@ export function MaterialCardFrame_Purchasing(props) {
             sx={{
               flex: 1,
               minHeight: 0,
-              overflowY: material.purchasing.length > 2 ? "auto" : "hidden",
+              overflowY: Object.keys(material.purchasing).length > 2 ? "auto" : "hidden",
               overflowX: "hidden",
               display: "flex",
               flexDirection: "column",
@@ -250,7 +250,7 @@ export function MaterialCardFrame_Purchasing(props) {
               sx={{
                 flexShrink: 0,
                 minHeight:
-                  material.purchasing.length === 0 ? 0 : { xs: 80, sm: 80 },
+                  Object.keys(material.purchasing).length === 0 ? 0 : { xs: 80, sm: 80 },
                 display: "flex",
                 alignItems: "flex-start",
               }}

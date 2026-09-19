@@ -232,7 +232,7 @@ describe("a job with nothing to sell", () => {
   it("drops the selling group entirely", () => {
     jobsInStore["parent"] = {
       build: {
-        materials: [{ typeID: 34, quantity: 10 }],
+        materials: { [String(34)]: { typeID: 34, quantity: 10 } },
         childJobs: { 34: ["job-1"] },
       },
     };
@@ -253,7 +253,7 @@ describe("a job with nothing to sell", () => {
   it("keeps it where the job makes more than its parents need", () => {
     jobsInStore["parent"] = {
       build: {
-        materials: [{ typeID: 34, quantity: 4 }],
+        materials: { [String(34)]: { typeID: 34, quantity: 4 } },
         childJobs: { 34: ["job-1"] },
       },
     };
@@ -315,7 +315,7 @@ describe("the what-if it carries", () => {
     useSellingRates.mockReturnValue({ data: rates, isLoading: false });
     jobsInStore["parent"] = {
       build: {
-        materials: [{ typeID: 34, quantity: 10 }],
+        materials: { [String(34)]: { typeID: 34, quantity: 10 } },
         childJobs: { 34: ["job-1"] },
       },
     };

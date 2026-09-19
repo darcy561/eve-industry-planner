@@ -79,7 +79,7 @@ function parentNeeding(quantity) {
           materialCount: { 34: { typeID: 34, quantity } },
         },
       },
-      materials: [{ typeID: 34, name: "Tritanium", quantity }],
+      materials: { [String(34)]: { typeID: 34, name: "Tritanium", quantity } },
       childJobs: { 34: ["child-1", "child-2"] },
     },
   });
@@ -104,7 +104,7 @@ describe("collecting what the child jobs produced", () => {
 
     await passBuildCostsToParentJobs([childA, childB]);
 
-    const material = parent.build.materials[0];
+    const material = Object.values(parent.build.materials)[0];
     expect(material.quantityPurchased).toBe(100);
     expect(material.purchasedCost).toBe(500);
   });
@@ -130,7 +130,7 @@ describe("importing child job costs into a parent", () => {
       34: new Set(["parent-1"]),
     });
 
-    const material = job.build.materials[0];
+    const material = Object.values(job.build.materials)[0];
     expect(material.quantityPurchased).toBe(100);
     expect(material.purchasedCost).toBe(500);
     expect(material.purchaseComplete).toBe(true);
@@ -148,7 +148,7 @@ describe("importing child job costs into a parent", () => {
       { 34: new Set(["parent-1"]) },
     );
 
-    expect(job.build.materials[0].quantityPurchased).toBe(30);
+    expect(Object.values(job.build.materials)[0].quantityPurchased).toBe(30);
     expect(costs[0].quantity).toBe(20);
   });
 });

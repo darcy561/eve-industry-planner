@@ -39,7 +39,11 @@ function job(jobID, name, { builtFrom = [], groupID = null } = {}) {
     groupID,
     setupCount: 1,
     totalQuantityProduced: 10,
-    build: { materials: builtFrom.map((typeID) => ({ typeID })) },
+    build: {
+      materials: Object.fromEntries(
+        builtFrom.map((typeID) => [String(typeID), { typeID }]),
+      ),
+    },
   };
 }
 

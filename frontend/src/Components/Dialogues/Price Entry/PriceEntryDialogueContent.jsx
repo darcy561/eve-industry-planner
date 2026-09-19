@@ -53,7 +53,7 @@ export function PriceEntryDialogueContent({ state, actions }) {
       await resolveJobObjectsForMixedSelection(inputJobIDs);
 
     for (let inputJob of requestedJobObjects) {
-      inputJob.build.materials.forEach((material) => {
+      Object.values(inputJob.build.materials).forEach((material) => {
         const childJobs = inputJob.build.childJobs[material.typeID];
         if (
           material.quantityPurchased >= material.quantity ||

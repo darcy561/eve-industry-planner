@@ -83,11 +83,12 @@ function makeJob(
     itemsProducedPerRun: 1,
     parentJobs: [...parents],
     build: {
-      materials: materials.map((typeID) => ({
-        typeID,
-        name: names[typeID],
-        quantity: 100,
-      })),
+      materials: Object.fromEntries(
+        materials.map((typeID) => [
+          String(typeID),
+          { typeID, name: names[typeID], quantity: 100 },
+        ]),
+      ),
       childJobs: Object.fromEntries(
         materials.map((typeID) => [typeID, [...(children[typeID] ?? [])]]),
       ),

@@ -82,11 +82,11 @@ func (j Job) FilesItsOwnMonths() bool {
 
 // JobBuild contains all build-related data including setups, costs, and sales
 type JobBuild struct {
-	Setup     map[string]JobSetup `json:"setup" bson:"setup"`
-	Costs     JobCosts            `json:"costs" bson:"costs"`
-	Sale      JobSale             `json:"sale" bson:"sale"`
-	Materials []JobMaterial       `json:"materials" bson:"materials"`
-	ChildJobs map[string][]string `json:"childJobs" bson:"childJobs"`
+	Setup     map[string]JobSetup    `json:"setup" bson:"setup"`
+	Costs     JobCosts               `json:"costs" bson:"costs"`
+	Sale      JobSale                `json:"sale" bson:"sale"`
+	Materials map[string]JobMaterial `json:"materials" bson:"materials"`
+	ChildJobs map[string][]string    `json:"childJobs" bson:"childJobs"`
 }
 
 // JobSetup represents a single setup configuration for a job
@@ -280,7 +280,17 @@ func (m JobMaterial) countedPurchases(requirement int) (int, float64) {
 			rows = append(rows, row)
 		}
 	}
-	sort.SliceStable(rows, func(i, j int) bool { return rows[i].ItemCost < rows[j].ItemCost })
+	// By id where the cost ties: the rows come out of a map, so their order is
+	// randomised and a stable sort has nothing to be stable about. Equal-cost
+	// rows contribute the same to either total whichever is taken first, so the
+	// tiebreak is for a caller reading one purchase's share rather than for
+	// these sums.
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ItemCost != rows[j].ItemCost {
+			return rows[i].ItemCost < rows[j].ItemCost
+		}
+		return rows[i].ID < rows[j].ID
+	})
 
 	quantity := 0
 	cost := 0.0
@@ -666,12 +676,16 @@ type BrokerFee struct {
 }
 
 // JobMaterial represents a material required for the job
+// JobMaterial is one material the job is built from, keyed in
+// [JobBuild.Materials] by the TypeID it carries. The field repeats the key so a
+// row read on its own still says which material it is.
 type JobMaterial struct {
-	TypeID     int        `json:"typeID" bson:"typeID"`
-	Name       string     `json:"name" bson:"name"`
-	JobType    int        `json:"jobType" bson:"jobType"`
-	Volume     float64    `json:"volume" bson:"volume"` // coerced on historic import
-	Purchasing []Purchase `json:"purchasing" bson:"purchasing"`
+	TypeID  int     `json:"typeID" bson:"typeID"`
+	Name    string  `json:"name" bson:"name"`
+	JobType int     `json:"jobType" bson:"jobType"`
+	Volume  float64 `json:"volume" bson:"volume"` // coerced on historic import
+	// Purchasing is keyed by each purchase's own id.
+	Purchasing map[string]Purchase `json:"purchasing" bson:"purchasing"`
 }
 
 // Purchase is one buy recorded against a material. Which material it bought is

@@ -37,7 +37,7 @@ function calculateJobUnitCost(inputJob, ctx) {
     let jobCost = inputJob.totalExtrasCost;
     jobCost += getJobInstallCostForPlanning(inputJob);
 
-    for (const material of inputJob.build.materials) {
+    for (const material of Object.values(inputJob.build.materials)) {
       const childJobLocation = inputJob.build.childJobs[material.typeID];
       const materialPriceInner = getMaterialPrice(material);
 

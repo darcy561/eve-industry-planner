@@ -32,8 +32,8 @@ export default function GroupStep2JobCard({ job }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-              {job.build.materials.length - totalComplete}/
-              {job.build.materials.length}
+              {Object.keys(job.build.materials).length - totalComplete}/
+              {Object.keys(job.build.materials).length}
             </Typography>
           </Box>
         </Box>

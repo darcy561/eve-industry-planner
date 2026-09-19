@@ -63,9 +63,12 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
   );
 
   return useMemo(() => {
-    const materials = Array.isArray(activeJob.build?.materials)
-      ? activeJob.build.materials
-      : [];
+    // Sorted here rather than held sorted: the job keys its materials by type
+    // id, which says nothing about the order to read them in, so the panel that
+    // shows them decides it.
+    const materials = Object.values(activeJob.build?.materials ?? {}).sort(
+      (a, b) => (a.name ?? "").localeCompare(b.name ?? ""),
+    );
 
     const rows = materials.map((material) => {
       const resolved = getEffectiveMaterialPriceHub(

@@ -14,7 +14,7 @@ function jobStub(
     esiJobIDs: new Set(),
     esiOrderIDs: new Set(),
     esiTransactionIDs: new Set(),
-    build: { materials: [] },
+    build: { materials: {} },
   };
 }
 

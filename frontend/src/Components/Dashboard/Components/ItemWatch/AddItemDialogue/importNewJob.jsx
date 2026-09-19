@@ -53,18 +53,17 @@ export function ImportNewJob_WatchlistDialogue({
     }
 
     materialMap[WatchlistItemJob.itemID] = WatchlistItemJob;
-    const materialJobRequests = WatchlistItemJob.build.materials.reduce(
-      (prev, material) => {
-        if (checkJobTypeIsBuildable(material.jobType)) {
-          prev.push({
-            itemID: material.typeID,
-            skipJobCreateAnalytics: true,
-          });
-        }
-        return prev;
-      },
-      [],
-    );
+    const materialJobRequests = Object.values(
+      WatchlistItemJob.build.materials,
+    ).reduce((prev, material) => {
+      if (checkJobTypeIsBuildable(material.jobType)) {
+        prev.push({
+          itemID: material.typeID,
+          skipJobCreateAnalytics: true,
+        });
+      }
+      return prev;
+    }, []);
 
     const MaterialJobs = await buildJob(materialJobRequests, { queryClient });
 

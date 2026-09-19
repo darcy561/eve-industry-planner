@@ -83,7 +83,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
         parentJobs.add(parentID);
       }
 
-      for (const material of job.build?.materials ?? []) {
+      for (const material of Object.values(job.build?.materials ?? {})) {
         const typeID = material.typeID;
         if (!childJobsByType.has(typeID)) {
           childJobsByType.set(typeID, new Set());
@@ -166,7 +166,9 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
       ),
     ];
 
-    for (const material of replacementJob.build?.materials ?? []) {
+    for (const material of Object.values(
+      replacementJob.build?.materials ?? {},
+    )) {
       const typeID = material.typeID;
       const translatedChildren = (
         replacementJob.build?.childJobs?.[typeID] ?? []

@@ -15,7 +15,7 @@ const { jobFixture } = await import("../../tests/jobFixture");
 
 const parentNeeding = (quantity, children = ["job-1"]) => ({
   build: {
-    materials: [{ typeID: 34, quantity }],
+    materials: { [String(34)]: { typeID: 34, quantity } },
     childJobs: { 34: children },
   },
 });

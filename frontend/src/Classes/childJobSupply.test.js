@@ -40,7 +40,9 @@ function parent(jobID, needs, childIDs = []) {
           },
         },
       },
-      materials: [{ typeID: TRITANIUM, name: "Tritanium" }],
+      materials: {
+        [String(TRITANIUM)]: { typeID: TRITANIUM, name: "Tritanium" },
+      },
       childJobs: { [TRITANIUM]: childIDs },
     },
   });
@@ -57,13 +59,15 @@ function child(jobID, produces, parentJobs) {
     parentJobs,
     build: {
       setup: { "setup-1": { id: "setup-1", runCount: 1, jobCount: 1 } },
-      materials: [],
+      materials: {},
     },
   });
 }
 
 function supplyFor(job, childJob) {
-  return childJobSupplyForMaterial(job, job.build.materials[0], [childJob]);
+  return childJobSupplyForMaterial(job, job.build.materials[TRITANIUM], [
+    childJob,
+  ]);
 }
 
 describe("what a child job can be counted on to supply", () => {
@@ -141,10 +145,11 @@ describe("what a child job can be counted on to supply", () => {
       ["child-2", childB],
     ]);
 
-    const supply = childJobSupplyForMaterial(first, first.build.materials[0], [
-      childA,
-      childB,
-    ]);
+    const supply = childJobSupplyForMaterial(
+      first,
+      first.build.materials[TRITANIUM],
+      [childA, childB],
+    );
 
     // 1400 made, the other parent wants 400, so 1000 is certain for this one.
     expect(supply.supply).toBe(1400);

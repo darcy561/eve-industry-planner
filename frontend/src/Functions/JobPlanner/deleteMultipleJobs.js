@@ -92,7 +92,7 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     );
 
     // Removes deleted job IDs from child jobs.
-    for (const mat of inputJob.build.materials ?? []) {
+    for (const mat of Object.values(inputJob.build.materials ?? {})) {
       for (const jobID of inputJob.build.childJobs?.[mat.typeID] ?? []) {
         if (selectedJobIDSet.has(jobID)) continue;
         const child = getWorkingJob(jobID);

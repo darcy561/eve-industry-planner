@@ -22,10 +22,20 @@ function recipe() {
     jobType: 1,
     activities: {
       manufacturing: {
-        materials: [
-          { typeID: TRITANIUM, name: "Tritanium", quantity: 100, volume: 0.01 },
-          { typeID: PYERITE, name: "Pyerite", quantity: 40, volume: 0.01 },
-        ],
+        materials: {
+          [String(TRITANIUM)]: {
+            typeID: TRITANIUM,
+            name: "Tritanium",
+            quantity: 100,
+            volume: 0.01,
+          },
+          [String(PYERITE)]: {
+            typeID: PYERITE,
+            name: "Pyerite",
+            quantity: 40,
+            volume: 0.01,
+          },
+        },
         products: [{ typeID: 587, quantity: 10 }],
         time: 600,
         skills: [],
@@ -59,7 +69,7 @@ function newJob() {
 }
 
 function materialOf(job, typeID) {
-  return job.build.materials.find((material) => material.typeID === typeID);
+  return job.build.materials[String(typeID)];
 }
 
 describe("a job's materials through its life", () => {
@@ -221,7 +231,9 @@ describe("a job's materials through its life", () => {
     job.importPurchaseToMaterial(TRITANIUM, { itemCount: 40, itemCost: 9 });
 
     const tritanium = materialOf(job, TRITANIUM);
-    const cheapest = tritanium.purchasing.find((row) => row.itemCost === 5);
+    const cheapest = Object.values(tritanium.purchasing).find(
+      (row) => row.itemCost === 5,
+    );
     expect(tritanium.purchasedCost).toBe(660);
 
     expect(job.removeMaterialPurchase(TRITANIUM, cheapest.id)).toBe(true);

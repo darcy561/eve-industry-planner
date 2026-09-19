@@ -78,12 +78,12 @@ describe("serialiseGroupToTemplatePayload", () => {
         },
       },
       totalQuantity: 1,
-      materials: [],
+      materials: {},
     });
     const parent = minimalJob({
       jobID: "job-p",
       childJobs: { 35: ["job-c"] },
-      materials: [{ typeID: 35, name: "Mat", quantity: 1 }],
+      materials: { [String(35)]: { typeID: 35, name: "Mat", quantity: 1 } },
       parentJobs: [],
     });
     const out = serialiseGroupToTemplatePayload({

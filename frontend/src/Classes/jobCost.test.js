@@ -27,13 +27,18 @@ function jobWith({ materials = [], invention = 0, totalQuantity = 10 }) {
           ),
         },
       },
-      materials: materials.map((spend, i) => ({
-        typeID: 34 + i,
-        quantity: spend,
-        purchasing: [
-          { id: `p${i}`, typeID: 34 + i, itemCount: spend, itemCost: 1 },
-        ],
-      })),
+      materials: Object.fromEntries(
+        materials.map((spend, i) => [
+          String(34 + i),
+          {
+            typeID: 34 + i,
+            quantity: spend,
+            purchasing: {
+              [`p${i}`]: { id: `p${i}`, itemCount: spend, itemCost: 1 },
+            },
+          },
+        ]),
+      ),
       costs: {
         linkedJobs: [{ job_id: 1, cost: 5 }],
         extrasCosts: [

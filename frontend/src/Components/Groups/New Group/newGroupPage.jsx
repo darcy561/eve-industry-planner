@@ -52,7 +52,7 @@ function NewGroupPage() {
 
         matchedGroupJob.keepOnlyParentJobs(jobIDsToInclude);
 
-        for (let material of matchedGroupJob.build.materials) {
+        for (let material of Object.values(matchedGroupJob.build.materials)) {
           const childJobArray =
             matchedGroupJob.build.childJobs[material.typeID] ?? [];
 

@@ -24,7 +24,7 @@ function getTooltipContent(job, now) {
         return (
           <span>
             <p>
-              Awaiting Materials: {totalRemaining}/{job.build.materials.length}
+              Awaiting Materials: {totalRemaining}/{Object.keys(job.build.materials).length}
             </p>
           </span>
         );

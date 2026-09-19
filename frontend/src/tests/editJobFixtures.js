@@ -112,7 +112,9 @@ export function plannerJob(
     totalQuantityProduced: 10,
     build: {
       setup: { one: {} },
-      materials: builtFrom.map((typeID) => ({ typeID })),
+      materials: Object.fromEntries(
+        builtFrom.map((typeID) => [String(typeID), { typeID }]),
+      ),
     },
   };
 }

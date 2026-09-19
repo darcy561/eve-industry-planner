@@ -31,7 +31,7 @@ export function MaterialCostsFrame_Purchasing({ state, actions, material }) {
         paddingTop: 0.5,
       }}
     >
-      {material.purchasing.map((record) => {
+      {Object.values(material.purchasing).map((record) => {
         const counted = material.countedFromPurchase(record.id);
         const label = `${formatNumberForLocale(record.itemCount, {
           max: 0,

@@ -22,7 +22,7 @@ export default function normaliseParentChildRelationships(jobs = []) {
       const parentJob = jobMap.get(parentID);
       if (!parentJob) continue;
 
-      const parentMaterials = parentJob.build?.materials ?? [];
+      const parentMaterials = Object.values(parentJob.build?.materials ?? {});
       const canBuildChildType = parentMaterials.some(
         (material) => material.typeID === job.itemID,
       );
@@ -40,7 +40,7 @@ export default function normaliseParentChildRelationships(jobs = []) {
       }
     }
 
-    const materials = job.build?.materials ?? [];
+    const materials = Object.values(job.build?.materials ?? {});
     for (const material of materials) {
       const materialTypeID = material.typeID;
       const childIDs = [...(job.build?.childJobs?.[materialTypeID] ?? [])];

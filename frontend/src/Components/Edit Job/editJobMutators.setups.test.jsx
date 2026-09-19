@@ -76,7 +76,7 @@ function withSetups(...ids) {
   return storedJob({
     layout: { setupToEdit: ids[0] },
     rawData: blueprintRawData(),
-    build: { setup, materials: [], childJobs: {} },
+    build: { setup, materials: {}, childJobs: {} },
   });
 }
 

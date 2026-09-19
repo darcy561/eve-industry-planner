@@ -82,7 +82,7 @@ function jobWithOneSlot({ linkedJobs = [] } = {}) {
           materialCount: {},
         },
       },
-      materials: [],
+      materials: {},
       childJobs: {},
       costs: { linkedJobs },
     },
@@ -211,7 +211,7 @@ function sellingThroughOrder(order_id) {
     jobStatus: 4,
     build: {
       setup: {},
-      materials: [],
+      materials: {},
       childJobs: {},
       sale: {
         marketOrders: [esiMarketOrder(order_id)],

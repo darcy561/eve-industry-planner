@@ -60,7 +60,7 @@ describe("recording a sale by hand, end to end", () => {
       storedJob({
         build: {
           setup: {},
-          materials: [],
+          materials: {},
           childJobs: {},
           sale: { transactions: [] },
         },
@@ -88,7 +88,7 @@ describe("recording a sale by hand, end to end", () => {
       storedJob({
         build: {
           setup: {},
-          materials: [],
+          materials: {},
           childJobs: {},
           sale: { transactions: [] },
         },
@@ -114,7 +114,7 @@ function sellingFromTwoPlaces() {
     jobStatus: 4,
     build: {
       setup: {},
-      materials: [],
+      materials: {},
       childJobs: {},
       sale: {
         marketOrders: [],
@@ -174,7 +174,7 @@ describe("unlinking a sale from a job, end to end", () => {
         jobStatus: 4,
         build: {
           setup: {},
-          materials: [],
+          materials: {},
           childJobs: {},
           sale: {
             marketOrders: [esiMarketOrder(700001)],

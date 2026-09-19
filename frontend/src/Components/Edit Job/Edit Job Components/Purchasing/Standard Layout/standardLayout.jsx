@@ -37,7 +37,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
       if (!state.activeJob.includedInGroup) {
         childJobs = filterJobs(jobArray);
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
-          const matchingCostImport = material.purchasing.find(
+          const matchingCostImport = Object.values(material.purchasing).find(
             (i) => i.childID === job.jobID,
           );
 
@@ -52,7 +52,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
           ...Object.values(state.temporaryChildJobs),
         ]);
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
-          const matchingCostImport = material.purchasing.find(
+          const matchingCostImport = Object.values(material.purchasing).find(
             (i) => i.childID === job.jobID,
           );
 

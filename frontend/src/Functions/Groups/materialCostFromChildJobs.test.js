@@ -80,7 +80,7 @@ describe("calculateMaterialCostFromChildJobs install rollup", () => {
           },
         },
         costs: { linkedJobs: [] },
-        materials: [],
+        materials: {},
         childJobs: {},
       },
     });

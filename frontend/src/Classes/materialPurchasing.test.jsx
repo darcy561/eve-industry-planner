@@ -28,7 +28,7 @@ function jobNeeding(quantity) {
           materialCount: { 34: { typeID: 34, quantity } },
         },
       },
-      materials: [{ typeID: 34, name: "Tritanium", quantity }],
+      materials: { [String(34)]: { typeID: 34, name: "Tritanium", quantity } },
     },
   });
 }
@@ -43,7 +43,7 @@ describe("adding a cost on a material card", () => {
 
     job.importPurchaseToMaterial(34, priced(40, 5), { recordExcess: true });
 
-    const material = job.build.materials[0];
+    const material = job.build.materials[34];
     expect(material.quantityPurchased).toBe(40);
     expect(material.purchasedCost).toBe(200);
     expect(material.purchaseComplete).toBe(false);
@@ -56,8 +56,10 @@ describe("adding a cost on a material card", () => {
     job.importPurchaseToMaterial(34, priced(40, 5), { recordExcess: true });
     job.importPurchaseToMaterial(34, priced(80, 5), { recordExcess: true });
 
-    const material = job.build.materials[0];
-    expect(material.purchasing.map((row) => row.itemCount)).toEqual([40, 80]);
+    const material = job.build.materials[34];
+    expect(
+      Object.values(material.purchasing).map((row) => row.itemCount),
+    ).toEqual([40, 80]);
     expect(material.quantityPurchased).toBe(100);
     expect(material.purchasedCost).toBe(500);
     expect(material.excessQuantity).toBe(20);
@@ -70,7 +72,7 @@ describe("adding a cost on a material card", () => {
     job.importPurchaseToMaterial(34, priced(100, 5), { recordExcess: true });
     job.importPurchaseToMaterial(34, priced(50, 9), { recordExcess: true });
 
-    expect(job.build.materials[0].purchasedCost).toBe(500);
+    expect(job.build.materials[34].purchasedCost).toBe(500);
   });
 
   // Entry order used to decide which purchases counted. The cheapest fill the
@@ -81,20 +83,22 @@ describe("adding a cost on a material card", () => {
     job.importPurchaseToMaterial(34, priced(50, 20), { recordExcess: true });
     job.importPurchaseToMaterial(34, priced(50, 5), { recordExcess: true });
 
-    expect(job.build.materials[0].purchasedCost).toBe(250);
-    expect(job.build.materials[0].excessQuantity).toBe(50);
+    expect(job.build.materials[34].purchasedCost).toBe(250);
+    expect(job.build.materials[34].excessQuantity).toBe(50);
   });
 });
 
 describe("pasting a multibuy on the purchasing panel", () => {
   it("takes the pasted quantity, capped at what the job still needs", () => {
     const job = jobNeeding(100);
-    const material = job.build.materials[0];
+    const material = job.build.materials[34];
 
     material.importPurchase(priced(30, 5));
     material.importPurchase(priced(200, 8));
 
-    expect(material.purchasing.map((row) => row.itemCount)).toEqual([30, 70]);
+    expect(
+      Object.values(material.purchasing).map((row) => row.itemCount),
+    ).toEqual([30, 70]);
     expect(material.quantityPurchased).toBe(100);
     expect(material.purchasedCost).toBe(710);
     expect(job.totalMaterialCost).toBe(710);
@@ -102,12 +106,12 @@ describe("pasting a multibuy on the purchasing panel", () => {
 
   it("adds nothing when the material is already covered", () => {
     const job = jobNeeding(100);
-    const material = job.build.materials[0];
+    const material = job.build.materials[34];
 
     material.importPurchase(priced(100, 5));
     material.importPurchase(priced(50, 8));
 
-    expect(material.purchasing).toHaveLength(1);
+    expect(Object.keys(material.purchasing)).toHaveLength(1);
   });
 });
 
@@ -117,7 +121,7 @@ describe("removing a purchase from a material card", () => {
     job.importPurchaseToMaterial(34, priced(40, 5));
     job.importPurchaseToMaterial(34, priced(30, 8));
 
-    const material = job.build.materials[0];
+    const material = job.build.materials[34];
     const actions = { updateActiveJob: vi.fn() };
 
     render(
@@ -130,7 +134,9 @@ describe("removing a purchase from a material card", () => {
 
     await userEvent.click(screen.getAllByTestId("ClearIcon")[0]);
 
-    expect(material.purchasing.map((row) => row.itemCount)).toEqual([30]);
+    expect(
+      Object.values(material.purchasing).map((row) => row.itemCount),
+    ).toEqual([30]);
     expect(material.quantityPurchased).toBe(30);
     expect(material.purchasedCost).toBe(240);
     expect(job.totalMaterialCost).toBe(240);

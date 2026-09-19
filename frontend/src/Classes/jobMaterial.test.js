@@ -9,9 +9,9 @@ const storedRow = {
   name: "Tritanium",
   jobType: 1,
   volume: 0.01,
-  purchasing: [
-    { id: "p1", typeID: 34, itemCount: 60, itemCost: 5, childJobImport: false },
-  ],
+  purchasing: {
+    p1: { id: "p1", itemCount: 60, itemCost: 5, childJobImport: false },
+  },
 };
 
 describe("a material row", () => {
@@ -25,7 +25,7 @@ describe("a material row", () => {
       100,
     );
 
-    expect(material.purchasing).toEqual([]);
+    expect(material.purchasing).toEqual({});
     expect(material.quantityPurchased).toBe(0);
     expect(material.purchasedCost).toBe(0);
     expect(material.purchaseComplete).toBe(false);
@@ -38,7 +38,7 @@ describe("a material row", () => {
     const material = new Material(
       {
         ...storedRow,
-        purchasing: [{ id: "p1", typeID: 34, itemCount: 100, itemCost: 5 }],
+        purchasing: { p1: { id: "p1", itemCount: 100, itemCost: 5 } },
       },
       () => required,
     );
@@ -61,14 +61,14 @@ describe("a material row", () => {
     expect(material.purchaseComplete).toBe(false);
   });
 
-  // Sharing the array would let a purchase recorded on one job appear on the
-  // document it was hydrated from.
+  // Sharing the collection would let a purchase recorded on one job appear on
+  // the document it was hydrated from.
   test("its purchases are its own", () => {
     const material = new Material(storedRow, 100);
 
-    material.purchasing.push({ id: "p2", itemCount: 40, itemCost: 5 });
+    material.purchasing.p2 = { id: "p2", itemCount: 40, itemCost: 5 };
 
-    expect(storedRow.purchasing).toHaveLength(1);
+    expect(Object.keys(storedRow.purchasing)).toEqual(["p1"]);
   });
 });
 
@@ -87,25 +87,25 @@ describe("a job's materials", () => {
             materialCount: { 34: { typeID: 34, quantity: 100 } },
           },
         },
-        materials: [storedRow],
+        materials: { 34: storedRow },
       },
     });
 
-    expect(job.build.materials[0]).toBeInstanceOf(Material);
-    expect(job.toDocument().build.materials).toEqual([storedRow]);
+    expect(job.build.materials[34]).toBeInstanceOf(Material);
+    expect(job.toDocument().build.materials).toEqual({ 34: storedRow });
   });
 
-  // A job that has not been built out yet has no materials at all, which the
-  // planner tells apart from a job whose materials are all bought.
-  test("are null until the job is built out", () => {
+  // A job that has not been built out yet holds none, which the planner tells
+  // apart from a job whose materials are all bought.
+  test("hold nothing until the job is built out", () => {
     const job = new Job({ jobID: "job-1", itemID: 587, jobType: 1 });
 
-    expect(job.build.materials).toBeNull();
+    expect(job.build.materials).toEqual({});
   });
 });
 
 describe("recording a purchase", () => {
-  function needing(quantity, purchasing = []) {
+  function needing(quantity, purchasing = {}) {
     return new Material(
       { typeID: 34, name: "Tritanium", purchasing },
       quantity,
@@ -115,7 +115,6 @@ describe("recording a purchase", () => {
   function purchase(id, itemCount, itemCost, childID = null) {
     return {
       id,
-      typeID: 34,
       itemCount,
       itemCost,
       childID,
@@ -147,8 +146,8 @@ describe("recording a purchase", () => {
 
     material.importPurchase(purchase("p1", 40, 5));
 
-    expect(material.purchasing).toHaveLength(1);
-    expect(material.purchasing[0]).not.toHaveProperty("typeID");
+    expect(Object.keys(material.purchasing)).toEqual(["p1"]);
+    expect(material.purchasing.p1).not.toHaveProperty("typeID");
   });
 
   // A single job has nowhere to pass a leftover to, so it keeps the purchase and
@@ -186,7 +185,7 @@ describe("recording a purchase", () => {
       taken: 0,
       leftOver: 40,
     });
-    expect(material.purchasing).toHaveLength(0);
+    expect(material.purchasing).toEqual({});
   });
 
   test("nothing is recorded for an empty purchase", () => {
@@ -196,7 +195,7 @@ describe("recording a purchase", () => {
       taken: 0,
       leftOver: 0,
     });
-    expect(material.purchasing).toHaveLength(0);
+    expect(material.purchasing).toEqual({});
   });
 });
 
@@ -205,7 +204,7 @@ describe("what the job is charged for", () => {
     const material = new Material({ typeID: 34 }, quantity);
     for (const [id, itemCount, itemCost] of rows) {
       material.importPurchase(
-        { id, typeID: 34, itemCount, itemCost },
+        { id, itemCount, itemCost },
         { recordExcess: true },
       );
     }
@@ -253,7 +252,7 @@ describe("what the job is charged for", () => {
 
     material.importPurchase({ id: "p1", itemCount: 10, itemCost: 5 });
 
-    expect(material.purchasing.map((row) => row.id)).toEqual(["good", "p1"]);
+    expect(Object.keys(material.purchasing).sort()).toEqual(["good", "p1"]);
     expect(material.quantityPurchased).toBe(20);
   });
 

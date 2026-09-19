@@ -151,9 +151,9 @@ class Group {
       updateSet(newLinkedOrderIDs, job.esiOrderIDs);
       updateSet(newLinkedTransIDs, job.esiTransactionIDs);
 
-      job.build.materials.forEach((mat) => {
-        newMaterialIDs.add(mat.typeID);
-      });
+      for (const typeID of Object.keys(job.build.materials)) {
+        newMaterialIDs.add(Number(typeID));
+      }
     });
 
     return {

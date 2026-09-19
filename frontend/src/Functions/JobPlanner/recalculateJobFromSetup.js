@@ -48,7 +48,7 @@ export function recalculateWatchListItemsFromSetup(
   if (requestedTypeID !== mainTypeID) return;
 
   const mainJob = materialObject[mainTypeID];
-  for (const material of mainJob.build.materials) {
+  for (const material of Object.values(mainJob.build.materials)) {
     if (!checkJobTypeIsBuildable(material.jobType)) continue;
 
     const materialJob = materialObject[material.typeID];

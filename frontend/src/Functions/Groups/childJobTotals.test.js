@@ -18,10 +18,10 @@ const childJob = ({ materials = [], installCost = 0, produced = 10 } = {}) => ({
 describe("what a child job costs", () => {
   it("adds every material it needs", () => {
     const job = childJob({
-      materials: [
-        { typeID: 34, cost: 300 },
-        { typeID: 35, cost: 700 },
-      ],
+      materials: {
+        [String(34)]: { typeID: 34, cost: 300 },
+        [String(35)]: { typeID: 35, cost: 700 },
+      },
     });
 
     expect(calculateChildJobTotals(job).totalCostOfMaterials).toBe(1000);
@@ -29,7 +29,7 @@ describe("what a child job costs", () => {
 
   it("counts the install cost separately from the materials", () => {
     const job = childJob({
-      materials: [{ typeID: 34, cost: 300 }],
+      materials: { [String(34)]: { typeID: 34, cost: 300 } },
       installCost: 50,
     });
     const totals = calculateChildJobTotals(job);
@@ -40,7 +40,7 @@ describe("what a child job costs", () => {
 
   it("divides the whole cost by what the job makes", () => {
     const job = childJob({
-      materials: [{ typeID: 34, cost: 900 }],
+      materials: { [String(34)]: { typeID: 34, cost: 900 } },
       installCost: 100,
       produced: 10,
     });
@@ -52,7 +52,7 @@ describe("what a child job costs", () => {
     // Dividing anyway gives an infinite cost, which would colour every
     // comparison against it.
     const job = childJob({
-      materials: [{ typeID: 34, cost: 900 }],
+      materials: { [String(34)]: { typeID: 34, cost: 900 } },
       produced: 0,
     });
 

@@ -248,7 +248,7 @@ class ShoppingList {
 function buildShoppingList(selectedJobObjects = []) {
   const finalShoppingList = [];
   selectedJobObjects.forEach((job) => {
-    job.build.materials.forEach((material) => {
+    Object.values(job.build.materials).forEach((material) => {
       if (material.quantityPurchased >= material.quantity) {
         return;
       }

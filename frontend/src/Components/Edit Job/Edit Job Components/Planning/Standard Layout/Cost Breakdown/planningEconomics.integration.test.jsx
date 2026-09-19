@@ -237,7 +237,7 @@ describe("a job whose output is owed to the job above it", () => {
     // The parent needs 10 and this job makes 10, so nothing is left to sell.
     parentJobs["parent-1"] = {
       build: {
-        materials: [{ typeID: 34, quantity: 10 }],
+        materials: { [String(34)]: { typeID: 34, quantity: 10 } },
         childJobs: { 34: ["job-1"] },
       },
       totalQuantityProduced: 10,
@@ -257,7 +257,7 @@ describe("a job whose output is owed to the job above it", () => {
     // The parent needs 4 of the 10 produced, leaving 6 to sell.
     parentJobs["parent-1"] = {
       build: {
-        materials: [{ typeID: 34, quantity: 4 }],
+        materials: { [String(34)]: { typeID: 34, quantity: 4 } },
         childJobs: { 34: ["job-1"] },
       },
       totalQuantityProduced: 10,

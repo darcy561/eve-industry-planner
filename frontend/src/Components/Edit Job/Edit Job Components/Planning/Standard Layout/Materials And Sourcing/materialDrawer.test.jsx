@@ -119,7 +119,7 @@ describe("the child job drawer", () => {
     buildSingleChildJobPreview.mockResolvedValue({
       name: "Pyerite job",
       itemID: 35,
-      build: { materials: [], costs: {} },
+      build: { materials: {}, costs: {} },
     });
 
     renderDrawer();
@@ -148,7 +148,7 @@ describe("the child job drawer", () => {
     const existing = {
       name: "Linked job",
       itemID: 35,
-      build: { materials: [], costs: {} },
+      build: { materials: {}, costs: {} },
     };
 
     renderDrawer({ matchedChildJobs: [existing] });
@@ -171,7 +171,7 @@ describe("the child job drawer", () => {
     buildSingleChildJobPreview.mockResolvedValue({
       name: "Pyerite job",
       itemID: 35,
-      build: { materials: [], costs: {} },
+      build: { materials: {}, costs: {} },
     });
 
     renderDrawer();

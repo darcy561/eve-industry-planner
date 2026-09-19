@@ -20,9 +20,9 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 					"35": {TypeID: 35, Quantity: 30},
 				},
 			}},
-			Materials: []models.JobMaterial{
-				{TypeID: 34, Purchasing: []models.Purchase{{ID: "p1", ItemCount: 70, ItemCost: 1}}},
-				{TypeID: 35, Purchasing: []models.Purchase{{ID: "p2", ItemCount: 30, ItemCost: 1}}},
+			Materials: map[string]models.JobMaterial{
+				"34": {TypeID: 34, Purchasing: map[string]models.Purchase{"p1": {ID: "p1", ItemCount: 70, ItemCost: 1}}},
+				"35": {TypeID: 35, Purchasing: map[string]models.Purchase{"p2": {ID: "p2", ItemCount: 30, ItemCost: 1}}},
 			},
 			Costs: models.JobCosts{
 				ExtrasCosts:      []models.ExtraCost{{ID: "e1", ExtraValue: 3}},

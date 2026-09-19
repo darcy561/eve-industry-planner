@@ -26,7 +26,7 @@ export function ParentJobOptions({ state, actions, onLinked }) {
     const itemID = active.itemID;
 
     const usesActiveOutputAsMaterial = (job) =>
-      job.build?.materials?.some((m) => m.typeID === itemID) ?? false;
+      job.build?.materials?.[String(itemID)] !== undefined;
 
     return jobArray.filter((job) => {
       if (state.parentChildToEdit.parentJobs.remove.includes(job.jobID)) {

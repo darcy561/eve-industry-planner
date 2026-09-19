@@ -18,7 +18,8 @@ class Material {
    * @param {string} [row.name] - Material name
    * @param {number} [row.jobType] - Job type that produces it, when one can
    * @param {number} [row.volume] - Volume of one unit
-   * @param {Array<Object>} [row.purchasing] - Purchase rows recorded against it
+   * @param {Object<string, Object>} [row.purchasing] - Purchase rows recorded
+   *   against it, keyed by each purchase's own id
    * @param {number|((typeID: number) => number)} [requirement=0] - How many the
    *   job needs, or a function the job answers it with
    */
@@ -27,7 +28,7 @@ class Material {
     this.name = row?.name ?? "";
     this.jobType = row?.jobType ?? 0;
     this.volume = row?.volume ?? 0;
-    this.purchasing = Array.isArray(row?.purchasing) ? [...row.purchasing] : [];
+    this.purchasing = keyPurchasesByID(row?.purchasing);
     this.#requirement = requirement;
   }
 
@@ -90,16 +91,15 @@ class Material {
 
     if (recorded > 0) {
       const childID = purchase.childID ?? null;
-      this.purchasing = [
-        ...this.purchasing.filter(isValidPurchase),
-        {
-          id: purchase.id ?? crypto.randomUUID(),
-          childID,
-          childJobImport: Boolean(childID),
-          itemCount: recorded,
-          itemCost: purchase.itemCost,
-        },
-      ];
+      const id = purchase.id ?? crypto.randomUUID();
+      this.purchasing = keyPurchasesByID(this.purchasing);
+      this.purchasing[id] = {
+        id,
+        childID,
+        childJobImport: Boolean(childID),
+        itemCount: recorded,
+        itemCost: purchase.itemCost,
+      };
     }
 
     return { taken, leftOver };
@@ -112,10 +112,10 @@ class Material {
    * @returns {boolean} Whether a purchase was removed
    */
   removePurchase(purchaseID) {
-    const remaining = this.purchasing.filter((row) => row.id !== purchaseID);
-    if (remaining.length === this.purchasing.length) return false;
+    if (!(purchaseID in this.purchasing)) return false;
 
-    this.purchasing = remaining.filter(isValidPurchase);
+    delete this.purchasing[purchaseID];
+    this.purchasing = keyPurchasesByID(this.purchasing);
     return true;
   }
 
@@ -126,7 +126,9 @@ class Material {
    * @returns {boolean}
    */
   hasPurchaseFromChild(childJobID) {
-    return this.purchasing.some((row) => row.childID === childJobID);
+    return Object.values(this.purchasing).some(
+      (row) => row.childID === childJobID,
+    );
   }
 
   /**
@@ -135,7 +137,7 @@ class Material {
    * @returns {number}
    */
   get quantityImported() {
-    return this.purchasing.reduce(
+    return Object.values(this.purchasing).reduce(
       (total, row) => (isValidPurchase(row) ? total + row.itemCount : total),
       0,
     );
@@ -158,7 +160,7 @@ class Material {
    * @returns {number}
    */
   get boughtCost() {
-    return this.purchasing.reduce(
+    return Object.values(this.purchasing).reduce(
       (total, row) =>
         isValidPurchase(row) && !row.childJobImport
           ? total + row.itemCount * row.itemCost
@@ -193,9 +195,17 @@ class Material {
     const counted = new Map();
     let quantity = 0;
     let cost = 0;
-    for (const row of [...this.purchasing]
+    // By id where the cost ties: the rows come out of a map, so their order is
+    // whatever the keys happen to give, and which of two equal-cost rows is
+    // counted first decides each one's own share. `models.JobMaterial` sorts the
+    // same way on the backend.
+    for (const row of Object.values(this.purchasing)
       .filter(isValidPurchase)
-      .sort((a, b) => a.itemCost - b.itemCost)) {
+      .sort((a, b) =>
+        a.itemCost !== b.itemCost
+          ? a.itemCost - b.itemCost
+          : String(a.id).localeCompare(String(b.id)),
+      )) {
       const take = Math.min(
         row.itemCount,
         Math.max(0, this.quantity - quantity),
@@ -253,6 +263,28 @@ class Material {
       purchasing: this.purchasing,
     };
   }
+}
+
+/**
+ * Keys purchase rows by the id each carries, dropping the ones that are not
+ * purchases at all.
+ *
+ * A row without an id is dropped rather than filed under `undefined`, which
+ * would collapse every such row onto a single key — and a purchase is minted an
+ * id when it is recorded, so a row reaching here without one is not one.
+ *
+ * @param {Object<string, Object>|Array<Object>|null} rows
+ * @returns {Object<string, Object>} The rows keyed by id
+ */
+function keyPurchasesByID(rows) {
+  const out = {};
+  for (const row of Array.isArray(rows) ? rows : Object.values(rows ?? {})) {
+    if (!isValidPurchase(row) || row.id === undefined || row.id === null) {
+      continue;
+    }
+    out[String(row.id)] = row;
+  }
+  return out;
 }
 
 function isValidPurchase(row) {

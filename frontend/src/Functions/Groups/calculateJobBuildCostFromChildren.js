@@ -52,7 +52,7 @@ export function calculateCurrentJobBuildCostFromChildren(
   // its own child is caught on the first descent rather than the second.
   const ancestry = outputJob.jobID ? new Set([outputJob.jobID]) : new Set();
 
-  for (const material of outputJob.build.materials ?? []) {
+  for (const material of Object.values(outputJob.build.materials ?? {})) {
     const childJobs = outputJob.build.childJobs?.[material.typeID];
     finalBuildCost += findItemBuildCost(
       material,
@@ -112,7 +112,7 @@ function findItemBuildCost(
     // branches is two real contributions and must still be counted twice.
     const branchAncestry = new Set(ancestry).add(childJobID);
 
-    for (const cMaterial of childJob.build.materials ?? []) {
+    for (const cMaterial of Object.values(childJob.build.materials ?? {})) {
       const nestedChildIds = childJob.build.childJobs?.[cMaterial.typeID];
       returnTotal += findItemBuildCost(
         cMaterial,

@@ -49,7 +49,7 @@ export function PurchasingDataPanel_EditJob(props) {
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body1" } }}>
               Total Complete Items: {totalComplete} /{" "}
-              {state.activeJob.build.materials.length}
+              {Object.keys(state.activeJob.build.materials).length}
             </Typography>
           </Grid>
           <Grid
@@ -111,7 +111,7 @@ export function PurchasingDataPanel_EditJob(props) {
               md: 4,
             }}
           >
-            {totalComplete < state.activeJob.build.materials.length && (
+            {totalComplete < Object.keys(state.activeJob.build.materials).length && (
               <Grid container size={12}>
                 <Grid size={6}>
                   <Tooltip

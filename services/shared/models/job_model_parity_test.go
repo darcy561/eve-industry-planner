@@ -39,7 +39,7 @@ func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 				"transactions": [],
 				"brokersFee": []
 			},
-			"materials": []
+			"materials": {}
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
@@ -114,7 +114,7 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 				"transactions": [],
 				"brokersFee": []
 			},
-			"materials": []
+			"materials": {}
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
@@ -267,7 +267,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 				"transactions": [],
 				"brokersFee": []
 			},
-			"materials": []
+			"materials": {}
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
@@ -329,22 +329,22 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 				"transactions": [],
 				"brokersFee": []
 			},
-			"materials": [
-				{
+			"materials": {
+				"57478": {
 					"typeID": 57478,
 					"name": "x",
 					"jobType": 1,
 					"volume": 16,
-					"purchasing": [
-						{
+					"purchasing": {
+						"3b777158-8644-22e1-461c-45987b7e07e2": {
 							"id": "3b777158-8644-22e1-461c-45987b7e07e2",
 							"itemCost": 47780,
 							"itemCount": 360,
 							"childJobImport": false
 						}
-					]
+					}
 				}
-			]
+			}
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
@@ -366,10 +366,17 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 	if len(job.Build.Materials) != 1 {
 		t.Fatalf("materials len: %d", len(job.Build.Materials))
 	}
-	if len(job.Build.Materials[0].Purchasing) != 1 {
-		t.Fatalf("purchasing len: %d", len(job.Build.Materials[0].Purchasing))
+	material, held := job.Build.Materials["57478"]
+	if !held {
+		t.Fatalf("the material is not filed under its own typeID: %+v", job.Build.Materials)
 	}
-	p := job.Build.Materials[0].Purchasing[0]
+	if len(material.Purchasing) != 1 {
+		t.Fatalf("purchasing len: %d", len(material.Purchasing))
+	}
+	p, held := material.Purchasing["3b777158-8644-22e1-461c-45987b7e07e2"]
+	if !held {
+		t.Fatalf("the purchase is not filed under its own id: %+v", material.Purchasing)
+	}
 	if p.ItemCount != 360 || p.ItemCost != 47780 {
 		t.Fatalf("purchase decode: %+v", p)
 	}
@@ -454,23 +461,23 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 				"transactions": [],
 				"brokersFee": []
 			},
-			"materials": [
-				{
-					"purchasing": [
-						{
+			"materials": {
+				"57478": {
+					"purchasing": {
+						"3b777158-8644-22e1-461c-45987b7e07e2": {
 							"id": "3b777158-8644-22e1-461c-45987b7e07e2",
 							"itemCost": 47780,
 							"itemCount": 360,
 							"childJobImport": false,
 							"childID": null
 						}
-					],
+					},
 					"volume": 16,
 					"jobType": 1,
 					"typeID": 57478,
 					"name": "Auto-Integrity Preservation Seal"
 				}
-			]
+			}
 		},
 		"rawData": {
 			"time": 1500000,
@@ -515,8 +522,8 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 	if job.Build.Costs.LinkedJobs[0].CompletedDate != "" {
 		t.Fatalf("completed_date null: got %q", job.Build.Costs.LinkedJobs[0].CompletedDate)
 	}
-	if len(job.Build.Materials) != 1 || job.Build.Materials[0].TypeID != 57478 ||
-		len(job.Build.Materials[0].Purchasing) != 1 {
+	if len(job.Build.Materials) != 1 || job.Build.Materials["57478"].TypeID != 57478 ||
+		len(job.Build.Materials["57478"].Purchasing) != 1 {
 		t.Fatalf("material/purchase decode failed")
 	}
 }
@@ -565,7 +572,7 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 				"transactions": [],
 				"brokersFee": []
 			},
-			"materials": []
+			"materials": {}
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},

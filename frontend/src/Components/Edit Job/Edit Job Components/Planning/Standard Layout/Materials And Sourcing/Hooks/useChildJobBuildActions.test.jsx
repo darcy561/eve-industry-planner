@@ -34,11 +34,11 @@ const jobState = (overrides = {}) => ({
     includedInGroup: false,
     selectedSetup: { systemID: 30000142 },
     build: {
-      materials: [
-        { typeID: 34, jobType: MANUFACTURING, quantity: 100 },
-        { typeID: 35, jobType: MANUFACTURING, quantity: 200 },
-        { typeID: 36, jobType: BASE_MATERIAL, quantity: 300 },
-      ],
+      materials: {
+        [String(34)]: { typeID: 34, jobType: MANUFACTURING, quantity: 100 },
+        [String(35)]: { typeID: 35, jobType: MANUFACTURING, quantity: 200 },
+        [String(36)]: { typeID: 36, jobType: BASE_MATERIAL, quantity: 300 },
+      },
       childJobs: { 34: [], 35: [], 36: [] },
     },
   },

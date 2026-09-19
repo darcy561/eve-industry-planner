@@ -76,7 +76,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
   } = useMaterialOverrides({
     activeJob: state.activeJob,
     layout: state.activeJob.layout,
-    materials: state.activeJob.build?.materials ?? [],
+    materials: Object.values(state.activeJob.build?.materials ?? {}),
     updateActiveJob: actions.updateActiveJob,
   });
 

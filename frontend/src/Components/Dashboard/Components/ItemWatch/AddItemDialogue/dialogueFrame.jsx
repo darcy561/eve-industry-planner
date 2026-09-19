@@ -38,28 +38,30 @@ export function AddWatchItemDialogue({ watchlistItemToEdit, onClose }) {
     let newUserWatchlistItems = [...userWatchlist.items];
     let mainJobMaterials = [];
     let childJobPresent = false;
-    materialJobs[watchlistItemRequest].build.materials.forEach((mat) => {
-      const job = materialJobs[mat.typeID];
+    Object.values(materialJobs[watchlistItemRequest].build.materials).forEach(
+      (mat) => {
+        const job = materialJobs[mat.typeID];
 
-      mainJobMaterials.push({
-        id: crypto.randomUUID(),
-        typeID: mat.typeID,
-        name: mat.name,
-        quantity: mat.quantity,
-        quantityProduced: job !== undefined ? job.totalQuantityProduced : 0,
-        materials: [],
-        group: groupSelect,
-        buildData:
-          job !== undefined
-            ? Object.values(job?.build?.setup)[0].toDocument()
-            : null,
-      });
-    });
+        mainJobMaterials.push({
+          id: crypto.randomUUID(),
+          typeID: mat.typeID,
+          name: mat.name,
+          quantity: mat.quantity,
+          quantityProduced: job !== undefined ? job.totalQuantityProduced : 0,
+          materials: [],
+          group: groupSelect,
+          buildData:
+            job !== undefined
+              ? Object.values(job?.build?.setup)[0].toDocument()
+              : null,
+        });
+      },
+    );
     mainJobMaterials.forEach((mat) => {
       let job = materialJobs[mat.typeID];
 
       if (!job) return;
-      job.build.materials.forEach((item) => {
+      Object.values(job.build.materials).forEach((item) => {
         mat.materials.push({
           id: job.jobID,
           typeID: item.typeID,

@@ -52,7 +52,7 @@ export function useChildJobBuildActions({ state, actions }) {
    * @returns {Promise<number>} How many rows were costed
    */
   const buildSpeculativeChildJobs = useCallback(async () => {
-    const uncosted = state.activeJob.build.materials.filter(
+    const uncosted = Object.values(state.activeJob.build.materials).filter(
       ({ jobType, typeID }) => {
         if (!checkJobTypeIsBuildable(jobType)) return false;
         // A row with something already linked or marked has a real build cost

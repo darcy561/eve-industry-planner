@@ -58,12 +58,10 @@ export function childJobSupplyForMaterial(activeJob, material, childJobs) {
       continue;
     }
 
-    const parentMaterial = parent.build.materials?.find(
-      (i) => i.typeID === material.typeID,
-    );
+    const parentMaterial = parent.build.materials?.[String(material.typeID)];
     if (!parentMaterial) continue;
 
-    imported += parentMaterial.purchasing.reduce(
+    imported += Object.values(parentMaterial.purchasing).reduce(
       (total, row) =>
         childIDs.has(row.childID) ? total + row.itemCount : total,
       0,

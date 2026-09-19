@@ -43,7 +43,7 @@ export function resolveParentRequirements({
     const parent = findJobInJobArray(parentID);
     if (!parent) continue;
 
-    const material = parent.build.materials.find((i) => i.typeID === itemID);
+    const material = parent.build.materials[String(itemID)];
     if (!material) continue;
     totals.parentTotal += material.quantity;
 

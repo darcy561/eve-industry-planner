@@ -9,32 +9,30 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "materials": [
-            {
+          "materials": {
+            "34": {
               "typeID": 34,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-1": {
                   "id": "purchase-1",
-                  "typeID": 34,
                   "itemCount": 60,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             },
-            {
+            "35": {
               "typeID": 35,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-2": {
                   "id": "purchase-2",
-                  "typeID": 35,
                   "itemCount": 40,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             }
-          ],
+          },
           "costs": {
             "linkedJobs": [
               {
@@ -117,44 +115,41 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "materials": [
-            {
+          "materials": {
+            "34": {
               "typeID": 34,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-1": {
                   "id": "purchase-1",
-                  "typeID": 34,
                   "itemCount": 10,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             },
-            {
+            "35": {
               "typeID": 35,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-2": {
                   "id": "purchase-2",
-                  "typeID": 35,
                   "itemCount": 20,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             },
-            {
+            "36": {
               "typeID": 36,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-3": {
                   "id": "purchase-3",
-                  "typeID": 36,
                   "itemCount": 30,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             }
-          ],
+          },
           "costs": {},
           "sale": {
             "brokersFee": [],
@@ -204,27 +199,25 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "materials": [
-            {
+          "materials": {
+            "34": {
               "typeID": 34,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-1": {
                   "id": "purchase-1",
-                  "typeID": 34,
                   "itemCount": 50,
                   "itemCost": 20,
                   "childJobImport": false
                 },
-                {
+                "purchase-2": {
                   "id": "purchase-2",
-                  "typeID": 34,
                   "itemCount": 50,
                   "itemCost": 5,
                   "childJobImport": false
                 }
-              ]
+              }
             }
-          ],
+          },
           "costs": {
             "inventionEntries": [
               {
@@ -274,20 +267,19 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "materials": [
-            {
+          "materials": {
+            "34": {
               "typeID": 34,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-1": {
                   "id": "purchase-1",
-                  "typeID": 34,
                   "itemCount": 100,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             }
-          ],
+          },
           "costs": {
             "inventionEntries": [
               {
@@ -337,20 +329,19 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "materials": [
-            {
+          "materials": {
+            "34": {
               "typeID": 34,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-1": {
                   "id": "purchase-1",
-                  "typeID": 34,
                   "itemCount": 100,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             }
-          ],
+          },
           "costs": {},
           "sale": {
             "brokersFee": [
@@ -402,7 +393,7 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "materials": [],
+          "materials": {},
           "costs": {},
           "sale": {
             "brokersFee": [],
@@ -438,20 +429,19 @@
         "itemID": 587,
         "jobType": 1,
         "build": {
-          "materials": [
-            {
+          "materials": {
+            "34": {
               "typeID": 34,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-1": {
                   "id": "purchase-1",
-                  "typeID": 34,
                   "itemCount": 50,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             }
-          ],
+          },
           "costs": {},
           "sale": {
             "brokersFee": [
@@ -528,20 +518,19 @@
               }
             }
           },
-          "materials": [
-            {
+          "materials": {
+            "34": {
               "typeID": 34,
-              "purchasing": [
-                {
+              "purchasing": {
+                "purchase-1": {
                   "id": "purchase-1",
-                  "typeID": 34,
                   "itemCount": 100,
                   "itemCost": 1,
                   "childJobImport": false
                 }
-              ]
+              }
             }
-          ],
+          },
           "costs": {}
         },
         "itemsProducedPerRun": 5

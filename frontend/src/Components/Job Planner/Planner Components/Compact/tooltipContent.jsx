@@ -9,7 +9,7 @@ function getTooltipContent(job) {
         </span>
       );
     case 1: {
-      const totalMaterials = job.build.materials.length;
+      const totalMaterials = Object.keys(job.build.materials).length;
       const totalComplete = job.completedMaterialCount;
       if (!job.isReadyToBuild) {
         return (

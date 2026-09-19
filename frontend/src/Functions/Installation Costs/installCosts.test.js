@@ -90,7 +90,7 @@ describe("installCosts", () => {
       },
       costs: { linkedJobs: [] },
       products: { totalQuantity: 10 },
-      materials: [],
+      materials: {},
     });
     const [a, b] = Object.values(job.build.setup);
 
@@ -105,7 +105,7 @@ describe("installCosts", () => {
       setup: { s1: { id: "s1", ...setupFields({ jobCount: 3 }) } },
       costs: { linkedJobs: [] },
       products: { totalQuantity: 10 },
-      materials: [],
+      materials: {},
     });
 
     // Per slot, on 10 units at 100 each: 100 of system index, plus the 4%
@@ -120,7 +120,7 @@ describe("installCosts", () => {
       setup: { s1: { id: "s1", ...setupFields() } },
       costs: { linkedJobs: [{ job_id: 1, cost: 42 }] },
       products: { totalQuantity: 1 },
-      materials: [],
+      materials: {},
     });
     expect(getJobInstallCostForPlanning(job)).toBe(42);
     expect(job.totalInstallCost).toBe(42);
@@ -132,7 +132,7 @@ describe("installCosts", () => {
       setup: { s1: { id: "s1", ...setupFields() } },
       costs: { linkedJobs: [{ job_id: 1, cost: 0 }] },
       products: { totalQuantity: 1 },
-      materials: [],
+      materials: {},
     });
     expect(job.totalInstallCost).toBe(0);
     expect(getJobInstallCostForPlanning(job)).toBe(0);
@@ -145,7 +145,7 @@ describe("installCosts", () => {
       setup: { s1: { id: "s1", ...setupFields() } },
       costs: { linkedJobs: [] },
       products: { totalQuantity: 1 },
-      materials: [],
+      materials: {},
     });
     const setup = job.build.setup.s1;
 
@@ -165,13 +165,13 @@ describe("installCosts", () => {
       },
       costs: { linkedJobs: [] },
       products: { totalQuantity: 1 },
-      materials: [],
+      materials: {},
     });
     const mine = jobWith({
       setup: { s1: { id: "s1", ...setupFields() } },
       costs: { linkedJobs: [] },
       products: { totalQuantity: 1 },
-      materials: [],
+      materials: {},
     });
     omega("me");
 
@@ -214,14 +214,14 @@ describe("costing a chain deeper than one link", () => {
             },
           },
         },
-        materials: [
-          {
+        materials: {
+          [String(materialTypeID)]: {
             typeID: materialTypeID,
             quantity: 10,
             purchasedCost: 0,
             purchaseComplete: false,
           },
-        ],
+        },
         childJobs: childID ? { [materialTypeID]: [childID] } : {},
         costs: { linkedJobs: [] },
         products: { totalQuantity: 10 },

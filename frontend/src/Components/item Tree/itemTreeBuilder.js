@@ -16,9 +16,7 @@ function resetJobRelationships(jobs) {
 function collectBuildRequests(frontierJobs, existingTypeIds) {
   const requestsByType = new Map();
   for (const parent of frontierJobs) {
-    const mats = Array.isArray(parent?.build?.materials)
-      ? parent.build.materials
-      : [];
+    const mats = Object.values(parent?.build?.materials ?? {});
     for (const mat of mats) {
       if (!checkJobTypeIsBuildable(mat?.jobType)) continue;
       const typeID = mat?.typeID;

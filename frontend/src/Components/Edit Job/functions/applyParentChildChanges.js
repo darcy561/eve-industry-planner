@@ -143,7 +143,7 @@ function processChildJobs(
   modifiedJobIDs,
 ) {
   try {
-    for (let material of inputJob.build.materials) {
+    for (let material of Object.values(inputJob.build.materials)) {
       const unMatchedChildIDs = new Set();
       const matchedMaterial = parentChildObject.childJobs[material.typeID];
 

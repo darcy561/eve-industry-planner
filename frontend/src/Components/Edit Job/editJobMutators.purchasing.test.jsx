@@ -49,7 +49,7 @@ beforeEach(() => {
 });
 
 /** A job needing a quantity of one material, with nothing bought yet. */
-function needing(quantity, { purchasing = [] } = {}) {
+function needing(quantity, { purchasing = {} } = {}) {
   return storedJob({
     jobStatus: 2,
     build: {
@@ -63,22 +63,22 @@ function needing(quantity, { purchasing = [] } = {}) {
           },
         },
       },
-      materials: [
-        {
+      materials: {
+        [String(TRITANIUM)]: {
           typeID: TRITANIUM,
           name: "Tritanium",
           quantity,
           jobType: 0,
           purchasing,
         },
-      ],
+      },
       childJobs: {},
     },
   });
 }
 
 function materialOf(state) {
-  return state.activeJob.build.materials[0];
+  return Object.values(state.activeJob.build.materials)[0];
 }
 
 describe("costing the materials a job needs, end to end", () => {
@@ -105,9 +105,9 @@ describe("costing the materials a job needs, end to end", () => {
     fireEvent.submit(screen.getByLabelText("Quantity").closest("form"));
 
     const material = materialOf(editJob.current);
-    expect(material.purchasing).toHaveLength(1);
-    expect(material.purchasing[0].itemCount).toBe(100);
-    expect(material.purchasing[0].itemCost).toBe(5);
+    expect(Object.keys(material.purchasing)).toHaveLength(1);
+    expect(Object.values(material.purchasing)[0].itemCount).toBe(100);
+    expect(Object.values(material.purchasing)[0].itemCost).toBe(5);
   });
 
   // Buying more than the job needs is allowed, but the job is only charged for
@@ -137,16 +137,21 @@ describe("costing the materials a job needs, end to end", () => {
     const material = materialOf(editJob.current);
     // The whole purchase is kept — a reader who bought 150 bought 150 — but the
     // job is only charged for the 100 it needed.
-    expect(material.purchasing[0].itemCount).toBe(150);
+    expect(Object.values(material.purchasing)[0].itemCount).toBe(150);
     expect(material.quantityPurchased).toBe(100);
   });
 
   it("takes a purchase back off the job", () => {
     const { editJob } = renderOverEditJob(
       needing(100, {
-        purchasing: [
-          { id: "purchase-1", itemCount: 100, itemCost: 5, childJob: false },
-        ],
+        purchasing: {
+          "purchase-1": {
+            id: "purchase-1",
+            itemCount: 100,
+            itemCost: 5,
+            childJob: false,
+          },
+        },
       }),
       ({ state, actions }) => (
         <MaterialCostsFrame_Purchasing
@@ -156,10 +161,10 @@ describe("costing the materials a job needs, end to end", () => {
         />
       ),
     );
-    expect(materialOf(editJob.current).purchasing).toHaveLength(1);
+    expect(Object.keys(materialOf(editJob.current).purchasing)).toHaveLength(1);
 
     fireEvent.click(screen.getByTestId("ClearIcon"));
 
-    expect(materialOf(editJob.current).purchasing).toHaveLength(0);
+    expect(Object.keys(materialOf(editJob.current).purchasing)).toHaveLength(0);
   });
 });

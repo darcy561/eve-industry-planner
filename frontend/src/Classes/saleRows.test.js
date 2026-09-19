@@ -411,7 +411,7 @@ describe("tax expected on orders that have not sold", () => {
       itemID: 34,
       jobType: 1,
       name: "Tritanium",
-      build: { materials: [], sale: { brokersFee: fees, transactions } },
+      build: { materials: {}, sale: { brokersFee: fees, transactions } },
     });
 
   it("counts the estimate for an order with no transaction yet", () => {
@@ -515,7 +515,7 @@ describe("minting an invention entry's id", () => {
   });
 
   it("removes a row carrying a numeric id", () => {
-    const job = new Job({ jobType: 1, name: "Item", build: { materials: [] } });
+    const job = new Job({ jobType: 1, name: "Item", build: { materials: {} } });
     job.addInventionCost({ id: 1789083363901, itemName: "Old", itemCost: 5 });
     job.addInventionCost(InventionEntry.forItem("New", 10));
 
@@ -527,7 +527,7 @@ describe("minting an invention entry's id", () => {
 
   // Removing one of two rows added together must leave the other.
   it("leaves the other row when one of a pair is removed", () => {
-    const job = new Job({ jobType: 1, name: "Item", build: { materials: [] } });
+    const job = new Job({ jobType: 1, name: "Item", build: { materials: {} } });
     job.addInventionCost(InventionEntry.forItem("Datacore", 100));
     job.addInventionCost(InventionEntry.forItem("Decryptor", 200));
 

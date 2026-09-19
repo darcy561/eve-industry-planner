@@ -214,7 +214,7 @@ describe("a job whose output is owed to a parent", () => {
     actions: { getCurrentParentJobs: () => ["p1"] },
     parent: {
       build: {
-        materials: [{ typeID: 34, quantity: parentQuantity }],
+        materials: { [String(34)]: { typeID: 34, quantity: parentQuantity } },
         childJobs: { 34: ["job-1"] },
       },
     },

@@ -24,7 +24,7 @@ function buildParentChildRelationships(inputJobArray) {
 
   inputJobArray.forEach((job) => {
     if (job.build && job.build.materials) {
-      job.build.materials.forEach((material) => {
+      Object.values(job.build.materials).forEach((material) => {
         const relatedJobs = typesMap[material.typeID];
         if (relatedJobs) {
           job.addChildJob(material.typeID, relatedJobs);

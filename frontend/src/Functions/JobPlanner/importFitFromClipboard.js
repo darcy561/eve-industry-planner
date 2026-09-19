@@ -144,7 +144,7 @@ export async function finalBuildRequests(itemArray, queryClient) {
   const combinedJobsToSave = [...normalizedNewJobs];
 
   for (const job of normalizedNewJobs) {
-    job.build.materials.forEach((material) => {
+    Object.values(job.build.materials).forEach((material) => {
       const materialMatch = newJobArray.find(
         (i) => i.itemID === material.typeID && i.groupID === activeGroupID,
       );

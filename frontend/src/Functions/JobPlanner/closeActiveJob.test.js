@@ -77,7 +77,7 @@ function makeJob(id = "j1", groupID = null) {
     groupID,
     isReadyToSell: false,
     parentJobs: [],
-    build: { materials: [], childJobs: {} },
+    build: { materials: {}, childJobs: {} },
   };
 }
 

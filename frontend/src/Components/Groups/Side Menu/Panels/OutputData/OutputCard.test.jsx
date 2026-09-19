@@ -34,7 +34,7 @@ const job = {
   itemID: 587,
   name: "Rifter",
   totalQuantityProduced: 10,
-  build: { materials: [], costs: {} },
+  build: { materials: {}, costs: {} },
 };
 
 function showCard(pageView) {

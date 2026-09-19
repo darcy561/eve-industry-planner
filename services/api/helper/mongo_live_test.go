@@ -459,7 +459,7 @@ func scratchJob(jobID, name string) models.Job {
 		Build: models.JobBuild{
 			Setup:     map[string]models.JobSetup{},
 			ChildJobs: map[string][]string{},
-			Materials: []models.JobMaterial{},
+			Materials: map[string]models.JobMaterial{},
 		},
 		Skills: map[string]models.Skill{},
 		MetaData: models.JobMetaData{

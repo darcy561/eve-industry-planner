@@ -103,7 +103,7 @@ describe("the costs a reader adds by hand, end to end", () => {
         jobType: 1,
         build: {
           setup: {},
-          materials: [],
+          materials: {},
           childJobs: {},
           costs: {
             inventionEntries: [
@@ -129,7 +129,7 @@ describe("the costs a reader adds by hand, end to end", () => {
         jobStatus: 4,
         build: {
           setup: {},
-          materials: [],
+          materials: {},
           childJobs: {},
           costs: {
             extrasCosts: [

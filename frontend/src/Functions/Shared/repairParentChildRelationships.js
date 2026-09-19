@@ -42,7 +42,7 @@ function repairMissingParentChildRelationships(inputJob, tempJobs) {
       }
     }
 
-    for (let material of inputJob.build.materials) {
+    for (let material of Object.values(inputJob.build.materials)) {
       const childJobsToRemove = new Set();
 
       for (let childJobID of inputJob.build.childJobs[material.typeID]) {
@@ -84,12 +84,10 @@ function processParentID(parentID, inputJob, jobLookup, modifiedJobsSet) {
   const matchedJob = jobLookup.get(parentID);
   if (!matchedJob) return false;
 
-  const parentMaterial = matchedJob.build.materials.find(
-    (mat) => mat.typeID === inputJob.itemID,
-  );
+  const parentMaterial = matchedJob.build.materials[String(inputJob.itemID)];
 
   if (!parentMaterial) {
-    matchedJob.build.materials.forEach((material) => {
+    Object.values(matchedJob.build.materials).forEach((material) => {
       if (
         matchedJob.build.childJobs[material.typeID].includes(inputJob.jobID)
       ) {

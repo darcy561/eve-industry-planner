@@ -3,7 +3,7 @@ import { Typography, Box } from "@mui/material";
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 
 export default function Step2JobCard({ job }) {
-  const totalMaterials = job.build.materials.length;
+  const totalMaterials = Object.keys(job.build.materials).length;
   const totalComplete = job.completedMaterialCount;
   const isNotReadyToBuild = !job.isReadyToBuild;
 

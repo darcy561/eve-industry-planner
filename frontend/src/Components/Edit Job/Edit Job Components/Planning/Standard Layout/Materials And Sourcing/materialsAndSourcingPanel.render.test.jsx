@@ -104,7 +104,7 @@ const state = {
   activeJob: {
     selectedSetup: { id: "setup-1" },
     layout: { materialPriceOverrides: {} },
-    build: { materials: [] },
+    build: { materials: {} },
   },
 };
 

@@ -7,7 +7,7 @@ import {
 
 const parent = (quantity, childJobIDs = ["self"]) => ({
   build: {
-    materials: [{ typeID: 34, quantity }],
+    materials: { [String(34)]: { typeID: 34, quantity } },
     childJobs: { 34: childJobIDs },
   },
 });
@@ -49,7 +49,7 @@ describe("resolveParentRequirements", () => {
   // A parent that has been deleted, or one that no longer uses this material,
   // asks for nothing rather than throwing on the way past.
   it("passes over a parent it cannot read", () => {
-    const jobs = { p1: { build: { materials: [], childJobs: {} } } };
+    const jobs = { p1: { build: { materials: {}, childJobs: {} } } };
 
     expect(walk(jobs, ["p1", "missing"])).toMatchObject({
       parentTotal: 0,

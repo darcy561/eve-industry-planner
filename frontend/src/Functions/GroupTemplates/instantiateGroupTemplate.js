@@ -86,7 +86,7 @@ export async function instantiateGroupTemplate({
     const links = node.childLinksByMaterialTypeId || {};
     /** @type {Record<string, string[]>} */
     const childByMat = {};
-    for (const m of job.build.materials || []) {
+    for (const m of Object.values(job.build.materials ?? {})) {
       const k = String(m.typeID);
       const childTids = links[k] ?? links[m.typeID] ?? [];
       childByMat[k] = (childTids || [])

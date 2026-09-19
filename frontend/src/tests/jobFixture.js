@@ -14,7 +14,8 @@
  * @param {object} [overrides]
  * @param {string|null} [overrides.setupToEdit] - null for a job with no setup selected
  * @param {object} [overrides.setup] - The setup at that key
- * @param {Array<object>} [overrides.materials]
+ * @param {Array<object>|Object<string, object>} [overrides.materials] - Given as
+ *   an array for brevity; the fixture keys them as a document holds them
  * @param {Object<number, string[]>} [overrides.childJobs]
  * @param {Array<object>} [overrides.inventionEntries]
  * @param {Array<object>} [overrides.extrasCosts]
@@ -39,7 +40,7 @@ export function jobFixture({
     parentJobs: [],
     layout: { setupToEdit, materialPriceOverrides: {} },
     build: {
-      materials,
+      materials: keyedMaterials(materials),
       childJobs,
       costs: { extrasCosts, inventionEntries },
       // Where the output is meant to go. Both halves null is what almost every
@@ -102,4 +103,32 @@ export function materialFixture(overrides = {}) {
     purchaseComplete: false,
     ...overrides,
   };
+}
+
+/**
+ * Keys material rows, and each row's purchases, as a stored document holds them.
+ *
+ * Tests name materials as a list because that reads better than writing the key
+ * twice; a document keys them by type id and each purchase by its own id.
+ *
+ * @param {Array<object>|Object<string, object>} materials
+ * @returns {Object<string, object>} The materials keyed by type id
+ */
+function keyedMaterials(materials) {
+  const rows = Array.isArray(materials)
+    ? materials
+    : Object.values(materials ?? {});
+  return Object.fromEntries(
+    rows.map((material) => [
+      String(material.typeID),
+      Array.isArray(material.purchasing)
+        ? {
+            ...material,
+            purchasing: Object.fromEntries(
+              material.purchasing.map((row) => [String(row.id), row]),
+            ),
+          }
+        : material,
+    ]),
+  );
 }

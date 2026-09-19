@@ -57,9 +57,7 @@ function getParentJobRequirements(job, allJobs) {
   return job.parentJobs.reduce((total, parentJobID) => {
     const parentJob = allJobs.find(({ jobID }) => jobID === parentJobID);
     if (parentJob && parentJob.build && parentJob.build.materials) {
-      const material = parentJob.build.materials.find(
-        ({ typeID }) => typeID === job.itemID,
-      );
+      const material = parentJob.build.materials[String(job.itemID)];
       if (material) {
         return total + (material.quantity || 0);
       }

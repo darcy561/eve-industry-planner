@@ -134,9 +134,7 @@ export function distributeItemCostsBetweenJobs(
 
       // Convert materialID to number for comparison (Object.keys returns strings)
       const materialIDNum = Number(materialID);
-      const material = job.build.materials.find(
-        (i) => i.typeID == materialIDNum,
-      );
+      const material = job.build.materials[String(materialIDNum)];
       if (!material) continue;
       const materialToImport = collectedMaterials[materialID];
       if (!materialToImport) continue;
@@ -218,7 +216,7 @@ export function buildNotificationText(
 
 function isMaterialPurchased(material, jobID, parentJob) {
   return (
-    material.purchasing.some((i) => i.childID === jobID) &&
+    Object.values(material.purchasing).some((i) => i.childID === jobID) &&
     parentJob.build.childJobs[material.typeID]?.includes(jobID)
   );
 }
