@@ -300,3 +300,99 @@ func TestJobSetupRigSlotsSurviveBSON(t *testing.T) {
 		t.Errorf("read back slots = %d/%d, want 2/3", got.RigSlot1, got.RigSlot2)
 	}
 }
+
+// A keyed collection has to survive the write path, not only the conversion.
+//
+// Every save builds its `$set` from this struct, so a collection the reshape
+// keys and the model does not is written back as whatever the model says on the
+// first save after the conversion — which undoes it silently, with the document
+// looking converted right up until somebody edits the job. The conversion
+// passing proves the documents moved; this proves they stay moved.
+func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
+	t.Parallel()
+
+	job := Job{JobID: "job-1"}
+	job.Skills = map[string]Skill{"22242": {TypeID: 22242, Level: 4}}
+	job.Build.Materials = map[string]JobMaterial{
+		"34": {TypeID: 34, Purchasing: map[string]Purchase{
+			"p1": {ID: "p1", ItemCount: 60, ItemCost: 5},
+		}},
+	}
+	job.Build.Costs.ExtrasCosts = map[string]ExtraCost{
+		"e1": {ID: "e1", ExtraValue: 3},
+	}
+	job.Build.Costs.InventionEntries = map[string]InventionEntry{
+		"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
+	}
+
+	raw, err := bson.Marshal(job)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	// Read back as a raw document rather than as a Job: decoding into the same
+	// struct would agree with itself whatever was written, where what is at stake
+	// is the shape Mongo actually holds. The driver hands nested documents back as
+	// bson.D, and an array as bson.A — which is the difference being asserted.
+	var stored bson.D
+	if err := bson.Unmarshal(raw, &stored); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	build := nested(t, stored, "build")
+	costs := nested(t, build, "costs")
+	materials := nested(t, build, "materials")
+	material := nested(t, materials, "34")
+
+	for _, field := range []struct {
+		where string
+		doc   bson.D
+		key   string
+	}{
+		{"", stored, "skills"},
+		{"build.", build, "materials"},
+		{"build.materials.34.", material, "purchasing"},
+		{"build.costs.", costs, "extrasCosts"},
+		{"build.costs.", costs, "inventionEntries"},
+	} {
+		held, found := lookup(field.doc, field.key)
+		if !found {
+			t.Errorf("%s%s was not written at all", field.where, field.key)
+			continue
+		}
+		if _, keyed := held.(bson.D); !keyed {
+			t.Errorf("%s%s is stored as %T, not a keyed document", field.where, field.key, held)
+		}
+	}
+
+	// The keys are the ids, not positions: a collection keyed by anything else
+	// would still be a document and pass the check above.
+	if _, found := lookup(materials, "34"); !found {
+		t.Errorf("a material is not filed under its own typeID: %v", materials)
+	}
+	if _, found := lookup(nested(t, material, "purchasing"), "p1"); !found {
+		t.Errorf("a purchase is not filed under its own id: %v", material)
+	}
+}
+
+func lookup(doc bson.D, key string) (any, bool) {
+	for _, e := range doc {
+		if e.Key == key {
+			return e.Value, true
+		}
+	}
+	return nil, false
+}
+
+func nested(t *testing.T, doc bson.D, key string) bson.D {
+	t.Helper()
+	held, found := lookup(doc, key)
+	if !found {
+		t.Fatalf("%s is absent", key)
+	}
+	inner, ok := held.(bson.D)
+	if !ok {
+		t.Fatalf("%s is %T, not a document", key, held)
+	}
+	return inner
+}
