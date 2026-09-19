@@ -112,3 +112,81 @@ describe("Job skills", () => {
     expect(job.toDocument().skills).toEqual({});
   });
 });
+
+// The SPA half of what `models.Job`'s TestKeyedCollectionsSurviveTheWritePath
+// asserts on the backend: a collection held keyed has to be written back keyed,
+// or the first save after the reshape stores an array over a converted document.
+//
+// `toDocument` spreads `build.costs` before naming its keyed collections, so a
+// collection that stopped being named there would be carried through by the
+// spread in whatever shape it happened to hold. That is the case this covers
+// and the reason it asserts on the document rather than on the instance.
+describe("Job writes keyed collections back keyed", () => {
+  const job = () =>
+    new Job({
+      jobID: "job-1",
+      itemID: 34,
+      jobType: 1,
+      skills: { 22242: { typeID: 22242, level: 4 } },
+      build: {
+        materials: {
+          34: {
+            typeID: 34,
+            purchasing: { p1: { id: "p1", itemCount: 1, itemCost: 1 } },
+          },
+        },
+        costs: {
+          extrasCosts: { e1: { id: "e1", extraValue: 3 } },
+          inventionEntries: {
+            i1: { id: "i1", itemName: "Datacore", itemCost: 2 },
+          },
+        },
+      },
+    });
+
+  it.each([
+    ["skills", (d) => d.skills],
+    ["build.materials", (d) => d.build.materials],
+    [
+      "build.materials.34.purchasing",
+      (d) => d.build.materials["34"].purchasing,
+    ],
+    ["build.costs.extrasCosts", (d) => d.build.costs.extrasCosts],
+    ["build.costs.inventionEntries", (d) => d.build.costs.inventionEntries],
+  ])("writes %s as a keyed collection", (_name, read) => {
+    const held = read(job().toDocument());
+
+    expect(Array.isArray(held)).toBe(false);
+    expect(typeof held).toBe("object");
+  });
+
+  // Serialised, not merely present. `toDocument` spreads `build.costs` before
+  // naming its keyed collections, so dropping one of those names does not empty
+  // it — the spread carries the live class instances through instead, which are
+  // objects and would satisfy the check above while storing a row nothing wrote.
+  it("writes plain rows rather than the instances it holds", () => {
+    const document = job().toDocument();
+
+    for (const row of [
+      ...Object.values(document.build.materials),
+      ...Object.values(document.build.costs.extrasCosts),
+      ...Object.values(document.build.costs.inventionEntries),
+    ]) {
+      expect(row.constructor).toBe(Object);
+    }
+  });
+
+  // Keyed by the row's own id, not by its position: an array written as an
+  // object would satisfy the check above and be filed under "0".
+  it("files each row under the id it carries", () => {
+    const document = job().toDocument();
+
+    expect(Object.keys(document.skills)).toEqual(["22242"]);
+    expect(Object.keys(document.build.materials)).toEqual(["34"]);
+    expect(Object.keys(document.build.materials["34"].purchasing)).toEqual([
+      "p1",
+    ]);
+    expect(Object.keys(document.build.costs.extrasCosts)).toEqual(["e1"]);
+    expect(Object.keys(document.build.costs.inventionEntries)).toEqual(["i1"]);
+  });
+});
