@@ -32,7 +32,7 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 		stageDownload = orig["stageDownload"].(func(context.Context, *sdeVersionCheckResult) (*sdeDownloadResult, error))
 		stageMapBuild = orig["stageMapBuild"].(func(*sdeDownloadResult) (*sdeMapBuildResult, error))
 		stageConversion = orig["stageConversion"].(func(*sdeMapBuildResult) (*sdeConversionResult, error))
-		stageBlueprintsSync = orig["stageBlueprintsSync"].(func(context.Context, *sdeConversionResult, *taskrun.Dependencies))
+		stageBlueprintsSync = orig["stageBlueprintsSync"].(func(context.Context, *sdeConversionResult, *taskrun.Dependencies) error)
 		stagePersist = orig["stagePersist"].(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		stagePersistReplace = orig["stagePersistReplace"].(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		stageRecipeDiff = orig["stageRecipeDiff"].(func(context.Context, *sdePersistResult, *taskrun.Dependencies) error)
@@ -50,7 +50,7 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 		case "stageConversion":
 			stageConversion = v.(func(*sdeMapBuildResult) (*sdeConversionResult, error))
 		case "stageBlueprintsSync":
-			stageBlueprintsSync = v.(func(context.Context, *sdeConversionResult, *taskrun.Dependencies))
+			stageBlueprintsSync = v.(func(context.Context, *sdeConversionResult, *taskrun.Dependencies) error)
 		case "stagePersist":
 			stagePersist = v.(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		case "stagePersistReplace":
@@ -128,8 +128,9 @@ func TestCheckSDEUpdates_noUpdate_skipsPersistAndPrune(t *testing.T) {
 			calls = append(calls, "conversion")
 			return &sdeConversionResult{Files: map[string][]byte{}}, nil
 		},
-		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) {
+		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) error {
 			calls = append(calls, "blueprintsSync")
+			return nil
 		},
 		"stagePersist": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
 			calls = append(calls, "persist")
@@ -178,8 +179,9 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 			calls = append(calls, "conversion")
 			return &sdeConversionResult{Files: map[string][]byte{"output/recipeList.json": []byte(`[]`)}}, nil
 		},
-		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) {
+		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) error {
 			calls = append(calls, "blueprintsSync")
+			return nil
 		},
 		"stagePersist": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
 			calls = append(calls, "persist")
@@ -229,8 +231,9 @@ func TestRunSDEUpdatePipelineReplacingCurrent_skipsDiffAndPrune(t *testing.T) {
 			calls = append(calls, "conversion")
 			return &sdeConversionResult{Files: map[string][]byte{"output/recipeList.json": []byte(`[]`)}}, nil
 		},
-		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) {
+		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *taskrun.Dependencies) error {
 			calls = append(calls, "blueprintsSync")
+			return nil
 		},
 		"stagePersistReplace": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
 			calls = append(calls, "persistReplace")

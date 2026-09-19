@@ -100,3 +100,65 @@ func UnmarshalRequest(data []byte, v any) error {
 	}
 	return nil
 }
+
+// SelectiveObject is a JSON object decoded field by field, keeping only the
+// members a caller asks for.
+//
+// It exists for documents whose unread fields dominate their size: decoding one
+// whole and discarding members afterwards still allocates every one of them, and
+// the peak is set while decoding, not after. Members outside the keep set are
+// skipped in the reader, so their bytes never become Go values.
+type SelectiveObject map[string]any
+
+// SelectMembers returns options that decode [SelectiveObject] keeping only the
+// named members. A member whose name is absent from keep is skipped whole,
+// however deeply nested its value.
+//
+// transform, when non-nil, is applied to each kept member before it is stored,
+// so a value can be narrowed as it is read rather than in a second pass. It is
+// called with the member name and the decoded value, and returns what to store.
+func SelectMembers(keep map[string]struct{}, transform func(name string, v any) any) func([]byte, *SelectiveObject) error {
+	selective := jsonv2.WithUnmarshalers(jsonv2.UnmarshalFromFunc(
+		func(dec *jsontext.Decoder, obj *SelectiveObject) error {
+			if _, err := dec.ReadToken(); err != nil {
+				return fmt.Errorf("read object start: %w", err)
+			}
+
+			out := make(SelectiveObject, len(keep))
+			for dec.PeekKind() != '}' {
+				nameToken, err := dec.ReadToken()
+				if err != nil {
+					return fmt.Errorf("read member name: %w", err)
+				}
+				name := nameToken.String()
+
+				if _, wanted := keep[name]; !wanted {
+					// Skipped in the reader: the value is never built.
+					if err := dec.SkipValue(); err != nil {
+						return fmt.Errorf("skip member %q: %w", name, err)
+					}
+					continue
+				}
+
+				var value any
+				if err := jsonv2.UnmarshalDecode(dec, &value, options); err != nil {
+					return fmt.Errorf("decode member %q: %w", name, err)
+				}
+				if transform != nil {
+					value = transform(name, value)
+				}
+				out[name] = value
+			}
+
+			if _, err := dec.ReadToken(); err != nil {
+				return fmt.Errorf("read object end: %w", err)
+			}
+			*obj = out
+			return nil
+		},
+	))
+
+	return func(data []byte, obj *SelectiveObject) error {
+		return jsonv2.Unmarshal(data, obj, options, selective)
+	}
+}

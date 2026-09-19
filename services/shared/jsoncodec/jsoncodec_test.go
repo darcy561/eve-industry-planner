@@ -5,6 +5,7 @@ import (
 	jsonv1 "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -588,4 +589,85 @@ func TestEmptyCollectionsAreWrittenEmpty(t *testing.T) {
 	if string(got) != want {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
+}
+
+func TestSelectMembers(t *testing.T) {
+	keep := map[string]struct{}{"_key": {}, "name": {}, "groupID": {}}
+
+	t.Run("keeps named members and drops the rest", func(t *testing.T) {
+		decode := jsoncodec.SelectMembers(keep, nil)
+
+		var obj jsoncodec.SelectiveObject
+		data := []byte(`{"_key":34,"groupID":18,"description":{"en":"long"},"radius":5,"name":{"en":"Tritanium"}}`)
+		if err := decode(data, &obj); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+
+		if len(obj) != 3 {
+			t.Fatalf("expected 3 kept members, got %d: %v", len(obj), obj)
+		}
+		for _, dropped := range []string{"description", "radius"} {
+			if _, held := obj[dropped]; held {
+				t.Errorf("%s was kept but is not in the keep set", dropped)
+			}
+		}
+	})
+
+	t.Run("skips a nested value whole", func(t *testing.T) {
+		decode := jsoncodec.SelectMembers(map[string]struct{}{"_key": {}}, nil)
+
+		var obj jsoncodec.SelectiveObject
+		data := []byte(`{"_key":1,"deep":{"a":[1,2,{"b":{"c":[3,4]}}],"d":null}}`)
+		if err := decode(data, &obj); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(obj) != 1 {
+			t.Fatalf("a nested member survived the skip: %v", obj)
+		}
+	})
+
+	t.Run("applies the transform to kept members only", func(t *testing.T) {
+		seen := map[string]bool{}
+		decode := jsoncodec.SelectMembers(keep, func(name string, v any) any {
+			seen[name] = true
+			if name == "name" {
+				return "narrowed"
+			}
+			return v
+		})
+
+		var obj jsoncodec.SelectiveObject
+		data := []byte(`{"_key":1,"name":{"en":"a","de":"b"},"radius":9}`)
+		if err := decode(data, &obj); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if obj["name"] != "narrowed" {
+			t.Errorf("transform not applied: %v", obj["name"])
+		}
+		if seen["radius"] {
+			t.Error("transform ran for a skipped member")
+		}
+	})
+
+	t.Run("a skipped member is never allocated", func(t *testing.T) {
+		// Built before measuring: the input's own allocation is not the decode's.
+		big := []byte(`{"_key":1,"junk":"` + strings.Repeat("x", 4<<20) + `"}`)
+		decode := jsoncodec.SelectMembers(map[string]struct{}{"_key": {}}, nil)
+
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+
+		var obj jsoncodec.SelectiveObject
+		if err := decode(big, &obj); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		runtime.ReadMemStats(&after)
+
+		// The 4MB member must not appear in what the decode allocated.
+		if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 64<<10 {
+			t.Errorf("decode allocated %d bytes; the skipped member was built", allocated)
+		}
+		runtime.KeepAlive(obj)
+	})
 }

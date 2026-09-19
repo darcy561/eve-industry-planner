@@ -18,7 +18,7 @@ var (
 	stageDownload       = runSDEDownloadStage
 	stageMapBuild       = runSDEMapBuildStage
 	stageConversion     = runSDEConversionStage
-	stageBlueprintsSync = runSDEBlueprintsMongoStageAsync
+	stageBlueprintsSync = runSDEBlueprintsMongoStage
 	stagePersist        = runSDEPersistStage
 	stagePersistReplace = runSDEPersistStageReplaceCurrent
 	stageRecipeDiff     = runSDENewRecipeItemsStage
@@ -89,14 +89,22 @@ func runSDEUpdatePipelineWithPersist(
 	if err != nil {
 		return err
 	}
+	// Each stage's input is dead once the next one holds its output. Dropping the
+	// reference here is what keeps the download, the keyed maps and the converted
+	// files from all being live at once — together they are several times the
+	// working set of any one of them.
+	downloadResult = nil
 
 	conversionResult, err := stageConversion(mapBuildResult)
 	if err != nil {
 		return err
 	}
+	mapBuildResult = nil
 
-	// Stage 4b: async sync of recipeList into Mongo /blueprints by itemID.
-	stageBlueprintsSync(ctx, conversionResult, deps)
+	// Stage 4b: sync of recipeList into Mongo /blueprints by itemID.
+	if err := stageBlueprintsSync(ctx, conversionResult, deps); err != nil {
+		return err
+	}
 
 	persistResult, err := persistStage(versionResult, conversionResult)
 	if err != nil {

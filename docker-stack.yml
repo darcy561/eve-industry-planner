@@ -385,6 +385,11 @@ services:
       <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env, *otel-env, *log-env]
       APP_VERSION: ${APP_VERSION}
       WORKER_ASYNQ_CONCURRENCY: "50"
+      # The SDE rebuild allocates in bursts — a ~190MB extract parsed, converted,
+      # then marshalled and uploaded — and an unbounded heap grows to roughly twice
+      # its live set before collecting, holding the arena long after the task ends.
+      # A soft limit makes the collector keep pace with the burst instead.
+      GOMEMLIMIT: "400MiB"
     secrets: *secrets-worker
     deploy:
       <<: *app-deploy

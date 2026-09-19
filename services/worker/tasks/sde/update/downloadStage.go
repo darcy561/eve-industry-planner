@@ -31,7 +31,14 @@ var requiredFiles = map[string]string{
 	"mapSolarSystems.jsonl": "SolarSystems",
 }
 
+// sdeDownloadResult carries the downloaded archive to the map-build stage.
+//
+// Archive holds the compressed zip, which the next stage decompresses one entry
+// at a time so only one file's bytes are live at once. ExtractedFiles is the
+// already-decompressed form, used when a caller has the bytes in hand rather
+// than an archive; the map-build stage takes whichever is set.
 type sdeDownloadResult struct {
+	Archive        *zip.Reader
 	ExtractedFiles map[string][]byte
 }
 
@@ -54,34 +61,50 @@ func runSDEDownloadStage(ctx context.Context, versionResult *sdeVersionCheckResu
 		downloadURL = versionResult.LatestBuildInfo.DownloadURL
 	}
 
-	extracted, err := downloadAndExtractJSONInMemory(ctx, requiredFiles, downloadURL)
+	archive, compressedBytes, err := downloadJSONArchiveInMemory(ctx, requiredFiles, downloadURL)
 	if err != nil {
-		return nil, fmt.Errorf("sde in-memory download/extract failed: %w", err)
+		return nil, fmt.Errorf("sde in-memory download failed: %w", err)
 	}
 
-	// For now we keep extracted JSONL bytes in memory only; subsequent stages will parse/store.
-	totalBytes := 0
-	for _, b := range extracted {
-		totalBytes += len(b)
-	}
-	logs.DebugCtx(ctx, "SDE download/extract completed (in-memory)",
-		"extracted_files", len(extracted),
-		"total_extracted_bytes", totalBytes,
-		"files", fileSizes(extracted),
+	logs.DebugCtx(ctx, "SDE download completed (in-memory)",
+		"compressed_bytes", compressedBytes,
+		"entries", len(archive.File),
 	)
 
-	return &sdeDownloadResult{ExtractedFiles: extracted}, nil
+	return &sdeDownloadResult{Archive: archive}, nil
 }
 
-func fileSizes(files map[string][]byte) map[string]int {
-	out := make(map[string]int, len(files))
-	for k, v := range files {
-		out[k] = len(v)
+// openArchiveEntry returns the decompressed contents of one required file.
+func openArchiveEntry(archive *zip.Reader, filename string) ([]byte, error) {
+	for _, file := range archive.File {
+		if !strings.HasSuffix(file.Name, ".jsonl") {
+			continue
+		}
+		// Match exact filename only (basename), not substring, to avoid accidental matches.
+		if filepath.Base(file.Name) != filename {
+			continue
+		}
+
+		rc, err := file.Open()
+		if err != nil {
+			return nil, fmt.Errorf("open %s in zip: %w", filename, err)
+		}
+
+		// Sized from the zip directory rather than grown by io.ReadAll, whose
+		// doubling leaves discarded half-sized buffers live alongside the result.
+		data := make([]byte, 0, file.UncompressedSize64)
+		buf := bytes.NewBuffer(data)
+		_, err = io.Copy(buf, rc)
+		_ = rc.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read %s in zip: %w", filename, err)
+		}
+		return buf.Bytes(), nil
 	}
-	return out
+	return nil, fmt.Errorf("missing file in zip: %s", filename)
 }
 
-func downloadAndExtractJSONInMemory(ctx context.Context, specificFiles map[string]string, downloadURL string) (map[string][]byte, error) {
+func downloadJSONArchiveInMemory(ctx context.Context, specificFiles map[string]string, downloadURL string) (*zip.Reader, int, error) {
 	maxBytes := int64(0)
 	if v := os.Getenv("SDE_IN_MEMORY_MAX_BYTES"); v != "" {
 		parsed, err := strconv.ParseInt(v, 10, 64)
@@ -97,12 +120,12 @@ func downloadAndExtractJSONInMemory(ctx context.Context, specificFiles map[strin
 
 	resp, err := httpGetOKWithRetry(ctx, downloadURL, "sde_download_static_zip")
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("download failed with status %d", resp.StatusCode)
+		return nil, 0, fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
 	var reader io.Reader = resp.Body
@@ -112,65 +135,40 @@ func downloadAndExtractJSONInMemory(ctx context.Context, specificFiles map[strin
 
 	body, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if maxBytes > 0 && int64(len(body)) > maxBytes {
-		return nil, fmt.Errorf("download exceeded SDE_IN_MEMORY_MAX_BYTES (%d bytes)", maxBytes)
+		return nil, 0, fmt.Errorf("download exceeded SDE_IN_MEMORY_MAX_BYTES (%d bytes)", maxBytes)
 	}
 
-	zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	// zip.Reader needs random access, so the compressed bytes stay live for as
+	// long as entries are being read from it.
+	archive, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	extracted := make(map[string][]byte, len(specificFiles))
-	for _, file := range zipReader.File {
+	// Checked against the zip directory before any entry is decompressed, so a
+	// bad archive fails here rather than part-way through the map build.
+	present := make(map[string]struct{}, len(specificFiles))
+	for _, file := range archive.File {
 		if !strings.HasSuffix(file.Name, ".jsonl") {
 			continue
 		}
-
-		// Match exact filename only (basename), not substring, to avoid accidental matches.
-		targetFile := filepath.Base(file.Name)
-		if _, wanted := specificFiles[targetFile]; !wanted {
-			continue
+		name := filepath.Base(file.Name)
+		if _, wanted := specificFiles[name]; wanted {
+			present[name] = struct{}{}
 		}
-		if _, already := extracted[targetFile]; already {
-			continue
-		}
-
-		rc, err := file.Open()
-		if err != nil {
-			logs.WarnCtx(ctx, "SDE failed opening jsonl file in zip",
-				"zip_path", file.Name,
-				"target", targetFile,
-				"error", err,
-			)
-			continue
-		}
-
-		data, err := io.ReadAll(rc)
-		_ = rc.Close()
-		if err != nil {
-			logs.WarnCtx(ctx, "SDE failed reading jsonl file in zip",
-				"zip_path", file.Name,
-				"target", targetFile,
-				"error", err,
-			)
-			continue
-		}
-
-		extracted[targetFile] = data
 	}
-
 	missing := make([]string, 0, len(specificFiles))
-	for targetFile := range specificFiles {
-		if _, ok := extracted[targetFile]; !ok {
-			missing = append(missing, targetFile)
+	for name := range specificFiles {
+		if _, ok := present[name]; !ok {
+			missing = append(missing, name)
 		}
 	}
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("missing required jsonl files in zip: %v", missing)
+		return nil, 0, fmt.Errorf("missing required jsonl files in zip: %v", missing)
 	}
 
-	return extracted, nil
+	return archive, len(body), nil
 }
