@@ -11,8 +11,8 @@ export function ChildJobMaterials({
   listingType,
 }) {
   const row = childJobObjects?.[jobDisplay];
-  const materials = row?.build?.materials;
-  if (!Array.isArray(materials)) {
+  const materials = Object.values(row?.build?.materials ?? {});
+  if (materials.length === 0) {
     return null;
   }
 

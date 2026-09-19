@@ -41,21 +41,21 @@
                 "cost": 5
               }
             ],
-            "extrasCosts": [
-              {
+            "extrasCosts": {
+              "extra-1": {
                 "id": "extra-1",
                 "category": "0",
                 "extraText": "Courier",
                 "extraValue": 3
               }
-            ],
-            "inventionEntries": [
-              {
+            },
+            "inventionEntries": {
+              "1": {
                 "id": 1,
                 "itemName": "Datacore",
                 "itemCost": 2
               }
-            ]
+            }
           },
           "sale": {
             "brokersFee": [
@@ -219,13 +219,13 @@
             }
           },
           "costs": {
-            "inventionEntries": [
-              {
+            "inventionEntries": {
+              "1": {
                 "id": 1,
                 "itemName": "Datacore",
                 "itemCost": 25
               }
-            ]
+            }
           },
           "sale": {
             "brokersFee": [],
@@ -281,13 +281,13 @@
             }
           },
           "costs": {
-            "inventionEntries": [
-              {
+            "inventionEntries": {
+              "1": {
                 "id": 1,
                 "itemName": "Datacore",
                 "itemCost": 7
               }
-            ]
+            }
           },
           "sale": {
             "brokersFee": [],

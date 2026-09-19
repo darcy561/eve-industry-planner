@@ -89,7 +89,10 @@ describe("InventionEntry", () => {
 
     // A row stored before the version existed is a v1 row: the field names the
     // shape those rows already had rather than changing it.
-    expect(new InventionEntry(row).toDocument()).toEqual({ ...row, version: 1 });
+    expect(new InventionEntry(row).toDocument()).toEqual({
+      ...row,
+      version: 1,
+    });
   });
 
   it("keeps the version a row states", () => {
@@ -130,7 +133,7 @@ describe("invention entries on a job", () => {
       { id: 2, itemName: "Decryptor", itemCost: 400000 },
     ]);
 
-    expect(activeJob.build.costs.inventionEntries[0]).toBeInstanceOf(
+    expect(activeJob.build.costs.inventionEntries["1"]).toBeInstanceOf(
       InventionEntry,
     );
     expect(activeJob.totalInventionCost).toBe(525000);
@@ -146,15 +149,15 @@ describe("invention entries on a job", () => {
       itemCost: 400000,
     });
 
-    expect(activeJob.build.costs.inventionEntries).toHaveLength(2);
+    expect(Object.keys(activeJob.build.costs.inventionEntries)).toHaveLength(2);
     expect(activeJob.totalInventionCost).toBe(525000);
     // Whatever a caller hands over becomes a row of its own class.
-    expect(activeJob.build.costs.inventionEntries[1]).toBeInstanceOf(
+    expect(activeJob.build.costs.inventionEntries["7"]).toBeInstanceOf(
       InventionEntry,
     );
 
     const document = activeJob.toDocument();
-    expect(document.build.costs.inventionEntries[1]).toEqual({
+    expect(document.build.costs.inventionEntries["7"]).toEqual({
       version: 1,
       id: 7,
       itemName: "Decryptor",
@@ -198,7 +201,9 @@ describe("extra costs on a job", () => {
       { id: "extra-2", category: 0, extraText: "", extraValue: 250000 },
     ]);
 
-    expect(activeJob.build.costs.extrasCosts[0]).toBeInstanceOf(ExtraCost);
+    expect(activeJob.build.costs.extrasCosts["extra-1"]).toBeInstanceOf(
+      ExtraCost,
+    );
     expect(activeJob.totalExtrasCost).toBe(1750000);
   });
 
@@ -212,22 +217,22 @@ describe("extra costs on a job", () => {
     activeJob.addExtrasCost({ id: "extra-2", extraValue: 5 });
 
     const document = activeJob.toDocument();
-    expect(document.build.costs.extrasCosts).toEqual([
-      {
+    expect(document.build.costs.extrasCosts).toEqual({
+      "extra-1": {
         id: "extra-1",
         category: "3",
         categoryLabel: "",
         extraText: "Courier",
         extraValue: 10,
       },
-      {
+      "extra-2": {
         id: "extra-2",
         category: "0",
         categoryLabel: "",
         extraText: "",
         extraValue: 5,
       },
-    ]);
+    });
     expect(new Job(document).totalExtrasCost).toBe(15);
   });
 

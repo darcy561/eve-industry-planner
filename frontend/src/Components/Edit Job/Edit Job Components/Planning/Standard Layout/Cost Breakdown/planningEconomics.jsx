@@ -136,14 +136,14 @@ export default function PlanningEconomics(props) {
  * @param {object} activeJob
  */
 function inventionLabel(activeJob) {
-  const rows = activeJob.build?.costs?.inventionEntries ?? [];
+  const rows = Object.values(activeJob.build?.costs?.inventionEntries ?? {});
   if (rows.length === 0) return "Add an invention cost";
 
   return `Invention — ${rows.length}, ${formatNumberForLocale(activeJob.totalInventionCost ?? 0)}`;
 }
 
 function extrasLabel(activeJob) {
-  const rows = activeJob.build?.costs?.extrasCosts ?? [];
+  const rows = Object.values(activeJob.build?.costs?.extrasCosts ?? {});
   if (rows.length === 0) return "Add an extra cost";
 
   return `Extra costs — ${rows.length}, ${formatNumberForLocale(activeJob.totalExtrasCost ?? 0)}`;

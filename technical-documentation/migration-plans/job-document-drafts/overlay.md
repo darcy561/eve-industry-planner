@@ -39,7 +39,38 @@ Owed here: where each of the two is now derived from, and what a setup carries o
 
 ## Stage 2 — The reshape, in the release window
 
-*The conversion is built and wired in. It has not run against live.*
+*The conversion is built and wired in. Five of the eight row collections are read in the keyed shape on
+both sides; three are not.*
+
+### Which collections are keyed
+
+`skills`, `build.materials`, each material's `purchasing`, `build.costs.extrasCosts` and
+`build.costs.inventionEntries` are maps in `models.Job` and in the SPA, keyed by the id each row
+carries — a type id for skills and materials, an app-minted id for the rest.
+
+The SPA holds the same shape the document does rather than converting at the `Job` boundary. A reader
+asks the collection for a row by its id instead of searching for one, and a row is removed by deleting
+its key. [plan.md](./plan.md) § Stage 2 says why the keying does not stop at the document.
+
+`build.costs.linkedJobs`, `build.sale.marketOrders` and `build.sale.transactions` are still arrays in
+both, and still under `build.costs` / `build.sale` rather than `esi`. So a converted document and the
+code disagree about those three until the rest of this stage lands — which is what makes the reshape a
+single cutover rather than something that can ship in pieces.
+
+### What keying changed beyond the shape
+
+**Two orderings had to be stated rather than inherited.** A map holds no order, so anything reading one
+that was relying on the array's had to say what it wanted. The `Job` constructor sorted materials by
+name; the panel that lists them sorts at render instead. `countedPurchases` — the SPA's and
+`models.JobMaterial`'s — sorted purchases by cost alone, so equal-cost rows were free to swap and each
+row's own counted share moved with them; both break the tie on id, the same way.
+
+**A stored list had to become deterministic.** `extraCategories` builds the category list written onto
+an archived job's statistics row. Ranged over a map it would write a different document on each
+rebuild, so it walks the rows in id order.
+
+**A job with no materials holds an empty collection rather than null.** The null was a second way of
+saying the same thing, and nothing read it.
 
 ### What performs it
 

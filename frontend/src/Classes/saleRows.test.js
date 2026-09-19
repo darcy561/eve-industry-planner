@@ -519,10 +519,12 @@ describe("minting an invention entry's id", () => {
     job.addInventionCost({ id: 1789083363901, itemName: "Old", itemCost: 5 });
     job.addInventionCost(InventionEntry.forItem("New", 10));
 
-    job.removeInventionCost(job.build.costs.inventionEntries[0]);
+    job.removeInventionCost(job.build.costs.inventionEntries["1789083363901"]);
 
-    expect(job.build.costs.inventionEntries).toHaveLength(1);
-    expect(job.build.costs.inventionEntries[0].itemName).toBe("New");
+    expect(Object.keys(job.build.costs.inventionEntries)).toHaveLength(1);
+    expect(Object.values(job.build.costs.inventionEntries)[0].itemName).toBe(
+      "New",
+    );
   });
 
   // Removing one of two rows added together must leave the other.
@@ -531,9 +533,16 @@ describe("minting an invention entry's id", () => {
     job.addInventionCost(InventionEntry.forItem("Datacore", 100));
     job.addInventionCost(InventionEntry.forItem("Decryptor", 200));
 
-    job.removeInventionCost(job.build.costs.inventionEntries[0]);
+    // Both ids are minted, so the row to remove is named by what it holds
+    // rather than by a key the test can write down.
+    const datacore = Object.values(job.build.costs.inventionEntries).find(
+      (entry) => entry.itemName === "Datacore",
+    );
+    job.removeInventionCost(datacore);
 
-    expect(job.build.costs.inventionEntries).toHaveLength(1);
-    expect(job.build.costs.inventionEntries[0].itemName).toBe("Decryptor");
+    expect(Object.keys(job.build.costs.inventionEntries)).toHaveLength(1);
+    expect(Object.values(job.build.costs.inventionEntries)[0].itemName).toBe(
+      "Decryptor",
+    );
   });
 });

@@ -71,7 +71,7 @@ describe("the costs a reader adds by hand, end to end", () => {
     // name, so the button itself is what to press.
     fireEvent.click(screen.getByRole("button", { name: "Add invention cost" }));
 
-    const entries = costsOf(editJob.current).inventionEntries;
+    const entries = Object.values(costsOf(editJob.current).inventionEntries);
     expect(entries).toHaveLength(1);
     expect(entries[0].itemName).toBe("Datacores");
     expect(entries[0].itemCost).toBe(2500);
@@ -91,7 +91,7 @@ describe("the costs a reader adds by hand, end to end", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Add extra cost" }));
 
-    const extras = costsOf(editJob.current).extrasCosts;
+    const extras = Object.values(costsOf(editJob.current).extrasCosts);
     expect(extras).toHaveLength(1);
     expect(extras[0].extraText).toBe("Courier collateral");
     expect(extras[0].extraValue).toBe(1200);
@@ -106,9 +106,9 @@ describe("the costs a reader adds by hand, end to end", () => {
           materials: {},
           childJobs: {},
           costs: {
-            inventionEntries: [
-              { id: "inv-1", itemName: "Datacores", itemCost: 2500 },
-            ],
+            inventionEntries: {
+              "inv-1": { id: "inv-1", itemName: "Datacores", itemCost: 2500 },
+            },
           },
         },
       }),
@@ -116,11 +116,15 @@ describe("the costs a reader adds by hand, end to end", () => {
         <InventionEditor state={state} actions={actions} />
       ),
     );
-    expect(costsOf(editJob.current).inventionEntries).toHaveLength(1);
+    expect(Object.keys(costsOf(editJob.current).inventionEntries)).toHaveLength(
+      1,
+    );
 
     fireEvent.click(screen.getByLabelText("Remove Datacores"));
 
-    expect(costsOf(editJob.current).inventionEntries).toHaveLength(0);
+    expect(Object.keys(costsOf(editJob.current).inventionEntries)).toHaveLength(
+      0,
+    );
   });
 
   it("takes an extra back off", () => {
@@ -132,24 +136,24 @@ describe("the costs a reader adds by hand, end to end", () => {
           materials: {},
           childJobs: {},
           costs: {
-            extrasCosts: [
-              {
+            extrasCosts: {
+              "extra-1": {
                 id: "extra-1",
                 category: 0,
                 categoryLabel: "Other",
                 extraText: "Courier collateral",
                 extraValue: 1200,
               },
-            ],
+            },
           },
         },
       }),
       ({ state, actions }) => <ExtrasEditor state={state} actions={actions} />,
     );
-    expect(costsOf(editJob.current).extrasCosts).toHaveLength(1);
+    expect(Object.keys(costsOf(editJob.current).extrasCosts)).toHaveLength(1);
 
     fireEvent.click(screen.getByLabelText("Remove Courier collateral"));
 
-    expect(costsOf(editJob.current).extrasCosts).toHaveLength(0);
+    expect(Object.keys(costsOf(editJob.current).extrasCosts)).toHaveLength(0);
   });
 });

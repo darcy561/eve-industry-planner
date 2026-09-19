@@ -94,7 +94,7 @@ export default function ExtrasEditor({ state, actions }) {
     showSnackbarError("Extra cost removed");
   }
 
-  const rows = state.activeJob.build.costs.extrasCosts;
+  const rows = Object.values(state.activeJob.build.costs.extrasCosts);
 
   return (
     <Stack spacing={1.5}>

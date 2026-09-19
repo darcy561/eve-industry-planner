@@ -30,9 +30,9 @@ func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"extrasCosts": [],
+				"extrasCosts": {},
 				"linkedJobs": [],
-				"inventionEntries": []
+				"inventionEntries": {}
 			},
 			"sale": {
 				"marketOrders": [],
@@ -97,17 +97,17 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"extrasCosts": [
-					{
+				"extrasCosts": {
+					"uuid": {
 						"id": "uuid",
 						"category": "1",
 						"extraText": "note",
 						"extraValue": 123.45
 					}
-				],
+				},
 				"extrasTotal": 123.45,
 				"linkedJobs": [],
-				"inventionEntries": []
+				"inventionEntries": {}
 			},
 			"sale": {
 				"marketOrders": [],
@@ -132,7 +132,7 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 	if len(job.Build.Costs.ExtrasCosts) != 1 {
 		t.Fatalf("expected one extras element")
 	}
-	ex := job.Build.Costs.ExtrasCosts[0]
+	ex := job.Build.Costs.ExtrasCosts["uuid"]
 	if ex.ID != "uuid" || ex.Category != "1" || ex.ExtraText != "note" || ex.ExtraValue != 123.45 {
 		t.Fatalf("extrasCosts decode: %+v", ex)
 	}
@@ -256,11 +256,11 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"extrasCosts": [
-					{"id": "row-1", "category": "2", "extraText": "Label", "extraValue": 99.5}
-				],
+				"extrasCosts": {
+					"row-1": {"id": "row-1", "category": "2", "extraText": "Label", "extraValue": 99.5}
+				},
 				"linkedJobs": [],
-				"inventionEntries": []
+				"inventionEntries": {}
 			},
 			"sale": {
 				"marketOrders": [],
@@ -295,7 +295,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 	if len(job.Build.Costs.ExtrasCosts) != 1 {
 		t.Fatalf("extrasCosts len: %d", len(job.Build.Costs.ExtrasCosts))
 	}
-	x := job.Build.Costs.ExtrasCosts[0]
+	x := job.Build.Costs.ExtrasCosts["row-1"]
 	if x.Category != "2" || x.ExtraText != "Label" || x.ExtraValue != 99.5 {
 		t.Fatalf("decoded extra: %+v", x)
 	}
@@ -320,9 +320,9 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"extrasCosts": [],
+				"extrasCosts": {},
 				"linkedJobs": [],
-				"inventionEntries": []
+				"inventionEntries": {}
 			},
 			"sale": {
 				"marketOrders": [],
@@ -408,7 +408,8 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 					"ME": 10,
 					"TE": 9,
 					"structureID": 0,
-					"rigID": 0,
+					"rigSlot1": 0,
+					"rigSlot2": 0,
 					"systemTypeID": 0,
 					"systemID": 30000142,
 					"taxValue": 0.25,
@@ -426,14 +427,14 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 			},
 			"childJobs": {"57478": []},
 			"costs": {
-				"extrasCosts": [
-					{
+				"extrasCosts": {
+					"ee3c139f-7cce-8613-6f92-4bd7bebbfe92": {
 						"id": "ee3c139f-7cce-8613-6f92-4bd7bebbfe92",
 						"category": "1",
 						"extraText": "fdsfs",
 						"extraValue": 33
 					}
-				],
+				},
 				"linkedJobs": [
 					{
 						"status": "active",
@@ -454,7 +455,7 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 						"corporation_id": 98699553
 					}
 				],
-				"inventionEntries": []
+				"inventionEntries": {}
 			},
 			"sale": {
 				"marketOrders": [],
@@ -546,9 +547,9 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 			"setup": {},
 			"childJobs": {},
 			"costs": {
-				"extrasCosts": [],
+				"extrasCosts": {},
 				"linkedJobs": [],
-				"inventionEntries": []
+				"inventionEntries": {}
 			},
 			"sale": {
 				"marketOrders": [

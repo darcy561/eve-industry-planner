@@ -87,7 +87,7 @@ export default function InventionEditor({ state, actions }) {
     showSnackbarError("Invention cost removed");
   }
 
-  const rows = state.activeJob.build.costs.inventionEntries;
+  const rows = Object.values(state.activeJob.build.costs.inventionEntries);
 
   return (
     <Stack spacing={1.5}>

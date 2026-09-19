@@ -40,8 +40,13 @@ func TestJobCostPartsAreReadFromTheJob(t *testing.T) {
 		"35": {TypeID: 35, Quantity: 40},
 	}}}
 	job.Build.Costs.LinkedJobs = []LinkedESIJob{{JobID: 1, Cost: 3}, {JobID: 2, Cost: 2}}
-	job.Build.Costs.InventionEntries = []InventionEntry{{ID: "i1", ItemName: "Datacore", ItemCost: 2}}
-	job.Build.Costs.ExtrasCosts = []ExtraCost{{ID: "e1", ExtraValue: 2}, {ID: "e2", ExtraValue: 1}}
+	job.Build.Costs.InventionEntries = map[string]InventionEntry{
+		"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
+	}
+	job.Build.Costs.ExtrasCosts = map[string]ExtraCost{
+		"e1": {ID: "e1", ExtraValue: 2},
+		"e2": {ID: "e2", ExtraValue: 1},
+	}
 	job.Build.Sale.BrokersFee = []BrokerFee{{Amount: 1}, {Amount: 0.5}}
 	job.Build.Sale.Transactions = []Transaction{{Tax: 0.5}, {Tax: 0.25}}
 

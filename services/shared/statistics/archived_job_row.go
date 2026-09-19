@@ -5,6 +5,8 @@
 package statistics
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,17 +37,21 @@ func parseLineDate(raw string, fallback time.Time) time.Time {
 // extraCategories sums a job's extras per category, carrying the name each was
 // added under.
 //
-// Order follows first appearance rather than the map iteration it replaced, so a
-// row written twice from the same job is the same document. An extra with no
-// label leaves it empty: a reader shows the id, which is what it could do before,
-// rather than the row inventing a name.
-func extraCategories(extras []models.ExtraCost) []models.ArchivedExtraCategory {
+// Categories come out in the order their rows' ids sort, so a row written twice
+// from the same job is the same document. An extra with no label leaves it
+// empty: a reader shows the id, which is what it could do before, rather than
+// the row inventing a name.
+func extraCategories(extras map[string]models.ExtraCost) []models.ArchivedExtraCategory {
 	if len(extras) == 0 {
 		return nil
 	}
 	out := make([]models.ArchivedExtraCategory, 0, len(extras))
 	at := make(map[string]int, len(extras))
-	for _, e := range extras {
+	// Sorted rather than ranged: the rows come out of a map, and this list is
+	// stored on the statistics row, so walking them in whatever order the keys
+	// give would write a different document on each rebuild.
+	for _, id := range slices.Sorted(maps.Keys(extras)) {
+		e := extras[id]
 		// Settled rather than taken as given: a row built in code has not been
 		// through a decoder, and an unfiled extra must still sum into the total.
 		category := models.ExtrasCategoryOrUnassigned(e.Category)

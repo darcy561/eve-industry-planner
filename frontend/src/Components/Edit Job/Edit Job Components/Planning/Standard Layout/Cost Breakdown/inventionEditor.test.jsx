@@ -70,8 +70,8 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    expect(job.build.costs.inventionEntries).toHaveLength(1);
-    expect(job.build.costs.inventionEntries[0]).toMatchObject({
+    expect(Object.keys(job.build.costs.inventionEntries)).toHaveLength(1);
+    expect(Object.values(job.build.costs.inventionEntries)[0]).toMatchObject({
       itemName: "Datacore",
       itemCost: 1500,
     });
@@ -91,7 +91,7 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    expect(job.build.costs.inventionEntries).toHaveLength(0);
+    expect(Object.keys(job.build.costs.inventionEntries)).toHaveLength(0);
   });
 
   it("refuses an entry costing nothing", async () => {
@@ -106,7 +106,7 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    expect(job.build.costs.inventionEntries).toHaveLength(0);
+    expect(Object.keys(job.build.costs.inventionEntries)).toHaveLength(0);
   });
 
   it("lists what has been recorded, and takes one back off", async () => {
@@ -114,7 +114,9 @@ describe("recording what invention cost", () => {
       metaGroupID: 2,
       build: {
         costs: {
-          inventionEntries: [{ id: 1, itemName: "Datacore", itemCost: 1500 }],
+          inventionEntries: {
+            1: { id: 1, itemName: "Datacore", itemCost: 1500 },
+          },
         },
       },
     });
@@ -126,6 +128,6 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Remove Datacore" }),
     );
 
-    expect(job.build.costs.inventionEntries).toHaveLength(0);
+    expect(Object.keys(job.build.costs.inventionEntries)).toHaveLength(0);
   });
 });

@@ -986,8 +986,11 @@ The key count that gates it is re-run against live before the step writes anythi
 [measurements/row-key-uniqueness.md](./measurements/row-key-uniqueness.md) is a snapshot's, and the
 corpus at release time is not that snapshot.
 
-**What remains of this stage is the SPA and the API reading the new shape.** The conversion moves the
-documents; nothing yet reads what it produces.
+**What remains of this stage is the SPA and the API reading the new shape**, and five of the eight row
+collections now do. `skills`, `build.materials`, each material's `purchasing`, `build.costs.extrasCosts`
+and `build.costs.inventionEntries` are keyed in `models.Job` and in the SPA, which holds the same shape
+the document does rather than converting at the class boundary. The three ESI-linked collections —
+linked jobs, market orders and transactions — and the broker fee fold are what is left.
 
 **The fold widens this stage beyond a conversion.** Moving the fee onto its order changes the cost
 calculation, the archive row builder, the SPA class and their tests, which the array-to-map conversion
@@ -1136,7 +1139,7 @@ happened.
 | Phase 1 — project folder and docs | **Done** |
 | Stage 1 — the removals | **Landed.** `Purchase.TypeID` and `ArchivedJobFeeLine.FeeID` are gone from the models, their writers and the parity fixtures. `complete` and `CharacterHash` on stored fee rows needed no code change — neither is on `models.BrokerFee` or the SPA's `BrokerFee`, so they are stored residue Stage 2's prune clears. `esiJobTab` / `setupToEdit` / `resourceDisplayType` are **deferred to Stage 3**, two of the three being read; § Stage 1 says why |
 | Stage 1b — derived setup figures become derivations | **Not started.** Split out of Stage 1, which had costed it as a removal it is not: `estimatedTime` and `estimatedInstallCost` no longer exist to remove, and `materialCount` and `rawTime` are read by the cost calculation in both languages, so each needs a derivation at its call sites. No window. Best taken with Stage 4. Stage 2's conversion no longer prunes the two that are read — § Stage 1b says what happened when it did |
-| Stage 2 — the reshape, in the release window | **Built and wired in; not run against live.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. What remains is the SPA and the API reading the new shape, which is the rest of this stage. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
+| Stage 2 — the reshape, in the release window | **Built and wired in; five of eight collections read it.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. `skills`, `build.materials`, `purchasing`, `extrasCosts` and `inventionEntries` are keyed on both sides; the three ESI-linked collections and the broker fee fold are what remains. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
 | Stage 3 — base, log, scratch and draft | Not started |
 | Stage 4 — getters become functions | Not started |
 | Stage 5 — `jobArray` goes plain | Not started |

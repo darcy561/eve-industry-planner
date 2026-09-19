@@ -124,11 +124,13 @@ class Job {
       setup: documentToSetups(itemJson),
       childJobs: itemJson?.build?.childJobs || {},
       costs: {
-        extrasCosts: (itemJson?.build?.costs?.extrasCosts || []).map(
+        extrasCosts: keyRowsByID(
+          itemJson?.build?.costs?.extrasCosts,
           (row) => new ExtraCost(row),
         ),
         linkedJobs: documentToLinkedJobs(itemJson),
-        inventionEntries: (itemJson?.build?.costs?.inventionEntries || []).map(
+        inventionEntries: keyRowsByID(
+          itemJson?.build?.costs?.inventionEntries,
           (row) => new InventionEntry(row),
         ),
       },
@@ -284,11 +286,16 @@ class Job {
           linkedJobs: this.build.costs.linkedJobs.map((linkedJob) =>
             linkedJob.toDocument(),
           ),
-          extrasCosts: this.build.costs.extrasCosts.map((extra) =>
-            extra.toDocument(),
+          extrasCosts: Object.fromEntries(
+            Object.entries(this.build.costs.extrasCosts).map(([id, extra]) => [
+              id,
+              extra.toDocument(),
+            ]),
           ),
-          inventionEntries: this.build.costs.inventionEntries.map((entry) =>
-            entry.toDocument(),
+          inventionEntries: Object.fromEntries(
+            Object.entries(this.build.costs.inventionEntries).map(
+              ([id, entry]) => [id, entry.toDocument()],
+            ),
           ),
         },
         sale: {
@@ -452,9 +459,9 @@ class Job {
    */
   addExtrasCost(newItem) {
     if (!newItem) return;
-    this.build.costs.extrasCosts.push(
-      newItem instanceof ExtraCost ? newItem : new ExtraCost(newItem),
-    );
+    const extra =
+      newItem instanceof ExtraCost ? newItem : new ExtraCost(newItem);
+    this.build.costs.extrasCosts[extra.id] = extra;
   }
 
   /**
@@ -463,9 +470,7 @@ class Job {
    */
   removeExtrasCost(item) {
     if (!item) return;
-    this.build.costs.extrasCosts = this.build.costs.extrasCosts.filter(
-      (i) => i.id !== item.id,
-    );
+    delete this.build.costs.extrasCosts[item.id];
   }
   /**
    * @param {Object} inputObject - Invention cost object
@@ -474,11 +479,11 @@ class Job {
    */
   addInventionCost(inputObject) {
     if (!inputObject) return;
-    this.build.costs.inventionEntries.push(
+    const entry =
       inputObject instanceof InventionEntry
         ? inputObject
-        : new InventionEntry(inputObject),
-    );
+        : new InventionEntry(inputObject);
+    this.build.costs.inventionEntries[entry.id] = entry;
   }
 
   /**
@@ -488,8 +493,7 @@ class Job {
    */
   removeInventionCost(inputObject) {
     if (!inputObject) return;
-    this.build.costs.inventionEntries =
-      this.build.costs.inventionEntries.filter((i) => i.id !== inputObject.id);
+    delete this.build.costs.inventionEntries[inputObject.id];
   }
 
   /**
@@ -575,7 +579,7 @@ class Job {
    * @returns {number} Extras total
    */
   get totalExtrasCost() {
-    return this.build.costs.extrasCosts.reduce(
+    return Object.values(this.build.costs.extrasCosts).reduce(
       (total, extra) => total + (Number(extra?.extraValue) || 0),
       0,
     );
@@ -589,7 +593,7 @@ class Job {
    * @returns {number} Invention total
    */
   get totalInventionCost() {
-    return this.build.costs.inventionEntries.reduce(
+    return Object.values(this.build.costs.inventionEntries).reduce(
       (total, entry) => total + (Number(entry?.itemCost) || 0),
       0,
     );
@@ -1248,6 +1252,30 @@ function documentToSetups(object) {
  * @param {Object} object - Object containing job data
  * @returns {Array<LinkedESIJob>}
  */
+/**
+ * Helper function that keys rows by the id each carries, building each one
+ * through the class that owns its shape.
+ *
+ * Shared by the collections whose rows are identified by an app-minted id
+ * rather than an EVE type id. A row without one is dropped rather than filed
+ * under `undefined`, which would collapse every such row onto a single key.
+ *
+ * An array is still read because a job can be built from one.
+ *
+ * @param {Object<string, Object>|Array<Object>|null} rows
+ * @param {Function} build - Makes the instance held for a row
+ * @returns {Object<string, Object>} The rows keyed by id
+ */
+function keyRowsByID(rows, build) {
+  const out = {};
+  for (const row of Array.isArray(rows) ? rows : Object.values(rows ?? {})) {
+    const instance = build(row);
+    if (instance?.id === undefined || instance?.id === null) continue;
+    out[String(instance.id)] = instance;
+  }
+  return out;
+}
+
 /**
  * Helper function that reads a document's required skills.
  *

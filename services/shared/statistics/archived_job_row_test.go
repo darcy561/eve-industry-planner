@@ -139,10 +139,12 @@ func TestExtraCategoryTotalsFoldByCategory(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
-	job.Build.Costs.ExtrasCosts = []models.ExtraCost{
-		{Category: "shipping", CategoryLabel: "Hauling Service", ExtraValue: 10},
-		{Category: "shipping", CategoryLabel: "Hauling Service", ExtraValue: 5},
-		{Category: "", ExtraValue: 3},
+	// Ids are what the categories are walked in order of, so they are stated
+	// rather than left out: two rows under one category and one with none.
+	job.Build.Costs.ExtrasCosts = map[string]models.ExtraCost{
+		"e1": {ID: "e1", Category: "shipping", CategoryLabel: "Hauling Service", ExtraValue: 10},
+		"e2": {ID: "e2", Category: "shipping", CategoryLabel: "Hauling Service", ExtraValue: 5},
+		"e3": {ID: "e3", Category: "", ExtraValue: 3},
 	}
 
 	got := map[string]models.ArchivedExtraCategory{}
@@ -178,7 +180,10 @@ func TestBuildIsDeterministic(t *testing.T) {
 		{JobID: 2, StartDate: "2026-05-04T00:00:00Z"},
 		{JobID: 1, StartDate: "2026-05-02T00:00:00Z"},
 	}
-	job.Build.Costs.ExtrasCosts = []models.ExtraCost{{Category: "x", ExtraValue: 1}}
+	job.Build.Costs.ExtrasCosts = map[string]models.ExtraCost{
+		"e1": {ID: "e1", Category: "x", ExtraValue: 1},
+		"e2": {ID: "e2", Category: "y", ExtraValue: 2},
+	}
 
 	first := RowFromFigures(job, sampleSnap(), buildNow)
 	for range 8 {

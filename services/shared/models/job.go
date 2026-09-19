@@ -97,7 +97,8 @@ type JobSetup struct {
 	ME                             int                      `json:"ME" bson:"ME"`
 	TE                             int                      `json:"TE" bson:"TE"`
 	StructureID                    int                      `json:"structureID" bson:"structureID"`
-	RigID                          int                      `json:"rigID" bson:"rigID"`
+	RigSlot1                       int                      `json:"rigSlot1" bson:"rigSlot1"`
+	RigSlot2                       int                      `json:"rigSlot2" bson:"rigSlot2"`
 	SystemTypeID                   int                      `json:"systemTypeID" bson:"systemTypeID"`
 	SystemID                       int                      `json:"systemID" bson:"systemID"`
 	TaxValue                       float64                  `json:"taxValue" bson:"taxValue"`
@@ -125,9 +126,11 @@ type MaterialCount struct {
 
 // JobCosts contains all cost-related data for the job
 type JobCosts struct {
-	ExtrasCosts      []ExtraCost      `json:"extrasCosts" bson:"extrasCosts"`
-	LinkedJobs       []LinkedESIJob   `json:"linkedJobs" bson:"linkedJobs"`
-	InventionEntries []InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
+	// ExtrasCosts is keyed by each row's own id.
+	ExtrasCosts map[string]ExtraCost `json:"extrasCosts" bson:"extrasCosts"`
+	LinkedJobs  []LinkedESIJob       `json:"linkedJobs" bson:"linkedJobs"`
+	// InventionEntries is keyed by each row's own id.
+	InventionEntries map[string]InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
 }
 
 // JobCostParts are the six components a job's cost is made of.
@@ -554,6 +557,8 @@ type LinkedESIJob struct {
 const InventionEntrySchemaCurrent = 1
 
 // InventionEntry is one invention attempt recorded against a job.
+// InventionEntry is one invention cost recorded against a job, keyed in
+// [JobCosts.InventionEntries] by the ID it carries.
 type InventionEntry struct {
 	Version  int     `json:"version" bson:"version"`   // Which shape this row was written in
 	ID       string  `json:"id" bson:"id"`             // Identifies the row within its job

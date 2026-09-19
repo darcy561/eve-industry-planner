@@ -116,38 +116,40 @@ export function InventionCostsCard({ state, actions }) {
               overflowY: "auto",
             }}
           >
-            {state.activeJob.build.costs.inventionEntries.map((record) => {
-              return (
-                <Grid
-                  key={record.id}
-                  container
-                  sx={{
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginBottom: "5px",
-                  }}
-                >
-                  <Chip
+            {Object.values(state.activeJob.build.costs.inventionEntries).map(
+              (record) => {
+                return (
+                  <Grid
                     key={record.id}
-                    label={`${record.itemName} ${formatNumberForLocale(
-                      record.itemCost,
-                    )}`}
-                    variant="outlined"
-                    deleteIcon={<ClearIcon />}
+                    container
                     sx={{
-                      "& .MuiChip-deleteIcon": {
-                        color: "error.main",
-                      },
-                      boxShadow: 2,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginBottom: "5px",
                     }}
-                    onDelete={() => {
-                      handleRemove(record);
-                    }}
-                    color="secondary"
-                  />
-                </Grid>
-              );
-            })}
+                  >
+                    <Chip
+                      key={record.id}
+                      label={`${record.itemName} ${formatNumberForLocale(
+                        record.itemCost,
+                      )}`}
+                      variant="outlined"
+                      deleteIcon={<ClearIcon />}
+                      sx={{
+                        "& .MuiChip-deleteIcon": {
+                          color: "error.main",
+                        },
+                        boxShadow: 2,
+                      }}
+                      onDelete={() => {
+                        handleRemove(record);
+                      }}
+                      color="secondary"
+                    />
+                  </Grid>
+                );
+              },
+            )}
           </Grid>
           <form action={handleSubmit}>
             <Grid container spacing={1}>
