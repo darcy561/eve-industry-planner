@@ -11,9 +11,19 @@
  */
 class InventionEntry {
   /**
+   * The shape a row written today has. `models.InventionEntrySchemaCurrent` is
+   * the same number on the backend, and both sides read a row carrying none as
+   * v1 — the field was added to name the shape those rows already had.
+   *
+   * @type {number}
+   */
+  static SCHEMA_CURRENT = 1;
+
+  /**
    * @param {Object} [row] - An invention entry from a job document
    */
   constructor(row) {
+    this.version = row?.version || 1;
     this.id = row?.id ?? null;
     this.itemName = row?.itemName ?? "";
     this.itemCost = row?.itemCost ?? 0;
@@ -28,6 +38,7 @@ class InventionEntry {
    */
   static forItem(itemName, itemCost) {
     return new InventionEntry({
+      version: InventionEntry.SCHEMA_CURRENT,
       id: InventionEntry.mintID(),
       itemName,
       itemCost,
@@ -56,6 +67,7 @@ class InventionEntry {
    */
   toDocument() {
     return {
+      version: this.version,
       id: this.id,
       itemName: this.itemName,
       itemCost: this.itemCost,

@@ -84,6 +84,13 @@ document reaches its caller upgraded.
 
 ### Phase A2 — Move the SPA's defaults and aliases into the upgrader
 
+**One alias leaves this phase rather than entering it.** `marketLocation → localMarketDisplay` is read in
+the same `Job` constructor block that seeds `localPricing`, and
+[job-document-drafts](../job-document-drafts/plan.md) § `layout` stops existing deletes that block: its
+Stage 2 folds the single-market pair into `localPricing` for every document in the release window and
+removes the seeding with it. If that stage lands, this phase has no `marketLocation` left to move; if it
+slips, the alias is still here. The other aliases and defaults below are unaffected.
+
 `Upgrader.Job` currently clamps `SchemaVersion` and fills nothing. The defaults and the legacy field
 aliases in the SPA's `Job` constructor belong in it, as a `v1 → v2` step with a `JobSchemaCurrent`
 bump — which is what [`document_schema.go`](../../../services/shared/models/document_schema.go)
@@ -107,14 +114,17 @@ stays absent, and `Group.archivedJobIDs` is one of them.
 An extras category id is `"0"` … `"5"` for the six shipped defaults and a uuid for anything a user
 adds. `"0"` is a real category — `{ID: "0", Label: "Unassigned"}` — not a sentinel.
 
-Measured across 4,822 live accounts:
+Measured across 4,822 live accounts. The extras row count was re-taken on 2026-09-19 against a newer
+snapshot import and rose from 1,379 to 1,389; the 865 filed under `""` was the same on both, and the
+per-collection split is in
+[job-document-drafts/measurements/extras-and-invention-ids.md](../job-document-drafts/measurements/extras-and-invention-ids.md):
 
 | Fact | Count |
 |------|-------|
 | Accounts holding the shipped six with the exact shipped labels, untouched | 4,816 |
 | Accounts that added a custom category | 4 |
 | Accounts that deleted a default | 2 |
-| Extras rows across both job collections | 1,379 |
+| Extras rows across both job collections | 1,389 |
 | Of those, rows filed under `""` rather than a category | 865 |
 
 The defaults stay stored per account. They must be, because a user may remove one and that removal has
@@ -139,6 +149,17 @@ collections.
 
 One `JobSchemaCurrent` bump carries B1 and the `""` rows the prerequisite left behind, so the
 `schemamaint` drain rewrites each document once rather than twice.
+
+**A row with no category is written the `unassigned` id, not left empty.** `""` is the absence of a
+category and `unassigned` is a category, so the conversion states what the row means rather than leaving
+the reader to infer it from a missing value — which is the same rule `models.ExtrasCategoryOrUnassigned`
+already applies on the read path, made true of what is stored.
+
+865 rows carry no category: 87 live and 778 archived, re-counted against a live snapshot alongside the
+neighbouring work in
+[job-document-drafts/measurements/extras-and-invention-ids.md](../job-document-drafts/measurements/extras-and-invention-ids.md).
+That measurement also settles a question this project does not own but reads: no extras row in the corpus
+carries a numeric id or lacks one, so the id space Track B converts is uniformly uuids and slugs.
 
 **Order:** the conversion runs **before** the statistics rebuild, or the derived rows keep the old ids
 until the next one.

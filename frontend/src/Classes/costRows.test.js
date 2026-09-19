@@ -87,7 +87,21 @@ describe("InventionEntry", () => {
   it("keeps every stored key on the way out", () => {
     const row = { id: 1788510923210, itemName: "Datacore", itemCost: 125000 };
 
-    expect(new InventionEntry(row).toDocument()).toEqual(row);
+    // A row stored before the version existed is a v1 row: the field names the
+    // shape those rows already had rather than changing it.
+    expect(new InventionEntry(row).toDocument()).toEqual({ ...row, version: 1 });
+  });
+
+  it("keeps the version a row states", () => {
+    const row = { version: 2, id: "i1", itemName: "Datacore", itemCost: 1 };
+
+    expect(new InventionEntry(row).toDocument().version).toBe(2);
+  });
+
+  it("writes a new entry in the shape it was built in", () => {
+    expect(InventionEntry.forItem("Datacore", 1).toDocument().version).toBe(
+      InventionEntry.SCHEMA_CURRENT,
+    );
   });
 
   it("reads a row with nothing recorded as costing nothing", () => {
@@ -141,6 +155,7 @@ describe("invention entries on a job", () => {
 
     const document = activeJob.toDocument();
     expect(document.build.costs.inventionEntries[1]).toEqual({
+      version: 1,
       id: 7,
       itemName: "Decryptor",
       itemCost: 400000,

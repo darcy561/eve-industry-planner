@@ -237,13 +237,32 @@ func TestSchemaMaintenanceRunsBeforeTheStamps(t *testing.T) {
 	}
 }
 
+// The reshape sits between the two steps that care what shape a job is in: the
+// label stamp writes into the extras rows while they are still an array, and the
+// rebuild derives its figures from what the reshape leaves behind — which for a
+// market order's broker fees is one entry where several were stored.
+func TestTheReshapeRunsAfterTheLabelStampAndBeforeTheRebuild(t *testing.T) {
+	t.Parallel()
+
+	labels := stepIndex(t, currentRelease, "stamp extras category labels onto jobs")
+	reshape := stepIndex(t, currentRelease, "reshape every job document")
+	rebuild := stepIndex(t, currentRelease, "queue every account for rebuild")
+
+	if reshape < labels {
+		t.Errorf("the reshape runs at %d, before the label stamp at %d", reshape, labels)
+	}
+	if reshape > rebuild {
+		t.Errorf("the reshape runs at %d, after the rebuild is queued at %d", reshape, rebuild)
+	}
+}
+
 // Every collection any step or fan-out writes to is in the copy, and the copy
 // is built from the lists those steps iterate rather than written out again.
 func TestTheBackupCoversEveryCollectionAStepWritesTo(t *testing.T) {
 	t.Parallel()
 
 	touched := releaseTouchedCollections()
-	for _, group := range [][]string{metaOwnerCollections, eipmongo.OwnerScopedIDCollections(), derivedStatisticsCollections, accountPlannerCollections} {
+	for _, group := range [][]string{metaOwnerCollections, eipmongo.OwnerScopedIDCollections(), derivedStatisticsCollections, accountPlannerCollections, reshapeJobCollections} {
 		for _, name := range group {
 			if !slices.Contains(touched, name) {
 				t.Errorf("%s is written by a step and not copied first", name)
@@ -262,6 +281,7 @@ func TestStepsOthersDependOnAreRequired(t *testing.T) {
 		"copy every collection this release writes to": true,
 		"complete outstanding schema maintenance":      true,
 		"stamp the owner onto every scoped document":   true,
+		"reshape every job document":                   true,
 	}
 	for _, rel := range releases {
 		for _, step := range rel.steps {

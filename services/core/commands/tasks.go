@@ -140,6 +140,7 @@ var cliTable = []cliCommand{
 	{command: "queueArchivedJobStatsRebuild", args: "[-all] [-account id] [-dry-run]", run: runQueueArchivedJobStatsRebuild},
 	{command: "planners", args: "[-account id]", run: runPlanners},
 	{command: "rewriteOwnerScopedIDs", args: "[-collection=name] [-limit=N] [-dry-run]", run: runRewriteOwnerScopedIDs},
+	{command: "reshapeJobDocuments", args: "[-database=name] [-collection=name] [-limit=N] [-write]", run: runReshapeJobDocuments},
 	{command: "prepareRelease", args: "[-dry-run]", run: runPrepareRelease},
 	{command: "revertRelease", args: "[-dry-run]", run: runRevertRelease},
 	{command: "dropReleaseBackups", args: "[-dry-run]", run: runDropReleaseBackups},

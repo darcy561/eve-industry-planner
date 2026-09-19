@@ -6,7 +6,8 @@ How a job is **shaped when stored** and **held while it is being edited** — so
 is a set of changed fields rather than a rebuilt object.
 
 - **The job document's shape**: row collections keyed by the id they already carry instead of stored as
-  arrays; derived figures removed from storage; `rawData` leaving the document; `layout` split between
+  arrays, with a broker fee folded onto the order it was charged for rather than kept beside it; derived
+  figures removed from storage; `layout` split between
   per-reader view state and the planning decision hiding in it; an owner stated once rather than as a
   character/corporation pair beside the flag that already discriminates them; and the archive fields
   living in a block a live job does not carry.
@@ -80,6 +81,12 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 |------------|------|
 | Understand what the edit page does today and what it costs | [plan.md](./plan.md) § Starting position |
 | See the numbers behind that | [measurements/inventory.md](./measurements/inventory.md) |
+| Know whether a row collection can be keyed by the id it carries | [measurements/row-key-uniqueness.md](./measurements/row-key-uniqueness.md) |
+| Know what the extras and invention rows actually hold | [measurements/extras-and-invention-ids.md](./measurements/extras-and-invention-ids.md) |
+| See why a broker fee stops being a row collection | [plan.md](./plan.md) § A fee belongs to its order |
+| See why an invention entry carries its own version | [plan.md](./plan.md) § An invention entry states the shape it was written in |
+| See why `build.costs` and `build.sale` go, and what replaces them | [plan.md](./plan.md) § The grouping follows the write rule |
+| See what a market order and a hand-entered sale need before they key | [plan.md](./plan.md) § A row collection whose key does not identify a row |
 | Know why this ships with the shared-planners release | [plan.md](./plan.md) § Why the window decides the order |
 | See what this project depends on | [plan.md](./plan.md) § What this project inherits |
 | See what waits on this project | [plan.md](./plan.md) § What depends on this |

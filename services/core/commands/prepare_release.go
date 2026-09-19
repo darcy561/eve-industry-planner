@@ -69,6 +69,11 @@ var releases = []release{{
 		{name: "drop unaddressable rebuild queue entries", run: dropUnaddressableQueueEntries},
 		// Before the rebuild: it derives each row's category names from the jobs.
 		{name: "stamp extras category labels onto jobs", run: stampExtrasCategoryLabels},
+		// After the label stamp, which writes into the rows while they are still
+		// an array, and before the rebuild, which derives its figures from what
+		// this leaves behind — consolidating a market order's broker fees to the
+		// one the listing was charged moves those figures.
+		{name: "reshape every job document", required: true, run: reshapeJobDocumentsStep},
 		// After the release's copy, never before: the copy is what an operator
 		// falls back to, and one missing the fields the previous release read is
 		// not a fallback.

@@ -536,8 +536,16 @@ type LinkedESIJob struct {
 	JobType         int     `json:"job_type" bson:"job_type"` // Job type
 }
 
+// InventionEntrySchemaCurrent is the shape a row written today has.
+//
+// A version on the row rather than on the job, because entries of different
+// vintages sit in one job: a row added after a shape change joins rows written
+// before it, and the job's own schema version cannot tell them apart.
+const InventionEntrySchemaCurrent = 1
+
 // InventionEntry is one invention attempt recorded against a job.
 type InventionEntry struct {
+	Version  int     `json:"version" bson:"version"`   // Which shape this row was written in
 	ID       string  `json:"id" bson:"id"`             // Identifies the row within its job
 	ItemName string  `json:"itemName" bson:"itemName"` // Name of the invention item
 	ItemCost float64 `json:"itemCost" bson:"itemCost"` // Cost of the invention item
@@ -554,6 +562,7 @@ func (e *InventionEntry) UnmarshalBSON(data []byte) error {
 		return err
 	}
 
+	e.Version = inventionEntryVersion(m["version"])
 	e.ID = stringFromDocumentValue(m["id"])
 	e.ItemName = stringFromDocumentValue(m["itemName"])
 	e.ItemCost = extraCostValueFromBSON(m["itemCost"])
@@ -561,9 +570,20 @@ func (e *InventionEntry) UnmarshalBSON(data []byte) error {
 	return nil
 }
 
+// inventionEntryVersion reads the version a row states, defaulting to the first.
+// A row stored before the field existed is a v1 row: the field was added to
+// name the shape those rows already had, not to change it.
+func inventionEntryVersion(value any) int {
+	if version := int(extraCostValueFromBSON(value)); version > 0 {
+		return version
+	}
+	return 1
+}
+
 // UnmarshalJSON reads an id written in either shape, as UnmarshalBSON does.
 func (e *InventionEntry) UnmarshalJSON(data []byte) error {
 	var raw struct {
+		Version  any     `json:"version"`
 		ID       any     `json:"id"`
 		ItemName string  `json:"itemName"`
 		ItemCost float64 `json:"itemCost"`
@@ -572,6 +592,7 @@ func (e *InventionEntry) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	e.Version = inventionEntryVersion(raw.Version)
 	e.ID = stringFromDocumentValue(raw.ID)
 	e.ItemName = raw.ItemName
 	e.ItemCost = raw.ItemCost

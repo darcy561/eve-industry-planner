@@ -29,6 +29,7 @@
   "build.costs.inventionEntries[].id",
   "build.costs.inventionEntries[].itemCost",
   "build.costs.inventionEntries[].itemName",
+  "build.costs.inventionEntries[].version",
   "build.costs.linkedJobs",
   "build.costs.linkedJobs[]",
   "build.costs.linkedJobs[].CharacterHash",

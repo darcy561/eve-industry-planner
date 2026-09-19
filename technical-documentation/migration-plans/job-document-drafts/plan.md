@@ -67,9 +67,9 @@ real:
   it finished. A command in this position **takes its own copy of its own collections**, because the
   release's copy is taken later and would otherwise record the rewritten state as the thing to revert to.
 
-Which one the reshape needs depends on whether array-to-map conversion is expressible as a server-side
-`$set` pipeline or has to read each document to rebuild it. That is the first thing Stage 2 establishes,
-and it is an open question below rather than an assumption to build on.
+Which one the reshape needs turned on whether the conversion had to avoid reading documents. It did not:
+a step that reads and rewrites each one converts the whole corpus in 1m32s, so the reshape is a
+`prepareRelease` step — [overlay.md](./overlay.md) § Stage 2.
 
 **Either way the reshape ships with shared planners, or it waits for the next release that migrates
 documents.** That is the constraint the stage order below is built around: everything that has to be in
@@ -144,8 +144,8 @@ An ordinary plain job object. The merge is not resolved per read.
 
 Applying a change returns a new root, but every subtree the change did not touch is the **same object
 by reference**. Editing a run count gives new objects for `draft`, `draft.build`, `draft.build.setup`
-and `draft.build.setup.<id>` — and leaves `draft.build.materials`, `draft.build.sale` and
-`draft.layout` referentially identical to the ones in `base`.
+and `draft.build.setup.<id>` — and leaves `draft.build.materials`, `draft.esi` and `draft.rawData`
+referentially identical to the ones in `base`.
 
 That referential stability is the subscription mechanism. A material card selecting its own row gets an
 unchanged reference, the store's equality check passes, and it does not re-render — with no `memo`, no
@@ -173,21 +173,188 @@ to keep the wire unchanged — the tag rule that decides which is in
 
 Everything a patch needs to address already carries an id and is stored as an array anyway:
 
-| Collection | Key it already carries |
-|---|---|
-| `build.materials` | `typeID` |
-| `build.materials[].purchasing` | `id` |
-| `build.costs.extrasCosts` | `id` |
-| `build.costs.inventionEntries` | `id` |
-| `build.costs.linkedJobs` | `job_id` |
-| `build.sale.marketOrders` | `order_id` |
-| `build.sale.transactions` | the transaction id |
-| `build.sale.brokersFee` | the fee's own id |
+| Collection | Key it already carries | Where it lands |
+|---|---|---|
+| `skills` | `typeID` | `skills` |
+| `build.materials` | `typeID` | `build.materials` |
+| `build.materials[].purchasing` | `id` | `build.materials.<typeID>.purchasing` |
+| `build.costs.extrasCosts` | `id` | `build.extrasCosts` |
+| `build.costs.inventionEntries` | `id` | `build.inventionEntries` |
+| `build.costs.linkedJobs` | `job_id` | `esi.industryJobs` |
+| `build.sale.marketOrders` | `order_id` | `esi.marketOrders` |
+| `build.sale.transactions` | the transaction id | `esi.transactions` |
+
+`build.sale.brokersFee` is not on that list. It is not a row collection after this project — § A fee
+belongs to its order folds it onto the order it was charged for. The destination column is § The grouping
+follows the write rule.
+
+**Measured, not assumed** — [measurements/row-key-uniqueness.md](./measurements/row-key-uniqueness.md)
+counts every one of these keys across a live snapshot, and the broker fee's alongside them. Of the eight
+above, five hold outright: skills, materials, purchases, extras costs and invention entries. Linked jobs
+repeat only as byte-identical duplicates of one ESI job, which the map collapses and the array was
+letting stand twice. The remaining two need a rule before they convert — § A row collection whose key
+does not identify a row. The ninth is the broker fee, which leaves the list entirely.
 
 `build.setup` is already a map keyed by `id` — the one that got it right, and the shape the rest move
 to. `build.materials.4.purchasing.2.itemCost` becomes `build.materials.34317.purchasing.<uuid>.itemCost`:
 stable under another member's concurrent insert, and expressible as a Mongo `$set`, which an array index
 is not. Where display order matters it becomes an explicit field or a sort at render.
+
+### A fee belongs to its order
+
+`build.sale.brokersFee` is the one row collection with no key, and the reason is that it should never
+have been a collection. `BrokerFee.ID` is the journal entry id, whose own comment records that it is
+shared by orders listed together: an in-game multi-sell charges several orders in one entry. 393
+distinct rows across both collections share an id with another, one archived job carrying 64 under a
+single one. `order_id` is worse at 814, because one order can carry more than one distinct fee row — what
+those rows are is § Open questions.
+
+**The fee's identity is the order, and the code already says so.** `Classes/brokerFee.js` opens with
+*"A row belongs to one market order and is removed with it, which is what `order_id` is for… the row
+carries no identity of its own"*, and `findBrokersFeeEntry` returns exactly one fee per order. The live
+documents bear it out: 324 orders, one fee each. The archive's multiples are mostly accumulation — the
+worst case is an order carrying 65 rows, 64 of them byte-identical copies of one fee, which the array has
+been hiding.
+
+**So the fee moves onto the order**: `esi.marketOrders.<order_id>.fee`, one entry per order. The
+invariant the comments assert becomes structural rather than something
+[`job.js`](../../../frontend/src/Classes/job.js)'s removal filter has to remember, and a change to a fee
+is one path on one order, which is what this project is for.
+
+**One entry, and the conversion keeps the oldest.** 42 archived orders carry more than one — 38 of them
+from 2022, where only 136 of the archive's 3,021 fee-bearing orders sit, against none at all in 2024 or
+2025. What those extra entries are was never settled: two of the four later ones show a smaller second
+charge and two a larger, and every amount carries the long decimals of `calcSellingCharges`' own
+arithmetic rather than a journal figure, so each records a fee this app *worked out* at link time from
+the skills and standings of whoever was linked then. A second link of one order recomputes and appends,
+because `addMarketOrder` has no guard against being called twice for an `order_id`.
+
+The oldest is the one the listing was actually charged, so it is the one that survives. It is also the
+larger in 40 of the 42, which is what a first listing followed by recomputations or a discounted relist
+would look like.
+
+**What that drops, measured by running it.** 814 rows: 210 that duplicate the entry beside them (163.8M
+ISK) and 604 that differ from it (326.0M ISK), against 21.1 billion ISK of fee the kept entries hold.
+
+The duplicates matter as much as the rest, which a count of *distinct* fees hides. Both the Go cost
+calculation and the SPA's `totalBrokersFees` sum every stored row, so a job holding one fee three times
+has been charged for it three times ever since — consolidating corrects that rather than losing anything.
+An earlier reading of this section put the drop at 61 rows and 43.3M ISK by counting how many distinct
+fees would disappear; the figure that matters is how many rows stop being summed, and it is six times
+larger.
+
+Those jobs' broker costs fall accordingly and their statistics rows follow on the rebuild. It is a
+deliberate write-down of figures rather than a shape change, which is why it is stated with its cost.
+
+**The shape is what stops it recurring.** A single field cannot accrue a second entry, so the unguarded
+append stops being expressible rather than being something `addMarketOrder` has to start checking for.
+
+**What it costs.** The cost calculation in `models.Job`, the archive row builder's `buildFeeLines` — which
+emits a line per fee today and a line per order afterwards — the SPA class and its tests all walk a fee
+array today and walk orders instead. That is a modelling change
+rather than a conversion, and it is why this is worth stating separately from the reshape that carries
+it.
+
+**Five fees have no order to move to, and the path that orphans them is live.** Two live and three
+archived, each on a job holding no market orders at all, carrying 45.3M ISK between them — 39.6M of it
+archived, and one row alone worth 28M.
+`stripConflictedLinks` in the archive restore drops a market order another job already holds and leaves
+its fee behind — the SPA's `removeMarketOrder` filters `brokersFee` first, the Go path has nothing to
+filter and no reason to remember. So this is not a historic tail: the next restore hitting an order
+conflict adds to it.
+
+The fold closes it structurally, which is most of the argument for the fold. Deleting the order takes the
+fee with it because the fee is on the order, with no second removal to get right. The conversion **drops
+the five and reports the count**, because a fee charged against an order the job does not have is already
+costing that job for something it cannot show. Five jobs' totals move, and three of those are archived,
+so their statistics rows move with the rebuild.
+
+**Three fields go rather than move.** `ArchivedJobFeeLine.FeeID` is written by `buildFeeLines` and read
+by nothing. Every stored fee row carries a `complete` field no model and no class has ever read — 4,159
+of them. And 3,624 carry a `CharacterHash`, which is redundant twice over once the fee sits on the order
+that records whose it is. None survives the fold. Meanwhile `salesTax`, which the model does carry, is on **zero**
+stored rows, which is the [document-defaults](../document-defaults/plan.md) pattern exactly: the upsert
+`$set`s only what the struct marshals, so an unmodelled key is never touched.
+
+### An invention entry states the shape it was written in
+
+Every other version in this codebase is a **document** version: a `*SchemaCurrent` constant, a bump when
+the shape changes, and an upgrader step that rewrites the document on read. An invention entry carries
+its own instead, as `version` on the row.
+
+**Because the rows outlive the bump.** A document version says what shape a job is in, and the upgrader
+brings the whole job forward at once. That works while every row of a collection moves together. An
+invention entry does not: a row added next year joins rows written years earlier, in a job whose version
+says only when the job was last brought forward. Asking the job what shape one of its entries is in gives
+the wrong answer as soon as two vintages sit side by side.
+
+**Every stored row is v1**, and the conversion stamps it — 245 rows across the corpus, all of them
+written before the field existed, all of them the one shape it was added to name. A row that arrives
+carrying no version is read as v1 on both sides for the same reason.
+
+**It is the first constant this repo keeps in two languages.** `models.InventionEntrySchemaCurrent` and
+the SPA's `InventionEntry.SCHEMA_CURRENT` are one fact, and nothing about `1 == 1` stays true on its own,
+so a test in `shared/models` reads the SPA's declaration and fails when the two drift. The alternative —
+a comment on each asking the next person to remember — is what this project keeps finding the wreckage
+of.
+
+### A row collection whose key does not identify a row
+
+Two of the eight need a rule before the conversion can run, and they need different ones.
+
+**A market order keeps its order and loses its history.** Two archived jobs hold the same order twice
+with different slices of its `timeStamps`, which is the only field that differs. Keying on `order_id`
+never loses an order, so this is not a key to choose but a rule for the conversion: where rows collapse,
+keep the longest `timeStamps` of them. With that, nothing is lost.
+
+**A transaction's key holds for every sale ESI issued and not for one entered by hand.** All 18 groups
+that genuinely differ carry `transaction_id` 0, where `models.IsMarketTransactionID` expects a
+hand-entered sale to be minted negative. These are a historic tail rather than a live defect: the SPA's
+`mintCustomID` mints a non-zero negative id and cannot produce a zero, so nothing writing today adds to
+them. 120 archived rows carry a zero and one live row does; 96 archived rows carry a negative id, minted
+as the SPA mints one now. So 217 rows are hand-entered sales, which is what the rule below has to cover.
+
+**A hand-entered sale is minted the id it should already have had.** `Transaction.mintCustomID` mints a
+negative 48-bit id, and that is the right shape: `transaction_id` is ESI's field, EVE's ids are numbers,
+and a negative one is both outside the space ESI issues from and the thing `IsMarketTransactionID` reads.
+The 217 rows carrying zero or nothing are rows the mint never reached, not rows minted wrongly. The
+conversion mints them in that same shape.
+
+This is deliberately **not** the uuid § Stage 2c gives `ExtraCost.ID` and `InventionEntry.ID`. Those are
+ids the app invents for rows the app invents, in a field only the app reads. `transaction_id` is ESI's
+own field carrying ESI's own value for every row but these, and the sign is what tells the two apart. A
+uuid would make the field a string, which costs the sign test, `models.Transaction.TransactionID`,
+`ArchivedJobTransactionLine.TransactionID`, and the `int64` chain below — a great deal of change for rows
+that already have a working shape to be minted into.
+
+`journal_ref_id` is not the key and was never a candidate: it identifies the journal entry the sale
+produced rather than the sale, and it is absent from more rows than `transaction_id` is —
+[measurements/row-key-uniqueness.md](./measurements/row-key-uniqueness.md) § Keys tested and rejected.
+
+**The mint does not have to happen in a pipeline after all.** Running the conversion as a step that reads
+and rewrites each document took 1m32s over 42,065 documents, so the window cost § Settled was weighing
+does not arise — see [overlay.md](./overlay.md) § Stage 2. The id is minted in Go, in the shape
+`Transaction.mintCustomID` produces, and 217 rows in the corpus need one.
+
+#### A defect this found, which the mint does not fix
+
+`Job.LinkedTransactionIDs` walks every transaction and returns `[]int64`, unfiltered, feeding
+`Group.LinkedTransIDs`, `UserAccountDocument.LinkedTrans`, the `$in` query `esiLinkField` builds over
+`build.sale.transactions.transaction_id`, and the conflict maps `stripConflictedLinks` compares against.
+On the SPA the everyday path does the same: `addCustomTransaction` mints the row, the reducer pushes its
+id into `esiDataToLink.transactions.add` with nothing distinguishing it from an ESI-matched one,
+`closeActiveJob` passes that through to `addLinkedEsiData`, and the account store folds it into
+`linkedTrans`.
+
+That chain exists to stop one **ESI** transaction being claimed by two jobs — `esiLinkKind` names an ESI
+series, and the getter's own comment says "the ESI transactions linked to this job". A hand-entered sale
+is not one: it is minted locally, belongs to the job that minted it, and cannot collide with anything. It
+is in the set because nothing filters it out.
+
+**Recorded rather than taken.** Keeping the id numeric means nothing breaks, so this is a tidy-up rather
+than work this project owes: a locally minted id occupies a slot in an account-wide record of which ESI
+ids are taken, and does no harm there. The filter belongs on `LinkedTransactionIDs` and on the SPA change
+set where it is built, and `IsMarketTransactionID` is the test either would use.
 
 ### An owner is stated once, not four ways
 
@@ -257,9 +424,24 @@ the document. That is the model.
 derived figure is never stored, so it never appears in a patch, never conflicts, and never needs an undo
 entry.
 
-`rawData` goes for a different reason: it is the blueprint recipe from the SDE, identical for every
-player holding that blueprint, copied into every job document and re-sent on every write. It is not the
-player's data and does not belong in the player's document.
+**The rule has a second half: an input a decision was built from is stored too.** Otherwise it reads as
+though nothing but a player's choices may live in the document, and `rawData` — the blueprint recipe from
+the SDE, identical for every player holding that blueprint — would fail it. It stays, for two reasons
+neither of which is about who decided it.
+
+**It is what the derived figures are recalculated from.** `setupBuildHelpers` takes `rawTime` from
+`rawData.time` and `baseQuantity` from `rawData.products[0].quantity`, `recalculateMaterials` is fed
+`rawData.materials` when a setup is built and again from `Classes/job.js` when one is rebuilt, and
+`buildJob` falls back to `rawData.products[0].quantity` for a required quantity. Remove it and the
+figures above have nothing left to derive from.
+
+**It is what makes the archive an archive.** A job's figures came from the recipe as it stood when it was
+built, and EVE's recipes change; a job that looks its recipe up again renders differently from the job
+that was run. The copy is the snapshot, and the snapshot is the point.
+
+`skills` is the same class and stays for the same reasons: it is the job's own record of what building it
+required, and `useGroupScheduler` reads `job.skills` off every job in a group to hand to
+`calculateTimeForSetup`.
 
 ### The document splits by who writes it
 
@@ -268,31 +450,123 @@ player's data and does not belong in the player's document.
 | Zone | Fields | Write rule |
 |------|--------|------------|
 | Decisions | setups, material purchases, extras costs, invention entries, the sale plan, price overrides | Patchable, undoable, checked for collision |
-| Observations | linked ESI jobs, market orders, transactions, broker fees | Sourced from ESI, replaced wholesale by a refresh, never hand-edited |
+| Observations | linked ESI jobs, market orders, transactions, broker fees | Sourced from ESI, merged per row on a refresh, never hand-edited |
 | Derived | totals, requirements, install costs, times | Not stored |
 
-`updateLinkedJobData` overwrites the observation rows on every refresh. Sharing a zone with decisions
-would make the log carry entries no player created, and force undo to decide what unwinding an ESI
-refresh means. Separating them means it never comes up.
+A refresh is a per-row merge rather than a replacement: `updateLinkedJobData` walks the linked jobs and
+calls `applyLatest` on each, and `applyLatestOrderData` does the same for orders, both matching on the
+ESI id the row already carries. That is worth stating precisely, because it is what makes nesting safe —
+a fee kept under its market order survives a refresh of that order, where a wholesale replacement would
+have destroyed it.
+
+What the zones are for is the log. Sharing one with decisions would make it carry entries no player
+created, and force undo to decide what unwinding an ESI refresh means. Separating them means it never
+comes up.
+
+### The grouping follows the write rule
+
+`build.costs` and `build.sale` are the two groupings the document has, and neither survives the zone
+table above. `costs` holds extras costs and invention entries, which are decisions, beside linked ESI
+jobs, which are an observation. `sale` holds market orders and transactions, which are observations,
+beside `plan`, which is where the player chose a seller and a sale location. Each cuts across the write
+rule rather than following it, so neither tells a reader or a writer anything.
+
+So the two levels go, and the observations move to a sibling of `build`:
+
+```
+build/    what the player decided — patchable, undoable, collision-checked
+  setup.<id>
+  materials.<typeID>.purchasing.<id>
+  extrasCosts.<id>
+  inventionEntries.<id>
+  sellerCharacter, saleLocationID
+  localPricing, materialPriceOverrides
+
+esi/      what ESI reported — merged per row on refresh, never hand-edited
+  industryJobs.<job_id>
+  marketOrders.<order_id>.fee
+  transactions.<transaction_id>
+```
+
+**`build` keeps its name**, because that is what it now holds and nothing else: a job's build
+information. The observations were never build information, which is why `costs` and `sale` had to exist
+to hold them.
+
+**One field is renamed as it moves, and only one.** `linkedJobs` becomes `esi.industryJobs`. Under `esi`
+every row is linked, so "linked" stops distinguishing anything, while "job" at the top of a job document
+collides with the parent/child links § How a job is held while it is open calls linking. `industryJobs`
+says which of ESI's series it holds, which is what `models.LinkedESIJob`'s own comment already calls it.
+Nothing else changes name: `extrasCosts`, `inventionEntries`, `marketOrders` and `transactions` all say
+what they hold already.
+
+**One nesting stays, because the parent's key is what scopes the child's.** A purchase belongs to one
+material, so `purchasing` is keyed under it rather than hoisted into a collection that would need a
+material id on every row. A fee is not a collection at all — § A fee belongs to its order makes it a
+field of the order it was charged against.
+
+**What it buys beyond a shorter path.** Every subtree has one write rule, so a patch is a decision or an
+ESI refresh by its first segment rather than by inspecting what it touched. Today an entry under
+`build.costs` could be either, and Stage 3's log would have to tell them apart some other way.
+
+**What it costs.** Every path moves, so every `build.costs.*` and `build.sale.*` read in the SPA changes,
+and the conversion rewrites more of each document. It rides Stage 2 because that step already moves every
+path in the window; taken later it needs a window of its own.
 
 ### `layout` stops existing
 
-`layout` is a bag holding three unrelated kinds of thing, and reading each one to its home empties it:
+**It was never a schema decision.** `layout` was added as a place to park values that were resetting on
+rerender when they should not have — a persistence workaround for SPA state, not a statement about what
+a job is. That is the whole reason it exists, and it is why reading its fields finds three unrelated
+kinds of thing with nothing in common but the bug they were escaping.
+
+Which makes the fix Stage 3 rather than a better bag. An untouched base with an ordered log over it is
+state that survives a rerender because it is not rebuilt by one, so nothing needs parking. Each field
+goes to where it belongs on its own merits:
 
 | Field | What it actually is | Where it goes |
 |---|---|---|
 | `materialPriceOverrides` | What the player decided a material is priced at | `build`, with the other decisions |
-| `localMarketDisplay`, `localOrderDisplay` | A **per-job override** of the account's default market hub and order type | `build`, for the same reason |
+| `localPricing` | The job's own choice of where each side of it is priced | `build`, for the same reason |
+| `localMarketDisplay`, `localOrderDisplay` | The **superseded** single-market form of that choice, still echoed back by every save | Folded into `localPricing` by Stage 2's conversion, then dropped |
 | `esiJobTab` | Which tab this reader had open | Dropped — `applicationSettings.esiJobTab` already holds it at account level |
 | `setupToEdit` | Which setup card is selected | Dropped — editor session state, held by the draft store and re-derived on open |
 | `resourceDisplayType` | Nothing. No consumer reads it | Dropped |
 
-**The two market fields are the surprise.** They read as view state from their names and their
+**The pricing fields are the surprise, twice over.** They read as view state from their names and their
 neighbours, but `useEffectiveMarketHubFromLayout` resolves each as `job ?? account default`, and
 `useStripRedundantJobMarketHubOverrides` exists to clear a job's value once it matches the account's. A
 field with a hook dedicated to keeping it only while it differs is an override, and an override of a
-pricing basis is a decision about the job. They belong with `materialPriceOverrides`, not in settings and
-not deleted.
+pricing basis is a decision about the job. So this part of the bag is not view state at all.
+
+**The second surprise is that two of the three are already superseded.** No control writes
+`localMarketDisplay` or `localOrderDisplay`: every writer — the purchasing panel, `useMaterialOverrides`,
+the strip-when-redundant hook — writes `localPricing`, and the `Job` constructor reads the older pair
+only to seed it, falling back again to the older `marketLocation` / `orderType` aliases beneath them.
+
+They are still *written*, though, and that is the defect. `toDocument` echoes both back on every save
+from whatever the document was loaded with, so a job whose pricing has since changed carries a stale
+single-market value on disk — and `jobPricingOverride` seeds an unchosen side from exactly that value.
+A job with a buying choice and no selling choice takes its selling side from a figure nothing has
+maintained since `localPricing` arrived.
+
+`jobPricingOverride` also says why the pair cannot simply be carried forward: naming one market said
+nothing about which side of the job it meant, so both sides seed from it and neither may claim it.
+**Stage 2's conversion applies that rule once, to every document, and the pair goes with `layout`.** It
+is the step with every document in hand, and once it has run nothing reads the old pair, so the
+constructor's seeding goes in the same stage. This is not routed to
+[document-defaults](../document-defaults/plan.md) Phase A2's read-path upgrader: that normalises what a
+read finds, and after the window there is nothing left to find.
+
+**That takes one of Phase A2's own items with it.** The constructor block being deleted is also where
+`marketLocation → localMarketDisplay` is read, which Phase A2's alias list names. Stage 2 retires that
+fallback as part of the fold, so the alias leaves Phase A2's scope rather than moving into its upgrader —
+stated in both plans, because a dependency written down on one side only is how § Stage C of
+[document-write-granularity](../document-write-granularity/plan.md) came to be designed twice.
+
+`localPricing` is what survives, and it is read the most widely of anything in the bag —
+`priceResolution`, `pricingSide`, `pricesWanted`, the purchasing panel, `useMaterialOverrides`, the
+materials-and-sourcing panel's own read, the group output card and the `Job` constructor all take it. It
+is absent from every stored document in the corpus because it is recent, not because nothing writes it.
 
 **`esiJobTab` is a duplicated source of truth** — the account-level setting already exists and the job
 carries a second copy. On a shared planner that copy is two members overwriting each other's open tab, in
@@ -542,7 +816,7 @@ member with no lock who has changed something is drafting. The four combinations
 all ordinary.
 
 One apply path, one store, one set of selectors. A reader gets granular re-renders for nothing — a change
-touching `build.sale` re-renders the selling panel and leaves the rest referentially identical, where a
+touching `esi.transactions` re-renders the selling panel and leaves the rest referentially identical, where a
 whole-document replacement re-renders the page. No second code path for reading as against changing,
 which is the strongest argument for this shape over merging inbound changes into one mutable copy.
 
@@ -605,9 +879,14 @@ the promotion drafts.
 | Surface | Verdict |
 |---------|---------|
 | Job document row collections (arrays → id-keyed maps) | **migrate-required**, one cutover, on the shared-planners release. Rollback is `revertRelease` over a copy taken before the rewrite writes — the release's own copy if the reshape is a step, its own copy if it runs ahead of the window |
-| `rawData` and the stored derived setup fields | **Removal only.** Nothing needs an upgrader — the writer stops writing them and stored copies age out |
+| The stored derived setup fields | **Removal only.** Nothing needs an upgrader — the writer stops writing them and stored copies age out. `rawData` and `skills` are **not** among them: § Stored derived figures come out says why they stay |
+| `build.sale.brokersFee` folded onto its market order as one `fee` | **migrate-required**, in the same step, and it moves figures in two groups. 814 entries are dropped in favour of the oldest on their order — 210 duplicates (163.8M ISK) and 604 differing (326.0M ISK). Five fees whose order is gone are dropped outright (45.3M ISK). Every affected archived job's statistics row follows on the rebuild |
+| `build.costs` and `build.sale` removed, observations moved to `esi` | **migrate-required**, in the same step. Every path under either moves, so every SPA read of `build.costs.*` or `build.sale.*` changes with it — § The grouping follows the write rule |
 | `materialPriceOverrides` moving under `build` | **migrate-required** — rewritten in the same step as the row collections |
-| `layout` removed, its two overrides moved under `build` | **migrate-required** for the move; the three dropped fields are removals needing no upgrader |
+| `layout` removed, `localPricing` moved under `build` | **migrate-required** for the move, and for the fold: Stage 2's conversion reads `localMarketDisplay` / `localOrderDisplay` into `localPricing` by `jobPricingOverride`'s rule rather than moving them, and the SPA stops echoing them in the same deploy. The three view-state fields are removals needing no upgrader |
+| An invention entry carries `version` | **additive**. Client-visible, and every stored row is stamped v1 by the conversion. A row carrying none is read as v1 on both sides, so a client that has not been deployed yet still round-trips |
+| A hand-entered sale's `transaction_id` | **No shape change.** The 217 rows carrying zero or nothing are minted a negative id in the shape the SPA already mints, so the field stays an `int64` and `IsMarketTransactionID` keeps reading it |
+| `ArchivedJobFeeLine.FeeID` on the archived statistics row | **Removal only**, but client-visible as `feeID` in JSON. Nothing reads it on either side; a reader that decodes the row by field sees one fewer |
 | `models.Job` schema version and upgrader entry | Owned by [document-defaults](../document-defaults/plan.md); this project supplies the field list that version describes |
 | `PUT` of a job document | **Unchanged by this project.** The client keeps sending whole documents until [document-write-granularity](../document-write-granularity/plan.md) § Stage C; the change set exists client-side before anything on the wire uses it |
 | Websocket job document delivery | **Unchanged.** The rebase applies to whole documents as delivered today |
@@ -625,23 +904,69 @@ inventory, and the row in the section [contents.md](../contents.md). No code.
 
 ### Stage 1 — The removals
 
-`rawData` out of the job document; the stored derived setup figures out; `esiJobTab`, `setupToEdit` and
-`resourceDisplayType` out, per § `layout` stops existing. Cheapest first because removals need no
-upgrader — the writer stops writing them and stored copies age out.
+The stored derived setup figures out; `esiJobTab`, `setupToEdit` and `resourceDisplayType` out, per
+§ `layout` stops existing; and `Purchase.TypeID` out. Cheapest first because removals need no upgrader —
+the writer stops writing them and stored copies age out.
 
-Worth landing on its own even if nothing else does: it shrinks every job document, every write and every
-websocket frame, and it removes four figures that can disagree with their inputs.
+`Purchase.TypeID` is write-only: `jobMaterial.js` stamps it from the parent material when a row is
+created and nothing reads it back — every consumer reads the material's own `typeID`, and Go's
+`countedPurchases` takes only `ItemCount` and `ItemCost`. Its model comment justifies it as a value the
+frontend puts on each row, which is true and is not a use. 3,127 of 14,834 stored rows carry `0`, which
+is what a field nothing checks looks like.
+
+Worth landing on its own even if nothing else does: it removes four figures that can disagree with their
+inputs, and shrinks every write and every websocket frame by them.
+
+Three more go with them, all found by the row-key gate: `ArchivedJobFeeLine.FeeID`, written by
+`buildFeeLines` and read by nothing, and the `complete` and `CharacterHash` fields stored broker fee rows
+carry that no model and no class reads.
 
 ### Stage 2 — The reshape, in the release window
 
-Row collections become id-keyed maps, and the three fields that outlive `layout` move under `build`:
-`materialPriceOverrides`, `localMarketDisplay` and `localOrderDisplay`. `layout` itself goes with them,
-Stage 1 having already emptied the rest. The SPA and the API read and write the new shape.
+Row collections become id-keyed maps; `build.costs` and `build.sale` go and the observation rows move to
+`esi`, per § The grouping follows the write rule; and the two fields that outlive `layout` move under
+`build` — `materialPriceOverrides` and `localPricing`, the single-market pair folding into the latter as
+it goes. `layout` itself goes with them, Stage 1 having already emptied the rest. The SPA and the API
+read and write the new shape.
 
-A `prepareRelease` step, after the owner stamp and inside the release's copy, per § Settled. It opens by
-proving the update pipeline against real job documents and by counting repeated `typeID` rows across the
-live snapshot — a repeated key loses a row silently, so that count gates the step rather than following
-it.
+A `prepareRelease` step, inside the release's copy. **The conversion is built** — what it does, what it
+reported against a restored copy of live and what proves it are [overlay.md](./overlay.md) § Stage 2.
+The key count that gates it is re-run against live before the step writes anything:
+[measurements/row-key-uniqueness.md](./measurements/row-key-uniqueness.md) is a snapshot's, and the
+corpus at release time is not that snapshot.
+
+**What remains of this stage is the SPA and the API reading the new shape.** The conversion moves the
+documents; nothing yet reads what it produces.
+
+**The fold widens this stage beyond a conversion.** Moving the fee onto its order changes the cost
+calculation, the archive row builder, the SPA class and their tests, which the array-to-map conversion
+on its own does not. `stripConflictedLinks` is in that set and owes a case asserting a stripped order
+takes its fee — the defect § A fee belongs to its order names, which the fold is what actually fixes. It
+rides this stage rather than waiting because it moves a stored path, and a stored path moves in a
+window.
+
+**The step counts what it collapses and refuses what it cannot explain.** Built, and this is what it
+does. Every "loses nothing" in this
+plan is a statement about a snapshot, and the corpus at release time is not that snapshot: rows written
+between the measurement and the window are unmeasured, and `$arrayToObject` keeps the last value for a
+repeated key without saying it did. So the conversion does not trust the count — it compares each array's
+length against its key count as it goes, writes the document only where they agree, and reports every one
+where they do not. A release that finds none has proved what was measured; a release that finds some has
+found the row the measurement could not see, instead of discarding it.
+
+**One ordering rule covers the lot: a row's id is settled before anything is keyed by it.** Key first and
+the map is addressed by a value about to change, which is the invariant § Settled states — a row
+collection is addressed by the row's own identifier — broken by the step that builds it. Three instances,
+and the third is the one that crosses a stage boundary:
+
+- A hand-entered sale is minted its id before the transactions array becomes a map, or the rows carrying
+  nothing collapse onto a single key and the mint arrives too late to matter.
+- A fee moves onto its order before the orders are keyed.
+- **§ Stage 2c's uuids are minted before `extrasCosts` and `inventionEntries` are keyed** — 245 invention
+  entries still carry a numeric id, so keying first would file each under a number and then rewrite the
+  `id` beneath it to a uuid, leaving the key and the row disagreeing. Either 2c's mint runs ahead of this
+  conversion for those two collections, or this conversion re-keys them afterwards; running the mint
+  first is one pass rather than two.
 
 **This is the only stage with a deadline.** It ships with the shared-planners release or it waits for the
 next release that migrates documents.
@@ -675,6 +1000,18 @@ What is left is the documents that have not been saved since, and they will not 
 nobody opens is never rewritten. That is a prepare-release step, and it has to run against live —
 counts taken in dev say nothing about how many exist in production.
 
+**Counted against a live snapshot, and the two halves are not alike** —
+[measurements/extras-and-invention-ids.md](./measurements/extras-and-invention-ids.md). Not one of 1,389
+extras rows carries a numeric id or lacks one, so that half of the step has nothing to convert: every
+extras row in the corpus has been saved since the generator moved to `crypto.randomUUID()`. Every one of
+245 invention entries carries a numeric id, so that half is the whole of the work, and it is small.
+
+The other shapes the step was written to absorb are not there either: no numeric `category`, no numeric
+`extraText`, no string `extraValue`, no epoch-milliseconds `deletedAt`. What **is** there is 865 extras
+rows carrying no category, which [document-defaults](../document-defaults/plan.md) § Track B owns and
+files under `unassigned`. Re-measure against live before the step runs; a snapshot is not the moment the
+step executes in.
+
 **The step must normalise the row, not patch the field.** The trap is the shape
 [`release_extras_labels.go`](../../../services/core/commands/release_extras_labels.go) uses: it reads
 extras rows as `[]bson.M`, stamps one key, and `$set`s the array back, which preserves every other
@@ -685,6 +1022,12 @@ the whole row by construction, and cannot miss a field.
 It covers more than the id. The same two types tolerate `category`, `categoryLabel` and `extraText`
 arriving as numbers, `extraValue` arriving as a string, and `deletedAt` arriving as epoch
 milliseconds — all of which the same rewrite settles.
+
+**A stored corpus being clean is not the whole test.** `UnmarshalBSON` reads what Mongo holds, which the
+step normalises; `UnmarshalJSON` reads what a client sends, which it does not. A browser holding an
+already-loaded bundle keeps sending whatever that bundle mints until it reloads, so retiring the two
+paths is two decisions rather than one: the BSON side is answered by the step, the JSON side by how long
+a stale client may still be writing. Judge that before either comes out.
 
 **Only after live is clean does the read-side coercion come out**, and it should: `extraCostScalarString`,
 `extraCostScalarFloat64`, `stringFromDocumentValue`, both `UnmarshalJSON` methods and both
@@ -726,8 +1069,8 @@ happened.
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project folder and docs | **Done** |
-| Stage 1 — the removals | Not started |
-| Stage 2 — the reshape, in the release window | Not started |
+| Stage 1 — the removals | **Not started, and unblocked.** Scope is settled: the four derived setup figures, `esiJobTab` / `setupToEdit` / `resourceDisplayType`, and `Purchase.TypeID`. No window, no dependency, no upgrader |
+| Stage 2 — the reshape, in the release window | **Built and wired in; not run against live.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. What remains is the SPA and the API reading the new shape, which is the rest of this stage. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
 | Stage 3 — base, log, scratch and draft | Not started |
 | Stage 4 — getters become functions | Not started |
 | Stage 5 — `jobArray` goes plain | Not started |
@@ -751,13 +1094,62 @@ order on `order_id`, a transaction on its own id, an extras cost and an inventio
 standardised is the shape, not one field name: a row collection is a map, addressed by the row's own
 identifier, never by position.
 
+**`build.materials` keyed by `typeID` holds, and the gate found its trouble elsewhere.** The reaction
+case this was raised against is answered by a count rather than an argument: 224,995 material rows
+across a live snapshot, no job carrying two of one type, because a restacked formula is one row with a
+larger quantity. Skills, purchases, extras costs and invention entries are equally clean, and linked ESI
+jobs repeat only as identical duplicates the map collapses. What the count did find is two collections
+whose key does not identify a row, and one of those is a collection this project stops having: a broker
+fee folds onto the order it was charged for, per § A fee belongs to its order.
+[measurements/row-key-uniqueness.md](./measurements/row-key-uniqueness.md) carries the numbers.
+
+The gate stands for Stage 2 regardless: it is re-run against live, not the snapshot, before anything is
+written, because the two sale collections are the ones that grow.
+
 **That makes it a `prepareRelease` step rather than a fan-out command.** An array-to-map conversion is
 expressible as an update pipeline — `$arrayToObject` over a `$map` producing `{k, v}` pairs, with
 `$toString` on numeric keys and `$ifNull` for an absent array — so the server rewrites each document
 without the migration reading it. Mongo 8 is what runs, and both update-with-pipeline and
-`$arrayToObject` are long established there. So the reshape goes inside the window and inside the release's own copy,
-which is the reversible half of § Why the window decides the order. **Not yet verified against real job
-documents** — that is the first thing Stage 2 does.
+`$arrayToObject` are long established there. That expressibility is what made an in-window step look
+affordable, and § Why the window decides the order is why it goes inside the release's own copy.
+
+**In the event it did not need to be a pipeline at all**, and the step reads each document instead —
+which is what lets it refuse one it cannot account for. § A row collection whose key does not identify a
+row has the timing that settled it.
+
+**Settled by running it: the step reads and rewrites, and the window does not notice.** The whole
+question of whether the conversion had to be a server-side pipeline was about window time, and 42,065
+documents convert in 1m32s. So the reshape is a `prepareRelease` step that reads each document — which
+is also what lets it refuse one it cannot account for, something a pipeline cannot do. The fee fold, the
+minted id and the `layout` fold all stop being awkward the moment reading is allowed.
+
+**Its own step, not folded into the owner stamp.** They write to overlapping collections, so merging them
+looks like a free saving of one pass. It is not, and the reason is the stamp's filter: it selects
+documents carrying an account id and no owner, which is what makes it resumable and repeatable, and it
+excludes every document already stamped — which, after the rehearsals, is all of them. A reshape sharing
+that filter skips exactly the documents it exists to rewrite and reports success. Widening the filter to
+cover either condition then makes the step's own `ModifiedCount != eligible` assertion unwritable,
+because `eligible` counts two different populations.
+
+Four smaller reasons point the same way. The stamp covers seven collections and the reshape three. The
+stamp is `required` because the steps after it read its output, so a reshape bug would halt the release
+at the step everything else is built on. The reshape has a precondition the stamp has no equivalent for
+— the repeated-key count in § Settled, which has to pass before anything is written. And they are not the
+same kind of operation: the stamp is a server-side pipeline that never reads a document, where the
+reshape reads each one so it can refuse the ones it cannot account for.
+
+**The alternative worth weighing is pre-window, not merged.** If the window's length is the concern, the
+lever is the fan-out shape § Why the window decides the order describes. Its cost is not recorded there:
+a rewrite running ahead of the window means the SPA and the API read both shapes until the deploy, which
+the in-window step avoids by construction.
+
+**A market order holds one broker fee, and the oldest is the one it holds.** 42 archived orders carry
+more than one entry, and what the extras are was never established — § A fee belongs to its order has the
+measurement and the two readings it could not choose between. Rather than carry the ambiguity into the
+shape, the conversion keeps the entry the listing was charged and drops the rest: 814 rows, 489.8M ISK,
+whose statistics follow on the rebuild. Most of that is duplicate rows the cost paths have been summing
+more than once, so the consolidation corrects figures as much as it drops them. A single field then makes a second entry
+unrepresentable, which is what stops the question arising again.
 
 **`immer` is the library, and the boundary is that it stays a function.** `zustand` declares it an
 optional peer because it ships an `immer` middleware, so the store already expects it rather than being
@@ -838,12 +1230,6 @@ arriving mid-edit interrupts work over a case that is rare and usually uninteres
 inbound value silently is the loss this whole design exists to stop. Marking also matches what § The
 merge, when the lock frees already does — the same choice, made in the same shape, in the two places it
 arises.
-
-**Does `build.materials` keyed by `typeID` hold for reactions?** Reaction formulas restack and a job can
-carry a stacked quantity, but a material row is still one row per type. § The reshape is a map
-conversion makes this a **gate on the migration** rather than a tidiness check: `$arrayToObject` keeps
-the last value for a repeated key, so a job carrying two rows of one type loses one silently as it is
-rewritten. Counted across the live snapshot before Stage 2 writes anything.
 
 ## Non-goals
 

@@ -109,9 +109,10 @@ id-bearing and stored as an array:
 
 Not needed for Phase 1, wanted before the stage named beside each:
 
-- **Document size, before and after the removals** — `rawData` and the four derived setup fields, as a
-  share of a real job document. Take it from the live snapshot rather than a synthetic job, and from
-  jobs with several setups rather than one. *Before Stage 1.*
+- **Document size, before and after the removals** — the four derived setup fields, as a share of a real
+  job document. Take it from the live snapshot rather than a synthetic job, and from jobs with several
+  setups rather than one. `rawData` is not among them; [plan.md](../plan.md) § Stored derived figures
+  come out says why it stays. *Before Stage 1.*
 - **Renders per keystroke on a real job**, using the React profiler on a job with a full material list —
   the figure Stage 3 is judged against. *Before Stage 3.*
 - **Repeated `typeID` rows in `build.materials` across the live snapshot.** The conversion uses
