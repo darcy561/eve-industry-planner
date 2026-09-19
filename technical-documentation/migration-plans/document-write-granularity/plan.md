@@ -487,7 +487,7 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
-| A — a write that checks the revision | **Landed, server side, and proved against a real database.** A job carrying a revision is written conditionally on it as its own `UpdateOne`, whose match is the answer; a job carrying none is batched and upserted as before, so the change is additive. The refusal is answered per document as a 409 `revision_conflict` carrying `saved` and `rejected[]`. The first build batched the conditional writes and inferred the outcome from a later read, which passed every unit test and reported every refused write as applied — see § Stage A. The client half is Stage B. See [overlay.md](./overlay.md) § Stage A |
+| A — a write that checks the revision | **Landed, server side, and proved against a real database.** A job carrying a revision is written conditionally on it as its own `UpdateOne`, whose match is the answer; a job carrying none is batched and upserted as before, so the change is additive. The refusal is answered per document as a 409 `revision_conflict` carrying `saved` and `rejected[]`. The first build batched the conditional writes and inferred the outcome from a later read, which passed every unit test and reported every refused write as applied — see § Stage A. **Landed is not the same as operating: nothing sends a revision yet**, so every production write still takes the unconditional path and no write is refused for a stale base. A project depending on this needs the client half — Stage C here — not Stage A. See [overlay.md](./overlay.md) § Stage A |
 | B — a refused write is an outcome the UI handles | **Landed.** All three defects closed: the client recognises a `revision_conflict` beside the lock conflict it already handled, drops the refused write from the pending queue rather than replaying it forever, and warns the user; `persistJobDocumentsToApi` answers an outcome that `saveJobsViaApi` passes through, so `closeActiveJob` stops reporting a refused write as saved; and the client's own gate warns instead of discarding edits silently — in `closeGroup` as well as `closeActiveJob`, which carried the same defect for the group lock. Stage A's ordering constraint is discharged. See [overlay.md](./overlay.md) § Stage B |
 | C — field-scoped writes | **Not started, and blocked on [job-document-drafts](../job-document-drafts/plan.md) Stage 3**, which supplies the change set this stage sends. Two decisions stand — the body is replaced outright rather than widened, and the slice is jobs only — and two are superseded by that project: it supplies the change set rather than a baseline diff, and its Stage 2 keys the row collections so a path into a row is stable. See § Stage C |
 | D — the lock stops being broad | **Part landed: the batch refusal is per document.** A held job is dropped from the batch and the rest written, answered as a 409 carrying `saved` and every held document; the client keeps only the held ids queued. The other two removals are **not safe yet** — they rest on conditional writes, and no write is conditional until the SPA carries the revision, which is Stage C. Relaxing the lock now would remove the only protection operating. See [overlay.md](./overlay.md) § Stage D |
@@ -530,6 +530,16 @@ which is not, and which § Stage D explains cannot be taken until conditional wr
 project stays blocked, on the second of the two rather than both. Its own plan still reads as though
 both are outstanding; the dependency is stated there rather than here, which is the same one-way
 linking that let Stage C be designed twice.
+
+**What this project supplies to others, and the caveat on it.** Stage A gives a document version and
+a write that refuses a stale base. Both are built and proved against a real database, and **neither
+is operating**: the SPA's `Job` class rebuilds `_meta` from three named fields, so `toDocument`
+structurally cannot carry a revision and every production write takes the unconditional path.
+
+A project that wants a stale write to be *refused* rather than reported is waiting on the client half
+— Stage C here, and [job-document-drafts](../job-document-drafts/plan.md) Stage 3 beneath it — not on
+Stage A. Saying Stage A has landed without that caveat reads as protection that does not exist, which
+is the error to avoid in either direction: the mechanism is live, the behaviour is not.
 
 **One gap is owed rather than blocked.** The Redis lock gate has no live test: nothing proves a lock
 genuinely held by another session makes the handler drop that job and write the rest. `testing/redislive`
