@@ -46,7 +46,7 @@ closed**, so each is now a fact this project builds on rather than a bet it is t
 | `session_resume` answering from position | Stage G3 | Landed. A resume carries how far the tab applied and is answered by comparing it against what was published, rather than asserting nothing happened. A gap is reloaded through rather than replayed |
 | The lock namespaced on the owner key | Stage H2 | Landed. Lock key, waitlist, pulse and viewer set are on the owner, with the owner resolved from the request's planner rather than the JWT — so a lock now holds between two members, which is what Stage D here has to have before it can relax one |
 | The change set a field-scoped write sends | [job-document-drafts](../job-document-drafts/plan.md) Stage 3 | **Not started.** That project holds a job as an untouched base plus an ordered log of what the player changed. The log *is* what Stage C sends: without it the client has nothing field-scoped to offer. Stage C is blocked on it |
-| A job document whose row collections are keyed | Same, Stage 2 | **Not started.** Arrays keyed by the id they already carry, rather than positional. This is what makes a path into a row stable under insertion and reordering, which an index-based path is not |
+| A job document whose row collections are keyed | Same, Stage 2 | **Built and wired in, not yet run against live.** Arrays keyed by the id they already carry rather than positional, which is what makes a path into a row stable under insertion and reordering. A converter runs as a required release step and has been proved against a restored copy of live — 42,065 documents, none refused. The gate behind it has also run: the key each collection would use is unique per document, so no row is silently lost to a repeated key. What remains is the SPA and API reading the new shape |
 
 **What that changes for this plan.** Nothing in this project waits on shared-planners any more: Stage
 E's dependency there is discharged, and Stage D's premise — that there is a real lock to relax —
@@ -292,6 +292,11 @@ carries a natural key (`typeID` for materials and skills, `id` for extras costs 
 turns those arrays into row collections keyed by it. A path into a keyed row is stable; a path into
 an array position is not.
 
+That reshape is now built and proved against a restored copy of live, and the gate under it has run:
+the key each collection would use is unique within a document, so keying loses no row. So by the time
+Stage C is unblocked, the paths it sends will be addressing keyed rows rather than positions — which
+is the difference between a path that survives another member's insert and one that does not.
+
 #### Decisions taken, and what still stands
 
 These were taken before the dependency above was found, by reading the code rather than the
@@ -514,9 +519,10 @@ remove the only protection operating rather than trade it for another.
 **Stage E was always behind Stage C**, because a delta is meaningless until the write producing it is
 field-scoped.
 
-**So the next work is in [job-document-drafts](../job-document-drafts/plan.md)**, whose Stage 2 also
-carries a release-window deadline tied to the shared-planners release — it is time-sensitive in a way
-nothing here is.
+**So the next work is in [job-document-drafts](../job-document-drafts/plan.md).** Its Stage 2 — the
+reshape that keys the row collections — is now built, wired into the release as a required step, and
+proved against a restored copy of live; what remains there is the SPA and API reading the new shape.
+Stage 3, the one Stage C here actually waits on, has not started.
 
 **[job-groups](../job-groups/plan.md) waits on this project, and half its wait is over.** Its
 dependency table names Stage A — landed — and Stage D's removal of the group lease over member jobs,
