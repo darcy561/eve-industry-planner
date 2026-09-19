@@ -153,6 +153,28 @@ func countAcross(ctx context.Context, clients *stackservices.Clients, collection
 	return offenders, total, nil
 }
 
+// warnOwnerScopedIDsOutstanding reports the rewrite still owing before the
+// release does the work that its gate will refuse at the end.
+//
+// The same count as [verifyOwnerScopedIDs], read at the front and not fatal.
+// The gate has to stay last, because a release that passed it and then wrote
+// documents under bare ids would report a state it no longer holds — but a
+// failure arriving after seventeen steps tells an operator at the end what they
+// needed at the beginning. This is that sentence, early, while the fan-out can
+// still be started and drained before the window.
+func warnOwnerScopedIDsOutstanding(ctx context.Context, clients *stackservices.Clients, _ bool) (string, error) {
+	offenders, total, err := countAcross(ctx, clients, eipmongo.OwnerScopedIDCollections(), eipmongo.BareDocumentIDFilter())
+	if err != nil {
+		return "", err
+	}
+	if total == 0 {
+		return "the owner-scoped id rewrite has finished", nil
+	}
+	return fmt.Sprintf(
+		"%d document(s) still carry a bare id (%s) — run `eip cli -- rewriteOwnerScopedIDs` and let it drain, or the gate at the end of this release will refuse",
+		total, strings.Join(offenders, ", ")), nil
+}
+
 // verifyOwnerScopedIDs fails the release if any planner-held document is still
 // stored under an id that does not name its owner.
 //

@@ -55,6 +55,10 @@ type release struct {
 var releases = []release{{
 	version: currentRelease,
 	steps: []releaseStep{
+		// First and not fatal: the gate this warns about is the last step, so an
+		// operator who has not run the fan-out otherwise learns it after the whole
+		// release has run. Reading the count costs three counts.
+		{name: "check the owner-scoped id rewrite has finished", run: warnOwnerScopedIDsOutstanding},
 		// Before anything writes: the copies are what revertRelease puts back, and
 		// a copy taken after a step ran is a copy of that step's output.
 		{name: "copy every collection this release writes to", required: true, run: backupReleaseCollections},
@@ -100,6 +104,10 @@ var releases = []release{{
 		// and after the owner stamp, because the settings written here are upserted
 		// through the owner-preserving path.
 		{name: "seed each account's buying and selling pricing defaults", run: seedPricingDefaults},
+		// After the planner backfill and its settings seed, which create the
+		// planner settings documents this also converts: a fold that runs before
+		// them reports nothing to do and leaves what they write in the old shape.
+		{name: "fold custom structures into one array", run: foldCustomStructures},
 		// Last: the window's gate. A document with no owner is unreachable, so the
 		// release fails rather than reporting success over it.
 		{name: "verify every document carries an owner", run: verifyMetaOwner},
@@ -136,9 +144,18 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 		return err
 	}
 
-	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{Mongo: true, Redis: true})
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{Mongo: true, Redis: true, NATS: true})
 	if err != nil {
-		return err
+		// Only the SDE rebuild asks for NATS, and it is the one step a release does
+		// not wait on. Connect fails the whole call when any requested service is
+		// unreachable, so a broker that is down would cost every Mongo step here
+		// rather than the one that needs it. Fall back to the services the rest of
+		// the release actually reads, and let that step report its own missing
+		// handle.
+		clients, stopDeps, err = stackservices.Connect(ctx, stackservices.Services{Mongo: true, Redis: true})
+		if err != nil {
+			return err
+		}
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 

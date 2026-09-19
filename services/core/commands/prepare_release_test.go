@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -221,8 +222,22 @@ func TestOwnerStampRunsBeforeTheStepsThatFilterOnIt(t *testing.T) {
 func TestTheBackupRunsBeforeAnythingWrites(t *testing.T) {
 	t.Parallel()
 
-	if at := stepIndex(t, currentRelease, "copy every collection this release writes to"); at != 0 {
-		t.Errorf("the backup runs at %d, want first", at)
+	backup := stepIndex(t, currentRelease, "copy every collection this release writes to")
+	// Only a step that writes nothing may precede it, and each one has to say so
+	// here — the default is that a new step writes, so an unlisted step ahead of
+	// the copy fails rather than being assumed harmless.
+	readOnlyBefore := map[string]bool{
+		"check the owner-scoped id rewrite has finished": true,
+	}
+	for _, rel := range releases {
+		if rel.version != currentRelease {
+			continue
+		}
+		for i, step := range rel.steps {
+			if i < backup && !readOnlyBefore[step.name] {
+				t.Errorf("step %q runs at %d, before the backup at %d", step.name, i, backup)
+			}
+		}
 	}
 }
 
@@ -387,6 +402,114 @@ func TestTheBackupCoversWhatThePlannerStepsCreate(t *testing.T) {
 	} {
 		if !slices.Contains(touched, name) {
 			t.Errorf("%s is written by the planner backfill and not copied first, so a revert would leave what it created", name)
+		}
+	}
+}
+
+// The planner settings documents the fold converts are created by the planner
+// backfill and its extras seed, so a fold that ran first would report nothing to
+// do and leave what they wrote in the old shape.
+func TestTheStructureFoldRunsAfterThePlannerDocumentsExist(t *testing.T) {
+	t.Parallel()
+
+	fold := stepIndex(t, currentRelease, "fold custom structures into one array")
+	for _, earlier := range []string{
+		"give every account its planner",
+		"move each account's extras categories onto its planner",
+	} {
+		if at := stepIndex(t, currentRelease, earlier); at > fold {
+			t.Errorf("%q runs at %d, after the structure fold at %d", earlier, at, fold)
+		}
+	}
+}
+
+// Both settings collections embed the same type, so a fold that converted only
+// one would leave the other storing a shape nothing ever rewrites.
+func TestTheStructureFoldCoversBothSettingsCollections(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{eipmongo.CollectionAccountSettings, eipmongo.CollectionPlannerSettings} {
+		if !slices.Contains(customStructureCollections, want) {
+			t.Errorf("%q is not folded", want)
+		}
+	}
+}
+
+// The fold writes to both settings collections, so both have to be in the copy
+// the release takes before anything writes — revertRelease puts back only what
+// was copied.
+func TestTheStructureFoldsCollectionsAreBackedUp(t *testing.T) {
+	t.Parallel()
+
+	copied := releaseTouchedCollections()
+	for _, name := range customStructureCollections {
+		if !slices.Contains(copied, name) {
+			t.Errorf("%q is folded but never copied, so a revert cannot put it back", name)
+		}
+	}
+}
+
+// The SDE rebuild publishes, so the release has to hold a NATS handle for it.
+// It failed on every run for want of one: the connect asked for Mongo and Redis
+// only, and the step refuses before doing anything without a broker.
+func TestTheReleaseAsksForWhatItsStepsPublishOn(t *testing.T) {
+	t.Parallel()
+
+	if _, err := rebuildCurrentSDEVersion(t.Context(), &stackservices.Clients{}, true); err == nil {
+		t.Fatal("the SDE rebuild no longer needs a NATS handle; this test and the connect fallback can go")
+	}
+
+	source, err := os.ReadFile("prepare_release.go")
+	if err != nil {
+		t.Fatalf("read prepare_release.go: %v", err)
+	}
+	if !strings.Contains(string(source), "Mongo: true, Redis: true, NATS: true") {
+		t.Error("prepareRelease does not request NATS, so the SDE rebuild step cannot succeed")
+	}
+}
+
+// A broker that is down costs the step that publishes, not the release. Connect
+// fails the whole call when any requested service is unreachable, so asking for
+// NATS outright would lose every Mongo step to it.
+func TestTheReleaseStillRunsWithoutABroker(t *testing.T) {
+	t.Parallel()
+
+	source, err := os.ReadFile("prepare_release.go")
+	if err != nil {
+		t.Fatalf("read prepare_release.go: %v", err)
+	}
+	if !strings.Contains(string(source), "stackservices.Services{Mongo: true, Redis: true})") {
+		t.Error("no fallback connect: an unreachable broker would now fail the release before its first step")
+	}
+}
+
+// The warning is only worth having if it lands before the work. Its whole point
+// is that the gate refusing at the end tells an operator at the end what they
+// needed at the beginning, so a warning that drifted after the steps it precedes
+// would report the same thing twice and help with neither.
+func TestTheOwnerScopedIDWarningComesFirst(t *testing.T) {
+	t.Parallel()
+
+	warning := stepIndex(t, currentRelease, "check the owner-scoped id rewrite has finished")
+	if warning != 0 {
+		t.Errorf("the rewrite warning runs at %d, not first", warning)
+	}
+	if gate := stepIndex(t, currentRelease, "verify every owner-scoped id carries its owner"); gate < warning {
+		t.Errorf("the gate runs at %d, before the warning at %d", gate, warning)
+	}
+}
+
+// Warning, not gate: it reports a count the operator can still act on, and the
+// release goes on to do its work. Failing here would stop a release over the
+// same condition twice, and stop it before the backup that makes it reversible.
+func TestTheOwnerScopedIDWarningDoesNotStopTheRelease(t *testing.T) {
+	t.Parallel()
+
+	for _, rel := range releases {
+		for _, step := range rel.steps {
+			if step.name == "check the owner-scoped id rewrite has finished" && step.required {
+				t.Error("the rewrite warning is marked required; it would stop the release before the backup")
+			}
 		}
 	}
 }
