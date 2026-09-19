@@ -104,7 +104,7 @@ export function WatchListSetupOptions_WatchlistDialogue({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingLeft: "10px" }}>
             <RigTypeSelect
-              value={jobSetup.rigID}
+              value={jobSetup.rigSlot1}
               jobType={jobSetup.jobType}
               onChange={(selectedEntry) => {
                 jobSetup.updateRigID(selectedEntry);

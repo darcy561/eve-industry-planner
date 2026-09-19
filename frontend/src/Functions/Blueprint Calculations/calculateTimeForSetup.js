@@ -4,6 +4,7 @@ import manufacturingTimeModifierCalculation from "./manufacturingTimeModifierCal
 import reactionTimeModifierCalculation from "./reactionTimeModifierCalculation";
 import { getCachedCharacterSkills } from "../../Hooks/EveEsi/Character/useGetCharacterSkills";
 import { quotedCharacterHash } from "../Skills/quotedCharacter";
+import rigSlotBonuses from "../Helper/rigSlotBonuses";
 
 /**
  * How long this setup takes the account reading it.
@@ -56,18 +57,24 @@ export function timeForSetup(
   );
 
   function timeModifierCalc(setupObject, usersSkills) {
+    const rigTime = rigSlotBonuses(
+      setupObject.jobType,
+      setupObject.rigSlot1,
+      setupObject.rigSlot2,
+    ).time;
+
     switch (setupObject.jobType) {
       case jobTypes.manufacturing:
         return manufacturingTimeModifierCalculation(
           setupObject.TE,
           setupObject.structureID,
-          setupObject.rigID,
+          rigTime,
           usersSkills,
         );
       case jobTypes.reaction:
         return reactionTimeModifierCalculation(
           setupObject.structureID,
-          setupObject.rigID,
+          rigTime,
           usersSkills,
         );
     }

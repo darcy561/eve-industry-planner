@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 
@@ -65,7 +65,8 @@ describe("the structure form", () => {
     // A select carries its own label as well as the field's, so each of these
     // is present once as the field heading and once on the control.
     expect(screen.getByText("Display name")).toBeInTheDocument();
-    expect(screen.getByText("Structure rigs")).toBeInTheDocument();
+    expect(screen.getByText("Rig slot 1")).toBeInTheDocument();
+    expect(screen.getByText("Rig slot 2")).toBeInTheDocument();
     expect(screen.getByText("Solar System")).toBeInTheDocument();
     expect(screen.getAllByText("Structure Type").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Security Status").length).toBeGreaterThan(0);
@@ -111,5 +112,50 @@ describe("the structure form", () => {
 
     expect(screen.getByPlaceholderText("Display Name")).toBeInTheDocument();
     expect(screen.getAllByText("Structure Type").length).toBeGreaterThan(0);
+  });
+});
+
+// A structure carries two rig slots, and rigs competing for the same purpose
+// cannot both be fitted. The form refuses the second rather than keeping it
+// silently, so the reader can see the choice was not taken.
+describe("fitting two rigs", () => {
+  async function chooseRig(slotLabel, rigLabel) {
+    const field = screen.getByText(slotLabel).closest(".MuiGrid-root");
+    await userEvent.click(within(field).getByRole("combobox"));
+    await userEvent.click(screen.getByRole("option", { name: rigLabel }));
+  }
+
+  it("takes a rig in each slot when they do not compete", () => {
+    renderForm();
+
+    expect(screen.getByText("Rig slot 1")).toBeInTheDocument();
+    expect(screen.getByText("Rig slot 2")).toBeInTheDocument();
+  });
+
+  it("refuses a rig that competes with the one already fitted", async () => {
+    renderForm();
+
+    await chooseRig("Rig slot 1", "T1 - ME - All");
+    await chooseRig("Rig slot 2", "T2 - ME - All");
+
+    // Both name a material bonus, so the second is refused and says why.
+    expect(
+      screen.getByText(
+        "Cannot have the same rig or related rigs in both slots",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("takes a rig that does something else", async () => {
+    renderForm();
+
+    await chooseRig("Rig slot 1", "T1 - ME - All");
+    await chooseRig("Rig slot 2", "T1 - TE - All");
+
+    expect(
+      screen.queryByText(
+        "Cannot have the same rig or related rigs in both slots",
+      ),
+    ).not.toBeInTheDocument();
   });
 });

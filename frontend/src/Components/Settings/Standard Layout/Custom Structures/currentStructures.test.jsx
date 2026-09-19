@@ -9,8 +9,6 @@ const setDefaultCustomStructure = vi.fn();
 const deleteCustomStructure = vi.fn();
 
 let structures = [];
-/** Which slot of the store the structures under test are held in. */
-let lane = "manufacturing";
 
 vi.mock("../../../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
@@ -18,7 +16,7 @@ vi.mock("../../../../Zustand/usersStore", async () => {
   return usersStoreMock(() =>
     usersStoreState({
       applicationSettings: {
-        customStructures: { [lane]: structures },
+        customStructures: structures,
         actions: { setDefaultCustomStructure, deleteCustomStructure },
       },
       worldData: {
@@ -43,9 +41,11 @@ vi.mock(
 function aStructure(overrides = {}) {
   return {
     id: "structure-1",
+    jobType: jobTypes.manufacturing,
     name: "Jita Sotiyo",
     structureType: 0,
-    rigType: 0,
+    rigSlot1: 0,
+    rigSlot2: 0,
     systemType: 0,
     systemID: 30000142,
     tax: 2.5,
@@ -66,7 +66,6 @@ function renderFrame(props = {}) {
 
 describe("the structures a reader has saved", () => {
   beforeEach(() => {
-    lane = "manufacturing";
     structures = [aStructure()];
     setDefaultCustomStructure.mockClear();
     deleteCustomStructure.mockClear();
@@ -146,8 +145,7 @@ describe("what a card says about each kind of structure", () => {
   });
 
   it("gives a manufacturing structure its rig, tax, security and system", () => {
-    lane = "manufacturing";
-    structures = [aStructure()];
+    structures = [aStructure({ jobType: jobTypes.manufacturing })];
     renderFrame({ selectedJobType: jobTypes.manufacturing });
 
     expect(screen.getByText("Rig")).toBeInTheDocument();
@@ -157,9 +155,30 @@ describe("what a card says about each kind of structure", () => {
     expect(screen.getByText("Jita")).toBeInTheDocument();
   });
 
+  // One list holds every kind now, so the frame has to pick out the kind it was
+  // asked for rather than render whatever the store happens to hold.
+  it("shows only the structures of the kind it was asked for", () => {
+    structures = [
+      aStructure({ jobType: jobTypes.manufacturing, name: "A manufacturer" }),
+      aStructure({
+        id: "structure-2",
+        jobType: jobTypes.reprocessing,
+        name: "A refinery",
+        rigSlot1: 0,
+        rigSlot2: 0,
+        implant: 0,
+      }),
+    ];
+    renderFrame({ selectedJobType: jobTypes.manufacturing });
+
+    expect(screen.getByText("A manufacturer")).toBeInTheDocument();
+    expect(screen.queryByText("A refinery")).not.toBeInTheDocument();
+  });
+
   it("gives an invention structure both of its rig slots", () => {
-    lane = "invention";
-    structures = [aStructure({ rigSlot1: 0, rigSlot2: 0 })];
+    structures = [
+      aStructure({ jobType: jobTypes.invention, rigSlot1: 0, rigSlot2: 0 }),
+    ];
     renderFrame({ selectedJobType: jobTypes.invention });
 
     expect(screen.getByText("Jita Sotiyo")).toBeInTheDocument();
@@ -170,8 +189,14 @@ describe("what a card says about each kind of structure", () => {
   });
 
   it("gives a reprocessing structure its implant", () => {
-    lane = "reprocessing";
-    structures = [aStructure({ rigSlot1: 0, rigSlot2: 0, implant: 0 })];
+    structures = [
+      aStructure({
+        jobType: jobTypes.reprocessing,
+        rigSlot1: 0,
+        rigSlot2: 0,
+        implant: 0,
+      }),
+    ];
     renderFrame({ selectedJobType: jobTypes.reprocessing });
 
     expect(screen.getByText("Jita Sotiyo")).toBeInTheDocument();

@@ -1,10 +1,10 @@
-import { reprocessingItemTypes } from "../Context/defaultValues";
+import { jobTypes, reprocessingItemTypes } from "../Context/defaultValues";
 import {
   getImplantFromID,
   getSystemTypeFromID,
 } from "../Functions/Helper/getStructureInfo";
 import { reprocessFromItemType } from "../Functions/Reprocessing/reprocessingFormulas";
-import ReprocessingStructure from "./reprocessingStructure";
+import Structure from "./structure";
 
 const reprocessingSkillTypeID = 3385;
 const reprocessingEffSkillTypeID = 3389;
@@ -129,7 +129,7 @@ class ReprocessingItem {
    * - Updates reprocessed materials with calculated yields
    *
    * @param {Object} [reprocessingSkillsMap={}] - Map of skill type IDs to levels
-   * @param {ReprocessingStructure} [reprocessingStructure=new ReprocessingStructure()] - Structure configuration
+   * @param {Structure} [reprocessingStructure] - Structure configuration; an NPC station when absent
    *
    * @example
    * // Reprocess with skills and structure
@@ -141,7 +141,7 @@ class ReprocessingItem {
    */
   reprocessMaterials(
     reprocessingSkillsMap = {},
-    reprocessingStructure = new ReprocessingStructure(),
+    reprocessingStructure = new Structure(undefined, jobTypes.reprocessing),
   ) {
     const reprocessingLvl = reprocessingSkillsMap[reprocessingSkillTypeID] ?? 0;
     const reprocessingEffLvl =

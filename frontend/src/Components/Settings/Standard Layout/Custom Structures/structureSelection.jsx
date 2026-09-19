@@ -15,7 +15,8 @@ import StructureTypeSelect from "../../../../Styled Components/Select/structureT
 import RigTypeSelect from "../../../../Styled Components/Select/rigType";
 import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
-import CustomStructure from "../../../../Classes/customStructure";
+import Structure from "../../../../Classes/structure";
+import useRigSlots from "./useRigSlots";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
 import { showSnackbarSuccess } from "../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
@@ -41,33 +42,33 @@ function StructureOptionsSelection_CustomStructures({
     useUsersStore.getState().applicationSettings.actions;
 
   const [currentStructure, setCurrentStructure] = useState(
-    new CustomStructure({
+    new Structure({
       name: "",
       jobType: selectedJobType,
       structureType: structureTypeMap[selectedJobType][0].id,
-      rigType: rigTypeMap[selectedJobType][0].id,
+      rigSlot1: rigTypeMap[selectedJobType][0].id,
+      rigSlot2: rigTypeMap[selectedJobType][0].id,
       systemType: systemTypeMap[selectedJobType][0].id,
       systemID: DEFAULT_SYSTEM,
       tax: 0,
     }),
   );
 
+  const rigSlots = useRigSlots(currentStructure, (structure) =>
+    setCurrentStructure(new Structure(structure)),
+  );
+
+  const rigHelperText =
+    "A structure carries two rig slots. Rigs that compete for the same purpose cannot be fitted together.";
+
   const handleNameChange = (e) => {
     currentStructure.setName(e.target.value);
-    setCurrentStructure(new CustomStructure(currentStructure));
+    setCurrentStructure(new Structure(currentStructure));
   };
 
   const handleStructureTypeChange = (selectedEntry) => {
     currentStructure.setStructureType(selectedEntry.id);
-    setCurrentStructure(new CustomStructure(currentStructure));
-    handleStructureStateRequirements(
-      getRequirements(selectedEntry.requirementID),
-    );
-  };
-
-  const handleRigTypeChange = (selectedEntry) => {
-    currentStructure.setRigType(selectedEntry.id);
-    setCurrentStructure(new CustomStructure(currentStructure));
+    setCurrentStructure(new Structure(currentStructure));
     handleStructureStateRequirements(
       getRequirements(selectedEntry.requirementID),
     );
@@ -75,7 +76,7 @@ function StructureOptionsSelection_CustomStructures({
 
   const handleSystemTypeChange = (selectedEntry) => {
     currentStructure.setSystemType(selectedEntry.id);
-    setCurrentStructure(new CustomStructure(currentStructure));
+    setCurrentStructure(new Structure(currentStructure));
     handleStructureStateRequirements(
       getRequirements(selectedEntry.requirementID),
     );
@@ -83,7 +84,7 @@ function StructureOptionsSelection_CustomStructures({
 
   const handleTaxChange = (value) => {
     currentStructure.setTax(value);
-    setCurrentStructure(new CustomStructure(currentStructure));
+    setCurrentStructure(new Structure(currentStructure));
   };
 
   const handleSystemChange = (newValue) => {
@@ -97,7 +98,7 @@ function StructureOptionsSelection_CustomStructures({
         throw new Error("This system does not allow this kind of job.");
       }
       currentStructure.setSystemID(newValue);
-      setCurrentStructure(new CustomStructure(currentStructure));
+      setCurrentStructure(new Structure(currentStructure));
       handleStructureStateRequirements(requirements);
     } catch (err) {
       return err;
@@ -117,14 +118,17 @@ function StructureOptionsSelection_CustomStructures({
 
     if (structureID !== undefined)
       currentStructure.setStructureType(structureID);
-    if (rigID !== undefined) currentStructure.setRigType(rigID);
+    if (rigID !== undefined) {
+      currentStructure.setRigSlot1(rigID);
+      currentStructure.setRigSlot2(0);
+    }
     if (taxValue !== undefined) currentStructure.setTax(taxValue);
     if (requiredSystemID !== undefined)
       currentStructure.setSystemID(requiredSystemID);
     if (systemTypeID !== undefined)
       currentStructure.setSystemType(systemTypeID);
 
-    setCurrentStructure(new CustomStructure(currentStructure));
+    setCurrentStructure(new Structure(currentStructure));
   }
 
   function getRequirements(requirementID) {
@@ -152,11 +156,12 @@ function StructureOptionsSelection_CustomStructures({
         setIsLoading,
       });
       setCurrentStructure(
-        new CustomStructure({
+        new Structure({
           name: "",
           jobType: selectedJobType,
           structureType: structureTypeMap[selectedJobType][0].id,
-          rigType: rigTypeMap[selectedJobType][0].id,
+          rigSlot1: rigTypeMap[selectedJobType][0].id,
+          rigSlot2: rigTypeMap[selectedJobType][0].id,
           systemType: systemTypeMap[selectedJobType][0].id,
           systemID: DEFAULT_SYSTEM,
           tax: 0,
@@ -220,13 +225,32 @@ function StructureOptionsSelection_CustomStructures({
           }}
         >
           {field(
-            "Structure rigs",
-            "Rig bonuses are the same for each tech level regardless of type of items they are applied to. The application does differentiate between the different rigs that apply to specific items. For structures that have rigs that only apply to specific item types just select the tech level for this and use an additional custom structure for items that the bonus does not apply to. ",
+            "Rig slot 1",
+            rigHelperText,
             <RigTypeSelect
               {...appShellFieldProps}
-              value={currentStructure.rigType}
+              value={currentStructure.rigSlot1}
               jobType={selectedJobType}
-              onChange={handleRigTypeChange}
+              error={rigSlots.slot1.error}
+              onChange={rigSlots.slot1.onChange}
+            />,
+          )}
+        </Grid>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+          }}
+        >
+          {field(
+            "Rig slot 2",
+            rigHelperText,
+            <RigTypeSelect
+              {...appShellFieldProps}
+              value={currentStructure.rigSlot2}
+              jobType={selectedJobType}
+              error={rigSlots.slot2.error}
+              onChange={rigSlots.slot2.onChange}
             />,
           )}
         </Grid>

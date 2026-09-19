@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { reprocessingItemTypes } from "../../Context/defaultValues";
+import { jobTypes, reprocessingItemTypes } from "../../Context/defaultValues";
 
 const getReprocessingData = vi.fn();
 const fetchPrices = vi.fn();
@@ -17,8 +17,7 @@ vi.mock("../MarketData/priceCache", () => ({
 
 const { resetReprocessing } = await import("../Static/reprocessing.js");
 const { default: reprocessIntoMinerals } = await import("./toMinerals.js");
-const { default: ReprocessingStructure } =
-  await import("../../Classes/reprocessingStructure.js");
+const { default: Structure } = await import("../../Classes/structure.js");
 
 const VELDSPAR = {
   id: "1230",
@@ -30,7 +29,7 @@ const VELDSPAR = {
 
 /** The default structure, as Classes/reprocessing.test.js builds one. */
 function structure() {
-  return new ReprocessingStructure();
+  return new Structure(undefined, jobTypes.reprocessing);
 }
 
 beforeEach(() => {

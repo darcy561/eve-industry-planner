@@ -18,7 +18,7 @@ import {
   reprocessingReducer,
   REPROCESSING_ACTION_TYPES,
 } from "./reprocessingReducer";
-import ReprocessingStructure from "../../../Classes/reprocessingStructure";
+import Structure from "../../../Classes/structure";
 import useUsersStore from "../../../Zustand/usersStore";
 import { jobTypes } from "../../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../../global-config-app";
@@ -125,7 +125,7 @@ export default function useReprocessingReducer() {
     isPageLoading: false,
     currentStructure:
       getDefaultReprocessingStructure(jobTypes.reprocessing) ||
-      new ReprocessingStructure(),
+      new Structure(undefined, jobTypes.reprocessing),
     activeSkills: {},
     selectedUser:
       getDefaultReprocessingCharacter(characters)?.CharacterHash ||
@@ -261,7 +261,7 @@ export default function useReprocessingReducer() {
      * @param {Object} data - Reprocessing structure object
      *
      * @example
-     * actions.setCurrentStructure(new ReprocessingStructure());
+     * actions.setCurrentStructure(new Structure(undefined, jobTypes.reprocessing));
      */
     setCurrentStructure: (data) => {
       dispatch({

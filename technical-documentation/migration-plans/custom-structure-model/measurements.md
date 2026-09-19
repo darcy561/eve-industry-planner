@@ -133,3 +133,24 @@ not as narrow as zero.
 
 Files importing one of the three classes, excluding tests, re-counted on 2026-09-19: **7**, unchanged.
 
+## What the SPA side moved (2026-09-20)
+
+Measured from the change, not estimated beforehand.
+
+| Surface | Count |
+|---------|-------|
+| Classes deleted | 3, plus one test file |
+| Files that imported a per-kind class, now on `Structure` | 7 |
+| Rig table entries, manufacturing | 10 → 6 |
+| Rig table entries, reaction | 9 → 5 |
+
+The rig tables shrinking is the measurement worth keeping: five of the ten manufacturing entries were
+pre-combined pairs, and a table of one rig per entry is what makes two slots expressible.
+
+### The consumer count, corrected again
+
+§ How much code would move put "SPA files importing any of the three classes, excluding tests" at 7,
+and that held — but it missed the surfaces reaching a lane through `customStructureMap`, which the
+2026-09-19 note above records. Both counts were needed to size the work: one for the classes, one for
+the store reads.
+

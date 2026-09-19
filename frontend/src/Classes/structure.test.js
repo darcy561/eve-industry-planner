@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import Structure from "./structure";
-import CustomStructure from "./customStructure";
-import ReprocessingStructure from "./reprocessingStructure";
-import InventionStructure from "./inventionStructure";
 import { jobTypes, reprocessingItemTypes } from "../Context/defaultValues";
 import GLOBAL_CONFIG from "../global-config-app";
 
@@ -279,125 +276,7 @@ describe("a document round trip", () => {
   });
 });
 
-// The three classes this one replaces are still in the tree. Until every caller
-// has moved, what proves the fold is that both produce the same document from
-// the same stored row.
-describe("parity with the classes it replaces", () => {
-  // Manufacturing and reaction no longer have a parity case: CustomStructure
-  // stores one combined rigType where the folded class stores the two rig slots
-  // that combination stood for. What holds instead is that the fold gives the
-  // same bonuses the combined entry did — asserted in § rig slots, below.
-  it("matches CustomStructure on everything but the rigs", () => {
-    for (const jobType of [jobTypes.manufacturing, jobTypes.reaction]) {
-      const row = {
-        id: "struct-1",
-        jobType,
-        name: "Sotiyo",
-        systemType: 2,
-        structureType: 3,
-        systemID: 30000142,
-        tax: 1.5,
-        default: true,
-      };
 
-      const folded = new Structure(row).toDocument();
-      const original = new CustomStructure(row).toDocument();
-
-      for (const field of [
-        "id",
-        "jobType",
-        "name",
-        "systemType",
-        "structureType",
-        "systemID",
-        "tax",
-        "default",
-      ]) {
-        expect(folded[field]).toEqual(original[field]);
-      }
-    }
-  });
-
-  it("matches ReprocessingStructure", () => {
-    const row = {
-      id: "reprocessingStruct-1",
-      jobType: jobTypes.reprocessing,
-      name: "Home refinery",
-      systemType: 2,
-      structureType: 3,
-      rigSlot1: 1,
-      rigSlot2: 2,
-      implant: 1,
-      tax: 2.5,
-      default: true,
-    };
-
-    expect(new Structure(row).toDocument()).toEqual(
-      new ReprocessingStructure(row).toDocument(),
-    );
-  });
-
-  it("matches InventionStructure", () => {
-    const row = {
-      id: "inventionStruct-1",
-      jobType: jobTypes.invention,
-      name: "Raitaru",
-      systemType: 1,
-      structureType: 2,
-      rigSlot1: 3,
-      rigSlot2: 0,
-      tax: 0.5,
-      default: false,
-    };
-
-    expect(new Structure(row).toDocument()).toEqual(
-      new InventionStructure(row).toDocument(),
-    );
-  });
-
-  it("matches reprocessing's bonuses across every item type", () => {
-    const row = {
-      jobType: jobTypes.reprocessing,
-      structureType: 3,
-      rigSlot1: 1,
-      rigSlot2: 2,
-    };
-    const folded = new Structure(row);
-    const original = new ReprocessingStructure(row);
-
-    for (const itemType of Object.values(reprocessingItemTypes)) {
-      expect(folded.structureBonusFor(itemType)).toBe(
-        original.structureBonusFor(itemType),
-      );
-      expect(folded.rigBonusFor(itemType)).toBe(original.rigBonusFor(itemType));
-    }
-  });
-
-  // InventionStructure takes its tax raw where the other two settle it, so this
-  // is one of two places the fold deliberately differs from what it replaces.
-  it("settles an invention tax that InventionStructure left as it arrived", () => {
-    expect(new InventionStructure({ tax: "abc" }).tax).toBe("abc");
-    expect(new Structure({ jobType: jobTypes.invention, tax: "abc" }).tax).toBe(
-      0,
-    );
-  });
-
-  // The other: none of the three clamps a negative tax, so all three would
-  // store a figure that pays a job to run.
-  it("refuses a negative tax that none of the three classes clamped", () => {
-    expect(new CustomStructure({ tax: -1 }).tax).toBe(-1);
-    expect(new ReprocessingStructure({ tax: -1 }).tax).toBe(-1);
-    expect(new InventionStructure({ tax: -1 }).tax).toBe(-1);
-
-    for (const jobType of [
-      jobTypes.manufacturing,
-      jobTypes.reprocessing,
-      jobTypes.invention,
-    ]) {
-      expect(new Structure({ jobType, tax: -1 }).tax).toBe(0);
-    }
-  });
-});
 
 // The old rig tables held ten pre-combined entries — "T1 - ME & TE" and the
 // rest — where a structure really carries two rigs. These prove the two slots

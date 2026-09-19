@@ -1,21 +1,17 @@
 # Custom structure model — plan
 
-**Status:** Stage A landed, including the prerelease step that converts stored documents. Stage BR is
-partly landed — see [overlay.md](./overlay.md).
+**Status:** Stages A, B, C and BR landed, including the prerelease steps that convert stored
+documents and stored rig ids. Stage D and Stage BR2 remain; BR2 is named here for what it inherits
+rather than owned here.
 
-**Two gaps are open in the tree at once, and both are silent.** Nothing ships until they close.
-
-1. **The API sends one array and the SPA reads four lists** (Stage B). `typeof [] === "object"`, so
-   the hydration takes the old branch, every lane reads `undefined`, and all four become empty with
-   no error — then autosave writes the emptiness back.
-2. **The rig tables no longer hold ids 5-8** (Stage BR). A stored setup naming one reads back no rig,
-   so its material and time bonuses read zero and a job quietly costs more. The prerelease step closes
-   this for stored rows; the settings form still *writes* the old shape, so it is only half closed.
+**No gap is open.** Both silent faults are closed: the settings store reads either stored shape, and
+rigs are two slots everywhere — in the tables, the form, a stored setup, and the prerelease step that
+converts the stored ones.
 
 **[market-price-delivery](../market-price-delivery/contents.md) is shelved waiting on this project**
 — specifically on a saved location being able to be a market, which Stage A makes expressible.
 **Code in scope:** [`frontend/src/Classes/`](../../../frontend/src/Classes/) —
-`customStructure.js`, `reprocessingStructure.js`, `inventionStructure.js`, `structure.js`, `jobSetup.js`;
+`structure.js`, `jobSetup.js`, `reprocessingItem.js`;
 [`frontend/src/Functions/Helper/`](../../../frontend/src/Functions/Helper/) — `rigSlotBonuses.js`,
 `coerceTaxPercentage.js`; [`frontend/src/Context/defaultValues.jsx`](../../../frontend/src/Context/defaultValues.jsx) — the rig tables;
 [`frontend/src/Zustand/`](../../../frontend/src/Zustand/) — `applicationSettings/core.js`,
@@ -145,38 +141,28 @@ of both the fold and the conversion. The fold landed at **decode** rather than a
 step, and the persistence as a release step rather than a schema bump — [overlay.md](./overlay.md)
 § The fold, and the conversion that persists it.
 
-**Stage B — One class, SPA side.** The three classes become one, reprocessing's calculations keep
-their home, and `InventionStructure`'s unvalidated `tax` is fixed as the fold happens. The store
-slices hold one array.
-**Done when** nothing in `frontend/src` imports a per-kind structure class, and the settings and
-reprocessing screens read the same array.
+**Stage B — One class, SPA side. Done.** The three classes became one and are **deleted**:
+`customStructure.js`, `reprocessingStructure.js` and `inventionStructure.js` are gone, with every
+caller on `Classes/structure.js`. Reprocessing's calculations kept their home,
+`InventionStructure`'s unvalidated `tax` was fixed as the fold happened, and both settings store
+slices hold one array — [overlay.md](./overlay.md) § Stage B.
 
-**Stage C — The surfaces.** The settings screens and the reprocessing panel list from one array
-filtered by kind, rather than from four lanes. Most of this landed already as UI — one card body
-serves every kind — so what is left is what feeds it.
-**Done when** no screen names a lane.
+**Stage C — The surfaces. Done.** The settings list, the structure picker and the login path's system
+index prefetch read one array filtered by kind. All three had gone silently empty when the store
+became an array, so they landed with Stage B rather than after it —
+[overlay.md](./overlay.md) § Stage C.
 
-**Stage BR — Rigs are slots on every kind.** Manufacturing and reaction held one combined `rigType`
+**Stage BR — Rigs are slots on every kind. Done.** Manufacturing and reaction held one combined `rigType`
 where the other two kinds hold two slots, though invention's rigs carry two independent axes exactly
-as manufacturing's do. **Partly landed:** the atomic rig tables, the per-axis combining rule in
+as manufacturing's do. The atomic rig tables, the per-axis combining rule in
 `Functions/Helper/rigSlotBonuses.js`, `fieldsByJobType` losing `rigType`, and the prerelease step
 converting stored setups across all four collections — [overlay.md](./overlay.md) § Rigs became slots
 on every kind, § The prerelease step that converts stored setups.
 
-**Still open, and this is the gap that matters:** the settings form still writes `rigType` through the
-old `CustomStructure`, so it keeps producing data the new tables cannot read, and a stored setup still
-reads its rig through one `setup.rigID`. Until both move, the tables and the stored data disagree.
-
-- The manufacturing and reaction form renders **two slot pickers** instead of one rig picker, on the
-  shape `reprocessingStructureSelection.jsx` and `inventionStructureSelection.jsx` already use — and
-  the help text that tells a reader to create a second structure for item-specific rigs goes with it.
-- `setup.rigID` becomes two fields, with `getRigObject`, the Edit Job setup card and
-  `calculateMaterialsForSetup` reading them through the shared rule.
-- The `requirements` table and `manageRequirements` name **which slots** a requirement sets, rather
-  than one `rigID`. Requirements 0 and 2 mean "no rig", which is now two empty slots.
-
-**Done when** nothing reads `rigType` or a single `setup.rigID`, and a reader can fit two rigs to a
-manufacturing structure.
+**Done.** The form renders two slot pickers, a setup stores two slots, the time modifiers take a
+bonus rather than a rig id, and a requirement fills the first slot and clears the second. Nothing
+reads `rigType` or a single `setup.rigID` — [overlay.md](./overlay.md) § The surfaces that write a
+rig.
 
 **Wire:** additive for the stored setup — `rigSlot1`/`rigSlot2` are written beside a `rigID` that the
 prerelease step removes — and **breaking for the SPA**, which deploys with it.

@@ -12,7 +12,6 @@ import {
 } from "../../../../../../Context/defaultValues";
 import { jobTypes } from "../../../../../../Context/defaultValues";
 import {
-  getRigInfoFromID,
   getStructureInfoFromID,
   getSystemTypeFromID,
 } from "../../../../../../Functions/Helper/getStructureInfo";
@@ -21,6 +20,7 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
 import { calculateInstallCostfromSetup } from "../../../../../../Functions/Installation Costs/installCosts";
+import rigSlotLabel from "../../../../../../Functions/Helper/rigSlotLabel";
 
 export function JobSetupCard({ setupEntry, state, actions }) {
   const installCostPerJob = calculateInstallCostfromSetup(setupEntry);
@@ -183,7 +183,11 @@ function UseDefaultStructures({ setupEntry }) {
     setupEntry.structureID,
   );
 
-  const rigTypeData = getRigInfoFromID(setupEntry.jobType, setupEntry.rigID);
+  const rigLabel = rigSlotLabel(
+    setupEntry.jobType,
+    setupEntry.rigSlot1,
+    setupEntry.rigSlot2,
+  );
 
   const systemTypeData = getSystemTypeFromID(
     setupEntry.jobType,
@@ -214,7 +218,7 @@ function UseDefaultStructures({ setupEntry }) {
       </Grid>
       <Grid size={4}>
         <Typography align="center" sx={{ typography: STANDARD_TEXT_FORMAT }}>
-          {rigTypeData.label}
+          {rigLabel}
         </Typography>
       </Grid>
       <Tooltip

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const RECALCULATING_USER = {
   customStructureID: "manufacturing-theirs",
   structureID: 35827,
-  rigID: 37158,
+  rigSlot1: 37158,
   systemTypeID: 30000142,
   systemID: 30000142,
   taxValue: 0.1,
@@ -17,7 +17,7 @@ const RECALCULATING_USER = {
 const JOB_AS_BUILT = {
   customStructureID: "manufacturing-the-jobs-own",
   structureID: 35825,
-  rigID: 37155,
+  rigSlot1: 37155,
   systemTypeID: 30002187,
   systemID: 30002187,
   taxValue: 0.25,
@@ -57,7 +57,8 @@ vi.mock("../Zustand/usersStore", async () => {
           getDefaultCustomStructureWithJobType: () => ({
             id: RECALCULATING_USER.customStructureID,
             structureType: RECALCULATING_USER.structureID,
-            rigType: RECALCULATING_USER.rigID,
+            rigSlot1: RECALCULATING_USER.rigSlot1,
+            rigSlot2: 0,
             systemType: RECALCULATING_USER.systemTypeID,
             systemID: RECALCULATING_USER.systemID,
             tax: RECALCULATING_USER.taxValue,
@@ -101,7 +102,7 @@ function jobBuiltByAnotherMember({ maxProductionLimit = 10, perRun = 1 } = {}) {
     ME: JOB_AS_BUILT.ME,
     TE: JOB_AS_BUILT.TE,
     structureID: JOB_AS_BUILT.structureID,
-    rigID: JOB_AS_BUILT.rigID,
+    rigSlot1: JOB_AS_BUILT.rigSlot1,
     systemTypeID: JOB_AS_BUILT.systemTypeID,
     systemID: JOB_AS_BUILT.systemID,
     taxValue: JOB_AS_BUILT.taxValue,
@@ -158,7 +159,7 @@ describe("recalculating a job's setups", () => {
     const setup = onlySetup(job);
     expect(setup.customStructureID).toBe(JOB_AS_BUILT.customStructureID);
     expect(setup.structureID).toBe(JOB_AS_BUILT.structureID);
-    expect(setup.rigID).toBe(JOB_AS_BUILT.rigID);
+    expect(setup.rigSlot1).toBe(JOB_AS_BUILT.rigSlot1);
     expect(setup.systemTypeID).toBe(JOB_AS_BUILT.systemTypeID);
     expect(setup.systemID).toBe(JOB_AS_BUILT.systemID);
     expect(setup.taxValue).toBe(JOB_AS_BUILT.taxValue);
@@ -350,7 +351,7 @@ describe("adding a setup to a job that already has one", () => {
       ME: JOB_AS_BUILT.ME,
       TE: JOB_AS_BUILT.TE,
       structureID: JOB_AS_BUILT.structureID,
-      rigID: JOB_AS_BUILT.rigID,
+      rigSlot1: JOB_AS_BUILT.rigSlot1,
       systemTypeID: JOB_AS_BUILT.systemTypeID,
       systemID: JOB_AS_BUILT.systemID,
       taxValue: JOB_AS_BUILT.taxValue,
@@ -454,7 +455,7 @@ describe("building a job for the first time", () => {
       jobCount: 2,
       ME: 8,
       TE: 14,
-      rigID: 3,
+      rigSlot1: 3,
       structureID: 7,
       systemTypeID: 2,
       systemID: JOB_AS_BUILT.systemID,
@@ -509,7 +510,7 @@ describe("calculating materials for a job type", () => {
       jobCount: 1,
       ME: 10,
       structureID: JOB_AS_BUILT.structureID,
-      rigID: JOB_AS_BUILT.rigID,
+      rigSlot1: JOB_AS_BUILT.rigSlot1,
       systemTypeID: JOB_AS_BUILT.systemTypeID,
       systemID: JOB_AS_BUILT.systemID,
     };

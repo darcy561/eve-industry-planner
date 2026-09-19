@@ -7,7 +7,7 @@ import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
 import RigTypeSelect from "../../../../Styled Components/Select/rigType";
 import ImplantSelect from "../../../../Styled Components/Select/implantSelector";
 import { jobTypes } from "../../../../Context/defaultValues";
-import ReprocessingStructure from "../../../../Classes/reprocessingStructure";
+import Structure from "../../../../Classes/structure";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
 import useUsersStore from "../../../../Zustand/usersStore";
@@ -34,7 +34,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
     useUsersStore.getState().applicationSettings.actions;
 
   const [chosenStructure, setChosenStructure] = useState(
-    new ReprocessingStructure(),
+    new Structure(undefined, jobTypes.reprocessing),
   );
   const [rigSlot1Error, setRigSlot1Error] = useState(false);
   const [rigSlot2Error, setRigSlot2Error] = useState(false);
@@ -48,7 +48,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
         selectedJobType,
         setIsLoading,
       });
-      setChosenStructure(new ReprocessingStructure());
+      setChosenStructure(new Structure(undefined, jobTypes.reprocessing));
       scheduleDebouncedApplicationSettingsSave();
     } catch (error) {
       console.error("Error adding reprocessing structure:" + error);
@@ -57,7 +57,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
 
   const handleNameChange = (e) => {
     chosenStructure.setName(e.target.value);
-    setChosenStructure(new ReprocessingStructure(chosenStructure));
+    setChosenStructure(new Structure(chosenStructure));
   };
 
   return (
@@ -96,7 +96,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
               jobType={jobTypes.reprocessing}
               onChange={(selectedEntry) => {
                 chosenStructure.setStructureType(selectedEntry.id);
-                setChosenStructure(new ReprocessingStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -117,7 +117,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
               jobType={jobTypes.reprocessing}
               onChange={(selectedEntry) => {
                 chosenStructure.setSystemType(selectedEntry.id);
-                setChosenStructure(new ReprocessingStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -152,7 +152,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
                   setRigSlot1Error(false);
                   setRigSlot2Error(false);
                 }
-                setChosenStructure(new ReprocessingStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -187,7 +187,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
                   setRigSlot1Error(false);
                   setRigSlot2Error(false);
                 }
-                setChosenStructure(new ReprocessingStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -208,7 +208,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
               jobType={selectedJobType}
               onChange={(selectedEntry) => {
                 chosenStructure.setImplant(selectedEntry.id);
-                setChosenStructure(new ReprocessingStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -226,7 +226,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
               initialState={chosenStructure.tax}
               onBlur={(value) => {
                 chosenStructure.setTax(value);
-                setChosenStructure(new ReprocessingStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
               variant="outlined"
               label="Tax %"

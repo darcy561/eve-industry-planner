@@ -191,7 +191,7 @@ function ManualStructureSelection({ state, actions, selectedSetup }) {
       </Grid>
       <Grid size={6}>
         <RigTypeSelect
-          value={selectedSetup.rigID}
+          value={selectedSetup.rigSlot1}
           jobType={state.activeJob.jobType}
           onChange={async (selectedEntry) => {
             selectedSetup.updateRigID(selectedEntry);

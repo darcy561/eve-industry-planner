@@ -29,7 +29,7 @@ function baseline(overrides = {}) {
   return manufacturingTimeModifierCalculation(
     overrides.te ?? 0,
     overrides.structureID ?? 0,
-    overrides.rigID ?? 0,
+    overrides.rig ?? 0,
     overrides.skills ?? skills(),
   );
 }

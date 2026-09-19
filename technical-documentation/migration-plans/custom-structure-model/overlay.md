@@ -381,20 +381,97 @@ The two that needed care are the ones where the list was doing the scoping:
 `structures` key holding three lists and no invention — and **nothing called it**. Converting it would
 have carried a fourth copy of the lane shape forward for no reader.
 
+### The three classes are gone
+
+`customStructure.js`, `reprocessingStructure.js` and `inventionStructure.js` are **deleted**, along
+with `customStructure.test.js`. Every caller builds `Structure` instead: the two remaining settings
+forms, the reprocessing panel and its reducer, and `reprocessingItem`'s default parameter.
+
+A bare construction passes the kind — `new Structure(undefined, jobTypes.reprocessing)` — where the
+old classes hard-coded it; one rebuilding an existing structure reads the kind off the row.
+
+`structure.test.js`'s parity suite went with them. It existed to prove the fold matched what it
+replaced while both were in the tree, and a comparison against a deleted class is not a test. What
+survives is the behaviour asserted directly: every kind's fields, the round trip, reprocessing's two
+calculations, and the tax and rig rules.
+
 ### Still to do
 
-**Stage B** — the callers: the settings screens and the pickers still read a lane by name, which is
-Stage C. **Stage BR** — the settings form's two slot pickers and `setup.rigID` becoming two fields, with the
-`requirements` table naming which slots it sets. Until the form moves it keeps writing a `rigType` the
-rig tables can no longer read, so the stored conversion above is only half the fix.
-[plan.md](./plan.md) § Stage BR lists what is left.
+*Nothing outstanding in Stages A to C and BR.* Stage BR2 and Stage D remain, and neither is scheduled
+here — see [plan.md](./plan.md).
+
+### The surfaces that write a rig
+
+The manufacturing and reaction form renders **two slot pickers** where it rendered one rig picker, and
+a setup stores `rigSlot1` and `rigSlot2` where it stored one `rigID`. That closes the half the
+prerelease step could not: the form was still writing a shape the rig tables can no longer read.
+
+`useRigSlots` holds the rule that two rigs competing for the same purpose cannot both be fitted — a
+conflicting choice clears that slot and marks it, rather than keeping the old value silently. The
+reprocessing and invention forms carried that logic twice each; rather than add a third and fourth
+copy, it moved into one hook beside them.
+
+`jobSetup` reads its bonuses through `rigSlotBonuses` like everything else. The two time modifiers
+now take **the time bonus** rather than a rig id, so the per-axis rule is applied in one place instead
+of each of them looking a rig up for itself. `rigSlotLabel` formats the pair for the two setup cards
+that print it: both rigs, or the one fitted, and "None" only when neither is — an empty slot is left
+unsaid rather than printed beside a rig.
+
+**A requirement names one rig**, so it fills the first slot and clears the second. A requirement
+describes a whole fit rather than adding to what the reader chose, and requirements 0 and 2 mean "no
+rig", which is now two empty slots.
+
+**The calculation paths read the slots, not the getter.** `calculateTimeForSetup` and
+`calculateMaterialsForSetup` call `rigSlotBonuses` directly rather than `setup.rigBonuses`, because a
+caller may hand them a plain stored setup rather than a `Setup` instance — which is exactly what the
+skills panel does, and what a getter would have thrown on.
+
+**What proves it**: the form refusing a competing rig and accepting one that does something else,
+mutation-checked by removing the conflict check. The combination-equivalence tests from the stored
+conversion still hold, so the form and the prerelease table agree.
 
 ## Stage C — The surfaces
 
-*Nothing landed yet.*
+**Landed.** No screen names a lane.
 
-Sections to fill: what a screen reads to list structures of one kind; what the reprocessing panel
-reads; anything the one-card-body settings screens assumed about lanes that had to move with them.
+### What a screen reads
+
+A surface wanting one kind now reads the whole array and filters on `jobType`. Two did the naming:
+`currentStructures.jsx`, which lists a kind in settings, and `Styled Components/Select/customStructure.jsx`,
+the picker a job setup chooses through.
+
+Both had gone **silently empty** the moment the store became an array — `array["manufacturing"]` is
+`undefined`, and each had a `?? []` under it — so every list rendered blank rather than failing. That
+is the same shape of fault as the hydration one, and it is why these landed with Stage B rather than
+after it.
+
+The filter runs in the component under `useMemo` rather than inside the store selector: a selector
+returning a fresh array every call would wake its subscriber on every unrelated store change.
+
+`customStructureMap` survives as the one thing it is still needed for — reading a document that stores
+the four lists, inside `customStructuresFromServer`. Nothing else names a lane.
+
+### The login path
+
+`getSystemIndexDataFromUserStructures` prefetches the system indexes a job's install cost is read
+against. It read `cs.manufacturing` and `cs.reaction` directly, so it too went quietly empty: no
+indexes fetched, and every install cost read against index zero.
+
+It now reads through `customStructuresFromServer` like every other consumer, and takes the structures
+that carry a `systemID` — which is the same set, because only manufacturing and reaction have one.
+The shim in `runPostLoginAccountSync.js` that rebuilt a two-lane object purely to feed it is gone; it
+passes the array as the store holds it.
+
+### What proves it
+
+`currentStructures.test.jsx` gained a case seeding **two kinds and expecting one**, and the picker —
+which had no test at all, despite being how a structure reaches a job setup — gained a file covering
+the same, plus the orphaned-reference path and a structure of another kind reading as missing.
+
+Both were mutation-checked by removing the filter. Worth recording: the first mutation run against
+the picker **passed**, because the string being replaced had been reformatted across lines and the
+replacement silently did nothing. A mutation that changes no bytes proves nothing, and the only way to
+tell is to assert the edit applied.
 
 ## Stage D — The kind that is a market
 

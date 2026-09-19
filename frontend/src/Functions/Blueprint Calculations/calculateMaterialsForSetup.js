@@ -5,6 +5,7 @@ import {
   getStructureInfoFromID,
   getRigInfoFromID,
 } from "../Helper/getStructureInfo";
+import rigSlotBonuses from "../Helper/rigSlotBonuses";
 
 /**
  * The material count a setup's configuration calls for, built from its job's raw
@@ -110,7 +111,11 @@ function getRigData(setupObject, requirements) {
     );
     return requiredObject?.material ?? 0;
   }
-  return setupObject.getRigObject()?.material ?? 0;
+  return rigSlotBonuses(
+    setupObject.jobType,
+    setupObject.rigSlot1,
+    setupObject.rigSlot2,
+  ).material;
 }
 
 /**

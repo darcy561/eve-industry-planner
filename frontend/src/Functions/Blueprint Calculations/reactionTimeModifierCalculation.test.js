@@ -20,8 +20,7 @@ const skills = (level) =>
 
 function baseline({ structure = 0, rig = 0, level } = {}) {
   structureTime.value = structure;
-  rigTime.value = rig;
-  return reactionTimeModifierCalculation(0, 0, skills(level));
+  return reactionTimeModifierCalculation(0, rig, skills(level));
 }
 
 describe("reaction time modifier", () => {

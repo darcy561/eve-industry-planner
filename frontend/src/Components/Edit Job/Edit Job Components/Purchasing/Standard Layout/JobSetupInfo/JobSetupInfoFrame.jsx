@@ -3,7 +3,6 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { jobTypes } from "../../../../../../Context/defaultValues";
 import {
-  getRigInfoFromID,
   getStructureInfoFromID,
   getSystemTypeFromID,
 } from "../../../../../../Functions/Helper/getStructureInfo";
@@ -11,6 +10,7 @@ import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystemNames"
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
+import rigSlotLabel from "../../../../../../Functions/Helper/rigSlotLabel";
 
 export default function JobSetupInfoFrame(props) {
   const { state, actions } = props;
@@ -242,7 +242,11 @@ function UseDefaultStructures({ setupEntry }) {
     setupEntry.structureID,
   );
 
-  const rigTypeData = getRigInfoFromID(setupEntry.jobType, setupEntry.rigID);
+  const rigLabel = rigSlotLabel(
+    setupEntry.jobType,
+    setupEntry.rigSlot1,
+    setupEntry.rigSlot2,
+  );
 
   const systemTypeData = getSystemTypeFromID(
     setupEntry.jobType,
@@ -289,7 +293,7 @@ function UseDefaultStructures({ setupEntry }) {
         </Box>
         <Box sx={{ flex: "1 1 calc(33.333% - 12px)", minWidth: 0 }}>
           <Typography align="center" sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {rigTypeData.label}
+            {rigLabel}
           </Typography>
         </Box>
       </Box>

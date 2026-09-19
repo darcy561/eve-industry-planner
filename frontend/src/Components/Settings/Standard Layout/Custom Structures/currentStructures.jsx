@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
@@ -11,7 +12,6 @@ import {
 } from "@mui/material";
 import EntityRow from "../../../../Styled Components/Paper/EntityRow";
 import {
-  customStructureMap,
   jobTypeMapping,
   jobTypes,
   rigTypeMap,
@@ -27,11 +27,15 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 function CurrentStructuresFrame({ selectedJobType, isLoading }) {
-  const structures = useUsersStore(
-    (state) =>
-      state.applicationSettings.customStructures?.[
-        customStructureMap[selectedJobType]
-      ] ?? [],
+  const allStructures = useUsersStore(
+    (state) => state.applicationSettings.customStructures,
+  );
+  const structures = useMemo(
+    () =>
+      (allStructures ?? []).filter(
+        (structure) => structure.jobType === selectedJobType,
+      ),
+    [allStructures, selectedJobType],
   );
   const systemNames = useSolarSystemNames();
   const { setDefaultCustomStructure, deleteCustomStructure } =

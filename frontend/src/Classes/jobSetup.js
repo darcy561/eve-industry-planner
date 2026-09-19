@@ -6,11 +6,11 @@ import GLOBAL_CONFIG from "../global-config-app";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 import {
   getStructureInfoFromID,
-  getRigInfoFromID,
   getSystemTypeFromID,
 } from "../Functions/Helper/getStructureInfo";
 import materialQuantitiesForSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
 import { asStringID } from "../Functions/Helper/ids";
+import rigSlotBonuses from "../Functions/Helper/rigSlotBonuses";
 /**
  * Setup class for EVE Online industry job configurations.
  *
@@ -29,7 +29,8 @@ class Setup {
    * @param {number} [setupInstructions.ME] - Material efficiency level
    * @param {number} [setupInstructions.TE] - Time efficiency level
    * @param {number} [setupInstructions.structureID] - Structure type ID
-   * @param {number} [setupInstructions.rigID] - Rig type ID
+   * @param {number} [setupInstructions.rigSlot1] - First rig slot id
+   * @param {number} [setupInstructions.rigSlot2] - Second rig slot id
    * @param {number} [setupInstructions.systemTypeID] - System type ID
    * @param {number} [setupInstructions.systemID] - System ID
    * @param {number} [setupInstructions.taxValue] - Tax as a percentage, so 2.5 means 2.5%
@@ -51,7 +52,8 @@ class Setup {
     this.ME = setupInstructions?.ME || 0;
     this.TE = setupInstructions?.TE || 0;
     this.structureID = setupInstructions?.structureID || 0;
-    this.rigID = setupInstructions?.rigID || 0;
+    this.rigSlot1 = setupInstructions?.rigSlot1 || 0;
+    this.rigSlot2 = setupInstructions?.rigSlot2 || 0;
     this.systemTypeID = setupInstructions?.systemTypeID || 0;
     this.systemID = setupInstructions?.systemID || DEFAULT_SYSTEM;
     this.taxValue = setupInstructions?.taxValue || 0.25;
@@ -106,7 +108,8 @@ class Setup {
       ME: this.ME,
       TE: this.TE,
       structureID: this.structureID,
-      rigID: this.rigID,
+      rigSlot1: this.rigSlot1,
+      rigSlot2: this.rigSlot2,
       systemTypeID: this.systemTypeID,
       systemID: this.systemID,
       taxValue: this.taxValue,
@@ -143,12 +146,12 @@ class Setup {
   }
 
   /**
-   * Gets the rig object information for this setup.
+   * What this setup's two rigs give, taken per axis.
    *
-   * @returns {Object|null} Rig object or null if not found
+   * @returns {{material: number, time: number, cost: number, value: number}}
    */
-  getRigObject() {
-    return getRigInfoFromID(this.jobType, this.rigID);
+  get rigBonuses() {
+    return rigSlotBonuses(this.jobType, this.rigSlot1, this.rigSlot2);
   }
 
   /**
@@ -242,7 +245,8 @@ class Setup {
       this.structureID = requirementObject.structureID;
     }
     if (Object.hasOwn(requirementObject, "rigID")) {
-      this.rigID = requirementObject.rigID;
+      this.rigSlot1 = requirementObject.rigID;
+      this.rigSlot2 = 0;
     }
     if (Object.hasOwn(requirementObject, "systemTypeID")) {
       this.systemTypeID = requirementObject.systemTypeID;
@@ -321,7 +325,8 @@ class Setup {
 
     this.customStructureID = inputValue;
     this.structureID = selectedStructure.structureType;
-    this.rigID = selectedStructure.rigType;
+    this.rigSlot1 = selectedStructure.rigSlot1 ?? 0;
+    this.rigSlot2 = selectedStructure.rigSlot2 ?? 0;
     this.systemTypeID = selectedStructure.systemType;
     this.systemID = selectedStructure.systemID;
     this.taxValue = selectedStructure.tax;
@@ -353,13 +358,13 @@ class Setup {
   }
 
   /**
-   * Updates the rig ID and manages its requirements.
+   * Fits a rig to the first slot and manages its requirements.
    *
    * @param {Object} rigObject - Rig object with ID and optional requirementID
    */
   updateRigID(rigObject) {
     if (!rigObject || !Object.hasOwn(rigObject, "material")) return;
-    this.rigID = rigObject.id;
+    this.rigSlot1 = rigObject.id;
     this.manageRequirements(
       Object.hasOwn(rigObject, "requirementID")
         ? rigObject.requirementID

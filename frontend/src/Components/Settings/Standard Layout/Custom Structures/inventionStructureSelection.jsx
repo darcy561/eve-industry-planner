@@ -6,7 +6,7 @@ import StructureTypeSelect from "../../../../Styled Components/Select/structureT
 import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
 import RigTypeSelect from "../../../../Styled Components/Select/rigType";
 import { jobTypes } from "../../../../Context/defaultValues";
-import InventionStructure from "../../../../Classes/inventionStructure";
+import Structure from "../../../../Classes/structure";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
 import useUsersStore from "../../../../Zustand/usersStore";
@@ -36,7 +36,7 @@ export default function InventionStructureSelection({
     useUsersStore.getState().applicationSettings.actions;
 
   const [chosenStructure, setChosenStructure] = useState(
-    new InventionStructure(),
+    new Structure(undefined, jobTypes.invention),
   );
   const [rigSlot1Error, setRigSlot1Error] = useState(false);
   const [rigSlot2Error, setRigSlot2Error] = useState(false);
@@ -50,7 +50,7 @@ export default function InventionStructureSelection({
         selectedJobType,
         setIsLoading,
       });
-      setChosenStructure(new InventionStructure());
+      setChosenStructure(new Structure(undefined, jobTypes.invention));
       scheduleDebouncedApplicationSettingsSave();
     } catch (error) {
       console.error("Error adding invention structure:" + error);
@@ -59,7 +59,7 @@ export default function InventionStructureSelection({
 
   const handleNameChange = (e) => {
     chosenStructure.setName(e.target.value);
-    setChosenStructure(new InventionStructure(chosenStructure));
+    setChosenStructure(new Structure(chosenStructure));
   };
 
   return (
@@ -98,7 +98,7 @@ export default function InventionStructureSelection({
               jobType={jobTypes.invention}
               onChange={(selectedEntry) => {
                 chosenStructure.setStructureType(selectedEntry.id);
-                setChosenStructure(new InventionStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -119,7 +119,7 @@ export default function InventionStructureSelection({
               jobType={jobTypes.invention}
               onChange={(selectedEntry) => {
                 chosenStructure.setSystemType(selectedEntry.id);
-                setChosenStructure(new InventionStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -154,7 +154,7 @@ export default function InventionStructureSelection({
                   setRigSlot1Error(false);
                   setRigSlot2Error(false);
                 }
-                setChosenStructure(new InventionStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -189,7 +189,7 @@ export default function InventionStructureSelection({
                   setRigSlot1Error(false);
                   setRigSlot2Error(false);
                 }
-                setChosenStructure(new InventionStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
             />,
           )}
@@ -207,7 +207,7 @@ export default function InventionStructureSelection({
               initialState={chosenStructure.tax}
               onBlur={(value) => {
                 chosenStructure.setTax(value);
-                setChosenStructure(new InventionStructure(chosenStructure));
+                setChosenStructure(new Structure(chosenStructure));
               }}
               variant="outlined"
               label="Tax %"
