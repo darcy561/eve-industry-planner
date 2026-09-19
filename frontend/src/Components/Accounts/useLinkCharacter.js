@@ -16,6 +16,7 @@ import {
 } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import { submitCloudLinkedCharacterRefreshTokens } from "../../Functions/Auth/linkedCharacterTokens.js";
 import { writeClientSecret } from "../../Functions/Auth/esiCredentials/provider.js";
+import { startSignIn } from "../../Functions/Auth/signInState.js";
 import {
   buildAdditionalAccountState,
   subscribeToAdditionalUserAuthCode,
@@ -220,9 +221,19 @@ export function useLinkCharacter() {
    * @param {string} [options.relinkHash] - a character already in the roster, whose refresh secret
    *   this is replacing rather than adding a new character
    */
-  function linkCharacter(options = {}) {
+  async function linkCharacter(options = {}) {
     if (isLinking) return;
     setLinkInFlight(true);
+
+    // Before the popup: a popup left open after a failed mint is worse to explain.
+    try {
+      await startSignIn();
+    } catch (err) {
+      console.error(err);
+      showSnackbarError("Unable to start sign in, please try again", 3);
+      setLinkInFlight(false);
+      return;
+    }
 
     const previousDetach = detachListenerRef.current;
     if (typeof previousDetach === "function") previousDetach();

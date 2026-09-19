@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/evesso"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/plannersession"
@@ -27,7 +28,8 @@ func (h *Handlers) EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	authCode, accountType, err := extractAuthCodeFromRequest(r)
+	request, err := extractAuthCodeFromRequest(r)
+	authCode, accountType := request.AuthCode, request.AccountType
 	if err != nil {
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
 		respondSSOClientError(w, r, "eve_sso_code_exchange", "Invalid request", "failed to extract auth code from request body", "sso_exchange_extraction_error", http.StatusBadRequest, map[string]any{
@@ -42,6 +44,15 @@ func (h *Handlers) EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request)
 			"length": len(authCode),
 			"max":    maxAuthCodeLength,
 		})
+		return
+	}
+
+	// Before the code is spent: a callback this browser did not start is refused
+	// whatever the code turns out to be. A match is spent on use, so the same
+	// state cannot answer a second callback.
+	if !auth.TakeSignInState(w, r, request.State) {
+		m.Errors.WithLabelValues("sign_in_state_mismatch").Inc(ctx)
+		respondSSOClientError(w, r, "eve_sso_code_exchange", "Invalid request", "sign-in state did not match one issued to this browser", "sso_exchange_state_mismatch", http.StatusBadRequest, nil)
 		return
 	}
 

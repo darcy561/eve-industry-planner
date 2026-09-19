@@ -50,5 +50,14 @@ type labeledCounter struct {
 }
 
 func (l *labeledCounter) Inc(ctx context.Context) {
-	l.c.Add(ctx, 1, metric.WithAttributes(l.kv))
+	l.Add(ctx, 1)
+}
+
+// Add records several of the same event at once, for a caller that did a batch
+// of work rather than one thing.
+func (l *labeledCounter) Add(ctx context.Context, delta int) {
+	if delta <= 0 {
+		return
+	}
+	l.c.Add(ctx, int64(delta), metric.WithAttributes(l.kv))
 }

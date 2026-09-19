@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -539,5 +540,105 @@ func TestLoginRejectsANonPostRequest(t *testing.T) {
 
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", rec.Code)
+	}
+}
+
+// Signing out everywhere is what a reader asks for when a machine they no longer
+// have is still signed in.
+func TestRevokeAllEndsEverySessionTheAccountHolds(t *testing.T) {
+	s := newSession(t)
+
+	const accountID = "acct-revoke-all"
+	firstID, firstToken := s.seedSession(t, accountID, "hash-one")
+	secondID, secondToken := s.seedSession(t, accountID, "hash-two")
+
+	rec := s.post(t, s.handlers.RevokeAllSessionsHandler, "/api/v1/auth/sessions/revoke-all", nil,
+		&identity{accountID: accountID, sessionID: firstID})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("revoke-all = %d, body %s", rec.Code, rec.Body.String())
+	}
+
+	var body v1endpoints.RevokeAllSessionsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.SessionsRevoked != 2 || body.TokensRevoked != 2 {
+		t.Fatalf("response = %+v, want two sessions and two tokens", body)
+	}
+
+	for _, token := range []string{firstToken, secondToken} {
+		if s.stored(plannersession.RefreshTokenKeyPrefix + token) {
+			t.Errorf("refresh token %q survived the revoke", token)
+		}
+	}
+	// The session ids still resolve: that is what lets a refused request say it
+	// was revoked rather than that it was never known.
+	for _, sessionID := range []string{firstID, secondID} {
+		if !s.stored(plannersession.SessionIndexKeyPrefix + sessionID) {
+			t.Errorf("session index for %q should survive so the tombstone can be read", sessionID)
+		}
+	}
+}
+
+// The tab that asks is revoked with the rest, and finds out on its next request.
+func TestRevokeAllRefusesTheTabThatAskedForIt(t *testing.T) {
+	s := newSession(t)
+
+	const accountID = "acct-revoke-self"
+	sessionID, _ := s.seedSession(t, accountID, "hash-self")
+
+	if rec := s.post(t, s.handlers.RevokeAllSessionsHandler, "/api/v1/auth/sessions/revoke-all", nil,
+		&identity{accountID: accountID, sessionID: sessionID}); rec.Code != http.StatusOK {
+		t.Fatalf("revoke-all = %d, body %s", rec.Code, rec.Body.String())
+	}
+
+	next := httptest.NewRequest(http.MethodGet, "/api/v1/user/document", nil)
+	next.Header.Set(sessionreq.SessionIDHeader, sessionID)
+
+	_, err := sessionreq.ExtractSession(context.Background(), next, plannersession.NewStore(s.redis))
+	var sessErr *sessionreq.SessionError
+	if !errors.As(err, &sessErr) {
+		t.Fatalf("next request should be refused with a session error, got %v", err)
+	}
+	if sessErr.Code != sessionreq.CodeSessionRevoked {
+		t.Fatalf("code = %q, want %q", sessErr.Code, sessionreq.CodeSessionRevoked)
+	}
+}
+
+func TestRevokeAllLeavesOtherAccountsSignedIn(t *testing.T) {
+	s := newSession(t)
+
+	mineID, _ := s.seedSession(t, "acct-mine", "hash-mine")
+	_, theirToken := s.seedSession(t, "acct-theirs", "hash-theirs")
+
+	if rec := s.post(t, s.handlers.RevokeAllSessionsHandler, "/api/v1/auth/sessions/revoke-all", nil,
+		&identity{accountID: "acct-mine", sessionID: mineID}); rec.Code != http.StatusOK {
+		t.Fatalf("revoke-all = %d, body %s", rec.Code, rec.Body.String())
+	}
+
+	if !s.stored(plannersession.RefreshTokenKeyPrefix + theirToken) {
+		t.Error("another account's refresh token was revoked")
+	}
+}
+
+func TestRevokeAllRefusesARequestWithNoSession(t *testing.T) {
+	s := newSession(t)
+
+	rec := s.post(t, s.handlers.RevokeAllSessionsHandler, "/api/v1/auth/sessions/revoke-all", nil, nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("revoke-all = %d, want 401; body %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRevokeAllRejectsANonPostRequest(t *testing.T) {
+	s := newSession(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/sessions/revoke-all", nil)
+	req = req.WithContext(sessionreq.WithIdentity(req.Context(), "acct", "sess"))
+	rec := httptest.NewRecorder()
+	s.handlers.RevokeAllSessionsHandler(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("revoke-all = %d, want 405", rec.Code)
 	}
 }

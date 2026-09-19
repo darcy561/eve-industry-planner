@@ -17,6 +17,7 @@ import useUsersStore from "../../../Zustand/usersStore";
 import { useTranquilityServerStatusQuery } from "../../../Hooks/React Query/tranquilityServerStatus.js";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import { PlannerSwitcher } from "./plannerSwitcher.jsx";
+import { SIGNOUT_INTENT } from "../../../Functions/Auth/signoutIntent.js";
 
 /**
  * One destination in the menu: a real link, so it can be opened in a new tab.
@@ -152,7 +153,7 @@ export function SideMenu({ open, setOpen }) {
                 router preloads on intent — so hovering a link here would sign out. */}
             <ListItemButton
               onClick={() => {
-                navigate({ to: "/signout" });
+                navigate({ to: "/signout", state: SIGNOUT_INTENT });
                 close();
               }}
               sx={{

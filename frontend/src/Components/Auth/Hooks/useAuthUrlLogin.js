@@ -32,7 +32,9 @@ export function useAuthUrlLogin() {
           });
         } catch (err) {
           console.error(err?.message ?? err);
-          redirectToFullEveLogin();
+          await redirectToFullEveLogin().catch((redirectErr) => {
+            console.error(redirectErr?.message ?? redirectErr);
+          });
         }
         return;
       }
@@ -43,7 +45,7 @@ export function useAuthUrlLogin() {
 
       // Carries where the guard was sending them, so signing in returns them to the
       // page they asked for rather than to `/auth`.
-      redirectToFullEveLogin(state);
+      await redirectToFullEveLogin(state);
     }
     void run();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once; login flow is idempotent and must not re-run on hook identity

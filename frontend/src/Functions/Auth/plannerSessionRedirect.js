@@ -8,6 +8,7 @@ import {
   clearTabPlannerSession,
   isPlannerReauthDeadlinePassed,
 } from "./tabSessionStorage.js";
+import { startSignIn } from "./signInState.js";
 
 /** API auth codes that require a fresh EVE SSO login (not rotate/bootstrap). */
 export const PLANNER_TERMINAL_AUTH_CODES = new Set([
@@ -68,10 +69,16 @@ export function isTerminalPlannerAuthCode(code) {
 /**
  * Clears tab session + client-readable auth cookies, then navigates to EVE SSO.
  *
+ * Minted before anything is cleared, so a sign-in that cannot start leaves the tab
+ * as it was.
+ *
  * @param {string} [returnTo] - Where the reader was headed, when they were sent here
  *   from somewhere other than the page they wanted.
+ * @returns {Promise<void>} Resolves only if the redirect could not be started; the
+ *   tab is gone otherwise.
  */
-export function redirectToFullEveLogin(returnTo) {
+export async function redirectToFullEveLogin(returnTo) {
+  await startSignIn();
   clearTabPlannerSession();
   clearPlannerAuthCookiesClientSide();
   redirectToEveSSO(returnTo);
@@ -124,14 +131,18 @@ export function reauthDemand(signal) {
  *
  * Callers do not choose between this and {@link redirectToFullEveLogin} — a demand
  * always means a full sign-in, because the material a rotate would need is exactly
- * what is no longer valid. The tab is gone once this returns `true`, so a caller's
- * remaining work is only about what it must not do next.
+ * what is no longer valid.
+ *
+ * Still synchronous although the sign-in now begins with a request: the answer is
+ * that this tab is leaving, which is all a caller acts on.
  *
  * @param {unknown} [signal] - As {@link reauthDemand}.
  * @returns {boolean} True when the reader is being sent to EVE.
  */
 export function enforceReauthDemand(signal) {
   if (!reauthDemand(signal)) return false;
-  redirectToFullEveLogin();
+  void redirectToFullEveLogin().catch((err) => {
+    console.error("Unable to start sign in:", err?.message ?? err);
+  });
   return true;
 }

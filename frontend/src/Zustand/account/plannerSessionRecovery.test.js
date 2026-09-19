@@ -20,7 +20,11 @@ import {
   TAB_REFRESH_TOKEN_KEY,
   TAB_SESSION_ID_KEY,
 } from "../../Functions/Auth/tabSessionStorage.js";
-import { esiAccessToken } from "../../tests/utils.js";
+import {
+  esiAccessToken,
+  isSignInStateRequest,
+  signInStateResponse,
+} from "../../tests/utils.js";
 
 const ROTATE_URL = "/api/v1/auth/sessions/rotate";
 
@@ -56,6 +60,18 @@ function seedLoggedInAccount() {
   }));
 }
 
+/**
+ * Answers `response` to everything but the sign-in state mint, which every path to
+ * EVE SSO now asks for first and which has to succeed for a redirect to happen.
+ */
+function answerEverythingBesidesTheMint(fetchMock, response) {
+  fetchMock.mockImplementation((url) =>
+    Promise.resolve(
+      isSignInStateRequest(url) ? signInStateResponse() : response,
+    ),
+  );
+}
+
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), {
     status,
@@ -85,28 +101,41 @@ describe("planner session recovery", () => {
 
   // The server answer produced by the rotate handler when a refresh token has been rotated away.
   it("starts a full EVE login when rotate reports the session revoked", async () => {
-    fetchMock.mockResolvedValue(
+    answerEverythingBesidesTheMint(
+      fetchMock,
       jsonResponse(401, { code: "session_revoked", message: "Unauthorized" }),
     );
 
     await useUsersStore.getState().account.actions.ensurePlannerSession();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe(ROTATE_URL);
-    expect(mockRedirectToEveSSO).toHaveBeenCalledTimes(1);
+    expect(
+      fetchMock.mock.calls.some(([url]) => isSignInStateRequest(url)),
+    ).toBe(true);
+    // Awaited rather than asserted outright: the sign-in state is fetched before the
+    // tab leaves, so the redirect lands a tick after the rotate is answered.
+    await vi.waitFor(() =>
+      expect(mockRedirectToEveSSO).toHaveBeenCalledTimes(1),
+    );
     expect(sessionStorage.getItem(TAB_REFRESH_TOKEN_KEY)).toBeNull();
   });
 
   // The consolidation made the deadline a reauth demand like any other, so this is the
   // one path where a rotate is refused before any HTTP happens at all.
   it("starts a full EVE login instead of rotating past the reauth deadline", async () => {
+    answerEverythingBesidesTheMint(fetchMock, jsonResponse(500, {}));
     const past = Math.floor(Date.now() / 1000) - 60;
     sessionStorage.setItem(TAB_REAUTH_REQUIRED_AT_KEY, String(past));
 
     await useUsersStore.getState().account.actions.ensurePlannerSession();
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(mockRedirectToEveSSO).toHaveBeenCalledTimes(1);
+    // Still no rotate: the only request is the sign-in the tab is leaving to make.
+    expect(
+      fetchMock.mock.calls.every(([url]) => isSignInStateRequest(url)),
+    ).toBe(true);
+    await vi.waitFor(() =>
+      expect(mockRedirectToEveSSO).toHaveBeenCalledTimes(1),
+    );
   });
 
   // The pre-fix server behaviour: an uncoded 401. Nothing can classify it, so the tab keeps its dead
@@ -165,7 +194,8 @@ describe("planner session recovery", () => {
     await actions.ensurePlannerSession();
 
     vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 1000);
-    fetchMock.mockResolvedValue(
+    answerEverythingBesidesTheMint(
+      fetchMock,
       jsonResponse(200, {
         session_id: "session-2",
         refresh_token: "fresh-refresh-token",

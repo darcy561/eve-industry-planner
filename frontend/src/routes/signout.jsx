@@ -7,6 +7,7 @@ import { disconnectWebsocket } from "../WebSocket/websocketClient.js";
 import { clearInboundJobDocumentCoalesce } from "../Functions/Debounce/inboundJobDocumentsCoalesce.js";
 import useUsersStore from "../Zustand/usersStore";
 import esiCredentials from "../Functions/Auth/esiCredentials/provider.js";
+import { isDeliberateSignout } from "../Functions/Auth/signoutIntent.js";
 
 function clearClientSessionState() {
   const { resetJobDataStore } = useUsersStore.getState().jobData.actions;
@@ -44,7 +45,14 @@ export const Route = createFileRoute("/signout")({
   staticData: { audience: "transient" },
   // Teardown runs as a navigation guard rather than a mounted component, so
   // signing out never renders a page of its own.
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
+    // Arriving is the whole of signing out, so arriving has to have been the app's
+    // doing: a cross-site link, a bookmark or a pasted URL reaches here the same way
+    // the menu does, and the session cookie rides along on a top-level GET.
+    if (!isDeliberateSignout(location.state)) {
+      throw redirect({ to: "/", replace: true });
+    }
+
     let serverLogoutFailed = false;
     try {
       disconnectWebsocket();
@@ -59,12 +67,17 @@ export const Route = createFileRoute("/signout")({
     }
 
     // A failed server logout reloads rather than routing: whatever state made
-    // it fail cannot survive into the next session.
+    // it fail cannot survive into the next session. Replaced, not pushed, for the
+    // same reason the success path replaces — the entry behind this one is the
+    // `/signout` the reader arrived on, still carrying its mark, and Back onto it
+    // would run the teardown again.
     if (serverLogoutFailed) {
-      window.location.href = "/";
+      window.location.replace("/");
       return;
     }
 
-    throw redirect({ to: "/" });
+    // Replaced rather than pushed, so the entry that tears a session down does not
+    // stay in history for Back to land on.
+    throw redirect({ to: "/", replace: true });
   },
 });

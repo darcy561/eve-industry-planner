@@ -16,6 +16,10 @@ vi.mock("../../Components/Auth/Functions/eveSSORedirect", () => ({
 
 import useUsersStore from "../usersStore.js";
 import {
+  isSignInStateRequest,
+  signInStateResponse,
+} from "../../tests/utils.js";
+import {
   TAB_REFRESH_TOKEN_KEY,
   TAB_SESSION_ID_KEY,
 } from "../../Functions/Auth/tabSessionStorage.js";
@@ -119,13 +123,23 @@ describe("rotating without an ESI token in hand", () => {
 
   it("starts a full login when a local account's credentials are dead", async () => {
     seed({ userCloudAccounts: false });
+    fetchMock.mockImplementation((url) =>
+      isSignInStateRequest(url)
+        ? Promise.resolve(signInStateResponse())
+        : Promise.reject(new Error(`unexpected request to ${url}`)),
+    );
     mockGetEsiAccessToken.mockRejectedValue(
       new EsiCredentialError("dead", ESI_CREDENTIAL_REAUTH_REQUIRED),
     );
 
     await useUsersStore.getState().account.actions.ensurePlannerSession();
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(mockRedirectToEveSSO).toHaveBeenCalledTimes(1);
+    // No rotate: the only request is the sign-in the tab is leaving to make.
+    expect(
+      fetchMock.mock.calls.every(([url]) => isSignInStateRequest(url)),
+    ).toBe(true);
+    await vi.waitFor(() =>
+      expect(mockRedirectToEveSSO).toHaveBeenCalledTimes(1),
+    );
   });
 });

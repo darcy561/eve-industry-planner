@@ -25,6 +25,8 @@ vi.mock("../../../Hooks/React Query/tranquilityServerStatus.js", () => ({
 vi.mock("./plannerSwitcher.jsx", () => ({ PlannerSwitcher: () => null }));
 
 const { SideMenu } = await import("./sidemenu.jsx");
+const { SIGNOUT_INTENT } =
+  await import("../../../Functions/Auth/signoutIntent.js");
 
 const DESTINATIONS = [
   ["Dashboard", "/dashboard"],
@@ -123,5 +125,18 @@ describe("the side menu", () => {
 
     expect(screen.queryByRole("link", { name: "Sign Out" })).toBeNull();
     expect(screen.getByText("Sign Out")).toBeVisible();
+  });
+
+  // The route refuses to tear anything down without this, so a menu that stopped
+  // sending it would leave a Sign Out button that does nothing.
+  it("marks the navigation as one the app made", async () => {
+    const { router } = await showMenu();
+    const navigate = vi.spyOn(router, "navigate").mockResolvedValue(undefined);
+
+    await userEvent.click(screen.getByText("Sign Out"));
+
+    expect(navigate).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "/signout", state: SIGNOUT_INTENT }),
+    );
   });
 });

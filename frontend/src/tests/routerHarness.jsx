@@ -59,12 +59,23 @@ export async function renderWithRouter(ui, { path = "/" } = {}) {
  * routing layer itself, which is the part that decides what a reader may see and what
  * has to be there before they see it.
  *
+ * `state` is history state, which a URL cannot carry — a route that only acts when the
+ * app sent the reader there reads it, so a test has to be able to arrive both ways. It
+ * costs a navigation: the router starts elsewhere and moves, because history state
+ * belongs to a navigation rather than to an initial entry.
+ *
  * @param {string} url
+ * @param {Object} [options]
+ * @param {Record<string, unknown>} [options.state] - History state to arrive with.
  * @returns {Promise<{router: Object, pathname: string, search: Object, routeId: string|undefined, isNotFound: boolean, error: unknown}>}
  */
-export async function enterRoute(url) {
-  const router = testRouter(url);
+export async function enterRoute(url, { state } = {}) {
+  const router = testRouter(state ? "/" : url);
   await router.load();
+  if (state) {
+    await router.navigate({ to: url, state });
+    await router.invalidate();
+  }
 
   const matches = router.state.matches;
   const leaf = matches.at(-1);

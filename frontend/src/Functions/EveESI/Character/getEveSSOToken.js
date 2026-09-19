@@ -2,6 +2,7 @@ import { decodeJwt } from "jose";
 import Character from "../../../Classes/character";
 import { fetchWithPublicHeaders } from "../../Endpoints/Public/applyPublicHeaders.js";
 import { adoptEsiAccessToken } from "../../Auth/esiCredentials/provider.js";
+import { takeSignInState } from "../../Auth/signInState.js";
 
 /**
  * Exchanges EVE SSO authorization code for access token and builds a {@link Character} instance.
@@ -35,6 +36,9 @@ async function getEveOauthToken(authCode, accountType = false) {
         body: JSON.stringify({
           auth_code: authCode,
           account_type: accountType,
+          // Proves this browser started the sign-in. Without it the exchange
+          // refuses, which is what stops a code somebody else obtained.
+          state: takeSignInState(),
         }),
       },
       { requestName: "exchangeEsiSsoCode" },

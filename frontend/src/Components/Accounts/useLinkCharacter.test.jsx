@@ -12,6 +12,7 @@ const buildCharacterAffiliations = vi.fn(async () => {});
 const prefetchCollections = vi.fn(async () => {});
 const snackbarError = vi.fn();
 const snackbarSuccess = vi.fn();
+const startSignIn = vi.fn(async () => "a-sign-in-state");
 
 let characters = [];
 let cloudAccounts = false;
@@ -31,6 +32,12 @@ vi.mock("../../Zustand/usersStore", async () => {
 
 vi.mock("../../Functions/EveESI/Character/getEveSSOToken", () => ({
   default: (...args) => getEveOauthToken(...args),
+}));
+// Linking exchanges a code, so it proves this browser started the sign-in the same
+// way the main login does. The mint itself is the API's; what matters here is that
+// linking waits for it.
+vi.mock("../../Functions/Auth/signInState.js", () => ({
+  startSignIn: (...args) => startSignIn(...args),
 }));
 vi.mock("../../Functions/Auth/linkedCharacterTokens.js", () => ({
   submitCloudLinkedCharacterRefreshTokens: (...args) =>
@@ -112,8 +119,10 @@ async function linkAndAnswerWith(character, options) {
   });
   getEveOauthToken.mockResolvedValue(character);
 
-  act(() => {
-    result.current.linkCharacter(options);
+  // Awaited: the sign-in state is minted before the popup opens, so the listener the
+  // callback answers on is not attached until that resolves.
+  await act(async () => {
+    await result.current.linkCharacter(options);
   });
   await act(async () => {
     await onAuthCode("auth-code");
@@ -128,7 +137,28 @@ describe("linking a character through EVE SSO", () => {
     cloudAccounts = false;
     onAuthCode = null;
     vi.clearAllMocks();
+    startSignIn.mockResolvedValue("a-sign-in-state");
     vi.stubGlobal("open", vi.fn());
+  });
+
+  // Without a state the exchange refuses, so opening the popup would walk the reader
+  // through EVE to fail on the way back.
+  it("does not open the popup when the sign-in cannot be started", async () => {
+    startSignIn.mockRejectedValue(new Error("no state"));
+    const client = testQueryClient();
+    const { result } = renderHook(() => useLinkCharacter(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await act(async () => {
+      await result.current.linkCharacter();
+    });
+
+    expect(window.open).not.toHaveBeenCalled();
+    expect(snackbarError).toHaveBeenCalled();
+    expect(result.current.isLinking).toBe(false);
   });
 
   it("adds a character the account does not have", async () => {

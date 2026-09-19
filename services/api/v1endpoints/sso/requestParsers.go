@@ -8,19 +8,20 @@ import (
 	"net/http"
 )
 
-func extractAuthCodeFromRequest(r *http.Request) (string, bool, error) {
+func extractAuthCodeFromRequest(r *http.Request) (EveSSOExchangeRequest, error) {
 	var reqBody EveSSOExchangeRequest
 	if err := helper.DecodeJSONRequest(r, &reqBody, maxAuthCodeLength+1024); err != nil {
-		return "", false, err
+		return EveSSOExchangeRequest{}, err
 	}
+	reqBody.AuthCode = strings.TrimSpace(reqBody.AuthCode)
+	reqBody.State = strings.TrimSpace(reqBody.State)
 	if reqBody.AuthCode == "" {
-		return "", false, errors.New("auth_code is required in request body")
+		return EveSSOExchangeRequest{}, errors.New("auth_code is required in request body")
 	}
-	authCode := strings.TrimSpace(reqBody.AuthCode)
-	if authCode == "" {
-		return "", false, errors.New("auth_code cannot be empty")
+	if reqBody.State == "" {
+		return EveSSOExchangeRequest{}, errors.New("state is required in request body")
 	}
-	return authCode, reqBody.AccountType, nil
+	return reqBody, nil
 }
 
 func extractRefreshTokenFromSSORequest(r *http.Request) (string, error) {

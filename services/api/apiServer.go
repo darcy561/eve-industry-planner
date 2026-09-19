@@ -139,6 +139,10 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients, esi esi
 			Handler: v1.BootstrapHandler,
 		},
 		{
+			Path:    "/api/v1/eve-sso/sign-in-state",
+			Handler: ssoH.SignInStateHandler,
+		},
+		{
 			Path:    "/api/v1/eve-sso/tokens/exchange",
 			Handler: ssoH.EveSSOExchangeHandler,
 		},
@@ -212,6 +216,10 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients, esi esi
 		{
 			Path:    "/api/v1/auth/sessions/logout",
 			Handler: v1.LogoutHandler,
+		},
+		{
+			Path:    "/api/v1/auth/sessions/revoke-all",
+			Handler: v1.RevokeAllSessionsHandler,
 		},
 		{
 			Path:    "/api/v1/user/document",

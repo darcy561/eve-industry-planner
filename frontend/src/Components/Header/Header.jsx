@@ -16,7 +16,7 @@ import { UserIcon } from "./Components/UserIcon";
 import { useTheme } from "@emotion/react";
 import { useThemeContext } from "../../Context/ThemeContext";
 import useUsersStore from "../../Zustand/usersStore";
-import redirectToEveSSO from "../Auth/Functions/eveSSORedirect";
+import { redirectToFullEveLogin } from "../../Functions/Auth/plannerSessionRedirect.js";
 import OfflineNotificationIcon from "./Components/offlineNotificationIcon";
 import DocumentLockHeaderControl from "../DocumentLock/DocumentLockHeaderControl.jsx";
 
@@ -113,7 +113,12 @@ export function Header({ trailing }) {
           <Tooltip title="Login with EVE SSO" arrow>
             <Box
               onClick={() => {
-                redirectToEveSSO();
+                void redirectToFullEveLogin().catch((err) => {
+                  console.error(
+                    "Unable to start sign in:",
+                    err?.message ?? err,
+                  );
+                });
               }}
               sx={{
                 marginLeft: "5px",

@@ -1,15 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+const { startSignIn, redirectToEveSSO } = vi.hoisted(() => ({
+  startSignIn: vi.fn(async () => "a-sign-in-state"),
+  redirectToEveSSO: vi.fn(),
+}));
+vi.mock("./signInState.js", () => ({ startSignIn }));
+vi.mock("../../Components/Auth/Functions/eveSSORedirect", () => ({
+  default: redirectToEveSSO,
+}));
+
 import {
   isTerminalPlannerAuthCode,
   parsePlannerAuthCodeFromText,
   reauthDemand,
+  redirectToFullEveLogin,
 } from "./plannerSessionRedirect.js";
 import {
   EsiCredentialError,
   ESI_CREDENTIAL_REAUTH_REQUIRED,
   ESI_CREDENTIAL_RECOVERABLE,
 } from "./esiCredentials/errors.js";
-import { TAB_REAUTH_REQUIRED_AT_KEY } from "./tabSessionStorage.js";
+import {
+  TAB_REAUTH_REQUIRED_AT_KEY,
+  TAB_REFRESH_TOKEN_KEY,
+} from "./tabSessionStorage.js";
 
 describe("plannerSessionRedirect", () => {
   it("parses reauth_required from JSON body", () => {
@@ -85,5 +99,37 @@ describe("reauthDemand", () => {
     ).toBe(false);
     expect(reauthDemand(new Error("Failed to fetch"))).toBe(false);
     expect(reauthDemand(null)).toBe(false);
+  });
+});
+
+// Minting is what the redirect now waits on, and it runs before anything is torn
+// down: a sign-in that cannot start must leave the tab able to try again.
+describe("leaving for EVE SSO", () => {
+  beforeEach(() => {
+    sessionStorage.setItem(TAB_REFRESH_TOKEN_KEY, "a-refresh-token");
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("mints a state, then clears the tab, then goes", async () => {
+    await redirectToFullEveLogin("/jobplanner");
+
+    expect(startSignIn).toHaveBeenCalled();
+    expect(sessionStorage.getItem(TAB_REFRESH_TOKEN_KEY)).toBeNull();
+    expect(redirectToEveSSO).toHaveBeenCalledWith("/jobplanner");
+  });
+
+  it("leaves the tab alone when the state cannot be minted", async () => {
+    startSignIn.mockRejectedValue(new Error("no state"));
+
+    await expect(redirectToFullEveLogin()).rejects.toThrow("no state");
+
+    expect(redirectToEveSSO).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(TAB_REFRESH_TOKEN_KEY)).toBe(
+      "a-refresh-token",
+    );
   });
 });

@@ -541,3 +541,42 @@ func TestGeneratedIdentifiersAreDistinct(t *testing.T) {
 		}
 	}
 }
+
+// A caller's mutation is re-applied on every compare-and-set attempt, so a
+// counter it keeps outside itself has to be re-derived per call rather than
+// added to. Getting that wrong reports work an attempt did not commit.
+//
+// The conflict is forced through miniredis directly rather than from another
+// goroutine: a direct write bumps the watched key's version without going
+// through the watched connection, so the retry happens on every run instead of
+// whenever the timing allows.
+func TestUpdateAccountRecordRerunsTheMutationOnAConflict(t *testing.T) {
+	ctx := context.Background()
+	r := redisfixture.New(t)
+	s := NewStore(r.Handle)
+
+	calls := 0
+	counted := 0
+	err := s.UpdateAccountRecord(ctx, "acct", func(rec *AccountRecord) error {
+		calls++
+		counted = 0
+		if calls == 1 {
+			if err := r.Server.Set(accountKey("acct"), `{"account_id":"acct","sessions":{}}`); err != nil {
+				t.Fatalf("racing write: %v", err)
+			}
+		}
+		rec.Sessions["sess"] = Session{SessionID: "sess"}
+		counted++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	if calls < 2 {
+		t.Fatalf("mutation ran %d times; the racing write should have cost it an attempt", calls)
+	}
+	if counted != 1 {
+		t.Fatalf("counted = %d, want 1 — what a caller keeps outside the mutation must be re-derived per attempt", counted)
+	}
+}
