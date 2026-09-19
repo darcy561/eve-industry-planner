@@ -90,10 +90,9 @@ func TestArchivedJobLinesPersistFlat(t *testing.T) {
 	requireFlatKeys(t, tx, "transactionID", "year", "month", "amount", "quantity")
 
 	fee := ArchivedJobFeeLine{
-		FeeID:  5500000001,
 		Amount: -3,
 	}
-	requireFlatKeys(t, fee, "feeID", "amount")
+	requireFlatKeys(t, fee, "amount")
 }
 
 func TestArchivedJobStatsPersistsFlat(t *testing.T) {

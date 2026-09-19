@@ -425,7 +425,15 @@ func TestReshapeJobDocument_dropsWhatTheReshapedShapeDoesNotHold(t *testing.T) {
 	if setup["runCount"] == nil || out["jobID"] == nil {
 		t.Error("pruning took a field the reshaped shape holds")
 	}
-	for field, want := range map[string]int{"apiJobs": 1, "build.products": 1, "build.setup.rawTime": 1} {
+	// Still read by the cost and time calculations: a setup converted without
+	// them reads as needing no materials, which is a zeroed job rather than a
+	// recalculated one.
+	for _, field := range []string{"materialCount", "rawTime"} {
+		if _, held := setup[field]; !held {
+			t.Errorf("setup lost %s, which its readers still need", field)
+		}
+	}
+	for field, want := range map[string]int{"apiJobs": 1, "build.products": 1, "build.setup.estimatedTime": 1} {
 		if report.FieldsDropped[field] != want {
 			t.Errorf("FieldsDropped[%q] = %d, want %d", field, report.FieldsDropped[field], want)
 		}

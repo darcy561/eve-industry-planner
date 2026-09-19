@@ -3,20 +3,39 @@
 How the job document and the edit page behave **while this project is in flight**. On overlap with live
 SoT, this file wins for the surfaces below until the project promotes.
 
-Nothing has landed. A job document still carries every field it carries today, and the edit page still
-rebuilds a `Job` instance on every change, as [plan.md](./plan.md) § Starting position describes.
+Stage 1 has landed. Everything else is as [plan.md](./plan.md) § Starting position describes: the edit
+page still rebuilds a `Job` instance on every change.
 
 ## Stage 1 — The removals
 
-*Not landed.* Stage 2's conversion prunes these fields from stored documents, but that is the storage
-half only: the writers still emit them, so a document saved after the release carries them again until
-this stage lands.
+*Landed.*
 
-The four derived setup figures are still persisted beside the fields they are derived from, and
-`materialPriceOverrides` still sits under `layout`.
+A purchase row no longer states a type. Which material it bought is the material it sits under, so
+`models.Purchase` has no `TypeID` and `jobMaterial.js` no longer stamps one onto a row it creates. Every
+consumer already read the material's own `typeID`; nothing read the row's copy.
 
-Owed here: what a job document carries after the removals, and when a derived setup figure is now
-computed.
+An archived fee line no longer carries `FeeID`. `buildFeeLines` wrote it from the journal entry id and
+nothing read it back — and that id is shared between orders listed together in one multi-sell, so it was
+never an identity for the fee in any case.
+
+Two fields the row-key gate named needed no code change: neither `complete` nor `CharacterHash` is on
+`models.BrokerFee` or the SPA's `BrokerFee` class. They exist only on stored rows, and Stage 2's prune
+is what clears them.
+
+`materialPriceOverrides` still sits under `layout`, and so do `esiJobTab`, `setupToEdit` and
+`resourceDisplayType` — deferred, two of the three being read. [plan.md](./plan.md) § Stage 1 says why.
+
+## Stage 1b — The derived setup figures become derivations
+
+*Not landed.* Split out of Stage 1, which had described all four as removals — see
+[plan.md](./plan.md) § Stage 1b.
+
+`estimatedTime` and `estimatedInstallCost` are already absent from the writers, so what remains for them
+is the stored residue the Stage 2 conversion clears. `materialCount` and `rawTime` are still persisted
+beside the fields they are derived from, and still read: the cost calculation and the time calculation
+consult them in both languages.
+
+Owed here: where each of the two is now derived from, and what a setup carries once neither is stored.
 
 ## Stage 2 — The reshape, in the release window
 
@@ -55,7 +74,14 @@ converting over whichever was visited last. A refused document is left exactly a
 minted, 245 invention entries stamped v1, 3,668 duplicate rows collapsed, and 3,340 fees folded — with
 814 dropped in favour of the oldest on their order (489.8M ISK) and 5 dropped for having no order
 (45.3M ISK). Also dropped, by name: `apiJobs`, `apiOrders`, `apiTransactions` and `build.products` from
-every document, `archiveProcessed` from 9,129, and the four derived setup figures from 45,385 setups.
+every document, `archiveProcessed` from 9,129, and the derived setup figures from 45,385 setups.
+
+**That last figure was four fields and is now two.** The conversion pruned `materialCount` and `rawTime`
+as well, which a later `prepareRelease` run against dev showed it must not: both are still read, and a
+converted job's material cost computes as zero without them — [plan.md](./plan.md) § Stage 1b has the
+mechanism and the counts. That run was reverted. `derivedSetupFields` now holds only `estimatedTime` and
+`estimatedInstallCost`, so the figures above are a report of what the wider list did, not of what the
+step does today.
 
 **It took 1m32s**, which settles what § Settled left open: a conversion that reads and rewrites each
 document does not cost the window anything worth avoiding, so the reshape did not need to be expressible

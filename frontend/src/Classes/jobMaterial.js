@@ -94,7 +94,6 @@ class Material {
         ...this.purchasing.filter(isValidPurchase),
         {
           id: purchase.id ?? crypto.randomUUID(),
-          typeID: this.typeID,
           childID,
           childJobImport: Boolean(childID),
           itemCount: recorded,

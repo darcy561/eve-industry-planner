@@ -674,10 +674,9 @@ type JobMaterial struct {
 	Purchasing []Purchase `json:"purchasing" bson:"purchasing"`
 }
 
-// Purchase is one buy recorded against a material. TypeID repeats the parent
-// material's, which the SPA reads directly off the row.
+// Purchase is one buy recorded against a material. Which material it bought is
+// the material it sits under, so the row states no type of its own.
 type Purchase struct {
-	TypeID         int     `json:"typeID" bson:"typeID"`                       // EVE type id (frontend includes on each row); zero encodes as 0 when unknown
 	ID             string  `json:"id" bson:"id"`                               // UUID identifier
 	ChildID        string  `json:"childID,omitempty" bson:"childID,omitempty"` // Child job id; empty if none
 	ChildJobImport bool    `json:"childJobImport" bson:"childJobImport"`       // Whether this purchase is imported from a child job

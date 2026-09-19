@@ -338,7 +338,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 					"purchasing": [
 						{
 							"id": "3b777158-8644-22e1-461c-45987b7e07e2",
-							"typeID": 57478,
 							"itemCost": 47780,
 							"itemCount": 360,
 							"childJobImport": false
@@ -371,7 +370,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 		t.Fatalf("purchasing len: %d", len(job.Build.Materials[0].Purchasing))
 	}
 	p := job.Build.Materials[0].Purchasing[0]
-	if p.TypeID != 57478 || p.ItemCount != 360 || p.ItemCost != 47780 {
+	if p.ItemCount != 360 || p.ItemCost != 47780 {
 		t.Fatalf("purchase decode: %+v", p)
 	}
 }
@@ -460,7 +459,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 					"purchasing": [
 						{
 							"id": "3b777158-8644-22e1-461c-45987b7e07e2",
-							"typeID": 57478,
 							"itemCost": 47780,
 							"itemCount": 360,
 							"childJobImport": false,
@@ -517,7 +515,8 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 	if job.Build.Costs.LinkedJobs[0].CompletedDate != "" {
 		t.Fatalf("completed_date null: got %q", job.Build.Costs.LinkedJobs[0].CompletedDate)
 	}
-	if len(job.Build.Materials) != 1 || job.Build.Materials[0].Purchasing[0].TypeID != 57478 {
+	if len(job.Build.Materials) != 1 || job.Build.Materials[0].TypeID != 57478 ||
+		len(job.Build.Materials[0].Purchasing) != 1 {
 		t.Fatalf("material/purchase decode failed")
 	}
 }

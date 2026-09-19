@@ -32,7 +32,6 @@ type ArchivedJobTransactionLine struct {
 }
 
 type ArchivedJobFeeLine struct {
-	FeeID           int64 `bson:"feeID" json:"feeID"`
 	ArchivedJobLine `bson:",inline"`
 }
 

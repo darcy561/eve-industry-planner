@@ -141,9 +141,16 @@ var (
 	}
 	reshapedESIFields = []string{"industryJobs", "marketOrders", "transactions"}
 
-	// The four figures a setup is recalculated from what sits beside it, which
-	// Stage 1 stops writing. A document written before that still carries them.
-	derivedSetupFields = []string{"materialCount", "estimatedTime", "rawTime", "estimatedInstallCost"}
+	// Figures recalculated from what sits beside them in the setup, so a stored
+	// copy is free to disagree with its inputs.
+	//
+	// Only the two nothing writes any more. materialCount and rawTime are still
+	// written and still read — the cost calculation reaches materialCount through
+	// JobSetup.MaterialQuantity, and a setup loaded without one reads as needing
+	// no materials rather than as needing recalculation — so dropping them here
+	// would zero every converted job's material cost until something edited each
+	// setup. They come out when their readers derive them instead.
+	derivedSetupFields = []string{"estimatedTime", "estimatedInstallCost"}
 )
 
 // pruneToShape drops what the reshaped document does not hold.

@@ -140,6 +140,17 @@ describe("recording a purchase", () => {
     expect(material.quantityImported).toBe(100);
   });
 
+  // Which material a purchase bought is the material it sits under. A row that
+  // repeated it was free to disagree with its parent, and nothing ever read it.
+  test("records a purchase without repeating the material's type", () => {
+    const material = needing(100);
+
+    material.importPurchase(purchase("p1", 40, 5));
+
+    expect(material.purchasing).toHaveLength(1);
+    expect(material.purchasing[0]).not.toHaveProperty("typeID");
+  });
+
   // A single job has nowhere to pass a leftover to, so it keeps the purchase and
   // reports the excess instead of charging the job for it.
   test("keeps what did not fit when asked to, without charging for it", () => {

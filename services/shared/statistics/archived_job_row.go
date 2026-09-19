@@ -267,7 +267,6 @@ func buildFeeLines(job models.Job, archivedAt time.Time) []models.ArchivedJobFee
 	for _, f := range job.Build.Sale.BrokersFee {
 		date := parseLineDate(f.Date, archivedAt)
 		lines = append(lines, models.ArchivedJobFeeLine{
-			FeeID:         f.ID,
 			OrderID:       f.OrderID,
 			Date:          date,
 			CalendarMonth: lineMonth(filed, date),

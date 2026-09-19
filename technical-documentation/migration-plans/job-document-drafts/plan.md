@@ -904,9 +904,20 @@ inventory, and the row in the section [contents.md](../contents.md). No code.
 
 ### Stage 1 — The removals
 
-The stored derived setup figures out; `esiJobTab`, `setupToEdit` and `resourceDisplayType` out, per
-§ `layout` stops existing; and `Purchase.TypeID` out. Cheapest first because removals need no upgrader —
-the writer stops writing them and stored copies age out.
+`Purchase.TypeID` out, with the three found by the row-key gate below. Cheapest first because removals
+need no upgrader — the writer stops writing them and stored copies age out.
+
+**A field nothing reads is what this stage is for.** Every field here is written and never consulted, so
+removing it changes no figure anywhere. Two groups were originally listed here and are not that:
+
+- **The derived setup figures.** Two no longer exist to remove and two are read — § Stage 1b.
+- **`esiJobTab`, `setupToEdit` and `resourceDisplayType`**, per § `layout` stops existing. That section
+  reasons about where each field belongs, which is right, and reads as though all three are unread,
+  which is wrong. `setupToEdit` is read by `Job.selectedSetup` and `esiJobTab` by the building tab
+  panel, which opens on the tab the reader left. Only `resourceDisplayType` has no consumer. They are
+  deferred together rather than one at a time because they share the `Layout` struct and its
+  marshalling, and because the draft store that is meant to own this state is Stage 3. Taking them
+  before it exists would mean re-homing reader state twice.
 
 `Purchase.TypeID` is write-only: `jobMaterial.js` stamps it from the parent material when a row is
 created and nothing reads it back — every consumer reads the material's own `typeID`, and Go's
@@ -920,6 +931,46 @@ inputs, and shrinks every write and every websocket frame by them.
 Three more go with them, all found by the row-key gate: `ArchivedJobFeeLine.FeeID`, written by
 `buildFeeLines` and read by nothing, and the `complete` and `CharacterHash` fields stored broker fee rows
 carry that no model and no class reads.
+
+### Stage 1b — The derived setup figures become derivations
+
+§ Stored derived figures come out names four: `materialCount`, `estimatedTime`, `rawTime` and
+`estimatedInstallCost`. Against the code they are not one group, and none of them is the removal Stage 1
+describes.
+
+**Two of them are already gone from the writers.** Neither `estimatedTime` nor `estimatedInstallCost`
+exists on `models.JobSetup` or is assigned by `jobSetup.js`. The only place all four are named together
+is `derivedSetupFields` in the Stage 2 conversion, which prunes them from *stored* documents — where
+legacy copies do still sit, 45,385 setups' worth per [overlay.md](./overlay.md) § Stage 2. So for these
+two the work is already done twice over: nothing writes them, and the conversion clears the residue.
+Nothing is owed here beyond not re-listing them as work.
+
+**The other two are read, and that is the whole of this stage.** `materialCount` backs
+`JobSetup.MaterialQuantity`, which `Job.MaterialRequirement` sums and `Job.TotalMaterialCost` and
+`Job.CostParts` are built on; in the SPA it backs `getMaterialQuantity` on `jobSetup.js` and is touched
+across 22 files. `rawTime` is the multiplicand in `calculateTimeForSetup`. Removing either means
+supplying its value from its inputs at every call site — `materialCount` from `rawData.materials` with
+the setup's ME and run count, `rawTime` from `rawData.time` — which is the model § Stored derived
+figures come out already names: `Material.quantity` is a getter over `materialCount`, absent from the
+document.
+
+**So this is a derivation stage, not a removal stage, and it is costed as one.** It changes what the
+cost calculation reads in both languages. It needs no release window, and it is worth taking with or
+just after Stage 4, where getters become functions and the same call sites are being converted anyway.
+
+**The conversion must not run ahead of it, and once did.** Stage 2's `derivedSetupFields` listed all
+four, on the assumption — true when it was written — that Stage 1 would stop the writers first. Stage 1
+has since landed and deliberately did not, because two of the four are read. A `prepareRelease` run
+against dev converted 9,341 job documents and 9,270 archived jobs with the wider list, pruning
+`materialCount` and `rawTime` from every setup in them. A setup loaded without a `materialCount` reads
+as calling for no materials rather than as needing recalculation — `jobSetup.js` defaults it to `{}` and
+only `recalculateMaterials` refills it, which nothing calls on load — so `MaterialRequirement` returns
+zero, `countedPurchases` takes `min(ItemCount, 0)`, and every converted job's material cost computes as
+zero. The run was reverted from the release's own `_pre_0_9_0` copies.
+
+`derivedSetupFields` now holds only `estimatedTime` and `estimatedInstallCost`, the two nothing writes.
+The other two are removed from it by this stage, when their readers derive them instead — that
+ordering is the stage's precondition, not an implementation detail.
 
 ### Stage 2 — The reshape, in the release window
 
@@ -1069,7 +1120,8 @@ happened.
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project folder and docs | **Done** |
-| Stage 1 — the removals | **Not started, and unblocked.** Scope is settled: the four derived setup figures, `esiJobTab` / `setupToEdit` / `resourceDisplayType`, and `Purchase.TypeID`. No window, no dependency, no upgrader |
+| Stage 1 — the removals | **Landed.** `Purchase.TypeID` and `ArchivedJobFeeLine.FeeID` are gone from the models, their writers and the parity fixtures. `complete` and `CharacterHash` on stored fee rows needed no code change — neither is on `models.BrokerFee` or the SPA's `BrokerFee`, so they are stored residue Stage 2's prune clears. `esiJobTab` / `setupToEdit` / `resourceDisplayType` are **deferred to Stage 3**, two of the three being read; § Stage 1 says why |
+| Stage 1b — derived setup figures become derivations | **Not started.** Split out of Stage 1, which had costed it as a removal it is not: `estimatedTime` and `estimatedInstallCost` no longer exist to remove, and `materialCount` and `rawTime` are read by the cost calculation in both languages, so each needs a derivation at its call sites. No window. Best taken with Stage 4. Stage 2's conversion no longer prunes the two that are read — § Stage 1b says what happened when it did |
 | Stage 2 — the reshape, in the release window | **Built and wired in; not run against live.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. What remains is the SPA and the API reading the new shape, which is the rest of this stage. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
 | Stage 3 — base, log, scratch and draft | Not started |
 | Stage 4 — getters become functions | Not started |
