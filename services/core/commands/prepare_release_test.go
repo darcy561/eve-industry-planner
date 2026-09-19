@@ -513,3 +513,37 @@ func TestTheOwnerScopedIDWarningDoesNotStopTheRelease(t *testing.T) {
 		}
 	}
 }
+
+// The reshape rewrites the setups the rig fold reads, so a fold running before
+// it would convert setups the reshape then writes over.
+func TestTheRigFoldRunsAfterTheJobReshape(t *testing.T) {
+	t.Parallel()
+
+	reshape := stepIndex(t, currentRelease, "reshape every job document")
+	if at := stepIndex(t, currentRelease, "fold rig slots onto every setup"); at < reshape {
+		t.Errorf("the rig fold runs at %d, before the reshape at %d", at, reshape)
+	}
+}
+
+// The fold writes to every collection holding a setup, so each has to be in the
+// copy the release takes before anything writes.
+func TestTheRigFoldsCollectionsAreBackedUp(t *testing.T) {
+	t.Parallel()
+
+	copied := releaseTouchedCollections()
+	for _, name := range rigSlotCollections {
+		if !slices.Contains(copied, name) {
+			t.Errorf("%q is folded but never copied, so a revert cannot put it back", name)
+		}
+	}
+}
+
+// Group templates store a setup of their own, and a template left naming a
+// combined id would point at a rig the tables no longer hold.
+func TestTheRigFoldCoversGroupTemplates(t *testing.T) {
+	t.Parallel()
+
+	if !slices.Contains(rigSlotCollections, eipmongo.CollectionGroupTemplatePayloads) {
+		t.Error("group template payloads hold a rigID and are not folded")
+	}
+}

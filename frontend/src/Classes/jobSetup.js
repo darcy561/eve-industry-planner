@@ -32,7 +32,7 @@ class Setup {
    * @param {number} [setupInstructions.rigID] - Rig type ID
    * @param {number} [setupInstructions.systemTypeID] - System type ID
    * @param {number} [setupInstructions.systemID] - System ID
-   * @param {number} [setupInstructions.taxValue] - Tax rate (0-1)
+   * @param {number} [setupInstructions.taxValue] - Tax as a percentage, so 2.5 means 2.5%
    * @param {string} [setupInstructions.customStructureID] - Custom structure ID
    * @param {string} [setupInstructions.selectedCharacter] - Character hash for execution
    * @param {string} [setupInstructions.characterToUse] - Alternative character property

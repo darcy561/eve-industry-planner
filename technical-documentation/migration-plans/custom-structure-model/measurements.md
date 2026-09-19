@@ -84,8 +84,10 @@ from the classes.
 | Planner settings | `planner.SettingsSchemaCurrent` | 1 |
 
 Both documents embed the same `models.CustomStructures`, so both are on the hook for any reshape.
-The existing v0→v1 step for `ApplicationSettings` — seeding an absent `Invention` lane — is the worked
-precedent for the step this project needs.
+
+**Neither moved.** The reshape reads from either stored shape, so no version distinguishes them and
+the stored documents are converted by a prerelease step instead —
+[overlay.md](./overlay.md) § The prerelease step.
 
 ## `go fix -diff`
 
@@ -95,3 +97,39 @@ Run while this plan was written, scoped to the packages in the touch surface.
 |-------|--------|
 | `./shared/models/...` | Clean |
 | `./shared/documentschema/...` | Clean |
+
+## What Stage A actually moved (2026-09-19)
+
+Measured from the change itself, not estimated beforehand.
+
+| Surface | Count |
+|---------|-------|
+| Go non-test files changed | 5, plus 1 added (the release step) |
+| Go test files changed | 2 |
+| Go test files added | 2 |
+| Net lines, non-test Go | +81 (133 added, 52 removed) |
+| Lines removed from `session-responses/surface.json` | 45 |
+| Lines added to it | 13 |
+
+The wire surface shrinking by 32 lines is the measurement worth keeping: four keyed lists each
+re-listing the same seven shared fields collapse to one array that names them once.
+
+### `go fix -diff` after the work
+
+| Scope | Result |
+|-------|--------|
+| `./shared/models/...` | Clean |
+| `./shared/documentschema/...` | Clean |
+| `./shared/mongo/...` | Clean |
+
+### Where the SPA reads the lanes, corrected
+
+[plan.md](./plan.md) § Code in scope and the § How much code would move table above put SPA
+references to a named lane at one each for `manufacturing` and `reaction` and **zero** for
+`reprocessing` and `invention`. That undercounts: `Zustand/applicationSettings/structures.js` reaches
+every lane through `customStructureMap[jobType]`, so a grep for a lane's name does not see it. The
+coupling is centralised rather than absent, which makes Stage B narrower than the count suggests but
+not as narrow as zero.
+
+Files importing one of the three classes, excluding tests, re-counted on 2026-09-19: **7**, unchanged.
+

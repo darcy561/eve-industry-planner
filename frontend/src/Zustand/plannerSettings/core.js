@@ -9,30 +9,8 @@ import {
   DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
   extrasCategoriesDefault,
 } from "../../Context/defaultValues";
-import CustomStructure from "../../Classes/customStructure";
-import ReprocessingStructure from "../../Classes/reprocessingStructure";
-import InventionStructure from "../../Classes/inventionStructure";
+import customStructuresFromServer from "../../Functions/Helper/customStructuresFromServer";
 
-/**
- * Structure rows carry methods their consumers call, so a server payload is
- * rebuilt with the classes rather than left as plain objects.
- *
- * @param {unknown} incoming
- * @returns {object}
- */
-function structuresFromServer(incoming) {
-  const rows = incoming && typeof incoming === "object" ? incoming : {};
-  const build = (lane, StructureClass) =>
-    Array.isArray(rows[lane])
-      ? rows[lane].map((x) => new StructureClass(x))
-      : [];
-  return {
-    manufacturing: build("manufacturing", CustomStructure),
-    reaction: build("reaction", CustomStructure),
-    reprocessing: build("reprocessing", ReprocessingStructure),
-    invention: build("invention", InventionStructure),
-  };
-}
 
 /**
  * The settings a planner falls back to before its document has been read.
@@ -40,12 +18,7 @@ function structuresFromServer(incoming) {
  * @returns {object}
  */
 export const plannerSettingsDefault = () => ({
-  customStructures: {
-    manufacturing: [],
-    reaction: [],
-    reprocessing: [],
-    invention: [],
-  },
+  customStructures: [],
   defaultMaterialEfficiencyValue: 0,
   predefinedSystemIndexes: {},
   extrasCategories: extrasCategoriesDefault,
@@ -91,7 +64,7 @@ export function mergePlannerSettings(incoming) {
   return {
     ...base,
     ...incoming,
-    customStructures: structuresFromServer(incoming.customStructures),
+    customStructures: customStructuresFromServer(incoming.customStructures),
     reprocessingSettings: {
       ...base.reprocessingSettings,
       ...(incoming.reprocessingSettings ?? {}),

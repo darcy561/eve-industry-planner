@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { jobTypes } from "../../Context/defaultValues";
+
 const fetched = [];
 const saved = [];
 let nextResponse = null;
@@ -98,7 +100,7 @@ describe("planner settings slice", () => {
 
     const settings = actions().getPlannerSettings(OWNER);
     expect(settings.defaultCitadelBrokersFee).toBe(1);
-    expect(settings.customStructures.manufacturing).toEqual([]);
+    expect(settings.customStructures).toEqual([]);
     expect(settings.extrasCategories.length).toBeGreaterThan(0);
   });
 
@@ -328,7 +330,31 @@ describe("planner settings slice", () => {
     expect([...held]).toEqual([34, 35]);
   });
 
-  it("rebuilds structure rows with their classes, so their methods survive", async () => {
+  it("rebuilds structure rows with their class, so their methods survive", async () => {
+    nextResponse = {
+      owner: OWNER,
+      seeded: true,
+      settings: {
+        customStructures: [
+          { id: "s1", jobType: jobTypes.manufacturing, name: "Raitaru" },
+          { id: "s2", jobType: jobTypes.reprocessing, name: "Athanor" },
+        ],
+      },
+    };
+
+    await actions().loadPlannerSettings(OWNER);
+
+    const structures = actions().getPlannerSettings(OWNER).customStructures;
+    expect(structures).toHaveLength(2);
+    for (const structure of structures) {
+      expect(structure.constructor.name).toBe("Structure");
+      expect(typeof structure.setDefault).toBe("function");
+    }
+  });
+
+  // Documents written before a row carried its own kind stored four lists, and
+  // a planner still holding one has to read back the same way.
+  it("reads a document still storing the four lists", async () => {
     nextResponse = {
       owner: OWNER,
       seeded: true,
@@ -342,12 +368,12 @@ describe("planner settings slice", () => {
 
     await actions().loadPlannerSettings(OWNER);
 
-    const { manufacturing, reprocessing, invention } =
-      actions().getPlannerSettings(OWNER).customStructures;
-    expect(manufacturing[0].constructor.name).toBe("CustomStructure");
-    expect(reprocessing[0].constructor.name).toBe("ReprocessingStructure");
-    // A lane the server omits is empty rather than missing.
-    expect(invention).toEqual([]);
+    const structures = actions().getPlannerSettings(OWNER).customStructures;
+    expect(structures).toHaveLength(2);
+    expect(structures.map((s) => s.jobType)).toEqual([
+      jobTypes.manufacturing,
+      jobTypes.reprocessing,
+    ]);
   });
 
   it("resets every planner on sign-out", () => {

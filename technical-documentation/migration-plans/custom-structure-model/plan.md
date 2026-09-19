@@ -1,16 +1,31 @@
 # Custom structure model — plan
 
-**Status:** Phase 1 complete. No product work started, no open decisions.
+**Status:** Stage A landed, including the prerelease step that converts stored documents. Stage BR is
+partly landed — see [overlay.md](./overlay.md).
+
+**Two gaps are open in the tree at once, and both are silent.** Nothing ships until they close.
+
+1. **The API sends one array and the SPA reads four lists** (Stage B). `typeof [] === "object"`, so
+   the hydration takes the old branch, every lane reads `undefined`, and all four become empty with
+   no error — then autosave writes the emptiness back.
+2. **The rig tables no longer hold ids 5-8** (Stage BR). A stored setup naming one reads back no rig,
+   so its material and time bonuses read zero and a job quietly costs more. The prerelease step closes
+   this for stored rows; the settings form still *writes* the old shape, so it is only half closed.
+
 **[market-price-delivery](../market-price-delivery/contents.md) is shelved waiting on this project**
 — specifically on a saved location being able to be a market, which Stage A makes expressible.
 **Code in scope:** [`frontend/src/Classes/`](../../../frontend/src/Classes/) —
-`customStructure.js`, `reprocessingStructure.js`, `inventionStructure.js`;
+`customStructure.js`, `reprocessingStructure.js`, `inventionStructure.js`, `structure.js`, `jobSetup.js`;
+[`frontend/src/Functions/Helper/`](../../../frontend/src/Functions/Helper/) — `rigSlotBonuses.js`,
+`coerceTaxPercentage.js`; [`frontend/src/Context/defaultValues.jsx`](../../../frontend/src/Context/defaultValues.jsx) — the rig tables;
 [`frontend/src/Zustand/`](../../../frontend/src/Zustand/) — `applicationSettings/core.js`,
 `plannerSettings/core.js`; `frontend/src/Components/Settings/Standard Layout/Custom Structures/`;
 `frontend/src/Components/Reprocessing/`;
 [`services/shared/models/accountDocuments.go`](../../../services/shared/models/accountDocuments.go),
 [`services/shared/models/planner/settings.go`](../../../services/shared/models/planner/settings.go),
-[`services/shared/documentschema/documentschema.go`](../../../services/shared/documentschema/documentschema.go).
+[`services/shared/documentschema/documentschema.go`](../../../services/shared/documentschema/documentschema.go),
+[`services/core/commands/release_custom_structures.go`](../../../services/core/commands/release_custom_structures.go),
+[`services/core/commands/release_rig_slots.go`](../../../services/core/commands/release_rig_slots.go).
 **Live SoT (until promote):** [frontend/](../../frontend/contents.md), [backend/](../../backend/contents.md)
 
 **Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
@@ -59,28 +74,27 @@ type CustomStructure struct {
     ID            string  `bson:"id" json:"id"`
     JobType       int     `bson:"jobType" json:"jobType"`
     Name          string  `bson:"name" json:"name"`
-    StructureType int     `bson:"structureType" json:"structureType"`
     SystemType    int     `bson:"systemType" json:"systemType"`
+    StructureType int     `bson:"structureType" json:"structureType"`
     Tax           float64 `bson:"tax" json:"tax"`
     Default       bool    `bson:"default" json:"default"`
 
     // Used by the kinds that have them; zero elsewhere.
-    RigType  int   `bson:"rigType,omitempty" json:"rigType,omitempty"`
-    RigSlot1 int   `bson:"rigSlot1,omitempty" json:"rigSlot1,omitempty"`
-    RigSlot2 int   `bson:"rigSlot2,omitempty" json:"rigSlot2,omitempty"`
-    Implant  int   `bson:"implant,omitempty" json:"implant,omitempty"`
-    SystemID int64 `bson:"systemID,omitempty" json:"systemID,omitempty"`
+    RigType  int   `bson:"rigType,omitempty" json:"rigType,omitzero"`
+    RigSlot1 int   `bson:"rigSlot1,omitempty" json:"rigSlot1,omitzero"`
+    RigSlot2 int   `bson:"rigSlot2,omitempty" json:"rigSlot2,omitzero"`
+    Implant  int   `bson:"implant,omitempty" json:"implant,omitzero"`
+    SystemID int64 `bson:"systemID,omitempty" json:"systemID,omitzero"`
 }
 
-type CustomStructures struct {
-    Structures []CustomStructure `bson:"structures" json:"structures"`
-}
+type CustomStructures []CustomStructure
 ```
 
-**Open for the implementing slice, not for this plan:** whether `CustomStructures` keeps a wrapper
-struct at all or the settings document holds the array directly. The wrapper costs a level of nesting
-and buys a place to hang later fields; the array is plainer. Decide it when the first slice is
-written, and record which in the overlay.
+**Settled in Stage A:** the bare array, not a wrapper struct — nothing names a field that would sit
+beside it, so the nesting would have been paid on every read for a speculative gain.
+[overlay.md](./overlay.md) § The shape has the reasoning. The JSON tags above are `omitzero`, not
+`omitempty`, because `omitempty` does not omit a zero number; `shared/jsoncodec` has a sweep that
+rejects the mistake.
 
 ### What must not be lost
 
@@ -110,8 +124,8 @@ below.
 
 | Surface | Change | Note |
 |---------|--------|------|
-| `ApplicationSettings.customStructures` | **Migrate-required** | Four lanes become one array. Bump `ApplicationSettingsSchemaCurrent` to 2 and add a v1→v2 step folding the lanes, stamping each row's `jobType` from the lane it came out of where a legacy row lacks one. The v0→v1 step that seeds `Invention` is the worked precedent |
-| Planner settings `customStructures` | **Migrate-required** | Same embedded type, its own `SettingsSchemaCurrent`, and its own clone in `models/planner/settings.go`. Both documents move together or the shared type cannot change |
+| `ApplicationSettings.customStructures` | **Migrate-required** | Four lanes become one array, folded **at decode** by `CustomStructures.UnmarshalBSON` rather than by a version-gated step — the upgrader stamps an unversioned document current before any version test could fire. **No schema version moves:** reading accepts either shape, so the stored documents are converted by a prerelease step, `fold custom structures into one array` |
+| Planner settings `customStructures` | **Migrate-required** | Same embedded type, so the same decode-time fold and the same prerelease step serve it. `SettingsSchemaCurrent` is unchanged |
 | SPA ↔ API JSON | **Breaking, shipped together** | The settings payload carries the same field, so the SPA and the API must agree; they deploy together and there is no third consumer |
 | Stored job setups | **No change** | A setup references a structure by id, and ids are not rewritten |
 
@@ -125,11 +139,11 @@ lanes again and is harmless until a document is written back in the new shape.
 [overlay.md](./overlay.md), [measurements.md](./measurements.md), and the row in the section
 [contents.md](../contents.md). Done.
 
-**Stage A — One shape, server side.** The Go type, the folded `CustomStructures`, the schema bump and
-the v1→v2 step for both documents, and the planner settings clone. Live-Mongo parity coverage of the
-upgrade, since the fold is the part that can lose a row.
-**Done when** a document stored in either shape reads back as one array with every row carrying its
-`jobType`, and the step is idempotent under a second read.
+**Stage A — One shape, server side. Done.** The Go type, the folded `CustomStructures`, the planner
+settings clone, and the prerelease step that converts the stored documents, with live-Mongo coverage
+of both the fold and the conversion. The fold landed at **decode** rather than as a `documentschema`
+step, and the persistence as a release step rather than a schema bump — [overlay.md](./overlay.md)
+§ The fold, and the conversion that persists it.
 
 **Stage B — One class, SPA side.** The three classes become one, reprocessing's calculations keep
 their home, and `InventionStructure`'s unvalidated `tax` is fixed as the fold happens. The store
@@ -141,6 +155,46 @@ reprocessing screens read the same array.
 filtered by kind, rather than from four lanes. Most of this landed already as UI — one card body
 serves every kind — so what is left is what feeds it.
 **Done when** no screen names a lane.
+
+**Stage BR — Rigs are slots on every kind.** Manufacturing and reaction held one combined `rigType`
+where the other two kinds hold two slots, though invention's rigs carry two independent axes exactly
+as manufacturing's do. **Partly landed:** the atomic rig tables, the per-axis combining rule in
+`Functions/Helper/rigSlotBonuses.js`, `fieldsByJobType` losing `rigType`, and the prerelease step
+converting stored setups across all four collections — [overlay.md](./overlay.md) § Rigs became slots
+on every kind, § The prerelease step that converts stored setups.
+
+**Still open, and this is the gap that matters:** the settings form still writes `rigType` through the
+old `CustomStructure`, so it keeps producing data the new tables cannot read, and a stored setup still
+reads its rig through one `setup.rigID`. Until both move, the tables and the stored data disagree.
+
+- The manufacturing and reaction form renders **two slot pickers** instead of one rig picker, on the
+  shape `reprocessingStructureSelection.jsx` and `inventionStructureSelection.jsx` already use — and
+  the help text that tells a reader to create a second structure for item-specific rigs goes with it.
+- `setup.rigID` becomes two fields, with `getRigObject`, the Edit Job setup card and
+  `calculateMaterialsForSetup` reading them through the shared rule.
+- The `requirements` table and `manageRequirements` name **which slots** a requirement sets, rather
+  than one `rigID`. Requirements 0 and 2 mean "no rig", which is now two empty slots.
+
+**Done when** nothing reads `rigType` or a single `setup.rigID`, and a reader can fit two rigs to a
+manufacturing structure.
+
+**Wire:** additive for the stored setup — `rigSlot1`/`rigSlot2` are written beside a `rigID` that the
+prerelease step removes — and **breaking for the SPA**, which deploys with it.
+
+**Stage BR2 — A rig knows what it applies to.** A real manufacturing rig helps one family of items —
+ships, modules, drones — the way a reprocessing rig helps one kind of ore. Every converted rig carries
+`appliesToAll` because the stored data never recorded which family it helped, and `rigSlotBonuses`
+counts only flagged rigs, so an item-specific rig cannot silently apply to everything.
+
+This stage gives manufacturing an item-family vocabulary — there is no counterpart to
+`reprocessingItemTypes` — teaches the rig tables to name families, and reads a rig against what is
+being built. **It is not this project's to schedule**: the model here makes it expressible and no
+more.
+
+Two things it inherits and must handle: readers have been told by the form's own help text to create
+**a second custom structure** for items a rig does not cover, so real structures exist that were
+built as a workaround for the missing support; and a reader who fitted a generic rig means "I do not
+know which", not "it applies to everything".
 
 **Stage D — The kind that is a market.** A saved location that can be a market rather than only a
 selling point priced from a hub: the `jobType` value, the fields it needs, and the surface for saving
@@ -157,8 +211,9 @@ structure id its book is walked by, reaching `allMarketSources()` through
 **Done when** a reader can save a location that a price can be asked for at, and the placeholder rows
 in `saleLocations.js` are gone.
 
-**Done when** all four stages are, adding a kind of structure is a `jobType` value plus the fields it
-needs, and market-price-delivery can come off the shelf.
+**Done when** Stages A to D are, adding a kind of structure is a `jobType` value plus the fields it
+needs, and market-price-delivery can come off the shelf. **Stage BR2 is named here for its inheritance,
+not owned here** — this project closes without it.
 
 ## Who owns what
 

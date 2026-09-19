@@ -11,11 +11,10 @@ import {
   DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
   extrasCategoriesDefault,
 } from "../../Context/defaultValues";
-import CustomStructure from "../../Classes/customStructure";
-import ReprocessingStructure from "../../Classes/reprocessingStructure";
+import Structure from "../../Classes/structure";
+import customStructuresFromServer from "../../Functions/Helper/customStructuresFromServer";
 import { detectUserLocale } from "../../Functions/Helper/localeDetection";
 import { jobStatusesForPersist } from "../../Functions/Helper/jobStatuses";
-import InventionStructure from "../../Classes/inventionStructure";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION, DEFAULT_ASSET_LOCATION } =
   GLOBAL_CONFIG;
@@ -129,13 +128,13 @@ function mergePricingDefaults(incoming, prev, market, basis) {
   return { buying: side("buying"), selling: side("selling") };
 }
 
-/** @param {unknown} structure @param {new (data: object) => { toDocument(): object }} StructureClass */
-function customStructureRowToDocument(structure, StructureClass) {
+/** @param {unknown} structure @returns {unknown} */
+function customStructureRowToDocument(structure) {
   if (structure != null && typeof structure.toDocument === "function") {
     return structure.toDocument();
   }
   if (structure != null && typeof structure === "object") {
-    return new StructureClass(structure).toDocument();
+    return new Structure(structure).toDocument();
   }
   return structure;
 }
@@ -177,12 +176,7 @@ export const stateDefault = () => ({
   // Whose skills and standings price a sale. Null until chosen; the seller
   // accessor stands in with the account's main.
   defaultMarketCharacter: null,
-  customStructures: {
-    manufacturing: [],
-    reaction: [],
-    reprocessing: [],
-    invention: [],
-  },
+  customStructures: [],
   exemptTypeIDs: new Set(),
   enableAutomaticJobRecalculation: true,
   enableSkipMissingBlueprints: false,
@@ -218,32 +212,12 @@ export function mergeApplicationSettingsState(
 
   const rsIn = incoming.reprocessingSettings;
 
-  /** When server sends `customStructures`, replace wholesale (missing lane = empty — Go omits empty slices). */
+  /** When server sends `customStructures`, replace wholesale. */
   let nextCustomStructures = prev.customStructures;
   if (incoming.customStructures !== undefined) {
-    if (incoming.customStructures === null) {
-      nextCustomStructures = {
-        manufacturing: [],
-        reaction: [],
-        reprocessing: [],
-      };
-    } else if (typeof incoming.customStructures === "object") {
-      const cs = incoming.customStructures;
-      nextCustomStructures = {
-        manufacturing: Array.isArray(cs.manufacturing)
-          ? cs.manufacturing.map((x) => new CustomStructure(x))
-          : [],
-        reaction: Array.isArray(cs.reaction)
-          ? cs.reaction.map((x) => new CustomStructure(x))
-          : [],
-        reprocessing: Array.isArray(cs.reprocessing)
-          ? cs.reprocessing.map((x) => new ReprocessingStructure(x))
-          : [],
-        invention: Array.isArray(cs.invention)
-          ? cs.invention.map((x) => new InventionStructure(x))
-          : [],
-      };
-    }
+    nextCustomStructures = customStructuresFromServer(
+      incoming.customStructures,
+    );
   }
 
   let mergedRs = prev.reprocessingSettings;
@@ -394,20 +368,7 @@ export const coreActions = (set, get) => ({
         defaultMarketCharacter: state.defaultMarketCharacter,
       }),
       defaultMaterialEfficiencyValue: state.defaultMaterialEfficiencyValue,
-      customStructures: {
-        manufacturing: cs.manufacturing.map((structure) =>
-          customStructureRowToDocument(structure, CustomStructure),
-        ),
-        reaction: cs.reaction.map((structure) =>
-          customStructureRowToDocument(structure, CustomStructure),
-        ),
-        reprocessing: cs.reprocessing.map((structure) =>
-          customStructureRowToDocument(structure, ReprocessingStructure),
-        ),
-        invention: cs.invention.map((structure) =>
-          customStructureRowToDocument(structure, InventionStructure),
-        ),
-      },
+      customStructures: cs.map(customStructureRowToDocument),
       exemptTypeIDs: [...(state.exemptTypeIDs || [])],
       reprocessingSettings: {
         defaultReprocessingCharacter: rs.defaultReprocessingCharacter ?? null,
@@ -416,65 +377,6 @@ export const coreActions = (set, get) => ({
         valueMultiplier: rs.valueMultiplier,
         wastePenaltyMultiplier: rs.wastePenaltyMultiplier,
         sellExcessMineralTypes: rs.sellExcessMineralTypes,
-      },
-      extrasCategories: state.extrasCategories,
-      predefinedSystemIndexes: state.predefinedSystemIndexes,
-      jobStatuses,
-    };
-  },
-
-  /**
-   * Legacy Firebase-shaped document (nested account / layout / editJob). Prefer {@link toPersistPayload} for API.
-   */
-  toDocument: () => {
-    const state = get().applicationSettings;
-    const jobStatuses = jobStatusesForPersist(state.jobStatuses);
-    const cs = state.customStructures;
-
-    return {
-      account: {
-        cloudAccounts: state.userCloudAccounts,
-      },
-      editJob: {
-        citadelBrokersFee: state.defaultCitadelBrokersFee,
-        defaultAssetLocation: state.defaultStationIDForAssets,
-        defaultMarket: state.defaultMarketLocation,
-        defaultOrders: state.defaultOrderType,
-        hideCompleteMaterials: state.hideCompleteMaterials,
-        defaultMaterialEfficiencyValue: state.defaultMaterialEfficiencyValue,
-      },
-      layout: {
-        esiJobTab: state.esiJobTab,
-        hideTutorials: !state.displayHelpCards,
-        enableCompactView: state.enableCompactLayoutView,
-      },
-      structures: {
-        manufacturing: cs.manufacturing.map((structure) =>
-          customStructureRowToDocument(structure, CustomStructure),
-        ),
-        reaction: cs.reaction.map((structure) =>
-          customStructureRowToDocument(structure, CustomStructure),
-        ),
-        reprocessing: cs.reprocessing.map((structure) =>
-          customStructureRowToDocument(structure, ReprocessingStructure),
-        ),
-      },
-      exemptTypeIDs: [...(state.exemptTypeIDs || [])],
-      automaticJobRecalculation: state.enableAutomaticJobRecalculation,
-      ignoreItemsWithoutBlueprints: state.enableSkipMissingBlueprints,
-      ...(state.reprocessingSettings.defaultReprocessingCharacter && {
-        defaultReprocessingCharacter:
-          state.reprocessingSettings.defaultReprocessingCharacter,
-      }),
-      reprocessingCalculationSettings: {
-        preferCompressed: state.reprocessingSettings.preferCompressed,
-        compressionBonusMultiplier:
-          state.reprocessingSettings.compressionBonusMultiplier,
-        valueMultiplier: state.reprocessingSettings.valueMultiplier,
-        wastePenaltyMultiplier:
-          state.reprocessingSettings.wastePenaltyMultiplier,
-        sellExcessMineralTypes:
-          state.reprocessingSettings.sellExcessMineralTypes,
       },
       extrasCategories: state.extrasCategories,
       predefinedSystemIndexes: state.predefinedSystemIndexes,

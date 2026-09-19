@@ -47,6 +47,7 @@ func releaseTouchedCollections() []string {
 		derivedStatisticsCollections,
 		accountPlannerCollections,
 		reshapeJobCollections,
+		rigSlotCollections,
 	} {
 		for _, name := range group {
 			if !slices.Contains(out, name) {

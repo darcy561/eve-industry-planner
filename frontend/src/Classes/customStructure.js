@@ -27,7 +27,7 @@ class CustomStructure {
    * @param {number} [existingValue.structureType] - Structure type ID
    * @param {number} [existingValue.rigType] - Rig type ID
    * @param {number} [existingValue.systemID] - System ID
-   * @param {number} [existingValue.tax] - Tax rate (0-1)
+   * @param {number} [existingValue.tax] - Tax as a percentage, so 2.5 means 2.5%
    * @param {boolean} [existingValue.default] - Whether this is the default structure
    * @param {number} jobType - Job type for new structures
    */
@@ -99,7 +99,7 @@ class CustomStructure {
   /**
    * Sets the tax rate for this structure.
    *
-   * @param {number} tax - Tax rate (0-1)
+   * @param {number} tax - Tax as a percentage, so 2.5 means 2.5%
    */
   setTax(tax) {
     this.tax = coerceFiniteNumber(tax, 0);

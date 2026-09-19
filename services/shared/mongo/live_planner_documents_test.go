@@ -339,7 +339,7 @@ func TestLive_ensureAccountPlanner_seedsSettingsFromTheAccount(t *testing.T) {
 
 	seed := models.DefaultApplicationSettings(account, now)
 	seed.DefaultMaterialEfficiencyValue = 9
-	seed.CustomStructures.Manufacturing = []models.CustomStructure{{ID: "cs-1", Name: "Home"}}
+	seed.CustomStructures = models.CustomStructures{{ID: "cs-1", JobType: models.JobTypeManufacturing, Name: "Home"}}
 	if _, _, err := mongo.ApplicationSettings.UpsertApplicationSettings(ctx, account, seed); err != nil {
 		t.Fatalf("seed account settings: %v", err)
 	}
@@ -358,8 +358,8 @@ func TestLive_ensureAccountPlanner_seedsSettingsFromTheAccount(t *testing.T) {
 	if settings.DefaultMaterialEfficiencyValue != 9 {
 		t.Errorf("ME = %d, want the account's 9", settings.DefaultMaterialEfficiencyValue)
 	}
-	if len(settings.CustomStructures.Manufacturing) != 1 {
-		t.Errorf("custom structures = %+v, want the account's", settings.CustomStructures.Manufacturing)
+	if len(settings.CustomStructures) != 1 {
+		t.Errorf("custom structures = %+v, want the account's", settings.CustomStructures)
 	}
 	if settings.MetaData.LastModified.IsZero() {
 		t.Error("settings carry no realtime cursor")

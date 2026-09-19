@@ -27,7 +27,7 @@ class ReprocessingStructure {
    * @param {number} [existingValue.rigSlot2] - Second rig slot ID
    * @param {number} [existingValue.implant] - Implant ID
    * @param {boolean} [existingValue.default] - Whether this is the default structure
-   * @param {number} [existingValue.tax] - Tax rate (0-1)
+   * @param {number} [existingValue.tax] - Tax as a percentage, so 2.5 means 2.5%
    */
   constructor(existingValue) {
     this.id =
@@ -104,7 +104,7 @@ class ReprocessingStructure {
   /**
    * Sets the tax rate for this structure.
    *
-   * @param {number} tax - Tax rate (0-1)
+   * @param {number} tax - Tax as a percentage, so 2.5 means 2.5%
    */
   setTax(tax) {
     this.tax = coerceFiniteNumber(tax, 0);

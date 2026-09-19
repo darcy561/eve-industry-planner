@@ -42,14 +42,14 @@ func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID
 		return
 	}
 	// Missing BSON field decodes to zero-value int; treat <=0 as "unversioned legacy doc".
+	//
+	// Stamping current here is why no step below may gate on the version: the
+	// documents most needing a transform are exactly the ones this line has just
+	// declared current. Each one tests the data instead.
 	if doc.SchemaVersion <= 0 {
 		doc.SchemaVersion = models.ApplicationSettingsSchemaCurrent
 	}
 
-	if doc.SchemaVersion < 1 {
-		doc.CustomStructures.Invention = []models.InventionStructure{}
-		doc.SchemaVersion = 1
-	}
 	if doc.SchemaVersion > models.ApplicationSettingsSchemaCurrent {
 		doc.SchemaVersion = models.ApplicationSettingsSchemaCurrent
 	}
@@ -187,6 +187,9 @@ func (u Upgrader) PlannerMembership(doc *planner.Membership) {
 }
 
 // PlannerSettings normalises a planner's settings in memory. Idempotent.
+//
+// Custom structures are folded to one array at decode by
+// models.CustomStructures.UnmarshalBSON, which both settings documents embed.
 func (u Upgrader) PlannerSettings(doc *planner.Settings) {
 	if doc == nil {
 		return

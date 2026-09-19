@@ -108,6 +108,9 @@ var releases = []release{{
 		// planner settings documents this also converts: a fold that runs before
 		// them reports nothing to do and leaves what they write in the old shape.
 		{name: "fold custom structures into one array", run: foldCustomStructures},
+		// After the job reshape, which rewrites the setups this reads: a fold run
+		// before it would convert setups that reshape then writes over.
+		{name: "fold rig slots onto every setup", run: foldRigSlots},
 		// Last: the window's gate. A document with no owner is unreachable, so the
 		// release fails rather than reporting success over it.
 		{name: "verify every document carries an owner", run: verifyMetaOwner},

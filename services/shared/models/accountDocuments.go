@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
 
 // JobStatusEntry is one workflow stage in ApplicationSettings.jobStatuses (keyed by status id string).
 // Values are objects so extra fields can be added later without another migration.
@@ -19,14 +23,9 @@ func DefaultJobStatusesMap() map[string]JobStatusEntry {
 	}
 }
 
-// EmptyCustomStructures returns empty manufacturing / reaction / reprocessing lists.
+// EmptyCustomStructures returns a configuration with no structures in it.
 func EmptyCustomStructures() CustomStructures {
-	return CustomStructures{
-		Manufacturing: []CustomStructure{},
-		Reaction:      []CustomStructure{},
-		Reprocessing:  []ReprocessingStructure{},
-		Invention:     []InventionStructure{},
-	}
+	return CustomStructures{}
 }
 
 // DefaultReprocessingSettings returns default reprocessing calculation preferences (no default character).
@@ -96,52 +95,134 @@ func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSett
 	}
 }
 
-// CustomStructure represents a custom structure configuration for manufacturing and reaction jobs
+// Job types a structure can be configured for. A structure row names its kind
+// in JobType, so these are what tells one kind of row from another.
+const (
+	JobTypeManufacturing = 1
+	JobTypeReaction      = 2
+	JobTypeInvention     = 4
+	JobTypeReprocessing  = 5
+)
+
+// CustomStructure is one structure a player has configured, of whatever kind.
+//
+// JobType is what says which kind, and the optional fields below are the ones
+// that kind uses; the rest stay at their zero values. Adding a kind is a JobType
+// value and whatever fields it needs, not another list.
 type CustomStructure struct {
 	ID            string  `bson:"id" json:"id"`
 	JobType       int     `bson:"jobType" json:"jobType"`
 	Name          string  `bson:"name" json:"name"`
 	SystemType    int     `bson:"systemType" json:"systemType"`
 	StructureType int     `bson:"structureType" json:"structureType"`
-	RigType       int     `bson:"rigType" json:"rigType"`
-	SystemID      int64   `bson:"systemID" json:"systemID"`
 	Tax           float64 `bson:"tax" json:"tax"`
 	Default       bool    `bson:"default" json:"default"`
+
+	// Used by the kinds that have them; zero elsewhere.
+	RigType  int   `bson:"rigType,omitempty" json:"rigType,omitzero"`
+	RigSlot1 int   `bson:"rigSlot1,omitempty" json:"rigSlot1,omitzero"`
+	RigSlot2 int   `bson:"rigSlot2,omitempty" json:"rigSlot2,omitzero"`
+	Implant  int   `bson:"implant,omitempty" json:"implant,omitzero"`
+	SystemID int64 `bson:"systemID,omitempty" json:"systemID,omitzero"`
 }
 
-// ReprocessingStructure represents a reprocessing structure configuration
-type ReprocessingStructure struct {
-	ID            string  `bson:"id" json:"id"`
-	JobType       int     `bson:"jobType" json:"jobType"`
-	Name          string  `bson:"name" json:"name"`
-	StructureType int     `bson:"structureType" json:"structureType"`
-	SystemType    int     `bson:"systemType" json:"systemType"`
-	RigSlot1      int     `bson:"rigSlot1" json:"rigSlot1"`
-	RigSlot2      int     `bson:"rigSlot2" json:"rigSlot2"`
-	Implant       int     `bson:"implant" json:"implant"`
-	Default       bool    `bson:"default" json:"default"`
-	Tax           float64 `bson:"tax" json:"tax"`
+// CustomStructures is every structure a player has configured, of every kind.
+//
+// Rows were once split across four keyed lists, and documents written that way
+// are still stored; UnmarshalBSON reads either shape, so a caller that wants one
+// kind filters on JobType rather than choosing a list.
+type CustomStructures []CustomStructure
+
+// OfJobType returns the structures configured for one kind, in stored order.
+func (c CustomStructures) OfJobType(jobType int) []CustomStructure {
+	var found []CustomStructure
+	for _, structure := range c {
+		if structure.JobType == jobType {
+			found = append(found, structure)
+		}
+	}
+	return found
 }
 
-// InventionStructure represents an invention structure configuration
-type InventionStructure struct {
-	ID            string  `bson:"id" json:"id"`
-	JobType       int     `bson:"jobType" json:"jobType"`
-	Name          string  `bson:"name" json:"name"`
-	StructureType int     `bson:"structureType" json:"structureType"`
-	SystemType    int     `bson:"systemType" json:"systemType"`
-	RigSlot1      int     `bson:"rigSlot1" json:"rigSlot1"`
-	RigSlot2      int     `bson:"rigSlot2" json:"rigSlot2"`
-	Default       bool    `bson:"default" json:"default"`
-	Tax           float64 `bson:"tax" json:"tax"`
+// DefaultOfJobType returns the structure a kind defaults to: the one flagged
+// default, else the first configured, else nil when the kind has none.
+func (c CustomStructures) DefaultOfJobType(jobType int) *CustomStructure {
+	var first *CustomStructure
+	for i := range c {
+		if c[i].JobType != jobType {
+			continue
+		}
+		if c[i].Default {
+			return &c[i]
+		}
+		if first == nil {
+			first = &c[i]
+		}
+	}
+	return first
 }
 
-// CustomStructures represents the custom structures settings
-type CustomStructures struct {
-	Manufacturing []CustomStructure       `bson:"manufacturing" json:"manufacturing"`
-	Reaction      []CustomStructure       `bson:"reaction" json:"reaction"`
-	Reprocessing  []ReprocessingStructure `bson:"reprocessing" json:"reprocessing"`
-	Invention     []InventionStructure    `bson:"invention" json:"invention"`
+// WithID returns the structure with an id, of whatever kind, or nil.
+func (c CustomStructures) WithID(id string) *CustomStructure {
+	for i := range c {
+		if c[i].ID == id {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// customStructureLanes are the keys rows were stored under before a row's own
+// JobType was what said which kind it is, and the kind each key held. A row read
+// from one is stamped with its kind where the row does not name its own.
+var customStructureLanes = []struct {
+	Key     string
+	JobType int
+}{
+	{"manufacturing", JobTypeManufacturing},
+	{"reaction", JobTypeReaction},
+	{"reprocessing", JobTypeReprocessing},
+	{"invention", JobTypeInvention},
+}
+
+// UnmarshalBSON reads both stored shapes: an array of rows, or the four keyed
+// lists rows were written under before that.
+//
+// The two are told apart by what BSON says the value is, not by a schema
+// version: the document carrying these is stamped current on read when it has no
+// version of its own, so a version test would miss exactly the documents that
+// need folding.
+func (c *CustomStructures) UnmarshalBSON(data []byte) error {
+	// A document written with no structures at all stores null, which is neither
+	// an array of rows nor the keyed lists.
+	if len(data) == 0 {
+		*c = nil
+		return nil
+	}
+
+	var rows []CustomStructure
+	if err := bson.UnmarshalValue(bson.TypeArray, data, &rows); err == nil {
+		*c = rows
+		return nil
+	}
+
+	var lanes map[string][]CustomStructure
+	if err := bson.Unmarshal(data, &lanes); err != nil {
+		return err
+	}
+	folded := CustomStructures{}
+	for _, lane := range customStructureLanes {
+		for _, structure := range lanes[lane.Key] {
+			// A row written before its kind was stored names nothing; the list it
+			// was found in is the only thing that says what it is.
+			if structure.JobType == 0 {
+				structure.JobType = lane.JobType
+			}
+			folded = append(folded, structure)
+		}
+	}
+	*c = folded
+	return nil
 }
 
 // ExtraCategory represents an extra cost category

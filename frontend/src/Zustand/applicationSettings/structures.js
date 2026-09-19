@@ -1,59 +1,25 @@
 /**
- * Structure Management — `customStructures.{manufacturing,reaction,reprocessing}` (API-aligned).
- *
  * @fileoverview Custom structure management actions
  */
-
-import {
-  customStructureMap,
-  customStructureLocationMap,
-} from "../../Context/defaultValues";
 
 export const structureActions = (set, get) => ({
   getCustomStructureWithID: (structureID) => {
     if (!structureID) return null;
 
-    const state = get();
-    const jobType = Object.entries(customStructureLocationMap).find(
-      ([, value]) => structureID.includes(value),
-    )?.[0];
+    const structures = get().applicationSettings.customStructures ?? [];
 
-    if (!jobType) {
-      console.error("Invalid StructureID");
-      return null;
-    }
-
-    const key = customStructureMap[jobType];
-    const storageLocation = state.applicationSettings.customStructures?.[key];
-
-    if (!storageLocation) {
-      console.error("No Matching Storage Location");
-      return null;
-    }
-
-    const foundStructure = storageLocation.find(
-      (obj) => obj.id === structureID,
-    );
-
-    return foundStructure ?? null;
+    return structures.find((structure) => structure.id === structureID) ?? null;
   },
 
   getDefaultCustomStructureWithJobType: (inputJobType) => {
     if (!inputJobType) return null;
-    const state = get();
 
-    const key = customStructureMap[inputJobType];
-    const structureLocation = state.applicationSettings.customStructures?.[key];
-
-    if (!Array.isArray(structureLocation)) {
-      console.error("Structure location is not an array:", structureLocation);
-      return null;
-    }
+    const ofJobType = (get().applicationSettings.customStructures ?? []).filter(
+      (structure) => structure.jobType === inputJobType,
+    );
 
     return (
-      structureLocation.find((obj) => obj.default) ||
-      structureLocation[0] ||
-      null
+      ofJobType.find((structure) => structure.default) || ofJobType[0] || null
     );
   },
 
@@ -64,24 +30,19 @@ export const structureActions = (set, get) => ({
     }
     set(
       (state) => {
-        const key = customStructureMap[structure.jobType];
-        const storageLocation = [
-          ...(state.applicationSettings.customStructures[key] || []),
-        ];
+        const structures = state.applicationSettings.customStructures ?? [];
 
-        if (!key) {
-          console.error("No Matching Storage Location");
-          return state;
-        }
+        // The first structure of its kind is that kind's default. Counted per
+        // kind rather than over the whole list, which now holds every kind.
+        const isFirstOfKind = !structures.some(
+          (existing) => existing.jobType === structure.jobType,
+        );
+        structure.setDefault(isFirstOfKind);
 
-        structure.setDefault(storageLocation.length === 0);
         return {
           applicationSettings: {
             ...state.applicationSettings,
-            customStructures: {
-              ...state.applicationSettings.customStructures,
-              [key]: [...storageLocation, structure],
-            },
+            customStructures: [...structures, structure],
           },
         };
       },
@@ -96,28 +57,11 @@ export const structureActions = (set, get) => ({
       return;
     }
 
-    const jobType = Object.entries(customStructureLocationMap).find(
-      ([, value]) => structureID.includes(value),
-    )?.[0];
-
-    if (!jobType) {
-      console.error("Invalid StructureID");
-      return;
-    }
-
     set(
       (state) => {
-        const key = customStructureMap[jobType];
-        const storageLocation =
-          state.applicationSettings.customStructures?.[key];
-
-        if (!storageLocation) {
-          console.error("No Matching Storage Location");
-          return state;
-        }
-
-        const matchingStructure = storageLocation.find(
-          (obj) => obj.id === structureID,
+        const structures = state.applicationSettings.customStructures ?? [];
+        const matchingStructure = structures.find(
+          (structure) => structure.id === structureID,
         );
 
         if (!matchingStructure) {
@@ -125,20 +69,18 @@ export const structureActions = (set, get) => ({
           return state;
         }
 
-        matchingStructure.default = true;
-        storageLocation.forEach((structure) => {
-          if (structure.id !== structureID) {
-            structure.default = false;
-          }
-        });
+        // Only this kind's other structures lose the flag. One list holds every
+        // kind, so an unscoped sweep would clear the defaults of kinds the
+        // reader did not touch.
+        for (const structure of structures) {
+          if (structure.jobType !== matchingStructure.jobType) continue;
+          structure.setDefault(structure.id === structureID);
+        }
 
         return {
           applicationSettings: {
             ...state.applicationSettings,
-            customStructures: {
-              ...state.applicationSettings.customStructures,
-              [key]: [...storageLocation],
-            },
+            customStructures: [...structures],
           },
         };
       },
@@ -152,28 +94,12 @@ export const structureActions = (set, get) => ({
       console.error("Missing StructureID");
       return;
     }
-    const jobType = Object.entries(customStructureLocationMap).find(
-      ([, value]) => structureID.includes(value),
-    )?.[0];
 
-    if (!jobType) {
-      console.error("Invalid StructureID");
-      return;
-    }
-
-    const storageLocationKey = customStructureMap[jobType];
     set(
       (state) => {
-        const storageLocation =
-          state.applicationSettings.customStructures?.[storageLocationKey];
-
-        if (!storageLocation) {
-          console.error("No Matching Storage Location");
-          return state;
-        }
-
-        const matchingStructure = storageLocation.find(
-          (obj) => obj.id === structureID,
+        const structures = state.applicationSettings.customStructures ?? [];
+        const matchingStructure = structures.find(
+          (structure) => structure.id === structureID,
         );
 
         if (!matchingStructure) {
@@ -181,21 +107,23 @@ export const structureActions = (set, get) => ({
           return state;
         }
 
-        const updatedStorage = storageLocation.filter(
-          (obj) => obj.id !== structureID,
+        const remaining = structures.filter(
+          (structure) => structure.id !== structureID,
         );
 
-        if (matchingStructure.default && updatedStorage.length > 0) {
-          updatedStorage[0].setDefault(true);
+        // A kind that loses its default promotes its own first survivor, not
+        // whatever happens to sit at the front of the whole list.
+        if (matchingStructure.default) {
+          const nextOfKind = remaining.find(
+            (structure) => structure.jobType === matchingStructure.jobType,
+          );
+          nextOfKind?.setDefault(true);
         }
 
         return {
           applicationSettings: {
             ...state.applicationSettings,
-            customStructures: {
-              ...state.applicationSettings.customStructures,
-              [storageLocationKey]: updatedStorage,
-            },
+            customStructures: remaining,
           },
         };
       },

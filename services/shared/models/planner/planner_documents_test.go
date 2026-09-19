@@ -243,7 +243,7 @@ func TestPlannerSettingsSeedTakesOnlyThePlannerSide(t *testing.T) {
 	account := models.DefaultApplicationSettings("acct-1", now)
 	account.DefaultMaterialEfficiencyValue = 7
 	account.DefaultCitadelBrokersFee = 2.5
-	account.CustomStructures.Manufacturing = []models.CustomStructure{{ID: "s-1", Name: "Home"}}
+	account.CustomStructures = models.CustomStructures{{ID: "s-1", JobType: models.JobTypeManufacturing, Name: "Home"}}
 	account.ExemptTypeIDs = []int{34}
 	// Account-side: these have no field on the planner's settings to land in.
 	account.DefaultMarketLocation = "amarr"
@@ -257,8 +257,8 @@ func TestPlannerSettingsSeedTakesOnlyThePlannerSide(t *testing.T) {
 	if seeded.DefaultCitadelBrokersFee != 2.5 {
 		t.Errorf("brokers fee = %v, want 2.5", seeded.DefaultCitadelBrokersFee)
 	}
-	if len(seeded.CustomStructures.Manufacturing) != 1 {
-		t.Errorf("custom structures = %+v", seeded.CustomStructures.Manufacturing)
+	if len(seeded.CustomStructures) != 1 {
+		t.Errorf("custom structures = %+v", seeded.CustomStructures)
 	}
 	if len(seeded.ExemptTypeIDs) != 1 || seeded.ExemptTypeIDs[0] != 34 {
 		t.Errorf("exempt type ids = %v", seeded.ExemptTypeIDs)
@@ -296,7 +296,7 @@ func TestPlannerSettingsSeedCopiesRatherThanShares(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 
 	account := models.DefaultApplicationSettings("acct-1", now)
-	account.CustomStructures.Manufacturing = []models.CustomStructure{{ID: "s-1", Name: "Home"}}
+	account.CustomStructures = models.CustomStructures{{ID: "s-1", JobType: models.JobTypeManufacturing, Name: "Home"}}
 	account.ExtrasCategories = models.DefaultExtrasCategories()
 	account.ExemptTypeIDs = []int{34}
 	account.PredefinedSystemIndexes = map[string]map[string]float64{
@@ -305,12 +305,12 @@ func TestPlannerSettingsSeedCopiesRatherThanShares(t *testing.T) {
 
 	seeded := planner.SettingsFromAccount(models.AccountOwner("acct-1"), account, now)
 
-	account.CustomStructures.Manufacturing[0].Name = "Renamed on the account"
+	account.CustomStructures[0].Name = "Renamed on the account"
 	account.ExtrasCategories[0].Label = "Renamed on the account"
 	account.ExemptTypeIDs[0] = 35
 	account.PredefinedSystemIndexes["30000142"]["manufacturing"] = 0.99
 
-	if seeded.CustomStructures.Manufacturing[0].Name != "Home" {
+	if seeded.CustomStructures[0].Name != "Home" {
 		t.Error("a structure renamed on the account changed the planner's copy")
 	}
 	if seeded.ExtrasCategories[0].Label == "Renamed on the account" {

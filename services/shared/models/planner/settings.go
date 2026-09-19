@@ -74,12 +74,7 @@ func SettingsFromAccount(owner models.Owner, settings models.ApplicationSettings
 	// Copied rather than assigned: the account's own settings are live in the
 	// caller, and a shared slice or map would make an edit to one show up in the
 	// other.
-	seeded.CustomStructures = models.CustomStructures{
-		Manufacturing: slices.Clone(settings.CustomStructures.Manufacturing),
-		Reaction:      slices.Clone(settings.CustomStructures.Reaction),
-		Reprocessing:  slices.Clone(settings.CustomStructures.Reprocessing),
-		Invention:     slices.Clone(settings.CustomStructures.Invention),
-	}
+	seeded.CustomStructures = slices.Clone(settings.CustomStructures)
 	if settings.PredefinedSystemIndexes != nil {
 		indexes := make(map[string]map[string]float64, len(settings.PredefinedSystemIndexes))
 		for system, byJobType := range settings.PredefinedSystemIndexes {

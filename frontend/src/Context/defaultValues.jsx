@@ -326,17 +326,55 @@ export const structureOptions = {
     },
   },
 
+  // A real manufacturing rig helps one family of items — ships, modules, drones
+  // — the way a reprocessing rig helps one kind of ore. These entries all carry
+  // appliesToAll because that is what is actually known: a stored setup named a
+  // rig by a combined id that never recorded which items it applied to, so the
+  // bonus can only be read as applying to everything. A rig that helps one
+  // family would leave the flag off and name them instead.
   manRigs: {
-    0: { id: 0, label: "None", material: 0, time: 0 },
-    1: { id: 1, label: "T1 - ME", material: 2.0, time: 0 },
-    2: { id: 2, label: "T2 - ME", material: 2.4, time: 0 },
-    3: { id: 3, label: "T1 - TE", material: 0, time: 0.2 },
-    4: { id: 4, label: "T2 - TE", material: 0, time: 0.24 },
-    5: { id: 5, label: "T1 - ME & TE", material: 2.0, time: 0.2 },
-    6: { id: 6, label: "T2 - ME & TE", material: 2.4, time: 0.24 },
-    7: { id: 7, label: "T1 - ME, T2 - TE ", material: 2.0, time: 0.24 },
-    8: { id: 8, label: "T2 - ME, T1 - TE", material: 2.4, time: 0.2 },
-    9: { id: 9, label: "Faction", material: 3.7, time: 0.2, requirementID: 1 },
+    0: { id: 0, label: "None", material: 0, time: 0, relatedTo: [] },
+    1: {
+      id: 1,
+      label: "T1 - ME - All",
+      material: 2.0,
+      time: 0,
+      relatedTo: [2, 9],
+      appliesToAll: true,
+    },
+    2: {
+      id: 2,
+      label: "T2 - ME - All",
+      material: 2.4,
+      time: 0,
+      relatedTo: [1, 9],
+      appliesToAll: true,
+    },
+    3: {
+      id: 3,
+      label: "T1 - TE - All",
+      material: 0,
+      time: 0.2,
+      relatedTo: [4],
+      appliesToAll: true,
+    },
+    4: {
+      id: 4,
+      label: "T2 - TE - All",
+      material: 0,
+      time: 0.24,
+      relatedTo: [3],
+      appliesToAll: true,
+    },
+    9: {
+      id: 9,
+      label: "Faction - ME - All",
+      material: 3.7,
+      time: 0.2,
+      relatedTo: [1, 2],
+      appliesToAll: true,
+      requirementID: 1,
+    },
   },
 
   manSystem: {
@@ -359,15 +397,39 @@ export const structureOptions = {
     1: { id: 1, label: "Large", material: 1, time: 0.25, cost: 0 },
   },
   reactionRigs: {
-    0: { id: 0, label: "None", material: 0, time: 0 },
-    1: { id: 1, label: "T1 - ME", material: 2.0, time: 0 },
-    2: { id: 2, label: "T2 - ME", material: 2.4, time: 0 },
-    3: { id: 3, label: "T1 - TE", material: 0, time: 0.2 },
-    4: { id: 4, label: "T2 - TE", material: 0, time: 0.24 },
-    5: { id: 5, label: "T1 - ME & TE", material: 2.0, time: 0.2 },
-    6: { id: 6, label: "T2 - ME & TE", material: 2.4, time: 0.24 },
-    7: { id: 7, label: "T1 - ME, T2 - TE ", material: 2.0, time: 0.24 },
-    8: { id: 8, label: "T2 - ME, T1 - TE", material: 2.4, time: 0.2 },
+    0: { id: 0, label: "None", material: 0, time: 0, relatedTo: [] },
+    1: {
+      id: 1,
+      label: "T1 - ME - All",
+      material: 2.0,
+      time: 0,
+      relatedTo: [2],
+      appliesToAll: true,
+    },
+    2: {
+      id: 2,
+      label: "T2 - ME - All",
+      material: 2.4,
+      time: 0,
+      relatedTo: [1],
+      appliesToAll: true,
+    },
+    3: {
+      id: 3,
+      label: "T1 - TE - All",
+      material: 0,
+      time: 0.2,
+      relatedTo: [4],
+      appliesToAll: true,
+    },
+    4: {
+      id: 4,
+      label: "T2 - TE - All",
+      material: 0,
+      time: 0.24,
+      relatedTo: [3],
+      appliesToAll: true,
+    },
   },
   reprocessingSystem: {
     0: { id: 0, label: "High Sec", value: 0 },
@@ -486,6 +548,7 @@ export const structureOptions = {
       cost: 0,
       time: 0.1,
       relatedTo: [2, 5, 6],
+      appliesToAll: true,
     },
     2: {
       id: 2,
@@ -493,6 +556,7 @@ export const structureOptions = {
       cost: 0,
       time: 0.12,
       relatedTo: [1, 5, 6],
+      appliesToAll: true,
     },
     3: {
       id: 3,
@@ -500,6 +564,7 @@ export const structureOptions = {
       cost: 0.2,
       time: 0,
       relatedTo: [4, 5, 6],
+      appliesToAll: true,
     },
     4: {
       id: 4,
@@ -507,6 +572,7 @@ export const structureOptions = {
       cost: 0.24,
       time: 0,
       relatedTo: [3, 5, 6],
+      appliesToAll: true,
     },
     5: {
       id: 5,
@@ -514,6 +580,7 @@ export const structureOptions = {
       cost: 0.2,
       time: 0.1,
       relatedTo: [1, 2, 3, 4, 5, 6],
+      appliesToAll: true,
     },
     6: {
       id: 6,
@@ -521,6 +588,7 @@ export const structureOptions = {
       cost: 0.24,
       time: 0.12,
       relatedTo: [1, 2, 3, 4, 5, 6],
+      appliesToAll: true,
     },
   },
   inventionSystem: {
