@@ -345,6 +345,19 @@ each can legitimately close as declined — but it should close.
   state-changing endpoints, leaving the fallback to the two paths that need it: the refresh recovery
   in `refresh.go`, and the WebSocket upgrade, which reads the id from a query parameter because a
   browser cannot set a header on `/ws`.
+
+  **Stage G left a cheaper option than that.** `auth.SignInStateMintAllowed` refuses a request whose
+  `Sec-Fetch-Site` says it came from another site — a header the browser sets and a page cannot forge,
+  so it needs nothing of the client and does not disturb the two paths the fallback exists for. It is
+  in the tree and tested, on one route. The decision this stage takes is now between requiring the
+  header, applying that check across state-changing endpoints, or recording that `SameSite=Lax` is
+  enough.
+
+  The two shapes fail in opposite directions. A required header cannot reach the two fallback paths at
+  all — a browser cannot set one on `/ws`, and requiring it in `refresh.go` breaks the multi-tab
+  recovery the fallback exists for — where the `Sec-Fetch-Site` check could cover them. Against that,
+  a client sending no `Sec-Fetch-Site` is allowed through, which a header the SPA sets itself never is;
+  [overlay.md](./overlay.md) § Stage G records which clients those are.
 - **A reauth window fixed at seven days** (#31). Making it vary by scope is only worth anything if
   there is a scope that deserves a different number.
 

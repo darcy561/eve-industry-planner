@@ -122,7 +122,9 @@ The fallback cannot simply be deleted. `v1endpoints/refresh.go` relies on it del
 presented refresh token is missing or stale but `eip_session` is valid, the current refresh row is
 resolved from that session id for multi-tab local accounts — and the WebSocket upgrade reads the id
 from a query parameter because a browser cannot set a header on `/ws`. Requiring the header on
-state-changing endpoints, and leaving the fallback to those two paths, is the shape that closes it.
+state-changing endpoints and leaving the fallback to those two paths was the shape this audit
+proposed; it is one of three options now, and which one closes #32 is
+[plan.md](./plan.md) § Stage F.
 
 ## Go modernisation in the touch surface
 
