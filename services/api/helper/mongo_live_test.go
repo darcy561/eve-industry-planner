@@ -461,7 +461,7 @@ func scratchJob(jobID, name string) models.Job {
 			ChildJobs: map[string][]string{},
 			Materials: []models.JobMaterial{},
 		},
-		Skills: []models.Skill{},
+		Skills: map[string]models.Skill{},
 		MetaData: models.JobMetaData{
 			MetaData: models.MetaData{Owner: models.AccountOwner(apiLiveScratchAccount)},
 		},

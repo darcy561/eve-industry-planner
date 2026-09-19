@@ -9,7 +9,8 @@ import { quotedCharacterHash } from "../Skills/quotedCharacter";
  * How long this setup takes the account reading it.
  *
  * @param {Setup} setupObject - The job setup object
- * @param {Array} jobSkillRequirements - The job skill requirements
+ * @param {Object<string, {typeID: number, level: number}>} jobSkillRequirements -
+ *   The job's required skills, keyed by type id - The job skill requirements
  * @param {QueryClient} queryClient - The react query client
  * @returns {number} The time for the job setup
  */
@@ -37,7 +38,8 @@ export default function calculateTimeForSetup(
  * function that fetches its own skills can only ever answer for the real ones.
  *
  * @param {Setup} setupObject
- * @param {Array} jobSkillRequirements
+ * @param {Object<string, {typeID: number, level: number}>} jobSkillRequirements -
+ *   The job's required skills, keyed by type id
  * @param {Object} usersSkills - Keyed by skill type id, `{ id, activeLevel }`
  * @returns {number} Seconds
  */
@@ -76,12 +78,12 @@ export function timeForSetup(
     const skillsToIgnore = new Set(Object.values(industrySkillIDs));
 
     let indexer = 1;
-    jobSkillRequirements.forEach((skill) => {
-      let { id, activeLevel } = usersSkills[skill.typeID] || {};
+    for (const typeID of Object.keys(jobSkillRequirements)) {
+      let { id, activeLevel } = usersSkills[typeID] || {};
       if (id && activeLevel && !skillsToIgnore.has(id)) {
         indexer *= 1 - 0.01 * activeLevel;
       }
-    });
+    }
     return indexer;
   }
 }

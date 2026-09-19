@@ -257,7 +257,7 @@ export function useGroupScheduler(
         const userSkills = characterSkillsByHash[characterHash] || {};
 
         // Check skill eligibility
-        const canRun = checkSkillEligibility(job.skills || [], userSkills);
+        const canRun = checkSkillEligibility(job.skills, userSkills);
         if (!canRun) {
           // Character cannot run this job - no duration entry
           continue;
@@ -270,11 +270,7 @@ export function useGroupScheduler(
           selectedCharacter: characterHash,
         });
 
-        const duration = calculateTimeForSetup(
-          tempSetup,
-          job.skills || [],
-          queryClient,
-        );
+        const duration = calculateTimeForSetup(tempSetup, job.skills, queryClient);
 
         if (duration && duration > 0) {
           durationByCharacter[task.id][characterHash] = duration;
@@ -354,15 +350,14 @@ export function useGroupScheduler(
 /**
  * Checks if a character has the required skills to run a job.
  *
- * @param {Array<Object>} requiredSkills - Array of { typeID, level }
+ * @param {Object<string, {typeID: number, level: number}>} requiredSkills - The
+ *   job's required skills, keyed by type id
  * @param {Object} userSkills - Character skills map
  * @returns {boolean} True if character can run the job
  */
-function checkSkillEligibility(requiredSkills, userSkills) {
-  if (!requiredSkills || requiredSkills.length === 0) return true;
-
-  for (const reqSkill of requiredSkills) {
-    const charSkill = userSkills[reqSkill.typeID];
+export function checkSkillEligibility(requiredSkills, userSkills) {
+  for (const [typeID, reqSkill] of Object.entries(requiredSkills ?? {})) {
+    const charSkill = userSkills[typeID];
     if (!charSkill || !charSkill.activeLevel) return false;
     if (charSkill.activeLevel < reqSkill.level) return false;
   }

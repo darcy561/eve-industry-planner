@@ -8,10 +8,12 @@ import {
 } from "../../Context/defaultValues";
 import { SALE_LOCATION_KIND } from "../MarketOrders/saleLocations";
 
-const jobSkills = [
-  { typeID: industrySkillIDs.industry, level: 4 },
-  { typeID: 3395, level: 3 },
-];
+// Keyed by type id, as a job document stores them and as the Job class holds
+// them.
+const jobSkills = {
+  [industrySkillIDs.industry]: { typeID: industrySkillIDs.industry, level: 4 },
+  3395: { typeID: 3395, level: 3 },
+};
 
 const characterSkills = {
   [industrySkillIDs.industry]: { activeLevel: 5 },

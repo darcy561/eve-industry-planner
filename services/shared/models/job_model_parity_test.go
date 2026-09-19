@@ -42,7 +42,7 @@ func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 			"materials": []
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
-		"skills": [],
+		"skills": {},
 		"itemsProducedPerRun": 1,
 		"layout": {
 			"localMarketDisplay": null,
@@ -117,7 +117,7 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 			"materials": []
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
-		"skills": [],
+		"skills": {},
 		"itemsProducedPerRun": 1,
 		"layout": {},
 		"deleted": false,
@@ -270,7 +270,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 			"materials": []
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
-		"skills": [],
+		"skills": {},
 		"itemsProducedPerRun": 1,
 		"layout": {
 			"localMarketDisplay": null,
@@ -347,7 +347,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 			]
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
-		"skills": [],
+		"skills": {},
 		"itemsProducedPerRun": 1,
 		"layout": {},
 		"_meta": {
@@ -477,7 +477,7 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 			"materials": [{"jobType": 1, "quantity": 400, "typeID": 57478, "name": "x", "volume": 16}],
 			"products": [{"typeID": 34328, "quantity": 1}]
 		},
-		"skills": [{"level": 1, "typeID": 22242}],
+		"skills": {"22242": {"level": 1, "typeID": 22242}},
 		"itemsProducedPerRun": 1,
 		"layout": {
 			"localMarketDisplay": null,
@@ -568,7 +568,7 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 			"materials": []
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
-		"skills": [],
+		"skills": {},
 		"itemsProducedPerRun": 200,
 		"layout": {},
 		"_meta": {

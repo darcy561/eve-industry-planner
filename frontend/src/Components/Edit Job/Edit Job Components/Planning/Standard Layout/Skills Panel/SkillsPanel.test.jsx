@@ -81,10 +81,13 @@ const state = {
   activeJob: jobFixture({
     jobType: jobTypes.manufacturing,
     setup: { jobType: jobTypes.manufacturing },
-    skills: [
-      { typeID: industrySkillIDs.industry, level: 4 },
-      { typeID: 3395, level: 3 },
-    ],
+    skills: {
+      [industrySkillIDs.industry]: {
+        typeID: industrySkillIDs.industry,
+        level: 4,
+      },
+      3395: { typeID: 3395, level: 3 },
+    },
   }),
 };
 

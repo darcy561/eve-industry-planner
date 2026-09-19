@@ -77,7 +77,8 @@ class Job {
    * @param {boolean} [itemJson.isReadyToSell] - Whether job is ready for sale
    * @param {Object} [itemJson.build] - Build configuration object
    * @param {Object} [itemJson.rawData] - Raw EVE API data
-   * @param {Array<Object>} [itemJson.skills] - Required skills array
+   * @param {Object|Array<Object>} [itemJson.skills] - Required skills, keyed by
+   *   typeID in a stored document and an array from the SDE
    * @param {number} [itemJson.itemsProducedPerRun] - Items produced per run
    * @param {Object} [itemJson.layout] - UI layout preferences
    * @param {Object} buildRequest - Build request object for job creation
@@ -154,7 +155,7 @@ class Job {
       ),
     };
     this.rawData = itemJson?.rawData || {};
-    this.skills = itemJson?.skills || [];
+    this.skills = documentToSkills(itemJson);
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
     const materialPriceOverrides =
       itemJson?.layout?.materialPriceOverrides &&
@@ -210,7 +211,7 @@ class Job {
       this.rawData.materials = itemJson.activities.manufacturing.materials;
       this.rawData.products = itemJson.activities.manufacturing.products;
       this.rawData.time = itemJson.activities.manufacturing.time;
-      this.skills = itemJson.activities.manufacturing.skills || [];
+      this.skills = keyByTypeID(itemJson.activities.manufacturing.skills);
       this.build.materials = itemJson.activities.manufacturing.materials.map(
         (material) =>
           new Material(material, (typeID) => this.materialRequirement(typeID)),
@@ -222,7 +223,7 @@ class Job {
       this.rawData.materials = itemJson.activities.reaction.materials;
       this.rawData.products = itemJson.activities.reaction.products;
       this.rawData.time = itemJson.activities.reaction.time;
-      this.skills = itemJson.activities.reaction.skills || [];
+      this.skills = keyByTypeID(itemJson.activities.reaction.skills);
       this.build.materials = itemJson.activities.reaction.materials.map(
         (material) =>
           new Material(material, (typeID) => this.materialRequirement(typeID)),
@@ -1251,6 +1252,40 @@ function documentToSetups(object) {
  * @param {Object} object - Object containing job data
  * @returns {Array<LinkedESIJob>}
  */
+/**
+ * Helper function that reads a document's required skills.
+ *
+ * Keyed by the typeID each row carries, which is how they are stored and how
+ * they are held here — one shape everywhere rather than a conversion on each
+ * side of the class.
+ *
+ * An array is still read because the SDE's blueprint data arrives as one.
+ *
+ * @param {Object} object - Object containing job data
+ * @returns {Object<string, Object>} The skills the job requires, keyed by typeID
+ */
+function documentToSkills(object) {
+  return keyByTypeID(object?.skills);
+}
+
+/**
+ * Helper function that keys skill rows by the typeID each carries.
+ *
+ * A row without one is dropped rather than filed under `undefined`, which would
+ * collapse every such row onto a single key.
+ *
+ * @param {Object<string, Object>|Array<Object>|null} rows
+ * @returns {Object<string, Object>} The rows keyed by typeID
+ */
+function keyByTypeID(rows) {
+  const out = {};
+  for (const row of Array.isArray(rows) ? rows : Object.values(rows ?? {})) {
+    if (row?.typeID === undefined || row?.typeID === null) continue;
+    out[String(row.typeID)] = row;
+  }
+  return out;
+}
+
 function documentToLinkedJobs(object) {
   const rows = object?.build?.costs?.linkedJobs;
   if (!Array.isArray(rows)) {

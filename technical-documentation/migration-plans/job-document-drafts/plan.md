@@ -1022,6 +1022,20 @@ and the third is the one that crosses a stage boundary:
 **This is the only stage with a deadline.** It ships with the shared-planners release or it waits for the
 next release that migrates documents.
 
+**The keying stops at the document boundary, and that is the whole of this stage.** The `Job` class
+reads a keyed document into the arrays its readers already walk, and `toDocument` keys them again on the
+way out. The in-memory shape does not change here.
+
+That is not a shortcut taken to save call sites. It is where the keyed form is actually needed: the
+stable paths
+[document-write-granularity](../document-write-granularity/plan.md) § Stage C sends are produced from
+the draft, which § How a job is held while it is open holds as plain data and Stage 3 builds new. This
+class is not that store — Stage 5 deletes it. Pushing maps through a shape being replaced would rewrite
+roughly 155 component call sites, including eighteen `.length` reads that would silently become
+`undefined` rather than fail, and none of it would reach the projects downstream any sooner.
+
+So: the document is keyed, the draft will be keyed, and the class in between is left alone until it goes.
+
 ### Stage 2b — An owner once, and the archive block
 
 The two shape changes in § An owner is stated once and § Archive metadata is not a live job's. Both

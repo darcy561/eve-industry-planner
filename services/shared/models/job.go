@@ -38,7 +38,7 @@ type Job struct {
 	IsReadyToSell       bool             `json:"isReadyToSell" bson:"isReadyToSell"`
 	Build               JobBuild         `json:"build" bson:"build"`
 	RawData             RawData          `json:"rawData" bson:"rawData"`
-	Skills              []Skill          `json:"skills" bson:"skills"`
+	Skills              map[string]Skill `json:"skills" bson:"skills"`
 	ItemsProducedPerRun int              `json:"itemsProducedPerRun" bson:"itemsProducedPerRun"`
 	Layout              JobLayout        `json:"layout" bson:"layout"`
 	Protected           *FieldProtection `json:"-" bson:"protected,omitempty"`
@@ -707,6 +707,9 @@ type RawProduct struct {
 }
 
 // Skill represents a required skill for the job
+// Skill is one skill building the job requires, keyed in [Job.Skills] by the
+// TypeID it carries. The field repeats the key so a row read on its own still
+// says which skill it is.
 type Skill struct {
 	TypeID int `json:"typeID" bson:"typeID"`
 	Level  int `json:"level" bson:"level"`

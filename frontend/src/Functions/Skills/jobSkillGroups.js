@@ -54,7 +54,8 @@ export const SKILL_GROUP = {
 
 /**
  * @param {object} params
- * @param {Array<{typeID: number, level: number}>} params.jobSkills - `activeJob.skills`
+ * @param {Object<string, {typeID: number, level: number}>} params.jobSkills -
+ *   `activeJob.skills`, keyed by type id
  * @param {object|null} params.characterSkills - Keyed by type id, null when signed out
  * @param {number} params.jobType - One of `jobTypes`
  * @param {import("../MarketOrders/saleLocations").SaleLocation|null} params.saleLocation
@@ -64,7 +65,7 @@ export const SKILL_GROUP = {
  * @returns {SkillGroup[]}
  */
 export function groupJobSkills({
-  jobSkills = [],
+  jobSkills = {},
   characterSkills = null,
   jobType,
   saleLocation = null,
@@ -98,7 +99,9 @@ export function groupJobSkills({
 
   const groups = [
     requirementGroup(
-      jobSkills.map((skill) => row(skill.typeID, { required: skill.level })),
+      Object.entries(jobSkills).map(([typeID, skill]) =>
+        row(Number(typeID), { required: skill.level }),
+      ),
     ),
     {
       id: SKILL_GROUP.BUILD_TIME,
@@ -123,7 +126,8 @@ export function groupJobSkills({
  * once over the whole job — which are listed separately so a reader is not left
  * to work out why Industry is missing from a list of what makes this faster.
  *
- * @param {Array<{typeID: number}>} jobSkills
+ * @param {Object<string, {level: number}>} jobSkills - The job's required
+ *   skills, keyed by type id
  * @param {number} jobType
  * @param {Function} row
  * @returns {SkillRow[]}
@@ -134,9 +138,12 @@ function buildTimeRows(jobSkills, jobType, row) {
       ? [industrySkillIDs.reaction]
       : [industrySkillIDs.industry, industrySkillIDs.advancedIndustry];
 
-  const perSkill = jobSkills
-    .filter((skill) => !Object.values(industrySkillIDs).includes(skill.typeID))
-    .map((skill) => row(skill.typeID, { effect: "1% a level" }));
+  const appliedToTheWholeJob = new Set(
+    Object.values(industrySkillIDs).map(String),
+  );
+  const perSkill = Object.keys(jobSkills)
+    .filter((typeID) => !appliedToTheWholeJob.has(typeID))
+    .map((typeID) => row(Number(typeID), { effect: "1% a level" }));
 
   return [
     ...appliedOnce.map((typeID) =>

@@ -66,28 +66,28 @@ function withSkills(entries) {
 
 describe("calculateTimeForSetup", () => {
   it("gives nothing back when it was not handed a real setup", () => {
-    expect(calculateTimeForSetup({}, [], {})).toBeUndefined();
+    expect(calculateTimeForSetup({}, {}, {})).toBeUndefined();
     expect(calculateTimeForSetup(setup(), null, {})).toBeUndefined();
-    expect(calculateTimeForSetup(setup(), [], null)).toBeUndefined();
+    expect(calculateTimeForSetup(setup(), {}, null)).toBeUndefined();
   });
 
   it("is the raw time when nothing reduces it", () => {
     withSkills([]);
 
-    expect(calculateTimeForSetup(setup(), [], {})).toBe(1000);
+    expect(calculateTimeForSetup(setup(), {}, {})).toBe(1000);
   });
 
   it("multiplies by the number of runs", () => {
     withSkills([]);
 
-    expect(calculateTimeForSetup(setup({ runCount: 7 }), [], {})).toBe(7000);
+    expect(calculateTimeForSetup(setup({ runCount: 7 }), {}, {})).toBe(7000);
   });
 
   it("applies the job type's own time modifier", () => {
     withSkills([skill(INDUSTRY, 5), skill(ADVANCED_INDUSTRY, 5)]);
 
     // 1000 × 0.8 × 0.85
-    expect(calculateTimeForSetup(setup(), [], {})).toBe(680);
+    expect(calculateTimeForSetup(setup(), {}, {})).toBe(680);
   });
 
   it("uses the reaction modifier for a reaction", () => {
@@ -95,24 +95,32 @@ describe("calculateTimeForSetup", () => {
 
     // Reactions V alone: Industry does not enter a reaction's time.
     expect(
-      calculateTimeForSetup(setup({ jobType: jobTypes.reaction }), [], {}),
+      calculateTimeForSetup(setup({ jobType: jobTypes.reaction }), {}, {}),
     ).toBe(800);
   });
 
   it("takes a further 1% off per level of each skill the job requires", () => {
     withSkills([skill(A_JOB_SKILL, 4)]);
 
-    expect(calculateTimeForSetup(setup(), [{ typeID: A_JOB_SKILL }], {})).toBe(
-      960,
-    );
+    expect(
+      calculateTimeForSetup(
+        setup(),
+        { [A_JOB_SKILL]: { typeID: A_JOB_SKILL } },
+        {},
+      ),
+    ).toBe(960);
   });
 
   it("does not count a required skill the character has not trained", () => {
     withSkills([]);
 
-    expect(calculateTimeForSetup(setup(), [{ typeID: A_JOB_SKILL }], {})).toBe(
-      1000,
-    );
+    expect(
+      calculateTimeForSetup(
+        setup(),
+        { [A_JOB_SKILL]: { typeID: A_JOB_SKILL } },
+        {},
+      ),
+    ).toBe(1000);
   });
 
   it("does not count the industry skills twice", () => {
@@ -125,21 +133,21 @@ describe("calculateTimeForSetup", () => {
       skill(CAPITAL_CONSTRUCTION, 5),
     ]);
 
-    const requirements = [
-      { typeID: INDUSTRY },
-      { typeID: ADVANCED_INDUSTRY },
-      { typeID: CAPITAL_CONSTRUCTION },
-    ];
+    const requirements = {
+      [INDUSTRY]: { typeID: INDUSTRY },
+      [ADVANCED_INDUSTRY]: { typeID: ADVANCED_INDUSTRY },
+      [CAPITAL_CONSTRUCTION]: { typeID: CAPITAL_CONSTRUCTION },
+    };
 
     expect(calculateTimeForSetup(setup(), requirements, {})).toBe(
-      calculateTimeForSetup(setup(), [], {}),
+      calculateTimeForSetup(setup(), {}, {}),
     );
   });
 
   it("quotes the setup's own character when the reader has them", () => {
     withSkills([]);
 
-    calculateTimeForSetup(setup(), [], {});
+    calculateTimeForSetup(setup(), {}, {});
 
     expect(asked.hash).toBe("hash-1");
   });
@@ -150,7 +158,7 @@ describe("calculateTimeForSetup", () => {
   it("quotes the reader's main when the setup names another member", () => {
     withSkills([]);
 
-    calculateTimeForSetup(setup({ selectedCharacter: "hash-theirs" }), [], {});
+    calculateTimeForSetup(setup({ selectedCharacter: "hash-theirs" }), {}, {});
 
     expect(asked.hash).toBe("hash-main");
   });
@@ -162,7 +170,7 @@ describe("calculateTimeForSetup", () => {
     expect(
       calculateTimeForSetup(
         setup({ rawTime: 1001 }),
-        [{ typeID: A_JOB_SKILL }],
+        { [A_JOB_SKILL]: { typeID: A_JOB_SKILL } },
         {},
       ),
     ).toBe(990);

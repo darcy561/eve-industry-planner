@@ -50,3 +50,65 @@ describe("Job _meta", () => {
     expect(job.toDocument()._meta.lastUpdatedBy).toBe("acct-store");
   });
 });
+
+// Skills are stored keyed by the typeID each row carries, and held in memory as
+// the array every reader of `job.skills` walks. The constructor is fed its own
+// output as well as stored documents, so both shapes have to arrive intact.
+describe("Job skills", () => {
+  const skillRows = [
+    { typeID: 22242, level: 4 },
+    { typeID: 3380, level: 3 },
+  ];
+
+  it("reads a keyed document into the keyed shape its readers walk", () => {
+    const job = new Job({
+      jobID: "job-1",
+      itemID: 34,
+      skills: {
+        22242: { typeID: 22242, level: 4 },
+        3380: { typeID: 3380, level: 3 },
+      },
+    });
+
+    expect(job.skills).toEqual({
+      22242: { typeID: 22242, level: 4 },
+      3380: { typeID: 3380, level: 3 },
+    });
+  });
+
+  it("stores them keyed by typeID", () => {
+    const job = new Job({ jobID: "job-1", itemID: 34, skills: skillRows });
+
+    expect(job.toDocument().skills).toEqual({
+      22242: { typeID: 22242, level: 4 },
+      3380: { typeID: 3380, level: 3 },
+    });
+  });
+
+  it("survives being rebuilt from its own document", () => {
+    const once = new Job({ jobID: "job-1", itemID: 34, skills: skillRows });
+    const twice = new Job(once.toDocument());
+
+    expect(twice.skills).toEqual({
+      22242: { typeID: 22242, level: 4 },
+      3380: { typeID: 3380, level: 3 },
+    });
+  });
+
+  it("drops a row carrying no typeID rather than filing it under one key", () => {
+    const job = new Job({
+      jobID: "job-1",
+      itemID: 34,
+      skills: [{ level: 4 }, { level: 3 }],
+    });
+
+    expect(job.toDocument().skills).toEqual({});
+  });
+
+  it("has no skills when the document carries none", () => {
+    const job = new Job({ jobID: "job-1", itemID: 34 });
+
+    expect(job.skills).toEqual({});
+    expect(job.toDocument().skills).toEqual({});
+  });
+});
