@@ -22,10 +22,10 @@ uses, and runs after the lane fold whose array shape it reads.
 data, because `Structure.toDocument()` writes `rigSlot1: 0, rigSlot2: 0` over it on the next save.
 Removing a field nothing reads looks like cleanup; this one is the source the conversion reads.
 
-**Two faults are open in Stage D's surfaces**, both predating this project and both reached by it:
-the selling-rates cache is not keyed on a location's broker fee, and the Selling stage reads a
-citadel's fee from an account-wide default while Planning reads the per-location rate. Stage D owns
-closing them — see that stage.
+**Both of Stage D's faults are closed.** The selling-rates cache is keyed on the location's broker
+fee, and a citadel's fee is resolved from the order that names where it was placed rather than from
+an account-wide default — so one sale quotes one figure. What Stage D still owes is the surface for
+saving a market.
 
 **[market-price-delivery](../market-price-delivery/contents.md) is shelved waiting on this project**
 — specifically on a saved location being able to be a market, which Stage A makes expressible.

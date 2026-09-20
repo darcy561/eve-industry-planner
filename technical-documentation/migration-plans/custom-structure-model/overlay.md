@@ -588,6 +588,26 @@ own filter, which could answer differently from the store and prove the wrong ru
 rather than opt-in because a component reaches them through a plain function, and a mock missing an
 action throws rather than answering "none saved".
 
+### One broker fee per citadel
+
+A saved citadel's rate is a number the reader sets, and two things quoted it wrongly.
+
+**The selling rates were cached against identity, not against the rate.** The key named the
+location's kind, id and fee station, none of which move when a reader corrects what their citadel
+charges, so the old figure was served back until the query fell out of cache. Inert while the rows
+were placeholders nobody could edit; reachable the moment they became the reader's own. The key
+carries `brokerFee` now.
+
+**The two stages disagreed.** Planning quoted the rate recorded for the citadel while the Selling
+stage read the account-wide `defaultCitadelBrokersFee`, so one sale showed two fees.
+`calcSellingCharges` resolves the rate from the order itself — an order names where it was placed and
+a saved citadel names the structure it is — falling back to the account figure for a citadel the
+reader has not described. The rule sits with the function that applies it, so no call site has to
+know which figure to pass and linking an order never depends on having saved where it sits.
+
+Both were mutation-checked, and the cache test was written before the fix and watched to fail on the
+stale rate.
+
 ### Still to fill
 
 The surface for saving one; what replaces the placeholder rows in `saleLocations.js` and how a saved
