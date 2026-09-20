@@ -71,7 +71,7 @@ func TestClientPayloadKeysMatchTheAPIResponse(t *testing.T) {
 	wsDoc := decodeJSON(t, ClientPayload(envelope, models.AccountOwner("acct-parity"), cipher, 0))["document"].(map[string]any)
 
 	for _, path := range [][]string{
-		{"esi", "linkedJobs"},
+		{"esi", "industryJobs"},
 		{"esi", "transactions"},
 	} {
 		apiLine := firstLine(t, apiDoc, path)

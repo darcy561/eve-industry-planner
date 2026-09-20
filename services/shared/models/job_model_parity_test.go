@@ -407,6 +407,7 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 				}
 			},
 			"inventionEntries": {},
+			"materialPriceOverrides": {"34": {"marketDisplay": "amarr", "orderDisplay": null}},
 			"materials": {
 				"57478": {
 					"purchasing": {
@@ -461,8 +462,7 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 			"localOrderDisplay": null,
 			"esiJobTab": null,
 			"setupToEdit": "a21b4ade-8312-0ebf-eccb-4146e2cec909",
-			"resourceDisplayType": null,
-			"materialPriceOverrides": {"34": {"marketDisplay": "amarr", "orderDisplay": null}}
+			"resourceDisplayType": null
 		},
 		"_meta": {
 			"lastModified": "2026-04-05T08:26:44.017Z",
@@ -477,8 +477,8 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 	if err := dec.Decode(&job); err != nil {
 		t.Fatal(err)
 	}
-	if got := job.Layout.MaterialPriceOverrides["34"].MarketDisplay; got != "amarr" {
-		t.Fatalf("layout.materialPriceOverrides: got %q", got)
+	if got := job.Build.MaterialPriceOverrides["34"].MarketDisplay; got != "amarr" {
+		t.Fatalf("build.materialPriceOverrides: got %q", got)
 	}
 	if job.MetaLevel != nil {
 		t.Fatalf("metaLevel: want nil got %v", *job.MetaLevel)
@@ -676,11 +676,11 @@ func TestExtrasCategoryOrUnassigned(t *testing.T) {
 	}
 }
 
-// The SPA sends a per-material market override on every save. A decoder that
-// does not assign it drops it, and the next save writes the absence back.
-func TestJobLayout_materialPriceOverridesSurviveJSON(t *testing.T) {
-	const raw = `{"localMarketDisplay":"jita","localOrderDisplay":"sell","materialPriceOverrides":{"34":{"marketDisplay":"amarr","orderDisplay":null},"35":{"marketDisplay":null,"orderDisplay":"buy"}}}`
-	var l JobLayout
+// The SPA sends a per-material market override on every save, so one dropped on
+// the way in has its absence written back on the way out.
+func TestJobBuild_materialPriceOverridesSurviveJSON(t *testing.T) {
+	const raw = `{"materialPriceOverrides":{"34":{"marketDisplay":"amarr","orderDisplay":null},"35":{"marketDisplay":null,"orderDisplay":"buy"}}}`
+	var l JobBuild
 	if err := json.Unmarshal([]byte(raw), &l); err != nil {
 		t.Fatal(err)
 	}
@@ -696,7 +696,7 @@ func TestJobLayout_materialPriceOverridesSurviveJSON(t *testing.T) {
 	}
 }
 
-func TestJobLayout_materialPriceOverridesSurviveBSON(t *testing.T) {
+func TestJobBuild_materialPriceOverridesSurviveBSON(t *testing.T) {
 	stored := bson.M{
 		"localMarketDisplay":     "jita",
 		"materialPriceOverrides": bson.M{"34": bson.M{"marketDisplay": "amarr"}},
@@ -705,7 +705,7 @@ func TestJobLayout_materialPriceOverridesSurviveBSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var l JobLayout
+	var l JobBuild
 	if err := bson.Unmarshal(b, &l); err != nil {
 		t.Fatal(err)
 	}
@@ -723,13 +723,6 @@ func TestJobLayout_BSONRoundTripKeepsEveryField(t *testing.T) {
 		"esiJobTab":           "1",
 		"setupToEdit":         "setup-1",
 		"resourceDisplayType": "grid",
-		"localPricing": bson.M{
-			"buying":  bson.M{"market": "jita", "basis": "sell"},
-			"selling": bson.M{"market": "amarr", "basis": "buy"},
-		},
-		"materialPriceOverrides": bson.M{
-			"34": bson.M{"marketDisplay": "amarr", "orderDisplay": "buy"},
-		},
 	}
 	b, err := bson.Marshal(stored)
 	if err != nil {
@@ -752,18 +745,14 @@ func TestJobLayout_BSONRoundTripKeepsEveryField(t *testing.T) {
 			t.Errorf("%s was dropped on the round trip", key)
 		}
 	}
-	overrides, ok := written["materialPriceOverrides"].(bson.D)
-	if !ok || len(overrides) != 1 {
-		t.Fatalf("materialPriceOverrides came back as %T", written["materialPriceOverrides"])
-	}
 }
 
-// Both decoders assign by hand, so the JSON side needs its own guard against a
-// field being added to the struct and nowhere else.
-func TestJobLayout_localPricingSurvivesJSON(t *testing.T) {
-	const raw = `{"localMarketDisplay":"jita","localPricing":{"buying":{"market":"jita","basis":"sell"},"selling":{"market":"amarr","basis":"buy"}}}`
+// A job's own pricing choice stands in for the account's defaults, so losing it
+// silently reprices the job rather than failing.
+func TestJobBuild_localPricingSurvivesJSON(t *testing.T) {
+	const raw = `{"localPricing":{"buying":{"market":"jita","basis":"sell"},"selling":{"market":"amarr","basis":"buy"}}}`
 
-	var l JobLayout
+	var l JobBuild
 	if err := json.Unmarshal([]byte(raw), &l); err != nil {
 		t.Fatal(err)
 	}
@@ -785,9 +774,9 @@ func TestJobLayout_localPricingSurvivesJSON(t *testing.T) {
 
 // A job with no override writes none: the field is nil rather than an empty pair
 // on every job document.
-func TestJobLayout_noLocalPricingIsOmitted(t *testing.T) {
-	var l JobLayout
-	if err := json.Unmarshal([]byte(`{"localMarketDisplay":"jita"}`), &l); err != nil {
+func TestJobBuild_noLocalPricingIsOmitted(t *testing.T) {
+	var l JobBuild
+	if err := json.Unmarshal([]byte(`{}`), &l); err != nil {
 		t.Fatal(err)
 	}
 	if l.LocalPricing != nil {
