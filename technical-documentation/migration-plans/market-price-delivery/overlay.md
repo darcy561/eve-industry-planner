@@ -400,12 +400,12 @@ running app reaches a saved source until Stage F stores one.
 
 ### E1 — The derivation, held to the server's by a fixture
 
-`Functions/MarketData/deriveBookPrices.js` turns an order book into the four
+`Functions/MarketData/pricesFromOrders.js` turns an order book into the four
 prices: the location filter, the buy and sell split, best bid and ask, and the
 nearest-rank percentiles with the under-five fallback.
 `testing/fixtures/market-derivation/books.json` is written from the server's own
 `buildMarketPriceEntry` by `derivation_parity_test.go` and read by
-`deriveBookPrices.parity.test.js`, the same way the hub list is held together.
+`pricesFromOrders.parity.test.js`, the same way the hub list is held together.
 
 **The fixture's cases were twice worthless and looked fine.** First every book was
 small enough that `ceil(0.95 × n)` lands on the last index, so `buyP95` equalled
@@ -575,17 +575,19 @@ part at fault.
 
 ### Still to land
 
-The derivation, the per-type path for a custom NPC station, and the pacing are done — § E1, § E2 and
-§ C2 above. What is left is the wiring and the walk.
+Everything here is now about a citadel, the one market kind the browser still fetches for itself.
+The derivation is § E1, the pacing home is § C2, and the station path this stage was first written
+around is gone — § G4 moved it to the server.
 
-Sections to fill: how `priceLoader` splits a tick's wants by source kind, which is what makes the
-station fetcher reachable at all — it cannot ask for a station beside a hub, because the server
-answers 400 for the whole request when it sees a source it does not price, taking every hub price in
-the batch with it; writing what the browser fetches to the persistent tier; the shared per-character
-walk extracted from `nameLoader` and what both callers pass it; the token-authenticated whole-book
-walk that reaches a private market through a citadel, and how a character without access is
-remembered, including one whose token predates the scope; how several stations in one region share a
-request.
+**The read itself has landed**, as `Functions/EveESI/World/getStructureOrders.js`: a structure's
+orders on one character's token, every page, refusing a market too large to read whole rather than
+pricing it from the pages that fit. It sits beside `getMarketData.js` because it is the same kind of
+thing as a region's orders, and it has no caller yet.
+
+Sections to fill once the rest lands: the per-character ladder extracted from `nameLoader` and what
+both callers pass it; how a character without access is remembered, including one whose token
+predates the scope; how `priceLoader` groups a tick's citadel wants so one read answers all of them;
+the clock a whole-market read carries, and what restoring its rows from disk must do about it.
 
 ## Stage G — An NPC station is priced by the server
 
@@ -839,7 +841,11 @@ carries. `fetchStationBook.js` is `regionOrders.js`, `fetchStationPrices` is `pr
 `readStationBook` is `priceStationsFromRegionOrders`, and the loader groups wants by the **read**
 they need rather than by "the book".
 
-`deriveBookPrices` keeps its name: it derives prices from an order book, which is what it is given.
+The rule reaches names as well as prose, including the derivation itself: `deriveBookPrices` is
+`pricesFromOrders` in `pricesFromOrders.js`, and its `BookPrices` typedef is `DerivedPrices`. What it
+is given is an order book and what it returns is prices, so the name says the second. A fixture
+holding real ESI orders is still an order book — `testing/fixtures/market-derivation/books.json`
+keeps its path, because that is what it holds.
 
 **`regionOrders.js` itself is gone**, deleted by § G4 below once this server priced what the browser
 had been fetching. The vocabulary outlived the module and is what the rest of the pricing code now
@@ -877,8 +883,8 @@ key and clock stays under that id. A clock arriving against a station id is reco
 was asked for, or it would speak for rows nothing could match it to.
 
 **`regionOrders.js` is gone**, with the whole-region sweep built for a client-side walk — two of its
-four exports already had no caller before this slice. `deriveBookPrices` stays: it is the SPA's half
-of the derivation the committed fixture holds to the server's, and the citadel walk derives with it.
+four exports already had no caller before this slice. `pricesFromOrders` stays: it is the SPA's half
+of the derivation the committed fixture holds to the server's, and the citadel read derives with it.
 
 **A clock is recorded per want, not per market the answer named.** Nothing stops an account saving
 one station twice under two names, and both are asked for under the same station id — keyed by what
