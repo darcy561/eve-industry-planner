@@ -232,3 +232,39 @@ describe("what each kind is asked for", () => {
     expect(asked()).toEqual(["Location"]);
   });
 });
+
+// Rendering a field is not the same as being able to use it. Every control the
+// form offers calls a setter on the class, and a setter that does not exist
+// throws when a reader touches the field rather than when the form draws it.
+describe("every field the form offers can be set", () => {
+  it("has a setter on the class for each field a kind carries", async () => {
+    const { default: Structure } = await import("../../../../Classes/structure");
+    const { STRUCTURE_FIELDS } = await import("./structureFields");
+
+    // What the form's handlers call, by the field they belong to.
+    const setterFor = {
+      place: ["setStationID", "setStructureID"],
+      structureType: ["setStructureType"],
+      rigSlot1: ["setRigSlot1"],
+      rigSlot2: ["setRigSlot2"],
+      implant: ["setImplant"],
+      systemType: ["setSystemType"],
+      tax: ["setTax"],
+      brokerFee: ["setBrokerFee"],
+      characterHash: ["setCharacterHash"],
+      systemID: ["setSystemID"],
+    };
+
+    const structure = new Structure(undefined, structureKinds.citadelMarket);
+    for (const entry of STRUCTURE_FIELDS) {
+      for (const setter of setterFor[entry.id] ?? []) {
+        expect(
+          typeof structure[setter],
+          `${entry.id} needs ${setter}`,
+        ).toBe("function");
+      }
+    }
+    // A field with no entry above is one this test does not know how to check.
+    expect(STRUCTURE_FIELDS.every((entry) => setterFor[entry.id])).toBe(true);
+  });
+});

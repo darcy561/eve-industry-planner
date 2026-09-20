@@ -232,6 +232,39 @@ class Structure {
 
 
   /**
+   * @param {number} regionID - The region whose order book carries this market
+   */
+  setRegionID(regionID) {
+    this.regionID = coerceFiniteNumber(regionID, 0);
+  }
+
+  /**
+   * @param {number} stationID - The NPC station a region's orders narrow to
+   */
+  setStationID(stationID) {
+    this.stationID = coerceFiniteNumber(stationID, 0);
+  }
+
+  /**
+   * @param {number} structureID - The citadel whose order book this is
+   */
+  setStructureID(structureID) {
+    this.structureID = coerceFiniteNumber(structureID, 0);
+  }
+
+  /**
+   * The character whose docking access reads this citadel's order book.
+   *
+   * Nothing records which character can see where, so this is the account's
+   * answer for this structure rather than a fact that can be looked up.
+   *
+   * @param {string} characterHash - The chosen character's hash
+   */
+  setCharacterHash(characterHash) {
+    this.characterHash = characterHash ?? "";
+  }
+
+  /**
    * The rate a citadel's owner set, as a percentage.
    *
    * Only a citadel stores one. An NPC station's broker fee is worked out from
