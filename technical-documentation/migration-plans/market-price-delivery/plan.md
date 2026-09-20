@@ -18,6 +18,11 @@ committed fixture — and the loader now sorts a tick's wants by transport, so a
 station is fetched from ESI and read back through the same accessor as a hub. Next is the persistent
 tier, and its rows now survive a reload. **Stage G is next**, and what it stores is bounded by what
 readers ask for rather than by what exists.
+**Added by Stage G:** [`services/core/scheduler/esi/regionMarketOrdersRefresh.go`](../../../services/core/scheduler/esi/regionMarketOrdersRefresh.go),
+[`services/worker/tasks/esi/`](../../../services/worker/tasks/esi/) — `refreshRegionMarketOrders.go`,
+`regionMarketOrdersFetch.go`;
+[`services/shared/core/objectstore/backend.go`](../../../services/shared/core/objectstore/backend.go) — the bucket.
+
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/MarketData/`,
 `Functions/EveESI/World/`, `Functions/Endpoints/Public/`, `Functions/Shared/getMissingESIData.js`,
 `Hooks/React Query/World/`, `Zustand/worldDataSlice/`, `Styled Components/Select/`,
@@ -594,7 +599,8 @@ request.StationID` — derives one station from a walk that saw every station in
 all of them is a loop, and it is what makes one walk serve every saved market in that region.
 
 **Done when** a price at a saved NPC station is answered by `/marketPricesQuery`, the browser fetches
-no order book for one, and the sweep covers every known-space region.
+no order book for one, a station in a tracked region is priced without an ESI call, and the sweep
+covers every region a reader has asked about.
 
 ### What this supersedes
 
@@ -604,6 +610,60 @@ whole-region sweep before these numbers existed — `getMarketData` without a ty
 `pricesByStationInRegion`, and `replaceStoredPrices`. The persistent tier stays: a **citadel** is
 still the reader's own fetch, because `/markets/structures/` is authenticated per character and its
 book cannot be centralised. That is the line — **public data centralises, private data does not.**
+
+### Walking a region and pricing a station are two jobs
+
+They are one job today: the worker streams a region's pages and filters each order to
+`request.StationID` as it passes, so a walk produces prices for exactly one station. Splitting them
+is what lets a second station in a tracked region cost nothing.
+
+**Fetch** walks a region and writes its pages. ESI-bound, hourly, paced by the budget check that
+already exists. It does not know or care which stations anyone wants.
+
+**Derive** reads those pages and writes prices per station. Redis and object storage only — no ESI,
+no tokens, no budget. It runs after a fetch, and again on demand when a station is first asked for.
+
+Four things follow, and the last is the reason to do it:
+
+- **A new station in a tracked region costs no ESI call.** Its prices derive from pages already
+  stored. Saving a second Jita market is a read and a filter.
+- **The two fail independently.** A derive that errors does not waste the walk; a walk deferred by
+  budget does not stop a station deriving from the pages already held.
+- **Re-deriving is free.** A change to the derivation — another percentile, a fix — re-prices every
+  tracked region from stored pages without asking ESI for anything.
+- **The fetcher stops needing the station registry at all.**
+
+**`PutPrice` has to become genuinely per-station.** It is called
+`PutPrice(ctx, typeID, request.RegionID, entry)` — the parameter is named `locationID` and a
+**region** id is passed, because today each swept region has exactly one station anybody asks about.
+The moment two stations in one region are priced, those keys collide. The endpoint reads the same way
+and moves with it. Existing entries are orphaned rather than migrated: they expire in two hours on
+their own, and a sweep rewrites them.
+
+### Region pages belong in object storage, not Redis
+
+The pages are already cached — `PutPage` holds every page of a region's book for 24 hours, so a 304
+can be replayed through `onOrder` rather than refetched. What is wrong is where.
+
+They are **large, written constantly, and read rarely**: 1,613 objects an hour across every region,
+~0.4 GB in total, read only on a 304 replay or when a new station derives. Redis is paying memory
+prices for data that mostly sits waiting. The things that earn Redis are small and hot — derived
+prices at ~4 MB a region, etags, refresh times, the wanted-station set.
+
+The stack already runs SeaweedFS behind `shared/core/objectstore`, and the SDE already lives there:
+large, written rarely, read occasionally, fetched whole by key and never queried by field. A region's
+pages are the same shape.
+
+`Backend` carries what this needs — `Put` a page, `Get` one for a replay, `ListKeys` a prefix to
+derive from, and **`DeletePrefix` to drop a region's whole book in one call** when nothing wants it
+any more.
+
+**Its own bucket**, beside `static-data`, because the lifecycles differ: the SDE turns over per
+release and these turn over hourly. One more constant beside `BucketStaticData`, and one more name in
+`SeedBuckets`, which `eip ensure-s3` creates.
+
+Retention stops being a memory question. Keeping a book for a week costs disk, and a week of pages is
+what lets a station derive from a walk made days ago rather than only within the last 24 hours.
 
 ### A market is tracked once somebody asks for it
 
@@ -630,9 +690,17 @@ for, and a region with no station asked about in some while falls out of the reg
 sweep grows forever with markets a reader saved once and abandoned. The four hubs never fall out;
 they are asked for by every reader pricing anything.
 
-**What the first ask costs.** The Forge is 408 pages, about two minutes — paid once, by whoever
-saves the first market there, and by the server rather than their browser. A reader whose region is
-already tracked pays nothing, which is most of them after the first.
+**What the first ask costs, and usually does not.** A station in a region **already tracked** derives
+from stored pages: no ESI call, no wait worth naming. Only the first station in an **untracked**
+region pays for a walk — The Forge is 408 pages, about two minutes — and it is paid once, by the
+server, for every reader who ever saves a market there.
+
+**Falling out is mostly not a mechanism.** A region that stops being swept stops refreshing anything,
+and everything downstream lapses on a clock it already has: derived prices in two hours, pages on
+whatever retention the bucket is given. The only thing needing an explicit sweep is the
+wanted-station set itself — a station id and a timestamp — and dropping the region's pages with
+`DeletePrefix` when its last station goes. A station evicted in error rejoins from stored pages the
+next time somebody asks.
 
 ### What is not settled
 
@@ -821,6 +889,8 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Whether a citadel book walk is bounded, and what happens to a reader who saves a structure with a very large book | **Partly answered for the public half.** A region is now measured: The Forge is 408 pages and 92 MB, which settles that a browser cannot walk one hourly per reader — see [measurements.md](./measurements.md) § Every market region in New Eden. A citadel's own book is still unmeasured, because `/markets/structures/` needs a token and a structure the account can dock at |
 | ~~What bounds the prices Stage G stores~~ | **Decided: a market is tracked once somebody asks for it.** Not every station in every region — the first request for an untracked station registers and walks it, and from then on it is swept with the rest. The registry already exists as the scored set `regionsDue` reads; what it gains is the stations wanted per region. See § A market is tracked once somebody asks for it |
 | ~~Whether Stage G is this project's work to do~~ | **Yes.** It is a different part of `services/` from the job-document work another session is doing |
+| ~~Where a region's raw pages live~~ | **Decided: their own SeaweedFS bucket.** They are large, written hourly and read rarely — 1,613 objects an hour, ~0.4 GB — which is memory Redis should not be spending. The stack already runs SeaweedFS behind `shared/core/objectstore`, the SDE already lives there for the same reasons, and `DeletePrefix` drops a region's book in one call. Its own bucket rather than a prefix in `static-data`, because one turns over per release and the other hourly |
+| How long a region's pages are kept | Longer than 24 hours is now cheap, and it is what lets a station derive from a walk made days ago. A week costs disk rather than memory. Unmeasured against the bucket. Stage G |
 | How long a market stays tracked without being asked for | A reader who prices a job weekly should not re-pay the first walk each time, and the registry should not accumulate markets saved once and abandoned. Unmeasured. Stage G |
 
 ## Stage status
@@ -833,7 +903,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
 | Stage D — The price cache and its two tiers | **Done.** Items 1-3 landed in Stage B or are inherited from it; the persistent tier is read-through on `idb-keyval`, entered at one seam, holding reader-saved markets only, with a stored row refused once its book's expiry passes and rows abandoned by a version bump removed on first touch — see [overlay.md](./overlay.md) § D1. What it still owes is pacing while a row stays warm in memory, which is Stage E's remaining item |
 | Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation), item 2 (a saved NPC station, now reachable — the loader sorts a tick's wants by transport) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E2, § E3, § C2. Still open: the citadel walk (item 3), refetching a saved source ahead of the reader rather than retiring its rows, which only a citadel needs, and end-to-end coverage of the station transport — `priceDelivery.e2e.test.jsx` proves the hub path against a mocked `fetch` and stops there, which is honest while nothing in a running app reaches a station, and a gap the moment Stage F stores one |
-| Stage G — An NPC station is priced by the server | **Measured, not built.** Every known-space region was walked for its page count: all 70 cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost. The Forge alone is 408 pages and 92 MB, which a browser cannot walk hourly for each reader. The store is already shaped for it — `priceKey` is a type at a location — so what changes is three references to `DefaultMarketLocations` and one line in the worker. A market is tracked once somebody asks for it rather than every station being built ahead of use. Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
+| Stage G — An NPC station is priced by the server | **Measured, not built.** Every known-space region was walked for its page count: all 70 cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost. The Forge alone is 408 pages and 92 MB, which a browser cannot walk hourly for each reader. The store is already shaped for it — `priceKey` is a type at a location — so what changes is three references to `DefaultMarketLocations` and one line in the worker. Walking a region and pricing a station split into two tasks, so a station in a tracked region is priced from stored pages with no ESI call; the pages move from Redis to their own SeaweedFS bucket, where 0.4 GB is disk rather than memory; and a market is tracked once somebody asks for it rather than every station being built ahead of use. Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
 | Stage F — Custom market locations | **Not this project's to build.** It is what makes a saved location a market rather than a selling point priced from a hub, and it belongs to the separate custom-structure work — so this project and Stage E item 3 both wait on that, see § Stage F |
 
 ## Start here
