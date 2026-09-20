@@ -1135,12 +1135,37 @@ again in the next stage.
 Undo lands here or immediately after — the log has to be designed for it from the start, per § Undo, so
 the decision is taken in this stage whether or not the UI ships in it.
 
+**The stage is a rebuild of the edit session, not a layer fitted under the reducer.** The editor is
+built to the design in §§ How a job is held, Undo and A what-if is not a change and the reducer it
+replaces is deleted, rather than the layers being seeded underneath it and the old shape kept working
+alongside. What that buys is that no call site is written twice — a component converted onto a draft
+selector is converted once, not once onto a compatibility shim and again when the shim goes — and no
+intermediate design has to be justified or documented. What it costs is that the page is rebuilt before
+it runs again, so the stage is taken in slices for tracking and testing rather than for each slice
+leaving a working page behind. § Stage 3's slices records what those are and what proves each one.
+
 **The editor follows the document from this stage on**, per § Settled. `base` is replaced as documents
 arrive rather than seeded once, which is what stops a member who takes a vacated lock editing the copy
 they opened with. It is the rebase in § A change arriving mid-edit doing ordinary work, so it costs this
 stage the wiring rather than a mechanism: the guard in `useEditJobInitialState` that returns early for a
 job already active is what currently makes the editor deaf, and the inbound coalescer already delivers
 every document the store needs.
+
+#### Stage 3's slices
+
+Each is landed and tested on its own. Only the last leaves a page a reader can open, because the stage
+rebuilds the edit session rather than fitting the layers under it.
+
+| Slice | What it is | What proves it |
+|---|---|---|
+| 1 — the layers | `base`, `log`, `scratch` and the draft derived from them, as a pure module nothing imports | Its own tests: the base is never written to, an arriving document keeps the reader's changes, a question stays out of the save, an untouched subtree keeps its identity |
+| 2 — commands | Every way of changing a job becomes a command that records what it changed. The mutation methods on `Job` become the recipes those commands run | Each command's own test, and the mutators that already press what a reader presses |
+| 3 — undo | The log read backwards, per command rather than per path, with typing coalesced | Undo of each command restores what it changed and nothing else |
+| 4 — the session | The reducer is replaced by the store: `jobModified` becomes the log being non-empty, discard becomes dropping it, and the base follows the document | The leave paths, and a document arriving mid-edit |
+| 5 — the panels | Each panel reads what it needs from the draft instead of taking the whole job as a prop | The mutators again, plus what each panel re-renders on |
+
+Slice 1 landed with the module and its tests. `speculativeChildJobs` is absorbed by slice 2, which is
+where a question becomes an ordinary command written to `scratch`.
 
 ### Stage 4 — Getters become functions, panel by panel
 
