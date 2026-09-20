@@ -56,21 +56,33 @@ its key. [plan.md](./plan.md) § Stage 2 says why the keying does not stop at th
 
 The three ESI collections left `build.costs` and `build.sale` for a top-level `esi`, keyed by the id
 ESI itself assigns: `linkedJobs` by `job_id`, `marketOrders` by `order_id`, `transactions` by
-`transaction_id`. `JobSale` is left holding only its selling plan.
+`transaction_id`. Rows are values, like the other five keyed collections.
 
-**Their rows are pointers.** `jobidentity` takes the address of each row's identity fields so
-encryption writes refs back in place, and a map value is not addressable — so `map[string]*T` is what
-makes the keying possible at all here, and the type carries a comment saying so. The cost is that a
-row is shared rather than copied when a job is: anything filtering one of these collections into a
-new job hands on the same rows. `client_shape_parity_test.go` copies row by row for exactly that
-reason, and `targets` skips a nil row rather than dereferencing one, because a stored `null` decodes
-to one.
+**`models.Job` now splits on who said so.** `build` is what the user planned — setups, materials, the
+costs they entered by hand, and `sellingPlan`, their choice of who sells and where. `esi` is what the
+world reported back. `JobSale` is gone: it had been left holding the selling plan alone, and a plan is
+a planning input rather than an observation. `JobCosts` says it holds the hand-entered costs rather
+than claiming all of them, because install comes from the linked ESI jobs and `CostParts` gathers the
+total from both sides.
+
+**Keying these three needed `protectedfields` to change, not the model.** `jobidentity` takes the
+address of each row's identity fields so encryption writes refs back in place, and a map value is not
+addressable. A `protectedfields.Target` may now carry a `Store`, so a row held in a map points at a
+copy and files that copy back under its key — and `jobidentity` is that package's only consumer, so
+the change reaches nothing else. The alternative, `map[string]*T`, was built first and reverted: it
+put nil checks in every loop and made a row shared rather than copied when a job is, which is a
+footgun on the most-copied document in the app.
 
 **A broker fee stopped being a row.** It carried no identity of its own — the journal id it arrived
 with is shared between orders listed together in one multi-sell — so it folds onto the order it was
-charged against as `fee`, `salesTax` and `feeDate`, and `models.BrokerFee` is gone. A fee with no
-order has nowhere to live, which is what the conversion's 5 dropped fees (45.3M ISK) already
-reported.
+charged against as `fee`, `salesTax` and `feeDate`, and `models.BrokerFee` is gone.
+
+*This one moves money, and is the only part of the reshape that does.* Against a restored copy of
+live, 3,340 fees folded: **814 were dropped in favour of the oldest on their order (489.8M ISK), and
+5 dropped for having no order at all (45.3M ISK)**. A job whose fees were duplicated across one order
+gets cheaper by the difference. The rule is that a fee belongs to an order and an order has one fee,
+so rows beyond the first were the same charge observed more than once — but the figures above are
+what a reader should check before the release, not after.
 
 **The SPA still reads all three as arrays under the old paths**, across 55 production sites — more
 than the other five collections together. So a converted document and the SPA disagree about these
