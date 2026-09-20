@@ -1,6 +1,9 @@
 /** What `GET /universe/structures/{id}` requires of a character's token. */
 export const STRUCTURE_SCOPE = "esi-universe.read_structures.v1";
 
+/** What `GET /markets/structures/{id}` requires of a character's token. */
+export const MARKET_STRUCTURE_SCOPE = "esi-markets.structure_markets.v1";
+
 /**
  * The scopes an access token was actually issued with.
  *
