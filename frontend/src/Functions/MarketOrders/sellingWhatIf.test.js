@@ -4,7 +4,7 @@ import { sellingWhatIf } from "./sellingWhatIf";
 import { SALE_LOCATION_KIND } from "./saleLocations";
 
 const stationFee = {
-  kind: SALE_LOCATION_KIND.HUB,
+  kind: SALE_LOCATION_KIND.NPC_STATION,
   base: 3,
   rate: 2.4,
   terms: [
@@ -95,7 +95,7 @@ describe("sellingWhatIf", () => {
   it("saves nothing on a structure's broker fee", () => {
     const got = sellingWhatIf({
       brokerFee: {
-        kind: SALE_LOCATION_KIND.STRUCTURE,
+        kind: SALE_LOCATION_KIND.CITADEL,
         base: null,
         rate: 1.5,
         terms: [],

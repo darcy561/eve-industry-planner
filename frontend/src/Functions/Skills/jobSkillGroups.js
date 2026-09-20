@@ -164,7 +164,7 @@ function buildTimeRows(jobSkills, jobType, row) {
  * @returns {SkillRow[]}
  */
 function sellingRows(saleLocation, row) {
-  const atStructure = saleLocation?.kind === SALE_LOCATION_KIND.STRUCTURE;
+  const atStructure = saleLocation?.kind === SALE_LOCATION_KIND.CITADEL;
 
   return [
     row(marketSkillIDs.brokerRelations, {

@@ -22,8 +22,8 @@ const characterSkills = {
   [marketSkillIDs.accounting]: { activeLevel: 5 },
 };
 
-const hub = { kind: SALE_LOCATION_KIND.HUB, name: "Jita" };
-const citadel = { kind: SALE_LOCATION_KIND.STRUCTURE, name: "A Citadel" };
+const hub = { kind: SALE_LOCATION_KIND.NPC_STATION, name: "Jita" };
+const citadel = { kind: SALE_LOCATION_KIND.CITADEL, name: "A Citadel" };
 
 const group = (groups, id) => groups.find((g) => g.id === id);
 

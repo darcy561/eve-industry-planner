@@ -39,7 +39,7 @@ const { SALE_LOCATION_KIND } = await import(
 );
 
 const hub = {
-  kind: SALE_LOCATION_KIND.HUB,
+  kind: SALE_LOCATION_KIND.NPC_STATION,
   id: "jita",
   name: "Jita",
   feeStationID: 60003760,
@@ -47,7 +47,7 @@ const hub = {
 };
 
 const structure = {
-  kind: SALE_LOCATION_KIND.STRUCTURE,
+  kind: SALE_LOCATION_KIND.CITADEL,
   id: "citadelMarket-1",
   name: "Perimeter Azbel",
   feeStationID: 60003760,
@@ -56,7 +56,7 @@ const structure = {
 
 const hubRates = {
   brokerFee: {
-    kind: SALE_LOCATION_KIND.HUB,
+    kind: SALE_LOCATION_KIND.NPC_STATION,
     base: 3,
     rate: 1.35,
     terms: [
@@ -75,7 +75,7 @@ const hubRates = {
 
 const structureRates = {
   brokerFee: {
-    kind: SALE_LOCATION_KIND.STRUCTURE,
+    kind: SALE_LOCATION_KIND.CITADEL,
     base: null,
     rate: 1.5,
     terms: [],

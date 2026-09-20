@@ -102,7 +102,7 @@ beforeEach(() => {
   );
   useSellingRates.mockReturnValue({
     data: {
-      brokerFee: { kind: "structure", base: null, rate: 1.5, terms: [] },
+      brokerFee: { kind: "citadel", base: null, rate: 1.5, terms: [] },
       salesTax: { base: 7.5, accounting: 5, rate: 3.375 },
     },
     isLoading: false,

@@ -16,7 +16,7 @@ vi.mock("../../Zustand/usersStore", async () => {
 const {
   SALE_LOCATION_KIND,
   getDefaultSaleStructure,
-  getSaleStructures,
+  getSaleCitadels,
   resolveSaleLocation,
 } = await import("./saleLocations");
 
@@ -43,7 +43,7 @@ describe("saved sale structures", () => {
   });
 
   test("every row carries what pricing a sale from it needs", () => {
-    for (const structure of getSaleStructures()) {
+    for (const structure of getSaleCitadels()) {
       expect(typeof structure.id).toBe("string");
       expect(typeof structure.structureID).toBe("number");
       expect(typeof structure.brokerFee).toBe("number");
@@ -59,7 +59,7 @@ describe("saved sale structures", () => {
       { id: "npcMarket-1", jobType: structureKinds.npcStation, name: "Jita IV-4" },
     ];
 
-    expect(getSaleStructures().map((i) => i.id)).toEqual(["citadelMarket-1"]);
+    expect(getSaleCitadels().map((i) => i.id)).toEqual(["citadelMarket-1"]);
   });
 
   // A reader who has saved none is the ordinary case, not an error: the hub
@@ -67,7 +67,7 @@ describe("saved sale structures", () => {
   test("has no default when none is saved", () => {
     structures = [];
 
-    expect(getSaleStructures()).toEqual([]);
+    expect(getSaleCitadels()).toEqual([]);
     expect(getDefaultSaleStructure()).toBeNull();
   });
 
@@ -86,7 +86,7 @@ describe("resolveSaleLocation", () => {
     const structure = getDefaultSaleStructure();
     const location = resolveSaleLocation(structure.id);
 
-    expect(location.kind).toBe(SALE_LOCATION_KIND.STRUCTURE);
+    expect(location.kind).toBe(SALE_LOCATION_KIND.CITADEL);
     expect(location.brokerFee).toBe(structure.brokerFee);
   });
 
@@ -112,14 +112,14 @@ describe("resolveSaleLocation", () => {
   test("a hub carries no broker fee, because the rate comes from the seller", () => {
     const location = resolveSaleLocation(null, "jita");
 
-    expect(location.kind).toBe(SALE_LOCATION_KIND.HUB);
+    expect(location.kind).toBe(SALE_LOCATION_KIND.NPC_STATION);
     expect(location.brokerFee).toBeNull();
   });
 
   test("an unknown structure id falls back to a hub rather than returning nothing", () => {
     const location = resolveSaleLocation("no-such-structure", "amarr");
 
-    expect(location.kind).toBe(SALE_LOCATION_KIND.HUB);
+    expect(location.kind).toBe(SALE_LOCATION_KIND.NPC_STATION);
     expect(location.id).toBe("amarr");
   });
 

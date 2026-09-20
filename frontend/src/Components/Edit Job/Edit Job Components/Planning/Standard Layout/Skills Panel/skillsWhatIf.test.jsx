@@ -6,7 +6,7 @@ import { SALE_LOCATION_KIND } from "../../../../../../Functions/MarketOrders/sal
 import { marketSkillIDs } from "../../../../../../Context/defaultValues";
 
 const brokerFee = {
-  kind: SALE_LOCATION_KIND.HUB,
+  kind: SALE_LOCATION_KIND.NPC_STATION,
   base: 3,
   rate: 2.4,
   terms: [
@@ -86,7 +86,7 @@ describe("a level being tried", () => {
 // not quote a saving that training could never deliver.
 describe("at a structure", () => {
   const owned = {
-    kind: SALE_LOCATION_KIND.STRUCTURE,
+    kind: SALE_LOCATION_KIND.CITADEL,
     base: null,
     rate: 1.5,
     terms: [],

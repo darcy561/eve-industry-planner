@@ -46,15 +46,15 @@ const economics = (overrides = {}) => ({
   comparison: { builds: 0 },
   charges: { brokerFee: 36, salesTax: 45 },
   saleLocation: {
-    kind: "structure",
+    kind: "citadel",
     id: "citadel",
-    name: "Placeholder Citadel",
+    name: "Perimeter Azbel",
     priceHubID: "jita",
     priceHubName: "Jita",
     brokerFee: 1.5,
   },
   rates: {
-    brokerFee: { kind: "structure", base: null, rate: 1.5, terms: [] },
+    brokerFee: { kind: "citadel", base: null, rate: 1.5, terms: [] },
     salesTax: { base: 7.5, accounting: 5, rate: 3.375 },
   },
   ratesLoading: false,

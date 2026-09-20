@@ -101,7 +101,7 @@ beforeEach(() => {
     isDefault: false,
   });
   resolveSaleLocation.mockReturnValue({
-    kind: SALE_LOCATION_KIND.HUB,
+    kind: SALE_LOCATION_KIND.NPC_STATION,
     name: "Jita",
   });
   useGetCharacterSkills.mockReturnValue({
@@ -163,7 +163,7 @@ describe("the Skills panel", () => {
   // A skill vanishing from a panel reads as a defect rather than as an answer.
   it("keeps Broker Relations at a citadel, saying it does not apply", () => {
     resolveSaleLocation.mockReturnValue({
-      kind: SALE_LOCATION_KIND.STRUCTURE,
+      kind: SALE_LOCATION_KIND.CITADEL,
       name: "A Citadel",
     });
 
@@ -275,7 +275,7 @@ describe("a job with nothing to sell", () => {
 describe("the what-if it carries", () => {
   const rates = {
     brokerFee: {
-      kind: SALE_LOCATION_KIND.HUB,
+      kind: SALE_LOCATION_KIND.NPC_STATION,
       base: 3,
       rate: 2.4,
       terms: [

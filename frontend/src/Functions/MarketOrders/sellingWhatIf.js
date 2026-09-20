@@ -47,7 +47,7 @@ export function sellingWhatIf({
   quantity = 0,
   proposed,
 }) {
-  const atStructure = brokerFee?.kind === SALE_LOCATION_KIND.STRUCTURE;
+  const atStructure = brokerFee?.kind === SALE_LOCATION_KIND.CITADEL;
 
   const feeRate = atStructure
     ? brokerFee.rate

@@ -221,7 +221,7 @@ describe("the shape both stages share", () => {
     trained({ brokerRelations: 5, accounting: 5 });
     standings.data = [];
     const location = resolveSaleLocation(null, "jita");
-    expect(location.kind).toBe(SALE_LOCATION_KIND.HUB);
+    expect(location.kind).toBe(SALE_LOCATION_KIND.NPC_STATION);
 
     const value = 500_000_000;
     const fee = brokerFeeAmount(
@@ -408,7 +408,7 @@ describe("naming an NPC station as the sale location", () => {
   it("prefers a saved citadel of the same id", () => {
     const location = resolveSaleLocation("citadelMarket-1", "jita");
 
-    expect(location.kind).toBe(SALE_LOCATION_KIND.STRUCTURE);
+    expect(location.kind).toBe(SALE_LOCATION_KIND.CITADEL);
   });
 });
 

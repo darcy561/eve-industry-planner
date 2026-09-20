@@ -137,9 +137,9 @@ export async function brokerFeeWorking(
   queryClient,
   characterHash,
 ) {
-  if (saleLocation?.kind === SALE_LOCATION_KIND.STRUCTURE) {
+  if (saleLocation?.kind === SALE_LOCATION_KIND.CITADEL) {
     return {
-      kind: SALE_LOCATION_KIND.STRUCTURE,
+      kind: SALE_LOCATION_KIND.CITADEL,
       rate: saleLocation.brokerFee,
       base: null,
       terms: [],
@@ -181,7 +181,7 @@ export async function brokerFeeWorking(
   ];
 
   return {
-    kind: SALE_LOCATION_KIND.HUB,
+    kind: SALE_LOCATION_KIND.NPC_STATION,
     base: brokerFeeRates.base,
     terms,
     rate: terms.reduce((rate, term) => rate - term.amount, brokerFeeRates.base),

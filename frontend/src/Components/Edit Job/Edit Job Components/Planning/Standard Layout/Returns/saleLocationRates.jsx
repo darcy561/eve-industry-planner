@@ -17,7 +17,7 @@ import { formatPercentage } from "../../../../../../Functions/Helper/numberParse
 import {
   SALE_LOCATION_KIND,
   getDefaultSaleStructure,
-  getSaleStructures,
+  getSaleCitadels,
 } from "../../../../../../Functions/MarketOrders/saleLocations";
 import { BROKER_FEE_TERMS } from "../../../../../../Functions/MarketOrders/sellingRates";
 import AssignUsersSelect from "../../../../../../Styled Components/Select/users";
@@ -56,7 +56,7 @@ export default function SaleLocationRates({
 }) {
   if (!saleLocation) return null;
 
-  const atStructure = saleLocation.kind === SALE_LOCATION_KIND.STRUCTURE;
+  const atStructure = saleLocation.kind === SALE_LOCATION_KIND.CITADEL;
 
   return (
     <InsetSurface>
@@ -304,7 +304,7 @@ function saleLocationGroups() {
   return [
     {
       label: "Citadels",
-      options: getSaleStructures().map(({ id, name }) => ({ id, name })),
+      options: getSaleCitadels().map(({ id, name }) => ({ id, name })),
     },
     {
       label: "NPC stations",

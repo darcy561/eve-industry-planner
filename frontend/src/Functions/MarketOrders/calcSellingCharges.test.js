@@ -49,7 +49,7 @@ describe("where a market order's broker fee is charged", () => {
     await calcSellingCharges(order(JITA), {}, 0.015);
 
     expect(saleLocations[0]).toEqual({
-      kind: SALE_LOCATION_KIND.HUB,
+      kind: SALE_LOCATION_KIND.NPC_STATION,
       feeStationID: JITA,
       brokerFee: null,
     });
@@ -59,7 +59,7 @@ describe("where a market order's broker fee is charged", () => {
     await calcSellingCharges(order(RAITARU), {}, 0.015);
 
     expect(saleLocations[0]).toEqual({
-      kind: SALE_LOCATION_KIND.STRUCTURE,
+      kind: SALE_LOCATION_KIND.CITADEL,
       feeStationID: null,
       brokerFee: 0.015,
     });
@@ -70,7 +70,7 @@ describe("where a market order's broker fee is charged", () => {
   it("does not take an id past the station range for a station", async () => {
     await calcSellingCharges(order(64000000), {}, 0.015);
 
-    expect(saleLocations[0].kind).toBe(SALE_LOCATION_KIND.STRUCTURE);
+    expect(saleLocations[0].kind).toBe(SALE_LOCATION_KIND.CITADEL);
   });
 
   it("charges the order's whole value at the rate it was quoted", async () => {

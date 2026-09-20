@@ -204,6 +204,24 @@ export function usersStoreState(overrides = {}) {
     ...state.account.actions,
   };
 
+  // Resolved against `state` for the same reason: they answer from the
+  // structures the test supplied. A function the component calls reaches these
+  // rather than the store, so a slice missing them throws instead of answering
+  // "none saved" — which is why they are defaults rather than opt-in.
+  state.applicationSettings.actions = {
+    getCustomStructureWithID: (id) =>
+      (state.applicationSettings.customStructures ?? []).find(
+        (structure) => structure.id === id,
+      ) ?? null,
+    getDefaultCustomStructureWithJobType: (jobType) => {
+      const ofKind = (state.applicationSettings.customStructures ?? []).filter(
+        (structure) => structure.jobType === jobType,
+      );
+      return ofKind.find((structure) => structure.default) ?? ofKind[0] ?? null;
+    },
+    ...state.applicationSettings.actions,
+  };
+
   state.activePlanner = { ...activePlannerDefault(), ...activePlannerOverride };
   // Built last, and against `state` itself: these actions read the planner and
   // the account off the state they are attached to, so they have to see the

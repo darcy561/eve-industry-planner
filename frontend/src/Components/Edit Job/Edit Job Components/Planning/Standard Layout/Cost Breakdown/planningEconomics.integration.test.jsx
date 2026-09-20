@@ -32,7 +32,7 @@ vi.mock(
   () => ({
     useSellingRates: () => ({
       data: {
-        brokerFee: { kind: "structure", base: null, rate: 1.5, terms: [] },
+        brokerFee: { kind: "citadel", base: null, rate: 1.5, terms: [] },
         salesTax: { base: 7.5, accounting: 0, rate: 7.5 },
       },
       isLoading: false,
