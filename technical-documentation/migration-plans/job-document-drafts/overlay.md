@@ -18,12 +18,13 @@ An archived fee line no longer carries `FeeID`. `buildFeeLines` wrote it from th
 nothing read it back — and that id is shared between orders listed together in one multi-sell, so it was
 never an identity for the fee in any case.
 
-Two fields the row-key gate named needed no code change: neither `complete` nor `CharacterHash` is on
-`models.BrokerFee` or the SPA's `BrokerFee` class. They exist only on stored rows, and Stage 2's prune
-is what clears them.
+Two fields the row-key gate named needed no code change: neither `complete` nor `CharacterHash` was on
+the broker fee in either language. They exist only on stored rows, and Stage 2's prune is what clears
+them — as it now clears the fee row itself, which Stage 2 folds onto its order.
 
-`materialPriceOverrides` still sits under `layout`, and so do `esiJobTab`, `setupToEdit` and
-`resourceDisplayType` — deferred, two of the three being read. [plan.md](./plan.md) § Stage 1 says why.
+`esiJobTab`, `setupToEdit` and `resourceDisplayType` still sit under `layout` — deferred, two of the
+three being read. [plan.md](./plan.md) § Stage 1 says why. `materialPriceOverrides` and `localPricing`
+no longer do: Stage 2 moved them, below.
 
 ## Stage 1b — The derived setup figures become derivations
 
@@ -44,9 +45,10 @@ eight are keyed in the SPA as well.*
 
 ### Which collections are keyed
 
-`skills`, `build.materials`, each material's `purchasing`, `build.costs.extrasCosts` and
-`build.costs.inventionEntries` are maps in `models.Job` and in the SPA, keyed by the id each row
-carries — a type id for skills and materials, an app-minted id for the rest.
+`skills`, `build.materials`, each material's `purchasing`, `extrasCosts` and `inventionEntries` are
+maps in `models.Job` and in the SPA, keyed by the id each row carries — a type id for skills and
+materials, an app-minted id for the rest. The last two sit directly on `build` in Go and still under
+`build.costs` in the SPA, which is part of what the SPA's half of this stage closes.
 
 The SPA holds the same shape the document does rather than converting at the `Job` boundary. A reader
 asks the collection for a row by its id instead of searching for one, and a row is removed by deleting
@@ -55,15 +57,21 @@ its key. [plan.md](./plan.md) § Stage 2 says why the keying does not stop at th
 ### What ESI observed moved to `esi`
 
 The three ESI collections left `build.costs` and `build.sale` for a top-level `esi`, keyed by the id
-ESI itself assigns: `linkedJobs` by `job_id`, `marketOrders` by `order_id`, `transactions` by
-`transaction_id`. Rows are values, like the other five keyed collections.
+ESI itself assigns: `industryJobs` by `job_id`, `marketOrders` by `order_id`, `transactions` by
+`transaction_id`. Rows are values, like the other five keyed collections. `linkedJobs` is the one
+field the plan renames as it moves, for the reason [plan.md](./plan.md) § The grouping follows the
+write rule gives.
 
-**`models.Job` now splits on who said so.** `build` is what the user planned — setups, materials, the
-costs they entered by hand, and `sellingPlan`, their choice of who sells and where. `esi` is what the
-world reported back. `JobSale` is gone: it had been left holding the selling plan alone, and a plan is
-a planning input rather than an observation. `JobCosts` says it holds the hand-entered costs rather
-than claiming all of them, because install comes from the linked ESI jobs and `CostParts` gathers the
-total from both sides.
+**`models.Job` now splits on who said so, and only two levels deep.** `build` is what the player
+decided — `setup`, `materials`, `extrasCosts`, `inventionEntries`, `sellerCharacter`,
+`saleLocationID`, `localPricing` and `materialPriceOverrides`, each flat on it. `esi` is what the
+world reported back. `JobCosts` and `JobSale` are both gone, along with the `costs` and `sale` levels
+they described: each held a decision beside an observation, so neither told a reader which write rule
+its contents followed.
+
+`layout` keeps `esiJobTab`, `setupToEdit` and `resourceDisplayType`, which are the SPA view state
+Stage 3 retires. Its hand-written decoders stay for the `marketLocation` and `orderType` keys some
+stored rows carry.
 
 **Keying these three needed `protectedfields` to change, not the model.** `jobidentity` takes the
 address of each row's identity fields so encryption writes refs back in place, and a map value is not
@@ -84,10 +92,13 @@ gets cheaper by the difference. The rule is that a fee belongs to an order and a
 so rows beyond the first were the same charge observed more than once — but the figures above are
 what a reader should check before the release, not after.
 
-**The SPA still reads all three as arrays under the old paths**, across 55 production sites — more
-than the other five collections together. So a converted document and the SPA disagree about these
-three until that lands, which is what keeps the reshape a single cutover rather than something that
-can ship in pieces.
+**The SPA has not moved yet.** It reads all three as arrays under `build.costs` and `build.sale`, and
+still holds the `costs`, `sale` and `layout` levels Go has dropped — 17 files and around 68 sites,
+more than the other five collections together. Two of those sites reach a collection only through its
+row class and name no field at all, so a sweep on the property path alone reports them clean.
+
+So a converted document and the SPA disagree until that lands, which is what keeps the reshape a
+single cutover rather than something that can ship in pieces.
 
 ### What keying changed beyond the shape
 
