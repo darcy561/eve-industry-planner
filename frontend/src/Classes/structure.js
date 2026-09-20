@@ -21,9 +21,10 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
  * field absent from the entry stays unset and is left out of the document.
  * Adding a kind is an entry here, not a new class.
  *
- * @type {Object<number, {rigSlots?: boolean, implant?: boolean, systemID?: boolean,
- *   regionID?: boolean, stationID?: boolean, structureID?: boolean,
- *   brokerFee?: boolean, characterHash?: boolean}>}
+ * @type {Object<number, {built?: boolean, rigSlots?: boolean, implant?: boolean,
+ *   systemID?: boolean, regionID?: boolean, stationID?: boolean,
+ *   stationOwner?: boolean, structureID?: boolean, brokerFee?: boolean,
+ *   characterHash?: boolean}>}
  */
 const fieldsByJobType = {
   // `built` is the three fields a place a job is performed in carries: a
@@ -40,11 +41,14 @@ const fieldsByJobType = {
   [structureKinds.invention]: { built: true, rigSlots: true },
   // Both market kinds name a region, because a price is asked for per region and
   // then narrowed to one location. What narrows it is the difference.
-  [structureKinds.npcStation]: { regionID: true, stationID: true },
+  [structureKinds.npcStation]: {
+    regionID: true,
+    stationID: true,
+    stationOwner: true,
+  },
   [structureKinds.citadelMarket]: {
     regionID: true,
     structureID: true,
-    systemID: true,
     brokerFee: true,
     characterHash: true,
   },
@@ -88,6 +92,8 @@ class Structure {
    * @param {number} [existingValue.systemID] - System id, on the kinds that have one
    * @param {number} [existingValue.regionID] - Region id, on the market kinds
    * @param {number} [existingValue.stationID] - NPC station id, on that kind
+   * @param {number} [existingValue.raceID] - The race that built the station
+   * @param {number} [existingValue.ownerID] - The corporation that owns it
    * @param {number} [existingValue.structureID] - Citadel id, on that kind
    * @param {number} [existingValue.brokerFee] - Owner's rate as a percentage, on a citadel
    * @param {string} [existingValue.characterHash] - Docking access character, on a citadel
@@ -126,6 +132,10 @@ class Structure {
     if (fields.stationID) {
       this.stationID = coerceFiniteNumber(existingValue?.stationID, 0);
     }
+    if (fields.stationOwner) {
+      this.raceID = coerceFiniteNumber(existingValue?.raceID, 0);
+      this.ownerID = coerceFiniteNumber(existingValue?.ownerID, 0);
+    }
     if (fields.structureID) {
       this.structureID = coerceFiniteNumber(existingValue?.structureID, 0);
     }
@@ -142,7 +152,8 @@ class Structure {
    *
    * @returns {{built?: boolean, rigSlots?: boolean, implant?: boolean,
    *   systemID?: boolean, regionID?: boolean, stationID?: boolean,
-   *   structureID?: boolean, brokerFee?: boolean, characterHash?: boolean}}
+   *   stationOwner?: boolean, structureID?: boolean, brokerFee?: boolean,
+   *   characterHash?: boolean}}
    */
   get fields() {
     return fieldsByJobType[this.jobType] ?? {};
@@ -331,6 +342,9 @@ class Structure {
       ...(fields.systemID ? { systemID: this.systemID } : {}),
       ...(fields.regionID ? { regionID: this.regionID } : {}),
       ...(fields.stationID ? { stationID: this.stationID } : {}),
+      ...(fields.stationOwner
+        ? { raceID: this.raceID, ownerID: this.ownerID }
+        : {}),
       ...(fields.structureID ? { structureID: this.structureID } : {}),
       ...(fields.brokerFee ? { brokerFee: this.brokerFee } : {}),
       ...(fields.characterHash ? { characterHash: this.characterHash } : {}),

@@ -234,10 +234,11 @@ func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
 		{
 			ID: "npc-1", JobType: StructureKindNPCStation, Name: "Jita IV-4",
 			RegionID: 10000002, StationID: 60003760,
+			RaceID: 1, OwnerID: 1000035,
 		},
 		{
 			ID: "citadel-1", JobType: StructureKindCitadelMarket, Name: "Perimeter Azbel",
-			RegionID: 10000002, StructureID: 1035466617946, SystemID: 30000144,
+			RegionID: 10000002, StructureID: 1035466617946,
 			BrokerFee: 1.5, CharacterHash: "hash-1",
 		},
 	}
@@ -260,6 +261,12 @@ func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
 		t.Errorf("station = region %v station %v, want both stored",
 			npc["regionID"], npc["stationID"])
 	}
+	// What the fee is derived from. Fixed for the life of the station, so a quote
+	// reads them from the row rather than asking ESI again.
+	if npc["raceID"] != int64(1) || npc["ownerID"] != int64(1000035) {
+		t.Errorf("station owner = race %v owner %v, want both stored",
+			npc["raceID"], npc["ownerID"])
+	}
 	// A station's fee is derived from the seller, so storing one would let a
 	// saved number stand in for that derivation.
 	if _, held := npc["brokerFee"]; held {
@@ -272,7 +279,6 @@ func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
 	for field, want := range map[string]any{
 		"regionID":      int64(10000002),
 		"structureID":   int64(1035466617946),
-		"systemID":      int64(30000144),
 		"brokerFee":     1.5,
 		"characterHash": "hash-1",
 	} {

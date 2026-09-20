@@ -232,10 +232,17 @@ the silent faults in Stages B and C.
 |---|---|---|
 | Inside its region | `stationID` | `structureID` |
 | Broker fee | derived from the seller — **not stored** | `brokerFee`, the rate the owner set |
+| What the fee derives from | `raceID`, `ownerID` | — |
 | Reading its book | public | `characterHash`, a character with docking access |
-| System index | — | `systemID` |
 
 Both carry `regionID`, and both carry the `id`, `name` and `default` every kind has.
+
+**A station stores what its fee is derived from, not the fee.** The race that built it names the
+faction a standing is held against, and the owner is the corporation holding the other — the only two
+station fields the rate reads. Both are fixed for the life of the station, and `getStationData` is a
+bare fetch with no caching, so every quote was a round trip for two numbers that never change. The
+row carries them instead. That is not the same as storing the fee: the rate is still derived per
+seller, from their skills and standings.
 
 **The fee asymmetry is load-bearing.** A broker fee at an NPC station is derived from the seller
 character's skills and standings, and is already quoted per job against a separately chosen seller.
@@ -248,10 +255,9 @@ per-structure history — and an order book is read per region and *then* filter
 A saved location is reachable from the Returns panel header, so it must be able to open its own
 history and market data.
 
-**Why a system, on the citadel only.** The installation-cost calculation asks a location for its
-system index. A market row is a market that sits in a system, not a place to build: it carries
-`systemID` so the index question can be answered of it, and it has no entry in `jobTypeMapping`
-because a market has no install cost of its own.
+**Neither market kind carries a system.** An order book is read per region and narrowed to the
+location, so nothing prices a market by its system; a system is what an installation cost is derived
+from, and a market has none. Neither kind appears in `jobTypeMapping` for the same reason.
 
 **The character hash is stored here and used later.** Market reads in the SPA are public and
 unauthenticated today, and no `/markets/structures/` call exists. The field is what
@@ -270,8 +276,54 @@ both produce a wrong figure rather than an error:
   `defaultCitadelBrokersFee` while the Planning stage quotes the per-location rate, so one job shows
   two different fees. Ending that split is what this stage is for.
 
-**Done when** a reader can save either kind of location, a price can be asked for at one, the two
-faults above are closed, and the placeholder rows in `saleLocations.js` are gone.
+**The settings surface is one form, not a fifth branch.** Three forms describe the four build kinds
+today — `structureSelection`, `inventionStructureSelection`, `reprocessingStructureSelection` — and
+they differ by **one field each**: manufacturing and reaction add a system, reprocessing adds an
+implant, invention adds nothing. Around 800 lines of otherwise identical wiring, and adding a market
+would make it four forms and a fourth branch in `CustomStructuresForm`.
+
+One form replaces them, rendering a field when the kind carries it and reading the **same
+`fieldsByJobType` the class already uses**. That makes the model's promise true of the surface too:
+adding a kind is an entry in one map, not another form. Every field already has a shared component —
+`StructureTypeSelect`, `SystemTypeSelect`, `RigTypeSelect`, `ImplantSelect`,
+`VirtualisedSystemSearch` — so this is wiring to delete, not widgets to build.
+
+**Every field but one has a component already.** `StructureTypeSelect`, `SystemTypeSelect`,
+`RigTypeSelect`, `ImplantSelect`, `VirtualisedSystemSearch`, `TaxPercentageTextField` and `FormField`
+are what the three forms already compose, and the citadel's access character is
+**`AssignUsersSelect`** — the same picker the Returns panel uses to name a seller, which takes a hash
+and gives one back. Nothing new is needed for a citadel.
+
+**A region is derived, not chosen.** ESI answers the chain: `/universe/stations/{id}` gives a
+`system_id`, `/universe/systems/{id}` gives a `constellation_id`, and
+`/universe/constellations/{id}` gives a `region_id` — verified against Jita, where station 60003760
+resolves to region 10000002. Both new calls are public and follow the existing `getStationData`
+shape in `Functions/EveESI/World/`.
+
+So the form asks for a station and derives everything else. That is better than a region picker
+rather than merely cheaper: a reader knows their station and may not know its region, and a
+mismatched pair would be a saved market that prices nothing. It is one fewer field, and one that
+cannot be wrong.
+
+**A reader names a place from their own assets, not from the galaxy.** `useAssetLocations` already
+answers the named places an account's assets sit at, and `VirtualisedLocationSearch` already offers
+them — the same pair this settings page uses for the default asset location. `locationOptions`
+applies no kind filter, so stations and citadels both come through, which is what the two market
+kinds need between them.
+
+That is the right list rather than only the available one: a market a reader sells at is somewhere
+they keep things, and a search over every station in New Eden would offer thousands of places they
+have never docked at. `POST /universe/ids/` was the alternative and is ruled out — it wants the exact
+in-game string and returns nothing for a near miss, which is not a reasonable thing to ask anyone to
+type.
+
+So **no new picker is needed for either kind**, and neither waits on the other.
+
+The kind picker keeps its one row and grows to six, so a reader sees every kind in one place. Its
+heading stops asking for a job type, which a market is not.
+
+**Done when** a reader can save either kind of location through that form, a price can be asked for
+at one, the two faults above are closed, and the placeholder rows in `saleLocations.js` are gone.
 
 **Done when** Stages A to D are, adding a kind of structure is a `jobType` value plus the fields it
 needs, and market-price-delivery can come off the shelf. **Stage BR2 is named here for its inheritance,

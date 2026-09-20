@@ -427,24 +427,67 @@ describe("the kinds that are a market", () => {
     expect(structure.toDocument().characterHash).toBeUndefined();
   });
 
-  it("gives a citadel its own fee, access character and system", () => {
+  // The race that built a station and the corporation that owns it are what its
+  // broker fee is derived from, and neither changes. Storing them is what saves
+  // asking ESI for the same two numbers on every quote.
+  it("gives an NPC station what its fee is worked out from", () => {
+    const structure = new Structure({
+      jobType: structureKinds.npcStation,
+      stationID: 60003760,
+      raceID: 1,
+      ownerID: 1000035,
+    });
+
+    expect(structure.raceID).toBe(1);
+    expect(structure.ownerID).toBe(1000035);
+    expect(structure.toDocument()).toMatchObject({
+      raceID: 1,
+      ownerID: 1000035,
+    });
+  });
+
+  // A citadel's owner sets its rate outright, so there is nothing to derive and
+  // nothing to hold the derivation's inputs for.
+  it("gives a citadel no station owner", () => {
+    const structure = new Structure({
+      jobType: structureKinds.citadelMarket,
+      raceID: 1,
+      ownerID: 1000035,
+    });
+
+    expect(structure.raceID).toBeUndefined();
+    expect(structure.ownerID).toBeUndefined();
+  });
+
+  it("gives a citadel its own fee and access character", () => {
     const structure = new Structure({
       jobType: structureKinds.citadelMarket,
       regionID: 10000002,
       structureID: 1035466617946,
-      systemID: 30000144,
       brokerFee: 1.5,
       characterHash: "hash-1",
     });
 
     expect(structure.regionID).toBe(10000002);
     expect(structure.structureID).toBe(1035466617946);
-    // The installation-cost calculation asks a location for its system index, so
-    // a market carries a system without being a place anything is built.
-    expect(structure.systemID).toBe(30000144);
     expect(structure.brokerFee).toBe(1.5);
     expect(structure.characterHash).toBe("hash-1");
     expect(structure.stationID).toBeUndefined();
+  });
+
+  // Nothing prices a market by its system: an order book is read per region and
+  // narrowed to the location. A system is what an installation cost is derived
+  // from, and a market has none.
+  it("gives neither market kind a system", () => {
+    for (const jobType of [
+      structureKinds.npcStation,
+      structureKinds.citadelMarket,
+    ]) {
+      const structure = new Structure({ jobType, systemID: 30000144 });
+
+      expect(structure.systemID).toBeUndefined();
+      expect(structure.toDocument().systemID).toBeUndefined();
+    }
   });
 
   // A citadel's fee is a percentage like every other rate in the class, and is
@@ -496,7 +539,6 @@ describe("the kinds that are a market", () => {
       name: "Perimeter Azbel",
       regionID: 10000002,
       structureID: 1035466617946,
-      systemID: 30000144,
       brokerFee: 1.5,
       characterHash: "hash-1",
     });

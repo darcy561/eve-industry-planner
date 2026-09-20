@@ -524,7 +524,7 @@ in `fieldsByJobType`, which is what the model was built to make possible: no cla
 | Inside its region | `stationID` | `structureID` |
 | Broker fee | derived from the seller | `brokerFee` |
 | Reading its book | public | `characterHash` |
-| System index | — | `systemID` |
+| What the fee derives from | `raceID`, `ownerID` | — |
 
 Both carry `regionID`, and both carry the `id`, `name` and `default` every row has.
 
@@ -536,9 +536,16 @@ station's comes from the seller's skills and standings, so a stored number there
 that derivation and quote the untrained rate without saying so. `TestAMarketStructuresFieldsReachTheDocument`
 asserts a station stores neither a fee nor an access character.
 
-**Only a citadel names a system**, because the installation-cost calculation asks a location for its
-system index. It is a market that sits in a system rather than a place to build, so it has no entry
-in `jobTypeMapping` and no install cost of its own.
+**Neither kind names a system.** An order book is read per region and narrowed to the location, so
+nothing prices a market by its system, and a system is what an installation cost is derived from —
+which a market does not have. Neither appears in `jobTypeMapping` for the same reason, and
+`addCustomStructure` asks for a system index only from a kind whose field map names a system.
+
+**A station stores what its fee derives from.** The race that built it names the faction a standing
+is held against, and the owner is the corporation holding the other — the only two station fields
+the rate reads. Both are fixed for the life of the station, and `getStationData` is a bare fetch with
+no caching, so every quote was a round trip for two constants. Storing them is not storing the fee:
+the rate is still derived per seller.
 
 **The access character is stored and not yet read.** SPA market reads are public and unauthenticated,
 and no `/markets/structures/` call exists; the field is what lets that fetch be built.

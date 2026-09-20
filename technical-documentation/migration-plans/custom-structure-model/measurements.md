@@ -187,3 +187,61 @@ Two things this measured that reading the code had not settled:
   survives until a reader opens and saves the row.
 
 Which is why the conversion has to run before the Go field is removed: that field is the last copy.
+
+## The three build forms, before the surface redesign (2026-09-20)
+
+Measured before deciding whether a market kind gets its own form. Line counts are whole files under
+`Components/Settings/Standard Layout/Custom Structures/`.
+
+| File | Lines | Fields beyond the shared set |
+|---|---|---|
+| `structureSelection.jsx` | 322 | `systemID` |
+| `reprocessingStructureSelection.jsx` | 251 | `implant` |
+| `inventionStructureSelection.jsx` | 230 | none |
+
+The shared set is the same in all three: name, structure type, system security, two rig slots, tax.
+So 803 lines describe one form plus two optional fields, and `CustomStructuresForm` picks between
+them with a nested ternary on the job type.
+
+Every field already has a shared component — `StructureTypeSelect`, `SystemTypeSelect`,
+`RigTypeSelect`, `ImplantSelect`, `VirtualisedSystemSearch` — so what the three files hold is wiring,
+not widgets.
+
+The market kinds share almost none of it: no rigs, no structure type, no security, and a broker fee
+where the build kinds have a tax. That is what decided one field-map-driven form over a build form
+and a market form — the two families differ no more from each other than reprocessing differs from
+invention, and a second form would have had to agree with the first about name, default and delete.
+
+## Resolving a station's region from ESI (2026-09-20)
+
+Checked live against Tranquility while deciding whether a saved NPC station needs a region picker.
+
+| Call | Input | Answers |
+|---|---|---|
+| `/universe/stations/{id}` | 60003760 | `system_id` 30000142, plus `race_id` and `owner` the fee already reads |
+| `/universe/systems/{id}` | 30000142 | `constellation_id` 20000020 |
+| `/universe/constellations/{id}` | 20000020 | `region_id` 10000002 |
+
+Region 10000002 is The Forge, which is Jita's, so the chain resolves correctly end to end. All three
+are public and unauthenticated.
+
+`POST /universe/ids/` was checked as a way for a reader to name a station: it resolved
+`"Jita IV - Moon 4 - Caldari Navy Assembly Plant"` to 60003760 and returned **nothing** for
+`"Amarr VIII (Oris) - Emperor Family Academy"` in the same request, so it wants the exact in-game
+string and fails silently on a near miss. That is what rules it out as the reader's input, not
+whether it works.
+
+## What a market picker can be built from (2026-09-20)
+
+| Need | Component | Already used by |
+|---|---|---|
+| Name a place | `VirtualisedLocationSearch` + `useAssetLocations` | the default asset location on this same settings page |
+| Access character | `AssignUsersSelect` | the Returns panel, naming a seller |
+| Broker fee | `TaxPercentageTextField` | every build kind's tax |
+| System | `VirtualisedSystemSearch` | manufacturing and reaction |
+
+`locationOptions` in `Functions/Assets/assetTree.js` applies no location-kind filter, so the asset
+places list carries stations and citadels alike — one source serves both market kinds.
+
+Nothing new has to be built for the form. The region is derived from the chosen place through the
+ESI chain above rather than asked for.

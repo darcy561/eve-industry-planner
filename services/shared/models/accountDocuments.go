@@ -147,6 +147,13 @@ type CustomStructure struct {
 	StationID   int64 `bson:"stationID,omitempty" json:"stationID,omitzero"`
 	StructureID int64 `bson:"structureID,omitempty" json:"structureID,omitzero"`
 
+	// What the broker fee at an NPC station is worked out from: the race that
+	// built it names the faction a standing is held against, and the owner is the
+	// corporation holding the other. Both are fixed for the life of the station,
+	// so they are stored with it rather than fetched on every quote.
+	RaceID  int64 `bson:"raceID,omitempty" json:"raceID,omitzero"`
+	OwnerID int64 `bson:"ownerID,omitempty" json:"ownerID,omitzero"`
+
 	// A citadel's broker fee is the rate its owner set, which nothing can derive.
 	// An NPC station's is worked out from the seller's skills and standings, so
 	// storing one there would let a saved number stand in for that derivation and

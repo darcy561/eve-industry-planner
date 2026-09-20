@@ -2,16 +2,14 @@ import { AppEvent } from "../../analytics/appEventNames";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 import { saveApplicationSettings } from "../Endpoints/Private/userDocument";
 import getSystemIndexes from "../../Functions/System Indexes/findSystemIndex";
-import { jobTypes } from "../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * Adds a custom structure to the application settings and updates system indexes.
- * Handles both reprocessing and non-reprocessing structures differently.
  *
  * @param {Object} params - Parameters object
- * @param {Object} params.structure - Structure object to add
+ * @param {import("../../Classes/structure").default} params.structure - Structure to add
  * @param {Function} params.addCustomStructure - Function to add structure to store
  * @param {Function} params.setIsLoading - Function to set loading state
  * @returns {Promise<void>} Promise that resolves when structure is added
@@ -23,17 +21,19 @@ export async function addCustomStructure({
 }) {
   setIsLoading(true);
   try {
-    // Get system indexes for non-reprocessing structures
+    // Only a kind that names a system has an index to fetch, and only the kinds
+    // a job is installed in name one.
+    const needsSystemIndex = Boolean(structure.fields?.systemID);
+
     let systemIndexResults = {};
-    if (structure.jobType !== jobTypes.reprocessing) {
+    if (needsSystemIndex) {
       systemIndexResults = await getSystemIndexes(structure.systemID);
     }
 
     await saveApplicationSettings();
 
     addCustomStructure(structure);
-    // Update system index data for non-reprocessing structures
-    if (structure.jobType !== jobTypes.reprocessing) {
+    if (needsSystemIndex) {
       useUsersStore
         .getState()
         .worldData.actions.addSystemIndex(systemIndexResults);
