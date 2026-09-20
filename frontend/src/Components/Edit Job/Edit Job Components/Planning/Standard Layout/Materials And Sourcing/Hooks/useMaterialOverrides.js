@@ -6,84 +6,83 @@ import {
 } from "../Helpers/materialPriceOverridesState";
 
 /**
- * Writes a job's layout preferences: the basis a row is priced on, and the
+ * Writes a job's pricing decisions: the basis a row is priced on, and the
  * per-material overrides that depart from it.
  */
 export function useMaterialOverrides({
   activeJob,
-  layout,
+  build,
   materials,
   updateActiveJob,
 }) {
-  const updateLayoutPreference = useCallback(
+  const updateBuildPricing = useCallback(
     (key, value) => {
       updateActiveJob({
         ...activeJob,
-        layout: {
-          ...layout,
+        build: {
+          ...build,
           [key]: value,
         },
       });
     },
-    [activeJob, layout, updateActiveJob],
+    [activeJob, build, updateActiveJob],
   );
 
   const updateJobPricing = useCallback(
     (side, key, value) =>
-      updateLayoutPreference(
+      updateBuildPricing(
         "localPricing",
-        setJobPricingSide(layout?.localPricing, side, key, value),
+        setJobPricingSide(build?.localPricing, side, key, value),
       ),
-    [layout?.localPricing, updateLayoutPreference],
+    [build?.localPricing, updateBuildPricing],
   );
 
-  const updateMaterialLayoutPreference = useCallback(
+  const updateMaterialPriceOverride = useCallback(
     (materialTypeID, key, value) => {
-      const safe = getSafeMaterialPriceOverrides(layout);
+      const safe = getSafeMaterialPriceOverrides(build);
       const nextOverrides = setMaterialOverrideMap(safe, materialTypeID, {
         [key]: value,
       });
-      updateLayoutPreference("materialPriceOverrides", nextOverrides);
+      updateBuildPricing("materialPriceOverrides", nextOverrides);
     },
-    [layout, updateLayoutPreference],
+    [build, updateBuildPricing],
   );
 
-  const clearAllMaterialLayoutPreferences = useCallback(() => {
-    updateLayoutPreference("materialPriceOverrides", {});
-  }, [updateLayoutPreference]);
+  const clearAllMaterialPriceOverrides = useCallback(() => {
+    updateBuildPricing("materialPriceOverrides", {});
+  }, [updateBuildPricing]);
 
-  const resetMaterialLayoutPreference = useCallback(
+  const resetMaterialPriceOverride = useCallback(
     (materialTypeID) => {
-      const safe = getSafeMaterialPriceOverrides(layout);
+      const safe = getSafeMaterialPriceOverrides(build);
       const nextOverrides = setMaterialOverrideMap(safe, materialTypeID, {
         marketDisplay: null,
         orderDisplay: null,
       });
-      updateLayoutPreference("materialPriceOverrides", nextOverrides);
+      updateBuildPricing("materialPriceOverrides", nextOverrides);
     },
-    [layout, updateLayoutPreference],
+    [build, updateBuildPricing],
   );
 
-  const applyAllMaterialLayoutPreferences = useCallback(
+  const applyAllMaterialPriceOverrides = useCallback(
     (key, value) => {
-      const safe = getSafeMaterialPriceOverrides(layout);
+      const safe = getSafeMaterialPriceOverrides(build);
       let nextOverrides = { ...safe };
       materials.forEach((material) => {
         nextOverrides = setMaterialOverrideMap(nextOverrides, material.typeID, {
           [key]: value ?? null,
         });
       });
-      updateLayoutPreference("materialPriceOverrides", nextOverrides);
+      updateBuildPricing("materialPriceOverrides", nextOverrides);
     },
-    [layout, materials, updateLayoutPreference],
+    [build, materials, updateBuildPricing],
   );
 
   return {
-    updateLayoutPreference,
     updateJobPricing,
-    updateMaterialLayoutPreference,
-    clearAllMaterialLayoutPreferences,
-    resetMaterialLayoutPreference,
-    applyAllMaterialLayoutPreferences,
+    updateMaterialPriceOverride,
+    clearAllMaterialPriceOverrides,
+    resetMaterialPriceOverride,
+    applyAllMaterialPriceOverrides,
   };
 }

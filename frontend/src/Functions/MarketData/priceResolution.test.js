@@ -42,7 +42,7 @@ const setAccount = (pricing) => {
 const job = (overrides = {}) => ({
   materialIDs: [34],
   itemID: 99,
-  layout: {},
+  build: {},
   ...overrides,
 });
 
@@ -96,15 +96,15 @@ describe("what is fetched is what is read", () => {
   it("agrees for a job whose own choice is not the account's", () => {
     setAccount({ buying: { market: "jita", basis: "sell" }, selling: {} });
     const withOwnMarket = job({
-      layout: { localPricing: { buying: { market: "amarr" } } },
+      build: { localPricing: { buying: { market: "amarr" } } },
     });
 
     const { wants } = pricesWantedBy(withOwnMarket);
     const read = resolveFor(
       sideDefaults(PRICING_SIDE.BUYING, {
-        jobPricing: withOwnMarket.layout.localPricing,
+        jobPricing: withOwnMarket.build.localPricing,
       }),
-      withOwnMarket.layout,
+      withOwnMarket.build,
       34,
     );
 
@@ -116,13 +116,13 @@ describe("what is fetched is what is read", () => {
   it("agrees for a material carrying its own override", () => {
     setAccount({ buying: { market: "jita", basis: "sell" }, selling: {} });
     const withOverride = job({
-      layout: { materialPriceOverrides: { 34: { marketDisplay: "hek" } } },
+      build: { materialPriceOverrides: { 34: { marketDisplay: "hek" } } },
     });
 
     const { wants } = pricesWantedBy(withOverride);
     const read = resolveFor(
       sideDefaults(PRICING_SIDE.BUYING),
-      withOverride.layout,
+      withOverride.build,
       34,
     );
 

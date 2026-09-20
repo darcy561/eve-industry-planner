@@ -58,7 +58,12 @@ class MarketOrder {
    */
   recordBrokerFee(fee) {
     if (!fee) return;
-    if (this.feeDate && fee.date && this.feeDate <= fee.date) return;
+    // A fee with no date cannot be shown to be the earlier one, so it only
+    // stands where nothing has been recorded yet. Testing the two dates alone
+    // would let an undated fee overwrite a dated one, since the comparison is
+    // false whenever either side is missing.
+    if (this.feeDate && (!fee.date || this.feeDate <= fee.date)) return;
+    if (!fee.date && this.fee) return;
     this.fee = fee.amount ?? 0;
     this.salesTax = fee.salesTax ?? 0;
     this.feeDate = fee.date ?? null;

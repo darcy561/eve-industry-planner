@@ -70,12 +70,12 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
 
   const {
     updateJobPricing,
-    updateMaterialLayoutPreference,
-    resetMaterialLayoutPreference,
-    clearAllMaterialLayoutPreferences,
+    updateMaterialPriceOverride,
+    resetMaterialPriceOverride,
+    clearAllMaterialPriceOverrides,
   } = useMaterialOverrides({
     activeJob: state.activeJob,
-    layout: state.activeJob.layout,
+    build: state.activeJob.build,
     materials: Object.values(state.activeJob.build?.materials ?? {}),
     updateActiveJob: actions.updateActiveJob,
   });
@@ -181,7 +181,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
           <MarketLocationSelectApplicationSettings
             side={PRICING_SIDE.BUYING}
             overrideMarketLocation={
-              state.activeJob.layout.localPricing?.buying?.market
+              state.activeJob.build.localPricing?.buying?.market
             }
             onMarketLocationCommit={(id) =>
               updateJobPricing(PRICING_SIDE.BUYING, "market", id ?? null)
@@ -197,7 +197,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
             usage={basisUsage}
             age={priceAge}
             onChange={changeBasis}
-            onReset={clearAllMaterialLayoutPreferences}
+            onReset={clearAllMaterialPriceOverrides}
             disabled={readOnly}
           />
         </Stack>
@@ -277,10 +277,10 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
                 panelMarketLocation: marketLocation,
                 panelListingType: listingType,
                 onMarketLocationCommit: (typeID, id) =>
-                  updateMaterialLayoutPreference(typeID, "marketDisplay", id),
+                  updateMaterialPriceOverride(typeID, "marketDisplay", id),
                 onListingTypeCommit: (typeID, id) =>
-                  updateMaterialLayoutPreference(typeID, "orderDisplay", id),
-                onReset: resetMaterialLayoutPreference,
+                  updateMaterialPriceOverride(typeID, "orderDisplay", id),
+                onReset: resetMaterialPriceOverride,
                 disabled: readOnly,
               }}
             />
@@ -308,7 +308,7 @@ const formatVolume = (value) =>
  * @returns {{marketDisplay?: string, orderDisplay?: string}}
  */
 function overrideFor(state, typeID) {
-  return getSafeMaterialPriceOverrides(state.activeJob.layout)[typeID] ?? {};
+  return getSafeMaterialPriceOverrides(state.activeJob.build)[typeID] ?? {};
 }
 
 /**

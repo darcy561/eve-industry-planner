@@ -33,7 +33,7 @@ describe("materialCostByBasis", () => {
   it("costs the job on every basis the app offers", () => {
     const options = materialCostByBasis({
       materials,
-      layout: {},
+      build: {},
       marketLocation: "jita",
       listingType: "sell",
       getPrice,
@@ -50,7 +50,7 @@ describe("materialCostByBasis", () => {
     const byId = basisById(
       materialCostByBasis({
         materials,
-        layout: {},
+        build: {},
         marketLocation: "jita",
         listingType: "sell",
         getPrice,
@@ -65,14 +65,14 @@ describe("materialCostByBasis", () => {
   });
 
   it("keeps a row's own basis override on every candidate", () => {
-    const layout = {
+    const build = {
       materialPriceOverrides: { 34: { orderDisplay: "buy" } },
     };
 
     const byId = basisById(
       materialCostByBasis({
         materials,
-        layout,
+        build,
         marketLocation: "jita",
         listingType: "sell",
         getPrice,
@@ -86,14 +86,14 @@ describe("materialCostByBasis", () => {
   });
 
   it("keeps a row's own hub override too", () => {
-    const layout = {
+    const build = {
       materialPriceOverrides: { 36: { marketDisplay: "amarr" } },
     };
 
     const byId = basisById(
       materialCostByBasis({
         materials: [{ typeID: 36, quantity: 1 }],
-        layout,
+        build,
         marketLocation: "jita",
         listingType: "sell",
         getPrice,
@@ -106,7 +106,7 @@ describe("materialCostByBasis", () => {
   it("costs a job with no materials at zero on every basis", () => {
     const options = materialCostByBasis({
       materials: [],
-      layout: {},
+      build: {},
       marketLocation: "jita",
       listingType: "sell",
       getPrice,
@@ -120,7 +120,7 @@ describe("materialCostByBasis", () => {
     const byId = basisById(
       materialCostByBasis({
         materials: [{ typeID: 999, quantity: 5 }],
-        layout: {},
+        build: {},
         marketLocation: "jita",
         listingType: "sell",
         getPrice,
@@ -388,12 +388,12 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
   });
 
   it("loses to the row's own override", () => {
-    const layout = {
+    const build = {
       materialPriceOverrides: { 34: { marketDisplay: "dodixie" } },
     };
 
     const resolved = getEffectiveMaterialPriceHub(
-      layout,
+      build,
       34,
       "jita",
       "sell",
@@ -409,10 +409,10 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
   // normalise that way — so an empty string is a stored value the ladder honours,
   // unlike every rung below it. Pinned because the asymmetry is easy to "tidy".
   it("treats an empty row override as the row's answer", () => {
-    const layout = { materialPriceOverrides: { 34: { marketDisplay: "" } } };
+    const build = { materialPriceOverrides: { 34: { marketDisplay: "" } } };
 
     const resolved = getEffectiveMaterialPriceHub(
-      layout,
+      build,
       34,
       "jita",
       "sell",
@@ -448,7 +448,7 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
     const byId = basisById(
       materialCostByBasis({
         materials,
-        layout: {},
+        build: {},
         marketLocation: "jita",
         listingType: "sell",
         getPrice,
@@ -466,7 +466,7 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
     const byId = basisById(
       materialCostByBasis({
         materials: [{ typeID: 34, quantity: 1 }],
-        layout: {},
+        build: {},
         marketLocation: "amarr",
         listingType: "sell",
         getPrice,

@@ -61,7 +61,7 @@ export default function EditJob_New() {
 
   useStripRedundantJobMarketHubOverrides(
     state.activeJob,
-    actions.updateActiveJobLayout,
+    actions.updateActiveJobPricing,
   );
   useRefreshLinkedESIData(state.activeJob, actions.updateActiveJob);
   useEditJobDocumentLocks({

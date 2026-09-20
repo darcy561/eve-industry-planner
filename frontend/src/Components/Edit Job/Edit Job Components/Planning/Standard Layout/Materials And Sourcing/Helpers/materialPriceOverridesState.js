@@ -1,11 +1,11 @@
 /**
- * The per-material pricing overrides a job's layout holds, and the reads and
+ * The per-material pricing overrides a job's build holds, and the reads and
  * writes that keep the map well formed.
- * Keeps normalisation rules in one place to match Job layout persistence.
+ * Keeps normalisation rules in one place to match how the Job persists them.
  */
 
-export function getSafeMaterialPriceOverrides(layout) {
-  const raw = layout?.materialPriceOverrides;
+export function getSafeMaterialPriceOverrides(build) {
+  const raw = build?.materialPriceOverrides;
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     return raw;
   }

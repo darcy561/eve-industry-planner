@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useEffectiveMarketHubFromLayout } from "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
+import { useEffectiveMarketHub } from "../../../../../../Hooks/Planner/useEffectiveMarketHub.js";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 import { useMaterialGroupPricing } from "../../../../../../Hooks/Planner/useMaterialGroupPricing.js";
 import {
@@ -45,9 +45,9 @@ import useUsersStore from "../../../../../../Zustand/usersStore.js";
  */
 export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
   const { activeJob } = state;
-  const { layout } = activeJob;
+  const { build } = activeJob;
   const { marketLocation, listingType, marketLocationRung, listingTypeRung } =
-    useEffectiveMarketHubFromLayout(layout, PRICING_SIDE.BUYING);
+    useEffectiveMarketHub(build, PRICING_SIDE.BUYING);
 
   const groupPricing = useMaterialGroupPricing({
     side: PRICING_SIDE.BUYING,
@@ -72,7 +72,7 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
 
     const rows = materials.map((material) => {
       const resolved = getEffectiveMaterialPriceHub(
-        layout,
+        build,
         material.typeID,
         marketLocation,
         listingType,
@@ -146,7 +146,7 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
       priceAge: priceAge(materials, getPriceRefreshedAt),
       basisOptions: materialCostByBasis({
         materials,
-        layout,
+        build,
         marketLocation,
         listingType,
         getPrice: getMarketPriceForType,
@@ -158,8 +158,8 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
   }, [
     actions,
     activeJob,
+    build,
     displayType,
-    layout,
     listingType,
     checkTypeIDisExempt,
     automaticRecalculation,

@@ -32,7 +32,7 @@ import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
  * alone there would be no way to tell those apart, and a group would silently
  * overrule a job the player had explicitly set.
  *
- * @param {object} layout - The job's layout, holding materialPriceOverrides
+ * @param {object} build - The job's build, holding materialPriceOverrides
  * @param {number} materialTypeID
  * @param {string} defaultMarketLocation
  * @param {string} defaultListingType
@@ -41,13 +41,13 @@ import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
  * @returns {{marketLocation: string, listingType: string}}
  */
 export function getEffectiveMaterialPriceHub(
-  layout,
+  build,
   materialTypeID,
   defaultMarketLocation,
   defaultListingType,
   groupPricing,
 ) {
-  const override = layout?.materialPriceOverrides?.[materialTypeID];
+  const override = build?.materialPriceOverrides?.[materialTypeID];
 
   const group = groupPricing
     ? resolveGroupDefault({
@@ -118,7 +118,7 @@ function beneathTheJob(chosen, rung) {
  *
  * @param {object} params
  * @param {Array<object>} params.materials - The job's materials
- * @param {object} params.layout - The job's layout, holding materialPriceOverrides
+ * @param {object} params.build - The job's build, holding materialPriceOverrides
  * @param {string} params.marketLocation - The market in effect
  * @param {string} params.listingType - The listing type in effect
  * @param {(typeID: number, hub: string, basis: string) => number} params.getPrice
@@ -127,7 +127,7 @@ function beneathTheJob(chosen, rung) {
  */
 export function materialCostByBasis({
   materials,
-  layout,
+  build,
   marketLocation,
   listingType,
   getPrice,
@@ -147,7 +147,7 @@ export function materialCostByBasis({
   const totalOn = (candidate) =>
     rows.reduce((total, material) => {
       const resolved = getEffectiveMaterialPriceHub(
-        layout,
+        build,
         material.typeID,
         marketLocation,
         candidate,

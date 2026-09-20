@@ -192,6 +192,73 @@ describe("the reader's layout choices for the job being edited", () => {
   });
 });
 
+// The job's own market and basis are a decision, so they land under `build`
+// rather than beside the screen state above.
+describe("the job's own pricing choice", () => {
+  const patch = (pricingPatch) => ({
+    type: EDIT_JOB_ACTION_TYPES.UPDATE_ACTIVE_JOB_PRICING,
+    payload: pricingPatch,
+  });
+
+  const editing = (build = {}) => ({
+    jobModified: false,
+    activeJob: new Job({ jobID: "job-1", itemID: 587, jobType: 1, build }),
+  });
+
+  const hek = { buying: { market: "hek", basis: "buy" }, selling: {} };
+
+  it("records the market and basis the reader chose", () => {
+    const next = editJobReducer(editing(), patch({ localPricing: hek }));
+
+    expect(next.activeJob.build.localPricing.buying).toMatchObject({
+      market: "hek",
+      basis: "buy",
+    });
+  });
+
+  it("leaves the rest of the build alone", () => {
+    const state = editing({
+      materialPriceOverrides: { 34: { orderDisplay: "buy" } },
+    });
+
+    const next = editJobReducer(state, patch({ localPricing: hek }));
+
+    expect(next.activeJob.build.materialPriceOverrides).toEqual({
+      34: { orderDisplay: "buy" },
+    });
+  });
+
+  it("takes the choice back off the job", () => {
+    const state = editing({ localPricing: hek });
+
+    const next = editJobReducer(state, patch({ localPricing: null }));
+
+    expect(next.activeJob.build.localPricing).toBeNull();
+  });
+
+  it("does not write into the job it was given", () => {
+    const state = editing();
+    const before = state.activeJob;
+
+    const next = editJobReducer(state, patch({ localPricing: hek }));
+
+    expect(before.build.localPricing).toBeNull();
+    expect(next.activeJob).not.toBe(before);
+  });
+
+  it("marks the job as having unsaved changes", () => {
+    const next = editJobReducer(editing(), patch({ localPricing: hek }));
+
+    expect(next.jobModified).toBe(true);
+  });
+
+  it("does nothing when no job is open", () => {
+    const state = { jobModified: false, activeJob: null };
+
+    expect(editJobReducer(state, patch({ localPricing: hek }))).toBe(state);
+  });
+});
+
 describe("marking a grouped job ready for sale", () => {
   const toggle = () => ({
     type: EDIT_JOB_ACTION_TYPES.TOGGLE_ACTIVE_JOB_READY_FOR_SALE,

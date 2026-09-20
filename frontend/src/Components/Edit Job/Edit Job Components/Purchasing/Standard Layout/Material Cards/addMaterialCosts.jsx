@@ -9,7 +9,7 @@ import { useFormStatus } from "react-dom";
 import AddIcon from "@mui/icons-material/Add";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import { useEffectiveMarketHubFromLayout } from "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
+import { useEffectiveMarketHub } from "../../../../../../Hooks/Planner/useEffectiveMarketHub.js";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
 
@@ -20,8 +20,8 @@ export function AddMaterialCost_Purchasing({
   childSupply,
   childJobs,
 }) {
-  const { marketLocation, listingType } = useEffectiveMarketHubFromLayout(
-    state.activeJob.layout,
+  const { marketLocation, listingType } = useEffectiveMarketHub(
+    state.activeJob.build,
     PRICING_SIDE.BUYING,
   );
 

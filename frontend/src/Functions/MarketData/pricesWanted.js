@@ -28,12 +28,12 @@ export function pricesWantedBy(inputJobs) {
 
     // Per job rather than once for the batch: a job's own choice of market is a
     // rung, and two jobs in one call can answer it differently.
-    const jobPricing = job.layout?.localPricing;
+    const jobPricing = job.build?.localPricing;
     const buying = sideDefaults(PRICING_SIDE.BUYING, { jobPricing });
     const selling = sideDefaults(PRICING_SIDE.SELLING, { jobPricing });
 
     for (const typeID of job.materialIDs ?? []) {
-      add(wants, typeID, resolveFor(buying, job.layout, typeID).marketLocation);
+      add(wants, typeID, resolveFor(buying, job.build, typeID).marketLocation);
       // The install cost estimate prices materials at CCP's adjusted price,
       // which belongs to no market and is wanted for the same set.
       adjustedTypeIDs.add(typeID);
@@ -43,7 +43,7 @@ export function pricesWantedBy(inputJobs) {
       add(
         wants,
         job.itemID,
-        resolveFor(selling, job.layout, job.itemID).marketLocation,
+        resolveFor(selling, job.build, job.itemID).marketLocation,
       );
     }
   }
@@ -54,7 +54,7 @@ export function pricesWantedBy(inputJobs) {
 /**
  * Which market each of a bare list of types is priced against.
  *
- * For a caller with types but no job — a shopping list, which carries no layout
+ * For a caller with types but no job — a shopping list, which carries no build
  * and so no per-item override. The market group rung still answers per item,
  * which is why this walks rather than resolving one market for the list.
  *

@@ -35,7 +35,7 @@ import {
  * type. Both sides seed from it: naming one market said nothing about which side
  * of the job it meant, so neither side may claim it over the other.
  *
- * @param {object|null|undefined} stored - `layout.localPricing` as stored
+ * @param {object|null|undefined} stored - `build.localPricing` as stored
  * @param {string|null} market - The job's single market, already resolved
  * @param {string|null} basis - The job's single order type, already resolved
  * @returns {{buying: {market: string|null, basis: string|null},
@@ -124,12 +124,14 @@ class Job {
     this.build = {
       setup: documentToSetups(itemJson),
       childJobs: build?.childJobs || {},
-      extrasCosts: keyRowsByID(
+      extrasCosts: keyRowsBy(
         build?.extrasCosts ?? build?.costs?.extrasCosts,
+        "id",
         (row) => new ExtraCost(row),
       ),
-      inventionEntries: keyRowsByID(
+      inventionEntries: keyRowsBy(
         build?.inventionEntries ?? build?.costs?.inventionEntries,
+        "id",
         (row) => new InventionEntry(row),
       ),
       // Where the output is meant to go, as against the orders under `esi`,
@@ -147,11 +149,13 @@ class Job {
     this.rawData = itemJson?.rawData || {};
     this.skills = documentToSkills(itemJson);
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
-    const materialPriceOverrides =
-      itemJson?.layout?.materialPriceOverrides &&
-      typeof itemJson.layout.materialPriceOverrides === "object" &&
-      !Array.isArray(itemJson.layout.materialPriceOverrides)
-        ? itemJson.layout.materialPriceOverrides
+    const storedOverrides =
+      build?.materialPriceOverrides ?? itemJson?.layout?.materialPriceOverrides;
+    this.build.materialPriceOverrides =
+      storedOverrides &&
+      typeof storedOverrides === "object" &&
+      !Array.isArray(storedOverrides)
+        ? storedOverrides
         : {};
 
     const localMarketDisplay =
@@ -163,18 +167,18 @@ class Job {
       itemJson?.layout?.orderType ??
       null;
 
+    this.build.localPricing = jobPricingOverride(
+      build?.localPricing ?? itemJson?.layout?.localPricing,
+      localMarketDisplay,
+      localOrderDisplay,
+    );
+
     this.layout = {
       localMarketDisplay,
       localOrderDisplay,
-      localPricing: jobPricingOverride(
-        itemJson?.layout?.localPricing,
-        localMarketDisplay,
-        localOrderDisplay,
-      ),
       esiJobTab: itemJson?.layout?.esiJobTab || null,
       setupToEdit: itemJson?.layout?.setupToEdit || null,
       resourceDisplayType: itemJson?.layout?.resourceDisplayType || null,
-      materialPriceOverrides,
     };
     // `_meta` names who owns the document, and the server states that: it owns
     // the block, overwrites whatever is uploaded, and takes identity from the
@@ -268,6 +272,8 @@ class Job {
         inventionEntries: rowsToDocuments(this.build.inventionEntries),
         sellerCharacter: this.build.sellerCharacter,
         saleLocationID: this.build.saleLocationID,
+        localPricing: this.build.localPricing,
+        materialPriceOverrides: this.build.materialPriceOverrides || {},
       },
       esi: {
         industryJobs: rowsToDocuments(this.esi.industryJobs),
@@ -280,11 +286,9 @@ class Job {
       layout: {
         localMarketDisplay: this.layout.localMarketDisplay,
         localOrderDisplay: this.layout.localOrderDisplay,
-        localPricing: this.layout.localPricing,
         esiJobTab: this.layout.esiJobTab,
         setupToEdit: this.layout.setupToEdit,
         resourceDisplayType: this.layout.resourceDisplayType,
-        materialPriceOverrides: this.layout.materialPriceOverrides || {},
       },
       _meta: { ...this._meta },
     };
@@ -1227,30 +1231,6 @@ function documentToSetups(object) {
  * @param {Object} object - Object containing job data
  * @returns {Array<LinkedESIJob>}
  */
-/**
- * Helper function that keys rows by the id each carries, building each one
- * through the class that owns its shape.
- *
- * Shared by the collections whose rows are identified by an app-minted id
- * rather than an EVE type id. A row without one is dropped rather than filed
- * under `undefined`, which would collapse every such row onto a single key.
- *
- * An array is still read because a job can be built from one.
- *
- * @param {Object<string, Object>|Array<Object>|null} rows
- * @param {Function} build - Makes the instance held for a row
- * @returns {Object<string, Object>} The rows keyed by id
- */
-function keyRowsByID(rows, build) {
-  const out = {};
-  for (const row of Array.isArray(rows) ? rows : Object.values(rows ?? {})) {
-    const instance = build(row);
-    if (instance?.id === undefined || instance?.id === null) continue;
-    out[String(instance.id)] = instance;
-  }
-  return out;
-}
-
 /**
  * Helper function that reads a document's required skills.
  *

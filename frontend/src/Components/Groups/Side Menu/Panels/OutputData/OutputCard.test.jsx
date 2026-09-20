@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithRouter } from "../../../../../tests/routerHarness";
+import seedPrices, {
+  clearSeededPrices,
+} from "../../../../../tests/seedPrices.js";
 
 vi.mock("../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
@@ -37,10 +40,10 @@ const job = {
   build: { materials: {}, costs: {} },
 };
 
-function showCard(pageView) {
+function showCard(pageView, inputJob = job) {
   return renderWithRouter(
     <OutputJobCard
-      inputJob={job}
+      inputJob={inputJob}
       state={{ highlightedItems: new Set(), pageView }}
       actions={{ setHighlightedItems: vi.fn() }}
     />,
@@ -66,5 +69,52 @@ describe("a group's output card", () => {
       "href",
       "/editjob/job-9?activeGroup=group-1&pageView=outputs",
     );
+  });
+});
+
+// The card prices the output through the same resolution every other surface
+// uses, so a job that named its own market or overrode its own output's price
+// has to be read at what it chose. Reading the account's market instead shows a
+// figure from a book the job was never priced against, and nothing says so.
+describe("what the card prices the output at", () => {
+  afterEach(() => clearSeededPrices());
+
+  const pricedAt = (build) => ({ ...job, build: { ...job.build, ...build } });
+
+  beforeEach(() => {
+    seedPrices({
+      60003760: { 587: { sell: 100 } },
+      amarr: { 587: { sell: 250 } },
+    });
+  });
+
+  it("reads the account's market when the job chose nothing", async () => {
+    await showCard(undefined, job);
+
+    expect(
+      screen.getByText(/Current Market Price: 100.00/),
+    ).toBeInTheDocument();
+  });
+
+  it("reads the market the job chose for its selling side", async () => {
+    await showCard(
+      undefined,
+      pricedAt({ localPricing: { selling: { market: "amarr" } } }),
+    );
+
+    expect(
+      screen.getByText(/Current Market Price: 250.00/),
+    ).toBeInTheDocument();
+  });
+
+  it("reads the output's own price override above either", async () => {
+    await showCard(
+      undefined,
+      pricedAt({ materialPriceOverrides: { 587: { marketDisplay: "amarr" } } }),
+    );
+
+    expect(
+      screen.getByText(/Current Market Price: 250.00/),
+    ).toBeInTheDocument();
   });
 });

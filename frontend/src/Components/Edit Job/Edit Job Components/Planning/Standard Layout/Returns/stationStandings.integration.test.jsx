@@ -82,9 +82,8 @@ const SELLER = {
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  const { structureKinds } = await import(
-    "../../../../../../Context/defaultValues"
-  );
+  const { structureKinds } =
+    await import("../../../../../../Context/defaultValues");
   return usersStoreMock({
     account: {
       isLoggedIn: true,

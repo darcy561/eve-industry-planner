@@ -14,16 +14,16 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * selling choice is left as it is.
  *
  * @param {Object} activeJob
- * @param {(layoutPatch: Object) => void} updateActiveJobLayout
+ * @param {(pricingPatch: Object) => void} updateActiveJobPricing
  */
 export function useStripRedundantJobMarketHubOverrides(
   activeJob,
-  updateActiveJobLayout,
+  updateActiveJobPricing,
 ) {
   const accountPricing = useUsersStore(
     (s) => s.applicationSettings.defaultPricing,
   );
-  const jobPricing = activeJob?.layout?.localPricing;
+  const jobPricing = activeJob?.build?.localPricing;
 
   useEffect(() => {
     if (!jobPricing) return;
@@ -50,6 +50,6 @@ export function useStripRedundantJobMarketHubOverrides(
     const stillChosen = Object.values(kept).some(
       (side) => side.market || side.basis,
     );
-    updateActiveJobLayout({ localPricing: stillChosen ? kept : null });
-  }, [jobPricing, accountPricing, updateActiveJobLayout]);
+    updateActiveJobPricing({ localPricing: stillChosen ? kept : null });
+  }, [jobPricing, accountPricing, updateActiveJobPricing]);
 }

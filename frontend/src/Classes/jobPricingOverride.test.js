@@ -5,7 +5,7 @@ import {
   setJobPricingSide,
 } from "../Functions/MarketData/pricingSide.js";
 
-const jobWith = (layout) => new Job({ jobID: "j1", itemID: 34, layout }).layout;
+const jobWith = (layout) => new Job({ jobID: "j1", itemID: 34, layout }).build;
 
 describe("a job's pricing override", () => {
   it("is absent on a job that has chosen nothing", () => {
@@ -44,16 +44,16 @@ describe("a job's pricing override", () => {
     });
   });
 
-  // The reducer rebuilds the job from the previous instance on every layout
+  // The reducer rebuilds the job from the previous instance on every pricing
   // edit, so a pick that only won on the first construction would leave the
   // selector dead for the rest of the session.
   const pick = (job, market) =>
     new Job({
       ...job,
-      layout: {
-        ...job.layout,
+      build: {
+        ...job.build,
         localPricing: setJobPricingSide(
-          job.layout.localPricing,
+          job.build.localPricing,
           PRICING_SIDE.BUYING,
           "market",
           market,
@@ -65,10 +65,10 @@ describe("a job's pricing override", () => {
     let job = new Job({ jobID: "j1", itemID: 34, layout: {} });
 
     job = pick(job, "amarr");
-    expect(job.layout.localPricing.buying.market).toBe("amarr");
+    expect(job.build.localPricing.buying.market).toBe("amarr");
 
     job = pick(job, "dodixie");
-    expect(job.layout.localPricing.buying.market).toBe("dodixie");
+    expect(job.build.localPricing.buying.market).toBe("dodixie");
   });
 
   it("takes a second pick on a job seeded from its legacy fields", () => {
@@ -79,16 +79,16 @@ describe("a job's pricing override", () => {
     });
 
     job = pick(job, "dodixie");
-    expect(job.layout.localPricing.buying.market).toBe("dodixie");
+    expect(job.build.localPricing.buying.market).toBe("dodixie");
     // The other side keeps what the single legacy pair seeded it with.
-    expect(job.layout.localPricing.selling.market).toBe("amarr");
+    expect(job.build.localPricing.selling.market).toBe("amarr");
   });
 
   it("carries no override once the last choice is cleared", () => {
     let job = new Job({ jobID: "j1", itemID: 34, layout: {} });
     job = pick(job, "amarr");
 
-    expect(pick(job, null).layout.localPricing).toBeNull();
+    expect(pick(job, null).build.localPricing).toBeNull();
   });
 
   it("survives a round trip through the stored document", () => {
@@ -98,7 +98,7 @@ describe("a job's pricing override", () => {
       layout: { localPricing: { buying: { market: "hek", basis: "buyP95" } } },
     }).toDocument();
 
-    expect(new Job(stored).layout.localPricing.buying).toEqual({
+    expect(new Job(stored).build.localPricing.buying).toEqual({
       market: "hek",
       basis: "buyP95",
     });

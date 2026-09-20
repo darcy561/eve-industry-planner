@@ -38,8 +38,9 @@ export function jobFixture({
     totalQuantityProduced: 10,
     skills: {},
     parentJobs: [],
-    layout: { setupToEdit, materialPriceOverrides: {} },
+    layout: { setupToEdit },
     build: {
+      materialPriceOverrides: {},
       materials: keyedMaterials(materials),
       childJobs,
       costs: { extrasCosts, inventionEntries },

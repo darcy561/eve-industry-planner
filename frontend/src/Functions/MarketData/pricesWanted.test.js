@@ -40,7 +40,7 @@ describe("what a job needs priced", () => {
   const job = (overrides = {}) => ({
     materialIDs: [34, 35],
     itemID: 99,
-    layout: {},
+    build: {},
     ...overrides,
   });
 
@@ -73,7 +73,7 @@ describe("what a job needs priced", () => {
       job({
         materialIDs: [34],
         itemID: 99,
-        layout: { localPricing: { buying: { market: "hek" } } },
+        build: { localPricing: { buying: { market: "hek" } } },
       }),
     ]);
 

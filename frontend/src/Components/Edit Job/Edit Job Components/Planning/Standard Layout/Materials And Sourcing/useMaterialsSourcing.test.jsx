@@ -2,17 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { beforeAll } from "vitest";
 
-vi.mock(
-  "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js",
-  () => ({
-    useEffectiveMarketHubFromLayout: () => ({
-      marketLocation: "jita",
-      listingType: "sell",
-      marketLocationRung: "account",
-      listingTypeRung: "account",
-    }),
+vi.mock("../../../../../../Hooks/Planner/useEffectiveMarketHub.js", () => ({
+  useEffectiveMarketHub: () => ({
+    marketLocation: "jita",
+    listingType: "sell",
+    marketLocationRung: "account",
+    listingTypeRung: "account",
   }),
-);
+}));
 // Tritanium (34) sits in Minerals; 35 carries no market group, as most
 // unpublished types do. The real module is primed rather than stubbed, because
 // the rule deciding whether the rung fires reads its state directly.
@@ -112,13 +109,13 @@ const material = (typeID, jobType = 1, overrides = {}) => ({
 
 function setup({
   materials = [material(34)],
-  layout = {},
+  materialPriceOverrides = {},
   speculativeChildJobs = {},
 } = {}) {
   return {
     activeJob: {
-      build: { materials, childJobs: {} },
-      layout,
+      build: { materials, childJobs: {}, materialPriceOverrides },
+      layout: {},
       selectedSetup: { materialCount: {} },
     },
     parentChildToEdit: { childJobs: {} },
@@ -180,7 +177,7 @@ describe("useMaterialsSourcing", () => {
 
   it("counts a row that carries its own hub", () => {
     const state = setup({
-      layout: { materialPriceOverrides: { 34: { marketDisplay: "amarr" } } },
+      materialPriceOverrides: { 34: { marketDisplay: "amarr" } },
     });
 
     expect(render(state).basisUsage.overridden).toBe(1);

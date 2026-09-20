@@ -3,12 +3,10 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../../../../../tests/usersStoreHarness.js"
-  );
-  const { structureKinds } = await import(
-    "../../../../../../Context/defaultValues"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  const { structureKinds } =
+    await import("../../../../../../Context/defaultValues");
   return usersStoreMock(() =>
     usersStoreState({
       applicationSettings: {
@@ -34,9 +32,8 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
 });
 
 const { default: SaleLocationRates } = await import("./saleLocationRates");
-const { SALE_LOCATION_KIND } = await import(
-  "../../../../../../Functions/MarketOrders/saleLocations"
-);
+const { SALE_LOCATION_KIND } =
+  await import("../../../../../../Functions/MarketOrders/saleLocations");
 
 const hub = {
   kind: SALE_LOCATION_KIND.NPC_STATION,
@@ -296,9 +293,7 @@ describe("naming where this job sells", () => {
 
     await userEvent.click(screen.getByLabelText("Where this job sells from"));
     await userEvent.click(
-      within(screen.getByRole("listbox")).getByText(
-        "Jita Sotiyo",
-      ),
+      within(screen.getByRole("listbox")).getByText("Jita Sotiyo"),
     );
 
     expect(onPlanChange).toHaveBeenCalledWith({

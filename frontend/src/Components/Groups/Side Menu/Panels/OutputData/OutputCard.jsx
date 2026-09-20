@@ -44,14 +44,14 @@ function OutputJobCard({ inputJob, state, actions }) {
   const currentMarketPrice = useMemo(() => {
     const { marketLocation, listingType } = resolveFor(
       sideDefaults(PRICING_SIDE.SELLING, {
-        jobPricing: inputJob.layout?.localPricing,
+        jobPricing: inputJob.build?.localPricing,
         accountPricing,
       }),
-      inputJob.layout,
+      inputJob.build,
       inputJob.itemID,
     );
     return getMarketPriceForType(inputJob.itemID, marketLocation, listingType);
-  }, [inputJob.layout, inputJob.itemID, accountPricing]);
+  }, [inputJob.build, inputJob.itemID, accountPricing]);
 
   const isHighlighted = state.highlightedItems.has(inputJob.jobID);
 

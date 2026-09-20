@@ -103,8 +103,8 @@ const { default: MaterialsAndSourcingPanel } =
 const state = {
   activeJob: {
     selectedSetup: { id: "setup-1" },
-    layout: { materialPriceOverrides: {} },
-    build: { materials: {} },
+    layout: {},
+    build: { materials: {}, materialPriceOverrides: {} },
   },
 };
 
@@ -384,7 +384,7 @@ describe("choosing a pricing basis", () => {
 
     expect(updateActiveJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        layout: expect.objectContaining({
+        build: expect.objectContaining({
           localPricing: expect.objectContaining({
             buying: expect.objectContaining({ basis: "buy" }),
           }),
@@ -427,7 +427,7 @@ describe("choosing a hub", () => {
 
     expect(updateActiveJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        layout: expect.objectContaining({
+        build: expect.objectContaining({
           localPricing: expect.objectContaining({
             buying: expect.objectContaining({ market: "amarr" }),
           }),

@@ -73,7 +73,7 @@ export const PRICING_RUNG = {
  * rather than having to carry a placeholder.
  *
  * @param {object} params
- * @param {object|null|undefined} params.jobPricing - `layout.localPricing`
+ * @param {object|null|undefined} params.jobPricing - `build.localPricing`
  * @param {object|null|undefined} params.accountPricing - `defaultPricing`
  * @param {string} params.side - One of PRICING_SIDE
  * @returns {{marketLocation: string, listingType: string}}
@@ -102,7 +102,7 @@ export function resolvePricingSide({ jobPricing, accountPricing, side }) {
  * can never disagree about the ladder.
  *
  * @param {object} params
- * @param {object|null|undefined} params.jobPricing - `layout.localPricing`
+ * @param {object|null|undefined} params.jobPricing - `build.localPricing`
  * @param {object|null|undefined} params.accountPricing - `defaultPricing`
  * @param {string} params.side - One of PRICING_SIDE
  * @returns {{marketLocation: string, listingType: string,
@@ -147,7 +147,7 @@ function answer(job, account, global) {
  * Returns null once the last choice is cleared, so a job that has chosen nothing
  * carries no override at all rather than an empty pair on every document.
  *
- * @param {object|null|undefined} jobPricing - `layout.localPricing`
+ * @param {object|null|undefined} jobPricing - `build.localPricing`
  * @param {string} side - One of PRICING_SIDE
  * @param {"market"|"basis"} key
  * @param {string|null|undefined} value

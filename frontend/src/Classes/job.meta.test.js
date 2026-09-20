@@ -134,12 +134,15 @@ describe("Job writes keyed collections back keyed", () => {
             purchasing: { p1: { id: "p1", itemCount: 1, itemCost: 1 } },
           },
         },
-        costs: {
-          extrasCosts: { e1: { id: "e1", extraValue: 3 } },
-          inventionEntries: {
-            i1: { id: "i1", itemName: "Datacore", itemCost: 2 },
-          },
+        extrasCosts: { e1: { id: "e1", extraValue: 3 } },
+        inventionEntries: {
+          i1: { id: "i1", itemName: "Datacore", itemCost: 2 },
         },
+      },
+      esi: {
+        industryJobs: { 900: { job_id: 900, cost: 7 } },
+        marketOrders: { 700001: { order_id: 700001, fee: 5 } },
+        transactions: { 800001: { transaction_id: 800001, tax: 1 } },
       },
     });
 
@@ -152,6 +155,9 @@ describe("Job writes keyed collections back keyed", () => {
     ],
     ["build.extrasCosts", (d) => d.build.extrasCosts],
     ["build.inventionEntries", (d) => d.build.inventionEntries],
+    ["esi.industryJobs", (d) => d.esi.industryJobs],
+    ["esi.marketOrders", (d) => d.esi.marketOrders],
+    ["esi.transactions", (d) => d.esi.transactions],
   ])("writes %s as a keyed collection", (_name, read) => {
     const held = read(job().toDocument());
 
@@ -169,6 +175,9 @@ describe("Job writes keyed collections back keyed", () => {
       ...Object.values(document.build.materials),
       ...Object.values(document.build.extrasCosts),
       ...Object.values(document.build.inventionEntries),
+      ...Object.values(document.esi.industryJobs),
+      ...Object.values(document.esi.marketOrders),
+      ...Object.values(document.esi.transactions),
     ]) {
       expect(row.constructor).toBe(Object);
     }

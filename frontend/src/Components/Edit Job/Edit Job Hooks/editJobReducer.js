@@ -16,6 +16,7 @@ export const EDIT_JOB_ACTION_TYPES = {
   SET_ACTIVE_JOB: "SET_ACTIVE_JOB",
   UPDATE_ACTIVE_JOB: "UPDATE_ACTIVE_JOB",
   UPDATE_ACTIVE_JOB_LAYOUT: "UPDATE_ACTIVE_JOB_LAYOUT",
+  UPDATE_ACTIVE_JOB_PRICING: "UPDATE_ACTIVE_JOB_PRICING",
   TOGGLE_ACTIVE_JOB_READY_FOR_SALE: "TOGGLE_ACTIVE_JOB_READY_FOR_SALE",
   ADD_CUSTOM_TRANSACTION: "ADD_CUSTOM_TRANSACTION",
   STEP_ACTIVE_JOB_FORWARD: "STEP_ACTIVE_JOB_FORWARD",
@@ -77,6 +78,20 @@ export function editJobReducer(state, action) {
         activeJob: new Job({
           ...state.activeJob,
           layout: { ...state.activeJob.layout, ...action.payload },
+        }),
+      };
+    }
+    /* The job's own pricing choice — which market and basis each side is read
+     * at. A decision the player made, so it sits with the rest of them under
+     * `build` rather than with the screen state above. */
+    case EDIT_JOB_ACTION_TYPES.UPDATE_ACTIVE_JOB_PRICING: {
+      if (!state.activeJob) return state;
+      return {
+        ...state,
+        jobModified: true,
+        activeJob: new Job({
+          ...state.activeJob,
+          build: { ...state.activeJob.build, ...action.payload },
         }),
       };
     }

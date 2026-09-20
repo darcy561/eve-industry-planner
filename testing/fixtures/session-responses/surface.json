@@ -18,6 +18,8 @@
       "application_settings.customStructures[].implant",
       "application_settings.customStructures[].jobType",
       "application_settings.customStructures[].name",
+      "application_settings.customStructures[].ownerID",
+      "application_settings.customStructures[].raceID",
       "application_settings.customStructures[].regionID",
       "application_settings.customStructures[].rigSlot1",
       "application_settings.customStructures[].rigSlot2",

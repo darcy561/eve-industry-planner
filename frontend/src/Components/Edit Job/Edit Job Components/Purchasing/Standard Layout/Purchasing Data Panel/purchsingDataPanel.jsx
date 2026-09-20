@@ -207,13 +207,13 @@ export function PurchasingDataPanel_EditJob(props) {
               <MarketLocationSelectApplicationSettings
                 side={PRICING_SIDE.BUYING}
                 overrideMarketLocation={
-                  state.activeJob.layout.localPricing?.buying?.market ??
+                  state.activeJob.build.localPricing?.buying?.market ??
                   undefined
                 }
                 onMarketLocationCommit={(id) => {
-                  actions.updateActiveJobLayout({
+                  actions.updateActiveJobPricing({
                     localPricing: setJobPricingSide(
-                      state.activeJob.layout.localPricing,
+                      state.activeJob.build.localPricing,
                       PRICING_SIDE.BUYING,
                       "market",
                       id,
@@ -230,13 +230,12 @@ export function PurchasingDataPanel_EditJob(props) {
               <ListingTypeSelectApplicationSettings
                 side={PRICING_SIDE.BUYING}
                 overrideListingType={
-                  state.activeJob.layout.localPricing?.buying?.basis ??
-                  undefined
+                  state.activeJob.build.localPricing?.buying?.basis ?? undefined
                 }
                 onListingTypeCommit={(id) => {
-                  actions.updateActiveJobLayout({
+                  actions.updateActiveJobPricing({
                     localPricing: setJobPricingSide(
-                      state.activeJob.layout.localPricing,
+                      state.activeJob.build.localPricing,
                       PRICING_SIDE.BUYING,
                       "basis",
                       id,

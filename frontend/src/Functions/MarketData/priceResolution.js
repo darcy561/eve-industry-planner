@@ -12,7 +12,7 @@ import { resolvePricingSideRungs } from "./pricingSide.js";
  * nothing looks at and hand the reader a zero, with nothing anywhere reporting a
  * problem. Written twice they agreed on the day and nothing held them to it.
  *
- * The React path composes the same pieces through `useEffectiveMarketHubFromLayout`
+ * The React path composes the same pieces through `useEffectiveMarketHub`
  * and `useMaterialGroupPricing`, which exist to re-render when a rung moves; both
  * end in the same `getEffectiveMaterialPriceHub`.
  */
@@ -41,7 +41,7 @@ import { resolvePricingSideRungs } from "./pricingSide.js";
  *
  * @param {string} side - One of PRICING_SIDE
  * @param {object} [params]
- * @param {object} [params.jobPricing] - `layout.localPricing`, where there is a job
+ * @param {object} [params.jobPricing] - `build.localPricing`, where there is a job
  * @param {object} [params.accountPricing] - Defaults to the account's stored pricing
  * @returns {SideDefaults}
  */
@@ -68,14 +68,14 @@ export function sideDefaults(side, { jobPricing, accountPricing } = {}) {
  * Where one type is priced, given a side already resolved.
  *
  * @param {SideDefaults} defaults
- * @param {object|null} layout - The job's layout, holding any per-material
+ * @param {object|null} build - The job's build, holding any per-material
  *   override. Null for a caller with no job, such as a shopping list
  * @param {number|string} typeID
  * @returns {{marketLocation: string, listingType: string}}
  */
-export function resolveFor(defaults, layout, typeID) {
+export function resolveFor(defaults, build, typeID) {
   return getEffectiveMaterialPriceHub(
-    layout,
+    build,
     typeID,
     defaults.marketLocation,
     defaults.listingType,

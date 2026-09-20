@@ -56,26 +56,6 @@ class BrokerFee {
   }
 
   /**
-   * When the fee was charged, in milliseconds, or `null` without a date.
-   *
-   * @returns {number|null}
-   */
-  get chargedAt() {
-    const parsed = Date.parse(this.date);
-    return Number.isNaN(parsed) ? null : parsed;
-  }
-
-  /**
-   * Whether the fee was charged for a given market order.
-   *
-   * @param {number} orderID
-   * @returns {boolean}
-   */
-  belongsToOrder(orderID) {
-    return this.order_id !== null && this.order_id === orderID;
-  }
-
-  /**
    * Converts the fee to its document shape for storage.
    *
    * @returns {Object} Document object ready for storage

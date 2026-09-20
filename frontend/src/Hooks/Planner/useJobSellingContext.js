@@ -5,7 +5,7 @@ import {
   resolveSaleLocation,
 } from "../../Functions/MarketOrders/saleLocations";
 import { resolveSellerCharacter } from "../../Functions/MarketOrders/sellerCharacter";
-import { useEffectiveMarketHubFromLayout } from "./useEffectiveMarketHubFromLayout.js";
+import { useEffectiveMarketHub } from "./useEffectiveMarketHub.js";
 import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
 import { getEffectiveMaterialPriceHub } from "../../Functions/MarketData/materialPricing.js";
 import { useMaterialGroupPricing } from "./useMaterialGroupPricing.js";
@@ -17,7 +17,7 @@ import useUsersStore from "../../Zustand/usersStore.js";
  *
  * Every panel quoting a broker fee, a sales tax or a market skill level has to
  * resolve the same pair, and each of them resolves it from three places at once
- * — the job's own plan, the account default, and the hub the layout is priced
+ * — the job's own plan, the account default, and the hub the job is priced
  * against. Resolving that in each panel is how Skills came to quote one
  * character's Accounting against a fee Returns had struck for another.
  *
@@ -31,7 +31,7 @@ export function useJobSellingContext(activeJob) {
     listingType: sideListingType,
     marketLocationRung,
     listingTypeRung,
-  } = useEffectiveMarketHubFromLayout(activeJob?.layout, PRICING_SIDE.SELLING);
+  } = useEffectiveMarketHub(activeJob?.build, PRICING_SIDE.SELLING);
 
   const groupPricing = useMaterialGroupPricing({
     side: PRICING_SIDE.SELLING,
@@ -42,7 +42,7 @@ export function useJobSellingContext(activeJob) {
   // The output's own market group, if it has one and the account priced it. The
   // rung sits beneath a job's own choice and above the account's, which is the
   // order `getEffectiveMaterialPriceHub` already holds — a job has no per-item
-  // override for its own output, so the layout it is passed is empty.
+  // override for its own output, so the build it is passed carries none.
   const { marketLocation } = getEffectiveMaterialPriceHub(
     null,
     activeJob?.itemID,

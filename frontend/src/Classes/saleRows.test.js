@@ -162,6 +162,55 @@ describe("MarketOrder", () => {
       CharacterHash: "",
       corporation_id: null,
       character_id: null,
+      fee: 0,
+      salesTax: 0,
+      feeDate: null,
+    });
+  });
+
+  // A fee has no identity of its own, so an order holds one: the charge for
+  // listing it. Anything later against the same order is a relist.
+  describe("recording the broker fee charged for listing it", () => {
+    const dated = (amount, date) => ({ amount, salesTax: 0, date });
+
+    it("keeps the earlier of two fees naming one order", () => {
+      const order = new MarketOrder({ order_id: 1 });
+
+      order.recordBrokerFee(dated(1000, "2026-01-01T00:00:00Z"));
+      order.recordBrokerFee(dated(9999, "2026-02-01T00:00:00Z"));
+
+      expect(order.fee).toBe(1000);
+      expect(order.feeDate).toBe("2026-01-01T00:00:00Z");
+    });
+
+    it("takes a later-read fee that was charged earlier", () => {
+      const order = new MarketOrder({ order_id: 1 });
+
+      order.recordBrokerFee(dated(9999, "2026-02-01T00:00:00Z"));
+      order.recordBrokerFee(dated(1000, "2026-01-01T00:00:00Z"));
+
+      expect(order.fee).toBe(1000);
+    });
+
+    // A row stored without a date cannot be shown to be the earlier one, and a
+    // stored collection is read in whatever order it was written in.
+    it("does not let an undated fee displace a dated one", () => {
+      const order = new MarketOrder({ order_id: 1 });
+
+      order.recordBrokerFee(dated(1000, "2026-01-01T00:00:00Z"));
+      order.recordBrokerFee(dated(9999, null));
+
+      expect(order.fee).toBe(1000);
+      expect(order.feeDate).toBe("2026-01-01T00:00:00Z");
+    });
+
+    it("takes an undated fee when the order carries none", () => {
+      const order = new MarketOrder({ order_id: 1 });
+
+      order.recordBrokerFee(dated(1000, null));
+
+      expect(order.fee).toBe(1000);
+      expect(order.feeDate).toBeNull();
     });
   });
 
@@ -269,18 +318,7 @@ describe("BrokerFee", () => {
     // The worked-out fee, not the entry's own amount, which can cover more than
     // this order.
     expect(fee.amount).toBe(1200);
-    expect(fee.chargedAt).toBe(Date.parse("2026-01-01T00:00:00Z"));
-  });
-
-  it("knows which order it was charged for", () => {
-    const fee = new BrokerFee({ order_id: 1 });
-
-    expect(fee.belongsToOrder(1)).toBe(true);
-    expect(fee.belongsToOrder(2)).toBe(false);
-  });
-
-  it("has no charge date without one", () => {
-    expect(new BrokerFee({}).chargedAt).toBeNull();
+    expect(fee.date).toBe("2026-01-01T00:00:00Z");
   });
 
   it("keeps every stored key on the way out", () => {
@@ -317,7 +355,10 @@ describe("linking a market order", () => {
     job.addMarketOrder({ order_id: 1, price: 5, volume_total: 10 }, null);
 
     expect(job.esiOrderIDs.has(1)).toBe(true);
-    expect(job.esi.marketOrders["1"].fee).toBeUndefined();
+    // Charged nothing rather than unknown: the figure is summed, so a missing
+    // one would take the total with it.
+    expect(job.esi.marketOrders["1"].fee).toBe(0);
+    expect(job.esi.marketOrders["1"].feeDate).toBeNull();
     expect(job.totalBrokersFees).toBe(0);
   });
 

@@ -215,6 +215,17 @@ export default function useEditJobReducer() {
       });
     },
     /**
+     * Records a change to the job's own pricing choice.
+     *
+     * @param {Object} pricingPatch - The build pricing fields that changed.
+     */
+    updateActiveJobPricing: (pricingPatch) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.UPDATE_ACTIVE_JOB_PRICING,
+        payload: pricingPatch,
+      });
+    },
+    /**
      * Records a sale the reader entered by hand.
      *
      * @param {Object} transaction - The transaction as the form built it.
