@@ -37,7 +37,7 @@ import { readMarketSources } from "../../../../../../Hooks/Static/useMarketSourc
  *   salesTax: {base: number, accounting: number, rate: number}}} [props.rates]
  * @param {import("../../../../../../Functions/MarketOrders/sellerCharacter").SellerCharacter} [props.seller] -
  *   Whose skills and standings are quoted
- * @param {string} [props.priceHubName] - Named for a citadel, whose prices come
+ * @param {string} [props.pricedAtName] - Named for a citadel, whose prices come
  *   from a hub rather than from itself
  * @param {boolean} [props.isLoading]
  * @param {{sellerCharacter: string|null, saleLocationID: string|null}} [props.plan] -
@@ -49,14 +49,14 @@ export default function SaleLocationRates({
   saleLocation,
   rates,
   seller,
-  priceHubName,
+  pricedAtName,
   isLoading = false,
   plan = {},
   onPlanChange,
 }) {
   if (!saleLocation) return null;
 
-  const atStructure = saleLocation.kind === SALE_LOCATION_KIND.CITADEL;
+  const atCitadel = saleLocation.kind === SALE_LOCATION_KIND.CITADEL;
 
   return (
     <InsetSurface>
@@ -68,27 +68,27 @@ export default function SaleLocationRates({
           {saleLocation.name}
         </Typography>
       )}
-      {atStructure && priceHubName ? (
+      {atCitadel && pricedAtName ? (
         <Typography variant="caption" color="text.secondary">
-          Prices from {priceHubName}; the fee is this structure's own
+          Prices from {pricedAtName}; the fee is this citadel's own
         </Typography>
       ) : null}
 
       {isLoading || !rates ? (
-        <PendingRates atStructure={atStructure} />
+        <PendingRates atCitadel={atCitadel} />
       ) : (
         <Stack sx={{ mt: 1 }}>
-          {atStructure ? (
+          {atCitadel ? (
             <>
               <FigureRow
                 label="Broker fee"
-                sublabel="the rate this structure's owner set"
+                sublabel="the rate this citadel's owner set"
                 value={formatPercentage(fraction(rates.brokerFee.rate), {
                   places: 2,
                 })}
               />
               <Typography variant="caption" color="text.secondary">
-                {STRUCTURE_FEE_NOTE}
+                {CITADEL_FEE_NOTE}
               </Typography>
             </>
           ) : (
@@ -320,8 +320,8 @@ function saleLocationGroups() {
  * Said wherever a citadel's fee is shown, settled or not: the absence of any
  * working is itself the information, so it is the same sentence both times.
  */
-const STRUCTURE_FEE_NOTE =
-  "Broker Relations does not reduce a structure's fee, and there is no standing to hold with its owner.";
+const CITADEL_FEE_NOTE =
+  "Broker Relations does not reduce a citadel's fee, and there is no standing to hold with its owner.";
 
 /**
  * The rates block before its figures have arrived.
@@ -336,9 +336,9 @@ const STRUCTURE_FEE_NOTE =
  * chosen; only the figures are pending.
  *
  * @param {object} props
- * @param {boolean} props.atStructure
+ * @param {boolean} props.atCitadel
  */
-function PendingRates({ atStructure }) {
+function PendingRates({ atCitadel }) {
   const pending = <Skeleton width={52} />;
   // Every settled term states what it was worked out from underneath it, and so
   // does the tax. Reserving that second line is the point of this block: four
@@ -347,15 +347,15 @@ function PendingRates({ atStructure }) {
 
   return (
     <Stack sx={{ mt: 1 }} aria-busy="true">
-      {atStructure ? (
+      {atCitadel ? (
         <>
           <FigureRow
             label="Broker fee"
-            sublabel="the rate this structure's owner set"
+            sublabel="the rate this citadel's owner set"
             value={pending}
           />
           <Typography variant="caption" color="text.secondary">
-            {STRUCTURE_FEE_NOTE}
+            {CITADEL_FEE_NOTE}
           </Typography>
         </>
       ) : (

@@ -107,7 +107,7 @@ export default function PlanningEconomics(props) {
         output={{
           typeID: state.activeJob.itemID,
           name: state.activeJob.name,
-          priceHubID: saleLocation?.priceHubID,
+          pricedAtID: saleLocation?.pricedAtID,
           unitPrice: sellPrice,
           quantityProduced: commitment.surplus,
         }}
@@ -122,7 +122,7 @@ export default function PlanningEconomics(props) {
             props.actions.updateActiveJob(state.activeJob);
           }}
           seller={seller}
-          priceHubName={saleLocation?.priceHubName}
+          pricedAtName={saleLocation?.pricedAtName}
         />
       </ReturnsPanel>
     </>

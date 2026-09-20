@@ -7,13 +7,9 @@ import { structureKinds } from "../../Context/defaultValues";
 /**
  * The kinds of place a job can be sold from.
  *
- * An NPC station's broker fee is derived from the seller's skills and standings.
- * A citadel's is the rate its owner set, which only the player can supply. That
- * is the difference every consumer reads this to find.
- *
- * The four markets this server prices are NPC stations too, so one a reader
- * saved and one the server walks are the same kind of place and differ only in
- * who fetched the book.
+ * An NPC station's broker fee is derived from the seller's skills and standings;
+ * a citadel's is the rate its owner set. That is the difference every consumer
+ * reads this to find.
  *
  * @enum {string}
  */
@@ -33,9 +29,9 @@ export const SALE_LOCATION_KIND = {
  * @property {string} name - Display name
  * @property {number|null} feeStationID - The NPC station whose owner's standings
  *   set the broker fee. Null at a citadel, whose owner sets a rate instead —
- *   it is not the station the figures are priced against, which is priceHubID
- * @property {string} priceHubID - The market the figures are priced against
- * @property {string} priceHubName - What that market is called
+ *   it is not the station the figures are priced against, which is pricedAtID
+ * @property {string} pricedAtID - The market the figures are priced against
+ * @property {string} pricedAtName - What that market is called
  * @property {number|null} brokerFee - The owner's rate at a citadel; null at an
  *   NPC station, where the rate is derived from the seller instead
  */
@@ -111,8 +107,8 @@ function saleLocationFromStation(station) {
     id: station.id,
     name: station.name,
     feeStationID: station.stationID,
-    priceHubID: station.id,
-    priceHubName: station.name,
+    pricedAtID: station.id,
+    pricedAtName: station.name,
     brokerFee: null,
   };
 }
@@ -137,8 +133,8 @@ function saleLocationFromCitadel(citadel) {
     name: citadel.name,
     // No standings apply: the owner sets the rate.
     feeStationID: null,
-    priceHubID: pricedAt?.id ?? null,
-    priceHubName: pricedAt?.name ?? null,
+    pricedAtID: pricedAt?.id ?? null,
+    pricedAtName: pricedAt?.name ?? null,
     brokerFee: citadel.brokerFee,
   };
 }

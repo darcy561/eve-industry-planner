@@ -562,6 +562,32 @@ read as shared only because every kind was a build kind, and they now sit behind
 map — gating the constructor and `toDocument` alike, so an instance holds exactly what it stores. A
 kind with no entry in the map carries none of them.
 
+### A sale location is an NPC station or a citadel
+
+`SALE_LOCATION_KIND` was `HUB` and `STRUCTURE`. Neither word survived a reader saving their own
+market: the four markets this server prices **are** NPC stations, so one a reader saved and one the
+server walks are the same kind of place and differ only in who fetched the book — yet a saved NPC
+station resolved as `HUB`, which reads like a defect and is not.
+
+The kinds are `NPC_STATION` and `CITADEL`, which is what a player calls them and what the fee rule
+turns on. `priceHubID`/`priceHubName` became `pricedAtID`/`pricedAtName` for the same reason: the
+field is the market the figures are priced against, and a citadel is not a hub.
+
+**The store owns reading a saved structure.** `getSaleStructures` and `getDefaultSaleStructure`
+reimplemented `getCustomStructureWithID` and `getDefaultCustomStructureWithJobType`, including a
+second copy of the flagged-default-else-first rule. They call the store. `getSaleCitadels` remains
+because the picker lists them, and it is a filter rather than a second rule.
+
+`saleLocationFromCitadel` no longer looks a market up per citadel: nothing can read a citadel's book
+yet, so they all price against the same default market and a per-row lookup implied a choice that
+does not exist.
+
+**The test harness uses the real actions.** `usersStoreHarness` builds `structureActions` against the
+state a test arranged, the way it already does for the planner's actions — rather than stubbing its
+own filter, which could answer differently from the store and prove the wrong rule. They are defaults
+rather than opt-in because a component reaches them through a plain function, and a mock missing an
+action throws rather than answering "none saved".
+
 ### Still to fill
 
 The surface for saving one; what replaces the placeholder rows in `saleLocations.js` and how a saved

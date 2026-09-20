@@ -5,6 +5,7 @@ import { stateDefault as activePlannerDefault } from "../Zustand/activePlanner/c
 // actions, and importing those reaches `usersStore` itself, which builds the
 // real store as a side effect of the harness being loaded.
 import { stateDefault as applicationSettingsDefault } from "../Zustand/applicationSettings/core.js";
+import { structureActions } from "../Zustand/applicationSettings/structures.js";
 import { accountStateDefault } from "../Zustand/account/stateDefault.js";
 import { stateDefault as jobDataDefault } from "../Zustand/jobsSlice/stateDefault.js";
 import { stateDefault as plannerSettingsDefault } from "../Zustand/plannerSettings/core.js";
@@ -204,21 +205,13 @@ export function usersStoreState(overrides = {}) {
     ...state.account.actions,
   };
 
-  // Resolved against `state` for the same reason: they answer from the
-  // structures the test supplied. A function the component calls reaches these
-  // rather than the store, so a slice missing them throws instead of answering
-  // "none saved" — which is why they are defaults rather than opt-in.
+  // The real reads, not a second copy of them: a stub that filtered its own way
+  // could answer differently from the store and a test would prove the wrong
+  // rule. A component reaches these through a plain function rather than the
+  // store, and a missing action throws rather than answering "none saved",
+  // which is why they are defaults rather than something a test opts into.
   state.applicationSettings.actions = {
-    getCustomStructureWithID: (id) =>
-      (state.applicationSettings.customStructures ?? []).find(
-        (structure) => structure.id === id,
-      ) ?? null,
-    getDefaultCustomStructureWithJobType: (jobType) => {
-      const ofKind = (state.applicationSettings.customStructures ?? []).filter(
-        (structure) => structure.jobType === jobType,
-      );
-      return ofKind.find((structure) => structure.default) ?? ofKind[0] ?? null;
-    },
+    ...structureActions(() => {}, () => state),
     ...state.applicationSettings.actions,
   };
 

@@ -62,9 +62,9 @@ export function useJobEconomics({
     // selling side's market, not the panel's — the panel resolves where materials
     // are bought, and quoting a sale against it is the crossing this whole
     // arrangement exists to stop.
-    const priceHub = saleLocation?.priceHubID ?? sellingMarket;
-    const sellPrice = getMarketPriceForType(activeJob.itemID, priceHub, "sell");
-    const buyPrice = getMarketPriceForType(activeJob.itemID, priceHub, "buy");
+    const pricedAt = saleLocation?.pricedAtID ?? sellingMarket;
+    const sellPrice = getMarketPriceForType(activeJob.itemID, pricedAt, "sell");
+    const buyPrice = getMarketPriceForType(activeJob.itemID, pricedAt, "buy");
 
     // The fee is charged on what the listing is worth, which is the sell-side
     // revenue of what is actually going to be listed.
@@ -109,7 +109,7 @@ export function useJobEconomics({
       cost,
       saleLocation,
       exitRoute,
-      priceHub,
+      pricedAt,
       rates,
       ratesLoading,
       seller,

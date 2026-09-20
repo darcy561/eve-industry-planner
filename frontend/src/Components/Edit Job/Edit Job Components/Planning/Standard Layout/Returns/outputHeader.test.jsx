@@ -17,7 +17,7 @@ const show = (overrides = {}) =>
     <OutputHeader
       typeID={34}
       name="Tritanium"
-      priceHubID="jita"
+      pricedAtID="jita"
       unitPrice={200}
       quantityProduced={2}
       {...overrides}

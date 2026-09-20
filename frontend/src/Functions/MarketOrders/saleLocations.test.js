@@ -95,7 +95,7 @@ describe("resolveSaleLocation", () => {
   test("a citadel prices against a hub rather than itself", () => {
     const location = resolveSaleLocation(getDefaultSaleStructure().id);
 
-    expect(location.priceHubID).toBe(resolveSaleLocation(null).priceHubID);
+    expect(location.pricedAtID).toBe(resolveSaleLocation(null).pricedAtID);
   });
 
   test("choosing a citadel resolves that one, not the default", () => {

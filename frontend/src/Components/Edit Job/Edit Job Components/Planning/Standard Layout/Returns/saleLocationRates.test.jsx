@@ -133,11 +133,11 @@ describe("the sale location rates block", () => {
     );
 
     expect(
-      screen.getByText("the rate this structure's owner set"),
+      screen.getByText("the rate this citadel's owner set"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Broker fee, base")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Broker Relations does not reduce a structure's fee/),
+      screen.getByText(/Broker Relations does not reduce a citadel's fee/),
     ).toBeInTheDocument();
   });
 
@@ -148,12 +148,12 @@ describe("the sale location rates block", () => {
       <SaleLocationRates
         saleLocation={structure}
         rates={structureRates}
-        priceHubName="Jita"
+        pricedAtName="Jita"
       />,
     );
 
     expect(
-      screen.getByText("Prices from Jita; the fee is this structure's own"),
+      screen.getByText("Prices from Jita; the fee is this citadel's own"),
     ).toBeInTheDocument();
   });
 
@@ -162,7 +162,7 @@ describe("the sale location rates block", () => {
       <SaleLocationRates
         saleLocation={hub}
         rates={hubRates}
-        priceHubName="Jita"
+        pricedAtName="Jita"
       />,
     );
 
@@ -463,7 +463,7 @@ describe("the rates block while a new location is being worked out", () => {
 
   it("states the same rows pending as it does settled, at a station", () => {
     const first = render(
-      <SaleLocationRates saleLocation={hub} isLoading priceHubName="Jita" />,
+      <SaleLocationRates saleLocation={hub} isLoading pricedAtName="Jita" />,
     );
     const pending = labelsOf();
     const pendingDetails = detailLineCount(first.container);
@@ -473,7 +473,7 @@ describe("the rates block while a new location is being worked out", () => {
       <SaleLocationRates
         saleLocation={hub}
         rates={hubRates}
-        priceHubName="Jita"
+        pricedAtName="Jita"
       />,
     );
 
@@ -486,7 +486,7 @@ describe("the rates block while a new location is being worked out", () => {
       <SaleLocationRates
         saleLocation={structure}
         isLoading
-        priceHubName="Jita"
+        pricedAtName="Jita"
       />,
     );
     const pending = labelsOf();
@@ -497,7 +497,7 @@ describe("the rates block while a new location is being worked out", () => {
       <SaleLocationRates
         saleLocation={structure}
         rates={structureRates}
-        priceHubName="Jita"
+        pricedAtName="Jita"
       />,
     );
 

@@ -113,7 +113,7 @@ describe("the Returns panel", () => {
       output: {
         typeID: 34,
         name: "Tritanium",
-        priceHubID: "jita",
+        pricedAtID: "jita",
         unitPrice: 120,
         quantityProduced: 10,
       },
