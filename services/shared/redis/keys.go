@@ -52,6 +52,40 @@ func SuffixAfter(key, prefix string) (string, bool) {
 	return strings.CutPrefix(key, prefix)
 }
 
+// TimeToLive reports what is left of a key's lifetime. A key held without one
+// answers zero, which is how a caller tells a key that will age out from a key
+// that will not.
+func (r *Redis) TimeToLive(ctx context.Context, key string) (time.Duration, error) {
+	c, err := r.client()
+	if err != nil {
+		return 0, err
+	}
+
+	left, err := c.TTL(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	// The driver answers -1 for a key with no expiry and -2 for one that is
+	// gone; neither is a lifetime, and both mean "will not age out on its own".
+	if left < 0 {
+		return 0, nil
+	}
+	return left, nil
+}
+
+// Unlink removes keys in the background, for a caller deleting enough of them
+// that freeing the memory inline would stall the instance.
+func (r *Redis) Unlink(ctx context.Context, keys ...string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	return c.Unlink(ctx, keys...).Err()
+}
+
 // Delete removes keys, and reports how many existed. Absent keys are not an
 // error.
 func (r *Redis) Delete(ctx context.Context, keys ...string) (int64, error) {

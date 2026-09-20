@@ -5,50 +5,23 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	objectstore "eve-industry-planner/shared/core/objectstore"
-	"eve-industry-planner/shared/esiclient"
-	eipnats "eve-industry-planner/shared/nats"
-	eipredis "eve-industry-planner/shared/redis"
-	"eve-industry-planner/testing/redisfake"
-	"eve-industry-planner/worker/taskrun"
-	esi "eve-industry-planner/worker/tasks/esi"
 )
 
 // A region whose pages all answer 304 still rewrites its prices, because the
-// write is what renews their expiry. The entries were replayed from the stored
-// pages, so they describe the current book.
+// write is what renews their expiry. The entries derive from the stored pages,
+// so they describe the current book.
 func TestUnchangedSweepRenewsRegionPrices(t *testing.T) {
-	const (
-		regionID  = int32(10000002)
-		stationID = int64(60003760)
-		pages     = 2
-	)
+	const pages = 2
 
 	origin := newOrdersOrigin(t, pages, 20)
-	fake := redisfake.New(t)
+	deps, fake := marketTaskDeps(t, origin)
 
-	cfg := esiclient.DefaultConfig()
-	cfg.BaseURL = origin.server.URL
-	api, stop, err := esiclient.New(eipredis.NewRedis(fake.Client), cfg)
-	if err != nil {
-		t.Fatalf("esiclient: %v", err)
-	}
-	t.Cleanup(stop)
+	track(t, deps, firstStation)
 
-	// The pages are what a 304 renews the prices from, so a run without them
-	// replays nothing and this test's whole subject disappears.
-	deps := &taskrun.Dependencies{
-		Redis:       eipredis.NewRedis(fake.Client),
-		ESI:         api,
-		MarketPages: objectstore.NewMarketPages(objectstore.NewMemoryBackend()),
-	}
-	req := eipnats.RegionMarketOrdersRequest{RegionID: regionID, StationID: stationID}
+	// A priming pass walks the book and prices the station from it.
+	walkRegion(t, deps)
+	derive(t, deps)
 
-	// A priming pass fetches and writes the prices.
-	if err := esi.RefreshRegionMarketOrders(t.Context(), req, deps); err != nil {
-		t.Fatalf("priming pass: %v", err)
-	}
 	priced := []string{}
 	for _, key := range fake.Server.Keys() {
 		if strings.HasPrefix(key, "esi:market_orders:") && strings.Count(key, ":") == 3 {
@@ -68,9 +41,8 @@ func TestUnchangedSweepRenewsRegionPrices(t *testing.T) {
 	}
 
 	before := fake.Server.TTL(priced[0])
-	if err := esi.RefreshRegionMarketOrders(t.Context(), req, deps); err != nil {
-		t.Fatalf("unchanged pass: %v", err)
-	}
+	walkRegion(t, deps)
+	derive(t, deps)
 	after := fake.Server.TTL(priced[0])
 
 	if after <= before {

@@ -20,6 +20,11 @@ import (
 const (
 	jitaRegion  = 10000002
 	amarrRegion = 10000043
+
+	// Prices are keyed by the station they were derived for, because one region
+	// holds every station anybody has asked about.
+	jitaStation  = 60003760
+	amarrStation = 60008494
 )
 
 func queryHandler(t *testing.T) (*Handlers, *eipredis.Redis) {
@@ -47,9 +52,9 @@ func query(t *testing.T, h *Handlers, body MarketPricesQueryBody) (*httptest.Res
 	return rec, got
 }
 
-func seedPrice(t *testing.T, redis *eipredis.Redis, typeID, regionID int32, buy, sell float64) {
+func seedPrice(t *testing.T, redis *eipredis.Redis, typeID int32, stationID int64, buy, sell float64) {
 	t.Helper()
-	err := redis.MarketOrders().PutPrice(context.Background(), typeID, regionID, eipredis.MarketPriceEntry{
+	err := redis.MarketOrders().PutPrice(context.Background(), typeID, stationID, eipredis.MarketPriceEntry{
 		Buy: buy, Sell: sell, BuyP95: buy, SellP05: sell, LastUpdated: 1757000000000,
 	})
 	if err != nil {
@@ -61,8 +66,8 @@ func seedPrice(t *testing.T, redis *eipredis.Redis, typeID, regionID int32, buy,
 // carries one market's figures rather than four and a choice.
 func TestMarketPricesQueryAnswersOnlyTheSourcesAsked(t *testing.T) {
 	h, redis := queryHandler(t)
-	seedPrice(t, redis, 34, jitaRegion, 5, 6)
-	seedPrice(t, redis, 34, amarrRegion, 7, 8)
+	seedPrice(t, redis, 34, jitaStation, 5, 6)
+	seedPrice(t, redis, 34, amarrStation, 7, 8)
 
 	_, got := query(t, h, MarketPricesQueryBody{Sources: map[string][]string{"jita": {"34"}}})
 
@@ -78,7 +83,7 @@ func TestMarketPricesQueryAnswersOnlyTheSourcesAsked(t *testing.T) {
 // reporting a price of zero — which is a figure, and a wrong one.
 func TestMarketPricesQueryOmitsATypeAMarketHasNoOrderFor(t *testing.T) {
 	h, redis := queryHandler(t)
-	seedPrice(t, redis, 34, jitaRegion, 5, 6)
+	seedPrice(t, redis, 34, jitaStation, 5, 6)
 
 	_, got := query(t, h, MarketPricesQueryBody{
 		Sources: map[string][]string{"jita": {"34", "35"}},
@@ -100,7 +105,7 @@ func TestMarketPricesQueryCarriesEachSourcesClock(t *testing.T) {
 	if err := redis.MarketOrders().PutRefreshTime(context.Background(), jitaRegion, walked); err != nil {
 		t.Fatalf("record the walk: %v", err)
 	}
-	seedPrice(t, redis, 34, jitaRegion, 5, 6)
+	seedPrice(t, redis, 34, jitaStation, 5, 6)
 
 	_, got := query(t, h, MarketPricesQueryBody{Sources: map[string][]string{"jita": {"34"}}})
 
@@ -139,9 +144,9 @@ func TestMarketPricesQueryRefusesARequestAskingForNothing(t *testing.T) {
 // shared list would fetch and return the rows nothing reads.
 func TestMarketPricesQueryAsksEachSourceOnlyForItsOwnTypes(t *testing.T) {
 	h, redis := queryHandler(t)
-	seedPrice(t, redis, 34, jitaRegion, 5, 6)
-	seedPrice(t, redis, 35, jitaRegion, 1, 2)
-	seedPrice(t, redis, 35, amarrRegion, 7, 8)
+	seedPrice(t, redis, 34, jitaStation, 5, 6)
+	seedPrice(t, redis, 35, jitaStation, 1, 2)
+	seedPrice(t, redis, 35, amarrStation, 7, 8)
 
 	_, got := query(t, h, MarketPricesQueryBody{
 		Sources: map[string][]string{"jita": {"34"}, "amarr": {"35"}},
@@ -162,7 +167,7 @@ func TestMarketPricesQueryAsksEachSourceOnlyForItsOwnTypes(t *testing.T) {
 // not a mistake — every type it would have covered was priced somewhere else.
 func TestMarketPricesQuerySkipsASourceWantingNoTypes(t *testing.T) {
 	h, redis := queryHandler(t)
-	seedPrice(t, redis, 34, jitaRegion, 5, 6)
+	seedPrice(t, redis, 34, jitaStation, 5, 6)
 
 	rec, got := query(t, h, MarketPricesQueryBody{
 		Sources: map[string][]string{"jita": {"34"}, "amarr": {}},
@@ -180,7 +185,7 @@ func TestMarketPricesQuerySkipsASourceWantingNoTypes(t *testing.T) {
 // block with its own clock and is only sent when asked for.
 func TestMarketPricesQuerySendsAdjustedPricesOnlyWhenAsked(t *testing.T) {
 	h, redis := queryHandler(t)
-	seedPrice(t, redis, 34, jitaRegion, 5, 6)
+	seedPrice(t, redis, 34, jitaStation, 5, 6)
 	err := redis.Cache(eipredis.DatasetMarketPrices).PutEntry(context.Background(), int32(34),
 		esitypes.AdjustedPrice{TypeID: 34, AdjustedPrice: 4.9, LastUpdated: 1756900000000})
 	if err != nil {

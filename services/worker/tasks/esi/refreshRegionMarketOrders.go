@@ -31,18 +31,23 @@ type typePriceAccumulator struct {
 	sellPrices []float64
 }
 
-// RefreshRegionMarketOrders dumps every market order in one region and stores per-type prices
-// for that region's trade hub station.
+// RefreshRegionMarketOrders walks every market order in one region and stores its pages, then asks
+// for the stations tracked there to be priced from them.
 //
-// Orders are filtered to the requested station as they stream, so types traded elsewhere in the
-// region produce no entry. Returns an error so asynq retries; a failed pass writes nothing.
+// Walking and pricing are two jobs: this one is ESI-bound and knows nothing about which stations
+// anybody wants, so a station added to a region already walked costs no call. Returns an error so
+// asynq retries; a failed pass writes nothing.
 func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarketOrdersRequest, deps *taskrun.Dependencies) error {
 	if deps == nil {
 		return fmt.Errorf("task dependencies are nil")
 	}
 
-	if request.RegionID == 0 || request.StationID == 0 {
-		return fmt.Errorf("region market orders refresh requires region_id and station_id")
+	if request.RegionID == 0 {
+		return fmt.Errorf("region market orders refresh requires region_id")
+	}
+
+	if deps.MarketPages.Available() && deps.NATS == nil {
+		return fmt.Errorf("nats client is required to ask for a region's prices to be derived")
 	}
 
 	dataset := eipredis.RegionMarketOrdersDataset(request.RegionID)
@@ -61,23 +66,19 @@ func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarket
 		prevETags = nil
 	}
 
-	accumulators := make(map[int32]*typePriceAccumulator)
-	onOrder := func(order esiclient.MarketOrder) error {
-		// The region endpoint returns every station in the region; only the hub station counts.
-		if order.LocationID != request.StationID {
+	// Without a page store there is nothing for a derive pass to read, so this walk prices what it streams.
+	var streamed *stationPrices
+	onOrder := func(esiclient.MarketOrder) error { return nil }
+	if !deps.MarketPages.Available() {
+		tracked, err := orders.TrackedStations(ctx, request.RegionID)
+		if err != nil {
+			return err
+		}
+		streamed = newStationPrices(stationIDsOf(tracked))
+		onOrder = func(order esiclient.MarketOrder) error {
+			streamed.add(order)
 			return nil
 		}
-		acc := accumulators[order.TypeID]
-		if acc == nil {
-			acc = &typePriceAccumulator{}
-			accumulators[order.TypeID] = acc
-		}
-		if order.IsBuyOrder {
-			acc.buyPrices = append(acc.buyPrices, order.Price)
-		} else {
-			acc.sellPrices = append(acc.sellPrices, order.Price)
-		}
-		return nil
 	}
 
 	fetchResult, err := FetchRegionMarketOrders(ctx, deps.ESI, deps.MarketPages, request.RegionID, prevETags, onOrder)
@@ -85,15 +86,12 @@ func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarket
 		return HandleStreamError(ctx, err, eipnats.TaskNameRegionMarketOrdersRefresh)
 	}
 
-	// The first page's max-age speaks for the book: a region's pages are
-	// generated together and expire together.
+	// The first page's max-age speaks for the book: a region's pages expire together.
 	recordNextRefresh(ctx, deps.Redis, dataset,
 		time.Duration(fetchResult.CacheSeconds)*time.Second)
 
 	now := time.Now()
 
-	// An unchanged sweep still rewrites the prices below: the write is what
-	// renews their expiry, and the entries were replayed from the stored pages.
 	if !fetchResult.AllUnchanged {
 		if err := orders.PutETags(ctx, request.RegionID, fetchResult.ETags); err != nil {
 			logs.WarnCtx(ctx, "failed saving region market orders etags", "region_id", request.RegionID, "error", err)
@@ -107,26 +105,36 @@ func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarket
 	}
 
 	written := 0
-	for typeID, acc := range accumulators {
-		entry := buildMarketPriceEntry(acc, now.UnixMilli())
-		if err := orders.PutPrice(ctx, typeID, request.RegionID, entry); err != nil {
-			return fmt.Errorf("saving market price entry for type %d: %w", typeID, err)
+	if streamed != nil {
+		written, err = streamed.write(ctx, orders, now)
+		if err != nil {
+			return err
 		}
-		written++
 	}
 
 	if err := orders.PutRefreshTime(ctx, request.RegionID, now); err != nil {
 		return err
 	}
 
-	logs.InfoCtx(ctx, "region market orders refreshed",
+	// An unchanged pass asks too: rewriting the prices is what renews their expiry.
+	if streamed == nil {
+		if err := eipnats.PublishDeriveRegionMarketPrices(ctx, deps.NATS, request.RegionID); err != nil {
+			return err
+		}
+	}
+
+	walked := []any{
 		"region_id", request.RegionID,
-		"station_id", request.StationID,
 		"unchanged", fetchResult.AllUnchanged,
 		"pages", fetchResult.TotalPages,
-		"types_written", written,
 		"bytes_read", fetchResult.TotalBytes,
-		"duration_ms", time.Since(start).Milliseconds())
+		"duration_ms", time.Since(start).Milliseconds(),
+	}
+	// A walk counts prices only where it wrote them itself; the derive pass counts its own.
+	if streamed != nil {
+		walked = append(walked, "types_priced_inline", written)
+	}
+	logs.InfoCtx(ctx, "region market orders walked", walked...)
 
 	return nil
 }

@@ -22,8 +22,8 @@ import (
 // per fifteen minutes.
 const regionSweepInterval = time.Hour
 
-// RegionMarketOrdersRefresh sets up the cron job that refreshes the default
-// market regions' order books. Each tick publishes every hub whose book has
+// RegionMarketOrdersRefresh sets up the cron job that refreshes the tracked
+// market regions' order books. Each tick publishes every region whose book has
 // gone stale, oldest first.
 //
 // Nothing is published while ESI is not answering. A hub whose cost the budget
@@ -49,12 +49,23 @@ func runRegionMarketOrdersRefresh(
 	esi esiclient.API,
 	jobName string,
 ) error {
-	regions := esicore.DefaultMarketLocations
+	// Tracked every tick, not when walked: a hub must never be the market that goes unasked for.
+	now := time.Now()
+	for _, hub := range esicore.DefaultMarketLocations {
+		if err := r.MarketOrders().TrackStation(ctx, hub.RegionID, hub.StationID, now); err != nil {
+			return err
+		}
+	}
+
+	regions, err := r.MarketOrders().TrackedRegions(ctx)
+	if err != nil {
+		return err
+	}
 	if len(regions) == 0 {
 		return nil
 	}
 
-	due, err := regionsDue(ctx, r, regions, time.Now())
+	due, err := regionsDue(ctx, r, regions, now)
 	if err != nil {
 		return err
 	}
@@ -66,19 +77,17 @@ func runRegionMarketOrdersRefresh(
 	}
 
 	published := 0
-	for _, location := range due {
-		if !canAffordRegionRefresh(ctx, esi, r, location.RegionID) {
+	for _, regionID := range due {
+		if !canAffordRegionRefresh(ctx, esi, r, regionID) {
 			esimetrics.RecordPublicationSkipped(ctx, jobName, esimetrics.SkipBudget)
 			continue
 		}
-		if err := eipnats.PublishRefreshRegionMarketOrders(ctx, natsHandle, location.RegionID, location.StationID); err != nil {
+		if err := eipnats.PublishRefreshRegionMarketOrders(ctx, natsHandle, regionID); err != nil {
 			return err
 		}
 		published++
 		logs.InfoCtx(ctx, "published region market orders refresh task",
-			"component", schedulerLogComponent,
-			"region_id", location.RegionID,
-			"station_id", location.StationID)
+			"component", schedulerLogComponent, "region_id", regionID)
 	}
 
 	logs.DebugCtx(ctx, "region market orders sweep complete",
@@ -87,15 +96,16 @@ func runRegionMarketOrdersRefresh(
 	return nil
 }
 
-// regionsDue is every hub whose book should be walked again, stalest first, so
-// that a budget too tight for all of them spends what it has on the oldest.
+// regionsDue is every tracked region whose book should be walked again, stalest
+// first, so that a budget too tight for all of them spends what it has on the
+// oldest.
 //
-// A hub is due once regionSweepInterval has passed since its last pass, and
+// A region is due once regionSweepInterval has passed since its last pass, and
 // never before ESI's own max-age has expired — a call inside that window is
 // answered 304 and still costs a token, so it buys nothing. The sweep interval
 // is the binding constraint while it stays longer than the max-age; the
 // max-age check is what keeps a shorter interval safe to set.
-func regionsDue(ctx context.Context, r *eipredis.Redis, regions []esicore.MarketLocation, now time.Time) ([]esicore.MarketLocation, error) {
+func regionsDue(ctx context.Context, r *eipredis.Redis, regions []int32, now time.Time) ([]int32, error) {
 	if r.Driver() == nil {
 		return regions, nil
 	}
@@ -109,20 +119,20 @@ func regionsDue(ctx context.Context, r *eipredis.Redis, regions []esicore.Market
 		lastPass[t.RegionID] = t.LastUpdated
 	}
 
-	var due []esicore.MarketLocation
-	for _, location := range regions {
-		last, walked := lastPass[location.RegionID]
+	var due []int32
+	for _, regionID := range regions {
+		last, walked := lastPass[regionID]
 		if walked && now.Before(last.Add(regionSweepInterval)) {
 			continue
 		}
-		if fresh, _ := regionStillFresh(ctx, r, location.RegionID, now); fresh {
+		if fresh, _ := regionStillFresh(ctx, r, regionID, now); fresh {
 			continue
 		}
-		due = append(due, location)
+		due = append(due, regionID)
 	}
 
-	slices.SortStableFunc(due, func(a, b esicore.MarketLocation) int {
-		return lastPass[a.RegionID].Compare(lastPass[b.RegionID])
+	slices.SortStableFunc(due, func(a, b int32) int {
+		return lastPass[a].Compare(lastPass[b])
 	})
 	return due, nil
 }
@@ -151,8 +161,7 @@ func canAffordRegionRefresh(ctx context.Context, esi esiclient.API, r *eipredis.
 	// Every page is a 2xx, and a success costs the same wherever it lands.
 	cost := len(etags) * esiclient.SuccessCost
 
-	// The group is learned per exact path, so the question has to name the region
-	// the run will actually walk rather than a stand-in.
+	// The group is learned per exact path, so the question names the region the run will walk.
 	path := fmt.Sprintf("/markets/%d/orders/", regionID)
 
 	affordable, room, err := esi.CanAfford(ctx, path, esiclient.Identity{}, esiclient.ClassBackground, cost)

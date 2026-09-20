@@ -174,6 +174,21 @@ type CustomStructure struct {
 // kind filters on JobType rather than choosing a list.
 type CustomStructures []CustomStructure
 
+// MarketStationIDs names the NPC stations behind the markets an account has
+// saved, which is what the server has to be told to price.
+//
+// A citadel market is left out: its book is read with a character's token and
+// cannot be walked centrally.
+func (c CustomStructures) MarketStationIDs() []int64 {
+	stations := make([]int64, 0, len(c))
+	for _, structure := range c {
+		if structure.JobType == StructureKindMarket && structure.StationID != 0 {
+			stations = append(stations, structure.StationID)
+		}
+	}
+	return stations
+}
+
 // OfJobType returns the structures configured for one kind, in stored order.
 func (c CustomStructures) OfJobType(jobType int) []CustomStructure {
 	var found []CustomStructure

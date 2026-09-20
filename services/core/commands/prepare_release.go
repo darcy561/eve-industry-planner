@@ -115,6 +115,10 @@ var releases = []release{{
 		// After the job reshape, which rewrites the setups this reads: a fold run
 		// before it would convert setups that reshape then writes over.
 		{name: "fold rig slots onto every setup", run: foldRigSlots},
+		// Anywhere in the window: it reads no document and depends on no other
+		// step. The keys it removes are Redis-only and already unread by the
+		// deployed code.
+		{name: "drop the market keys this release retires", run: dropRetiredMarketKeys},
 		// Last: the window's gate. A document with no owner is unreachable, so the
 		// release fails rather than reporting success over it.
 		{name: "verify every document carries an owner", run: verifyMetaOwner},

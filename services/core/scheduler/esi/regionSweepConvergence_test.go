@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	esicore "eve-industry-planner/shared/core/esi"
 	eipredis "eve-industry-planner/shared/redis"
 	"eve-industry-planner/testing/redisfake"
 )
@@ -26,7 +25,7 @@ func TestTheSweepSettlesToOneHubPerTick(t *testing.T) {
 
 	fake := redisfake.New(t)
 	handle := eipredis.NewRedis(fake.Client)
-	regions := esicore.DefaultMarketLocations
+	regions := hubRegions()
 	if len(regions) < 2 {
 		t.Skip("needs at least two hubs to stagger")
 	}
@@ -42,14 +41,13 @@ func TestTheSweepSettlesToOneHubPerTick(t *testing.T) {
 		}
 		perTick[now] = len(due)
 
-		for i, location := range due {
+		for i, regionID := range due {
 			done := now.Add(time.Duration(i) * walkTakes)
-			if err := handle.MarketOrders().PutRefreshTime(t.Context(),
-				location.RegionID, done); err != nil {
+			if err := handle.MarketOrders().PutRefreshTime(t.Context(), regionID, done); err != nil {
 				t.Fatalf("recording pass: %v", err)
 			}
 			if err := handle.PutNextRefresh(t.Context(),
-				eipredis.RegionMarketOrdersDataset(location.RegionID), done.Add(5*time.Minute)); err != nil {
+				eipredis.RegionMarketOrdersDataset(regionID), done.Add(5*time.Minute)); err != nil {
 				t.Fatalf("recording freshness: %v", err)
 			}
 		}

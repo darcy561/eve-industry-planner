@@ -9,25 +9,18 @@ import (
 )
 
 func TestRefreshRegionMarketOrders_MissingParameters(t *testing.T) {
-	tests := []struct {
-		name      string
-		regionID  int32
-		stationID int64
-	}{
-		{name: "no region", regionID: 0, stationID: 60003760},
-		{name: "no station", regionID: 10000002, stationID: 0},
-		{name: "neither", regionID: 0, stationID: 0},
+	err := RefreshRegionMarketOrders(context.Background(),
+		eipnats.RegionMarketOrdersRequest{}, &taskrun.Dependencies{})
+	if err == nil {
+		t.Fatal("expected error for a request naming no region")
 	}
+}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := RefreshRegionMarketOrders(context.Background(),
-				eipnats.RegionMarketOrdersRequest{RegionID: tc.regionID, StationID: tc.stationID},
-				&taskrun.Dependencies{})
-			if err == nil {
-				t.Fatal("expected error for incomplete request")
-			}
-		})
+func TestDeriveRegionMarketPrices_MissingParameters(t *testing.T) {
+	err := DeriveRegionMarketPrices(context.Background(),
+		eipnats.RegionMarketPricesRequest{}, &taskrun.Dependencies{})
+	if err == nil {
+		t.Fatal("expected error for a request naming no region")
 	}
 }
 

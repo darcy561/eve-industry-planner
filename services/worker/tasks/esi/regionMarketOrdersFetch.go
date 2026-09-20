@@ -30,6 +30,10 @@ type RegionOrdersFetchResult struct {
 //
 // Pages are stored unfiltered so they stay valid for any station in the region;
 // callers apply their own station filter inside onOrder.
+//
+// **onOrder may be nil**, for the caller that wants the book stored rather than
+// delivered: a 304 then confirms its page is held instead of decoding it, which
+// is the difference between reading a region's whole book and reading a key.
 func FetchRegionMarketOrders(
 	ctx context.Context,
 	client esiclient.API,
@@ -42,9 +46,6 @@ func FetchRegionMarketOrders(
 
 	if client == nil {
 		return result, errors.New("ESI client is nil")
-	}
-	if onOrder == nil {
-		return result, errors.New("onOrder callback is nil")
 	}
 	if prevETags == nil {
 		prevETags = make(map[int]string)
@@ -59,14 +60,13 @@ func FetchRegionMarketOrders(
 
 		logs.DebugCtx(ctx, "fetching region market orders page", "region_id", regionID, "page", page)
 
-		pageBytes, err := fetchRegionOrdersPage(ctx, client, pages, path, regionID, page, prevETags, &result, onOrder)
+		pageBytes, err := fetchRegionOrdersPage(ctx, client, pages, path, regionID, page, prevETags[page], &result, onOrder)
 		if err != nil {
 			return result, err
 		}
 		result.TotalBytes += pageBytes
 
-		// No X-Pages means the first page is the whole book, rather than looping
-		// blind until something errors.
+		// No X-Pages means the first page is the whole book, rather than looping blind.
 		if result.TotalPages == 0 || page >= result.TotalPages {
 			return result, nil
 		}
@@ -82,7 +82,7 @@ func fetchRegionOrdersPage(
 	path string,
 	regionID int32,
 	page int,
-	prevETags map[int]string,
+	ifNoneMatch string,
 	result *RegionOrdersFetchResult,
 	onOrder func(esiclient.MarketOrder) error,
 ) (int64, error) {
@@ -95,7 +95,7 @@ func fetchRegionOrdersPage(
 			"page":       {strconv.Itoa(page)},
 		},
 		Class:       esiclient.ClassBackground,
-		IfNoneMatch: prevETags[page],
+		IfNoneMatch: ifNoneMatch,
 		Retry:       httpclient.DefaultRetry(),
 	})
 	if err != nil {
@@ -105,8 +105,8 @@ func fetchRegionOrdersPage(
 
 	if stream.ETag != "" {
 		result.ETags[page] = stream.ETag
-	} else if prevETag, ok := prevETags[page]; ok {
-		result.ETags[page] = prevETag
+	} else if ifNoneMatch != "" {
+		result.ETags[page] = ifNoneMatch
 	}
 
 	if page == 1 {
@@ -133,8 +133,7 @@ func fetchRegionOrdersPage(
 	// A 200 means this page moved, so the aggregate must be rebuilt from live data.
 	result.AllUnchanged = false
 
-	// The page is collected rather than streamed straight through, because it is
-	// stored whole for the next pass to replay on a 304.
+	// Collected rather than streamed through: the page is stored whole for a 304 to replay.
 	orders := make([]esiclient.MarketOrder, 0, 1000)
 	if err := jsoncodec.StreamArray(stream.Body, func(order esiclient.MarketOrder) error {
 		orders = append(orders, order)
@@ -149,17 +148,20 @@ func fetchRegionOrdersPage(
 		}
 	}
 
-	for _, order := range orders {
-		if err := onOrder(order); err != nil {
-			return stream.Wire(), err
+	if onOrder != nil {
+		for _, order := range orders {
+			if err := onOrder(order); err != nil {
+				return stream.Wire(), err
+			}
 		}
 	}
 	return stream.Wire(), nil
 }
 
 // replayStoredRegionPage feeds a previously stored page back through onOrder
-// for a 304. A page that is not held downgrades the page to "changed", so the
-// caller does not treat the region as fully unchanged on incomplete data.
+// for a 304, or merely confirms it is held when nothing wants the orders. A page
+// that is not held downgrades the page to "changed", so the caller does not
+// treat the region as fully unchanged on incomplete data.
 func replayStoredRegionPage(
 	ctx context.Context,
 	pages *objectstore.MarketPages,
@@ -171,6 +173,18 @@ func replayStoredRegionPage(
 	if !pages.Available() {
 		logs.WarnCtx(ctx, "page store unavailable for 304 region page replay", "region_id", regionID, "page", page)
 		result.AllUnchanged = false
+		return nil
+	}
+
+	if onOrder == nil {
+		held, err := pages.Held(ctx, regionID, page)
+		if err != nil {
+			return err
+		}
+		if !held {
+			logs.WarnCtx(ctx, "no stored page for 304 region page", "region_id", regionID, "page", page)
+			result.AllUnchanged = false
+		}
 		return nil
 	}
 

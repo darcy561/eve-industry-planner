@@ -51,6 +51,12 @@ func (m *MarketPages) Get(ctx context.Context, regionID int32, page int, target 
 	return jsoncodec.Unmarshal(encoded, target)
 }
 
+// Held reports whether one page of a region is stored, for a caller that wants
+// to know a 304 has something behind it without decoding it.
+func (m *MarketPages) Held(ctx context.Context, regionID int32, page int) (bool, error) {
+	return m.backend.Exists(ctx, pageKey(regionID, page))
+}
+
 // PageNumbers reports which pages of a region are held, ascending.
 func (m *MarketPages) PageNumbers(ctx context.Context, regionID int32) ([]int, error) {
 	keys, err := m.backend.ListKeys(ctx, regionPrefix(regionID)+"page/")
@@ -102,10 +108,9 @@ func (m *MarketPages) DropPagesFrom(ctx context.Context, regionID int32, fromPag
 // DropRegionsOlderThan removes every region whose most recent page was written
 // before cutoff, and reports how many regions went.
 //
-// Object storage has no expiry of its own, so this is what keeps the bucket
-// from growing without bound — the job Redis's TTL used to do for free. A
-// region is judged by its newest page, because a walk rewrites the whole book
-// and a part-written region must not be dropped mid-walk.
+// Object storage has no expiry of its own, so this is what keeps the bucket from
+// growing without bound. A region is judged by its newest page, because a walk
+// rewrites the whole book and a part-written region must not be dropped mid-walk.
 func (m *MarketPages) DropRegionsOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
 	regions, err := m.backend.ListChildNames(ctx, "region")
 	if err != nil {

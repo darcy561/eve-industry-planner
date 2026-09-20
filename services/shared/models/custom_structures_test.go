@@ -298,3 +298,28 @@ func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
 		t.Errorf("read back = %+v, want the citadel's own fields", got)
 	}
 }
+
+// The markets an account has saved are what the server is told to price, and a
+// citadel is not among them: its book is read with a character's token and
+// cannot be walked centrally.
+func TestMarketStationIDsNamesOnlyTheMarketsAServerCanWalk(t *testing.T) {
+	structures := CustomStructures{
+		{ID: "man-1", JobType: JobTypeManufacturing, Name: "Home", SystemID: 30000142},
+		{ID: "mkt-1", JobType: StructureKindMarket, Name: "Rens", StationID: 60004588, RegionID: 10000030},
+		{ID: "mkt-2", JobType: StructureKindMarket, Name: "A citadel", StructureID: 1035466617946, RegionID: 10000030},
+		{ID: "mkt-3", JobType: StructureKindMarket, Name: "Half saved", RegionID: 10000030},
+		{ID: "mkt-4", JobType: StructureKindMarket, Name: "Jita", StationID: 60003760, RegionID: 10000002},
+	}
+
+	got := structures.MarketStationIDs()
+	want := []int64{60004588, 60003760}
+
+	if len(got) != len(want) {
+		t.Fatalf("named %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("named %v, want %v", got, want)
+		}
+	}
+}

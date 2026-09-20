@@ -1,6 +1,7 @@
 package esi
 
 import (
+	"encoding/json"
 	"slices"
 	"testing"
 	"time"
@@ -9,8 +10,12 @@ import (
 	"eve-industry-planner/shared/esiclient"
 	eipredis "eve-industry-planner/shared/redis"
 	"eve-industry-planner/testing/esifake"
+	"eve-industry-planner/testing/natsfake"
 	"eve-industry-planner/testing/redisfake"
 
+	eipnats "eve-industry-planner/shared/nats"
+
+	"github.com/nats-io/nats.go/jetstream"
 	redislib "github.com/redis/go-redis/v9"
 )
 
@@ -156,17 +161,19 @@ func walked(t *testing.T, client *redislib.Client, regionID int32, at time.Time)
 	}
 }
 
-func regionIDs(locations []esicore.MarketLocation) []int32 {
-	out := make([]int32, 0, len(locations))
-	for _, l := range locations {
-		out = append(out, l.RegionID)
+// hubRegions is the regions the four default hubs sit in — what the sweep
+// tracks and walks on a deployment nobody has saved a market on.
+func hubRegions() []int32 {
+	out := make([]int32, 0, len(esicore.DefaultMarketLocations))
+	for _, hub := range esicore.DefaultMarketLocations {
+		out = append(out, hub.RegionID)
 	}
 	return out
 }
 
 func TestAHubNeverWalkedIsDue(t *testing.T) {
 	fake := redisfake.New(t)
-	regions := esicore.DefaultMarketLocations
+	regions := hubRegions()
 
 	due, err := regionsDue(t.Context(), eipredis.NewRedis(fake.Client), regions, time.Now())
 	if err != nil {
@@ -180,10 +187,10 @@ func TestAHubNeverWalkedIsDue(t *testing.T) {
 func TestAHubInsideTheSweepIntervalIsNotDue(t *testing.T) {
 	fake := redisfake.New(t)
 	now := time.Now()
-	regions := esicore.DefaultMarketLocations
+	regions := hubRegions()
 
-	for _, l := range regions {
-		walked(t, fake.Client, l.RegionID, now.Add(-30*time.Minute))
+	for _, regionID := range regions {
+		walked(t, fake.Client, regionID, now.Add(-30*time.Minute))
 	}
 
 	due, err := regionsDue(t.Context(), eipredis.NewRedis(fake.Client), regions, now)
@@ -191,7 +198,7 @@ func TestAHubInsideTheSweepIntervalIsNotDue(t *testing.T) {
 		t.Fatalf("regionsDue: %v", err)
 	}
 	if len(due) != 0 {
-		t.Errorf("%v were due half an interval after their last pass", regionIDs(due))
+		t.Errorf("%v were due half an interval after their last pass", due)
 	}
 
 	// Once the interval has passed they all are again.
@@ -209,14 +216,14 @@ func TestStalestHubIsSweptFirst(t *testing.T) {
 	// spending on.
 	fake := redisfake.New(t)
 	now := time.Now()
-	regions := esicore.DefaultMarketLocations
+	regions := hubRegions()
 	if len(regions) < 3 {
 		t.Skip("needs at least three hubs to order")
 	}
 
-	walked(t, fake.Client, regions[0].RegionID, now.Add(-2*time.Hour))
-	walked(t, fake.Client, regions[1].RegionID, now.Add(-9*time.Hour))
-	walked(t, fake.Client, regions[2].RegionID, now.Add(-5*time.Hour))
+	walked(t, fake.Client, regions[0], now.Add(-2*time.Hour))
+	walked(t, fake.Client, regions[1], now.Add(-9*time.Hour))
+	walked(t, fake.Client, regions[2], now.Add(-5*time.Hour))
 
 	due, err := regionsDue(t.Context(), eipredis.NewRedis(fake.Client), regions, now)
 	if err != nil {
@@ -227,9 +234,8 @@ func TestStalestHubIsSweptFirst(t *testing.T) {
 	}
 
 	// A hub never walked at all sorts ahead of every dated one.
-	want := []int32{regions[1].RegionID, regions[2].RegionID, regions[0].RegionID}
-	got := regionIDs(due)
-	dated := got[len(got)-3:]
+	want := []int32{regions[1], regions[2], regions[0]}
+	dated := due[len(due)-3:]
 	if !slices.Equal(dated, want) {
 		t.Errorf("swept dated hubs %v, want stalest first %v", dated, want)
 	}
@@ -240,8 +246,8 @@ func TestAHubIsNotWalkedInsideItsMaxAge(t *testing.T) {
 	// so it buys nothing. This is what keeps a shorter sweep interval safe.
 	fake := redisfake.New(t)
 	now := time.Now()
-	regions := esicore.DefaultMarketLocations[:1]
-	regionID := regions[0].RegionID
+	regions := hubRegions()[:1]
+	regionID := regions[0]
 
 	// Long past due by the sweep interval, but ESI says the book is current.
 	if err := eipredis.NewRedis(fake.Client).MarketOrders().PutRefreshTime(t.Context(),
@@ -257,7 +263,7 @@ func TestAHubIsNotWalkedInsideItsMaxAge(t *testing.T) {
 		t.Fatalf("regionsDue: %v", err)
 	}
 	if len(due) != 0 {
-		t.Errorf("%v was walked inside its max-age, which can only return 304", regionIDs(due))
+		t.Errorf("%v was walked inside its max-age, which can only return 304", due)
 	}
 }
 
@@ -267,10 +273,10 @@ func TestSweepFreshnessDoesNotDependOnHubCount(t *testing.T) {
 	// whatever the list length.
 	fake := redisfake.New(t)
 	now := time.Now()
-	all := esicore.DefaultMarketLocations
+	all := hubRegions()
 
-	for _, l := range all {
-		walked(t, fake.Client, l.RegionID, now.Add(-regionSweepInterval-time.Minute))
+	for _, regionID := range all {
+		walked(t, fake.Client, regionID, now.Add(-regionSweepInterval-time.Minute))
 	}
 
 	for _, count := range []int{1, 2, len(all)} {
@@ -282,4 +288,95 @@ func TestSweepFreshnessDoesNotDependOnHubCount(t *testing.T) {
 			t.Errorf("with %d hubs configured, %d came due; every one past the interval should", count, len(due))
 		}
 	}
+}
+
+// A hub is priced because it is tracked, so the sweep that walks one has to say
+// it wants it: a walk published for a region nothing tracks stores pages and
+// derives no price from them.
+func TestTheSweepTracksTheHubsItWalks(t *testing.T) {
+	fake := redisfake.New(t)
+	nats := natsfake.New(t)
+	if _, err := nats.NATS.Tasks.Ensure(t.Context()); err != nil {
+		t.Fatalf("ensure task stream: %v", err)
+	}
+
+	redis := eipredis.NewRedis(fake.Client)
+	if err := runRegionMarketOrdersRefresh(t.Context(), nats.NATS, redis, esifake.New(t), "test"); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	for _, hub := range esicore.DefaultMarketLocations {
+		tracked, err := redis.MarketOrders().TrackedStations(t.Context(), hub.RegionID)
+		if err != nil {
+			t.Fatalf("tracked stations for %d: %v", hub.RegionID, err)
+		}
+		if !slices.ContainsFunc(tracked, func(s eipredis.TrackedStation) bool { return s.StationID == hub.StationID }) {
+			t.Errorf("hub %s walked without its station %d being tracked", hub.ID, hub.StationID)
+		}
+	}
+}
+
+// The sweep walks what is tracked, not a fixed list of hubs: a region a reader
+// registered by asking about a market in it is walked from then on, or its
+// prices would be derived once and never refreshed.
+func TestTheSweepWalksAReaderRegisteredRegion(t *testing.T) {
+	// Rens: a hub region would have been walked whether the sweep read the registry or not.
+	const savedRegion = int32(10000030)
+	const savedStation = int64(60004588)
+
+	fake := redisfake.New(t)
+	nats := natsfake.New(t)
+	stream, err := nats.NATS.Tasks.Ensure(t.Context())
+	if err != nil {
+		t.Fatalf("ensure task stream: %v", err)
+	}
+
+	redis := eipredis.NewRedis(fake.Client)
+	if err := redis.MarketOrders().TrackStation(t.Context(), savedRegion, savedStation, time.Now()); err != nil {
+		t.Fatalf("track station: %v", err)
+	}
+
+	if err := runRegionMarketOrdersRefresh(t.Context(), nats.NATS, redis, esifake.New(t), "test"); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	published := walksPublished(t, stream)
+	if !slices.Contains(published, savedRegion) {
+		t.Errorf("the sweep published walks for %v, want the reader-registered %d among them", published, savedRegion)
+	}
+	for _, hub := range esicore.DefaultMarketLocations {
+		if !slices.Contains(published, hub.RegionID) {
+			t.Errorf("the sweep skipped hub %s, which every reader prices against", hub.ID)
+		}
+	}
+}
+
+// walksPublished reads the regions the sweep asked to be walked off the stream.
+func walksPublished(t *testing.T, stream jetstream.Stream) []int32 {
+	t.Helper()
+
+	info, err := stream.Info(t.Context())
+	if err != nil {
+		t.Fatalf("stream info: %v", err)
+	}
+
+	regions := []int32{}
+	for seq := uint64(1); seq <= info.State.LastSeq; seq++ {
+		msg, err := stream.GetMsg(t.Context(), seq)
+		if err != nil {
+			continue
+		}
+		if msg.Subject != eipnats.RefreshRegionMarketOrders.Subject {
+			continue
+		}
+
+		var envelope struct {
+			Data eipnats.RegionMarketOrdersRequest `json:"data"`
+		}
+		if err := json.Unmarshal(msg.Data, &envelope); err != nil {
+			t.Fatalf("decode a published walk: %v", err)
+		}
+		regions = append(regions, envelope.Data.RegionID)
+	}
+	return regions
 }

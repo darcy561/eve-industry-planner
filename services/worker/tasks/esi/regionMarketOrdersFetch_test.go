@@ -293,3 +293,58 @@ func TestA304WithNoPageStoreIsNotUnchanged(t *testing.T) {
 		t.Error("a 304 that replayed nothing reported the region unchanged")
 	}
 }
+
+// A walk that wants the book stored rather than delivered still has to know its
+// 304s replayed something: a missing page reads as changed, so the next pass
+// refetches it instead of the region going on claiming to be current.
+func TestA304WithNoOrderConsumerStillChecksThePageIsHeld(t *testing.T) {
+	origin := newOrdersOrigin(t, 1, 5)
+	fake := redisfake.New(t)
+	pages := objectstore.NewMarketPages(objectstore.NewMemoryBackend())
+
+	// A priming pass stores the page the 304 below replays.
+	if _, _, err := fetchWith(t, fake.Client, pages, origin, nil, nil); err != nil {
+		t.Fatalf("priming pass: %v", err)
+	}
+
+	origin.notModified[1] = true
+	held, _, err := fetchWith(t, fake.Client, pages, origin, map[int]string{1: `"orders-p1"`}, nil)
+	if err != nil {
+		t.Fatalf("held pass: %v", err)
+	}
+	if !held.AllUnchanged {
+		t.Error("a 304 whose page is held reported the region changed")
+	}
+
+	empty := objectstore.NewMarketPages(objectstore.NewMemoryBackend())
+	missing, _, err := fetchWith(t, fake.Client, empty, origin, map[int]string{1: `"orders-p1"`}, nil)
+	if err != nil {
+		t.Fatalf("missing pass: %v", err)
+	}
+	if missing.AllUnchanged {
+		t.Error("a 304 with no stored page reported the region unchanged")
+	}
+}
+
+// fetchWith runs one pass with a caller-chosen order consumer, which may be nil.
+func fetchWith(
+	t *testing.T,
+	client *redis.Client,
+	pages *objectstore.MarketPages,
+	origin *ordersOrigin,
+	prevETags map[int]string,
+	onOrder func(esiclient.MarketOrder) error,
+) (esi.RegionOrdersFetchResult, []int, error) {
+	t.Helper()
+
+	cfg := esiclient.DefaultConfig()
+	cfg.BaseURL = origin.server.URL
+	api, stop, err := esiclient.New(eipredis.NewRedis(client), cfg)
+	if err != nil {
+		t.Fatalf("esiclient: %v", err)
+	}
+	t.Cleanup(stop)
+
+	result, err := esi.FetchRegionMarketOrders(t.Context(), api, pages, 10000002, prevETags, onOrder)
+	return result, storedPages(t, pages), err
+}

@@ -35,6 +35,32 @@ func (r *Redis) Fields(ctx context.Context, key string) (map[string]string, erro
 	return c.HGetAll(ctx, key).Result()
 }
 
+// NamedFields reads the fields asked for in one round trip. A field the hash
+// does not hold is absent from the result rather than empty, so a caller can
+// tell "not stored" from "stored as nothing".
+func (r *Redis) NamedFields(ctx context.Context, key string, fields ...string) (map[string]string, error) {
+	if len(fields) == 0 {
+		return map[string]string{}, nil
+	}
+	c, err := r.client()
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := c.HMGet(ctx, key, fields...).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	held := make(map[string]string, len(fields))
+	for i, value := range values {
+		if text, ok := value.(string); ok {
+			held[fields[i]] = text
+		}
+	}
+	return held, nil
+}
+
 // DeleteFields removes named fields from a hash. Removing the last field
 // removes the key. No fields is a no-op.
 func (r *Redis) DeleteFields(ctx context.Context, key string, fields ...string) error {

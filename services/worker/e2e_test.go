@@ -46,10 +46,10 @@ func TestPublishingATriggerRunsItsTask(t *testing.T) {
 func TestAPublishedRequestReachesTheTaskThatRunsIt(t *testing.T) {
 	w := startWorker(t)
 
-	const regionID, stationID = 10000002, 60003760
+	const regionID = 10000002
 	w.ESI.SetJSON("GET", "/markets/10000002/orders/", 200, `[]`)
 
-	if err := eipnats.PublishRefreshRegionMarketOrders(t.Context(), w.NATS, regionID, stationID); err != nil {
+	if err := eipnats.PublishRefreshRegionMarketOrders(t.Context(), w.NATS, regionID); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 

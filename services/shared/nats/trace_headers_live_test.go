@@ -33,7 +33,7 @@ func TestJetStreamDeliversTheHeadersItWasPublishedWith(t *testing.T) {
 	ctx, span := tracer.Start(t.Context(), "publisher")
 	defer span.End()
 
-	if err := eipnats.PublishRefreshRegionMarketOrders(ctx, nats.NATS, 10000002, 60003760); err != nil {
+	if err := eipnats.PublishRefreshRegionMarketOrders(ctx, nats.NATS, 10000002); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 

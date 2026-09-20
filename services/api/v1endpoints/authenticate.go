@@ -9,6 +9,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/api/marketsources"
 	user "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
@@ -236,6 +237,9 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
+
+	// Registered at sign-in, so a new market's walk is already running by the time a job wants a figure.
+	marketsources.Register(ctx, h.Redis, natsHandle, loginDocs.Settings.CustomStructures)
 
 	// Per-tab sessions: client stores session_id + refresh_token in sessionStorage (X-Session-ID).
 	// Do not set shared HttpOnly cookies — they would collide across browser tabs.

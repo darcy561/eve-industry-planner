@@ -86,6 +86,33 @@ var (
 		DefaultTimeout:  30 * time.Minute,
 		MaxRetries:      3,
 	})
+	DeriveRegionMarketPrices = defineTask(Definition{
+		Name:            "deriveRegionMarketPrices",
+		Subject:         "task.scheduled.deriveRegionMarketPrices",
+		DefaultPriority: Priority4,
+		DefaultTimeout:  10 * time.Minute,
+		MaxRetries:      3,
+	})
+	// TrackMarketSources registers the markets an account prices against, so
+	// their books are walked before a job asks for a figure. Published when an
+	// account signs in and when it saves a market.
+	TrackMarketSources = defineTask(Definition{
+		Name:            "trackMarketSources",
+		Subject:         "task.scheduled.trackMarketSources",
+		DefaultPriority: Priority3,
+		DefaultTimeout:  2 * time.Minute,
+		MaxRetries:      3,
+	})
+	// RetireUnaskedMarkets forgets the markets nothing has asked about lately and
+	// drops the books kept for them. Redis and object storage only, and it runs
+	// while nobody waits, so it sits at the bulk priority.
+	RetireUnaskedMarkets = defineTask(Definition{
+		Name:            "retireUnaskedMarkets",
+		Subject:         "task.scheduled.retireUnaskedMarkets",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  15 * time.Minute,
+		MaxRetries:      3,
+	})
 	UpdateAccountSessionGrants = defineTask(Definition{
 		Name:            "updateAccountSessionGrants",
 		Subject:         "task.auth.updateAccountSessionGrants",
@@ -232,9 +259,26 @@ func TriggerRefreshAdjustedPrices(ctx context.Context, n *NATS) error {
 	return trigger(ctx, n, RefreshAdjustedPrices)
 }
 
-// PublishRefreshRegionMarketOrders asks the worker to refresh one region's order book.
-func PublishRefreshRegionMarketOrders(ctx context.Context, n *NATS, regionID int32, stationID int64) error {
-	return publish(ctx, n, RefreshRegionMarketOrders, RegionMarketOrdersRequest{RegionID: regionID, StationID: stationID})
+// PublishRefreshRegionMarketOrders asks the worker to walk one region's order book.
+func PublishRefreshRegionMarketOrders(ctx context.Context, n *NATS, regionID int32) error {
+	return publish(ctx, n, RefreshRegionMarketOrders, RegionMarketOrdersRequest{RegionID: regionID})
+}
+
+// PublishDeriveRegionMarketPrices asks the worker to price one region's tracked
+// stations from the pages already stored for it.
+func PublishDeriveRegionMarketPrices(ctx context.Context, n *NATS, regionID int32) error {
+	return publish(ctx, n, DeriveRegionMarketPrices, RegionMarketPricesRequest{RegionID: regionID})
+}
+
+// PublishTrackMarketSources asks the worker to register the markets an account
+// prices against.
+func PublishTrackMarketSources(ctx context.Context, n *NATS, stationIDs []int64) error {
+	return publish(ctx, n, TrackMarketSources, MarketSourcesRequest{StationIDs: stationIDs})
+}
+
+// TriggerRetireUnaskedMarkets asks the worker to sweep the tracked markets.
+func TriggerRetireUnaskedMarkets(ctx context.Context, n *NATS) error {
+	return trigger(ctx, n, RetireUnaskedMarkets)
 }
 
 // PublishUpdateAccountSessionGrants resolves corporation and alliance grants from EVE SSO tokens.

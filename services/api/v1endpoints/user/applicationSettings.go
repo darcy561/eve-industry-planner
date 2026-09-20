@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/marketsources"
 	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
@@ -119,6 +120,9 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 		"matched":  result.MatchedCount,
 		"upserted": result.UpsertedCount,
 	})
+
+	// Registered as it is saved, so a market added mid-session does not wait for the next sign-in.
+	marketsources.Register(ctx, h.Redis, h.NATS, settingsDoc.CustomStructures)
 
 	w.WriteHeader(http.StatusNoContent)
 

@@ -547,3 +547,12 @@ func TestTheRigFoldCoversGroupTemplates(t *testing.T) {
 		t.Error("group template payloads hold a rigID and are not folded")
 	}
 }
+
+// The sweep removes Redis keys and reads no document, so it has no ordering to
+// respect — but it must be in the release at all, or the keys it exists for are
+// held for ever: both retired shapes were written without a lifetime.
+func TestTheRetiredMarketKeysAreSweptByTheRelease(t *testing.T) {
+	t.Parallel()
+
+	stepIndex(t, currentRelease, "drop the market keys this release retires")
+}

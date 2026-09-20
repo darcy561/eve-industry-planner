@@ -143,7 +143,8 @@ func TestDecodeRequestReadsThePublishedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeRequest: %v", err)
 	}
-	want := eipnats.RegionMarketOrdersRequest{RegionID: 10000002, StationID: 60003760}
+	// An undeclared station_id is ignored rather than refused, so a walk queued before a deploy decodes.
+	want := eipnats.RegionMarketOrdersRequest{RegionID: 10000002}
 	if got != want {
 		t.Fatalf("decoded %+v, want %+v", got, want)
 	}
@@ -225,7 +226,7 @@ func TestARegisteredTaskReachesItsHandlerWithTheRequest(t *testing.T) {
 		t.Fatalf("ProcessTask: %v", err)
 	}
 
-	want := eipnats.RegionMarketOrdersRequest{RegionID: 10000002, StationID: 60003760}
+	want := eipnats.RegionMarketOrdersRequest{RegionID: 10000002}
 	if got != want {
 		t.Errorf("handler received %+v, want %+v", got, want)
 	}

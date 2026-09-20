@@ -2,6 +2,7 @@ package v1endpoints
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -102,7 +103,14 @@ func (a *Handlers) MarketPricesQueryHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	asked, err := requestedPrices(reqBody)
+	asked, err := requestedPrices(reqBody, a.trackedStationSource(ctx))
+	if err != nil && !errors.Is(err, errNotPriced) && !errors.Is(err, errBadRequest) {
+		metrics.Error("registration_error")
+		helper.RespondEndpointServerError(w, r, "Internal server error", "market-prices: register a source", "market_prices_registration_failed", "market_prices", err, map[string]any{
+			"sources": sourceIDsOf(reqBody.Sources),
+		})
+		return
+	}
 	if err != nil {
 		metrics.Error("invalid_request")
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "invalid market price query", "market_prices_invalid_request", "market_prices", nil, map[string]any{
@@ -120,12 +128,11 @@ func (a *Handlers) MarketPricesQueryHandler(w http.ResponseWriter, r *http.Reque
 		Sources: make(map[string]SourcePrices, len(asked.sources)),
 	}
 
-	// One round trip per source rather than two per type: the old shape asked
-	// Redis once for every type it was given, whatever it was asked about.
+	// One round trip per source rather than one per type.
 	orders := a.Redis.MarketOrders()
 	refreshedAt := regionClocks(ctx, orders)
 	for _, source := range asked.sources {
-		entries, err := orders.PricesAtLocation(ctx, source.location.RegionID, source.typeIDs)
+		entries, err := orders.PricesAtLocation(ctx, source.location.StationID, source.typeIDs)
 		if err != nil {
 			metrics.Error("redis_error")
 			helper.RespondEndpointServerError(w, r, "Internal server error", "market-prices: read prices for a source", "market_prices_source_read_failed", "market_prices", err, map[string]any{
@@ -169,6 +176,45 @@ func (a *Handlers) MarketPricesQueryHandler(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// trackedStationSource names a market this server already prices, for a source
+// id that is not one of the hubs.
+//
+// Reading prices registers nothing and asks ESI nothing: an account says what it
+// prices against when it signs in and when it saves a market, and registering is
+// what put the station in the index this reads. A station the index has no
+// answer for is one nothing has registered.
+func (a *Handlers) trackedStationSource(ctx context.Context) func(string) (esicore.MarketLocation, error) {
+	return func(id string) (esicore.MarketLocation, error) {
+		stationID, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			return esicore.MarketLocation{}, notPriced(id)
+		}
+
+		tracked, err := a.Redis.MarketOrders().RegionsOfTrackedStations(ctx, []int64{stationID})
+		if err != nil {
+			return esicore.MarketLocation{}, fmt.Errorf("reading tracked markets: %w", err)
+		}
+		regionID, priced := tracked[stationID]
+		if !priced {
+			return esicore.MarketLocation{}, notPriced(id)
+		}
+		return esicore.MarketLocation{ID: id, Name: id, RegionID: regionID, StationID: stationID}, nil
+	}
+}
+
+// errNotPriced marks the one refusal a caller can do something about: a source
+// this server cannot price, because the id is not a station's or ESI does not
+// know it. Anything else that goes wrong while registering is this server's.
+var errNotPriced = errors.New("this server does not price")
+
+// errBadRequest marks the refusals that are about what the body asked for
+// rather than about a source, so they answer 400 beside it.
+var errBadRequest = errors.New("invalid request")
+
+func notPriced(id string) error {
+	return fmt.Errorf("%w %q", errNotPriced, id)
+}
+
 // sourceRequest is one market and the types wanted at that market.
 type sourceRequest struct {
 	location esicore.MarketLocation
@@ -185,16 +231,16 @@ type priceRequest struct {
 
 // requestedPrices validates a body into the reads it asks for.
 //
-// A source this server does not price is refused rather than answered empty: a
-// reader-saved market is the browser's to fetch, so naming one here is a
-// client-side mistake, and an empty answer would read as a market with no
-// orders.
+// A source is either one of the hubs this server has always priced or a station
+// an account registered, named by its station id and resolved by resolve. An id
+// that is neither is refused rather than answered empty, because an empty answer
+// would read as a market with no orders.
 //
 // A source naming no valid types is dropped rather than refused — it asks for
 // nothing, and a caller that resolved every one of its types to another market
 // has made no mistake. Asking for nothing at all is still refused, because a
 // request that wants no answer is one.
-func requestedPrices(body MarketPricesQueryBody) (priceRequest, error) {
+func requestedPrices(body MarketPricesQueryBody, resolve func(string) (esicore.MarketLocation, error)) (priceRequest, error) {
 	byID := make(map[string]esicore.MarketLocation, len(esicore.DefaultMarketLocations))
 	for _, location := range esicore.DefaultMarketLocations {
 		byID[location.ID] = location
@@ -202,18 +248,21 @@ func requestedPrices(body MarketPricesQueryBody) (priceRequest, error) {
 
 	asked := priceRequest{sources: make([]sourceRequest, 0, len(body.Sources))}
 
-	// Sorted, so a request naming the same markets always reads and logs the
-	// same way whatever order the map ranged in.
+	// Sorted, so a request naming the same markets reads and logs the same way every time.
 	for _, id := range sortedKeys(body.Sources) {
-		location, held := byID[id]
-		if !held {
-			return priceRequest{}, fmt.Errorf("this server does not price %q", id)
-		}
-
 		typeIDs, invalid := validTypeIDs(body.Sources[id])
 		asked.invalidCount += invalid
 		if len(typeIDs) == 0 {
 			continue
+		}
+
+		location, held := byID[id]
+		if !held {
+			resolved, err := resolve(id)
+			if err != nil {
+				return priceRequest{}, err
+			}
+			location = resolved
 		}
 
 		asked.sources = append(asked.sources, sourceRequest{location: location, typeIDs: typeIDs})
@@ -226,10 +275,10 @@ func requestedPrices(body MarketPricesQueryBody) (priceRequest, error) {
 	asked.count += len(adjusted)
 
 	if asked.count == 0 {
-		return priceRequest{}, fmt.Errorf("no valid prices requested")
+		return priceRequest{}, fmt.Errorf("%w: no valid prices requested", errBadRequest)
 	}
 	if asked.count > maxTypeIDs {
-		return priceRequest{}, fmt.Errorf("too many prices requested (max %d)", maxTypeIDs)
+		return priceRequest{}, fmt.Errorf("%w: too many prices requested (max %d)", errBadRequest, maxTypeIDs)
 	}
 	return asked, nil
 }
@@ -284,9 +333,7 @@ func regionClocks(ctx context.Context, orders *eipredis.MarketOrdersStore) map[i
 // price, and an installation cost built on it would be wrong rather than
 // missing.
 func (a *Handlers) adjustedPrices(ctx context.Context, typeIDs []int32) *AdjustedPrices {
-	// One round trip for the whole block, like each source above. Reading these
-	// one id at a time is what made the shape this replaces cost a round trip
-	// per type whatever it was asked about.
+	// One round trip for the whole block, like each source above.
 	found, err := eipredis.Entries[esitypes.AdjustedPrice](
 		ctx, a.Redis.Cache(eipredis.DatasetMarketPrices), typeIDs)
 	if err != nil {
