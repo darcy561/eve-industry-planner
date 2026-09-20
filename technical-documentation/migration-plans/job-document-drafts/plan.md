@@ -609,6 +609,33 @@ The two intent sets do not invert by data. "Add child job" also created a job an
 `parentJobs`, so `parentChildToEdit` and `esiDataToLink` keep an explicit inverse action each rather than
 an inverse patch. There are a fixed few of them and they already exist as discrete reducer actions.
 
+### What slice 3 settled
+
+**A step is taken back by dropping it, not by writing its before-image in.** Every read of a job is
+already the base with the remaining steps applied over it, so dropping the newest step produces exactly
+what stood before it — and it stays right when a co-member's document has arrived underneath in the
+meantime, which writing an old value over the top would not. The before-image is still recorded, and is
+what a step is reviewed against when the job it was made over has moved, per § The merge, when the lock
+frees.
+
+**Undo is the whole session read backwards, not a stack per job.** A step names the job it changed, and
+the newest step is the newest whichever job and whichever layer it landed in — so a question is taken
+back before the change beneath it, which is the order the player made them in.
+
+**Coalescing merges only replaces over the same paths, and only against the step immediately before.**
+That is the pair whose inverse is provably still right: the older before-image describes a field the
+newer patch overwrites. A step that adds or removes a row is left alone, and a step made in between
+blocks the merge rather than being reordered around. The window is 800ms, exported so the control and
+its tests read the same number.
+
+**A kept question takes its place in the order it was asked**, rather than at the end of the log:
+the layers are replayed in order, so a question promoted after a later change would otherwise apply
+over that change and quietly undo it. Slice 3's recheck found that, and it is why promotion is an
+insert rather than an append.
+
+**Redo is the undone steps, dropped at the next new edit** — recording anything empties the forward
+stack, so it cannot be rejoined to a log that has since gone a different way.
+
 ## A what-if is not a change
 
 A player twisting a run count to see what the cost does is asking a question, not editing the job. Under
@@ -1161,8 +1188,8 @@ rebuilds the edit session rather than fitting the layers under it.
 | 1 — the layers · **landed** | `base`, `log`, `scratch` and the draft derived from them, as a pure module nothing imports | Its own tests: the base is never written to, an arriving document keeps the reader's changes, a question stays out of the save, an untouched subtree keeps its identity |
 | 2 — commands · **landed** | Every way of changing a job becomes a command that records what it changed. The mutation methods on `Job` become the recipes those commands run | Each checked against the method it replaces: both run over one document and the results compared |
 | 2a — the selectors a command needs · **landed** | A derived figure a call site must read to build a command's input, taken early rather than waiting for Stage 4 | Each checked against the getter it replaces, the same way the commands are |
-| 3 — undo | The log read backwards, per command rather than per path, with typing coalesced | Undo of each command restores what it changed and nothing else |
-| 4 — the session | The reducer is replaced by the store: `jobModified` becomes the log being non-empty, discard becomes dropping it, and the base follows the document | The leave paths, and a document arriving mid-edit |
+| 3 — undo · **landed** | The log read backwards, per command rather than per path, with typing coalesced | Undo of each command restores what it changed and nothing else, a question is taken back like a change, and a run of typing is one step |
+| 4 — the session · **landed** | The reducer is replaced by the store: `jobModified` becomes the log being non-empty, discard becomes dropping it, and the base follows the document | Both edges of a session over the real store: opening a job into it, and saving or closing out of it. The seven end-to-end mutator suites press what a reader presses; a document arriving for a job an editor holds keeps the reader's changes over it, including in the middle of a run of typing |
 | 5 — the panels | Each panel reads what it needs from the draft instead of taking the whole job as a prop | The mutators that already press what a reader presses, plus what each panel re-renders on |
 
 **Comparing against what is being replaced is what has found the defects.** Every divergence so far was
@@ -1188,8 +1215,11 @@ Slice 1 landed with the module and its tests. `speculativeChildJobs` is absorbed
 where a question becomes an ordinary command written to `scratch`.
 
 **What is being replaced stays until what replaces it is proved.** The reducer and the mutation methods
-on `Job` are left in place while the commands are built, and are deleted in slice 4 rather than as each
-command lands. That is not a forwarding wrapper of the kind the engineering rules bar — nothing new
+on `Job` are left in place while the commands are built, rather than going as each command lands. The
+reducer went in slice 4. **The mutation methods could not**, and this plan said they would: `jobArray`
+holds `Job` instances app-wide, and the planner, the group pages and the save path all still call those
+methods on jobs that never came from an edit session. They go with the lens, in Stage 5 — § What
+happens to the classes has the blast radius that makes that so. That is not a forwarding wrapper of the kind the engineering rules bar — nothing new
 calls the old path, and the old path is not kept as an alternative for callers to choose. It is kept so
 that a command can be tested **against** the method it replaces: run both over the same document and
 assert the results agree, which is a far stronger test than asserting a recipe writes the paths its
@@ -1198,6 +1228,75 @@ author expected. Where the two disagree, one of them is wrong, and the old one i
 That also gives the key-stringification inconsistency and the unbounded step a place to be settled
 deliberately: a comparison test states the difference as a difference rather than letting new code
 silently inherit or silently drop it.
+
+#### What slice 4 settled
+
+**The session is a slice of the app's store**, `editSession`, beside the others in
+`frontend/src/Zustand`. It holds the three layers, the intent sets that are carried out at close
+time — the ESI rows to link, the parent and child links, the temporary child jobs — and the loading
+flag. A per-editor store in context was the alternative; the slice wins because the SPA has one
+store pattern and the narrow selectors the stage exists for come with it.
+
+**`useEditJobSession` hands the page the same shape the reducer did**, with `activeJob` a lens
+rebuilt from the layers. That is what lets slice 4 convert the 49 call sites that *change* the job
+without touching the hundred that only read it — those are slice 5's.
+
+**A control says what the reader did.** `actions.run(command)` replaces `updateActiveJob(mutatedJob)`
+everywhere; nothing mutates the lens, because a write into it reaches nothing and the before-image an
+undo step needs would be gone.
+
+**Three commands were owed** that slice 2 had no method to convert: `addCustomTransaction`,
+`setJobLayout` and `setJobPricing` existed only as reducer actions. `toggleReadyForSaleFromGroup`
+joins them — the reducer stepped the job on a stage as well as marking it, and one thing the reader
+did is one step.
+
+**Marking a job finished within its group no longer marks the job changed.** It writes the group's
+completion set, which is queued and written on its own path; the job document is untouched. Under a
+flag that could be raised without a change, both happened; under a log, a marker with nothing to
+record is unrepresentable. `editJobMutators.setups.test.jsx` states it that way now.
+
+**An arriving document reaches the editor through the inbound coalescer**, which hands every job it
+applies to `jobArray` to the session too. That is § Settled's requirement — an open editor follows
+the document — and it is what makes the leave path below correct rather than merely differently
+worded.
+
+**The job the page reads is frozen, and anything that needs to change one takes a copy.** `Job`'s
+constructor takes some of the document's own objects rather than rebuilding them — `build.childJobs`
+above all — so a control that changes the job in place is writing into what the session holds.
+
+The first answer was to copy the document before building the lens, which made such a write harmless.
+It was the wrong way round: it cost a walk of the whole document on every recorded change, against
+§ What a component actually reads, and it made the mistake **silent** — the write landed on a copy
+nobody read again. Three screens shipped that way before a reader found them.
+
+So the mistake is loud instead, and it takes two freezes to be loud in every case:
+
+- `setBase` freezes the document as it is seeded. Immer freezes what `produce` returns, but a job
+  nobody has edited yet has never been through `produce` — without this, the guarantee would start at
+  the reader's first change and the first render of every opened job would still be silent.
+- `jobLens` freezes the instance built around it. The document being frozen stops a row being written
+  to; the instance is a new object, so a field set straight on the job — `job.displayOnPlanner = true`
+  — would otherwise still be lost quietly.
+
+The callers that legitimately need a job they can change take one through `workingCopyOfJob`: the save,
+which rewrites links and recalculates the tree on the way out, and the two leave paths, which put a job
+back into `jobArray` where the planner changes jobs in place all over the app. One copy per save or
+close, rather than one per keystroke. Turning Immer's freezing off was the other alternative and is
+worse than either: it would make the same mistake silent everywhere, and corrupt the base rather than a
+copy.
+
+**None of this is scaffolding for the stages below.** When Stage 5 deletes the lens and `jobArray` goes
+plain, the save still takes plain data and builds what it needs; the boundary stays where it is.
+
+**Undo has no control on the page yet**Undo has no control on the page yet, and that is the stage's own wording** — § Stage 3's slices says
+undo's decision is taken here "whether or not the UI ships in it". `undoStep` and `redoStep` are
+reachable on the session and nothing presses them, so they are provision for a control rather than
+dead code. Whoever adds that control is what makes undo testable end to end; until then it is proved
+as a pure module.
+
+**Leaving without saving no longer restores an open-time copy.** `backupJob` is gone: the session
+already holds the document as the server last stated it, so a close writes that back and keeps
+whatever arrived while the editor was open — the defect § Settled describes.
 
 ### Stage 4 — Getters become functions, panel by panel
 
@@ -1221,7 +1320,7 @@ happened.
 | Stage 1 — the removals | **Landed.** `Purchase.TypeID` and `ArchivedJobFeeLine.FeeID` are gone from the models, their writers and the parity fixtures. `complete` and `CharacterHash` on stored fee rows needed no code change — neither was on the broker fee in either language, so they are stored residue Stage 2's fold drops. `esiJobTab` / `setupToEdit` / `resourceDisplayType` are **deferred to Stage 3**, two of the three being read; § Stage 1 says why |
 | Stage 1b — derived setup figures become derivations | **Not started.** Split out of Stage 1, which had costed it as a removal it is not: `estimatedTime` and `estimatedInstallCost` no longer exist to remove, and `materialCount` and `rawTime` are read by the cost calculation in both languages, so each needs a derivation at its call sites. No window. Best taken with Stage 4. Stage 2's conversion no longer prunes the two that are read — § Stage 1b says what happened when it did |
 | Stage 2 — the reshape, in the release window | **Landed, awaiting the window.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. All eight collections are keyed on both sides, the observations sit under `esi`, and the broker fee is folded onto its order. The SPA's `Job` constructor reads the pre-reshape paths as well, so a document written before the window still loads. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
-| Stage 3 — base, log, scratch and draft | **In progress — slices 1, 2 and 2a landed, nothing reads them yet.** The layers hold a job and derive a draft; every way of changing a job is a command; two derived figures are selectors. The editor still runs on its reducer, which is slice 4's to replace. Immer is settled and declared, pinned to the version already resolved. §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape, and § Settled that an open editor follows the document. Measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20. Next: slice 3, undo |
+| Stage 3 — base, log, scratch and draft | **In progress — slices 1, 2, 2a, 3 and 4 landed.** The layers hold a job and derive a draft; every way of changing a job is a command; two derived figures are selectors; a step can be taken back and put again; and the editor now runs on the store rather than its reducer, which is deleted. The panels still take a whole job as a prop, which is slice 5's to change. Immer is settled and declared, pinned to the version already resolved. §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape, and § Settled that an open editor follows the document. Measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20. Next: slice 5, the panels |
 | Stage 4 — getters become functions | Not started |
 | Stage 5 — `jobArray` goes plain | Not started |
 

@@ -178,44 +178,57 @@ covering its collections, and its required flag.
 
 ## Stage 3 — Base, log, scratch and draft in the editor
 
-*Part built, and none of it wired.* The layers, the commands and the first selectors exist beside the
-edit page and **nothing imports them** — [plan.md](./plan.md) § Stage 3's slices says what has landed.
-Everything below is what the edit page does **today**, unchanged by them, because the reducer is still
-what runs and slice 4 is what replaces it. §§ How a job is held, Undo, A what-if is not a change and
-A change arriving mid-edit carry the design, and § Settled the decisions taken since.
+*Slices 1 to 4 landed; the panels are slice 5.* The editor runs on the store — [plan.md](./plan.md)
+§ Stage 3's slices says what each slice was, and §§ What slice 3 settled and What slice 4 settled the
+decisions taken while building them.
 
-Two fixes have landed in the reducer itself, because they are constraints the rebuild depends on rather
-than parts of it. Stepping a job between stages no longer writes into the state object it was handed —
-it clones first, as the actions beside it already did — so the value an undo entry would record is not
-destroyed before it can be read. And an unrecognised action returns the state it was given rather than
-`undefined`, which the reducer would otherwise store as the whole state and empty the editor.
+**Where the job lives.** `editSession`, a slice of `usersStore`, holds the job as three layers: the
+document as the server last stated it, what the reader has changed, and what they have asked about.
+`jobDraftStore.js` is the pure module those layers are worked by, and `useEditJobSession` derives the
+draft and wraps it in a `Job` for the panels to read. The reducer, its hook and its tests are gone.
 
-The edit page still holds one `Job` instance in a `useReducer` inside `editJob.jsx`, spread down through
-`EditJobStepContentSelector` as props. There is no context and no store for it, so nothing below can
-subscribe to part of it: any dispatch re-renders the tree, and there is no `memo` anywhere in it.
+**How a control changes the job.** It runs a command — `actions.run(setJobStatus(3))` — and the store
+records which paths moved and what puts them back. Nothing writes into the job it was handed. The
+commands live in `jobCommands.js`, one per thing a reader can do, and each is named for the step it
+is in an undo list.
 
-**The editor does not follow the document.** `useEditJobInitialState` seeds from the store once, guarded
-by `if (jobID === currentActiveJobID) return;`, and never reads it again. Inbound documents land in
-`jobArray` — the coalescer applies them with no check for an open editor — so a member watching a job
-somebody else is editing keeps the copy they opened, and on taking the vacated lock begins from a stale
-document that their close then writes back. Deletion is the one inbound change the editor is told about,
-by `JOBS_DELETED_REMOTELY_EVENT`.
+**What "unsaved changes" means.** The log being non-empty. A what-if written to `scratch` does not
+count, and neither does an action that changes something other than this job — marking a job finished
+within its group writes the group and leaves the job alone.
 
-**`jobModified` is a flag, and nothing clears it.** Every editing action sets it true; no action sets it
-false, so the only way back to clean is leaving the page. Stepping a job back to look at an earlier stage
-therefore arms the save prompt, and the only way out is discard — which is the case
-[plan.md](./plan.md) § The worked case: stepping a built job back to look is written about.
+**The job the page reads cannot be changed.** The session freezes each document as it is seeded, and
+the job built over it is frozen too, so both a row written to and a field set straight on the job throw
+where it happens rather than appearing to work. A control says what the reader did —
+`actions.run(command)` — and anything that genuinely needs a job it can change takes one through
+`workingCopyOfJob`: the save, which rewrites links and recalculates the tree, and the two leave paths,
+which hand a job back to the planner.
 
-**Discard is a whole-document restore.** `backupJob`, a ref in `editJob.jsx`, holds a copy `new Job(...)`
-built when the editor opened and never refreshed afterwards. Three leave paths — the close icon and the
-leave-confirmation hook's release and navigation flows — call `restoreJobIfStillHeld`, which writes that
-copy back into `jobArray` unless the job has since been deleted, the case its guard exists for. So
-leaving without saving reverts anything that arrived while the editor was open along with the reader's
-own edits.
+**How an arriving document reaches an open editor.** The inbound coalescer hands every job it applies
+to `jobArray` to the session as well. A job the session is not holding is ignored; one it is holding
+has its base replaced, and the reader's own changes re-apply over the new document. So a member
+watching a job somebody else is editing sees their work land, and a member who takes a vacated lock
+starts from the document as it now stands rather than the copy they opened.
 
-**One what-if already exists.** `speculativeChildJobs` holds jobs built to price a row, deliberately
-outside `jobModified` and never persisted — the reducer states why, and `editJobReducer.test.js` pins it.
-[plan.md](./plan.md) § A what-if is not a change generalises that one case into a layer.
+**What leaving does.** It drops the log and writes back the document the session holds underneath it,
+so a change that arrived while the editor was open survives a close without saving. There is no
+open-time backup copy any more.
+
+**What an undo step is.** A command, not a field: taking back an imported purchase takes back every
+path it touched. Typing into one field inside 800ms is one step. Undo drops the newest step and
+re-derives, so a document that arrived underneath is left standing; a redone step is dropped as soon
+as the reader changes anything else.
+
+**What the live rules still say, and owe on promote.** `technical-documentation/frontend/technical-rules.md`
+§ Changing the job being edited describes the reducer this stage deleted — it names
+`updateActiveJobLayout` and `toggleActiveJobReadyForSale` as reducer actions and says the reducer
+rebuilds the job. The replacement is above: a control runs a command and the store records what moved.
+That section is live SoT, so it is not edited while this project is in flight; it is rewritten from
+this overlay when the project promotes.
+
+**What has not changed yet.** The panels still take the whole job as a prop and read it through the
+lens, so an edit still re-renders the page under them — the narrow selectors are slice 5. The job is
+still written whole on save; the field-scoped write is
+[document-write-granularity](../document-write-granularity/plan.md) Stage C.
 
 ## Stage 4 — Getters become functions
 
