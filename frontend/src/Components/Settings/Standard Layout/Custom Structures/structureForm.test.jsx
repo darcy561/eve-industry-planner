@@ -3,8 +3,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 
-import StructureOptionsSelection_CustomStructures from "./structureSelection";
-import { jobTypes } from "../../../../Context/defaultValues";
+import StructureForm from "./structureForm";
+import { jobTypes, structureKinds } from "../../../../Context/defaultValues";
 import { testQueryClient } from "../../../../tests/queryClients.js";
 
 const addCustomStructure = vi.fn();
@@ -35,7 +35,7 @@ vi.mock(
 function renderForm(props = {}) {
   return render(
     <QueryClientProvider client={testQueryClient()}>
-      <StructureOptionsSelection_CustomStructures
+      <StructureForm
         selectedJobType={jobTypes.manufacturing}
         setIsLoading={vi.fn()}
         {...props}
@@ -93,7 +93,8 @@ describe("the structure form", () => {
     expect(addCustomStructureFunction).toHaveBeenCalledTimes(1);
     const [call] = addCustomStructureFunction.mock.calls;
     expect(call[0].structure.name).toBe("Sotiyo");
-    expect(call[0].selectedJobType).toBe(jobTypes.manufacturing);
+    // The row says its own kind, so nothing has to be told it alongside.
+    expect(call[0].structure.jobType).toBe(jobTypes.manufacturing);
   });
 
   it("empties the form once a structure is added", async () => {
@@ -157,5 +158,77 @@ describe("fitting two rigs", () => {
         "Cannot have the same rig or related rigs in both slots",
       ),
     ).not.toBeInTheDocument();
+  });
+});
+
+// One form serves every kind, so what it asks for is the one thing worth
+// proving: a field a kind does not carry must not be asked for, because the
+// class drops it and the reader would have described something unstored.
+describe("what each kind is asked for", () => {
+  // Matched on the field's own title rather than on any text: a control carries
+  // its own label too, so a loose match counts one field twice.
+  const TITLES = [
+    "Location",
+    "Structure Type",
+    "Rig slot 1",
+    "Rig slot 2",
+    "Implant",
+    "Security Status",
+    "Structure Tax",
+    "Broker fee",
+    "Read its market with",
+    "Solar System",
+  ];
+  const asked = () =>
+    TITLES.filter((title) =>
+      screen
+        .queryAllByText(title)
+        .some((node) => !node.closest("label") && !node.closest("[role]")),
+    );
+
+  it("asks manufacturing for its rigs, tax, security and system", () => {
+    renderForm({ selectedJobType: jobTypes.manufacturing });
+
+    expect(asked()).toEqual([
+      "Structure Type",
+      "Rig slot 1",
+      "Rig slot 2",
+      "Security Status",
+      "Structure Tax",
+      "Solar System",
+    ]);
+  });
+
+  it("asks reprocessing for an implant and no system", () => {
+    renderForm({ selectedJobType: jobTypes.reprocessing });
+
+    expect(asked()).toContain("Implant");
+    expect(asked()).not.toContain("Solar System");
+  });
+
+  it("asks invention for neither an implant nor a system", () => {
+    renderForm({ selectedJobType: jobTypes.invention });
+
+    expect(asked()).not.toContain("Implant");
+    expect(asked()).not.toContain("Solar System");
+  });
+
+  // A market is a place and a rate. Asking it for a rig or an installation tax
+  // would be describing it as somewhere a job is built.
+  it("asks a citadel market for its fee and access character only", () => {
+    renderForm({ selectedJobType: structureKinds.citadelMarket });
+
+    expect(asked()).toEqual([
+      "Location",
+      "Broker fee",
+      "Read its market with",
+    ]);
+  });
+
+  // An NPC station's fee comes from the seller, so there is nothing to ask.
+  it("asks an NPC station for its location alone", () => {
+    renderForm({ selectedJobType: structureKinds.npcStation });
+
+    expect(asked()).toEqual(["Location"]);
   });
 });

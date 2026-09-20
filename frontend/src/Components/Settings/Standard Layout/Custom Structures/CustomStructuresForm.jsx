@@ -2,32 +2,21 @@ import { useState } from "react";
 import { Stack } from "@mui/material";
 
 import JobTypeSelection_CustomStructures from "./jobTypeSelection";
-import StructureOptionsSelection_CustomStructures from "./structureSelection";
-import InventionStructureSelection from "./inventionStructureSelection";
-import ReprocessingStructureSelection from "./reprocessingStructureSelection";
+import StructureForm from "./structureForm";
 import CurrentStructuresFrame from "./currentStructures";
 import { SectionPanel } from "../../../../Styled Components/Paper/SectionPanel";
-import { jobTypes } from "../../../../Context/defaultValues";
 
 /**
- * Building a custom structure: pick a job type, describe the structure, see what
+ * Building a custom structure: pick what you are saving, describe it, see what
  * you have.
  *
- * The form a job type gets differs because the structures do — invention has two
- * rig slots, reprocessing adds an implant — so each has its own component and
- * this chooses between them.
+ * One form serves every kind: what a kind carries is a row in the class's field
+ * map, and the form renders the control for each field that row names.
  */
 export default function CustomStructuresForm() {
   const [selectedJobType, setSelectedJobType] = useState(null);
   const [initialSelectionMade, setInitialSelectionMade] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  const StructureForm =
-    selectedJobType === jobTypes.reprocessing
-      ? ReprocessingStructureSelection
-      : selectedJobType === jobTypes.invention
-        ? InventionStructureSelection
-        : StructureOptionsSelection_CustomStructures;
 
   return (
     <Stack spacing={2.5}>
@@ -58,7 +47,7 @@ export default function CustomStructuresForm() {
           </SectionPanel>
 
           <SectionPanel
-            title="Your structures for this lane"
+            title="What you have saved"
             componentName="Current custom structures"
           >
             <CurrentStructuresFrame
