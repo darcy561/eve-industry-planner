@@ -47,10 +47,10 @@ export function useRefreshLinkedESIData(activeJob, updateActiveJob) {
     }
 
     if (!jobsLoading && industryJobs?.length) {
-      const before = JSON.stringify(activeJob.build.costs.linkedJobs);
+      const before = JSON.stringify(activeJob.esi.industryJobs);
       activeJob.updateLinkedJobData(industryJobs);
       changed =
-        changed || before !== JSON.stringify(activeJob.build.costs.linkedJobs);
+        changed || before !== JSON.stringify(activeJob.esi.industryJobs);
     }
 
     if (changed) {

@@ -17,7 +17,7 @@ export function MarketOrderPanel(props) {
     error: parentError,
   } = props;
   const [currentTab, updateTab] = useState(() =>
-    state.activeJob.build.sale.marketOrders.length === 0 ? "1" : "0",
+    Object.keys(state.activeJob.esi.marketOrders).length === 0 ? "1" : "0",
   );
   const queryClient = useQueryClient();
   const linkedOrders = useUsersStore((state) => state.account.linkedOrders);
@@ -65,7 +65,7 @@ export function MarketOrderPanel(props) {
               value="1"
             />
             <Tab
-              label={`${state.activeJob.build.sale.marketOrders.length} Linked Orders`}
+              label={`${Object.keys(state.activeJob.esi.marketOrders).length} Linked Orders`}
               value="0"
             />
           </TabList>

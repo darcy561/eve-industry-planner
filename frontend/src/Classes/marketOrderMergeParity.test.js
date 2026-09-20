@@ -179,12 +179,10 @@ describe("applying the latest orders to a job", () => {
       await import("../Functions/MarketOrders/applyLatestOrderData");
 
     const job = {
-      build: {
-        sale: {
-          marketOrders: [
-            new MarketOrder({ ...STORED, order_id: 900 }),
-            new MarketOrder({ ...STORED, order_id: 901 }),
-          ],
+      esi: {
+        marketOrders: {
+          900: new MarketOrder({ ...STORED, order_id: 900 }),
+          901: new MarketOrder({ ...STORED, order_id: 901 }),
         },
       },
     };
@@ -205,8 +203,8 @@ describe("applying the latest orders to a job", () => {
     ]);
 
     expect(changed).toBe(true);
-    expect(job.build.sale.marketOrders[0].volume_remain).toBe(40);
-    expect(job.build.sale.marketOrders[1].volume_remain).toBe(5);
+    expect(job.esi.marketOrders["900"].volume_remain).toBe(40);
+    expect(job.esi.marketOrders["901"].volume_remain).toBe(5);
   });
 
   it("reports nothing when no linked order was reported", async () => {
@@ -214,7 +212,7 @@ describe("applying the latest orders to a job", () => {
       await import("../Functions/MarketOrders/applyLatestOrderData");
 
     const job = {
-      build: { sale: { marketOrders: [new MarketOrder(STORED)] } },
+      esi: { marketOrders: { 900: new MarketOrder(STORED) } },
     };
 
     expect(applyLatestOrderData(job, [])).toBe(false);

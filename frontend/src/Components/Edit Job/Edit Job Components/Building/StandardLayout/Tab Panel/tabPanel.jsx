@@ -10,6 +10,7 @@ export function TabPanel_Building(props) {
   const [currentTab, updateTab] = useState(initialTab());
 
   const totalJobCount = state.activeJob.totalJobSlots;
+  const linkedJobCount = Object.keys(state.activeJob.esi.industryJobs).length;
 
   function initialTab() {
     if (state.activeJob.layout.esiJobTab) {
@@ -43,9 +44,9 @@ export function TabPanel_Building(props) {
             />
             <Tab
               label={
-                state.activeJob.build.costs.linkedJobs.length === 1
-                  ? `${state.activeJob.build.costs.linkedJobs.length}/${totalJobCount} Linked ESI Job`
-                  : `${state.activeJob.build.costs.linkedJobs.length}/${totalJobCount} Linked ESI Jobs`
+                linkedJobCount === 1
+                  ? `${linkedJobCount}/${totalJobCount} Linked ESI Job`
+                  : `${linkedJobCount}/${totalJobCount} Linked ESI Jobs`
               }
               value="1"
             />

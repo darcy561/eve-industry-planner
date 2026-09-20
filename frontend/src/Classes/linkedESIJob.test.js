@@ -166,10 +166,10 @@ describe("a job's linked runs", () => {
   test("are hydrated as linked jobs and serialise back to rows", () => {
     const job = jobWithLinkedRuns(esiJob());
 
-    expect(job.build.costs.linkedJobs[0]).toBeInstanceOf(LinkedESIJob);
+    expect(job.esi.industryJobs["900001"]).toBeInstanceOf(LinkedESIJob);
 
     const reloaded = new Job(job.toDocument());
-    expect(reloaded.build.costs.linkedJobs[0]).toBeInstanceOf(LinkedESIJob);
+    expect(reloaded.esi.industryJobs["900001"]).toBeInstanceOf(LinkedESIJob);
     expect(reloaded.totalInstallCost).toBe(1500);
   });
 

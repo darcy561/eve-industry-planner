@@ -153,7 +153,9 @@ describe("the fee that reaches the job", () => {
     ]);
 
     expect(job.totalBrokersFees).toBe(1500000);
-    expect(job.build.sale.brokersFee[0].id).toBe(55);
+    // The fee rides the order, and carries when the journal says it was charged.
+    expect(job.esi.marketOrders["900"].fee).toBe(1500000);
+    expect(job.esi.marketOrders["900"].feeDate).toBe(ISSUED);
   });
 
   it("still records the fee when the journal has not caught up", () => {
@@ -161,7 +163,7 @@ describe("the fee that reaches the job", () => {
 
     expect(job.totalBrokersFees).toBe(1500000);
     expect(job.esiOrderIDs.has(900)).toBe(true);
-    expect(job.build.sale.brokersFee[0].date).toBe(ISSUED);
+    expect(job.esi.marketOrders["900"].feeDate).toBe(ISSUED);
   });
 
   it("carries the fee into the stored document", () => {
@@ -169,9 +171,10 @@ describe("the fee that reaches the job", () => {
       { id: 55, ref_type: "brokers_fee", date: ISSUED },
     ]);
 
-    expect(job.toDocument().build.sale.brokersFee).toEqual([
-      { order_id: 900, id: 55, date: ISSUED, amount: 1500000, salesTax: 0 },
-    ]);
+    const order = job.toDocument().esi.marketOrders["900"];
+    expect(order.fee).toBe(1500000);
+    expect(order.salesTax).toBe(0);
+    expect(order.feeDate).toBe(ISSUED);
   });
 });
 

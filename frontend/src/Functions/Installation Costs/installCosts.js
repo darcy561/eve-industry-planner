@@ -105,7 +105,7 @@ export function sumSetupInstallCostEstimates(setups) {
 export function getJobInstallCostForPlanning(job) {
   if (!job?.build) return 0;
 
-  const linkedJobs = job.build.costs?.linkedJobs;
+  const linkedJobs = Object.values(job.esi?.industryJobs ?? {});
   if (Array.isArray(linkedJobs) && linkedJobs.length > 0) {
     return job.totalInstallCost;
   }

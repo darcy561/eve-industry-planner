@@ -7,6 +7,7 @@ import { canonicalCharacterHashKey } from "./characterHashCanonical.js";
 import { buildCharacterAffiliations } from "./characterAffiliations";
 import { emitUserDataUpdate } from "../../Events/loginEvents";
 import useUsersStore from "../../Zustand/usersStore";
+import customStructuresFromServer from "../Helper/customStructuresFromServer";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
 
 export { canonicalCharacterHashKey };
@@ -392,14 +393,14 @@ export function clearLocalAdditionalAccountsStorage() {
 }
 
 export async function getSystemIndexDataFromUserStructures(settings) {
-  const cs = settings.customStructures || settings.structures;
-  const manufacturingStructures = cs?.manufacturing ?? [];
-  const reactionStructures = cs?.reaction ?? [];
+  const structures = customStructuresFromServer(
+    settings.customStructures || settings.structures,
+  );
 
   const requestIDs = new Set(
-    [...manufacturingStructures, ...reactionStructures].map(
-      (entry) => entry.systemID,
-    ),
+    structures
+      .filter((structure) => structure.systemID)
+      .map((structure) => structure.systemID),
   );
 
   const retrievedSystemIndexes = await getSystemIndexes(requestIDs);

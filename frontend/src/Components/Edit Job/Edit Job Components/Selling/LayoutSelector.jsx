@@ -15,7 +15,7 @@ export function LayoutSelector_EditJob_Selling(props) {
     ...new Set(
       [
         mainCharacterHash,
-        ...state.activeJob.build.sale.marketOrders.map(
+        ...Object.values(state.activeJob.esi.marketOrders).map(
           (order) => order.CharacterHash,
         ),
       ].filter(Boolean),

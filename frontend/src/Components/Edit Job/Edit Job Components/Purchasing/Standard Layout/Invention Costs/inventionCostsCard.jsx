@@ -116,7 +116,7 @@ export function InventionCostsCard({ state, actions }) {
               overflowY: "auto",
             }}
           >
-            {Object.values(state.activeJob.build.costs.inventionEntries).map(
+            {Object.values(state.activeJob.build.inventionEntries).map(
               (record) => {
                 return (
                   <Grid

@@ -70,13 +70,13 @@ export function jobFixture({
       return this.build.setup[this.layout.setupToEdit];
     },
     get totalExtrasCost() {
-      return Object.values(this.build.costs.extrasCosts).reduce(
+      return Object.values(this.build.extrasCosts).reduce(
         (total, row) => total + (Number(row?.extraValue) || 0),
         0,
       );
     },
     get totalInventionCost() {
-      return Object.values(this.build.costs.inventionEntries).reduce(
+      return Object.values(this.build.inventionEntries).reduce(
         (total, entry) => total + (Number(entry?.itemCost) || 0),
         0,
       );

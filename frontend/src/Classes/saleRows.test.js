@@ -317,7 +317,8 @@ describe("linking a market order", () => {
     job.addMarketOrder({ order_id: 1, price: 5, volume_total: 10 }, null);
 
     expect(job.esiOrderIDs.has(1)).toBe(true);
-    expect(job.build.sale.brokersFee).toHaveLength(0);
+    expect(job.esi.marketOrders["1"].fee).toBeUndefined();
+    expect(job.totalBrokersFees).toBe(0);
   });
 
   it("records the fee alongside the order when there is one", () => {
@@ -339,11 +340,11 @@ describe("linking a market order", () => {
 
     expect(job.esiOrderIDs.has(1)).toBe(true);
     expect(job.totalBrokersFees).toBe(1200);
-    // Whatever the caller hands over is held as a row of its own class.
-    expect(job.build.sale.brokersFee[0]).toBeInstanceOf(BrokerFee);
+    // The fee rides the order it was charged against rather than sitting beside it.
+    expect(job.esi.marketOrders["1"].fee).toBe(1200);
   });
 
-  it("holds stored fees as rows and writes them back through the class", () => {
+  it("holds a stored fee on its order and writes it back", () => {
     const job = new Job({
       jobID: "job-1",
       itemID: 34,
@@ -351,6 +352,7 @@ describe("linking a market order", () => {
       name: "Tritanium",
       build: {
         sale: {
+          marketOrders: [{ order_id: 1 }],
           brokersFee: [
             {
               order_id: 1,
@@ -364,18 +366,15 @@ describe("linking a market order", () => {
       },
     });
 
-    expect(job.build.sale.brokersFee[0]).toBeInstanceOf(BrokerFee);
+    expect(job.esi.marketOrders["1"].fee).toBe(1200);
+    expect(job.esi.marketOrders["1"].feeDate).toBe("2026-01-01T00:00:00Z");
     expect(job.totalBrokersFees).toBe(1200);
-    // The dead completion flag does not survive a read and a write.
-    expect(job.toDocument().build.sale.brokersFee).toEqual([
-      {
-        order_id: 1,
-        id: 500,
-        date: "2026-01-01T00:00:00Z",
-        amount: 1200,
-        salesTax: 0,
-      },
-    ]);
+
+    // The fee survives a read and a write, and the dead completion flag does not.
+    const document = job.toDocument();
+    expect(document.esi.marketOrders["1"]).not.toHaveProperty("complete");
+    expect(document.esi.marketOrders["1"].fee).toBe(1200);
+    expect(new Job(document).totalBrokersFees).toBe(1200);
   });
 
   it("removes a fee with the order it was charged for", () => {
@@ -386,7 +385,10 @@ describe("linking a market order", () => {
       name: "Tritanium",
       build: {
         sale: {
-          marketOrders: [{ order_id: 1, location_id: 60003760 }],
+          marketOrders: [
+            { order_id: 1, location_id: 60003760 },
+            { order_id: 2, location_id: 60003760 },
+          ],
           brokersFee: [
             { order_id: 1, amount: 1200 },
             { order_id: 2, amount: 800 },
@@ -418,7 +420,7 @@ describe("which order a linked sale is attributed to", () => {
 
     job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
 
-    expect(job.build.sale.transactions[0].order_id).toBe(700001);
+    expect(job.esi.transactions["800001"].order_id).toBe(700001);
   });
 
   // Guessing between them would put the sale's figures against an order that
@@ -431,7 +433,7 @@ describe("which order a linked sale is attributed to", () => {
 
     job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
 
-    expect(job.build.sale.transactions[0].order_id).toBeNull();
+    expect(job.esi.transactions["800001"].order_id).toBeNull();
   });
 
   // A sale can be linked before its order is: the job holds the sale rather
@@ -441,8 +443,8 @@ describe("which order a linked sale is attributed to", () => {
 
     job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
 
-    expect(job.build.sale.transactions).toHaveLength(1);
-    expect(job.build.sale.transactions[0].order_id).toBeNull();
+    expect(Object.keys(job.esi.transactions)).toHaveLength(1);
+    expect(job.esi.transactions["800001"].order_id).toBeNull();
   });
 });
 
@@ -450,13 +452,22 @@ describe("which order a linked sale is attributed to", () => {
 // the transaction carries what EVE actually charged, and that is what the job's
 // cost is built from — counting both would charge the same sale twice.
 describe("tax expected on orders that have not sold", () => {
+  // A fee is carried by the order it was charged against, so each fee names an
+  // order the job holds.
   const jobWith = ({ fees = [], transactions = [] }) =>
     new Job({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
       name: "Tritanium",
-      build: { materials: {}, sale: { brokersFee: fees, transactions } },
+      build: {
+        materials: {},
+        sale: {
+          marketOrders: fees.map((fee) => ({ order_id: fee.order_id })),
+          brokersFee: fees,
+          transactions,
+        },
+      },
     });
 
   it("counts the estimate for an order with no transaction yet", () => {
@@ -564,12 +575,10 @@ describe("minting an invention entry's id", () => {
     job.addInventionCost({ id: 1789083363901, itemName: "Old", itemCost: 5 });
     job.addInventionCost(InventionEntry.forItem("New", 10));
 
-    job.removeInventionCost(job.build.costs.inventionEntries["1789083363901"]);
+    job.removeInventionCost(job.build.inventionEntries["1789083363901"]);
 
-    expect(Object.keys(job.build.costs.inventionEntries)).toHaveLength(1);
-    expect(Object.values(job.build.costs.inventionEntries)[0].itemName).toBe(
-      "New",
-    );
+    expect(Object.keys(job.build.inventionEntries)).toHaveLength(1);
+    expect(Object.values(job.build.inventionEntries)[0].itemName).toBe("New");
   });
 
   // Removing one of two rows added together must leave the other.
@@ -580,13 +589,13 @@ describe("minting an invention entry's id", () => {
 
     // Both ids are minted, so the row to remove is named by what it holds
     // rather than by a key the test can write down.
-    const datacore = Object.values(job.build.costs.inventionEntries).find(
+    const datacore = Object.values(job.build.inventionEntries).find(
       (entry) => entry.itemName === "Datacore",
     );
     job.removeInventionCost(datacore);
 
-    expect(Object.keys(job.build.costs.inventionEntries)).toHaveLength(1);
-    expect(Object.values(job.build.costs.inventionEntries)[0].itemName).toBe(
+    expect(Object.keys(job.build.inventionEntries)).toHaveLength(1);
+    expect(Object.values(job.build.inventionEntries)[0].itemName).toBe(
       "Decryptor",
     );
   });

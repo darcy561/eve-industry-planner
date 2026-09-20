@@ -123,10 +123,7 @@ describe("unlinking a sale from a job, end to end", () => {
         },
       }),
       ({ state, actions }) => (
-        <LinkedTransactionPanel
-          state={state}
-          actions={actions}
-        />
+        <LinkedTransactionPanel state={state} actions={actions} />
       ),
     );
     expect(editJob.current.activeJob.build.sale.transactions).toHaveLength(1);

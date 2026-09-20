@@ -62,9 +62,8 @@ vi.mock("../../../../../../Functions/MarketOrders/sellerCharacter", () => ({
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  const { structureKinds } = await import(
-    "../../../../../../Context/defaultValues"
-  );
+  const { structureKinds } =
+    await import("../../../../../../Context/defaultValues");
   return usersStoreMock({
     applicationSettings: {
       customStructures: [
@@ -163,9 +162,7 @@ describe("the Planning stage's figures, end to end", () => {
 
     const cost = within(panelNamed("Cost Breakdown"));
 
-    expect(
-      cost.getByText(/^1\.50% at Perimeter Azbel$/),
-    ).toBeInTheDocument();
+    expect(cost.getByText(/^1\.50% at Perimeter Azbel$/)).toBeInTheDocument();
     expect(
       cost.getByText(/on the sale at Perimeter Azbel/),
     ).toBeInTheDocument();

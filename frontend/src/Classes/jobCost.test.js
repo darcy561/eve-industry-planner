@@ -64,10 +64,11 @@ describe("cost per item", () => {
   // the parent is not paying the child's broker fees.
   test("total cost per item adds the cost of selling, build cost does not", () => {
     const job = jobWith({ materials: [100] });
-    job.build.sale.brokersFee = [{ id: 0, amount: 10 }];
-    job.build.sale.transactions = [
-      { transaction_id: 0, tax: 10, amount: 0, quantity: 1 },
-    ];
+    // The fee is carried by the order it was charged against.
+    job.esi.marketOrders = { 700001: { order_id: 700001, fee: 10 } };
+    job.esi.transactions = {
+      0: { transaction_id: 0, tax: 10, amount: 0, quantity: 1 },
+    };
 
     expect(job.buildCostPerItem()).toBe(10.8);
     expect(job.totalCostPerItem()).toBe(12.8);
@@ -88,10 +89,10 @@ describe("what the installs cost", () => {
   // cannot leave the figure behind.
   test("the linked ESI jobs are what the installs cost", () => {
     const job = jobWith({ materials: [100] });
-    job.build.costs.linkedJobs = [
-      { job_id: 1, cost: 12 },
-      { job_id: 2, cost: 8 },
-    ];
+    job.esi.industryJobs = {
+      1: { job_id: 1, cost: 12 },
+      2: { job_id: 2, cost: 8 },
+    };
 
     expect(job.totalInstallCost).toBe(20);
     expect(job.buildCost).toBe(123);
@@ -101,7 +102,7 @@ describe("what the installs cost", () => {
   // them — so nothing linked costs nothing here.
   test("nothing linked costs nothing", () => {
     const job = jobWith({ materials: [100] });
-    job.build.costs.linkedJobs = [];
+    job.esi.industryJobs = {};
     job.build.setup = {
       "setup-1": new Setup({
         id: "setup-1",
@@ -117,10 +118,10 @@ describe("what the installs cost", () => {
 
   test("unlinking a job takes its cost back off", () => {
     const job = jobWith({ materials: [100] });
-    job.build.costs.linkedJobs = [
-      { job_id: 1, cost: 12 },
-      { job_id: 2, cost: 8 },
-    ];
+    job.esi.industryJobs = {
+      1: { job_id: 1, cost: 12 },
+      2: { job_id: 2, cost: 8 },
+    };
 
     job.unlinkESIJob({ job_id: 2, cost: 8 });
 
@@ -155,10 +156,10 @@ describe("invention is its own cost", () => {
 describe("what a sold item went for", () => {
   test("the average is the sales over the items sold", () => {
     const job = jobWith({ materials: [100] });
-    job.build.sale.transactions = [
-      { transaction_id: 1, amount: 300, quantity: 2 },
-      { transaction_id: 2, amount: 100, quantity: 2 },
-    ];
+    job.esi.transactions = {
+      1: { transaction_id: 1, amount: 300, quantity: 2 },
+      2: { transaction_id: 2, amount: 100, quantity: 2 },
+    };
 
     expect(job.averageItemSalePrice()).toBe(100);
   });
@@ -172,13 +173,16 @@ describe("what a sold item went for", () => {
 
 describe("what the job cost in total", () => {
   function sold(job, { fees = [], taxes = [], sales = [] }) {
-    job.build.sale.brokersFee = fees.map((amount, i) => ({ id: i, amount }));
-    job.build.sale.transactions = taxes.map((tax, i) => ({
-      transaction_id: i,
-      tax,
-      amount: sales[i] ?? 0,
-      quantity: 1,
-    }));
+    // Each fee rides the order it was charged against, so one order per fee.
+    job.esi.marketOrders = Object.fromEntries(
+      fees.map((fee, i) => [String(700000 + i), { order_id: 700000 + i, fee }]),
+    );
+    job.esi.transactions = Object.fromEntries(
+      taxes.map((tax, i) => [
+        String(i),
+        { transaction_id: i, tax, amount: sales[i] ?? 0, quantity: 1 },
+      ]),
+    );
     return job;
   }
 
@@ -206,11 +210,11 @@ describe("what the job cost in total", () => {
 
 describe("reading a job's figures", () => {
   function sold(job) {
-    job.build.sale.brokersFee = [{ id: 0, amount: 3 }];
-    job.build.sale.transactions = [
-      { transaction_id: 1, tax: 0.5, amount: 200, quantity: 2 },
-      { transaction_id: 2, tax: 0.25, amount: 50, quantity: 1 },
-    ];
+    job.esi.marketOrders = { 700001: { order_id: 700001, fee: 3 } };
+    job.esi.transactions = {
+      1: { transaction_id: 1, tax: 0.5, amount: 200, quantity: 2 },
+      2: { transaction_id: 2, tax: 0.25, amount: 50, quantity: 1 },
+    };
     return job;
   }
 
@@ -247,11 +251,11 @@ describe("reading a job's figures", () => {
   // sold its output.
   test("who was involved is one set", () => {
     const job = jobWith({ materials: [100] });
-    job.build.costs.linkedJobs = [
-      { job_id: 1, cost: 0, CharacterHash: "ABC" },
-      { job_id: 2, cost: 0, CharacterHash: "ABC" },
-    ];
-    job.build.sale.marketOrders = [{ order_id: 1, CharacterHash: "DEF" }];
+    job.esi.industryJobs = {
+      1: { job_id: 1, cost: 0, CharacterHash: "ABC" },
+      2: { job_id: 2, cost: 0, CharacterHash: "ABC" },
+    };
+    job.esi.marketOrders = { 1: { order_id: 1, CharacterHash: "DEF" } };
 
     expect(job.involvedCharacters.size).toBe(2);
   });

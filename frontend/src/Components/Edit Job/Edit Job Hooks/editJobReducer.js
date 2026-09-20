@@ -86,10 +86,8 @@ export function editJobReducer(state, action) {
     case EDIT_JOB_ACTION_TYPES.ADD_CUSTOM_TRANSACTION: {
       if (!state.activeJob || !action.payload) return state;
       const next = new Job(state.activeJob);
-      next.build.sale.transactions = [
-        ...next.build.sale.transactions,
-        new Transaction(action.payload),
-      ];
+      const sale = new Transaction(action.payload);
+      next.esi.transactions[String(sale.transaction_id)] = sale;
       return { ...state, jobModified: true, activeJob: next };
     }
     case EDIT_JOB_ACTION_TYPES.TOGGLE_ACTIVE_JOB_READY_FOR_SALE: {

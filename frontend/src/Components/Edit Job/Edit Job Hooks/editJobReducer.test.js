@@ -271,8 +271,8 @@ describe("recording a sale the reader entered", () => {
   it("puts the sale on the job", () => {
     const next = editJobReducer(selling(), add(sale));
 
-    expect(next.activeJob.build.sale.transactions).toHaveLength(1);
-    expect(next.activeJob.build.sale.transactions[0].transaction_id).toBe(
+    expect(Object.keys(next.activeJob.esi.transactions)).toHaveLength(1);
+    expect(next.activeJob.esi.transactions["custom-1"].transaction_id).toBe(
       "custom-1",
     );
   });
@@ -283,7 +283,9 @@ describe("recording a sale the reader entered", () => {
     const next = editJobReducer(state, add(sale));
 
     expect(
-      next.activeJob.build.sale.transactions.map((t) => t.transaction_id),
+      Object.values(next.activeJob.esi.transactions).map(
+        (t) => t.transaction_id,
+      ),
     ).toEqual(["esi-1", "custom-1"]);
   });
 
@@ -293,7 +295,7 @@ describe("recording a sale the reader entered", () => {
     const next = editJobReducer(selling(), add(sale));
 
     expect(
-      next.activeJob.build.sale.transactions[0].order_id ?? null,
+      next.activeJob.esi.transactions["custom-1"].order_id ?? null,
     ).toBeNull();
   });
 
@@ -303,7 +305,7 @@ describe("recording a sale the reader entered", () => {
 
     editJobReducer(state, add(sale));
 
-    expect(before.build.sale.transactions).toHaveLength(0);
+    expect(Object.keys(before.esi.transactions)).toHaveLength(0);
   });
 
   it("marks the job as having unsaved changes", () => {

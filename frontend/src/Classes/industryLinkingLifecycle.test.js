@@ -82,7 +82,7 @@ describe("linking industry runs to a job", () => {
     expect(job.isReadyToStart).toBe(false);
 
     // 4. A linked run keeps ESI's own names and the character that installed it.
-    const [first] = job.build.costs.linkedJobs;
+    const first = job.esi.industryJobs["500000001"];
     expect(first).toBeInstanceOf(LinkedESIJob);
     expect(first.station_id).toBe(1035466617946);
     expect(first.character_id).toBe(OWNER.CharacterID);
@@ -101,15 +101,15 @@ describe("linking industry runs to a job", () => {
       reported[1],
     ]);
 
-    expect(job.build.costs.linkedJobs[0].isDelivered).toBe(true);
-    expect(job.build.costs.linkedJobs[1].isActive).toBe(true);
+    expect(job.esi.industryJobs["500000001"].isDelivered).toBe(true);
+    expect(job.esi.industryJobs["500000002"].isActive).toBe(true);
     // Delivery does not change what the run cost.
     expect(job.totalInstallCost).toBe(2000000);
 
     // 7. The document carries the rows, and the cost is worked out again on read.
     const document = job.toDocument();
-    expect(document.build.costs.linkedJobs).toHaveLength(2);
-    expect(document.build.costs.linkedJobs[0].job_id).toBe(500000001);
+    expect(Object.keys(document.esi.industryJobs)).toHaveLength(2);
+    expect(document.esi.industryJobs["500000001"].job_id).toBe(500000001);
 
     const reopened = new Job(document);
     expect(reopened.totalInstallCost).toBe(2000000);
@@ -132,9 +132,11 @@ describe("linking industry runs to a job", () => {
     job.linkESIJob(run, OWNER);
     job.linkESIJob({ ...run }, OTHER_OWNER);
 
-    expect(job.build.costs.linkedJobs).toHaveLength(1);
+    expect(Object.keys(job.esi.industryJobs)).toHaveLength(1);
     expect(job.totalInstallCost).toBe(1250000);
-    expect(job.build.costs.linkedJobs[0].character_id).toBe(OWNER.CharacterID);
+    expect(job.esi.industryJobs["500000001"].character_id).toBe(
+      OWNER.CharacterID,
+    );
   });
 
   // A corporation run is reported by every character holding the role, so the
@@ -171,7 +173,8 @@ describe("linking industry runs to a job", () => {
     job.unlinkESIJob({ job_id: 500000001 });
     job.linkESIJob(run, OWNER);
 
-    expect(job.build.costs.linkedJobs).toHaveLength(1);
+    expect(job.esi.industryJobs["500000001"]).toBeDefined();
+    expect(Object.keys(job.esi.industryJobs)).toHaveLength(1);
     expect(job.totalInstallCost).toBe(1250000);
   });
 
@@ -181,7 +184,7 @@ describe("linking industry runs to a job", () => {
     job.linkESIJob(esiRun(500000001), null);
     job.linkESIJob(null, OWNER);
 
-    expect(job.build.costs.linkedJobs).toHaveLength(0);
+    expect(Object.keys(job.esi.industryJobs)).toHaveLength(0);
     expect(job.totalInstallCost).toBe(0);
   });
 });

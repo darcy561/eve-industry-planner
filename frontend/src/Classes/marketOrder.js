@@ -13,6 +13,9 @@
  * and are held as refs once stored, which `shared/jobidentity` converts at the
  * boundary.
  *
+ * `fee`, `salesTax` and `feeDate` are the broker fee charged for listing it —
+ * see {@link MarketOrder#recordBrokerFee}.
+ *
  * @class MarketOrder
  */
 class MarketOrder {
@@ -36,6 +39,29 @@ class MarketOrder {
     this.CharacterHash = row?.CharacterHash ?? "";
     this.corporation_id = row?.corporation_id ?? null;
     this.character_id = row?.character_id ?? null;
+    this.fee = row?.fee ?? 0;
+    this.salesTax = row?.salesTax ?? 0;
+    this.feeDate = row?.feeDate ?? null;
+  }
+
+  /**
+   * Records the broker fee charged for listing this order.
+   *
+   * The fee is a field of the order rather than a row beside it: a fee has no
+   * identity of its own, because the journal entry it arrives from is shared
+   * between every order sold together in one multi-sell.
+   *
+   * Where two fees name one order the earlier is kept, which is the charge for
+   * listing it — a later entry against the same order is a relist.
+   *
+   * @param {{amount: number, salesTax: number, date: string|null}} fee
+   */
+  recordBrokerFee(fee) {
+    if (!fee) return;
+    if (this.feeDate && fee.date && this.feeDate <= fee.date) return;
+    this.fee = fee.amount ?? 0;
+    this.salesTax = fee.salesTax ?? 0;
+    this.feeDate = fee.date ?? null;
   }
 
   /**
@@ -200,6 +226,9 @@ class MarketOrder {
       state: this.state,
       corporation_id: this.corporation_id,
       character_id: this.character_id,
+      fee: this.fee,
+      salesTax: this.salesTax,
+      feeDate: this.feeDate,
     };
   }
 }

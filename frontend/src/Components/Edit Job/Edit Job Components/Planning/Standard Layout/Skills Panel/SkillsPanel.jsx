@@ -144,7 +144,7 @@ export function SkillsPanel({ state, actions }) {
             listedValue={
               getMarketPriceForType(
                 activeJob.itemID,
-                saleLocation?.priceHubID,
+                saleLocation?.pricedAtID,
                 "sell",
               ) * surplus
             }

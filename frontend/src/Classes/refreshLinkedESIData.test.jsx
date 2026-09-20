@@ -85,8 +85,8 @@ describe("opening a job refreshes what ESI last said", () => {
 
     const updateActiveJob = openJob(job);
 
-    expect(job.build.sale.marketOrders[0].volume_remain).toBe(10);
-    expect(job.build.sale.marketOrders[0].item_price).toBe(5.5);
+    expect(job.esi.marketOrders["900"].volume_remain).toBe(10);
+    expect(job.esi.marketOrders["900"].item_price).toBe(5.5);
     expect(updateActiveJob).toHaveBeenCalledWith(job);
   });
 
@@ -122,7 +122,7 @@ describe("opening a job refreshes what ESI last said", () => {
 
     const updateActiveJob = openJob(job);
 
-    expect(job.build.sale.marketOrders[0].volume_remain).toBe(40);
+    expect(job.esi.marketOrders["900"].volume_remain).toBe(40);
     expect(updateActiveJob).not.toHaveBeenCalled();
   });
 
@@ -154,6 +154,6 @@ describe("opening a job refreshes what ESI last said", () => {
 
     openJob(job);
 
-    expect(job.build.sale.marketOrders[0].volume_remain).toBe(12);
+    expect(job.esi.marketOrders["900"].volume_remain).toBe(12);
   });
 });

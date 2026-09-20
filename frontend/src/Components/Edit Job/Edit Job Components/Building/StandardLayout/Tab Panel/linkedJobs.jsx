@@ -34,7 +34,7 @@ import {
 } from "../../../../../../Functions/Shared/eveImage";
 
 /**
- * Unlinking an ESI job removes a run from `activeJob.build.costs.linkedJobs` (persisted), so
+ * Unlinking an ESI job removes a run from `activeJob.esi.industryJobs` (persisted), so
  * the gate is the active job lock (group locks cascade into it automatically).
  */
 export function LinkedJobsTab(props) {
@@ -44,7 +44,7 @@ export function LinkedJobsTab(props) {
   const [clickedJobs, setClickedJobs] = useState(new Set());
   const [removedJobs, setRemovedJobs] = useState(new Set());
   const jobLockReadOnly = useActiveJobReadOnly(state);
-  const linkedJobs = state.activeJob.build.costs.linkedJobs;
+  const linkedJobs = Object.values(state.activeJob.esi.industryJobs);
   const stationIds = useMemo(
     () => linkedJobs.map((job) => job.station_id),
     [linkedJobs],

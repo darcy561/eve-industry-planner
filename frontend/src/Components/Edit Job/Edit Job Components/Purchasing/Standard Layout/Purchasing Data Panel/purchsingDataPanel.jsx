@@ -111,7 +111,8 @@ export function PurchasingDataPanel_EditJob(props) {
               md: 4,
             }}
           >
-            {totalComplete < Object.keys(state.activeJob.build.materials).length && (
+            {totalComplete <
+              Object.keys(state.activeJob.build.materials).length && (
               <Grid container size={12}>
                 <Grid size={6}>
                   <Tooltip

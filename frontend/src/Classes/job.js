@@ -120,42 +120,30 @@ class Job {
       displayFromDoc !== undefined && displayFromDoc !== null
         ? Boolean(displayFromDoc)
         : !this.includedInGroup || this.isReadyToSell;
+    const build = itemJson?.build;
     this.build = {
       setup: documentToSetups(itemJson),
-      childJobs: itemJson?.build?.childJobs || {},
-      costs: {
-        extrasCosts: keyRowsByID(
-          itemJson?.build?.costs?.extrasCosts,
-          (row) => new ExtraCost(row),
-        ),
-        linkedJobs: documentToLinkedJobs(itemJson),
-        inventionEntries: keyRowsByID(
-          itemJson?.build?.costs?.inventionEntries,
-          (row) => new InventionEntry(row),
-        ),
-      },
-      sale: {
-        marketOrders: (itemJson?.build?.sale?.marketOrders || []).map(
-          (row) => new MarketOrder(row),
-        ),
-        transactions: (itemJson?.build?.sale?.transactions || []).map(
-          (row) => new Transaction(row),
-        ),
-        brokersFee: (itemJson?.build?.sale?.brokersFee || []).map(
-          (row) => new BrokerFee(row),
-        ),
-        // Where the output is meant to go, as against the orders beside it,
-        // which are where it went. Null on almost every job: absent means the
-        // account's defaults apply.
-        plan: {
-          sellerCharacter: itemJson?.build?.sale?.plan?.sellerCharacter ?? null,
-          saleLocationID: itemJson?.build?.sale?.plan?.saleLocationID ?? null,
-        },
-      },
+      childJobs: build?.childJobs || {},
+      extrasCosts: keyRowsByID(
+        build?.extrasCosts ?? build?.costs?.extrasCosts,
+        (row) => new ExtraCost(row),
+      ),
+      inventionEntries: keyRowsByID(
+        build?.inventionEntries ?? build?.costs?.inventionEntries,
+        (row) => new InventionEntry(row),
+      ),
+      // Where the output is meant to go, as against the orders under `esi`,
+      // which are where it went. Null on almost every job: absent means the
+      // account's defaults apply.
+      sellerCharacter:
+        build?.sellerCharacter ?? build?.sale?.plan?.sellerCharacter ?? null,
+      saleLocationID:
+        build?.saleLocationID ?? build?.sale?.plan?.saleLocationID ?? null,
       materials: documentToMaterials(itemJson, (typeID) =>
         this.materialRequirement(typeID),
       ),
     };
+    this.esi = documentToESI(itemJson);
     this.rawData = itemJson?.rawData || {};
     this.skills = documentToSkills(itemJson);
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
@@ -248,7 +236,7 @@ class Job {
   }
 
   /**
-   * `build.costs.extrasCosts[]` stays in SPA form: `{ id, category, extraText,
+   * `build.extrasCosts` stays in SPA form: `{ id, category, extraText,
    * extraValue }`, with `category` as the string id.
    *
    * @returns {Object} Document object ready for storage
@@ -269,45 +257,22 @@ class Job {
       includedInGroup: this.includedInGroup,
       displayOnPlanner: this.displayOnPlanner,
       isReadyToSell: this.isReadyToSell,
+      // Every key is named rather than spread from `this.build`: a spread
+      // carries the live instances the job holds, which store as whatever their
+      // class happens to serialise to rather than as the row's own shape.
       build: {
-        ...this.build,
-        setup: Object.entries(this.build.setup).reduce((acc, [key, value]) => {
-          acc[key] = value.toDocument();
-          return acc;
-        }, {}),
-        materials: Object.fromEntries(
-          Object.entries(this.build.materials).map(([typeID, material]) => [
-            typeID,
-            material.toDocument(),
-          ]),
-        ),
-        costs: {
-          ...this.build.costs,
-          linkedJobs: this.build.costs.linkedJobs.map((linkedJob) =>
-            linkedJob.toDocument(),
-          ),
-          extrasCosts: Object.fromEntries(
-            Object.entries(this.build.costs.extrasCosts).map(([id, extra]) => [
-              id,
-              extra.toDocument(),
-            ]),
-          ),
-          inventionEntries: Object.fromEntries(
-            Object.entries(this.build.costs.inventionEntries).map(
-              ([id, entry]) => [id, entry.toDocument()],
-            ),
-          ),
-        },
-        sale: {
-          ...this.build.sale,
-          marketOrders: this.build.sale.marketOrders.map((order) =>
-            order.toDocument(),
-          ),
-          transactions: this.build.sale.transactions.map((transaction) =>
-            transaction.toDocument(),
-          ),
-          brokersFee: this.build.sale.brokersFee.map((fee) => fee.toDocument()),
-        },
+        setup: rowsToDocuments(this.build.setup),
+        childJobs: this.build.childJobs,
+        materials: rowsToDocuments(this.build.materials),
+        extrasCosts: rowsToDocuments(this.build.extrasCosts),
+        inventionEntries: rowsToDocuments(this.build.inventionEntries),
+        sellerCharacter: this.build.sellerCharacter,
+        saleLocationID: this.build.saleLocationID,
+      },
+      esi: {
+        industryJobs: rowsToDocuments(this.esi.industryJobs),
+        marketOrders: rowsToDocuments(this.esi.marketOrders),
+        transactions: rowsToDocuments(this.esi.transactions),
       },
       rawData: this.rawData,
       skills: this.skills,
@@ -342,16 +307,14 @@ class Job {
    * @returns {Set<number>}
    */
   get esiJobIDs() {
-    return new Set(
-      this.build.costs.linkedJobs.map((linkedJob) => linkedJob.job_id),
-    );
+    return new Set(Object.values(this.esi.industryJobs).map((j) => j.job_id));
   }
 
   /**
    * @returns {Set<number>} The ESI market orders linked to this job
    */
   get esiOrderIDs() {
-    return new Set(this.build.sale.marketOrders.map((order) => order.order_id));
+    return new Set(Object.values(this.esi.marketOrders).map((o) => o.order_id));
   }
 
   /**
@@ -359,7 +322,7 @@ class Job {
    */
   get esiTransactionIDs() {
     return new Set(
-      this.build.sale.transactions.map(
+      Object.values(this.esi.transactions).map(
         (transaction) => transaction.transaction_id,
       ),
     );
@@ -431,7 +394,8 @@ class Job {
     // cost twice, and the panel links on a delay, so a second click or a "link
     // all" can arrive before the first has landed.
     if (this.esiJobIDs.has(esiJob.job_id)) return;
-    this.build.costs.linkedJobs.push(LinkedESIJob.fromESI(esiJob, jobOwner));
+    const linked = LinkedESIJob.fromESI(esiJob, jobOwner);
+    this.esi.industryJobs[String(linked.job_id)] = linked;
   }
 
   /**
@@ -443,9 +407,7 @@ class Job {
    */
   unlinkESIJob(linkedJob) {
     if (!linkedJob) return;
-    this.build.costs.linkedJobs = this.build.costs.linkedJobs.filter(
-      (i) => i.job_id !== linkedJob.job_id,
-    );
+    delete this.esi.industryJobs[String(linkedJob.job_id)];
   }
 
   /**
@@ -461,7 +423,7 @@ class Job {
     if (!newItem) return;
     const extra =
       newItem instanceof ExtraCost ? newItem : new ExtraCost(newItem);
-    this.build.costs.extrasCosts[extra.id] = extra;
+    this.build.extrasCosts[extra.id] = extra;
   }
 
   /**
@@ -470,7 +432,7 @@ class Job {
    */
   removeExtrasCost(item) {
     if (!item) return;
-    delete this.build.costs.extrasCosts[item.id];
+    delete this.build.extrasCosts[item.id];
   }
   /**
    * @param {Object} inputObject - Invention cost object
@@ -483,7 +445,7 @@ class Job {
       inputObject instanceof InventionEntry
         ? inputObject
         : new InventionEntry(inputObject);
-    this.build.costs.inventionEntries[entry.id] = entry;
+    this.build.inventionEntries[entry.id] = entry;
   }
 
   /**
@@ -493,7 +455,7 @@ class Job {
    */
   removeInventionCost(inputObject) {
     if (!inputObject) return;
-    delete this.build.costs.inventionEntries[inputObject.id];
+    delete this.build.inventionEntries[inputObject.id];
   }
 
   /**
@@ -565,7 +527,7 @@ class Job {
    * @returns {number} Install cost
    */
   get totalInstallCost() {
-    return this.build.costs.linkedJobs.reduce(
+    return Object.values(this.esi.industryJobs).reduce(
       (total, linkedJob) => total + (Number(linkedJob?.cost) || 0),
       0,
     );
@@ -579,7 +541,7 @@ class Job {
    * @returns {number} Extras total
    */
   get totalExtrasCost() {
-    return Object.values(this.build.costs.extrasCosts).reduce(
+    return Object.values(this.build.extrasCosts).reduce(
       (total, extra) => total + (Number(extra?.extraValue) || 0),
       0,
     );
@@ -593,7 +555,7 @@ class Job {
    * @returns {number} Invention total
    */
   get totalInventionCost() {
-    return Object.values(this.build.costs.inventionEntries).reduce(
+    return Object.values(this.build.inventionEntries).reduce(
       (total, entry) => total + (Number(entry?.itemCost) || 0),
       0,
     );
@@ -628,8 +590,8 @@ class Job {
    * @returns {number} Fee total
    */
   get totalBrokersFees() {
-    return this.build.sale.brokersFee.reduce(
-      (total, fee) => total + (fee.amount || 0),
+    return Object.values(this.esi.marketOrders).reduce(
+      (total, order) => total + (order.fee || 0),
       0,
     );
   }
@@ -643,7 +605,7 @@ class Job {
    * @returns {number} Transaction fee total
    */
   get totalTransactionFees() {
-    return this.build.sale.transactions.reduce(
+    return Object.values(this.esi.transactions).reduce(
       (total, transaction) => total + (transaction.tax || 0),
       0,
     );
@@ -661,12 +623,12 @@ class Job {
    */
   get estimatedSalesTaxOutstanding() {
     const sold = new Set(
-      this.build.sale.transactions.map((transaction) => transaction.order_id),
+      Object.values(this.esi.transactions).map((t) => t.order_id),
     );
 
-    return this.build.sale.brokersFee.reduce(
-      (total, fee) =>
-        sold.has(fee.order_id) ? total : total + (fee.salesTax || 0),
+    return Object.values(this.esi.marketOrders).reduce(
+      (total, order) =>
+        sold.has(order.order_id) ? total : total + (order.salesTax || 0),
       0,
     );
   }
@@ -677,7 +639,7 @@ class Job {
    * @returns {number} Sales total
    */
   get totalSales() {
-    return this.build.sale.transactions.reduce(
+    return Object.values(this.esi.transactions).reduce(
       (total, transaction) => total + (transaction.amount || 0),
       0,
     );
@@ -766,7 +728,7 @@ class Job {
    * @returns {number} Sales over items sold, or 0 when nothing has sold
    */
   averageItemSalePrice() {
-    const itemsSold = this.build.sale.transactions.reduce(
+    const itemsSold = Object.values(this.esi.transactions).reduce(
       (total, transaction) => total + (transaction.quantity || 0),
       0,
     );
@@ -1004,18 +966,29 @@ class Job {
       Array.isArray(transaction) ? transaction : [transaction]
     ).map((row) => (row instanceof Transaction ? row : new Transaction(row)));
 
-    const orders = Object.values(this.build.sale.marketOrders);
+    const orders = Object.values(this.esi.marketOrders);
     const soleOrderID = orders.length === 1 ? orders[0].order_id : null;
     for (let trans of transactionsToAdd) {
       trans.order_id = soleOrderID;
     }
-    this.build.sale.transactions = [
-      ...this.build.sale.transactions,
-      ...transactionsToAdd,
-    ];
-    this.build.sale.transactions.sort((a, b) => {
-      return new Date(b.date) - new Date(a.date);
-    });
+    for (const trans of transactionsToAdd) {
+      this.esi.transactions[String(trans.transaction_id)] = trans;
+    }
+  }
+
+  /**
+   * This job's sales, newest first.
+   *
+   * The collection is keyed rather than ordered, so a reader that shows sales in
+   * the order they happened asks for it here rather than relying on the order
+   * rows were added in.
+   *
+   * @returns {Array<Transaction>} Sales, newest first
+   */
+  get salesByDate() {
+    return Object.values(this.esi.transactions).sort(
+      (a, b) => new Date(b.date) - new Date(a.date),
+    );
   }
 
   /**
@@ -1026,9 +999,7 @@ class Job {
    */
   removeTransaction(transaction) {
     if (!transaction) return;
-    this.build.sale.transactions = this.build.sale.transactions.filter(
-      (i) => i.transaction_id !== transaction.transaction_id,
-    );
+    delete this.esi.transactions[String(transaction.transaction_id)];
   }
 
   /**
@@ -1041,14 +1012,20 @@ class Job {
    * @param {{sellerCharacter?: string|null, saleLocationID?: string|null}} plan
    */
   setSellingPlan(plan) {
-    this.build.sale.plan = {
-      ...this.build.sale.plan,
-      ...plan,
-    };
+    if ("sellerCharacter" in plan) {
+      this.build.sellerCharacter = plan.sellerCharacter;
+    }
+    if ("saleLocationID" in plan) {
+      this.build.saleLocationID = plan.saleLocationID;
+    }
   }
 
   /**
    * Adds a market order to the job's sales tracking.
+   *
+   * The fee is carried by the order rather than stored beside it: a fee has no
+   * identity of its own, since the journal entry it arrives from is shared
+   * between orders sold together in one multi-sell.
    *
    * @param {Object} order - Market order data
    * @param {Object} brokersFee - Broker's fee information
@@ -1056,14 +1033,15 @@ class Job {
   addMarketOrder(order, brokersFee) {
     if (!order) return;
 
+    const row = MarketOrder.fromESI(order);
     if (brokersFee) {
-      this.build.sale.brokersFee.push(
+      row.recordBrokerFee(
         brokersFee instanceof BrokerFee
           ? brokersFee
           : new BrokerFee(brokersFee),
       );
     }
-    this.build.sale.marketOrders.push(MarketOrder.fromESI(order));
+    this.esi.marketOrders[String(row.order_id)] = row;
   }
 
   /**
@@ -1078,17 +1056,14 @@ class Job {
   removeMarketOrder(order) {
     if (!order) return;
 
-    this.build.sale.brokersFee = this.build.sale.brokersFee.filter(
-      (fee) => !fee.belongsToOrder(order.order_id),
-    );
+    // The fee goes with the order it sits on.
+    delete this.esi.marketOrders[String(order.order_id)];
 
-    this.build.sale.marketOrders = this.build.sale.marketOrders.filter(
-      (i) => i.order_id !== order.order_id,
-    );
-
-    this.build.sale.transactions = this.build.sale.transactions.filter(
-      (i) => i.location_id !== order.location_id,
-    );
+    for (const [id, trans] of Object.entries(this.esi.transactions)) {
+      if (trans.location_id === order.location_id) {
+        delete this.esi.transactions[id];
+      }
+    }
   }
 
   /**
@@ -1098,7 +1073,7 @@ class Job {
    */
   updateLinkedJobData(latestESIJobs) {
     if (!latestESIJobs) return;
-    this.build.costs.linkedJobs.forEach((linkedJob) => {
+    Object.values(this.esi.industryJobs).forEach((linkedJob) => {
       linkedJob.applyLatest(
         latestESIJobs.find((i) => i.job_id === linkedJob.job_id),
       );
@@ -1112,7 +1087,7 @@ class Job {
    * @returns {LinkedESIJob|null}
    */
   get lastRunToFinish() {
-    return this.build.costs.linkedJobs.reduce((latest, linkedJob) => {
+    return Object.values(this.esi.industryJobs).reduce((latest, linkedJob) => {
       if (linkedJob.finishesAt === null) return latest;
       if (!latest || linkedJob.finishesAt > latest.finishesAt) {
         return linkedJob;
@@ -1128,7 +1103,7 @@ class Job {
    * @returns {LinkedESIJob|null}
    */
   get nextRunToFinish() {
-    return this.build.costs.linkedJobs.reduce((soonest, linkedJob) => {
+    return Object.values(this.esi.industryJobs).reduce((soonest, linkedJob) => {
       if (linkedJob.finishesAt === null) return soonest;
       if (!soonest || linkedJob.finishesAt < soonest.finishesAt) {
         return linkedJob;
@@ -1215,11 +1190,11 @@ class Job {
   get involvedCharacters() {
     const characters = new Set();
 
-    for (const linkedJob of this.build.costs.linkedJobs) {
+    for (const linkedJob of Object.values(this.esi.industryJobs)) {
       characters.add(linkedJob.CharacterHash);
     }
 
-    for (const order of this.build.sale.marketOrders) {
+    for (const order of Object.values(this.esi.marketOrders)) {
       characters.add(order.CharacterHash);
     }
 
@@ -1310,12 +1285,92 @@ function keyByTypeID(rows) {
   return out;
 }
 
-function documentToLinkedJobs(object) {
-  const rows = object?.build?.costs?.linkedJobs;
-  if (!Array.isArray(rows)) {
-    return [];
+/**
+ * Helper function that reads what ESI observed about a job.
+ *
+ * Each collection is keyed by the id ESI itself assigns, so a row is found by
+ * the id it already carries. A document written before the reshape holds them
+ * as arrays under `build.costs` and `build.sale`, which is why both are read.
+ *
+ * A broker fee has no identity of its own — the journal id it arrives with is
+ * shared between orders sold together in one multi-sell — so a stored fee row
+ * folds onto the order it was charged against. Where two rows name one order
+ * the oldest is kept, and a fee naming no order is dropped: there is nowhere
+ * for it to live.
+ *
+ * @param {Object} object - Object containing job data
+ * @returns {{industryJobs: Object<string, LinkedESIJob>,
+ *   marketOrders: Object<string, MarketOrder>,
+ *   transactions: Object<string, Transaction>}} What ESI reported
+ */
+function documentToESI(object) {
+  const esi = object?.esi;
+  const sale = object?.build?.sale;
+
+  const marketOrders = keyRowsBy(
+    esi?.marketOrders ?? sale?.marketOrders,
+    "order_id",
+    (row) => new MarketOrder(row),
+  );
+  for (const row of asRows(sale?.brokersFee)) {
+    const order = marketOrders[String(row?.order_id)];
+    order?.recordBrokerFee(row instanceof BrokerFee ? row : new BrokerFee(row));
   }
-  return rows.map((row) => new LinkedESIJob(row));
+
+  return {
+    industryJobs: keyRowsBy(
+      esi?.industryJobs ?? object?.build?.costs?.linkedJobs,
+      "job_id",
+      (row) => new LinkedESIJob(row),
+    ),
+    marketOrders,
+    transactions: keyRowsBy(
+      esi?.transactions ?? sale?.transactions,
+      "transaction_id",
+      (row) => new Transaction(row),
+    ),
+  };
+}
+
+/** Rows as a list, whichever of the two shapes they are held in. */
+function asRows(rows) {
+  return Array.isArray(rows) ? rows : Object.values(rows ?? {});
+}
+
+/**
+ * Helper function that turns a keyed collection of instances into the rows a
+ * document stores, keeping each under its own key.
+ *
+ * @param {Object<string, {toDocument: Function}>} rows
+ * @returns {Object<string, Object>} The same keys, holding plain rows
+ */
+function rowsToDocuments(rows) {
+  return Object.fromEntries(
+    Object.entries(rows ?? {}).map(([key, row]) => [key, row.toDocument()]),
+  );
+}
+
+/**
+ * Helper function that keys rows by a named id field, building each one through
+ * the class that owns its shape.
+ *
+ * A row whose id field is missing is dropped rather than filed under
+ * `undefined`, which would collapse every such row onto a single key.
+ *
+ * @param {Object<string, Object>|Array<Object>|null} rows
+ * @param {string} idField - The field holding the id ESI assigned
+ * @param {Function} build - Makes the instance held for a row
+ * @returns {Object<string, Object>} The rows keyed by that id
+ */
+function keyRowsBy(rows, idField, build) {
+  const out = {};
+  for (const row of asRows(rows)) {
+    const instance = build(row);
+    const id = instance?.[idField];
+    if (id === undefined || id === null) continue;
+    out[String(id)] = instance;
+  }
+  return out;
 }
 
 /**

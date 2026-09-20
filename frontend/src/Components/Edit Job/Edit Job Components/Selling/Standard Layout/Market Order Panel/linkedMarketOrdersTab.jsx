@@ -28,7 +28,7 @@ export function LinkedMarketOrdersTab({ state, actions }) {
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
   const jobLockReadOnly = useActiveJobReadOnly(state);
-  const marketOrders = state.activeJob.build.sale.marketOrders;
+  const marketOrders = Object.values(state.activeJob.esi.marketOrders);
   const locationIds = useMemo(
     () => (marketOrders ?? []).map((order) => order.location_id),
     [marketOrders],
@@ -236,7 +236,9 @@ export function LinkedMarketOrdersTab({ state, actions }) {
                           state.activeJob.removeMarketOrder(order);
                           actions.addMarketOrdersForRemoval(
                             order.order_id,
-                            state.activeJob.build.sale.transactions.filter(
+                            Object.values(
+                              state.activeJob.esi.transactions,
+                            ).filter(
                               (item) => item.location_id === order.location_id,
                             ),
                           );

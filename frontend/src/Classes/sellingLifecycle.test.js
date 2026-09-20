@@ -168,8 +168,8 @@ describe("selling a job's output, from listing to a stored document", () => {
 
     expect(job.esiOrderIDs.has(900)).toBe(true);
     expect(job.totalBrokersFees).toBe(1500000);
-    expect(job.build.sale.marketOrders[0].isComplete).toBe(false);
-    expect(job.build.sale.marketOrders[0].quantitySold).toBe(0);
+    expect(job.esi.marketOrders["900"].isComplete).toBe(false);
+    expect(job.esi.marketOrders["900"].quantitySold).toBe(0);
 
     // 2. ESI reports the order filling. The row takes it and says so.
     const sales = esiSales();
@@ -178,8 +178,8 @@ describe("selling a job's output, from listing to a stored document", () => {
     ]);
 
     expect(took).toBe(true);
-    expect(job.build.sale.marketOrders[0].isComplete).toBe(true);
-    expect(job.build.sale.marketOrders[0].quantitySold).toBe(100);
+    expect(job.esi.marketOrders["900"].isComplete).toBe(true);
+    expect(job.esi.marketOrders["900"].quantitySold).toBe(100);
 
     // 3. The wallet reports the two fills, and the journal carries the money
     //    and the tax for each.
@@ -197,11 +197,11 @@ describe("selling a job's output, from listing to a stored document", () => {
     expect(offered.every((t) => t.isFromMarket)).toBe(true);
 
     // 4. Linking them attributes each sale to the order it came through.
-    job.addTransaction(offered, 900);
+    job.addTransaction(offered);
 
     expect(job.esiTransactionIDs.size).toBe(2);
     expect(
-      job.build.sale.transactions.every((t) => t.belongsToOrder(900)),
+      Object.values(job.esi.transactions).every((t) => t.belongsToOrder(900)),
     ).toBe(true);
 
     // 5. What the job made: 100,000,000 of sales, 3.6% tax, and the listing fee.
@@ -216,21 +216,18 @@ describe("selling a job's output, from listing to a stored document", () => {
     // 7. The document carries the rows, and nothing derived.
     const document = job.toDocument();
 
-    expect(document.build.sale.transactions).toHaveLength(2);
-    // The tax is the estimate made when the order was linked: 7.5% of the
-    // 100,000,000 listing, for a seller with no Accounting. The transaction's
-    // own tax is what the job's cost is built from once the sale happens.
-    expect(document.build.sale.brokersFee).toEqual([
-      {
-        order_id: 900,
-        id: 55,
-        date: ISSUED,
-        amount: 1500000,
-        salesTax: 7500000,
-      },
-    ]);
-    expect(document.build.sale.marketOrders[0]).not.toHaveProperty("complete");
-    expect(document.build.sale.marketOrders[0].volume_remain).toBe(0);
+    expect(Object.keys(document.esi.transactions)).toHaveLength(2);
+    expect(document.esi.transactions["700"]).toBeDefined();
+    expect(document.esi.transactions["701"]).toBeDefined();
+    // The fee rides its order. The tax beside it is the estimate made when the
+    // order was linked: 7.5% of the 100,000,000 listing, for a seller with no
+    // Accounting. The transaction's own tax is what the job's cost is built
+    // from once the sale happens.
+    expect(document.esi.marketOrders["900"].fee).toBe(1500000);
+    expect(document.esi.marketOrders["900"].salesTax).toBe(7500000);
+    expect(document.esi.marketOrders["900"].feeDate).toBe(ISSUED);
+    expect(document.esi.marketOrders["900"]).not.toHaveProperty("complete");
+    expect(document.esi.marketOrders["900"].volume_remain).toBe(0);
 
     // 8. Reading it back gives the same figures.
     const reopened = new Job(document);
@@ -241,7 +238,7 @@ describe("selling a job's output, from listing to a stored document", () => {
       6,
     );
     expect(reopened.totalBrokersFees).toBe(job.totalBrokersFees);
-    expect(reopened.build.sale.marketOrders[0].isComplete).toBe(true);
+    expect(reopened.esi.marketOrders["900"].isComplete).toBe(true);
   });
 
   it("takes the order's fee and its sales away together when it is unlinked", async () => {
@@ -269,7 +266,7 @@ describe("selling a job's output, from listing to a stored document", () => {
         ...journalFor(sales),
       ],
     };
-    job.addTransaction(findOrderTransactions(job, null), 900);
+    job.addTransaction(findOrderTransactions(job, null));
 
     expect(job.totalSales).toBe(100000000);
 

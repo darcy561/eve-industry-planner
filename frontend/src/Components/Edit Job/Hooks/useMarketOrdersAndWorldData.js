@@ -49,7 +49,7 @@ export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
     error: corporationHistoricMarketOrdersError,
   } = useGetAllCorporationHistoricMarketOrders();
 
-  const linkedOrderRows = activeJob.build.sale.marketOrders;
+  const linkedOrderRows = Object.values(activeJob.esi.marketOrders);
   const locationIds = useMemo(
     () =>
       asNumberIDSet(

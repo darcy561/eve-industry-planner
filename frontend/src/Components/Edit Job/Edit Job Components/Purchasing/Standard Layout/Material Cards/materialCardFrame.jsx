@@ -239,7 +239,8 @@ export function MaterialCardFrame_Purchasing(props) {
             sx={{
               flex: 1,
               minHeight: 0,
-              overflowY: Object.keys(material.purchasing).length > 2 ? "auto" : "hidden",
+              overflowY:
+                Object.keys(material.purchasing).length > 2 ? "auto" : "hidden",
               overflowX: "hidden",
               display: "flex",
               flexDirection: "column",
@@ -250,7 +251,9 @@ export function MaterialCardFrame_Purchasing(props) {
               sx={{
                 flexShrink: 0,
                 minHeight:
-                  Object.keys(material.purchasing).length === 0 ? 0 : { xs: 80, sm: 80 },
+                  Object.keys(material.purchasing).length === 0
+                    ? 0
+                    : { xs: 80, sm: 80 },
                 display: "flex",
                 alignItems: "flex-start",
               }}

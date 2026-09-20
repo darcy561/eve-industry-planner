@@ -36,7 +36,7 @@ import {
 } from "../../../../../../Functions/Shared/eveImage";
 
 /**
- * Linking an ESI job adds a run to `activeJob.build.costs.linkedJobs` (persisted),
+ * Linking an ESI job adds a run to `activeJob.esi.industryJobs` (persisted),
  * so it follows the active job lock. Group locks already cascade into the
  * per-job lock, so `useActiveJobReadOnly` is the right single-source gate
  * (matches the save/delete-icon pattern, no need for the composite hook).
@@ -386,7 +386,8 @@ export function AvailableJobsTab(props) {
       </>
     );
   } else if (
-    state.activeJob.build.costs.linkedJobs.length >= state.activeJob.jobCount
+    Object.keys(state.activeJob.esi.industryJobs).length >=
+    state.activeJob.jobCount
   ) {
     return (
       <Grid

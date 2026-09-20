@@ -39,7 +39,7 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
     if (allIndustryJobs) activeJob.updateLinkedJobData(allIndustryJobs);
   }, [allIndustryJobs, activeJob]);
 
-  const linkedJobRows = activeJob.build.costs.linkedJobs;
+  const linkedJobRows = Object.values(activeJob.esi.industryJobs);
   const locationIds = useMemo(
     () => jobLocationIds([...jobMatches, ...linkedJobRows]),
     [jobMatches, linkedJobRows],

@@ -11,7 +11,7 @@ export default function findOrderTransactions(
   const transactionData = [];
   const matchedTransactionIDs = inputJob.esiTransactionIDs;
 
-  inputJob.build.sale.marketOrders.forEach((order) => {
+  Object.values(inputJob.esi.marketOrders).forEach((order) => {
     const itemTransactions = findTransactionsForMarketOrders(
       order,
       queryClient,

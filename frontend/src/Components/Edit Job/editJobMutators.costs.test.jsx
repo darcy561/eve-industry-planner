@@ -50,7 +50,7 @@ beforeEach(() => {
 
 describe("the costs a reader adds by hand, end to end", () => {
   function costsOf(state) {
-    return state.activeJob.build.costs;
+    return state.activeJob.build;
   }
 
   it("records what invention cost", () => {

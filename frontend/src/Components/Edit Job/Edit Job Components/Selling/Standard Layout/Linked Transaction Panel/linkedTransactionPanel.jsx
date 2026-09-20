@@ -65,8 +65,8 @@ export function LinkedTransactionPanel(props) {
           size={12}
           spacing={1}
         >
-          {state.activeJob.build.sale.transactions.length !== 0 ? (
-            state.activeJob.build.sale.transactions.map((tData) => {
+          {state.activeJob.salesByDate.length !== 0 ? (
+            state.activeJob.salesByDate.map((tData) => {
               const charData = useUsersStore
                 .getState()
                 .account.actions.findCharacterByHash(tData.CharacterHash);
@@ -95,10 +95,7 @@ export function LinkedTransactionPanel(props) {
                       <Avatar
                         src={
                           tData.is_corp
-                            ? corporationImageUrl(
-                                corpData?.corporation_id,
-                                64,
-                              )
+                            ? corporationImageUrl(corpData?.corporation_id, 64)
                             : characterImageUrl(charData?.CharacterID, 64)
                         }
                         variant="circular"

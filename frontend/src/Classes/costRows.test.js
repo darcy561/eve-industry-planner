@@ -133,7 +133,7 @@ describe("invention entries on a job", () => {
       { id: 2, itemName: "Decryptor", itemCost: 400000 },
     ]);
 
-    expect(activeJob.build.costs.inventionEntries["1"]).toBeInstanceOf(
+    expect(activeJob.build.inventionEntries["1"]).toBeInstanceOf(
       InventionEntry,
     );
     expect(activeJob.totalInventionCost).toBe(525000);
@@ -149,15 +149,15 @@ describe("invention entries on a job", () => {
       itemCost: 400000,
     });
 
-    expect(Object.keys(activeJob.build.costs.inventionEntries)).toHaveLength(2);
+    expect(Object.keys(activeJob.build.inventionEntries)).toHaveLength(2);
     expect(activeJob.totalInventionCost).toBe(525000);
     // Whatever a caller hands over becomes a row of its own class.
-    expect(activeJob.build.costs.inventionEntries["7"]).toBeInstanceOf(
+    expect(activeJob.build.inventionEntries["7"]).toBeInstanceOf(
       InventionEntry,
     );
 
     const document = activeJob.toDocument();
-    expect(document.build.costs.inventionEntries["7"]).toEqual({
+    expect(document.build.inventionEntries["7"]).toEqual({
       version: 1,
       id: 7,
       itemName: "Decryptor",
@@ -201,9 +201,7 @@ describe("extra costs on a job", () => {
       { id: "extra-2", category: 0, extraText: "", extraValue: 250000 },
     ]);
 
-    expect(activeJob.build.costs.extrasCosts["extra-1"]).toBeInstanceOf(
-      ExtraCost,
-    );
+    expect(activeJob.build.extrasCosts["extra-1"]).toBeInstanceOf(ExtraCost);
     expect(activeJob.totalExtrasCost).toBe(1750000);
   });
 
@@ -217,7 +215,7 @@ describe("extra costs on a job", () => {
     activeJob.addExtrasCost({ id: "extra-2", extraValue: 5 });
 
     const document = activeJob.toDocument();
-    expect(document.build.costs.extrasCosts).toEqual({
+    expect(document.build.extrasCosts).toEqual({
       "extra-1": {
         id: "extra-1",
         category: "3",

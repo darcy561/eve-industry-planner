@@ -245,10 +245,7 @@ describe("the places these panels name", () => {
     renderOverEditJob(
       sellingThroughOrder(700001),
       ({ state, actions }) => (
-        <LinkedMarketOrdersTab
-          state={state}
-          actions={actions}
-        />
+        <LinkedMarketOrdersTab state={state} actions={actions} />
       ),
       { locationNames: editJobLocationNames },
     );
@@ -318,10 +315,7 @@ describe("unlinking a market order, end to end", () => {
     const { editJob } = renderOverEditJob(
       sellingThroughOrder(700001),
       ({ state, actions }) => (
-        <LinkedMarketOrdersTab
-          state={state}
-          actions={actions}
-        />
+        <LinkedMarketOrdersTab state={state} actions={actions} />
       ),
     );
     expect(editJob.current.activeJob.build.sale.marketOrders).toHaveLength(1);
@@ -338,10 +332,7 @@ describe("unlinking a market order, end to end", () => {
     const { editJob } = renderOverEditJob(
       sellingThroughOrder(700001),
       ({ state, actions }) => (
-        <LinkedMarketOrdersTab
-          state={state}
-          actions={actions}
-        />
+        <LinkedMarketOrdersTab state={state} actions={actions} />
       ),
     );
 

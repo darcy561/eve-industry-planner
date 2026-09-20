@@ -117,10 +117,9 @@ describe("Job skills", () => {
 // asserts on the backend: a collection held keyed has to be written back keyed,
 // or the first save after the reshape stores an array over a converted document.
 //
-// `toDocument` spreads `build.costs` before naming its keyed collections, so a
-// collection that stopped being named there would be carried through by the
-// spread in whatever shape it happened to hold. That is the case this covers
-// and the reason it asserts on the document rather than on the instance.
+// The instance holds each collection keyed whatever the document it was read
+// from held, so only the document says whether the write path kept it that way.
+// That is the reason this asserts on the document rather than on the instance.
 describe("Job writes keyed collections back keyed", () => {
   const job = () =>
     new Job({
@@ -151,8 +150,8 @@ describe("Job writes keyed collections back keyed", () => {
       "build.materials.34.purchasing",
       (d) => d.build.materials["34"].purchasing,
     ],
-    ["build.costs.extrasCosts", (d) => d.build.costs.extrasCosts],
-    ["build.costs.inventionEntries", (d) => d.build.costs.inventionEntries],
+    ["build.extrasCosts", (d) => d.build.extrasCosts],
+    ["build.inventionEntries", (d) => d.build.inventionEntries],
   ])("writes %s as a keyed collection", (_name, read) => {
     const held = read(job().toDocument());
 
@@ -160,17 +159,16 @@ describe("Job writes keyed collections back keyed", () => {
     expect(typeof held).toBe("object");
   });
 
-  // Serialised, not merely present. `toDocument` spreads `build.costs` before
-  // naming its keyed collections, so dropping one of those names does not empty
-  // it — the spread carries the live class instances through instead, which are
-  // objects and would satisfy the check above while storing a row nothing wrote.
+  // Serialised, not merely present: a collection written straight from the
+  // instance carries the live class instances, which are objects and would
+  // satisfy the check above while storing a row nothing wrote.
   it("writes plain rows rather than the instances it holds", () => {
     const document = job().toDocument();
 
     for (const row of [
       ...Object.values(document.build.materials),
-      ...Object.values(document.build.costs.extrasCosts),
-      ...Object.values(document.build.costs.inventionEntries),
+      ...Object.values(document.build.extrasCosts),
+      ...Object.values(document.build.inventionEntries),
     ]) {
       expect(row.constructor).toBe(Object);
     }
@@ -186,7 +184,7 @@ describe("Job writes keyed collections back keyed", () => {
     expect(Object.keys(document.build.materials["34"].purchasing)).toEqual([
       "p1",
     ]);
-    expect(Object.keys(document.build.costs.extrasCosts)).toEqual(["e1"]);
-    expect(Object.keys(document.build.costs.inventionEntries)).toEqual(["i1"]);
+    expect(Object.keys(document.build.extrasCosts)).toEqual(["e1"]);
+    expect(Object.keys(document.build.inventionEntries)).toEqual(["i1"]);
   });
 });

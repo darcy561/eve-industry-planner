@@ -16,7 +16,7 @@ export default function applyLatestOrderData(job, latestESIOrders) {
   if (!job || !latestESIOrders?.length) return false;
 
   let changed = false;
-  for (const order of job.build.sale.marketOrders) {
+  for (const order of Object.values(job.esi.marketOrders)) {
     const reported = latestESIOrders.filter(
       (candidate) => candidate.order_id === order.order_id,
     );
