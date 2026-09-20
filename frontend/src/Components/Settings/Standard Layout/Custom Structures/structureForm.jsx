@@ -77,6 +77,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     blankStructure(selectedJobType),
   );
   const [placeError, setPlaceError] = useState(null);
+  const [nameError, setNameError] = useState(false);
 
   const fields = structure.fields;
   const isMarket = Boolean(fields.stationID || fields.structureID);
@@ -192,7 +193,17 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     },
   };
 
+  // The name is how a reader tells one saved row from another: every picker
+  // lists them by it, so a nameless row is an empty option among other empty
+  // options. Refused here rather than filled in with a stand-in, because only
+  // the reader knows which of their structures this is.
+  const nameGiven = Boolean(structure.name?.trim());
+
   async function handleAdd() {
+    if (!nameGiven) {
+      setNameError(true);
+      return;
+    }
     try {
       await addCustomStructureFunction({
         structure,
@@ -200,6 +211,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
         setIsLoading,
       });
       setStructure(blankStructure(selectedJobType));
+      setPlaceError(null);
       scheduleDebouncedApplicationSettingsSave();
       showSnackbarSuccess(`${structure.name} Added`);
     } catch (error) {
@@ -207,7 +219,10 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     }
   }
 
-  const handleName = (e) => settled((s) => s.setName(e.target.value));
+  const handleName = (e) => {
+    if (e.target.value.trim()) setNameError(false);
+    settled((s) => s.setName(e.target.value));
+  };
 
   return (
     <Box>
@@ -224,7 +239,12 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
               size="small"
               variant="outlined"
               label="Structure name"
-              helperText="Shown in lists only; used to tell structures apart."
+              error={nameError}
+              helperText={
+                nameError
+                  ? "Give this a name so you can tell it apart in lists."
+                  : "Shown in lists only; used to tell structures apart."
+              }
               sx={textFieldSx}
               onChange={handleName}
               onBlur={handleName}

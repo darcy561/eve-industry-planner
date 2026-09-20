@@ -296,6 +296,7 @@ describe("what a saved market carries", () => {
     renderForm({ selectedJobType: structureKinds.market });
 
     const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Structure name/i), "My Jita office");
     await user.type(screen.getByRole("combobox"), "Jita");
     await user.click(await screen.findByRole("option", { name: /Jita IV-4/ }));
     await user.click(screen.getByRole("button", { name: /Add structure/i }));
@@ -307,5 +308,61 @@ describe("what a saved market carries", () => {
       raceID: 1,
       ownerID: 1000035,
     });
+  });
+});
+
+// Every picker lists saved rows by name, so a nameless one is an empty option
+// among other empty options — a reader cannot pick the right one or tell they
+// picked wrong.
+describe("saving needs a name", () => {
+  it("refuses a market with no name and says why", async () => {
+    renderForm({ selectedJobType: structureKinds.market });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Add structure/i }),
+    );
+
+    expect(addCustomStructureFunction).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Give this a name so you can tell it apart in lists."),
+    ).toBeInTheDocument();
+  });
+
+  // Not a market rule: nothing has ever checked, so every kind could be saved
+  // nameless.
+  it("refuses a build structure with no name too", async () => {
+    renderForm({ selectedJobType: jobTypes.manufacturing });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Add structure/i }),
+    );
+
+    expect(addCustomStructureFunction).not.toHaveBeenCalled();
+  });
+
+  // Spaces are not a name. A row called " " is as hard to pick out as one
+  // called nothing.
+  it("refuses a name that is only spaces", async () => {
+    renderForm({ selectedJobType: structureKinds.market });
+
+    await userEvent.type(screen.getByLabelText(/Structure name/i), "   ");
+    await userEvent.click(
+      screen.getByRole("button", { name: /Add structure/i }),
+    );
+
+    expect(addCustomStructureFunction).not.toHaveBeenCalled();
+  });
+
+  it("stops saying so once a name is given", async () => {
+    renderForm({ selectedJobType: structureKinds.market });
+    await userEvent.click(
+      screen.getByRole("button", { name: /Add structure/i }),
+    );
+
+    await userEvent.type(screen.getByLabelText(/Structure name/i), "Jita");
+
+    expect(
+      screen.queryByText("Give this a name so you can tell it apart in lists."),
+    ).not.toBeInTheDocument();
   });
 });
