@@ -10,6 +10,12 @@ const deleteCustomStructure = vi.fn();
 
 let structures = [];
 
+const LOCATION_NAMES = {
+  60003760: "Jita IV-4",
+  1035466617946: "Perimeter Azbel",
+  10000002: "The Forge",
+};
+
 vi.mock("../../../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../../../../tests/usersStoreHarness.js");
@@ -25,6 +31,22 @@ vi.mock("../../../../Zustand/usersStore", async () => {
     }),
   );
 });
+
+// Names arrive from ESI per id. What each card must say about its place is the
+// thing under test, so the names themselves are supplied rather than fetched.
+vi.mock("../../../../Hooks/EveEsi/useLocationNames", () => ({
+  default: (ids) => ({
+    names: Object.fromEntries(
+      [...(ids ?? [])]
+        .filter((id) => LOCATION_NAMES[id])
+        .map((id) => [id, { name: LOCATION_NAMES[id] }]),
+    ),
+    failed: new Set(),
+    isLoading: false,
+    isError: false,
+    error: null,
+  }),
+}));
 
 vi.mock("../../../../Hooks/useSolarSystemNames", () => ({
   UNKNOWN_SYSTEM_LABEL: "Unknown system",
@@ -223,20 +245,67 @@ describe("what a card says about each kind of structure", () => {
 // a structure type it has no bonuses from, rigs it cannot fit, an installation
 // tax it does not charge, and a system index it has no cost to apply one to.
 describe("what a card says about a market", () => {
-  it("does not describe a market as somewhere a job is built", () => {
+  const JITA_STATION = 60003760;
+  const AN_AZBEL = 1035466617946;
+  const THE_FORGE = 10000002;
+
+  it("names the station, its region, and where its fee comes from", () => {
     structures = [
       {
         id: "market-1",
         jobType: structureKinds.market,
-        name: "Perimeter Azbel",
-        structureID: 1035466617946,
+        name: "My Jita office",
+        stationID: JITA_STATION,
+        regionID: THE_FORGE,
+        default: true,
+      },
+    ];
+    renderFrame({ selectedJobType: structureKinds.market });
+
+    expect(screen.getByText("Station")).toBeInTheDocument();
+    expect(screen.getByText("Jita IV-4")).toBeInTheDocument();
+    expect(screen.getByText("The Forge")).toBeInTheDocument();
+    // A station charges what the seller's skills and standings make it, so a
+    // percentage here would be a number nothing charges.
+    expect(
+      screen.getByText("From your skills and standings"),
+    ).toBeInTheDocument();
+  });
+
+  it("names the citadel and the rate its owner set", () => {
+    structures = [
+      {
+        id: "market-2",
+        jobType: structureKinds.market,
+        name: "Perimeter",
+        structureID: AN_AZBEL,
+        regionID: THE_FORGE,
         brokerFee: 1.5,
         default: true,
       },
     ];
     renderFrame({ selectedJobType: structureKinds.market });
 
+    expect(screen.getByText("Citadel")).toBeInTheDocument();
     expect(screen.getByText("Perimeter Azbel")).toBeInTheDocument();
+    expect(screen.getByText("1.5%")).toBeInTheDocument();
+  });
+
+  // A market is described by where it is and what it charges. The build fields
+  // belong to a place a job is installed in.
+  it("does not describe a market as somewhere a job is built", () => {
+    structures = [
+      {
+        id: "market-1",
+        jobType: structureKinds.market,
+        name: "Perimeter",
+        structureID: AN_AZBEL,
+        brokerFee: 1.5,
+        default: true,
+      },
+    ];
+    renderFrame({ selectedJobType: structureKinds.market });
+
     for (const label of ["Rigs", "Tax", "Security", "System"]) {
       expect(screen.queryByText(label)).not.toBeInTheDocument();
     }

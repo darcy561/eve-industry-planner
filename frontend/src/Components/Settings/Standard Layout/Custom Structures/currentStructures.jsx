@@ -24,6 +24,8 @@ import {
   UNKNOWN_SYSTEM_LABEL,
   useSolarSystemNames,
 } from "../../../../Hooks/useSolarSystemNames";
+import useLocationNames from "../../../../Hooks/EveEsi/useLocationNames";
+import { describeLocation } from "../../../../Functions/Assets/assetTree";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
@@ -39,6 +41,21 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
     [allStructures, selectedJobType],
   );
   const systemNames = useSolarSystemNames();
+  // Asked for only what the markets in this list hold: a build kind names no
+  // place, so a list of them asks for nothing.
+  const placeIDs = useMemo(
+    () =>
+      structures
+        .map((structure) => structure.stationID || structure.structureID)
+        .filter(Boolean),
+    [structures],
+  );
+  const regionIDs = useMemo(
+    () => structures.map((structure) => structure.regionID).filter(Boolean),
+    [structures],
+  );
+  const locationNames = useLocationNames(placeIDs);
+  const regionNames = useLocationNames(regionIDs).names;
   const { setDefaultCustomStructure, deleteCustomStructure } =
     useUsersStore.getState().applicationSettings.actions;
 
@@ -145,6 +162,8 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
             {structureFacts(selectedJobType, structure, {
               systemNames,
               getSystemIndex,
+              locationNames,
+              regionNames,
             }).map(({ label, value }) => (
               <StructureFact key={label} label={label}>
                 {value}
@@ -158,6 +177,37 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
 }
 
 /**
+ * What a saved market is worth saying: where it is, and what listing there costs.
+ *
+ * Which sort of market it is follows from the place it holds, so a station says its fee comes from
+ * the seller and a citadel says the rate its owner set — neither is asked which it is.
+ *
+ * @returns {Array<{label: string, value: React.ReactNode}>}
+ */
+function marketFacts(structure, { locationNames, regionNames }) {
+  const atStation = Boolean(structure.stationID);
+  const place = describeLocation(
+    structure.stationID || structure.structureID,
+    locationNames.names,
+    locationNames.failed,
+  );
+
+  return [
+    { label: atStation ? "Station" : "Citadel", value: place.name || "—" },
+    {
+      label: "Region",
+      value: regionNames[structure.regionID]?.name ?? UNKNOWN_SYSTEM_LABEL,
+    },
+    {
+      label: "Broker fee",
+      value: atStation
+        ? "From your skills and standings"
+        : `${structure.brokerFee || 0}%`,
+    },
+  ];
+}
+
+/**
  * What a structure is worth saying, in the order a reader reads it. Each job type asks a different
  * question of a structure, so the facts differ rather than being blanked out.
  *
@@ -166,21 +216,13 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
 function structureFacts(
   selectedJobType,
   structure,
-  { systemNames, getSystemIndex },
+  { systemNames, getSystemIndex, locationNames, regionNames },
 ) {
   // A market is described by where it is and what it charges. The build fields
   // below belong to a place a job is installed in, and the kinds are told apart
   // by returning here rather than by falling through to them.
   if (selectedJobType === structureKinds.market) {
-    return [
-      {
-        label: "Broker fee",
-        value:
-          structure.brokerFee === undefined
-            ? "Set by your skills and standings"
-            : `${structure.brokerFee || 0}%`,
-      },
-    ];
+    return marketFacts(structure, { locationNames, regionNames });
   }
 
   const structureType =
