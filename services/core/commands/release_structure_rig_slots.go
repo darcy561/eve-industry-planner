@@ -107,6 +107,11 @@ func foldStructureRigSlotsIn(ctx context.Context, m *eipmongo.Mongo, collection 
 
 // foldStructureRigSlotsInDocument converts every structure the document holds
 // and returns the rows to write back with the number that changed.
+//
+// A row counts as changed when anything about it moved, not only when it gained
+// slots: dropping a stale rigType is a change the document has to be written
+// back for, and counting only conversions would throw that deletion away with
+// the document it was made in.
 func foldStructureRigSlotsInDocument(doc bson.M) (bson.A, int) {
 	rows, held := doc["customStructures"].(bson.A)
 	if !held {
@@ -115,8 +120,7 @@ func foldStructureRigSlotsInDocument(doc bson.M) (bson.A, int) {
 
 	changed := 0
 	for _, row := range rows {
-		structure := asDocument(row)
-		if foldStructureRig(structure) {
+		if foldStructureRig(asDocument(row)) {
 			changed++
 		}
 	}
@@ -126,19 +130,20 @@ func foldStructureRigSlotsInDocument(doc bson.M) (bson.A, int) {
 // foldStructureRig replaces one structure's rigType with the two slots it stood
 // for, and reports whether it changed anything.
 //
-// A structure already carrying slots is left alone, which is what makes the step
+// A structure already carrying slots keeps them, which is what makes the step
 // safe to re-run and safe to run late.
 func foldStructureRig(structure bson.M) bool {
 	if structure == nil {
 		return false
 	}
 	if _, held := structure["rigSlot1"]; held {
-		// A row carrying both is one this step already converted. A row carrying
-		// slots and a rigType is one the SPA wrote after the change over a value
-		// it never read, so the stale rigType goes rather than being kept as a
-		// second answer to the same question.
+		// A row carrying slots and a rigType is one the SPA wrote after the
+		// change, over a value it never read. The stale rigType goes rather than
+		// being kept as a second answer to the same question — and that deletion
+		// is a change, so it is reported as one or the write never happens.
+		_, stale := structure["rigType"]
 		delete(structure, "rigType")
-		return false
+		return stale
 	}
 
 	raw, held := structure["rigType"]

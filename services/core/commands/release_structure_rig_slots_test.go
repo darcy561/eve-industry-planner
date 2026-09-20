@@ -52,8 +52,10 @@ func TestAStaleRigTypeBesideSlotsIsDropped(t *testing.T) {
 
 	structure := bson.M{"rigSlot1": 2, "rigSlot2": 4, "rigType": int32(6)}
 
-	if foldStructureRig(structure) {
-		t.Error("a structure already holding slots was reported as converted")
+	// Reported as changed, not because slots moved but because the deletion has
+	// to reach Mongo: the caller writes a document only when something changed.
+	if !foldStructureRig(structure) {
+		t.Error("dropping a stale rigType was not reported as a change")
 	}
 	if _, held := structure["rigType"]; held {
 		t.Error("a stale rigType was kept beside the slots that replaced it")
@@ -61,6 +63,40 @@ func TestAStaleRigTypeBesideSlotsIsDropped(t *testing.T) {
 	if structure["rigSlot1"] != 2 || structure["rigSlot2"] != 4 {
 		t.Errorf("slots = %v/%v, want the stored 2/4 untouched",
 			structure["rigSlot1"], structure["rigSlot2"])
+	}
+}
+
+// A row already carrying slots and nothing stale is the re-run case: there is
+// nothing to do and nothing to write.
+func TestACleanlyConvertedRowIsNotAChange(t *testing.T) {
+	t.Parallel()
+
+	structure := bson.M{"rigSlot1": 2, "rigSlot2": 4}
+
+	if foldStructureRig(structure) {
+		t.Error("a row with nothing to do was reported as changed")
+	}
+}
+
+// The document-level count is what decides whether Mongo is written to, so a
+// document whose only work is a deletion has to count. Counting conversions
+// alone dropped the deletion with the document it was made in.
+func TestADocumentOwingOnlyADeletionIsWrittenBack(t *testing.T) {
+	t.Parallel()
+
+	doc := bson.M{
+		"_id": "account-1",
+		"customStructures": bson.A{
+			bson.M{"id": "a", "rigSlot1": 2, "rigSlot2": 4, "rigType": int32(6)},
+		},
+	}
+
+	rows, changed := foldStructureRigSlotsInDocument(doc)
+	if changed != 1 {
+		t.Fatalf("changed = %d, want the row owing a deletion to count", changed)
+	}
+	if _, held := rows[0].(bson.M)["rigType"]; held {
+		t.Error("the stale rigType survived")
 	}
 }
 

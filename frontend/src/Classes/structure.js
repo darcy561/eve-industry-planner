@@ -26,6 +26,10 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
  *   brokerFee?: boolean, characterHash?: boolean}>}
  */
 const fieldsByJobType = {
+  // `built` is the three fields a place a job is performed in carries: a
+  // security modifier, a structure type carrying bonuses, and an installation
+  // tax. They read as shared because every kind was a build kind until a market
+  // became one; a market charges a broker fee instead and has none of them.
   [structureKinds.manufacturing]: {
     built: true,
     rigSlots: true,
@@ -95,12 +99,14 @@ class Structure {
       existingValue?.id ??
       `${customStructureLocationMap[this.jobType]}-${crypto.randomUUID()}`;
     this.name = existingValue?.name ?? "";
-    this.systemType = existingValue?.systemType ?? 0;
-    this.structureType = existingValue?.structureType ?? 0;
-    this.tax = coerceTaxPercentage(existingValue?.tax);
     this.default = existingValue?.default ?? false;
 
     const fields = this.fields;
+    if (fields.built) {
+      this.systemType = existingValue?.systemType ?? 0;
+      this.structureType = existingValue?.structureType ?? 0;
+      this.tax = coerceTaxPercentage(existingValue?.tax);
+    }
     if (fields.rigSlots) {
       this.rigSlot1 = existingValue?.rigSlot1 ?? 0;
       this.rigSlot2 = existingValue?.rigSlot2 ?? 0;
@@ -211,26 +217,8 @@ class Structure {
     this.default = isDefault;
   }
 
-  /**
-   * @param {number} regionID - The region whose order book carries this market
-   */
-  setRegionID(regionID) {
-    this.regionID = coerceFiniteNumber(regionID, 0);
-  }
 
-  /**
-   * @param {number} stationID - The NPC station a region's orders narrow to
-   */
-  setStationID(stationID) {
-    this.stationID = coerceFiniteNumber(stationID, 0);
-  }
 
-  /**
-   * @param {number} structureID - The citadel whose order book this is
-   */
-  setStructureID(structureID) {
-    this.structureID = coerceFiniteNumber(structureID, 0);
-  }
 
   /**
    * The rate a citadel's owner set, as a percentage.
@@ -245,17 +233,6 @@ class Structure {
     this.brokerFee = coerceTaxPercentage(brokerFee);
   }
 
-  /**
-   * The character whose docking access reads this citadel's order book.
-   *
-   * Nothing records which character can see where, so this is the account's
-   * answer for this structure rather than a fact that can be looked up.
-   *
-   * @param {string} characterHash - The chosen character's hash
-   */
-  setCharacterHash(characterHash) {
-    this.characterHash = characterHash ?? "";
-  }
 
   /**
    * What this structure's two rigs give, taken per axis.
@@ -340,9 +317,6 @@ class Structure {
       jobType: this.jobType,
       name: this.name,
       default: this.default,
-      // A place a job is built in has a security modifier, a structure type
-      // that carries bonuses, and an installation tax. A place a price is asked
-      // for has none of the three: what it charges is its broker fee.
       ...(fields.built
         ? {
             systemType: this.systemType,

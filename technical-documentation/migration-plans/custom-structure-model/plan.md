@@ -1,8 +1,9 @@
 # Custom structure model — plan
 
 **Status:** Stages A, B, C and BR landed, including the prerelease steps that convert stored
-documents and stored rig ids. Stage D and Stage BR2 remain; BR2 is named here for what it inherits
-rather than owned here.
+documents, stored rig ids and a saved structure's rig. Stage D has landed its model — both market
+kinds, their fields, and the `structureKinds` split — and owes its surfaces. Stage BR2 remains and is
+named here for what it inherits rather than owned here.
 
 **No gap is open in what has landed.** The settings store reads either stored shape; rigs are two
 slots everywhere — in the tables, the form, a stored setup, a stored structure, and the prerelease

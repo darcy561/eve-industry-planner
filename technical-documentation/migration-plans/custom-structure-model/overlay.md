@@ -432,8 +432,8 @@ calculations, and the tax and rig rules.
 
 ### Still to do
 
-*Nothing outstanding in Stages A to C and BR.* Stage BR2 and Stage D remain, and neither is scheduled
-here — see [plan.md](./plan.md).
+*Nothing outstanding in Stages A to C and BR.* Stage D has landed its model and owes its surfaces —
+see its section below. Stage BR2 remains and is not scheduled here — see [plan.md](./plan.md).
 
 ### The surfaces that write a rig
 
@@ -510,13 +510,64 @@ tell is to assert the edit applied.
 
 ## Stage D — The kind that is a market
 
-*Nothing landed yet.* The design is settled — [plan.md](./plan.md) § Stage D — but no behaviour has
-shipped, so nothing is recorded here.
+**The model landed; nothing reads it yet.** A saved location can be expressed as either kind and
+stored, and no surface offers one — the form, `saleLocations.js` and the two faults that stage owns
+are still to come.
 
-Sections to fill: the two kinds and the fields each carries; why a broker fee is stored on a citadel
-and derived at a station; what replaced the placeholder rows in `saleLocations.js` and how a saved
-row reaches `allMarketSources()`; what became of `priceHub` once a location can be priced directly;
-how a stored access character that no longer resolves is shown; the surface for saving one.
+### The two kinds, and what each carries
+
+A place a price is asked for is either an NPC station or a player citadel. Both are a kind and a row
+in `fieldsByJobType`, which is what the model was built to make possible: no class, no list, no lane.
+
+| | NPC station | Player citadel |
+|---|---|---|
+| Inside its region | `stationID` | `structureID` |
+| Broker fee | derived from the seller | `brokerFee` |
+| Reading its book | public | `characterHash` |
+| System index | — | `systemID` |
+
+Both carry `regionID`, and both carry the `id`, `name` and `default` every row has.
+
+**Both name a region** because a price is asked for per region and then narrowed to one location, and
+because price history is region-scoped — ESI publishes no per-station or per-structure history.
+
+**Only a citadel stores a broker fee.** Its owner sets the rate and nothing can derive it. An NPC
+station's comes from the seller's skills and standings, so a stored number there would stand in for
+that derivation and quote the untrained rate without saying so. `TestAMarketStructuresFieldsReachTheDocument`
+asserts a station stores neither a fee nor an access character.
+
+**Only a citadel names a system**, because the installation-cost calculation asks a location for its
+system index. It is a market that sits in a system rather than a place to build, so it has no entry
+in `jobTypeMapping` and no install cost of its own.
+
+**The access character is stored and not yet read.** SPA market reads are public and unauthenticated,
+and no `/markets/structures/` call exists; the field is what lets that fetch be built.
+
+### A market is a kind of structure, not a kind of job
+
+`jobTypes` answers what work a character is performing. A market is a place, so the kinds a saved
+structure can be are drawn from **`structureKinds`** instead — the four build kinds at the values
+they have always had, and the market kinds continuing past them so a stored row is unambiguous.
+`models` has the same split: `StructureKindNPCStation` and `StructureKindCitadelMarket` sit beside
+the job types rather than among them, and `jobTypeNames` no longer names a market.
+
+**The stored field is still `jobType`.** Renaming it would migrate every structure document in both
+settings collections for a naming improvement; the class says why the name is what it is instead.
+
+### The three build fields stopped being shared
+
+`systemType`, `structureType` and `tax` were written by every kind. They are a place a job is
+performed in: a security modifier, a structure type carrying bonuses, and an installation tax. They
+read as shared only because every kind was a build kind, and they now sit behind `built` in the field
+map — gating the constructor and `toDocument` alike, so an instance holds exactly what it stores. A
+kind with no entry in the map carries none of them.
+
+### Still to fill
+
+The surface for saving one; what replaces the placeholder rows in `saleLocations.js` and how a saved
+row reaches `allMarketSources()`; what becomes of `priceHub` once a location can be priced directly;
+how a stored access character that no longer resolves is shown; and the two faults the stage owns —
+the selling-rates cache key, and the Selling stage reading an account-wide citadel fee.
 
 ## Missing live SoT found on the way
 

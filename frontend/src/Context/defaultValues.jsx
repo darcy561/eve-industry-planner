@@ -157,23 +157,6 @@ export const jobTypeNames = {
   [jobTypes.reprocessing]: "Reprocessing Job",
 };
 
-/**
- * What each kind of saved structure is called where a player reads it.
- *
- * Separate from {@link jobTypeNames}, which answers what job a row is: a market
- * is not a job and must never be offered as the name of one.
- *
- * @type {Object<number, string>}
- */
-export const structureKindNames = {
-  [structureKinds.manufacturing]: "Manufacturing",
-  [structureKinds.reaction]: "Reaction",
-  [structureKinds.invention]: "Invention",
-  [structureKinds.reprocessing]: "Reprocessing",
-  [structureKinds.npcStation]: "NPC Station",
-  [structureKinds.citadelMarket]: "Player Citadel",
-};
-
 export const jobTypeMapping = {
   [jobTypes.manufacturing]: "manufacturing",
   [jobTypes.reaction]: "reaction",

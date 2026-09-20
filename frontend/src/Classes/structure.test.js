@@ -506,3 +506,31 @@ describe("the kinds that are a market", () => {
     expect(read).toEqual(citadel);
   });
 });
+
+// The instance and the document it writes must agree. A field set in memory but
+// dropped on write reads back as absent, which is the shape of silent loss.
+describe("what an instance holds matches what it stores", () => {
+  it("gives a market none of the build fields in memory either", () => {
+    for (const jobType of [
+      structureKinds.npcStation,
+      structureKinds.citadelMarket,
+    ]) {
+      const structure = new Structure({ jobType, tax: 2.5, systemType: 1 });
+
+      expect(structure.tax).toBeUndefined();
+      expect(structure.systemType).toBeUndefined();
+      expect(structure.structureType).toBeUndefined();
+    }
+  });
+
+  it("stores exactly the fields its kind carries, for every kind", () => {
+    for (const jobType of Object.values(structureKinds)) {
+      const structure = new Structure({ jobType });
+      const document = structure.toDocument();
+
+      for (const key of Object.keys(document)) {
+        expect(structure[key]).toBe(document[key]);
+      }
+    }
+  });
+});
