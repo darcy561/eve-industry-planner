@@ -1,18 +1,23 @@
 # Market price delivery — plan
 
-**Status: SHELVED.** Phase 1 complete, **Stages A, B, C and D landed and Stage E is done bar the
-citadel walk.** Everything this project can build without a citadel that is a market has been built.
+**Status: SHELVED, and Stage E item 2 is superseded.** Phase 1 complete, **Stages A, B, C and D
+landed and Stage E is done bar the citadel walk** — but measuring every market region in New Eden
+says a saved NPC station belongs on the server rather than in the browser, which is § Stage G. The
+browser-side station fetch built for item 2 comes out when that is built. Nothing else changes: a
+citadel stays the reader's own fetch, because its book is authenticated per character.
+
+Everything this project can build without a citadel that is a market has been built.
 It resumes when [custom-structure-model](../custom-structure-model/contents.md) makes one
-expressible — § Start here says exactly what to pick up and in what order. Nothing here is waiting on
-a decision, and nothing is half-finished: each landed stage is whole, tested and documented in
+expressible — § Start here says exactly what to pick up and in what order. Nothing is half-finished:
+each landed stage is whole, tested and documented in
 [overlay.md](./overlay.md). Every price in
 the SPA comes from the query cache, `worldData.marketData` is retired, the old
 `/api/v1/market-prices` endpoint is deleted, and a market's own clock decides what survives rather
 than an age guess. The browser derives the four prices itself — held to the server's answer by a
 committed fixture — and the loader now sorts a tick's wants by transport, so a reader-saved NPC
 station is fetched from ESI and read back through the same accessor as a hub. Next is the persistent
-tier, and its rows now survive a reload. Next is pacing a saved source against its own expiry. No
-open decisions remain.
+tier, and its rows now survive a reload. **Stage G is the open one**: what bounds the stored prices,
+and whose work `services/` is.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/MarketData/`,
 `Functions/EveESI/World/`, `Functions/Endpoints/Public/`, `Functions/Shared/getMissingESIData.js`,
 `Hooks/React Query/World/`, `Zustand/worldDataSlice/`, `Styled Components/Select/`,
@@ -546,6 +551,68 @@ carries no stations yet.
 survives a reload, stays current without being asked for, and costs one request per region rather
 than one per station.
 
+## Stage G — An NPC station is priced by the server, not the browser
+
+**Measured, not proposed.** Stage E item 2 has a saved NPC station fetched by the browser, one region
+request per type. The numbers say that is the wrong side of the wire, and the same numbers say the
+whole of New Eden costs less than twice what the server already spends.
+
+### What the measurements say
+
+Every known-space region was walked for its page count —
+[measurements.md](./measurements.md) § Every market region in New Eden.
+
+| Scope | Pages | Share of the hourly ESI budget |
+|---|---|---|
+| The four hubs the server sweeps today | 830 | 1.7% |
+| **All 70 known-space regions** | **1,613** | **3.4%** |
+
+The Forge alone is **408 pages, 407,616 orders, 92 MB** — a quarter of every page in the game, and
+5.6× the next region measured before it. A browser walking it costs a reader two minutes and 92 MB
+**per region, per hour, each**, and ten readers saving a Forge market walk the same pages ten times.
+
+The server walks once for everyone, and the marginal cost of covering every market in the game rather
+than four is **783 pages an hour**.
+
+### Why the store already fits
+
+Nothing about the backend's price store is hub-shaped. `priceKey` is
+`esi:market_orders:<typeID>:<locationID>` — a type at a location, whatever location that is — and
+`PricesAtLocation` bulk-reads a set of types for one location in one round trip.
+`/marketPricesQuery` already answers `{sources, typeIDs}` in that shape, and the SPA's loader already
+routes a hub through it.
+
+Three references to `esicore.DefaultMarketLocations` are the whole of what ties this to four hubs:
+
+- `core/scheduler/esi/regionMarketOrdersRefresh.go` sweeps that list — it sweeps every region instead.
+- `api/v1endpoints/marketPricesQuery.go` resolves a source id against it — it resolves a saved NPC
+  station too.
+- The list itself stays, as the hubs a reader is given by default.
+
+And one line in `worker/tasks/esi/refreshRegionMarketOrders.go` — `if order.LocationID !=
+request.StationID` — derives one station from a walk that saw every station in the region. Deriving
+all of them is a loop, and it is what makes one walk serve every saved market in that region.
+
+**Done when** a price at a saved NPC station is answered by `/marketPricesQuery`, the browser fetches
+no order book for one, and the sweep covers every known-space region.
+
+### What this supersedes
+
+Stage E item 2 stays as the record of what was built, and the browser-side station fetch it produced
+comes out: `fetchStationBook.js`'s per-type walk, and the three pieces built for a client-side
+whole-region sweep before these numbers existed — `getMarketData` without a type,
+`pricesByStationInRegion`, and `replaceStoredPrices`. The persistent tier stays: a **citadel** is
+still the reader's own fetch, because `/markets/structures/` is authenticated per character and its
+book cannot be centralised. That is the line — **public data centralises, private data does not.**
+
+### What is not settled
+
+- **Redis footprint.** Derived prices for every station in every region against four hubs' worth
+  today. Jita 4-4 alone carries 18,748 types; The Forge's 357 stations derive to 4.3 MB of prices.
+  A bound has to be chosen — every station, or only stations some reader has saved.
+- **Whose work.** This is `services/`, which another session has been working in all day. The
+  boundary is squared before anything is edited.
+
 ## Stage F — Custom market locations
 
 The stored list of markets a reader has added, and the surface for adding one.
@@ -724,7 +791,9 @@ browser a legitimate version of this path for custom sources, where there is no 
 | ~~How the Go and JavaScript derivations are held in agreement~~ | **Answered: the fixture.** `testing/fixtures/market-derivation/books.json`, written from the real Go derivation and read by a test on each side. Its cases twice passed an implementation that was wrong — see [overlay.md](./overlay.md) § E1 for which sizes of book a case has to use for the fixture to state anything |
 | ~~Persistent storage — TanStack's own persister, Dexie, or `idb`~~ | **Decided: read-through on `idb-keyval`**, the persister spiked against a real IndexedDB and backed out. `gcTime` decided it — see § How the persistent tier is stored, which also carries what persistence must do about the clock |
 | ~~When the `esi-markets.structure_markets.v1` scope is added~~ | **Closed: it is already requested.** Read from the running deployment's `EVE_SCOPE` rather than from the Deployment Tool's template default, which carries three scopes and is only a starting point. There is no re-authorisation event to time, and Stage E item 3 is not gated on one. A character linked before the scope was added holds a token without it and is skipped per call, which is the behaviour a character without docking access already gets |
-| Whether a citadel book walk is bounded, and what happens to a reader who saves a structure with a very large book | Unknown until measured. Stage E |
+| Whether a citadel book walk is bounded, and what happens to a reader who saves a structure with a very large book | **Partly answered for the public half.** A region is now measured: The Forge is 408 pages and 92 MB, which settles that a browser cannot walk one hourly per reader — see [measurements.md](./measurements.md) § Every market region in New Eden. A citadel's own book is still unmeasured, because `/markets/structures/` needs a token and a structure the account can dock at |
+| What bounds the prices Stage G stores | Derived prices for every station in every region, against four hubs' worth today. Jita 4-4 alone carries 18,748 types. Either every station is kept, or only stations some reader has saved — the second needs the sweep to know what readers saved, the first does not. Stage G |
+| Whether Stage G is this project's work to do | It edits `core/scheduler/esi/`, `worker/tasks/esi/` and `api/v1endpoints/`, which another session has been working in. Squared before anything is edited, not after. Stage G |
 
 ## Stage status
 
@@ -736,6 +805,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
 | Stage D — The price cache and its two tiers | **Done.** Items 1-3 landed in Stage B or are inherited from it; the persistent tier is read-through on `idb-keyval`, entered at one seam, holding reader-saved markets only, with a stored row refused once its book's expiry passes and rows abandoned by a version bump removed on first touch — see [overlay.md](./overlay.md) § D1. What it still owes is pacing while a row stays warm in memory, which is Stage E's remaining item |
 | Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation), item 2 (a saved NPC station, now reachable — the loader sorts a tick's wants by transport) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E2, § E3, § C2. Still open: the citadel walk (item 3), refetching a saved source ahead of the reader rather than retiring its rows, which only a citadel needs, and end-to-end coverage of the station transport — `priceDelivery.e2e.test.jsx` proves the hub path against a mocked `fetch` and stops there, which is honest while nothing in a running app reaches a station, and a gap the moment Stage F stores one |
+| Stage G — An NPC station is priced by the server | **Measured, not built.** Every known-space region was walked for its page count: all 70 cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost. The Forge alone is 408 pages and 92 MB, which a browser cannot walk hourly for each reader. The store is already shaped for it — `priceKey` is a type at a location — so what changes is three references to `DefaultMarketLocations` and one line in the worker. Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
 | Stage F — Custom market locations | **Not this project's to build.** It is what makes a saved location a market rather than a selling point priced from a hub, and it belongs to the separate custom-structure work — so this project and Stage E item 3 both wait on that, see § Stage F |
 
 ## Start here

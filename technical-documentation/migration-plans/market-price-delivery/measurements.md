@@ -127,3 +127,52 @@ Run while the plan was written, scoped to the packages in the project's touch su
 | `./worker/tasks/esi/...` | Clean |
 | `./core/scheduler/esi/...` | Clean |
 | `./api/v1endpoints/...` | Suggestions in `authenticate.go`, `refresh.go`, `session_types.go`, `statistics/live_scope_test.go`; none in a file this project touches. Re-run after Stage B: unchanged |
+
+## Every market region in New Eden (2026-09-20)
+
+Measured against Tranquility while deciding whether a reader-saved NPC station should be walked by
+the browser or by the server. Page counts are `X-Pages` on page 1 of
+`/markets/{regionID}/orders/?order_type=all`, taken for **all 70 known-space regions**, not a sample.
+
+| Region | Pages | Raw book |
+|---|---|---|
+| The Forge (10000002) | **408** | 92 MB |
+| Domain (10000043) | 184 | ~43 MB |
+| Metropolis (10000042) | 120 | ~28 MB |
+| Sinq Laison (10000032) | 118 | ~27 MB |
+| Lonetrek (10000016) | 76 | ~18 MB |
+| Heimatar (10000030) | 73 | 16 MB |
+| …64 more | 634 | ~147 MB |
+| **Total** | **1,613** | ~0.4 GB |
+
+Every known-space region carries a market; none returned zero pages.
+
+**The Forge is a quarter of every page in the game** and 5.6× the next region measured. It was
+crawled in full: **407,616 orders, 92.2 MB**, about two minutes at ten requests in flight.
+
+### What each shape costs, from the Forge and Heimatar crawls
+
+| Shape | Heimatar | The Forge |
+|---|---|---|
+| Raw orders as ESI sends them | 16.3 MB | 92.2 MB |
+| Narrowed to the seven fields the grid and the derivation use | 9.3 MB | — |
+| Derived prices, every station | 2.9 MB (227 stations) | 4.3 MB (357 stations) |
+| Derived prices, one saved station | 552 KB (Rens 4-4) | 1.2 MB (Jita 4-4) |
+
+Narrowing saves 43%, not the half it looks like: `price`, `location_id` and `type_id` are most of the
+bytes and all three are needed. That is why narrowing does not rescue a raw cache — 43% off 92 MB is
+still 53 MB for one region.
+
+Jita 4-4 carries **18,748 types**, nearly five times the next busiest station measured.
+
+### Against the ESI budget
+
+The allowance is 12,000 tokens per fifteen minutes — 48,000 an hour.
+
+| Scope | Pages/hour | Share |
+|---|---|---|
+| The four hubs the server sweeps today | 830 | 1.7% |
+| Every known-space region | 1,613 | 3.4% |
+
+Covering every market in the game costs **783 more pages an hour** than covering four hubs, paid once
+by the server rather than once per reader per region.
