@@ -71,6 +71,7 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
           id: "citadelMarket-1",
           jobType: structureKinds.market,
           name: "Perimeter Azbel",
+          structureID: 1035466617946,
           brokerFee: 1.5,
           default: true,
         },
