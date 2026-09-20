@@ -37,6 +37,9 @@ beforeEach(() => {
 });
 
 describe("what a job needs priced", () => {
+  // A stand-in rather than a real Job: these cases are about which market each
+  // side is priced at, not about what a job counts as its types. `materialIDs`
+  // itself is asserted in Classes/jobCost.test.js, against the class.
   const job = (overrides = {}) => ({
     materialIDs: [34, 35],
     itemID: 99,

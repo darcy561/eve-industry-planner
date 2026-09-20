@@ -243,8 +243,17 @@ describe("reading a job's figures", () => {
     expect(job.parentJobIDs).toEqual(["parent-1"]);
     expect(job.childJobIDs).toEqual(["child-1"]);
     expect(job.relatedJobIDs).toEqual(["parent-1", "child-1"]);
-    expect(job.materialIDs).toEqual([587, 34, 35]);
     expect(job.setupSystemIDs).toHaveLength(1);
+  });
+
+  // Which types a job needs priced, and the reason the two are not the same
+  // list: a child job's type is a material of this job only where it happens to
+  // be one, so reading the child jobs left any other material unpriced.
+  test("the types to price are what the job makes and is made from", () => {
+    const job = jobWith({ materials: [100, 50] });
+    job.build.childJobs = { 9999: ["child-1"] };
+
+    expect(job.materialIDs).toEqual([587, 34, 35]);
   });
 
   // Every character that worked on the job, counted once, whether they ran it or

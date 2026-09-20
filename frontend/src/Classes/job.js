@@ -354,10 +354,16 @@ class Job {
   }
 
   /**
-   * @returns {Array<number>} Array of material type IDs
+   * Every type this job needs a price for: what it makes, and what it is made
+   * from. `models.groupShape` gathers a group's the same way.
+   *
+   * The output is here as well as the materials because a job is priced on both
+   * sides — what its materials cost to buy, and what its output sells for.
+   *
+   * @returns {Array<number>} Array of type IDs
    */
   get materialIDs() {
-    return [this.itemID, ...asNumberIDList(Object.keys(this.build.childJobs))];
+    return [this.itemID, ...asNumberIDList(Object.keys(this.build.materials))];
   }
 
   /**
