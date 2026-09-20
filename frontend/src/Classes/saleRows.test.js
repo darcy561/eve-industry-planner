@@ -212,6 +212,28 @@ describe("MarketOrder", () => {
       expect(order.fee).toBe(1000);
       expect(order.feeDate).toBeNull();
     });
+
+    // Neither can be shown to be older, so the first read stands — which is the
+    // order the conversion settles them in too.
+    it("keeps the first of two undated fees", () => {
+      const order = new MarketOrder({ order_id: 1 });
+
+      order.recordBrokerFee(dated(1000, null));
+      order.recordBrokerFee(dated(9999, null));
+
+      expect(order.fee).toBe(1000);
+    });
+
+    // An order charged nothing holds 0, which is a recorded fee rather than an
+    // absent one — a later row may not take its place.
+    it("keeps a recorded fee of nothing", () => {
+      const order = new MarketOrder({ order_id: 1 });
+
+      order.recordBrokerFee(dated(0, null));
+      order.recordBrokerFee(dated(500, null));
+
+      expect(order.fee).toBe(0);
+    });
   });
 
   it("reads completion from what is left rather than a stored flag", () => {

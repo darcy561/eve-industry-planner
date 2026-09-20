@@ -498,8 +498,11 @@ func keyTransactions(rows bson.A, mint mintTransactionID, report *reshapeReport)
 // not on the job is dropped — it is charged against something the job cannot
 // show, and nothing can put it back.
 //
-// The fee sheds the two fields no model reads, which would otherwise ride into
-// the new shape.
+// The fee lands as three fields on the order rather than a row nested under it.
+// It is three scalars once its identity is gone — the journal id it arrived with
+// names a multi-sell rather than this charge — so nesting them would leave the
+// order holding an object to reach a number through, and every total summing
+// `fee.amount` instead of `fee`.
 func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 	oldest := map[string]bson.M{}
 	for _, row := range fees {
@@ -509,6 +512,9 @@ func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 			report.Refusals = append(report.Refusals, "brokersFee: a row carries no usable order_id")
 			continue
 		}
+		// Dropped before the rows are compared, not to shape the output: two
+		// records of one charge differ on these, and counting them as distinct
+		// fees would report a later charge where there was only a second read.
 		delete(fee, "complete")
 		delete(fee, "CharacterHash")
 		delete(fee, "order_id")
@@ -539,7 +545,10 @@ func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 	folded := 0
 	for id, row := range orders {
 		if fee, held := oldest[id]; held {
-			asDocument(row)["fee"] = fee
+			order := asDocument(row)
+			order["fee"] = asFloat64(fee["amount"])
+			order["salesTax"] = asFloat64(fee["salesTax"])
+			order["feeDate"] = asString(fee["date"])
 			delete(oldest, id)
 			folded++
 		}

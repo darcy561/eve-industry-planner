@@ -91,6 +91,39 @@ describe("a job's pricing override", () => {
     expect(pick(job, null).build.localPricing).toBeNull();
   });
 
+  // A document saved before the fields moved still carries them under `layout`,
+  // so a cleared override has to be read as a choice rather than as an absence.
+  it("keeps a cleared override cleared against a stale layout", () => {
+    const job = new Job({
+      jobID: "j1",
+      itemID: 34,
+      build: { localPricing: null, materialPriceOverrides: {} },
+      layout: {
+        localPricing: { buying: { market: "jita", basis: "sell" } },
+        materialPriceOverrides: { 34: { marketDisplay: "amarr" } },
+      },
+    });
+
+    expect(job.build.localPricing).toBeNull();
+    expect(job.build.materialPriceOverrides).toEqual({});
+  });
+
+  it("reads a document that only carries the fields under layout", () => {
+    const job = new Job({
+      jobID: "j1",
+      itemID: 34,
+      layout: {
+        localPricing: { buying: { market: "jita", basis: "sell" } },
+        materialPriceOverrides: { 34: { marketDisplay: "amarr" } },
+      },
+    });
+
+    expect(job.build.localPricing.buying.market).toBe("jita");
+    expect(job.build.materialPriceOverrides["34"]).toEqual({
+      marketDisplay: "amarr",
+    });
+  });
+
   it("survives a round trip through the stored document", () => {
     const stored = new Job({
       jobID: "j1",

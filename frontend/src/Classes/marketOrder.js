@@ -19,6 +19,11 @@
  * @class MarketOrder
  */
 class MarketOrder {
+  // Whether a fee has been recorded, which `fee` cannot answer: an order
+  // charged nothing holds 0, and a number cannot say the difference between
+  // that and no charge known. Private, so it stays out of the document.
+  #feeRecorded = false;
+
   /**
    * @param {Object} [row] - A market order row from a job document
    */
@@ -42,6 +47,7 @@ class MarketOrder {
     this.fee = row?.fee ?? 0;
     this.salesTax = row?.salesTax ?? 0;
     this.feeDate = row?.feeDate ?? null;
+    this.#feeRecorded = row?.fee !== undefined || row?.feeDate != null;
   }
 
   /**
@@ -58,12 +64,14 @@ class MarketOrder {
    */
   recordBrokerFee(fee) {
     if (!fee) return;
-    // A fee with no date cannot be shown to be the earlier one, so it only
-    // stands where nothing has been recorded yet. Testing the two dates alone
-    // would let an undated fee overwrite a dated one, since the comparison is
-    // false whenever either side is missing.
-    if (this.feeDate && (!fee.date || this.feeDate <= fee.date)) return;
-    if (!fee.date && this.fee) return;
+    // Held unless the incoming one is strictly older, so the first read wins
+    // wherever neither can be shown to be. A date is needed to be older at all:
+    // a dateless fee cannot displace a dated one, and comparing the two dates
+    // alone would let it, because a comparison with a missing side is false.
+    const older =
+      Boolean(fee.date) && (!this.feeDate || fee.date < this.feeDate);
+    if (this.#feeRecorded && !older) return;
+    this.#feeRecorded = true;
     this.fee = fee.amount ?? 0;
     this.salesTax = fee.salesTax ?? 0;
     this.feeDate = fee.date ?? null;

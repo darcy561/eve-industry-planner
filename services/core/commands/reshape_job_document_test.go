@@ -99,9 +99,11 @@ func TestReshapeJobDocument_keepsTheOldestFeeOnItsOrder(t *testing.T) {
 	}
 
 	order := asDocument(asDocument(asDocument(out["esi"])["marketOrders"])["7351330862"])
-	fee := asDocument(order["fee"])
-	if got := asString(fee["date"]); got != "2026-06-02T08:40:10Z" {
+	if got := asString(order["feeDate"]); got != "2026-06-02T08:40:10Z" {
 		t.Errorf("kept fee dated %q, want the oldest", got)
+	}
+	if got := asFloat64(order["fee"]); got != 23476.6 {
+		t.Errorf("fee = %v, want the oldest entry's amount", got)
 	}
 	if report.FeesDroppedLater != 1 {
 		t.Errorf("FeesDroppedLater = %d, want 1", report.FeesDroppedLater)
@@ -109,8 +111,10 @@ func TestReshapeJobDocument_keepsTheOldestFeeOnItsOrder(t *testing.T) {
 	if report.FeeISKDroppedLater != 23390.5 {
 		t.Errorf("FeeISKDroppedLater = %v, want the later entry's amount", report.FeeISKDroppedLater)
 	}
-	if _, held := fee["order_id"]; held {
-		t.Errorf("fee kept order_id, which its position now states: %v", fee)
+	// The fee lands as three fields, so the journal id it arrived with — which
+	// names a multi-sell rather than this charge — has nowhere to ride in on.
+	if _, held := order["id"]; held {
+		t.Errorf("order kept the fee's journal id: %v", order)
 	}
 }
 

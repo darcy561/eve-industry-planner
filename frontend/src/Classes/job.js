@@ -149,8 +149,13 @@ class Job {
     this.rawData = itemJson?.rawData || {};
     this.skills = documentToSkills(itemJson);
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
+    // `in` rather than `??`: a job whose pricing the player cleared holds an
+    // explicit null under `build`, and falling through on that would reinstate
+    // whatever `layout` still carried from a save made before the move.
     const storedOverrides =
-      build?.materialPriceOverrides ?? itemJson?.layout?.materialPriceOverrides;
+      build && "materialPriceOverrides" in build
+        ? build.materialPriceOverrides
+        : itemJson?.layout?.materialPriceOverrides;
     this.build.materialPriceOverrides =
       storedOverrides &&
       typeof storedOverrides === "object" &&
@@ -168,7 +173,9 @@ class Job {
       null;
 
     this.build.localPricing = jobPricingOverride(
-      build?.localPricing ?? itemJson?.layout?.localPricing,
+      build && "localPricing" in build
+        ? build.localPricing
+        : itemJson?.layout?.localPricing,
       localMarketDisplay,
       localOrderDisplay,
     );
