@@ -664,6 +664,22 @@ character.
 tests prove the right controls appear and the setter test proves they can be called; neither says a
 value arrives.
 
+### The two languages agree on what a kind is worth
+
+A stored row's `jobType` is what both languages read to decide which fields it carries, and each
+wrote its own copy of the values. A number changed on one side would have **misfiled every row of
+that kind** — read back as another kind, with that kind's fields — rather than failing anywhere a
+reader could see.
+
+`testing/fixtures/structure-kinds/kinds.json` is what connects them, following the market-hub
+fixture: Go owns it, `EIP_UPDATE_STRUCTURE_KINDS=1` regenerates it, and the SPA's
+`Context/structureKinds.parity.test.js` reads it. Changing a value on either side fails — the Go test
+says the committed list is stale and names the command, and the SPA test names the kind that
+disagrees. A kind added to one side and not the other fails as a set mismatch.
+
+Values are also asserted distinct, because two kinds sharing one makes a row of either
+indistinguishable from the other.
+
 ### Still to fill
 
 The surface for saving one; what replaces the placeholder rows in `saleLocations.js` and how a saved

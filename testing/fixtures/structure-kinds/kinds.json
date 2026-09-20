@@ -1,0 +1,11 @@
+{
+  "why": "What a saved structure's jobType field can be. Both languages read that field to decide which optional fields a row carries, and each writes its own copy of the values, so nothing but this file connects the two. A value that disagrees misfiles a row rather than failing. Regenerate with: EIP_UPDATE_STRUCTURE_KINDS=1 go test ./shared/models/ -run TestTheStructureKindListIsCurrent",
+  "kinds": {
+    "citadelMarket": 7,
+    "invention": 4,
+    "manufacturing": 1,
+    "npcStation": 6,
+    "reaction": 2,
+    "reprocessing": 5
+  }
+}
