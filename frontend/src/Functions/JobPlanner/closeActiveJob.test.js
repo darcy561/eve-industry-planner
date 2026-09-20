@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { freeze } from "immer";
 import { create } from "zustand";
 import documentLockSlice from "../../Zustand/documentLockSlice.js";
 import {
@@ -65,6 +66,7 @@ vi.mock("../../Zustand/usersStore.js", () => ({
 }));
 
 import closeActiveJob from "./closeActiveJob.js";
+import { jobLens } from "../../Components/Edit Job/Edit Job Hooks/useEditJobSession.js";
 import { snackbarSpies } from "../../tests/snackbarHarness.js";
 
 const { showSnackbarInfo, showSnackbarWarning } = snackbarSpies;
@@ -81,35 +83,38 @@ function makeJob(id = "j1", groupID = null) {
   };
 }
 
+/** The store the close reads: the job in the planner, and nothing watching. */
+function seedStore() {
+  const job = makeJob();
+  storeHolder.current = create((set, get) => ({
+    account: {
+      isLoggedIn: true,
+      sessionID: "sess-a",
+      actions: { addLinkedEsiData: vi.fn() },
+    },
+    applicationSettings: {
+      enableAutomaticJobRecalculation: false,
+      actions: { getCurrentLocale: () => "en-GB" },
+    },
+    jobData: {
+      jobArray: [job],
+      groupArray: [],
+      actions: {
+        setActiveJobID: vi.fn(),
+        updateModifiedGroups: vi.fn(),
+        getGroupObject: vi.fn(),
+        updateOrAddJobsToJobArray: vi.fn(),
+        findJobInJobArray: vi.fn(() => job),
+        clearPendingJobDocumentWrites: vi.fn(),
+        clearPendingJobGroupWrites: vi.fn(),
+      },
+    },
+    ...documentLockSlice(set, get),
+  }));
+}
+
 describe("closeActiveJob", () => {
-  beforeEach(() => {
-    const job = makeJob();
-    storeHolder.current = create((set, get) => ({
-      account: {
-        isLoggedIn: true,
-        sessionID: "sess-a",
-        actions: { addLinkedEsiData: vi.fn() },
-      },
-      applicationSettings: {
-        enableAutomaticJobRecalculation: false,
-        actions: { getCurrentLocale: () => "en-GB" },
-      },
-      jobData: {
-        jobArray: [job],
-        groupArray: [],
-        actions: {
-          setActiveJobID: vi.fn(),
-          updateModifiedGroups: vi.fn(),
-          getGroupObject: vi.fn(),
-          updateOrAddJobsToJobArray: vi.fn(),
-          findJobInJobArray: vi.fn(() => job),
-          clearPendingJobDocumentWrites: vi.fn(),
-          clearPendingJobGroupWrites: vi.fn(),
-        },
-      },
-      ...documentLockSlice(set, get),
-    }));
-  });
+  beforeEach(seedStore);
 
   // Closing recalculates production against what the parents need, so a
   // quantity someone set by hand can be replaced on the way out. The person
@@ -295,5 +300,42 @@ describe("closeActiveJob", () => {
     expect(
       storeHolder.current.getState().jobData.actions.setActiveJobID,
     ).toHaveBeenCalledWith(null);
+  });
+});
+
+// The job the editor hands over is frozen — closing is the one path that
+// rewrites a job in place, and it works on its own copy. Without that, saving a
+// grouped job ready for sale throws where it sets the planner flag.
+describe("closing a job the editor froze", () => {
+  beforeEach(seedStore);
+
+  const frozenJob = () => {
+    const document = freeze(
+      {
+        jobID: "j1",
+        name: "Test Job",
+        includedInGroup: true,
+        groupID: "g1",
+        isReadyToSell: true,
+        displayOnPlanner: false,
+        parentJobs: [],
+        build: { materials: {}, childJobs: {} },
+      },
+      true,
+    );
+    // Built the way the page builds it, so the fixture cannot drift from what
+    // the editor actually hands over.
+    return { document, job: jobLens(document) };
+  };
+
+  it("saves without writing into what the editor holds", async () => {
+    const { document, job } = frozenJob();
+
+    await expect(
+      closeActiveJob(job, true, {}, {}, {}, null),
+    ).resolves.toBeUndefined();
+
+    expect(document.displayOnPlanner).toBe(false);
+    expect(Object.isFrozen(document)).toBe(true);
   });
 });

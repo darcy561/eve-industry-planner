@@ -17,6 +17,7 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
+import { removeMarketOrder } from "../../../../Edit Job Hooks/jobCommands";
 import useLocationNames from "../../../../../../Hooks/EveEsi/useLocationNames";
 import { UNNAMED_LOCATION_LABEL } from "../../../../../../Functions/Assets/assetLocationConstants";
 import {
@@ -233,7 +234,7 @@ export function LinkedMarketOrdersTab({ state, actions }) {
                         disabled={jobLockReadOnly}
                         onClick={() => {
                           if (jobLockReadOnly) return;
-                          state.activeJob.removeMarketOrder(order);
+                          actions.run(removeMarketOrder(order));
                           actions.addMarketOrdersForRemoval(
                             order.order_id,
                             Object.values(
@@ -242,7 +243,6 @@ export function LinkedMarketOrdersTab({ state, actions }) {
                               (item) => item.location_id === order.location_id,
                             ),
                           );
-                          actions.updateActiveJob(state.activeJob);
                           showSnackbarError("Unlinked");
                         }}
                       >

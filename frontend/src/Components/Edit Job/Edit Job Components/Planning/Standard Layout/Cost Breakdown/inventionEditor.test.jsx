@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  appliedTo,
+  commandActions,
+  commandsRun,
+} from "../../../../../../tests/jobCommandSpy.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -25,7 +30,7 @@ const jobFor = (overrides = {}) =>
   new Job({ jobType: 1, name: "Item", itemID: 34, ...overrides });
 
 const show = (job) => {
-  const actions = { updateActiveJob: vi.fn() };
+  const actions = commandActions();
   render(<InventionEditor state={{ activeJob: job }} actions={actions} />);
   return actions;
 };
@@ -70,19 +75,19 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    expect(Object.keys(job.build.inventionEntries)).toHaveLength(1);
-    expect(Object.values(job.build.inventionEntries)[0]).toMatchObject({
+    const changed = new Job(appliedTo(actions, job.toDocument()));
+    expect(Object.keys(changed.build.inventionEntries)).toHaveLength(1);
+    expect(Object.values(changed.build.inventionEntries)[0]).toMatchObject({
       itemName: "Datacore",
       itemCost: 1500,
     });
     // The same figure the cost breakdown counts.
-    expect(job.totalInventionCost).toBe(1500);
-    expect(actions.updateActiveJob).toHaveBeenCalled();
+    expect(changed.totalInventionCost).toBe(1500);
   });
 
   it("refuses an entry with no name", async () => {
     const job = jobFor({ metaGroupID: 2 });
-    show(job);
+    const actions = show(job);
 
     const cost = screen.getByPlaceholderText("0.00");
     await userEvent.clear(cost);
@@ -91,12 +96,12 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    expect(Object.keys(job.build.inventionEntries)).toHaveLength(0);
+    expect(commandsRun(actions)).toEqual([]);
   });
 
   it("refuses an entry costing nothing", async () => {
     const job = jobFor({ metaGroupID: 2 });
-    show(job);
+    const actions = show(job);
 
     await userEvent.type(
       screen.getByPlaceholderText("What invention used…"),
@@ -106,7 +111,7 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    expect(Object.keys(job.build.inventionEntries)).toHaveLength(0);
+    expect(commandsRun(actions)).toEqual([]);
   });
 
   it("lists what has been recorded, and takes one back off", async () => {
@@ -118,7 +123,7 @@ describe("recording what invention cost", () => {
         },
       },
     });
-    show(job);
+    const actions = show(job);
 
     expect(screen.getByText("Datacore")).toBeInTheDocument();
 
@@ -126,6 +131,8 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Remove Datacore" }),
     );
 
-    expect(Object.keys(job.build.inventionEntries)).toHaveLength(0);
+    expect(appliedTo(actions, job.toDocument()).build.inventionEntries).toEqual(
+      {},
+    );
   });
 });

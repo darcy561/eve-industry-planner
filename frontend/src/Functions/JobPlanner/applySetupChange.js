@@ -2,29 +2,42 @@ import getSystemIndexes from "../System Indexes/findSystemIndex";
 import useUsersStore from "../../Zustand/usersStore";
 import checkJobTypeIsBuildable from "../Helper/checkJobTypeIsBuildable";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
+import Setup from "../../Classes/jobSetup";
+import { storeSetup } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 
 /**
- * Recalculate the active job from a single setup change and persist
- * updated system index data into world state.
+ * Applies a change to the setup being edited and works the job out again.
  *
- * @param {Object} setupObject
- * @param {Object} state
- * @param {Object} actions
+ * The change is made on a copy: the job the page reads is a view of what the
+ * session holds, so changing it in place reaches nothing. The copy is also what
+ * says which system the indexes are wanted for, which the change may have moved.
+ *
+ * @param {Object} setupObject - The setup as it stands
+ * @param {string} name - What the reader did, for the undo step
+ * @param {(setup: Setup) => void} change - Makes the change on the copy
+ * @param {Object} actions - The edit session's actions
  */
-export default async function recalculateJobFromSetup(
+export default async function applySetupChange(
   setupObject,
-  state,
+  name,
+  change,
   actions,
 ) {
-  const systemIndexResults = await getSystemIndexes(setupObject.systemID);
+  const changed = new Setup(
+    typeof setupObject?.toDocument === "function"
+      ? setupObject.toDocument()
+      : setupObject,
+  );
+  change(changed);
+
+  const systemIndexResults = await getSystemIndexes(changed.systemID);
 
   // The index lands before the job does: install costs are worked out while
   // rendering, and a job shown against an index the store has not been given
   // yet is costed at zero.
   useUsersStore.getState().worldData.actions.addSystemIndex(systemIndexResults);
 
-  state.activeJob.recalculateSelectedSetup(setupObject.id);
-  actions.updateActiveJob(state.activeJob);
+  actions.run(storeSetup(changed, name));
 }
 
 /**

@@ -23,6 +23,10 @@ import {
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import InsetSurface from "../../../../../../Styled Components/Paper/InsetSurface";
 import InventionEntry from "../../../../../../Classes/inventionEntry";
+import {
+  addInventionCost,
+  removeInventionCost,
+} from "../../../../Edit Job Hooks/jobCommands";
 
 /**
  * Whether invention is a cost this item can carry.
@@ -74,16 +78,12 @@ export default function InventionEditor({ state, actions }) {
       return;
     }
 
-    state.activeJob.addInventionCost(
-      InventionEntry.forItem(itemName, itemCost),
-    );
-    actions.updateActiveJob(state.activeJob);
+    actions.run(addInventionCost(InventionEntry.forItem(itemName, itemCost)));
     showSnackbarSuccess("Invention cost added");
   }
 
   function handleRemove(entry) {
-    state.activeJob.removeInventionCost(entry);
-    actions.updateActiveJob(state.activeJob);
+    actions.run(removeInventionCost(entry));
     showSnackbarError("Invention cost removed");
   }
 

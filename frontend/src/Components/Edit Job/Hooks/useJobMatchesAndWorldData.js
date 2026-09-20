@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import useLocationNames from "../../../Hooks/EveEsi/useLocationNames";
 import findIndustryJobsForItem from "../../../Functions/IndustryJobs/findIndustryJobsForItem";
 import { asNumberIDSet } from "../../../Functions/Helper/ids";
+import { updateLinkedJobData } from "../Edit Job Hooks/jobCommands";
 
 /** Every place an industry job row can name. */
 function jobLocationIds(jobs = []) {
@@ -15,6 +16,7 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
   activeJob,
   linkedJobs,
   esiDataToLink,
+  run,
 ) {
   // Derived while rendering rather than set from an effect: the matches are a function of the jobs
   // ESI reported and the job being edited, so an effect would paint one frame of the previous set.
@@ -34,10 +36,11 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
   }, [allIndustryJobs, activeJob, linkedJobs, esiDataToLink]);
 
   // The one thing here that is not a derivation: the job being edited takes the latest figures ESI
-  // reported for the jobs already linked to it.
+  // reported for the jobs already linked to it. Said as a command, because a change written into the
+  // job this render is reading reaches nothing.
   useEffect(() => {
-    if (allIndustryJobs) activeJob.updateLinkedJobData(allIndustryJobs);
-  }, [allIndustryJobs, activeJob]);
+    if (allIndustryJobs) run(updateLinkedJobData(allIndustryJobs));
+  }, [allIndustryJobs, run]);
 
   const linkedJobRows = Object.values(activeJob.esi.industryJobs);
   const locationIds = useMemo(

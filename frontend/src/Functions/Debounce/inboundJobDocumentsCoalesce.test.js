@@ -121,3 +121,99 @@ describe("telling the app a job it held was deleted elsewhere", () => {
     expect(seen).toEqual([]);
   });
 });
+
+// An editor holds the job as the document it started from plus what the reader
+// has changed on top. A document arriving replaces the first without disturbing
+// the second, which is what lets somebody watching a job somebody else is
+// editing see their work land without losing their own.
+describe("a document arriving for a job somebody has open", () => {
+  const openSession = async (jobID, document) => {
+    const { default: useUsersStore } =
+      await import("../../Zustand/usersStore.js");
+    const { editSession } = useUsersStore.getState();
+    editSession.actions.closeSession();
+    editSession.actions.openJob(jobID, document);
+    return editSession;
+  };
+
+  const heldJob = (session, jobID) =>
+    import("../../Components/Edit Job/Edit Job Hooks/jobDraftStore.js").then(
+      ({ draftFor }) => draftFor(session.draft, jobID),
+    );
+
+  it("replaces what the editor started from, keeping what the reader changed", async () => {
+    const session = await openSession("job-1", {
+      jobID: "job-1",
+      name: "Rifter",
+      jobStatus: 1,
+    });
+    session.actions.run({
+      name: "move to the next stage",
+      recipe: (job) => {
+        job.jobStatus = 2;
+      },
+    });
+
+    enqueueInboundJobDocumentChange(
+      "upsert",
+      "job-1",
+      { jobID: "job-1", name: "Renamed by somebody else", jobStatus: 1 },
+      12,
+    );
+    await flush();
+
+    const { default: useUsersStore } =
+      await import("../../Zustand/usersStore.js");
+    const job = await heldJob(useUsersStore.getState().editSession, "job-1");
+    expect(job.name).toBe("Renamed by somebody else");
+    expect(job.jobStatus).toBe(2);
+  });
+
+  // Typing merges into one undo step for as long as the reader keeps going, and
+  // a co-member's save landing in the middle must not split the run: the
+  // document goes underneath the step, which is still the one step it was.
+  it("does not break a run of typing it lands in the middle of", async () => {
+    const session = await openSession("job-1", {
+      jobID: "job-1",
+      name: "Rifter",
+      build: { setup: { "setup-1": { id: "setup-1", runCount: 1 } } },
+    });
+    const typed = (runCount) => ({
+      name: "set run count",
+      recipe: (job) => {
+        job.build.setup["setup-1"].runCount = runCount;
+      },
+    });
+
+    session.actions.run(typed(12));
+    enqueueInboundJobDocumentChange(
+      "upsert",
+      "job-1",
+      {
+        jobID: "job-1",
+        name: "Renamed by somebody else",
+        build: { setup: { "setup-1": { id: "setup-1", runCount: 1 } } },
+      },
+      12,
+    );
+    await flush();
+    session.actions.run(typed(123));
+
+    const { default: useUsersStore } =
+      await import("../../Zustand/usersStore.js");
+    const held = useUsersStore.getState().editSession;
+    expect(held.draft.log).toHaveLength(1);
+    const job = await heldJob(held, "job-1");
+    expect(job.build.setup["setup-1"].runCount).toBe(123);
+    expect(job.name).toBe("Renamed by somebody else");
+  });
+
+  it("ignores a document for a job no editor is holding", async () => {
+    const session = await openSession("job-1", { jobID: "job-1" });
+
+    enqueueInboundJobDocumentChange("upsert", "job-2", { jobID: "job-2" }, 12);
+    await flush();
+
+    expect(session.draft.base["job-2"]).toBeUndefined();
+  });
+});

@@ -7,6 +7,15 @@ import {
   showSnackbarWarning,
 } from "../../../../../../Events/snackbarEvents";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import {
+  attachNewSetupToJob,
+  deleteActiveSetup,
+} from "../../../../Edit Job Hooks/jobCommands";
+import { setupToBuildFrom } from "../../../../Edit Job Hooks/jobSelectors";
+import {
+  buildSetupContextForJob,
+  buildSetupFromQuantity,
+} from "../../../../../../Functions/JobPlanner/setupBuildHelpers";
 
 export function JobSetupPanel(props) {
   const { state, actions } = props;
@@ -21,9 +30,7 @@ export function JobSetupPanel(props) {
         {
           label: "Delete Active Setup",
           onClick: () => {
-            const successfullyDeleted = state.activeJob.deleteActiveSetup();
-
-            if (!successfullyDeleted) {
+            if (Object.keys(state.activeJob.build.setup).length <= 1) {
               showSnackbarWarning(
                 "Cannot delete the final setup. Create a replacement setup first.",
                 3,
@@ -31,7 +38,7 @@ export function JobSetupPanel(props) {
               return;
             }
 
-            actions.updateActiveJob(state.activeJob);
+            actions.run(deleteActiveSetup());
             showSnackbarSuccess("Setup Deleted Successfully");
           },
         },
@@ -42,8 +49,18 @@ export function JobSetupPanel(props) {
           sx={{ position: "absolute", top: "10px", left: "10px" }}
           color="primary"
           onClick={() => {
-            state.activeJob.addNewSetup(queryClient);
-            actions.updateActiveJob(state.activeJob);
+            const job = state.activeJob;
+            actions.run(
+              attachNewSetupToJob(
+                buildSetupFromQuantity(
+                  job,
+                  { runCount: 1, jobCount: 1 },
+                  queryClient,
+                  buildSetupContextForJob(job, queryClient),
+                  { basedOn: setupToBuildFrom(job) },
+                ),
+              ),
+            );
             showSnackbarSuccess("Added");
           }}
         >

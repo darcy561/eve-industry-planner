@@ -66,6 +66,7 @@ export function SaveJobIcon({ state }) {
           size="medium"
           onClick={onClick}
           disabled={!persist.canPersist}
+          aria-label="Save and return to the job planner"
         >
           <SaveIcon />
         </IconButton>

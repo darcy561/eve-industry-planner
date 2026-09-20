@@ -1,4 +1,4 @@
-import { applyPatches, enablePatches, produceWithPatches } from "immer";
+import { applyPatches, enablePatches, freeze, produceWithPatches } from "immer";
 
 enablePatches();
 
@@ -9,6 +9,7 @@ enablePatches();
  * @property {string} jobID - The job this entry changed
  * @property {Array<object>} patches - What it changed
  * @property {Array<object>} inversePatches - What it takes to put it back
+ * @property {number} at - When it was recorded, for coalescing a run of typing
  */
 
 /**
@@ -17,7 +18,13 @@ enablePatches();
  *   last received. Never written to by an edit.
  * @property {Array<DraftEntry>} log - What the player changed, oldest first
  * @property {Array<DraftEntry>} scratch - What the player asked about
+ * @property {Array<UndoneEntry>} undone - What undo took off, newest last
  * @property {number} nextSeq - The sequence the next entry takes
+ */
+
+/**
+ * @typedef {DraftEntry & {layer: "log"|"scratch"}} UndoneEntry - An entry undo
+ *   removed, carrying the layer it goes back to
  */
 
 /**
@@ -39,7 +46,7 @@ enablePatches();
 
 /** @returns {DraftState} An editor holding nothing */
 export function emptyDraftState() {
-  return { base: {}, log: [], scratch: [], nextSeq: 1 };
+  return { base: {}, log: [], scratch: [], undone: [], nextSeq: 1 };
 }
 
 /**
@@ -56,7 +63,10 @@ export function emptyDraftState() {
  * @returns {DraftState}
  */
 export function setBase(state, jobID, document) {
-  return { ...state, base: { ...state.base, [jobID]: document } };
+  // Frozen on the way in, so the job a reader is shown cannot be written to
+  // from the moment it opens. What a change produces is frozen by `produce`
+  // anyway; without this the guarantee would only start at the first edit.
+  return { ...state, base: { ...state.base, [jobID]: freeze(document, true) } };
 }
 
 /** @param {DraftState} state @param {string} jobID @returns {DraftState} */
@@ -68,7 +78,35 @@ export function forgetJob(state, jobID) {
     base,
     log: state.log.filter((entry) => entry.jobID !== jobID),
     scratch: state.scratch.filter((entry) => entry.jobID !== jobID),
+    undone: state.undone.filter((entry) => entry.jobID !== jobID),
   };
+}
+
+/** How long a run of typing keeps merging into one undo step. */
+export const TYPING_COALESCE_MS = 800;
+
+// Only replaces over the same paths merge: the newer patches say where the
+// field ends and the older inverse still says where it started. An add or a
+// removal would leave a pair that no longer inverts.
+function coalesces(previous, entry, nextSeq) {
+  if (!previous) return false;
+  // Nothing may have happened since: a step recorded in between would have to
+  // be undone before this one, and merging would put it out of order.
+  if (previous.seq !== nextSeq - 1) return false;
+  if (previous.jobID !== entry.jobID) return false;
+  if (previous.command !== entry.command) return false;
+  if (entry.at - previous.at > TYPING_COALESCE_MS) return false;
+
+  const paths = (patches) =>
+    patches.map((patch) => patch.path.join("\u0000")).join("|");
+  const replacesOnly = (patches) =>
+    patches.every((patch) => patch.op === "replace");
+
+  return (
+    replacesOnly(previous.patches) &&
+    replacesOnly(entry.patches) &&
+    paths(previous.patches) === paths(entry.patches)
+  );
 }
 
 function record(state, layer, jobID, command, recipe) {
@@ -91,10 +129,32 @@ function record(state, layer, jobID, command, recipe) {
     jobID,
     patches,
     inversePatches,
+    at: Date.now(),
   };
+
+  const entries = state[layer];
+  const previous = entries.reduce(
+    (newest, candidate) =>
+      !newest || candidate.seq > newest.seq ? candidate : newest,
+    undefined,
+  );
+  if (coalesces(previous, entry, state.nextSeq)) {
+    const merged = {
+      ...entry,
+      seq: previous.seq,
+      inversePatches: previous.inversePatches,
+    };
+    return {
+      ...state,
+      [layer]: entries.map((held) => (held.seq === merged.seq ? merged : held)),
+      undone: [],
+    };
+  }
+
   return {
     ...state,
-    [layer]: [...state[layer], entry],
+    [layer]: [...entries, entry],
+    undone: [],
     nextSeq: state.nextSeq + 1,
   };
 }
@@ -204,11 +264,13 @@ export function changedJobIDs(state) {
  * @returns {DraftState}
  */
 export function discard(state, jobID) {
-  if (jobID === undefined) return { ...state, log: [], scratch: [] };
+  if (jobID === undefined)
+    return { ...state, log: [], scratch: [], undone: [] };
   return {
     ...state,
     log: state.log.filter((entry) => entry.jobID !== jobID),
     scratch: state.scratch.filter((entry) => entry.jobID !== jobID),
+    undone: state.undone.filter((entry) => entry.jobID !== jobID),
   };
 }
 
@@ -220,10 +282,19 @@ export function discard(state, jobID) {
  * @returns {DraftState}
  */
 export function leaveScratch(state, jobID) {
-  if (jobID === undefined) return { ...state, scratch: [] };
+  const asked = (entry) => entry.layer === "scratch";
+  if (jobID === undefined)
+    return {
+      ...state,
+      scratch: [],
+      undone: state.undone.filter((entry) => !asked(entry)),
+    };
   return {
     ...state,
     scratch: state.scratch.filter((entry) => entry.jobID !== jobID),
+    undone: state.undone.filter(
+      (entry) => !asked(entry) || entry.jobID !== jobID,
+    ),
   };
 }
 
@@ -240,9 +311,89 @@ export function leaveScratch(state, jobID) {
 export function keepAsked(state, seq) {
   const entry = state.scratch.find((held) => held.seq === seq);
   if (!entry) return state;
+
+  // Both layers are replayed in array order, so a promoted question takes its
+  // place in the order it was asked rather than the end of the log: dropped at
+  // the end it would apply over a change made after it and undo it.
+  const at = state.log.findIndex((held) => held.seq > seq);
+  const log =
+    at === -1
+      ? [...state.log, entry]
+      : [...state.log.slice(0, at), entry, ...state.log.slice(at)];
+
   return {
     ...state,
-    log: [...state.log, entry],
+    log,
     scratch: state.scratch.filter((held) => held.seq !== seq),
+  };
+}
+
+/** @param {DraftState} state @returns {UndoneEntry|undefined} */
+function newestStep(state) {
+  const steps = [
+    ...state.log.map((entry) => ({ ...entry, layer: "log" })),
+    ...state.scratch.map((entry) => ({ ...entry, layer: "scratch" })),
+  ];
+  return steps.reduce(
+    (newest, entry) => (!newest || entry.seq > newest.seq ? entry : newest),
+    undefined,
+  );
+}
+
+/**
+ * The step undo would take back, for the copy on the control: *Undo: link
+ * market order*. A question is a step like any other.
+ *
+ * @param {DraftState} state
+ * @returns {UndoneEntry|undefined} Nothing when there is nothing to take back
+ */
+export function nextUndo(state) {
+  return newestStep(state);
+}
+
+/** @param {DraftState} state @returns {UndoneEntry|undefined} */
+export function nextRedo(state) {
+  return state.undone[state.undone.length - 1];
+}
+
+/**
+ * Takes back the newest step, whichever layer it landed in.
+ *
+ * The step is dropped rather than replayed backwards, so a document that
+ * arrived underneath it is left standing.
+ *
+ * @param {DraftState} state
+ * @returns {DraftState} Unchanged when there is nothing to take back
+ */
+export function undo(state) {
+  const step = newestStep(state);
+  if (!step) return state;
+
+  return {
+    ...state,
+    [step.layer]: state[step.layer].filter((entry) => entry.seq !== step.seq),
+    undone: [...state.undone, step],
+  };
+}
+
+/**
+ * Puts back the step undo last took, into the layer it came from.
+ *
+ * Nothing is kept to redo once the player changes something else: `record`
+ * empties the stack, so the forward history cannot be rejoined to a log that
+ * has since gone a different way.
+ *
+ * @param {DraftState} state
+ * @returns {DraftState}
+ */
+export function redo(state) {
+  const step = nextRedo(state);
+  if (!step) return state;
+
+  const { layer, ...entry } = step;
+  return {
+    ...state,
+    [layer]: [...state[layer], entry],
+    undone: state.undone.slice(0, -1),
   };
 }

@@ -92,33 +92,21 @@ export function Purchasing_StandardLayout_EditJob(props) {
     return 2;
   };
 
-  // Memoized sorted materials array
+  // What still needs buying first, then the rest in name order.
   const sortedMaterials = useMemo(() => {
-    const materials = state.activeJob.build.materials
-      .map((material, index) => ({ material, originalIndex: index }))
-      .filter(({ material }) => {
-        if (
-          !hideCompleteMaterials ||
-          (hideCompleteMaterials &&
-            material.quantityPurchased < material.quantity)
-        ) {
-          return true;
-        }
-        return false;
-      });
+    const materials = Object.values(state.activeJob.build.materials).filter(
+      (material) =>
+        !hideCompleteMaterials ||
+        material.quantityPurchased < material.quantity,
+    );
 
-    // Sort by status priority, then alphabetically within each group
     return materials.sort((a, b) => {
-      const statusA = getMaterialStatus(a.material);
-      const statusB = getMaterialStatus(b.material);
-
-      // First sort by status
+      const statusA = getMaterialStatus(a);
+      const statusB = getMaterialStatus(b);
       if (statusA !== statusB) {
         return statusA - statusB;
       }
-
-      // Then sort alphabetically by name
-      return a.material.name.localeCompare(b.material.name);
+      return a.name.localeCompare(b.name);
     });
   }, [
     state.activeJob.build.materials,
@@ -149,16 +137,13 @@ export function Purchasing_StandardLayout_EditJob(props) {
           maxHeight: { xs: 600, sm: "none" },
         }}
       >
-        {sortedMaterials.map(({ material, originalIndex }) => {
-          return (
-            <MaterialCardFrame_Purchasing
-              {...props}
-              key={material.typeID}
-              material={material}
-              materialIndex={originalIndex}
-            />
-          );
-        })}
+        {sortedMaterials.map((material) => (
+          <MaterialCardFrame_Purchasing
+            {...props}
+            key={material.typeID}
+            material={material}
+          />
+        ))}
         <InventionCostsCard {...props} />
       </Grid>
       <Grid size={12}>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { produce } from "immer";
 
 import Job from "../../../Classes/job";
 import Setup from "../../../Classes/jobSetup";
@@ -502,5 +503,85 @@ describe("the setups a job builds from", () => {
       layout: { setupToEdit: "setup-1" },
     });
     agree(one, commands.deleteActiveSetup(), (job) => job.deleteActiveSetup());
+  });
+});
+
+// Marking a grouped job for sale is one thing the reader did, so it is one
+// command: the job moves on a stage and is offered at the same time. Taking the
+// mark off leaves the stage alone — the job was built either way.
+describe("offering a grouped job for sale", () => {
+  const ran = (document) =>
+    produce(document, commands.toggleReadyForSaleFromGroup().recipe);
+
+  it("finishes the job as it offers it", () => {
+    const offered = ran(documentFor({ jobStatus: 3, isReadyToSell: false }));
+
+    expect(offered.isReadyToSell).toBe(true);
+    expect(offered.displayOnPlanner).toBe(true);
+    expect(offered.jobStatus).toBe(4);
+  });
+
+  it("leaves the stage where it is when the mark comes off", () => {
+    const withdrawn = ran(
+      documentFor({
+        jobStatus: 4,
+        isReadyToSell: true,
+        displayOnPlanner: true,
+      }),
+    );
+
+    expect(withdrawn.isReadyToSell).toBe(false);
+    expect(withdrawn.displayOnPlanner).toBe(false);
+    expect(withdrawn.jobStatus).toBe(4);
+  });
+});
+
+// The setup a reader changes is stored as they set it and worked out again in
+// the same step — storing it without the second half leaves a job whose figures
+// no longer follow the setup they come from.
+describe("storing a changed setup", () => {
+  const withSetup = (overrides = {}) =>
+    documentFor({
+      layout: { setupToEdit: "setup-1" },
+      // A setup is worked out from the job's own copy of the recipe.
+      rawData: { materials: [{ typeID: 34, quantity: 10 }] },
+      build: {
+        ...documentFor().build,
+        setup: {
+          "setup-1": { id: "setup-1", runCount: 1, jobCount: 1, ...overrides },
+        },
+      },
+    });
+
+  it("keeps what the reader set", () => {
+    const changed = { id: "setup-1", runCount: 25, jobCount: 3 };
+
+    const stored = produce(
+      withSetup(),
+      commands.storeSetup(changed, "set the runs").recipe,
+    ).build.setup["setup-1"];
+
+    expect(stored.runCount).toBe(25);
+    expect(stored.jobCount).toBe(3);
+  });
+
+  it("works out what it needs from the job's own blueprint", () => {
+    const stored = produce(
+      withSetup(),
+      commands.storeSetup({ id: "setup-1", runCount: 2 }, "set the runs")
+        .recipe,
+    ).build.setup["setup-1"];
+
+    // The recipe's own figure, which only appears once the setup has been
+    // worked out against it — the class starts with an empty count either way.
+    expect(stored.materialCount["34"].rawQuantity).toBe(10);
+  });
+
+  it("leaves the job alone when handed nothing to store", () => {
+    const document = withSetup();
+
+    expect(
+      produce(document, commands.storeSetup(undefined, "set the runs").recipe),
+    ).toBe(document);
   });
 });

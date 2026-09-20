@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  appliedTo,
+  commandActions,
+  commandsRun,
+} from "../../../tests/jobCommandSpy.js";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
@@ -67,26 +72,27 @@ function activeJob(linkedJobs = []) {
         linkedJobs.map((row) => [String(row.job_id), row]),
       ),
     },
-    updateLinkedJobData: vi.fn(),
     esiJobIDs: new Set(),
   };
 }
 
-function render(job, allIndustryJobs) {
+function render(job, allIndustryJobs, actions = commandActions()) {
   const client = testQueryClientCollapsingRetries();
-  return renderHook(
+  const rendered = renderHook(
     () =>
       useGatherJobMatchesAndUpdateExistingLinkedJobs(
         allIndustryJobs,
         job,
         new Set(),
         { industryJobs: { add: [], remove: [] } },
+        actions.run,
       ),
     {
       wrapper: ({ children }) =>
         createElement(QueryClientProvider, { client }, children),
     },
   );
+  return { ...rendered, actions };
 }
 
 beforeEach(() => {
@@ -150,15 +156,21 @@ describe("the job matches a building panel is given", () => {
     expect(imperativeFetch).not.toHaveBeenCalled();
   });
 
+  // Said as a command rather than written into the job: the job this render is
+  // reading is a view of what the session holds, so a change made on it is
+  // discarded when the next read rebuilds it.
   it("takes the latest ESI figures onto the job being edited", async () => {
-    const job = activeJob();
-    const rows = [esiJob(500001)];
+    const linkedAlready = { job_id: 500001, status: "active", runs: 3 };
+    const job = activeJob([linkedAlready]);
+    const rows = [esiJob(500001, { status: "delivered", runs: 3 })];
 
-    render(job, rows);
+    const { actions } = render(job, rows);
 
-    await waitFor(() =>
-      expect(job.updateLinkedJobData).toHaveBeenCalledWith(rows),
-    );
+    await waitFor(() => expect(commandsRun(actions)).toHaveLength(1));
+    const linked = appliedTo(actions, {
+      esi: { industryJobs: { 500001: linkedAlready } },
+    }).esi.industryJobs;
+    expect(linked["500001"].status).toBe("delivered");
   });
 
   it("has nothing to match before ESI has answered", () => {

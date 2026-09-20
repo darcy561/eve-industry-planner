@@ -4,6 +4,7 @@ import { Box, Tab, Tabs } from "@mui/material";
 import { AvailableJobsTab } from "./availableJobs";
 import { LinkedJobsTab } from "./linkedJobs";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import { setJobLayout } from "../../../../Edit Job Hooks/jobCommands";
 
 export function TabPanel_Building(props) {
   const { state, actions, jobMatches } = props;
@@ -23,7 +24,7 @@ export function TabPanel_Building(props) {
   }
   const handleChange = (event, newValue) => {
     updateTab(newValue);
-    actions.updateActiveJobLayout({ esiJobTab: newValue });
+    actions.run(setJobLayout({ esiJobTab: newValue }));
   };
 
   return (

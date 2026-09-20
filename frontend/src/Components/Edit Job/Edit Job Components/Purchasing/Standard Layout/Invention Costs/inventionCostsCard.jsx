@@ -7,6 +7,10 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import {
+  addInventionCost,
+  removeInventionCost,
+} from "../../../../Edit Job Hooks/jobCommands";
 import ClearIcon from "@mui/icons-material/Clear";
 import AddIcon from "@mui/icons-material/Add";
 import { useFormStatus } from "react-dom";
@@ -26,8 +30,7 @@ import InventionEntry from "../../../../../../Classes/inventionEntry";
 
 export function InventionCostsCard({ state, actions }) {
   function handleRemove(record) {
-    state.activeJob.removeInventionCost(record);
-    actions.updateActiveJob(state.activeJob);
+    actions.run(removeInventionCost(record));
     showSnackbarError("Deleted");
   }
 
@@ -44,11 +47,7 @@ export function InventionCostsCard({ state, actions }) {
       return;
     }
 
-    state.activeJob.addInventionCost(
-      InventionEntry.forItem(itemName, itemCost),
-    );
-
-    actions.updateActiveJob(state.activeJob);
+    actions.run(addInventionCost(InventionEntry.forItem(itemName, itemCost)));
     showSnackbarSuccess("Success");
   }
 

@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LARGE_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
+import { linkESIJob } from "../../../../Edit Job Hooks/jobCommands";
 import { useMemo, useState } from "react";
 import PanelFallBack from "../../../../panelStates";
 import {
@@ -75,10 +76,9 @@ export function AvailableJobsTab(props) {
       const jobOwner = useUsersStore
         .getState()
         .account.actions.findCharacterById(job.installer_id);
-      state.activeJob.linkESIJob(job, jobOwner);
+      actions.run(linkESIJob(job, jobOwner));
     }
     actions.addIndustryESIJobsForAddition(jobMatches.map((job) => job.job_id));
-    actions.updateActiveJob(state.activeJob);
 
     showSnackbarSuccess(`${jobMatches.length} Jobs Linked`);
   };
@@ -92,9 +92,8 @@ export function AvailableJobsTab(props) {
     setClickedJobs((prev) => new Set([...prev, job.job_id]));
 
     setTimeout(() => {
-      state.activeJob.linkESIJob(job, jobOwner);
+      actions.run(linkESIJob(job, jobOwner));
       actions.addIndustryESIJobsForAddition(job.job_id);
-      actions.updateActiveJob(state.activeJob);
       showSnackbarSuccess("Linked");
     }, 800);
   };

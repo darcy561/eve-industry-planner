@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { appliedTo } from "../../../../../../tests/jobCommandSpy.js";
 
 import { MATERIAL_PLAN } from "../../../../../../Functions/MarketData/materialSourcingRow";
 
@@ -113,7 +114,7 @@ function renderPanel(props = {}) {
     <MaterialsAndSourcingPanel
       state={state}
       actions={{
-        updateActiveJob: () => {},
+        run: () => {},
         markChildJobsForAddition,
         forgetSpeculativeChildJobs,
       }}
@@ -201,7 +202,7 @@ describe("the Materials and Sourcing panel", () => {
       <MaterialsAndSourcingPanel
         state={{ activeJob: {} }}
         actions={{
-          updateActiveJob: () => {},
+          run: () => {},
           markChildJobsForAddition,
           forgetSpeculativeChildJobs,
         }}
@@ -264,7 +265,7 @@ describe("costing the buildable rows", () => {
       <MaterialsAndSourcingPanel
         state={state}
         actions={{
-          updateActiveJob: () => {},
+          run: () => {},
           markChildJobsForAddition,
           forgetSpeculativeChildJobs,
         }}
@@ -294,7 +295,7 @@ describe("costing the buildable rows", () => {
       <MaterialsAndSourcingPanel
         state={state}
         actions={{
-          updateActiveJob: () => {},
+          run: () => {},
           markChildJobsForAddition,
           forgetSpeculativeChildJobs,
         }}
@@ -360,12 +361,17 @@ describe("applying the offer", () => {
 // The picker names the basis every row is priced on. It listed four options with
 // real totals long before choosing one did anything, which reads as a working
 // control and is not.
+/** What the commands a control ran put on the job's pricing. */
+function pricingFrom(run) {
+  return appliedTo({ run }, { build: {} }).build.localPricing;
+}
+
 describe("choosing a pricing basis", () => {
-  const updateActiveJob = vi.fn();
+  const run = vi.fn();
 
   // The trigger is labelled with the basis currently in effect.
   const openPicker = async () => {
-    renderPanel({ actions: { updateActiveJob } });
+    renderPanel({ actions: { run } });
     await userEvent.click(screen.getByRole("button", { name: "Sell Orders" }));
   };
 
@@ -373,7 +379,7 @@ describe("choosing a pricing basis", () => {
     userEvent.click(within(screen.getByRole("listbox")).getByText(label));
 
   beforeEach(() => {
-    updateActiveJob.mockClear();
+    run.mockClear();
     useActiveJobReadOnly.mockReturnValue(false);
   });
 
@@ -382,15 +388,7 @@ describe("choosing a pricing basis", () => {
 
     await chooseOption("Buy Orders");
 
-    expect(updateActiveJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        build: expect.objectContaining({
-          localPricing: expect.objectContaining({
-            buying: expect.objectContaining({ basis: "buy" }),
-          }),
-        }),
-      }),
-    );
+    expect(pricingFrom(run)).toMatchObject({ buying: { basis: "buy" } });
   });
 
   it("writes nothing when the basis chosen is the one already in effect", async () => {
@@ -398,7 +396,7 @@ describe("choosing a pricing basis", () => {
 
     await chooseOption("Sell Orders");
 
-    expect(updateActiveJob).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
   });
 
   // A job someone else holds is read from, not edited — every other panel on
@@ -406,7 +404,7 @@ describe("choosing a pricing basis", () => {
   it("cannot be changed on a job that is locked", () => {
     useActiveJobReadOnly.mockReturnValue(true);
 
-    renderPanel({ actions: { updateActiveJob } });
+    renderPanel({ actions: { run } });
 
     expect(screen.getByRole("button", { name: "Sell Orders" })).toBeDisabled();
   });
@@ -416,8 +414,8 @@ describe("choosing a pricing basis", () => {
 // is, and until now only one of them could be changed from the panel.
 describe("choosing a hub", () => {
   it("writes the chosen hub onto the job", async () => {
-    const updateActiveJob = vi.fn();
-    renderPanel({ actions: { updateActiveJob } });
+    const run = vi.fn();
+    renderPanel({ actions: { run } });
 
     const [hub] = screen.getAllByRole("combobox");
     await userEvent.click(hub);
@@ -425,15 +423,7 @@ describe("choosing a hub", () => {
       within(screen.getByRole("listbox")).getByText(/Amarr/i),
     );
 
-    expect(updateActiveJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        build: expect.objectContaining({
-          localPricing: expect.objectContaining({
-            buying: expect.objectContaining({ market: "amarr" }),
-          }),
-        }),
-      }),
-    );
+    expect(pricingFrom(run)).toMatchObject({ buying: { market: "amarr" } });
   });
 });
 

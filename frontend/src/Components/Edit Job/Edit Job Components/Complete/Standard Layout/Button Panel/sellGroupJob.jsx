@@ -2,6 +2,7 @@ import { Button, Tooltip } from "@mui/material";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
+import { toggleReadyForSaleFromGroup } from "../../../../Edit Job Hooks/jobCommands";
 
 export function SellGroupJobButton({ state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
@@ -9,7 +10,7 @@ export function SellGroupJobButton({ state, actions }) {
 
   const toggleMarkForSell = () => {
     if (jobLockReadOnly) return;
-    actions.toggleActiveJobReadyForSale();
+    actions.run(toggleReadyForSaleFromGroup());
   };
 
   if (!activeGroupID || state.activeJob.parentJobs.length !== 0) {

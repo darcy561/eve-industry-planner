@@ -15,11 +15,11 @@ import useUsersStore from "../../Zustand/usersStore";
  * console.log(`Repaired ${modifiedJobs.size} jobs`);
  */
 function repairMissingParentChildRelationships(inputJob, tempJobs) {
+  const modifiedJobIDs = new Set();
   try {
     if (!inputJob || !tempJobs) {
       throw new Error("Missing Inputs");
     }
-    const modifiedJobIDs = new Set();
     const parentIDsToRemove = new Set();
     const jobLookup = buildJobLookup(inputJob, tempJobs);
 
@@ -45,7 +45,8 @@ function repairMissingParentChildRelationships(inputJob, tempJobs) {
     for (let material of Object.values(inputJob.build.materials)) {
       const childJobsToRemove = new Set();
 
-      for (let childJobID of inputJob.build.childJobs[material.typeID]) {
+      for (const childJobID of inputJob.build.childJobs[material.typeID] ??
+        []) {
         const isChildValid = processChildID(
           childJobID,
           material,
@@ -63,7 +64,11 @@ function repairMissingParentChildRelationships(inputJob, tempJobs) {
 
     return modifiedJobIDs;
   } catch (err) {
+    // Whatever was repaired before the failure still has to be reported: the
+    // caller spreads what comes back, so returning nothing turns one error into
+    // a second, less obvious one further down the save.
     console.error(err);
+    return modifiedJobIDs;
   }
 }
 
@@ -89,7 +94,7 @@ function processParentID(parentID, inputJob, jobLookup, modifiedJobsSet) {
   if (!parentMaterial) {
     Object.values(matchedJob.build.materials).forEach((material) => {
       if (
-        matchedJob.build.childJobs[material.typeID].includes(inputJob.jobID)
+        matchedJob.build.childJobs[material.typeID]?.includes(inputJob.jobID)
       ) {
         matchedJob.removeChildJob(material.typeID, inputJob.typeID);
       }
@@ -100,7 +105,7 @@ function processParentID(parentID, inputJob, jobLookup, modifiedJobsSet) {
 
   const childJobLocation = matchedJob.build.childJobs[parentMaterial.typeID];
 
-  if (!childJobLocation.includes(inputJob.jobID)) {
+  if (!childJobLocation?.includes(inputJob.jobID)) {
     matchedJob.addChildJob(parentMaterial.typeID, inputJob.jobID);
     modifiedJobsSet.add(parentID);
   }

@@ -5,14 +5,14 @@ import useUsersStore from "../../Zustand/usersStore";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
 import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { restoreJobIfStillHeld } from "../../Functions/JobPlanner/restoreJobIfStillHeld.js";
+import workingCopyOfJob from "../../Functions/JobPlanner/workingCopyOfJob";
 
 /**
- * Closing restores the job as it was before editing. The backup is taken from
- * the ref when the reader clicks rather than read while rendering: today the
- * hook that writes it sets the active job in the same breath, so a render
- * always follows, but the button should not depend on that remaining true.
+ * Closing leaves the reader on the job as it now stands, which is the document
+ * the session holds underneath what they changed rather than a copy taken when
+ * they opened it — anything that arrived while they were editing survives.
  */
-export function CloseJobIcon({ backupJobRef }) {
+export function CloseJobIcon() {
   const { setActiveJobID } = useUsersStore.getState().jobData.actions;
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const search = useSearch({ from: "/editjob/$jobID" });
@@ -20,16 +20,18 @@ export function CloseJobIcon({ backupJobRef }) {
 
   async function onClick() {
     const groupID = search.activeGroup;
-    const backupJob = backupJobRef.current;
+    const { editSession } = useUsersStore.getState();
+    const held = editSession.draft.base[jobID];
     await yieldEditJobDocumentLocksOnLeave({ jobID, groupID });
-    restoreJobIfStillHeld(backupJob);
+    restoreJobIfStillHeld(workingCopyOfJob(held));
+    editSession.actions.closeSession();
     setActiveJobID(null);
 
     if (groupID) {
       navigate({
         to: "/group/$groupID",
         params: { groupID },
-        search: buildGroupSearchAfterEditClose(search, backupJob?.jobID),
+        search: buildGroupSearchAfterEditClose(search, jobID),
       });
     } else {
       navigate({ to: "/jobplanner" });

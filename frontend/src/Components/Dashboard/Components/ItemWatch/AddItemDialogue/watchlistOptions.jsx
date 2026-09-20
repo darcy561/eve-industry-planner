@@ -2,7 +2,7 @@ import { Grid } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { jobTypes } from "../../../../../Context/defaultValues";
-import { recalculateWatchListItemsFromSetup } from "../../../../../Functions/JobPlanner/recalculateJobFromSetup";
+import { recalculateWatchListItemsFromSetup } from "../../../../../Functions/JobPlanner/applySetupChange";
 import VirtualisedSystemSearch from "../../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 import CustomStructureSelect from "../../../../../Styled Components/Select/customStructure";
 import MaterialEfficiencySelect from "../../../../../Styled Components/Select/materialEfficiency";

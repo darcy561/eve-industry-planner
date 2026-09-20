@@ -6,6 +6,11 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import {
+  importedQuantities,
+  importPurchasesToMaterials,
+  setJobPricing,
+} from "../../../../Edit Job Hooks/jobCommands";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import { MarketLocationSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketLocation.jsx";
 import { ListingTypeSelectApplicationSettings } from "../../../../../../Styled Components/Select/listingType.jsx";
@@ -143,9 +148,11 @@ export function PurchasingDataPanel_EditJob(props) {
                           const matches = await importMultibuyFromClipboard();
                           let matchedCount = 0;
                           let importedCount = 0;
+                          const imports = [];
 
-                          for (let material of state.activeJob.build
-                            .materials) {
+                          for (const material of Object.values(
+                            state.activeJob.build.materials,
+                          )) {
                             const matchedItem = matches.find(
                               (i) => i.importedName === material.name,
                             );
@@ -157,14 +164,26 @@ export function PurchasingDataPanel_EditJob(props) {
 
                             const pastedQuantity =
                               Number(matchedItem.importedQuantity) || 0;
-                            const { taken } = material.importPurchase({
+                            const purchase = {
+                              id: crypto.randomUUID(),
                               itemCount:
                                 pastedQuantity > 0
                                   ? pastedQuantity
                                   : stillRequired,
                               itemCost: matchedItem.importedCost,
+                            };
+                            const { taken } = importedQuantities(
+                              purchase,
+                              stillRequired,
+                            );
+                            if (taken <= 0) continue;
+
+                            importedCount++;
+                            imports.push({
+                              materialID: material.typeID,
+                              purchase,
+                              options: { availableToBuy: stillRequired },
                             });
-                            if (taken > 0) importedCount++;
                           }
 
                           if (matchedCount === 0) {
@@ -177,7 +196,7 @@ export function PurchasingDataPanel_EditJob(props) {
                             return;
                           }
 
-                          actions.updateActiveJob(state.activeJob);
+                          actions.run(importPurchasesToMaterials(imports));
                         } catch (error) {
                           console.error(
                             "Failed to import from clipboard:",
@@ -211,14 +230,16 @@ export function PurchasingDataPanel_EditJob(props) {
                   undefined
                 }
                 onMarketLocationCommit={(id) => {
-                  actions.updateActiveJobPricing({
-                    localPricing: setJobPricingSide(
-                      state.activeJob.build.localPricing,
-                      PRICING_SIDE.BUYING,
-                      "market",
-                      id,
-                    ),
-                  });
+                  actions.run(
+                    setJobPricing({
+                      localPricing: setJobPricingSide(
+                        state.activeJob.build.localPricing,
+                        PRICING_SIDE.BUYING,
+                        "market",
+                        id,
+                      ),
+                    }),
+                  );
                 }}
                 customFormStyling={{
                   width: "90px",
@@ -233,14 +254,16 @@ export function PurchasingDataPanel_EditJob(props) {
                   state.activeJob.build.localPricing?.buying?.basis ?? undefined
                 }
                 onListingTypeCommit={(id) => {
-                  actions.updateActiveJobPricing({
-                    localPricing: setJobPricingSide(
-                      state.activeJob.build.localPricing,
-                      PRICING_SIDE.BUYING,
-                      "basis",
-                      id,
-                    ),
-                  });
+                  actions.run(
+                    setJobPricing({
+                      localPricing: setJobPricingSide(
+                        state.activeJob.build.localPricing,
+                        PRICING_SIDE.BUYING,
+                        "basis",
+                        id,
+                      ),
+                    }),
+                  );
                 }}
                 customFormStyling={{
                   width: "120px",

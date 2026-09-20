@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import applyLatestOrderData from "../../../Functions/MarketOrders/applyLatestOrderData";
 import { getAllCachedCharacterMarketOrders } from "../../../Hooks/EveEsi/Character/useGetAllCharacterMarketOrders";
 import { getAllCachedCorporationMarketOrders } from "../../../Hooks/EveEsi/Corporation/useGetAllCorporationMarketOrders";
 import { getCachedAllIndustryJobs } from "../../../Hooks/EveEsi/useGetAllIndustryJobs";
+import {
+  refreshLinkedMarketOrders,
+  updateLinkedJobData,
+} from "../Edit Job Hooks/jobCommands";
 
 /**
  * Brings a job's linked ESI rows up to date as it is opened.
@@ -18,9 +21,9 @@ import { getCachedAllIndustryJobs } from "../../../Hooks/EveEsi/useGetAllIndustr
  * for the tabs to refresh.
  *
  * @param {import("../../../Classes/job").default|null} activeJob
- * @param {Function} updateActiveJob
+ * @param {(command: {name: string, recipe: Function}) => void} run
  */
-export function useRefreshLinkedESIData(activeJob, updateActiveJob) {
+export function useRefreshLinkedESIData(activeJob, run) {
   const queryClient = useQueryClient();
   const refreshedJobID = useRef(null);
 
@@ -36,27 +39,21 @@ export function useRefreshLinkedESIData(activeJob, updateActiveJob) {
     const { data: industryJobs, isLoading: jobsLoading } =
       getCachedAllIndustryJobs(queryClient);
 
-    let changed = false;
-
+    // A command that changes nothing records nothing, so neither refresh needs
+    // asking whether it moved anything.
     if (!charactersLoading && !corporationsLoading) {
-      const orders = [
-        ...Object.values(characterOrders || {}).flat(),
-        ...Object.values(corporationOrders || {}).flat(),
-      ];
-      changed = applyLatestOrderData(activeJob, orders) || changed;
+      run(
+        refreshLinkedMarketOrders([
+          ...Object.values(characterOrders || {}).flat(),
+          ...Object.values(corporationOrders || {}).flat(),
+        ]),
+      );
     }
 
     if (!jobsLoading && industryJobs?.length) {
-      const before = JSON.stringify(activeJob.esi.industryJobs);
-      activeJob.updateLinkedJobData(industryJobs);
-      changed =
-        changed || before !== JSON.stringify(activeJob.esi.industryJobs);
+      run(updateLinkedJobData(industryJobs));
     }
-
-    if (changed) {
-      updateActiveJob(activeJob);
-    }
-  }, [activeJob, queryClient, updateActiveJob]);
+  }, [activeJob, queryClient, run]);
 }
 
 export default useRefreshLinkedESIData;

@@ -1,19 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  appliedTo,
+  commandActions,
+  commandsRun,
+  unchangedBy,
+} from "../../../tests/jobCommandSpy.js";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
-const { store, requested, resolved, pending, imperativeFetch, matches } =
-  vi.hoisted(() => ({
-    store: {
-      account: { characters: [] },
-    },
-    requested: [],
-    resolved: { current: {} },
-    pending: { current: new Set() },
-    imperativeFetch: vi.fn(),
-    matches: { current: [] },
-  }));
+const {
+  store,
+  requested,
+  resolved,
+  pending,
+  imperativeFetch,
+  matches,
+  characterOrders,
+} = vi.hoisted(() => ({
+  store: {
+    account: { characters: [] },
+  },
+  requested: [],
+  resolved: { current: {} },
+  pending: { current: new Set() },
+  imperativeFetch: vi.fn(),
+  matches: { current: [] },
+  characterOrders: { current: {} },
+}));
 
 vi.mock("../../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
@@ -39,14 +53,15 @@ vi.mock("../../../Functions/MarketOrders/findMarketOrdersForItem", () => ({
   default: () => matches.current,
 }));
 
-vi.mock("../../../Functions/MarketOrders/applyLatestOrderData", () => ({
-  default: () => false,
-}));
-
 const emptyOrders = { data: {}, isLoading: false, isError: false, error: null };
 vi.mock(
   "../../../Hooks/EveEsi/Character/useGetAllCharacterMarketOrders",
-  () => ({ useGetAllCharacterMarketOrders: () => emptyOrders }),
+  () => ({
+    useGetAllCharacterMarketOrders: () => ({
+      ...emptyOrders,
+      data: characterOrders.current,
+    }),
+  }),
 );
 vi.mock(
   "../../../Hooks/EveEsi/Character/useGetAllCharacterHistoricMarketOrders",
@@ -78,22 +93,23 @@ function activeJob(marketOrders = []) {
   };
 }
 
-function render(job) {
+function render(job, actions = commandActions()) {
   const client = testQueryClientCollapsingRetries();
-  return renderHook(
+  const rendered = renderHook(
     () =>
       useGatherMarketOrdersAndUpdateExistingLinkedOrders(
         client,
         job,
         new Set(),
         { marketOrders: { add: [], remove: [] } },
-        { updateActiveJob: vi.fn() },
+        actions,
       ),
     {
       wrapper: ({ children }) =>
         createElement(QueryClientProvider, { client }, children),
     },
   );
+  return { ...rendered, actions };
 }
 
 beforeEach(() => {
@@ -103,6 +119,7 @@ beforeEach(() => {
   pending.current = new Set();
   imperativeFetch.mockReset();
   matches.current = [];
+  characterOrders.current = {};
 });
 
 // The panel gates its whole render on this hook's `isLoading`. It was reading a field the hook has
@@ -149,5 +166,62 @@ describe("the market orders a selling panel is given", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(imperativeFetch).not.toHaveBeenCalled();
+  });
+});
+
+// The panel is where a linked order is brought up to date as ESI moves. It says
+// what changed as a command rather than writing into the job, so what a test
+// reads is the command it recorded.
+describe("bringing a linked order up to date", () => {
+  const linked = (overrides = {}) => ({
+    order_id: 700003,
+    location_id: JITA,
+    type_id: 587,
+    volume_remain: 40,
+    item_price: 5,
+    issued: "2026-08-01T00:00:00Z",
+    duration: 90,
+    range: "region",
+    state: "active",
+    timeStamps: [],
+    ...overrides,
+  });
+
+  const reported = (overrides = {}) => ({
+    order_id: 700003,
+    type_id: 587,
+    price: 5,
+    volume_remain: 40,
+    issued: "2026-08-01T00:00:00Z",
+    duration: 90,
+    range: "region",
+    state: "open",
+    ...overrides,
+  });
+
+  it("records what ESI now says about the order", async () => {
+    const job = activeJob([linked()]);
+    characterOrders.current = {
+      "hash-a": [reported({ volume_remain: 12, price: 6.5 })],
+    };
+
+    const { result, actions } = render(job);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const order = appliedTo(actions, job).esi.marketOrders["700003"];
+    expect(order.volume_remain).toBe(12);
+    expect(order.item_price).toBe(6.5);
+  });
+
+  it("records nothing when the order has not moved", async () => {
+    const job = activeJob([linked({ state: "open" })]);
+    characterOrders.current = { "hash-a": [reported()] };
+
+    const { result, actions } = render(job);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(
+      commandsRun(actions).every((command) => unchangedBy(command, job)),
+    ).toBe(true);
   });
 });

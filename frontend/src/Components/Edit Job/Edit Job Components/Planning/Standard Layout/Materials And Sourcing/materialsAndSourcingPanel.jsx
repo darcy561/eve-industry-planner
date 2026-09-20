@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { setJobPricing } from "../../../../Edit Job Hooks/jobCommands";
 import {
   MenuItem,
   Select,
@@ -74,10 +75,9 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
     resetMaterialPriceOverride,
     clearAllMaterialPriceOverrides,
   } = useMaterialOverrides({
-    activeJob: state.activeJob,
     build: state.activeJob.build,
     materials: Object.values(state.activeJob.build?.materials ?? {}),
-    updateActiveJob: actions.updateActiveJob,
+    updatePricing: (patch) => actions.run(setJobPricing(patch)),
   });
 
   const { buildSpeculativeChildJobs, buildSingleChildJobPreview } =

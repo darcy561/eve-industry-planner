@@ -31,3 +31,44 @@ export function selectedSetup(job) {
 export function setupToBuildFrom(job) {
   return selectedSetup(job) ?? Object.values(job?.build?.setup ?? {})[0];
 }
+
+/**
+ * The parents this job would have once the links the reader asked for are
+ * carried out.
+ *
+ * A link is held as an intent until the job closes, so what the screen shows is
+ * the document's own list with those intents folded over it.
+ *
+ * @param {object} job
+ * @param {{add?: Array<string>, remove?: Array<string>}} parentJobEdits
+ * @returns {Array<string>}
+ */
+export function parentJobsAfterEdits(job, parentJobEdits = {}) {
+  return foldLinks(job?.parentJobs, parentJobEdits);
+}
+
+/**
+ * The child jobs a material would have once those links are carried out.
+ *
+ * @param {object} job
+ * @param {number|string} materialTypeID
+ * @param {Object<string, {add?: Array<string>, remove?: Array<string>}>} childJobEdits
+ * @returns {Array<string>}
+ */
+export function childJobsAfterEdits(job, materialTypeID, childJobEdits = {}) {
+  return foldLinks(
+    job?.build?.childJobs?.[materialTypeID],
+    childJobEdits[materialTypeID],
+  );
+}
+
+function foldLinks(held, edits = {}) {
+  const remove = edits?.remove || [];
+  return [
+    ...new Set(
+      [...(held || []), ...(edits?.add || [])].filter(
+        (id) => !remove.includes(id),
+      ),
+    ),
+  ];
+}

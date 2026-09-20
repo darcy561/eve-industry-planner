@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { restoreJobIfStillHeld } from "../../../Functions/JobPlanner/restoreJobIfStillHeld.js";
+import workingCopyOfJob from "../../../Functions/JobPlanner/workingCopyOfJob";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
@@ -35,9 +36,19 @@ import { yieldEditJobDocumentLocksOnLeave } from "../../../Functions/DocumentLoc
  * Both flows share the unsaved-changes dialogue; `dialogueMode` selects copy and
  * routes the outcome to the right resolver.
  *
- * @param {{ backupJobRef: import("react").MutableRefObject<unknown>, state: object }} params
+ * @param {{ state: object }} params
  */
-export function useEditJobLeaveConfirm({ backupJobRef, state }) {
+export function useEditJobLeaveConfirm({ state }) {
+  /* Leaving without saving drops what the reader changed and puts the job back
+   * as it now stands — the document the session holds underneath their changes,
+   * so anything that arrived while they were editing is kept. */
+  const leaveWithoutSaving = () => {
+    const { editSession } = useUsersStore.getState();
+    restoreJobIfStillHeld(
+      workingCopyOfJob(editSession.draft.base[editSession.activeJobID]),
+    );
+    editSession.actions.closeSession();
+  };
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const { jobID: routeJobID } = useParams({ from: "/editjob/$jobID" });
@@ -122,7 +133,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
       if (!resolve || !target) return;
       const { handOverEditAccess } =
         useUsersStore.getState().documentLock.actions;
-      restoreJobIfStillHeld(backupJobRef.current);
+      leaveWithoutSaving();
       // Hand the lock over BEFORE we navigate; the new holder is already a
       // queued waitlist entry server-side, so we mustn't unmount through the
       // neutral-release path (`/release` instead of `/hand-over`).
@@ -144,7 +155,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     const resolve = pendingNavigationResolveRef.current;
     const pending = pendingNavRef.current;
     if (!resolve || !pending) return;
-    restoreJobIfStillHeld(backupJobRef.current);
+    leaveWithoutSaving();
     await yieldLocksForCurrentEditJob();
     setActiveJobID(null);
     navigate({
@@ -158,7 +169,6 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     closeDialogueState();
     resolve("navigated");
   }, [
-    backupJobRef,
     closeDialogueState,
     dialogueMode,
     navigate,

@@ -6,6 +6,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { addTransaction } from "../../../../Edit Job Hooks/jobCommands";
 import AddIcon from "@mui/icons-material/Add";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
@@ -104,6 +105,13 @@ export function AvailableTransactionsPanel({
 
   // Memoize transaction data to recalculate when transaction/journal/market order cache updates
   // Market orders are included because findOrderTransactions searches for transactions matching the job's market orders
+  // Named rather than counted inside the dependency list: the list takes plain
+  // expressions, and the orders are keyed by id so their count is what says a
+  // linked order came or went.
+  const linkedOrderCount = Object.keys(
+    state.activeJob?.esi?.marketOrders ?? {},
+  ).length;
+
   // Only calculate when data is loaded to prevent errors from incomplete data
   const transactionData = useMemo(() => {
     // Don't run if data is still loading to prevent errors from incomplete data
@@ -123,7 +131,7 @@ export function AvailableTransactionsPanel({
     );
   }, [
     state.activeJob,
-    Object.keys(state.activeJob?.esi?.marketOrders ?? {}).length,
+    linkedOrderCount,
     queryClient,
     state.esiDataToLink.transactions.add,
     state.esiDataToLink.transactions.remove,
@@ -290,11 +298,10 @@ export function AvailableTransactionsPanel({
                           disabled={jobLockReadOnly}
                           onClick={() => {
                             if (jobLockReadOnly) return;
-                            state.activeJob.addTransaction(tData);
+                            actions.run(addTransaction(tData));
                             actions.addTransactionsForAddition(
                               tData.transaction_id,
                             );
-                            actions.updateActiveJob(state.activeJob);
                             showSnackbarSuccess("Linked");
                           }}
                         >
@@ -333,11 +340,12 @@ export function AvailableTransactionsPanel({
                   disabled={jobLockReadOnly}
                   onClick={() => {
                     if (jobLockReadOnly) return;
-                    state.activeJob.addTransaction(transactionData);
+                    for (const transaction of transactionData) {
+                      actions.run(addTransaction(transaction));
+                    }
                     actions.addTransactionsForAddition(
                       transactionData.map((trans) => trans.transaction_id),
                     );
-                    actions.updateActiveJob(state.activeJob);
                     showSnackbarSuccess("All Transactions Linked");
                   }}
                 >

@@ -3,6 +3,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { snackbarSpies } from "../../../../../../tests/snackbarHarness.js";
 import { withQueryClient } from "../../../../../../tests/utils.js";
+import {
+  appliedTo,
+  commandActions,
+  commandsRun,
+} from "../../../../../../tests/jobCommandSpy.js";
 
 const { showSnackbarError } = snackbarSpies;
 
@@ -36,12 +41,10 @@ const job = (rows = []) => ({
   build: {
     extrasCosts: Object.fromEntries(rows.map((row) => [row.id, row])),
   },
-  addExtrasCost: vi.fn(),
-  removeExtrasCost: vi.fn(),
 });
 
 const renderEditor = (activeJob) => {
-  const actions = { updateActiveJob: vi.fn() };
+  const actions = commandActions();
   render(
     withQueryClient(<ExtrasEditor state={{ activeJob }} actions={actions} />),
   );
@@ -78,7 +81,7 @@ describe("the extras editor", () => {
   // A cost of nothing is a mistyped row, not an extra worth recording.
   it("refuses a cost that is not a positive number", async () => {
     const activeJob = job();
-    renderEditor(activeJob);
+    const actions = renderEditor(activeJob);
 
     await userEvent.type(
       screen.getByPlaceholderText("Enter description…"),
@@ -88,13 +91,13 @@ describe("the extras editor", () => {
       screen.getByRole("button", { name: "Add extra cost" }),
     );
 
-    expect(activeJob.addExtrasCost).not.toHaveBeenCalled();
+    expect(commandsRun(actions)).toEqual([]);
     expect(showSnackbarError).toHaveBeenCalled();
   });
 
   it("refuses an uncategorised row with no description to identify it", async () => {
     const activeJob = job();
-    renderEditor(activeJob);
+    const actions = renderEditor(activeJob);
 
     await userEvent.clear(screen.getByPlaceholderText("0.00"));
     await userEvent.type(screen.getByPlaceholderText("0.00"), "500");
@@ -102,7 +105,7 @@ describe("the extras editor", () => {
       screen.getByRole("button", { name: "Add extra cost" }),
     );
 
-    expect(activeJob.addExtrasCost).not.toHaveBeenCalled();
+    expect(commandsRun(actions)).toEqual([]);
   });
 
   it("adds a described cost and tells the job", async () => {
@@ -119,16 +122,20 @@ describe("the extras editor", () => {
       screen.getByRole("button", { name: "Add extra cost" }),
     );
 
-    expect(activeJob.addExtrasCost).toHaveBeenCalledWith(
+    expect(commandsRun(actions).map((command) => command.name)).toEqual([
+      "add extra cost",
+    ]);
+    expect(
+      Object.values(appliedTo(actions, activeJob).build.extrasCosts),
+    ).toEqual([
       expect.objectContaining({ extraText: "Hauling", extraValue: 500 }),
-    );
-    expect(actions.updateActiveJob).toHaveBeenCalled();
+    ]);
   });
 
   // Description text reaches the job document, so it is sanitised on the way in.
   it("strips markup from a description", async () => {
     const activeJob = job();
-    renderEditor(activeJob);
+    const actions = renderEditor(activeJob);
 
     await userEvent.type(
       screen.getByPlaceholderText("Enter description…"),
@@ -140,7 +147,9 @@ describe("the extras editor", () => {
       screen.getByRole("button", { name: "Add extra cost" }),
     );
 
-    const added = activeJob.addExtrasCost.mock.calls[0][0];
+    const [added] = Object.values(
+      appliedTo(actions, activeJob).build.extrasCosts,
+    );
     expect(added.extraText).not.toContain("<img");
   });
 
@@ -152,12 +161,12 @@ describe("the extras editor", () => {
       extraValue: 12000,
     };
     const activeJob = job([row]);
-    renderEditor(activeJob);
+    const actions = renderEditor(activeJob);
 
     await userEvent.click(
       screen.getByRole("button", { name: "Remove Jita to Amarr" }),
     );
 
-    expect(activeJob.removeExtrasCost).toHaveBeenCalledWith(row);
+    expect(appliedTo(actions, activeJob).build.extrasCosts).toEqual({});
   });
 });

@@ -37,6 +37,12 @@ vi.mock("../../Events/editJobNavigationEvents", () => ({
   requestEditJobNavigation: vi.fn(),
 }));
 
+/* Changing a setup asks the server what the system's index is; the change does
+ * not wait on the answer to be worth making. */
+vi.mock("../../Functions/System Indexes/findSystemIndex", () => ({
+  default: async () => ({}),
+}));
+
 /* Adding a setup reads the blueprint index; an empty one is enough to build the
  * setup from the job it is based on. */
 vi.mock("../../Hooks/EveEsi/useBlueprintIndex", () => ({
@@ -54,6 +60,10 @@ const { JobSetupPanel } =
   await import("./Edit Job Components/Planning/Standard Layout/Setup Panel/jobSetups.jsx");
 const { MarkAsCompleteButton } =
   await import("./Edit Job Components/Complete/Standard Layout/Button Panel/markAsComplete.jsx");
+const { EditJobSetup } =
+  await import("./Edit Job Components/Planning/Standard Layout/Edit Setup Panel/editJobSetup.jsx");
+const { committedFor } = await import("./Edit Job Hooks/jobDraftStore.js");
+const { default: useUsersStore } = await import("../../Zustand/usersStore");
 
 let group = null;
 beforeEach(() => {
@@ -88,9 +98,6 @@ function openTheMenu() {
   fireEvent.click(screen.getByTestId("MoreVertIcon").closest("button"));
 }
 
-/* `recalculateSelectedSetup` is not covered here: it is driven from the ME/TE and
- * system-index editors, which carry more surrounding state than a button, and it
- * is unit-tested directly on `Job` in `tests/recalculateJobSetupContext.test.js`. */
 describe("the setups a job is built from, end to end", () => {
   it("deletes the setup being edited", () => {
     const { editJob } = renderOverEditJob(
@@ -149,7 +156,7 @@ describe("the setups a job is built from, end to end", () => {
 });
 
 describe("marking a job finished within its group, end to end", () => {
-  it("records the job as finished and the job as changed", () => {
+  it("records the job as finished, on the group rather than the job", () => {
     const { editJob } = renderOverEditJob(
       storedJob({ jobStatus: 4 }),
       ({ state, actions }) => (
@@ -161,8 +168,9 @@ describe("marking a job finished within its group, end to end", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mark As Complete" }));
 
     expect(group.areComplete.has("job-1")).toBe(true);
-    expect(editJob.current.jobModified).toBe(true);
-    // Finishing a job is a change to the group, and the group is written.
+    // Finishing a job is a change to the group, and the group is written. The
+    // job itself is untouched, so it has nothing of its own to save.
+    expect(editJob.current.jobModified).toBe(false);
     const { updateModifiedGroups, queueJobGroupWritesAndSchedule } =
       store.current.jobData.actions;
     expect(updateModifiedGroups).toHaveBeenCalledWith(group);
@@ -178,5 +186,48 @@ describe("marking a job finished within its group, end to end", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mark As Incomplete" }));
 
     expect(group.areComplete.has("job-1")).toBe(false);
+  });
+});
+
+// The panel changes a setup by saying what the reader did. Changing the setup on
+// screen instead reaches nothing, because the job the page reads is rebuilt from
+// what the session holds — which is how these controls came to look like they
+// worked while changing nothing.
+describe("changing the setup a job is built from, end to end", () => {
+  const openSetup = (job) =>
+    renderOverEditJob(job, ({ state, actions }) => (
+      <EditJobSetup state={state} actions={actions} />
+    ));
+
+  /**
+   * The setup as the session holds it, not as the job on screen shows it: a
+   * control that changed the job in place would still be visible through the
+   * copy this render is reading, which is the defect itself.
+   */
+  const storedSetup = () =>
+    committedFor(useUsersStore.getState().editSession.draft, "job-1").build
+      .setup["setup-1"];
+
+  /** The fields report what was typed when the reader leaves them. */
+  const type = (label, value) => {
+    const input = screen.getByLabelText(label).querySelector("input");
+    fireEvent.change(input, { target: { value } });
+    fireEvent.blur(input);
+  };
+
+  it("keeps a new run count", async () => {
+    openSetup(withSetups("setup-1"));
+
+    type("blueprint-runs-textfield", "25");
+
+    await vi.waitFor(() => expect(storedSetup().runCount).toBe(25));
+  });
+
+  it("keeps a new job slot count", async () => {
+    openSetup(withSetups("setup-1"));
+
+    type("job-slots-textfield", "3");
+
+    await vi.waitFor(() => expect(storedSetup().jobCount).toBe(3));
   });
 });

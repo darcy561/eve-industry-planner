@@ -8,7 +8,7 @@ import { blueprintOwner } from "../../../../../../Functions/Blueprints/blueprint
 import OwnerAvatar from "../../../../../../Styled Components/Avatar/OwnerAvatar";
 import useGetAllIndustryJobs from "../../../../../../Hooks/EveEsi/useGetAllIndustryJobs";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import recalculateJobFromSetup from "../../../../../../Functions/JobPlanner/recalculateJobFromSetup";
+import applySetupChange from "../../../../../../Functions/JobPlanner/applySetupChange";
 import { typeImageUrl } from "../../../../../../Functions/Shared/eveImage";
 const inUse = yellow[800];
 const expiring = red[600];
@@ -49,10 +49,15 @@ const BlueprintItem = ({ print, esiJob, state, actions }) => {
       <Grid
         container
         onClick={async () => {
-          const currentSetup = state.activeJob.selectedSetup;
-          currentSetup.updateMEValue(print.me);
-          currentSetup.updateTEValue(print.te / 2);
-          await recalculateJobFromSetup(currentSetup, state, actions);
+          await applySetupChange(
+            state.activeJob.selectedSetup,
+            "use a blueprint you own",
+            (setup) => {
+              setup.updateMEValue(print.me);
+              setup.updateTEValue(print.te / 2);
+            },
+            actions,
+          );
         }}
         size={{
           xs: 6,

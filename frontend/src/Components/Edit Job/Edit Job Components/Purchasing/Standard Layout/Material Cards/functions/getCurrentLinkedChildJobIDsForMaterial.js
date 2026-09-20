@@ -20,7 +20,7 @@ function getCurrentLinkedChildJobIDsForMaterial(
   return [
     ...new Set(
       [
-        ...activeJob.build.childJobs[materialTypeID],
+        ...(activeJob.build.childJobs[materialTypeID] ?? []),
         ...(temporaryChildJobs[materialTypeID]
           ? [temporaryChildJobs[materialTypeID].jobID]
           : []),

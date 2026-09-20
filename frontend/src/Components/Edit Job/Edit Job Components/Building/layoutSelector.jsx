@@ -5,7 +5,7 @@ import useGetAllIndustryJobs from "../../../../Hooks/EveEsi/useGetAllIndustryJob
 import { useGatherJobMatchesAndUpdateExistingLinkedJobs } from "../../Hooks/useJobMatchesAndWorldData";
 
 export function LayoutSelector_EditJob_Building(props) {
-  const { state } = props;
+  const { state, actions } = props;
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
   const {
     data: allIndustryJobs,
@@ -24,6 +24,7 @@ export function LayoutSelector_EditJob_Building(props) {
     state.activeJob,
     linkedJobs,
     state.esiDataToLink,
+    actions.run,
   );
 
   const totalIsLoading = isLoading || isWorldDataLoading;

@@ -1,17 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import useLocationNames from "../../../Hooks/EveEsi/useLocationNames";
 import findMarketOrdersForItem from "../../../Functions/MarketOrders/findMarketOrdersForItem";
-import applyLatestOrderData from "../../../Functions/MarketOrders/applyLatestOrderData";
+import { refreshLinkedMarketOrders } from "../Edit Job Hooks/jobCommands.js";
 import { useGetAllCharacterMarketOrders } from "../../../Hooks/EveEsi/Character/useGetAllCharacterMarketOrders";
 import { useGetAllCharacterHistoricMarketOrders } from "../../../Hooks/EveEsi/Character/useGetAllCharacterHistoricMarketOrders";
 import { useGetAllCorporationMarketOrders } from "../../../Hooks/EveEsi/Corporation/useGetAllCorporationMarketOrders";
 import { useGetAllCorporationHistoricMarketOrders } from "../../../Hooks/EveEsi/Corporation/useGetAllCorporationHistoricMarketOrders";
 import { asNumberIDSet } from "../../../Functions/Helper/ids";
 
-function updateLinkedMarketOrdersWithLatestData(allOrders, activeJob, actions) {
-  if (applyLatestOrderData(activeJob, allOrders)) {
-    actions.updateActiveJob(activeJob);
-  }
+function updateLinkedMarketOrdersWithLatestData(allOrders, actions) {
+  actions.run(refreshLinkedMarketOrders(allOrders));
 }
 
 export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
@@ -116,11 +114,7 @@ export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
           (order) => order.type_id === activeJob.itemID,
         );
 
-        updateLinkedMarketOrdersWithLatestData(
-          jobSpecificOrders,
-          activeJob,
-          actions,
-        );
+        updateLinkedMarketOrdersWithLatestData(jobSpecificOrders, actions);
         setMarketOrderMatches(matches);
       } catch (err) {
         setError(err);

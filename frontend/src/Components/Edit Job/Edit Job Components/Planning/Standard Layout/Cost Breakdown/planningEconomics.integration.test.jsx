@@ -119,7 +119,7 @@ const state = {
 };
 
 const actions = {
-  updateActiveJob: vi.fn(),
+  run: vi.fn(),
   getCurrentParentJobs: () => [],
   getCurrentMaterialChildJobs: () => [],
 };

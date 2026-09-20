@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { appliedTo, commandActions } from "../tests/jobCommandSpy.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -122,24 +123,21 @@ describe("removing a purchase from a material card", () => {
     job.importPurchaseToMaterial(34, priced(30, 8));
 
     const material = job.build.materials[34];
-    const actions = { updateActiveJob: vi.fn() };
+    const actions = commandActions();
 
     render(
-      <MaterialCostsFrame_Purchasing
-        state={{ activeJob: job }}
-        actions={actions}
-        material={material}
-      />,
+      <MaterialCostsFrame_Purchasing actions={actions} material={material} />,
     );
 
     await userEvent.click(screen.getAllByTestId("ClearIcon")[0]);
 
+    const changed = new Job(appliedTo(actions, job.toDocument()));
+    const remaining = changed.build.materials[34];
     expect(
-      Object.values(material.purchasing).map((row) => row.itemCount),
+      Object.values(remaining.purchasing).map((row) => row.itemCount),
     ).toEqual([30]);
-    expect(material.quantityPurchased).toBe(30);
-    expect(material.purchasedCost).toBe(240);
-    expect(job.totalMaterialCost).toBe(240);
-    expect(actions.updateActiveJob).toHaveBeenCalled();
+    expect(remaining.quantityPurchased).toBe(30);
+    expect(remaining.purchasedCost).toBe(240);
+    expect(changed.totalMaterialCost).toBe(240);
   });
 });

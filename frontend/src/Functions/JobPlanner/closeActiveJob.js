@@ -10,18 +10,25 @@ import {
   showSnackbarWarning,
 } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
+import workingCopyOfJob from "./workingCopyOfJob";
 import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
 import { closeAdjustmentSummary } from "./closeAdjustmentSummary";
 
 export default async function closeActiveJob(
-  inputJob,
+  jobToSave,
   jobModifiedFlag,
   tempJobsToAdd,
   esiDataToLink,
   parentChildToEdit,
   queryClient,
 ) {
+  // The job the editor showed is frozen, and closing rewrites it: links are
+  // repaired, the tree is recalculated, the group flags are set. So the save
+  // works on its own copy — the one place that needs a job it can change, taken
+  // once here rather than rebuilt on every edit the reader made.
+  const inputJob = workingCopyOfJob(jobToSave);
+
   const {
     setActiveJobID,
     updateModifiedGroups,

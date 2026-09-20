@@ -62,7 +62,7 @@ function renderCard(job) {
       temporaryChildJobs: {},
       parentChildToEdit: { childJobs: {} },
     },
-    actions: { updateActiveJob: vi.fn() },
+    actions: { run: vi.fn() },
     material: job.build.materials[34],
   };
   return render(<MaterialCardFrame_Purchasing {...props} />);

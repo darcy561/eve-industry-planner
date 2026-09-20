@@ -9,6 +9,7 @@ import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDoc
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import Transaction from "../../../../../../Classes/transaction";
 import ContentDialogue from "../../../../../../Styled Components/Dialogue/ContentDialogue";
+import { addCustomTransaction } from "../../../../Edit Job Hooks/jobCommands";
 
 /**
  * The trigger for this dialogue already gates on the active job lock, but we
@@ -66,7 +67,7 @@ export function AddCustomTransactionDialogue({ state, actions, onClose }) {
                 disabled={jobLockReadOnly}
                 onClick={() => {
                   if (jobLockReadOnly) return;
-                  actions.addCustomTransaction(transactionData);
+                  actions.run(addCustomTransaction(transactionData));
                   onClose();
                 }}
               >

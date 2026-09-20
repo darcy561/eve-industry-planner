@@ -9,7 +9,7 @@ import useUsersStore from "../../Zustand/usersStore";
  * back would show them a job they have just been told is gone — so every path
  * that discards an edit asks this rather than writing the backup in.
  *
- * @param {{jobID?: string}|null|undefined} job - the backup taken when editing began
+ * @param {{jobID?: string}|null|undefined} job - the job as it should be left
  * @returns {boolean} whether the job was put back
  */
 export function restoreJobIfStillHeld(job) {

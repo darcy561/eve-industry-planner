@@ -12,7 +12,6 @@ export function useEditJobInitialState({
   jobID,
   currentActiveJobID,
   actions,
-  backupJobRef,
   setActiveJobID,
 }) {
   const queryClient = useQueryClient();
@@ -55,13 +54,10 @@ export function useEditJobInitialState({
           .getState()
           .worldData.actions.addSystemIndex(requestedSystemIndexes);
 
-        backupJobRef.current = new Job(matchedJob);
-
-        const activeJobObject = new Job(matchedJob);
-
-        actions.setActiveJob(activeJobObject);
-        setActiveJobID(activeJobObject.jobID);
-        actions.setIsLoading(false);
+        // The session holds the job as plain data: what the reader changes is
+        // recorded against this rather than written into it.
+        actions.openJob(matchedJob.jobID, new Job(matchedJob).toDocument());
+        setActiveJobID(matchedJob.jobID);
       } catch (err) {
         console.error("Error importing job data:", err);
         navigate({ to: "/jobplanner" });
@@ -71,7 +67,6 @@ export function useEditJobInitialState({
     setInitialState();
   }, [
     actions,
-    backupJobRef,
     currentActiveJobID,
     jobID,
     navigate,

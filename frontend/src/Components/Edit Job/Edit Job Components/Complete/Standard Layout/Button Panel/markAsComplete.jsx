@@ -6,7 +6,7 @@ import {
   lockReasonText,
 } from "../../../../../DocumentLock/LockGatedTooltip";
 
-export function MarkAsCompleteButton({ state, actions }) {
+export function MarkAsCompleteButton({ state }) {
   const { groupArray } = useUsersStore((state) => state.jobData);
   const { updateModifiedGroups, queueJobGroupWritesAndSchedule } =
     useUsersStore((state) => state.jobData.actions);
@@ -27,8 +27,6 @@ export function MarkAsCompleteButton({ state, actions }) {
     if (activeGroupID) {
       queueJobGroupWritesAndSchedule(activeGroupID);
     }
-
-    actions.markJobAsModified();
   }
 
   if (!activeGroupID) {

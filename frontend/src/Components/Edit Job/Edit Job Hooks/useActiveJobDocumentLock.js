@@ -18,7 +18,7 @@ import { canEditActiveJob } from "../../../Functions/DocumentLock/canPersistDocu
  * `state.activeJob?.jobID` / `state.activeJob?.groupID` boilerplate (plus the
  * collection constant noise) out of every leaf component.
  *
- * All hooks expect the standard `state` returned by {@link useEditJobReducer};
+ * All hooks expect the standard `state` returned by {@link useEditJobSession};
  * they read from the Zustand store reactively, so call sites update as soon as
  * the lock state changes (handoff, expiry, server-side cascade, etc.).
  */

@@ -60,6 +60,7 @@ function flush() {
     account,
     jobData: { actions },
     websocketSync: { actions: rs },
+    editSession,
   } = useUsersStore.getState();
   if (!account.isLoggedIn || account.accountID == null) {
     pendingUpserts = new Map();
@@ -96,6 +97,13 @@ function flush() {
     actions.updateOrAddJobsToJobArray(
       entries.map(([, held]) => new Job(held.document)),
     );
+    // An editor holding one of these has it as the document it started from
+    // plus what the reader has changed since. Handing it the new document
+    // replaces the first without disturbing the second; one it is not holding
+    // is ignored.
+    for (const [jobID, held] of entries) {
+      editSession.actions.documentArrived(jobID, held.document);
+    }
     rs.setPositionBatch(
       entries
         .filter(([, held]) => Number.isFinite(held.position))

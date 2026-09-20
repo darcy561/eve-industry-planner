@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
 import Group from "../../Classes/group";
 import { TRITANIUM, editJobStore } from "../../tests/editJobFixtures";
+import { snackbarSpies } from "../../tests/snackbarHarness.js";
 
-const { store, readOnly } = vi.hoisted(() => ({
+const { store, readOnly, pasted } = vi.hoisted(() => ({
   store: { current: null },
   readOnly: { current: false },
+  pasted: { current: [] },
 }));
 
 vi.mock("../../Zustand/usersStore", async () => {
@@ -33,17 +35,26 @@ vi.mock("../../Events/editJobNavigationEvents", () => ({
   requestEditJobNavigation: vi.fn(),
 }));
 
+vi.mock("../../Functions/Clipboard/importMultibuy", () => ({
+  default: async () => pasted.current,
+}));
+
 const { renderOverEditJob, storedJob } =
   await import("../../tests/editJobHarness.jsx");
 const { AddMaterialCost_Purchasing } =
   await import("./Edit Job Components/Purchasing/Standard Layout/Material Cards/addMaterialCosts.jsx");
 const { MaterialCostsFrame_Purchasing } =
   await import("./Edit Job Components/Purchasing/Standard Layout/Material Cards/materialCostsFrame.jsx");
+const { committedFor } = await import("./Edit Job Hooks/jobDraftStore.js");
+const { default: useUsersStore } = await import("../../Zustand/usersStore");
+const { PurchasingDataPanel_EditJob } =
+  await import("./Edit Job Components/Purchasing/Standard Layout/Purchasing Data Panel/purchsingDataPanel.jsx");
 
 let group = null;
 beforeEach(() => {
   vi.clearAllMocks();
   readOnly.current = false;
+  pasted.current = [];
   group = new Group({ groupID: "group-1" });
   store.current = editJobStore({ group });
 });
@@ -166,5 +177,86 @@ describe("costing the materials a job needs, end to end", () => {
     fireEvent.click(screen.getByTestId("ClearIcon"));
 
     expect(Object.keys(materialOf(editJob.current).purchasing)).toHaveLength(0);
+  });
+});
+
+// A job keys its materials by type id, so the paste has to walk them as a
+// collection rather than an array — reading them as one threw where a reader
+// pressed the button.
+describe("importing costs pasted from the game, end to end", () => {
+  // The tooltip supplies the button's accessible name, so it is found by the
+  // words on it rather than by role and name.
+  const importCosts = () =>
+    fireEvent.click(screen.getByText("Import Costs From Multibuy"));
+
+  it("charges the job for what the paste covers", async () => {
+    pasted.current = [
+      { importedName: "Tritanium", importedQuantity: 100, importedCost: 5 },
+    ];
+    const { editJob } = renderOverEditJob(
+      needing(100),
+      ({ state, actions }) => (
+        <PurchasingDataPanel_EditJob state={state} actions={actions} />
+      ),
+    );
+
+    importCosts();
+
+    await vi.waitFor(() =>
+      expect(materialOf(editJob.current).quantityPurchased).toBe(100),
+    );
+    expect(materialOf(editJob.current).purchasedCost).toBe(500);
+  });
+
+  it("says so when the paste names nothing the job needs", async () => {
+    pasted.current = [
+      { importedName: "Pyerite", importedQuantity: 10, importedCost: 5 },
+    ];
+    const { editJob } = renderOverEditJob(
+      needing(100),
+      ({ state, actions }) => (
+        <PurchasingDataPanel_EditJob state={state} actions={actions} />
+      ),
+    );
+
+    importCosts();
+
+    await vi.waitFor(() =>
+      expect(snackbarSpies.showSnackbarError).toHaveBeenCalledWith(
+        "No Matching Items Found",
+      ),
+    );
+    expect(materialOf(editJob.current).quantityPurchased).toBe(0);
+  });
+});
+
+// The buying market and basis are the job's own choice, stored on it. They were
+// the last controls on this panel still calling an action the session no longer
+// has, so pressing one threw.
+describe("choosing where the job buys, end to end", () => {
+  const openPanel = () =>
+    renderOverEditJob(needing(100), ({ state, actions }) => (
+      <PurchasingDataPanel_EditJob state={state} actions={actions} />
+    ));
+
+  const buyingPricing = () =>
+    committedFor(useUsersStore.getState().editSession.draft, "job-1").build
+      .localPricing?.buying;
+
+  it("records the market the reader picked", async () => {
+    openPanel();
+
+    const [market] = screen.getAllByRole("combobox");
+    fireEvent.mouseDown(market);
+    const [, second] = within(screen.getByRole("listbox")).getAllByRole(
+      "option",
+    );
+    // The option's own value rather than its label: a hub's id matches its name
+    // today, but a saved structure's does not, so the label would be asserting a
+    // coincidence.
+    const chosen = second.getAttribute("data-value");
+    fireEvent.click(second);
+
+    await vi.waitFor(() => expect(buyingPricing()?.market).toBe(chosen));
   });
 });

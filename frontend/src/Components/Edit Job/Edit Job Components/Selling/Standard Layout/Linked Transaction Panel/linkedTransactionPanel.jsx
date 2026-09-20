@@ -3,6 +3,7 @@ import { Avatar, Grid, IconButton, Tooltip, Typography } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import { AddCustomTransactionDialogue } from "./addCustomTransaction";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
+import { removeTransaction } from "../../../../Edit Job Hooks/jobCommands";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import {
   formatDateForLocale,
@@ -189,11 +190,10 @@ export function LinkedTransactionPanel(props) {
                           disabled={jobLockReadOnly}
                           onClick={() => {
                             if (jobLockReadOnly) return;
-                            state.activeJob.removeTransaction(tData);
+                            actions.run(removeTransaction(tData));
                             actions.addTransactionsForRemoval(
                               tData.transaction_id,
                             );
-                            actions.updateActiveJob(state.activeJob);
                             showSnackbarError("Unlinked");
                           }}
                         >

@@ -6,14 +6,13 @@ import {
   observerWatching,
 } from "../../tests/intersectionObservers.js";
 
-const { reducer, stepForward, stepBackward } = vi.hoisted(() => ({
-  reducer: { current: null },
-  stepForward: vi.fn(),
-  stepBackward: vi.fn(),
+const { session, run } = vi.hoisted(() => ({
+  session: { current: null },
+  run: vi.fn(),
 }));
 
-vi.mock("./Edit Job Hooks/useEditJobReducer", () => ({
-  default: () => reducer.current,
+vi.mock("./Edit Job Hooks/useEditJobSession", () => ({
+  useEditJobSession: () => session.current,
 }));
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ jobID: "job-1" }),
@@ -75,9 +74,9 @@ const { default: EditJob } = await import("./editJob.jsx");
 const theme = createTheme();
 let observers = [];
 
-/** The reducer hands the page a job sitting on one of the three steps. */
+/** The session hands the page a job sitting on one of the three steps. */
 function onStep(jobStatus) {
-  reducer.current = {
+  session.current = {
     state: {
       isLoading: false,
       activeJob: {
@@ -87,11 +86,7 @@ function onStep(jobStatus) {
         jobStatus,
       },
     },
-    actions: {
-      updateActiveJob: vi.fn(),
-      stepActiveJobForward: stepForward,
-      stepActiveJobBackward: stepBackward,
-    },
+    actions: { run },
   };
 }
 
@@ -182,7 +177,9 @@ describe("the edit job page's floating step buttons", () => {
 
     fireEvent.click(floatingButton(/move to next step/i));
 
-    expect(stepForward).toHaveBeenCalled();
+    expect(run).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "move to the next stage" }),
+    );
   });
 
   it("offers no way back from the first step", () => {

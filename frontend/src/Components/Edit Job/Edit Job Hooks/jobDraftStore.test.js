@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ask,
@@ -12,7 +12,12 @@ import {
   hasChanges,
   keepAsked,
   leaveScratch,
+  nextRedo,
+  nextUndo,
+  redo,
   setBase,
+  TYPING_COALESCE_MS,
+  undo,
 } from "./jobDraftStore";
 
 const document = (overrides = {}) => ({
@@ -340,5 +345,259 @@ describe("a job the editor is not holding", () => {
 
     expect(change(state, "job-2", "rename", () => {})).toBe(state);
     expect(committedFor(state, "job-2")).toBeUndefined();
+  });
+});
+
+// Undo reads the log backwards a step at a time, where a step is what the
+// player did rather than a path that moved.
+describe("taking a step back", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const renamed = () =>
+    change(holding(), "job-1", "rename", (job) => {
+      job.name = "Renamed";
+    });
+
+  it("restores what the step changed", () => {
+    expect(draftFor(undo(renamed()), "job-1").name).toBe("Job");
+  });
+
+  it("puts back everything one command touched, not a part of it", () => {
+    const state = change(holding(), "job-1", "import purchase", (job) => {
+      job.build.materials[34].quantity = 0;
+      job.build.materials[34].purchasing = { "buy-1": { quantity: 100 } };
+    });
+
+    expect(draftFor(undo(state), "job-1").build.materials[34]).toEqual({
+      typeID: 34,
+      quantity: 100,
+    });
+  });
+
+  it("leaves the steps before it alone", () => {
+    const state = change(renamed(), "job-1", "set run count", (job) => {
+      job.build.setup["setup-1"].runCount = 40;
+    });
+    const draft = draftFor(undo(state), "job-1");
+
+    expect(draft.name).toBe("Renamed");
+    expect(draft.build.setup["setup-1"].runCount).toBe(10);
+  });
+
+  it("stops counting as a change to save", () => {
+    expect(hasChanges(undo(renamed()), "job-1")).toBe(false);
+  });
+
+  it("names the step, for the copy on the control", () => {
+    expect(nextUndo(renamed()).command).toBe("rename");
+    expect(nextUndo(holding())).toBeUndefined();
+  });
+
+  it("does nothing when there is nothing to take back", () => {
+    const state = holding();
+
+    expect(undo(state)).toBe(state);
+  });
+
+  // A question is undoable the same way a change is, and the newest step is the
+  // newest whichever layer it landed in.
+  it("takes back a question before the change under it", () => {
+    const state = ask(renamed(), "job-1", "try a run count", (job) => {
+      job.build.setup["setup-1"].runCount = 99;
+    });
+    const back = undo(state);
+
+    expect(back.scratch).toEqual([]);
+    expect(draftFor(back, "job-1").name).toBe("Renamed");
+  });
+
+  // The base moves under the editor whenever a co-member saves, so a step taken
+  // back must leave the arrived document standing rather than the job as it was
+  // when the step was made.
+  it("keeps a document that arrived while the step stood", () => {
+    const arrived = setBase(
+      renamed(),
+      "job-1",
+      document({ jobStatus: 2, name: "Named by somebody else" }),
+    );
+    const draft = draftFor(undo(arrived), "job-1");
+
+    expect(draft.name).toBe("Named by somebody else");
+    expect(draft.jobStatus).toBe(2);
+  });
+});
+
+describe("putting a step back", () => {
+  const renamed = () =>
+    change(holding(), "job-1", "rename", (job) => {
+      job.name = "Renamed";
+    });
+
+  it("returns the step undo took", () => {
+    expect(draftFor(redo(undo(renamed())), "job-1").name).toBe("Renamed");
+    expect(hasChanges(redo(undo(renamed())), "job-1")).toBe(true);
+  });
+
+  it("returns a question to the layer it came from", () => {
+    const asked = ask(holding(), "job-1", "try a run count", (job) => {
+      job.build.setup["setup-1"].runCount = 99;
+    });
+    const back = redo(undo(asked));
+
+    expect(back.log).toEqual([]);
+    expect(draftFor(back, "job-1").build.setup["setup-1"].runCount).toBe(99);
+  });
+
+  it("is forgotten once the player changes something else", () => {
+    const state = change(undo(renamed()), "job-1", "rename", (job) => {
+      job.name = "Something else";
+    });
+
+    expect(nextRedo(state)).toBeUndefined();
+    expect(redo(state)).toBe(state);
+  });
+
+  it("goes with the job when the editor lets it go", () => {
+    expect(forgetJob(undo(renamed()), "job-1").undone).toEqual([]);
+    expect(discard(undo(renamed())).undone).toEqual([]);
+  });
+});
+
+// Typing a cost into a field produces a keystroke's worth of change each time.
+// Without coalescing the player would press undo twenty times to take back one
+// number.
+describe("a run of typing", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const typing = (values, gap = 0) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    return values.reduce((state, value) => {
+      vi.advanceTimersByTime(gap);
+      return change(state, "job-1", "set run count", (job) => {
+        job.build.setup["setup-1"].runCount = value;
+      });
+    }, holding());
+  };
+
+  it("is one step, ending where the player stopped", () => {
+    const state = typing([1, 12, 123], 100);
+
+    expect(state.log).toHaveLength(1);
+    expect(draftFor(state, "job-1").build.setup["setup-1"].runCount).toBe(123);
+  });
+
+  it("takes back to what the field held before the run", () => {
+    const state = typing([1, 12, 123], 100);
+
+    expect(draftFor(undo(state), "job-1").build.setup["setup-1"].runCount).toBe(
+      10,
+    );
+  });
+
+  it("starts a new step after a pause", () => {
+    const state = typing([1, 12], TYPING_COALESCE_MS + 1);
+
+    expect(state.log).toHaveLength(2);
+    expect(draftFor(undo(state), "job-1").build.setup["setup-1"].runCount).toBe(
+      1,
+    );
+  });
+
+  it("does not merge into a different command", () => {
+    vi.useFakeTimers();
+    const state = change(
+      change(holding(), "job-1", "set run count", (job) => {
+        job.build.setup["setup-1"].runCount = 40;
+      }),
+      "job-1",
+      "rename",
+      (job) => {
+        job.name = "Renamed";
+      },
+    );
+
+    expect(state.log).toHaveLength(2);
+  });
+
+  // Only replaces merge, because that is the pair whose inverse is provably
+  // still right: the older before-image describes a field the newer patch only
+  // overwrites. A step that puts a field there in the first place is left as its
+  // own step rather than reasoned about.
+  it("does not merge a step that adds a field", () => {
+    vi.useFakeTimers();
+    const state = change(
+      change(holding(), "job-1", "set a note", (job) => {
+        job.note = "One";
+      }),
+      "job-1",
+      "set a note",
+      (job) => {
+        job.note = "Two";
+      },
+    );
+
+    expect(state.log).toHaveLength(2);
+    expect(draftFor(undo(state), "job-1").note).toBe("One");
+  });
+
+  it("does not merge across a step made in between", () => {
+    vi.useFakeTimers();
+    const first = change(holding(), "job-1", "set run count", (job) => {
+      job.build.setup["setup-1"].runCount = 40;
+    });
+    const asked = ask(first, "job-1", "try a name", (job) => {
+      job.name = "What if";
+    });
+    const state = change(asked, "job-1", "set run count", (job) => {
+      job.build.setup["setup-1"].runCount = 50;
+    });
+
+    expect(state.log).toHaveLength(2);
+  });
+});
+
+// Keeping a question moves it into the log, where it is replayed alongside the
+// changes — so where it sits in that order is the whole of whether a change made
+// after it survives.
+describe("keeping a question the player asked", () => {
+  const asked = () =>
+    ask(holding(), "job-1", "look at planning", (job) => {
+      job.jobStatus = 0;
+    });
+
+  const askedThenChanged = () =>
+    change(asked(), "job-1", "move to building", (job) => {
+      job.jobStatus = 2;
+    });
+
+  it("does not undo a change made after it was asked", () => {
+    const state = keepAsked(askedThenChanged(), 1);
+
+    expect(committedFor(state, "job-1").jobStatus).toBe(2);
+    expect(draftFor(state, "job-1").jobStatus).toBe(2);
+  });
+
+  it("is taken back in the order it was asked", () => {
+    const state = keepAsked(askedThenChanged(), 1);
+
+    expect(nextUndo(state).command).toBe("move to building");
+    expect(committedFor(undo(state), "job-1").jobStatus).toBe(0);
+  });
+
+  it("does not stop the newest step coalescing with what follows it", () => {
+    vi.useFakeTimers();
+    const kept = keepAsked(askedThenChanged(), 1);
+    const state = change(kept, "job-1", "move to building", (job) => {
+      job.jobStatus = 3;
+    });
+    vi.useRealTimers();
+
+    expect(state.log).toHaveLength(2);
+    expect(committedFor(state, "job-1").jobStatus).toBe(3);
   });
 });

@@ -149,7 +149,7 @@ function generateMaterialRequests(
   checkTypeIDisExempt,
 ) {
   return inputJobs.flatMap((job) =>
-    job.build.materials
+    Object.values(job.build.materials)
       .filter(
         (material) =>
           checkMaterialIsBuildable(

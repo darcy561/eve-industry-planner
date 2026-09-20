@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  appliedTo,
+  commandActions,
+  commandsRun,
+  unchangedBy,
+} from "../tests/jobCommandSpy.js";
 import { render } from "@testing-library/react";
 
 const characterOrders = { data: {}, isLoading: false };
@@ -56,14 +62,26 @@ function jobWithOrder(overrides = {}) {
   });
 }
 
+/**
+ * Opens the job and hands back what came out: the commands the refresh ran, and
+ * the job they leave behind.
+ */
 function openJob(job) {
-  const updateActiveJob = vi.fn();
+  const actions = commandActions();
   function Editor() {
-    useRefreshLinkedESIData(job, updateActiveJob);
+    useRefreshLinkedESIData(job, actions.run);
     return null;
   }
   render(<Editor />);
-  return updateActiveJob;
+  return {
+    actions,
+    // A command that changes nothing records no patches, so a refresh that
+    // found nothing new is a run that recorded nothing.
+    changed: commandsRun(actions).filter(
+      (command) => !unchangedBy(command, job.toDocument()),
+    ),
+    refreshed: appliedTo(actions, job.toDocument()),
+  };
 }
 
 describe("opening a job refreshes what ESI last said", () => {
@@ -83,11 +101,10 @@ describe("opening a job refreshes what ESI last said", () => {
       ],
     };
 
-    const updateActiveJob = openJob(job);
+    const { refreshed } = openJob(job);
 
-    expect(job.esi.marketOrders["900"].volume_remain).toBe(10);
-    expect(job.esi.marketOrders["900"].item_price).toBe(5.5);
-    expect(updateActiveJob).toHaveBeenCalledWith(job);
+    expect(refreshed.esi.marketOrders["900"].volume_remain).toBe(10);
+    expect(refreshed.esi.marketOrders["900"].item_price).toBe(5.5);
   });
 
   // Opening a job must not write it for nothing: an unchanged order would
@@ -108,9 +125,9 @@ describe("opening a job refreshes what ESI last said", () => {
       ],
     };
 
-    const updateActiveJob = openJob(job);
+    const { changed } = openJob(job);
 
-    expect(updateActiveJob).not.toHaveBeenCalled();
+    expect(changed).toEqual([]);
   });
 
   // The dashboard usually warms the cache, but a cold one must not fetch or
@@ -120,10 +137,10 @@ describe("opening a job refreshes what ESI last said", () => {
     characterOrders.data = {};
     corporationOrders.data = {};
 
-    const updateActiveJob = openJob(job);
+    const { changed, refreshed } = openJob(job);
 
-    expect(job.esi.marketOrders["900"].volume_remain).toBe(40);
-    expect(updateActiveJob).not.toHaveBeenCalled();
+    expect(refreshed.esi.marketOrders["900"].volume_remain).toBe(40);
+    expect(changed).toEqual([]);
   });
 
   it("prefers the corporation's own reading of a corporation order", () => {
@@ -152,8 +169,8 @@ describe("opening a job refreshes what ESI last said", () => {
       ],
     };
 
-    openJob(job);
+    const { refreshed } = openJob(job);
 
-    expect(job.esi.marketOrders["900"].volume_remain).toBe(12);
+    expect(refreshed.esi.marketOrders["900"].volume_remain).toBe(12);
   });
 });

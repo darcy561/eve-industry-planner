@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { LARGE_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
+import { unlinkESIJob } from "../../../../Edit Job Hooks/jobCommands";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useCurrentTime } from "../../../../../../Hooks/useCurrentTime";
 import PanelFallBack from "../../../../panelStates";
@@ -73,9 +74,8 @@ export function LinkedJobsTab(props) {
 
     setTimeout(() => {
       setRemovedJobs((prev) => new Set([...prev, job.job_id]));
-      state.activeJob.unlinkESIJob(job);
+      actions.run(unlinkESIJob(job));
       actions.addIndustryESIJobsForRemoval(job.job_id);
-      actions.updateActiveJob(state.activeJob);
       showSnackbarSuccess("Unlinked");
     }, 800);
   };

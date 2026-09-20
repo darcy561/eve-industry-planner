@@ -12,6 +12,10 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
 import { useEffectiveMarketHub } from "../../../../../../Hooks/Planner/useEffectiveMarketHub.js";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
+import {
+  importedQuantities,
+  importPurchaseToMaterial,
+} from "../../../../Edit Job Hooks/jobCommands";
 
 export function AddMaterialCost_Purchasing({
   state,
@@ -52,13 +56,20 @@ export function AddMaterialCost_Purchasing({
     ) {
       return;
     }
-    const { leftOver } = state.activeJob.importPurchaseToMaterial(
-      material.typeID,
-      { itemCount: itemCountInput, itemCost: itemCostInput },
-      { recordExcess: true },
-    );
+    const purchase = {
+      id: crypto.randomUUID(),
+      itemCount: itemCountInput,
+      itemCost: itemCostInput,
+    };
+    const availableToBuy = material.quantityRemaining;
+    const { leftOver } = importedQuantities(purchase, availableToBuy);
 
-    actions.updateActiveJob(state.activeJob);
+    actions.run(
+      importPurchaseToMaterial(material.typeID, purchase, {
+        availableToBuy,
+        recordExcess: true,
+      }),
+    );
     showSnackbarSuccess(
       leftOver > 0
         ? `Success. ${formatNumberForLocale(leftOver, { max: 0 })} more than this job needs, not charged to it.`

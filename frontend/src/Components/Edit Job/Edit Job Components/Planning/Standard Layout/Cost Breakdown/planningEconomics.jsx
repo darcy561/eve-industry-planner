@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { setSellingPlan } from "../../../../Edit Job Hooks/jobCommands";
 
 import CostBreakdownPanel from "./costBreakdownPanel";
 import PricingModelToggle, { PRICING_MODEL } from "./pricingModel";
@@ -118,8 +119,7 @@ export default function PlanningEconomics(props) {
           isLoading={ratesLoading}
           plan={state.activeJob.build ?? {}}
           onPlanChange={(next) => {
-            state.activeJob.setSellingPlan(next);
-            props.actions.updateActiveJob(state.activeJob);
+            props.actions.run(setSellingPlan(next));
           }}
           seller={seller}
           pricedAtName={saleLocation?.pricedAtName}

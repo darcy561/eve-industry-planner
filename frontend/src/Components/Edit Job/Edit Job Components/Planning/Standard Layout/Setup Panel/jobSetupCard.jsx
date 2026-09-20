@@ -6,6 +6,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { setJobLayout } from "../../../../Edit Job Hooks/jobCommands";
 import {
   jobTypeMapping,
   STANDARD_TEXT_FORMAT,
@@ -41,7 +42,7 @@ export function JobSetupCard({ setupEntry, state, actions }) {
       <Card elevation={3} square sx={{ minWidth: "100%" }}>
         <CardActionArea
           onClick={() => {
-            actions.updateActiveJobLayout({ setupToEdit: setupEntry.id });
+            actions.run(setJobLayout({ setupToEdit: setupEntry.id }));
           }}
         >
           <CardContent>

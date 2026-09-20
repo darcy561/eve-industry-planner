@@ -19,7 +19,12 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search.current,
 }));
 
-vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({}) }));
+// `QueryClient` as well as the hook: the leave paths reach `Job`, and the
+// module chain behind it builds the app's own client at import time.
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({}),
+  QueryClient: class {},
+}));
 
 vi.mock("../../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
@@ -49,6 +54,7 @@ vi.mock("../../../Events/jobDependencyTreeDialogueEvents", () => ({
 }));
 
 const { useEditJobLeaveConfirm } = await import("./useEditJobLeaveConfirm.js");
+const { default: useUsersStore } = await import("../../../Zustand/usersStore");
 const { requestEditJobNavigation } =
   await import("../../../Events/editJobNavigationEvents");
 const { requestEditJobReleaseConfirmation } =
@@ -80,6 +86,13 @@ function seed({
     },
     documentLock: { actions: { handOverEditAccess: async () => {} } },
   };
+
+  // Leaving reads the job from the session, which is where the editor holds it,
+  // so a test expecting one put back has to have opened it.
+  const { actions } = useUsersStore.getState().editSession;
+  actions.closeSession();
+  if (activeJob) actions.openJob(activeJob.jobID, activeJob);
+
   return { activeJob, jobModified };
 }
 
@@ -88,11 +101,7 @@ const restored = [];
 
 function mount(state) {
   return renderHook(
-    (props) =>
-      useEditJobLeaveConfirm({
-        backupJobRef: { current: job("job-1") },
-        state: props?.state ?? state,
-      }),
+    (props) => useEditJobLeaveConfirm({ state: props?.state ?? state }),
     { initialProps: { state } },
   );
 }

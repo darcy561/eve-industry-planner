@@ -206,6 +206,84 @@ export const toggleGroupJobReadyForSale = () =>
     job.displayOnPlanner = ready;
   });
 
+/**
+ * Brings the job's linked market orders up to date with what ESI now says.
+ *
+ * @param {Array<object>} latestOrders - Every order the caches hold
+ */
+export const refreshLinkedMarketOrders = (latestOrders) =>
+  command("refresh linked orders", (job) => {
+    if (!latestOrders?.length) return;
+
+    for (const [id, stored] of Object.entries(job.esi.marketOrders)) {
+      const reported = latestOrders.filter(
+        (candidate) => candidate.order_id === stored.order_id,
+      );
+      if (reported.length === 0) continue;
+
+      // A corporation order is reported by every character holding the role,
+      // and the corporation's own reading is the one that owns it.
+      const latest =
+        reported.find((order) => order.is_corporation) ?? reported[0];
+      const order = new MarketOrder(stored);
+      if (order.applyLatest(latest)) {
+        job.esi.marketOrders[id] = order.toDocument();
+      }
+    }
+  });
+
+/**
+ * Offers a grouped job for sale, which also finishes it.
+ *
+ * Marking a job for sale is the reader saying it is built and on the market, so
+ * it moves on a stage with the mark. Taking the mark off leaves the stage alone
+ * — the job was built either way.
+ */
+export const toggleReadyForSaleFromGroup = () =>
+  command("offer for sale", (job) => {
+    if (!job.isReadyToSell) job.jobStatus += 1;
+    const ready = !job.isReadyToSell;
+    job.isReadyToSell = ready;
+    job.displayOnPlanner = ready;
+  });
+
+/**
+ * Records a sale the reader entered by hand.
+ *
+ * `addTransaction` is for a sale that came from a linked order and stamps that
+ * order onto it, which a sale typed in by hand has none of.
+ *
+ * @param {object} transaction
+ */
+export const addCustomTransaction = (transaction) =>
+  command("add sale", (job) => {
+    if (!transaction) return;
+    const sale = new Transaction(transaction);
+    job.esi.transactions[String(sale.transaction_id)] = sale.toDocument();
+  });
+
+/**
+ * The reader's choices about the job's own screens.
+ *
+ * @param {object} patch - The layout keys to set
+ */
+export const setJobLayout = (patch) =>
+  command("change the view", (job) => {
+    if (!patch) return;
+    Object.assign(job.layout, patch);
+  });
+
+/**
+ * The job's own pricing choice — which market and basis each side is read at.
+ *
+ * @param {object} patch - The build keys to set
+ */
+export const setJobPricing = (patch) =>
+  command("choose where prices come from", (job) => {
+    if (!patch) return;
+    Object.assign(job.build, patch);
+  });
+
 /** @param {{transaction_id: number}} transaction */
 export const removeTransaction = (transaction) =>
   command("unlink sale", (job) => {
@@ -340,27 +418,46 @@ export const updateLinkedJobData = (latestESIJobs) =>
  */
 export const importPurchaseToMaterial = (materialID, purchase, options) =>
   command("add purchase", (job) => {
-    const material = job.build.materials[String(materialID)];
-    if (!material) return;
-
-    const { availableToBuy = 0, recordExcess = false } = options ?? {};
-    const offered = Number(purchase?.itemCount) || 0;
-    if (offered <= 0) return;
-
-    const taken = Math.max(0, Math.min(offered, availableToBuy));
-    const recorded = recordExcess ? offered : taken;
-    if (recorded <= 0) return;
-
-    const childID = purchase.childID ?? null;
-    const id = String(purchase.id);
-    material.purchasing[id] = {
-      id,
-      childID,
-      childJobImport: Boolean(childID),
-      itemCount: recorded,
-      itemCost: purchase.itemCost,
-    };
+    recordPurchase(job, materialID, purchase, options);
   });
+
+/**
+ * Imports several purchases as one step, for a paste covering many materials.
+ *
+ * One command rather than one per row, so taking the paste back takes all of it
+ * back.
+ *
+ * @param {Array<{materialID: number|string, purchase: object, options?: object}>} imports
+ */
+export const importPurchasesToMaterials = (imports) =>
+  command("import purchases", (job) => {
+    for (const { materialID, purchase, options } of imports ?? []) {
+      recordPurchase(job, materialID, purchase, options);
+    }
+  });
+
+function recordPurchase(job, materialID, purchase, options) {
+  const material = job.build.materials[String(materialID)];
+  if (!material) return;
+
+  const { availableToBuy = 0, recordExcess = false } = options ?? {};
+  const offered = Number(purchase?.itemCount) || 0;
+  if (offered <= 0) return;
+
+  const taken = Math.max(0, Math.min(offered, availableToBuy));
+  const recorded = recordExcess ? offered : taken;
+  if (recorded <= 0) return;
+
+  const childID = purchase.childID ?? null;
+  const id = String(purchase.id);
+  material.purchasing[id] = {
+    id,
+    childID,
+    childJobImport: Boolean(childID),
+    itemCount: recorded,
+    itemCost: purchase.itemCost,
+  };
+}
 
 /**
  * What a purchase of this size would take and leave, for a caller deciding
@@ -413,16 +510,19 @@ export const deleteActiveSetup = () =>
   });
 
 /**
- * Works out again what a setup needs, after something it is derived from moved.
+ * Stores a changed setup and works out again what it needs.
  *
- * @param {string} setupId
+ * The caller changes a copy rather than the setup on screen, because the job the
+ * page reads is rebuilt from what the session holds and a change written into it
+ * reaches nothing.
+ *
+ * @param {object} setup - The setup as the reader has now set it
+ * @param {string} name - What the reader did, for the undo step
  */
-export const recalculateSelectedSetup = (setupId) =>
-  command("recalculate setup", (job) => {
-    const held = job.build.setup[setupId];
-    if (!held) return;
-
-    const setup = new Setup(held);
-    setup.recalculateMaterials(job.rawData.materials);
-    job.build.setup[setupId] = setup.toDocument();
+export const storeSetup = (setup, name) =>
+  command(name, (job) => {
+    if (!setup?.id) return;
+    const next = new Setup(setup);
+    next.recalculateMaterials(job.rawData.materials);
+    job.build.setup[next.id] = next.toDocument();
   });

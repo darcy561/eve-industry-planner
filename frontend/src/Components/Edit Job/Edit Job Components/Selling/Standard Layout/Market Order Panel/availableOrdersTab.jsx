@@ -1,4 +1,5 @@
 import { Avatar, IconButton, Tooltip, Typography, Grid } from "@mui/material";
+import { addMarketOrder } from "../../../../Edit Job Hooks/jobCommands";
 import { useMemo } from "react";
 
 import AddLinkIcon from "@mui/icons-material/AddLink";
@@ -173,14 +174,12 @@ export function AvailableMarketOrdersTab({ state, actions, itemOrderMatch }) {
                                 charges,
                                 queryClient,
                               );
-                              state.activeJob.addMarketOrder(
-                                order,
-                                brokersFeeObject,
+                              actions.run(
+                                addMarketOrder(order, brokersFeeObject),
                               );
                               actions.addMarketOrdersForAddition(
                                 order.order_id,
                               );
-                              actions.updateActiveJob(state.activeJob);
                               showSnackbarSuccess("Linked");
                             } catch (error) {
                               console.error(

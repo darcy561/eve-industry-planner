@@ -3,6 +3,7 @@ import { Chip, Box, Tooltip } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
+import { removeMaterialPurchase } from "../../../../Edit Job Hooks/jobCommands";
 
 function purchaseCountedText(counted, itemCount) {
   if (counted === itemCount) return "All of this purchase is in the total.";
@@ -12,10 +13,9 @@ function purchaseCountedText(counted, itemCount) {
   return `The job needed ${counted} of these, and is charged for those. The cheapest purchases fill the requirement first.`;
 }
 
-export function MaterialCostsFrame_Purchasing({ state, actions, material }) {
+export function MaterialCostsFrame_Purchasing({ actions, material }) {
   function handleRemove(purchaseID) {
-    state.activeJob.removeMaterialPurchase(material.typeID, purchaseID);
-    actions.updateActiveJob(state.activeJob);
+    actions.run(removeMaterialPurchase(material.typeID, purchaseID));
     showSnackbarError("Deleted");
   }
 

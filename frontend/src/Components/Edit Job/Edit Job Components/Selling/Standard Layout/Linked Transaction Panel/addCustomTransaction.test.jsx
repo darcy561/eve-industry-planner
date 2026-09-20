@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  appliedTo,
+  commandActions,
+} from "../../../../../../tests/jobCommandSpy.js";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
@@ -31,7 +35,14 @@ function sellingJob() {
 }
 
 const onClose = vi.fn();
-const actions = { addCustomTransaction: vi.fn() };
+
+/** The sales the recorded commands write onto an empty job. */
+const sales = () =>
+  Object.values(
+    appliedTo(actions, { esi: { transactions: {} } }).esi.transactions,
+  );
+const addedSale = () => sales()[0];
+const actions = commandActions();
 
 function show(activeJob) {
   return render(
@@ -60,9 +71,7 @@ describe("adding a transaction by hand", () => {
 
     fireEvent.click(addButton());
 
-    expect(actions.addCustomTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ type_id: 587 }),
-    );
+    expect(addedSale()).toMatchObject({ type_id: 587 });
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -71,9 +80,7 @@ describe("adding a transaction by hand", () => {
 
     fireEvent.click(addButton());
 
-    expect(actions.addCustomTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ CharacterHash: "hash-main" }),
-    );
+    expect(addedSale()).toMatchObject({ CharacterHash: "hash-main" });
   });
 
   // Each opening mints its own id, which is what keeps two transactions added
@@ -86,8 +93,7 @@ describe("adding a transaction by hand", () => {
     show(sellingJob());
     fireEvent.click(addButton());
 
-    const [first] = actions.addCustomTransaction.mock.calls[0];
-    const [second] = actions.addCustomTransaction.mock.calls[1];
+    const [first, second] = sales();
     expect(second.transaction_id).not.toBe(first.transaction_id);
   });
 

@@ -1,4 +1,6 @@
 import { vi } from "vitest";
+import { create } from "zustand";
+import editSessionSlice from "../Zustand/editSessionSlice.js";
 import { activePlannerActions } from "../Zustand/activePlanner/actions.js";
 import { stateDefault as activePlannerDefault } from "../Zustand/activePlanner/core.js";
 // Each slice's `core.js` rather than its index: an index also exports the
@@ -90,7 +92,6 @@ const sliceDefaults = {
       getGroupObject: () => null,
       getActiveGroupObject: () => null,
       getCurrentParentJobs: () => [],
-      updateActiveJob: vi.fn(),
       updateOrAddJobsToJobArray: vi.fn(),
       addGroupToGroupArray: vi.fn(),
       updateModifiedGroups: vi.fn(),
@@ -211,7 +212,10 @@ export function usersStoreState(overrides = {}) {
   // store, and a missing action throws rather than answering "none saved",
   // which is why they are defaults rather than something a test opts into.
   state.applicationSettings.actions = {
-    ...structureActions(() => {}, () => state),
+    ...structureActions(
+      () => {},
+      () => state,
+    ),
     ...state.applicationSettings.actions,
   };
 
@@ -273,11 +277,38 @@ export function usersStoreMock(state = {}) {
           return () => built;
         })();
 
+  // The edit session is the one slice a test drives rather than states: a
+  // control records a change and the page must re-render on it. So it is the
+  // real slice over a real store, read through a live property on whatever
+  // state the stubs describe — defined on that state rather than merged into a
+  // copy, so a caller still gets back the object it passed in.
+  const sessionStore = create(editSessionSlice);
+  const withSession = (state) => {
+    if (!Object.getOwnPropertyDescriptor(state, "editSession")) {
+      Object.defineProperty(state, "editSession", {
+        get: () => sessionStore.getState().editSession,
+        configurable: true,
+      });
+    }
+    return state;
+  };
+
+  const useStore = (selector) => {
+    try {
+      // Subscribes the component reading the store to the session. A read from
+      // outside React — a test asserting on the state directly — has nothing to
+      // subscribe, and takes the current value below either way.
+      sessionStore((held) => held.editSession);
+    } catch {
+      /* not rendering */
+    }
+    const state = withSession(read());
+    return typeof selector === "function" ? selector(state) : state;
+  };
+
   return {
-    default: Object.assign(
-      (selector) =>
-        typeof selector === "function" ? selector(read()) : read(),
-      { getState: () => read() },
-    ),
+    default: Object.assign(useStore, {
+      getState: () => withSession(read()),
+    }),
   };
 }

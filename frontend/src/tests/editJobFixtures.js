@@ -184,6 +184,7 @@ export function editJobStore({
     worldData: {
       actions: {
         findSystemIndex: () => ({ manufacturing: 0.01 }),
+        addSystemIndex: () => {},
       },
     },
     applicationSettings: {

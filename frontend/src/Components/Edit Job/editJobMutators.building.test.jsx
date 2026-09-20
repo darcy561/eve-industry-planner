@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import Group from "../../Classes/group";
+import { stepBackward, stepForward } from "./Edit Job Hooks/jobCommands";
 import { editJobStore } from "../../tests/editJobFixtures";
 
 const { store, readOnly } = vi.hoisted(() => ({
@@ -132,7 +133,7 @@ describe("stepping a job through the planner, end to end", () => {
     const { editJob } = renderOverEditJob(
       storedJob({ jobStatus: 1 }),
       ({ actions }) => (
-        <button onClick={actions.stepActiveJobForward}>next step</button>
+        <button onClick={() => actions.run(stepForward())}>next step</button>
       ),
     );
 
@@ -146,7 +147,9 @@ describe("stepping a job through the planner, end to end", () => {
     const { editJob } = renderOverEditJob(
       storedJob({ jobStatus: 2 }),
       ({ actions }) => (
-        <button onClick={actions.stepActiveJobBackward}>previous step</button>
+        <button onClick={() => actions.run(stepBackward())}>
+          previous step
+        </button>
       ),
     );
 
@@ -159,7 +162,7 @@ describe("stepping a job through the planner, end to end", () => {
     const { editJob } = renderOverEditJob(
       storedJob({ jobStatus: 1 }),
       ({ actions }) => (
-        <button onClick={actions.stepActiveJobForward}>next step</button>
+        <button onClick={() => actions.run(stepForward())}>next step</button>
       ),
     );
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { QueryClientProvider } from "@tanstack/react-query";
-import useEditJobReducer from "../Components/Edit Job/Edit Job Hooks/useEditJobReducer";
+import { useEditJobSession } from "../Components/Edit Job/Edit Job Hooks/useEditJobSession";
 import Job from "../Classes/job";
 import seedLocationNames from "./seedLocationNames";
 import { testQueryClient } from "./queryClients.js";
@@ -19,13 +19,13 @@ const theme = createTheme({
 });
 
 /**
- * Mounts a piece of the Edit Job page over the real reducer, so a test can press
- * what a reader presses and then read the job that came out of it.
+ * Mounts a piece of the Edit Job page over the real edit session, so a test can
+ * press what a reader presses and then read the job that came out of it.
  *
- * Nothing here is mocked: the control dispatches a real action, the real reducer
- * builds a real `Job`, and `editJob.current` is that job. That is the join these
- * tests exist to cover — a control and a reducer can each be right on their own
- * and still disagree about what an action means.
+ * Nothing here is mocked: the control runs a real command, the real store
+ * records it, and `editJob.current` is the job derived from the layers. That is
+ * the join these tests exist to cover — a control and a command can each be
+ * right on their own and still disagree about what the reader asked for.
  *
  * @param {Object} props
  * @param {Object} props.job - Job fields to start from, as stored.
@@ -40,10 +40,12 @@ export function EditJobHarness({ job, children, editJobRef, locationNames }) {
     if (locationNames) seedLocationNames(client, locationNames);
     return client;
   });
-  const { state, actions } = useEditJobReducer();
+  const { state, actions } = useEditJobSession();
 
   useEffect(() => {
-    actions.setActiveJob(new Job(job));
+    const seeded = new Job(job);
+    actions.openJob(seeded.jobID, seeded.toDocument());
+    return () => actions.closeSession();
     // Seeded once, from the job this harness was given.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

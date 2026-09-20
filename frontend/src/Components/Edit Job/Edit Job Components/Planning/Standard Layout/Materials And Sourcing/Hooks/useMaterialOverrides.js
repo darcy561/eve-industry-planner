@@ -9,23 +9,12 @@ import {
  * Writes a job's pricing decisions: the basis a row is priced on, and the
  * per-material overrides that depart from it.
  */
-export function useMaterialOverrides({
-  activeJob,
-  build,
-  materials,
-  updateActiveJob,
-}) {
+export function useMaterialOverrides({ build, materials, updatePricing }) {
   const updateBuildPricing = useCallback(
     (key, value) => {
-      updateActiveJob({
-        ...activeJob,
-        build: {
-          ...build,
-          [key]: value,
-        },
-      });
+      updatePricing({ [key]: value });
     },
-    [activeJob, build, updateActiveJob],
+    [updatePricing],
   );
 
   const updateJobPricing = useCallback(

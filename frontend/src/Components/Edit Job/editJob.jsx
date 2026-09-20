@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { useParams } from "@tanstack/react-router";
 import {
   Avatar,
@@ -31,7 +30,13 @@ import useUsersStore from "../../Zustand/usersStore";
 import { openJobLinkTreeFromEditPage } from "../../Events/jobDependencyTreeDialogueEvents";
 import { useJobStatuses } from "../../Hooks/useJobStatuses";
 import AssetsDialogue from "../Dialogues/Assets/dialogueFrame";
-import useEditJobReducer from "./Edit Job Hooks/useEditJobReducer";
+import { useEditJobSession } from "./Edit Job Hooks/useEditJobSession";
+import {
+  setJobPricing,
+  setJobStatus,
+  stepBackward,
+  stepForward,
+} from "./Edit Job Hooks/jobCommands";
 import { useStripRedundantJobMarketHubOverrides } from "../../Hooks/Planner/useStripRedundantJobMarketHubOverrides.js";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import EditJobLeaveConfirmDialogue from "./EditJobLeaveConfirmDialogue";
@@ -50,20 +55,18 @@ import {
 import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
 
 export default function EditJob_New() {
-  const { state, actions } = useEditJobReducer();
+  const { state, actions } = useEditJobSession();
   const { setActiveJobID } = useUsersStore.getState().jobData.actions;
   const { jobStatuses } = useJobStatuses();
   const params = useParams({ from: "/editjob/$jobID" });
   const { jobID } = params;
-  let backupJob = useRef(null);
   const [prevStepButtonOutOfView, prevStepButtonRef] = useIsScrolledOutOfView();
   const [nextStepButtonOutOfView, nextStepButtonRef] = useIsScrolledOutOfView();
 
-  useStripRedundantJobMarketHubOverrides(
-    state.activeJob,
-    actions.updateActiveJobPricing,
+  useStripRedundantJobMarketHubOverrides(state.activeJob, (patch) =>
+    actions.run(setJobPricing(patch)),
   );
-  useRefreshLinkedESIData(state.activeJob, actions.updateActiveJob);
+  useRefreshLinkedESIData(state.activeJob, actions.run);
   useEditJobDocumentLocks({
     jobID,
     activeJob: state.activeJob,
@@ -73,15 +76,11 @@ export default function EditJob_New() {
   useWarnBeforeUnload();
   useJobDeletedRemotely(jobID);
 
-  const { leaveConfirmDialogueProps } = useEditJobLeaveConfirm({
-    backupJobRef: backupJob,
-    state,
-  });
+  const { leaveConfirmDialogueProps } = useEditJobLeaveConfirm({ state });
   useEditJobInitialState({
     jobID,
     currentActiveJobID: state.activeJob?.jobID,
     actions,
-    backupJobRef: backupJob,
     setActiveJobID,
   });
 
@@ -110,10 +109,7 @@ export default function EditJob_New() {
       return;
     }
 
-    actions.updateActiveJob({
-      ...state.activeJob,
-      jobStatus: targetStep,
-    });
+    actions.run(setJobStatus(targetStep));
   }
 
   return (
@@ -248,7 +244,7 @@ export default function EditJob_New() {
                     </span>
                   </Tooltip>
                   <DeleteJobIcon state={state} />
-                  <CloseJobIcon backupJobRef={backupJob} />
+                  <CloseJobIcon />
                   <SaveJobIcon state={state} />
                 </Grid>
               </Grid>
@@ -270,7 +266,7 @@ export default function EditJob_New() {
                   <span>
                     <IconButton
                       color="primary"
-                      onClick={actions.stepActiveJobBackward}
+                      onClick={() => actions.run(stepBackward())}
                       size="large"
                     >
                       <ArrowUpwardIcon />
@@ -296,7 +292,7 @@ export default function EditJob_New() {
                   <span>
                     <IconButton
                       color="primary"
-                      onClick={actions.stepActiveJobForward}
+                      onClick={() => actions.run(stepForward())}
                       size="large"
                       disabled={disableMoveForward}
                     >
@@ -368,7 +364,7 @@ export default function EditJob_New() {
                             >
                               <IconButton
                                 color="primary"
-                                onClick={actions.stepActiveJobBackward}
+                                onClick={() => actions.run(stepBackward())}
                                 size="large"
                               >
                                 <ArrowUpwardIcon />
@@ -403,7 +399,7 @@ export default function EditJob_New() {
                             >
                               <IconButton
                                 color="primary"
-                                onClick={actions.stepActiveJobForward}
+                                onClick={() => actions.run(stepForward())}
                                 size="large"
                                 disabled={disableMoveForward}
                               >

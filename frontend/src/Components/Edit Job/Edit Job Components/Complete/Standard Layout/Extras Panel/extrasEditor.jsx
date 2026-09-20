@@ -22,6 +22,10 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
 import ExtrasCategoriesSelect from "../../../../../../Styled Components/Select/extrasCategories";
 import InsetSurface from "../../../../../../Styled Components/Paper/InsetSurface";
 import ExtraCost from "../../../../../../Classes/extraCost";
+import {
+  addExtrasCost,
+  removeExtrasCost,
+} from "../../../../Edit Job Hooks/jobCommands";
 import { usePlannerExtrasCategories } from "../../../../../../Hooks/React Query/plannerSettings.js";
 
 /**
@@ -74,23 +78,23 @@ export default function ExtrasEditor({ state, actions }) {
       ALLOWED_ATTR: [],
     });
 
-    state.activeJob.addExtrasCost(
-      new ExtraCost({
-        id: crypto.randomUUID(),
-        category,
-        categoryLabel: lookUpCategoryLabel(category),
-        extraText: sanitizedText,
-        extraValue,
-      }),
+    actions.run(
+      addExtrasCost(
+        new ExtraCost({
+          id: crypto.randomUUID(),
+          category,
+          categoryLabel: lookUpCategoryLabel(category),
+          extraText: sanitizedText,
+          extraValue,
+        }),
+      ),
     );
 
-    actions.updateActiveJob(state.activeJob);
     showSnackbarSuccess("Extra cost added");
   }
 
   function handleRemove(item) {
-    state.activeJob.removeExtrasCost(item);
-    actions.updateActiveJob(state.activeJob);
+    actions.run(removeExtrasCost(item));
     showSnackbarError("Extra cost removed");
   }
 
