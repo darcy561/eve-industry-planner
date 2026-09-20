@@ -6,7 +6,7 @@ vi.mock("../Endpoints/Public/marketPricesQuery", () => ({
 }));
 
 const ordersByRegionAndType = vi.fn();
-vi.mock("./fetchStationBook", () => ({
+vi.mock("./regionOrders", () => ({
   ordersByRegionAndType: (...args) => ordersByRegionAndType(...args),
 }));
 
@@ -129,7 +129,7 @@ describe("two transports in one tick", () => {
     expect(ordersByRegionAndType).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a hub price when the station's book cannot be read", async () => {
+  it("keeps a hub price when the station's orders cannot be read", async () => {
     fetchMarketPricesQuery.mockResolvedValue({
       sources: { jita: { refreshedAt: 1, prices: { 34: { sell: 5 } } } },
       adjusted: null,

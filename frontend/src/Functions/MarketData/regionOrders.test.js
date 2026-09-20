@@ -5,8 +5,8 @@ vi.mock("../EveESI/World/getMarketData", () => ({
   default: (...args) => getMarketData(...args),
 }));
 
-const { ordersByRegionAndType, fetchStationPrices, expiresAt } =
-  await import("./fetchStationBook.js");
+const { ordersByRegionAndType, pricesAtStation, expiresAt } =
+  await import("./regionOrders.js");
 
 const JITA = 60003760;
 const AMARR_STATION = 60008494;
@@ -168,7 +168,7 @@ describe("pricing one station out of a region", () => {
       ]),
     );
 
-    const { prices } = await fetchStationPrices({
+    const { prices } = await pricesAtStation({
       regionID: 10000002,
       locationID: JITA,
       typeID: 34,
@@ -181,7 +181,7 @@ describe("pricing one station out of a region", () => {
   it("answers zero for a station holding no orders", async () => {
     getMarketData.mockResolvedValue(page([order(10, true, AMARR_STATION)]));
 
-    const { prices } = await fetchStationPrices({
+    const { prices } = await pricesAtStation({
       regionID: 10000002,
       locationID: JITA,
       typeID: 34,
@@ -196,7 +196,7 @@ describe("pricing one station out of a region", () => {
     const orders = [order(10, true, JITA), order(999, true, AMARR_STATION)];
     getMarketData.mockResolvedValue(page(orders));
 
-    const answer = await fetchStationPrices({
+    const answer = await pricesAtStation({
       regionID: 10000002,
       locationID: JITA,
       typeID: 34,
@@ -210,7 +210,7 @@ describe("pricing one station out of a region", () => {
     getMarketData.mockRejectedValue(new Error("offline"));
 
     await expect(
-      fetchStationPrices({ regionID: 10000002, locationID: JITA, typeID: 34 }),
+      pricesAtStation({ regionID: 10000002, locationID: JITA, typeID: 34 }),
     ).rejects.toThrow("offline");
   });
 });

@@ -13,7 +13,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
  */
 
 const ordersByRegionAndType = vi.fn();
-vi.mock("./fetchStationBook", () => ({
+vi.mock("./regionOrders", () => ({
   ordersByRegionAndType: (...args) => ordersByRegionAndType(...args),
 }));
 
@@ -88,7 +88,7 @@ describe("a saved market's book expires while a surface is open", () => {
 
     // Nothing about the surface changed — no navigation, no remount. The reader
     // is looking at the same panel, and the figure on it must be the one the
-    // station's book now carries.
+    // station's prices now carry.
     expect(await screen.findByText("sell 30")).toBeTruthy();
   });
 

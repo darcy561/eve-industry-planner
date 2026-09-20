@@ -93,7 +93,7 @@ export function useMarketPricesQuery(
  * Each market's clock as it stands, keyed so a moved one changes the value.
  *
  * **A market the browser fetches for itself is keyed per type.** Only the
- * markets this server walks have a clock of their own: a saved station's book is
+ * markets this server walks have a clock of their own: a saved station's prices are
  * read one type at a time and states its own freshness, so its clock is per
  * source and type and is carried on the row rather than held centrally. Keying
  * those by source alone would read as a constant zero, and a refetch after one

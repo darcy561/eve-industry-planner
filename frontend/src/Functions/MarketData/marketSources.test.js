@@ -50,7 +50,7 @@ describe("the market source registry", () => {
       name: "Jita IV-4",
       regionID: 10000002,
       stationID: 60003760,
-      // The kind decides transport and cache tier: a saved station's book is
+      // The kind decides transport and cache tier: a saved station's prices are
       // read by the browser and held on the reader's device.
       kind: SOURCE_KIND.STATION,
     });

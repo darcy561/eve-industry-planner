@@ -30,7 +30,7 @@ import { clockedSources } from "./sourceClocks";
 
 /**
  * A held row never goes stale by age. Its market's clock decides: the row is
- * what that market would answer with until the market's book is walked again,
+ * what that market would answer with until the market is walked again,
  * whether that is ten minutes or ten hours. Any duration here would re-ask for
  * prices that have not moved and still miss the moment they do.
  */
@@ -200,9 +200,9 @@ async function resolvePrice(typeID, sourceID) {
 }
 
 /**
- * Drops every row held for a market whose book has been walked again.
+ * Drops every row held for a market that has been walked again.
  *
- * The whole market at once, because the whole book was walked at once: a market
+ * The whole market at once, because the whole of it was walked at once: a market
  * that answers one type with a newer figure has newer figures for all of them,
  * and leaving the rest would show a reader two moments side by side.
  *
@@ -234,7 +234,7 @@ setClockMovedListener(({ sources, adjusted }) => {
  * Drops rows a reader-saved market has stated are finished with.
  *
  * **A saved source needs no probe.** A hub's clock is the server's to report, so
- * learning whether its rows still stand costs a request; a station's book states
+ * learning whether its rows still stand costs a request; a station's prices state
  * its own expiry when it is fetched, and that expiry is carried on the row. So
  * this asks nothing and reads nothing over the network — it is the local half of
  * the same job `revalidateSourceClocks` does for the markets this server walks.
@@ -278,7 +278,7 @@ export function expireSavedSourceRows(now = Date.now()) {
  * Asks each market holding rows for one type it already holds, so that market
  * reports its clock.
  *
- * This is the whole of how a moved book is noticed. Nothing polls for a clock,
+ * This is the whole of how a moved clock is noticed. Nothing polls for one,
  * because no request exists whose purpose is to report one — a price answer
  * carries its market's clock, so asking for a single price a market has already
  * answered costs one row and settles whether every other row held for it is

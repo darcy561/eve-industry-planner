@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const requestPrice = vi.fn();
 const requestAdjustedPrice = vi.fn();
 
-/** What the cache asked to be told when a market's book moves. */
+/** What the cache asked to be told when a market's clock moves. */
 let clockMovedListener = null;
 
 vi.mock("./priceLoader", () => ({
@@ -185,7 +185,7 @@ describe("freshness comes from the market's clock", () => {
     expect(requestPrice).toHaveBeenCalledTimes(1);
   });
 
-  it("asks again once its market says the book was walked again", async () => {
+  it("asks again once its market says it was walked again", async () => {
     requestPrice.mockResolvedValue(row(10));
     await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
 
@@ -197,7 +197,7 @@ describe("freshness comes from the market's clock", () => {
     expect(readPrice(34, "jita").sell).toBe(30);
   });
 
-  // The book is walked whole, so every row from it goes at once — two moments
+  // A market is walked whole, so every row from it goes at once — two moments
   // side by side in one view is the thing this prevents.
   it("drops every row a moved market answered, not just the one probed", async () => {
     requestPrice.mockResolvedValue(row(10));
@@ -257,7 +257,7 @@ describe("freshness comes from the market's clock", () => {
   });
 });
 
-describe("asking the markets whether their books moved", () => {
+describe("asking the markets whether their clocks moved", () => {
   it("asks nothing where no market holds rows", async () => {
     await revalidateSourceClocks();
 

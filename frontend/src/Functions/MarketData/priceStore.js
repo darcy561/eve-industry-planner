@@ -5,7 +5,7 @@ import { del, delMany, get, keys, set } from "idb-keyval";
  *
  * This is the tier beneath the price cache, and only reader-saved sources reach
  * it — the hubs this server walks are cheap to ask for again and are held for
- * the session alone. A station's book was read at the reader's expense and a
+ * the session alone. A station's prices were read at the reader's expense and a
  * citadel's was walked whole with their own token, so losing them on a reload
  * means paying for them again.
  *
@@ -122,7 +122,7 @@ async function readEntry(sourceID, typeID, now) {
     const row = await get(key);
     if (!row) return undefined;
 
-    // A row whose book ESI said would have changed by now is not a price any
+    // A row whose orders ESI said would have changed by now is not a price any
     // more. Serving it would be worse than having stored nothing, because
     // nothing above this would ever ask again.
     if (Number.isFinite(row.expiresAt) && row.expiresAt <= now) {
@@ -159,11 +159,11 @@ export async function writeStoredPrice(sourceID, typeID, row) {
 }
 
 /**
- * Everything held for one market, replaced by what its book now says.
+ * Everything held for one market, replaced by what a fresh read says.
  *
  * **A type absent from the new set is removed, not left.** A walk of a market's
- * whole book is a statement about every type on it, so a row it does not mention
- * is a type nobody is trading there any more — keeping it would show a reader a
+ * whole order book is a statement about every type on it, so a row it does not
+ * mention is a type nobody is trading there any more — keeping it would show a reader a
  * price for something they cannot buy, and the row would never expire on its own
  * because nothing would refresh it.
  *
@@ -173,11 +173,11 @@ export async function writeStoredPrice(sourceID, typeID, row) {
  *
  * @param {string} sourceID
  * @param {Map<string, object>|Array<[string, object]>} rows - Type id to row
- * @param {{refreshedAt: number, expiresAt?: number}} book - What the walk said
- *   about the book the rows came from
+ * @param {{refreshedAt: number, expiresAt?: number}} freshness - When the walk
+ *   read these prices, and when they lapse
  * @returns {Promise<void>}
  */
-export async function replaceStoredPrices(sourceID, rows, book) {
+export async function replaceStoredPrices(sourceID, rows, freshness) {
   prunePastVersions();
 
   const arriving = new Map(rows);
@@ -195,9 +195,9 @@ export async function replaceStoredPrices(sourceID, rows, book) {
       [...arriving].map(([typeID, row]) =>
         set(entryKey(sourceID, typeID), {
           ...row,
-          refreshedAt: book.refreshedAt,
-          ...(Number.isFinite(book.expiresAt)
-            ? { expiresAt: book.expiresAt }
+          refreshedAt: freshness.refreshedAt,
+          ...(Number.isFinite(freshness.expiresAt)
+            ? { expiresAt: freshness.expiresAt }
             : {}),
         }),
       ),

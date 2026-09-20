@@ -1,6 +1,6 @@
 import { fetchMarketPricesQuery } from "../Endpoints/Public/marketPricesQuery";
 import { deriveBookPrices } from "./deriveBookPrices";
-import { ordersByRegionAndType } from "./fetchStationBook";
+import { ordersByRegionAndType } from "./regionOrders";
 import { allMarketSources, SOURCE_KIND, sourceIn } from "./marketSources";
 import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 
@@ -75,7 +75,7 @@ async function flush() {
     const { served, stations, adjusted, unaskable } = splitByTransport(batch);
 
     // Each transport answers on its own, and that is the point of the split. A
-    // hub's price comes from this server and a saved station's book from ESI, so
+    // hub's price comes from this server and a saved station's from ESI, so
     // one being unreachable says nothing about the other. Sent as one request
     // they were not independent at all: the server answers 400 for the whole
     // request when it sees a source it does not price, so a single station want
@@ -168,24 +168,24 @@ async function serveServerHeld(wants, adjusted) {
 }
 
 /**
- * The markets the browser reads itself, one region-and-type book at a time.
+ * The markets the browser prices itself, one region and type at a time.
  *
  * **A region's orders cover every station in it.** Two stations in one region
- * wanting the same type is one read of that book and two derivations from it,
- * not two reads — which is the whole reason the wants are grouped by the book
- * they need rather than by the station that asked.
+ * wanting the same type is one read of those orders and two derivations from
+ * them, not two reads — which is why the wants are grouped by the read they
+ * need rather than by the station that asked.
  */
 async function serveSavedStations(wants) {
   if (wants.length === 0) return;
 
-  const books = new Map();
+  const reads = new Map();
   for (const want of wants) {
-    const bookKey = `${want.source.regionID}|${want.typeID}`;
-    const held = books.get(bookKey);
+    const readKey = `${want.source.regionID}|${want.typeID}`;
+    const held = reads.get(readKey);
     if (held) {
       held.wants.push(want);
     } else {
-      books.set(bookKey, {
+      reads.set(readKey, {
         regionID: want.source.regionID,
         typeID: want.typeID,
         wants: [want],
@@ -193,21 +193,21 @@ async function serveSavedStations(wants) {
     }
   }
 
-  await Promise.all([...books.values()].map(readStationBook));
+  await Promise.all([...reads.values()].map(priceStationsFromRegionOrders));
 }
 
-async function readStationBook({ regionID, typeID, wants }) {
+async function priceStationsFromRegionOrders({ regionID, typeID, wants }) {
   try {
-    const book = await ordersByRegionAndType({ regionID, typeID });
+    const orders = await ordersByRegionAndType({ regionID, typeID });
 
-    // The moment the browser read it. A hub's clock is the server saying when
-    // it walked the book; nothing says that to a browser about ESI, so the read
-    // is the only moment it can state honestly.
+    // The moment the browser read them. A hub's clock is the server saying when
+    // it walked the region's book; nothing says that to a browser about ESI, so
+    // the read is the only moment it can state honestly.
     const refreshedAt = Date.now();
 
     for (const want of wants) {
-      const prices = deriveBookPrices(book.orders, want.source.stationID);
-      resolveWant(want, pricedOrNothing(prices, refreshedAt, book.expiresAt));
+      const prices = deriveBookPrices(orders.orders, want.source.stationID);
+      resolveWant(want, pricedOrNothing(prices, refreshedAt, orders.expiresAt));
     }
   } catch (error) {
     for (const want of wants) rejectWant(want, error);
@@ -215,14 +215,13 @@ async function readStationBook({ regionID, typeID, wants }) {
 }
 
 /**
- * Nothing on either side of the book is the station holding no order for the
- * type — the same answer a hub gives by leaving the row out, rather than a
- * price of zero.
+ * Nothing on either side is the station holding no order for the type — the
+ * same answer a hub gives by leaving the row out, rather than a price of zero.
  *
- * The row carries the expiry ESI gave its book, because this row can outlive the
- * tab: the tier beneath the cache refuses to serve one whose book would have
- * changed by the time it is read back. A hub row carries none, and needs none —
- * it is asked for again on every reload.
+ * The row carries the expiry ESI gave the orders it came from, because this row
+ * can outlive the tab: the tier beneath the cache refuses to serve one whose
+ * orders would have changed by the time it is read back. A hub row carries
+ * none, and needs none — it is asked for again on every reload.
  */
 function pricedOrNothing(prices, refreshedAt, expiresAt) {
   if (!prices.buy && !prices.sell) return null;
@@ -241,8 +240,8 @@ function rejectWant(want, error) {
 }
 
 /**
- * Records every clock an answer carried, and reports the markets whose books
- * have been walked again since the rows held for them arrived.
+ * Records every clock an answer carried, and reports the markets walked again
+ * since the rows held for them arrived.
  *
  * Every answer is a clock reading, whatever it was asked for — which is why
  * nothing polls for one. A market named in a request reports its clock in the
@@ -275,7 +274,7 @@ function recordClocks(answer) {
 let onClocksMoved = null;
 
 /**
- * Sets what to tell when a market's book has been walked again.
+ * Sets what to tell when a market has been walked again.
  *
  * The cache holds the rows a moved clock makes stale, and the loader is what
  * learns the clock moved — so the loader announces and the cache acts, rather

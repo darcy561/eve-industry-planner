@@ -2,7 +2,8 @@ import getMarketData from "../EveESI/World/getMarketData";
 import { deriveBookPrices, pricesFromSides } from "./deriveBookPrices";
 
 /**
- * One type's prices at a station the reader saved, fetched by the browser.
+ * A region's orders, read by the browser, and the prices a station takes from
+ * them.
  *
  * The server prices the four hubs it walks; a station a reader adds is nobody's
  * to walk but ours, so the orders are read here and put through the same
@@ -197,12 +198,7 @@ function collectPage(orders, orderCounts) {
  * @returns {Promise<{prices: import("./deriveBookPrices").BookPrices,
  *   orders: Array, etag: string, expiresAt: number|undefined}>}
  */
-export async function fetchStationPrices({
-  regionID,
-  locationID,
-  typeID,
-  held,
-}) {
+export async function pricesAtStation({ regionID, locationID, typeID, held }) {
   const book = await ordersByRegionAndType({ regionID, typeID, held });
 
   return {
