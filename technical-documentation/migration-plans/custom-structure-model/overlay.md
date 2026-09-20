@@ -151,7 +151,8 @@ read: Stage B is not optional follow-up, it is the other half of this change.
 
 ## Stage B — One class, SPA side
 
-**In progress.** The class exists and is proved; nothing imports it yet.
+**Landed.** One class serves every kind, the three it replaced are deleted, and every caller builds
+it.
 
 ### Built alongside, not cut over
 
@@ -720,10 +721,9 @@ the default market until [market-price-delivery](../market-price-delivery/plan.m
 the authenticated walk. How a stored access character that no longer resolves is shown belongs with
 that walk, since nothing reads the character until then.
 
-**A saved NPC station is priced by the browser today**, and
-[market-price-delivery](../market-price-delivery/plan.md) § Stage G moves that to the server —
-measured against every market region in New Eden. What this project owes it is only the saved row,
-which it has.
+**A saved NPC station is priced by the server**, which
+[market-price-delivery](../market-price-delivery/plan.md) § Stage G built — measured against every
+market region in New Eden. What this project owed it was the saved row, which it has.
 
 ## Missing live SoT found on the way
 

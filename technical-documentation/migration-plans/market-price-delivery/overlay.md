@@ -347,9 +347,12 @@ cache to disk on change — was built as a spike and backed out.
 
 **Which sources persist is declared once**, as a table from source kind to tier in `marketSources.js`.
 A kind with no entry is session-only, which is the safe default: the worst it costs is a re-fetch.
-The hubs are session-only deliberately — shared infrastructure, walked hourly by the server, and
-cheap to ask for again — while a market the reader saved was fetched at their own expense and can
-never be had for free again.
+The rule is who paid for the rows: a market this server walks is cheap to ask for again, and one the
+reader fetched on their own token can never be had for free.
+
+**Which kinds those are moved in § G4.** A saved station is priced by this server now, so nothing
+maps to persistent and the tier waits for the citadel — the section below is the tier's design, not
+a list of what uses it today.
 
 **A stored row carries its book's expiry, and refusing an expired one is the whole eviction path.**
 Without it the tier would have made freshness *worse* than not having it: `PRICE_STALE_TIME` is
@@ -838,6 +841,10 @@ they need rather than by "the book".
 
 `deriveBookPrices` keeps its name: it derives prices from an order book, which is what it is given.
 
+**`regionOrders.js` itself is gone**, deleted by § G4 below once this server priced what the browser
+had been fetching. The vocabulary outlived the module and is what the rest of the pricing code now
+reads by.
+
 ### The keys this stage retires, and the deploy that carries it
 
 **Two shapes are left behind, and neither expires.** Keying a price at a station
@@ -860,22 +867,65 @@ it back to the previous image. Observed twice on the dev stack, each time readin
 `s3 bucket "market-pages" does not exist — run eip up / eip ensure-s3` while the market pipeline
 stayed down. The order is `eip up` (or `eip ensure-s3`), then the image roll.
 
+### G4 — The browser stops fetching what the server prices
+
+**One transport answers every market.** A saved station used to be read from ESI by the browser and
+a hub from this server; both come from `/marketPricesQuery` now, in one request. `splitByTransport`
+has one served list, and `transportIDFor` is the only place that knows a saved market is named on the
+wire by the station it sits at — the reader's own id for it never leaves the loader, so every row,
+key and clock stays under that id. A clock arriving against a station id is recorded under the id it
+was asked for, or it would speak for rows nothing could match it to.
+
+**`regionOrders.js` is gone**, with the whole-region sweep built for a client-side walk — two of its
+four exports already had no caller before this slice. `deriveBookPrices` stays: it is the SPA's half
+of the derivation the committed fixture holds to the server's, and the citadel walk derives with it.
+
+**A clock is recorded per want, not per market the answer named.** Nothing stops an account saving
+one station twice under two names, and both are asked for under the same station id — keyed by what
+was asked, one would take the other's clock and the market that lost it would go on serving a
+superseded price with nothing left to tell it otherwise.
+
+**A market that has never been walked is asked again, not settled.** Registration puts a market in
+the sweep, but its first walk takes minutes, and until it lands the market answers a clock of zero
+and no rows — which reads exactly like a market holding no order. `revalidateSourceClocks` now
+probes **every market the cache holds rows for** rather than only those that have reported a clock,
+because a market with rows and no clock is precisely the one being waited on. When the walk lands the
+real clock arrives, the rows it supersedes are dropped, and the surface asks again.
+
+**Saved markets left the persistent tier.** Rows are kept on a reader's device only where that reader
+paid to get them; a market this server walks is one request away after a reload, and a stored row
+would sit in front of a figure the server has already replaced. Nothing maps to persistent now, so
+the tier waits for the citadel it was built for — whose whole book is walked on the reader's own
+token. `priceCache.savedSourceRefresh.test.jsx` went with the behaviour it described, and comes back
+with that walk; the store's own tests keep the machinery covered in the meantime.
+
+`priceDelivery.e2e.test.jsx` gained the saved-market path it never had: the same wire, the same
+query, the same surface, mocking only `fetch` — including a market asked for **before** its first
+walk, which is the case the probe rule exists for.
+
+**A market's first clock is not a move, and that nearly cost the rule its point.** `recordSourceClock`
+reports a move only where a clock replaces an older one, because the rows arriving with a first clock
+are current as of it. A market asked for before its walk landed breaks that: its rows were answered
+with no clock at all and say it holds no price, so the first real clock supersedes them while
+reporting nothing. `revalidateSourceClocks` drops the rows of a market that gained its first clock
+under the probe, or a reader who asked too early sits on "nothing here" for the life of the tab.
+
 ### Still to fill
 
 **A citadel cannot be priced by this server at all**, so it is not registered: its book needs
 `/markets/structures/` and the docking character the row carries, which is
 [market-price-delivery](./plan.md) § Stage E item 3 and stays the reader's own fetch.
 
-**The browser still reads a saved station's orders itself.** Nothing in the SPA reads a saved station's
-prices from `/marketPricesQuery` yet, so the server-side pricing this stage built is not what a reader
-sees until the loader is cut over — see [plan.md](./plan.md) § Start here.
+**Refetching a saved source ahead of the reader** is § Stage E item 4's other half, and only a
+citadel needs it: a market this server prices states its clock on every answer, and the probe is
+what notices it moved.
 
 ## Stage F — Custom market locations
 
-*Nothing landed yet.*
-
-Sections to fill: what a sale lane row carries once it can be a station as well as a structure; the
-surface for adding one; what `PriceHub` means once a structure can be priced directly.
+**Built by [custom-structure-model](../custom-structure-model/overlay.md) § Stage D, not by this
+project** — a saved location that is a market is a kind of structure, and that project owns the
+shape. What it produced is the row this project prices: see [plan.md](./plan.md) § Stage F for what
+was asked for and what was decided differently.
 
 ## Missing live SoT found on the way
 

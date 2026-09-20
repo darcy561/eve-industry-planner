@@ -48,7 +48,9 @@ For Go surfaces in scope only: `go fix -diff` before planned work; again on edit
 Live SoT will not be edited until this project is complete and promotion is approved.
 
 **`go fix` in scope:** clean for `./shared/redis/...`, `./shared/core/esi/...`,
-`./worker/tasks/esi/...` and `./core/scheduler/esi/...`. A scan of `./api/v1endpoints/...` reports
+`./worker/tasks/esi/...`, `./core/scheduler/esi/...`, and the packages Stage G added or reached —
+`./shared/core/objectstore/...`, `./api/marketsources/...`, `./core/commands/...` and the Deployment
+Tool's `internal/dataplane/s3`. A scan of `./api/v1endpoints/...` reports
 suggestions in `authenticate.go`, `refresh.go`, `session_types.go` and `statistics/live_scope_test.go`
 — struct-literal consolidation and the `omitempty`/`omitzero` pair that `go fix` itself marks a
 behaviour change. None is in a file this project touches, so all are left alone deliberately; JSON
@@ -614,9 +616,10 @@ covers every region a reader has asked about.
 ### What this supersedes
 
 Stage E item 2 stays as the record of what was built, and the browser-side station fetch it produced
-comes out: `fetchStationBook.js`'s per-type walk, and the three pieces built for a client-side
-whole-region sweep before these numbers existed — `getMarketData` without a type,
-`pricesByStationInRegion`, and `replaceStoredPrices`. The persistent tier stays: a **citadel** is
+comes out: the per-type walk and the pieces built for a client-side whole-region sweep before these
+numbers existed, which § G4 deleted with `regionOrders.js`. `replaceStoredPrices` **stays** — it
+replaces every row a whole-book walk produced, which is what the citadel walk does and the only
+thing that ever did. The persistent tier stays with it: a **citadel** is
 still the reader's own fetch, because `/markets/structures/` is authenticated per character and its
 book cannot be centralised. That is the line — **public data centralises, private data does not.**
 
@@ -929,21 +932,16 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage B — The price row and the narrowed query | **Done.** Every price is read from the query cache through one accessor; `worldData.marketData` and the alternative price table are retired; every surface resolves its market through `priceResolution.js`, so the fetch and the read cannot disagree; the old `/market-prices`, its `MarshalJSON` and the `PricesByType` reader are deleted — see [overlay.md](./overlay.md) § B1-B5 |
 | Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
 | Stage D — The price cache and its two tiers | **Done.** Items 1-3 landed in Stage B or are inherited from it; the persistent tier is read-through on `idb-keyval`, entered at one seam, holding reader-saved markets only, with a stored row refused once its book's expiry passes and rows abandoned by a version bump removed on first touch — see [overlay.md](./overlay.md) § D1. What it still owes is pacing while a row stays warm in memory, which is Stage E's remaining item |
-| Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation), item 2 (a saved NPC station, now reachable — the loader sorts a tick's wants by transport) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E2, § E3, § C2. Still open: the citadel walk (item 3), refetching a saved source ahead of the reader rather than retiring its rows, which only a citadel needs, and end-to-end coverage of the station transport — `priceDelivery.e2e.test.jsx` proves the hub path against a mocked `fetch` and stops there, which is honest while nothing in a running app reaches a station, and a gap the moment Stage F stores one |
-| Stage G — An NPC station is priced by the server | **Server side done, browser side open.** G0 has landed: the object-store bucket list had two hand-synced copies in two modules that cannot import each other, so it now has one owner and a committed fixture across the boundary, and the dead `S3_BUCKET` stack line is gone — the prerequisite for adding a bucket at all ([overlay.md](./overlay.md) § G0). G1 has landed: a region's pages are written to the `market-pages` bucket, the Redis page cache is deleted, and retention is explicit because object storage has no expiry — plus an in-memory `Backend`, without which the move would have turned four fetch tests into silent skips ([overlay.md](./overlay.md) § G1). The rest is **measured, not built.** Every known-space region was walked for its page count: all 70 cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost. The Forge alone is 408 pages and 92 MB, which a browser cannot walk hourly for each reader. The store is already shaped for it — `priceKey` is a type at a location — so what changes is three references to `DefaultMarketLocations` and one line in the worker. G2 and G3 have landed: the walk and the derive are two tasks, prices are keyed per station, a saved station is registered at login and on save, the sweep reads the tracked-region registry rather than the four hubs, and a daily task retires what nothing asks for ([overlay.md](./overlay.md) § G2, § G3). Still to build: the SPA reading a saved station's prices from the endpoint instead of walking its book itself. Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
+| Stage E — Sources the browser fetches | **Partly done, and item 2 is retired.** Item 1 (the derivation) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E3, § C2. Item 2's browser-side station fetch is **deleted**: this server prices a saved station now, and § G4 routes it through the same query as a hub, with the end-to-end coverage that path never had. Still open: the citadel walk (item 3) and refetching a saved source ahead of the reader, which only a citadel needs |
+| Stage G — An NPC station is priced by the server | **Done.** G0 has landed: the object-store bucket list had two hand-synced copies in two modules that cannot import each other, so it now has one owner and a committed fixture across the boundary, and the dead `S3_BUCKET` stack line is gone — the prerequisite for adding a bucket at all ([overlay.md](./overlay.md) § G0). G1 has landed: a region's pages are written to the `market-pages` bucket, the Redis page cache is deleted, and retention is explicit because object storage has no expiry — plus an in-memory `Backend`, without which the move would have turned four fetch tests into silent skips ([overlay.md](./overlay.md) § G1). What the rest was built from is measured in [measurements.md](./measurements.md): all 70 known-space regions cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost, and The Forge alone is 408 pages and 92 MB — which a browser cannot walk hourly for each reader, and is why this moved to the server. G2 and G3 have landed: the walk and the derive are two tasks, prices are keyed per station, a saved station is registered at login and on save, the sweep reads the tracked-region registry rather than the four hubs, and a daily task retires what nothing asks for ([overlay.md](./overlay.md) § G2, § G3). G4 finished it: the SPA reads a saved station's prices from the endpoint, `regionOrders.js` is deleted, and a market waiting on its first walk is asked again rather than read as empty ([overlay.md](./overlay.md) § G4). Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
 | Stage F — Custom market locations | **Not this project's to build, and built.** It is what makes a saved location a market rather than a selling point priced from a hub, and it belonged to the separate custom-structure work — [custom-structure-model](../custom-structure-model/contents.md) § Stage D landed it, which is what released Stage E item 3. See § Stage F |
 
 ## Start here
 
-**Pacing a reader-saved source.** Stages A, B, C and D are done: the loader sorts a tick's wants by
-transport, a saved station is fetched from ESI and read back through the same accessor as a hub, and
-its rows survive a reload ([overlay.md](./overlay.md) § E3, § D1).
-
-**What is left is the asking, not the holding.** A stored row is refused once its book's expiry has
-passed, but that check only fires on a read from disk — a row kept warm in the query cache is never
-re-asked, because `PRICE_STALE_TIME` is `Infinity` and only a hub's moved clock removes anything
-today. Each saved source's expiry belongs in `priceRefreshSchedule.js` beside the hub probe (§ C2),
-and `ordersByRegionAndType` already returns it.
+**Stages A, B, C and D are done**, and a saved station no longer paces itself: this server prices it,
+so it states a clock on every answer and the probe is what notices the clock moved
+([overlay.md](./overlay.md) § C2, § G4). Pacing a source the **reader** fetches is still open, and
+only a citadel will need it.
 
 **Stage G, and its server half is done.** § G0 to § G3 have landed: the bucket list has one owner, a
 region's pages are written to the `market-pages` bucket rather than Redis, walking and pricing are two
@@ -955,12 +953,14 @@ asked for a fortnight.
 already, so login and the settings save publish `trackMarketSources` and the worker resolves and
 registers what it names. The SPA is told nothing about any of it.
 
-Next is **the browser giving up its own station fetch**, which is what makes this reachable to a
-reader: no SPA surface reads a saved station's prices from `/marketPricesQuery` today. That slice
-routes a saved station through the served transport under its station id, retires `fetchStationBook`'s
-per-type walk and the three pieces built for a client-side region sweep, and settles which tier a
-station's rows now live in — they were held on the reader's device because the reader paid for them,
-which stops being true when the server walks the book.
+**The browser has given up its own station fetch** — § G4. A saved market is asked of this server
+like a hub, `regionOrders.js` is deleted, a market waiting on its first walk is probed rather than
+settled as empty, and saved markets left the persistent tier, which now waits for the citadel it was
+built for.
+
+Next is **the citadel walk** (§ Stage E item 3): the whole-book read on the reader's own token,
+through `nameLoader`'s per-character machinery extended rather than copied, its own clock, and the
+persistent tier's first real consumer.
 
 ### The browser-side remainder is off the shelf
 
