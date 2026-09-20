@@ -2,7 +2,7 @@ import {
   LOCATION_KIND,
   resolveLocationKind,
 } from "../Assets/assetLocationConstants";
-import { SALE_LOCATION_KIND } from "./saleLocations";
+import { SALE_LOCATION_KIND, getSaleCitadels } from "./saleLocations";
 import {
   brokerFeeAmount,
   brokerFeeRate,
@@ -33,6 +33,18 @@ import { ensureSellingRateInputs } from "../../Hooks/React Query/Character/useSe
  * @param {number} citadelBrokersFee
  * @returns {Promise<SellingCharges>}
  */
+/**
+ * The broker fee a reader recorded for the citadel an order was placed at.
+ *
+ * @param {number} locationID - The order's in-game location
+ * @returns {number|undefined} The saved rate, or nothing when none is saved
+ */
+function savedCitadelFee(locationID) {
+  return getSaleCitadels().find(
+    (citadel) => citadel.structureID === locationID,
+  )?.brokerFee;
+}
+
 export default async function calcSellingCharges(
   marketOrder,
   queryClient,
@@ -53,7 +65,11 @@ export default async function calcSellingCharges(
     : {
         kind: SALE_LOCATION_KIND.CITADEL,
         feeStationID: null,
-        brokerFee: citadelBrokersFee,
+        // The rate the reader recorded for this citadel, if they saved it. The
+        // account default stands in for a citadel they have not, so the two
+        // stages quote one figure wherever the citadel is known to both.
+        brokerFee:
+          savedCitadelFee(marketOrder.location_id) ?? citadelBrokersFee,
       };
 
   // Both figures are written to the job, so what they are worked out from has to

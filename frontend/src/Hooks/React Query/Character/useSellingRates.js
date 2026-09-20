@@ -32,6 +32,10 @@ export function useSellingRates(saleLocation, characterHash) {
       saleLocation?.kind ?? "none",
       saleLocation?.id ?? "none",
       saleLocation?.feeStationID ?? "none",
+      // A citadel's rate is a number its owner set and the reader can edit, and
+      // the row's id does not change when it does. Without this the corrected
+      // rate is not asked for again and the panel quotes the old one.
+      saleLocation?.brokerFee ?? "none",
       characterHash ?? "none",
       inputs.updatedAt,
     ],

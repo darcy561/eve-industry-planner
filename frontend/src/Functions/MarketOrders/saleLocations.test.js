@@ -5,9 +5,8 @@ import { structureKinds } from "../../Context/defaultValues";
 let structures = [];
 
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
     usersStoreState({ applicationSettings: { customStructures: structures } }),
   );
@@ -55,8 +54,16 @@ describe("saved sale structures", () => {
   test("offers only the citadels, not every saved structure", () => {
     structures = [
       aCitadel(),
-      { id: "manStruct-1", jobType: structureKinds.manufacturing, name: "Sotiyo" },
-      { id: "npcMarket-1", jobType: structureKinds.npcStation, name: "Jita IV-4" },
+      {
+        id: "manStruct-1",
+        jobType: structureKinds.manufacturing,
+        name: "Sotiyo",
+      },
+      {
+        id: "npcMarket-1",
+        jobType: structureKinds.npcStation,
+        name: "Jita IV-4",
+      },
     ];
 
     expect(getSaleCitadels().map((i) => i.id)).toEqual(["citadelMarket-1"]);

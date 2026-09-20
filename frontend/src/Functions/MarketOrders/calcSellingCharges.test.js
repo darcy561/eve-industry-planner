@@ -1,10 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { rateMock, ensureMock, saleLocations } = vi.hoisted(() => ({
-  rateMock: vi.fn(),
-  ensureMock: vi.fn(),
-  saleLocations: [],
-}));
+const { rateMock, ensureMock, saleLocations, savedCitadels } = vi.hoisted(
+  () => ({
+    rateMock: vi.fn(),
+    ensureMock: vi.fn(),
+    saleLocations: [],
+    savedCitadels: { rows: [] },
+  }),
+);
+
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } = await import(
+    "../../tests/usersStoreHarness.js"
+  );
+  return usersStoreMock(() =>
+    usersStoreState({
+      applicationSettings: { customStructures: savedCitadels.rows },
+    }),
+  );
+});
 
 vi.mock("./sellingRates", () => ({
   brokerFeeRate: (saleLocation, ...rest) => {
@@ -36,6 +50,7 @@ function order(location_id) {
 }
 
 beforeEach(() => {
+  savedCitadels.rows = [];
   saleLocations.length = 0;
   rateMock.mockReset().mockResolvedValue(0.03);
   ensureMock.mockReset().mockResolvedValue(undefined);
@@ -88,5 +103,43 @@ describe("where a market order's broker fee is charged", () => {
     await calcSellingCharges(order(JITA), {}, 0.015);
 
     expect(ensureMock).toHaveBeenCalledWith({}, "hash-a");
+  });
+});
+
+// The Planning stage quotes the rate a reader recorded for a citadel. The
+// Selling stage quoted the account-wide default, so one job showed two fees.
+describe("a citadel the reader has saved", () => {
+  it("charges the rate recorded for that citadel", async () => {
+    const { structureKinds } = await import("../../Context/defaultValues");
+    savedCitadels.rows = [
+      {
+        id: "citadelMarket-1",
+        jobType: structureKinds.citadelMarket,
+        structureID: RAITARU,
+        brokerFee: 0.032,
+      },
+    ];
+
+    await calcSellingCharges(order(RAITARU), {}, 0.015);
+
+    expect(saleLocations[0].brokerFee).toBe(0.032);
+  });
+
+  // A reader who has not saved the citadel an order sits at still gets a
+  // figure, so linking an order never depends on having described where it is.
+  it("falls back to the account figure for a citadel it does not hold", async () => {
+    const { structureKinds } = await import("../../Context/defaultValues");
+    savedCitadels.rows = [
+      {
+        id: "citadelMarket-1",
+        jobType: structureKinds.citadelMarket,
+        structureID: 1234567890,
+        brokerFee: 0.032,
+      },
+    ];
+
+    await calcSellingCharges(order(RAITARU), {}, 0.015);
+
+    expect(saleLocations[0].brokerFee).toBe(0.015);
   });
 });

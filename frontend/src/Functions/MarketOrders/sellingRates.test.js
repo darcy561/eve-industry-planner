@@ -48,9 +48,8 @@ vi.mock("../../Hooks/EveEsi/Character/useGetCharacterStandings", () => ({
 }));
 
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
   const { structureKinds } = await import("../../Context/defaultValues");
   return usersStoreMock(() =>
     usersStoreState({

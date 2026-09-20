@@ -48,7 +48,7 @@ const { SALE_LOCATION_KIND } =
   await import("../../../Functions/MarketOrders/saleLocations");
 
 const hub = {
-  kind: SALE_LOCATION_KIND.HUB,
+  kind: SALE_LOCATION_KIND.NPC_STATION,
   id: "jita",
   name: "Jita",
   feeStationID: 60003760,
@@ -109,6 +109,33 @@ describe("useSellingRates", () => {
     expect(getCharacterStandings).not.toHaveBeenCalled();
     expect(result.current.data.brokerFee.rate).toBe(3);
     expect(result.current.data.salesTax.rate).toBe(7.5);
+  });
+
+  // A saved citadel's fee is a number the reader can change, and its id does not
+  // change with it. A key that named the id alone served the old rate back for
+  // as long as the query stayed cached, so the panel quoted a fee the reader had
+  // already corrected.
+  it("re-quotes a citadel whose owner rate was edited", async () => {
+    const { wrapper } = harness();
+    const citadel = (brokerFee) => ({
+      kind: SALE_LOCATION_KIND.CITADEL,
+      id: "citadelMarket-1",
+      feeStationID: null,
+      brokerFee,
+    });
+
+    const { result, rerender } = renderHook(
+      ({ location }) => useSellingRates(location, "hash"),
+      { wrapper, initialProps: { location: citadel(1.5) } },
+    );
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data.brokerFee.rate).toBe(1.5);
+
+    rerender({ location: citadel(3.25) });
+
+    await waitFor(() =>
+      expect(result.current.data.brokerFee.rate).toBe(3.25),
+    );
   });
 
   it("asks for nothing until it has a location to price", () => {
