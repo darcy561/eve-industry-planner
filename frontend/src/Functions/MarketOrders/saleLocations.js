@@ -44,7 +44,11 @@ export const SALE_LOCATION_KIND = {
 export function getSaleCitadels() {
   return (
     useUsersStore.getState().applicationSettings.customStructures ?? []
-  ).filter((structure) => structure.jobType === structureKinds.citadelMarket);
+  ).filter(
+    (structure) =>
+      structure.jobType === structureKinds.market &&
+      Boolean(structure.structureID),
+  );
 }
 
 /**
@@ -59,7 +63,7 @@ export function getDefaultSaleStructure() {
   return useUsersStore
     .getState()
     .applicationSettings.actions.getDefaultCustomStructureWithJobType(
-      structureKinds.citadelMarket,
+      structureKinds.market,
     );
 }
 
@@ -77,7 +81,7 @@ export function resolveSaleLocation(saleLocationID, marketID) {
     const citadel = useUsersStore
       .getState()
       .applicationSettings.actions.getCustomStructureWithID(saleLocationID);
-    if (citadel?.jobType === structureKinds.citadelMarket) {
+    if (citadel?.jobType === structureKinds.market && citadel.structureID) {
       return saleLocationFromCitadel(citadel);
     }
 

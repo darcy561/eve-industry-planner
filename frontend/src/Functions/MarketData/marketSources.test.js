@@ -37,7 +37,7 @@ describe("the market source registry", () => {
     structures = [
       {
         id: "npcMarket-1",
-        jobType: structureKinds.npcStation,
+        jobType: structureKinds.market,
         name: "Jita IV-4",
         regionID: 10000002,
         stationID: 60003760,
@@ -63,7 +63,7 @@ describe("the market source registry", () => {
     structures = [
       {
         id: "citadelMarket-1",
-        jobType: structureKinds.citadelMarket,
+        jobType: structureKinds.market,
         name: "Perimeter Azbel",
         regionID: 10000002,
         structureID: 1035466617946,

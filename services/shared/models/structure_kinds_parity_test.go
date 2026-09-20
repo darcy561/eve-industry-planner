@@ -18,10 +18,10 @@ const kindsWhy = "What a saved structure's jobType field can be. Both languages 
 	"two. A value that disagrees misfiles a row rather than failing. " +
 	"Regenerate with: " + regenerateKinds
 
-// structureKinds is keyed by the name the SPA uses, because the fixture exists
-// to be read by the SPA. The four job types are named for the job because that
-// is what a build structure's kind has always been; the market kinds are named
-// for the place.
+// structureKindList is keyed by the name the SPA uses, because the fixture
+// exists to be read by the SPA. The four job types are named for the job
+// because that is what a build structure's kind has always been; the market is
+// named for what it is.
 type structureKindList struct {
 	Why   string         `json:"why"`
 	Kinds map[string]int `json:"kinds"`
@@ -35,8 +35,7 @@ func currentStructureKinds() structureKindList {
 			"reaction":      JobTypeReaction,
 			"invention":     JobTypeInvention,
 			"reprocessing":  JobTypeReprocessing,
-			"npcStation":    StructureKindNPCStation,
-			"citadelMarket": StructureKindCitadelMarket,
+			"market":        StructureKindMarket,
 		},
 	}
 }

@@ -39,16 +39,15 @@ const fieldsByJobType = {
   [structureKinds.reaction]: { built: true, rigSlots: true, systemID: true },
   [structureKinds.reprocessing]: { built: true, rigSlots: true, implant: true },
   [structureKinds.invention]: { built: true, rigSlots: true },
-  // Both market kinds name a region, because a price is asked for per region and
-  // then narrowed to one location. What narrows it is the difference.
-  [structureKinds.npcStation]: {
+  // A market names a region, because a price is asked for per region and then
+  // narrowed to one location. Which field narrows it — and whether the row
+  // carries a fee of its own or what its fee is derived from — follows from the
+  // place chosen rather than from a kind of its own.
+  [structureKinds.market]: {
     regionID: true,
     stationID: true,
-    stationOwner: true,
-  },
-  [structureKinds.citadelMarket]: {
-    regionID: true,
     structureID: true,
+    stationOwner: true,
     brokerFee: true,
     characterHash: true,
   },

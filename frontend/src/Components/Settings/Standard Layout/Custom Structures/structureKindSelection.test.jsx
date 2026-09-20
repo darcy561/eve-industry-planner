@@ -30,8 +30,7 @@ describe("choosing what kind of structure to save", () => {
       "Reaction",
       "Invention",
       "Reprocessing",
-      "NPC Station",
-      "Player Citadel",
+      "Market",
     ]) {
       expect(screen.getByRole("radio", { name: label })).toBeInTheDocument();
     }
@@ -45,13 +44,9 @@ describe("choosing what kind of structure to save", () => {
   it("reports the kind that was chosen", async () => {
     const { setSelectedJobType, setInitialSelectionMade } = renderPicker();
 
-    await userEvent.click(
-      screen.getByRole("radio", { name: "Player Citadel" }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: "Market" }));
 
-    expect(setSelectedJobType).toHaveBeenCalledWith(
-      structureKinds.citadelMarket,
-    );
+    expect(setSelectedJobType).toHaveBeenCalledWith(structureKinds.market);
     expect(setInitialSelectionMade).toHaveBeenCalledWith(true);
   });
 
@@ -66,8 +61,8 @@ describe("choosing what kind of structure to save", () => {
   });
 
   it("shows the kind already chosen", () => {
-    renderPicker({ selectedJobType: structureKinds.npcStation });
+    renderPicker({ selectedJobType: structureKinds.market });
 
-    expect(screen.getByRole("radio", { name: "NPC Station" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Market" })).toBeChecked();
   });
 });

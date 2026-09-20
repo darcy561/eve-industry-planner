@@ -106,17 +106,18 @@ const (
 	JobTypeReprocessing  = 5
 )
 
-// Kinds of saved structure that are a place a price is asked for rather than a
-// place a job is performed.
+// StructureKindMarket is a place a price is asked for rather than a place a job
+// is performed.
 //
-// They share the JobType field with the job types above, because a structure's
-// kind has always been stored there, but they are not job types: nothing asking
+// It shares the JobType field with the job types above, because a structure's
+// kind has always been stored there, but it is not a job type: nothing asking
 // what work a character is doing should be offered a market as an answer. The
-// values continue past the job types so a row is unambiguous either way.
-const (
-	StructureKindNPCStation    = 6
-	StructureKindCitadelMarket = 7
-)
+// value continues past the job types so a row is unambiguous either way.
+//
+// One kind covers both an NPC station and a citadel. Which a row is follows
+// from whether it holds a StationID or a StructureID, and those are told apart
+// by the range an EVE location id falls in.
+const StructureKindMarket = 6
 
 // CustomStructure is one structure a player has configured, of whatever kind.
 //

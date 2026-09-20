@@ -21,8 +21,8 @@ const {
 
 function aCitadel(overrides = {}) {
   return {
-    id: "citadelMarket-1",
-    jobType: structureKinds.citadelMarket,
+    id: "market-1",
+    jobType: structureKinds.market,
     name: "Perimeter Azbel",
     regionID: 10000002,
     structureID: 1035466617946,
@@ -49,9 +49,10 @@ describe("saved sale structures", () => {
     }
   });
 
-  // One list holds every kind of saved structure, so an unfiltered read would
-  // offer a refinery as somewhere to sell from.
-  test("offers only the citadels, not every saved structure", () => {
+  // A market holding a station is not somewhere a citadel's own rate applies,
+  // and a build structure is not somewhere anything sells — the place a row
+  // holds is what tells them apart now that one kind covers both markets.
+  test("offers only markets that are a citadel", () => {
     structures = [
       aCitadel(),
       {
@@ -60,13 +61,14 @@ describe("saved sale structures", () => {
         name: "Sotiyo",
       },
       {
-        id: "npcMarket-1",
-        jobType: structureKinds.npcStation,
+        id: "market-station",
+        jobType: structureKinds.market,
         name: "Jita IV-4",
+        stationID: 60003760,
       },
     ];
 
-    expect(getSaleCitadels().map((i) => i.id)).toEqual(["citadelMarket-1"]);
+    expect(getSaleCitadels().map((i) => i.id)).toEqual(["market-1"]);
   });
 
   // A reader who has saved none is the ordinary case, not an error: the hub

@@ -25,7 +25,7 @@ const RIG_HELP =
  *
  * @type {Array<{
  *   id: string,
- *   shows: (fields: object) => boolean,
+ *   shows: (fields: object, structure: object) => boolean,
  *   title: string,
  *   description: string,
  *   describe?: (context: object) => string|null,
@@ -150,7 +150,11 @@ export const STRUCTURE_FIELDS = [
   },
   {
     id: "brokerFee",
-    shows: (fields) => Boolean(fields.brokerFee),
+    // Only once a citadel is the place chosen. An NPC station's fee comes from
+    // the seller's skills and standings, so there is nothing to ask for, and
+    // asking before a place is named would ask about nowhere.
+    shows: (fields, structure) =>
+      Boolean(fields.brokerFee && structure?.structureID),
     title: "Broker fee",
     description:
       "The rate this citadel's owner set. Nothing can work it out, so it is the figure the structure shows you in game.",
@@ -167,7 +171,8 @@ export const STRUCTURE_FIELDS = [
   },
   {
     id: "characterHash",
-    shows: (fields) => Boolean(fields.characterHash),
+    shows: (fields, structure) =>
+      Boolean(fields.characterHash && structure?.structureID),
     title: "Read its market with",
     description:
       "A character who can dock at this citadel. Nothing records who has access where, so this is the character its order book is read for.",
@@ -199,11 +204,15 @@ export const STRUCTURE_FIELDS = [
 /**
  * The fields a kind asks for, in reading order.
  *
+ * A few fields wait on what has been filled in already: a market asks a citadel
+ * for its fee and access character, and asks a station for neither.
+ *
  * @param {object} fields - The kind's entry from the class's field map
+ * @param {object} [structure] - What has been described so far
  * @returns {typeof STRUCTURE_FIELDS}
  */
-export function fieldsFor(fields) {
-  return STRUCTURE_FIELDS.filter((entry) => entry.shows(fields));
+export function fieldsFor(fields, structure) {
+  return STRUCTURE_FIELDS.filter((entry) => entry.shows(fields, structure));
 }
 
 /**

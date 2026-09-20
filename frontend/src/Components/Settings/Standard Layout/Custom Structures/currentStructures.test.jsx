@@ -223,35 +223,20 @@ describe("what a card says about each kind of structure", () => {
 // a structure type it has no bonuses from, rigs it cannot fit, an installation
 // tax it does not charge, and a system index it has no cost to apply one to.
 describe("what a card says about a market", () => {
-  it("does not describe a citadel market as somewhere a job is built", () => {
+  it("does not describe a market as somewhere a job is built", () => {
     structures = [
       {
-        id: "citadelMarket-1",
-        jobType: structureKinds.citadelMarket,
+        id: "market-1",
+        jobType: structureKinds.market,
         name: "Perimeter Azbel",
+        structureID: 1035466617946,
         brokerFee: 1.5,
         default: true,
       },
     ];
-    renderFrame({ selectedJobType: structureKinds.citadelMarket });
+    renderFrame({ selectedJobType: structureKinds.market });
 
     expect(screen.getByText("Perimeter Azbel")).toBeInTheDocument();
-    for (const label of ["Rigs", "Tax", "Security", "System"]) {
-      expect(screen.queryByText(label)).not.toBeInTheDocument();
-    }
-  });
-
-  it("does not describe an NPC station market as one either", () => {
-    structures = [
-      {
-        id: "npcMarket-1",
-        jobType: structureKinds.npcStation,
-        name: "Jita IV-4",
-        default: true,
-      },
-    ];
-    renderFrame({ selectedJobType: structureKinds.npcStation });
-
     for (const label of ["Rigs", "Tax", "Security", "System"]) {
       expect(screen.queryByText(label)).not.toBeInTheDocument();
     }

@@ -89,7 +89,10 @@ function serverHeldSources() {
  */
 function readerSavedSources() {
   return (useUsersStore.getState().applicationSettings.customStructures ?? [])
-    .filter((structure) => structure.jobType === structureKinds.npcStation)
+    .filter(
+      (structure) =>
+        structure.jobType === structureKinds.market && structure.stationID,
+    )
     .map((structure) => ({
       id: structure.id,
       name: structure.name,

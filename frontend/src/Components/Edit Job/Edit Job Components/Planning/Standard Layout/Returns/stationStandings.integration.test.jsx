@@ -98,7 +98,7 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
       customStructures: [
         {
           id: "citadelMarket-1",
-          jobType: structureKinds.citadelMarket,
+          jobType: structureKinds.market,
           name: "Perimeter Azbel",
           brokerFee: 1.5,
           default: true,

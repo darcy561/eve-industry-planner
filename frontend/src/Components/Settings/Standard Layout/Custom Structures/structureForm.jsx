@@ -242,7 +242,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
           </FormField>
         </Grid>
 
-        {fieldsFor(fields).map((entry) => (
+        {fieldsFor(fields, structure).map((entry) => (
           <StructureField key={entry.id} entry={entry} context={context} />
         ))}
 

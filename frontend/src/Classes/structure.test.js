@@ -279,8 +279,6 @@ describe("a document round trip", () => {
   });
 });
 
-
-
 // The old rig tables held ten pre-combined entries — "T1 - ME & TE" and the
 // rest — where a structure really carries two rigs. These prove the two slots
 // reproduce what each combined entry gave, which is what the stored-setup
@@ -396,146 +394,94 @@ describe("rig slots against the combinations they replace", () => {
   });
 });
 
-describe("the kinds that are a market", () => {
-  // A price is asked for per region and then narrowed to one location, so both
-  // kinds name a region. What narrows it is the difference between them.
-  it("gives an NPC station a region and a station", () => {
+describe("the kind that is a market", () => {
+  // One kind covers both, because which a row is follows from the place it
+  // holds: a station id and a structure id are told apart by range.
+  it("carries a station's fields when it holds a station", () => {
     const structure = new Structure({
-      jobType: structureKinds.npcStation,
+      jobType: structureKinds.market,
       regionID: 10000002,
-      stationID: 60003760,
-    });
-
-    expect(structure.regionID).toBe(10000002);
-    expect(structure.stationID).toBe(60003760);
-    expect(structure.structureID).toBeUndefined();
-  });
-
-  // An NPC station's broker fee comes from the seller's skills and standings. A
-  // stored number would stand in for that derivation and quote the untrained
-  // rate without saying so, which is why the kind cannot hold one.
-  it("gives an NPC station no broker fee and no access character", () => {
-    const structure = new Structure({
-      jobType: structureKinds.npcStation,
-      brokerFee: 1.5,
-      characterHash: "hash-1",
-    });
-
-    expect(structure.brokerFee).toBeUndefined();
-    expect(structure.characterHash).toBeUndefined();
-    expect(structure.toDocument().brokerFee).toBeUndefined();
-    expect(structure.toDocument().characterHash).toBeUndefined();
-  });
-
-  // The race that built a station and the corporation that owns it are what its
-  // broker fee is derived from, and neither changes. Storing them is what saves
-  // asking ESI for the same two numbers on every quote.
-  it("gives an NPC station what its fee is worked out from", () => {
-    const structure = new Structure({
-      jobType: structureKinds.npcStation,
       stationID: 60003760,
       raceID: 1,
       ownerID: 1000035,
     });
 
+    expect(structure.stationID).toBe(60003760);
     expect(structure.raceID).toBe(1);
     expect(structure.ownerID).toBe(1000035);
     expect(structure.toDocument()).toMatchObject({
+      stationID: 60003760,
       raceID: 1,
       ownerID: 1000035,
     });
   });
 
-  // A citadel's owner sets its rate outright, so there is nothing to derive and
-  // nothing to hold the derivation's inputs for.
-  it("gives a citadel no station owner", () => {
+  it("carries a citadel's fields when it holds a citadel", () => {
     const structure = new Structure({
-      jobType: structureKinds.citadelMarket,
-      raceID: 1,
-      ownerID: 1000035,
-    });
-
-    expect(structure.raceID).toBeUndefined();
-    expect(structure.ownerID).toBeUndefined();
-  });
-
-  it("gives a citadel its own fee and access character", () => {
-    const structure = new Structure({
-      jobType: structureKinds.citadelMarket,
+      jobType: structureKinds.market,
       regionID: 10000002,
       structureID: 1035466617946,
       brokerFee: 1.5,
       characterHash: "hash-1",
     });
 
-    expect(structure.regionID).toBe(10000002);
     expect(structure.structureID).toBe(1035466617946);
     expect(structure.brokerFee).toBe(1.5);
     expect(structure.characterHash).toBe("hash-1");
-    expect(structure.stationID).toBeUndefined();
-  });
-
-  // Nothing prices a market by its system: an order book is read per region and
-  // narrowed to the location. A system is what an installation cost is derived
-  // from, and a market has none.
-  it("gives neither market kind a system", () => {
-    for (const jobType of [
-      structureKinds.npcStation,
-      structureKinds.citadelMarket,
-    ]) {
-      const structure = new Structure({ jobType, systemID: 30000144 });
-
-      expect(structure.systemID).toBeUndefined();
-      expect(structure.toDocument().systemID).toBeUndefined();
-    }
   });
 
   // A citadel's fee is a percentage like every other rate in the class, and is
   // settled the same way: not a number reads as none, and never negative.
   it("settles a citadel's broker fee as a percentage", () => {
     expect(
-      new Structure({ jobType: structureKinds.citadelMarket, brokerFee: "abc" })
+      new Structure({ jobType: structureKinds.market, brokerFee: "abc" })
         .brokerFee,
     ).toBe(0);
     expect(
-      new Structure({ jobType: structureKinds.citadelMarket, brokerFee: -1 })
+      new Structure({ jobType: structureKinds.market, brokerFee: -1 })
         .brokerFee,
     ).toBe(0);
 
-    const structure = new Structure({ jobType: structureKinds.citadelMarket });
+    const structure = new Structure({ jobType: structureKinds.market });
     structure.setBrokerFee("1.5");
     expect(structure.brokerFee).toBe(1.5);
   });
 
-  // A market has no security modifier, no structure type carrying bonuses and no
-  // installation tax. What it charges is its broker fee.
+  // A market has no security modifier, no structure type carrying bonuses and
+  // no installation tax. What it charges is its broker fee.
   it("stores none of the build fields", () => {
-    for (const jobType of [structureKinds.npcStation, structureKinds.citadelMarket]) {
-      const document = new Structure({ jobType, tax: 2.5 }).toDocument();
+    const document = new Structure({
+      jobType: structureKinds.market,
+      tax: 2.5,
+    }).toDocument();
 
-      expect(document.tax).toBeUndefined();
-      expect(document.systemType).toBeUndefined();
-      expect(document.structureType).toBeUndefined();
-      expect(document.rigSlot1).toBeUndefined();
-    }
+    expect(document.tax).toBeUndefined();
+    expect(document.systemType).toBeUndefined();
+    expect(document.structureType).toBeUndefined();
+    expect(document.rigSlot1).toBeUndefined();
+  });
+
+  // Nothing prices a market by its system: an order book is read per region and
+  // narrowed to the location.
+  it("carries no system", () => {
+    const structure = new Structure({
+      jobType: structureKinds.market,
+      systemID: 30000144,
+    });
+
+    expect(structure.systemID).toBeUndefined();
+    expect(structure.toDocument().systemID).toBeUndefined();
   });
 
   it("mints an id carrying its kind's prefix", () => {
     expect(
-      new Structure(undefined, structureKinds.npcStation).id.startsWith("npcMarket-"),
-    ).toBe(true);
-    expect(
-      new Structure(undefined, structureKinds.citadelMarket).id.startsWith(
-        "citadelMarket-",
-      ),
+      new Structure(undefined, structureKinds.market).id.startsWith("market-"),
     ).toBe(true);
   });
 
-  // Every field a kind carries has to survive being stored and read back, or a
-  // reader configures a market and loses it on the next save.
   it("round trips every field it carries", () => {
     const citadel = new Structure({
-      jobType: structureKinds.citadelMarket,
+      jobType: structureKinds.market,
       name: "Perimeter Azbel",
       regionID: 10000002,
       structureID: 1035466617946,
@@ -543,26 +489,21 @@ describe("the kinds that are a market", () => {
       characterHash: "hash-1",
     });
 
-    const read = new Structure(citadel.toDocument());
-
-    expect(read).toEqual(citadel);
+    expect(new Structure(citadel.toDocument())).toEqual(citadel);
   });
 });
 
-// The instance and the document it writes must agree. A field set in memory but
-// dropped on write reads back as absent, which is the shape of silent loss.
 describe("what an instance holds matches what it stores", () => {
   it("gives a market none of the build fields in memory either", () => {
-    for (const jobType of [
-      structureKinds.npcStation,
-      structureKinds.citadelMarket,
-    ]) {
-      const structure = new Structure({ jobType, tax: 2.5, systemType: 1 });
+    const structure = new Structure({
+      jobType: structureKinds.market,
+      tax: 2.5,
+      systemType: 1,
+    });
 
-      expect(structure.tax).toBeUndefined();
-      expect(structure.systemType).toBeUndefined();
-      expect(structure.structureType).toBeUndefined();
-    }
+    expect(structure.tax).toBeUndefined();
+    expect(structure.systemType).toBeUndefined();
+    expect(structure.structureType).toBeUndefined();
   });
 
   it("stores exactly the fields its kind carries, for every kind", () => {

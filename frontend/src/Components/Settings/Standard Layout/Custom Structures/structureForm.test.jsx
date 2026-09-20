@@ -229,15 +229,11 @@ describe("what each kind is asked for", () => {
 
   // A market is a place and a rate. Asking it for a rig or an installation tax
   // would be describing it as somewhere a job is built.
-  it("asks a citadel market for its fee and access character only", () => {
-    renderForm({ selectedJobType: structureKinds.citadelMarket });
-
-    expect(asked()).toEqual(["Location", "Broker fee", "Read its market with"]);
-  });
-
-  // An NPC station's fee comes from the seller, so there is nothing to ask.
-  it("asks an NPC station for its location alone", () => {
-    renderForm({ selectedJobType: structureKinds.npcStation });
+  // A market is asked where it is and nothing else until it knows: a station
+  // has no rate of its own to give, and a citadel cannot be asked for one
+  // before a citadel is the place chosen.
+  it("asks a market for its location alone before a place is chosen", () => {
+    renderForm({ selectedJobType: structureKinds.market });
 
     expect(asked()).toEqual(["Location"]);
   });
@@ -266,7 +262,7 @@ describe("every field the form offers can be set", () => {
       systemID: ["setSystemID"],
     };
 
-    const structure = new Structure(undefined, structureKinds.citadelMarket);
+    const structure = new Structure(undefined, structureKinds.market);
     for (const entry of STRUCTURE_FIELDS) {
       for (const setter of setterFor[entry.id] ?? []) {
         expect(typeof structure[setter], `${entry.id} needs ${setter}`).toBe(
@@ -297,7 +293,7 @@ describe("what a saved market carries", () => {
       raceID: 1,
       ownerID: 1000035,
     });
-    renderForm({ selectedJobType: structureKinds.npcStation });
+    renderForm({ selectedJobType: structureKinds.market });
 
     const user = userEvent.setup();
     await user.type(screen.getByRole("combobox"), "Jita");

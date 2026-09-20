@@ -116,10 +116,15 @@ export let jobTypes = {
  * are places a job is performed and share their values with {@link jobTypes},
  * because a build structure's kind has always been the job it is for.
  *
- * The market kinds are places a price is asked for, not work anybody does. They
- * take values of their own beyond the job types so that a row is unambiguous,
- * and they are deliberately **not** in `jobTypes`: nothing that asks what job a
- * character is running should be offered a market as an answer.
+ * A market is a place a price is asked for, not work anybody does. It takes a
+ * value of its own beyond the job types so that a row is unambiguous, and it is
+ * deliberately **not** in `jobTypes`: nothing that asks what job a character is
+ * running should be offered a market as an answer.
+ *
+ * There is one market kind rather than one per sort of place. Whether a market
+ * is an NPC station or a citadel follows from the location id it holds, which
+ * `resolveLocationKind` reads by range — so asking a reader to say which would
+ * be asking them for something already known.
  *
  * @type {Object<string, number>}
  */
@@ -128,8 +133,7 @@ export const structureKinds = {
   reaction: jobTypes.reaction,
   invention: jobTypes.invention,
   reprocessing: jobTypes.reprocessing,
-  npcStation: 6,
-  citadelMarket: 7,
+  market: 6,
 };
 
 /**
@@ -698,8 +702,7 @@ export const customStructureLocationMap = {
   [jobTypes.reaction]: "reacStruct",
   [jobTypes.reprocessing]: "reprocessingStruct",
   [jobTypes.invention]: "inventionStruct",
-  [structureKinds.npcStation]: "npcMarket",
-  [structureKinds.citadelMarket]: "citadelMarket",
+  [structureKinds.market]: "market",
 };
 
 /**

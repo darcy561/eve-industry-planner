@@ -171,10 +171,7 @@ function structureFacts(
   // A market is described by where it is and what it charges. The build fields
   // below belong to a place a job is installed in, and the kinds are told apart
   // by returning here rather than by falling through to them.
-  if (
-    selectedJobType === structureKinds.npcStation ||
-    selectedJobType === structureKinds.citadelMarket
-  ) {
+  if (selectedJobType === structureKinds.market) {
     return [
       {
         label: "Broker fee",

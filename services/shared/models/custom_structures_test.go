@@ -232,12 +232,12 @@ func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
 
 	rows := CustomStructures{
 		{
-			ID: "npc-1", JobType: StructureKindNPCStation, Name: "Jita IV-4",
+			ID: "npc-1", JobType: StructureKindMarket, Name: "Jita IV-4",
 			RegionID: 10000002, StationID: 60003760,
 			RaceID: 1, OwnerID: 1000035,
 		},
 		{
-			ID: "citadel-1", JobType: StructureKindCitadelMarket, Name: "Perimeter Azbel",
+			ID: "citadel-1", JobType: StructureKindMarket, Name: "Perimeter Azbel",
 			RegionID: 10000002, StructureID: 1035466617946,
 			BrokerFee: 1.5, CharacterHash: "hash-1",
 		},

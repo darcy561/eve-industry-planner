@@ -114,7 +114,7 @@ describe("a citadel the reader has saved", () => {
     savedCitadels.rows = [
       {
         id: "citadelMarket-1",
-        jobType: structureKinds.citadelMarket,
+        jobType: structureKinds.market,
         structureID: RAITARU,
         brokerFee: 0.032,
       },
@@ -132,7 +132,7 @@ describe("a citadel the reader has saved", () => {
     savedCitadels.rows = [
       {
         id: "citadelMarket-1",
-        jobType: structureKinds.citadelMarket,
+        jobType: structureKinds.market,
         structureID: 1234567890,
         brokerFee: 0.032,
       },

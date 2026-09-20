@@ -13,14 +13,14 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
         customStructures: [
           {
             id: "citadelMarket-1",
-            jobType: structureKinds.citadelMarket,
+            jobType: structureKinds.market,
             name: "Perimeter Azbel",
             brokerFee: 1.5,
             default: true,
           },
           {
             id: "citadelMarket-2",
-            jobType: structureKinds.citadelMarket,
+            jobType: structureKinds.market,
             name: "Jita Sotiyo",
             brokerFee: 3.25,
             default: false,
