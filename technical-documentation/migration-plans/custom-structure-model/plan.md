@@ -11,13 +11,24 @@ not allow until `RigSlot1`/`RigSlot2` replaced `RigID` on `JobSetup` and `Templa
 
 **One gap is open in Stage BR, and it is silent.** Stage BR converted a stored *setup's* `rigID`
 into two slots, but nothing converts a stored *structure's* `rigType` into them. A manufacturing or
-reaction structure saved before the change therefore reads back with no rigs: `Structure` has no
-`rigType`, `fieldsByJobType` no longer names it, and `rigBonuses` answers from two slots that were
-never written — so every material and time bonus on that structure silently becomes zero, and the
-next save drops the field. `models.CustomStructure.RigType` is still declared and read by nothing,
-which is the same shape of fault as a converted setup being written back by a model that does not
-name its slots. **Closing it belongs to Stage BR**, not to Stage D: a conversion in
-`release_custom_structures.go` for the folded array, and the Go field removed once nothing reads it.
+reaction structure saved before the change reads back with no rigs: `Structure` has no `rigType`,
+`fieldsByJobType` no longer names it, and `rigBonuses` answers from two slots that were never
+written, so every material and time bonus that structure gives silently becomes zero. Measured
+against a row holding `rigType: 9` — a real rig worth 3.7 material and 0.2 time —
+[measurements.md](./measurements.md) § A stored `rigType` read after Stage BR.
+
+**The stored value is still there, and each save destroys one copy.** `models.CustomStructure` still
+declares `RigType`, and the fold decodes through that struct and `$set`s only `customStructures`, so
+`rigType` survived the server-side fold. What loses it is the SPA: `Structure.toDocument()` writes
+`rigSlot1: 0, rigSlot2: 0` and no `rigType`, so a reader opening and saving an affected structure
+overwrites the one surviving copy with zeros. Every structure is recoverable until its owner saves
+it.
+
+**Order matters, and it is the reason the Go field stays for now.** Removing
+`models.CustomStructure.RigType` while it is read by nothing looks like cleanup, but that field is
+the last copy of the data: the conversion must run first, and the field may only go once it has.
+**Closing this belongs to Stage BR**, not to Stage D — a conversion in `release_custom_structures.go`
+mapping `rigType` onto the slot pair `release_rig_slots.go` already defines, then the field.
 
 **Two faults are open in Stage D's surfaces**, both predating this project and both reached by it:
 the selling-rates cache is not keyed on a location's broker fee, and the Selling stage reads a

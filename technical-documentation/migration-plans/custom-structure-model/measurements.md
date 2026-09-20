@@ -154,3 +154,36 @@ and that held — but it missed the surfaces reaching a lane through `customStru
 2026-09-19 note above records. Both counts were needed to size the work: one for the classes, one for
 the store reads.
 
+
+## A stored `rigType` read after Stage BR (2026-09-20)
+
+Checked while writing Stage D, by feeding `Classes/structure.js` a row shaped exactly as the deleted
+`customStructure.js` wrote one. `rigType: 9` is Faction ME — a real manufacturing rig worth 3.7
+material and 0.2 time, not a placeholder.
+
+Input row:
+
+```js
+{ id: "manStruct-old", jobType: 1, name: "Pre-BR Sotiyo",
+  structureType: 0, systemType: 0, rigType: 9,
+  systemID: 30000142, tax: 2.5, default: true }
+```
+
+Read back through `new Structure(stored)`:
+
+| | Value |
+|---|---|
+| `rigSlot1`, `rigSlot2` | `0`, `0` |
+| `rigType` retained on the instance | `undefined` |
+| `rigBonuses` | `{ material: 0, time: 0, cost: 0, value: 0 }` |
+| `toDocument()` rig fields | `rigSlot1: 0, rigSlot2: 0` — no `rigType` |
+
+Two things this measured that reading the code had not settled:
+
+- `toDocument()` does not merely omit `rigType`; it writes zeros over it. The value is destroyed by
+  the first save of that structure, not left behind beside the slots.
+- `models.CustomStructure` still declares `RigType`, and `foldCustomStructures` decodes through that
+  struct and `$set`s only `customStructures`, so the server-side fold preserved it. The stored copy
+  survives until a reader opens and saves the row.
+
+Which is why the conversion has to run before the Go field is removed: that field is the last copy.
