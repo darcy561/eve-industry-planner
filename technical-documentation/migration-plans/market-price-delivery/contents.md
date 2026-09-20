@@ -17,9 +17,11 @@ price against, not only the four the server holds.
   guess in the browser — decides what has to be asked for again.
 - **Custom market locations.** The stored list of markets a reader has added and the surface for
   adding one, and keeping each of them current on its own ESI expiry rather than on demand.
-- **Fetching and deriving a reader-saved source in the browser.** Custom NPC stations by per-type
-  region query; custom citadels — which is how a private market is reached, with the reader's own
-  token — by authenticated whole-book walk. Both produce the same row shape the server produces.
+- **Fetching and deriving a reader-saved source.** A custom NPC station is public, so the server
+  walks its region once for everybody and the browser fetches no book — measured against all 70
+  known-space regions. A custom citadel is how a private market is reached, with the reader's own
+  token, so its whole-book walk stays in the browser. **Public data centralises, private data does
+  not**, and that is the line between them.
 - **Where market data lives in the browser.** One price cache in two tiers: the four hubs' rows held
   for the session with nothing beneath them, and every reader-saved source — public station and
   private citadel alike — read through IndexedDB so it survives a reload.

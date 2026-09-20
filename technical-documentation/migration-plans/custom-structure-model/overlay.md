@@ -514,31 +514,41 @@ tell is to assert the edit applied.
 stored, and no surface offers one — the form, `saleLocations.js` and the two faults that stage owns
 are still to come.
 
-### The two kinds, and what each carries
+### One market kind, and what the place it holds decides
 
-A place a price is asked for is either an NPC station or a player citadel. Both are a kind and a row
-in `fieldsByJobType`, which is what the model was built to make possible: no class, no list, no lane.
+A place a price is asked for is one kind — `structureKinds.market` — and one row in
+`fieldsByJobType`, which is what the model was built to make possible: no class, no list, no lane.
 
-| | NPC station | Player citadel |
+**Which sort of market it is was never a reader's to say.** An NPC station and a citadel are two
+sorts of one thing, both named from the same location picker, and `resolveLocationKind` already told
+them apart by the range an EVE location id falls in — in two places, before the picker asked. So the
+picker offers **Market**, and the place a row holds says the rest:
+
+| | Holding a `stationID` | Holding a `structureID` |
 |---|---|---|
-| Inside its region | `stationID` | `structureID` |
-| Broker fee | derived from the seller | `brokerFee` |
+| What it is | an NPC station | a citadel |
+| Broker fee | derived from the seller | `brokerFee`, stored |
 | Reading its book | public | `characterHash` |
 | What the fee derives from | `raceID`, `ownerID` | — |
 
-Both carry `regionID`, and both carry the `id`, `name` and `default` every row has.
+Every market carries `regionID`, and the `id`, `name` and `default` every row has. The fields that
+follow from the place are asked for **once a place is named** — before that a market is asked only
+where it is, because there is nothing yet to ask about.
 
-**Both name a region** because a price is asked for per region and then narrowed to one location, and
+**`setPlace` is one choice, not an accumulation.** Naming a place clears the other id and the fields
+that followed from the place before it. A row holding both ids is a market of neither sort, and it
+kept the last place's rate: a station carrying a citadel's fee, offered as somewhere to sell from.
+
+**Both sorts name a region** because a price is asked for per region and then narrowed to one location, and
 because price history is region-scoped — ESI publishes no per-station or per-structure history.
 
 **Only a citadel stores a broker fee.** Its owner sets the rate and nothing can derive it. An NPC
 station's comes from the seller's skills and standings, so a stored number there would stand in for
-that derivation and quote the untrained rate without saying so. `TestAMarketStructuresFieldsReachTheDocument`
-asserts a station stores neither a fee nor an access character.
+that derivation and quote the untrained rate without saying so.
 
-**Neither kind names a system.** An order book is read per region and narrowed to the location, so
+**A market names no system.** An order book is read per region and narrowed to the location, so
 nothing prices a market by its system, and a system is what an installation cost is derived from —
-which a market does not have. Neither appears in `jobTypeMapping` for the same reason, and
+which a market does not have. It does not appear in `jobTypeMapping` for the same reason, and
 `addCustomStructure` asks for a system index only from a kind whose field map names a system.
 
 **A station stores what its fee derives from.** The race that built it names the faction a standing
@@ -680,12 +690,40 @@ disagrees. A kind added to one side and not the other fails as a set mismatch.
 Values are also asserted distinct, because two kinds sharing one makes a row of either
 indistinguishable from the other.
 
+### A saved structure needs a name
+
+Nothing checked, for any kind. A nameless row saved and then appeared as an empty option in the
+structure picker and the sale location picker, beside any other nameless row — a reader could not
+pick the right one or tell they had picked wrong. The form refuses it, and refuses whitespace, which
+is as hard to pick out as nothing.
+
+Not filled in with a stand-in: only the reader knows which of their structures this is, and a row
+called "Untitled structure" is the same problem one step later.
+
+### What a saved market's card says
+
+Where it is, its region, and what listing there costs. Which sort of market it is follows from the
+place the row holds, so a station says its fee comes from the seller and a citadel says the rate its
+owner set — neither is asked.
+
+The card read one fee for both and got it wrong for half of them: the "set by your skills" wording
+was reachable only while `brokerFee` was absent, and one market kind put the field on every row, so a
+station printed `0%` as though it charged nothing.
+
+Names come from `useLocationNames` and are described by `describeLocation`, the helper the asset
+surfaces use, so a place that cannot be named reads as that rather than as a blank row.
+
 ### Still to fill
 
-The surface for saving one; what replaces the placeholder rows in `saleLocations.js` and how a saved
-row reaches `allMarketSources()`; what becomes of `priceHub` once a location can be priced directly;
-how a stored access character that no longer resolves is shown; and the two faults the stage owns —
-the selling-rates cache key, and the Selling stage reading an account-wide citadel fee.
+**A citadel cannot be priced yet**, so it is sold from but not priced at, and its figures come from
+the default market until [market-price-delivery](../market-price-delivery/plan.md) § Stage E builds
+the authenticated walk. How a stored access character that no longer resolves is shown belongs with
+that walk, since nothing reads the character until then.
+
+**A saved NPC station is priced by the browser today**, and
+[market-price-delivery](../market-price-delivery/plan.md) § Stage G moves that to the server —
+measured against every market region in New Eden. What this project owes it is only the saved row,
+which it has.
 
 ## Missing live SoT found on the way
 

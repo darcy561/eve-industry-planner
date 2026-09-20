@@ -22,10 +22,15 @@ uses, and runs after the lane fold whose array shape it reads.
 data, because `Structure.toDocument()` writes `rigSlot1: 0, rigSlot2: 0` over it on the next save.
 Removing a field nothing reads looks like cleanup; this one is the source the conversion reads.
 
-**Stage D's surfaces have landed.** One form asks a structure for the fields its kind carries, the
-three per-kind forms are gone, and the picker offers all six kinds. What remains before the stage
-closes is the placeholder rows in `saleLocations.js` — already gone — and a reader being able to
-reach a saved market end to end.
+**Stage D has landed.** A reader can save a market: one form asks a structure for the fields its
+kind carries, the three per-kind forms are gone, the picker offers every kind, and a market's card
+says where it is and what listing there costs. A market is **one kind** rather than two — which sort
+it is follows from the place it holds, because `resolveLocationKind` already told them apart and
+asking a reader was asking for something known.
+
+What a saved market is **priced** by is not this project's: a station moves to the server in
+[market-price-delivery](../market-price-delivery/plan.md) § Stage G, and a citadel waits on the
+authenticated walk in that project's Stage E.
 
 **Both of Stage D's faults are closed.** The selling-rates cache is keyed on the location's broker
 fee, and a citadel's fee is resolved from the order that names where it was placed rather than from
