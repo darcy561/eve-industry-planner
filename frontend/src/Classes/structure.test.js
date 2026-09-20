@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import Structure from "./structure";
-import { jobTypes, reprocessingItemTypes } from "../Context/defaultValues";
+import {
+  jobTypes,
+  reprocessingItemTypes,
+  structureKinds,
+} from "../Context/defaultValues";
 import GLOBAL_CONFIG from "../global-config-app";
 
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
@@ -397,7 +401,7 @@ describe("the kinds that are a market", () => {
   // kinds name a region. What narrows it is the difference between them.
   it("gives an NPC station a region and a station", () => {
     const structure = new Structure({
-      jobType: jobTypes.npcStation,
+      jobType: structureKinds.npcStation,
       regionID: 10000002,
       stationID: 60003760,
     });
@@ -412,7 +416,7 @@ describe("the kinds that are a market", () => {
   // rate without saying so, which is why the kind cannot hold one.
   it("gives an NPC station no broker fee and no access character", () => {
     const structure = new Structure({
-      jobType: jobTypes.npcStation,
+      jobType: structureKinds.npcStation,
       brokerFee: 1.5,
       characterHash: "hash-1",
     });
@@ -425,7 +429,7 @@ describe("the kinds that are a market", () => {
 
   it("gives a citadel its own fee, access character and system", () => {
     const structure = new Structure({
-      jobType: jobTypes.citadelMarket,
+      jobType: structureKinds.citadelMarket,
       regionID: 10000002,
       structureID: 1035466617946,
       systemID: 30000144,
@@ -447,15 +451,15 @@ describe("the kinds that are a market", () => {
   // settled the same way: not a number reads as none, and never negative.
   it("settles a citadel's broker fee as a percentage", () => {
     expect(
-      new Structure({ jobType: jobTypes.citadelMarket, brokerFee: "abc" })
+      new Structure({ jobType: structureKinds.citadelMarket, brokerFee: "abc" })
         .brokerFee,
     ).toBe(0);
     expect(
-      new Structure({ jobType: jobTypes.citadelMarket, brokerFee: -1 })
+      new Structure({ jobType: structureKinds.citadelMarket, brokerFee: -1 })
         .brokerFee,
     ).toBe(0);
 
-    const structure = new Structure({ jobType: jobTypes.citadelMarket });
+    const structure = new Structure({ jobType: structureKinds.citadelMarket });
     structure.setBrokerFee("1.5");
     expect(structure.brokerFee).toBe(1.5);
   });
@@ -463,7 +467,7 @@ describe("the kinds that are a market", () => {
   // A market has no security modifier, no structure type carrying bonuses and no
   // installation tax. What it charges is its broker fee.
   it("stores none of the build fields", () => {
-    for (const jobType of [jobTypes.npcStation, jobTypes.citadelMarket]) {
+    for (const jobType of [structureKinds.npcStation, structureKinds.citadelMarket]) {
       const document = new Structure({ jobType, tax: 2.5 }).toDocument();
 
       expect(document.tax).toBeUndefined();
@@ -475,10 +479,10 @@ describe("the kinds that are a market", () => {
 
   it("mints an id carrying its kind's prefix", () => {
     expect(
-      new Structure(undefined, jobTypes.npcStation).id.startsWith("npcMarket-"),
+      new Structure(undefined, structureKinds.npcStation).id.startsWith("npcMarket-"),
     ).toBe(true);
     expect(
-      new Structure(undefined, jobTypes.citadelMarket).id.startsWith(
+      new Structure(undefined, structureKinds.citadelMarket).id.startsWith(
         "citadelMarket-",
       ),
     ).toBe(true);
@@ -488,7 +492,7 @@ describe("the kinds that are a market", () => {
   // reader configures a market and loses it on the next save.
   it("round trips every field it carries", () => {
     const citadel = new Structure({
-      jobType: jobTypes.citadelMarket,
+      jobType: structureKinds.citadelMarket,
       name: "Perimeter Azbel",
       regionID: 10000002,
       structureID: 1035466617946,

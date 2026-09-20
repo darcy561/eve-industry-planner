@@ -95,24 +95,35 @@ func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSett
 	}
 }
 
-// Job types a structure can be configured for. A structure row names its kind
-// in JobType, so these are what tells one kind of row from another.
-// The gap at 3 is Planetary Interaction, which the SPA names and nothing here
-// configures a structure for.
+// Job types a structure can be configured for. A structure row names its kind in
+// JobType, so these are what tells one kind of row from another. The gap at 3 is
+// Planetary Interaction, which the SPA names and nothing here configures a
+// structure for.
 const (
 	JobTypeManufacturing = 1
 	JobTypeReaction      = 2
 	JobTypeInvention     = 4
 	JobTypeReprocessing  = 5
-	JobTypeNPCStation    = 6
-	JobTypeCitadelMarket = 7
+)
+
+// Kinds of saved structure that are a place a price is asked for rather than a
+// place a job is performed.
+//
+// They share the JobType field with the job types above, because a structure's
+// kind has always been stored there, but they are not job types: nothing asking
+// what work a character is doing should be offered a market as an answer. The
+// values continue past the job types so a row is unambiguous either way.
+const (
+	StructureKindNPCStation    = 6
+	StructureKindCitadelMarket = 7
 )
 
 // CustomStructure is one structure a player has configured, of whatever kind.
 //
-// JobType is what says which kind, and the optional fields below are the ones
-// that kind uses; the rest stay at their zero values. Adding a kind is a JobType
-// value and whatever fields it needs, not another list.
+// JobType is what says which kind — one of the job types or the structure kinds
+// above — and the optional fields below are the ones that kind uses; the rest
+// stay at their zero values. Adding a kind is a value and whatever fields it
+// needs, not another list.
 type CustomStructure struct {
 	ID            string  `bson:"id" json:"id"`
 	JobType       int     `bson:"jobType" json:"jobType"`

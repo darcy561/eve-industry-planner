@@ -1,4 +1,7 @@
-import { customStructureLocationMap, jobTypes } from "../Context/defaultValues";
+import {
+  customStructureLocationMap,
+  structureKinds,
+} from "../Context/defaultValues";
 import {
   getRigInfoFromID,
   getStructureInfoFromID,
@@ -23,14 +26,18 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
  *   brokerFee?: boolean, characterHash?: boolean}>}
  */
 const fieldsByJobType = {
-  [jobTypes.manufacturing]: { built: true, rigSlots: true, systemID: true },
-  [jobTypes.reaction]: { built: true, rigSlots: true, systemID: true },
-  [jobTypes.reprocessing]: { built: true, rigSlots: true, implant: true },
-  [jobTypes.invention]: { built: true, rigSlots: true },
+  [structureKinds.manufacturing]: {
+    built: true,
+    rigSlots: true,
+    systemID: true,
+  },
+  [structureKinds.reaction]: { built: true, rigSlots: true, systemID: true },
+  [structureKinds.reprocessing]: { built: true, rigSlots: true, implant: true },
+  [structureKinds.invention]: { built: true, rigSlots: true },
   // Both market kinds name a region, because a price is asked for per region and
   // then narrowed to one location. What narrows it is the difference.
-  [jobTypes.npcStation]: { regionID: true, stationID: true },
-  [jobTypes.citadelMarket]: {
+  [structureKinds.npcStation]: { regionID: true, stationID: true },
+  [structureKinds.citadelMarket]: {
     regionID: true,
     structureID: true,
     systemID: true,
@@ -63,7 +70,9 @@ class Structure {
   /**
    * @param {Object} [existingValue] - Stored structure data, or nothing for a new one
    * @param {string} [existingValue.id] - Structure id
-   * @param {number} [existingValue.jobType] - The kind of job this is built for
+   * @param {number} [existingValue.jobType] - One of `structureKinds`. Named
+   *   `jobType` because every kind was once a job; the market kinds are not, and
+   *   the stored field keeps its name rather than migrating every document
    * @param {string} [existingValue.name] - Structure name
    * @param {number} [existingValue.systemType] - System security type id
    * @param {number} [existingValue.structureType] - Structure type id

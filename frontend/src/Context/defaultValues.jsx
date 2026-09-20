@@ -106,9 +106,28 @@ export let jobTypes = {
   pi: 3,
   invention: 4,
   reprocessing: 5,
-  // Places a price can be asked for. They are kinds of saved location rather
-  // than kinds of job, and carry no system index of their own — a market has no
-  // installation cost, so neither appears in jobTypeMapping.
+};
+
+/**
+ * The kinds of thing a saved structure can be.
+ *
+ * A structure row names its kind here, and that is what decides which fields it
+ * carries — {@link Structure}'s field map is keyed on these. The four job types
+ * are places a job is performed and share their values with {@link jobTypes},
+ * because a build structure's kind has always been the job it is for.
+ *
+ * The market kinds are places a price is asked for, not work anybody does. They
+ * take values of their own beyond the job types so that a row is unambiguous,
+ * and they are deliberately **not** in `jobTypes`: nothing that asks what job a
+ * character is running should be offered a market as an answer.
+ *
+ * @type {Object<string, number>}
+ */
+export const structureKinds = {
+  manufacturing: jobTypes.manufacturing,
+  reaction: jobTypes.reaction,
+  invention: jobTypes.invention,
+  reprocessing: jobTypes.reprocessing,
   npcStation: 6,
   citadelMarket: 7,
 };
@@ -136,8 +155,23 @@ export const jobTypeNames = {
   [jobTypes.pi]: "Planetary Interaction",
   [jobTypes.invention]: "Invention Job",
   [jobTypes.reprocessing]: "Reprocessing Job",
-  [jobTypes.npcStation]: "NPC Station",
-  [jobTypes.citadelMarket]: "Player Citadel",
+};
+
+/**
+ * What each kind of saved structure is called where a player reads it.
+ *
+ * Separate from {@link jobTypeNames}, which answers what job a row is: a market
+ * is not a job and must never be offered as the name of one.
+ *
+ * @type {Object<number, string>}
+ */
+export const structureKindNames = {
+  [structureKinds.manufacturing]: "Manufacturing",
+  [structureKinds.reaction]: "Reaction",
+  [structureKinds.invention]: "Invention",
+  [structureKinds.reprocessing]: "Reprocessing",
+  [structureKinds.npcStation]: "NPC Station",
+  [structureKinds.citadelMarket]: "Player Citadel",
 };
 
 export const jobTypeMapping = {
@@ -681,8 +715,8 @@ export const customStructureLocationMap = {
   [jobTypes.reaction]: "reacStruct",
   [jobTypes.reprocessing]: "reprocessingStruct",
   [jobTypes.invention]: "inventionStruct",
-  [jobTypes.npcStation]: "npcMarket",
-  [jobTypes.citadelMarket]: "citadelMarket",
+  [structureKinds.npcStation]: "npcMarket",
+  [structureKinds.citadelMarket]: "citadelMarket",
 };
 
 /**
