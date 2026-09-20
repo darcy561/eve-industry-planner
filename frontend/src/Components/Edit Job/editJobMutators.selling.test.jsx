@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import Group from "../../Classes/group";
 import {
-  AMARR_VIII,
-  JITA_IV,
   editJobStore,
   esiMarketOrder,
   linkedTransaction,
@@ -108,65 +106,6 @@ describe("recording a sale by hand, end to end", () => {
   });
 });
 
-/** A job selling from two places at once, with a sale from each. */
-function sellingFromTwoPlaces() {
-  return storedJob({
-    jobStatus: 4,
-    build: {
-      setup: {},
-      materials: {},
-      childJobs: {},
-      sale: {
-        marketOrders: [],
-        brokersFee: [],
-        transactions: [
-          linkedTransaction(800001, { location_id: JITA_IV }),
-          linkedTransaction(800002, { location_id: AMARR_VIII }),
-        ],
-      },
-    },
-  });
-}
-
-describe("which sales the linked panel shows", () => {
-  it("shows every sale when nothing is being filtered on", () => {
-    renderOverEditJob(sellingFromTwoPlaces(), ({ state, actions }) => (
-      <LinkedTransactionPanel
-        state={state}
-        actions={actions}
-        activeOrder={[]}
-      />
-    ));
-
-    expect(screen.getAllByTestId("ClearIcon")).toHaveLength(2);
-  });
-
-  it("shows only the sales made where the reader is filtering", () => {
-    renderOverEditJob(sellingFromTwoPlaces(), ({ state, actions }) => (
-      <LinkedTransactionPanel
-        state={state}
-        actions={actions}
-        activeOrder={[JITA_IV]}
-      />
-    ));
-
-    expect(screen.getAllByTestId("ClearIcon")).toHaveLength(1);
-  });
-
-  // Filtering on a second place asks for both, not neither.
-  it("shows the sales from every place being filtered on", () => {
-    renderOverEditJob(sellingFromTwoPlaces(), ({ state, actions }) => (
-      <LinkedTransactionPanel
-        state={state}
-        actions={actions}
-        activeOrder={[JITA_IV, AMARR_VIII]}
-      />
-    ));
-
-    expect(screen.getAllByTestId("ClearIcon")).toHaveLength(2);
-  });
-});
-
 describe("unlinking a sale from a job, end to end", () => {
   it("takes the sale off the job and remembers it to save", () => {
     const { editJob } = renderOverEditJob(
@@ -187,8 +126,6 @@ describe("unlinking a sale from a job, end to end", () => {
         <LinkedTransactionPanel
           state={state}
           actions={actions}
-          // The panel filters its rows by location, not by order id.
-          activeOrder={[JITA_IV]}
         />
       ),
     );

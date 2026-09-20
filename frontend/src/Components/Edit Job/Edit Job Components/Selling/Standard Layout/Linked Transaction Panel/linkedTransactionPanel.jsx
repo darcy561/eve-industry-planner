@@ -18,7 +18,7 @@ import {
 } from "../../../../../../Functions/Shared/eveImage";
 
 export function LinkedTransactionPanel(props) {
-  const { state, actions, activeOrder } = props;
+  const { state, actions } = props;
   const newTransactionDialogue = useDialogueTrigger();
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
@@ -73,147 +73,140 @@ export function LinkedTransactionPanel(props) {
 
               const corpData = getCorporation(charData?.corporation_id);
 
-              /* No filter means every sale; otherwise the sale shows if it was
-               * made at any of the locations being filtered on. */
-              if (
-                activeOrder.length === 0 ||
-                activeOrder.includes(tData.location_id)
-              ) {
-                return (
+              return (
+                <Grid
+                  key={tData.transaction_id}
+                  container
+                  size={12}
+                  sx={{
+                    alignItems: "center",
+                  }}
+                >
+                  <Grid size={1}>
+                    <Tooltip
+                      title={
+                        tData.is_corp
+                          ? corpData?.name || "Unknown"
+                          : charData?.CharacterName || "Unknown"
+                      }
+                      arrow
+                      placement="right"
+                    >
+                      <Avatar
+                        src={
+                          tData.is_corp
+                            ? corporationImageUrl(
+                                corpData?.corporation_id,
+                                64,
+                              )
+                            : characterImageUrl(charData?.CharacterID, 64)
+                        }
+                        variant="circular"
+                        sx={{
+                          height: { xs: 24, sm: 32 },
+                          width: { xs: 24, sm: 32 },
+                        }}
+                      />
+                    </Tooltip>
+                  </Grid>
                   <Grid
-                    key={tData.transaction_id}
-                    container
-                    size={12}
-                    sx={{
-                      alignItems: "center",
+                    align="center"
+                    size={{
+                      xs: 11,
+                      md: 1,
                     }}
                   >
-                    <Grid size={1}>
-                      <Tooltip
-                        title={
-                          tData.is_corp
-                            ? corpData?.name || "Unknown"
-                            : charData?.CharacterName || "Unknown"
-                        }
-                        arrow
-                        placement="right"
-                      >
-                        <Avatar
-                          src={
-                            tData.is_corp
-                              ? corporationImageUrl(
-                                  corpData?.corporation_id,
-                                  64,
-                                )
-                              : characterImageUrl(charData?.CharacterID, 64)
-                          }
-                          variant="circular"
-                          sx={{
-                            height: { xs: 24, sm: 32 },
-                            width: { xs: 24, sm: 32 },
-                          }}
-                        />
-                      </Tooltip>
-                    </Grid>
-                    <Grid
-                      align="center"
-                      size={{
-                        xs: 11,
-                        md: 1,
-                      }}
-                    >
-                      <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-                        {formatDateForLocale(tData.date)}
-                      </Typography>
-                    </Grid>
-                    <Grid
-                      align="center"
-                      size={{
-                        xs: 12,
-                        md: 2,
-                      }}
-                    >
-                      <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-                        {tData.description}
-                      </Typography>
-                    </Grid>
-                    <Grid
-                      align="center"
-                      size={{
-                        xs: 12,
-                        md: 2,
-                      }}
-                    >
-                      <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-                        {formatNumberForLocale(tData.quantity, { max: 0 })} @{" "}
-                        {formatNumberForLocale(tData.unit_price)}
-                      </Typography>
-                    </Grid>
-                    <Grid
-                      align="center"
-                      size={{
-                        xs: 12,
-                        sm: 6,
-                        md: 3,
-                      }}
-                    >
-                      <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-                        {formatNumberForLocale(tData.amount)}
-                      </Typography>
-                    </Grid>
-                    <Grid
-                      align="center"
-                      sx={{ display: { xs: "none", sm: "block" } }}
-                      size={{
-                        sm: 6,
-                        md: 2,
-                      }}
-                    >
-                      <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-                        -{formatNumberForLocale(tData.tax)}
-                      </Typography>
-                    </Grid>
-                    <Grid
-                      align="center"
-                      size={{
-                        xs: 12,
-                        md: 1,
-                      }}
-                    >
-                      <Tooltip
-                        title={
-                          jobLockReadOnly
-                            ? lockReasonText({
-                                action: "unlinking transactions is disabled",
-                              })
-                            : ""
-                        }
-                        arrow
-                        disableHoverListener={!jobLockReadOnly}
-                      >
-                        <span>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            disabled={jobLockReadOnly}
-                            onClick={() => {
-                              if (jobLockReadOnly) return;
-                              state.activeJob.removeTransaction(tData);
-                              actions.addTransactionsForRemoval(
-                                tData.transaction_id,
-                              );
-                              actions.updateActiveJob(state.activeJob);
-                              showSnackbarError("Unlinked");
-                            }}
-                          >
-                            <ClearIcon />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    </Grid>
+                    <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+                      {formatDateForLocale(tData.date)}
+                    </Typography>
                   </Grid>
-                );
-              } else return null;
+                  <Grid
+                    align="center"
+                    size={{
+                      xs: 12,
+                      md: 2,
+                    }}
+                  >
+                    <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+                      {tData.description}
+                    </Typography>
+                  </Grid>
+                  <Grid
+                    align="center"
+                    size={{
+                      xs: 12,
+                      md: 2,
+                    }}
+                  >
+                    <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+                      {formatNumberForLocale(tData.quantity, { max: 0 })} @{" "}
+                      {formatNumberForLocale(tData.unit_price)}
+                    </Typography>
+                  </Grid>
+                  <Grid
+                    align="center"
+                    size={{
+                      xs: 12,
+                      sm: 6,
+                      md: 3,
+                    }}
+                  >
+                    <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+                      {formatNumberForLocale(tData.amount)}
+                    </Typography>
+                  </Grid>
+                  <Grid
+                    align="center"
+                    sx={{ display: { xs: "none", sm: "block" } }}
+                    size={{
+                      sm: 6,
+                      md: 2,
+                    }}
+                  >
+                    <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+                      -{formatNumberForLocale(tData.tax)}
+                    </Typography>
+                  </Grid>
+                  <Grid
+                    align="center"
+                    size={{
+                      xs: 12,
+                      md: 1,
+                    }}
+                  >
+                    <Tooltip
+                      title={
+                        jobLockReadOnly
+                          ? lockReasonText({
+                              action: "unlinking transactions is disabled",
+                            })
+                          : ""
+                      }
+                      arrow
+                      disableHoverListener={!jobLockReadOnly}
+                    >
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          disabled={jobLockReadOnly}
+                          onClick={() => {
+                            if (jobLockReadOnly) return;
+                            state.activeJob.removeTransaction(tData);
+                            actions.addTransactionsForRemoval(
+                              tData.transaction_id,
+                            );
+                            actions.updateActiveJob(state.activeJob);
+                            showSnackbarError("Unlinked");
+                          }}
+                        >
+                          <ClearIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Grid>
+                </Grid>
+              );
             })
           ) : (
             <Grid align="center" size={12}>

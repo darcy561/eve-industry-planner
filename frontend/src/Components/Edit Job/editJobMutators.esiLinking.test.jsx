@@ -248,8 +248,6 @@ describe("the places these panels name", () => {
         <LinkedMarketOrdersTab
           state={state}
           actions={actions}
-          activeOrder={700001}
-          updateActiveOrder={() => {}}
         />
       ),
       { locationNames: editJobLocationNames },
@@ -323,8 +321,6 @@ describe("unlinking a market order, end to end", () => {
         <LinkedMarketOrdersTab
           state={state}
           actions={actions}
-          activeOrder={700001}
-          updateActiveOrder={() => {}}
         />
       ),
     );
@@ -345,8 +341,6 @@ describe("unlinking a market order, end to end", () => {
         <LinkedMarketOrdersTab
           state={state}
           actions={actions}
-          activeOrder={700001}
-          updateActiveOrder={() => {}}
         />
       ),
     );

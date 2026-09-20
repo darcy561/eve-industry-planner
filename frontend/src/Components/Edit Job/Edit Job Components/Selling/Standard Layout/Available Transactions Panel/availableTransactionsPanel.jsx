@@ -36,7 +36,6 @@ import {
 export function AvailableTransactionsPanel({
   state,
   actions,
-  activeOrder,
   isLoading,
   isError,
   error,
@@ -292,7 +291,7 @@ export function AvailableTransactionsPanel({
                           disabled={jobLockReadOnly}
                           onClick={() => {
                             if (jobLockReadOnly) return;
-                            state.activeJob.addTransaction(tData, activeOrder);
+                            state.activeJob.addTransaction(tData);
                             actions.addTransactionsForAddition(
                               tData.transaction_id,
                             );
@@ -335,10 +334,7 @@ export function AvailableTransactionsPanel({
                   disabled={jobLockReadOnly}
                   onClick={() => {
                     if (jobLockReadOnly) return;
-                    state.activeJob.addTransaction(
-                      transactionData,
-                      activeOrder,
-                    );
+                    state.activeJob.addTransaction(transactionData);
                     actions.addTransactionsForAddition(
                       transactionData.map((trans) => trans.transaction_id),
                     );

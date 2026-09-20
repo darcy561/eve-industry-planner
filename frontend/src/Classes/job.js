@@ -991,23 +991,23 @@ class Job {
    * in the same station. Figures derived per order from linked sales are
    * approximate for multi-order jobs.
    *
+   * A sale is attributed to the job's order when it has exactly one, and left
+   * unattributed otherwise — with several orders there is nothing to choose
+   * between them, and with none there is nothing to name.
+   *
    * @param {Object|Array<Object>} transaction - Transaction data or array of transactions
-   * @param {number} [activeOrder] - Order to attribute these sales to. Nothing
-   *   supplies it today, so sales fall to the first linked order.
    */
-  addTransaction(transaction, activeOrder) {
+  addTransaction(transaction) {
     if (!transaction) return;
 
     const transactionsToAdd = (
       Array.isArray(transaction) ? transaction : [transaction]
     ).map((row) => (row instanceof Transaction ? row : new Transaction(row)));
 
+    const orders = Object.values(this.build.sale.marketOrders);
+    const soleOrderID = orders.length === 1 ? orders[0].order_id : null;
     for (let trans of transactionsToAdd) {
-      if (activeOrder && this.build.sale.marketOrders.length > 1) {
-        trans.order_id = activeOrder;
-      } else {
-        trans.order_id = this.build.sale.marketOrders[0].order_id;
-      }
+      trans.order_id = soleOrderID;
     }
     this.build.sale.transactions = [
       ...this.build.sale.transactions,

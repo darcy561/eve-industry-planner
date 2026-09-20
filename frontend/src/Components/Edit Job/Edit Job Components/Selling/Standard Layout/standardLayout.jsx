@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Grid } from "@mui/material";
 
 import { TutorialStep5 } from "../tutorialStep5";
@@ -11,8 +10,6 @@ import { Selling_ButtonPanel_EditJob } from "./Button Panel/buttonLayout";
 import TutorialTemplate from "../../../../Tutorials/tutorialTemplate";
 
 export function Selling_StandardLayout_EditJob(props) {
-  const [activeOrder, updateActiveOrder] = useState([]);
-
   return (
     <Grid container spacing={2}>
       <TutorialTemplate TutorialContent={<TutorialStep5 />} />
@@ -25,11 +22,7 @@ export function Selling_StandardLayout_EditJob(props) {
           md: 8,
         }}
       >
-        <MarketOrderPanel
-          {...props}
-          activeOrder={activeOrder}
-          updateActiveOrder={updateActiveOrder}
-        />
+        <MarketOrderPanel {...props} />
       </Grid>
       <Grid
         size={{
@@ -43,7 +36,7 @@ export function Selling_StandardLayout_EditJob(props) {
         <AvailableTransactionsPanel {...props} />
       </Grid>
       <Grid size={12}>
-        <LinkedTransactionPanel {...props} activeOrder={activeOrder} />
+        <LinkedTransactionPanel {...props} />
       </Grid>
       <Grid size={12}>
         <Selling_ButtonPanel_EditJob {...props} />

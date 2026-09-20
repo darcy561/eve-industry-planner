@@ -401,6 +401,51 @@ describe("linking a market order", () => {
   });
 });
 
+// ESI carries no reference between an order and a transaction, so which order a
+// sale belongs to can only be answered when there is one order to answer with.
+describe("which order a linked sale is attributed to", () => {
+  const jobSellingThrough = (orders) =>
+    new Job({
+      jobID: "job-1",
+      itemID: 34,
+      jobType: 1,
+      name: "Tritanium",
+      build: { materials: {}, sale: { marketOrders: orders } },
+    });
+
+  it("attributes the sale to the job's only order", () => {
+    const job = jobSellingThrough([{ order_id: 700001, price: 5 }]);
+
+    job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
+
+    expect(job.build.sale.transactions[0].order_id).toBe(700001);
+  });
+
+  // Guessing between them would put the sale's figures against an order that
+  // may not have made it, and every per-order total downstream reads that.
+  it("leaves the sale unattributed when the job sells through several", () => {
+    const job = jobSellingThrough([
+      { order_id: 700001, price: 5 },
+      { order_id: 700002, price: 6 },
+    ]);
+
+    job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
+
+    expect(job.build.sale.transactions[0].order_id).toBeNull();
+  });
+
+  // A sale can be linked before its order is: the job holds the sale rather
+  // than refusing it, which is what asking the orders for a first one did.
+  it("takes a sale on a job with no orders at all", () => {
+    const job = jobSellingThrough([]);
+
+    job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
+
+    expect(job.build.sale.transactions).toHaveLength(1);
+    expect(job.build.sale.transactions[0].order_id).toBeNull();
+  });
+});
+
 // The tax estimate exists to fill the gap before a sale happens. Once it has,
 // the transaction carries what EVE actually charged, and that is what the job's
 // cost is built from — counting both would charge the same sale twice.

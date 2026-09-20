@@ -8,8 +8,6 @@ import {
 } from "@mui/material";
 import { useMemo } from "react";
 import { MdOutlineLinkOff } from "react-icons/md";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import FilterAltOffIcon from "@mui/icons-material/FilterAltOff";
 import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
@@ -26,12 +24,7 @@ import {
   corporationImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
 
-export function LinkedMarketOrdersTab({
-  state,
-  actions,
-  activeOrder,
-  updateActiveOrder,
-}) {
+export function LinkedMarketOrdersTab({ state, actions }) {
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
   const jobLockReadOnly = useActiveJobReadOnly(state);
@@ -222,37 +215,6 @@ export function LinkedMarketOrdersTab({
                   </Grid>
                 </Grid>
                 <Grid align="center" size={12}>
-                  {state.activeJob.build.sale.marketOrders.length > 1 && (
-                    <Tooltip
-                      title="Filter Transactions By Location"
-                      arrow
-                      placement="bottom"
-                    >
-                      <IconButton
-                        color="primary"
-                        sx={{ marginRight: 2 }}
-                        onClick={() => {
-                          let newActiveOrder = [...activeOrder];
-                          if (
-                            activeOrder.some((t) => t === order.location_id)
-                          ) {
-                            newActiveOrder = newActiveOrder.filter(
-                              (i) => i != order.location_id,
-                            );
-                          } else {
-                            newActiveOrder.push(order.location_id);
-                          }
-                          updateActiveOrder(newActiveOrder);
-                        }}
-                      >
-                        {activeOrder.some((t) => t === order.location_id) ? (
-                          <FilterAltOffIcon />
-                        ) : (
-                          <FilterAltIcon />
-                        )}
-                      </IconButton>
-                    </Tooltip>
-                  )}
                   <Tooltip
                     title={
                       jobLockReadOnly
