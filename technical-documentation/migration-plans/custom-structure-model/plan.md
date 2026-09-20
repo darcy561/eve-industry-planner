@@ -4,31 +4,22 @@
 documents and stored rig ids. Stage D and Stage BR2 remain; BR2 is named here for what it inherits
 rather than owned here.
 
-**No gap is open in what has landed.** The settings store reads either stored shape, rigs are two
-slots everywhere — in the tables, the form, a stored setup, and the prerelease step that converts the
-stored ones — and a setup's slots survive being saved, which the model that writes setups back did
-not allow until `RigSlot1`/`RigSlot2` replaced `RigID` on `JobSetup` and `TemplatePresetSetup`.
+**No gap is open in what has landed.** The settings store reads either stored shape; rigs are two
+slots everywhere — in the tables, the form, a stored setup, a stored structure, and the prerelease
+steps that convert both; and a setup's slots survive being saved, which the model that writes setups
+back did not allow until `RigSlot1`/`RigSlot2` replaced `RigID` on `JobSetup` and
+`TemplatePresetSetup`.
 
-**One gap is open in Stage BR, and it is silent.** Stage BR converted a stored *setup's* `rigID`
-into two slots, but nothing converts a stored *structure's* `rigType` into them. A manufacturing or
-reaction structure saved before the change reads back with no rigs: `Structure` has no `rigType`,
-`fieldsByJobType` no longer names it, and `rigBonuses` answers from two slots that were never
-written, so every material and time bonus that structure gives silently becomes zero. Measured
-against a row holding `rigType: 9` — a real rig worth 3.7 material and 0.2 time —
-[measurements.md](./measurements.md) § A stored `rigType` read after Stage BR.
+**Stage BR's structure gap is closed.** Stage BR converted a stored *setup's* `rigID` and left a
+stored *structure's* `rigType` unconverted, so a manufacturing or reaction structure saved before the
+change read back with no rigs and every bonus it gave silently became zero — measured in
+[measurements.md](./measurements.md) § A stored `rigType` read after Stage BR. The prerelease step
+`foldStructureRigSlots` now converts them, reusing the same `rigSlotsByStoredID` table the setup fold
+uses, and runs after the lane fold whose array shape it reads.
 
-**The stored value is still there, and each save destroys one copy.** `models.CustomStructure` still
-declares `RigType`, and the fold decodes through that struct and `$set`s only `customStructures`, so
-`rigType` survived the server-side fold. What loses it is the SPA: `Structure.toDocument()` writes
-`rigSlot1: 0, rigSlot2: 0` and no `rigType`, so a reader opening and saving an affected structure
-overwrites the one surviving copy with zeros. Every structure is recoverable until its owner saves
-it.
-
-**Order matters, and it is the reason the Go field stays for now.** Removing
-`models.CustomStructure.RigType` while it is read by nothing looks like cleanup, but that field is
-the last copy of the data: the conversion must run first, and the field may only go once it has.
-**Closing this belongs to Stage BR**, not to Stage D — a conversion in `release_custom_structures.go`
-mapping `rigType` onto the slot pair `release_rig_slots.go` already defines, then the field.
+`models.CustomStructure.RigType` stays until that step has run everywhere: it is the last copy of the
+data, because `Structure.toDocument()` writes `rigSlot1: 0, rigSlot2: 0` over it on the next save.
+Removing a field nothing reads looks like cleanup; this one is the source the conversion reads.
 
 **Two faults are open in Stage D's surfaces**, both predating this project and both reached by it:
 the selling-rates cache is not keyed on a location's broker fee, and the Selling stage reads a

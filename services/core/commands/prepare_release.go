@@ -108,6 +108,10 @@ var releases = []release{{
 		// planner settings documents this also converts: a fold that runs before
 		// them reports nothing to do and leaves what they write in the old shape.
 		{name: "fold custom structures into one array", run: foldCustomStructures},
+		// After the fold above, never before: this reads the structures as one
+		// array and skips a document still holding the four keyed lists, so run
+		// early it would report nothing to do and leave every rig unconverted.
+		{name: "fold rig slots onto every saved structure", run: foldStructureRigSlots},
 		// After the job reshape, which rewrites the setups this reads: a fold run
 		// before it would convert setups that reshape then writes over.
 		{name: "fold rig slots onto every setup", run: foldRigSlots},

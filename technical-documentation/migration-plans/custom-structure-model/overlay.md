@@ -341,6 +341,41 @@ pair fails with the figures named, and dropping template payloads fails the cove
 test converts both document shapes against real Mongo and is mutation-checked for the dry run writing
 and for the template walk being skipped.
 
+### The prerelease step that converts stored structures
+
+`foldStructureRigSlots` in `core/commands/release_structure_rig_slots.go` rewrites every saved
+structure that names its rig by a combined id, registered in the `0.9.0` release as **"fold rig slots
+onto every saved structure"**. It reuses `rigSlotsByStoredID` — the same table the setup fold walks,
+above — because manufacturing and reaction structures chose from the same list a setup did.
+
+**This one destroys data rather than only misreading it**, which is what separates it from the setup
+fold. An unconverted structure reads back with no rigs, so every material and time bonus it gives is
+zero; and `Structure.toDocument()` then writes `rigSlot1: 0, rigSlot2: 0` where the `rigType` was, so
+the reader's next save of that structure overwrites the only copy. Each row is recoverable until its
+owner touches it. `models.CustomStructure.RigType` is therefore kept, unread, until the step has run
+everywhere — it is the source the conversion reads, not a leftover.
+
+**It runs after the lane fold**, which is what makes it correct rather than merely tidy: it reads the
+structures as one array, and a document still holding the four keyed lists is one that fold could not
+move.
+
+**Three things independently keep a keyed-list document safe** — the query filter, the type assertion
+on the structures field, and `bson` decoding such a document as `bson.M` rather than `bson.A`. This
+was measured rather than assumed: removing the filter, weakening the assertion, and removing both in
+turn each left the live test passing, because any one of the three suffices. The filter is there to
+avoid reading documents the step can never convert, not to protect them. The live test asserts the
+outcome — the lists arrive untouched — so it holds whichever of the three a later change leaves.
+
+A structure already carrying `rigSlot1` is skipped, and a stale `rigType` beside slots is **dropped**
+rather than kept as a second answer to the same question. An id the table does not know about is left
+as it is.
+
+**What proves it.** The live test seeds one structure per case — a combined id, a single-rig faction
+id, a structure naming no rig, and a reprocessing structure already holding slots — and reads what
+Mongo holds as raw BSON rather than through `models.CustomStructures`, which does not name `rigType`
+and so cannot tell a converted row from one the step never reached. Mutation-checked: writing a zero
+into either slot fails with the figures named, and swapping the pair fails. Re-running finds nothing.
+
 ### The store slices hold one array
 
 Both settings slices now hold `customStructures` as one array of `Structure`, and both read **either**
