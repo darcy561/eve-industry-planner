@@ -288,11 +288,16 @@ describe("what a saved market carries", () => {
   afterEach(() => restoreHeights?.());
 
   it("stores the region and fee inputs derived from the place chosen", async () => {
-    describeMarketLocation.mockResolvedValue({
-      regionID: 10000002,
-      raceID: 1,
-      ownerID: 1000035,
-    });
+    // Three ESI calls deep, so it settles after the render that set the place.
+    describeMarketLocation.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () => resolve({ regionID: 10000002, raceID: 1, ownerID: 1000035 }),
+            10,
+          ),
+        ),
+    );
     renderForm({ selectedJobType: structureKinds.market });
 
     const user = userEvent.setup();

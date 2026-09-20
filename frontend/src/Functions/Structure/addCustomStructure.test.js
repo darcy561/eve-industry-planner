@@ -70,11 +70,11 @@ describe("the system index a new structure asks for", () => {
   it("asks for nothing for a market, whether or not it names a system", async () => {
     await add(
       new Structure({
-        jobType: structureKinds.citadelMarket,
+        jobType: structureKinds.market,
         systemID: 30000144,
       }),
     );
-    await add(new Structure({ jobType: structureKinds.npcStation }));
+    await add(new Structure({ jobType: structureKinds.market }));
 
     expect(getSystemIndexes).not.toHaveBeenCalled();
   });
