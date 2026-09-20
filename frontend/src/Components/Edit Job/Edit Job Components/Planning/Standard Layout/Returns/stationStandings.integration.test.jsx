@@ -82,6 +82,9 @@ const SELLER = {
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../../../tests/usersStoreHarness.js");
+  const { structureKinds } = await import(
+    "../../../../../../Context/defaultValues"
+  );
   return usersStoreMock({
     account: {
       isLoggedIn: true,
@@ -93,6 +96,15 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
     },
     applicationSettings: {
       defaultMarketCharacter: SELLER.CharacterHash,
+      customStructures: [
+        {
+          id: "citadelMarket-1",
+          jobType: structureKinds.citadelMarket,
+          name: "Perimeter Azbel",
+          brokerFee: 1.5,
+          default: true,
+        },
+      ],
       actions: { getCurrentLocale: () => "en-GB" },
     },
   });

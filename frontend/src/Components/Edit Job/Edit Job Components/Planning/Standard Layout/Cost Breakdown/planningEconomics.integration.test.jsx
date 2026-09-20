@@ -62,8 +62,20 @@ vi.mock("../../../../../../Functions/MarketOrders/sellerCharacter", () => ({
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../../../tests/usersStoreHarness.js");
+  const { structureKinds } = await import(
+    "../../../../../../Context/defaultValues"
+  );
   return usersStoreMock({
     applicationSettings: {
+      customStructures: [
+        {
+          id: "citadelMarket-1",
+          jobType: structureKinds.citadelMarket,
+          name: "Perimeter Azbel",
+          brokerFee: 1.5,
+          default: true,
+        },
+      ],
       defaultPricing: {
         buying: { market: "jita", basis: "sell" },
         // Deliberately different: a fixture whose sides agree cannot tell a
@@ -152,10 +164,10 @@ describe("the Planning stage's figures, end to end", () => {
     const cost = within(panelNamed("Cost Breakdown"));
 
     expect(
-      cost.getByText(/^1\.50% at Placeholder Citadel$/),
+      cost.getByText(/^1\.50% at Perimeter Azbel$/),
     ).toBeInTheDocument();
     expect(
-      cost.getByText(/on the sale at Placeholder Citadel/),
+      cost.getByText(/on the sale at Perimeter Azbel/),
     ).toBeInTheDocument();
   });
 

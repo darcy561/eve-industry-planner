@@ -2,8 +2,41 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import SaleLocationRates from "./saleLocationRates";
-import { SALE_LOCATION_KIND } from "../../../../../../Functions/MarketOrders/saleLocations";
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } = await import(
+    "../../../../../../tests/usersStoreHarness.js"
+  );
+  const { structureKinds } = await import(
+    "../../../../../../Context/defaultValues"
+  );
+  return usersStoreMock(() =>
+    usersStoreState({
+      applicationSettings: {
+        customStructures: [
+          {
+            id: "citadelMarket-1",
+            jobType: structureKinds.citadelMarket,
+            name: "Perimeter Azbel",
+            brokerFee: 1.5,
+            default: true,
+          },
+          {
+            id: "citadelMarket-2",
+            jobType: structureKinds.citadelMarket,
+            name: "Jita Sotiyo",
+            brokerFee: 3.25,
+            default: false,
+          },
+        ],
+      },
+    }),
+  );
+});
+
+const { default: SaleLocationRates } = await import("./saleLocationRates");
+const { SALE_LOCATION_KIND } = await import(
+  "../../../../../../Functions/MarketOrders/saleLocations"
+);
 
 const hub = {
   kind: SALE_LOCATION_KIND.HUB,
@@ -15,8 +48,8 @@ const hub = {
 
 const structure = {
   kind: SALE_LOCATION_KIND.STRUCTURE,
-  id: "placeholder-sale-structure",
-  name: "Placeholder Citadel",
+  id: "citadelMarket-1",
+  name: "Perimeter Azbel",
   feeStationID: 60003760,
   brokerFee: 1.5,
 };
@@ -241,7 +274,7 @@ describe("naming where this job sells", () => {
     await userEvent.click(screen.getByLabelText("Where this job sells from"));
 
     expect(
-      within(screen.getByRole("listbox")).getByText("Placeholder Citadel"),
+      within(screen.getByRole("listbox")).getByText("Perimeter Azbel"),
     ).toBeInTheDocument();
     expect(
       within(screen.getByRole("listbox")).getByText("Jita"),
@@ -264,12 +297,12 @@ describe("naming where this job sells", () => {
     await userEvent.click(screen.getByLabelText("Where this job sells from"));
     await userEvent.click(
       within(screen.getByRole("listbox")).getByText(
-        "Second Placeholder Citadel",
+        "Jita Sotiyo",
       ),
     );
 
     expect(onPlanChange).toHaveBeenCalledWith({
-      saleLocationID: "placeholder-sale-structure-2",
+      saleLocationID: "citadelMarket-2",
     });
   });
 
@@ -283,7 +316,7 @@ describe("naming where this job sells", () => {
 
     await userEvent.click(screen.getByLabelText("Where this job sells from"));
     await userEvent.click(
-      within(screen.getByRole("listbox")).getByText("Placeholder Citadel"),
+      within(screen.getByRole("listbox")).getByText("Perimeter Azbel"),
     );
 
     expect(onPlanChange).toHaveBeenCalledWith({ saleLocationID: null });
@@ -309,7 +342,7 @@ describe("naming where this job sells", () => {
     const listbox = within(screen.getByRole("listbox"));
 
     // Once, as the option it resolves to — not again as an entry of its own.
-    expect(listbox.getAllByText("Placeholder Citadel")).toHaveLength(1);
+    expect(listbox.getAllByText("Perimeter Azbel")).toHaveLength(1);
     expect(listbox.getAllByText(/account default/)).toHaveLength(1);
   });
 
@@ -319,7 +352,7 @@ describe("naming where this job sells", () => {
     const onPlanChange = withPickers({
       plan: {
         sellerCharacter: null,
-        saleLocationID: "placeholder-sale-structure",
+        saleLocationID: "citadelMarket-1",
       },
     });
 

@@ -1,4 +1,6 @@
 import GLOBAL_CONFIG from "../../global-config-app";
+import useUsersStore from "../../Zustand/usersStore";
+import { structureKinds } from "../../Context/defaultValues";
 
 /**
  * Where a price can come from.
@@ -75,16 +77,38 @@ function serverHeldSources() {
 }
 
 /**
+ * The NPC stations a reader has saved, as sources.
+ *
+ * A saved citadel is not among them: its book is read from
+ * `/markets/structures/`, which needs the docking character the row carries and
+ * a loader that knows to use it. Until that exists a citadel can be sold from
+ * but not priced at, so offering it here would put a market in every picker
+ * that no price could be asked for.
+ *
+ * @returns {MarketSource[]}
+ */
+function readerSavedSources() {
+  return (useUsersStore.getState().applicationSettings.customStructures ?? [])
+    .filter((structure) => structure.jobType === structureKinds.npcStation)
+    .map((structure) => ({
+      id: structure.id,
+      name: structure.name,
+      regionID: structure.regionID,
+      stationID: structure.stationID,
+      kind: SOURCE_KIND.STATION,
+    }));
+}
+
+/**
  * Every market a price may be asked for.
  *
- * Today that is the hubs alone. Reader-saved sources join here once there are
- * any, which is why callers read this rather than the hub list directly — the
- * seam is one function rather than every surface.
+ * Callers read this rather than the hub list directly, so a reader saving a
+ * market reaches every surface that offers one without any of them changing.
  *
  * @returns {MarketSource[]}
  */
 export function allMarketSources() {
-  return serverHeldSources();
+  return [...serverHeldSources(), ...readerSavedSources()];
 }
 
 /**

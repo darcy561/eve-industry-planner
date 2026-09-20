@@ -1,25 +1,41 @@
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
-import {
+import { structureKinds } from "../../Context/defaultValues";
+
+let structures = [];
+
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } = await import(
+    "../../tests/usersStoreHarness.js"
+  );
+  return usersStoreMock(() =>
+    usersStoreState({ applicationSettings: { customStructures: structures } }),
+  );
+});
+
+const {
   SALE_LOCATION_KIND,
   getDefaultSaleStructure,
   getSaleStructures,
   resolveSaleLocation,
-} from "./saleLocations";
+} = await import("./saleLocations");
 
-// Every assertion reads its subject back through the accessors rather than
-// naming a placeholder, so these tests hold unchanged once the stored lane
-// replaces them.
-
-/** The two rows, as "the default" and "one that is not the default". */
-function structurePair() {
-  const structures = getSaleStructures();
-  const fallback = getDefaultSaleStructure();
+function aCitadel(overrides = {}) {
   return {
-    fallback,
-    other: structures.find((i) => i.id !== fallback.id),
+    id: "citadelMarket-1",
+    jobType: structureKinds.citadelMarket,
+    name: "Perimeter Azbel",
+    regionID: 10000002,
+    structureID: 1035466617946,
+    brokerFee: 1.5,
+    default: true,
+    ...overrides,
   };
 }
+
+beforeEach(() => {
+  structures = [aCitadel()];
+});
 
 describe("saved sale structures", () => {
   test("a default is available without one being chosen", () => {
@@ -31,16 +47,37 @@ describe("saved sale structures", () => {
       expect(typeof structure.id).toBe("string");
       expect(typeof structure.structureID).toBe("number");
       expect(typeof structure.brokerFee).toBe("number");
-      expect(typeof structure.priceHub).toBe("string");
     }
   });
 
-  test("exactly one row is the default", () => {
-    expect(getSaleStructures().filter((i) => i.default)).toHaveLength(1);
+  // One list holds every kind of saved structure, so an unfiltered read would
+  // offer a refinery as somewhere to sell from.
+  test("offers only the citadels, not every saved structure", () => {
+    structures = [
+      aCitadel(),
+      { id: "manStruct-1", jobType: structureKinds.manufacturing, name: "Sotiyo" },
+      { id: "npcMarket-1", jobType: structureKinds.npcStation, name: "Jita IV-4" },
+    ];
+
+    expect(getSaleStructures().map((i) => i.id)).toEqual(["citadelMarket-1"]);
   });
 
-  test("more than one structure is available to choose between", () => {
-    expect(getSaleStructures().length).toBeGreaterThan(1);
+  // A reader who has saved none is the ordinary case, not an error: the hub
+  // fallback is what a sale prices against until they save one.
+  test("has no default when none is saved", () => {
+    structures = [];
+
+    expect(getSaleStructures()).toEqual([]);
+    expect(getDefaultSaleStructure()).toBeNull();
+  });
+
+  test("falls back to the first when none is flagged default", () => {
+    structures = [
+      aCitadel({ id: "citadelMarket-1", default: false }),
+      aCitadel({ id: "citadelMarket-2", default: false }),
+    ];
+
+    expect(getDefaultSaleStructure().id).toBe("citadelMarket-1");
   });
 });
 
@@ -53,30 +90,23 @@ describe("resolveSaleLocation", () => {
     expect(location.brokerFee).toBe(structure.brokerFee);
   });
 
-  test("a structure prices against a hub rather than itself", () => {
-    const structure = getDefaultSaleStructure();
-    const location = resolveSaleLocation(structure.id);
-    const hub = resolveSaleLocation(null, structure.priceHub);
+  // A citadel is a market, but nothing reads its book yet, so its figures come
+  // from a hub. What it does supply is its own fee.
+  test("a citadel prices against a hub rather than itself", () => {
+    const location = resolveSaleLocation(getDefaultSaleStructure().id);
 
-    expect(location.priceHubID).toBe(hub.priceHubID);
+    expect(location.priceHubID).toBe(resolveSaleLocation(null).priceHubID);
   });
 
-  test("choosing a structure resolves that one, not the default", () => {
-    const { fallback, other } = structurePair();
-    const location = resolveSaleLocation(other.id);
+  test("choosing a citadel resolves that one, not the default", () => {
+    structures = [
+      aCitadel(),
+      aCitadel({ id: "citadelMarket-2", brokerFee: 3.25, default: false }),
+    ];
+    const location = resolveSaleLocation("citadelMarket-2");
 
-    expect(location.id).toBe(other.id);
-    expect(location.brokerFee).toBe(other.brokerFee);
-    expect(location.brokerFee).not.toBe(fallback.brokerFee);
-  });
-
-  test("two structures on different hubs price against different stations", () => {
-    const { fallback, other } = structurePair();
-
-    expect(other.priceHub).not.toBe(fallback.priceHub);
-    expect(resolveSaleLocation(other.id).priceHubID).not.toBe(
-      resolveSaleLocation(fallback.id).priceHubID,
-    );
+    expect(location.id).toBe("citadelMarket-2");
+    expect(location.brokerFee).toBe(3.25);
   });
 
   test("a hub carries no broker fee, because the rate comes from the seller", () => {

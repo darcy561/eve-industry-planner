@@ -1,6 +1,8 @@
 import GLOBAL_CONFIG from "../../global-config-app";
 import { sourceIn } from "../MarketData/marketSources";
 import { readMarketSources } from "../../Hooks/Static/useMarketSources";
+import useUsersStore from "../../Zustand/usersStore";
+import { structureKinds } from "../../Context/defaultValues";
 
 /**
  * The kinds of location a job can be sold from. A preset hub's broker fee is
@@ -15,47 +17,7 @@ export const SALE_LOCATION_KIND = {
 };
 
 /**
- * Stand-ins for saved citadels, so the panels that price a sale can be built and
- * tested before the stored list exists.
- *
- * Deliberately not exported: they carry the full shape a stored row will, and
- * every caller reaches them through the functions below, so replacing the source
- * with the stored list is a change to this file alone.
- *
- * There are two, and they disagree on every field that changes a figure — fee,
- * hub, and which is the default — so a consumer that quietly assumes one
- * citadel, or reads the default where it should read the chosen row, produces a
- * visibly wrong number rather than a coincidentally right one.
- *
- * @type {SaleStructure[]}
- */
-const PLACEHOLDER_SALE_STRUCTURES = [
-  {
-    id: "placeholder-sale-structure",
-    structureID: 1035466617946,
-    name: "Placeholder Citadel",
-    brokerFee: 1.5,
-    priceHub: "jita",
-    default: true,
-  },
-  {
-    id: "placeholder-sale-structure-2",
-    structureID: 1041366702033,
-    name: "Second Placeholder Citadel",
-    brokerFee: 3.25,
-    priceHub: "amarr",
-    default: false,
-  },
-];
-
-/**
- * @typedef {object} SaleStructure
- * @property {string} id - Stable id of the saved row
- * @property {number} structureID - The in-game structure
- * @property {string} name - What the structure is called
- * @property {number} brokerFee - The rate its owner set, as a percentage
- * @property {string} priceHub - Which market source its figures price against
- * @property {boolean} default - Whether it is the one used when none is chosen
+ * @typedef {import("../../Classes/structure").default} SaleStructure
  */
 
 /**
@@ -75,10 +37,17 @@ const PLACEHOLDER_SALE_STRUCTURES = [
 /**
  * The saved citadels a player can sell from.
  *
+ * Read imperatively rather than through a hook because the functions below are
+ * called from a query function and a reducer as well as from render.
+ *
  * @returns {SaleStructure[]}
  */
 export function getSaleStructures() {
-  return PLACEHOLDER_SALE_STRUCTURES;
+  return (
+    useUsersStore.getState().applicationSettings.customStructures ?? []
+  ).filter(
+    (structure) => structure.jobType === structureKinds.citadelMarket,
+  );
 }
 
 /**
@@ -142,11 +111,12 @@ function saleLocationFromHub(hub) {
  * @returns {SaleLocation}
  */
 function saleLocationFromStructure(structure) {
-  // A structure has no market of its own, so its figures price against a hub.
+  // A saved citadel is a market, but nothing can read its book yet: that needs
+  // `/markets/structures/` and the docking character the row carries. Until then
+  // its figures price against the default hub, so a reader selling from a
+  // citadel sees an estimate rather than nothing.
   const sources = readMarketSources();
-  const hub =
-    sourceIn(sources, structure.priceHub) ??
-    sourceIn(sources, GLOBAL_CONFIG.DEFAULT_MARKET_OPTION);
+  const hub = sourceIn(sources, GLOBAL_CONFIG.DEFAULT_MARKET_OPTION);
 
   return {
     kind: SALE_LOCATION_KIND.STRUCTURE,

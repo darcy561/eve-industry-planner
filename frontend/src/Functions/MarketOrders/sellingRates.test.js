@@ -47,6 +47,30 @@ vi.mock("../../Hooks/EveEsi/Character/useGetCharacterStandings", () => ({
   getCachedCharacterStandings: () => standings,
 }));
 
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } = await import(
+    "../../tests/usersStoreHarness.js"
+  );
+  const { structureKinds } = await import("../../Context/defaultValues");
+  return usersStoreMock(() =>
+    usersStoreState({
+      applicationSettings: {
+        customStructures: [
+          {
+            id: "citadelMarket-1",
+            jobType: structureKinds.citadelMarket,
+            name: "Perimeter Azbel",
+            regionID: 10000002,
+            structureID: 1035466617946,
+            brokerFee: 1.5,
+            default: true,
+          },
+        ],
+      },
+    }),
+  );
+});
+
 const {
   brokerFeeAmount,
   brokerFeeRate,
@@ -382,7 +406,7 @@ describe("naming an NPC station as the sale location", () => {
   });
 
   it("prefers a saved citadel of the same id", () => {
-    const location = resolveSaleLocation("placeholder-sale-structure", "jita");
+    const location = resolveSaleLocation("citadelMarket-1", "jita");
 
     expect(location.kind).toBe(SALE_LOCATION_KIND.STRUCTURE);
   });
