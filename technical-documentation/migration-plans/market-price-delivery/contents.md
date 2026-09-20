@@ -27,12 +27,11 @@ price against, not only the four the server holds.
   for the session with nothing beneath them, and every reader-saved source — public station and
   private citadel alike — read through IndexedDB so it survives a reload.
 
-**Stage G in progress; the browser-side remainder shelved.** Stages A to D and most of E have
-landed. Stage G moves a saved NPC station's pricing onto the server and is under way — it is
-server-side, so the shelf does not apply to it. What is shelved needs a citadel that is a market,
-which [custom-structure-model](../custom-structure-model/contents.md) makes expressible.
-[plan.md](./plan.md) § Start here lists what to pick up, in order, and what the shelf costs while it
-lasts.
+**Stage G in progress; the browser-side remainder is off the shelf.** Stages A to D and most of E
+have landed. Stage G moves a saved NPC station's pricing onto the server and is under way. What was
+shelved needed a citadel that is a market, which
+[custom-structure-model](../custom-structure-model/contents.md) § Stage D landed.
+[plan.md](./plan.md) § Start here lists what to pick up, in order.
 
 **Not live SoT** until this project is complete and promotion is approved.
 

@@ -1,9 +1,9 @@
 # Custom structure model — plan
 
-**Status:** Stages A, B, C and BR landed, including the prerelease steps that convert stored
-documents, stored rig ids and a saved structure's rig. Stage D has landed its model — both market
-kinds, their fields, and the `structureKinds` split — and owes its surfaces. Stage BR2 remains and is
-named here for what it inherits rather than owned here.
+**Status:** Every stage this project owns has landed — A, B, C, BR and D, including the prerelease
+steps that convert stored documents, stored rig ids and a saved structure's rig. The project is at
+its close condition and waits on promotion go-ahead. Stage BR2 remains and is named here for what it
+inherits rather than owned here.
 
 **No gap is open in what has landed.** The settings store reads either stored shape; rigs are two
 slots everywhere — in the tables, the form, a stored setup, a stored structure, and the prerelease
@@ -34,11 +34,11 @@ authenticated walk in that project's Stage E.
 
 **Both of Stage D's faults are closed.** The selling-rates cache is keyed on the location's broker
 fee, and a citadel's fee is resolved from the order that names where it was placed rather than from
-an account-wide default — so one sale quotes one figure. What Stage D still owes is the surface for
-saving a market.
+an account-wide default — so one sale quotes one figure.
 
-**[market-price-delivery](../market-price-delivery/contents.md) is shelved waiting on this project**
-— specifically on a saved location being able to be a market, which Stage A makes expressible.
+**[market-price-delivery](../market-price-delivery/contents.md)'s shelf condition is met.** What it
+waited on was a saved location being able to *be* a market, which Stage D landed; its browser-side
+remainder resumes from that project's § What to pick up when it does.
 **Code in scope:** [`frontend/src/Classes/`](../../../frontend/src/Classes/) —
 `structure.js`, `jobSetup.js`, `reprocessingItem.js`;
 [`frontend/src/Functions/Helper/`](../../../frontend/src/Functions/Helper/) — `rigSlotBonuses.js`,
@@ -219,12 +219,11 @@ Two things it inherits and must handle: readers have been told by the form's own
 built as a workaround for the missing support; and a reader who fitted a generic rig means "I do not
 know which", not "it applies to everything".
 
-**Stage D — The kind that is a market.** A saved location that can be a market rather than only a
+**Stage D — The kind that is a market. Done.** A saved location can be a market rather than only a
 selling point priced from a hub: the `jobType` value, the fields it needs, and the surface for saving
-one. This is the stage
-[market-price-delivery](../market-price-delivery/contents.md) is shelved on, and the first kind added
-under the new model rather than the last added under the old — which is what makes it a proof of the
-model as well as a feature.
+one. This is the stage [market-price-delivery](../market-price-delivery/contents.md) was shelved on,
+and the first kind added under the new model rather than the last added under the old — which is what
+makes it a proof of the model as well as a feature.
 
 What it must produce for that project: a source whose kind says it is browser-fetched, carrying the
 structure id its book is walked by, reaching `allMarketSources()` through
@@ -232,15 +231,17 @@ structure id its book is walked by, reaching `allMarketSources()` through
 **not** decide is how that market is fetched, priced or kept current; all three are
 [market-price-delivery](../market-price-delivery/plan.md) § Stage E.
 
-**There are two kinds, not one.** An NPC station and a player citadel are both places a price can be
-asked for, and they differ on every axis that matters: who sets the broker fee, whether a token is
-needed to read the book, and what identifies the location inside its region. Modelling them as one
-kind with optional fields would put the fee asymmetry behind a flag, which is the shape that produced
-the silent faults in Stages B and C.
+**There is one kind, and the place it holds says the rest.** An NPC station and a player citadel are
+two sorts of one thing — both places a price is asked for, both named from the same location picker —
+and `resolveLocationKind` already told them apart by the range an EVE location id falls in, before the
+picker asked. So the picker offers **Market**, and which sort a row is follows from the id it carries.
+The differences below are read from the row rather than chosen by a reader; a stage draft asked for
+them as two kinds, and [overlay.md](./overlay.md) § One market kind, and what the place it holds decides has why
+that changed.
 
-| | NPC station | Player citadel |
+| | Holding a `stationID` | Holding a `structureID` |
 |---|---|---|
-| Inside its region | `stationID` | `structureID` |
+| What it is | an NPC station | a player citadel |
 | Broker fee | derived from the seller — **not stored** | `brokerFee`, the rate the owner set |
 | What the fee derives from | `raceID`, `ownerID` | — |
 | Reading its book | public | `characterHash`, a character with docking access |
@@ -332,8 +333,9 @@ So **no new picker is needed for either kind**, and neither waits on the other.
 The kind picker keeps its one row and grows to six, so a reader sees every kind in one place. Its
 heading stops asking for a job type, which a market is not.
 
-**Done when** a reader can save either kind of location through that form, a price can be asked for
-at one, the two faults above are closed, and the placeholder rows in `saleLocations.js` are gone.
+**Done when** a reader can save either sort of place through that form, a price can be asked for at
+one, the two faults above are closed, and the placeholder rows in `saleLocations.js` are gone. **All
+four hold.**
 
 **Done when** Stages A to D are, adding a kind of structure is a `jobType` value plus the fields it
 needs, and market-price-delivery can come off the shelf. **Stage BR2 is named here for its inheritance,
@@ -356,8 +358,8 @@ own what a structure is *for*.
 
 **Settled by the shelving.** The sale kind — a saved location that is a market rather than a selling
 point priced from a hub — lands **inside this project**.
-[market-price-delivery](../market-price-delivery/contents.md) is shelved until it exists, and that
-project is the only other place it could have gone, so leaving it out would shelve a project against
+[market-price-delivery](../market-price-delivery/contents.md) was shelved until it existed, and that
+project was the only other place it could have gone, so leaving it out would shelve a project against
 work nobody had scheduled. It is also the cheapest way to prove the model: a kind added under the new
 shape, rather than a fifth lane and a fourth class under the old one.
 

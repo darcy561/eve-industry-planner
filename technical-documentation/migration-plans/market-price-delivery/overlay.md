@@ -709,6 +709,153 @@ cutoff and another after it without sleeping.
 wanting object storage without a store to dial can take it. The SDE tests that skip today could use
 it too; that is not this project's to do.
 
+### G2 — Walking a region and pricing a station are two tasks
+
+**A walk stores the book; a derive prices the stations wanted in it.** `RefreshRegionMarketOrders`
+no longer carries a station: it walks the region, writes the pages and the ETags, records the refresh
+time, and publishes `deriveRegionMarketPrices`. `DeriveRegionMarketPrices` reads the tracked stations
+and the stored pages, and writes a price per type per station. It asks ESI for nothing, so a station
+added to a region already walked costs a read of stored pages and a filter — proved by
+`TestASecondStationInATrackedRegionCostsNoESICall`, which counts the origin's requests across the
+second derive and expects none.
+
+**A station is tracked by being asked for.** `esi:market_orders:region:<id>:stations` is a scored set
+of station ids against when each was last asked about, and it is what a derive pass reads in place of
+the station the walk used to be told. Asking again moves the timestamp rather than adding a member,
+`DropStationsAskedBefore` retires the ones nothing has wanted since a cutoff, and
+`StopTrackingRegionIfUnwanted` takes both the set and the region's place in the sweep. The scheduler records
+each hub as it publishes its walk, so the four hubs are tracked by being swept and never fall out.
+
+**`PutPrice` is per station now.** It was passed a region id under a parameter named `locationID`,
+which worked only while each swept region had exactly one station anybody asked about. Entries under
+the old key are orphaned rather than migrated — they expire in two hours and the next pass rewrites
+them under the new one — and `/marketPricesQuery` reads a source's `StationID` to match.
+
+**A 304 pass stops decoding a book nothing reads.** The replay existed to feed orders through the
+caller's filter, and the walk has no filter any more. `FetchRegionMarketOrders` takes a nil `onOrder`,
+and the replay then asks the page store whether the page is **held** rather than fetching and decoding
+it — the difference between reading The Forge's 92 MB and reading a key. What it must still do is
+downgrade a page that is *not* held to changed, or an unchanged region would go on claiming to be
+current with nothing behind it; `TestA304WithNoOrderConsumerStillChecksThePageIsHeld` holds that, and
+fails when the downgrade is removed.
+
+**A deployment with no page store still prices.** With nothing stored there is nothing to derive from,
+so the walk accumulates the tracked stations from the stream as it passes, exactly as it used to for
+one station. Without that, § G1's "a worker without object storage still works" would have become
+"walks every book and prices nothing".
+
+**Wire: the walk's payload loses `station_id`, and that is safe by decode.** Task payloads are
+decoded leniently, so a walk queued by the previous release still runs — the field is ignored and the
+region is walked. `routing_test.go` decodes that old payload deliberately, for that reason.
+
+**Still open in Stage G:** a station is tracked only by the scheduler seeding the hubs. Registering a
+reader-saved station on first ask, sweeping every region a reader has asked about rather than
+`DefaultMarketLocations`, and the retention callers (`DropStationsAskedBefore` and
+`DropRegionsOlderThan` have no caller yet) are the next slice.
+
+### G3 — A market is tracked because an account saved it
+
+**Registering happens where the account is known, not where a price is asked for.** The server reads
+an account's settings document already, so that is where its markets are read from: the login handler
+and the settings save handler both call `marketsources.Register` with the structures they already
+hold. The SPA is told nothing and asks for nothing — it never learns this exists.
+
+**Both call sites ask one question and usually publish nothing.** Most sign-ins and nearly every
+settings save change no market at all, so re-registering on each would be work to re-assert what is
+already true. `RegionsOfTrackedStations` answers, in one hash read, which of the account's markets
+this server prices and where each sits; only the ones missing are published, and an account whose
+markets are all known costs a single round trip. The hash is
+`esi:market_orders:tracked_station_regions`, written as a station is tracked and cleared as one is
+retired.
+
+That index is also what a price read resolves a station by: membership and region in one lookup,
+where it previously took a cached region read and a scan of the region's tracked stations.
+
+An earlier draft did it inside `/marketPricesQuery`, registering whatever station a caller named. That
+put a write on a public unauthenticated endpoint, made a read spend ESI calls, and left the first ask
+answered empty while the walk it had just asked for ran. Reading prices now registers nothing.
+
+**The worker does the resolving.** `TrackMarketSources` walks `/universe/stations/` →
+`/universe/systems/` → `/universe/constellations/` for each station, caches the region without expiry
+because a station never moves, tracks the station, and asks for what the market still needs: the first
+station in a region publishes its walk, a later one publishes a derive against pages already stored,
+and one already tracked publishes nothing — which is what every sign-in after the first does.
+
+A station that does not resolve is skipped rather than failing the pass: one market an account cannot
+have must not cost it the rest. Only ESI answering 404 about the station itself is remembered as
+unknown, and for ten minutes — a timeout or a 5xx says nothing about whether the station is real.
+
+**The read asks ESI nothing**, and refuses a station the index has no answer for. A market reaches the
+price path only after the account has said it holds one, and the endpoint keeps the read-only
+contract it had before this stage.
+
+**Which is why the walk being a task is not felt.** Registration runs while a reader signs in, or as
+they save the market in settings, so the book is walked before a job asks for a figure rather than a
+reader waiting on their own first ask.
+
+**The sweep reads the registry.** `regionsDue` takes region ids rather than hubs, and the sweep walks
+every region something is tracked in — `esi:market_orders:tracked_regions`, a scored set
+`TrackStation` writes beside the per-region station set. The four hubs are tracked **every tick**
+rather than when they are walked, so a quiet fortnight cannot retire them.
+
+**`retireUnaskedMarkets` is the bound on all of this.** A daily task drops the stations nothing has
+asked about for **fourteen days** — long enough that a reader who prices a job weekly never re-pays
+their region's first walk, and that a holiday is covered; short enough that a market saved once and
+abandoned does not stay in the sweep. A region whose last station goes leaves the sweep, and its
+stored book is left to age out at **seven days** under `DropRegionsOlderThan`.
+
+**A partial write leaves a market under-registered, never over-registered.** `TrackStation` writes
+three keys and they are not one transaction, so the index a caller reads to decide nothing needs
+doing is written **last**: a failure part way through leaves a market that looks unregistered and is
+asked for again on the next sign-in or settings save, rather than one that looks tracked while its
+region is never swept.
+
+**Retirement does not delete the book, and that is deliberate.** Two things follow from leaving it.
+A market registered again inside the week is priced from pages already stored, with no ESI call —
+coming back costs nothing where a first registration costs a walk. And the ETags stay true: they are
+kept in Redis for 24 hours, and `esiclient` refuses a conditional request that throws away a validator
+it has already been given, so a walk that met deleted pages would answer 304 to a book it no longer
+holds and could not rebuild until ESI's own validator moved. Pages and their ETags are two halves of
+one cache, and age is what takes both.
+
+**What a retired market costs to get back.** Nothing special-cases it: the next sign-in registers it
+like any other. Its region is still in the resolution cache, so no ESI call is spent on the walk
+chain; if the region is still tracked for another market the station is derived from stored pages, and
+if it was forgotten its walk is published and the sweep picks it up as never walked, the refresh lease
+collapsing the duplicate.
+
+### The keys this stage retires, and the deploy that carries it
+
+**Two shapes are left behind, and neither expires.** Keying a price at a station
+orphans every price keyed at a region, and the per-type bookkeeping
+`esi:market_orders:<typeID>:<regionID>:{etags,last_updated}` was already unread before this project.
+Both were written **without a lifetime**, so they survive restarts and age out on no clock: a deploy
+that does not remove them keeps them for ever. On the dev instance that was 118,040 keys, two thirds
+of the keyspace — measured there, not on live.
+
+`dropRetiredMarketKeys` is the release step that removes them. It converts nothing, because nothing
+reads them. A key is a candidate only when it **has no lifetime of its own**: every price the running
+code writes carries one, so that rule keeps a live station price out of the sweep whatever its shape
+reads like, and makes a second run find nothing. `UNLINK` frees them off the main thread, so the size
+of the set does not stall the instance.
+
+**A deploy carrying § G1 creates the bucket before the worker rolls.** `OpenMarketPages` refuses a
+bucket that does not exist rather than making one — creating buckets belongs to the Deployment Tool
+— so a worker started before `eip ensure-s3` has run dies on its twelfth dial attempt and Swarm rolls
+it back to the previous image. Observed twice on the dev stack, each time reading
+`s3 bucket "market-pages" does not exist — run eip up / eip ensure-s3` while the market pipeline
+stayed down. The order is `eip up` (or `eip ensure-s3`), then the image roll.
+
+### Still to fill
+
+**A citadel cannot be priced by this server at all**, so it is not registered: its book needs
+`/markets/structures/` and the docking character the row carries, which is
+[market-price-delivery](./plan.md) § Stage E item 3 and stays the reader's own fetch.
+
+**The browser still walks a saved station's book itself.** Nothing in the SPA reads a saved station's
+prices from `/marketPricesQuery` yet, so the server-side pricing this stage built is not what a reader
+sees until the loader is cut over — see [plan.md](./plan.md) § Start here.
+
 ## Stage F — Custom market locations
 
 *Nothing landed yet.*

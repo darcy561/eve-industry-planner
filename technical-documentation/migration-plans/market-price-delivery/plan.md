@@ -1,19 +1,19 @@
 # Market price delivery — plan
 
-**Status: Stage G is in progress; the browser-side remainder is shelved, and Stage E item 2 is
+**Status: Stage G is in progress; the browser-side remainder is off the shelf, and Stage E item 2 is
 superseded.** Phase 1 complete, **Stages A, B, C and D landed and Stage E is done bar the citadel
 walk** — but measuring every market region in New Eden says a saved NPC station belongs on the server
 rather than in the browser, which is § Stage G. The browser-side station fetch built for item 2 comes
 out when that is built. Nothing else changes: a citadel stays the reader's own fetch, because its
 book is authenticated per character.
 
-**Stage G does not wait on the shelf.** It is server-side, and what the shelf is waiting for — a
-saved citadel that is a market — is a browser concern. The two halves of this project block on
-different things.
+**The shelf has lifted.** What the browser-side remainder waited on — a saved citadel that is a
+market — landed in [custom-structure-model](../custom-structure-model/contents.md) § Stage D, so
+§ What to pick up when it does is now work to schedule rather than work to wait for. Stage G never
+waited on it: it is server-side, and the two halves of this project blocked on different things.
 
-Everything this project can build in the browser without a citadel that is a market has been built.
-It resumes when [custom-structure-model](../custom-structure-model/contents.md) makes one
-expressible — § Start here says exactly what to pick up and in what order. Nothing is half-finished:
+Everything this project could build in the browser without a citadel that is a market was built
+before that. Nothing is half-finished:
 each landed stage is whole, tested and documented in
 [overlay.md](./overlay.md). Every price in
 the SPA comes from the query cache, `worldData.marketData` is retired, the old
@@ -719,15 +719,17 @@ wanted-station set itself — a station id and a timestamp — and dropping the 
 `DeletePrefix` when its last station goes. A station evicted in error rejoins from stored pages the
 next time somebody asks.
 
-### What is not settled
+### What the numbers are
 
-- **How long a market stays tracked without being asked for.** Long enough that a reader who prices
-  a job weekly does not re-pay the first walk each time; short enough that the registry does not
-  accumulate. Unmeasured, so it is a number to pick with a reason rather than a default.
+**A market stays tracked for fourteen days after the last ask**, and an orphaned book is swept at
+**seven**. Both are picked with a reason rather than measured: a fortnight covers a reader who prices
+a job weekly and one who takes a holiday, without keeping a market saved once and abandoned; a week
+is long past the age of any book still being walked hourly, so the backstop can only catch one
+nothing walks. [overlay.md](./overlay.md) § G3.
 
 ## Stage F — Custom market locations
 
-The stored list of markets a reader has added, and the surface for adding one.
+**Built elsewhere — see below.** The stored list of markets a reader has added, and the surface for adding one.
 
 **A market source and a selling point are the same saved row.** A reader adds a location once, as a
 selling point in the `CustomStructures` family, and that same row is the market its prices are read
@@ -748,6 +750,13 @@ where a source resolves — not a parallel accessor.
 3. The surface for adding, editing and removing one, built from the shared component library.
 4. Replace the placeholder rows in `saleLocations.js` with the stored list — a change to that one
    file, which is what the placeholder was shaped to allow.
+
+**Built, and item 2 was not taken.** [custom-structure-model](../custom-structure-model/contents.md)
+§ Stage D stores a `characterHash` on a citadel row, against item 2 above: the walk this project's
+Stage E item 3 builds needs a character named before it runs, and a hash that no longer resolves must
+read as *this market cannot be queried* and be re-choosable rather than as a market with no orders.
+That is the owning project's call, and this list is the record of what was asked for rather than a
+constraint on it.
 
 **This stage is not this project's to build.** An earlier draft claimed it was — "this project is the
 custom-structure work, for markets" — which contradicted
@@ -774,7 +783,8 @@ that field becomes a fallback for a structure whose own market is empty or unrea
 only answer — a change to what it means, which belongs in this stage rather than being left implied.
 
 **Done when** a reader can add an NPC station or a citadel as a market, price against it anywhere a
-hub can be priced against, and the placeholder is gone.
+hub can be priced against, and the placeholder is gone. **The saving and the placeholder are done**;
+pricing against a citadel is Stage E item 3, and against a saved station is Stage G.
 
 ## What Stage D and E actually need
 
@@ -907,8 +917,8 @@ browser a legitimate version of this path for custom sources, where there is no 
 | ~~What bounds the prices Stage G stores~~ | **Decided: a market is tracked once somebody asks for it.** Not every station in every region — the first request for an untracked station registers and walks it, and from then on it is swept with the rest. The registry already exists as the scored set `regionsDue` reads; what it gains is the stations wanted per region. See § A market is tracked once somebody asks for it |
 | ~~Whether Stage G is this project's work to do~~ | **Yes.** It is a different part of `services/` from the job-document work another session is doing |
 | ~~Where a region's raw pages live~~ | **Decided: their own SeaweedFS bucket.** They are large, written hourly and read rarely — 1,613 objects an hour, ~0.4 GB — which is memory Redis should not be spending. The stack already runs SeaweedFS behind `shared/core/objectstore`, the SDE already lives there for the same reasons, and `DeletePrefix` drops a region's book in one call. Its own bucket rather than a prefix in `static-data`, because one turns over per release and the other hourly |
-| How long a region's pages are kept | Longer than 24 hours is now cheap, and it is what lets a station derive from a walk made days ago. A week costs disk rather than memory. Unmeasured against the bucket. **The mechanism exists** as `MarketPages.DropRegionsOlderThan`, which judges a region by its newest page so a walk in progress is not dropped — what is unsettled is the number, and what calls it. Stage G |
-| How long a market stays tracked without being asked for | A reader who prices a job weekly should not re-pay the first walk each time, and the registry should not accumulate markets saved once and abandoned. Unmeasured. Stage G |
+| ~~How long a region's pages are kept~~ | **Decided: a week, as a backstop.** A region's book is deleted with the region when its last station goes, so `DropRegionsOlderThan` only catches a book orphaned between those two steps. Seven days is far past the age of any book still walked hourly, so it cannot take a live one — see [overlay.md](./overlay.md) § G3 |
+| ~~How long a market stays tracked without being asked for~~ | **Decided: fourteen days.** Long enough that a reader who prices weekly, or takes a holiday, never re-pays their region's first walk; short enough that a market saved once and abandoned leaves the sweep — see [overlay.md](./overlay.md) § G3 |
 
 ## Stage status
 
@@ -920,8 +930,8 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
 | Stage D — The price cache and its two tiers | **Done.** Items 1-3 landed in Stage B or are inherited from it; the persistent tier is read-through on `idb-keyval`, entered at one seam, holding reader-saved markets only, with a stored row refused once its book's expiry passes and rows abandoned by a version bump removed on first touch — see [overlay.md](./overlay.md) § D1. What it still owes is pacing while a row stays warm in memory, which is Stage E's remaining item |
 | Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation), item 2 (a saved NPC station, now reachable — the loader sorts a tick's wants by transport) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E2, § E3, § C2. Still open: the citadel walk (item 3), refetching a saved source ahead of the reader rather than retiring its rows, which only a citadel needs, and end-to-end coverage of the station transport — `priceDelivery.e2e.test.jsx` proves the hub path against a mocked `fetch` and stops there, which is honest while nothing in a running app reaches a station, and a gap the moment Stage F stores one |
-| Stage G — An NPC station is priced by the server | **Started.** G0 has landed: the object-store bucket list had two hand-synced copies in two modules that cannot import each other, so it now has one owner and a committed fixture across the boundary, and the dead `S3_BUCKET` stack line is gone — the prerequisite for adding a bucket at all ([overlay.md](./overlay.md) § G0). G1 has landed: a region's pages are written to the `market-pages` bucket, the Redis page cache is deleted, and retention is explicit because object storage has no expiry — plus an in-memory `Backend`, without which the move would have turned four fetch tests into silent skips ([overlay.md](./overlay.md) § G1). The rest is **measured, not built.** Every known-space region was walked for its page count: all 70 cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost. The Forge alone is 408 pages and 92 MB, which a browser cannot walk hourly for each reader. The store is already shaped for it — `priceKey` is a type at a location — so what changes is three references to `DefaultMarketLocations` and one line in the worker. Still to build: walking a region and pricing a station split into two tasks, so a station in a tracked region is priced from stored pages with no ESI call; and a market tracked once somebody asks for it rather than every station being built ahead of use. Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
-| Stage F — Custom market locations | **Not this project's to build.** It is what makes a saved location a market rather than a selling point priced from a hub, and it belongs to the separate custom-structure work — so this project and Stage E item 3 both wait on that, see § Stage F |
+| Stage G — An NPC station is priced by the server | **Server side done, browser side open.** G0 has landed: the object-store bucket list had two hand-synced copies in two modules that cannot import each other, so it now has one owner and a committed fixture across the boundary, and the dead `S3_BUCKET` stack line is gone — the prerequisite for adding a bucket at all ([overlay.md](./overlay.md) § G0). G1 has landed: a region's pages are written to the `market-pages` bucket, the Redis page cache is deleted, and retention is explicit because object storage has no expiry — plus an in-memory `Backend`, without which the move would have turned four fetch tests into silent skips ([overlay.md](./overlay.md) § G1). The rest is **measured, not built.** Every known-space region was walked for its page count: all 70 cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost. The Forge alone is 408 pages and 92 MB, which a browser cannot walk hourly for each reader. The store is already shaped for it — `priceKey` is a type at a location — so what changes is three references to `DefaultMarketLocations` and one line in the worker. G2 and G3 have landed: the walk and the derive are two tasks, prices are keyed per station, a saved station is registered at login and on save, the sweep reads the tracked-region registry rather than the four hubs, and a daily task retires what nothing asks for ([overlay.md](./overlay.md) § G2, § G3). Still to build: the SPA reading a saved station's prices from the endpoint instead of walking its book itself. Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
+| Stage F — Custom market locations | **Not this project's to build, and built.** It is what makes a saved location a market rather than a selling point priced from a hub, and it belonged to the separate custom-structure work — [custom-structure-model](../custom-structure-model/contents.md) § Stage D landed it, which is what released Stage E item 3. See § Stage F |
 
 ## Start here
 
@@ -935,24 +945,30 @@ re-asked, because `PRICE_STALE_TIME` is `Infinity` and only a hub's moved clock 
 today. Each saved source's expiry belongs in `priceRefreshSchedule.js` beside the hub probe (§ C2),
 and `ordersByRegionAndType` already returns it.
 
-**Stage G, and it is under way.** § G0 and § G1 have landed: the bucket list has one owner, and a
-region's pages are now written to the `market-pages` bucket rather than Redis.
+**Stage G, and its server half is done.** § G0 to § G3 have landed: the bucket list has one owner, a
+region's pages are written to the `market-pages` bucket rather than Redis, walking and pricing are two
+tasks with the tracked-station set between them, and a saved market is registered by the account that
+holds it — the sweep then walks its region, and `retireUnaskedMarkets` drops it again when nothing has
+asked for a fortnight.
 
-Next is **splitting the walk from the pricing** — one task fetches a region and writes its pages, a
-second reads those pages and writes prices per station. That is where `PutPrice` stops being passed
-a region id under a parameter named `locationID`, and where a second station in a tracked region
-starts costing no ESI call. Two loose ends land with it, because both need a caller that does not
-exist yet: `DropRegionsOlderThan` is written but nothing calls it, and the wanted-station set
-(§ A market is tracked once somebody asks for it) is what the derive task reads in place of
-`request.StationID`.
+**Registration belongs to the account, not to a price request.** The server reads the settings document
+already, so login and the settings save publish `trackMarketSources` and the worker resolves and
+registers what it names. The SPA is told nothing about any of it.
 
-### The browser-side remainder is still shelved
+Next is **the browser giving up its own station fetch**, which is what makes this reachable to a
+reader: no SPA surface reads a saved station's prices from `/marketPricesQuery` today. That slice
+routes a saved station through the served transport under its station id, retires `fetchStationBook`'s
+per-type walk and the three pieces built for a client-side region sweep, and settles which tier a
+station's rows now live in — they were held on the reader's device because the reader paid for them,
+which stops being true when the server walks the book.
 
-What unshelves it is [custom-structure-model](../custom-structure-model/contents.md) landing a
-citadel that is a market rather than a selling point priced from a hub (§ Stage F). Stage G is not
-waiting on that.
+### The browser-side remainder is off the shelf
 
-#### What to pick up when it does, in order
+What it waited on — [custom-structure-model](../custom-structure-model/contents.md) landing a citadel
+that is a market rather than a selling point priced from a hub (§ Stage F) — has landed. Stage G
+never waited on it, so the two halves can be taken in either order.
+
+#### What to pick up, in order
 
 1. **The citadel walk** (§ Stage E item 3). The whole-book walk on the reader's own token, through
    `nameLoader`'s per-character machinery **extended** rather than copied. The ESI scope is already
@@ -968,18 +984,13 @@ waiting on that.
    path only. That was honest while nothing in a running app could reach the station branch; the
    moment a reader can save a market it is a real gap.
 
-### What the shelf does not hide
+### What is still owed while stages remain open
 
 **A live document is wrong in the meantime.** `frontend/pricing/price-entry.md` still describes the
 price store this project deleted — [overlay.md](./overlay.md) § Missing live SoT found on the way has
 what it should say. Live SoT is not edited before promote, and this project cannot promote while
-stages remain open, so that paragraph stays wrong for as long as the shelf lasts. It is the one cost
-of shelving rather than descoping, and it is recorded rather than accepted silently.
-
-**Descoping is the alternative, if the shelf turns out to be long.** Handing items 1 to 3 above to
-whichever project builds citadels would make this one complete and promotable, which would fix that
-live document. Not taken: the work is this project's design, and splitting it across two plans costs
-more than the wait.
+stages remain open, so that paragraph stays wrong until it closes. It is recorded rather than
+accepted silently.
 
 **Read [overlay.md](./overlay.md) § C5 before touching the cache.** A priced surface subscribes to no
 row entry — it reads figures synchronously while rendering — so anything that changes what is held

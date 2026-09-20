@@ -432,8 +432,8 @@ calculations, and the tax and rig rules.
 
 ### Still to do
 
-*Nothing outstanding in Stages A to C and BR.* Stage D has landed its model and owes its surfaces —
-see its section below. Stage BR2 remains and is not scheduled here — see [plan.md](./plan.md).
+*Nothing outstanding in Stages A to D.* Stage BR2 remains and is not scheduled here — see
+[plan.md](./plan.md).
 
 ### The surfaces that write a rig
 
@@ -510,9 +510,9 @@ tell is to assert the edit applied.
 
 ## Stage D — The kind that is a market
 
-**The model landed; nothing reads it yet.** A saved location can be expressed as either kind and
-stored, and no surface offers one — the form, `saleLocations.js` and the two faults that stage owns
-are still to come.
+**Landed.** A reader saves a market through the one form, the store and `saleLocations.js` read it,
+and the two faults this stage owns are closed. What a saved market is *priced* by is
+[market-price-delivery](../market-price-delivery/plan.md)'s — see § Still to fill.
 
 ### One market kind, and what the place it holds decides
 

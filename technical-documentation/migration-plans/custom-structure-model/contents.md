@@ -16,8 +16,8 @@ row already carries, in place of four lanes filled by three classes.
   once there is no class of its own to hold them.
 - **What a screen reads** to list structures, once there is no lane to name.
 
-**[market-price-delivery](../market-price-delivery/contents.md) is shelved until this project lands a
-kind that is a market**, so its remaining work resumes on the back of Stage A.
+**[market-price-delivery](../market-price-delivery/contents.md) was shelved until this project landed
+a kind that is a market.** Stage D landed it, so that project's browser-side remainder resumes.
 
 **Not live SoT** until this project is complete and promotion is approved.
 
