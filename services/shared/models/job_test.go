@@ -39,7 +39,10 @@ func TestJobCostPartsAreReadFromTheJob(t *testing.T) {
 		"34": {TypeID: 34, Quantity: 60},
 		"35": {TypeID: 35, Quantity: 40},
 	}}}
-	job.Build.Costs.LinkedJobs = []LinkedESIJob{{JobID: 1, Cost: 3}, {JobID: 2, Cost: 2}}
+	job.ESI.LinkedJobs = map[string]*LinkedESIJob{
+		"1": {JobID: 1, Cost: 3},
+		"2": {JobID: 2, Cost: 2},
+	}
 	job.Build.Costs.InventionEntries = map[string]InventionEntry{
 		"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
 	}
@@ -47,8 +50,14 @@ func TestJobCostPartsAreReadFromTheJob(t *testing.T) {
 		"e1": {ID: "e1", ExtraValue: 2},
 		"e2": {ID: "e2", ExtraValue: 1},
 	}
-	job.Build.Sale.BrokersFee = []BrokerFee{{Amount: 1}, {Amount: 0.5}}
-	job.Build.Sale.Transactions = []Transaction{{Tax: 0.5}, {Tax: 0.25}}
+	job.ESI.MarketOrders = map[string]*MarketOrder{
+		"1": {OrderID: 1, Fee: 1},
+		"2": {OrderID: 2, Fee: 0.5},
+	}
+	job.ESI.Transactions = map[string]*Transaction{
+		"1": {TransactionID: 1, Tax: 0.5},
+		"2": {TransactionID: 2, Tax: 0.25},
+	}
 
 	parts := job.CostParts()
 
@@ -146,33 +155,31 @@ func TestEachHalfOfTheSellingPlanTravelsOnItsOwn(t *testing.T) {
 	}
 }
 
-// Every job stored before the estimate existed carries fee rows without it. They
-// must read as no estimate rather than as a sale taxed nothing, and the figure
-// must stay out of what a job cost — the transaction the sale produces carries
-// what was actually charged.
-func TestABrokerFeeStoredWithoutAnEstimateHasNone(t *testing.T) {
+// An order stored with a fee but no estimate must read as no estimate rather
+// than as a sale taxed nothing, and the figure must stay out of what the job
+// cost — the transaction the sale produces carries what was actually charged.
+func TestAnOrderStoredWithoutASalesTaxEstimateHasNone(t *testing.T) {
 	t.Parallel()
 
 	raw, err := bson.Marshal(bson.M{
 		"order_id": 900,
-		"id":       int64(55),
-		"date":     "2026-08-01T00:00:00Z",
-		"amount":   1500000.0,
+		"feeDate":  "2026-08-01T00:00:00Z",
+		"fee":      1500000.0,
 	})
 	if err != nil {
 		t.Fatalf("bson.Marshal: %v", err)
 	}
 
-	var fee BrokerFee
-	if err := bson.Unmarshal(raw, &fee); err != nil {
+	var order MarketOrder
+	if err := bson.Unmarshal(raw, &order); err != nil {
 		t.Fatalf("bson.Unmarshal: %v", err)
 	}
 
-	if fee.SalesTax != 0 {
-		t.Errorf("SalesTax = %v, want 0", fee.SalesTax)
+	if order.SalesTax != 0 {
+		t.Errorf("SalesTax = %v, want 0", order.SalesTax)
 	}
-	if fee.Amount != 1500000 {
-		t.Errorf("Amount = %v, want 1500000", fee.Amount)
+	if order.Fee != 1500000 {
+		t.Errorf("Fee = %v, want 1500000", order.Fee)
 	}
 }
 
@@ -181,8 +188,8 @@ func TestTheSalesTaxEstimateStaysOutOfACostTotal(t *testing.T) {
 	t.Parallel()
 
 	job := Job{}
-	job.Build.Sale.BrokersFee = []BrokerFee{
-		{OrderID: 900, Amount: 1_500_000, SalesTax: 7_500_000},
+	job.ESI.MarketOrders = map[string]*MarketOrder{
+		"900": {OrderID: 900, Fee: 1_500_000, SalesTax: 7_500_000},
 	}
 
 	if got := job.CostParts().BrokersFee; got != 1_500_000 {
@@ -324,6 +331,9 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 	job.Build.Costs.InventionEntries = map[string]InventionEntry{
 		"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
 	}
+	job.ESI.LinkedJobs = map[string]*LinkedESIJob{"1": {JobID: 1, Cost: 7}}
+	job.ESI.MarketOrders = map[string]*MarketOrder{"900": {OrderID: 900, Fee: 5}}
+	job.ESI.Transactions = map[string]*Transaction{"77": {TransactionID: 77, Tax: 1}}
 
 	raw, err := bson.Marshal(job)
 	if err != nil {
@@ -343,6 +353,7 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 	costs := nested(t, build, "costs")
 	materials := nested(t, build, "materials")
 	material := nested(t, materials, "34")
+	esi := nested(t, stored, "esi")
 
 	for _, field := range []struct {
 		where string
@@ -354,6 +365,9 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 		{"build.materials.34.", material, "purchasing"},
 		{"build.costs.", costs, "extrasCosts"},
 		{"build.costs.", costs, "inventionEntries"},
+		{"esi.", esi, "linkedJobs"},
+		{"esi.", esi, "marketOrders"},
+		{"esi.", esi, "transactions"},
 	} {
 		held, found := lookup(field.doc, field.key)
 		if !found {
@@ -372,6 +386,17 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 	}
 	if _, found := lookup(nested(t, material, "purchasing"), "p1"); !found {
 		t.Errorf("a purchase is not filed under its own id: %v", material)
+	}
+	// Each ESI collection is filed under the id ESI itself assigned, which is how
+	// a linked row is found rather than searched for.
+	for _, filed := range []struct{ collection, key string }{
+		{"linkedJobs", "1"},
+		{"marketOrders", "900"},
+		{"transactions", "77"},
+	} {
+		if _, found := lookup(nested(t, esi, filed.collection), filed.key); !found {
+			t.Errorf("esi.%s is not filed under %q: %v", filed.collection, filed.key, esi)
+		}
 	}
 }
 

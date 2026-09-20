@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"eve-industry-planner/shared/jsoncodec"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -37,6 +38,7 @@ type Job struct {
 	GroupID             string           `json:"groupID" bson:"groupID"` // empty string when not in a group
 	IsReadyToSell       bool             `json:"isReadyToSell" bson:"isReadyToSell"`
 	Build               JobBuild         `json:"build" bson:"build"`
+	ESI                 JobESI           `json:"esi" bson:"esi"`
 	RawData             RawData          `json:"rawData" bson:"rawData"`
 	Skills              map[string]Skill `json:"skills" bson:"skills"`
 	ItemsProducedPerRun int              `json:"itemsProducedPerRun" bson:"itemsProducedPerRun"`
@@ -66,7 +68,7 @@ func IsMarketTransactionID(id int64) bool {
 
 // SalesAreFromMarket reports whether ESI recorded any of this job's sales.
 func (j Job) SalesAreFromMarket() bool {
-	for _, transaction := range j.Build.Sale.Transactions {
+	for _, transaction := range j.ESI.Transactions {
 		if IsMarketTransactionID(transaction.TransactionID) {
 			return true
 		}
@@ -128,7 +130,6 @@ type MaterialCount struct {
 type JobCosts struct {
 	// ExtrasCosts is keyed by each row's own id.
 	ExtrasCosts map[string]ExtraCost `json:"extrasCosts" bson:"extrasCosts"`
-	LinkedJobs  []LinkedESIJob       `json:"linkedJobs" bson:"linkedJobs"`
 	// InventionEntries is keyed by each row's own id.
 	InventionEntries map[string]InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
 }
@@ -163,7 +164,7 @@ func (p JobCostParts) Total() float64 {
 // keeps to itself.
 func (j Job) TotalInstallCost() float64 {
 	var installed float64
-	for _, linked := range j.Build.Costs.LinkedJobs {
+	for _, linked := range j.ESI.LinkedJobs {
 		installed += linked.Cost
 	}
 	return installed
@@ -200,11 +201,16 @@ func (j Job) TotalInventionCost() float64 {
 }
 
 // LinkedESIJobIDs is the ESI industry jobs linked to this job.
+//
+// Sorted rather than ranged: the rows come out of a map, and these ids are
+// compared and stored on the group shape, so an unordered list would read as a
+// change on every rebuild.
 func (j Job) LinkedESIJobIDs() []int64 {
-	out := make([]int64, 0, len(j.Build.Costs.LinkedJobs))
-	for _, linked := range j.Build.Costs.LinkedJobs {
+	out := make([]int64, 0, len(j.ESI.LinkedJobs))
+	for _, linked := range j.ESI.LinkedJobs {
 		out = append(out, int64(linked.JobID))
 	}
+	slices.Sort(out)
 	return out
 }
 
@@ -216,21 +222,25 @@ func (o MarketOrder) IsComplete() bool {
 	return o.VolumeTotal > 0 && o.VolumeRemain <= 0
 }
 
-// LinkedOrderIDs is the ESI market orders linked to this job.
+// LinkedOrderIDs is the ESI market orders linked to this job. Sorted, for the
+// reason LinkedESIJobIDs gives.
 func (j Job) LinkedOrderIDs() []int64 {
-	out := make([]int64, 0, len(j.Build.Sale.MarketOrders))
-	for _, order := range j.Build.Sale.MarketOrders {
+	out := make([]int64, 0, len(j.ESI.MarketOrders))
+	for _, order := range j.ESI.MarketOrders {
 		out = append(out, int64(order.OrderID))
 	}
+	slices.Sort(out)
 	return out
 }
 
-// LinkedTransactionIDs is the ESI transactions linked to this job.
+// LinkedTransactionIDs is the ESI transactions linked to this job. Sorted, for
+// the reason LinkedESIJobIDs gives.
 func (j Job) LinkedTransactionIDs() []int64 {
-	out := make([]int64, 0, len(j.Build.Sale.Transactions))
-	for _, transaction := range j.Build.Sale.Transactions {
+	out := make([]int64, 0, len(j.ESI.Transactions))
+	for _, transaction := range j.ESI.Transactions {
 		out = append(out, transaction.TransactionID)
 	}
+	slices.Sort(out)
 	return out
 }
 
@@ -261,10 +271,10 @@ func (j Job) CostParts() JobCostParts {
 		Invention: j.TotalInventionCost(),
 		Extras:    j.TotalExtrasCost(),
 	}
-	for _, fee := range j.Build.Sale.BrokersFee {
-		parts.BrokersFee += fee.Amount
+	for _, order := range j.ESI.MarketOrders {
+		parts.BrokersFee += order.Fee
 	}
-	for _, transaction := range j.Build.Sale.Transactions {
+	for _, transaction := range j.ESI.Transactions {
 		parts.TransactionFee += transaction.Tax
 	}
 	return parts
@@ -617,10 +627,22 @@ func (e *InventionEntry) UnmarshalJSON(data []byte) error {
 
 // JobSale contains sales and market order data
 type JobSale struct {
-	MarketOrders []MarketOrder  `json:"marketOrders" bson:"marketOrders"`
-	Transactions []Transaction  `json:"transactions" bson:"transactions"`
-	BrokersFee   []BrokerFee    `json:"brokersFee" bson:"brokersFee"`
-	Plan         JobSellingPlan `json:"plan" bson:"plan"`
+	Plan JobSellingPlan `json:"plan" bson:"plan"`
+}
+
+// JobESI holds what ESI observed about this job: the industry jobs it was built
+// by, and the orders and sales it was sold through. Each collection is keyed by
+// the id ESI itself assigns — job_id, order_id, transaction_id — so a row is
+// found by the id it already carries rather than searched for.
+//
+// Rows are pointers because jobidentity takes the address of each row's identity
+// fields to write refs back in place, and a map value is not addressable. That
+// makes a row shared rather than copied when a job is: anything that filters one
+// of these collections into a new job hands on the same rows.
+type JobESI struct {
+	LinkedJobs   map[string]*LinkedESIJob `json:"linkedJobs" bson:"linkedJobs"`
+	MarketOrders map[string]*MarketOrder  `json:"marketOrders" bson:"marketOrders"`
+	Transactions map[string]*Transaction  `json:"transactions" bson:"transactions"`
 }
 
 type JobSellingPlan struct {
@@ -648,6 +670,13 @@ type MarketOrder struct {
 	CharacterID    int      `json:"character_id,omitzero" bson:"-"` // client-facing only
 	CharacterRef   string   `json:"-" bson:"character_ref,omitempty"`
 	State          string   `json:"state" bson:"state"` // Order state (active, etc.)
+	// Fee, SalesTax and FeeDate are the broker fee charged on this order. A fee
+	// carries no identity of its own — the journal id it arrived with is shared
+	// between orders listed together in one multi-sell — so it is a property of
+	// the order it was charged against rather than a row beside it.
+	Fee      float64 `json:"fee" bson:"fee"`
+	SalesTax float64 `json:"salesTax" bson:"salesTax"`
+	FeeDate  string  `json:"feeDate" bson:"feeDate"`
 }
 
 // Transaction is a completed sale linked to a job. Tax is what EVE charged on
@@ -670,14 +699,6 @@ type Transaction struct {
 	CorporationRef string  `json:"-" bson:"corporation_ref,omitempty"`
 	CharacterID    int     `json:"character_id,omitzero" bson:"-"` // client-facing only
 	CharacterRef   string  `json:"-" bson:"character_ref,omitempty"`
-}
-
-type BrokerFee struct {
-	OrderID  int     `json:"order_id" bson:"order_id"` // Order ID associated with the fee
-	ID       int64   `json:"id" bson:"id"`             // Journal entry ID; shared by orders listed together
-	Date     string  `json:"date" bson:"date"`         // Fee date
-	Amount   float64 `json:"amount" bson:"amount"`     // Fee amount
-	SalesTax float64 `json:"salesTax" bson:"salesTax"` // Estimated tax on the sale, until it happens
 }
 
 // JobMaterial represents a material required for the job

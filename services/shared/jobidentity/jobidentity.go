@@ -27,27 +27,37 @@ func targets(job *models.Job) []protectedfields.Target {
 	}
 	out := make([]protectedfields.Target, 0, 16)
 
-	tx := job.Build.Sale.Transactions
-	for i := range tx {
+	// Each row is a pointer, so its identity fields are addressed in place — which
+	// is why these collections hold pointers rather than values. A nil row is
+	// skipped rather than dereferenced: a stored null decodes to one, and a
+	// document with a bad row should not stop the rest of it being protected.
+	for _, tx := range job.ESI.Transactions {
+		if tx == nil {
+			continue
+		}
 		out = append(out,
-			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &tx[i].CorporationID, Ref: &tx[i].CorporationRef},
-			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &tx[i].CharacterID, Ref: &tx[i].CharacterRef},
+			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &tx.CorporationID, Ref: &tx.CorporationRef},
+			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &tx.CharacterID, Ref: &tx.CharacterRef},
 		)
 	}
 
-	orders := job.Build.Sale.MarketOrders
-	for i := range orders {
+	for _, order := range job.ESI.MarketOrders {
+		if order == nil {
+			continue
+		}
 		out = append(out,
-			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &orders[i].CorporationID, Ref: &orders[i].CorporationRef},
-			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &orders[i].CharacterID, Ref: &orders[i].CharacterRef},
+			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &order.CorporationID, Ref: &order.CorporationRef},
+			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &order.CharacterID, Ref: &order.CharacterRef},
 		)
 	}
 
-	linked := job.Build.Costs.LinkedJobs
-	for i := range linked {
+	for _, linked := range job.ESI.LinkedJobs {
+		if linked == nil {
+			continue
+		}
 		out = append(out,
-			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &linked[i].CorporationID, Ref: &linked[i].CorporationRef},
-			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &linked[i].CharacterID, Ref: &linked[i].CharacterRef},
+			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &linked.CorporationID, Ref: &linked.CorporationRef},
+			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &linked.CharacterID, Ref: &linked.CharacterRef},
 		)
 	}
 

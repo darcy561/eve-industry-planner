@@ -110,10 +110,10 @@ func costMonthFor(job models.Job, archivedAt time.Time) models.CalendarMonth {
 	if job.FiledCostMonth.Valid() {
 		return *job.FiledCostMonth
 	}
-	if earliest, ok := earliestLinkedJobDate(job.Build.Costs.LinkedJobs, archivedAt); ok {
+	if earliest, ok := earliestLinkedJobDate(job.ESI.LinkedJobs, archivedAt); ok {
 		return monthOf(earliest)
 	}
-	if earliest, ok := earliestTransactionDate(job.Build.Sale.Transactions, archivedAt); ok {
+	if earliest, ok := earliestTransactionDate(job.ESI.Transactions, archivedAt); ok {
 		return monthOf(earliest)
 	}
 	return monthOf(archivedAt)
@@ -124,10 +124,15 @@ func monthOf(t time.Time) models.CalendarMonth {
 	return models.CalendarMonth{Year: t.Year(), Month: int(t.Month())}
 }
 
-func earliestLinkedJobDate(linked []models.LinkedESIJob, fallback time.Time) (time.Time, bool) {
+// The rows come out of a map, but only the earliest date is returned and a
+// minimum does not depend on the order it is taken in.
+func earliestLinkedJobDate(linked map[string]*models.LinkedESIJob, fallback time.Time) (time.Time, bool) {
 	var earliest time.Time
 	found := false
 	for _, lj := range linked {
+		if lj == nil {
+			continue
+		}
 		for _, raw := range []string{lj.StartDate, lj.EndDate, lj.CompletedDate} {
 			if strings.TrimSpace(raw) == "" {
 				continue
@@ -141,10 +146,14 @@ func earliestLinkedJobDate(linked []models.LinkedESIJob, fallback time.Time) (ti
 	return earliest, found
 }
 
-func earliestTransactionDate(transactions []models.Transaction, fallback time.Time) (time.Time, bool) {
+// Order-independent for the reason earliestLinkedJobDate gives.
+func earliestTransactionDate(transactions map[string]*models.Transaction, fallback time.Time) (time.Time, bool) {
 	var earliest time.Time
 	found := false
 	for _, t := range transactions {
+		if t == nil {
+			continue
+		}
 		if strings.TrimSpace(t.Date) == "" {
 			continue
 		}
@@ -215,14 +224,21 @@ func buildTransactionLines(
 	archivedAt time.Time,
 	costPerItem float64,
 ) ([]models.ArchivedJobTransactionLine, float64) {
-	lines := make([]models.ArchivedJobTransactionLine, 0, len(job.Build.Sale.Transactions))
+	lines := make([]models.ArchivedJobTransactionLine, 0, len(job.ESI.Transactions))
 	soldQuantity := 0.0
 
 	// Only a job whose sales are all hand-entered can be filed: money the market
 	// recorded arrived when it arrived.
 	filed := filedSalesMonth(job)
 
-	for _, t := range job.Build.Sale.Transactions {
+	// Sorted rather than ranged: these lines are stored on the statistics row, so
+	// walking a map in whatever order the keys give would write a different
+	// document on each rebuild.
+	for _, key := range slices.Sorted(maps.Keys(job.ESI.Transactions)) {
+		t := job.ESI.Transactions[key]
+		if t == nil {
+			continue
+		}
 		quantity := float64(t.Quantity)
 		soldQuantity += quantity
 
@@ -264,19 +280,26 @@ func lineMonth(filed *models.CalendarMonth, date time.Time) models.CalendarMonth
 }
 
 func buildFeeLines(job models.Job, archivedAt time.Time) []models.ArchivedJobFeeLine {
-	lines := make([]models.ArchivedJobFeeLine, 0, len(job.Build.Sale.BrokersFee))
+	lines := make([]models.ArchivedJobFeeLine, 0, len(job.ESI.MarketOrders))
 
 	// A broker fee belongs to a market order, so it moves with the income it was
 	// charged against and only when that income was not the market's.
 	filed := filedSalesMonth(job)
 
-	for _, f := range job.Build.Sale.BrokersFee {
-		date := parseLineDate(f.Date, archivedAt)
+	// Sorted for the reason buildTransactionLines gives: this list is stored.
+	for _, key := range slices.Sorted(maps.Keys(job.ESI.MarketOrders)) {
+		o := job.ESI.MarketOrders[key]
+		// An order charged nothing has no fee line. The fee lives on the order
+		// now, so every order would otherwise produce one.
+		if o == nil || o.Fee == 0 {
+			continue
+		}
+		date := parseLineDate(o.FeeDate, archivedAt)
 		lines = append(lines, models.ArchivedJobFeeLine{
-			OrderID:       f.OrderID,
+			OrderID:       o.OrderID,
 			Date:          date,
 			CalendarMonth: lineMonth(filed, date),
-			Amount:        f.Amount,
+			Amount:        o.Fee,
 		})
 	}
 	return lines
@@ -297,10 +320,10 @@ func EvidencedArchiveDate(job models.Job) (time.Time, bool) {
 	// The zero time is only a parse fallback here; both helpers report whether
 	// they found anything, so it is never returned as a real date.
 	var none time.Time
-	if earliest, ok := earliestLinkedJobDate(job.Build.Costs.LinkedJobs, none); ok && !earliest.IsZero() {
+	if earliest, ok := earliestLinkedJobDate(job.ESI.LinkedJobs, none); ok && !earliest.IsZero() {
 		return earliest.UTC(), true
 	}
-	if earliest, ok := earliestTransactionDate(job.Build.Sale.Transactions, none); ok && !earliest.IsZero() {
+	if earliest, ok := earliestTransactionDate(job.ESI.Transactions, none); ok && !earliest.IsZero() {
 		return earliest.UTC(), true
 	}
 	return time.Time{}, false

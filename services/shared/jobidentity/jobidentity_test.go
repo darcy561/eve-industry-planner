@@ -2,6 +2,7 @@ package jobidentity
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -15,11 +16,17 @@ import (
 
 func jobWithIDs() *models.Job {
 	job := &models.Job{JobID: "job-1"}
-	job.Build.Sale.Transactions = []models.Transaction{{TransactionID: 7712345678, CorporationID: 98765432, CharacterID: 91234567}}
-	job.Build.Sale.MarketOrders = []models.MarketOrder{{OrderID: 6201234567, CorporationID: 98765432, CharacterID: 91234567}}
-	// A broker fee records no identity of its own; its order carries it.
-	job.Build.Sale.BrokersFee = []models.BrokerFee{{ID: 5500000001, OrderID: 6201234567}}
-	job.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: 512345678, CorporationID: 98765432, CharacterID: 91234567}}
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"7712345678": {TransactionID: 7712345678, CorporationID: 98765432, CharacterID: 91234567},
+	}
+	// The broker fee records no identity of its own; the order it was charged
+	// against carries it.
+	job.ESI.MarketOrders = map[string]*models.MarketOrder{
+		"6201234567": {OrderID: 6201234567, CorporationID: 98765432, CharacterID: 91234567, Fee: 250000, FeeDate: "2026-08-01T00:00:00Z"},
+	}
+	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+		"512345678": {JobID: 512345678, CorporationID: 98765432, CharacterID: 91234567},
+	}
 	return job
 }
 
@@ -36,18 +43,18 @@ func TestToRefsReplacesEveryIDAndMarksTheSpec(t *testing.T) {
 		t.Fatalf("protection = %+v, want spec %q", job.Protected, protectedfields.SpecJobFieldsV1)
 	}
 	for _, got := range []string{
-		job.Build.Sale.Transactions[0].CorporationRef,
-		job.Build.Sale.MarketOrders[0].CorporationRef,
-		job.Build.Costs.LinkedJobs[0].CorporationRef,
+		job.ESI.Transactions["7712345678"].CorporationRef,
+		job.ESI.MarketOrders["6201234567"].CorporationRef,
+		job.ESI.LinkedJobs["512345678"].CorporationRef,
 	} {
 		if kind, ok := entityid.ParseKind(got); !ok || kind != entityid.KindCorp {
 			t.Fatalf("corporation ref = %q, want a well formed corp ref", got)
 		}
 	}
 	for _, got := range []string{
-		job.Build.Sale.Transactions[0].CharacterRef,
-		job.Build.Sale.MarketOrders[0].CharacterRef,
-		job.Build.Costs.LinkedJobs[0].CharacterRef,
+		job.ESI.Transactions["7712345678"].CharacterRef,
+		job.ESI.MarketOrders["6201234567"].CharacterRef,
+		job.ESI.LinkedJobs["512345678"].CharacterRef,
 	} {
 		if kind, ok := entityid.ParseKind(got); !ok || kind != entityid.KindCharacter {
 			t.Fatalf("character ref = %q, want a well formed character ref", got)
@@ -67,7 +74,7 @@ func TestRefsAreDeterministicAcrossDocuments(t *testing.T) {
 	if err := Encrypt(b, h); err != nil {
 		t.Fatalf("ToRefs: %v", err)
 	}
-	if a.Build.Costs.LinkedJobs[0].CorporationRef != b.Build.Costs.LinkedJobs[0].CorporationRef {
+	if a.ESI.LinkedJobs["512345678"].CorporationRef != b.ESI.LinkedJobs["512345678"].CorporationRef {
 		t.Fatal("the same corporation id produced different refs")
 	}
 }
@@ -76,12 +83,14 @@ func TestRefsAreDeterministicAcrossDocuments(t *testing.T) {
 // the same numeric id stay distinguishable.
 func TestKindsDoNotCollide(t *testing.T) {
 	job := &models.Job{JobID: "job-collide"}
-	job.Build.Sale.Transactions = []models.Transaction{{TransactionID: 1, CorporationID: 42, CharacterID: 42}}
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"1": {TransactionID: 1, CorporationID: 42, CharacterID: 42},
+	}
 
 	if err := Encrypt(job, keys.EntityCipher(t)); err != nil {
 		t.Fatalf("ToRefs: %v", err)
 	}
-	line := job.Build.Sale.Transactions[0]
+	line := job.ESI.Transactions["1"]
 	if line.CorporationRef == line.CharacterRef {
 		t.Fatalf("one id produced the same ref for two kinds: %q", line.CorporationRef)
 	}
@@ -94,12 +103,12 @@ func TestToRefsIsIdempotent(t *testing.T) {
 	if err := Encrypt(job, h); err != nil {
 		t.Fatalf("first ToRefs: %v", err)
 	}
-	first := job.Build.Costs.LinkedJobs[0].CorporationRef
+	first := job.ESI.LinkedJobs["512345678"].CorporationRef
 
 	if err := Encrypt(job, h); err != nil {
 		t.Fatalf("second ToRefs: %v", err)
 	}
-	if got := job.Build.Costs.LinkedJobs[0].CorporationRef; got != first {
+	if got := job.ESI.LinkedJobs["512345678"].CorporationRef; got != first {
 		t.Fatalf("re-running changed the ref: %q then %q", first, got)
 	}
 }
@@ -251,6 +260,9 @@ func TestResponseCarriesIDsAndNotStoredValues(t *testing.T) {
 
 // storedValues reads every target's stored value through the declaration, so it
 // cannot drift from the field set the package converts.
+//
+// Sorted: the targets are walked out of the job's keyed collections, so their
+// order is the map's and says nothing about which row a value came from.
 func storedValues(t *testing.T, job *models.Job) []string {
 	t.Helper()
 	var out []string
@@ -259,5 +271,6 @@ func storedValues(t *testing.T, job *models.Job) []string {
 			out = append(out, *target.Ref)
 		}
 	}
+	slices.Sort(out)
 	return out
 }

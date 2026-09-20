@@ -29,21 +29,20 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 				InventionEntries: map[string]models.InventionEntry{
 					"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
 				},
-				LinkedJobs: []models.LinkedESIJob{
-					{IsCorporation: false, Cost: 2},
-					{IsCorporation: true, Cost: 3},
-				},
 			},
-			Sale: models.JobSale{
-				BrokersFee: []models.BrokerFee{{Amount: 1.5}},
-				Transactions: []models.Transaction{
-					{Tax: 0.5, Amount: 80, Quantity: 8},
-					{Tax: 0.25, Amount: 40, Quantity: 2},
-				},
-				MarketOrders: []models.MarketOrder{
-					{IsCorporation: false},
-					{IsCorporation: true},
-				},
+		},
+		ESI: models.JobESI{
+			LinkedJobs: map[string]*models.LinkedESIJob{
+				"1": {JobID: 1, IsCorporation: false, Cost: 2},
+				"2": {JobID: 2, IsCorporation: true, Cost: 3},
+			},
+			Transactions: map[string]*models.Transaction{
+				"1": {TransactionID: 1, Tax: 0.5, Amount: 80, Quantity: 8},
+				"2": {TransactionID: 2, Tax: 0.25, Amount: 40, Quantity: 2},
+			},
+			MarketOrders: map[string]*models.MarketOrder{
+				"1": {OrderID: 1, IsCorporation: false, Fee: 1.5},
+				"2": {OrderID: 2, IsCorporation: true},
 			},
 		},
 	}

@@ -13,11 +13,13 @@ func sampleJob() models.Job {
 	job := models.Job{JobID: "job-1", ItemID: 34, JobType: 1}
 	job.MetaData.Owner = models.AccountOwner("acct-1")
 	job.MetaData.ArchivedAt = time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
-	job.Build.Sale.Transactions = []models.Transaction{
-		{TransactionID: 1, OrderID: 900, Quantity: 4, Amount: 400, Tax: 40, Date: "2026-06-01T00:00:00Z"},
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"1": {TransactionID: 1, OrderID: 900, Quantity: 4, Amount: 400, Tax: 40, Date: "2026-06-01T00:00:00Z"},
 	}
-	job.Build.Sale.MarketOrders = []models.MarketOrder{{OrderID: 900}}
-	job.Build.Sale.BrokersFee = []models.BrokerFee{{ID: 7, OrderID: 900, Amount: 5, Date: "2026-06-02T00:00:00Z"}}
+	// The broker fee lives on the order it was charged against.
+	job.ESI.MarketOrders = map[string]*models.MarketOrder{
+		"900": {OrderID: 900, Fee: 5, FeeDate: "2026-06-02T00:00:00Z"},
+	}
 	return job
 }
 
@@ -67,7 +69,7 @@ func TestOversoldJobDoesNotReportNegativeUnsold(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
-	job.Build.Sale.Transactions[0].Quantity = 25
+	job.ESI.Transactions["1"].Quantity = 25
 	doc := RowFromFigures(job, sampleSnap(), buildNow)
 
 	if doc.UnsoldQuantity != 0 {
@@ -96,9 +98,9 @@ func TestCostMonthComesFromTheEarliestLinkedJob(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
-	job.Build.Costs.LinkedJobs = []models.LinkedESIJob{
-		{JobID: 1, StartDate: "2026-04-20T00:00:00Z"},
-		{JobID: 2, StartDate: "2026-03-05T00:00:00Z"},
+	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+		"1": {JobID: 1, StartDate: "2026-04-20T00:00:00Z"},
+		"2": {JobID: 2, StartDate: "2026-03-05T00:00:00Z"},
 	}
 
 	doc := RowFromFigures(job, sampleSnap(), buildNow)
@@ -115,7 +117,7 @@ func TestCostMonthFallsBackThroughSalesToArchiveDate(t *testing.T) {
 		t.Fatalf("costMonth = %+v, want the earliest sale month 6", got)
 	}
 
-	job.Build.Sale.Transactions = nil
+	job.ESI.Transactions = nil
 	job.MetaData.ArchivedAt = time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 	if got := RowFromFigures(job, sampleSnap(), buildNow).CostMonth; got.Month != 2 {
 		t.Fatalf("costMonth = %+v, want the archive month 2", got)
@@ -127,7 +129,7 @@ func TestUnparsableLineDateFallsBackToTheArchiveDate(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
-	job.Build.Sale.Transactions[0].Date = "not a date"
+	job.ESI.Transactions["1"].Date = "not a date"
 
 	line := RowFromFigures(job, sampleSnap(), buildNow).TransactionLines[0]
 	if line.Year != 2026 || line.Month != 6 {
@@ -176,9 +178,9 @@ func TestBuildIsDeterministic(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
-	job.Build.Costs.LinkedJobs = []models.LinkedESIJob{
-		{JobID: 2, StartDate: "2026-05-04T00:00:00Z"},
-		{JobID: 1, StartDate: "2026-05-02T00:00:00Z"},
+	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+		"2": {JobID: 2, StartDate: "2026-05-04T00:00:00Z"},
+		"1": {JobID: 1, StartDate: "2026-05-02T00:00:00Z"},
 	}
 	job.Build.Costs.ExtrasCosts = map[string]models.ExtraCost{
 		"e1": {ID: "e1", Category: "x", ExtraValue: 1},
@@ -228,9 +230,9 @@ func TestMissingArchiveDateFallsBackToDocumentTimestamps(t *testing.T) {
 	job.MetaData.ArchivedAt = time.Time{}
 	job.MetaData.LastModified = lastModified
 	job.MetaData.CreatedAt = created
-	job.Build.Sale.Transactions = nil
-	job.Build.Sale.BrokersFee = nil
-	job.Build.Costs.LinkedJobs = nil
+	job.ESI.Transactions = nil
+	job.ESI.MarketOrders = nil
+	job.ESI.LinkedJobs = nil
 
 	doc := RowFromFigures(job, sampleSnap(), buildNow)
 	if !doc.ArchivedAt.Equal(lastModified) {
@@ -252,9 +254,9 @@ func TestMissingArchiveAndModifiedDatesFallBackToCreated(t *testing.T) {
 	job.MetaData.ArchivedAt = time.Time{}
 	job.MetaData.LastModified = time.Time{}
 	job.MetaData.CreatedAt = created
-	job.Build.Sale.Transactions = nil
-	job.Build.Sale.BrokersFee = nil
-	job.Build.Costs.LinkedJobs = nil
+	job.ESI.Transactions = nil
+	job.ESI.MarketOrders = nil
+	job.ESI.LinkedJobs = nil
 
 	doc := RowFromFigures(job, sampleSnap(), buildNow)
 	if !doc.ArchivedAt.Equal(created) {
@@ -273,9 +275,9 @@ func TestCostMonthDoesNotMoveWithTheRebuildClock(t *testing.T) {
 	job := sampleJob()
 	job.MetaData.ArchivedAt = time.Time{}
 	job.MetaData.LastModified = time.Date(2026, 4, 9, 0, 0, 0, 0, time.UTC)
-	job.Build.Sale.Transactions = nil
-	job.Build.Sale.BrokersFee = nil
-	job.Build.Costs.LinkedJobs = nil
+	job.ESI.Transactions = nil
+	job.ESI.MarketOrders = nil
+	job.ESI.LinkedJobs = nil
 
 	first := RowFromFigures(job, sampleSnap(), buildNow)
 	later := RowFromFigures(job, sampleSnap(), buildNow.AddDate(0, 5, 0))
@@ -294,9 +296,9 @@ func TestJobWithNoTimestampsStillGetsAMonth(t *testing.T) {
 	job.MetaData.ArchivedAt = time.Time{}
 	job.MetaData.LastModified = time.Time{}
 	job.MetaData.CreatedAt = time.Time{}
-	job.Build.Sale.Transactions = nil
-	job.Build.Sale.BrokersFee = nil
-	job.Build.Costs.LinkedJobs = nil
+	job.ESI.Transactions = nil
+	job.ESI.MarketOrders = nil
+	job.ESI.LinkedJobs = nil
 
 	doc := RowFromFigures(job, sampleSnap(), buildNow)
 	if doc.CostMonth.Year == 0 {
@@ -331,8 +333,8 @@ func TestEvidencedArchiveDateReportsWhenItCannotDate(t *testing.T) {
 	job := sampleJob()
 	job.MetaData.ArchivedAt = time.Time{}
 	job.MetaData.CreatedAt = time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)
-	job.Build.Costs.LinkedJobs = nil
-	job.Build.Sale.Transactions = nil
+	job.ESI.LinkedJobs = nil
+	job.ESI.Transactions = nil
 
 	got, ok := EvidencedArchiveDate(job)
 	if ok {
@@ -349,7 +351,7 @@ func TestEvidencedArchiveDateFallsBackToSales(t *testing.T) {
 
 	job := sampleJob()
 	job.MetaData.ArchivedAt = time.Time{}
-	job.Build.Costs.LinkedJobs = nil
+	job.ESI.LinkedJobs = nil
 
 	got, ok := EvidencedArchiveDate(job)
 	if !ok {
@@ -369,12 +371,14 @@ func TestMarketSalesIgnoreAFiledSalesMonth(t *testing.T) {
 	job := models.Job{JobID: "job-filed-market", ItemID: 34, ItemsProducedPerRun: 1}
 	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
 	job.FiledSalesMonth = &filed
-	job.Build.Sale.Transactions = []models.Transaction{{
-		TransactionID: 6000000001, // ESI's own
-		Quantity:      1,
-		Amount:        100,
-		Date:          "2026-08-10T00:00:00Z",
-	}}
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"6000000001": {
+			TransactionID: 6000000001, // ESI's own
+			Quantity:      1,
+			Amount:        100,
+			Date:          "2026-08-10T00:00:00Z",
+		},
+	}
 
 	row, err := NewRow(job, time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC))
 	if err != nil {
@@ -391,13 +395,17 @@ func TestHandEnteredSalesFollowAFiledSalesMonth(t *testing.T) {
 	job := models.Job{JobID: "job-filed-hand", ItemID: 34, ItemsProducedPerRun: 1}
 	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
 	job.FiledSalesMonth = &filed
-	job.Build.Sale.Transactions = []models.Transaction{{
-		TransactionID: -1700000000001,
-		Quantity:      1,
-		Amount:        100,
-		Date:          "2026-08-10T00:00:00Z",
-	}}
-	job.Build.Sale.BrokersFee = []models.BrokerFee{{ID: -1, Amount: 5, Date: "2026-08-09T00:00:00Z"}}
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"-1700000000001": {
+			TransactionID: -1700000000001,
+			Quantity:      1,
+			Amount:        100,
+			Date:          "2026-08-10T00:00:00Z",
+		},
+	}
+	job.ESI.MarketOrders = map[string]*models.MarketOrder{
+		"900": {OrderID: 900, Fee: 5, FeeDate: "2026-08-09T00:00:00Z"},
+	}
 
 	row, err := NewRow(job, time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC))
 	if err != nil {

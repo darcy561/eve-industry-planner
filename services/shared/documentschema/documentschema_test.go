@@ -23,15 +23,15 @@ func TestJobUpgradeStampsUnversionedAsCurrent(t *testing.T) {
 func TestJobUpgradeLeavesIdentityAlone(t *testing.T) {
 	t.Parallel()
 	job := &models.Job{JobID: "job-1"}
-	job.Build.Costs.LinkedJobs = []models.LinkedESIJob{
-		{JobID: 512345678, CorporationID: 98765432},
+	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+		"512345678": {JobID: 512345678, CorporationID: 98765432},
 	}
 
 	(Upgrader{}).Job(job)
 	if job.Protected != nil {
 		t.Fatal("the schema upgrade must not touch field protection")
 	}
-	if job.Build.Costs.LinkedJobs[0].CorporationID != 98765432 {
+	if job.ESI.LinkedJobs["512345678"].CorporationID != 98765432 {
 		t.Fatal("the schema upgrade must not strip identity")
 	}
 }

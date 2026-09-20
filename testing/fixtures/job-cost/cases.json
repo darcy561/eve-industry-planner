@@ -1,5 +1,5 @@
 {
-  "$comment": "Job cost corpus. The SPA (Classes/job.js) and the backend (models.Job.CostParts) both work out what a job cost, and both read these cases so the two cannot drift. Sale lines keep ESI's own field names (`tax`); our own aggregate is a transaction fee. Every component is summed from the rows that make it up: what a job produces from its setups, materials from each material's purchases, installs from the linked ESI jobs, extras from the extras rows and invention from its entries.",
+  "$comment": "Job cost corpus. The SPA (Classes/job.js) and the backend (models.Job.CostParts) both work out what a job cost, and both read these cases so the two cannot drift. Sale lines keep ESI's own field names (`tax`); our own aggregate is a transaction fee. Every component is summed from the rows that make it up: what a job produces from its setups, materials from each material's purchases, installs from the linked ESI jobs, extras from the extras rows and invention from its entries. What ESI observed \u2014 the linked jobs, the orders and the sales \u2014 lives under `esi`, each keyed by the id ESI assigns. A broker fee is a property of the order it was charged against rather than a row of its own, so a fee is only ever counted where an order carries it.",
   "cases": [
     {
       "name": "every component",
@@ -34,13 +34,6 @@
             }
           },
           "costs": {
-            "linkedJobs": [
-              {
-                "job_id": 900000,
-                "status": "delivered",
-                "cost": 5
-              }
-            ],
             "extrasCosts": {
               "extra-1": {
                 "id": "extra-1",
@@ -57,24 +50,7 @@
               }
             }
           },
-          "sale": {
-            "brokersFee": [
-              {
-                "id": 0,
-                "amount": 1.5
-              }
-            ],
-            "transactions": [
-              {
-                "transaction_id": 0,
-                "tax": 0.5
-              },
-              {
-                "transaction_id": 1,
-                "tax": 0.25
-              }
-            ]
-          },
+          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -93,7 +69,32 @@
             }
           }
         },
-        "itemsProducedPerRun": 10
+        "itemsProducedPerRun": 10,
+        "esi": {
+          "linkedJobs": {
+            "900000": {
+              "job_id": 900000,
+              "status": "delivered",
+              "cost": 5
+            }
+          },
+          "marketOrders": {
+            "900": {
+              "order_id": 900,
+              "fee": 1.5
+            }
+          },
+          "transactions": {
+            "0": {
+              "transaction_id": 0,
+              "tax": 0.5
+            },
+            "1": {
+              "transaction_id": 1,
+              "tax": 0.25
+            }
+          }
+        }
       },
       "expected": {
         "produced": 10,
@@ -151,10 +152,7 @@
             }
           },
           "costs": {},
-          "sale": {
-            "brokersFee": [],
-            "transactions": []
-          },
+          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -177,7 +175,12 @@
             }
           }
         },
-        "itemsProducedPerRun": 10
+        "itemsProducedPerRun": 10,
+        "esi": {
+          "linkedJobs": {},
+          "marketOrders": {},
+          "transactions": {}
+        }
       },
       "expected": {
         "produced": 10,
@@ -227,10 +230,7 @@
               }
             }
           },
-          "sale": {
-            "brokersFee": [],
-            "transactions": []
-          },
+          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -245,7 +245,12 @@
             }
           }
         },
-        "itemsProducedPerRun": 10
+        "itemsProducedPerRun": 10,
+        "esi": {
+          "linkedJobs": {},
+          "marketOrders": {},
+          "transactions": {}
+        }
       },
       "expected": {
         "produced": 10,
@@ -289,10 +294,7 @@
               }
             }
           },
-          "sale": {
-            "brokersFee": [],
-            "transactions": []
-          },
+          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -307,7 +309,12 @@
             }
           }
         },
-        "itemsProducedPerRun": 10
+        "itemsProducedPerRun": 10,
+        "esi": {
+          "linkedJobs": {},
+          "marketOrders": {},
+          "transactions": {}
+        }
       },
       "expected": {
         "produced": 10,
@@ -343,20 +350,7 @@
             }
           },
           "costs": {},
-          "sale": {
-            "brokersFee": [
-              {
-                "id": 0,
-                "amount": 3
-              }
-            ],
-            "transactions": [
-              {
-                "transaction_id": 0,
-                "tax": 2
-              }
-            ]
-          },
+          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -371,7 +365,22 @@
             }
           }
         },
-        "itemsProducedPerRun": 10
+        "itemsProducedPerRun": 10,
+        "esi": {
+          "linkedJobs": {},
+          "marketOrders": {
+            "900": {
+              "order_id": 900,
+              "fee": 3
+            }
+          },
+          "transactions": {
+            "0": {
+              "transaction_id": 0,
+              "tax": 2
+            }
+          }
+        }
       },
       "expected": {
         "produced": 10,
@@ -395,10 +404,7 @@
         "build": {
           "materials": {},
           "costs": {},
-          "sale": {
-            "brokersFee": [],
-            "transactions": []
-          },
+          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -407,7 +413,12 @@
             }
           }
         },
-        "itemsProducedPerRun": 10
+        "itemsProducedPerRun": 10,
+        "esi": {
+          "linkedJobs": {},
+          "marketOrders": {},
+          "transactions": {}
+        }
       },
       "expected": {
         "produced": 10,
@@ -443,32 +454,7 @@
             }
           },
           "costs": {},
-          "sale": {
-            "brokersFee": [
-              {
-                "id": 0,
-                "amount": 1
-              },
-              {
-                "id": 1,
-                "amount": 2
-              },
-              {
-                "id": 2,
-                "amount": 3
-              }
-            ],
-            "transactions": [
-              {
-                "transaction_id": 0,
-                "tax": 0.5
-              },
-              {
-                "transaction_id": 1,
-                "tax": 1.5
-              }
-            ]
-          },
+          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -483,7 +469,34 @@
             }
           }
         },
-        "itemsProducedPerRun": 10
+        "itemsProducedPerRun": 10,
+        "esi": {
+          "linkedJobs": {},
+          "marketOrders": {
+            "900": {
+              "order_id": 900,
+              "fee": 1
+            },
+            "901": {
+              "order_id": 901,
+              "fee": 2
+            },
+            "902": {
+              "order_id": 902,
+              "fee": 3
+            }
+          },
+          "transactions": {
+            "0": {
+              "transaction_id": 0,
+              "tax": 0.5
+            },
+            "1": {
+              "transaction_id": 1,
+              "tax": 1.5
+            }
+          }
+        }
       },
       "expected": {
         "produced": 10,
@@ -533,7 +546,12 @@
           },
           "costs": {}
         },
-        "itemsProducedPerRun": 5
+        "itemsProducedPerRun": 5,
+        "esi": {
+          "linkedJobs": {},
+          "marketOrders": {},
+          "transactions": {}
+        }
       },
       "expected": {
         "produced": 10,

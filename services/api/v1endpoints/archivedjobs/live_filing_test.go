@@ -34,12 +34,14 @@ func filingRequestFor(t *testing.T, path, body string) *http.Request {
 func handEnteredJob(jobID string, soldOn time.Time) models.Job {
 	job := models.Job{JobID: jobID, ItemID: 34, JobType: 1, ItemsProducedPerRun: 10}
 	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
-	job.Build.Sale.Transactions = []models.Transaction{{
-		TransactionID: -1700000000000,
-		Quantity:      10,
-		Amount:        5000,
-		Date:          soldOn.Format(time.RFC3339),
-	}}
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"-1700000000000": {
+			TransactionID: -1700000000000,
+			Quantity:      10,
+			Amount:        5000,
+			Date:          soldOn.Format(time.RFC3339),
+		},
+	}
 	job.MetaData.Owner = models.AccountOwner(filingScratchAccount)
 	job.MetaData.ArchivedAt = soldOn
 	return job
@@ -122,7 +124,14 @@ func TestLive_filingRefusesToMoveMarketSales(t *testing.T) {
 	soldOn := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
 	job := handEnteredJob("job-filing-2", soldOn)
 	// A positive id is ESI's own.
-	job.Build.Sale.Transactions[0].TransactionID = 6000000001
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"6000000001": {
+			TransactionID: 6000000001,
+			Quantity:      10,
+			Amount:        5000,
+			Date:          soldOn.Format(time.RFC3339),
+		},
+	}
 	archiveJobFor(t, ctx, h, job, filingScratchAccount, soldOn)
 
 	code, _ := fileMonths(t, h, "job-filing-2", `{"salesMonth":"2026-04"}`)
@@ -236,7 +245,14 @@ func TestLive_filingAGroupLeavesMarketSalesWhereTheyAre(t *testing.T) {
 
 	market := handEnteredJob("job-mixed-market", soldOn)
 	market.GroupID, market.IncludedInGroup = "group-mixed", true
-	market.Build.Sale.Transactions[0].TransactionID = 6000000002
+	market.ESI.Transactions = map[string]*models.Transaction{
+		"6000000002": {
+			TransactionID: 6000000002,
+			Quantity:      10,
+			Amount:        5000,
+			Date:          soldOn.Format(time.RFC3339),
+		},
+	}
 	archiveJobFor(t, ctx, h, market, filingScratchAccount, soldOn)
 
 	code, body := filePath(t, h,

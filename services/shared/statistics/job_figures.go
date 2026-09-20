@@ -23,7 +23,11 @@ func JobFiguresFor(job models.Job) (models.JobFigures, error) {
 
 	totalSale := 0.0
 	averageQuantity := 0.0
-	for _, item := range job.Build.Sale.Transactions {
+	// A sum does not depend on the order it is taken in, so the map is ranged.
+	for _, item := range job.ESI.Transactions {
+		if item == nil {
+			continue
+		}
 		totalSale += item.Amount
 		averageQuantity += float64(item.Quantity)
 	}

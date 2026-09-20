@@ -3,6 +3,7 @@ package archivedjobs
 import (
 	"context"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -214,13 +215,18 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 
 	const contested, free = 4242, 4243
 	holder := seedJob("job-restore-holder")
-	holder.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: contested}}
+	holder.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+		strconv.Itoa(contested): {JobID: contested},
+	}
 	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, []models.Job{holder}, now, "sess-3", ""); err != nil || failed > 0 {
 		t.Fatalf("seed holder job: %v, failed %d", err, failed)
 	}
 
 	archived := seedJob("job-restore-contested")
-	archived.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: contested}, {JobID: free}}
+	archived.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+		strconv.Itoa(contested): {JobID: contested},
+		strconv.Itoa(free):      {JobID: free},
+	}
 	archiveJob(t, ctx, h, archived, now)
 
 	scope, err := plannerArchiveScope(mongo, models.AccountOwner(restoreScratchAccount))

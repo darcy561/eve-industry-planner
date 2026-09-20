@@ -19,22 +19,23 @@
                 "typeID": 36
               }
             },
-            "costs": {
-              "linkedJobs": [
-                {
-                  "job_id": 11,
-                  "status": "delivered",
-                  "cost": 0
-                }
-              ]
+            "costs": {},
+            "sale": {}
+          },
+          "esi": {
+            "linkedJobs": {
+              "11": {
+                "job_id": 11,
+                "status": "delivered",
+                "cost": 0
+              }
             },
-            "sale": {
-              "marketOrders": [
-                {
-                  "order_id": 22
-                }
-              ]
-            }
+            "marketOrders": {
+              "22": {
+                "order_id": 22
+              }
+            },
+            "transactions": {}
           }
         },
         {
@@ -46,12 +47,15 @@
           ],
           "build": {
             "materials": {},
-            "sale": {
-              "transactions": [
-                {
-                  "transaction_id": 33
-                }
-              ]
+            "sale": {}
+          },
+          "esi": {
+            "linkedJobs": {},
+            "marketOrders": {},
+            "transactions": {
+              "33": {
+                "transaction_id": 33
+              }
             }
           }
         }
@@ -203,16 +207,19 @@
                 "typeID": 34
               }
             },
-            "sale": {
-              "marketOrders": [
-                {
-                  "order_id": 99
-                },
-                {
-                  "order_id": 22
-                }
-              ]
-            }
+            "sale": {}
+          },
+          "esi": {
+            "linkedJobs": {},
+            "marketOrders": {
+              "99": {
+                "order_id": 99
+              },
+              "22": {
+                "order_id": 22
+              }
+            },
+            "transactions": {}
           }
         },
         {
@@ -226,16 +233,19 @@
                 "typeID": 34
               }
             },
-            "sale": {
-              "marketOrders": [
-                {
-                  "order_id": 22
-                },
-                {
-                  "order_id": 11
-                }
-              ]
-            }
+            "sale": {}
+          },
+          "esi": {
+            "linkedJobs": {},
+            "marketOrders": {
+              "22": {
+                "order_id": 22
+              },
+              "11": {
+                "order_id": 11
+              }
+            },
+            "transactions": {}
           }
         }
       ],

@@ -3,7 +3,7 @@ package archivedjobs
 import (
 	"context"
 	"fmt"
-	"slices"
+	"strconv"
 	"time"
 
 	"eve-industry-planner/shared/jobidentity"
@@ -141,17 +141,16 @@ func conflictIndex(conflicts []esiConflict) map[esiLinkKind]map[int64]struct{} {
 // stripConflictedLinks removes what another job holds from a restored job. A job
 // holds an ESI id by carrying its row, so the row itself goes.
 func stripConflictedLinks(job *models.Job, conflicted map[esiLinkKind]map[int64]struct{}) {
-	if orders := conflicted[esiLinkOrder]; len(orders) > 0 {
-		job.Build.Sale.MarketOrders = slices.DeleteFunc(job.Build.Sale.MarketOrders,
-			func(order models.MarketOrder) bool { return taken(orders, int64(order.OrderID)) })
+	// Deleted by key rather than by reading the row: each collection is keyed by
+	// the same ESI id the conflict is expressed in.
+	for id := range conflicted[esiLinkOrder] {
+		delete(job.ESI.MarketOrders, strconv.FormatInt(id, 10))
 	}
-	if jobs := conflicted[esiLinkJob]; len(jobs) > 0 {
-		job.Build.Costs.LinkedJobs = slices.DeleteFunc(job.Build.Costs.LinkedJobs,
-			func(linked models.LinkedESIJob) bool { return taken(jobs, int64(linked.JobID)) })
+	for id := range conflicted[esiLinkJob] {
+		delete(job.ESI.LinkedJobs, strconv.FormatInt(id, 10))
 	}
-	if transactions := conflicted[esiLinkTransaction]; len(transactions) > 0 {
-		job.Build.Sale.Transactions = slices.DeleteFunc(job.Build.Sale.Transactions,
-			func(transaction models.Transaction) bool { return taken(transactions, transaction.TransactionID) })
+	for id := range conflicted[esiLinkTransaction] {
+		delete(job.ESI.Transactions, strconv.FormatInt(id, 10))
 	}
 }
 

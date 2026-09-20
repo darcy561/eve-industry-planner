@@ -26,8 +26,12 @@ func testHandlers(t *testing.T, withCipher bool) *Handlers {
 func jobsWithIDs() []models.Job {
 	mk := func(id string, corp, char int) models.Job {
 		job := models.Job{JobID: id}
-		job.Build.Sale.Transactions = []models.Transaction{{TransactionID: 1, CorporationID: corp, CharacterID: char}}
-		job.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: 2, CorporationID: corp}}
+		job.ESI.Transactions = map[string]*models.Transaction{
+			"1": {TransactionID: 1, CorporationID: corp, CharacterID: char},
+		}
+		job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+			"2": {JobID: 2, CorporationID: corp},
+		}
 		return job
 	}
 	return []models.Job{mk("job-1", 98000001, 91000001), mk("job-2", 98000002, 91000002)}
@@ -74,7 +78,7 @@ func TestEncryptJobsFailsClosedWithoutACipher(t *testing.T) {
 	if err := h.encryptJobs(jobs); err == nil {
 		t.Fatal("expected an error when no cipher is configured")
 	}
-	if jobs[0].Build.Costs.LinkedJobs[0].CorporationID != 98000001 {
+	if jobs[0].ESI.LinkedJobs["2"].CorporationID != 98000001 {
 		t.Fatal("a failed conversion must leave the batch untouched rather than half-cleared")
 	}
 }

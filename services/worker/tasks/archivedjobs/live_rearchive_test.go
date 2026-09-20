@@ -47,7 +47,9 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 		ItemsProducedPerRun: 10,
 		Build: models.JobBuild{
 			Setup: map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}},
-			Costs: models.JobCosts{LinkedJobs: []models.LinkedESIJob{{JobID: 1, Cost: 1000}}},
+		},
+		ESI: models.JobESI{
+			LinkedJobs: map[string]*models.LinkedESIJob{"1": {JobID: 1, Cost: 1000}},
 		},
 	}
 	job.MetaData.Owner = models.AccountOwner(rearchiveScratchAccount)
@@ -91,7 +93,9 @@ func TestLive_restoreThenRearchiveCountsTheNewFigures(t *testing.T) {
 
 	// Archived again, with a sale recorded while it was out of the archive, so the
 	// figures genuinely differ from the ones in the aggregates.
-	job.Build.Sale.Transactions = []models.Transaction{{Quantity: 10, Amount: 5000, Date: now.Format(time.RFC3339)}}
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"-1700000000000": {TransactionID: -1700000000000, Quantity: 10, Amount: 5000, Date: now.Format(time.RFC3339)},
+	}
 	rearchived := writeRow(t, job)
 
 	after := stored(t, rearchived.ID)
@@ -140,7 +144,9 @@ func TestLive_restoringTheLastJobRemovesItsTotals(t *testing.T) {
 		ItemsProducedPerRun: 5,
 		Build: models.JobBuild{
 			Setup: map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}},
-			Costs: models.JobCosts{LinkedJobs: []models.LinkedESIJob{{JobID: 2, Cost: 750}}},
+		},
+		ESI: models.JobESI{
+			LinkedJobs: map[string]*models.LinkedESIJob{"2": {JobID: 2, Cost: 750}},
 		},
 	}
 	job.MetaData.Owner = models.AccountOwner(account)

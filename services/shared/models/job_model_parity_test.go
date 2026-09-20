@@ -31,16 +31,12 @@ func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 			"childJobs": {},
 			"costs": {
 				"extrasCosts": {},
-				"linkedJobs": [],
 				"inventionEntries": {}
 			},
-			"sale": {
-				"marketOrders": [],
-				"transactions": [],
-				"brokersFee": []
-			},
+			"sale": {},
 			"materials": {}
 		},
+		"esi": {"linkedJobs": {}, "marketOrders": {}, "transactions": {}},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
 		"itemsProducedPerRun": 1,
@@ -106,16 +102,12 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 					}
 				},
 				"extrasTotal": 123.45,
-				"linkedJobs": [],
 				"inventionEntries": {}
 			},
-			"sale": {
-				"marketOrders": [],
-				"transactions": [],
-				"brokersFee": []
-			},
+			"sale": {},
 			"materials": {}
 		},
+		"esi": {"linkedJobs": {}, "marketOrders": {}, "transactions": {}},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
 		"itemsProducedPerRun": 1,
@@ -259,16 +251,12 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 				"extrasCosts": {
 					"row-1": {"id": "row-1", "category": "2", "extraText": "Label", "extraValue": 99.5}
 				},
-				"linkedJobs": [],
 				"inventionEntries": {}
 			},
-			"sale": {
-				"marketOrders": [],
-				"transactions": [],
-				"brokersFee": []
-			},
+			"sale": {},
 			"materials": {}
 		},
+		"esi": {"linkedJobs": {}, "marketOrders": {}, "transactions": {}},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
 		"itemsProducedPerRun": 1,
@@ -321,14 +309,9 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 			"childJobs": {},
 			"costs": {
 				"extrasCosts": {},
-				"linkedJobs": [],
 				"inventionEntries": {}
 			},
-			"sale": {
-				"marketOrders": [],
-				"transactions": [],
-				"brokersFee": []
-			},
+			"sale": {},
 			"materials": {
 				"57478": {
 					"typeID": 57478,
@@ -346,6 +329,7 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 				}
 			}
 		},
+		"esi": {"linkedJobs": {}, "marketOrders": {}, "transactions": {}},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
 		"itemsProducedPerRun": 1,
@@ -435,33 +419,9 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 						"extraValue": 33
 					}
 				},
-				"linkedJobs": [
-					{
-						"status": "active",
-						"job_id": 649071222,
-						"station_id": 1044913537143,
-						"start_date": "2026-04-04T13:00:14Z",
-						"runs": 1,
-						"duration": 710940,
-						"blueprint_id": 1051894846797,
-						"is_corporation": true,
-						"product_type_id": 34328,
-						"end_date": "2026-04-12T18:29:14Z",
-						"activity_id": 1,
-						"CharacterHash": "8XGnAtq8QEEQ76LfinJaI8MA6T4=",
-						"completed_date": null,
-						"blueprint_type_id": 34329,
-						"cost": 93039957,
-						"corporation_id": 98699553
-					}
-				],
 				"inventionEntries": {}
 			},
-			"sale": {
-				"marketOrders": [],
-				"transactions": [],
-				"brokersFee": []
-			},
+			"sale": {},
 			"materials": {
 				"57478": {
 					"purchasing": {
@@ -479,6 +439,30 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 					"name": "Auto-Integrity Preservation Seal"
 				}
 			}
+		},
+		"esi": {
+			"linkedJobs": {
+				"649071222": {
+					"status": "active",
+					"job_id": 649071222,
+					"station_id": 1044913537143,
+					"start_date": "2026-04-04T13:00:14Z",
+					"runs": 1,
+					"duration": 710940,
+					"blueprint_id": 1051894846797,
+					"is_corporation": true,
+					"product_type_id": 34328,
+					"end_date": "2026-04-12T18:29:14Z",
+					"activity_id": 1,
+					"CharacterHash": "8XGnAtq8QEEQ76LfinJaI8MA6T4=",
+					"completed_date": null,
+					"blueprint_type_id": 34329,
+					"cost": 93039957,
+					"corporation_id": 98699553
+				}
+			},
+			"marketOrders": {},
+			"transactions": {}
 		},
 		"rawData": {
 			"time": 1500000,
@@ -517,11 +501,12 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 	if job.BlueprintTypeID == nil || *job.BlueprintTypeID != 34329 {
 		t.Fatalf("blueprintTypeID: %#v", job.BlueprintTypeID)
 	}
-	if len(job.Build.Costs.LinkedJobs) != 1 || job.Build.Costs.LinkedJobs[0].JobID != 649071222 || job.Build.Costs.LinkedJobs[0].JobType != 0 {
-		t.Fatalf("linked job decode: %#v", job.Build.Costs.LinkedJobs[0])
+	linked := job.ESI.LinkedJobs["649071222"]
+	if len(job.ESI.LinkedJobs) != 1 || linked == nil || linked.JobID != 649071222 || linked.JobType != 0 {
+		t.Fatalf("linked job decode: %#v", job.ESI.LinkedJobs)
 	}
-	if job.Build.Costs.LinkedJobs[0].CompletedDate != "" {
-		t.Fatalf("completed_date null: got %q", job.Build.Costs.LinkedJobs[0].CompletedDate)
+	if linked.CompletedDate != "" {
+		t.Fatalf("completed_date null: got %q", linked.CompletedDate)
 	}
 	if len(job.Build.Materials) != 1 || job.Build.Materials["57478"].TypeID != 57478 ||
 		len(job.Build.Materials["57478"].Purchasing) != 1 {
@@ -548,32 +533,35 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 			"childJobs": {},
 			"costs": {
 				"extrasCosts": {},
-				"linkedJobs": [],
 				"inventionEntries": {}
 			},
-			"sale": {
-				"marketOrders": [
-					{
-						"duration": 90,
-						"is_corporation": true,
-						"issued": "2026-04-03T15:27:19Z",
-						"location_id": 60003760,
-						"order_id": 7300255528,
-						"item_price": 3969,
-						"range": "region",
-						"region_id": 10000002,
-						"type_id": 57457,
-						"volume_remain": 0,
-						"volume_total": 200000,
-						"timeStamps": ["2026-04-03T15:27:19Z"],
-						"CharacterHash": "x",
-						"state": "expired"
-					}
-				],
-				"transactions": [],
-				"brokersFee": []
-			},
+			"sale": {},
 			"materials": {}
+		},
+		"esi": {
+			"linkedJobs": {},
+			"marketOrders": {
+				"7300255528": {
+					"duration": 90,
+					"is_corporation": true,
+					"issued": "2026-04-03T15:27:19Z",
+					"location_id": 60003760,
+					"order_id": 7300255528,
+					"item_price": 3969,
+					"range": "region",
+					"region_id": 10000002,
+					"type_id": 57457,
+					"volume_remain": 0,
+					"volume_total": 200000,
+					"timeStamps": ["2026-04-03T15:27:19Z"],
+					"CharacterHash": "x",
+					"state": "expired",
+					"fee": 79380,
+					"salesTax": 0,
+					"feeDate": "2026-04-03T15:27:19Z"
+				}
+			},
+			"transactions": {}
 		},
 		"rawData": {"materials": [], "products": [], "time": 0},
 		"skills": {},
@@ -592,8 +580,14 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 	if err := dec.Decode(&job); err != nil {
 		t.Fatal(err)
 	}
-	if len(job.Build.Sale.MarketOrders) != 1 || job.Build.Sale.MarketOrders[0].Range != "region" {
-		t.Fatalf("market order range: %+v", job.Build.Sale.MarketOrders)
+	order := job.ESI.MarketOrders["7300255528"]
+	if len(job.ESI.MarketOrders) != 1 || order == nil || order.Range != "region" {
+		t.Fatalf("market order range: %+v", job.ESI.MarketOrders)
+	}
+	// The fee folded onto the order, so it decodes with it rather than from a
+	// row of its own.
+	if order.Fee != 79380 || order.FeeDate != "2026-04-03T15:27:19Z" {
+		t.Fatalf("folded fee: %+v", order)
 	}
 }
 

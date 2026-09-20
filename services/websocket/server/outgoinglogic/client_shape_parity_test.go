@@ -24,14 +24,33 @@ func TestClientPayloadKeysMatchTheAPIResponse(t *testing.T) {
 	cipher := keys.EntityCipher(t)
 
 	job := &models.Job{JobID: "job-1"}
-	job.Build.Sale.Transactions = []models.Transaction{{TransactionID: 77, CorporationID: 98765432, CharacterID: 91234567}}
-	job.Build.Costs.LinkedJobs = []models.LinkedESIJob{{JobID: 512345678, CorporationID: 98765432}}
+	job.ESI.Transactions = map[string]*models.Transaction{
+		"77": {TransactionID: 77, CorporationID: 98765432, CharacterID: 91234567},
+	}
+	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+		"512345678": {JobID: 512345678, CorporationID: 98765432},
+	}
 	if err := jobidentity.Encrypt(job, cipher); err != nil {
 		t.Fatalf("Encrypt: %v", err)
 	}
 
 	// What the API serves: the stored document with ids restored.
+	//
+	// Copied row by row rather than with `served := *job` alone. The ESI
+	// collections hold pointers, so a struct copy shares their rows, and
+	// decrypting the copy would restore ids on the document this test still has
+	// to marshal as stored — leaving it comparing two views of one decrypted job.
 	served := *job
+	served.ESI.Transactions = map[string]*models.Transaction{}
+	for id, tx := range job.ESI.Transactions {
+		row := *tx
+		served.ESI.Transactions[id] = &row
+	}
+	served.ESI.LinkedJobs = map[string]*models.LinkedESIJob{}
+	for id, linked := range job.ESI.LinkedJobs {
+		row := *linked
+		served.ESI.LinkedJobs[id] = &row
+	}
 	if err := jobidentity.Decrypt(&served, cipher); err != nil {
 		t.Fatalf("Decrypt: %v", err)
 	}
@@ -59,8 +78,8 @@ func TestClientPayloadKeysMatchTheAPIResponse(t *testing.T) {
 	wsDoc := decodeJSON(t, ClientPayload(envelope, models.AccountOwner("acct-parity"), cipher, 0))["document"].(map[string]any)
 
 	for _, path := range [][]string{
-		{"build", "costs", "linkedJobs"},
-		{"build", "sale", "transactions"},
+		{"esi", "linkedJobs"},
+		{"esi", "transactions"},
 	} {
 		apiLine := firstLine(t, apiDoc, path)
 		wsLine := firstLine(t, wsDoc, path)
@@ -111,13 +130,15 @@ func firstLine(t *testing.T, doc map[string]any, path []string) map[string]any {
 		}
 		node = m[step]
 	}
-	lines, ok := node.([]any)
+	lines, ok := node.(map[string]any)
 	if !ok || len(lines) == 0 {
-		t.Fatalf("path %v: expected a non-empty array, got %T", path, node)
+		t.Fatalf("path %v: expected a non-empty object, got %T", path, node)
 	}
-	line, ok := lines[0].(map[string]any)
+	// The lowest key rather than whichever the map offers first, so both
+	// transports are compared on the same row.
+	line, ok := lines[slices.Min(sortedKeys(lines))].(map[string]any)
 	if !ok {
-		t.Fatalf("path %v: first element is not an object", path)
+		t.Fatalf("path %v: the first row is not an object", path)
 	}
 	return line
 }
