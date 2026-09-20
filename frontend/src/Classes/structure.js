@@ -18,13 +18,25 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
  * field absent from the entry stays unset and is left out of the document.
  * Adding a kind is an entry here, not a new class.
  *
- * @type {Object<number, {rigSlots?: boolean, implant?: boolean, systemID?: boolean}>}
+ * @type {Object<number, {rigSlots?: boolean, implant?: boolean, systemID?: boolean,
+ *   regionID?: boolean, stationID?: boolean, structureID?: boolean,
+ *   brokerFee?: boolean, characterHash?: boolean}>}
  */
 const fieldsByJobType = {
-  [jobTypes.manufacturing]: { rigSlots: true, systemID: true },
-  [jobTypes.reaction]: { rigSlots: true, systemID: true },
-  [jobTypes.reprocessing]: { rigSlots: true, implant: true },
-  [jobTypes.invention]: { rigSlots: true },
+  [jobTypes.manufacturing]: { built: true, rigSlots: true, systemID: true },
+  [jobTypes.reaction]: { built: true, rigSlots: true, systemID: true },
+  [jobTypes.reprocessing]: { built: true, rigSlots: true, implant: true },
+  [jobTypes.invention]: { built: true, rigSlots: true },
+  // Both market kinds name a region, because a price is asked for per region and
+  // then narrowed to one location. What narrows it is the difference.
+  [jobTypes.npcStation]: { regionID: true, stationID: true },
+  [jobTypes.citadelMarket]: {
+    regionID: true,
+    structureID: true,
+    systemID: true,
+    brokerFee: true,
+    characterHash: true,
+  },
 };
 
 /**
@@ -61,6 +73,11 @@ class Structure {
    * @param {number} [existingValue.rigSlot2] - Second rig slot id
    * @param {number} [existingValue.implant] - Implant id, on the kinds that have one
    * @param {number} [existingValue.systemID] - System id, on the kinds that have one
+   * @param {number} [existingValue.regionID] - Region id, on the market kinds
+   * @param {number} [existingValue.stationID] - NPC station id, on that kind
+   * @param {number} [existingValue.structureID] - Citadel id, on that kind
+   * @param {number} [existingValue.brokerFee] - Owner's rate as a percentage, on a citadel
+   * @param {string} [existingValue.characterHash] - Docking access character, on a citadel
    * @param {number} [jobType] - The kind, for a new structure that does not name its own
    */
   constructor(existingValue, jobType) {
@@ -88,12 +105,29 @@ class Structure {
         DEFAULT_SYSTEM,
       );
     }
+    if (fields.regionID) {
+      this.regionID = coerceFiniteNumber(existingValue?.regionID, 0);
+    }
+    if (fields.stationID) {
+      this.stationID = coerceFiniteNumber(existingValue?.stationID, 0);
+    }
+    if (fields.structureID) {
+      this.structureID = coerceFiniteNumber(existingValue?.structureID, 0);
+    }
+    if (fields.brokerFee) {
+      this.brokerFee = coerceTaxPercentage(existingValue?.brokerFee);
+    }
+    if (fields.characterHash) {
+      this.characterHash = existingValue?.characterHash ?? "";
+    }
   }
 
   /**
    * Which optional fields this structure's kind carries.
    *
-   * @returns {{rigSlots?: boolean, implant?: boolean, systemID?: boolean}}
+   * @returns {{built?: boolean, rigSlots?: boolean, implant?: boolean,
+   *   systemID?: boolean, regionID?: boolean, stationID?: boolean,
+   *   structureID?: boolean, brokerFee?: boolean, characterHash?: boolean}}
    */
   get fields() {
     return fieldsByJobType[this.jobType] ?? {};
@@ -166,6 +200,52 @@ class Structure {
    */
   setDefault(isDefault) {
     this.default = isDefault;
+  }
+
+  /**
+   * @param {number} regionID - The region whose order book carries this market
+   */
+  setRegionID(regionID) {
+    this.regionID = coerceFiniteNumber(regionID, 0);
+  }
+
+  /**
+   * @param {number} stationID - The NPC station a region's orders narrow to
+   */
+  setStationID(stationID) {
+    this.stationID = coerceFiniteNumber(stationID, 0);
+  }
+
+  /**
+   * @param {number} structureID - The citadel whose order book this is
+   */
+  setStructureID(structureID) {
+    this.structureID = coerceFiniteNumber(structureID, 0);
+  }
+
+  /**
+   * The rate a citadel's owner set, as a percentage.
+   *
+   * Only a citadel stores one. An NPC station's broker fee is worked out from
+   * the seller's skills and standings, so a stored number there would stand in
+   * for that derivation and quote the untrained rate without saying so.
+   *
+   * @param {number} brokerFee - Rate as a percentage, so 1.5 means 1.5%
+   */
+  setBrokerFee(brokerFee) {
+    this.brokerFee = coerceTaxPercentage(brokerFee);
+  }
+
+  /**
+   * The character whose docking access reads this citadel's order book.
+   *
+   * Nothing records which character can see where, so this is the account's
+   * answer for this structure rather than a fact that can be looked up.
+   *
+   * @param {string} characterHash - The chosen character's hash
+   */
+  setCharacterHash(characterHash) {
+    this.characterHash = characterHash ?? "";
   }
 
   /**
@@ -250,15 +330,27 @@ class Structure {
       id: this.id,
       jobType: this.jobType,
       name: this.name,
-      systemType: this.systemType,
-      structureType: this.structureType,
-      tax: this.tax,
       default: this.default,
+      // A place a job is built in has a security modifier, a structure type
+      // that carries bonuses, and an installation tax. A place a price is asked
+      // for has none of the three: what it charges is its broker fee.
+      ...(fields.built
+        ? {
+            systemType: this.systemType,
+            structureType: this.structureType,
+            tax: this.tax,
+          }
+        : {}),
       ...(fields.rigSlots
         ? { rigSlot1: this.rigSlot1, rigSlot2: this.rigSlot2 }
         : {}),
       ...(fields.implant ? { implant: this.implant } : {}),
       ...(fields.systemID ? { systemID: this.systemID } : {}),
+      ...(fields.regionID ? { regionID: this.regionID } : {}),
+      ...(fields.stationID ? { stationID: this.stationID } : {}),
+      ...(fields.structureID ? { structureID: this.structureID } : {}),
+      ...(fields.brokerFee ? { brokerFee: this.brokerFee } : {}),
+      ...(fields.characterHash ? { characterHash: this.characterHash } : {}),
     };
   }
 }

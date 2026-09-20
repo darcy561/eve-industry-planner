@@ -97,11 +97,15 @@ func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSett
 
 // Job types a structure can be configured for. A structure row names its kind
 // in JobType, so these are what tells one kind of row from another.
+// The gap at 3 is Planetary Interaction, which the SPA names and nothing here
+// configures a structure for.
 const (
 	JobTypeManufacturing = 1
 	JobTypeReaction      = 2
 	JobTypeInvention     = 4
 	JobTypeReprocessing  = 5
+	JobTypeNPCStation    = 6
+	JobTypeCitadelMarket = 7
 )
 
 // CustomStructure is one structure a player has configured, of whatever kind.
@@ -124,6 +128,24 @@ type CustomStructure struct {
 	RigSlot2 int   `bson:"rigSlot2,omitempty" json:"rigSlot2,omitzero"`
 	Implant  int   `bson:"implant,omitempty" json:"implant,omitzero"`
 	SystemID int64 `bson:"systemID,omitempty" json:"systemID,omitzero"`
+
+	// The market kinds. A price is asked for per region and then narrowed to one
+	// location, so both name a region; StationID or StructureID is what narrows
+	// it, and which one a row carries is what its JobType already says.
+	RegionID    int64 `bson:"regionID,omitempty" json:"regionID,omitzero"`
+	StationID   int64 `bson:"stationID,omitempty" json:"stationID,omitzero"`
+	StructureID int64 `bson:"structureID,omitempty" json:"structureID,omitzero"`
+
+	// A citadel's broker fee is the rate its owner set, which nothing can derive.
+	// An NPC station's is worked out from the seller's skills and standings, so
+	// storing one there would let a saved number stand in for that derivation and
+	// quote the untrained rate without saying so.
+	BrokerFee float64 `bson:"brokerFee,omitempty" json:"brokerFee,omitzero"`
+
+	// The character whose docking access reads a citadel's order book. Nothing
+	// records which character can see where, so this is the account's answer for
+	// this structure rather than a fact that can be looked up.
+	CharacterHash string `bson:"characterHash,omitempty" json:"characterHash,omitempty"`
 }
 
 // CustomStructures is every structure a player has configured, of every kind.

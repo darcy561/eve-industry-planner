@@ -36,8 +36,10 @@ describe("what a kind carries", () => {
     expect(structure.implant).toBeUndefined();
   });
 
-  // A row of a kind nothing knows about still reads: it carries what every kind
-  // has and none of the optional fields.
+  // A row of a kind nothing knows about still reads: it carries what every row
+  // has and none of the optional fields. The build fields are not among them —
+  // a security modifier, a structure type and an installation tax belong to a
+  // place a job is built in, and an unrecognised kind has not said it is one.
   it("carries only the shared fields for an unknown kind", () => {
     const structure = new Structure({ jobType: 999, name: "Somewhere" });
 
@@ -47,9 +49,6 @@ describe("what a kind carries", () => {
       id: structure.id,
       jobType: 999,
       name: "Somewhere",
-      systemType: 0,
-      structureType: 0,
-      tax: 0,
       default: false,
     });
   });
@@ -390,5 +389,116 @@ describe("rig slots against the combinations they replace", () => {
       cost: 0,
       value: 0,
     });
+  });
+});
+
+describe("the kinds that are a market", () => {
+  // A price is asked for per region and then narrowed to one location, so both
+  // kinds name a region. What narrows it is the difference between them.
+  it("gives an NPC station a region and a station", () => {
+    const structure = new Structure({
+      jobType: jobTypes.npcStation,
+      regionID: 10000002,
+      stationID: 60003760,
+    });
+
+    expect(structure.regionID).toBe(10000002);
+    expect(structure.stationID).toBe(60003760);
+    expect(structure.structureID).toBeUndefined();
+  });
+
+  // An NPC station's broker fee comes from the seller's skills and standings. A
+  // stored number would stand in for that derivation and quote the untrained
+  // rate without saying so, which is why the kind cannot hold one.
+  it("gives an NPC station no broker fee and no access character", () => {
+    const structure = new Structure({
+      jobType: jobTypes.npcStation,
+      brokerFee: 1.5,
+      characterHash: "hash-1",
+    });
+
+    expect(structure.brokerFee).toBeUndefined();
+    expect(structure.characterHash).toBeUndefined();
+    expect(structure.toDocument().brokerFee).toBeUndefined();
+    expect(structure.toDocument().characterHash).toBeUndefined();
+  });
+
+  it("gives a citadel its own fee, access character and system", () => {
+    const structure = new Structure({
+      jobType: jobTypes.citadelMarket,
+      regionID: 10000002,
+      structureID: 1035466617946,
+      systemID: 30000144,
+      brokerFee: 1.5,
+      characterHash: "hash-1",
+    });
+
+    expect(structure.regionID).toBe(10000002);
+    expect(structure.structureID).toBe(1035466617946);
+    // The installation-cost calculation asks a location for its system index, so
+    // a market carries a system without being a place anything is built.
+    expect(structure.systemID).toBe(30000144);
+    expect(structure.brokerFee).toBe(1.5);
+    expect(structure.characterHash).toBe("hash-1");
+    expect(structure.stationID).toBeUndefined();
+  });
+
+  // A citadel's fee is a percentage like every other rate in the class, and is
+  // settled the same way: not a number reads as none, and never negative.
+  it("settles a citadel's broker fee as a percentage", () => {
+    expect(
+      new Structure({ jobType: jobTypes.citadelMarket, brokerFee: "abc" })
+        .brokerFee,
+    ).toBe(0);
+    expect(
+      new Structure({ jobType: jobTypes.citadelMarket, brokerFee: -1 })
+        .brokerFee,
+    ).toBe(0);
+
+    const structure = new Structure({ jobType: jobTypes.citadelMarket });
+    structure.setBrokerFee("1.5");
+    expect(structure.brokerFee).toBe(1.5);
+  });
+
+  // A market has no security modifier, no structure type carrying bonuses and no
+  // installation tax. What it charges is its broker fee.
+  it("stores none of the build fields", () => {
+    for (const jobType of [jobTypes.npcStation, jobTypes.citadelMarket]) {
+      const document = new Structure({ jobType, tax: 2.5 }).toDocument();
+
+      expect(document.tax).toBeUndefined();
+      expect(document.systemType).toBeUndefined();
+      expect(document.structureType).toBeUndefined();
+      expect(document.rigSlot1).toBeUndefined();
+    }
+  });
+
+  it("mints an id carrying its kind's prefix", () => {
+    expect(
+      new Structure(undefined, jobTypes.npcStation).id.startsWith("npcMarket-"),
+    ).toBe(true);
+    expect(
+      new Structure(undefined, jobTypes.citadelMarket).id.startsWith(
+        "citadelMarket-",
+      ),
+    ).toBe(true);
+  });
+
+  // Every field a kind carries has to survive being stored and read back, or a
+  // reader configures a market and loses it on the next save.
+  it("round trips every field it carries", () => {
+    const citadel = new Structure({
+      jobType: jobTypes.citadelMarket,
+      name: "Perimeter Azbel",
+      regionID: 10000002,
+      structureID: 1035466617946,
+      systemID: 30000144,
+      brokerFee: 1.5,
+      characterHash: "hash-1",
+    });
+
+    const read = new Structure(citadel.toDocument());
+
+    expect(read).toEqual(citadel);
   });
 });

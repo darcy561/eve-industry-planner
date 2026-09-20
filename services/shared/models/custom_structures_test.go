@@ -223,3 +223,72 @@ func TestCustomStructuresReadsAStoredNull(t *testing.T) {
 		t.Errorf("read %d rows from null, want none", len(doc.CustomStructures))
 	}
 }
+
+// The market kinds' fields have to reach the document, not merely the struct.
+// Every save builds its $set from this type, so a field it does not write is one
+// a reader configures and loses on the next save, silently and with no error.
+func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
+	t.Parallel()
+
+	rows := CustomStructures{
+		{
+			ID: "npc-1", JobType: JobTypeNPCStation, Name: "Jita IV-4",
+			RegionID: 10000002, StationID: 60003760,
+		},
+		{
+			ID: "citadel-1", JobType: JobTypeCitadelMarket, Name: "Perimeter Azbel",
+			RegionID: 10000002, StructureID: 1035466617946, SystemID: 30000144,
+			BrokerFee: 1.5, CharacterHash: "hash-1",
+		},
+	}
+
+	encoded, err := bson.Marshal(bson.M{"customStructures": rows})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	// Read as raw keys: decoding back into the type agrees with itself whatever
+	// was written.
+	var stored struct {
+		Rows []bson.M `bson:"customStructures"`
+	}
+	if err := bson.Unmarshal(encoded, &stored); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	npc, citadel := stored.Rows[0], stored.Rows[1]
+	if npc["regionID"] != int64(10000002) || npc["stationID"] != int64(60003760) {
+		t.Errorf("station = region %v station %v, want both stored",
+			npc["regionID"], npc["stationID"])
+	}
+	// A station's fee is derived from the seller, so storing one would let a
+	// saved number stand in for that derivation.
+	if _, held := npc["brokerFee"]; held {
+		t.Error("an NPC station stored a broker fee")
+	}
+	if _, held := npc["characterHash"]; held {
+		t.Error("an NPC station stored an access character")
+	}
+
+	for field, want := range map[string]any{
+		"regionID":      int64(10000002),
+		"structureID":   int64(1035466617946),
+		"systemID":      int64(30000144),
+		"brokerFee":     1.5,
+		"characterHash": "hash-1",
+	} {
+		if citadel[field] != want {
+			t.Errorf("citadel %s = %v, want %v", field, citadel[field], want)
+		}
+	}
+
+	var back CustomStructures
+	if err := bson.Unmarshal(encoded, &struct {
+		Rows *CustomStructures `bson:"customStructures"`
+	}{Rows: &back}); err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if got := back.WithID("citadel-1"); got == nil || got.BrokerFee != 1.5 ||
+		got.CharacterHash != "hash-1" || got.StructureID != 1035466617946 {
+		t.Errorf("read back = %+v, want the citadel's own fields", got)
+	}
+}

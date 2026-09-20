@@ -106,6 +106,11 @@ export let jobTypes = {
   pi: 3,
   invention: 4,
   reprocessing: 5,
+  // Places a price can be asked for. They are kinds of saved location rather
+  // than kinds of job, and carry no system index of their own — a market has no
+  // installation cost, so neither appears in jobTypeMapping.
+  npcStation: 6,
+  citadelMarket: 7,
 };
 
 /**
@@ -131,6 +136,8 @@ export const jobTypeNames = {
   [jobTypes.pi]: "Planetary Interaction",
   [jobTypes.invention]: "Invention Job",
   [jobTypes.reprocessing]: "Reprocessing Job",
+  [jobTypes.npcStation]: "NPC Station",
+  [jobTypes.citadelMarket]: "Player Citadel",
 };
 
 export const jobTypeMapping = {
@@ -674,6 +681,8 @@ export const customStructureLocationMap = {
   [jobTypes.reaction]: "reacStruct",
   [jobTypes.reprocessing]: "reprocessingStruct",
   [jobTypes.invention]: "inventionStruct",
+  [jobTypes.npcStation]: "npcMarket",
+  [jobTypes.citadelMarket]: "citadelMarket",
 };
 
 /**
