@@ -39,8 +39,8 @@ Owed here: where each of the two is now derived from, and what a setup carries o
 
 ## Stage 2 — The reshape, in the release window
 
-*The conversion is built and wired in. Five of the eight row collections are read in the keyed shape on
-both sides; three are not.*
+*The conversion is built and wired in. All eight row collections are keyed in `models.Job`; five of the
+eight are keyed in the SPA as well.*
 
 ### Which collections are keyed
 
@@ -52,10 +52,30 @@ The SPA holds the same shape the document does rather than converting at the `Jo
 asks the collection for a row by its id instead of searching for one, and a row is removed by deleting
 its key. [plan.md](./plan.md) § Stage 2 says why the keying does not stop at the document.
 
-`build.costs.linkedJobs`, `build.sale.marketOrders` and `build.sale.transactions` are still arrays in
-both, and still under `build.costs` / `build.sale` rather than `esi`. So a converted document and the
-code disagree about those three until the rest of this stage lands — which is what makes the reshape a
-single cutover rather than something that can ship in pieces.
+### What ESI observed moved to `esi`
+
+The three ESI collections left `build.costs` and `build.sale` for a top-level `esi`, keyed by the id
+ESI itself assigns: `linkedJobs` by `job_id`, `marketOrders` by `order_id`, `transactions` by
+`transaction_id`. `JobSale` is left holding only its selling plan.
+
+**Their rows are pointers.** `jobidentity` takes the address of each row's identity fields so
+encryption writes refs back in place, and a map value is not addressable — so `map[string]*T` is what
+makes the keying possible at all here, and the type carries a comment saying so. The cost is that a
+row is shared rather than copied when a job is: anything filtering one of these collections into a
+new job hands on the same rows. `client_shape_parity_test.go` copies row by row for exactly that
+reason, and `targets` skips a nil row rather than dereferencing one, because a stored `null` decodes
+to one.
+
+**A broker fee stopped being a row.** It carried no identity of its own — the journal id it arrived
+with is shared between orders listed together in one multi-sell — so it folds onto the order it was
+charged against as `fee`, `salesTax` and `feeDate`, and `models.BrokerFee` is gone. A fee with no
+order has nowhere to live, which is what the conversion's 5 dropped fees (45.3M ISK) already
+reported.
+
+**The SPA still reads all three as arrays under the old paths**, across 55 production sites — more
+than the other five collections together. So a converted document and the SPA disagree about these
+three until that lands, which is what keeps the reshape a single cutover rather than something that
+can ship in pieces.
 
 ### What keying changed beyond the shape
 
@@ -65,9 +85,15 @@ name; the panel that lists them sorts at render instead. `countedPurchases` — 
 `models.JobMaterial`'s — sorted purchases by cost alone, so equal-cost rows were free to swap and each
 row's own counted share moved with them; both break the tie on id, the same way.
 
-**A stored list had to become deterministic.** `extraCategories` builds the category list written onto
+**Stored lists had to become deterministic.** `extraCategories` builds the category list written onto
 an archived job's statistics row. Ranged over a map it would write a different document on each
-rebuild, so it walks the rows in id order.
+rebuild, so it walks the rows in id order. The same row's transaction and fee lines do too, now they
+come from keyed collections. `LinkedESIJobIDs`, `LinkedOrderIDs` and `LinkedTransactionIDs` sort for
+a related reason: the group shape stores them, and `esilinks` compares them with `slices.Equal`.
+
+A sum or a minimum is left ranging the map, where order cannot change the answer —
+`earliestLinkedJobDate` and the cost totals say so on themselves, so the distinction is not mistaken
+for an oversight.
 
 **A job with no materials holds an empty collection rather than null.** The null was a second way of
 saying the same thing, and nothing read it.
