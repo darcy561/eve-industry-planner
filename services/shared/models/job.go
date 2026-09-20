@@ -572,9 +572,8 @@ type LinkedESIJob struct {
 // before it, and the job's own schema version cannot tell them apart.
 const InventionEntrySchemaCurrent = 1
 
-// InventionEntry is one invention attempt recorded against a job.
 // InventionEntry is one invention cost recorded against a job, keyed in
-// [JobCosts.InventionEntries] by the ID it carries.
+// [JobBuild.InventionEntries] by the ID it carries.
 type InventionEntry struct {
 	Version  int     `json:"version" bson:"version"`   // Which shape this row was written in
 	ID       string  `json:"id" bson:"id"`             // Identifies the row within its job

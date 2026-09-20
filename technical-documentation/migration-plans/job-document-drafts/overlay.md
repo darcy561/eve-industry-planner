@@ -3,8 +3,8 @@
 How the job document and the edit page behave **while this project is in flight**. On overlap with live
 SoT, this file wins for the surfaces below until the project promotes.
 
-Stage 1 has landed. Everything else is as [plan.md](./plan.md) § Starting position describes: the edit
-page still rebuilds a `Job` instance on every change.
+Stages 1 and 2 have landed. Everything else is as [plan.md](./plan.md) § Starting position describes:
+the edit page still rebuilds a `Job` instance on every change.
 
 ## Stage 1 — The removals
 
@@ -40,15 +40,14 @@ Owed here: where each of the two is now derived from, and what a setup carries o
 
 ## Stage 2 — The reshape, in the release window
 
-*The conversion is built and wired in. All eight row collections are keyed in `models.Job`; five of the
-eight are keyed in the SPA as well.*
+*Landed on both sides. All eight row collections are keyed, the observations sit under `esi`, and the
+conversion writes what both languages read.*
 
 ### Which collections are keyed
 
-`skills`, `build.materials`, each material's `purchasing`, `extrasCosts` and `inventionEntries` are
-maps in `models.Job` and in the SPA, keyed by the id each row carries — a type id for skills and
-materials, an app-minted id for the rest. The last two sit directly on `build` in Go and still under
-`build.costs` in the SPA, which is part of what the SPA's half of this stage closes.
+`skills`, `build.materials`, each material's `purchasing`, `build.extrasCosts` and
+`build.inventionEntries` are maps in `models.Job` and in the SPA, keyed by the id each row carries — a
+type id for skills and materials, an app-minted id for the rest.
 
 The SPA holds the same shape the document does rather than converting at the `Job` boundary. A reader
 asks the collection for a row by its id instead of searching for one, and a row is removed by deleting
@@ -83,7 +82,9 @@ footgun on the most-copied document in the app.
 
 **A broker fee stopped being a row.** It carried no identity of its own — the journal id it arrived
 with is shared between orders listed together in one multi-sell — so it folds onto the order it was
-charged against as `fee`, `salesTax` and `feeDate`, and `models.BrokerFee` is gone.
+charged against as `fee`, `salesTax` and `feeDate`, and `models.BrokerFee` is gone. Three fields
+rather than a row nested under `fee`: what is left once the identity goes is three scalars, and
+nesting them would leave every total reaching through an object for a number.
 
 *This one moves money, and is the only part of the reshape that does.* Against a restored copy of
 live, 3,340 fees folded: **814 were dropped in favour of the oldest on their order (489.8M ISK), and
@@ -92,13 +93,14 @@ gets cheaper by the difference. The rule is that a fee belongs to an order and a
 so rows beyond the first were the same charge observed more than once — but the figures above are
 what a reader should check before the release, not after.
 
-**The SPA has not moved yet.** It reads all three as arrays under `build.costs` and `build.sale`, and
-still holds the `costs`, `sale` and `layout` levels Go has dropped — 17 files and around 68 sites,
-more than the other five collections together. Two of those sites reach a collection only through its
-row class and name no field at all, so a sweep on the property path alone reports them clean.
+**The SPA holds the same shape**, across the 17 files that reach these collections. Its `Job`
+constructor still reads the old paths as well as the new ones, which is what lets a document written
+before the release load unchanged; nothing else in the SPA knows the old shape.
 
-So a converted document and the SPA disagree until that lands, which is what keeps the reshape a
-single cutover rather than something that can ship in pieces.
+**A fee with no date is read the same way in both languages.** A row that cannot be shown to be the
+older one does not displace a row that can — the conversion compared the two dates as strings, where
+a missing date sorts before every real one, so it had been keeping the undated row while the SPA kept
+the dated one. A job's cost moved depending on which language last wrote it.
 
 ### What keying changed beyond the shape
 
@@ -137,8 +139,8 @@ leaves behind. `releaseTouchedCollections` folds in the reshape's own collection
 ### What it does to a document
 
 Row collections become maps keyed by the id their rows carry; `build.costs` and `build.sale` go, with
-the observations moving to `esi`; a broker fee folds onto its market order as one `fee`, the oldest
-kept; a hand-entered sale with no id is minted a negative one before the keying; two rows for one order
+the observations moving to `esi`; a broker fee folds onto its market order as `fee`, `salesTax` and
+`feeDate`, the oldest kept; a hand-entered sale with no id is minted a negative one before the keying; two rows for one order
 collapse into whichever observed more history; and `layout` empties into `build`. Anything the reshaped
 shape does not hold is dropped and counted by name.
 
