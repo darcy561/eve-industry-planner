@@ -114,14 +114,18 @@ export function editJobReducer(state, action) {
       next.toggleGroupJobReadyForSale();
       return { ...state, jobModified: true, activeJob: next };
     }
-    case EDIT_JOB_ACTION_TYPES.STEP_ACTIVE_JOB_FORWARD:
-      state.jobModified = true;
-      state.activeJob.stepForward();
-      return { ...state, activeJob: new Job(state.activeJob) };
-    case EDIT_JOB_ACTION_TYPES.STEP_ACTIVE_JOB_BACKWARD:
-      state.activeJob.stepBackward();
-      state.jobModified = true;
-      return { ...state, activeJob: new Job(state.activeJob) };
+    case EDIT_JOB_ACTION_TYPES.STEP_ACTIVE_JOB_FORWARD: {
+      if (!state.activeJob) return state;
+      const next = new Job(state.activeJob);
+      next.stepForward();
+      return { ...state, jobModified: true, activeJob: next };
+    }
+    case EDIT_JOB_ACTION_TYPES.STEP_ACTIVE_JOB_BACKWARD: {
+      if (!state.activeJob) return state;
+      const next = new Job(state.activeJob);
+      next.stepBackward();
+      return { ...state, jobModified: true, activeJob: next };
+    }
     case EDIT_JOB_ACTION_TYPES.MARK_JOB_AS_MODIFIED:
       return { ...state, jobModified: true };
     case EDIT_JOB_ACTION_TYPES.SET_TEMPORARY_CHILD_JOBS:
@@ -467,5 +471,11 @@ export function editJobReducer(state, action) {
         },
       };
     }
+    // An unrecognised action returns the state untouched. Falling out of the
+    // switch instead returns undefined, which the reducer stores as the whole
+    // state — emptying the page of the job being edited rather than ignoring
+    // one dispatch.
+    default:
+      return state;
   }
 }

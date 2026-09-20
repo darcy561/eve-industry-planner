@@ -385,3 +385,81 @@ describe("recording a sale the reader entered", () => {
     expect(editJobReducer(state, add(null))).toBe(state);
   });
 });
+
+// Moving a job between stages. The reader does this to carry a job forward, and
+// also to step one back to look at an earlier stage — so what it leaves behind
+// on the job it was handed decides whether looking is reversible.
+describe("moving the job between stages", () => {
+  const stepForward = () => ({
+    type: EDIT_JOB_ACTION_TYPES.STEP_ACTIVE_JOB_FORWARD,
+  });
+
+  const stepBackward = () => ({
+    type: EDIT_JOB_ACTION_TYPES.STEP_ACTIVE_JOB_BACKWARD,
+  });
+
+  const atStage = (jobStatus) => ({
+    jobModified: false,
+    activeJob: new Job({ jobID: "job-1", name: "Job", jobStatus }),
+  });
+
+  it("carries the job forward a stage", () => {
+    const next = editJobReducer(atStage(1), stepForward());
+
+    expect(next.activeJob.jobStatus).toBe(2);
+  });
+
+  it("takes the job back a stage", () => {
+    const next = editJobReducer(atStage(3), stepBackward());
+
+    expect(next.activeJob.jobStatus).toBe(2);
+  });
+
+  it("does not write into the job it was given", () => {
+    const state = atStage(1);
+    const before = state.activeJob;
+
+    editJobReducer(state, stepForward());
+
+    expect(before.jobStatus).toBe(1);
+  });
+
+  it("does not write into the state it was given", () => {
+    const state = atStage(3);
+
+    editJobReducer(state, stepBackward());
+
+    expect(state.jobModified).toBe(false);
+  });
+
+  it("hands back a job, not a plain object", () => {
+    const next = editJobReducer(atStage(1), stepForward());
+
+    expect(next.activeJob).toBeInstanceOf(Job);
+  });
+
+  it("marks the job as having unsaved changes", () => {
+    expect(editJobReducer(atStage(1), stepForward()).jobModified).toBe(true);
+    expect(editJobReducer(atStage(3), stepBackward()).jobModified).toBe(true);
+  });
+
+  it("does nothing when no job is open", () => {
+    const state = { jobModified: false, activeJob: null };
+
+    expect(editJobReducer(state, stepForward())).toBe(state);
+    expect(editJobReducer(state, stepBackward())).toBe(state);
+  });
+});
+
+// A dispatch the reducer does not recognise. Returning nothing would be stored
+// as the whole state, so the editor would lose the job it is holding.
+describe("an action the reducer does not know", () => {
+  it("leaves the state exactly as it was", () => {
+    const state = {
+      jobModified: false,
+      activeJob: new Job({ jobID: "job-1", name: "Job", jobStatus: 1 }),
+    };
+
+    expect(editJobReducer(state, { type: "NOT_AN_ACTION" })).toBe(state);
+  });
+});
