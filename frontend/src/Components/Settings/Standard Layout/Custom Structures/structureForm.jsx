@@ -24,10 +24,6 @@ import {
   systemTypeMap,
 } from "../../../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../../../global-config-app";
-import {
-  LOCATION_KIND,
-  resolveLocationKind,
-} from "../../../../Functions/Assets/assetLocationConstants";
 
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
@@ -174,13 +170,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     // prices nothing.
     onPlace: async (locationID) => {
       if (!locationID) return;
-      settled((s) => {
-        if (resolveLocationKind(locationID) === LOCATION_KIND.STATION) {
-          s.setStationID(locationID);
-        } else {
-          s.setStructureID(locationID);
-        }
-      });
+      settled((s) => s.setPlace(locationID));
 
       const facts = await describeMarketLocation(
         locationID,

@@ -473,6 +473,38 @@ describe("the kind that is a market", () => {
     expect(structure.toDocument().systemID).toBeUndefined();
   });
 
+  // The place is one choice. A row holding both ids is a market of neither
+  // sort, and the fields that follow from the place would be the last place's.
+  it("replaces the place rather than adding to it", () => {
+    const structure = new Structure(undefined, structureKinds.market);
+
+    structure.setPlace(1035466617946);
+    structure.setBrokerFee(1.5);
+    structure.setCharacterHash("hash-1");
+    expect(structure.structureID).toBe(1035466617946);
+
+    structure.setPlace(60003760);
+
+    expect(structure.stationID).toBe(60003760);
+    expect(structure.structureID).toBe(0);
+    // A station's fee comes from the seller, so a citadel's rate must not
+    // follow it across — it would be quoted as though the station charged it.
+    expect(structure.brokerFee).toBe(0);
+    expect(structure.characterHash).toBe("");
+  });
+
+  it("clears a station's fee inputs when a citadel replaces it", () => {
+    const structure = new Structure(undefined, structureKinds.market);
+    structure.setPlace(60003760);
+    structure.setStationOwner(1, 1000035);
+
+    structure.setPlace(1035466617946);
+
+    expect(structure.stationID).toBe(0);
+    expect(structure.raceID).toBe(0);
+    expect(structure.ownerID).toBe(0);
+  });
+
   it("mints an id carrying its kind's prefix", () => {
     expect(
       new Structure(undefined, structureKinds.market).id.startsWith("market-"),

@@ -250,7 +250,7 @@ describe("every field the form offers can be set", () => {
 
     // What the form's handlers call, by the field they belong to.
     const setterFor = {
-      place: ["setStationID", "setStructureID"],
+      place: ["setPlace"],
       structureType: ["setStructureType"],
       rigSlot1: ["setRigSlot1"],
       rigSlot2: ["setRigSlot2"],

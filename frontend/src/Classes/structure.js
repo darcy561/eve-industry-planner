@@ -12,6 +12,10 @@ import DOMPurify from "dompurify";
 import coerceFiniteNumber from "../Functions/Helper/coerceFiniteNumber";
 import coerceTaxPercentage from "../Functions/Helper/coerceTaxPercentage";
 import rigSlotBonuses from "../Functions/Helper/rigSlotBonuses";
+import {
+  LOCATION_KIND,
+  resolveLocationKind,
+} from "../Functions/Assets/assetLocationConstants";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
 /**
@@ -235,17 +239,31 @@ class Structure {
   }
 
   /**
-   * @param {number} stationID - The NPC station a region's orders narrow to
+   * The place this market is.
+   *
+   * One choice, so naming a place clears whatever was named before: a row
+   * holding both ids is a market of neither sort, and the fields that follow
+   * from the place — an owner's rate, a docking character — would be the last
+   * place's rather than this one's.
+   *
+   * Which field it lands in is what says the sort, and an EVE location id says
+   * that by the range it falls in.
+   *
+   * @param {number} locationID - The station or citadel chosen
    */
-  setStationID(stationID) {
-    this.stationID = coerceFiniteNumber(stationID, 0);
-  }
+  setPlace(locationID) {
+    const id = coerceFiniteNumber(locationID, 0);
+    const atStation = resolveLocationKind(id) === LOCATION_KIND.STATION;
 
-  /**
-   * @param {number} structureID - The citadel whose order book this is
-   */
-  setStructureID(structureID) {
-    this.structureID = coerceFiniteNumber(structureID, 0);
+    this.stationID = atStation ? id : 0;
+    this.structureID = atStation ? 0 : id;
+
+    if (this.fields.brokerFee) this.brokerFee = 0;
+    if (this.fields.characterHash) this.characterHash = "";
+    if (this.fields.stationOwner) {
+      this.raceID = 0;
+      this.ownerID = 0;
+    }
   }
 
   /**
