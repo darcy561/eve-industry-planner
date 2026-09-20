@@ -54,6 +54,22 @@ export function deriveBookPrices(orders, locationID) {
     }
   }
 
+  return pricesFromSides(buyPrices, sellPrices);
+}
+
+/**
+ * The four figures a book gives, from the prices on each side of it.
+ *
+ * Separate from the filtering above because a caller walking a whole region
+ * sorts its orders by station and type as it reads each page, and arrives here
+ * holding the sides already — asking it to keep the orders instead, so they
+ * could be filtered again, is what this exists to avoid.
+ *
+ * @param {number[]} buyPrices
+ * @param {number[]} sellPrices
+ * @returns {{buy: number, sell: number, buyP95: number, sellP05: number}}
+ */
+export function pricesFromSides(buyPrices, sellPrices) {
   const buy = highestPrice(buyPrices);
   const sell = lowestPrice(sellPrices);
 

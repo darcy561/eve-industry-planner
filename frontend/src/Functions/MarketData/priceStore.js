@@ -158,6 +158,56 @@ export async function writeStoredPrice(sourceID, typeID, row) {
   }
 }
 
+/**
+ * Everything held for one market, replaced by what its book now says.
+ *
+ * **A type absent from the new set is removed, not left.** A walk of a market's
+ * whole book is a statement about every type on it, so a row it does not mention
+ * is a type nobody is trading there any more — keeping it would show a reader a
+ * price for something they cannot buy, and the row would never expire on its own
+ * because nothing would refresh it.
+ *
+ * Written as one pass rather than a row at a time: a market carries hundreds of
+ * types, and a reader whose storage gives out halfway through should be left
+ * with the old set or the new one rather than half of each.
+ *
+ * @param {string} sourceID
+ * @param {Map<string, object>|Array<[string, object]>} rows - Type id to row
+ * @param {{refreshedAt: number, expiresAt?: number}} book - What the walk said
+ *   about the book the rows came from
+ * @returns {Promise<void>}
+ */
+export async function replaceStoredPrices(sourceID, rows, book) {
+  prunePastVersions();
+
+  const arriving = new Map(rows);
+  const prefix = `${CURRENT_PREFIX}${sourceID}|`;
+
+  try {
+    const held = (await keys()).filter(
+      (key) => typeof key === "string" && key.startsWith(prefix),
+    );
+
+    const gone = held.filter((key) => !arriving.has(key.slice(prefix.length)));
+    if (gone.length) await delMany(gone);
+
+    await Promise.all(
+      [...arriving].map(([typeID, row]) =>
+        set(entryKey(sourceID, typeID), {
+          ...row,
+          refreshedAt: book.refreshedAt,
+          ...(Number.isFinite(book.expiresAt)
+            ? { expiresAt: book.expiresAt }
+            : {}),
+        }),
+      ),
+    );
+  } catch {
+    // As writeStoredPrice: a reader whose storage is full or blocked prices
+    // from the network instead, which is the tier working as designed.
+  }
+}
+
 /** Lets a test run the once-per-session prune again. */
 export function resetPriceStore() {
   pruning = null;

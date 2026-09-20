@@ -1,5 +1,5 @@
 import getMarketData from "../EveESI/World/getMarketData";
-import { deriveBookPrices } from "./deriveBookPrices";
+import { deriveBookPrices, pricesFromSides } from "./deriveBookPrices";
 
 /**
  * One type's prices at a station the reader saved, fetched by the browser.
@@ -87,6 +87,102 @@ export async function ordersByRegionAndType({ regionID, typeID, held }) {
   }
 
   return { orders, etag, expiresAt: expires, unchanged };
+}
+
+/**
+ * Every price at every named station in one region, from one walk of its book.
+ *
+ * A region's orders cover every station in it, so a reader with two saved
+ * markets in the same region pays for one walk rather than two. This is the
+ * whole reason the sweep groups by region rather than by market.
+ *
+ * **Orders are derived page by page and discarded.** A busy region runs to
+ * dozens of pages at a thousand orders each, and holding the book to derive it
+ * at the end would cost a reader tens of megabytes for an answer that is a few
+ * hundred numbers. What accumulates is the per-station, per-type prices.
+ *
+ * A type absent from the answer is absent from the market, which is what lets a
+ * caller replace a station's rows rather than merge into them.
+ *
+ * @param {object} params
+ * @param {number} params.regionID
+ * @param {Array<number|string>} params.stationIDs - The saved markets in it
+ * @param {{etag?: string}} [params.held] - What the last walk was identified by,
+ *   so an unchanged book costs one 304 rather than every page
+ * @returns {Promise<{byStation: Map<string, Map<string, object>>, etag: string,
+ *   expiresAt: number|undefined, unchanged: boolean}>}
+ */
+export async function pricesByStationInRegion({ regionID, stationIDs, held }) {
+  const byStation = new Map(
+    stationIDs.map((stationID) => [String(stationID), new Map()]),
+  );
+  const orderCounts = new Map(
+    stationIDs.map((stationID) => [String(stationID), new Map()]),
+  );
+
+  let page = 1;
+  let totalPages = 1;
+  let etag = "";
+  let expires;
+  let unchanged = false;
+
+  while (page <= totalPages) {
+    const result = await getMarketData({
+      regionID,
+      page,
+      existingData: page === 1 ? (held ?? {}) : {},
+      config: { group: "market", priority: "low", batchable: true },
+    });
+
+    if (page === 1) {
+      etag = result.etag ?? "";
+      expires = expiresAt(result.headers);
+      unchanged = Boolean(result.unchanged);
+      if (unchanged) {
+        return { byStation, etag, expiresAt: expires, unchanged };
+      }
+    }
+
+    collectPage(result.data ?? [], orderCounts);
+    totalPages = result.totalPages ?? 1;
+    page += 1;
+  }
+
+  for (const [stationID, types] of orderCounts) {
+    const prices = byStation.get(stationID);
+    for (const [typeID, sides] of types) {
+      prices.set(typeID, pricesFromSides(sides.buy, sides.sell));
+    }
+  }
+
+  return { byStation, etag, expiresAt: expires, unchanged };
+}
+
+/**
+ * Files one page's orders under the station and type they belong to.
+ *
+ * Prices rather than orders, because the orders themselves are not wanted once
+ * the page is read and a region's worth of them is what this exists to avoid
+ * holding.
+ */
+function collectPage(orders, orderCounts) {
+  for (const order of orders) {
+    const stationID = String(order?.location_id);
+    const types = orderCounts.get(stationID);
+    if (!types) continue;
+
+    const price = order?.price;
+    if (!Number.isFinite(price)) continue;
+
+    const typeID = String(order.type_id);
+    let sides = types.get(typeID);
+    if (!sides) {
+      sides = { buy: [], sell: [] };
+      types.set(typeID, sides);
+    }
+    if (order.is_buy_order) sides.buy.push(price);
+    else sides.sell.push(price);
+  }
 }
 
 /**

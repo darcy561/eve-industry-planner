@@ -1,11 +1,16 @@
 import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
 
 /**
- * Fetches market data for a specific item in a region from EVE ESI API.
+ * A region's market orders, for one type or for all of them.
+ *
+ * Naming a type is what a caller pricing one thing wants — a type's orders run
+ * to a page where a whole region runs to dozens. Leaving it out is what a caller
+ * reading a market's whole book wants, and the two are different enough
+ * requests that ESI holds them under separate etags.
  *
  * @param {Object} params - Parameters object
  * @param {number} params.regionID - EVE Online region ID
- * @param {number} params.typeID - EVE Online item type ID
+ * @param {number} [params.typeID] - EVE Online item type ID; omit for every type
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingData={}] - Existing data for caching
  * @param {Object} [params.config={}] - Additional configuration options
@@ -14,14 +19,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  *   answer, and the response's own headers — `expires` says when the book can
  *   next have changed, and a caller pacing its own refresh needs it
  *
- * @throws {Error} Throws error if regionID or typeID is missing
- *
- * @example
- * const marketData = await getMarketData({
- *   regionID: 10000002,
- *   typeID: 34,
- *   page: 1
- * });
+ * @throws {Error} Throws error if regionID is missing
  */
 async function getMarketData({
   regionID,
@@ -32,14 +30,15 @@ async function getMarketData({
 }) {
   try {
     // Input validation
-    if (!regionID || !typeID) {
-      console.error("Missing required parameters:", { regionID, typeID });
-      throw new Error(
-        "Missing required parameters: regionID and typeID are required",
-      );
+    if (!regionID) {
+      console.error("Missing required parameters:", { regionID });
+      throw new Error("Missing required parameters: regionID is required");
     }
 
-    const endpointURL = `https://esi.evetech.net/markets/${regionID}/orders/?datasource=tranquility&order_type=all&type_id=${typeID}&page=${page}`;
+    const endpointURL =
+      `https://esi.evetech.net/markets/${regionID}/orders/?datasource=tranquility&order_type=all` +
+      (typeID ? `&type_id=${typeID}` : "") +
+      `&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

@@ -38,8 +38,12 @@ vi.mock("idb-keyval", async (importOriginal) => {
 });
 
 const { clear, get, keys, set } = await import("idb-keyval");
-const { readStoredPrice, resetPriceStore, writeStoredPrice } =
-  await import("./priceStore.js");
+const {
+  readStoredPrice,
+  replaceStoredPrices,
+  resetPriceStore,
+  writeStoredPrice,
+} = await import("./priceStore.js");
 
 const row = (overrides = {}) => ({
   buy: 9,
@@ -202,5 +206,55 @@ describe("when storage never answers at all", () => {
     storageDelayMs = 50;
 
     await expect(readStoredPrice("saved-station", 34)).resolves.toBeDefined();
+  });
+});
+
+describe("replacing everything held for one market", () => {
+  // A walk of a whole book says what is on the market. A type it does not
+  // mention is one nobody trades there now, and a row kept for it would show a
+  // price for something that cannot be bought — and never expire, because
+  // nothing would refresh it.
+  it("removes a type the new book does not mention", async () => {
+    const book = { refreshedAt: 1000, expiresAt: 9_000_000_000_000 };
+    await replaceStoredPrices(
+      "market-1",
+      new Map([
+        ["34", { buy: 5, sell: 6 }],
+        ["35", { buy: 7, sell: 8 }],
+      ]),
+      book,
+    );
+    expect(await readStoredPrice("market-1", "35")).toMatchObject({ buy: 7 });
+
+    await replaceStoredPrices("market-1", new Map([["34", { buy: 9 }]]), book);
+
+    expect(await readStoredPrice("market-1", "34")).toMatchObject({ buy: 9 });
+    expect(await readStoredPrice("market-1", "35")).toBeUndefined();
+  });
+
+  // Each market is walked on its own, so one replacing its rows says nothing
+  // about another's.
+  it("leaves another market's rows alone", async () => {
+    const book = { refreshedAt: 1000, expiresAt: 9_000_000_000_000 };
+    await replaceStoredPrices("market-1", new Map([["34", { buy: 5 }]]), book);
+    await replaceStoredPrices("market-2", new Map([["99", { buy: 3 }]]), book);
+
+    await replaceStoredPrices("market-1", new Map([["34", { buy: 6 }]]), book);
+
+    expect(await readStoredPrice("market-2", "99")).toMatchObject({ buy: 3 });
+  });
+
+  // The rows carry the book's clock rather than their own: they were all read
+  // at one moment, and a reader comparing two of them is comparing one walk.
+  it("stamps every row with the book's own clocks", async () => {
+    await replaceStoredPrices("market-1", new Map([["34", { buy: 5 }]]), {
+      refreshedAt: 4242,
+      expiresAt: 9_000_000_000_000,
+    });
+
+    expect(await readStoredPrice("market-1", "34")).toMatchObject({
+      refreshedAt: 4242,
+      expiresAt: 9_000_000_000_000,
+    });
   });
 });
