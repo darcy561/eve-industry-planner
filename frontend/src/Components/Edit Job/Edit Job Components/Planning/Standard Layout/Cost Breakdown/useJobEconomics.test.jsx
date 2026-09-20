@@ -60,10 +60,13 @@ const jobState = (setupToEdit = "setup0") => ({
     layout: { setupToEdit },
     build: {
       setup: { setup0: { selectedCharacter: "hash" } },
-      costs: {
-        extrasCosts: [
-          { category: "1", categoryLabel: "Hauling", extraValue: 50 },
-        ],
+      extrasCosts: {
+        e1: {
+          id: "e1",
+          category: "1",
+          categoryLabel: "Hauling",
+          extraValue: 50,
+        },
       },
     },
     get selectedSetup() {

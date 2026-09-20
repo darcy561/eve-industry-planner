@@ -500,10 +500,8 @@ describe("whose rates it is quoting", () => {
         setup: { jobType: jobTypes.manufacturing },
       }),
     };
-    planned.activeJob.build.sale.plan = {
-      sellerCharacter: "job-seller",
-      saleLocationID: "job-citadel",
-    };
+    planned.activeJob.build.sellerCharacter = "job-seller";
+    planned.activeJob.build.saleLocationID = "job-citadel";
 
     render(<SkillsPanel state={planned} actions={noParents} />);
 

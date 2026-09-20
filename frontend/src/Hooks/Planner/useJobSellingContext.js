@@ -51,7 +51,7 @@ export function useJobSellingContext(activeJob) {
     groupPricing,
   );
 
-  const plan = activeJob?.build?.sale?.plan ?? {};
+  const plan = activeJob?.build ?? {};
 
   const exitRoute =
     useUsersStore(

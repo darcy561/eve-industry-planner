@@ -116,7 +116,7 @@ export default function PlanningEconomics(props) {
           saleLocation={saleLocation}
           rates={rates}
           isLoading={ratesLoading}
-          plan={state.activeJob.build?.sale?.plan ?? {}}
+          plan={state.activeJob.build ?? {}}
           onPlanChange={(next) => {
             state.activeJob.setSellingPlan(next);
             props.actions.updateActiveJob(state.activeJob);
@@ -136,14 +136,14 @@ export default function PlanningEconomics(props) {
  * @param {object} activeJob
  */
 function inventionLabel(activeJob) {
-  const rows = Object.values(activeJob.build?.costs?.inventionEntries ?? {});
+  const rows = Object.values(activeJob.build?.inventionEntries ?? {});
   if (rows.length === 0) return "Add an invention cost";
 
   return `Invention — ${rows.length}, ${formatNumberForLocale(activeJob.totalInventionCost ?? 0)}`;
 }
 
 function extrasLabel(activeJob) {
-  const rows = Object.values(activeJob.build?.costs?.extrasCosts ?? {});
+  const rows = Object.values(activeJob.build?.extrasCosts ?? {});
   if (rows.length === 0) return "Add an extra cost";
 
   return `Extra costs — ${rows.length}, ${formatNumberForLocale(activeJob.totalExtrasCost ?? 0)}`;

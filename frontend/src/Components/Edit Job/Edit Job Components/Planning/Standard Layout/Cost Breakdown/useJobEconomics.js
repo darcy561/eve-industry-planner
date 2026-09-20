@@ -88,7 +88,7 @@ export function useJobEconomics({
       // build's cost. Left out here, the stage reads a T2 job as cheaper than
       // its own history says every previous one was.
       inventionCost: activeJob.totalInventionCost ?? 0,
-      extras: Object.values(activeJob.build?.costs?.extrasCosts ?? {}),
+      extras: Object.values(activeJob.build?.extrasCosts ?? {}),
       brokerFee,
       salesTax,
       quantityProduced,

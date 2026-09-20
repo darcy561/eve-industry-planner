@@ -111,8 +111,7 @@ export function AvailableTransactionsPanel({
       return [];
     }
 
-    // Guard against missing job data
-    if (!state.activeJob?.build?.sale?.marketOrders) {
+    if (!state.activeJob?.esi?.marketOrders) {
       return [];
     }
 
@@ -124,7 +123,7 @@ export function AvailableTransactionsPanel({
     );
   }, [
     state.activeJob,
-    state.activeJob?.build?.sale?.marketOrders?.length,
+    Object.keys(state.activeJob?.esi?.marketOrders ?? {}).length,
     queryClient,
     state.esiDataToLink.transactions.add,
     state.esiDataToLink.transactions.remove,

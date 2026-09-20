@@ -84,7 +84,11 @@ function jobWithOneSlot({ linkedJobs = [] } = {}) {
       },
       materials: {},
       childJobs: {},
-      costs: { linkedJobs },
+    },
+    esi: {
+      industryJobs: Object.fromEntries(
+        linkedJobs.map((row) => [String(row.job_id), row]),
+      ),
     },
   });
 }
@@ -168,8 +172,8 @@ describe("linking the market orders ESI reported, end to end", () => {
     await waitFor(() =>
       expect(editJob.current.esiDataToLink.marketOrders.add).toContain(700001),
     );
-    const orders = editJob.current.activeJob.build.sale.marketOrders;
-    expect(orders.map((order) => order.order_id)).toContain(700001);
+    const orders = editJob.current.activeJob.esi.marketOrders;
+    expect(orders["700001"]?.order_id).toBe(700001);
   });
 
   // The fee a sale was charged is linked with the order it belongs to, because
@@ -188,13 +192,14 @@ describe("linking the market orders ESI reported, end to end", () => {
 
     fireEvent.click(screen.getByTestId("AddLinkIcon").closest("button"));
 
-    await waitFor(() =>
-      expect(editJob.current.activeJob.build.sale.brokersFee).toHaveLength(1),
-    );
     // Which order it belongs to is the whole point of keeping it: nothing else
-    // could work out afterwards what this sale was charged.
-    const [fee] = editJob.current.activeJob.build.sale.brokersFee;
-    expect(fee.belongsToOrder(700001)).toBe(true);
+    // could work out afterwards what this sale was charged. The fee is carried
+    // by that order rather than stored beside it.
+    await waitFor(() =>
+      expect(editJob.current.activeJob.esi.marketOrders["700001"]?.fee).toBe(
+        100,
+      ),
+    );
   });
 });
 
@@ -213,11 +218,12 @@ function sellingThroughOrder(order_id) {
       setup: {},
       materials: {},
       childJobs: {},
-      sale: {
-        marketOrders: [esiMarketOrder(order_id)],
-        brokersFee: [{ order_id, complete: true, amount: 100 }],
-        transactions: [],
+    },
+    esi: {
+      marketOrders: {
+        [order_id]: { ...esiMarketOrder(order_id), fee: 100 },
       },
+      transactions: {},
     },
   });
 }
@@ -318,16 +324,19 @@ describe("unlinking a market order, end to end", () => {
         <LinkedMarketOrdersTab state={state} actions={actions} />
       ),
     );
-    expect(editJob.current.activeJob.build.sale.marketOrders).toHaveLength(1);
+    expect(editJob.current.activeJob.esi.marketOrders["700001"]).toBeDefined();
 
     fireEvent.click(unlinkOrderButton());
 
-    expect(editJob.current.activeJob.build.sale.marketOrders).toHaveLength(0);
+    expect(
+      Object.keys(editJob.current.activeJob.esi.marketOrders),
+    ).toHaveLength(0);
     expect(editJob.current.esiDataToLink.marketOrders.remove).toContain(700001);
   });
 
   // The fee belonged to that order, so it goes with it — nothing else would
-  // ever clear it.
+  // ever clear it. The fee is read here rather than the order holding it,
+  // because the fee is the figure no later read could work out again.
   it("takes the order's fee with it", () => {
     const { editJob } = renderOverEditJob(
       sellingThroughOrder(700001),
@@ -335,9 +344,14 @@ describe("unlinking a market order, end to end", () => {
         <LinkedMarketOrdersTab state={state} actions={actions} />
       ),
     );
+    const feesHeld = () =>
+      Object.values(editJob.current.activeJob.esi.marketOrders).map(
+        (order) => order.fee,
+      );
+    expect(feesHeld()).toEqual([100]);
 
     fireEvent.click(unlinkOrderButton());
 
-    expect(editJob.current.activeJob.build.sale.brokersFee).toHaveLength(0);
+    expect(feesHeld()).toEqual([]);
   });
 });

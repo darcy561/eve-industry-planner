@@ -185,16 +185,14 @@ describe("which sales are offered for linking", () => {
 
     const job = {
       esiTransactionIDs: new Set(),
-      build: {
-        sale: {
-          marketOrders: [
-            {
-              order_id: 900,
-              type_id: 34,
-              location_id: 60003760,
-              CharacterHash: "hash-1",
-            },
-          ],
+      esi: {
+        marketOrders: {
+          900: {
+            order_id: 900,
+            type_id: 34,
+            location_id: 60003760,
+            CharacterHash: "hash-1",
+          },
         },
       },
     };

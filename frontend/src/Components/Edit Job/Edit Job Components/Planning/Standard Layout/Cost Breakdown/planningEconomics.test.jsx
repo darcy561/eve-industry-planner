@@ -79,7 +79,7 @@ const state = {
     layout: { setupToEdit: "setup0" },
     build: {
       setup: { setup0: { selectedCharacter: "hash" } },
-      costs: { extrasCosts: [{ id: "a" }, { id: "b" }] },
+      extrasCosts: { a: { id: "a" }, b: { id: "b" } },
     },
     get selectedSetup() {
       return this.build.setup[this.layout.setupToEdit];
@@ -179,7 +179,7 @@ describe("the planning economics wiring", () => {
         totalExtrasCost: 0,
         build: {
           setup: { setup0: { selectedCharacter: "hash" } },
-          costs: { extrasCosts: [] },
+          extrasCosts: {},
         },
         selectedSetup: { selectedCharacter: "hash" },
       },
@@ -273,9 +273,8 @@ describe("recording what invention cost", () => {
       totalInventionCost: 1500,
       build: {
         ...state.activeJob.build,
-        costs: {
-          ...state.activeJob.build.costs,
-          inventionEntries: [{ id: 1, itemName: "Datacore", itemCost: 1500 }],
+        inventionEntries: {
+          1: { id: 1, itemName: "Datacore", itemCost: 1500 },
         },
       },
     };

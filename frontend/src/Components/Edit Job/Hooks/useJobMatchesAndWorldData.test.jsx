@@ -62,7 +62,11 @@ function activeJob(linkedJobs = []) {
   return {
     itemID: RIFTER,
     jobType: 1,
-    build: { costs: { linkedJobs } },
+    esi: {
+      industryJobs: Object.fromEntries(
+        linkedJobs.map((row) => [String(row.job_id), row]),
+      ),
+    },
     updateLinkedJobData: vi.fn(),
     esiJobIDs: new Set(),
   };

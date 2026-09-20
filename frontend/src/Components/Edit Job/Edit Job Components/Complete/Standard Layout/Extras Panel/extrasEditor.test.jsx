@@ -33,7 +33,9 @@ vi.mock("../../../../../../Styled Components/Select/extrasCategories", () => ({
 const { default: ExtrasEditor } = await import("./extrasEditor");
 
 const job = (rows = []) => ({
-  build: { costs: { extrasCosts: rows } },
+  build: {
+    extrasCosts: Object.fromEntries(rows.map((row) => [row.id, row])),
+  },
   addExtrasCost: vi.fn(),
   removeExtrasCost: vi.fn(),
 });

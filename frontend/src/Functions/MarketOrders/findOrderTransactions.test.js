@@ -67,7 +67,11 @@ function journalFor(ids) {
 function jobWithOrders(orders) {
   return {
     esiTransactionIDs: new Set(),
-    build: { sale: { marketOrders: orders } },
+    esi: {
+      marketOrders: Object.fromEntries(
+        orders.map((order) => [String(order.order_id), order]),
+      ),
+    },
   };
 }
 

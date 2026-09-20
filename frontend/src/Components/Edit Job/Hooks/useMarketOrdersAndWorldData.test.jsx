@@ -68,7 +68,14 @@ const JITA = 60003760;
 const RAITARU = 1035466617946;
 
 function activeJob(marketOrders = []) {
-  return { itemID: 587, build: { sale: { marketOrders } } };
+  return {
+    itemID: 587,
+    esi: {
+      marketOrders: Object.fromEntries(
+        marketOrders.map((row) => [String(row.order_id), row]),
+      ),
+    },
+  };
 }
 
 function render(job) {
