@@ -20,7 +20,7 @@ func init() {
 
 var ensureS3Cmd = &cobra.Command{
 	Use:   "ensure-s3",
-	Short: "Ensure SeaweedFS app buckets static-data / static-data-test (CLI)",
+	Short: "Ensure the SeaweedFS app buckets exist (CLI)",
 	Long: `Idempotent S3 ensure via dataplane.EnsureS3 (wait for seaweedfs, create app buckets).
 
 Requires a running Swarm seaweedfs task and S3_ACCESS_KEY / S3_SECRET_KEY in .env.

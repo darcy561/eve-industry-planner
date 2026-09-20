@@ -1,12 +1,17 @@
 # Market price delivery — plan
 
-**Status: SHELVED, and Stage E item 2 is superseded.** Phase 1 complete, **Stages A, B, C and D
-landed and Stage E is done bar the citadel walk** — but measuring every market region in New Eden
-says a saved NPC station belongs on the server rather than in the browser, which is § Stage G. The
-browser-side station fetch built for item 2 comes out when that is built. Nothing else changes: a
-citadel stays the reader's own fetch, because its book is authenticated per character.
+**Status: Stage G is in progress; the browser-side remainder is shelved, and Stage E item 2 is
+superseded.** Phase 1 complete, **Stages A, B, C and D landed and Stage E is done bar the citadel
+walk** — but measuring every market region in New Eden says a saved NPC station belongs on the server
+rather than in the browser, which is § Stage G. The browser-side station fetch built for item 2 comes
+out when that is built. Nothing else changes: a citadel stays the reader's own fetch, because its
+book is authenticated per character.
 
-Everything this project can build without a citadel that is a market has been built.
+**Stage G does not wait on the shelf.** It is server-side, and what the shelf is waiting for — a
+saved citadel that is a market — is a browser concern. The two halves of this project block on
+different things.
+
+Everything this project can build in the browser without a citadel that is a market has been built.
 It resumes when [custom-structure-model](../custom-structure-model/contents.md) makes one
 expressible — § Start here says exactly what to pick up and in what order. Nothing is half-finished:
 each landed stage is whole, tested and documented in
@@ -16,12 +21,16 @@ the SPA comes from the query cache, `worldData.marketData` is retired, the old
 than an age guess. The browser derives the four prices itself — held to the server's answer by a
 committed fixture — and the loader now sorts a tick's wants by transport, so a reader-saved NPC
 station is fetched from ESI and read back through the same accessor as a hub. Next is the persistent
-tier, and its rows now survive a reload. **Stage G is next**, and what it stores is bounded by what
-readers ask for rather than by what exists.
-**Added by Stage G:** [`services/core/scheduler/esi/regionMarketOrdersRefresh.go`](../../../services/core/scheduler/esi/regionMarketOrdersRefresh.go),
+tier, and its rows now survive a reload. **Stage G is under way**, and what it stores is bounded by
+what readers ask for rather than by what exists.
+**In scope for Stage G:** [`services/core/scheduler/esi/regionMarketOrdersRefresh.go`](../../../services/core/scheduler/esi/regionMarketOrdersRefresh.go),
 [`services/worker/tasks/esi/`](../../../services/worker/tasks/esi/) — `refreshRegionMarketOrders.go`,
 `regionMarketOrdersFetch.go`;
-[`services/shared/core/objectstore/backend.go`](../../../services/shared/core/objectstore/backend.go) — the bucket.
+[`services/shared/core/objectstore/`](../../../services/shared/core/objectstore/) — the bucket.
+**Stage G also reaches the Deployment Tool**, which the rest of this project does not:
+[`deployment-tool/internal/dataplane/s3/`](../../../deployment-tool/internal/dataplane/s3/) creates
+the buckets, in a module that cannot import `objectstore` — § G0. `docker-stack.data.yml` is in scope
+for the same reason.
 
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Functions/MarketData/`,
 `Functions/EveESI/World/`, `Functions/Endpoints/Public/`, `Functions/Shared/getMissingESIData.js`,
@@ -659,8 +668,15 @@ derive from, and **`DeletePrefix` to drop a region's whole book in one call** wh
 any more.
 
 **Its own bucket**, beside `static-data`, because the lifecycles differ: the SDE turns over per
-release and these turn over hourly. One more constant beside `BucketStaticData`, and one more name in
-`SeedBuckets`, which `eip ensure-s3` creates.
+release and these turn over hourly.
+
+**Adding one costs a prerequisite, and it is done.** This said "one more constant beside
+`BucketStaticData`, and one more name in `SeedBuckets`, which `eip ensure-s3` creates". `SeedBuckets`
+has no caller: `eip ensure-s3` creates what `deployment-tool/internal/dataplane/s3`'s own
+`AppBuckets()` lists, in a module that cannot import `objectstore`. The two lists were held together
+by comments. `objectstore.SeedBucketNames()` now owns the list and a committed fixture carries it
+across the module boundary, so the bucket this stage adds is added once — see
+[overlay.md](./overlay.md) § G0.
 
 Retention stops being a memory question. Keeping a book for a week costs disk, and a week of pages is
 what lets a station derive from a walk made days ago rather than only within the last 24 hours.
@@ -903,7 +919,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
 | Stage D — The price cache and its two tiers | **Done.** Items 1-3 landed in Stage B or are inherited from it; the persistent tier is read-through on `idb-keyval`, entered at one seam, holding reader-saved markets only, with a stored row refused once its book's expiry passes and rows abandoned by a version bump removed on first touch — see [overlay.md](./overlay.md) § D1. What it still owes is pacing while a row stays warm in memory, which is Stage E's remaining item |
 | Stage E — Sources the browser fetches | **Partly done.** Item 1 (the derivation), item 2 (a saved NPC station, now reachable — the loader sorts a tick's wants by transport) and the pacing home item 4 needs have landed — see [overlay.md](./overlay.md) § E1, § E2, § E3, § C2. Still open: the citadel walk (item 3), refetching a saved source ahead of the reader rather than retiring its rows, which only a citadel needs, and end-to-end coverage of the station transport — `priceDelivery.e2e.test.jsx` proves the hub path against a mocked `fetch` and stops there, which is honest while nothing in a running app reaches a station, and a gap the moment Stage F stores one |
-| Stage G — An NPC station is priced by the server | **Measured, not built.** Every known-space region was walked for its page count: all 70 cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost. The Forge alone is 408 pages and 92 MB, which a browser cannot walk hourly for each reader. The store is already shaped for it — `priceKey` is a type at a location — so what changes is three references to `DefaultMarketLocations` and one line in the worker. Walking a region and pricing a station split into two tasks, so a station in a tracked region is priced from stored pages with no ESI call; the pages move from Redis to their own SeaweedFS bucket, where 0.4 GB is disk rather than memory; and a market is tracked once somebody asks for it rather than every station being built ahead of use. Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
+| Stage G — An NPC station is priced by the server | **Started.** G0 has landed: the object-store bucket list had two hand-synced copies in two modules that cannot import each other, so it now has one owner and a committed fixture across the boundary, and the dead `S3_BUCKET` stack line is gone — the prerequisite for adding a bucket at all ([overlay.md](./overlay.md) § G0). The rest is **measured, not built.** Every known-space region was walked for its page count: all 70 cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost. The Forge alone is 408 pages and 92 MB, which a browser cannot walk hourly for each reader. The store is already shaped for it — `priceKey` is a type at a location — so what changes is three references to `DefaultMarketLocations` and one line in the worker. Walking a region and pricing a station split into two tasks, so a station in a tracked region is priced from stored pages with no ESI call; the pages move from Redis to their own SeaweedFS bucket, where 0.4 GB is disk rather than memory; and a market is tracked once somebody asks for it rather than every station being built ahead of use. Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
 | Stage F — Custom market locations | **Not this project's to build.** It is what makes a saved location a market rather than a selling point priced from a hub, and it belongs to the separate custom-structure work — so this project and Stage E item 3 both wait on that, see § Stage F |
 
 ## Start here
@@ -918,11 +934,18 @@ re-asked, because `PRICE_STALE_TIME` is `Infinity` and only a hub's moved clock 
 today. Each saved source's expiry belongs in `priceRefreshSchedule.js` beside the hub probe (§ C2),
 and `ordersByRegionAndType` already returns it.
 
-**Nothing. This project is shelved**, and what unshelves it is
-[custom-structure-model](../custom-structure-model/contents.md) landing a citadel that is a market
-rather than a selling point priced from a hub (§ Stage F).
+**Stage G, and it is under way.** § G0 has landed — the bucket list has one owner, which adding a
+bucket needed first. Next is the bucket itself and moving `PutPage`/`Page` onto it, because the fetch
+task and the derive task both depend on where a page lives; then splitting them, which is where
+`PutPrice` stops being passed a region id under a parameter named `locationID`.
 
-### What to pick up when it does, in order
+### The browser-side remainder is still shelved
+
+What unshelves it is [custom-structure-model](../custom-structure-model/contents.md) landing a
+citadel that is a market rather than a selling point priced from a hub (§ Stage F). Stage G is not
+waiting on that.
+
+#### What to pick up when it does, in order
 
 1. **The citadel walk** (§ Stage E item 3). The whole-book walk on the reader's own token, through
    `nameLoader`'s per-character machinery **extended** rather than copied. The ESI scope is already

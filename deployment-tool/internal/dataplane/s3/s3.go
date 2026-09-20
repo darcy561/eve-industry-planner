@@ -19,7 +19,9 @@ import (
 
 const serviceName = "seaweedfs"
 
-// App buckets (keep in sync with objectstore + docker-stack.data.yml S3_BUCKET).
+// App buckets. services/shared/core/objectstore owns this list; the two are
+// separate modules, so a committed fixture holds them together — see
+// TestAppBucketsMatchesTheCommittedList.
 const (
 	BucketStatic     = "static-data"
 	BucketStaticTest = "static-data-test"

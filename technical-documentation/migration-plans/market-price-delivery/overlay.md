@@ -584,6 +584,71 @@ walk that reaches a private market through a citadel, and how a character withou
 remembered, including one whose token predates the scope; how several stations in one region share a
 request.
 
+## Stage G — An NPC station is priced by the server
+
+### G0 — One owner for the bucket list
+
+**The plan said "one more constant beside `BucketStaticData`, and one more name in `SeedBuckets`".
+That was not enough**, and finding out why is what this item is.
+
+`SeedBuckets()` has no caller. The buckets that a deployment actually creates come from a second,
+independent list in `deployment-tool/internal/dataplane/s3` — `AppBuckets()`, read by `Ensure` and
+`Check`, which run `weed shell s3.bucket.create`. The two are **separate Go modules and cannot import
+each other**, so the only thing holding them together was a comment on each saying "keep in sync".
+
+A bucket added on one side and forgotten on the other is a bucket every service opens and no
+deployment ever creates. It fails at the first write, on the host, and neither module's tests would
+have said anything — which is why this is a prerequisite for adding a bucket rather than tidying to
+do afterwards.
+
+**What owns it now.** `objectstore.SeedBucketNames()` is the list, `SeedBuckets()` joins it for the
+object store's own configuration, and a committed fixture carries it to the other module — the
+pattern this project already used for the hub list and the structure kinds:
+
+| | |
+|---|---|
+| Owner | `services/shared/core/objectstore` — `SeedBucketNames()` |
+| Fixture | `testing/fixtures/object-store-buckets/buckets.json` |
+| Written by | `buckets_parity_test.go`, regenerated with `EIP_UPDATE_OBJECT_STORE_BUCKETS=1` |
+| Read by | `deployment-tool/internal/dataplane/s3/s3_test.go` |
+
+The fixture is an **ordered** list, unlike the hub fixture's map. The Deployment Tool creates buckets
+in the order it is given, so order is part of the agreement rather than an accident of iteration.
+
+### `S3_BUCKET` in the stack file was never read by anything
+
+`docker-stack.data.yml` set `S3_BUCKET: static-data,static-data-test` on the seaweedfs container, and
+`s3.go`'s comment named it as a copy to keep in sync. It was neither — the string `S3_BUCKET` does
+not appear anywhere in the `weed` binary, so the image cannot read it, and the buckets have always
+been created by `s3.Ensure` through `weed shell`.
+
+So it was one copy of the list that could never have had an effect, and a comment pointing at it as
+though it did. Both are gone. What made this checkable rather than a judgement call was that the
+container is running: `strings` on the binary answers whether a program can read an environment
+variable, where a grep of this repository only answers whether we read it.
+
+The bucket names also appeared in **operator-facing copy in three places** — the `ensure-s3` verb's
+description in the catalogue and on the command itself, and the `S3_ACCESS_KEY` field's help text in
+the Deployment Tool's `.env` template. That is copy rather than a list anything reads, so no parity
+test would ever catch it, and it would go stale silently the moment a third bucket exists. All three
+now say what the thing is for instead of enumerating buckets.
+
+The third was found by review rather than by the sweep that found the others: grepping for
+`static-data` turns it up, but it reads as prose describing credentials rather than as a copy of a
+list, which is how it survived two passes. **Copy is a place a shared fact hides**, because the sweep
+that finds duplicated lists is looking for lists.
+
+### What the parity test cannot do by itself
+
+**`go test` can report a stale pass here.** The fixture is read with `os.ReadFile` at run time, which
+Go's test cache does not track, so a fixture that changed since the last run is not a cache miss. A
+regenerated fixture and an un-updated `AppBuckets()` reported `ok (cached)` until the run was forced
+with `-count=1`.
+
+This is true of every parity test in the repository that reads its fixture at run time, not something
+this one introduced. It is recorded here because a green run is the evidence these tests exist to
+provide, and "cached" is the one state where that evidence is worth nothing.
+
 ## Stage F — Custom market locations
 
 *Nothing landed yet.*

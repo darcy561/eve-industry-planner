@@ -26,7 +26,9 @@ price against, not only the four the server holds.
   for the session with nothing beneath them, and every reader-saved source — public station and
   private citadel alike — read through IndexedDB so it survives a reload.
 
-**Shelved.** Stages A to D and most of E have landed; what is left needs a citadel that is a market,
+**Stage G in progress; the browser-side remainder shelved.** Stages A to D and most of E have
+landed. Stage G moves a saved NPC station's pricing onto the server and is under way — it is
+server-side, so the shelf does not apply to it. What is shelved needs a citadel that is a market,
 which [custom-structure-model](../custom-structure-model/contents.md) makes expressible.
 [plan.md](./plan.md) § Start here lists what to pick up, in order, and what the shelf costs while it
 lasts.
@@ -92,5 +94,10 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know which markets are held on the reader's device, what expires a stored row, and what happens to rows a version bump abandons | [overlay.md](./overlay.md) § D1 |
 | Know which live documents this project has already falsified, and owes a rewrite at promote | [overlay.md](./overlay.md) § Missing live SoT found on the way |
 | Know why this project stops short of saved citadels, and what it waits on | [plan.md](./plan.md) § Stage F |
+| Know why a saved NPC station is priced by the server rather than the browser | [plan.md](./plan.md) § Stage G |
+| Know why walking a region and pricing a station are two jobs | [plan.md](./plan.md) § Walking a region and pricing a station are two jobs |
+| Know where a region's raw pages are held, and why not Redis | [plan.md](./plan.md) § Region pages belong in object storage, not Redis |
+| Know what bounds the markets the server tracks | [plan.md](./plan.md) § A market is tracked once somebody asks for it |
+| Know who owns the object-store bucket list, and what holds the two modules' copies together | [overlay.md](./overlay.md) § G0 |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
 | The measurements this design was argued from | [measurements.md](./measurements.md) |

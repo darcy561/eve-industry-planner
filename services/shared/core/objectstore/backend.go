@@ -50,9 +50,18 @@ type dialConfig struct {
 	EnsureBucket bool
 }
 
-// SeedBuckets is the initial bucket list for object-store first boot.
+// SeedBucketNames is every bucket a deployment must hold, and the one place
+// that list is written. The Deployment Tool creates and verifies its own copy
+// in a separate module, held to this one by a committed fixture — see
+// buckets_parity_test.go.
+func SeedBucketNames() []string {
+	return []string{BucketStaticData, BucketStaticDataTest}
+}
+
+// SeedBuckets is the initial bucket list for object-store first boot, as the
+// single separated string the object store is configured with.
 func SeedBuckets() string {
-	return BucketStaticData + "," + BucketStaticDataTest
+	return strings.Join(SeedBucketNames(), ",")
 }
 
 // OpenStaticData opens the static-data bucket.

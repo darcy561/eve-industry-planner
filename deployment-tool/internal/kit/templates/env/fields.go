@@ -102,7 +102,7 @@ var envFields = []EnvField{
 
 	{
 		Key: "S3_ACCESS_KEY", Section: "Database", Label: "S3 access key",
-		Help: "SeaweedFS S3 credentials for static-data / static-data-test buckets.",
+		Help: "SeaweedFS S3 credentials for the app buckets.",
 		Type: FieldText, Required: true, Default: "eipobject",
 	},
 	{
