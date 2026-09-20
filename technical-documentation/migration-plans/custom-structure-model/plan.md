@@ -22,6 +22,11 @@ uses, and runs after the lane fold whose array shape it reads.
 data, because `Structure.toDocument()` writes `rigSlot1: 0, rigSlot2: 0` over it on the next save.
 Removing a field nothing reads looks like cleanup; this one is the source the conversion reads.
 
+**Stage D's surfaces have landed.** One form asks a structure for the fields its kind carries, the
+three per-kind forms are gone, and the picker offers all six kinds. What remains before the stage
+closes is the placeholder rows in `saleLocations.js` — already gone — and a reader being able to
+reach a saved market end to end.
+
 **Both of Stage D's faults are closed.** The selling-rates cache is keyed on the location's broker
 fee, and a citadel's fee is resolved from the order that names where it was placed rather than from
 an account-wide default — so one sale quotes one figure. What Stage D still owes is the surface for

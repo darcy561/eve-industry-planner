@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Stack } from "@mui/material";
 
-import JobTypeSelection_CustomStructures from "./jobTypeSelection";
+import StructureKindSelection from "./structureKindSelection";
 import StructureForm from "./structureForm";
 import CurrentStructuresFrame from "./currentStructures";
 import { SectionPanel } from "../../../../Styled Components/Paper/SectionPanel";
@@ -21,11 +21,11 @@ export default function CustomStructuresForm() {
   return (
     <Stack spacing={2.5}>
       <SectionPanel
-        title="Choose a job type"
-        subtitle="The application currently supports saving custom structures that perform the following jobs:"
-        componentName="Custom structures job type"
+        title="Choose what you are saving"
+        subtitle="Somewhere you build, or somewhere you sell. What a kind is described by follows from which you pick."
+        componentName="Custom structure kind"
       >
-        <JobTypeSelection_CustomStructures
+        <StructureKindSelection
           selectedJobType={selectedJobType}
           setSelectedJobType={setSelectedJobType}
           setInitialSelectionMade={setInitialSelectionMade}
@@ -36,7 +36,7 @@ export default function CustomStructuresForm() {
         <>
           <SectionPanel
             title="Configure your custom structure"
-            subtitle="You can add multiple custom structures for each job type but only one structure can be the default. The default structure is what is used initially when creating new jobs of this job type, it can be quickly changed in the job later if needed."
+            subtitle="You can save as many of each kind as you like, and one of each is the default. The default is what a new job of that kind starts with, and can be changed on the job afterwards."
             componentName="Custom structure form"
           >
             <StructureForm

@@ -615,6 +615,35 @@ know which figure to pass and linking an order never depends on having saved whe
 Both were mutation-checked, and the cache test was written before the fix and watched to fail on the
 stale rate.
 
+### One form, driven by the field map
+
+Three forms described the four build kinds and differed by one field each — a system, an implant,
+nothing. `structureForm.jsx` renders a field when the kind carries it, reading the **same
+`fieldsByJobType` the class reads** to decide what a row stores. The map that decides what is kept is
+the map that decides what is asked for, so the two cannot disagree.
+
+`structureFields.jsx` is the table: each field names what shows it, its wording, and the control.
+Every control was already shared, and the market kinds needed nothing new — a place comes from
+`useAssetLocations` through `VirtualisedLocationSearch`, and a citadel's access character from
+`AssignUsersSelect`, the picker that names a seller on the Returns panel.
+
+The nine tests that covered the manufacturing form run against this one unchanged, which is what says
+it still does what the three did. One assertion moved: it checked a `selectedJobType` argument
+`addCustomStructure` never read, and reads the kind off the row instead.
+
+**A rendered field is not a usable one.** The form calls a setter per field, and three had been
+removed as dead code before the form that calls them existed — so choosing a market location or an
+access character threw. `structureForm.test.jsx` now asserts every field the form offers has the
+setter its handler calls, because the field-map tests prove the right controls appear and say nothing
+about whether they work.
+
+### The kind picker offers every kind
+
+`structureKindSelection.jsx` replaces `jobTypeSelection.jsx`: six radios from one table rather than
+four written out, and a heading that no longer asks for a job type. Its test asserts the picker
+offers as many kinds as `structureKinds` holds, so a kind the class carries fields for cannot be left
+unreachable.
+
 ### Still to fill
 
 The surface for saving one; what replaces the placeholder rows in `saleLocations.js` and how a saved
