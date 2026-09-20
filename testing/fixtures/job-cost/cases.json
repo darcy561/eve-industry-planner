@@ -33,24 +33,6 @@
               }
             }
           },
-          "costs": {
-            "extrasCosts": {
-              "extra-1": {
-                "id": "extra-1",
-                "category": "0",
-                "extraText": "Courier",
-                "extraValue": 3
-              }
-            },
-            "inventionEntries": {
-              "1": {
-                "id": 1,
-                "itemName": "Datacore",
-                "itemCost": 2
-              }
-            }
-          },
-          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -67,11 +49,26 @@
                 }
               }
             }
+          },
+          "extrasCosts": {
+            "extra-1": {
+              "id": "extra-1",
+              "category": "0",
+              "extraText": "Courier",
+              "extraValue": 3
+            }
+          },
+          "inventionEntries": {
+            "1": {
+              "id": 1,
+              "itemName": "Datacore",
+              "itemCost": 2
+            }
           }
         },
         "itemsProducedPerRun": 10,
         "esi": {
-          "linkedJobs": {
+          "industryJobs": {
             "900000": {
               "job_id": 900000,
               "status": "delivered",
@@ -151,8 +148,6 @@
               }
             }
           },
-          "costs": {},
-          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -177,7 +172,7 @@
         },
         "itemsProducedPerRun": 10,
         "esi": {
-          "linkedJobs": {},
+          "industryJobs": {},
           "marketOrders": {},
           "transactions": {}
         }
@@ -221,16 +216,6 @@
               }
             }
           },
-          "costs": {
-            "inventionEntries": {
-              "1": {
-                "id": 1,
-                "itemName": "Datacore",
-                "itemCost": 25
-              }
-            }
-          },
-          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -243,11 +228,18 @@
                 }
               }
             }
+          },
+          "inventionEntries": {
+            "1": {
+              "id": 1,
+              "itemName": "Datacore",
+              "itemCost": 25
+            }
           }
         },
         "itemsProducedPerRun": 10,
         "esi": {
-          "linkedJobs": {},
+          "industryJobs": {},
           "marketOrders": {},
           "transactions": {}
         }
@@ -285,16 +277,6 @@
               }
             }
           },
-          "costs": {
-            "inventionEntries": {
-              "1": {
-                "id": 1,
-                "itemName": "Datacore",
-                "itemCost": 7
-              }
-            }
-          },
-          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -307,11 +289,18 @@
                 }
               }
             }
+          },
+          "inventionEntries": {
+            "1": {
+              "id": 1,
+              "itemName": "Datacore",
+              "itemCost": 7
+            }
           }
         },
         "itemsProducedPerRun": 10,
         "esi": {
-          "linkedJobs": {},
+          "industryJobs": {},
           "marketOrders": {},
           "transactions": {}
         }
@@ -349,8 +338,6 @@
               }
             }
           },
-          "costs": {},
-          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -367,7 +354,7 @@
         },
         "itemsProducedPerRun": 10,
         "esi": {
-          "linkedJobs": {},
+          "industryJobs": {},
           "marketOrders": {
             "900": {
               "order_id": 900,
@@ -403,8 +390,6 @@
         "jobType": 1,
         "build": {
           "materials": {},
-          "costs": {},
-          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -415,7 +400,7 @@
         },
         "itemsProducedPerRun": 10,
         "esi": {
-          "linkedJobs": {},
+          "industryJobs": {},
           "marketOrders": {},
           "transactions": {}
         }
@@ -453,8 +438,6 @@
               }
             }
           },
-          "costs": {},
-          "sale": {},
           "setup": {
             "setup-1": {
               "id": "setup-1",
@@ -471,7 +454,7 @@
         },
         "itemsProducedPerRun": 10,
         "esi": {
-          "linkedJobs": {},
+          "industryJobs": {},
           "marketOrders": {
             "900": {
               "order_id": 900,
@@ -543,12 +526,11 @@
                 }
               }
             }
-          },
-          "costs": {}
+          }
         },
         "itemsProducedPerRun": 5,
         "esi": {
-          "linkedJobs": {},
+          "industryJobs": {},
           "marketOrders": {},
           "transactions": {}
         }

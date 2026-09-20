@@ -18,12 +18,10 @@
               "36": {
                 "typeID": 36
               }
-            },
-            "costs": {},
-            "sale": {}
+            }
           },
           "esi": {
-            "linkedJobs": {
+            "industryJobs": {
               "11": {
                 "job_id": 11,
                 "status": "delivered",
@@ -46,11 +44,10 @@
             "job-out"
           ],
           "build": {
-            "materials": {},
-            "sale": {}
+            "materials": {}
           },
           "esi": {
-            "linkedJobs": {},
+            "industryJobs": {},
             "marketOrders": {},
             "transactions": {
               "33": {
@@ -206,11 +203,10 @@
               "34": {
                 "typeID": 34
               }
-            },
-            "sale": {}
+            }
           },
           "esi": {
-            "linkedJobs": {},
+            "industryJobs": {},
             "marketOrders": {
               "99": {
                 "order_id": 99
@@ -232,11 +228,10 @@
               "34": {
                 "typeID": 34
               }
-            },
-            "sale": {}
+            }
           },
           "esi": {
-            "linkedJobs": {},
+            "industryJobs": {},
             "marketOrders": {
               "22": {
                 "order_id": 22

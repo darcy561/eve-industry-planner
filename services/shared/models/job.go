@@ -82,16 +82,19 @@ func (j Job) FilesItsOwnMonths() bool {
 	return j.FiledCostMonth.Valid() || j.FiledSalesMonth.Valid()
 }
 
-// JobBuild contains all build-related data including setups, costs, and sales
 // JobBuild is what the user planned for this job: how it is set up, what it is
 // built from, the costs they entered by hand and where they mean to sell it.
 // What the world reported back is in [JobESI].
 type JobBuild struct {
-	Setup       map[string]JobSetup    `json:"setup" bson:"setup"`
-	Costs       JobCosts               `json:"costs" bson:"costs"`
-	SellingPlan JobSellingPlan         `json:"sellingPlan" bson:"sellingPlan"`
-	Materials   map[string]JobMaterial `json:"materials" bson:"materials"`
-	ChildJobs   map[string][]string    `json:"childJobs" bson:"childJobs"`
+	Setup     map[string]JobSetup    `json:"setup" bson:"setup"`
+	Materials map[string]JobMaterial `json:"materials" bson:"materials"`
+	ChildJobs map[string][]string    `json:"childJobs" bson:"childJobs"`
+	// ExtrasCosts and InventionEntries are each keyed by their row's own id.
+	ExtrasCosts      map[string]ExtraCost      `json:"extrasCosts" bson:"extrasCosts"`
+	InventionEntries map[string]InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
+	// Where the player means to sell, as against [JobESI] which is where it went.
+	SellerCharacter *string `json:"sellerCharacter,omitempty" bson:"sellerCharacter,omitempty"`
+	SaleLocationID  *string `json:"saleLocationID,omitempty" bson:"saleLocationID,omitempty"`
 }
 
 // JobSetup represents a single setup configuration for a job
@@ -127,17 +130,6 @@ type MaterialCount struct {
 	TypeID      int `json:"typeID" bson:"typeID"`
 	Quantity    int `json:"quantity" bson:"quantity"`
 	RawQuantity int `json:"rawQuantity" bson:"rawQuantity"`
-}
-
-// JobCosts is the costs the user entered against this job by hand. It is not
-// every cost: install is what the linked ESI jobs were charged and materials
-// are what their purchases cost, so [Job.CostParts] gathers the total from here
-// and from [JobESI] together.
-type JobCosts struct {
-	// ExtrasCosts is keyed by each row's own id.
-	ExtrasCosts map[string]ExtraCost `json:"extrasCosts" bson:"extrasCosts"`
-	// InventionEntries is keyed by each row's own id.
-	InventionEntries map[string]InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
 }
 
 // JobCostParts are the six components a job's cost is made of.
@@ -190,7 +182,7 @@ func (j Job) TotalQuantityProduced() int {
 // keeps on the job.
 func (j Job) TotalExtrasCost() float64 {
 	total := 0.0
-	for _, extra := range j.Build.Costs.ExtrasCosts {
+	for _, extra := range j.Build.ExtrasCosts {
 		total += extra.ExtraValue
 	}
 	return total
@@ -200,7 +192,7 @@ func (j Job) TotalExtrasCost() float64 {
 // against the job.
 func (j Job) TotalInventionCost() float64 {
 	total := 0.0
-	for _, entry := range j.Build.Costs.InventionEntries {
+	for _, entry := range j.Build.InventionEntries {
 		total += entry.ItemCost
 	}
 	return total
@@ -640,17 +632,9 @@ func (e *InventionEntry) UnmarshalJSON(data []byte) error {
 // transaction_id — so a row is found by the id it already carries rather than
 // searched for.
 type JobESI struct {
-	LinkedJobs   map[string]LinkedESIJob `json:"linkedJobs" bson:"linkedJobs"`
+	LinkedJobs   map[string]LinkedESIJob `json:"industryJobs" bson:"industryJobs"`
 	MarketOrders map[string]MarketOrder  `json:"marketOrders" bson:"marketOrders"`
 	Transactions map[string]Transaction  `json:"transactions" bson:"transactions"`
-}
-
-// JobSellingPlan is the user's choice of who sells this job's output and where.
-// It is a planning input like the rest of [JobBuild], not an observation: what
-// selling actually happened is in [JobESI].
-type JobSellingPlan struct {
-	SellerCharacter *string `json:"sellerCharacter,omitempty" bson:"sellerCharacter,omitempty"`
-	SaleLocationID  *string `json:"saleLocationID,omitempty" bson:"saleLocationID,omitempty"`
 }
 
 // MarketOrder is an ESI market order linked to a job.

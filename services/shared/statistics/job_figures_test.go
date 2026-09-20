@@ -24,11 +24,9 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 				"34": {TypeID: 34, Purchasing: map[string]models.Purchase{"p1": {ID: "p1", ItemCount: 70, ItemCost: 1}}},
 				"35": {TypeID: 35, Purchasing: map[string]models.Purchase{"p2": {ID: "p2", ItemCount: 30, ItemCost: 1}}},
 			},
-			Costs: models.JobCosts{
-				ExtrasCosts: map[string]models.ExtraCost{"e1": {ID: "e1", ExtraValue: 3}},
-				InventionEntries: map[string]models.InventionEntry{
-					"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
-				},
+			ExtrasCosts: map[string]models.ExtraCost{"e1": {ID: "e1", ExtraValue: 3}},
+			InventionEntries: map[string]models.InventionEntry{
+				"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
 			},
 		},
 		ESI: models.JobESI{

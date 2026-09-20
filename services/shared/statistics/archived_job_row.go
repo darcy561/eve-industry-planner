@@ -205,7 +205,7 @@ func buildRow(job models.Job, snap models.JobFigures, now time.Time) models.Arch
 		TotalExtras:        snap.TotalExtras,
 		TotalInventionCost: snap.TotalInventionCost,
 		TotalCostPerItem:   snap.TotalCostPerItem,
-		ExtraCategories:    extraCategories(job.Build.Costs.ExtrasCosts),
+		ExtraCategories:    extraCategories(job.Build.ExtrasCosts),
 		UnsoldQuantity:     unsoldQuantity,
 		UnsoldCost:         unsoldQuantity * costPerItem,
 		TransactionLines:   transactionLines,

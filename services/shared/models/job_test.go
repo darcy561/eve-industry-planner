@@ -43,10 +43,10 @@ func TestJobCostPartsAreReadFromTheJob(t *testing.T) {
 		"1": {JobID: 1, Cost: 3},
 		"2": {JobID: 2, Cost: 2},
 	}
-	job.Build.Costs.InventionEntries = map[string]InventionEntry{
+	job.Build.InventionEntries = map[string]InventionEntry{
 		"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
 	}
-	job.Build.Costs.ExtrasCosts = map[string]ExtraCost{
+	job.Build.ExtrasCosts = map[string]ExtraCost{
 		"e1": {ID: "e1", ExtraValue: 2},
 		"e2": {ID: "e2", ExtraValue: 1},
 	}
@@ -118,7 +118,7 @@ func TestANulledSellingPlanIsNoOverride(t *testing.T) {
 		t.Fatalf("bson.Marshal: %v", err)
 	}
 
-	var got JobSellingPlan
+	var got JobBuild
 	if err := bson.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("bson.Unmarshal: %v", err)
 	}
@@ -136,12 +136,12 @@ func TestEachHalfOfTheSellingPlanTravelsOnItsOwn(t *testing.T) {
 	t.Parallel()
 
 	seller := "hash-1"
-	raw, err := bson.Marshal(JobSellingPlan{SellerCharacter: &seller})
+	raw, err := bson.Marshal(JobBuild{SellerCharacter: &seller})
 	if err != nil {
 		t.Fatalf("bson.Marshal: %v", err)
 	}
 
-	var got JobSellingPlan
+	var got JobBuild
 	if err := bson.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("bson.Unmarshal: %v", err)
 	}
@@ -323,10 +323,10 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 			"p1": {ID: "p1", ItemCount: 60, ItemCost: 5},
 		}},
 	}
-	job.Build.Costs.ExtrasCosts = map[string]ExtraCost{
+	job.Build.ExtrasCosts = map[string]ExtraCost{
 		"e1": {ID: "e1", ExtraValue: 3},
 	}
-	job.Build.Costs.InventionEntries = map[string]InventionEntry{
+	job.Build.InventionEntries = map[string]InventionEntry{
 		"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
 	}
 	job.ESI.LinkedJobs = map[string]LinkedESIJob{"1": {JobID: 1, Cost: 7}}
@@ -348,7 +348,6 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 	}
 
 	build := nested(t, stored, "build")
-	costs := nested(t, build, "costs")
 	materials := nested(t, build, "materials")
 	material := nested(t, materials, "34")
 	esi := nested(t, stored, "esi")
@@ -361,9 +360,9 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 		{"", stored, "skills"},
 		{"build.", build, "materials"},
 		{"build.materials.34.", material, "purchasing"},
-		{"build.costs.", costs, "extrasCosts"},
-		{"build.costs.", costs, "inventionEntries"},
-		{"esi.", esi, "linkedJobs"},
+		{"build.", build, "extrasCosts"},
+		{"build.", build, "inventionEntries"},
+		{"esi.", esi, "industryJobs"},
 		{"esi.", esi, "marketOrders"},
 		{"esi.", esi, "transactions"},
 	} {
@@ -388,7 +387,7 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 	// Each ESI collection is filed under the id ESI itself assigned, which is how
 	// a linked row is found rather than searched for.
 	for _, filed := range []struct{ collection, key string }{
-		{"linkedJobs", "1"},
+		{"industryJobs", "1"},
 		{"marketOrders", "900"},
 		{"transactions", "77"},
 	} {

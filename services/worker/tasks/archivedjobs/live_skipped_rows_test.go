@@ -29,7 +29,7 @@ func buildableJob(jobID string, at time.Time) models.Job {
 	job.Build.Setup = map[string]models.JobSetup{
 		"setup-1": {ID: "setup-1", RunCount: 2, JobCount: 1},
 	}
-	job.Build.Costs.ExtrasCosts = map[string]models.ExtraCost{
+	job.Build.ExtrasCosts = map[string]models.ExtraCost{
 		"extra-1": {ID: "extra-1", Category: "0", ExtraText: "Courier", ExtraValue: 5000},
 	}
 	job.MetaData.Owner = models.AccountOwner(skippedScratchAccount)
