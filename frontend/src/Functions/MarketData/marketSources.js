@@ -15,9 +15,9 @@ export const SOURCE_KIND = {
   /** One of the hubs this server walks hourly and serves prices for. */
   HUB: "hub",
   /**
-   * An NPC station a reader saved. Its region's orders are public and filterable
-   * by type, so the browser reads the types the planner needs and filters them
-   * to the station rather than walking a whole book.
+   * An NPC station a reader saved. Its orders are public, so this server walks
+   * the region and prices the station exactly as it does a hub — the account
+   * registers the market, and the price comes back from the same query.
    */
   STATION: "station",
 };
@@ -25,18 +25,21 @@ export const SOURCE_KIND = {
 /**
  * Which tier a kind's rows live in, and the one place that decides it.
  *
- * The hubs are shared infrastructure: every account prices against them, the
- * server walks them hourly, and asking again after a reload costs one request
- * that was going to be cheap anyway. A market the reader saved was fetched at
- * their own expense — a citadel's whole book especially — and can never be had
- * for free again, so it is held on their device.
+ * Rows are held on a reader's device only where they cost that reader something
+ * to get. Every kind there is today is priced by this server and is one request
+ * away after a reload, so keeping its rows on disk would buy a warm start at
+ * the price of serving a figure the server has already replaced.
  *
- * A kind with no entry here is treated as session-only, which is the safe
- * default: the worst it costs is a re-fetch.
+ * What the persistent tier is for is a citadel, whose whole order book is
+ * walked on the reader's own token and can never be had for free again. Nothing
+ * produces that kind yet, so nothing maps to persistent and the tier waits.
+ *
+ * A kind with no entry here is session-only, which is the safe default: the
+ * worst it costs is a re-fetch.
  */
 const TIER = {
   [SOURCE_KIND.HUB]: "session",
-  [SOURCE_KIND.STATION]: "persistent",
+  [SOURCE_KIND.STATION]: "session",
 };
 
 /**

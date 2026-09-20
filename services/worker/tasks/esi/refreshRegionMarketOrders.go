@@ -96,10 +96,17 @@ func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarket
 		if err := orders.PutETags(ctx, request.RegionID, fetchResult.ETags); err != nil {
 			logs.WarnCtx(ctx, "failed saving region market orders etags", "region_id", request.RegionID, "error", err)
 		}
-		// A shrunk book leaves stale trailing pages that would otherwise replay on the next 304.
+		// A shrunk book leaves trailing pages behind, and both halves have to go: the ETag
+		// would replay one on the next 304, and the page itself is read by every later derive,
+		// which folds orders the book no longer holds into the prices it writes.
 		if fetchResult.TotalPages > 0 {
 			if err := orders.DeleteETagsFrom(ctx, request.RegionID, fetchResult.TotalPages+1); err != nil {
 				logs.WarnCtx(ctx, "failed pruning stale region etags", "region_id", request.RegionID, "error", err)
+			}
+			if deps.MarketPages.Available() {
+				if err := deps.MarketPages.DropPagesFrom(ctx, request.RegionID, fetchResult.TotalPages+1); err != nil {
+					logs.WarnCtx(ctx, "failed pruning stale region pages", "region_id", request.RegionID, "error", err)
+				}
 			}
 		}
 	}

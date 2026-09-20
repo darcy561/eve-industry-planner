@@ -36,11 +36,6 @@ export function readAdjustedClock() {
   return clocks.get(ADJUSTED);
 }
 
-/** Every market a clock is held for. */
-export function clockedSources() {
-  return [...clocks.keys()].filter((key) => key !== ADJUSTED);
-}
-
 /**
  * Records a market's clock, and says whether it moved past what was held.
  *

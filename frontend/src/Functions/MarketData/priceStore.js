@@ -142,7 +142,8 @@ async function readEntry(sourceID, typeID, now) {
  * @param {string} sourceID
  * @param {number|string} typeID
  * @param {object} row - As the loader resolved it, carrying its own
- *   `refreshedAt` and, where the source states one, its `expiresAt`
+ *   `refreshedAt`, and an `expiresAt` where the source that fetched it stated
+ *   one
  * @returns {Promise<void>}
  */
 export async function writeStoredPrice(sourceID, typeID, row) {

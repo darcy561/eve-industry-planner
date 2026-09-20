@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  clockedSources,
   readAdjustedClock,
   readSourceClock,
   recordAdjustedClock,
@@ -15,7 +14,6 @@ beforeEach(() => {
 describe("recording a market's clock", () => {
   it("holds nothing before a market has answered", () => {
     expect(readSourceClock("jita")).toBeUndefined();
-    expect(clockedSources()).toEqual([]);
   });
 
   // The first clock is what the rows arriving with it are current as of, so
@@ -54,7 +52,6 @@ describe("recording a market's clock", () => {
 
     expect(readSourceClock("jita")).toBe(1757000000000);
     expect(readSourceClock("amarr")).toBe(1757003600000);
-    expect(clockedSources().sort()).toEqual(["amarr", "jita"]);
   });
 
   // A market that answered with no clock at all must not be recorded as walked
@@ -73,7 +70,7 @@ describe("the adjusted block's clock", () => {
     recordAdjustedClock(1757000000000);
 
     expect(readAdjustedClock()).toBe(1757000000000);
-    expect(clockedSources()).toEqual([]);
+    expect(readSourceClock("jita")).toBeUndefined();
   });
 
   it("moves on its own", () => {

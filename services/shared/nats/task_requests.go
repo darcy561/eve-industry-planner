@@ -119,7 +119,7 @@ func (r RebuildOwnerStatisticsRequest) SpanAttributes() []attribute.KeyValue {
 	}
 }
 
-// SpanAttributes records the region and station a market-orders refresh covers.
+// SpanAttributes records the region a market-orders walk covers.
 func (r RegionMarketOrdersRequest) SpanAttributes() []attribute.KeyValue {
 	return []attribute.KeyValue{attribute.Int64("task.data.region_id", int64(r.RegionID))}
 }

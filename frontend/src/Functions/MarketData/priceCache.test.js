@@ -286,6 +286,33 @@ describe("asking the markets whether their clocks moved", () => {
     expect(asked.sort()).toEqual(["amarr", "jita"]);
   });
 
+  // A market an account has just registered has no clock until its first walk
+  // finishes, and every row it holds reads as nothing. Asking only the markets
+  // that have reported a clock would leave a reader on "no price here" for as
+  // long as the tab stayed open, because nothing else would ever ask again.
+  it("asks a market that has rows but has never reported a clock", async () => {
+    requestPrice.mockResolvedValue(null);
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "a-new-market" }] });
+
+    requestPrice.mockClear();
+    await revalidateSourceClocks();
+
+    expect(requestPrice).toHaveBeenCalledWith("34", "a-new-market");
+  });
+
+  // The probe reads the query cache by key shape, and the adjusted prices sit
+  // under a neighbouring one — asking a market called "adjusted" would be a
+  // request for a market that does not exist.
+  it("does not mistake the adjusted prices for a market", async () => {
+    requestAdjustedPrice.mockResolvedValue(5);
+    await fetchPrices({ wants: [], adjustedTypeIDs: [34] });
+
+    requestPrice.mockClear();
+    await revalidateSourceClocks();
+
+    expect(requestPrice).not.toHaveBeenCalled();
+  });
+
   it("survives a market that could not be reached", async () => {
     requestPrice.mockResolvedValue(row(10));
     await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });

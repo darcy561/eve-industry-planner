@@ -38,8 +38,9 @@ let stopListening = null;
 let lastProbedAt = 0;
 
 /**
- * Retires what a reader-saved market has finished with, then asks every market
- * this server walks where its book has got to.
+ * Asks every market holding rows where it has got to, and retires what a market
+ * the reader fetched themselves has finished with — which is nothing today, as
+ * the call below says.
  *
  * A probe that could not be made is left alone: the rows held stay held, and the
  * next one asks again. A market not answering says nothing about whether the
@@ -55,9 +56,9 @@ async function probe() {
   // fresh, and silently — which is not hypothetical: a missing export threw here
   // once and cancelled the probe for the whole tick with nothing reporting it.
   try {
-    // A reader-saved source states its own expiry on the rows it produced, so
-    // whether those are finished with is already known here. Only the markets
-    // this server walks have to be asked.
+    // A no-op while every market is priced by this server: rows are kept on a
+    // reader's device only for a source they fetched themselves, and the
+    // citadel is the only such kind — it does not exist yet.
     expireSavedSourceRows();
   } catch {
     // Swallowed on purpose, per the contract above.

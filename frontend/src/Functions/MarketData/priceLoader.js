@@ -1,6 +1,4 @@
 import { fetchMarketPricesQuery } from "../Endpoints/Public/marketPricesQuery";
-import { deriveBookPrices } from "./deriveBookPrices";
-import { ordersByRegionAndType } from "./regionOrders";
 import { allMarketSources, SOURCE_KIND, sourceIn } from "./marketSources";
 import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 
@@ -72,18 +70,9 @@ async function flush() {
   if (batch.size === 0) return;
 
   try {
-    const { served, stations, adjusted, unaskable } = splitByTransport(batch);
+    const { served, adjusted, unaskable } = splitByTransport(batch);
 
-    // Each transport answers on its own, and that is the point of the split. A
-    // hub's price comes from this server and a saved station's from ESI, so
-    // one being unreachable says nothing about the other. Sent as one request
-    // they were not independent at all: the server answers 400 for the whole
-    // request when it sees a source it does not price, so a single station want
-    // took every hub price batched beside it down with it.
-    await Promise.all([
-      serveServerHeld(served, adjusted),
-      serveSavedStations(stations),
-    ]);
+    await serveServerHeld(served, adjusted);
 
     // A source no registry entry answers for cannot be asked of anything. It
     // settles as a failure rather than as nothing held, because "no order here"
@@ -116,7 +105,6 @@ async function flush() {
 function splitByTransport(batch) {
   const sources = allMarketSources();
   const served = [];
-  const stations = [];
   const adjusted = [];
   const unaskable = [];
 
@@ -130,16 +118,34 @@ function splitByTransport(batch) {
     const source = sourceIn(sources, head);
     const want = { typeID, sourceID: head, source, waiters };
 
-    if (source?.kind === SOURCE_KIND.HUB) {
+    if (
+      source?.kind === SOURCE_KIND.HUB ||
+      source?.kind === SOURCE_KIND.STATION
+    ) {
       served.push(want);
-    } else if (source?.kind === SOURCE_KIND.STATION) {
-      stations.push(want);
     } else {
       unaskable.push(want);
     }
   }
 
-  return { served, stations, adjusted, unaskable };
+  return { served, adjusted, unaskable };
+}
+
+/**
+ * What a source is called on the wire.
+ *
+ * A hub is named by its id and a saved station by the station it sits at: this
+ * server prices a market an account registered, and a station id is what it was
+ * registered by. The reader's own id for that market never leaves here — every
+ * row, key and clock is still held under it.
+ *
+ * @param {{id: string, kind: string, stationID?: number}} source
+ * @returns {string}
+ */
+function transportIDFor(source) {
+  return source?.kind === SOURCE_KIND.STATION
+    ? String(source.stationID)
+    : source?.id;
 }
 
 /** The markets this server prices, asked for in one query. */
@@ -148,16 +154,20 @@ async function serveServerHeld(wants, adjusted) {
 
   try {
     const answer = await fetchMarketPricesQuery({
-      wants: wants.map(({ typeID, sourceID }) => ({ typeID, sourceID })),
+      wants: wants.map(({ typeID, source }) => ({
+        typeID,
+        sourceID: transportIDFor(source),
+      })),
       adjustedTypeIDs: adjusted.map(({ typeID }) => typeID),
     });
 
     // Before the waiters, so a reader woken by one of them sees the clock that
     // the rows it is about to read arrived with.
-    recordClocks(answer);
+    recordClocks(answer, wants);
 
     for (const want of wants) {
-      resolveWant(want, rowFrom(answer.sources?.[want.sourceID], want.typeID));
+      const block = answer.sources?.[transportIDFor(want.source)];
+      resolveWant(want, rowFrom(block, want.typeID));
     }
     for (const want of adjusted) {
       resolveWant(want, answer.adjusted?.prices?.[want.typeID] ?? null);
@@ -165,70 +175,6 @@ async function serveServerHeld(wants, adjusted) {
   } catch (error) {
     for (const want of [...wants, ...adjusted]) rejectWant(want, error);
   }
-}
-
-/**
- * The markets the browser prices itself, one region and type at a time.
- *
- * **A region's orders cover every station in it.** Two stations in one region
- * wanting the same type is one read of those orders and two derivations from
- * them, not two reads — which is why the wants are grouped by the read they
- * need rather than by the station that asked.
- */
-async function serveSavedStations(wants) {
-  if (wants.length === 0) return;
-
-  const reads = new Map();
-  for (const want of wants) {
-    const readKey = `${want.source.regionID}|${want.typeID}`;
-    const held = reads.get(readKey);
-    if (held) {
-      held.wants.push(want);
-    } else {
-      reads.set(readKey, {
-        regionID: want.source.regionID,
-        typeID: want.typeID,
-        wants: [want],
-      });
-    }
-  }
-
-  await Promise.all([...reads.values()].map(priceStationsFromRegionOrders));
-}
-
-async function priceStationsFromRegionOrders({ regionID, typeID, wants }) {
-  try {
-    const orders = await ordersByRegionAndType({ regionID, typeID });
-
-    // The moment the browser read them. A hub's clock is the server saying when
-    // it walked the region's book; nothing says that to a browser about ESI, so
-    // the read is the only moment it can state honestly.
-    const refreshedAt = Date.now();
-
-    for (const want of wants) {
-      const prices = deriveBookPrices(orders.orders, want.source.stationID);
-      resolveWant(want, pricedOrNothing(prices, refreshedAt, orders.expiresAt));
-    }
-  } catch (error) {
-    for (const want of wants) rejectWant(want, error);
-  }
-}
-
-/**
- * Nothing on either side is the station holding no order for the type — the
- * same answer a hub gives by leaving the row out, rather than a price of zero.
- *
- * The row carries the expiry ESI gave the orders it came from, because this row
- * can outlive the tab: the tier beneath the cache refuses to serve one whose
- * orders would have changed by the time it is read back. A hub row carries
- * none, and needs none — it is asked for again on every reload.
- */
-function pricedOrNothing(prices, refreshedAt, expiresAt) {
-  if (!prices.buy && !prices.sell) return null;
-
-  const row = { ...prices, refreshedAt };
-  if (Number.isFinite(expiresAt)) row.expiresAt = expiresAt;
-  return row;
 }
 
 function resolveWant(want, value) {
@@ -252,10 +198,30 @@ function rejectWant(want, error) {
  * @returns {{sources: string[], adjusted: boolean}} Markets that moved, and
  *   whether the adjusted block did
  */
-function recordClocks(answer) {
+function recordClocks(answer, wants) {
   const moved = [];
 
+  // Recorded per want rather than per answer block, because two markets an
+  // account saved can sit at one station and are asked for under the same id:
+  // keyed by what was asked, one would take the other's clock and the market
+  // that lost it would serve a superseded price until the tab closed.
+  const asked = new Set();
+  const answered = new Set();
+  for (const want of wants ?? []) {
+    answered.add(transportIDFor(want.source));
+    if (asked.has(want.sourceID)) continue;
+    asked.add(want.sourceID);
+
+    const block = answer?.sources?.[transportIDFor(want.source)];
+    if (recordSourceClock(want.sourceID, block?.refreshedAt)) {
+      moved.push(want.sourceID);
+    }
+  }
+
+  // A market the answer named that nothing asked for still states its clock,
+  // under the only id there is for it here.
   for (const [sourceID, block] of Object.entries(answer?.sources ?? {})) {
+    if (answered.has(sourceID)) continue;
     if (recordSourceClock(sourceID, block?.refreshedAt)) moved.push(sourceID);
   }
 

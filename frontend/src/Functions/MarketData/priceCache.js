@@ -10,7 +10,7 @@ import {
   setClockMovedListener,
 } from "./priceLoader";
 import { readStoredPrice, writeStoredPrice } from "./priceStore";
-import { clockedSources } from "./sourceClocks";
+import { readSourceClock } from "./sourceClocks";
 
 /**
  * Where a price is held, and the two halves of getting one.
@@ -284,14 +284,21 @@ export function expireSavedSourceRows(now = Date.now()) {
  * answered costs one row and settles whether every other row held for it is
  * still good. A market whose clock has not moved is left entirely alone.
  *
+ * **Every market holding rows is asked, not only those that have reported a
+ * clock.** A market an account has just registered has none until its first
+ * walk finishes, and its rows read as nothing held — asking only the clocked
+ * ones would leave a reader on "no price here" for as long as the tab stayed
+ * open.
+ *
  * @returns {Promise<void>}
  */
 export async function revalidateSourceClocks() {
   const wants = [];
 
-  for (const sourceID of clockedSources()) {
+  for (const sourceID of sourcesHoldingRows()) {
     const typeID = anyHeldTypeAt(sourceID);
-    if (typeID !== undefined) wants.push({ typeID, sourceID });
+    if (typeID === undefined) continue;
+    wants.push({ typeID, sourceID, unwalked: readSourceClock(sourceID) === undefined });
   }
 
   if (wants.length === 0) return;
@@ -299,6 +306,40 @@ export async function revalidateSourceClocks() {
   await Promise.allSettled(
     wants.map(({ typeID, sourceID }) => requestPrice(typeID, sourceID)),
   );
+
+  // A market answering its first clock is not a market that moved, so nothing
+  // announces it — but the rows held for it were answered before it had been
+  // walked, and every one of them says this market holds no price. They are
+  // dropped here, or a reader who asked too early sits on "nothing here" for
+  // the life of the tab.
+  const walkedAtLast = wants.filter(
+    ({ sourceID, unwalked }) => unwalked && readSourceClock(sourceID) !== undefined,
+  );
+  if (walkedAtLast.length === 0) return;
+
+  for (const { sourceID } of walkedAtLast) {
+    queryClient.removeQueries({ queryKey: marketPricesKey(sourceID) });
+  }
+  queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
+}
+
+/**
+ * Every market the cache holds a row for.
+ *
+ * Read from the rows rather than from the clocks, because a market waiting on
+ * its first walk has rows and no clock, and that is exactly the market that has
+ * to be asked again.
+ */
+function sourcesHoldingRows() {
+  const held = new Set();
+
+  for (const entry of queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["market", "price"] })) {
+    const sourceID = entry.queryKey?.[2];
+    if (sourceID) held.add(sourceID);
+  }
+  return [...held];
 }
 
 /**

@@ -15,12 +15,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 
+const SAVED_STATION = 60004588;
+
+// A market an account saved, which the server prices like a hub — the registry
+// is the seam it joins at, and its station id is what the wire names it by.
+vi.mock("./marketSources", async (importOriginal) => {
+  const real = await importOriginal();
+  return {
+    ...real,
+    allMarketSources: () => [
+      ...real.allMarketSources(),
+      {
+        id: "saved-market",
+        name: "A market the reader saved",
+        regionID: 10000030,
+        stationID: SAVED_STATION,
+        kind: real.SOURCE_KIND.STATION,
+      },
+    ],
+  };
+});
+
 const { queryClient } = await import("../../queryClient.js");
 const { resetSourceClocks, readSourceClock } =
   await import("./sourceClocks.js");
 const { resetPriceLoader } = await import("./priceLoader.js");
 const { getMarketPriceForType, getPriceRefreshedAt } =
   await import("./marketPriceForType.js");
+const { revalidateSourceClocks } = await import("./priceCache.js");
 const { useMarketPricesQuery } =
   await import("../../Hooks/React Query/World/marketPrices.js");
 
@@ -210,6 +232,85 @@ describe("a price from the wire to the screen", () => {
 
   // Two surfaces wanting the same material is one lookup, which is what the
   // cache beneath the accessor is for.
+  // The suite proved the hub path and stopped there, which was honest while the
+  // browser fetched a saved market's orders itself. It does not any more: this
+  // is the same wire, the same query and the same surface.
+  it("draws a saved market's price, asked for by its station", async () => {
+    fetchMock.mockResolvedValue(
+      apiResponse({
+        [SAVED_STATION]: { refreshedAt: WALKED_AT, prices: { 34: priced(12) } },
+      }),
+    );
+
+    show([{ typeID: 34, sourceID: "saved-market" }]);
+
+    expect(await screen.findByText("saved-market/34: 12")).toBeTruthy();
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.sources).toEqual({ [SAVED_STATION]: ["34"] });
+  });
+
+  // Every clock, row and key is held under the reader's own id for the market,
+  // so an answer keyed by a station has to come back to it.
+  it("holds a saved market's clock under the id the reader asked with", async () => {
+    fetchMock.mockResolvedValue(
+      apiResponse({
+        [SAVED_STATION]: { refreshedAt: WALKED_AT, prices: { 34: priced(12) } },
+      }),
+    );
+
+    show([{ typeID: 34, sourceID: "saved-market" }]);
+    await screen.findByText("saved-market/34: 12");
+
+    expect(readSourceClock("saved-market")).toBe(WALKED_AT);
+    expect(getPriceRefreshedAt(34, "saved-market")).toBe(WALKED_AT);
+  });
+
+  // A hub and a saved market travel as one request now, where the saved one
+  // used to be fetched separately from ESI.
+  it("asks for a hub and a saved market together", async () => {
+    fetchMock.mockResolvedValue(
+      apiResponse({
+        jita: { refreshedAt: WALKED_AT, prices: { 34: priced(10) } },
+        [SAVED_STATION]: { refreshedAt: WALKED_AT, prices: { 34: priced(12) } },
+      }),
+    );
+
+    show([
+      { typeID: 34, sourceID: "jita" },
+      { typeID: 34, sourceID: "saved-market" },
+    ]);
+
+    expect(await screen.findByText("jita/34: 10")).toBeTruthy();
+    expect(screen.getByText("saved-market/34: 12")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Registration puts a market in the sweep, but the first walk takes minutes.
+  // A reader who asks in that window is answered with no rows and no clock, and
+  // the whole point of the probe is that the figure reaches them once the walk
+  // lands rather than at the next reload.
+  it("shows a newly registered market's price once its first walk lands", async () => {
+    // A fresh Response per call: a body can only be read once, and this test
+    // deliberately asks twice.
+    fetchMock.mockImplementation(async () =>
+      apiResponse({ [SAVED_STATION]: { refreshedAt: 0, prices: {} } }),
+    );
+
+    show([{ typeID: 34, sourceID: "saved-market" }]);
+    expect(await screen.findByText("saved-market/34: 0")).toBeTruthy();
+
+    // The walk finishes, and the market starts answering with a clock.
+    fetchMock.mockImplementation(async () =>
+      apiResponse({
+        [SAVED_STATION]: { refreshedAt: WALKED_AT, prices: { 34: priced(12) } },
+      }),
+    );
+    await revalidateSourceClocks();
+
+    expect(await screen.findByText("saved-market/34: 12")).toBeTruthy();
+  });
+
   it("does not ask again for a price it already holds", async () => {
     fetchMock.mockResolvedValue(
       apiResponse({
