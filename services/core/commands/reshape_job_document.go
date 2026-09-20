@@ -525,7 +525,7 @@ func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 			continue
 		}
 		older, newer := held, fee
-		if asString(fee["date"]) < asString(held["date"]) {
+		if isOlderFee(fee, held) {
 			older, newer = fee, held
 		}
 		oldest[id] = older
@@ -559,6 +559,23 @@ func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 		report.FeeISKDroppedOrphan += asFloat64(fee["amount"])
 	}
 	return folded
+}
+
+// isOlderFee reports whether an incoming fee was charged before the one already
+// held for its order.
+//
+// A row with no date cannot be shown to be older, so it never displaces one that
+// carries a date — comparing the two strings alone would make it win every time,
+// because an empty date sorts before every real one. `MarketOrder.recordBrokerFee`
+// in the SPA reads them the same way, and the two have to agree: a job converted
+// here and then re-saved by the SPA would otherwise hold a different fee.
+func isOlderFee(incoming bson.M, held bson.M) bool {
+	date := asString(incoming["date"])
+	if date == "" {
+		return false
+	}
+	current := asString(held["date"])
+	return current == "" || date < current
 }
 
 // sortedByKey walks a map in a fixed order, so a report of what was dropped

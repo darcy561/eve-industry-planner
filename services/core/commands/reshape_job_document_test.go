@@ -118,6 +118,43 @@ func TestReshapeJobDocument_keepsTheOldestFeeOnItsOrder(t *testing.T) {
 	}
 }
 
+// A fee row stored without a date cannot be shown to be the older one, so it
+// does not displace a dated row. `MarketOrder.recordBrokerFee` in the SPA reads
+// the same rows the same way, and a disagreement would mean a job's cost
+// depended on which language last wrote it.
+func TestReshapeJobDocument_anUndatedFeeDoesNotDisplaceADatedOne(t *testing.T) {
+	for _, order := range []struct {
+		name string
+		fees bson.A
+	}{
+		{"dated first", bson.A{
+			bson.M{"order_id": int64(1), "id": int64(1), "date": "2026-01-01T00:00:00Z", "amount": 1000.0},
+			bson.M{"order_id": int64(1), "id": int64(2), "amount": 9999.0},
+		}},
+		{"undated first", bson.A{
+			bson.M{"order_id": int64(1), "id": int64(2), "amount": 9999.0},
+			bson.M{"order_id": int64(1), "id": int64(1), "date": "2026-01-01T00:00:00Z", "amount": 1000.0},
+		}},
+	} {
+		t.Run(order.name, func(t *testing.T) {
+			doc := jobWithSale(bson.A{bson.M{"order_id": int64(1)}}, order.fees, nil)
+
+			out, report := reshapeJobDocument(doc, fixedMint(-1))
+			if report.refused() {
+				t.Fatalf("refused: %v", report.Refusals)
+			}
+
+			held := asDocument(asDocument(asDocument(out["esi"])["marketOrders"])["1"])
+			if got := asFloat64(held["fee"]); got != 1000 {
+				t.Errorf("fee = %v, want the dated row's amount", got)
+			}
+			if got := asString(held["feeDate"]); got != "2026-01-01T00:00:00Z" {
+				t.Errorf("feeDate = %q, want the dated row's date", got)
+			}
+		})
+	}
+}
+
 func TestReshapeJobDocument_dropsAFeeWhoseOrderIsGone(t *testing.T) {
 	doc := jobWithSale(bson.A{},
 		bson.A{bson.M{"order_id": int64(6967154095), "id": int64(9), "date": "2025-01-30T19:20:35Z", "amount": 5692500}}, nil)

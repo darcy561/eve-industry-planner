@@ -43,15 +43,12 @@ export function jobFixture({
       materialPriceOverrides: {},
       materials: keyedMaterials(materials),
       childJobs,
-      costs: { extrasCosts, inventionEntries },
+      extrasCosts,
+      inventionEntries,
       // Where the output is meant to go. Both halves null is what almost every
       // job carries: the account's defaults apply.
-      sale: {
-        marketOrders: [],
-        transactions: [],
-        brokersFee: [],
-        plan: { sellerCharacter: null, saleLocationID: null },
-      },
+      sellerCharacter: null,
+      saleLocationID: null,
       setup: {
         setup0: {
           id: "setup0",
@@ -67,6 +64,9 @@ export function jobFixture({
         },
       },
     },
+    // What ESI reported, keyed by the id it assigned. Empty on a fixture that
+    // is not about linked rows, which is most of them.
+    esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
     get selectedSetup() {
       return this.build.setup[this.layout.setupToEdit];
     },
