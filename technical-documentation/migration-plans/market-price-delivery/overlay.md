@@ -532,7 +532,7 @@ The schedule tick now retires a reader-saved market's finished rows before
 probing the hubs, and `expireSavedSourceRows` in `priceCache.js` is what does it.
 
 **A saved market is not asked anything.** A hub's clock belongs to the server, so
-learning whether its rows still stand costs a request; a station's book states
+learning whether its rows still stand costs a request; a station's prices state
 its own expiry as it is fetched, and that expiry is carried on the row. So this
 half of the tick is local — it reads the cache, drops what has expired, and
 reaches no network at all. Retiring is done before the hub probe and outside its
@@ -824,6 +824,20 @@ chain; if the region is still tracked for another market the station is derived 
 if it was forgotten its walk is published and the sweep picks it up as never walked, the refresh lease
 collapsing the duplicate.
 
+### An order book belongs to a region, not to a station
+
+**A station has prices; the region it sits in has the order book.** ESI answers orders per region,
+and a station's figures are derived from the region's pages — so "a station's book" names something
+that does not exist, and it read as though each station had a book of its own to fetch.
+
+The vocabulary is now: a **region's orders** or its **order book** for what ESI returns, **prices**
+for what a station takes from them, and **freshness** for the `{refreshedAt, expiresAt}` pair a read
+carries. `fetchStationBook.js` is `regionOrders.js`, `fetchStationPrices` is `pricesAtStation`,
+`readStationBook` is `priceStationsFromRegionOrders`, and the loader groups wants by the **read**
+they need rather than by "the book".
+
+`deriveBookPrices` keeps its name: it derives prices from an order book, which is what it is given.
+
 ### The keys this stage retires, and the deploy that carries it
 
 **Two shapes are left behind, and neither expires.** Keying a price at a station
@@ -852,7 +866,7 @@ stayed down. The order is `eip up` (or `eip ensure-s3`), then the image roll.
 `/markets/structures/` and the docking character the row carries, which is
 [market-price-delivery](./plan.md) § Stage E item 3 and stays the reader's own fetch.
 
-**The browser still walks a saved station's book itself.** Nothing in the SPA reads a saved station's
+**The browser still reads a saved station's orders itself.** Nothing in the SPA reads a saved station's
 prices from `/marketPricesQuery` yet, so the server-side pricing this stage built is not what a reader
 sees until the loader is cut over — see [plan.md](./plan.md) § Start here.
 
