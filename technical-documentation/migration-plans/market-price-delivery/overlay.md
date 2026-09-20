@@ -649,6 +649,66 @@ This is true of every parity test in the repository that reads its fixture at ru
 this one introduced. It is recorded here because a green run is the evidence these tests exist to
 provide, and "cached" is the one state where that evidence is worth nothing.
 
+### G1 — The pages live in object storage
+
+A region's pages are written to `market-pages`, its own SeaweedFS bucket, through
+`objectstore.MarketPages`. `FetchRegionMarketOrders` takes that store in place of the Redis handle
+it used to take; Redis keeps the ETags, the prices and the refresh times, and the fetch tests still
+build one because the ESI client paces itself through it.
+
+`PutPage`, `Page`, `regionPageKey` and `ttlRegionPage` are deleted rather than wrapped.
+
+**The pages already in Redis are left to expire.** A deployment carrying this change has roughly 830
+`esi:market_orders:region:*:page:*` keys that nothing will ever read again — 832 on the machine this
+was built on. They are not deleted on release, because each was written with a 24-hour expiry and
+will go on its own within a day, and a release step that deletes keys by pattern is a worse thing to
+own than a day of stale memory. Nothing reads them in the meantime: the key is gone from the code,
+not just unused.
+
+**A worker without object storage still works.** Both the write and the replay ask `Available()`
+first, so a deployment where the bucket is not reachable walks the book and prices it as before — it
+just refetches every page instead of replaying. The one thing that must not happen is a 304 with
+nothing to replay reporting the region *unchanged*: the caller would skip the price write and the
+book would silently lapse. A test holds that, and it fails if the flag is left alone.
+
+**What the move gave up, and what replaces it.** Redis expired a page after 24 hours for free.
+Object storage has no expiry at all, so without something deliberate the bucket grows for ever —
+1,613 objects an hour, in a store nothing prunes. `DropRegionsOlderThan` is that something.
+
+It judges a region by its **newest** page, not its oldest. A walk rewrites a book page by page, so
+partway through a 408-page region the early pages are hours old while the region is being refreshed
+right now. Judging by the oldest page would delete a region mid-walk, and the walk would then finish
+writing pages into a region that had just been dropped. A test holds this: a region with one old page
+and one new page is kept.
+
+### An in-memory Backend, because the tests had nowhere to run
+
+This was not in the plan, and it is the larger half of the work.
+
+**Every object-store test in this repository skips.** They all reach `OpenTestStore`, which needs a
+live store: `S3_URL` is unset, and the object store's port is not published to the host, so it is
+reachable only from inside the overlay network. Nothing had ever noticed, because a skip reads as
+green.
+
+That would have quietly destroyed real coverage. Four fetch tests assert what the walk leaves behind
+for the next pass to replay — the thing that stops a shrunk book replaying pages it no longer has —
+and they assert it by reading the page store directly. Moving pages onto a `Backend` with no
+in-process implementation turns all four into skips.
+
+So `MemoryBackend` implements the nine-method interface in-process. It is written to match
+`S3Backend` rather than to be convenient, because **a fake friendlier than the real thing makes its
+tests lie**: a missing key is `ErrNotFound` rather than an empty result, keys are normalised on the
+way in so two spellings are one object, `ListKeys` is recursive and sorted while `ListChildNames`
+collapses to one level, and what is read is a copy so a caller sorting a page in place is not sorting
+what the store holds.
+
+It also takes a settable clock, which is what lets the retention test place one region before a
+cutoff and another after it without sleeping.
+
+**It is not test-only.** It lives beside `S3Backend` rather than in a test file, because any caller
+wanting object storage without a store to dial can take it. The SDE tests that skip today could use
+it too; that is not this project's to do.
+
 ## Stage F — Custom market locations
 
 *Nothing landed yet.*

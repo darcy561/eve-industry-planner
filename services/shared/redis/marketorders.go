@@ -33,8 +33,6 @@ const (
 	// Expires with the pages it would ask ESI to confirm.
 	ttlRegionETags = 24 * time.Hour
 
-	ttlRegionPage = 24 * time.Hour
-
 	// A region missing from the refresh-times set reads as never walked and is
 	// refreshed at once, so an expiry would re-walk current books. One member
 	// per region.
@@ -48,10 +46,6 @@ func priceKey(typeID, locationID int32) string {
 
 func regionETagsKey(regionID int32) string {
 	return "esi:market_orders:region:" + itoa(regionID) + ":etags"
-}
-
-func regionPageKey(regionID int32, page int) string {
-	return "esi:market_orders:region:" + itoa(regionID) + ":page:" + strconv.Itoa(page)
 }
 
 func itoa(id int32) string { return strconv.FormatInt(int64(id), 10) }
@@ -137,17 +131,6 @@ func (m *MarketOrdersStore) DeleteETagsFrom(ctx context.Context, regionID int32,
 		}
 	}
 	return m.redis.DeleteFields(ctx, key, stale...)
-}
-
-// PutPage caches one page of a region's order book.
-func (m *MarketOrdersStore) PutPage(ctx context.Context, regionID int32, page int, orders any) error {
-	return m.redis.PutJSON(ctx, regionPageKey(regionID, page), orders, ttlRegionPage)
-}
-
-// Page reads one cached page of a region's order book into target. A page that
-// is not cached returns [redis.Nil].
-func (m *MarketOrdersStore) Page(ctx context.Context, regionID int32, page int, target any) error {
-	return m.redis.GetJSON(ctx, regionPageKey(regionID, page), target)
 }
 
 // PutRefreshTime records when a region last refreshed.

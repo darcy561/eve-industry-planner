@@ -25,6 +25,9 @@ type Dependencies struct {
 	NATS        *eipnats.NATS
 	Redis       *eipredis.Redis
 	ObjectStore objectstore.Backend
+	// MarketPages holds the raw pages of each region's order book. A walk writes
+	// them and a 304 replays them, so a worker without it refetches every page.
+	MarketPages *objectstore.MarketPages
 	ESI         esiclient.API
 	// EntityCipher derives the refs that replace raw entity ids. Built once at the
 	// composition root so a missing key stops the worker starting rather than
@@ -43,5 +46,8 @@ func FromClients(c *stackservices.Clients, esi esiclient.API, refs *entityid.Cip
 	d.NATS = c.NATS
 	d.Redis = c.Redis
 	d.ObjectStore = c.ObjectStore
+	if c.MarketPages != nil {
+		d.MarketPages = objectstore.NewMarketPages(c.MarketPages)
+	}
 	return d
 }

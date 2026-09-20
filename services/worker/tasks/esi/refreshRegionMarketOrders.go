@@ -80,7 +80,7 @@ func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarket
 		return nil
 	}
 
-	fetchResult, err := FetchRegionMarketOrders(ctx, deps.ESI, deps.Redis, request.RegionID, prevETags, onOrder)
+	fetchResult, err := FetchRegionMarketOrders(ctx, deps.ESI, deps.MarketPages, request.RegionID, prevETags, onOrder)
 	if err != nil {
 		return HandleStreamError(ctx, err, eipnats.TaskNameRegionMarketOrdersRefresh)
 	}
@@ -93,7 +93,7 @@ func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarket
 	now := time.Now()
 
 	// An unchanged sweep still rewrites the prices below: the write is what
-	// renews their expiry, and the entries were replayed from the page cache.
+	// renews their expiry, and the entries were replayed from the stored pages.
 	if !fetchResult.AllUnchanged {
 		if err := orders.PutETags(ctx, request.RegionID, fetchResult.ETags); err != nil {
 			logs.WarnCtx(ctx, "failed saving region market orders etags", "region_id", request.RegionID, "error", err)

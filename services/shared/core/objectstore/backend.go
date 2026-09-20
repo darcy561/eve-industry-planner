@@ -16,6 +16,11 @@ import (
 const (
 	BucketStaticData     = "static-data"
 	BucketStaticDataTest = "static-data-test"
+
+	// BucketMarketPages holds the raw pages of each region's market order book.
+	// Its own bucket rather than a prefix in static-data, because the two turn
+	// over on different clocks: the SDE changes per release, these hourly.
+	BucketMarketPages = "market-pages"
 )
 
 var ErrNotFound = errors.New("objectstore: object not found")
@@ -55,7 +60,7 @@ type dialConfig struct {
 // in a separate module, held to this one by a committed fixture — see
 // buckets_parity_test.go.
 func SeedBucketNames() []string {
-	return []string{BucketStaticData, BucketStaticDataTest}
+	return []string{BucketStaticData, BucketStaticDataTest, BucketMarketPages}
 }
 
 // SeedBuckets is the initial bucket list for object-store first boot, as the
@@ -72,6 +77,11 @@ func OpenStaticData(ctx context.Context) (Backend, error) {
 // OpenStaticDataTest opens the static-data-test bucket.
 func OpenStaticDataTest(ctx context.Context) (Backend, error) {
 	return openBucket(ctx, BucketStaticDataTest, true)
+}
+
+// OpenMarketPages opens the bucket holding region order book pages.
+func OpenMarketPages(ctx context.Context) (Backend, error) {
+	return openBucket(ctx, BucketMarketPages, false)
 }
 
 func openBucket(ctx context.Context, bucket string, ensureBucket bool) (Backend, error) {

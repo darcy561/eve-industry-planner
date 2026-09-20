@@ -2,6 +2,7 @@
   "why": "The buckets this object store holds, from objectstore.SeedBuckets. The Deployment Tool creates and verifies its own copy, and nothing but this file connects the two. Regenerate with: EIP_UPDATE_OBJECT_STORE_BUCKETS=1 go test ./shared/core/objectstore/ -run TestTheBucketListIsCurrent",
   "buckets": [
     "static-data",
-    "static-data-test"
+    "static-data-test",
+    "market-pages"
   ]
 }

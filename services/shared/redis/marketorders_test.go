@@ -49,7 +49,6 @@ func TestMarketOrdersKeyLifetimes(t *testing.T) {
 	}{
 		"region price":         {ttlRegionPrice, 2 * time.Hour},
 		"region etags":         {ttlRegionETags, 24 * time.Hour},
-		"region page":          {ttlRegionPage, 24 * time.Hour},
 		"region refresh times": {ttlRegionRefreshTimes, 0},
 	} {
 		t.Run(name, func(t *testing.T) {

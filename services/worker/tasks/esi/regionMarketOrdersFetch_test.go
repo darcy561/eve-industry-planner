@@ -1,7 +1,6 @@
 package esi_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	objectstore "eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/testing/redisfake"
 	esi "eve-industry-planner/worker/tasks/esi"
@@ -20,9 +20,12 @@ import (
 )
 
 // The paged walk is the one with real state: a book spread over pages, an ETag
-// per page, and a Redis cache each page replays from when ESI answers 304. What
-// has to match is not just the orders delivered but the cache left behind, since
+// per page, and a page store each page replays from when ESI answers 304. What
+// has to match is not just the orders delivered but the pages left behind, since
 // that is what the next pass depends on.
+//
+// Redis is still here because the ESI client paces itself through it; the pages
+// are the only thing that moved to object storage.
 
 type ordersOrigin struct {
 	server   *httptest.Server
@@ -89,18 +92,19 @@ func ordersPageBody(page, perPage int) string {
 	return b.String()
 }
 
-// walk runs one fetch pass and reports what it delivered and cached.
-func walk(t *testing.T, origin *ordersOrigin, prevETags map[int]string) (esi.RegionOrdersFetchResult, []string, map[string]string) {
+// walk runs one fetch pass and reports what it delivered and stored.
+func walk(t *testing.T, origin *ordersOrigin, prevETags map[int]string) (esi.RegionOrdersFetchResult, []string, []int) {
 	t.Helper()
 	fake := redisfake.New(t)
+	pages := objectstore.NewMarketPages(objectstore.NewMemoryBackend())
 
-	result, delivered := fetchInto(t, fake.Client, origin, prevETags)
-	return result, delivered, cachedPages(t, fake.Client)
+	result, delivered := fetchInto(t, fake.Client, pages, origin, prevETags)
+	return result, delivered, storedPages(t, pages)
 }
 
-// fetchInto runs a pass against a caller-supplied Redis, so a replay can reuse
-// the cache the priming pass left behind.
-func fetchInto(t *testing.T, client *redis.Client, origin *ordersOrigin, prevETags map[int]string) (esi.RegionOrdersFetchResult, []string) {
+// fetchInto runs a pass against a caller-supplied Redis and page store, so a
+// replay can reuse the pages the priming pass left behind.
+func fetchInto(t *testing.T, client *redis.Client, pages *objectstore.MarketPages, origin *ordersOrigin, prevETags map[int]string) (esi.RegionOrdersFetchResult, []string) {
 	t.Helper()
 
 	cfg := esiclient.DefaultConfig()
@@ -112,7 +116,7 @@ func fetchInto(t *testing.T, client *redis.Client, origin *ordersOrigin, prevETa
 	t.Cleanup(stop)
 
 	var delivered []string
-	result, err := esi.FetchRegionMarketOrders(t.Context(), api, eipredis.NewRedis(client), 10000002, prevETags,
+	result, err := esi.FetchRegionMarketOrders(t.Context(), api, pages, 10000002, prevETags,
 		func(order esiclient.MarketOrder) error {
 			delivered = append(delivered, fmt.Sprintf("%d:%v:%d", order.OrderID, order.Price, order.VolumeRemain))
 			return nil
@@ -123,42 +127,22 @@ func fetchInto(t *testing.T, client *redis.Client, origin *ordersOrigin, prevETa
 	return result, delivered
 }
 
-// cachedPages is the page cache the next pass will replay from.
-func cachedPages(t *testing.T, client *redis.Client) map[string]string {
+// storedPages is what the next pass will replay from.
+func storedPages(t *testing.T, pages *objectstore.MarketPages) []int {
 	t.Helper()
 
-	out := map[string]string{}
-	var cursor uint64
-	for {
-		keys, next, err := client.Scan(t.Context(), cursor, "*market_orders*", 500).Result()
-		if err != nil {
-			t.Fatalf("scan: %v", err)
-		}
-		for _, key := range keys {
-			value, err := client.Get(t.Context(), key).Result()
-			if err != nil {
-				continue
-			}
-			var orders []map[string]any
-			if err := json.Unmarshal([]byte(value), &orders); err == nil {
-				normalised, _ := json.Marshal(orders)
-				out[key] = string(normalised)
-				continue
-			}
-			out[key] = value
-		}
-		if next == 0 {
-			return out
-		}
-		cursor = next
+	held, err := pages.PageNumbers(t.Context(), 10000002)
+	if err != nil {
+		t.Fatalf("page numbers: %v", err)
 	}
+	return held
 }
 
 func TestRegionMarketOrdersWalksEveryPage(t *testing.T) {
 	const pages, perPage = 4, 50
 	origin := newOrdersOrigin(t, pages, perPage)
 
-	result, delivered, cache := walk(t, origin, nil)
+	result, delivered, stored := walk(t, origin, nil)
 
 	if len(delivered) != pages*perPage {
 		t.Errorf("delivered %d orders, want %d", len(delivered), pages*perPage)
@@ -175,38 +159,39 @@ func TestRegionMarketOrdersWalksEveryPage(t *testing.T) {
 	if len(result.ETags) != pages {
 		t.Errorf("collected %d ETags, want one per page", len(result.ETags))
 	}
-	// Every page is cached unfiltered so the next 304 can replay it.
-	if len(cache) != pages {
-		t.Errorf("cached %d pages, want %d", len(cache), pages)
+	// Every page is stored unfiltered so the next 304 can replay it.
+	if want := []int{1, 2, 3, 4}; !slices.Equal(stored, want) {
+		t.Errorf("stored pages %v, want %v", stored, want)
 	}
 }
 
-func TestRegionMarketOrdersReplaysFromCacheWhenPagesAreUnchanged(t *testing.T) {
-	const pages = 3
-	origin := newOrdersOrigin(t, pages, 20)
+func TestRegionMarketOrdersReplaysFromStorageWhenPagesAreUnchanged(t *testing.T) {
+	const pageCount = 3
+	origin := newOrdersOrigin(t, pageCount, 20)
 	fake := redisfake.New(t)
+	pages := objectstore.NewMarketPages(objectstore.NewMemoryBackend())
 
-	// The first pass populates the cache and collects ETags.
-	first, fresh := fetchInto(t, fake.Client, origin, nil)
+	// The first pass stores the pages and collects ETags.
+	first, fresh := fetchInto(t, fake.Client, pages, origin, nil)
 	if first.AllUnchanged {
 		t.Fatal("the priming pass should have fetched")
 	}
 
-	for page := 1; page <= pages; page++ {
+	for page := 1; page <= pageCount; page++ {
 		origin.notModified[page] = true
 	}
 
-	second, replayed := fetchInto(t, fake.Client, origin, first.ETags)
+	second, replayed := fetchInto(t, fake.Client, pages, origin, first.ETags)
 
 	if !second.AllUnchanged {
 		t.Error("every page answered 304, so the pass was unchanged")
 	}
 	if !slices.Equal(fresh, replayed) {
-		t.Errorf("the cache replayed %d orders against the %d that were fetched; first divergence at %s",
+		t.Errorf("the store replayed %d orders against the %d that were fetched; first divergence at %s",
 			len(replayed), len(fresh), firstDifference(fresh, replayed))
 	}
 	if len(replayed) == 0 {
-		t.Error("a 304 pass should still deliver the book from cache")
+		t.Error("a 304 pass should still deliver the book from storage")
 	}
 }
 
@@ -230,7 +215,8 @@ func TestRegionMarketOrdersTreatsAMissingPageCountAsOnePage(t *testing.T) {
 	t.Cleanup(stop)
 
 	count := 0
-	result, err := esi.FetchRegionMarketOrders(t.Context(), next, eipredis.NewRedis(fake.Client), 10000002, nil,
+	result, err := esi.FetchRegionMarketOrders(t.Context(), next,
+		objectstore.NewMarketPages(objectstore.NewMemoryBackend()), 10000002, nil,
 		func(esiclient.MarketOrder) error { count++; return nil })
 	if err != nil {
 		t.Fatalf("fetch: %v", err)
@@ -250,4 +236,60 @@ func firstDifference(a, b []string) string {
 		}
 	}
 	return fmt.Sprintf("index %d (one ran out)", min(len(a), len(b)))
+}
+
+// A worker started without object storage still walks the book and still prices
+// it; what it loses is the replay, so every page is refetched. Degrading is the
+// point — a missing page store must not take the sweep down with it.
+func TestAWalkWithNoPageStoreStillDeliversTheBook(t *testing.T) {
+	const pages, perPage = 2, 10
+	origin := newOrdersOrigin(t, pages, perPage)
+	fake := redisfake.New(t)
+
+	cfg := esiclient.DefaultConfig()
+	cfg.BaseURL = origin.server.URL
+	api, stop, err := esiclient.New(eipredis.NewRedis(fake.Client), cfg)
+	if err != nil {
+		t.Fatalf("esiclient: %v", err)
+	}
+	t.Cleanup(stop)
+
+	var delivered int
+	result, err := esi.FetchRegionMarketOrders(t.Context(), api, nil, 10000002, nil,
+		func(esiclient.MarketOrder) error { delivered++; return nil })
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if delivered != pages*perPage {
+		t.Errorf("delivered %d orders, want %d", delivered, pages*perPage)
+	}
+	if result.TotalPages != pages {
+		t.Errorf("TotalPages = %d, want %d", result.TotalPages, pages)
+	}
+}
+
+// With nothing stored, a 304 has nothing to replay — so the pass must report
+// itself changed rather than unchanged, or the caller skips the price write and
+// the book silently lapses.
+func TestA304WithNoPageStoreIsNotUnchanged(t *testing.T) {
+	origin := newOrdersOrigin(t, 1, 5)
+	origin.notModified[1] = true
+	fake := redisfake.New(t)
+
+	cfg := esiclient.DefaultConfig()
+	cfg.BaseURL = origin.server.URL
+	api, stop, err := esiclient.New(eipredis.NewRedis(fake.Client), cfg)
+	if err != nil {
+		t.Fatalf("esiclient: %v", err)
+	}
+	t.Cleanup(stop)
+
+	result, err := esi.FetchRegionMarketOrders(t.Context(), api, nil, 10000002, map[int]string{1: `"orders-p1"`},
+		func(esiclient.MarketOrder) error { return nil })
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if result.AllUnchanged {
+		t.Error("a 304 that replayed nothing reported the region unchanged")
+	}
 }

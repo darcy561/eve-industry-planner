@@ -23,15 +23,16 @@ const serviceName = "seaweedfs"
 // separate modules, so a committed fixture holds them together — see
 // TestAppBucketsMatchesTheCommittedList.
 const (
-	BucketStatic     = "static-data"
-	BucketStaticTest = "static-data-test"
+	BucketStatic      = "static-data"
+	BucketStaticTest  = "static-data-test"
+	BucketMarketPages = "market-pages"
 )
 
 var safeBucketName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // AppBuckets is the declarative list Ensure creates / Check verifies.
 func AppBuckets() []string {
-	return []string{BucketStatic, BucketStaticTest}
+	return []string{BucketStatic, BucketStaticTest, BucketMarketPages}
 }
 
 func requireSafeBucket(name string) error {

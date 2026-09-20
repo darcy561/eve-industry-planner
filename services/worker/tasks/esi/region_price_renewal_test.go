@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	objectstore "eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/esiclient"
 	eipnats "eve-industry-planner/shared/nats"
 	eipredis "eve-industry-planner/shared/redis"
@@ -15,8 +16,8 @@ import (
 )
 
 // A region whose pages all answer 304 still rewrites its prices, because the
-// write is what renews their expiry. The entries were replayed from the page
-// cache, so they describe the current book.
+// write is what renews their expiry. The entries were replayed from the stored
+// pages, so they describe the current book.
 func TestUnchangedSweepRenewsRegionPrices(t *testing.T) {
 	const (
 		regionID  = int32(10000002)
@@ -35,7 +36,13 @@ func TestUnchangedSweepRenewsRegionPrices(t *testing.T) {
 	}
 	t.Cleanup(stop)
 
-	deps := &taskrun.Dependencies{Redis: eipredis.NewRedis(fake.Client), ESI: api}
+	// The pages are what a 304 renews the prices from, so a run without them
+	// replays nothing and this test's whole subject disappears.
+	deps := &taskrun.Dependencies{
+		Redis:       eipredis.NewRedis(fake.Client),
+		ESI:         api,
+		MarketPages: objectstore.NewMarketPages(objectstore.NewMemoryBackend()),
+	}
 	req := eipnats.RegionMarketOrdersRequest{RegionID: regionID, StationID: stationID}
 
 	// A priming pass fetches and writes the prices.

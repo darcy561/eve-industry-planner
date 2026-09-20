@@ -21,6 +21,7 @@ type Services struct {
 	NATS        bool
 	Redis       bool
 	ObjectStore bool // static-data bucket (SeaweedFS / S3)
+	MarketPages bool // market-pages bucket, holding region order book pages
 }
 
 // Common single-service selections for CLI / one-shots.
@@ -29,6 +30,7 @@ var (
 	NATS        = Services{NATS: true}
 	Redis       = Services{Redis: true}
 	ObjectStore = Services{ObjectStore: true}
+	MarketPages = Services{MarketPages: true}
 )
 
 // Clients holds open stack-service clients (no shutdown list).
@@ -37,6 +39,7 @@ type Clients struct {
 	NATS        *eipnats.NATS
 	Redis       *eipredis.Redis
 	ObjectStore objectstore.Backend
+	MarketPages objectstore.Backend
 }
 
 // Connect opens clients for the selected stack services with shared DB creds
@@ -93,6 +96,14 @@ func Connect(ctx context.Context, services Services) (*Clients, func(context.Con
 			return fail(fmt.Errorf("failed to open object store: %w", err))
 		}
 		clients.ObjectStore = backend
+	}
+
+	if services.MarketPages {
+		backend, err := objectstore.OpenMarketPages(ctx)
+		if err != nil {
+			return fail(fmt.Errorf("failed to open market pages store: %w", err))
+		}
+		clients.MarketPages = backend
 	}
 
 	return clients, stop, nil
