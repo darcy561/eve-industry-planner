@@ -126,13 +126,10 @@ func monthOf(t time.Time) models.CalendarMonth {
 
 // The rows come out of a map, but only the earliest date is returned and a
 // minimum does not depend on the order it is taken in.
-func earliestLinkedJobDate(linked map[string]*models.LinkedESIJob, fallback time.Time) (time.Time, bool) {
+func earliestLinkedJobDate(linked map[string]models.LinkedESIJob, fallback time.Time) (time.Time, bool) {
 	var earliest time.Time
 	found := false
 	for _, lj := range linked {
-		if lj == nil {
-			continue
-		}
 		for _, raw := range []string{lj.StartDate, lj.EndDate, lj.CompletedDate} {
 			if strings.TrimSpace(raw) == "" {
 				continue
@@ -147,13 +144,10 @@ func earliestLinkedJobDate(linked map[string]*models.LinkedESIJob, fallback time
 }
 
 // Order-independent for the reason earliestLinkedJobDate gives.
-func earliestTransactionDate(transactions map[string]*models.Transaction, fallback time.Time) (time.Time, bool) {
+func earliestTransactionDate(transactions map[string]models.Transaction, fallback time.Time) (time.Time, bool) {
 	var earliest time.Time
 	found := false
 	for _, t := range transactions {
-		if t == nil {
-			continue
-		}
 		if strings.TrimSpace(t.Date) == "" {
 			continue
 		}
@@ -236,9 +230,6 @@ func buildTransactionLines(
 	// document on each rebuild.
 	for _, key := range slices.Sorted(maps.Keys(job.ESI.Transactions)) {
 		t := job.ESI.Transactions[key]
-		if t == nil {
-			continue
-		}
 		quantity := float64(t.Quantity)
 		soldQuantity += quantity
 
@@ -291,7 +282,7 @@ func buildFeeLines(job models.Job, archivedAt time.Time) []models.ArchivedJobFee
 		o := job.ESI.MarketOrders[key]
 		// An order charged nothing has no fee line. The fee lives on the order
 		// now, so every order would otherwise produce one.
-		if o == nil || o.Fee == 0 {
+		if o.Fee == 0 {
 			continue
 		}
 		date := parseLineDate(o.FeeDate, archivedAt)

@@ -48,10 +48,25 @@ const (
 // Target is one entity id on a document paired with the ref that stands in for
 // it. ID is the client-facing value and is never persisted; Ref is what is
 // stored.
+//
+// Store is how a target that does not live at a fixed address files its change
+// back — a row held in a map, whose values are not addressable, points ID and
+// Ref at a copy and files that copy back under its key. A target reached
+// directly on the document writes through its pointers and leaves this nil.
 type Target struct {
-	Kind Kind
-	ID   *int
-	Ref  *string
+	Kind  Kind
+	ID    *int
+	Ref   *string
+	Store func()
+}
+
+// store files a target's change back when it was taken against a copy. Calling
+// it for every visited target, rather than only those that changed, keeps the
+// callers from having to track which did.
+func (t Target) store() {
+	if t.Store != nil {
+		t.Store()
+	}
 }
 
 // Declaration is a document type's protected field set: the spec it corresponds
@@ -98,6 +113,7 @@ func Encrypt[T any](d Declaration[T], doc *T, c *entityid.Cipher) error {
 			*t.Ref = sealed
 		}
 		*t.ID = 0
+		t.store()
 	}
 	return nil
 }
@@ -123,6 +139,7 @@ func Decrypt[T any](d Declaration[T], doc *T, c *entityid.Cipher) error {
 			return err
 		}
 		*t.ID = int(id)
+		t.store()
 	}
 	return nil
 }

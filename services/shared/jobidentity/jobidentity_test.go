@@ -16,15 +16,15 @@ import (
 
 func jobWithIDs() *models.Job {
 	job := &models.Job{JobID: "job-1"}
-	job.ESI.Transactions = map[string]*models.Transaction{
+	job.ESI.Transactions = map[string]models.Transaction{
 		"7712345678": {TransactionID: 7712345678, CorporationID: 98765432, CharacterID: 91234567},
 	}
 	// The broker fee records no identity of its own; the order it was charged
 	// against carries it.
-	job.ESI.MarketOrders = map[string]*models.MarketOrder{
+	job.ESI.MarketOrders = map[string]models.MarketOrder{
 		"6201234567": {OrderID: 6201234567, CorporationID: 98765432, CharacterID: 91234567, Fee: 250000, FeeDate: "2026-08-01T00:00:00Z"},
 	}
-	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+	job.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		"512345678": {JobID: 512345678, CorporationID: 98765432, CharacterID: 91234567},
 	}
 	return job
@@ -83,7 +83,7 @@ func TestRefsAreDeterministicAcrossDocuments(t *testing.T) {
 // the same numeric id stay distinguishable.
 func TestKindsDoNotCollide(t *testing.T) {
 	job := &models.Job{JobID: "job-collide"}
-	job.ESI.Transactions = map[string]*models.Transaction{
+	job.ESI.Transactions = map[string]models.Transaction{
 		"1": {TransactionID: 1, CorporationID: 42, CharacterID: 42},
 	}
 

@@ -13,11 +13,11 @@ func sampleJob() models.Job {
 	job := models.Job{JobID: "job-1", ItemID: 34, JobType: 1}
 	job.MetaData.Owner = models.AccountOwner("acct-1")
 	job.MetaData.ArchivedAt = time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
-	job.ESI.Transactions = map[string]*models.Transaction{
+	job.ESI.Transactions = map[string]models.Transaction{
 		"1": {TransactionID: 1, OrderID: 900, Quantity: 4, Amount: 400, Tax: 40, Date: "2026-06-01T00:00:00Z"},
 	}
 	// The broker fee lives on the order it was charged against.
-	job.ESI.MarketOrders = map[string]*models.MarketOrder{
+	job.ESI.MarketOrders = map[string]models.MarketOrder{
 		"900": {OrderID: 900, Fee: 5, FeeDate: "2026-06-02T00:00:00Z"},
 	}
 	return job
@@ -25,6 +25,16 @@ func sampleJob() models.Job {
 
 func sampleSnap() models.JobFigures {
 	return models.JobFigures{TotalProduced: 10, TotalJobCost: 500}
+}
+
+// withTransaction edits one keyed transaction and files it back. A map holds
+// values, so a write through the index would be a write to a copy — which is why
+// Go refuses it outright.
+func withTransaction(job models.Job, id string, edit func(*models.Transaction)) models.Job {
+	row := job.ESI.Transactions[id]
+	edit(&row)
+	job.ESI.Transactions[id] = row
+	return job
 }
 
 // Cost per item prorates the job's cost across what actually sold, and profit is
@@ -68,8 +78,7 @@ func TestUnsoldQuantityAndCost(t *testing.T) {
 func TestOversoldJobDoesNotReportNegativeUnsold(t *testing.T) {
 	t.Parallel()
 
-	job := sampleJob()
-	job.ESI.Transactions["1"].Quantity = 25
+	job := withTransaction(sampleJob(), "1", func(t *models.Transaction) { t.Quantity = 25 })
 	doc := RowFromFigures(job, sampleSnap(), buildNow)
 
 	if doc.UnsoldQuantity != 0 {
@@ -98,7 +107,7 @@ func TestCostMonthComesFromTheEarliestLinkedJob(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
-	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+	job.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		"1": {JobID: 1, StartDate: "2026-04-20T00:00:00Z"},
 		"2": {JobID: 2, StartDate: "2026-03-05T00:00:00Z"},
 	}
@@ -128,8 +137,7 @@ func TestCostMonthFallsBackThroughSalesToArchiveDate(t *testing.T) {
 func TestUnparsableLineDateFallsBackToTheArchiveDate(t *testing.T) {
 	t.Parallel()
 
-	job := sampleJob()
-	job.ESI.Transactions["1"].Date = "not a date"
+	job := withTransaction(sampleJob(), "1", func(t *models.Transaction) { t.Date = "not a date" })
 
 	line := RowFromFigures(job, sampleSnap(), buildNow).TransactionLines[0]
 	if line.Year != 2026 || line.Month != 6 {
@@ -178,7 +186,7 @@ func TestBuildIsDeterministic(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
-	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+	job.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		"2": {JobID: 2, StartDate: "2026-05-04T00:00:00Z"},
 		"1": {JobID: 1, StartDate: "2026-05-02T00:00:00Z"},
 	}
@@ -371,7 +379,7 @@ func TestMarketSalesIgnoreAFiledSalesMonth(t *testing.T) {
 	job := models.Job{JobID: "job-filed-market", ItemID: 34, ItemsProducedPerRun: 1}
 	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
 	job.FiledSalesMonth = &filed
-	job.ESI.Transactions = map[string]*models.Transaction{
+	job.ESI.Transactions = map[string]models.Transaction{
 		"6000000001": {
 			TransactionID: 6000000001, // ESI's own
 			Quantity:      1,
@@ -395,7 +403,7 @@ func TestHandEnteredSalesFollowAFiledSalesMonth(t *testing.T) {
 	job := models.Job{JobID: "job-filed-hand", ItemID: 34, ItemsProducedPerRun: 1}
 	job.Build.Setup = map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}}
 	job.FiledSalesMonth = &filed
-	job.ESI.Transactions = map[string]*models.Transaction{
+	job.ESI.Transactions = map[string]models.Transaction{
 		"-1700000000001": {
 			TransactionID: -1700000000001,
 			Quantity:      1,
@@ -403,7 +411,7 @@ func TestHandEnteredSalesFollowAFiledSalesMonth(t *testing.T) {
 			Date:          "2026-08-10T00:00:00Z",
 		},
 	}
-	job.ESI.MarketOrders = map[string]*models.MarketOrder{
+	job.ESI.MarketOrders = map[string]models.MarketOrder{
 		"900": {OrderID: 900, Fee: 5, FeeDate: "2026-08-09T00:00:00Z"},
 	}
 

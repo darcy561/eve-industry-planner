@@ -33,7 +33,6 @@ func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 				"extrasCosts": {},
 				"inventionEntries": {}
 			},
-			"sale": {},
 			"materials": {}
 		},
 		"esi": {"linkedJobs": {}, "marketOrders": {}, "transactions": {}},
@@ -104,7 +103,6 @@ func TestJob_JSON_ExtrasCostsShapeMismatch(t *testing.T) {
 				"extrasTotal": 123.45,
 				"inventionEntries": {}
 			},
-			"sale": {},
 			"materials": {}
 		},
 		"esi": {"linkedJobs": {}, "marketOrders": {}, "transactions": {}},
@@ -253,7 +251,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 				},
 				"inventionEntries": {}
 			},
-			"sale": {},
 			"materials": {}
 		},
 		"esi": {"linkedJobs": {}, "marketOrders": {}, "transactions": {}},
@@ -311,7 +308,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsPurchaseTypeID(t *testing.T) {
 				"extrasCosts": {},
 				"inventionEntries": {}
 			},
-			"sale": {},
 			"materials": {
 				"57478": {
 					"typeID": 57478,
@@ -421,7 +417,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 				},
 				"inventionEntries": {}
 			},
-			"sale": {},
 			"materials": {
 				"57478": {
 					"purchasing": {
@@ -501,8 +496,8 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 	if job.BlueprintTypeID == nil || *job.BlueprintTypeID != 34329 {
 		t.Fatalf("blueprintTypeID: %#v", job.BlueprintTypeID)
 	}
-	linked := job.ESI.LinkedJobs["649071222"]
-	if len(job.ESI.LinkedJobs) != 1 || linked == nil || linked.JobID != 649071222 || linked.JobType != 0 {
+	linked, hasLinked := job.ESI.LinkedJobs["649071222"]
+	if len(job.ESI.LinkedJobs) != 1 || !hasLinked || linked.JobID != 649071222 || linked.JobType != 0 {
 		t.Fatalf("linked job decode: %#v", job.ESI.LinkedJobs)
 	}
 	if linked.CompletedDate != "" {
@@ -535,7 +530,6 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 				"extrasCosts": {},
 				"inventionEntries": {}
 			},
-			"sale": {},
 			"materials": {}
 		},
 		"esi": {
@@ -580,8 +574,8 @@ func TestJob_JSON_DisallowUnknownFields_marketOrderRangeESIString(t *testing.T) 
 	if err := dec.Decode(&job); err != nil {
 		t.Fatal(err)
 	}
-	order := job.ESI.MarketOrders["7300255528"]
-	if len(job.ESI.MarketOrders) != 1 || order == nil || order.Range != "region" {
+	order, hasOrder := job.ESI.MarketOrders["7300255528"]
+	if len(job.ESI.MarketOrders) != 1 || !hasOrder || order.Range != "region" {
 		t.Fatalf("market order range: %+v", job.ESI.MarketOrders)
 	}
 	// The fee folded onto the order, so it decodes with it rather than from a

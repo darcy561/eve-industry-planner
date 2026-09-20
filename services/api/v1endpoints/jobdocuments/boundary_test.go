@@ -26,10 +26,10 @@ func testHandlers(t *testing.T, withCipher bool) *Handlers {
 func jobsWithIDs() []models.Job {
 	mk := func(id string, corp, char int) models.Job {
 		job := models.Job{JobID: id}
-		job.ESI.Transactions = map[string]*models.Transaction{
+		job.ESI.Transactions = map[string]models.Transaction{
 			"1": {TransactionID: 1, CorporationID: corp, CharacterID: char},
 		}
-		job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+		job.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 			"2": {JobID: 2, CorporationID: corp},
 		}
 		return job

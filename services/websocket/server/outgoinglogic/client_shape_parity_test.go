@@ -3,6 +3,7 @@ package outgoinglogic
 import (
 	"encoding/json"
 	"encoding/json/jsontext"
+	"maps"
 	"slices"
 	"testing"
 
@@ -24,10 +25,10 @@ func TestClientPayloadKeysMatchTheAPIResponse(t *testing.T) {
 	cipher := keys.EntityCipher(t)
 
 	job := &models.Job{JobID: "job-1"}
-	job.ESI.Transactions = map[string]*models.Transaction{
+	job.ESI.Transactions = map[string]models.Transaction{
 		"77": {TransactionID: 77, CorporationID: 98765432, CharacterID: 91234567},
 	}
-	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+	job.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		"512345678": {JobID: 512345678, CorporationID: 98765432},
 	}
 	if err := jobidentity.Encrypt(job, cipher); err != nil {
@@ -36,21 +37,13 @@ func TestClientPayloadKeysMatchTheAPIResponse(t *testing.T) {
 
 	// What the API serves: the stored document with ids restored.
 	//
-	// Copied row by row rather than with `served := *job` alone. The ESI
-	// collections hold pointers, so a struct copy shares their rows, and
-	// decrypting the copy would restore ids on the document this test still has
-	// to marshal as stored — leaving it comparing two views of one decrypted job.
+	// The maps are rebuilt rather than shared, because a struct copy copies the
+	// map header alone. Decrypting `served` would otherwise write restored ids
+	// into the same rows this test still has to marshal as stored, leaving it
+	// comparing two views of one decrypted job.
 	served := *job
-	served.ESI.Transactions = map[string]*models.Transaction{}
-	for id, tx := range job.ESI.Transactions {
-		row := *tx
-		served.ESI.Transactions[id] = &row
-	}
-	served.ESI.LinkedJobs = map[string]*models.LinkedESIJob{}
-	for id, linked := range job.ESI.LinkedJobs {
-		row := *linked
-		served.ESI.LinkedJobs[id] = &row
-	}
+	served.ESI.Transactions = maps.Clone(job.ESI.Transactions)
+	served.ESI.LinkedJobs = maps.Clone(job.ESI.LinkedJobs)
 	if err := jobidentity.Decrypt(&served, cipher); err != nil {
 		t.Fatalf("Decrypt: %v", err)
 	}

@@ -39,7 +39,7 @@ func TestJobCostPartsAreReadFromTheJob(t *testing.T) {
 		"34": {TypeID: 34, Quantity: 60},
 		"35": {TypeID: 35, Quantity: 40},
 	}}}
-	job.ESI.LinkedJobs = map[string]*LinkedESIJob{
+	job.ESI.LinkedJobs = map[string]LinkedESIJob{
 		"1": {JobID: 1, Cost: 3},
 		"2": {JobID: 2, Cost: 2},
 	}
@@ -50,11 +50,11 @@ func TestJobCostPartsAreReadFromTheJob(t *testing.T) {
 		"e1": {ID: "e1", ExtraValue: 2},
 		"e2": {ID: "e2", ExtraValue: 1},
 	}
-	job.ESI.MarketOrders = map[string]*MarketOrder{
+	job.ESI.MarketOrders = map[string]MarketOrder{
 		"1": {OrderID: 1, Fee: 1},
 		"2": {OrderID: 2, Fee: 0.5},
 	}
-	job.ESI.Transactions = map[string]*Transaction{
+	job.ESI.Transactions = map[string]Transaction{
 		"1": {TransactionID: 1, Tax: 0.5},
 		"2": {TransactionID: 2, Tax: 0.25},
 	}
@@ -113,22 +113,20 @@ func TestTotalQuantityProducedIsZeroWithoutSetups(t *testing.T) {
 func TestANulledSellingPlanIsNoOverride(t *testing.T) {
 	t.Parallel()
 
-	raw, err := bson.Marshal(bson.M{
-		"plan": bson.M{"sellerCharacter": nil, "saleLocationID": nil},
-	})
+	raw, err := bson.Marshal(bson.M{"sellerCharacter": nil, "saleLocationID": nil})
 	if err != nil {
 		t.Fatalf("bson.Marshal: %v", err)
 	}
 
-	var got JobSale
+	var got JobSellingPlan
 	if err := bson.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("bson.Unmarshal: %v", err)
 	}
-	if got.Plan.SellerCharacter != nil {
-		t.Errorf("SellerCharacter = %v, want nil", *got.Plan.SellerCharacter)
+	if got.SellerCharacter != nil {
+		t.Errorf("SellerCharacter = %v, want nil", *got.SellerCharacter)
 	}
-	if got.Plan.SaleLocationID != nil {
-		t.Errorf("SaleLocationID = %v, want nil", *got.Plan.SaleLocationID)
+	if got.SaleLocationID != nil {
+		t.Errorf("SaleLocationID = %v, want nil", *got.SaleLocationID)
 	}
 }
 
@@ -138,20 +136,20 @@ func TestEachHalfOfTheSellingPlanTravelsOnItsOwn(t *testing.T) {
 	t.Parallel()
 
 	seller := "hash-1"
-	raw, err := bson.Marshal(JobSale{Plan: JobSellingPlan{SellerCharacter: &seller}})
+	raw, err := bson.Marshal(JobSellingPlan{SellerCharacter: &seller})
 	if err != nil {
 		t.Fatalf("bson.Marshal: %v", err)
 	}
 
-	var got JobSale
+	var got JobSellingPlan
 	if err := bson.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("bson.Unmarshal: %v", err)
 	}
-	if got.Plan.SellerCharacter == nil || *got.Plan.SellerCharacter != seller {
-		t.Fatalf("seller did not survive the round trip: %+v", got.Plan)
+	if got.SellerCharacter == nil || *got.SellerCharacter != seller {
+		t.Fatalf("seller did not survive the round trip: %+v", got)
 	}
-	if got.Plan.SaleLocationID != nil {
-		t.Errorf("SaleLocationID = %v, want nil", *got.Plan.SaleLocationID)
+	if got.SaleLocationID != nil {
+		t.Errorf("SaleLocationID = %v, want nil", *got.SaleLocationID)
 	}
 }
 
@@ -188,7 +186,7 @@ func TestTheSalesTaxEstimateStaysOutOfACostTotal(t *testing.T) {
 	t.Parallel()
 
 	job := Job{}
-	job.ESI.MarketOrders = map[string]*MarketOrder{
+	job.ESI.MarketOrders = map[string]MarketOrder{
 		"900": {OrderID: 900, Fee: 1_500_000, SalesTax: 7_500_000},
 	}
 
@@ -331,9 +329,9 @@ func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 	job.Build.Costs.InventionEntries = map[string]InventionEntry{
 		"i1": {ID: "i1", ItemName: "Datacore", ItemCost: 2},
 	}
-	job.ESI.LinkedJobs = map[string]*LinkedESIJob{"1": {JobID: 1, Cost: 7}}
-	job.ESI.MarketOrders = map[string]*MarketOrder{"900": {OrderID: 900, Fee: 5}}
-	job.ESI.Transactions = map[string]*Transaction{"77": {TransactionID: 77, Tax: 1}}
+	job.ESI.LinkedJobs = map[string]LinkedESIJob{"1": {JobID: 1, Cost: 7}}
+	job.ESI.MarketOrders = map[string]MarketOrder{"900": {OrderID: 900, Fee: 5}}
+	job.ESI.Transactions = map[string]Transaction{"77": {TransactionID: 77, Tax: 1}}
 
 	raw, err := bson.Marshal(job)
 	if err != nil {

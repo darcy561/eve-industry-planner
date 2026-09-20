@@ -23,7 +23,7 @@ func TestJobUpgradeStampsUnversionedAsCurrent(t *testing.T) {
 func TestJobUpgradeLeavesIdentityAlone(t *testing.T) {
 	t.Parallel()
 	job := &models.Job{JobID: "job-1"}
-	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+	job.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		"512345678": {JobID: 512345678, CorporationID: 98765432},
 	}
 

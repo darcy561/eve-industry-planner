@@ -83,12 +83,15 @@ func (j Job) FilesItsOwnMonths() bool {
 }
 
 // JobBuild contains all build-related data including setups, costs, and sales
+// JobBuild is what the user planned for this job: how it is set up, what it is
+// built from, the costs they entered by hand and where they mean to sell it.
+// What the world reported back is in [JobESI].
 type JobBuild struct {
-	Setup     map[string]JobSetup    `json:"setup" bson:"setup"`
-	Costs     JobCosts               `json:"costs" bson:"costs"`
-	Sale      JobSale                `json:"sale" bson:"sale"`
-	Materials map[string]JobMaterial `json:"materials" bson:"materials"`
-	ChildJobs map[string][]string    `json:"childJobs" bson:"childJobs"`
+	Setup       map[string]JobSetup    `json:"setup" bson:"setup"`
+	Costs       JobCosts               `json:"costs" bson:"costs"`
+	SellingPlan JobSellingPlan         `json:"sellingPlan" bson:"sellingPlan"`
+	Materials   map[string]JobMaterial `json:"materials" bson:"materials"`
+	ChildJobs   map[string][]string    `json:"childJobs" bson:"childJobs"`
 }
 
 // JobSetup represents a single setup configuration for a job
@@ -126,7 +129,10 @@ type MaterialCount struct {
 	RawQuantity int `json:"rawQuantity" bson:"rawQuantity"`
 }
 
-// JobCosts contains all cost-related data for the job
+// JobCosts is the costs the user entered against this job by hand. It is not
+// every cost: install is what the linked ESI jobs were charged and materials
+// are what their purchases cost, so [Job.CostParts] gathers the total from here
+// and from [JobESI] together.
 type JobCosts struct {
 	// ExtrasCosts is keyed by each row's own id.
 	ExtrasCosts map[string]ExtraCost `json:"extrasCosts" bson:"extrasCosts"`
@@ -625,26 +631,23 @@ func (e *InventionEntry) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// JobSale contains sales and market order data
-type JobSale struct {
-	Plan JobSellingPlan `json:"plan" bson:"plan"`
-}
-
-// JobESI holds what ESI observed about this job: the industry jobs it was built
-// by, and the orders and sales it was sold through. Each collection is keyed by
-// the id ESI itself assigns — job_id, order_id, transaction_id — so a row is
-// found by the id it already carries rather than searched for.
+// JobESI is what ESI observed about this job: the industry jobs it was built by,
+// and the orders and sales it was sold through. [JobBuild] holds the other side
+// — what the user planned — so a figure is read from whichever of the two
+// actually knows it.
 //
-// Rows are pointers because jobidentity takes the address of each row's identity
-// fields to write refs back in place, and a map value is not addressable. That
-// makes a row shared rather than copied when a job is: anything that filters one
-// of these collections into a new job hands on the same rows.
+// Each collection is keyed by the id ESI itself assigns — job_id, order_id,
+// transaction_id — so a row is found by the id it already carries rather than
+// searched for.
 type JobESI struct {
-	LinkedJobs   map[string]*LinkedESIJob `json:"linkedJobs" bson:"linkedJobs"`
-	MarketOrders map[string]*MarketOrder  `json:"marketOrders" bson:"marketOrders"`
-	Transactions map[string]*Transaction  `json:"transactions" bson:"transactions"`
+	LinkedJobs   map[string]LinkedESIJob `json:"linkedJobs" bson:"linkedJobs"`
+	MarketOrders map[string]MarketOrder  `json:"marketOrders" bson:"marketOrders"`
+	Transactions map[string]Transaction  `json:"transactions" bson:"transactions"`
 }
 
+// JobSellingPlan is the user's choice of who sells this job's output and where.
+// It is a planning input like the rest of [JobBuild], not an observation: what
+// selling actually happened is in [JobESI].
 type JobSellingPlan struct {
 	SellerCharacter *string `json:"sellerCharacter,omitempty" bson:"sellerCharacter,omitempty"`
 	SaleLocationID  *string `json:"saleLocationID,omitempty" bson:"saleLocationID,omitempty"`

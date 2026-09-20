@@ -12,17 +12,17 @@ import (
 // job holds an ESI entry.
 func jobHolding(orders, linkedJobs, transactions []int64) models.Job {
 	job := models.Job{}
-	job.ESI.MarketOrders = map[string]*models.MarketOrder{}
-	job.ESI.LinkedJobs = map[string]*models.LinkedESIJob{}
-	job.ESI.Transactions = map[string]*models.Transaction{}
+	job.ESI.MarketOrders = map[string]models.MarketOrder{}
+	job.ESI.LinkedJobs = map[string]models.LinkedESIJob{}
+	job.ESI.Transactions = map[string]models.Transaction{}
 	for _, id := range orders {
-		job.ESI.MarketOrders[strconv.FormatInt(id, 10)] = &models.MarketOrder{OrderID: int(id)}
+		job.ESI.MarketOrders[strconv.FormatInt(id, 10)] = models.MarketOrder{OrderID: int(id)}
 	}
 	for _, id := range linkedJobs {
-		job.ESI.LinkedJobs[strconv.FormatInt(id, 10)] = &models.LinkedESIJob{JobID: int(id)}
+		job.ESI.LinkedJobs[strconv.FormatInt(id, 10)] = models.LinkedESIJob{JobID: int(id)}
 	}
 	for _, id := range transactions {
-		job.ESI.Transactions[strconv.FormatInt(id, 10)] = &models.Transaction{TransactionID: id}
+		job.ESI.Transactions[strconv.FormatInt(id, 10)] = models.Transaction{TransactionID: id}
 	}
 	return job
 }

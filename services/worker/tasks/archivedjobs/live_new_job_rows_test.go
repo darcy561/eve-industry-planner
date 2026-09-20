@@ -34,7 +34,7 @@ func TestLive_archivedJobWithoutARowIsRecoveredByTheRota(t *testing.T) {
 			Setup: map[string]models.JobSetup{"s1": {ID: "s1", RunCount: 1, JobCount: 1}},
 		},
 		ESI: models.JobESI{
-			LinkedJobs: map[string]*models.LinkedESIJob{"1": {JobID: 1, Cost: 200}},
+			LinkedJobs: map[string]models.LinkedESIJob{"1": {JobID: 1, Cost: 200}},
 		},
 	}
 	job.MetaData.Owner = models.AccountOwner(newRowsScratchAccount)

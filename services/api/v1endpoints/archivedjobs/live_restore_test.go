@@ -215,7 +215,7 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 
 	const contested, free = 4242, 4243
 	holder := seedJob("job-restore-holder")
-	holder.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+	holder.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		strconv.Itoa(contested): {JobID: contested},
 	}
 	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, []models.Job{holder}, now, "sess-3", ""); err != nil || failed > 0 {
@@ -223,7 +223,7 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 	}
 
 	archived := seedJob("job-restore-contested")
-	archived.ESI.LinkedJobs = map[string]*models.LinkedESIJob{
+	archived.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		strconv.Itoa(contested): {JobID: contested},
 		strconv.Itoa(free):      {JobID: free},
 	}

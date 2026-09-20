@@ -27,37 +27,34 @@ func targets(job *models.Job) []protectedfields.Target {
 	}
 	out := make([]protectedfields.Target, 0, 16)
 
-	// Each row is a pointer, so its identity fields are addressed in place — which
-	// is why these collections hold pointers rather than values. A nil row is
-	// skipped rather than dereferenced: a stored null decodes to one, and a
-	// document with a bad row should not stop the rest of it being protected.
-	for _, tx := range job.ESI.Transactions {
-		if tx == nil {
-			continue
-		}
+	// A row held in a map is not addressable, so each one is copied, pointed at,
+	// and filed back under its key by Store. The copy is per iteration, which is
+	// what keeps the three targets taken from one row pointing at that row rather
+	// than at whichever the loop reached last.
+	for id, tx := range job.ESI.Transactions {
 		out = append(out,
-			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &tx.CorporationID, Ref: &tx.CorporationRef},
-			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &tx.CharacterID, Ref: &tx.CharacterRef},
+			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &tx.CorporationID, Ref: &tx.CorporationRef,
+				Store: func() { job.ESI.Transactions[id] = tx }},
+			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &tx.CharacterID, Ref: &tx.CharacterRef,
+				Store: func() { job.ESI.Transactions[id] = tx }},
 		)
 	}
 
-	for _, order := range job.ESI.MarketOrders {
-		if order == nil {
-			continue
-		}
+	for id, order := range job.ESI.MarketOrders {
 		out = append(out,
-			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &order.CorporationID, Ref: &order.CorporationRef},
-			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &order.CharacterID, Ref: &order.CharacterRef},
+			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &order.CorporationID, Ref: &order.CorporationRef,
+				Store: func() { job.ESI.MarketOrders[id] = order }},
+			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &order.CharacterID, Ref: &order.CharacterRef,
+				Store: func() { job.ESI.MarketOrders[id] = order }},
 		)
 	}
 
-	for _, linked := range job.ESI.LinkedJobs {
-		if linked == nil {
-			continue
-		}
+	for id, linked := range job.ESI.LinkedJobs {
 		out = append(out,
-			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &linked.CorporationID, Ref: &linked.CorporationRef},
-			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &linked.CharacterID, Ref: &linked.CharacterRef},
+			protectedfields.Target{Kind: protectedfields.KindCorp, ID: &linked.CorporationID, Ref: &linked.CorporationRef,
+				Store: func() { job.ESI.LinkedJobs[id] = linked }},
+			protectedfields.Target{Kind: protectedfields.KindCharacter, ID: &linked.CharacterID, Ref: &linked.CharacterRef,
+				Store: func() { job.ESI.LinkedJobs[id] = linked }},
 		)
 	}
 
