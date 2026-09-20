@@ -7,6 +7,7 @@ import { FormField } from "../../../../Styled Components/Textfield/FormField";
 import Structure from "../../../../Classes/structure";
 import useRigSlots from "./useRigSlots";
 import useAssetLocations from "../../../../Hooks/EveEsi/useAssetLocations";
+import describeMarketLocation from "../../../../Functions/Structure/describeMarketLocation";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
 import { showSnackbarSuccess } from "../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
@@ -71,10 +72,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     () => getAppShellMarketSelectProps(theme),
     [theme],
   );
-  const textFieldSx = useMemo(
-    () => (t) => appShellTextFieldOutlinedSx(t),
-    [],
-  );
+  const textFieldSx = useMemo(() => (t) => appShellTextFieldOutlinedSx(t), []);
 
   const { addCustomStructure } =
     useUsersStore.getState().applicationSettings.actions;
@@ -82,6 +80,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
   const [structure, setStructure] = useState(() =>
     blankStructure(selectedJobType),
   );
+  const [placeError, setPlaceError] = useState(null);
 
   const fields = structure.fields;
   const isMarket = Boolean(fields.stationID || fields.structureID);
@@ -127,6 +126,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
 
   const context = {
     structure,
+    placeError,
     jobType: selectedJobType,
     fieldProps,
     textFieldSx,
@@ -167,13 +167,36 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     // One picker names the place, and which field it lands in is what the kind
     // already says: a station id and a structure id are the same number from
     // ESI and are told apart by range.
-    onPlace: (locationID) => {
+    //
+    // The region and the fee's inputs are derived from the place rather than
+    // asked for, and asked for here rather than when something tries to price
+    // at it — a market saved without a region is offered in every picker and
+    // prices nothing.
+    onPlace: async (locationID) => {
       if (!locationID) return;
       settled((s) => {
         if (resolveLocationKind(locationID) === LOCATION_KIND.STATION) {
           s.setStationID(locationID);
         } else {
           s.setStructureID(locationID);
+        }
+      });
+
+      const facts = await describeMarketLocation(
+        locationID,
+        structure.systemID,
+      );
+      if (!facts) {
+        setPlaceError(
+          "This location could not be read. Try again in a moment.",
+        );
+        return;
+      }
+      setPlaceError(null);
+      settled((s) => {
+        s.setRegionID(facts.regionID);
+        if (facts.raceID !== undefined) {
+          s.setStationOwner(facts.raceID, facts.ownerID);
         }
       });
     },

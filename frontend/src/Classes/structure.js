@@ -228,9 +228,6 @@ class Structure {
     this.default = isDefault;
   }
 
-
-
-
   /**
    * @param {number} regionID - The region whose order book carries this market
    */
@@ -250,6 +247,21 @@ class Structure {
    */
   setStructureID(structureID) {
     this.structureID = coerceFiniteNumber(structureID, 0);
+  }
+
+  /**
+   * What an NPC station's broker fee is worked out from.
+   *
+   * The race names the faction a standing is held against and the owner is the
+   * corporation holding the other. Both are fixed for the life of the station,
+   * so they are read once when it is saved.
+   *
+   * @param {number} raceID - The race that built the station
+   * @param {number} ownerID - The corporation that owns it
+   */
+  setStationOwner(raceID, ownerID) {
+    this.raceID = coerceFiniteNumber(raceID, 0);
+    this.ownerID = coerceFiniteNumber(ownerID, 0);
   }
 
   /**
@@ -276,7 +288,6 @@ class Structure {
   setBrokerFee(brokerFee) {
     this.brokerFee = coerceTaxPercentage(brokerFee);
   }
-
 
   /**
    * What this structure's two rigs give, taken per axis.

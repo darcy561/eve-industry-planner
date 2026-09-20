@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubElementHeights } from "../../../../tests/elementHeights";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -9,12 +10,25 @@ import { testQueryClient } from "../../../../tests/queryClients.js";
 
 const addCustomStructure = vi.fn();
 const addCustomStructureFunction = vi.fn();
+const describeMarketLocation = vi.fn();
 
 vi.mock("../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../tests/usersStoreHarness.js");
   return usersStoreMock({});
 });
+
+vi.mock("../../../../Hooks/EveEsi/useAssetLocations", () => ({
+  default: () => ({
+    locations: [{ locationId: 60003760, name: "Jita IV-4", unreadable: false }],
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+vi.mock("../../../../Functions/Structure/describeMarketLocation", () => ({
+  default: (...args) => describeMarketLocation(...args),
+}));
 
 vi.mock("../../../../Functions/Structure/addCustomStructure", () => ({
   addCustomStructure: (...args) => addCustomStructureFunction(...args),
@@ -218,11 +232,7 @@ describe("what each kind is asked for", () => {
   it("asks a citadel market for its fee and access character only", () => {
     renderForm({ selectedJobType: structureKinds.citadelMarket });
 
-    expect(asked()).toEqual([
-      "Location",
-      "Broker fee",
-      "Read its market with",
-    ]);
+    expect(asked()).toEqual(["Location", "Broker fee", "Read its market with"]);
   });
 
   // An NPC station's fee comes from the seller, so there is nothing to ask.
@@ -238,7 +248,8 @@ describe("what each kind is asked for", () => {
 // throws when a reader touches the field rather than when the form draws it.
 describe("every field the form offers can be set", () => {
   it("has a setter on the class for each field a kind carries", async () => {
-    const { default: Structure } = await import("../../../../Classes/structure");
+    const { default: Structure } =
+      await import("../../../../Classes/structure");
     const { STRUCTURE_FIELDS } = await import("./structureFields");
 
     // What the form's handlers call, by the field they belong to.
@@ -258,13 +269,47 @@ describe("every field the form offers can be set", () => {
     const structure = new Structure(undefined, structureKinds.citadelMarket);
     for (const entry of STRUCTURE_FIELDS) {
       for (const setter of setterFor[entry.id] ?? []) {
-        expect(
-          typeof structure[setter],
-          `${entry.id} needs ${setter}`,
-        ).toBe("function");
+        expect(typeof structure[setter], `${entry.id} needs ${setter}`).toBe(
+          "function",
+        );
       }
     }
     // A field with no entry above is one this test does not know how to check.
     expect(STRUCTURE_FIELDS.every((entry) => setterFor[entry.id])).toBe(true);
+  });
+});
+
+// A field being settable is not the same as being settled. A saved market must
+// carry a region, because an order book is read per region — a row without one
+// is offered in every picker and prices nothing.
+describe("what a saved market carries", () => {
+  // The picker virtualises its list, and jsdom measures every element as zero
+  // high, so without this it renders no options to choose from.
+  let restoreHeights;
+  beforeEach(() => {
+    restoreHeights = stubElementHeights();
+  });
+  afterEach(() => restoreHeights?.());
+
+  it("stores the region and fee inputs derived from the place chosen", async () => {
+    describeMarketLocation.mockResolvedValue({
+      regionID: 10000002,
+      raceID: 1,
+      ownerID: 1000035,
+    });
+    renderForm({ selectedJobType: structureKinds.npcStation });
+
+    const user = userEvent.setup();
+    await user.type(screen.getByRole("combobox"), "Jita");
+    await user.click(await screen.findByRole("option", { name: /Jita IV-4/ }));
+    await user.click(screen.getByRole("button", { name: /Add structure/i }));
+
+    const saved = addCustomStructureFunction.mock.calls.at(-1)[0].structure;
+    expect(saved.toDocument()).toMatchObject({
+      stationID: 60003760,
+      regionID: 10000002,
+      raceID: 1,
+      ownerID: 1000035,
+    });
   });
 });

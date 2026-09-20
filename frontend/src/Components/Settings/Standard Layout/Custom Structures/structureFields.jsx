@@ -28,6 +28,7 @@ const RIG_HELP =
  *   shows: (fields: object) => boolean,
  *   title: string,
  *   description: string,
+ *   describe?: (context: object) => string|null,
  *   width?: number,
  *   render: (context: object) => React.ReactNode,
  * }>}
@@ -40,12 +41,16 @@ export const STRUCTURE_FIELDS = [
     description:
       "The market this is. Offered from the places your characters keep things, because a market you sell at is somewhere you have docked.",
     width: 12,
-    render: ({ structure, places, onPlace }) => (
+    // A place whose region could not be read is as unusable as one that could
+    // not be listed, so it is said where the field is described rather than
+    // left for the reader to find when nothing prices.
+    describe: ({ placeError }) => placeError,
+    render: ({ structure, places, placeError, onPlace }) => (
       <VirtualisedLocationSearch
         places={places.locations}
         value={structure.stationID || structure.structureID || ""}
         isLoading={places.isLoading}
-        isError={places.isError}
+        isError={places.isError || Boolean(placeError)}
         label="Market location"
         onChange={onPlace}
       />
@@ -209,7 +214,10 @@ export function fieldsFor(fields) {
 export function StructureField({ entry, context }) {
   return (
     <Grid size={{ xs: 12, sm: entry.width ?? 6 }}>
-      <FormField title={entry.title} description={entry.description}>
+      <FormField
+        title={entry.title}
+        description={entry.describe?.(context) ?? entry.description}
+      >
         {entry.render(context)}
       </FormField>
     </Grid>

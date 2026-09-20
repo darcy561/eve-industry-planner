@@ -644,6 +644,26 @@ four written out, and a heading that no longer asks for a job type. Its test ass
 offers as many kinds as `structureKinds` holds, so a kind the class carries fields for cannot be left
 unreachable.
 
+### A saved market knows where it is
+
+A reader names a place and the rest is derived. `describeMarketLocation` walks
+`/universe/stations/{id}` to a system, `/universe/systems/{id}` to a constellation, and
+`/universe/constellations/{id}` to a region, and a station answers its `race_id` and `owner` on the
+way past — the two fields the broker fee reads, fixed for the life of the station.
+
+**It is asked when the place is chosen, not when something tries to price.** An order book is read
+per region, so a market saved without one is offered in every picker and prices nothing: the row
+looks complete and fails silently at the point a figure is wanted. A place whose chain could not be
+walked reads as an error on the field rather than saving a row that cannot work.
+
+A citadel is not asked for a station's fields — its owner sets a rate outright — and its region comes
+from the system it sits in rather than from `/universe/structures/`, which needs the docking
+character.
+
+`structureForm.test.jsx` drives the picker and asserts what reaches the save, because the field-map
+tests prove the right controls appear and the setter test proves they can be called; neither says a
+value arrives.
+
 ### Still to fill
 
 The surface for saving one; what replaces the placeholder rows in `saleLocations.js` and how a saved
