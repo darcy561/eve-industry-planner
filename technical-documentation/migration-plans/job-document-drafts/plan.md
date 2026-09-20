@@ -1167,6 +1167,18 @@ rebuilds the edit session rather than fitting the layers under it.
 Slice 1 landed with the module and its tests. `speculativeChildJobs` is absorbed by slice 2, which is
 where a question becomes an ordinary command written to `scratch`.
 
+**What is being replaced stays until what replaces it is proved.** The reducer and the mutation methods
+on `Job` are left in place while the commands are built, and are deleted in slice 4 rather than as each
+command lands. That is not a forwarding wrapper of the kind the engineering rules bar — nothing new
+calls the old path, and the old path is not kept as an alternative for callers to choose. It is kept so
+that a command can be tested **against** the method it replaces: run both over the same document and
+assert the results agree, which is a far stronger test than asserting a recipe writes the paths its
+author expected. Where the two disagree, one of them is wrong, and the old one is what runs today.
+
+That also gives the key-stringification inconsistency and the unbounded step a place to be settled
+deliberately: a comparison test states the difference as a difference rather than letting new code
+silently inherit or silently drop it.
+
 ### Stage 4 — Getters become functions, panel by panel
 
 Each converted panel drops its dependency on the lens. Incremental by construction, and the stage that
