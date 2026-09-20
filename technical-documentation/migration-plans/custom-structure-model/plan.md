@@ -4,9 +4,25 @@
 documents and stored rig ids. Stage D and Stage BR2 remain; BR2 is named here for what it inherits
 rather than owned here.
 
-**No gap is open.** Both silent faults are closed: the settings store reads either stored shape, and
-rigs are two slots everywhere — in the tables, the form, a stored setup, and the prerelease step that
-converts the stored ones.
+**No gap is open in what has landed.** The settings store reads either stored shape, rigs are two
+slots everywhere — in the tables, the form, a stored setup, and the prerelease step that converts the
+stored ones — and a setup's slots survive being saved, which the model that writes setups back did
+not allow until `RigSlot1`/`RigSlot2` replaced `RigID` on `JobSetup` and `TemplatePresetSetup`.
+
+**One gap is open in Stage BR, and it is silent.** Stage BR converted a stored *setup's* `rigID`
+into two slots, but nothing converts a stored *structure's* `rigType` into them. A manufacturing or
+reaction structure saved before the change therefore reads back with no rigs: `Structure` has no
+`rigType`, `fieldsByJobType` no longer names it, and `rigBonuses` answers from two slots that were
+never written — so every material and time bonus on that structure silently becomes zero, and the
+next save drops the field. `models.CustomStructure.RigType` is still declared and read by nothing,
+which is the same shape of fault as a converted setup being written back by a model that does not
+name its slots. **Closing it belongs to Stage BR**, not to Stage D: a conversion in
+`release_custom_structures.go` for the folded array, and the Go field removed once nothing reads it.
+
+**Two faults are open in Stage D's surfaces**, both predating this project and both reached by it:
+the selling-rates cache is not keyed on a location's broker fee, and the Selling stage reads a
+citadel's fee from an account-wide default while Planning reads the per-location rate. Stage D owns
+closing them — see that stage.
 
 **[market-price-delivery](../market-price-delivery/contents.md) is shelved waiting on this project**
 — specifically on a saved location being able to be a market, which Stage A makes expressible.
@@ -21,7 +37,15 @@ converts the stored ones.
 [`services/shared/models/planner/settings.go`](../../../services/shared/models/planner/settings.go),
 [`services/shared/documentschema/documentschema.go`](../../../services/shared/documentschema/documentschema.go),
 [`services/core/commands/release_custom_structures.go`](../../../services/core/commands/release_custom_structures.go),
-[`services/core/commands/release_rig_slots.go`](../../../services/core/commands/release_rig_slots.go).
+[`services/core/commands/release_rig_slots.go`](../../../services/core/commands/release_rig_slots.go),
+[`services/shared/models/job.go`](../../../services/shared/models/job.go) and
+[`services/shared/models/group_template.go`](../../../services/shared/models/group_template.go) — a
+stored setup's rig slots.
+
+**Added by Stage D:** [`frontend/src/Functions/MarketOrders/`](../../../frontend/src/Functions/MarketOrders/) —
+`saleLocations.js`, `sellingRates.js`, `calcSellingCharges.js`;
+[`frontend/src/Functions/MarketData/marketSources.js`](../../../frontend/src/Functions/MarketData/marketSources.js);
+[`frontend/src/Hooks/React Query/Character/useSellingRates.js`](../../../frontend/src/Hooks/React%20Query/Character/useSellingRates.js).
 **Live SoT (until promote):** [frontend/](../../frontend/contents.md), [backend/](../../backend/contents.md)
 
 **Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
@@ -194,8 +218,57 @@ structure id its book is walked by, reaching `allMarketSources()` through
 `Functions/MarketOrders/saleLocations.js` — the placeholder accessor it already reads. What it must
 **not** decide is how that market is fetched, priced or kept current; all three are
 [market-price-delivery](../market-price-delivery/plan.md) § Stage E.
-**Done when** a reader can save a location that a price can be asked for at, and the placeholder rows
-in `saleLocations.js` are gone.
+
+**There are two kinds, not one.** An NPC station and a player citadel are both places a price can be
+asked for, and they differ on every axis that matters: who sets the broker fee, whether a token is
+needed to read the book, and what identifies the location inside its region. Modelling them as one
+kind with optional fields would put the fee asymmetry behind a flag, which is the shape that produced
+the silent faults in Stages B and C.
+
+| | NPC station | Player citadel |
+|---|---|---|
+| Inside its region | `stationID` | `structureID` |
+| Broker fee | derived from the seller — **not stored** | `brokerFee`, the rate the owner set |
+| Reading its book | public | `characterHash`, a character with docking access |
+| System index | — | `systemID` |
+
+Both carry `regionID`, and both carry the `id`, `name` and `default` every kind has.
+
+**The fee asymmetry is load-bearing.** A broker fee at an NPC station is derived from the seller
+character's skills and standings, and is already quoted per job against a separately chosen seller.
+Storing a fee on a station row would let a saved number stand in for that derivation and silently
+quote the untrained base rate — live docs [frontend/](../../frontend/contents.md) § selling rates.
+A citadel's fee is the opposite: its owner sets it, nothing can derive it, so it is stored.
+
+**Why a region, on both kinds.** Price history is region-scoped — ESI publishes no per-station or
+per-structure history — and an order book is read per region and *then* filtered to the location.
+A saved location is reachable from the Returns panel header, so it must be able to open its own
+history and market data.
+
+**Why a system, on the citadel only.** The installation-cost calculation asks a location for its
+system index. A market row is a market that sits in a system, not a place to build: it carries
+`systemID` so the index question can be answered of it, and it has no entry in `jobTypeMapping`
+because a market has no install cost of its own.
+
+**The character hash is stored here and used later.** Market reads in the SPA are public and
+unauthenticated today, and no `/markets/structures/` call exists. The field is what
+[market-price-delivery](../market-price-delivery/plan.md) § Stage E needs in order to build the
+fetch, so it is stored by this stage and read by that one. A hash that no longer resolves — the
+character unlinked, or docking access lost — must read as *this market cannot be queried* and be
+re-choosable, never as a market with no orders.
+
+**Two faults in scope, both silent.** Neither is caused by this stage; both are reached by it, and
+both produce a wrong figure rather than an error:
+
+- `Hooks/React Query/Character/useSellingRates.js` keys its cache on the location's kind, id and fee
+  station, **not on `brokerFee`**. Harmless while the rows are placeholders and nothing can edit
+  them; the moment a reader can change a saved citadel's rate, changing it serves the old one.
+- `Functions/MarketOrders/calcSellingCharges.js` takes a citadel's fee from the account-wide
+  `defaultCitadelBrokersFee` while the Planning stage quotes the per-location rate, so one job shows
+  two different fees. Ending that split is what this stage is for.
+
+**Done when** a reader can save either kind of location, a price can be asked for at one, the two
+faults above are closed, and the placeholder rows in `saleLocations.js` are gone.
 
 **Done when** Stages A to D are, adding a kind of structure is a `jobType` value plus the fields it
 needs, and market-price-delivery can come off the shelf. **Stage BR2 is named here for its inheritance,

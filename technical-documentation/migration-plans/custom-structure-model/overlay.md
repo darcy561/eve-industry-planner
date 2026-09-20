@@ -171,7 +171,7 @@ what makes moving the callers a mechanical step rather than a leap.
 
 | Kind | Carries |
 |------|---------|
-| Manufacturing, reaction | `rigType`, `systemID` |
+| Manufacturing, reaction | `rigSlot1`, `rigSlot2`, `systemID` |
 | Reprocessing | `rigSlot1`, `rigSlot2`, `implant` |
 | Invention | `rigSlot1`, `rigSlot2` |
 
@@ -475,11 +475,13 @@ tell is to assert the edit applied.
 
 ## Stage D — The kind that is a market
 
-*Nothing landed yet.*
+*Nothing landed yet.* The design is settled — [plan.md](./plan.md) § Stage D — but no behaviour has
+shipped, so nothing is recorded here.
 
-Sections to fill: the kind and the fields it carries; what replaced the placeholder rows in
-`saleLocations.js` and how a saved row reaches `allMarketSources()`; what became of `priceHub` once a
-structure can be priced directly; the surface for saving one.
+Sections to fill: the two kinds and the fields each carries; why a broker fee is stored on a citadel
+and derived at a station; what replaced the placeholder rows in `saleLocations.js` and how a saved
+row reaches `allMarketSources()`; what became of `priceHub` once a location can be priced directly;
+how a stored access character that no longer resolves is shown; the surface for saving one.
 
 ## Missing live SoT found on the way
 
