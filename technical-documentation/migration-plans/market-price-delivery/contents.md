@@ -19,7 +19,8 @@ price against, not only the four the server holds.
   adding one, and keeping each of them current on its own ESI expiry rather than on demand.
 - **Fetching and deriving a reader-saved source.** A custom NPC station is public, so the server
   walks its region once for everybody and the browser fetches no book — measured against all 70
-  known-space regions. A custom citadel is how a private market is reached, with the reader's own
+  known-space regions. The pages that walk produces are held in object storage rather than Redis,
+  because they are large, written hourly and read rarely. A custom citadel is how a private market is reached, with the reader's own
   token, so its whole-book walk stays in the browser. **Public data centralises, private data does
   not**, and that is the line between them.
 - **Where market data lives in the browser.** One price cache in two tiers: the four hubs' rows held
@@ -40,9 +41,10 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 
 ## Does not own
 
-- **How the server builds the books.** The hourly region walk, the ETag and page cache, the station
-  filter and the percentile trim are current behaviour and are not being changed →
-  [backend/](../../backend/contents.md).
+- **How the server builds the books.** The hourly region walk, the ETag cache, the station filter and
+  the percentile trim are current behaviour and are not being changed →
+  [backend/](../../backend/contents.md). Where the walk's **pages** are held is this project's, and
+  has moved to object storage; what the walk does with them has not changed.
 - **Which market source and basis a figure is priced against.** The resolution ladder, the account's
   buying and selling defaults, and defaults keyed to an item's market group belong to
   [market-pricing-defaults/contents.md](../market-pricing-defaults/contents.md). That project decides
@@ -99,5 +101,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know where a region's raw pages are held, and why not Redis | [plan.md](./plan.md) § Region pages belong in object storage, not Redis |
 | Know what bounds the markets the server tracks | [plan.md](./plan.md) § A market is tracked once somebody asks for it |
 | Know who owns the object-store bucket list, and what holds the two modules' copies together | [overlay.md](./overlay.md) § G0 |
+| Know where a region's pages are written, and what keeps the bucket from growing for ever | [overlay.md](./overlay.md) § G1 |
+| Know why there is an in-memory object store, and what it is held to | [overlay.md](./overlay.md) § An in-memory Backend, because the tests had nowhere to run |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
 | The measurements this design was argued from | [measurements.md](./measurements.md) |
