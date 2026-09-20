@@ -14,6 +14,7 @@ import EntityRow from "../../../../Styled Components/Paper/EntityRow";
 import {
   jobTypeMapping,
   jobTypes,
+  structureKinds,
   rigTypeMap,
   structureTypeMap,
   systemTypeMap,
@@ -167,6 +168,24 @@ function structureFacts(
   structure,
   { systemNames, getSystemIndex },
 ) {
+  // A market is described by where it is and what it charges. The build fields
+  // below belong to a place a job is installed in, and the kinds are told apart
+  // by returning here rather than by falling through to them.
+  if (
+    selectedJobType === structureKinds.npcStation ||
+    selectedJobType === structureKinds.citadelMarket
+  ) {
+    return [
+      {
+        label: "Broker fee",
+        value:
+          structure.brokerFee === undefined
+            ? "Set by your skills and standings"
+            : `${structure.brokerFee || 0}%`,
+      },
+    ];
+  }
+
   const structureType =
     structureTypeMap[selectedJobType][structure.structureType]?.label ||
     "\u2014";

@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import CurrentStructuresFrame from "./currentStructures";
-import { jobTypes } from "../../../../Context/defaultValues";
+import { jobTypes, structureKinds } from "../../../../Context/defaultValues";
 
 const setDefaultCustomStructure = vi.fn();
 const deleteCustomStructure = vi.fn();
@@ -215,5 +215,45 @@ describe("what a card says about each kind of structure", () => {
     expect(screen.getByText("Jita Sotiyo")).toBeInTheDocument();
     expect(screen.getByText("Implant")).toBeInTheDocument();
     expect(screen.getByText("Rigs")).toBeInTheDocument();
+  });
+});
+
+// The card body falls through to the build fields for any kind that does not
+// return early, so a market would be described as somewhere a job is installed:
+// a structure type it has no bonuses from, rigs it cannot fit, an installation
+// tax it does not charge, and a system index it has no cost to apply one to.
+describe("what a card says about a market", () => {
+  it("does not describe a citadel market as somewhere a job is built", () => {
+    structures = [
+      {
+        id: "citadelMarket-1",
+        jobType: structureKinds.citadelMarket,
+        name: "Perimeter Azbel",
+        brokerFee: 1.5,
+        default: true,
+      },
+    ];
+    renderFrame({ selectedJobType: structureKinds.citadelMarket });
+
+    expect(screen.getByText("Perimeter Azbel")).toBeInTheDocument();
+    for (const label of ["Rigs", "Tax", "Security", "System"]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+  });
+
+  it("does not describe an NPC station market as one either", () => {
+    structures = [
+      {
+        id: "npcMarket-1",
+        jobType: structureKinds.npcStation,
+        name: "Jita IV-4",
+        default: true,
+      },
+    ];
+    renderFrame({ selectedJobType: structureKinds.npcStation });
+
+    for (const label of ["Rigs", "Tax", "Security", "System"]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
   });
 });
