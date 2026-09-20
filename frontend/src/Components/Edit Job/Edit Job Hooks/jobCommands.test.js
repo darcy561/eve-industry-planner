@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import Job from "../../../Classes/job";
+import Setup from "../../../Classes/jobSetup";
 import * as commands from "./jobCommands";
 
 /**
@@ -324,5 +325,182 @@ describe("what a command is allowed to touch", () => {
     expect(commands.removeMaterialPurchase(34, "buy-1").name).toBe(
       "remove purchase",
     );
+  });
+});
+
+describe("sales and orders ESI reported", () => {
+  it("links a sale as the job does", () => {
+    const sale = { transaction_id: 802, location_id: 60003760, quantity: 5 };
+    agree(documentFor(), commands.addTransaction(sale), (job) =>
+      job.addTransaction(sale),
+    );
+  });
+
+  it("links several sales at once, as the job does", () => {
+    const sales = [
+      { transaction_id: 802, location_id: 60003760 },
+      { transaction_id: 803, location_id: 60003760 },
+    ];
+    agree(documentFor(), commands.addTransaction(sales), (job) =>
+      job.addTransaction(sales),
+    );
+  });
+
+  // One order is the only case where a sale can be attributed at all.
+  it("attributes a sale to the only order, as the job does", () => {
+    const sale = { transaction_id: 802, location_id: 60003760 };
+    const { viaCommand, viaClass } = bothWays(
+      documentFor(),
+      commands.addTransaction(sale),
+      (job) => job.addTransaction(sale),
+    );
+
+    expect(viaCommand).toEqual(viaClass);
+    expect(viaCommand.esi.transactions["802"].order_id).toBe(700);
+  });
+
+  it("attributes to nothing where the job has two orders", () => {
+    const twoOrders = documentFor({
+      esi: {
+        industryJobs: {},
+        marketOrders: {
+          700: { order_id: 700, location_id: 60003760 },
+          701: { order_id: 701, location_id: 60008494 },
+        },
+        transactions: {},
+      },
+    });
+    const sale = { transaction_id: 802, location_id: 60003760 };
+    const { viaCommand, viaClass } = bothWays(
+      twoOrders,
+      commands.addTransaction(sale),
+      (job) => job.addTransaction(sale),
+    );
+
+    expect(viaCommand).toEqual(viaClass);
+    expect(viaCommand.esi.transactions["802"].order_id).toBeNull();
+  });
+
+  it("links an order as the job does", () => {
+    const order = {
+      order_id: 701,
+      location_id: 60008494,
+      issued: "2026-01-01T00:00:00Z",
+    };
+    agree(documentFor(), commands.addMarketOrder(order), (job) =>
+      job.addMarketOrder(order),
+    );
+  });
+
+  it("records the fee charged for listing it, as the job does", () => {
+    const order = { order_id: 701, location_id: 60008494 };
+    const fee = {
+      order_id: 701,
+      amount: 250,
+      salesTax: 10,
+      date: "2026-01-01",
+    };
+    agree(documentFor(), commands.addMarketOrder(order, fee), (job) =>
+      job.addMarketOrder(order, fee),
+    );
+  });
+
+  it("takes the latest figures for a linked run, as the job does", () => {
+    const latest = [
+      { job_id: 900, status: "delivered", end_date: "2026-01-02" },
+    ];
+    agree(documentFor(), commands.updateLinkedJobData(latest), (job) =>
+      job.updateLinkedJobData(latest),
+    );
+  });
+});
+
+describe("what was bought for a material", () => {
+  const purchase = { id: "buy-3", itemCount: 30, itemCost: 7 };
+
+  it("records a purchase as the job does", () => {
+    agree(
+      documentFor(),
+      commands.importPurchaseToMaterial(34, purchase, { availableToBuy: 100 }),
+      (job) =>
+        job.importPurchaseToMaterial(34, purchase, { availableToBuy: 100 }),
+    );
+  });
+
+  it("takes only what the job still needs, as the job does", () => {
+    agree(
+      documentFor(),
+      commands.importPurchaseToMaterial(34, purchase, { availableToBuy: 10 }),
+      (job) =>
+        job.importPurchaseToMaterial(34, purchase, { availableToBuy: 10 }),
+    );
+  });
+
+  it("keeps the whole purchase when asked to record the excess", () => {
+    const options = { availableToBuy: 10, recordExcess: true };
+    agree(
+      documentFor(),
+      commands.importPurchaseToMaterial(34, purchase, options),
+      (job) => job.importPurchaseToMaterial(34, purchase, options),
+    );
+  });
+
+  it("reports what a purchase takes and leaves, as the job does", () => {
+    const instance = new Job(structuredClone(documentFor()));
+    const fromClass = instance.importPurchaseToMaterial(34, purchase, {
+      availableToBuy: 10,
+    });
+
+    expect(commands.importedQuantities(purchase, 10)).toEqual(fromClass);
+  });
+});
+
+describe("the setups a job builds from", () => {
+  const withSetups = () =>
+    documentFor({
+      build: {
+        ...documentFor().build,
+        setup: {
+          "setup-1": { id: "setup-1", runCount: 1, jobCount: 1 },
+          "setup-2": { id: "setup-2", runCount: 2, jobCount: 1 },
+        },
+      },
+      layout: { setupToEdit: "setup-1" },
+    });
+
+  // Callers build a Setup and hand it over; the class stores the instance it is
+  // given, so a plain row would break its own toDocument later. The command
+  // stores the row either way, which is why it is handed the instance here.
+  it("attaches a setup and opens it, as the job does", () => {
+    const setup = new Setup({ id: "setup-3", runCount: 5, jobCount: 1 });
+    agree(withSetups(), commands.attachNewSetupToJob(setup), (job) =>
+      job.attachNewSetupToJob(setup),
+    );
+  });
+
+  it("stores a plain row too, which the class cannot", () => {
+    const row = { id: "setup-3", runCount: 5, jobCount: 1 };
+    const document = structuredClone(withSetups());
+    commands.attachNewSetupToJob(row).recipe(document);
+
+    expect(document.build.setup["setup-3"]).toEqual(row);
+    expect(document.layout.setupToEdit).toBe("setup-3");
+  });
+
+  it("removes the setup being edited, as the job does", () => {
+    agree(withSetups(), commands.deleteActiveSetup(), (job) =>
+      job.deleteActiveSetup(),
+    );
+  });
+
+  it("will not remove the last setup, as the job does", () => {
+    const one = documentFor({
+      build: {
+        ...documentFor().build,
+        setup: { "setup-1": { id: "setup-1", runCount: 1, jobCount: 1 } },
+      },
+      layout: { setupToEdit: "setup-1" },
+    });
+    agree(one, commands.deleteActiveSetup(), (job) => job.deleteActiveSetup());
   });
 });

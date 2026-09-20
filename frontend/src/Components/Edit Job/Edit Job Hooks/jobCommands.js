@@ -1,6 +1,10 @@
+import BrokerFee from "../../../Classes/brokerFee";
 import ExtraCost from "../../../Classes/extraCost";
 import InventionEntry from "../../../Classes/inventionEntry";
+import Setup from "../../../Classes/jobSetup";
 import LinkedESIJob from "../../../Classes/linkedESIJob";
+import MarketOrder from "../../../Classes/marketOrder";
+import Transaction from "../../../Classes/transaction";
 import { asIDList } from "../../../Functions/Helper/ids";
 
 /**
@@ -256,4 +260,169 @@ export const removeMaterialPurchase = (materialID, purchaseID) =>
     const material = job.build.materials[String(materialID)];
     if (!material) return;
     delete material.purchasing[purchaseID];
+  });
+
+/**
+ * Records sales ESI reported against this job.
+ *
+ * A sale is attributed to the job's order only where there is exactly one to
+ * attribute it to: ESI carries no link between an order and a transaction, so
+ * with two orders on a job there is nothing to choose between them. The
+ * attribution is made when the sale is recorded and never revisited, so an
+ * order linked afterwards does not claim sales recorded before it.
+ *
+ * @param {object|Array<object>} transaction - One sale, or several
+ */
+export const addTransaction = (transaction) =>
+  command("link sale", (job) => {
+    if (!transaction) return;
+
+    const rows = (Array.isArray(transaction) ? transaction : [transaction]).map(
+      (row) => new Transaction(row).toDocument(),
+    );
+
+    const orders = Object.values(job.esi.marketOrders);
+    const soleOrderID = orders.length === 1 ? orders[0].order_id : null;
+
+    for (const row of rows) {
+      row.order_id = soleOrderID;
+      job.esi.transactions[String(row.transaction_id)] = row;
+    }
+  });
+
+/**
+ * Records a market order, and the fee charged for listing it.
+ *
+ * @param {object} order - The order as ESI reported it
+ * @param {object} [brokersFee] - The fee, where one was found for it
+ */
+export const addMarketOrder = (order, brokersFee) =>
+  command("link market order", (job) => {
+    if (!order) return;
+
+    const row = MarketOrder.fromESI(order);
+    if (brokersFee) {
+      row.recordBrokerFee(
+        brokersFee instanceof BrokerFee
+          ? brokersFee
+          : new BrokerFee(brokersFee),
+      );
+    }
+    job.esi.marketOrders[String(row.order_id)] = row.toDocument();
+  });
+
+/**
+ * Takes the latest figures ESI reported for the runs already linked.
+ *
+ * @param {Array<object>} latestESIJobs - Every run ESI reported
+ */
+export const updateLinkedJobData = (latestESIJobs) =>
+  command("update linked jobs", (job) => {
+    if (!latestESIJobs) return;
+
+    for (const [id, held] of Object.entries(job.esi.industryJobs)) {
+      const linked = new LinkedESIJob(held);
+      linked.applyLatest(latestESIJobs.find((i) => i.job_id === linked.job_id));
+      job.esi.industryJobs[id] = linked.toDocument();
+    }
+  });
+
+/**
+ * Records what was bought for a material.
+ *
+ * How many the job still needs is a figure over the whole job — every setup's
+ * requirement, less what is already bought — so it is given rather than read
+ * here, and the command reports what it took through {@link importedQuantities}.
+ *
+ * @param {number|string} materialID
+ * @param {object} purchase - What was bought, carrying its own id
+ * @param {{availableToBuy: number, recordExcess?: boolean}} options
+ */
+export const importPurchaseToMaterial = (materialID, purchase, options) =>
+  command("add purchase", (job) => {
+    const material = job.build.materials[String(materialID)];
+    if (!material) return;
+
+    const { availableToBuy = 0, recordExcess = false } = options ?? {};
+    const offered = Number(purchase?.itemCount) || 0;
+    if (offered <= 0) return;
+
+    const taken = Math.max(0, Math.min(offered, availableToBuy));
+    const recorded = recordExcess ? offered : taken;
+    if (recorded <= 0) return;
+
+    const childID = purchase.childID ?? null;
+    const id = String(purchase.id);
+    material.purchasing[id] = {
+      id,
+      childID,
+      childJobImport: Boolean(childID),
+      itemCount: recorded,
+      itemCost: purchase.itemCost,
+    };
+  });
+
+/**
+ * What a purchase of this size would take and leave, for a caller deciding
+ * where the rest goes.
+ *
+ * Kept beside the command rather than inside it because the answer is wanted
+ * before the change is made: a caller spreading one purchase across several
+ * materials needs to know what each will absorb.
+ *
+ * @param {object} purchase
+ * @param {number} availableToBuy
+ * @returns {{taken: number, leftOver: number}}
+ */
+export function importedQuantities(purchase, availableToBuy) {
+  const offered = Number(purchase?.itemCount) || 0;
+  if (offered <= 0) return { taken: 0, leftOver: 0 };
+
+  const taken = Math.max(0, Math.min(offered, availableToBuy));
+  return { taken, leftOver: offered - taken };
+}
+
+/**
+ * Puts a setup on the job and opens it for editing.
+ *
+ * What a new setup holds is decided from the player's settings and their
+ * blueprints, so it is built by the caller and attached here.
+ *
+ * @param {object} setup - The setup to attach, carrying its own id
+ */
+export const attachNewSetupToJob = (setup) =>
+  command("add setup", (job) => {
+    if (!setup?.id) return;
+    job.build.setup[setup.id] =
+      typeof setup.toDocument === "function" ? setup.toDocument() : setup;
+    job.layout.setupToEdit = setup.id;
+  });
+
+/**
+ * Removes the setup being edited, and opens another.
+ *
+ * A job always builds from something, so the last setup cannot be removed.
+ */
+export const deleteActiveSetup = () =>
+  command("remove setup", (job) => {
+    const ids = Object.keys(job.build.setup);
+    if (ids.length <= 1) return;
+
+    delete job.build.setup[job.layout.setupToEdit];
+    job.layout.setupToEdit = Object.keys(job.build.setup).at(-1);
+  });
+
+/**
+ * Works out again what a setup needs, after something it is derived from moved.
+ *
+ * @param {string} setupId
+ */
+export const recalculateSelectedSetup = (setupId) =>
+  command("recalculate setup", (job) => {
+    const held = job.build.setup[setupId];
+    if (!held) return;
+
+    const setup = new Setup(held);
+    setup.recalculateMaterials(job.rawData.materials);
+    job.build.setup[setupId] = setup.toDocument();
   });

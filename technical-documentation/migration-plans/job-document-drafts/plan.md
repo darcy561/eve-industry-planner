@@ -1158,11 +1158,31 @@ rebuilds the edit session rather than fitting the layers under it.
 
 | Slice | What it is | What proves it |
 |---|---|---|
-| 1 — the layers | `base`, `log`, `scratch` and the draft derived from them, as a pure module nothing imports | Its own tests: the base is never written to, an arriving document keeps the reader's changes, a question stays out of the save, an untouched subtree keeps its identity |
-| 2 — commands | Every way of changing a job becomes a command that records what it changed. The mutation methods on `Job` become the recipes those commands run | Each command's own test, and the mutators that already press what a reader presses |
+| 1 — the layers · **landed** | `base`, `log`, `scratch` and the draft derived from them, as a pure module nothing imports | Its own tests: the base is never written to, an arriving document keeps the reader's changes, a question stays out of the save, an untouched subtree keeps its identity |
+| 2 — commands · **landed** | Every way of changing a job becomes a command that records what it changed. The mutation methods on `Job` become the recipes those commands run | Each checked against the method it replaces: both run over one document and the results compared |
+| 2a — the selectors a command needs · **landed** | A derived figure a call site must read to build a command's input, taken early rather than waiting for Stage 4 | Each checked against the getter it replaces, the same way the commands are |
 | 3 — undo | The log read backwards, per command rather than per path, with typing coalesced | Undo of each command restores what it changed and nothing else |
 | 4 — the session | The reducer is replaced by the store: `jobModified` becomes the log being non-empty, discard becomes dropping it, and the base follows the document | The leave paths, and a document arriving mid-edit |
-| 5 — the panels | Each panel reads what it needs from the draft instead of taking the whole job as a prop | The mutators again, plus what each panel re-renders on |
+| 5 — the panels | Each panel reads what it needs from the draft instead of taking the whole job as a prop | The mutators that already press what a reader presses, plus what each panel re-renders on |
+
+**Comparing against what is being replaced is what has found the defects.** Every divergence so far was
+in the new code and none would have failed a test of the recipe alone: a new extras row and a new
+invention entry stored raw were missing the defaults their classes fill in, which is why a command that
+stores a row builds it through the row's own class. The exception proves the rule from the other side —
+`attachNewSetupToJob` on the class stores whatever it is handed, so a plain row breaks the job's own
+`toDocument` later, and only the command tolerates both.
+
+**`addNewSetup` is not a command, and does not become one.** What a new setup holds — the player's
+default structure, their main character, the best blueprint they own — is not a property of the job, so
+a method on `Job` reaching into the users store and the blueprint cache was always the wrong home for
+it. The caller builds the setup and dispatches `attachNewSetupToJob`, which is the pure half and is
+already a command. That also settles the uuid: the setup is minted before the command runs, so the
+recipe is pure and the patch carries the id it was given.
+
+What the call site needs in exchange is `setupToBuildFrom`, a figure it reads off the job — which is a
+Stage 4 derivation arriving early. Those land in `jobSelectors.js` as they are needed, rather than being
+held back: a selector taken to unblock a command is the same work Stage 4 does, done in the order the
+rebuild asks for it.
 
 Slice 1 landed with the module and its tests. `speculativeChildJobs` is absorbed by slice 2, which is
 where a question becomes an ordinary command written to `scratch`.
@@ -1201,7 +1221,7 @@ happened.
 | Stage 1 — the removals | **Landed.** `Purchase.TypeID` and `ArchivedJobFeeLine.FeeID` are gone from the models, their writers and the parity fixtures. `complete` and `CharacterHash` on stored fee rows needed no code change — neither was on the broker fee in either language, so they are stored residue Stage 2's fold drops. `esiJobTab` / `setupToEdit` / `resourceDisplayType` are **deferred to Stage 3**, two of the three being read; § Stage 1 says why |
 | Stage 1b — derived setup figures become derivations | **Not started.** Split out of Stage 1, which had costed it as a removal it is not: `estimatedTime` and `estimatedInstallCost` no longer exist to remove, and `materialCount` and `rawTime` are read by the cost calculation in both languages, so each needs a derivation at its call sites. No window. Best taken with Stage 4. Stage 2's conversion no longer prunes the two that are read — § Stage 1b says what happened when it did |
 | Stage 2 — the reshape, in the release window | **Landed, awaiting the window.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. All eight collections are keyed on both sides, the observations sit under `esi`, and the broker fee is folded onto its order. The SPA's `Job` constructor reads the pre-reshape paths as well, so a document written before the window still loads. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
-| Stage 3 — base, log, scratch and draft | **Not started, designed.** §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape; § Settled adds that an open editor follows the document, which makes a replaceable `base` the stage's own requirement rather than a later refinement. The mechanism is measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20 has the four properties the layers need, the consuming surface (79 files, 21 action types) and why the edit page is not a clean boundary. Open before code: whether Immer is declared directly, it being transitive today |
+| Stage 3 — base, log, scratch and draft | **In progress — slices 1, 2 and 2a landed, nothing reads them yet.** The layers hold a job and derive a draft; every way of changing a job is a command; two derived figures are selectors. The editor still runs on its reducer, which is slice 4's to replace. Immer is settled and declared, pinned to the version already resolved. §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape, and § Settled that an open editor follows the document. Measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20. Next: slice 3, undo |
 | Stage 4 — getters become functions | Not started |
 | Stage 5 — `jobArray` goes plain | Not started |
 
