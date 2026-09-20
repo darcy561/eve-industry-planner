@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { deriveBookPrices } from "./deriveBookPrices.js";
+import { pricesFromOrders } from "./pricesFromOrders.js";
 
 // Resolved from the working directory, as the hub parity test does: the suite
 // runs from frontend/, and the fixture is the repo's rather than the SPA's.
@@ -29,7 +29,7 @@ describe("deriving the four prices as the server does", () => {
   });
 
   it.each(fixture.cases.map((c) => [c.name, c]))("%s", (_name, testCase) => {
-    const got = deriveBookPrices(testCase.orders, testCase.stationID);
+    const got = pricesFromOrders(testCase.orders, testCase.stationID);
 
     expect(got, `${testCase.why}\nRegenerate with: ${REGENERATE}`).toEqual(
       testCase.expected,
@@ -95,7 +95,7 @@ describe("the rules the fixture exists to cover", () => {
  */
 describe("what only this side has to survive", () => {
   it("answers zero for a book with nothing in it", () => {
-    expect(deriveBookPrices([], 60003760)).toEqual({
+    expect(pricesFromOrders([], 60003760)).toEqual({
       buy: 0,
       sell: 0,
       buyP95: 0,
@@ -104,7 +104,7 @@ describe("what only this side has to survive", () => {
   });
 
   it("answers zero when nothing was returned at all", () => {
-    expect(deriveBookPrices(undefined, 60003760)).toEqual({
+    expect(pricesFromOrders(undefined, 60003760)).toEqual({
       buy: 0,
       sell: 0,
       buyP95: 0,
@@ -120,10 +120,10 @@ describe("what only this side has to survive", () => {
       { price: 20, is_buy_order: false, location_id: 60003760 },
     ];
 
-    expect(deriveBookPrices(orders, "60003760")).toEqual(
-      deriveBookPrices(orders, 60003760),
+    expect(pricesFromOrders(orders, "60003760")).toEqual(
+      pricesFromOrders(orders, 60003760),
     );
-    expect(deriveBookPrices(orders, "60003760").buy).toBe(10);
+    expect(pricesFromOrders(orders, "60003760").buy).toBe(10);
   });
 
   // A malformed order must not become a price of NaN, which would spread
@@ -136,6 +136,6 @@ describe("what only this side has to survive", () => {
       { is_buy_order: true, location_id: 1 },
     ];
 
-    expect(deriveBookPrices(orders, 1).buy).toBe(10);
+    expect(pricesFromOrders(orders, 1).buy).toBe(10);
   });
 });

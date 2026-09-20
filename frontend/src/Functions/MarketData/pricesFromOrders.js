@@ -1,10 +1,10 @@
 /**
- * What an order book comes to: the four prices a market is read on.
+ * What a market's orders come to: the four prices it is read on.
  *
  * The server derives these for the markets it walks, and this derives them for
- * the markets the browser fetches itself — a reader's saved station or citadel.
- * A figure from either sits in the same column, so the two must agree, and
- * nothing connects them at runtime. `testing/fixtures/market-derivation/books.json`
+ * a market the browser reads on the reader's own token. A figure from either
+ * sits in the same column, so the two must agree, and nothing connects them at
+ * runtime. `testing/fixtures/market-derivation/books.json`
  * is written from the server's own derivation and read by the parity test beside
  * this file, so a change to one side without the other fails rather than quietly
  * giving one market a different meaning.
@@ -20,7 +20,7 @@ const BUY_PERCENTILE = 0.95;
 const SELL_PERCENTILE = 0.05;
 
 /**
- * @typedef {object} BookPrices
+ * @typedef {object} DerivedPrices
  * @property {number} buy - Highest bid, or 0 where nobody is buying
  * @property {number} sell - Lowest ask, or 0 where nobody is selling
  * @property {number} buyP95 - Outlier-trimmed bid
@@ -35,9 +35,9 @@ const SELL_PERCENTILE = 0.05;
  * @param {number|string} locationID - The one location whose orders count. A
  *   region's orders cover every station in it, so a caller that skips this
  *   prices the wrong market
- * @returns {BookPrices}
+ * @returns {DerivedPrices}
  */
-export function deriveBookPrices(orders, locationID) {
+export function pricesFromOrders(orders, locationID) {
   const wanted = String(locationID);
   const buyPrices = [];
   const sellPrices = [];
@@ -58,7 +58,7 @@ export function deriveBookPrices(orders, locationID) {
 }
 
 /**
- * The four figures a book gives, from the prices on each side of it.
+ * The four figures, from the prices already sorted onto each side.
  *
  * Separate from the filtering above because a caller walking a whole region
  * sorts its orders by station and type as it reads each page, and arrives here
