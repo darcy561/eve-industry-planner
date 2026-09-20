@@ -22,7 +22,9 @@ is a set of changed fields rather than a rebuilt object.
   apart from the changes they mean to keep, generalising what the speculative child job map does for one
   panel today.
 - **What happens when another member's change arrives mid-edit** — the base is replaced and the log is
-  re-applied over it, and a change to a field the reader is editing is the one case that surfaces.
+  re-applied over it, and a change to a field the reader is editing is the one case that surfaces. An
+  open editor follows the document whether or not its reader holds the lock, so a member who takes a
+  freed lock starts from the document as it now stands rather than the copy they opened.
 - **Reading a job and changing one as one mechanism** — reading is the case where the log is empty, and
   holding the lock is a separate axis from having changes — and what each surface shows while changes are
   uncommitted.
@@ -102,6 +104,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know what happens to the `Job` class | [plan.md](./plan.md) § What happens to the classes |
 | See what happens when another member saves mid-edit | [plan.md](./plan.md) § A change arriving mid-edit |
 | See how watching a job and editing one relate | [plan.md](./plan.md) § Two readers of one job |
+| Know what leaving a job without saving discards | [plan.md](./plan.md) § Two readers of one job |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See the stages and their order | [plan.md](./plan.md) § Stages |
 | Check what has landed | [plan.md](./plan.md) § Stage status |

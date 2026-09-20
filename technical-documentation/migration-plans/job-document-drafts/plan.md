@@ -825,6 +825,23 @@ discarding your own change also discards any co-member change that arrived since
 value back over it. Dropping a log lands the reader on the current committed state with their own
 changes gone and nobody else's — which is what discard should have always meant.
 
+The snapshot, the helper that writes it back and the leave paths that call it are
+[overlay.md](./overlay.md) § Stage 3. **All of them go**: under the layers the base is the backup and it
+is a live one, so discard is emptying a list rather than restoring a document. Discard also stops writing
+to the store at all, which is what removes the guard those paths need today — a job deleted while the
+reader had it open is not something a dropped log can resurrect.
+
+**Opening a job, changing settings and leaving without saving keeps working; what changes is what else
+survives it.** An ESI refresh or a co-member's save that landed while the editor was open is reverted
+today along with the reader's own edits, because the restore is a whole document taken at a moment.
+Under the layers those are in the base and the base is not what is dropped.
+
+**Leaving is still all-or-nothing, and that is correct.** Dropping a log drops every entry in it; keeping
+some changes and discarding others is undo, per § Undo, not a property of closing. What does change is
+the prompt: *unsaved changes* becomes the log being non-empty rather than a flag that is only ever set
+true, so a reader who has undone their way back to the base is not asked, and a what-if in `scratch`
+never arms it at all.
+
 **A collision has three outcomes, not one.** Inbound paths intersected with log paths: disjoint is
 silent and is the common case; the same path carrying the same value drops the log entry, because the
 reader's edit has become redundant and keeping it would rewrite an identical value; the same path
@@ -1118,6 +1135,13 @@ again in the next stage.
 Undo lands here or immediately after — the log has to be designed for it from the start, per § Undo, so
 the decision is taken in this stage whether or not the UI ships in it.
 
+**The editor follows the document from this stage on**, per § Settled. `base` is replaced as documents
+arrive rather than seeded once, which is what stops a member who takes a vacated lock editing the copy
+they opened with. It is the rebase in § A change arriving mid-edit doing ordinary work, so it costs this
+stage the wiring rather than a mechanism: the guard in `useEditJobInitialState` that returns early for a
+job already active is what currently makes the editor deaf, and the inbound coalescer already delivers
+every document the store needs.
+
 ### Stage 4 — Getters become functions, panel by panel
 
 Each converted panel drops its dependency on the lens. Incremental by construction, and the stage that
@@ -1140,11 +1164,37 @@ happened.
 | Stage 1 — the removals | **Landed.** `Purchase.TypeID` and `ArchivedJobFeeLine.FeeID` are gone from the models, their writers and the parity fixtures. `complete` and `CharacterHash` on stored fee rows needed no code change — neither was on the broker fee in either language, so they are stored residue Stage 2's fold drops. `esiJobTab` / `setupToEdit` / `resourceDisplayType` are **deferred to Stage 3**, two of the three being read; § Stage 1 says why |
 | Stage 1b — derived setup figures become derivations | **Not started.** Split out of Stage 1, which had costed it as a removal it is not: `estimatedTime` and `estimatedInstallCost` no longer exist to remove, and `materialCount` and `rawTime` are read by the cost calculation in both languages, so each needs a derivation at its call sites. No window. Best taken with Stage 4. Stage 2's conversion no longer prunes the two that are read — § Stage 1b says what happened when it did |
 | Stage 2 — the reshape, in the release window | **Landed, awaiting the window.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. All eight collections are keyed on both sides, the observations sit under `esi`, and the broker fee is folded onto its order. The SPA's `Job` constructor reads the pre-reshape paths as well, so a document written before the window still loads. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
-| Stage 3 — base, log, scratch and draft | Not started |
+| Stage 3 — base, log, scratch and draft | **Not started, designed.** §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape; § Settled adds that an open editor follows the document, which makes a replaceable `base` the stage's own requirement rather than a later refinement. The mechanism is measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20 has the four properties the layers need, the consuming surface (79 files, 21 action types) and why the edit page is not a clean boundary. Open before code: whether Immer is declared directly, it being transitive today |
 | Stage 4 — getters become functions | Not started |
 | Stage 5 — `jobArray` goes plain | Not started |
 
 ## Settled
+
+**An open editor follows the document; the lock decides who may write, not what is shown.** A member
+with a job open sees changes as they land, whether or not they hold the lock. A reader holds no log, so
+there is nothing to rebase and nothing of theirs to lose — § Two readers of one job already makes reading
+and drafting one mechanism differing only in whether the log is empty, and this is that sentence applied
+to the screen.
+
+The case this answers is the ordinary one on a shared planner, and it is broken today: the editor seeds
+from the store once, guarded by `if (jobID === currentActiveJobID) return;` in `useEditJobInitialState`,
+and never reads it again. So a member watching a job another member is editing keeps the copy they
+opened. When the holder saves and the lock frees, the watcher takes it and **begins editing a document
+that is already stale**, then writes it back over the holder's work on close. The lock machinery
+announces the hand-over — `useLockVacancySnackbar` says *"You now hold the edit lock"* — while nothing
+re-seeds what the editor is showing.
+
+**So the concrete requirement is that `base` is replaceable while the editor is open**, which is the
+rebase in § A change arriving mid-edit rather than anything additional. A watcher's base is replaced as
+documents arrive; a drafter's log re-applies over the new base and is reviewed per command when they take
+the lock, per § The merge, when the lock frees.
+
+**What this removes from the design.** With the lock held for the whole session and released on save, two
+members never hold overlapping logs against one job, so a member-versus-member collision on a locked job
+has no producer. Per-field inline accept-or-reject for competing edits is not built, and nothing prompts
+mid-edit. What remains inbound to a held job is the observation zone — an ESI refresh rewriting linked
+jobs, orders and transactions — which is disjoint from what the player is typing and absorbs into the
+base silently.
 
 **One writer per job stays; drafting does not need the lock.** The document lock keeps gating writes, and
 a member without it builds a draft that merges when the lock frees — § The lock is the isolation, and it
@@ -1289,16 +1339,24 @@ machinery exists — `requestAccess`, the handoff queue and the probe — and bu
 is arguably worth showing: somebody does want the job. The cost is that drafting stops being invisible,
 which § Drafting without the lock otherwise promises, so the promise is what would need rewording.
 
-**What does a collision do to the reader?** § A change arriving mid-edit detects one; what the editor
-*does* is a product decision shared with
-[document-write-granularity](../document-write-granularity/plan.md) § Stage B, which faces the same
-question for a refused write. Neither should answer it alone.
+**What does a collision do to a drafter at merge time?** Narrowed by § Settled, which decides that an
+open editor follows the document and that a member-versus-member collision on a *held* job has no
+producer. What is left is the drafter who built a log without the lock and takes it later: § The merge,
+when the lock frees gives them four outcomes per command, and *conflicts* is the one needing a surface.
 
-*Leaning: mark the field with both values and let the reader choose inline; never prompt.* A modal
-arriving mid-edit interrupts work over a case that is rare and usually uninteresting, and taking the
-inbound value silently is the loss this whole design exists to stop. Marking also matches what § The
-merge, when the lock frees already does — the same choice, made in the same shape, in the two places it
-arises.
+*Leaning: mark the command with both values and let the drafter choose, per command rather than per
+path.* Per command is what § Undo's grouping already gives, and reviewing *set run count to 40* is a
+question a player can answer where reviewing eleven paths is not. This stays shared with
+[document-write-granularity](../document-write-granularity/plan.md) § Stage B, which faces the same
+question for a refused write.
+
+**Does a watcher need telling what changed, or only showing it?** § Settled decides they see changes as
+they land. Whether an arriving change is also announced — a marker on the panel that moved, a line saying
+the holder saved — is not decided.
+
+*Leaning: show, do not announce.* A watcher is reading, and a document that quietly stays current is what
+every other surface on the planner already does. An announcement earns its place only where the reader
+would otherwise act on something stale, which for a watcher with no log they cannot.
 
 ## Non-goals
 

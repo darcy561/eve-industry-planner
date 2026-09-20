@@ -178,16 +178,40 @@ covering its collections, and its required flag.
 
 ## Stage 3 — Base, log, scratch and draft in the editor
 
-*Not landed.*
+*Not landed.* The behaviour below is what the edit page does **today**, which is what this overlay is for
+until the stage lands; [plan.md](./plan.md) §§ How a job is held, Undo, A what-if is not a change and
+A change arriving mid-edit carry the design that replaces it, and § Settled the decisions taken since.
 
-The edit page still holds one `Job` instance in a reducer, still marks the whole job modified on any
-change, and still keeps a second copy of the job in a ref for discard.
+The edit page still holds one `Job` instance in a `useReducer` inside `editJob.jsx`, spread down through
+`EditJobStepContentSelector` as props. There is no context and no store for it, so nothing below can
+subscribe to part of it: any dispatch re-renders the tree, and there is no `memo` anywhere in it.
 
-Owed here: what the draft store holds, how a component subscribes to part of a job, what one undo step
-is, what separates a change from a what-if and what each is allowed to reach, what the `Job` lens is
-still used for, what happens to a reader's edits when another member's change arrives, and which surfaces
-show uncommitted changes and which show what is committed. Also owed: what a member without the lock can
-do, and what their draft is reviewed against when the lock frees.
+**The editor does not follow the document.** `useEditJobInitialState` seeds from the store once, guarded
+by `if (jobID === currentActiveJobID) return;`, and never reads it again. Inbound documents land in
+`jobArray` — the coalescer applies them with no check for an open editor — so a member watching a job
+somebody else is editing keeps the copy they opened, and on taking the vacated lock begins from a stale
+document that their close then writes back. Deletion is the one inbound change the editor is told about,
+by `JOBS_DELETED_REMOTELY_EVENT`.
+
+**`jobModified` is a flag, and nothing clears it.** Every editing action sets it true; no action sets it
+false, so the only way back to clean is leaving the page. Two actions set it by mutating the state object
+they were handed — `STEP_ACTIVE_JOB_FORWARD` and `_BACKWARD`, which also call `stepForward()` /
+`stepBackward()` on the live instance before cloning it. Stepping a job back to look at it therefore arms
+the save prompt, and the only way out is discard.
+
+**Discard is a whole-document restore.** `backupJob`, a ref in `editJob.jsx`, holds a copy `new Job(...)`
+built when the editor opened and never refreshed afterwards. Three leave paths — the close icon and the
+leave-confirmation hook's release and navigation flows — call `restoreJobIfStillHeld`, which writes that
+copy back into `jobArray` unless the job has since been deleted, the case its guard exists for. So
+leaving without saving reverts anything that arrived while the editor was open along with the reader's
+own edits.
+
+**One what-if already exists.** `speculativeChildJobs` holds jobs built to price a row, deliberately
+outside `jobModified` and never persisted — the reducer states why, and `editJobReducer.test.js` pins it.
+[plan.md](./plan.md) § A what-if is not a change generalises that one case into a layer.
+
+The reducer has no `default` case: an unrecognised action type returns `undefined` and clears the
+editor's state. Every dispatch in the tree is covered, so nothing reaches it today.
 
 ## Stage 4 — Getters become functions
 
