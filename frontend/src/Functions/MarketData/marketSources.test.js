@@ -6,17 +6,23 @@ import { structureKinds } from "../../Context/defaultValues";
 let structures = [];
 
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
     usersStoreState({ applicationSettings: { customStructures: structures } }),
   );
 });
 
-const { SOURCE_KIND, allMarketSources, sourceIn, sourceNameIn } = await import(
-  "./marketSources"
-);
+const {
+  SOURCE_KIND,
+  allMarketSources,
+  answersAPerTypeProbe,
+  isReadByTheReader,
+  persistsAcrossSessions,
+  rowsStateTheirOwnExpiry,
+  sourceIn,
+  sourceNameIn,
+} = await import("./marketSources");
 
 beforeEach(() => {
   structures = [];
@@ -56,10 +62,7 @@ describe("the market source registry", () => {
     });
   });
 
-  // A citadel's book needs /markets/structures/ and the docking character the
-  // row carries. Offering one before that exists would put a market in every
-  // picker that no price could be asked for.
-  it("does not carry a saved citadel, which nothing can price yet", () => {
+  it("carries the citadels a reader has saved", () => {
     structures = [
       {
         id: "citadelMarket-1",
@@ -70,7 +73,29 @@ describe("the market source registry", () => {
       },
     ];
 
-    expect(sourceIn(allMarketSources(), "citadelMarket-1")).toBeUndefined();
+    const saved = sourceIn(allMarketSources(), "citadelMarket-1");
+
+    expect(saved).toMatchObject({
+      name: "Perimeter Azbel",
+      structureID: 1035466617946,
+      // Read on the reader's own token and held on their device, both of which
+      // follow from the kind and from nothing else.
+      kind: SOURCE_KIND.CITADEL,
+    });
+  });
+
+  // A market with no place named is a market with nowhere to ask about it.
+  it("does not carry a saved market that names no place", () => {
+    structures = [
+      {
+        id: "citadelMarket-2",
+        jobType: structureKinds.market,
+        name: "Half-filled in",
+        regionID: 10000002,
+      },
+    ];
+
+    expect(sourceIn(allMarketSources(), "citadelMarket-2")).toBeUndefined();
   });
 
   it("does not carry a structure that is somewhere to build", () => {
@@ -148,5 +173,44 @@ describe("naming a source", () => {
   it("falls back to the id for a market it does not carry", () => {
     expect(sourceNameIn(sources, "rens")).toBe("rens");
     expect(sourceNameIn(undefined, "rens")).toBe("rens");
+  });
+});
+
+// Four questions, one table. They line up for the kinds there are today, which
+// is exactly why they are asked separately: a kind this server prices but the
+// reader must authenticate for would split them, and one predicate standing in
+// for four would be wrong in four places at once.
+describe("what follows from a kind", () => {
+  const ASKED = {
+    persistsAcrossSessions,
+    isReadByTheReader,
+    answersAPerTypeProbe,
+    rowsStateTheirOwnExpiry,
+  };
+
+  it.each([
+    [SOURCE_KIND.HUB, false, false, true, false],
+    [SOURCE_KIND.STATION, false, false, true, false],
+    [SOURCE_KIND.CITADEL, true, true, false, true],
+  ])("answers for %s", (kind, persists, readByReader, probes, ownExpiry) => {
+    expect(persistsAcrossSessions(kind)).toBe(persists);
+    expect(isReadByTheReader(kind)).toBe(readByReader);
+    expect(answersAPerTypeProbe(kind)).toBe(probes);
+    expect(rowsStateTheirOwnExpiry(kind)).toBe(ownExpiry);
+  });
+
+  // A kind nothing knows about is treated as the cheapest thing to be wrong
+  // about: fetched again rather than served from a tier nothing wrote.
+  it.each(Object.entries(ASKED))(
+    "answers %s safely for a kind it does not know",
+    (_name, ask) => {
+      expect(typeof ask(undefined)).toBe("boolean");
+      expect(typeof ask("a kind from a later release")).toBe("boolean");
+    },
+  );
+
+  it("does not keep an unknown kind on the reader's device", () => {
+    expect(persistsAcrossSessions("a kind from a later release")).toBe(false);
+    expect(isReadByTheReader("a kind from a later release")).toBe(false);
   });
 });

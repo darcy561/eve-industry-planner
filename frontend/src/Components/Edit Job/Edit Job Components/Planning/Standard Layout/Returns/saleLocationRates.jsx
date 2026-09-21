@@ -17,8 +17,8 @@ import { formatPercentage } from "../../../../../../Functions/Helper/numberParse
 import {
   SALE_LOCATION_KIND,
   getDefaultSaleStructure,
-  getSaleCitadels,
 } from "../../../../../../Functions/MarketOrders/saleLocations";
+import { SOURCE_KIND } from "../../../../../../Functions/MarketData/marketSources";
 import { BROKER_FEE_TERMS } from "../../../../../../Functions/MarketOrders/sellingRates";
 import AssignUsersSelect from "../../../../../../Styled Components/Select/users";
 import { readMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
@@ -301,17 +301,17 @@ function SaleLocationSelect({ plan, onPlanChange }) {
  * @returns {Array<{label: string, options: Array<{id: string, name: string}>}>}
  */
 function saleLocationGroups() {
+  const sources = readMarketSources();
+  const named = (kinds) =>
+    sources
+      .filter(({ kind }) => kinds.includes(kind))
+      .map(({ id, name }) => ({ id, name }));
+
   return [
-    {
-      label: "Citadels",
-      options: getSaleCitadels().map(({ id, name }) => ({ id, name })),
-    },
+    { label: "Citadels", options: named([SOURCE_KIND.CITADEL]) },
     {
       label: "NPC stations",
-      options: readMarketSources().map(({ id, name }) => ({
-        id,
-        name,
-      })),
+      options: named([SOURCE_KIND.HUB, SOURCE_KIND.STATION]),
     },
   ].filter((group) => group.options.length > 0);
 }

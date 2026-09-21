@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { pricesFromOrders } from "./pricesFromOrders.js";
+import { pricesByType } from "./pricesFromOrders.js";
 
 // Resolved from the working directory, as the hub parity test does: the suite
 // runs from frontend/, and the fixture is the repo's rather than the SPA's.
@@ -29,7 +29,11 @@ describe("deriving the four prices as the server does", () => {
   });
 
   it.each(fixture.cases.map((c) => [c.name, c]))("%s", (_name, testCase) => {
-    const got = pricesFromOrders(testCase.orders, testCase.stationID);
+    // Through the derivation the app runs, not one written beside it: a parity
+    // fixture checking a function no price passes through proves nothing.
+    const got = pricesByType(testCase.orders, testCase.stationID).get(
+      String(testCase.typeID),
+    );
 
     expect(got, `${testCase.why}\nRegenerate with: ${REGENERATE}`).toEqual(
       testCase.expected,
@@ -94,48 +98,60 @@ describe("the rules the fixture exists to cover", () => {
  * reads ESI directly, so it meets shapes the Go accumulator is never handed.
  */
 describe("what only this side has to survive", () => {
-  it("answers zero for a book with nothing in it", () => {
-    expect(pricesFromOrders([], 60003760)).toEqual({
-      buy: 0,
-      sell: 0,
-      buyP95: 0,
-      sellP05: 0,
-    });
+  // Absent rather than zero: a type nothing is trading is not a type priced at
+  // nothing, and every reader of the map turns absence into "no price held".
+  it("holds nothing for a market with no orders on it", () => {
+    expect(pricesByType([], 60003760).size).toBe(0);
+    expect(pricesByType(undefined, 60003760).size).toBe(0);
   });
 
-  it("answers zero when nothing was returned at all", () => {
-    expect(pricesFromOrders(undefined, 60003760)).toEqual({
-      buy: 0,
-      sell: 0,
-      buyP95: 0,
-      sellP05: 0,
-    });
+  it("prices each type on the market apart from the others", () => {
+    const orders = [
+      { price: 10, type_id: 34, is_buy_order: false, location_id: 1 },
+      { price: 25, type_id: 35, is_buy_order: false, location_id: 1 },
+    ];
+
+    const priced = pricesByType(orders, 1);
+
+    expect(priced.get("34").sell).toBe(10);
+    expect(priced.get("35").sell).toBe(25);
+  });
+
+  // A region's orders cover every station in it, so a caller that skipped this
+  // would price the wrong market.
+  it("counts only the orders at the location asked about", () => {
+    const orders = [
+      { price: 10, type_id: 34, is_buy_order: false, location_id: 60003760 },
+      { price: 1, type_id: 34, is_buy_order: false, location_id: 60004588 },
+    ];
+
+    expect(pricesByType(orders, 60003760).get("34").sell).toBe(10);
   });
 
   // ESI ids arrive as numbers and a saved location may be held as a string;
-  // comparing them raw would price an empty book.
+  // comparing them raw would price an empty market.
   it("matches a location whether it is given as a number or a string", () => {
     const orders = [
-      { price: 10, is_buy_order: true, location_id: 60003760 },
-      { price: 20, is_buy_order: false, location_id: 60003760 },
+      { price: 10, type_id: 34, is_buy_order: true, location_id: 60003760 },
+      { price: 20, type_id: 34, is_buy_order: false, location_id: 60003760 },
     ];
 
-    expect(pricesFromOrders(orders, "60003760")).toEqual(
-      pricesFromOrders(orders, 60003760),
+    expect(pricesByType(orders, "60003760").get("34")).toEqual(
+      pricesByType(orders, 60003760).get("34"),
     );
-    expect(pricesFromOrders(orders, "60003760").buy).toBe(10);
+    expect(pricesByType(orders, "60003760").get("34").buy).toBe(10);
   });
 
   // A malformed order must not become a price of NaN, which would spread
   // through every figure derived from it.
   it("ignores an order carrying no usable price", () => {
     const orders = [
-      { price: 10, is_buy_order: true, location_id: 1 },
-      { price: null, is_buy_order: true, location_id: 1 },
-      { price: "twelve", is_buy_order: true, location_id: 1 },
-      { is_buy_order: true, location_id: 1 },
+      { price: 10, type_id: 34, is_buy_order: true, location_id: 1 },
+      { price: null, type_id: 34, is_buy_order: true, location_id: 1 },
+      { price: "twelve", type_id: 34, is_buy_order: true, location_id: 1 },
+      { type_id: 34, is_buy_order: true, location_id: 1 },
     ];
 
-    expect(pricesFromOrders(orders, 1).buy).toBe(10);
+    expect(pricesByType(orders, 1).get("34").buy).toBe(10);
   });
 });

@@ -28,33 +28,46 @@ const SELL_PERCENTILE = 0.05;
  */
 
 /**
- * The four prices for one type at one location.
+ * The four prices for every type in a set of orders.
  *
- * @param {Array<{price: number, is_buy_order: boolean, location_id: number|string}>} orders -
- *   Orders as ESI returns them, for any location
+ * Per type rather than for one, because that is how both sides read a market: a
+ * whole order book arrives and every type on it is priced from the same pass.
+ * A type with no order at the location is absent rather than zero — the
+ * difference between "nothing is trading here" and a figure.
+ *
+ * @param {Array<{price: number, type_id: number|string, is_buy_order: boolean,
+ *   location_id: number|string}>} orders - Orders as ESI returns them, for any
+ *   location
  * @param {number|string} locationID - The one location whose orders count. A
  *   region's orders cover every station in it, so a caller that skips this
  *   prices the wrong market
- * @returns {DerivedPrices}
+ * @returns {Map<string, DerivedPrices>}
  */
-export function pricesFromOrders(orders, locationID) {
+export function pricesByType(orders, locationID) {
   const wanted = String(locationID);
-  const buyPrices = [];
-  const sellPrices = [];
+  /** @type {Map<string, {buy: number[], sell: number[]}>} */
+  const sides = new Map();
 
   for (const order of orders ?? []) {
     if (String(order?.location_id) !== wanted) continue;
-    const price = order?.price;
-    if (!Number.isFinite(price)) continue;
+    if (!Number.isFinite(order?.price)) continue;
 
-    if (order.is_buy_order) {
-      buyPrices.push(price);
-    } else {
-      sellPrices.push(price);
+    const typeID = String(order.type_id);
+    let held = sides.get(typeID);
+    if (!held) {
+      held = { buy: [], sell: [] };
+      sides.set(typeID, held);
     }
+
+    (order.is_buy_order ? held.buy : held.sell).push(order.price);
   }
 
-  return pricesFromSides(buyPrices, sellPrices);
+  return new Map(
+    [...sides].map(([typeID, { buy, sell }]) => [
+      typeID,
+      pricesFromSides(buy, sell),
+    ]),
+  );
 }
 
 /**

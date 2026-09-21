@@ -85,9 +85,8 @@ export function resolveSaleLocation(saleLocationID, marketID) {
       return saleLocationFromCitadel(citadel);
     }
 
-    // A named NPC station is a choice like any other. Falling through to the
-    // argument below sold the job from whichever market the materials happened
-    // to be priced against, quietly ignoring the station that was picked.
+    // A named NPC station is a choice like any other, and is not overridden by
+    // the market the materials happen to be priced against.
     const chosen = sourceIn(readMarketSources(), saleLocationID);
     if (chosen) return saleLocationFromStation(chosen);
   }
@@ -122,10 +121,9 @@ function saleLocationFromStation(station) {
  * @returns {SaleLocation}
  */
 function saleLocationFromCitadel(citadel) {
-  // A saved citadel is a market, but nothing can read its book yet: that needs
-  // `/markets/structures/` and the docking character the row carries. Until
-  // then every citadel prices against the same default market, so a reader
-  // selling from one sees an estimate rather than nothing.
+  // Every citadel prices against the default market rather than against its own
+  // orders, which are readable. Changing it moves the figures on this stage, so
+  // it is a decision of its own rather than a consequence of the read existing.
   const pricedAt = sourceIn(
     readMarketSources(),
     GLOBAL_CONFIG.DEFAULT_MARKET_OPTION,

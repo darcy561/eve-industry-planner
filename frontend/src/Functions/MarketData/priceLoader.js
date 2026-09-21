@@ -1,5 +1,8 @@
 import { fetchMarketPricesQuery } from "../Endpoints/Public/marketPricesQuery";
+import { readCitadelPrices } from "./citadelPrices";
 import { allMarketSources, SOURCE_KIND, sourceIn } from "./marketSources";
+import { withFreshness } from "./priceFreshness";
+import { replaceStoredPrices } from "./priceStore";
 import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 
 /**
@@ -33,6 +36,24 @@ const adjustedKey = (typeID) => `adjusted|${typeID}`;
  */
 export function requestPrice(typeID, sourceID) {
   return enqueue(priceKey(sourceID, typeID));
+}
+
+/**
+ * Reads a market for its own sake rather than for any type's price.
+ *
+ * A rotation wants the market fresh, not a figure, so it says so — rather than
+ * naming a type it does not care about and throwing the answer away, which
+ * would put a magic id through machinery built for batching real wants.
+ *
+ * @param {string} sourceID - A market the reader reads themselves
+ * @returns {Promise<void>}
+ * @throws whatever reading the market threw
+ */
+export async function requestMarketRead(sourceID) {
+  const source = sourceIn(allMarketSources(), sourceID);
+  if (source?.kind !== SOURCE_KIND.CITADEL) return;
+
+  await readAndKeep(sourceID, source);
 }
 
 /**
@@ -70,9 +91,11 @@ async function flush() {
   if (batch.size === 0) return;
 
   try {
-    const { served, adjusted, unaskable } = splitByTransport(batch);
+    const { served, walked, adjusted, unaskable } = splitByTransport(batch);
 
-    await serveServerHeld(served, adjusted);
+    // The two transports fail independently: a citadel nobody can see must not
+    // take the tick's hub prices with it.
+    await Promise.all([serveServerHeld(served, adjusted), serveWalked(walked)]);
 
     // A source no registry entry answers for cannot be asked of anything. It
     // settles as a failure rather than as nothing held, because "no order here"
@@ -105,6 +128,7 @@ async function flush() {
 function splitByTransport(batch) {
   const sources = allMarketSources();
   const served = [];
+  const walked = [];
   const adjusted = [];
   const unaskable = [];
 
@@ -123,12 +147,14 @@ function splitByTransport(batch) {
       source?.kind === SOURCE_KIND.STATION
     ) {
       served.push(want);
+    } else if (source?.kind === SOURCE_KIND.CITADEL) {
+      walked.push(want);
     } else {
       unaskable.push(want);
     }
   }
 
-  return { served, adjusted, unaskable };
+  return { served, walked, adjusted, unaskable };
 }
 
 /**
@@ -175,6 +201,107 @@ async function serveServerHeld(wants, adjusted) {
   } catch (error) {
     for (const want of [...wants, ...adjusted]) rejectWant(want, error);
   }
+}
+
+/**
+ * The citadels a tick named, each read once however many types were asked for.
+ *
+ * A structure's market has no per-type form, so the read that answers one want
+ * answers every want at that market — and every type on it, which is why what
+ * comes back is kept rather than the wants picked out of it.
+ */
+async function serveWalked(wants) {
+  if (wants.length === 0) return;
+
+  const byMarket = new Map();
+  for (const want of wants) {
+    const group = byMarket.get(want.sourceID);
+    if (group) {
+      group.push(want);
+    } else {
+      byMarket.set(want.sourceID, [want]);
+    }
+  }
+
+  await Promise.all(
+    [...byMarket.values()].map((group) => serveOneCitadel(group)),
+  );
+}
+
+async function serveOneCitadel(wants) {
+  const { sourceID, source } = wants[0];
+
+  let prices;
+  try {
+    prices = await readAndKeep(sourceID, source);
+  } catch (error) {
+    for (const want of wants) rejectWant(want, error);
+    return;
+  }
+
+  for (const want of wants) {
+    const row = prices.rows.get(String(want.typeID));
+    resolveWant(want, row ? withFreshness(row, prices) : null);
+  }
+}
+
+/**
+ * A read-and-keep already under way for a market, so a second asker joins it.
+ *
+ * @type {Map<string, Promise<import("./citadelPrices").CitadelPrices>>}
+ */
+const reading = new Map();
+
+/**
+ * Reads one market, keeps what it said, and reports that it moved.
+ *
+ * Everything a read of a whole market owes, wherever the read was asked for —
+ * a tick's wants and a rotation share it, so neither can drift from the other
+ * on the order these have to happen in.
+ *
+ * **One at a time per market, keeping included.** A rotation and a panel can
+ * want the same citadel at the same moment — both are set off by the same
+ * market having gone stale — and guarding only the walk would let them share
+ * one read and then write the whole market to the device twice. The sharing
+ * lasts exactly as long as the work: a market asked for afterwards is read
+ * again, and a failure is not held on to.
+ */
+function readAndKeep(sourceID, source) {
+  const underWay = reading.get(sourceID);
+  if (underWay) return underWay;
+
+  const work = keepWhatIsRead(sourceID, source).finally(() =>
+    reading.delete(sourceID),
+  );
+  reading.set(sourceID, work);
+
+  return work;
+}
+
+async function keepWhatIsRead(sourceID, source) {
+  const prices = await readCitadelPrices(source);
+
+  // A read of a whole market is a statement about every type on it, so the
+  // store takes the set: a type that has stopped trading there goes, and the
+  // next reader to want any type already has it.
+  //
+  // **Awaited, and before the clock moves.** Announcing a move drops this
+  // market's held rows and wakes every surface reading them, and what they read
+  // through is the store — so announcing first sends them to a market whose
+  // rows are still the lapsed ones, which are refused on the way past and cost
+  // a second walk of everything this one just read.
+  await replaceStoredPrices(sourceID, prices.rows, {
+    refreshedAt: prices.refreshedAt,
+    expiresAt: prices.expiresAt,
+  });
+
+  // Before any waiter, as the served transport does: a reader woken by one of
+  // them reads the rows against the clock they arrived with.
+  if (recordSourceClock(sourceID, prices.refreshedAt)) {
+    onClocksMoved?.({ sources: [sourceID], adjusted: false });
+  }
+
+  return prices;
 }
 
 function resolveWant(want, value) {

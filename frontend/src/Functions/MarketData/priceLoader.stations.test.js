@@ -14,42 +14,34 @@ const RENS = 60004588;
 /** Set to make reading the registry throw, as a stored one could. */
 let registryFailure = null;
 
-vi.mock("./marketSources", async (importOriginal) => {
-  const real = await importOriginal();
-  return {
-    ...real,
-    allMarketSources: () => {
-      if (registryFailure) throw registryFailure;
-      return [
-        ...real.allMarketSources(),
-        {
-          id: "saved-station",
-          name: "A station the reader saved",
-          regionID: THE_FORGE,
-          stationID: JITA_4_4,
-          kind: real.SOURCE_KIND.STATION,
-        },
-        {
-          id: "another-station",
-          name: "Another station the reader saved",
-          regionID: THE_FORGE,
-          stationID: RENS,
-          kind: real.SOURCE_KIND.STATION,
-        },
-        {
-          id: "same-station-again",
-          name: "The same station, saved twice",
-          regionID: THE_FORGE,
-          stationID: JITA_4_4,
-          kind: real.SOURCE_KIND.STATION,
-        },
-      ];
-    },
-  };
+vi.mock("./marketSources", async () => {
+  const { marketSourcesWith, savedStation } =
+    await import("../../tests/marketSourceFixtures.js");
+
+  return marketSourcesWith(() => {
+    if (registryFailure) throw registryFailure;
+
+    return [
+      savedStation({ regionID: THE_FORGE, stationID: JITA_4_4 }),
+      savedStation({
+        id: "another-station",
+        name: "Another station the reader saved",
+        regionID: THE_FORGE,
+        stationID: RENS,
+      }),
+      savedStation({
+        id: "same-station-again",
+        name: "The same station, saved twice",
+        regionID: THE_FORGE,
+        stationID: JITA_4_4,
+      }),
+    ];
+  });
 });
 
 const { requestPrice, resetPriceLoader } = await import("./priceLoader.js");
-const { resetSourceClocks, readSourceClock } = await import("./sourceClocks.js");
+const { resetSourceClocks, readSourceClock } =
+  await import("./sourceClocks.js");
 
 beforeEach(() => {
   registryFailure = null;
@@ -83,7 +75,9 @@ describe("a want for a station the reader saved", () => {
   // answer keyed by a station has to come back to it.
   it("holds the clock under the reader's own id for the market", async () => {
     fetchMarketPricesQuery.mockResolvedValue({
-      sources: { [JITA_4_4]: { refreshedAt: 99, prices: { 34: { sell: 10 } } } },
+      sources: {
+        [JITA_4_4]: { refreshedAt: 99, prices: { 34: { sell: 10 } } },
+      },
       adjusted: null,
     });
 
@@ -112,7 +106,9 @@ describe("a want for a station the reader saved", () => {
 describe("two markets an account saved at one station", () => {
   it("each hold the clock under their own id", async () => {
     fetchMarketPricesQuery.mockResolvedValue({
-      sources: { [JITA_4_4]: { refreshedAt: 42, prices: { 34: { sell: 10 } } } },
+      sources: {
+        [JITA_4_4]: { refreshedAt: 42, prices: { 34: { sell: 10 } } },
+      },
       adjusted: null,
     });
 
@@ -133,6 +129,7 @@ describe("two markets an account saved at one station", () => {
       requestPrice(34, "same-station-again"),
     ]);
 
+    expect(fetchMarketPricesQuery).toHaveBeenCalledTimes(1);
     expect(fetchMarketPricesQuery.mock.calls[0][0].wants).toEqual([
       { typeID: "34", sourceID: String(JITA_4_4) },
       { typeID: "34", sourceID: String(JITA_4_4) },

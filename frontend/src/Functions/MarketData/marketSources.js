@@ -3,72 +3,112 @@ import useUsersStore from "../../Zustand/usersStore";
 import { structureKinds } from "../../Context/defaultValues";
 
 /**
- * Where a price can come from.
- *
- * A caller asking for a price names a source and never learns which kind it is;
- * the kind decides who fetches it and where it is held, which is the loader's
- * concern rather than any surface's.
+ * Where a price can come from. A caller names a source and never learns its
+ * kind; the kind decides who fetches it and where it is held.
  *
  * @enum {string}
  */
 export const SOURCE_KIND = {
-  /** One of the hubs this server walks hourly and serves prices for. */
+  /** A hub this server walks hourly and serves prices for. */
   HUB: "hub",
-  /**
-   * An NPC station a reader saved. Its orders are public, so this server walks
-   * the region and prices the station exactly as it does a hub — the account
-   * registers the market, and the price comes back from the same query.
-   */
+  /** An NPC station a reader saved, priced by this server as a hub is. */
   STATION: "station",
+  /** A player structure a reader saved, read in the browser on their own token. */
+  CITADEL: "citadel",
 };
 
 /**
- * Which tier a kind's rows live in, and the one place that decides it.
+ * What follows from a kind, and the one place any of it is decided.
  *
- * Rows are held on a reader's device only where they cost that reader something
- * to get. Every kind there is today is priced by this server and is one request
- * away after a reload, so keeping its rows on disk would buy a warm start at
- * the price of serving a figure the server has already replaced.
+ * Four questions are asked of a kind — where its rows live, who reads it, what
+ * it can be asked about its freshness, and what its rows say about their own —
+ * and for the kinds there are today the answers happen to line up. They are kept
+ * apart anyway: a kind that is priced by this server *and* needs the reader's
+ * own token would split them, and one predicate standing in for four would be
+ * wrong in four places at once rather than missing a row here.
  *
- * What the persistent tier is for is a citadel, whose whole order book is
- * walked on the reader's own token and can never be had for free again. Nothing
- * produces that kind yet, so nothing maps to persistent and the tier waits.
- *
- * A kind with no entry here is session-only, which is the safe default: the
- * worst it costs is a re-fetch.
+ * A kind with no entry falls to the safe answer to each: session-only, read by
+ * this server, asked like a hub, with no expiry of its own.
  */
-const TIER = {
-  [SOURCE_KIND.HUB]: "session",
-  [SOURCE_KIND.STATION]: "session",
+const KIND_TRAITS = {
+  [SOURCE_KIND.HUB]: {
+    tier: "session",
+    readBy: "server",
+    freshness: "clock",
+  },
+  [SOURCE_KIND.STATION]: {
+    tier: "session",
+    readBy: "server",
+    freshness: "clock",
+  },
+  [SOURCE_KIND.CITADEL]: {
+    tier: "persistent",
+    readBy: "reader",
+    freshness: "expiry",
+  },
 };
 
+const traitsOf = (kind) => KIND_TRAITS[kind] ?? {};
+
 /**
- * Whether this kind's rows outlive the tab.
+ * Whether this kind's rows outlive the tab, and so whether there is a tier
+ * beneath the cache to read them from.
  *
  * @param {string|undefined} kind - One of SOURCE_KIND
  * @returns {boolean}
  */
 export function persistsAcrossSessions(kind) {
-  return TIER[kind] === "persistent";
+  return traitsOf(kind).tier === "persistent";
+}
+
+/**
+ * Whether the reader fetches this kind themselves, and so whether it is read
+ * ahead of them on a rotation rather than served on request.
+ *
+ * @param {string|undefined} kind - One of SOURCE_KIND
+ * @returns {boolean}
+ */
+export function isReadByTheReader(kind) {
+  return traitsOf(kind).readBy === "reader";
+}
+
+/**
+ * Whether asking this kind for one type it already holds reports its freshness
+ * cheaply. A market whose orders only come whole answers no such question.
+ *
+ * @param {string|undefined} kind - One of SOURCE_KIND
+ * @returns {boolean}
+ */
+export function answersAPerTypeProbe(kind) {
+  return traitsOf(kind).freshness !== "expiry";
+}
+
+/**
+ * Whether this kind's rows carry the moment they stop standing, as against
+ * being current until the market that serves them says otherwise.
+ *
+ * @param {string|undefined} kind - One of SOURCE_KIND
+ * @returns {boolean}
+ */
+export function rowsStateTheirOwnExpiry(kind) {
+  return traitsOf(kind).freshness === "expiry";
 }
 
 /**
  * @typedef {object} MarketSource
  * @property {string} id
  * @property {string} name
- * @property {number} regionID - The region whose order book carries it
- * @property {number} stationID - The station its prices are filtered to
+ * @property {number} regionID - The region it sits in
+ * @property {number} [stationID] - The NPC station its prices are taken from
+ * @property {number} [structureID] - The player structure they are read from
  * @property {string} kind - One of SOURCE_KIND
  */
 
 /**
  * The hubs this server prices, as sources.
  *
- * Built from the constant rather than fetched: the four are static
- * configuration that moves only when a deploy moves them, and
- * `global-config-app.parity.test.js` is what stops them drifting from
- * `esicore.DefaultMarketLocations`. Nothing waits on a request to know a market
- * exists.
+ * From the constant rather than a request: they are static configuration, held
+ * to the server's list by `global-config-app.parity.test.js`.
  *
  * @returns {MarketSource[]}
  */
@@ -80,13 +120,8 @@ function serverHeldSources() {
 }
 
 /**
- * The NPC stations a reader has saved, as sources.
- *
- * A saved citadel is not among them: its book is read from
- * `/markets/structures/`, which needs the docking character the row carries and
- * a loader that knows to use it. Until that exists a citadel can be sold from
- * but not priced at, so offering it here would put a market in every picker
- * that no price could be asked for.
+ * The markets a reader has saved, as sources. Which kind a row is follows from
+ * the place it names; one naming neither has nowhere to ask and is left out.
  *
  * @returns {MarketSource[]}
  */
@@ -94,22 +129,31 @@ function readerSavedSources() {
   return (useUsersStore.getState().applicationSettings.customStructures ?? [])
     .filter(
       (structure) =>
-        structure.jobType === structureKinds.market && structure.stationID,
+        structure.jobType === structureKinds.market &&
+        (structure.stationID || structure.structureID),
     )
-    .map((structure) => ({
-      id: structure.id,
-      name: structure.name,
-      regionID: structure.regionID,
-      stationID: structure.stationID,
-      kind: SOURCE_KIND.STATION,
-    }));
+    .map((structure) =>
+      structure.stationID
+        ? {
+            id: structure.id,
+            name: structure.name,
+            regionID: structure.regionID,
+            stationID: structure.stationID,
+            kind: SOURCE_KIND.STATION,
+          }
+        : {
+            id: structure.id,
+            name: structure.name,
+            regionID: structure.regionID,
+            structureID: structure.structureID,
+            kind: SOURCE_KIND.CITADEL,
+          },
+    );
 }
 
 /**
- * Every market a price may be asked for.
- *
- * Callers read this rather than the hub list directly, so a reader saving a
- * market reaches every surface that offers one without any of them changing.
+ * Every market a price may be asked for. Read this rather than the hub list, so
+ * a reader saving a market reaches every surface without any of them changing.
  *
  * @returns {MarketSource[]}
  */
@@ -129,10 +173,8 @@ export function sourceIn(sources, id) {
 }
 
 /**
- * What a source is called, falling back to its id.
- *
- * A source the registry does not carry is still named rather than blanked: an
- * id a reader can see is what lets them recognise a stale choice and change it.
+ * What a source is called, falling back to its id — a source the registry has
+ * lost is still named, so a reader can recognise a stale choice and change it.
  *
  * @param {MarketSource[]} sources
  * @param {string} id
