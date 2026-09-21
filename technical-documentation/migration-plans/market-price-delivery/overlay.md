@@ -573,21 +573,109 @@ only in the new kind: removing the invalidation that wakes a surface breaks the
 hub's own end-to-end test, so that mechanism is load-bearing and was never the
 part at fault.
 
-### Still to land
+### E5 — A citadel is read by the reader who saved it
 
-Everything here is now about a citadel, the one market kind the browser still fetches for itself.
-The derivation is § E1, the pacing home is § C2, and the station path this stage was first written
-around is gone — § G4 moved it to the server.
+**What follows from a kind is one table.** `marketSources` answers four questions about a market
+kind separately — where its rows live, who reads it, whether it can be asked a cheap question about
+its freshness, and whether its rows state their own expiry. For the three kinds there are today the
+answers line up, and they are asked apart anyway: a kind this server prices but the reader must
+authenticate for would split them, and one predicate standing in for four would be wrong in four
+places at once rather than missing a row in a table.
 
-**The read itself has landed**, as `Functions/EveESI/World/getStructureOrders.js`: a structure's
-orders on one character's token, every page, refusing a market too large to read whole rather than
-pricing it from the pages that fit. It sits beside `getMarketData.js` because it is the same kind of
-thing as a region's orders, and it has no caller yet.
+**This is the one market the browser still fetches.** A hub and a saved NPC station are priced by
+this server (§ G2-G4); a player structure's orders are private, so no server can walk one — the call
+needs a token and the character holding it needs docking access. Everything below follows from that.
 
-Sections to fill once the rest lands: the per-character ladder extracted from `nameLoader` and what
-both callers pass it; how a character without access is remembered, including one whose token
-predates the scope; how `priceLoader` groups a tick's citadel wants so one read answers all of them;
-the clock a whole-market read carries, and what restoring its rows from disk must do about it.
+**There is no per-type form of it.** `GET /markets/structures/{id}/` answers with the structure's
+whole order book, paginated, and nothing narrower exists. So a want for one type costs what a want
+for every type costs, which inverts the model the loader was built on. What follows from it: the
+read answers every type at once, what it answers with is kept, and a rotation rather than a request
+per want is what keeps it current.
+
+**The read.** `Functions/EveESI/World/getStructureOrders.js` reads a structure's orders as one
+character, every page, and keeps three outcomes apart — a refusal, a request that failed, and a token
+that was never granted `esi-markets.structure_markets.v1`. A market past `MAX_ORDER_PAGES` is refused
+whole rather than priced from the pages that fit: prices come from every order at the place, so a
+book cut short reports a best ask nobody is offering and nothing downstream could tell that from a
+real figure. A page count that cannot be read fails the same way and for the same reason.
+
+**Which character reads it.** `Functions/EveESI/World/askEachCharacter.js` is the walk across an
+account's characters, shared with name resolution, which moved onto it unchanged. The first real
+answer wins; a transient failure never settles as no-access, because the character that failed might
+have been the one who could see it; a token that never carried the scope is neither a refusal nor
+something to retry. `citadelPrices.js` asks the character recorded for that market first and the rest
+after, then records whichever answered — so the ordinary case is one request, the fan-out happens
+once, and a market whose access has moved heals itself.
+
+**Nothing is asked of the reader.** No character field exists in Settings and none is stored on the
+saved row: a market that can be read at all can be read without the reader telling the app anything,
+and asking them would make them maintain a fact the app discovers and keep it right as corporations
+and access change. The record lives in IndexedDB beside that market's prices, under a key of its own
+so the whole-market replace cannot sweep it away with the rows.
+
+**The prices.** Orders are bucketed per type and derived with `pricesFromOrders` — the same
+derivation the committed fixture holds to the server's, so a citadel's figures and a hub's mean the
+same thing. A type with no order is absent rather than zero.
+
+**What a read owes, in order.** `priceLoader`'s `readAndKeep` is the one place that knows it: read,
+**await** the write to the device, then record the clock and announce that the market moved. The
+order is load-bearing. Announcing drops the market's held rows and wakes every surface reading them,
+and what those surfaces read through is the device — so announcing first sent them to rows that were
+still the lapsed ones, refused on the way past, and cost a second walk of everything the read had
+just fetched. One read-and-keep runs per market at a time, so a rotation and a panel wanting the same
+market share one.
+
+**What is kept.** A citadel is the only kind in the persistent tier, because its rows were read at
+the reader's own expense and cannot be had for free again. `replaceStoredPrices` takes the whole set:
+a type the read did not mention has stopped trading there and goes. The rows carry their own expiry
+into memory as well as onto the device, or an open surface would hold a finished figure for the life
+of the tab with the retirement sweep unable to see it. Restoring a row from the device restores that
+market's clock too — a reload empties the clock record while the rows survive, and a market with no
+clock cannot be seen to move, so the next read would count as its first and drop nothing.
+
+**When it is read again.** Once an hour, `PRICE_ROTATION_MS`, and **every saved citadel is on that
+schedule** — not only the ones a reader has already priced against. A market is saved because they
+mean to price against it, so refreshing only what has been asked for would leave figures fresh
+exactly where a reader has been and stale everywhere else.
+
+The hour is the cadence this server refreshes the markets it prices publicly at, so a citadel's
+figures and a hub's are the same age as well as the same derivation. ESI's own expiry — minutes —
+is deliberately not what paces this: honouring it would walk a whole market a dozen times an hour on
+the reader's own token. The cost is that a citadel's prices can be up to an hour behind.
+
+**A reader signing in has them read straight away**, from the post-login sync where the account's
+characters are first known — waiting for the first tick would leave the prices they saved those
+markets for a quarter of an hour behind. Reading several at once takes nothing from the markets this
+server prices: a structure's orders are on an ESI allowance of their own.
+
+The rotation reads due-ness from the device rather than from what is held in memory: a price row is
+watched by nothing, so the query cache lets one go within minutes, and a rotation paced by that would
+stop rotating the moment a reader looked away — which is exactly when reading ahead is worth
+anything. It runs before the retirement sweep, so a market that can be read is replaced rather than
+emptied; it is skipped while the tab is hidden, being the only part of a tick that spends the
+reader's own ESI allowance; and a market the account was *refused* waits its full turn again rather than
+being read on every probe — where a read that merely failed does not, a failure
+saying nothing about the market.
+
+**One clock model, not two.** `clocksFor` keyed a market's clock per type as well as per source,
+for a saved station read one type at a time — which no longer exists, every kind now reporting a
+clock of its own. A market that has never answered contributes nothing there, and has no figures for
+a reader to be left looking at either.
+
+**A refusal is not an empty market.** Every character being refused fails the read, because "no
+orders here" is a figure a surface will print as zero.
+
+### What only these tests could say
+
+`citadelDelivery.e2e.test.jsx` stands in for the outside world alone — ESI's HTTP, the account's
+characters and their tokens, the reader's saved markets — and runs the walk, the read, the
+derivation, the loader, IndexedDB, the cache and a real render together. It exists because each unit
+test on this path mocks its neighbours, which is right for a unit test and is why none of them can
+say that a price arrives at all.
+
+Its fixtures are dated relative to now. Fixed dates made every stored row lapsed the moment the
+calendar passed them, and a row refused for being lapsed reads exactly like one that was never kept —
+a fixture that rots into a test proving nothing.
 
 ## Stage G — An NPC station is priced by the server
 

@@ -244,7 +244,7 @@ that changed.
 | What it is | an NPC station | a player citadel |
 | Broker fee | derived from the seller — **not stored** | `brokerFee`, the rate the owner set |
 | What the fee derives from | `raceID`, `ownerID` | — |
-| Reading its book | public | `characterHash`, a character with docking access |
+| Reading its orders | public | a character with docking access, found by trying |
 
 Both carry `regionID`, and both carry the `id`, `name` and `default` every kind has.
 
@@ -299,11 +299,9 @@ adding a kind is an entry in one map, not another form. Every field already has 
 `StructureTypeSelect`, `SystemTypeSelect`, `RigTypeSelect`, `ImplantSelect`,
 `VirtualisedSystemSearch` — so this is wiring to delete, not widgets to build.
 
-**Every field but one has a component already.** `StructureTypeSelect`, `SystemTypeSelect`,
-`RigTypeSelect`, `ImplantSelect`, `VirtualisedSystemSearch`, `TaxPercentageTextField` and `FormField`
-are what the three forms already compose, and the citadel's access character is
-**`AssignUsersSelect`** — the same picker the Returns panel uses to name a seller, which takes a hash
-and gives one back. Nothing new is needed for a citadel.
+**Every field has a component already.** `StructureTypeSelect`, `SystemTypeSelect`, `RigTypeSelect`,
+`ImplantSelect`, `VirtualisedSystemSearch`, `TaxPercentageTextField` and `FormField` are what the
+three forms already compose. Nothing new is needed for a citadel.
 
 **A region is derived, not chosen.** ESI answers the chain: `/universe/stations/{id}` gives a
 `system_id`, `/universe/systems/{id}` gives a `constellation_id`, and

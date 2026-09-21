@@ -529,7 +529,7 @@ picker offers **Market**, and the place a row holds says the rest:
 |---|---|---|
 | What it is | an NPC station | a citadel |
 | Broker fee | derived from the seller | `brokerFee`, stored |
-| Reading its book | public | `characterHash` |
+| Reading its orders | public | a character with docking access |
 | What the fee derives from | `raceID`, `ownerID` | — |
 
 Every market carries `regionID`, and the `id`, `name` and `default` every row has. The fields that
@@ -558,8 +558,11 @@ the rate reads. Both are fixed for the life of the station, and `getStationData`
 no caching, so every quote was a round trip for two constants. Storing them is not storing the fee:
 the rate is still derived per seller.
 
-**The access character is stored and not yet read.** SPA market reads are public and unauthenticated,
-and no `/markets/structures/` call exists; the field is what lets that fetch be built.
+**A citadel stores nothing about which character reads it.** Its orders need a character with
+docking access and nothing records who that is, so the answer is found by trying the account's
+characters and remembered on the device beside that market's prices — not asked of the reader and
+not kept on the row. [market-price-delivery](../market-price-delivery/plan.md) § Stage E owns that
+read.
 
 ### A market is a kind of structure, not a kind of job
 
@@ -635,7 +638,7 @@ the map that decides what is asked for, so the two cannot disagree.
 
 `structureFields.jsx` is the table: each field names what shows it, its wording, and the control.
 Every control was already shared, and the market kinds needed nothing new — a place comes from
-`useAssetLocations` through `VirtualisedLocationSearch`, and a citadel's access character from
+`useAssetLocations` through `VirtualisedLocationSearch`, and the seller pickers from
 `AssignUsersSelect`, the picker that names a seller on the Returns panel.
 
 The nine tests that covered the manufacturing form run against this one unchanged, which is what says
@@ -643,8 +646,7 @@ it still does what the three did. One assertion moved: it checked a `selectedJob
 `addCustomStructure` never read, and reads the kind off the row instead.
 
 **A rendered field is not a usable one.** The form calls a setter per field, and three had been
-removed as dead code before the form that calls them existed — so choosing a market location or an
-access character threw. `structureForm.test.jsx` now asserts every field the form offers has the
+removed as dead code before the form that calls them existed — so choosing a market location threw. `structureForm.test.jsx` now asserts every field the form offers has the
 setter its handler calls, because the field-map tests prove the right controls appear and say nothing
 about whether they work.
 
@@ -716,10 +718,10 @@ surfaces use, so a place that cannot be named reads as that rather than as a bla
 
 ### Still to fill
 
-**A citadel cannot be priced yet**, so it is sold from but not priced at, and its figures come from
-the default market until [market-price-delivery](../market-price-delivery/plan.md) § Stage E builds
-the authenticated walk. How a stored access character that no longer resolves is shown belongs with
-that walk, since nothing reads the character until then.
+**A citadel is priced at, and still sold from at the default market's figures.**
+[market-price-delivery](../market-price-delivery/plan.md) § Stage E built the read; what a sale from
+a citadel is costed against is a decision that moves figures on the Selling stage, and it is named
+there rather than taken as a consequence of the read existing.
 
 **A saved NPC station is priced by the server**, which
 [market-price-delivery](../market-price-delivery/plan.md) § Stage G built — measured against every

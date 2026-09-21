@@ -17,7 +17,13 @@ row already carries, in place of four lanes filled by three classes.
 - **What a screen reads** to list structures, once there is no lane to name.
 
 **[market-price-delivery](../market-price-delivery/contents.md) was shelved until this project landed
-a kind that is a market.** Stage D landed it, so that project's browser-side remainder resumes.
+a kind that is a market.** Stage D landed it, and that project has since finished: a citadel is read
+in the browser on the reader's own characters.
+
+**A market is leaving this model.** [market-locations](../market-locations/contents.md) moves a saved
+market onto its own lane with its own panel — a reversal of where a market row lives, not of this
+project's finding that the four build kinds belong in one class. That project waits on this one
+promoting first.
 
 **Not live SoT** until this project is complete and promotion is approved.
 
