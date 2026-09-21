@@ -41,18 +41,28 @@ describe("swapping full-page content", () => {
     expect(mounted).not.toHaveBeenCalled();
   });
 
-  // Without a hidden frame there is nothing for the fade to animate from, and
-  // the page appears with no transition at all.
-  test("the incoming content starts hidden, then becomes visible", () => {
+  // The arriving page must not be the thing that gets faded out. Sharing a
+  // surface across the swap hands it the opacity the page before it left
+  // behind, so the only route to a hidden frame is to animate the new page
+  // away and bring it back — which shows it, takes it away, and returns it.
+  test("the incoming content is not the thing being faded", () => {
+    const { rerender } = render(view("/a", <div>page a</div>));
+    const leaving = screen.getByText("page a").parentElement;
+
+    rerender(view("/b", <div>page b</div>));
+    const arriving = screen.getByText("page b").parentElement;
+
+    expect(arriving).not.toBe(leaving);
+    expect(arriving.style.opacity).not.toBe("0");
+  });
+
+  test("the incoming content ends up visible", () => {
     const { rerender } = render(view("/a", <div>page a</div>));
     rerender(view("/b", <div>page b</div>));
 
-    const surface = () => screen.getByText("page b").parentElement;
-    expect(surface().style.opacity).toBe("0");
-
     act(() => vi.advanceTimersByTime(1000));
 
-    expect(surface().style.opacity).toBe("1");
+    expect(screen.getByText("page b").parentElement.style.opacity).toBe("1");
   });
 });
 

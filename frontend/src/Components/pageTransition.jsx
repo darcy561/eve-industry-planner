@@ -1,6 +1,5 @@
 import { Box, Fade } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import { useEffect, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 
 /**
@@ -26,6 +25,13 @@ export function usePageKey(isMaintenanceMode) {
  * once, so its effects and locks are released on navigation rather than being
  * held alive for the length of a fade.
  *
+ * Each page gets its own surface, keyed on the page it holds, and fades in from
+ * hidden. Sharing one surface across the swap gives the arriving page the
+ * opacity the page before it left behind, so the only way to a hidden frame is
+ * to animate the new page *out* — which paints it, takes it away, and brings it
+ * back. On a heavy page that reads as a slow flash, because the work of mounting
+ * it delays whatever was meant to bring it back.
+ *
  * @param {Object} props
  * @param {string} props.contentKey Changing this restarts the fade.
  * @param {React.ReactNode} props.children
@@ -33,28 +39,13 @@ export function usePageKey(isMaintenanceMode) {
  */
 export default function PageTransition({ contentKey, children, sx }) {
   const theme = useTheme();
-  const [faded, setFaded] = useState(contentKey);
-
-  // Two frames, not one: the first lets the browser paint the hidden state, so
-  // the fade has something to animate from even when the incoming page's mount
-  // occupies the frame after the key changed.
-  useEffect(() => {
-    if (faded === contentKey) return;
-    let inner = 0;
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => setFaded(contentKey));
-    });
-    return () => {
-      cancelAnimationFrame(outer);
-      cancelAnimationFrame(inner);
-    };
-  }, [contentKey, faded]);
 
   return (
     <Fade
-      in={faded === contentKey}
+      key={contentKey}
+      in
+      appear
       timeout={theme.transitions.duration.enteringScreen}
-      appear={false}
     >
       <Box
         sx={{
