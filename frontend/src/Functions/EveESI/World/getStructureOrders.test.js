@@ -97,20 +97,18 @@ describe("reading a structure's orders as one character", () => {
     ).toEqual(["1", "2", "3"]);
   });
 
-  it("carries the moments ESI stated for the orders", async () => {
+  // When the orders were current, which is the clock a market moves by. When
+  // ESI would next serve new ones is not read: a market is re-read on its turn.
+  it("carries the moment ESI stated for the orders", async () => {
     fetchMock.mockResolvedValue(
       page([order()], {
-        headers: {
-          "last-modified": "Sat, 20 Sep 2026 12:00:00 GMT",
-          expires: "Sat, 20 Sep 2026 12:05:00 GMT",
-        },
+        headers: { "last-modified": "Sat, 20 Sep 2026 12:00:00 GMT" },
       }),
     );
 
     const answer = await fetchStructureOrders(RAITARU, character);
 
     expect(answer.refreshedAt).toBe(Date.parse("2026-09-20T12:00:00Z"));
-    expect(answer.expiresAt).toBe(Date.parse("2026-09-20T12:05:00Z"));
   });
 });
 

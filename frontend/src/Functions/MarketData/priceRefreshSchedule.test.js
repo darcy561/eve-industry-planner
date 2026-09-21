@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const revalidateSourceClocks = vi.fn();
-const expireSavedSourceRows = vi.fn();
 const rotateSelfReadMarkets = vi.fn();
+const dropUnreadMarkets = vi.fn();
 vi.mock("./priceCache.js", () => ({
   revalidateSourceClocks: (...args) => revalidateSourceClocks(...args),
-  expireSavedSourceRows: (...args) => expireSavedSourceRows(...args),
   rotateSelfReadMarkets: (...args) => rotateSelfReadMarkets(...args),
+}));
+vi.mock("./priceStore.js", () => ({
+  dropUnreadMarkets: (...args) => dropUnreadMarkets(...args),
 }));
 
 // The module's own pacing, not a second copy of it: a test carrying its own
@@ -32,6 +34,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   revalidateSourceClocks.mockResolvedValue(undefined);
   rotateSelfReadMarkets.mockResolvedValue(0);
+  dropUnreadMarkets.mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -171,24 +174,22 @@ describe("when a probe cannot be made", () => {
   });
 });
 
-// A market the reader reads themselves is paced by the expiry its own orders
-// carried: the tick reads again the ones that have lapsed, so nobody waits on a
-// whole market on the render that needs one price, and retires whatever could
-// not be read.
+// A market the reader reads themselves is paced by its own turn on the hour:
+// the tick reads again the ones whose turn has come, so nobody waits on a whole
+// market on the render that needs one price.
 describe("what a tick does about a reader's own markets", () => {
-  it("reads the lapsed ones and retires the rest, as well as probing the hubs", async () => {
+  it("reads the due ones as well as probing the hubs", async () => {
     startPriceRefresh();
 
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
 
     expect(rotateSelfReadMarkets).toHaveBeenCalledTimes(1);
-    expect(expireSavedSourceRows).toHaveBeenCalledTimes(1);
     expect(revalidateSourceClocks).toHaveBeenCalledTimes(1);
   });
 
-  // Dropping first would leave a surface blank until the read landed, which is
-  // the wait the read exists to avoid.
-  it("reads again before retiring, not after", async () => {
+  // Throwing away first would drop a market whose turn has just come, and the
+  // rotation would then read it again from nothing.
+  it("reads the due ones before throwing away what went unread", async () => {
     let finishReading;
     rotateSelfReadMarkets.mockReturnValue(
       new Promise((resolve) => {
@@ -199,78 +200,55 @@ describe("what a tick does about a reader's own markets", () => {
 
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
     await vi.waitFor(() => expect(rotateSelfReadMarkets).toHaveBeenCalled());
-
-    // Finished, not merely called: the point of the order is that a market
-    // which can be read is replaced rather than emptied, and a sweep running
-    // while the read is still out would empty it.
-    expect(expireSavedSourceRows).not.toHaveBeenCalled();
+    expect(dropUnreadMarkets).not.toHaveBeenCalled();
 
     finishReading();
-    await vi.waitFor(() => expect(expireSavedSourceRows).toHaveBeenCalled());
+    await vi.waitFor(() => expect(dropUnreadMarkets).toHaveBeenCalled());
   });
 
-  // A whole market read is the one part of a tick that spends the reader's own
-  // ESI allowance, and nobody is reading a price they cannot see.
-  it("does not read a lapsed market while the tab is hidden", async () => {
+  it("probes the hubs even when the sweep throws", async () => {
+    dropUnreadMarkets.mockRejectedValueOnce(new Error("storage is blocked"));
     startPriceRefresh();
-    setVisibility("hidden");
 
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
 
-    expect(rotateSelfReadMarkets).not.toHaveBeenCalled();
-    // The cheap halves still run: retiring asks nothing, and the probe costs a
-    // row, so a reader coming back is not looking at superseded hub figures.
-    expect(expireSavedSourceRows).toHaveBeenCalledTimes(1);
-    expect(revalidateSourceClocks).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() =>
+      expect(revalidateSourceClocks).toHaveBeenCalledTimes(1),
+    );
   });
 
   // It reaches the network, so it fails like the probe does and must take
   // nothing else down with it.
-  it("retires and probes even when reading again throws", async () => {
+  it("probes the hubs even when reading again throws", async () => {
     rotateSelfReadMarkets.mockRejectedValueOnce(new Error("offline"));
     startPriceRefresh();
 
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
-    await vi.waitFor(() => expect(revalidateSourceClocks).toHaveBeenCalled());
 
-    expect(expireSavedSourceRows).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() =>
+      expect(revalidateSourceClocks).toHaveBeenCalledTimes(1),
+    );
   });
 
-  // Retiring is local and cannot fail against the network, so it must not be
-  // skipped when the hubs cannot be reached.
-  it("retires them even when the hub probe fails", async () => {
+  // And the other direction: the two once shared a `try`, so a fault in one
+  // withheld the other with nothing reporting it.
+  it("reads the due ones even when the hub probe fails", async () => {
     revalidateSourceClocks.mockRejectedValueOnce(new Error("offline"));
     startPriceRefresh();
 
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
 
-    expect(expireSavedSourceRows).toHaveBeenCalledTimes(1);
-  });
-
-  // And the other direction, which is the one that actually went wrong: the two
-  // halves once shared a `try`, so a fault in the local half withheld the probe
-  // that keeps every hub price fresh, with nothing reporting it.
-  it("probes the hubs even when retiring throws", async () => {
-    expireSavedSourceRows.mockImplementationOnce(() => {
-      throw new TypeError("expireSavedSourceRows is not a function");
-    });
-    startPriceRefresh();
-
-    await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
-
-    expect(revalidateSourceClocks).toHaveBeenCalledTimes(1);
+    expect(rotateSelfReadMarkets).toHaveBeenCalledTimes(1);
   });
 
   it("carries on to the next tick after either half throws", async () => {
-    expireSavedSourceRows.mockImplementationOnce(() => {
-      throw new TypeError("nope");
-    });
+    rotateSelfReadMarkets.mockRejectedValueOnce(new Error("offline"));
     startPriceRefresh();
 
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
     await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
 
-    expect(expireSavedSourceRows).toHaveBeenCalledTimes(2);
+    expect(rotateSelfReadMarkets).toHaveBeenCalledTimes(2);
     expect(revalidateSourceClocks).toHaveBeenCalledTimes(2);
   });
 });
@@ -300,5 +278,41 @@ describe("reading a reader's own markets as they sign in", () => {
 
     expect(() => readSavedMarketsNow()).not.toThrow();
     await vi.waitFor(() => expect(rotateSelfReadMarkets).toHaveBeenCalled());
+  });
+
+  // Signing in is when a machine that has been away comes back, so it is the
+  // moment a reader either rebuilds what they left or opens on it.
+  it("throws away what has gone a day unread", async () => {
+    readSavedMarketsNow();
+
+    await vi.waitFor(() => expect(dropUnreadMarkets).toHaveBeenCalled());
+  });
+
+  it("probes the hubs, as a tick does", async () => {
+    readSavedMarketsNow();
+
+    await vi.waitFor(() => expect(revalidateSourceClocks).toHaveBeenCalled());
+  });
+
+  // Signing in is a probe, so the wake that follows a reader arriving on the
+  // page is inside the floor and does not ask every market again.
+  it("counts as the tick's last probe", async () => {
+    startPriceRefresh();
+    readSavedMarketsNow();
+    await vi.waitFor(() => expect(rotateSelfReadMarkets).toHaveBeenCalled());
+    rotateSelfReadMarkets.mockClear();
+
+    setVisibility("hidden");
+    setVisibility("visible");
+
+    expect(rotateSelfReadMarkets).not.toHaveBeenCalled();
+  });
+
+  it("sweeps even when the read fails", async () => {
+    rotateSelfReadMarkets.mockRejectedValueOnce(new Error("offline"));
+
+    readSavedMarketsNow();
+
+    await vi.waitFor(() => expect(dropUnreadMarkets).toHaveBeenCalled());
   });
 });

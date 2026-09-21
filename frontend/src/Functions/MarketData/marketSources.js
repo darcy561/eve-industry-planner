@@ -20,15 +20,15 @@ export const SOURCE_KIND = {
 /**
  * What follows from a kind, and the one place any of it is decided.
  *
- * Four questions are asked of a kind — where its rows live, who reads it, what
- * it can be asked about its freshness, and what its rows say about their own —
- * and for the kinds there are today the answers happen to line up. They are kept
- * apart anyway: a kind that is priced by this server *and* needs the reader's
- * own token would split them, and one predicate standing in for four would be
- * wrong in four places at once rather than missing a row here.
+ * Three questions are asked of a kind — where its rows live, who reads it, and
+ * what it can be asked about its freshness — and for the kinds there are today
+ * the answers happen to line up. They are kept apart anyway: a kind that is
+ * priced by this server *and* needs the reader's own token would split them, and
+ * one predicate standing in for three would be wrong in three places at once
+ * rather than missing a row here.
  *
  * A kind with no entry falls to the safe answer to each: session-only, read by
- * this server, asked like a hub, with no expiry of its own.
+ * this server, asked like a hub.
  */
 const KIND_TRAITS = {
   [SOURCE_KIND.HUB]: {
@@ -44,7 +44,7 @@ const KIND_TRAITS = {
   [SOURCE_KIND.CITADEL]: {
     tier: "persistent",
     readBy: "reader",
-    freshness: "expiry",
+    freshness: "rotation",
   },
 };
 
@@ -74,24 +74,14 @@ export function isReadByTheReader(kind) {
 
 /**
  * Whether asking this kind for one type it already holds reports its freshness
- * cheaply. A market whose orders only come whole answers no such question.
+ * cheaply. A market whose orders only come whole answers no such question — its
+ * turn on the rotation is what decides when it is read again.
  *
  * @param {string|undefined} kind - One of SOURCE_KIND
  * @returns {boolean}
  */
 export function answersAPerTypeProbe(kind) {
-  return traitsOf(kind).freshness !== "expiry";
-}
-
-/**
- * Whether this kind's rows carry the moment they stop standing, as against
- * being current until the market that serves them says otherwise.
- *
- * @param {string|undefined} kind - One of SOURCE_KIND
- * @returns {boolean}
- */
-export function rowsStateTheirOwnExpiry(kind) {
-  return traitsOf(kind).freshness === "expiry";
+  return traitsOf(kind).freshness !== "rotation";
 }
 
 /**

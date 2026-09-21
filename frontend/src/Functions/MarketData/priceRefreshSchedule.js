@@ -4,15 +4,11 @@
  *
  * Nothing here belongs to a screen: a price is read by panels, classes and
  * reducers alike, so what keeps prices current cannot be owned by a component
- * that happens to be mounted. What paces it is the asking — a market's own clock
- * decides what survives, and this only decides how often to go and find out.
+ * that happens to be mounted.
  */
 
-import {
-  expireSavedSourceRows,
-  rotateSelfReadMarkets,
-  revalidateSourceClocks,
-} from "./priceCache.js";
+import { rotateSelfReadMarkets, revalidateSourceClocks } from "./priceCache.js";
+import { dropUnreadMarkets } from "./priceStore.js";
 
 /**
  * How often to ask the markets holding rows where they have got to. The server
@@ -37,13 +33,6 @@ let stopListening = null;
 let lastProbedAt = 0;
 
 /**
- * Asks every market holding rows where it has got to, reads again the markets
- * the reader reads themselves whose turn has come, and retires what is left
- * over.
- *
- * A probe that could not be made is left alone: a market not answering says
- * nothing about whether the figures held for it are still good.
- *
  * **Each part fails on its own**, because sharing one `try` once let a fault in
  * one withhold the probe that keeps every hub price fresh, silently.
  *
@@ -52,19 +41,16 @@ let lastProbedAt = 0;
 async function probe() {
   lastProbedAt = Date.now();
 
-  // Before the sweep, so a market that can be read is replaced rather than
-  // emptied — and not while hidden, being the one part of a tick that spends the
-  // reader's own ESI allowance.
   try {
-    if (document.visibilityState !== "hidden") {
-      await rotateSelfReadMarkets();
-    }
+    await rotateSelfReadMarkets();
   } catch {
-    // Swallowed, as each part is: see the contract above.
+    /* empty */
   }
 
+  // After the rotation, so a market whose turn has just come is refreshed
+  // rather than thrown away and read again from nothing.
   try {
-    expireSavedSourceRows();
+    await dropUnreadMarkets();
   } catch {
     /* empty */
   }
@@ -84,29 +70,21 @@ function probeOnWake() {
 }
 
 /**
- * Reads every market the reader reads themselves whose turn has come, now.
+ * A probe at sign-in, which is both when a reader's saved markets are first
+ * known and when a machine that has been away comes back. Waiting for the first
+ * tick would leave them a quarter of an hour behind, and a week's absence would
+ * open on the prices they left.
  *
- * For a reader who has just signed in: their saved markets are known at that
- * moment, and waiting for the first tick would leave the prices they saved
- * those markets for up to a quarter of an hour behind. The hour then paces it
- * from there, as it does for a market read by a surface asking.
- *
- * Nothing waits on this — a reader is not held up by a market they have not
- * looked at yet, and a market that cannot be read is put back a full turn by
- * the rotation itself.
+ * Nothing waits on it: a reader is not held up by a market they have not looked
+ * at yet.
  *
  * @returns {void}
  */
 export function readSavedMarketsNow() {
-  void rotateSelfReadMarkets().catch(() => {
-    // The rotation reports a market it could not read by putting its turn back,
-    // and a reader is told nothing here: this is a refresh nobody asked for.
-  });
+  void probe();
 }
 
 /**
- * Starts the refresh cycle.
- *
  * Called explicitly rather than on import, so a test or a tool can load this
  * module without acquiring a timer and a listener.
  *

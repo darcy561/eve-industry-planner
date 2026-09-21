@@ -19,7 +19,6 @@ const {
   answersAPerTypeProbe,
   isReadByTheReader,
   persistsAcrossSessions,
-  rowsStateTheirOwnExpiry,
   sourceIn,
   sourceNameIn,
 } = await import("./marketSources");
@@ -176,27 +175,25 @@ describe("naming a source", () => {
   });
 });
 
-// Four questions, one table. They line up for the kinds there are today, which
+// Three questions, one table. They line up for the kinds there are today, which
 // is exactly why they are asked separately: a kind this server prices but the
 // reader must authenticate for would split them, and one predicate standing in
-// for four would be wrong in four places at once.
+// for three would be wrong in three places at once.
 describe("what follows from a kind", () => {
   const ASKED = {
     persistsAcrossSessions,
     isReadByTheReader,
     answersAPerTypeProbe,
-    rowsStateTheirOwnExpiry,
   };
 
   it.each([
-    [SOURCE_KIND.HUB, false, false, true, false],
-    [SOURCE_KIND.STATION, false, false, true, false],
-    [SOURCE_KIND.CITADEL, true, true, false, true],
-  ])("answers for %s", (kind, persists, readByReader, probes, ownExpiry) => {
+    [SOURCE_KIND.HUB, false, false, true],
+    [SOURCE_KIND.STATION, false, false, true],
+    [SOURCE_KIND.CITADEL, true, true, false],
+  ])("answers for %s", (kind, persists, readByReader, probes) => {
     expect(persistsAcrossSessions(kind)).toBe(persists);
     expect(isReadByTheReader(kind)).toBe(readByReader);
     expect(answersAPerTypeProbe(kind)).toBe(probes);
-    expect(rowsStateTheirOwnExpiry(kind)).toBe(ownExpiry);
   });
 
   // A kind nothing knows about is treated as the cheapest thing to be wrong

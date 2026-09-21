@@ -42,7 +42,6 @@ export const MAX_ORDER_PAGES = 30;
  * @property {false} refused
  * @property {Array<object>} orders - Orders as ESI returns them
  * @property {number} refreshedAt - When ESI last changed these orders
- * @property {number} [expiresAt] - When they can next have changed
  */
 
 /**
@@ -107,7 +106,6 @@ export async function fetchStructureOrders(
     refused: false,
     orders: [first, ...rest].flatMap((page) => page.orders),
     refreshedAt: first.refreshedAt,
-    ...(first.expiresAt === undefined ? {} : { expiresAt: first.expiresAt }),
   };
 }
 
@@ -146,7 +144,7 @@ async function accessTokenFor(structureID, character) {
  * **No `If-None-Match` here, unlike a region's orders.** An etag buys a 304 for
  * a caller holding the orders it was last given; this one holds derived prices
  * and throws the orders away, so it has nothing a 304 could spare it from
- * fetching. What paces it is the expiry instead.
+ * fetching.
  */
 async function readPage(structureID, accessToken, page, config) {
   let response;
@@ -183,7 +181,6 @@ async function readPage(structureID, accessToken, page, config) {
     orders: await response.json(),
     totalPages: pageCount(response, structureID),
     refreshedAt: headerTime(response, "last-modified") ?? Date.now(),
-    expiresAt: headerTime(response, "expires"),
   };
 }
 

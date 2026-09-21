@@ -1,7 +1,6 @@
 import { fetchMarketPricesQuery } from "../Endpoints/Public/marketPricesQuery";
 import { readCitadelPrices } from "./citadelPrices";
 import { allMarketSources, SOURCE_KIND, sourceIn } from "./marketSources";
-import { withFreshness } from "./priceFreshness";
 import { replaceStoredPrices } from "./priceStore";
 import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 
@@ -241,7 +240,7 @@ async function serveOneCitadel(wants) {
 
   for (const want of wants) {
     const row = prices.rows.get(String(want.typeID));
-    resolveWant(want, row ? withFreshness(row, prices) : null);
+    resolveWant(want, row ? { ...row, refreshedAt: prices.refreshedAt } : null);
   }
 }
 
@@ -287,9 +286,9 @@ async function keepWhatIsRead(sourceID, source) {
   //
   // **Awaited, and before the clock moves.** Announcing a move drops this
   // market's held rows and wakes every surface reading them, and what they read
-  // through is the store — so announcing first sends them to a market whose
-  // rows are still the lapsed ones, which are refused on the way past and cost
-  // a second walk of everything this one just read.
+  // through is the store — so announcing first sends them to the rows this read
+  // is about to replace, which they would then hold until something else moved
+  // the market.
   await replaceStoredPrices(sourceID, prices.rows, {
     refreshedAt: prices.refreshedAt,
     expiresAt: prices.expiresAt,

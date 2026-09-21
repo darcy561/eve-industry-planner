@@ -136,25 +136,23 @@ describe("what a read is kept as", () => {
     });
   });
 
-  // A surface already open holds its figures in memory, and nothing re-reads a
-  // citadel until somebody asks — so a row that did not carry its own expiry
-  // would sit in front of a reader for the life of the tab, with the sweep that
-  // retires finished rows unable to see it.
-  it("carries the expiry the read stated on the row itself", async () => {
+  // When the market is next due is the market's own affair, recorded once for
+  // it; a row carries only the moment the walk that read it was current.
+  it("carries the moment of the read on the row, and no expiry", async () => {
     readCitadelPrices.mockResolvedValue(
       priced([["34", { sell: 10 }]], { refreshedAt: 42, expiresAt: 99 }),
     );
 
-    expect(await requestPrice(34, "azbel")).toMatchObject({
+    expect(await requestPrice(34, "azbel")).toEqual({
+      sell: 10,
       refreshedAt: 42,
-      expiresAt: 99,
     });
   });
 
   // Announcing the move drops this market's held rows and wakes every surface
   // reading them — and what they read through is the store. Announcing first
-  // sends them to rows that are still the lapsed ones, which are refused on the
-  // way past and cost a second walk of everything this read just fetched.
+  // sends them to the rows this read is about to replace, and they would hold
+  // those until something else moved the market.
   it("is written to the device before the market is said to have moved", async () => {
     let finishWriting;
     replaceStoredPrices.mockImplementationOnce(

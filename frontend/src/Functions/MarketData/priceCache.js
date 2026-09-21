@@ -4,7 +4,6 @@ import {
   answersAPerTypeProbe,
   isReadByTheReader,
   persistsAcrossSessions,
-  rowsStateTheirOwnExpiry,
   sourceIn,
 } from "./marketSources";
 import {
@@ -19,7 +18,6 @@ import {
   readStoredPrice,
 } from "./priceStore";
 import { PRICE_ROTATION_MS } from "./citadelPrices";
-import { hasLapsed } from "./priceFreshness";
 import { readSourceClock, recordSourceClock } from "./sourceClocks";
 
 /**
@@ -42,6 +40,19 @@ import { readSourceClock, recordSourceClock } from "./sourceClocks";
  * @type {number}
  */
 const PRICE_STALE_TIME = Infinity;
+
+/**
+ * How long a row with nothing watching it is kept.
+ *
+ * Nothing subscribes to a row — surfaces read them synchronously — so every
+ * entry is unobserved the moment it lands and this is in effect how long one
+ * lives. Long enough that a reader moving between screens finds the prices
+ * still there, short enough that a tab left open does not hold a market's whole
+ * set for the day.
+ *
+ * @type {number}
+ */
+const PRICE_CACHE_TIME = 30 * 60 * 1000;
 
 /**
  * Every market key is built from this, so dropping a whole market's rows and
@@ -141,6 +152,7 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
         queryKey: priceQueryKey(typeID, sourceID),
         queryFn: () => resolvePrice(typeID, sourceID),
         staleTime: PRICE_STALE_TIME,
+        gcTime: PRICE_CACHE_TIME,
         retry: false,
       }),
     );
@@ -152,6 +164,7 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
         queryKey: adjustedQueryKey(typeID),
         queryFn: () => requestAdjustedPrice(typeID),
         staleTime: PRICE_STALE_TIME,
+        gcTime: PRICE_CACHE_TIME,
         retry: false,
       }),
     );
@@ -175,8 +188,8 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
  * the reader reads themselves behave like a hub everywhere else.
  *
  * What is kept is written by the read that fetched it rather than here: that
- * read takes a whole market at once, so it knows what every type is worth and
- * which have stopped trading, neither visible from one resolved row.
+ * read takes a whole market at once, and one resolved row shows neither what
+ * every type is worth nor which have stopped trading.
  */
 async function resolvePrice(typeID, sourceID) {
   const source = sourceIn(allMarketSources(), sourceID);
@@ -224,26 +237,17 @@ setClockMovedListener(({ sources, adjusted }) => {
  * whose turn has come round.
  *
  * **This is what stops a reader paying for a whole market read on the render
- * that needs one price.** A market this server prices is re-asked a type at a
- * time, so letting the next reader pay costs them one row; a citadel's orders
- * only come whole, so the same wait is the whole market. Reading it here puts
- * fresh rows on the device, and the read that a surface then makes is a lookup.
+ * that needs one price.** A citadel's orders only come whole, so the wait a
+ * hub's next reader pays — one row — is the whole market here.
  *
- * **Due-ness is read from the device, not from what is held in memory.** The
- * cache lets a row nothing is watching go within minutes, so a rotation paced
- * by what is in it would stop rotating the moment a reader looked away — which
- * is precisely when reading ahead is worth anything.
+ * **Due-ness is read from the device, not from memory.** The cache lets an
+ * unwatched row go long before the market is due, so a rotation paced by what
+ * is in it would stop rotating the moment a reader looked away — precisely when
+ * reading ahead is worth anything.
  *
- * **Every market the reader saved is on it, not only the ones they have priced
- * against.** A market is saved because they mean to price against it, so one
- * nothing has read yet is due now — refreshing only what has already been asked
- * for would leave prices fresh exactly where a reader has been and stale
- * everywhere else.
- *
- * **A market that could not be read waits its full turn again.** Its rows are
- * left as they were, and only the moment it is next worth trying moves — a
- * market nobody can reach any more would otherwise be walked on every probe,
- * each walk a refusal per character, which ESI charges at five times a hit.
+ * **Every market the reader saved is on it**, not only the ones they have
+ * priced against, so one nothing has read yet is due now. Refreshing only what
+ * has been asked for would leave prices fresh exactly where a reader has been.
  *
  * @param {number} [now]
  * @returns {Promise<number>} How many markets were read again
@@ -306,43 +310,7 @@ async function readEach(sourceIDs) {
 function isDue(freshness, now) {
   // Nothing on record is a market never read, which is due now rather than
   // never: its turn cannot have passed if it has never had one.
-  return !freshness || hasLapsed(freshness.expiresAt, now);
-}
-
-/**
- * Drops rows a market the reader reads themselves has finished with.
- *
- * Asks nothing and reads nothing over the network: the expiry is carried on the
- * row. Dropping rather than refetching, because a row nothing is reading does
- * not need replacing — what this buys is that a surface already open stops
- * showing a figure its own market has declared finished.
- *
- * @param {number} [now]
- * @returns {number} How many rows were dropped
- */
-export function expireSavedSourceRows(now = Date.now()) {
-  const sources = allMarketSources();
-  let dropped = 0;
-
-  for (const entry of queryClient
-    .getQueryCache()
-    .findAll({ queryKey: ["market", "price"] })) {
-    const [, , sourceID, typeID] = entry.queryKey;
-    if (!rowsStateTheirOwnExpiry(sourceIn(sources, sourceID)?.kind)) continue;
-
-    if (!hasLapsed(entry.state?.data?.expiresAt, now)) continue;
-
-    queryClient.removeQueries({ queryKey: priceQueryKey(typeID, sourceID) });
-    dropped += 1;
-  }
-
-  // Dropping rows reaches nobody on its own: a priced surface subscribes to no
-  // row entry, only to the query it waits on.
-  if (dropped > 0) {
-    queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
-  }
-
-  return dropped;
+  return !freshness || !(freshness.expiresAt > now);
 }
 
 /**
@@ -356,8 +324,8 @@ export function expireSavedSourceRows(now = Date.now()) {
  * on "no price here" for as long as the tab stayed open.
  *
  * **A market the reader reads themselves is not asked**: its orders only come
- * whole, so there is no cheap question. {@link expireSavedSourceRows} retires
- * its rows instead.
+ * whole, so there is no cheap question. Its turn on the rotation is what
+ * replaces its rows.
  *
  * @returns {Promise<void>}
  */

@@ -1,5 +1,4 @@
-import { del, delMany, get, keys, set } from "idb-keyval";
-import { hasLapsed, withFreshness } from "./priceFreshness";
+import { delMany, get, keys, set } from "idb-keyval";
 
 /**
  * What a market the reader reads themselves is worth keeping between visits.
@@ -35,8 +34,12 @@ function withinBudget(work, fallback) {
   ]);
 }
 
-/** Bumped when a stored row's shape changes, which abandons the old rows. */
-const VERSION = 1;
+/**
+ * Bumped when the shape of anything stored here changes, which abandons what
+ * was written under the old one. The cost is that every reader rebuilds their
+ * markets once, on the rotation they would have had anyway.
+ */
+const VERSION = 2;
 
 const PREFIX = "price|";
 const CURRENT_PREFIX = `${PREFIX}v${VERSION}|`;
@@ -61,19 +64,21 @@ const CURRENT_FRESHNESS_PREFIX = `${FRESHNESS_PREFIX}v${VERSION}|`;
 /**
  * Where the character that last read a market is kept.
  *
- * Deliberately not under that market's row prefix: `replaceStoredPrices`
- * removes everything there that the new read did not mention, so a record
- * living inside it would be thrown away by the very read that proved it
- * right.
+ * Deliberately not under that market's row prefix, which
+ * `replaceStoredPrices` clears: a record living inside it would be thrown away
+ * by the very read that proved it right.
  */
 const characterKey = (sourceID) => `${CURRENT_CHARACTER_PREFIX}${sourceID}`;
 
 /**
- * Where the moment a market was last read is kept.
+ * Where a market's `readAt` and `expiresAt` are kept, both on this device's
+ * clock and deliberately not ESI's `last-modified` — a structure nobody has
+ * traded at for days states an old one, and a market judged by it would look
+ * untouched the moment it was refreshed.
  *
- * Outside the row prefix for the same reason as {@link characterKey}, and kept
- * per market rather than read off a row because what asks is deciding whether
- * to read the market at all — it has no type in hand to look one up by.
+ * Outside the row prefix for the same reason as {@link characterKey}, and per
+ * market rather than on a row because what asks is deciding whether to read the
+ * market at all — it has no type in hand to look one up by.
  */
 const freshnessKey = (sourceID) => `${CURRENT_FRESHNESS_PREFIX}${sourceID}`;
 
@@ -83,9 +88,9 @@ let pruning = null;
 /**
  * Clears out anything written under an earlier shape.
  *
- * A version bump abandons old keys rather than removing them, so nothing reads
- * them again and the per-row eviction can never reach them — they would sit on
- * the reader's device for good. Once per session, and not awaited.
+ * A version bump abandons old keys rather than removing them, so nothing would
+ * ever reach them again and they would sit on the reader's device for good.
+ * Once per session, and not awaited.
  */
 function prunePastVersions() {
   pruning ??= (async () => {
@@ -110,37 +115,20 @@ function prunePastVersions() {
 }
 
 /**
- * A row held for one type at one market, if one is still good.
- *
- * **A lapsed row is dropped as it is found**, which is the whole of the eviction
- * path: a row nothing visits is one nothing is paying for, and sweeping on a
- * timer would spend work to learn that.
+ * A row held for one type at one market.
  *
  * @param {string} sourceID
  * @param {number|string} typeID
- * @param {number} [now] - For tests
- * @returns {Promise<object|undefined>} undefined where nothing usable is held
+ * @returns {Promise<object|undefined>} undefined where nothing is held
  */
-export async function readStoredPrice(sourceID, typeID, now = Date.now()) {
+export async function readStoredPrice(sourceID, typeID) {
   prunePastVersions();
-  return withinBudget(readEntry(sourceID, typeID, now), undefined);
+  return withinBudget(readEntry(sourceID, typeID), undefined);
 }
 
-async function readEntry(sourceID, typeID, now) {
-  const key = entryKey(sourceID, typeID);
-
+async function readEntry(sourceID, typeID) {
   try {
-    const row = await get(key);
-    if (!row) return undefined;
-
-    // Serving a lapsed row would be worse than having stored nothing, because
-    // nothing above this would ever ask again.
-    if (hasLapsed(row.expiresAt, now)) {
-      await del(key);
-      return undefined;
-    }
-
-    return row;
+    return (await get(entryKey(sourceID, typeID))) ?? undefined;
   } catch {
     return undefined;
   }
@@ -207,8 +195,11 @@ export async function deferMarket(sourceID, nextTurnAt) {
 async function putTurnBack(sourceID, nextTurnAt) {
   try {
     const held = await get(freshnessKey(sourceID));
+    // `readAt` is left where it was: a market that could not be read has not
+    // been read, and moving it would keep a market nobody can reach alive
+    // against the sweep for as long as it went on failing.
     await set(freshnessKey(sourceID), {
-      refreshedAt: held?.refreshedAt ?? 0,
+      readAt: held?.readAt ?? 0,
       expiresAt: nextTurnAt,
     });
   } catch {
@@ -220,10 +211,10 @@ async function putTurnBack(sourceID, nextTurnAt) {
 /**
  * When a market was last read, and when it is due again. Answers for a market
  * whose rows are no longer in memory, which is what makes a rotation one: the
- * cache lets an unwatched row go within minutes.
+ * cache lets an unwatched row go long before the market is due.
  *
  * @param {string} sourceID
- * @returns {Promise<{refreshedAt: number, expiresAt?: number}|undefined>}
+ * @returns {Promise<{readAt: number, expiresAt: number}|undefined>}
  */
 export async function readMarketFreshness(sourceID) {
   prunePastVersions();
@@ -233,26 +224,93 @@ export async function readMarketFreshness(sourceID) {
 async function freshnessHeld(sourceID) {
   try {
     const held = await get(freshnessKey(sourceID));
-    return Number.isFinite(held?.refreshedAt) ? held : undefined;
+    return Number.isFinite(held?.readAt) ? held : undefined;
   } catch {
     return undefined;
   }
 }
 
 /**
- * Everything held for one market, replaced by what a fresh read says.
+ * Long enough that a market on the hour is never near it, short enough that a
+ * reader coming back to a machine after a break rebuilds rather than opening on
+ * yesterday's figures.
  *
- * **A type absent from the new set is removed.** A whole-market read is a
- * statement about every type on it, so a row it does not mention is one nobody
- * trades there any more — and nothing would ever refresh it away.
+ * @type {number}
+ */
+export const UNREAD_MARKET_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Throws away everything held for a market nothing has read in a day.
+ *
+ * **This is what bounds the tier.** A market is refreshed because the reader
+ * still has it saved, so one they have removed — or one no character can reach
+ * any more — simply stops being refreshed, and nothing else would ever throw
+ * its rows away.
+ *
+ * @param {number} [now]
+ * @returns {Promise<number>} How many markets were dropped
+ */
+export async function dropUnreadMarkets(now = Date.now()) {
+  prunePastVersions();
+  return withinBudget(sweepUnread(now), 0);
+}
+
+async function sweepUnread(now) {
+  try {
+    const held = (await keys()).filter((key) => typeof key === "string");
+    let dropped = 0;
+
+    for (const key of held.filter((key) =>
+      key.startsWith(CURRENT_FRESHNESS_PREFIX),
+    )) {
+      const sourceID = key.slice(CURRENT_FRESHNESS_PREFIX.length);
+      if (!(await stillUnread(sourceID, now))) continue;
+
+      await delMany([
+        key,
+        characterKey(sourceID),
+        ...held.filter((row) => row.startsWith(marketPrefix(sourceID))),
+      ]);
+      dropped += 1;
+    }
+
+    return dropped;
+  } catch {
+    // Storage that cannot be swept holds nothing that will be served either:
+    // every read through it answers as a miss.
+    return 0;
+  }
+}
+
+/**
+ * Asked for each market as it is reached rather than for all of them up front:
+ * deciding about every market first and deleting afterwards threw away one
+ * refreshed while the scan was still walking, losing the walk just paid for.
+ */
+async function stillUnread(sourceID, now) {
+  const readAt = (await get(freshnessKey(sourceID)))?.readAt;
+
+  // Absent is a market never read successfully. Its record is what paces the
+  // attempts, and it holds no rows to throw away.
+  return readAt > 0 && now - readAt > UNREAD_MARKET_MS;
+}
+
+/**
+ * Everything held for one market, thrown away and written again from what a
+ * fresh read says.
+ *
+ * **Cleared rather than reconciled.** A whole-market read is a statement about
+ * every type on it, so what was there before it has no standing — working out
+ * which rows the new set happens to keep would cost a comparison to arrive
+ * where clearing arrives anyway.
  *
  * **Its caller waits on this**, unlike the reads around it: a surface woken by
  * the market's clock moving reads through here, so it must find the new rows.
  *
  * @param {string} sourceID
  * @param {Map<string, object>|Array<[string, object]>} rows - Type id to row
- * @param {{refreshedAt: number, expiresAt?: number}} freshness - When the walk
- *   read these prices, and when they lapse
+ * @param {{refreshedAt: number, expiresAt: number}} freshness - The moment ESI
+ *   stated for these orders, and when the market is due again
  * @returns {Promise<void>}
  */
 export async function replaceStoredPrices(sourceID, rows, freshness) {
@@ -261,26 +319,30 @@ export async function replaceStoredPrices(sourceID, rows, freshness) {
 }
 
 async function writeMarket(sourceID, rows, freshness) {
-  const arriving = new Map(rows);
   const prefix = marketPrefix(sourceID);
 
   try {
     const held = (await keys()).filter(
       (key) => typeof key === "string" && key.startsWith(prefix),
     );
-
-    const gone = held.filter((key) => !arriving.has(key.slice(prefix.length)));
-    if (gone.length) await delMany(gone);
+    if (held.length) await delMany(held);
 
     await Promise.all(
-      [...arriving].map(([typeID, row]) =>
-        set(entryKey(sourceID, typeID), withFreshness(row, freshness)),
+      [...new Map(rows)].map(([typeID, row]) =>
+        set(entryKey(sourceID, typeID), {
+          ...row,
+          refreshedAt: freshness.refreshedAt,
+        }),
       ),
     );
 
-    // Last: written first, a write that gave out halfway would leave the market
-    // saying it holds rows it does not.
-    await set(freshnessKey(sourceID), withFreshness({}, freshness));
+    // Written last, so a torn row write never reaches it: a market whose rows
+    // only partly landed keeps the record that said it was due — which is why
+    // this read happened — rather than one claiming a read it did not finish.
+    await set(freshnessKey(sourceID), {
+      readAt: Date.now(),
+      expiresAt: freshness.expiresAt,
+    });
   } catch {
     // A reader whose storage is full or blocked prices from the network
     // instead, which is the tier working as designed.

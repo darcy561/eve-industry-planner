@@ -29,7 +29,6 @@ vi.mock("./marketSources", async () => {
 
 const { queryClient } = await import("../../queryClient.js");
 const {
-  expireSavedSourceRows,
   fetchPrices,
   readPrice,
   rotateSelfReadMarkets,
@@ -88,19 +87,6 @@ describe("a market this server prices", () => {
     expect(requestPrice).toHaveBeenCalledWith(34, "saved-station");
     expect(readPrice(34, "saved-station").sell).toBe(10);
   });
-
-  // Nothing of theirs is held, so the sweep that retires stored rows has
-  // nothing to retire and asks nobody.
-  it("has nothing for the retirement sweep to drop", async () => {
-    // With an expiry of its own, so this fails if a station is ever classed as
-    // a market the reader keeps rather than passing for want of one.
-    requestPrice.mockResolvedValue({ ...row(10), expiresAt: 2000 });
-
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "saved-station" }] });
-
-    expect(expireSavedSourceRows(2001)).toBe(0);
-    expect(readPrice(34, "saved-station").sell).toBe(10);
-  });
 });
 
 // The accessor above must not be able to tell where a row came from.
@@ -138,19 +124,6 @@ describe("a market the reader reads themselves", () => {
     expect(readStoredPrice).toHaveBeenCalledWith("saved-citadel", 34);
     expect(requestPrice).not.toHaveBeenCalled();
     expect(readPrice(34, "saved-citadel").sell).toBe(7);
-  });
-
-  // The one kind the retirement sweep is for: its rows state when they lapse,
-  // and nothing goes back to the market until a reader asks again.
-  it("has its expired rows retired by the sweep", async () => {
-    readStoredPrice.mockResolvedValue(undefined);
-    requestPrice.mockResolvedValue({ ...row(10), expiresAt: 2000 });
-
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "saved-citadel" }] });
-    expect(readPrice(34, "saved-citadel")).toBeDefined();
-
-    expect(expireSavedSourceRows(2001)).toBe(1);
-    expect(readPrice(34, "saved-citadel")).toBeUndefined();
   });
 
   it("falls through to the read when nothing is held for it", async () => {

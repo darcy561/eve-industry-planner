@@ -72,9 +72,8 @@ const MINUTE = 60 * 1000;
 /**
  * The moments ESI states, relative to now.
  *
- * Fixed dates would have made every stored row expired the moment the calendar
- * passed them, and a row refused for being lapsed reads exactly like one that
- * was never kept.
+ * Fixed dates would have put every market past its turn the moment the calendar
+ * passed them, so a test about a market being read once would read it twice.
  */
 const stated = (offsetMs) => new Date(Date.now() + offsetMs).toUTCString();
 
@@ -108,7 +107,6 @@ function ordersPage(orders, { pages = 1, readAt = READ_AT } = {}) {
       "Content-Type": "application/json",
       "x-pages": String(pages),
       "last-modified": readAt,
-      expires: stated(5 * MINUTE),
     },
   });
 }
@@ -296,8 +294,7 @@ describe("a market whose hour is up", () => {
   // The defect this whole path is arranged around: the tick reads the market
   // again and wakes every surface holding its rows, and what those surfaces read
   // through is the device. Telling them before the rows landed sent them to the
-  // lapsed ones — refused on the way past — and cost a second walk of the very
-  // market that had just been read.
+  // ones the read was replacing, which they would then hold on to.
   it("is read once by the tick, and the surface follows it", async () => {
     fetchMock.mockResolvedValue(ordersPage([order(34, 10)]));
 
