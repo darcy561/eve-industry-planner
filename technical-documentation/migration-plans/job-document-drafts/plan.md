@@ -1190,7 +1190,7 @@ rebuilds the edit session rather than fitting the layers under it.
 | 2a — the selectors a command needs · **landed** | A derived figure a call site must read to build a command's input, taken early rather than waiting for Stage 4 | Each checked against the getter it replaces, the same way the commands are |
 | 3 — undo · **landed** | The log read backwards, per command rather than per path, with typing coalesced | Undo of each command restores what it changed and nothing else, a question is taken back like a change, and a run of typing is one step |
 | 4 — the session · **landed** | The reducer is replaced by the store: `jobModified` becomes the log being non-empty, discard becomes dropping it, and the base follows the document | Both edges of a session over the real store: opening a job into it, and saving or closing out of it. The seven end-to-end mutator suites press what a reader presses; a document arriving for a job an editor holds keeps the reader's changes over it, including in the middle of a run of typing |
-| 5 — the panels | Each panel reads what it needs from the draft instead of taking the whole job as a prop | The mutators that already press what a reader presses, plus what each panel re-renders on |
+| 5 — the panels · **landed** | Each panel reads what it needs from the draft instead of taking the whole job as a prop. Broken into five steps of its own — § Slice 5's steps | The mutators that already press what a reader presses, plus a render count per panel |
 
 **Comparing against what is being replaced is what has found the defects.** Every divergence so far was
 in the new code and none would have failed a test of the recipe alone: a new extras row and a new
@@ -1288,7 +1288,7 @@ copy.
 **None of this is scaffolding for the stages below.** When Stage 5 deletes the lens and `jobArray` goes
 plain, the save still takes plain data and builds what it needs; the boundary stays where it is.
 
-**Undo has no control on the page yet**Undo has no control on the page yet, and that is the stage's own wording** — § Stage 3's slices says
+**Undo has no control on the page yet, and that is the stage's own wording** — § Stage 3's slices says
 undo's decision is taken here "whether or not the UI ships in it". `undoStep` and `redoStep` are
 reachable on the session and nothing presses them, so they are provision for a control rather than
 dead code. Whoever adds that control is what makes undo testable end to end; until then it is proved
@@ -1297,6 +1297,250 @@ as a pure module.
 **Leaving without saving no longer restores an open-time copy.** `backupJob` is gone: the session
 already holds the document as the server last stated it, so a close writes that back and keeps
 whatever arrived while the editor was open — the defect § Settled describes.
+
+#### Slice 5's steps
+
+Measured before scoping, against the tree as slice 4 left it: **52 files** under `Edit Job` read
+`state.activeJob`, **25** receive `{...props}` spread down from `EditJobStepContentSelector`, and there
+is **no `memo` anywhere** — so an edit re-renders all of it.
+
+**A panel cannot be held still by narrowing what it reads alone.** A child re-renders with its parent
+whatever it subscribes to, which `tests/renderCounts.test.jsx` pins as a rule. So while
+`EditJobStepContentSelector` reads the job, every panel beneath it re-renders however well it
+subscribes.
+
+**The frame still goes last, because it cannot go first.** The panels reach the job through the props
+spread that comes down through the frame, so a frame that stops passing them leaves forty of them with
+nothing to read. Holding the chain still by having it subscribe instead only moves the subscription: the
+chain then re-renders on every edit, and a panel below it can never reach zero however well it selects.
+
+So each panel is converted once and proved **on its own** — mounted directly over a real store and
+counted through a change it reads nothing of, which answers the same question as the page-level count
+without waiting for the page. It keeps being handed `state` and `actions` while its neighbours are
+converted, and ignores them. The frame drops the spread and narrows its own reads when nothing below
+needs it, and that is when the page-level count follows.
+
+**And 18 files read a derived figure** — `buildCost`, `totalMaterialCost`, `totalJobSlots`,
+`selectedSetup` and about fifteen more. Fourteen of them are among the 52; the other four reach the job
+through a parameter rather than through `state`. A derived figure is a getter, and a getter needs an instance,
+so those panels cannot drop the lens until their figures are functions. That is Stage 4's work, and it
+means **slice 5 and Stage 4 are the same pass for those panels**: converting a panel's reads without
+its figures writes it twice, which § Stage 3's slices forbids. Stage 4 stops being a stage after this
+and becomes the second half of each conversion here.
+
+| Step | What it is | What proves it |
+|---|---|---|
+| 5a — the primitive · **landed** | `useJobDraft(selector)`, reading the open job's draft out of the store and handing the result to the store's own equality check. Nothing converted yet | Its own tests: an unchanged subtree gives the same reference twice, a changed one does not, and a selector building a new object each render is caught rather than tolerated |
+| 5b — a panel, and the way to prove one · **landed** | The first plain panel onto `useJobDraft`, and the shape every conversion after it follows: reads through `useJobDraft`, writes through `useJobActions`, no props, and the panel mounted on its own over a real store and counted through a change it reads nothing of. The extras editor, which both the Planning and Complete stages render | Its own render count, 0 through a change to the rest of the job, and red when the selector is widened to the job. Its behaviour is read off the draft that came out rather than off the commands it ran |
+| 5c — the plain panels · **landed** | The rest of the panels that read only stored fields. The document-lock hooks went first and are worth their own line: seven of them took the whole `state` to read a job's id and its group, so converting the one file dropped the prop from twenty call sites. They had no tests; they have eleven now, including the cascade that makes a job in the group being worked in answer to the group's lock. Then the Complete stage's three buttons, and the parent-link badge with the dialogue body it mounts — which go together, because the badge was the only thing handing that body the job. Then four of the Selling stage's: the market prices panel, the manual transaction dialogue, and both market-order tabs. Then five of Planning's: the setup panel and its cards, the blueprint library's switcher and its reaction layout, and the archive panel. Then three of Purchasing's: the setup summary, the material cost form and the child-job dialogue's body. Then the three tutorial overlays, and the Selling stage's market order panel with the hook that gathers its orders, which reads the job and the marked links itself rather than taking five arguments. Last, Planning's remaining four — the invention editor, the plan chip, the child-job drawer's hook and the button that opens one — and Purchasing's material card, which a first reading of the count had missed because what it reads of the job it reads through two helpers rather than by name. What is left reading `state.activeJob` is 23 files: 16 derived readers for 5d and the seven the frame is made of, for 5e. Reading the session narrowly is what found the one duplicated rule in the area — which child jobs a material counts, written twice and differing by whether an unsaved child job counts. It is `childJobsAfterEdits` now, with the unsaved job an argument, so the difference between the two screens is stated where the rule is rather than in a second copy of it, and `childJobIDsAfterEdits` beside it for a reader that already holds one material's links. Narrowing also reached `useEffectiveMarketHub`, which took a whole build to read one field off it and now takes the field. The session's own fields are read the same way the job is: `useParentLinkIntents` is the first, named for what it holds rather than one hook taking a path, and narrower than the object the session keeps — parent and child links share one, so a reader of parents would otherwise be woken by every child link taken on. Thirty-eight files read no derived figure; twelve are not panels — `editJob.jsx`, `EditJobStepContentSelector`, the two step layout selectors, the save and delete icons, three tutorial overlays, and three hooks — which 5e takes, leaving 26 | The mutator suites unchanged, plus a render count per panel: editing a material leaves the setup panel at zero |
+| 5d — the derived panels · **landed** | The 16 files that read a figure, converted together with the figures they read: each getter becomes a selector in `jobSelectors.js`, checked against the getter it replaces. The figures came first — the ESI id sets, the four costs and the build total over them, the two counts and what a job produces, then the selling side: the fees, the tax still to come, the sales and what they averaged, the job's whole cost and both figures per item. The panels follow: the Purchasing stage's invention card, the Building stage's information panel and both of its tabs, the Complete stage's cost summary and archive button, the Selling and Purchasing stages' figure panels, and the Planning stage's setup editor and blueprint list. Last, the Planning stage's economics, which is the largest join on the page: `useMaterialsSourcing`, `useJobEconomics`, `useJobCommitment` and `useJobSellingContext` each read the draft themselves rather than taking the session, and the panels over them — Materials & Sourcing, Cost Breakdown, Returns, Skills and Production Stats — take nothing. Both Planning layouts now hand their panels nothing at all, which is the first stage to reach that | The comparison tests slice 2 used for commands — both run over one job, results compared — plus the same render counts |
+| 5e — the frame, and the props with it · **landed** | `editJob.jsx` narrows to what it draws, the step chain stops reading the job and stops spreading `state` and `actions`, and the lens is read by nothing under `Edit Job`. Every command returns a new `editSession`, so a frame still taking `state` as a prop would re-render however little it reads — the reading and the props go together | The page's render count: an edit the frame reads nothing of stops re-rendering the step content. `editJob.session.test.jsx` holds that number today, before the change. Then `grep` for `state.activeJob` under the page returns nothing, and the whole suite passes untouched. Landed: the count is zero, `useEditJobSession` is deleted, and nothing under `Edit Job` takes `state` or `actions` as a prop. The lens it exported lives in `jobLens.js`, for the two callers that still want a class at the edges. `saveOpenJob` is the one helper the four closing paths share, and the Sentry hints the step boundary attaches read the session themselves rather than being handed it |
+
+**A count is only read over a real store.** The suite's usual stand-in subscribes every caller to the
+whole edit session, so a component re-renders on any change to it however narrowly it selects — which a
+test asserting on what is drawn cannot tell, and which would leave every count in slice 5 reading the
+stand-in rather than the panel. `usersStoreOverSession` in `tests/usersStoreHarness.js` is the store
+itself instead: the stub slices as its state, the real session slice over them, and selectors that
+subscribe the way they do in the app.
+
+**The defect this stage makes is found by sweeping, not by reading the diff.** Three times a converted
+panel has handed stored data to something that wanted a class, and each time the reviews of the diff
+passed: the read is somewhere else, in a helper or a child or a row's own class. What finds it is asking
+of the whole page, at once, which reads name a member the classes declare and the document does not —
+collect those members from `Classes/*.js`, take out what a constructor assigns, and grep the files that
+have been converted. What comes back is short, and every entry is either a job from `jobArray`, which is
+still a class, or a callback the caller hands an instance to, or a defect. Run it before each batch
+rather than after.
+
+**A material card reads its figures through a hook, because its requirement is not on its row.** Every
+figure on a Purchasing card — what is needed, what is bought, what it cost, what is excess, whether it
+is done — was a getter on `Material`, and the moment the stage handed those cards the stored rows they
+all read `undefined`: with completed materials hidden every row vanished, and the sort that puts
+unbought materials first stopped sorting. `useMaterialFigures` is the one place that reads the setups
+and answers all of them.
+
+Their tests did not catch it because each built a row shaped like the class's own output — carrying
+`quantity` and `quantityPurchased`, fields a stored row never has. A fixture that is a document, and a
+setup that says what the job needs, is what makes those tests able to fail.
+
+**A figure the job never had.** The available-runs tab gated its bulk link on `activeJob.jobCount`,
+which `Job` does not define — so the guard read `undefined`, "Link All" was never disabled however few
+slots the job had, and the branch that says the limit is reached could not be entered. Converting it to
+`jobSlotsOf` is what surfaced it: a selector has to be named, and there was no figure of that name to
+call.
+
+**Two panels drawing the same figures share a hook rather than the six selections.** The information
+panel and the cost summary both read what a build cost and what that is per item, which is six narrow
+selections and four sums each. `useBuildCost` holds them once. A panel that only draws figures ends up
+with one line, and the parts it subscribes to are stated in one place rather than copied beside every
+panel that wants them.
+
+**Every figure has a narrow form, and the panels call those.** A panel that had selected the four parts
+of a build was still assembling a job-shaped object to ask what they cost, which is the same smell as
+passing a fake build to read one field off it. `costOfMaterials`, `costOfInstalls`, `jobSlotsOf` and
+`quantityProduced` join the two that existed, and the job-level figures are wrappers over them. Nothing
+under the page now builds a job to ask a question about a part of one.
+
+**The rows have derivations too, not only the job.** A linked ESI run is a class as well, and the tab
+that lists them draws a progress bar off `progressPercent()` — so converting the panel that reads
+`esi.industryJobs` meant `linkedRunSelectors.js` first: what a run says about itself, as functions of the
+row. The same will be true of a market order and a transaction when the Selling panels convert. Stage 4
+was scoped as the job's getters; it is every class the job holds.
+
+**Every figure a panel can hold the rows for has both forms now.** The ESI id sets, the extras and
+invention totals, and the sales in order: each is a function of the rows, with the job-level figure a
+wrapper over it. The rule is the one the guard enforces — a set, a list or a sum built fresh each call
+cannot be what a panel selects — and the pair is how a panel obeys it without building a job-shaped
+object to ask its question.
+
+**A figure a panel already holds the rows for takes a narrow form.** `totalInventionCost(job)` reads the
+entries off the job; a card that has just selected those entries would have to build a job-shaped object
+around them to ask. So the total is `costOfInvention(entries)` with the job-level figure a wrapper over
+it, the same shape `childJobIDsAfterEdits` took. A selector that can only be asked about a whole job
+pushes its callers into making one up.
+
+**The class reads the rule from the selector now, rather than holding a second copy.** Which purchases a
+job is charged for — cheapest first, ties by id, the rest excess — was written twice the moment the
+selector existed, and two copies of a tie-break are how two screens come to disagree about what a
+material cost. `Material` calls `countedPurchases` and keeps none of its own. The import runs the wrong
+way for a class, into the hooks folder; it goes when the class does, and one rule now is worth more than
+a tidy dependency arrow.
+
+**A document arriving mid-edit is normalised like one being opened.** Opening a job seeds the base
+through the class, so the draft holds the shape `toDocument` defines. A document arriving over the
+socket was written into the base raw — and a job stored before the reshape names its ESI rows elsewhere,
+so every figure read off it would have answered nothing until the reader closed the job and opened it
+again. The inbound coalescer builds the class for the planner's list anyway, so it hands the editor what
+that says. The slice cannot do it itself: the class reads the store, and the store holds the slice.
+
+**A material's requirement is not on the material.** How many of one a job needs belongs to its setups,
+so the row carries purchases and nothing else and there is no stored figure to fall behind a resize. The
+class hides that behind a getter reading a function it was constructed with; a selector cannot, so every
+figure about a material takes the requirement as an argument and `materialRequirement` is where callers
+get it. That is the first place in this stage where converting a figure has changed how it is asked for
+rather than only where it lives.
+
+**A panel is only plain if what it calls is plain too.** The 18/26 split was measured from what each
+file reads of the job itself, and that is not the question: `passBuildCosts` reads a cost per item off
+the job it is handed, and `findOrderTransactions` reads the linked transaction ids, so the Complete
+stage's cost button and the Selling stage's available transactions are derived readers that name
+nothing derived. The button is converted and hands the class over until those figures are selectors;
+the transactions panel is 5d's. Before converting a panel, follow what it passes the job to.
+
+**Four call sites close the job the same way.** The save icon, both leave paths and the button that opens
+a child job each handed `closeActiveJob` the same six pieces of the session. They call `saveOpenJob`
+now, which reads those six out of the store at the moment the reader presses: none of the four draws any
+of it, and a control that subscribed to the session to have it ready would re-render on every edit made
+anywhere on the page.
+
+**A function that insists on the class is where a conversion goes quiet.** The install cost estimate
+opened with `if (!(setup instanceof Setup)) return 0`, so the moment the setup panel read its setups as
+stored data every card on the page priced the build at nothing — on screen, correctly formatted, and
+wrong. Nothing it reads is a getter, so the gate was a type check standing where a data check belongs.
+`calculateTimeForSetup` carried the same gate, and the silence did return one panel over: Production
+Stats reads its setup as stored data, and the time per slot went blank. It guards on `rawTime` now — the
+figure everything below it multiplies — rather than on what the setup is, and the panel's test lets the
+real calculation run over a stored setup, which is what makes the gate visible.
+
+The gate had been hiding a second one: the watchlist has always passed `toDocument()` output to that
+estimate, so its build costs have been zero for as long as the gate has been there. They are figures now.
+
+**A test that hands a component what the page no longer hands it stays green while the page throws.**
+The Purchasing stage's layout was the one file slice 5 missed: it still read `state.parentChildToEdit`
+and `state.temporaryChildJobs` off a prop, and once the step chain stopped spreading the session, the
+stage threw on mount. Nothing caught it, because its own test rendered it as
+`<Purchasing_StandardLayout_EditJob state={state} actions={actions} />` — props the app had stopped
+passing. Three more had the same shape: the material card's cost chips, and both halves of the
+child-job dialogue, each calling `actions.run(...)` on a prop their only caller no longer supplied, and
+each with a test that supplied it. The rule is that a test mounts a component the way the page mounts
+it; where a test passes a prop, that prop has to come from somewhere real.
+
+**A store rebuilt on every read hides a missing dependency.** `usersStoreMock`'s reader form —
+`usersStoreMock(() => usersStoreState(...))` — builds its slices afresh each time the store is read, so
+a panel selecting `store.jobData` gets a new object every render and every `useMemo` keyed on it
+recomputes. Under that harness a memo with a missing dependency cannot be told from one without.
+The Purchasing stage's list had exactly that: it filters and sorts on what the setups call for, and
+`setups` was not in its dependency array, so resizing a run count left the list as it was until
+something else happened to change. The test that proves it had to move the store to the eager form
+first. Where a test is about what a memo follows, the store it runs over has to be built once.
+
+**A selector pair is a pair so that nothing has to build a job to ask a question.** Four call sites had
+gone the other way — `childJobsAfterEdits({ build: { childJobs } }, …)`,
+`completedMaterialCount({ build: { materials, setup } })` — assembling a throwaway document around
+parts they already held, to reach the job-level form of a figure whose narrow form takes exactly those
+parts. They call the narrow form now. A literal `{ build: … }` under the editor is the smell: the page
+holds parts, so it should be asking the question that takes parts.
+
+**A page that reads the job in parts stops redrawing itself.** The number slice 5 was written to move
+is one render: an extra cost recorded on the Complete stage re-rendered the step content on every other
+stage too, because the frame held the whole job and passed it down. The frame reads nine narrow things
+now — the name, the item, the step, the group, the pricing and the three fields the step rules are made
+of — and that render is zero. It is held there by `editJob.session.test.jsx`, which fails if any one of
+those reads is widened back to the job.
+
+**The harness is where the old shape survives, on purpose.** `editJobHarness.jsx` still assembles
+`{ state, actions }` and hands a test a `Job`, because a test asserts on the whole of a job while the
+page reads it in parts — `activeJob.salesByDate`, `activeJob.totalJobSlots`, `activeJob.esiJobIDs` are
+what a test asks for, and they are the figures the page itself now reads through selectors. That is the
+one place left that builds the lens per render, and it is test-only.
+
+**A quantity on a material row is the trap this stage keeps setting.** A stored material carries no
+quantity: what a job takes of it is stated by its setups, and the class exposed the sum as a field. Four
+separate readers were still asking the row — the sourcing rows, the basis comparison, the row's own
+Build control and the bulk costing behind it — and each would have built or priced against `undefined`
+in silence. They read `materialRequirementOf(setups, typeID)` now. `materialCostByBasis` takes the rows
+the panel has already built rather than the raw materials, because those carry the requirement and the
+raw ones cannot. Any remaining reader of `material.quantity` under the editor is the same defect.
+
+**An action that takes "one or several" has to say so in one place.** `recordSpeculativeChildJobs`
+iterated its argument, and the row's own Build control hands it a single job — so pricing one row threw,
+where pricing all of them worked. It is the second of these in the same slice, after
+`forgetSpeculativeChildJobs`; both fold through `asList` now. The two had been hidden by tests that
+stubbed the action, and both surfaced the moment the test moved onto the real store. A session action is
+worth testing through the store rather than through a spy for exactly this reason.
+
+**A component and the dialogue body it mounts convert together.** Taking the props off a component
+takes them off whatever it renders, which is how the parent-link badge broke the dialogue it opens: the
+body still read `state.activeJob`, and it threw the moment a reader pressed the control. Every test
+passed, because each one mocked the other half — the badge's test stands in the body, the body's test
+mounts it directly, the page's test stands in the badge. The pair is covered end to end now, and the
+rule is the general one: what the conversion breaks is the hand-off, so the test has to cross it.
+
+**What could go wrong quietly.** A selector returning a new value each render — `Object.values(...)`, a
+`map`, an object literal — subscribes to everything and looks correct. Nothing on screen differs, and
+the mutator suites pass either way. The render counts are the only thing that would notice, which is
+why they are the proof for every step rather than a closing measurement.
+
+`useJobDraft` refuses one instead of tolerating it: in development it asks the selector twice and throws
+when the two answers are not the same object. A selector that cannot settle does not merely re-render
+too often — React reads it more than once per render and the page loops. So a conversion selects the
+stored value and builds the shape it wants in the component: `Object.values(materials)`, a sort, a
+`new Date(...)` are all refused where the selector is, and all fine one line later.
+
+#### What slice 5a settled
+
+**The draft is a field, not something a reader works out.** `draftFor` was a derivation: it replayed the
+layers with `applyPatches`, which copies the job it returns, so every call built a new one. A selector
+reading anything a change had touched then never returned the same object twice, and a panel subscribing
+through the store does not merely re-render too often — the store is asked for its value more than once
+per render, and a value that never settles loops. The page died with *Maximum update depth exceeded* the
+first time it was measured.
+
+So the layers carry the draft they derive. Every function that returns a changed state returns it
+through one rebuild, `draftFor` is a field read, and the state is what holds the identity a reader
+compares against.
+
+Holding the answer against the state in a cache beside the module was the alternative, and it is a worse
+version of the same thing: it cannot go stale, but it makes a reader's identity depend on something the
+state does not say, and the replay still happens — once per state on first read rather than once per
+write. What the field costs instead is a discipline, that nothing returns a state around the rebuild,
+which is one function to route through and a test per writer that replays the layers itself and compares.
+
+**The render counter counts the panel, not its parent.** `renderCounts().watch` calls the component it
+is given rather than rendering it as a child, so what the component subscribes to re-renders the thing
+being counted. Rendered as a child, a panel re-rendering itself off a badly chosen selector counts zero
+— which is exactly the reading that would make an unconverted panel look converted, and it is the proof
+every step below leans on.
 
 ### Stage 4 — Getters become functions, panel by panel
 
@@ -1320,7 +1564,12 @@ happened.
 | Stage 1 — the removals | **Landed.** `Purchase.TypeID` and `ArchivedJobFeeLine.FeeID` are gone from the models, their writers and the parity fixtures. `complete` and `CharacterHash` on stored fee rows needed no code change — neither was on the broker fee in either language, so they are stored residue Stage 2's fold drops. `esiJobTab` / `setupToEdit` / `resourceDisplayType` are **deferred to Stage 3**, two of the three being read; § Stage 1 says why |
 | Stage 1b — derived setup figures become derivations | **Not started.** Split out of Stage 1, which had costed it as a removal it is not: `estimatedTime` and `estimatedInstallCost` no longer exist to remove, and `materialCount` and `rawTime` are read by the cost calculation in both languages, so each needs a derivation at its call sites. No window. Best taken with Stage 4. Stage 2's conversion no longer prunes the two that are read — § Stage 1b says what happened when it did |
 | Stage 2 — the reshape, in the release window | **Landed, awaiting the window.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. All eight collections are keyed on both sides, the observations sit under `esi`, and the broker fee is folded onto its order. The SPA's `Job` constructor reads the pre-reshape paths as well, so a document written before the window still loads. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
-| Stage 3 — base, log, scratch and draft | **In progress — slices 1, 2, 2a, 3 and 4 landed.** The layers hold a job and derive a draft; every way of changing a job is a command; two derived figures are selectors; a step can be taken back and put again; and the editor now runs on the store rather than its reducer, which is deleted. The panels still take a whole job as a prop, which is slice 5's to change. Immer is settled and declared, pinned to the version already resolved. §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape, and § Settled that an open editor follows the document. Measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20. Next: slice 5, the panels |
+| Stage 3 — base, log, scratch and draft | **Landed — slices 1, 2, 2a, 3, 4 and every step of 5.** The layers hold a job and derive a draft; every way of changing a job is a command; two derived figures are selectors; a step can be taken back and put again; and the editor now runs on the store rather than its reducer, which is deleted. Immer is settled and declared, pinned to the version already resolved. §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape, and § Settled that an open editor follows the document. Measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20. Every panel that reads only stored fields reads them out of the
+store and is proved by its own render count — the document-lock hooks, the extras editor, the Complete
+stage's buttons, the parent-link badge and body, five of Selling's, five of Planning's, three of
+Purchasing's and the three tutorial overlays. No file under the editor reads `state.activeJob`, where 52 did:
+the page has no prop-drilled session left, and an edit the frame reads nothing of
+re-renders nothing. Next: Stage 4 |
 | Stage 4 — getters become functions | Not started |
 | Stage 5 — `jobArray` goes plain | Not started |
 
