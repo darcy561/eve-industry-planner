@@ -19,21 +19,12 @@ const SAVED_STATION = 60004588;
 
 // A market an account saved, which the server prices like a hub — the registry
 // is the seam it joins at, and its station id is what the wire names it by.
-vi.mock("./marketSources", async (importOriginal) => {
-  const real = await importOriginal();
-  return {
-    ...real,
-    allMarketSources: () => [
-      ...real.allMarketSources(),
-      {
-        id: "saved-market",
-        name: "A market the reader saved",
-        regionID: 10000030,
-        stationID: SAVED_STATION,
-        kind: real.SOURCE_KIND.STATION,
-      },
-    ],
-  };
+vi.mock("./marketSources", async () => {
+  const { marketSourcesWith, savedStation } =
+    await import("../../tests/marketSourceFixtures.js");
+  return marketSourcesWith(
+    savedStation({ id: "saved-market", stationID: SAVED_STATION }),
+  );
 });
 
 const { queryClient } = await import("../../queryClient.js");

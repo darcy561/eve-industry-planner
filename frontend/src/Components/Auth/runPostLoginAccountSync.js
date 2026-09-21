@@ -12,6 +12,7 @@ import {
 } from "../../Functions/Auth/buildAccountData";
 import { clearQueryTimings } from "../../Functions/Debugging/queryWaterfallLogger";
 import { prefetchCollections } from "../../Functions/EveESI/prefetch/scheduler";
+import { readSavedMarketsNow } from "../../Functions/MarketData/priceRefreshSchedule";
 import {
   emitLoginError,
   emitLoginStepComplete,
@@ -119,6 +120,11 @@ export async function runPostLoginAccountSync({
     });
 
     await refreshAccountSessionGrants();
+
+    // The account's characters are known here, which is what a market only its
+    // own reader can read needs. Not awaited: nobody is held up by a market
+    // they have not looked at yet.
+    readSavedMarketsNow();
 
     emitLoginStepComplete(LOGIN_STEPS.CHARACTER_DATA);
   } catch (err) {

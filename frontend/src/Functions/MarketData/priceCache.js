@@ -1,46 +1,54 @@
 import { queryClient } from "../../queryClient";
 import {
   allMarketSources,
+  answersAPerTypeProbe,
+  isReadByTheReader,
   persistsAcrossSessions,
+  rowsStateTheirOwnExpiry,
   sourceIn,
 } from "./marketSources";
 import {
   requestAdjustedPrice,
+  requestMarketRead,
   requestPrice,
   setClockMovedListener,
 } from "./priceLoader";
-import { readStoredPrice, writeStoredPrice } from "./priceStore";
-import { readSourceClock } from "./sourceClocks";
+import {
+  deferMarket,
+  readMarketFreshness,
+  readStoredPrice,
+} from "./priceStore";
+import { PRICE_ROTATION_MS } from "./citadelPrices";
+import { hasLapsed } from "./priceFreshness";
+import { readSourceClock, recordSourceClock } from "./sourceClocks";
 
 /**
  * Where a price is held, and the two halves of getting one.
  *
- * **Reading and asking are separate.** The readers below answer from what the
- * cache already holds and report absence rather than waiting, which is what
- * keeps the synchronous callers working: a shopping list row and a basis
+ * **Reading and asking are separate.** The readers below answer from what is
+ * held and report absence rather than waiting — a shopping list row and a basis
  * comparison both read a price inside a reduce, and neither can await.
  *
- * One entry per type at one market, so a price resolved for one panel is present
- * for the next without being asked for again, and a market that fails fails
- * against that market rather than leaving a hole in one view's set.
- *
- * The client is the module-level one rather than a hook's, because most of these
- * callers are not components — a shopping list, a job, a reducer.
+ * One entry per type at one market, so a market that fails fails against itself
+ * rather than leaving a hole in one view's set. The client is the module-level
+ * one because most callers here are not components.
  */
 
 /**
- * A held row never goes stale by age. Its market's clock decides: the row is
- * what that market would answer with until the market is walked again,
- * whether that is ten minutes or ten hours. Any duration here would re-ask for
- * prices that have not moved and still miss the moment they do.
+ * A held row never goes stale by age — its market's clock decides. Any duration
+ * here would re-ask for prices that have not moved and still miss the moment
+ * they do.
+ *
+ * @type {number}
  */
 const PRICE_STALE_TIME = Infinity;
 
 /**
- * Every market key is built from one of these, so that dropping a whole market's
- * rows and reading one of them cannot disagree about where they are held.
+ * Every market key is built from this, so dropping a whole market's rows and
+ * reading one of them cannot disagree about where they are held.
  *
  * @param {string} sourceID
+ * @returns {string[]}
  */
 export const marketPricesKey = (sourceID) => [
   "market",
@@ -52,10 +60,11 @@ export const marketPricesKey = (sourceID) => [
 export const ADJUSTED_PRICES_KEY = ["market", "adjusted"];
 
 /**
- * What a surface waiting on a set of prices is keyed under.
+ * What a surface waiting on a set of prices is keyed under. Here beside the rows
+ * it stands over, because this module and the hook that builds the full key both
+ * need it.
  *
- * It sits here beside the rows it stands over because both this module and the
- * hook that builds the full key need it, and the hook already reads this one.
+ * @type {string[]}
  */
 export const MARKET_PRICES_QUERY_KEY = ["market", "prices"];
 
@@ -72,12 +81,9 @@ export const adjustedQueryKey = (typeID) => [
 ];
 
 /**
- * One type's row at one market, or undefined where the cache holds none.
- *
- * Undefined covers both "not asked for yet" and "asked and the market holds no
- * order": a caller reading a price cannot act differently on the two, and the
- * one that can — the loader deciding whether to ask again — reads the query's
- * own state rather than this.
+ * One type's row at one market, or undefined where the cache holds none —
+ * covering both "not asked for yet" and "the market holds no order", which a
+ * caller reading a price cannot act differently on.
  *
  * @param {number|string} typeID
  * @param {string} sourceID
@@ -151,10 +157,8 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
     );
   }
 
-  // A market that could not be reached leaves its own entries unwritten and must
-  // not stop the rest: the view draws what resolved rather than nothing. The
-  // count is what lets a caller tell that apart from every want failing, which
-  // is a fetch that did not happen rather than a set of empty markets.
+  // A market that could not be reached must not stop the rest: the view draws
+  // what resolved rather than nothing.
   const settled = await Promise.allSettled(asked);
 
   return {
@@ -166,14 +170,13 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
 /**
  * One row, from whichever tier can answer for it.
  *
- * **This is the only seam the persistent tier enters at.** Everything above —
- * the accessor, the wrapper query, the clock machinery — asks for a price and
- * learns nothing about where it came from, which is what lets a reader-saved
- * market behave exactly like a hub everywhere else.
+ * **The only seam the persistent tier enters at.** Everything above asks for a
+ * price and learns nothing about where it came from, which is what lets a market
+ * the reader reads themselves behave like a hub everywhere else.
  *
- * A session-tier source goes straight to the loader. A persistent one is read
- * from disk first, because it was fetched at the reader's own expense: a miss
- * falls through to the network and what comes back is written to both.
+ * What is kept is written by the read that fetched it rather than here: that
+ * read takes a whole market at once, so it knows what every type is worth and
+ * which have stopped trading, neither visible from one resolved row.
  */
 async function resolvePrice(typeID, sourceID) {
   const source = sourceIn(allMarketSources(), sourceID);
@@ -183,34 +186,24 @@ async function resolvePrice(typeID, sourceID) {
   }
 
   const stored = await readStoredPrice(sourceID, typeID);
-  if (stored) return stored;
+  if (stored) {
+    // A reload leaves rows on disk and no clock, and a market with no clock
+    // cannot be seen to move: the next read would count as its first.
+    recordSourceClock(sourceID, stored.refreshedAt);
+    return stored;
+  }
 
-  const row = await requestPrice(typeID, sourceID);
-
-  // Not awaited: the price is already in hand, and keeping it for next time is
-  // bookkeeping this reader is not waiting on. Awaiting would let a slow or
-  // wedged store delay a figure that has already arrived.
-  //
-  // A market holding no order for a type resolves as null, and that is not
-  // worth keeping: it is the cheapest thing to learn again, and storing it
-  // would hold a reader at "nothing here" for as long as the row survived.
-  if (row) void writeStoredPrice(sourceID, typeID, row);
-
-  return row;
+  return requestPrice(typeID, sourceID);
 }
 
 /**
- * Drops every row held for a market that has been walked again.
+ * Drops every row held for a market that has been walked again — the whole
+ * market at once, because the whole of it was walked at once, and leaving the
+ * rest would show a reader two moments side by side.
  *
- * The whole market at once, because the whole of it was walked at once: a market
- * that answers one type with a newer figure has newer figures for all of them,
- * and leaving the rest would show a reader two moments side by side.
- *
- * **Removed, not invalidated.** These rows are superseded rather than merely
- * old, and the difference is not cosmetic: entries here never go stale by age,
- * so a reader asking through `ensureQueryData` is handed an invalidated entry
- * as readily as a fresh one and the new figures are never fetched. Removing
- * them is what makes the next reader ask.
+ * **Removed, not invalidated.** Entries here never go stale by age, so
+ * `ensureQueryData` hands back an invalidated one as readily as a fresh one and
+ * the new figures are never fetched.
  */
 setClockMovedListener(({ sources, adjusted }) => {
   for (const sourceID of sources) {
@@ -221,28 +214,108 @@ setClockMovedListener(({ sources, adjusted }) => {
     queryClient.removeQueries({ queryKey: ADJUSTED_PRICES_KEY });
   }
 
-  // Dropping the rows is not enough to reach anyone looking at them. A priced
-  // surface reads its figures synchronously while rendering and subscribes to
-  // none of these entries — the only thing it subscribes to is the query that
-  // holds it up, keyed by the wants it asked for. So the rows are dropped and
-  // that query is asked again: without this a reader watching a panel keeps the
-  // superseded figures until something unrelated happens to re-render them.
+  // Dropping rows reaches nobody on its own: a priced surface subscribes to no
+  // row entry, only to the query it waits on.
   queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
 });
 
 /**
- * Drops rows a reader-saved market has stated are finished with.
+ * Reads again, before anybody asks, every market the reader reads themselves
+ * whose turn has come round.
  *
- * **A saved source needs no probe.** A hub's clock is the server's to report, so
- * learning whether its rows still stand costs a request; a station's prices state
- * its own expiry when it is fetched, and that expiry is carried on the row. So
- * this asks nothing and reads nothing over the network — it is the local half of
- * the same job `revalidateSourceClocks` does for the markets this server walks.
+ * **This is what stops a reader paying for a whole market read on the render
+ * that needs one price.** A market this server prices is re-asked a type at a
+ * time, so letting the next reader pay costs them one row; a citadel's orders
+ * only come whole, so the same wait is the whole market. Reading it here puts
+ * fresh rows on the device, and the read that a surface then makes is a lookup.
  *
- * Dropping rather than refetching, because a row nothing is reading does not
- * need replacing: the next reader to want it fetches it, and the tier beneath
- * refuses the expired copy on its way past. What this buys is that a surface
- * already open stops showing a figure whose own source has declared it finished.
+ * **Due-ness is read from the device, not from what is held in memory.** The
+ * cache lets a row nothing is watching go within minutes, so a rotation paced
+ * by what is in it would stop rotating the moment a reader looked away — which
+ * is precisely when reading ahead is worth anything.
+ *
+ * **Every market the reader saved is on it, not only the ones they have priced
+ * against.** A market is saved because they mean to price against it, so one
+ * nothing has read yet is due now — refreshing only what has already been asked
+ * for would leave prices fresh exactly where a reader has been and stale
+ * everywhere else.
+ *
+ * **A market that could not be read waits its full turn again.** Its rows are
+ * left as they were, and only the moment it is next worth trying moves — a
+ * market nobody can reach any more would otherwise be walked on every probe,
+ * each walk a refusal per character, which ESI charges at five times a hit.
+ *
+ * @param {number} [now]
+ * @returns {Promise<number>} How many markets were read again
+ */
+export async function rotateSelfReadMarkets(now = Date.now()) {
+  const due = await Promise.all(
+    allMarketSources()
+      .filter((source) => isReadByTheReader(source.kind))
+      .map(async (source) => {
+        const freshness = await readMarketFreshness(source.id);
+        return isDue(freshness, now) ? source.id : undefined;
+      }),
+  );
+
+  const rotating = due.filter(Boolean);
+  if (rotating.length === 0) return 0;
+
+  const refused = await readEach(rotating);
+
+  await Promise.all(
+    refused.map((sourceID) => deferMarket(sourceID, now + PRICE_ROTATION_MS)),
+  );
+
+  return rotating.length;
+}
+
+/**
+ * Reads each market, and says which the account was refused.
+ *
+ * All of them at once: a structure's market is on an ESI allowance of its own
+ * rather than the one a region's orders draw on, so reading several does not
+ * take anything from the prices this server serves.
+ *
+ * **Only a refusal is reported back**, not every failure. A refusal is an answer
+ * about the market and is worth waiting out; a read that failed says nothing —
+ * ESI may be down, or the account's characters may not all have arrived yet, as
+ * they have not when a cloud account signs in and its roster is still filling.
+ * Putting a market's turn back for an hour on the strength of that would leave a
+ * readable market unread on nothing more than bad timing.
+ *
+ * @param {string[]} sourceIDs
+ * @returns {Promise<string[]>}
+ */
+async function readEach(sourceIDs) {
+  const refused = [];
+
+  await Promise.all(
+    sourceIDs.map(async (sourceID) => {
+      try {
+        await requestMarketRead(sourceID);
+      } catch (error) {
+        if (error?.permanent) refused.push(sourceID);
+      }
+    }),
+  );
+
+  return refused;
+}
+
+function isDue(freshness, now) {
+  // Nothing on record is a market never read, which is due now rather than
+  // never: its turn cannot have passed if it has never had one.
+  return !freshness || hasLapsed(freshness.expiresAt, now);
+}
+
+/**
+ * Drops rows a market the reader reads themselves has finished with.
+ *
+ * Asks nothing and reads nothing over the network: the expiry is carried on the
+ * row. Dropping rather than refetching, because a row nothing is reading does
+ * not need replacing — what this buys is that a surface already open stops
+ * showing a figure its own market has declared finished.
  *
  * @param {number} [now]
  * @returns {number} How many rows were dropped
@@ -255,18 +328,16 @@ export function expireSavedSourceRows(now = Date.now()) {
     .getQueryCache()
     .findAll({ queryKey: ["market", "price"] })) {
     const [, , sourceID, typeID] = entry.queryKey;
-    if (!persistsAcrossSessions(sourceIn(sources, sourceID)?.kind)) continue;
+    if (!rowsStateTheirOwnExpiry(sourceIn(sources, sourceID)?.kind)) continue;
 
-    const expiresAt = entry.state?.data?.expiresAt;
-    if (!Number.isFinite(expiresAt) || expiresAt > now) continue;
+    if (!hasLapsed(entry.state?.data?.expiresAt, now)) continue;
 
     queryClient.removeQueries({ queryKey: priceQueryKey(typeID, sourceID) });
     dropped += 1;
   }
 
-  // The same waking § C4 needs: a priced surface subscribes to no row entry, so
-  // dropping rows reaches nobody until the query each surface waits on is asked
-  // again.
+  // Dropping rows reaches nobody on its own: a priced surface subscribes to no
+  // row entry, only to the query it waits on.
   if (dropped > 0) {
     queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
   }
@@ -276,29 +347,36 @@ export function expireSavedSourceRows(now = Date.now()) {
 
 /**
  * Asks each market holding rows for one type it already holds, so that market
- * reports its clock.
+ * reports its clock — the whole of how a moved clock is noticed, since a price
+ * answer carries one and nothing polls for it.
  *
- * This is the whole of how a moved clock is noticed. Nothing polls for one,
- * because no request exists whose purpose is to report one — a price answer
- * carries its market's clock, so asking for a single price a market has already
- * answered costs one row and settles whether every other row held for it is
- * still good. A market whose clock has not moved is left entirely alone.
+ * **Every market this server prices is asked, not only those that have reported
+ * a clock.** A market just registered has none until its first walk, and its
+ * rows read as nothing held — asking only the clocked ones would leave a reader
+ * on "no price here" for as long as the tab stayed open.
  *
- * **Every market holding rows is asked, not only those that have reported a
- * clock.** A market an account has just registered has none until its first
- * walk finishes, and its rows read as nothing held — asking only the clocked
- * ones would leave a reader on "no price here" for as long as the tab stayed
- * open.
+ * **A market the reader reads themselves is not asked**: its orders only come
+ * whole, so there is no cheap question. {@link expireSavedSourceRows} retires
+ * its rows instead.
  *
  * @returns {Promise<void>}
  */
 export async function revalidateSourceClocks() {
+  const sources = allMarketSources();
   const wants = [];
 
   for (const sourceID of sourcesHoldingRows()) {
+    // Asking one of these for one type reads its whole market, so the question
+    // that is cheap everywhere else is a walk here.
+    if (!answersAPerTypeProbe(sourceIn(sources, sourceID)?.kind)) continue;
+
     const typeID = anyHeldTypeAt(sourceID);
     if (typeID === undefined) continue;
-    wants.push({ typeID, sourceID, unwalked: readSourceClock(sourceID) === undefined });
+    wants.push({
+      typeID,
+      sourceID,
+      unwalked: readSourceClock(sourceID) === undefined,
+    });
   }
 
   if (wants.length === 0) return;
@@ -307,13 +385,12 @@ export async function revalidateSourceClocks() {
     wants.map(({ typeID, sourceID }) => requestPrice(typeID, sourceID)),
   );
 
-  // A market answering its first clock is not a market that moved, so nothing
-  // announces it — but the rows held for it were answered before it had been
-  // walked, and every one of them says this market holds no price. They are
-  // dropped here, or a reader who asked too early sits on "nothing here" for
-  // the life of the tab.
+  // A first clock is not a move, so nothing announced it — but the rows held
+  // were answered before the market had been walked and all say it holds no
+  // price, and a reader who asked too early would sit on that for the tab's life.
   const walkedAtLast = wants.filter(
-    ({ sourceID, unwalked }) => unwalked && readSourceClock(sourceID) !== undefined,
+    ({ sourceID, unwalked }) =>
+      unwalked && readSourceClock(sourceID) !== undefined,
   );
   if (walkedAtLast.length === 0) return;
 

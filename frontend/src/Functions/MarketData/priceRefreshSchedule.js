@@ -2,33 +2,32 @@
  * Keeps held prices in step with the markets they came from, for the life of the
  * page.
  *
- * Nothing here belongs to a screen. A price resolved for one panel is read by
- * the next, and by classes and reducers that never render at all, so what keeps
- * those prices current cannot be owned by a component that happens to be mounted
- * — it runs whether or not anything is looking.
- *
- * What paces it is the asking, not the staleness. A market's own clock decides
- * whether the rows held for it survive; this only decides how often to go and
- * find out.
+ * Nothing here belongs to a screen: a price is read by panels, classes and
+ * reducers alike, so what keeps prices current cannot be owned by a component
+ * that happens to be mounted. What paces it is the asking — a market's own clock
+ * decides what survives, and this only decides how often to go and find out.
  */
 
-import { expireSavedSourceRows, revalidateSourceClocks } from "./priceCache.js";
+import {
+  expireSavedSourceRows,
+  rotateSelfReadMarkets,
+  revalidateSourceClocks,
+} from "./priceCache.js";
 
 /**
- * How often to ask the markets holding rows whether their books have moved.
+ * How often to ask the markets holding rows where they have got to. The server
+ * publishes on the same fifteen minutes, so a shorter interval sees nothing new
+ * and a longer one leaves a reader on figures already replaced.
  *
- * The server's scheduler ticks every fifteen minutes and publishes only the
- * regions ESI says can have changed, so a shorter interval cannot see anything
- * that has not been published and a longer one leaves a reader on figures the
- * server has already replaced.
+ * @type {number}
  */
 export const PROBE_INTERVAL_MS = 15 * 60 * 1000;
 
 /**
- * The shortest gap between two wake probes.
+ * The shortest gap between two wake probes — alt-tabbing is not a reason to ask
+ * every market for a price.
  *
- * Alt-tabbing is not a reason to ask every market for a price, and a tab that is
- * hidden and shown repeatedly would otherwise ask on every pass.
+ * @type {number}
  */
 export const WAKE_PROBE_FLOOR_MS = 5 * 60 * 1000;
 
@@ -38,36 +37,42 @@ let stopListening = null;
 let lastProbedAt = 0;
 
 /**
- * Asks every market holding rows where it has got to, and retires what a market
- * the reader fetched themselves has finished with — which is nothing today, as
- * the call below says.
+ * Asks every market holding rows where it has got to, reads again the markets
+ * the reader reads themselves whose turn has come, and retires what is left
+ * over.
  *
- * A probe that could not be made is left alone: the rows held stay held, and the
- * next one asks again. A market not answering says nothing about whether the
- * figures held for it are still good.
+ * A probe that could not be made is left alone: a market not answering says
+ * nothing about whether the figures held for it are still good.
+ *
+ * **Each part fails on its own**, because sharing one `try` once let a fault in
+ * one withhold the probe that keeps every hub price fresh, silently.
  *
  * @returns {Promise<void>}
  */
 async function probe() {
   lastProbedAt = Date.now();
-  // The two halves fail independently, as the loader's transports do. Retiring
-  // is local and asks nothing; probing reaches the network. Sharing one `try`
-  // let a fault in the local half withhold the probe that keeps every hub price
-  // fresh, and silently — which is not hypothetical: a missing export threw here
-  // once and cancelled the probe for the whole tick with nothing reporting it.
+
+  // Before the sweep, so a market that can be read is replaced rather than
+  // emptied — and not while hidden, being the one part of a tick that spends the
+  // reader's own ESI allowance.
   try {
-    // A no-op while every market is priced by this server: rows are kept on a
-    // reader's device only for a source they fetched themselves, and the
-    // citadel is the only such kind — it does not exist yet.
+    if (document.visibilityState !== "hidden") {
+      await rotateSelfReadMarkets();
+    }
+  } catch {
+    // Swallowed, as each part is: see the contract above.
+  }
+
+  try {
     expireSavedSourceRows();
   } catch {
-    // Swallowed on purpose, per the contract above.
+    /* empty */
   }
 
   try {
     await revalidateSourceClocks();
   } catch {
-    // Swallowed on purpose, per the contract above.
+    /* empty */
   }
 }
 
@@ -76,6 +81,27 @@ function probeOnWake() {
   if (document.visibilityState !== "visible") return;
   if (Date.now() - lastProbedAt < WAKE_PROBE_FLOOR_MS) return;
   void probe();
+}
+
+/**
+ * Reads every market the reader reads themselves whose turn has come, now.
+ *
+ * For a reader who has just signed in: their saved markets are known at that
+ * moment, and waiting for the first tick would leave the prices they saved
+ * those markets for up to a quarter of an hour behind. The hour then paces it
+ * from there, as it does for a market read by a surface asking.
+ *
+ * Nothing waits on this — a reader is not held up by a market they have not
+ * looked at yet, and a market that cannot be read is put back a full turn by
+ * the rotation itself.
+ *
+ * @returns {void}
+ */
+export function readSavedMarketsNow() {
+  void rotateSelfReadMarkets().catch(() => {
+    // The rotation reports a market it could not read by putting its turn back,
+    // and a reader is told nothing here: this is a refresh nobody asked for.
+  });
 }
 
 /**

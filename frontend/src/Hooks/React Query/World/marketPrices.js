@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import {
   fetchPrices,
   MARKET_PRICES_QUERY_KEY,
-  readPrice,
 } from "../../../Functions/MarketData/priceCache";
 import { idsQueryKeySuffix } from "../idsQueryKey.js";
 import {
@@ -92,26 +91,18 @@ export function useMarketPricesQuery(
 /**
  * Each market's clock as it stands, keyed so a moved one changes the value.
  *
- * **A market the browser fetches for itself is keyed per type.** Only the
- * markets this server walks have a clock of their own: a saved station's prices are
- * read one type at a time and states its own freshness, so its clock is per
- * source and type and is carried on the row rather than held centrally. Keying
- * those by source alone would read as a constant zero, and a refetch after one
- * of its rows expired would refresh the cache while leaving the reader looking
- * at the figure it replaced.
+ * Every kind reports one: a market this server prices states its clock on every
+ * answer, and a market the reader reads themselves records one as the read
+ * lands. A market that has never answered has no clock and nothing here until
+ * it does — and no figures for a reader to be left looking at either.
  */
 function clocksFor(asked) {
-  const clocks = {};
+  const clocks = { adjusted: readAdjustedClock() ?? 0 };
 
-  for (const [pair, { typeID, sourceID }] of asked) {
+  for (const [, { sourceID }] of asked) {
     const walked = readSourceClock(sourceID);
-    if (walked !== undefined) {
-      clocks[sourceID] = walked;
-      continue;
-    }
-    clocks[pair] = readPrice(typeID, sourceID)?.refreshedAt ?? 0;
+    if (walked !== undefined) clocks[sourceID] = walked;
   }
 
-  clocks.adjusted = readAdjustedClock() ?? 0;
   return clocks;
 }
