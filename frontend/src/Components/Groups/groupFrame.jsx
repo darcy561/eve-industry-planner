@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Box,
   useMediaQuery,
@@ -15,8 +15,6 @@ import RightSideMenuContent_GroupPage from "./Side Menu/rightSideMenuContent";
 import GroupNameFrame from "./Group Name/groupNameFrame";
 import { useGroupPageSideMenuFunctions } from "./Side Menu/Buttons/buttonFunctions";
 import { PriceEntryDialogue } from "../Dialogues/Price Entry/PriceEntry";
-import getMissingESIData from "../../Functions/Shared/getMissingESIData";
-import { loadAllRelatedJobs } from "../../Functions/Helper/getAllRelatedJobs";
 import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
 import MarketDataDialogue from "../Dialogues/Market Data/dialogueFrame";
 import useGroupPageReducer from "./Hooks/useGroupPageReducer";
@@ -63,7 +61,6 @@ function GroupPageFrame() {
   const navigate = useNavigate({ from: "/group/$groupID" });
   const activeGroupObject = getGroupObject(groupID);
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
-  const [loadHelperText, setLoadHelperText] = useState("Loading group…");
   const lastTrackedPageView = useRef(null);
 
   const pageRequiresRightDrawerOpen = true;
@@ -94,62 +91,11 @@ function GroupPageFrame() {
     };
   }, [groupID, navigate]);
 
+  // Arriving, not hovering: the route's loader also runs on a preload, and a reader
+  // passing over a group card must keep what they have selected on the planner.
   useEffect(() => {
-    let cancelled = false;
-    const hint = (text) => {
-      if (!cancelled) setLoadHelperText(text);
-    };
-
-    async function retrieveGroupData() {
-      hint("Loading group…");
-      try {
-        // Get fresh groupArray from store to check if group still exists
-        // This prevents the effect from running when closing a group
-        const currentGroupArray = useUsersStore.getState().jobData.groupArray;
-        const groupStillExists = currentGroupArray.some(
-          (g) => g.groupID === groupID,
-        );
-        if (!groupStillExists) {
-          // Group was deleted/closed, navigate away
-          navigate({ to: "/jobplanner" });
-          return;
-        }
-
-        // Get fresh activeGroupObject from store
-        const currentActiveGroupObject = getGroupObject(groupID);
-        if (!currentActiveGroupObject) {
-          throw new Error("Unable to find requested group");
-        }
-
-        hint("Preparing job data…");
-        // A group's members plus whatever their chains reach: a child job is
-        // not obliged to be in the same group as its parent, and one left out
-        // costs nothing to install rather than being left out of the walk.
-        const allJobObjects = await loadAllRelatedJobs(
-          currentActiveGroupObject.liveMemberIDs,
-        );
-
-        hint("Gathering market data…");
-        const { requestedSystemIndexes } =
-          await getMissingESIData(allJobObjects);
-
-        useUsersStore
-          .getState()
-          .worldData.actions.addSystemIndex(requestedSystemIndexes);
-
-        clearMultiSelect();
-      } catch (err) {
-        console.error(err);
-        navigate({ to: "/jobplanner" });
-      }
-    }
-    retrieveGroupData();
-    return () => {
-      cancelled = true;
-    };
-    // Depend on groupID from route params instead of groupArray
-    // This way it only runs when navigating to a different group, not when groupArray updates
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    clearMultiSelect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the action is stable; this runs per group opened
   }, [groupID]);
 
   useWarnBeforeUnload();
@@ -215,8 +161,10 @@ function GroupPageFrame() {
 
   return (
     <>
+      {/* The route loads the group, so this is not the entry wait: it covers the
+          frame between a group being closed and the navigation away landing. */}
       {!isGroupReady ? (
-        <LoadingPage variant="simple" helperText={loadHelperText} />
+        <LoadingPage variant="simple" helperText="Loading group…" />
       ) : (
         <>
           <LeftCollapsibleMenuDrawer inputDrawerButtons={buttonOptions} />

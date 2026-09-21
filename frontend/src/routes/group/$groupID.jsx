@@ -4,7 +4,7 @@ import {
   notFound,
 } from "@tanstack/react-router";
 import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
-import { ensureGroupJobs } from "../../Functions/Groups/ensureGroupJobs";
+import { prepareGroupPage } from "../../Functions/Groups/prepareGroupPage";
 
 const GroupFrame = lazyRouteComponent(
   () => import("../../Components/Groups/groupFrame"),
@@ -19,8 +19,10 @@ export const Route = createFileRoute("/group/$groupID")({
         ? raw.focusJobId.trim()
         : undefined,
   }),
+  // The page draws a whole chain of jobs and what they cost: fetched here so the reader
+  // waits on the router's pending screen rather than watching the figures arrive.
   loader: async ({ params }) => {
-    if (!(await ensureGroupJobs(params.groupID))) throw notFound();
+    if (!(await prepareGroupPage(params.groupID))) throw notFound();
   },
   component: GroupFrame,
 });

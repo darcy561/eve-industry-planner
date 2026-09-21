@@ -36,6 +36,7 @@ vi.mock("../Zustand/usersStore", () => {
           app.jobArray.find((job) => job.jobID === jobID),
         getGroupObject: (groupID) =>
           app.groupArray.find((group) => group.groupID === groupID) ?? null,
+        clearMultiSelect: () => {},
         jobsFromIdsOrObjects: async (ids) => {
           app.fetched.push([...ids]);
           if (!app.isLoggedIn) return [];
@@ -48,11 +49,18 @@ vi.mock("../Zustand/usersStore", () => {
         },
       },
     },
+    worldData: { actions: { addSystemIndex: () => {} } },
   });
   const users = (selector) => selector(state());
   users.getState = state;
   return { default: users };
 });
+
+// What a group's jobs need priced reaches the network; what this file is about is
+// which route a reader lands on.
+vi.mock("../Functions/Shared/getMissingESIData", () => ({
+  default: async () => ({ requestedSystemIndexes: {} }),
+}));
 
 vi.mock("../Functions/Auth/resumeStoredSession.js", () => ({
   resumeStoredSession: async () => {
@@ -246,8 +254,10 @@ describe("a reader using the planner without an account", () => {
       new Group({ groupID: "local-group", includedJobIDs: ["local-job"] }),
     ];
 
-    const { pathname, isNotFound } = await enterRoute("/group/local-group");
+    const { pathname, isNotFound, error } =
+      await enterRoute("/group/local-group");
 
+    expect(error).toBeUndefined();
     expect(isNotFound).toBe(false);
     expect(pathname).toBe("/group/local-group");
   });
