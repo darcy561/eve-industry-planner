@@ -81,6 +81,7 @@ func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSett
 		DefaultMaterialEfficiencyValue:   0,
 		ShareCitadelNames:                true,
 		CustomStructures:                 EmptyCustomStructures(),
+		MarketLocations:                  EmptyMarketLocations(),
 		ExemptTypeIDs:                    []int{},
 		ReprocessingSettings:             DefaultReprocessingSettings(),
 		ExtrasCategories:                 DefaultExtrasCategories(),
@@ -415,6 +416,7 @@ type ApplicationSettings struct {
 	DefaultMaterialEfficiencyValue int                           `bson:"defaultMaterialEfficiencyValue" json:"defaultMaterialEfficiencyValue"`
 	ShareCitadelNames              bool                          `bson:"shareCitadelNames" json:"shareCitadelNames"`
 	CustomStructures               CustomStructures              `bson:"customStructures" json:"customStructures"`
+	MarketLocations                MarketLocations               `bson:"marketLocations" json:"marketLocations"`
 	ExemptTypeIDs                  []int                         `bson:"exemptTypeIDs" json:"exemptTypeIDs,omitempty"`
 	ReprocessingSettings           ReprocessingSettings          `bson:"reprocessingSettings" json:"reprocessingSettings"`
 	ExtrasCategories               []ExtraCategory               `bson:"extrasCategories" json:"extrasCategories,omitempty"`

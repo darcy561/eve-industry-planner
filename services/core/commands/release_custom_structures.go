@@ -14,10 +14,10 @@ import (
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-// customStructureCollections are the settings documents that embed
-// models.CustomStructures. Both hold the same type, so both store the same two
-// shapes and both are converted here.
-var customStructureCollections = []string{
+// settingsDocumentCollections are the two documents an owner's settings live in.
+// Every release step that reshapes a settings document works over both, because
+// both embed the same types and so hold the same shapes.
+var settingsDocumentCollections = []string{
 	eipmongo.CollectionAccountSettings,
 	eipmongo.CollectionPlannerSettings,
 }
@@ -40,8 +40,8 @@ func foldCustomStructures(ctx context.Context, clients *stackservices.Clients, d
 		return "", fmt.Errorf("mongo handle is required")
 	}
 
-	reports := make([]string, 0, len(customStructureCollections))
-	for _, name := range customStructureCollections {
+	reports := make([]string, 0, len(settingsDocumentCollections))
+	for _, name := range settingsDocumentCollections {
 		report, err := foldCustomStructuresIn(ctx, clients.Mongo, name, dryRun)
 		if err != nil {
 			return "", err

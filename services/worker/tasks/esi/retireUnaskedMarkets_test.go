@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	esicore "eve-industry-planner/shared/core/esi"
 	objectstore "eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/esiclient"
+	"eve-industry-planner/shared/models"
 	eipnats "eve-industry-planner/shared/nats"
 	eipredis "eve-industry-planner/shared/redis"
 	"eve-industry-planner/testing/redisfake"
@@ -110,8 +110,8 @@ func TestTheHubsAreNeverRetired(t *testing.T) {
 	orders := deps.Redis.MarketOrders()
 
 	longAgo := time.Now().Add(-90 * 24 * time.Hour)
-	for _, hub := range esicore.DefaultMarketLocations {
-		if err := orders.TrackStation(t.Context(), hub.RegionID, hub.StationID, longAgo); err != nil {
+	for _, hub := range models.DefaultMarketLocations {
+		if err := orders.TrackStation(t.Context(), int32(hub.RegionID), hub.StationID, longAgo); err != nil {
 			t.Fatalf("track hub %s: %v", hub.ID, err)
 		}
 	}
@@ -124,8 +124,8 @@ func TestTheHubsAreNeverRetired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tracked regions: %v", err)
 	}
-	for _, hub := range esicore.DefaultMarketLocations {
-		if !slices.Contains(regions, hub.RegionID) {
+	for _, hub := range models.DefaultMarketLocations {
+		if !slices.Contains(regions, int32(hub.RegionID)) {
 			t.Errorf("hub %s was retired after a quiet spell", hub.ID)
 		}
 	}

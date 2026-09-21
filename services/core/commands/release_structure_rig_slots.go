@@ -36,8 +36,8 @@ func foldStructureRigSlots(ctx context.Context, clients *stackservices.Clients, 
 		return "", fmt.Errorf("mongo handle is required")
 	}
 
-	reports := make([]string, 0, len(customStructureCollections))
-	for _, name := range customStructureCollections {
+	reports := make([]string, 0, len(settingsDocumentCollections))
+	for _, name := range settingsDocumentCollections {
 		report, err := foldStructureRigSlotsIn(ctx, clients.Mongo, name, dryRun)
 		if err != nil {
 			return "", err

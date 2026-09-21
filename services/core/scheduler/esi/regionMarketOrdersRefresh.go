@@ -9,9 +9,9 @@ import (
 
 	esimetrics "eve-industry-planner/core/metrics/esi"
 	"eve-industry-planner/core/scheduler/contract"
-	esicore "eve-industry-planner/shared/core/esi"
 	"eve-industry-planner/shared/esiclient"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	eipnats "eve-industry-planner/shared/nats"
 	eipredis "eve-industry-planner/shared/redis"
 )
@@ -51,8 +51,10 @@ func runRegionMarketOrdersRefresh(
 ) error {
 	// Tracked every tick, not when walked: a hub must never be the market that goes unasked for.
 	now := time.Now()
-	for _, hub := range esicore.DefaultMarketLocations {
-		if err := r.MarketOrders().TrackStation(ctx, hub.RegionID, hub.StationID, now); err != nil {
+	for _, hub := range models.DefaultMarketLocations {
+		// A region id is 64 bits on a market and 32 to the store, which is what
+		// ESI states it as. Narrowed here rather than either side widening.
+		if err := r.MarketOrders().TrackStation(ctx, int32(hub.RegionID), hub.StationID, now); err != nil {
 			return err
 		}
 	}

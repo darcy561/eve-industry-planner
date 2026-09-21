@@ -9,9 +9,9 @@ import (
 	"strconv"
 
 	"eve-industry-planner/api/helper"
-	esicore "eve-industry-planner/shared/core/esi"
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -151,7 +151,7 @@ func (a *Handlers) MarketPricesQueryHandler(w http.ResponseWriter, r *http.Reque
 			}
 		}
 		response.Sources[source.location.ID] = SourcePrices{
-			RefreshedAt: refreshedAt[source.location.RegionID],
+			RefreshedAt: refreshedAt[int32(source.location.RegionID)],
 			Prices:      prices,
 		}
 	}
@@ -183,22 +183,22 @@ func (a *Handlers) MarketPricesQueryHandler(w http.ResponseWriter, r *http.Reque
 // prices against when it signs in and when it saves a market, and registering is
 // what put the station in the index this reads. A station the index has no
 // answer for is one nothing has registered.
-func (a *Handlers) trackedStationSource(ctx context.Context) func(string) (esicore.MarketLocation, error) {
-	return func(id string) (esicore.MarketLocation, error) {
+func (a *Handlers) trackedStationSource(ctx context.Context) func(string) (models.MarketLocation, error) {
+	return func(id string) (models.MarketLocation, error) {
 		stationID, err := strconv.ParseInt(id, 10, 64)
 		if err != nil {
-			return esicore.MarketLocation{}, notPriced(id)
+			return models.MarketLocation{}, notPriced(id)
 		}
 
 		tracked, err := a.Redis.MarketOrders().RegionsOfTrackedStations(ctx, []int64{stationID})
 		if err != nil {
-			return esicore.MarketLocation{}, fmt.Errorf("reading tracked markets: %w", err)
+			return models.MarketLocation{}, fmt.Errorf("reading tracked markets: %w", err)
 		}
 		regionID, priced := tracked[stationID]
 		if !priced {
-			return esicore.MarketLocation{}, notPriced(id)
+			return models.MarketLocation{}, notPriced(id)
 		}
-		return esicore.MarketLocation{ID: id, Name: id, RegionID: regionID, StationID: stationID}, nil
+		return models.MarketLocation{ID: id, Name: id, RegionID: int64(regionID), StationID: stationID}, nil
 	}
 }
 
@@ -217,7 +217,7 @@ func notPriced(id string) error {
 
 // sourceRequest is one market and the types wanted at that market.
 type sourceRequest struct {
-	location esicore.MarketLocation
+	location models.MarketLocation
 	typeIDs  []int32
 }
 
@@ -240,9 +240,9 @@ type priceRequest struct {
 // nothing, and a caller that resolved every one of its types to another market
 // has made no mistake. Asking for nothing at all is still refused, because a
 // request that wants no answer is one.
-func requestedPrices(body MarketPricesQueryBody, resolve func(string) (esicore.MarketLocation, error)) (priceRequest, error) {
-	byID := make(map[string]esicore.MarketLocation, len(esicore.DefaultMarketLocations))
-	for _, location := range esicore.DefaultMarketLocations {
+func requestedPrices(body MarketPricesQueryBody, resolve func(string) (models.MarketLocation, error)) (priceRequest, error) {
+	byID := make(map[string]models.MarketLocation, len(models.DefaultMarketLocations))
+	for _, location := range models.DefaultMarketLocations {
 		byID[location.ID] = location
 	}
 

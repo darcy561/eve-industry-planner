@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	esicore "eve-industry-planner/shared/core/esi"
 	"eve-industry-planner/shared/esiclient"
+	"eve-industry-planner/shared/models"
 	eipredis "eve-industry-planner/shared/redis"
 	"eve-industry-planner/testing/esifake"
 	"eve-industry-planner/testing/natsfake"
@@ -164,9 +164,9 @@ func walked(t *testing.T, client *redislib.Client, regionID int32, at time.Time)
 // hubRegions is the regions the four default hubs sit in — what the sweep
 // tracks and walks on a deployment nobody has saved a market on.
 func hubRegions() []int32 {
-	out := make([]int32, 0, len(esicore.DefaultMarketLocations))
-	for _, hub := range esicore.DefaultMarketLocations {
-		out = append(out, hub.RegionID)
+	out := make([]int32, 0, len(models.DefaultMarketLocations))
+	for _, hub := range models.DefaultMarketLocations {
+		out = append(out, int32(hub.RegionID))
 	}
 	return out
 }
@@ -305,8 +305,8 @@ func TestTheSweepTracksTheHubsItWalks(t *testing.T) {
 		t.Fatalf("sweep: %v", err)
 	}
 
-	for _, hub := range esicore.DefaultMarketLocations {
-		tracked, err := redis.MarketOrders().TrackedStations(t.Context(), hub.RegionID)
+	for _, hub := range models.DefaultMarketLocations {
+		tracked, err := redis.MarketOrders().TrackedStations(t.Context(), int32(hub.RegionID))
 		if err != nil {
 			t.Fatalf("tracked stations for %d: %v", hub.RegionID, err)
 		}
@@ -344,8 +344,8 @@ func TestTheSweepWalksAReaderRegisteredRegion(t *testing.T) {
 	if !slices.Contains(published, savedRegion) {
 		t.Errorf("the sweep published walks for %v, want the reader-registered %d among them", published, savedRegion)
 	}
-	for _, hub := range esicore.DefaultMarketLocations {
-		if !slices.Contains(published, hub.RegionID) {
+	for _, hub := range models.DefaultMarketLocations {
+		if !slices.Contains(published, int32(hub.RegionID)) {
 			t.Errorf("the sweep skipped hub %s, which every reader prices against", hub.ID)
 		}
 	}

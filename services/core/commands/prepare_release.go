@@ -108,6 +108,14 @@ var releases = []release{{
 		// planner settings documents this also converts: a fold that runs before
 		// them reports nothing to do and leaves what they write in the old shape.
 		{name: "fold custom structures into one array", run: foldCustomStructures},
+		// After every step that writes a settings document whole — the schema
+		// maintenance and the pricing seed above both do, and a step that writes
+		// only its own field with $set does not. The lane has no `omitempty`, so a
+		// whole-document write of one not yet seeded stores `null` into it.
+		// Selecting by shape rather than by absence is what makes that survivable:
+		// this catches the `null` as readily as the missing field. A later step
+		// that writes a settings document whole belongs above this line.
+		{name: "give every settings document an empty market lane", run: seedMarketLocationLane},
 		// After the fold above, never before: this reads the structures as one
 		// array and skips a document still holding the four keyed lists, so run
 		// early it would report nothing to do and leave every rig unconverted.

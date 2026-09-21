@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	esicore "eve-industry-planner/shared/core/esi"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/worker/taskrun"
 )
 
@@ -52,8 +52,8 @@ func RetireUnaskedMarkets(ctx context.Context, deps *taskrun.Dependencies) error
 
 	retired := 0
 	for _, regionID := range regions {
-		if slices.ContainsFunc(esicore.DefaultMarketLocations, func(hub esicore.MarketLocation) bool {
-			return hub.RegionID == regionID
+		if slices.ContainsFunc(models.DefaultMarketLocations, func(hub models.MarketLocation) bool {
+			return int32(hub.RegionID) == regionID
 		}) {
 			continue
 		}

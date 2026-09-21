@@ -216,6 +216,27 @@ func TestOwnerStampRunsBeforeTheStepsThatFilterOnIt(t *testing.T) {
 	}
 }
 
+// The lane has no `omitempty`, so a step that writes a settings document whole
+// writes `null` into an unseeded one. The seed's selector catches that, but only
+// for what ran before it — a whole-document write afterwards would leave a
+// `null` nothing else looks at again.
+func TestTheMarketLaneSeedRunsAfterEveryWholeSettingsWrite(t *testing.T) {
+	t.Parallel()
+
+	seed := stepIndex(t, currentRelease, "give every settings document an empty market lane")
+	// Each step that writes a settings document whole rather than by field. A new
+	// one belongs here and above the seed, which is the pairing this locks in.
+	for _, wholeWrite := range []string{
+		"complete outstanding schema maintenance",
+		"seed each account's buying and selling pricing defaults",
+	} {
+		if at := stepIndex(t, currentRelease, wholeWrite); at > seed {
+			t.Errorf("%q runs at %d, after the market lane seed at %d — it would leave a null behind",
+				wholeWrite, at, seed)
+		}
+	}
+}
+
 // The copy is first and required: every step after it writes, and a copy taken
 // after a step ran is a copy of that step's output rather than of the state an
 // operator would revert to.
@@ -429,7 +450,7 @@ func TestTheStructureFoldCoversBothSettingsCollections(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{eipmongo.CollectionAccountSettings, eipmongo.CollectionPlannerSettings} {
-		if !slices.Contains(customStructureCollections, want) {
+		if !slices.Contains(settingsDocumentCollections, want) {
 			t.Errorf("%q is not folded", want)
 		}
 	}
@@ -442,7 +463,7 @@ func TestTheStructureFoldsCollectionsAreBackedUp(t *testing.T) {
 	t.Parallel()
 
 	copied := releaseTouchedCollections()
-	for _, name := range customStructureCollections {
+	for _, name := range settingsDocumentCollections {
 		if !slices.Contains(copied, name) {
 			t.Errorf("%q is folded but never copied, so a revert cannot put it back", name)
 		}

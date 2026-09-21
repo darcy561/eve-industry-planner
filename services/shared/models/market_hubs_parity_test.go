@@ -8,7 +8,7 @@
 //
 // So the list is derived from DefaultMarketLocations, committed, and checked
 // here. The SPA's own parity test reads the same file.
-package esi_test
+package models_test
 
 import (
 	"encoding/json"
@@ -16,16 +16,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	esicore "eve-industry-planner/shared/core/esi"
+	"eve-industry-planner/shared/models"
 )
 
 // hubsPath is the committed fixture, relative to this package.
-const hubsPath = "../../../../testing/fixtures/market-hubs/hubs.json"
+const hubsPath = "../../../testing/fixtures/market-hubs/hubs.json"
 
-const regenerate = "EIP_UPDATE_MARKET_HUBS=1 go test ./shared/core/esi/ -run TestTheMarketHubListIsCurrent"
+const regenerate = "EIP_UPDATE_MARKET_HUBS=1 go test ./shared/models/ -run TestTheMarketHubListIsCurrent"
 
 const hubsWhy = "The markets this server prices against, from " +
-	"esicore.DefaultMarketLocations. The SPA carries its own copy to offer and " +
+	"models.DefaultMarketLocations. The SPA carries its own copy to offer and " +
 	"label them, and nothing but this file connects the two. " +
 	"Regenerate with: " + regenerate
 
@@ -46,11 +46,11 @@ type marketHubs struct {
 }
 
 func currentMarketHubs() marketHubs {
-	hubs := make(map[string]hub, len(esicore.DefaultMarketLocations))
-	for _, location := range esicore.DefaultMarketLocations {
+	hubs := make(map[string]hub, len(models.DefaultMarketLocations))
+	for _, location := range models.DefaultMarketLocations {
 		hubs[location.ID] = hub{
 			Name:      location.Name,
-			RegionID:  location.RegionID,
+			RegionID:  int32(location.RegionID),
 			StationID: location.StationID,
 		}
 	}
@@ -93,7 +93,7 @@ func TestTheMarketHubListIsCurrent(t *testing.T) {
 // A hub with no station or no region cannot be priced: the region is what the
 // walk fetches and the station is what the prices are filtered to.
 func TestEveryMarketHubCanBeWalked(t *testing.T) {
-	for _, location := range esicore.DefaultMarketLocations {
+	for _, location := range models.DefaultMarketLocations {
 		if location.ID == "" || location.Name == "" {
 			t.Errorf("%+v has no id or no name", location)
 		}

@@ -28,6 +28,7 @@ type Settings struct {
 	SchemaVersion int    `bson:"schemaVersion,omitempty" json:"schemaVersion,omitempty"`
 
 	CustomStructures               models.CustomStructures       `bson:"customStructures" json:"customStructures"`
+	MarketLocations                models.MarketLocations        `bson:"marketLocations" json:"marketLocations"`
 	DefaultMaterialEfficiencyValue int                           `bson:"defaultMaterialEfficiencyValue" json:"defaultMaterialEfficiencyValue"`
 	PredefinedSystemIndexes        map[string]map[string]float64 `bson:"predefinedSystemIndexes" json:"predefinedSystemIndexes,omitempty"`
 	ExtrasCategories               []models.ExtraCategory        `bson:"extrasCategories" json:"extrasCategories,omitempty"`
@@ -48,6 +49,7 @@ func DefaultSettings(owner models.Owner, now time.Time) Settings {
 		ID:                             owner.Key(),
 		SchemaVersion:                  SettingsSchemaCurrent,
 		CustomStructures:               models.EmptyCustomStructures(),
+		MarketLocations:                models.EmptyMarketLocations(),
 		DefaultMaterialEfficiencyValue: 0,
 		PredefinedSystemIndexes:        make(map[string]map[string]float64),
 		ExtrasCategories:               models.DefaultExtrasCategories(),

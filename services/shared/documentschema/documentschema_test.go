@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/models"
+	"eve-industry-planner/shared/models/planner"
 )
 
 func TestJobUpgradeStampsUnversionedAsCurrent(t *testing.T) {
@@ -252,5 +253,20 @@ func TestApplicationSettingsKeepsAChosenExitRoute(t *testing.T) {
 
 	if got := doc.DefaultPricing.Selling.Exit; got != models.ExitRouteImmediate {
 		t.Fatalf("exit = %q, want the route the account chose", got)
+	}
+}
+
+// The lane is added without moving the version: schemamaint selects documents
+// below the current version and skips any the upgrader did not raise, so a
+// current moved ahead of a step that reaches it leaves every document below it
+// for ever.
+func TestAddingTheMarketLaneDidNotMoveTheSettingsSchema(t *testing.T) {
+	if models.ApplicationSettingsSchemaCurrent != 1 {
+		t.Errorf("ApplicationSettingsSchemaCurrent = %d; the rows move in the stage that raises it",
+			models.ApplicationSettingsSchemaCurrent)
+	}
+	if planner.SettingsSchemaCurrent != 1 {
+		t.Errorf("planner.SettingsSchemaCurrent = %d; the rows move in the stage that raises it",
+			planner.SettingsSchemaCurrent)
 	}
 }
