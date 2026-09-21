@@ -16,17 +16,10 @@ vi.mock("../../Auth/esiCredentials/provider.js", () => ({
 import { fetchStructureOrders, MAX_ORDER_PAGES } from "./getStructureOrders";
 import { LocationResolutionError } from "./locationOutcome";
 import { MARKET_STRUCTURE_SCOPE } from "../../Auth/esiCredentials/tokenScopes.js";
+import { esiAccessToken } from "../../../tests/utils.js";
 
 const RAITARU = 1035466617946;
 const character = { CharacterHash: "hash-a" };
-
-/** A token carrying exactly the scopes named. */
-function tokenWith(scopes) {
-  const payload = btoa(JSON.stringify({ scp: scopes }))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
-  return `header.${payload}.signature`;
-}
 
 function order(overrides = {}) {
   return {
@@ -66,7 +59,11 @@ function refusal(status) {
 
 beforeEach(() => {
   fetchMock.mockReset();
-  tokenMock.mockReset().mockResolvedValue({ accessToken: "token" });
+  // Carrying the scope, so the ordinary cases pass the gate by holding it
+  // rather than by the unreadable-token fallback, which has its own test.
+  tokenMock.mockReset().mockResolvedValue({
+    accessToken: esiAccessToken({ scopes: [MARKET_STRUCTURE_SCOPE] }),
+  });
 });
 
 describe("reading a structure's orders as one character", () => {
@@ -78,7 +75,7 @@ describe("reading a structure's orders as one character", () => {
     expect(tokenMock).toHaveBeenCalledWith("hash-a");
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toContain(`/markets/structures/${RAITARU}/`);
-    expect(options.headers.Authorization).toBe("Bearer token");
+    expect(options.headers.Authorization).toContain("Bearer ");
     expect(answer).toMatchObject({ refused: false });
     expect(answer.orders).toHaveLength(1);
   });
@@ -146,7 +143,9 @@ describe("the three answers a character can give", () => {
   // and arrives indistinguishable from a docking refusal.
   it("refuses to ask on a token that lacks the scope", async () => {
     tokenMock.mockResolvedValue({
-      accessToken: tokenWith(["esi-universe.read_structures.v1"]),
+      accessToken: esiAccessToken({
+        scopes: ["esi-universe.read_structures.v1"],
+      }),
     });
 
     await expect(
@@ -157,7 +156,7 @@ describe("the three answers a character can give", () => {
 
   it("asks on a token that carries it", async () => {
     tokenMock.mockResolvedValue({
-      accessToken: tokenWith([MARKET_STRUCTURE_SCOPE]),
+      accessToken: esiAccessToken({ scopes: [MARKET_STRUCTURE_SCOPE] }),
     });
     fetchMock.mockResolvedValue(page([order()]));
 

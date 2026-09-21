@@ -48,6 +48,7 @@ export function esiAccessToken(claims = {}) {
     owner = "owner-hash",
     name = "Test Pilot",
     characterID = 94800326,
+    scopes,
   } = claims;
   const part = (obj) => btoa(JSON.stringify(obj)).replace(/=+$/, "");
   return `${part({ alg: "RS256" })}.${part({
@@ -55,6 +56,7 @@ export function esiAccessToken(claims = {}) {
     owner,
     name,
     exp,
+    ...(scopes ? { scp: scopes } : {}),
   })}.signature`;
 }
 
