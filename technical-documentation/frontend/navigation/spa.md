@@ -121,11 +121,18 @@ already up and the fetch is authenticated — and holds the same pending compone
   carrying `activeGroup` asks for a second thing — the page reads that group's other jobs — so the
   loader loads the group's members too, through `loaderDeps` exposing the search to it. A group that
   no longer exists does not refuse the page: the URL names the job.
-- `/group/$groupID` ensures the group exists and its members are loaded.
+- `/group/$groupID` ensures the group exists, and loads everything its page draws.
 
-Both go through `Functions/Groups/ensureGroupJobs.js`, so opening a group and opening a job inside one
-load the same thing. Archived members are left alone — they have no job document until they are
-restored, and `Group`'s `liveMemberIDs` getter is the one place that says which members those are.
+The two ask for different amounts, because they draw different amounts. A job opened inside a group
+needs that group's own members present, which is `Functions/Groups/ensureGroupJobs.js`. The group page
+states what every one of those members costs, so `Functions/Groups/prepareGroupPage.js` walks on past
+them — a child job is not obliged to be in the same group as its parent — and then prices what the
+walk reached and records the system indexes it needed. Both stop at archived members, which have no
+job document until they are restored; `Group`'s `liveMemberIDs` getter is the one place that says
+which members those are.
+
+A loader runs on a hover as well as on an arrival, so it fetches and caches and changes nothing else.
+What a reader has selected on the planner is theirs until they arrive.
 
 A URL naming something that is not there renders `Components/routeNotFound.jsx`, the router's
 `defaultNotFoundComponent`. A signed-in reader is told the link may be stale or the thing deleted. A
