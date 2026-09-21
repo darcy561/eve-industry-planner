@@ -4,6 +4,6 @@ import { Purchasing_StandardLayout_EditJob } from "./Standard Layout/standardLay
  * Purchasing shell. Market hub controls use `MarketLocationSelectApplicationSettings` /
  * `ListingTypeSelectApplicationSettings` (override + live `applicationSettings` defaults).
  */
-export function LayoutSelector_EditJob_Purchasing(props) {
-  return <Purchasing_StandardLayout_EditJob {...props} />;
+export function LayoutSelector_EditJob_Purchasing() {
+  return <Purchasing_StandardLayout_EditJob />;
 }

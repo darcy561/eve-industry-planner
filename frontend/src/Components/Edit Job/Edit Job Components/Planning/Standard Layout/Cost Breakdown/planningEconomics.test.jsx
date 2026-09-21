@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderCounts } from "../../../../../../tests/renderCounts.jsx";
 
 const useMaterialsSourcing = vi.fn();
 const useJobEconomics = vi.fn();
@@ -20,7 +21,19 @@ vi.mock(
   }),
 );
 
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreOverSession } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreOverSession({
+    applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
+  });
+});
+
 const { default: PlanningEconomics } = await import("./planningEconomics");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
+
+const session = () => useUsersStore.getState().editSession;
 
 const economics = (overrides = {}) => ({
   cost: {
@@ -70,25 +83,45 @@ vi.mock("../../../Complete/Standard Layout/Extras Panel/extrasEditor", () => ({
   default: () => <div>extras editor</div>,
 }));
 
-const state = {
-  activeJob: {
-    itemID: 34,
-    name: "Tritanium",
-    totalQuantityProduced: 10,
-    totalExtrasCost: 12000,
-    layout: { setupToEdit: "setup0" },
-    build: {
-      setup: { setup0: { selectedCharacter: "hash" } },
-      extrasCosts: { a: { id: "a" }, b: { id: "b" } },
+/** Two extra costs of 6,000 each on it, as the planner stores a job. */
+const jobDocument = ({ setupToEdit = "setup0", build = {}, ...rest } = {}) => ({
+  jobID: "job-1",
+  itemID: 34,
+  name: "Tritanium",
+  itemsProducedPerRun: 10,
+  parentJobs: [],
+  layout: { setupToEdit },
+  build: {
+    materials: {},
+    childJobs: {},
+    inventionEntries: {},
+    extrasCosts: {
+      a: { id: "a", extraValue: 6000 },
+      b: { id: "b", extraValue: 6000 },
     },
-    get selectedSetup() {
-      return this.build.setup[this.layout.setupToEdit];
+    setup: {
+      setup0: {
+        id: "setup0",
+        selectedCharacter: "hash",
+        runCount: 1,
+        jobCount: 1,
+        materialCount: {},
+      },
     },
+    ...build,
   },
+  esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+  ...rest,
+});
+
+const show = (document = jobDocument(), Panel = PlanningEconomics) => {
+  session().actions.openJob(document.jobID, document);
+  return render(<Panel />);
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session().actions.closeSession();
   useMaterialsSourcing.mockReturnValue({ rows: [], marketLocation: "jita" });
   useJobEconomics.mockReturnValue(economics());
 });
@@ -98,7 +131,7 @@ beforeEach(() => {
 // each of those builds its own props by hand.
 describe("the planning economics wiring", () => {
   it("draws both panels from the one set of figures", () => {
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     expect(screen.getByText("Cost Breakdown")).toBeInTheDocument();
     expect(screen.getByText("Returns")).toBeInTheDocument();
@@ -116,7 +149,7 @@ describe("the planning economics wiring", () => {
       }),
     );
 
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     // The ledger states the build cost it subtracts; it must be the build band.
     expect(screen.getByText("800.00")).toBeInTheDocument();
@@ -139,7 +172,7 @@ describe("the planning economics wiring", () => {
       }),
     );
 
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     // Cost Breakdown still states the whole job's 800 — it is costing the build,
     // not the sale. It is the ledger that must be scoped.
@@ -147,7 +180,7 @@ describe("the planning economics wiring", () => {
   });
 
   it("names the item, its hub and the seller the rates are quoted for", () => {
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     expect(screen.getByText("Tritanium")).toBeInTheDocument();
     expect(screen.getByText("Quoted for Market Alt")).toBeInTheDocument();
@@ -157,7 +190,7 @@ describe("the planning economics wiring", () => {
   });
 
   it("states the revenue a listing would bring in", () => {
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     // 120 a unit across 10 produced.
     expect(screen.getByText("Revenue, listed")).toBeInTheDocument();
@@ -167,51 +200,51 @@ describe("the planning economics wiring", () => {
   // Extras are a cost component and an entry point both. Counting them in the
   // table without carrying the editor would make them unreachable.
   it("carries the extras editor, saying what is behind it", () => {
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     expect(screen.getByText("Extra costs — 2, 12,000.00")).toBeInTheDocument();
   });
 
   it("invites a first extra cost when the job has none", () => {
-    const empty = {
-      activeJob: {
-        ...state.activeJob,
-        totalExtrasCost: 0,
-        build: {
-          setup: { setup0: { selectedCharacter: "hash" } },
-          extrasCosts: {},
-        },
-        selectedSetup: { selectedCharacter: "hash" },
-      },
-    };
-
-    render(<PlanningEconomics state={empty} actions={{}} />);
+    show(jobDocument({ build: { extrasCosts: {} } }));
 
     expect(screen.getByText("Add an extra cost")).toBeInTheDocument();
   });
 
   it("draws nothing until a setup is selected", () => {
-    const withoutSetup = {
-      activeJob: {
-        ...state.activeJob,
-        layout: { setupToEdit: null },
-        selectedSetup: undefined,
-      },
-    };
-
-    const { container } = render(
-      <PlanningEconomics state={withoutSetup} actions={{}} />,
-    );
+    const { container } = show(jobDocument({ setupToEdit: null }));
 
     expect(container).toBeEmptyDOMElement();
   });
+});
+
+// The panel names the four fields it draws from: what the extras and the
+// invention attempts cost, and who sells the output from where. Its figures come
+// from the two hooks above it, which name their own reads.
+it("is not re-rendered by a change none of its figures are over", async () => {
+  const renders = renderCounts();
+  show(jobDocument(), renders.watch("economics", PlanningEconomics));
+  renders.reset();
+
+  await act(async () => {
+    session().actions.run({
+      name: "record a purchase",
+      recipe: (job) => {
+        job.build.materials = {
+          34: { typeID: 34, purchasing: { a: { id: "a", itemCount: 1 } } },
+        };
+      },
+    });
+  });
+
+  expect(renders.of("economics")).toBe(0);
 });
 
 // The toggle changes what the components are, so the panel that draws them owns
 // it — and it is a way of reading the job, never a change written to it.
 describe("the pricing model toggle", () => {
   it("reprices the components when switched", async () => {
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     await userEvent.click(screen.getByText("Buy everything"));
 
@@ -221,7 +254,7 @@ describe("the pricing model toggle", () => {
   });
 
   it("starts on the model the job is actually planned as", () => {
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     expect(useJobEconomics).toHaveBeenCalledWith(
       expect.objectContaining({ buyEverything: false }),
@@ -238,7 +271,7 @@ describe("the cost over time chart", () => {
   it("is left to Build History rather than drawn here as well", () => {
     useJobEconomics.mockReturnValue(economics({ comparison: { builds: 7 } }));
 
-    render(<PlanningEconomics state={state} actions={{}} />);
+    show();
 
     expect(
       screen.queryByText(/Cost per unit over time/),
@@ -249,38 +282,30 @@ describe("the cost over time chart", () => {
 // Invention is a cost the job carries and the breakdown counts, so it is
 // recorded where the rest of the cost is read. Only a T2 or T3 item is invented.
 describe("recording what invention cost", () => {
-  const withMeta = (metaGroupID) => ({
-    ...state,
-    activeJob: { ...state.activeJob, metaLevel: metaGroupID },
-  });
+  const withMeta = (metaLevel) => jobDocument({ metaLevel });
 
   it("offers it on an item that is invented", () => {
-    render(<PlanningEconomics state={withMeta(2)} actions={{}} />);
+    show(withMeta(2));
 
     expect(screen.getByText("Add an invention cost")).toBeInTheDocument();
   });
 
   it("offers nothing on an item that is not", () => {
-    render(<PlanningEconomics state={withMeta(1)} actions={{}} />);
+    show(withMeta(1));
 
     expect(screen.queryByText(/invention cost/i)).not.toBeInTheDocument();
   });
 
   it("counts what is recorded in the label", () => {
-    const job = {
-      ...state.activeJob,
-      metaLevel: 2,
-      totalInventionCost: 1500,
-      build: {
-        ...state.activeJob.build,
-        inventionEntries: {
-          1: { id: 1, itemName: "Datacore", itemCost: 1500 },
+    show(
+      jobDocument({
+        metaLevel: 2,
+        build: {
+          inventionEntries: {
+            1: { id: 1, itemName: "Datacore", itemCost: 1500 },
+          },
         },
-      },
-    };
-
-    render(
-      <PlanningEconomics state={{ ...state, activeJob: job }} actions={{}} />,
+      }),
     );
 
     expect(screen.getByText(/Invention — 1,/)).toBeInTheDocument();

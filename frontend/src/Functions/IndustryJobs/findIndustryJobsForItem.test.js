@@ -34,6 +34,12 @@ function job() {
 
 const ids = (runs) => runs.map((r) => r.job_id);
 
+/** What the matcher reads of a job: its item, and the runs it already holds. */
+const linkable = (job) => ({
+  itemID: job.itemID,
+  industryJobs: job.esi.industryJobs,
+});
+
 describe("the industry runs a job can link", () => {
   it("offers runs that made this job's item", () => {
     expect(
@@ -51,20 +57,22 @@ describe("the industry runs a job can link", () => {
   it("offers a run once however many times ESI reported it", () => {
     const reported = [run(1), { ...run(1) }, { ...run(1), installer_id: 99 }];
 
-    expect(ids(findIndustryJobsForItem(reported, job()))).toEqual([1]);
+    expect(ids(findIndustryJobsForItem(reported, linkable(job())))).toEqual([
+      1,
+    ]);
   });
 
   it("does not offer a run this job already holds", () => {
     const activeJob = job();
     activeJob.linkESIJob(run(1), OWNER);
 
-    expect(ids(findIndustryJobsForItem([run(1), run(2)], activeJob))).toEqual([
-      2,
-    ]);
+    expect(
+      ids(findIndustryJobsForItem([run(1), run(2)], linkable(activeJob))),
+    ).toEqual([2]);
   });
 
   it("does not offer a run another job on the account holds", () => {
-    const offered = findIndustryJobsForItem([run(1), run(2)], job(), {
+    const offered = findIndustryJobsForItem([run(1), run(2)], linkable(job()), {
       linkedAcrossAccount: new Set([1]),
     });
 
@@ -74,7 +82,7 @@ describe("the industry runs a job can link", () => {
   // Unlinking is pending until the job saves, so a run on its way out is
   // available again straight away.
   it("offers a run that is being unlinked elsewhere", () => {
-    const offered = findIndustryJobsForItem([run(1), run(2)], job(), {
+    const offered = findIndustryJobsForItem([run(1), run(2)], linkable(job()), {
       linkedAcrossAccount: new Set([1]),
       beingRemoved: [1],
     });
@@ -88,7 +96,7 @@ describe("the industry runs a job can link", () => {
     const activeJob = job();
     activeJob.linkESIJob(run(1), OWNER);
 
-    const offered = findIndustryJobsForItem([run(1)], activeJob, {
+    const offered = findIndustryJobsForItem([run(1)], linkable(activeJob), {
       beingRemoved: [1],
     });
 
@@ -96,8 +104,8 @@ describe("the industry runs a job can link", () => {
   });
 
   it("copes with nothing reported and with a missing job", () => {
-    expect(findIndustryJobsForItem([], job())).toEqual([]);
-    expect(findIndustryJobsForItem(undefined, job())).toEqual([]);
+    expect(findIndustryJobsForItem([], linkable(job()))).toEqual([]);
+    expect(findIndustryJobsForItem(undefined, linkable(job()))).toEqual([]);
     expect(findIndustryJobsForItem([run(1)], null)).toEqual([]);
   });
 });

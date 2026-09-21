@@ -28,23 +28,26 @@ import { useGetAllCharacterHistoricMarketOrders } from "../../../../../../Hooks/
 import { useGetAllCorporationMarketOrders } from "../../../../../../Hooks/EveEsi/Corporation/useGetAllCorporationMarketOrders";
 import { useGetAllCorporationHistoricMarketOrders } from "../../../../../../Hooks/EveEsi/Corporation/useGetAllCorporationHistoricMarketOrders";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import {
+  useEsiLinkIntents,
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import {
   characterImageUrl,
   corporationImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
 
-export function AvailableTransactionsPanel({
-  state,
-  actions,
-  isLoading,
-  isError,
-  error,
-}) {
+export function AvailableTransactionsPanel({ isLoading, isError, error }) {
+  const actions = useJobActions();
+  const marketOrders = useJobDraft((job) => job.esi.marketOrders);
+  const linkedSales = useJobDraft((job) => job.esi.transactions);
+  const transactionsToLink = useEsiLinkIntents("transactions");
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
   const queryClient = useQueryClient();
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const jobLockReadOnly = useActiveJobReadOnly();
   // Subscribe to transaction and journal cache updates using React Query hooks
   // This ensures the component re-renders when transaction data updates
   const {
@@ -103,38 +106,26 @@ export function AvailableTransactionsPanel({
     characterJournalError ||
     corporationJournalError;
 
-  // Memoize transaction data to recalculate when transaction/journal/market order cache updates
-  // Market orders are included because findOrderTransactions searches for transactions matching the job's market orders
-  // Named rather than counted inside the dependency list: the list takes plain
-  // expressions, and the orders are keyed by id so their count is what says a
-  // linked order came or went.
-  const linkedOrderCount = Object.keys(
-    state.activeJob?.esi?.marketOrders ?? {},
-  ).length;
-
-  // Only calculate when data is loaded to prevent errors from incomplete data
+  // The account's own ESI reads are dependencies as much as the job is: a sale
+  // is offered by matching the job's orders against what the character and the
+  // corporation have reported, and either can arrive after this first runs.
   const transactionData = useMemo(() => {
-    // Don't run if data is still loading to prevent errors from incomplete data
-    if (combinedIsLoading) {
-      return [];
-    }
-
-    if (!state.activeJob?.esi?.marketOrders) {
+    if (combinedIsLoading || !marketOrders) {
       return [];
     }
 
     return findOrderTransactions(
-      state.activeJob,
+      { marketOrders, transactions: linkedSales },
       queryClient,
-      state.esiDataToLink.transactions.add,
-      state.esiDataToLink.transactions.remove,
+      transactionsToLink.add,
+      transactionsToLink.remove,
     );
   }, [
-    state.activeJob,
-    linkedOrderCount,
+    marketOrders,
+    linkedSales,
     queryClient,
-    state.esiDataToLink.transactions.add,
-    state.esiDataToLink.transactions.remove,
+    transactionsToLink.add,
+    transactionsToLink.remove,
     characterTransactions,
     corporationTransactions,
     characterJournal,

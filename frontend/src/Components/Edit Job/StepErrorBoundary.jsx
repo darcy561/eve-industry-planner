@@ -58,7 +58,7 @@ function StepErrorFallback({ error, componentStack, currentStep }) {
   );
 }
 
-function StepErrorBoundary({ children, currentStep, state }) {
+function StepErrorBoundary({ children, currentStep }) {
   const [componentStack, setComponentStack] = useState("");
 
   return (
@@ -72,7 +72,7 @@ function StepErrorBoundary({ children, currentStep, state }) {
           extra: {
             componentStack: stack,
             currentStep,
-            ...getSentryEditJobStateHints(state),
+            ...getSentryEditJobStateHints(),
             ...getSentryUsersStoreContextHints(),
           },
         });

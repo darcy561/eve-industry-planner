@@ -4,6 +4,9 @@ import ClearIcon from "@mui/icons-material/Clear";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import { removeMaterialPurchase } from "../../../../Edit Job Hooks/jobCommands";
+import { useMaterialFigures } from "../../../../Edit Job Hooks/useMaterialFigures";
+import { useJobActions } from "../../../../Edit Job Hooks/useJobDraft";
+import { countedFromPurchase } from "../../../../Edit Job Hooks/materialSelectors";
 
 function purchaseCountedText(counted, itemCount) {
   if (counted === itemCount) return "All of this purchase is in the total.";
@@ -13,7 +16,9 @@ function purchaseCountedText(counted, itemCount) {
   return `The job needed ${counted} of these, and is charged for those. The cheapest purchases fill the requirement first.`;
 }
 
-export function MaterialCostsFrame_Purchasing({ actions, material }) {
+export function MaterialCostsFrame_Purchasing({ material }) {
+  const actions = useJobActions();
+  const { needed } = useMaterialFigures(material);
   function handleRemove(purchaseID) {
     actions.run(removeMaterialPurchase(material.typeID, purchaseID));
     showSnackbarError("Deleted");
@@ -32,7 +37,7 @@ export function MaterialCostsFrame_Purchasing({ actions, material }) {
       }}
     >
       {Object.values(material.purchasing).map((record) => {
-        const counted = material.countedFromPurchase(record.id);
+        const counted = countedFromPurchase(material, needed, record.id);
         const label = `${formatNumberForLocale(record.itemCount, {
           max: 0,
         })} @ ${formatNumberForLocale(record.itemCost)} ISK Each`;

@@ -10,6 +10,13 @@ import { findMaterialJobInGroup } from "../../../../../../Functions/Groups/findM
 import { finaliseCreatedChildJobs } from "./Helpers/finaliseCreatedChildJobs";
 import { resolveMaterialChildJobStatus } from "./Helpers/materialChildJobs";
 import {
+  useChildLinkIntents,
+  useJobActions,
+  useJobDraft,
+  useTemporaryChildJob,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { materialRequirementOf } from "../../../../Edit Job Hooks/jobSelectors";
+import {
   useActiveGroupReadOnly,
   useSiblingLinkLock,
 } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
@@ -28,8 +35,6 @@ import { trackNewJobsCreated } from "../../../../../../analytics/trackNewJobsCre
  * mechanisms fires is worked out here.
  *
  * @param {object} props
- * @param {object} props.state - Edit Job state
- * @param {object} props.actions - Edit Job actions
  * @param {object} props.material
  * @param {object|null} [props.rowJob] - The job behind this row: the one costed
  *   for it, or the real one already linked to it
@@ -37,28 +42,31 @@ import { trackNewJobsCreated } from "../../../../../../analytics/trackNewJobsCre
  *   this row would take, for a reader who has not opened its drawer
  * @param {() => void} [props.onBuilt] - Shows the job that was just created
  */
-export default function PlanChip({
-  state,
-  actions,
-  material,
-  rowJob,
-  costRow,
-  onBuilt,
-}) {
+export default function PlanChip({ material, rowJob, costRow, onBuilt }) {
   const [costing, setCosting] = useState(false);
   const queryClient = useQueryClient();
-  const groupReadOnly = useActiveGroupReadOnly(state);
-  const siblingLock = useSiblingLinkLock(state);
+  const groupReadOnly = useActiveGroupReadOnly();
+  const siblingLock = useSiblingLinkLock();
+  const actions = useJobActions();
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const groupID = useJobDraft((job) => job.groupID);
+  const setups = useJobDraft((job) => job.build.setup);
+  const childJobsLocation = useJobDraft(
+    (job) => job.build.childJobs[material.typeID],
+  );
+  const markedChildJobs = useChildLinkIntents(material.typeID);
+  const temporaryChildJob = useTemporaryChildJob(material.typeID);
 
   const { hasLinked, hasTemp, hasPendingAdd, tempJob } =
     resolveMaterialChildJobStatus({
-      state,
-      materialTypeID: material.typeID,
-      childJobsLocation: state.activeJob.build.childJobs[material.typeID] ?? [],
+      inGroup: includedInGroup,
+      childJobsLocation: childJobsLocation ?? [],
+      temporaryChildJob,
+      markedChildJobs,
     });
 
-  const groupJob = state.activeJob.includedInGroup
-    ? findMaterialJobInGroup(material.typeID, state.activeJob.groupID)
+  const groupJob = includedInGroup
+    ? findMaterialJobInGroup(material.typeID, groupID)
     : null;
 
   const onBuild = hasLinked || hasTemp || hasPendingAdd;
@@ -100,7 +108,9 @@ export default function PlanChip({
       // A job the group already runs is not: it may already be feeding another
       // job in the group, and sizing it to this row's requirement alone would
       // take that job's supply away without either of them being told.
-      requiredQuantity: groupJob ? undefined : material.quantity,
+      requiredQuantity: groupJob
+        ? undefined
+        : materialRequirementOf(setups, material.typeID),
       queryClient,
     });
 

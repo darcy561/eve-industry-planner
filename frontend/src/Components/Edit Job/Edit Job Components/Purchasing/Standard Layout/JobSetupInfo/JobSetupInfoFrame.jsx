@@ -11,10 +11,11 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
 import rigSlotLabel from "../../../../../../Functions/Helper/rigSlotLabel";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 
-export default function JobSetupInfoFrame(props) {
-  const { state, actions } = props;
-  const setupCount = Object.values(state.activeJob.build.setup).length;
+export default function JobSetupInfoFrame() {
+  const setups = useJobDraft((job) => job.build.setup);
+  const setupCount = Object.values(setups).length;
 
   return (
     <ContentPanel
@@ -49,26 +50,18 @@ export default function JobSetupInfoFrame(props) {
           WebkitOverflowScrolling: "touch",
         }}
       >
-        {Object.values(state.activeJob.build.setup).map((setupEntry) => {
-          return (
-            <JobSetupItem
-              key={setupEntry.id}
-              setupEntry={setupEntry}
-              state={state}
-              actions={actions}
-            />
-          );
+        {Object.values(setups).map((setupEntry) => {
+          return <JobSetupItem key={setupEntry.id} setupEntry={setupEntry} />;
         })}
       </Box>
     </ContentPanel>
   );
 }
 
-function JobSetupItem({ setupEntry, state }) {
+function JobSetupItem({ setupEntry }) {
+  const itemsProducedPerRun = useJobDraft((job) => job.itemsProducedPerRun);
   const quantityProduced =
-    state.activeJob.itemsProducedPerRun *
-    setupEntry.runCount *
-    setupEntry.jobCount;
+    itemsProducedPerRun * setupEntry.runCount * setupEntry.jobCount;
 
   return (
     <Box

@@ -7,22 +7,32 @@ import {
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
+import {
+  jobDraftNow,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { jobLens } from "../../../../Edit Job Hooks/jobLens";
 
-export function PassBuildCostsButton({ state }) {
+export function PassBuildCostsButton() {
+  const hasParents = useJobDraft((job) => job.parentJobs.length > 0);
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { getActiveGroupObject } = useUsersStore.getState().jobData.actions;
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const jobLockReadOnly = useActiveJobReadOnly();
   const buttonText = activeGroupID
     ? "Send Build Costs & Complete"
     : "Send Build Costs";
 
   async function passCost() {
     if (jobLockReadOnly) return;
-    const { messageText } = await passBuildCostsToParentJobs(state.activeJob);
+    // What it sends is the cost per item, which is a figure derived from the
+    // job rather than one it stores — so this hands over the job as a class
+    // until those derivations are selectors.
+    const job = jobLens(jobDraftNow());
+    const { messageText } = await passBuildCostsToParentJobs(job);
 
     if (activeGroupID) {
       const currentGroup = getActiveGroupObject();
-      currentGroup.addAreComplete(state.activeJob.jobID);
+      currentGroup.addAreComplete(job.jobID);
     }
 
     if (messageText) {
@@ -32,7 +42,7 @@ export function PassBuildCostsButton({ state }) {
     }
   }
 
-  if (state.activeJob.parentJobs.length === 0) {
+  if (!hasParents) {
     return null;
   }
 

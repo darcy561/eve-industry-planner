@@ -7,26 +7,41 @@ import { InventionCostsCard } from "./Invention Costs/inventionCostsCard";
 import { MaterialCardFrame_Purchasing } from "./Material Cards/materialCardFrame";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import TutorialTemplate from "../../../../Tutorials/tutorialTemplate";
-import getCurrentLinkedChildJobIDsForMaterial from "./Material Cards/functions/getCurrentLinkedChildJobIDsForMaterial.js";
+import { childJobIDsAfterEdits } from "../../../Edit Job Hooks/jobSelectors";
+import { useJobDraft } from "../../../Edit Job Hooks/useJobDraft";
+import { materialRequirementOf } from "../../../Edit Job Hooks/jobSelectors";
+import {
+  quantityPurchased,
+  quantityRemaining,
+} from "../../../Edit Job Hooks/materialSelectors";
 import { childJobSupplyForMaterial } from "./Material Cards/functions/childJobSupplyForMaterial.js";
 import JobSetupInfoFrame from "./JobSetupInfo/JobSetupInfoFrame";
 
-export function Purchasing_StandardLayout_EditJob(props) {
-  const { state } = props;
+export function Purchasing_StandardLayout_EditJob() {
+  const childJobEdits = useUsersStore(
+    (store) => store.editSession.parentChildToEdit.childJobs,
+  );
+  const temporaryChildJobs = useUsersStore(
+    (store) => store.editSession.temporaryChildJobs,
+  );
   const hideCompleteMaterials = useUsersStore(
     (state) => state.applicationSettings.hideCompleteMaterials,
   );
   const { jobArray } = useUsersStore((state) => state.jobData);
+  const jobID = useJobDraft((job) => job.jobID);
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const materials = useJobDraft((job) => job.build.materials);
+  const linkedChildJobs = useJobDraft((job) => job.build.childJobs);
+  const setups = useJobDraft((job) => job.build.setup);
 
   // Helper function to calculate child job data for a material
   const calculateChildJobData = (material) => {
     let childJobs = [];
     let remainingTotalToBeImported = 0;
-    const childJobLocation = getCurrentLinkedChildJobIDsForMaterial(
-      material.typeID,
-      state.activeJob,
-      state.temporaryChildJobs,
-      state.parentChildToEdit,
+    const childJobLocation = childJobIDsAfterEdits(
+      linkedChildJobs[material.typeID],
+      childJobEdits[material.typeID],
+      temporaryChildJobs[material.typeID],
     );
 
     if (childJobLocation.length > 0) {
@@ -34,7 +49,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
         return jobList.filter((job) => childJobLocation.includes(job.jobID));
       }
 
-      if (!state.activeJob.includedInGroup) {
+      if (!includedInGroup) {
         childJobs = filterJobs(jobArray);
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
           const matchingCostImport = Object.values(material.purchasing).find(
@@ -49,7 +64,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
       } else {
         childJobs = filterJobs([
           ...jobArray,
-          ...Object.values(state.temporaryChildJobs),
+          ...Object.values(temporaryChildJobs),
         ]);
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
           const matchingCostImport = Object.values(material.purchasing).find(
@@ -74,16 +89,20 @@ export function Purchasing_StandardLayout_EditJob(props) {
   const getMaterialStatus = (material) => {
     const { childJobs, remainingTotalToBeImported } =
       calculateChildJobData(material);
-    const childSupply = childJobSupplyForMaterial(
-      state.activeJob,
+    const stillNeeded = quantityRemaining(
       material,
+      materialRequirementOf(setups, material.typeID),
+    );
+    const childSupply = childJobSupplyForMaterial(
+      jobID,
+      material,
+      stillNeeded,
       childJobs,
     );
 
     const stillToBuy = Math.max(
       0,
-      material.quantityRemaining -
-        (childJobs.length === 0 ? 0 : childSupply.min),
+      stillNeeded - (childJobs.length === 0 ? 0 : childSupply.min),
     );
     if (stillToBuy > 0) return 0;
 
@@ -94,13 +113,16 @@ export function Purchasing_StandardLayout_EditJob(props) {
 
   // What still needs buying first, then the rest in name order.
   const sortedMaterials = useMemo(() => {
-    const materials = Object.values(state.activeJob.build.materials).filter(
+    const rows = Object.values(materials).filter(
       (material) =>
         !hideCompleteMaterials ||
-        material.quantityPurchased < material.quantity,
+        quantityPurchased(
+          material,
+          materialRequirementOf(setups, material.typeID),
+        ) < materialRequirementOf(setups, material.typeID),
     );
 
-    return materials.sort((a, b) => {
+    return rows.sort((a, b) => {
       const statusA = getMaterialStatus(a);
       const statusB = getMaterialStatus(b);
       if (statusA !== statusB) {
@@ -108,11 +130,16 @@ export function Purchasing_StandardLayout_EditJob(props) {
       }
       return a.name.localeCompare(b.name);
     });
+    // `getMaterialStatus` is rebuilt every render and closes over exactly the
+    // values below, so listing it would recompute this on every render and
+    // defeat the memo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    state.activeJob.build.materials,
-    state.activeJob,
-    state.temporaryChildJobs,
-    state.parentChildToEdit,
+    materials,
+    setups,
+    linkedChildJobs,
+    temporaryChildJobs,
+    childJobEdits,
     hideCompleteMaterials,
     jobArray,
   ]);
@@ -122,7 +149,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
       <TutorialTemplate TutorialContent={<TutorialStep2 />} />
 
       <Grid size={12}>
-        <PurchasingDataPanel_EditJob {...props} />
+        <PurchasingDataPanel_EditJob />
       </Grid>
       <Grid
         container
@@ -139,15 +166,14 @@ export function Purchasing_StandardLayout_EditJob(props) {
       >
         {sortedMaterials.map((material) => (
           <MaterialCardFrame_Purchasing
-            {...props}
             key={material.typeID}
             material={material}
           />
         ))}
-        <InventionCostsCard {...props} />
+        <InventionCostsCard />
       </Grid>
       <Grid size={12}>
-        <JobSetupInfoFrame {...props} />
+        <JobSetupInfoFrame />
       </Grid>
     </Grid>
   );

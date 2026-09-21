@@ -1,8 +1,11 @@
+import { act, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { renderCounts } from "./renderCounts.jsx";
 import {
   TEST_ACCOUNT_ID,
   TEST_LOCALE,
   usersStoreMock,
+  usersStoreOverSession,
   usersStoreState,
 } from "./usersStoreHarness.js";
 
@@ -149,5 +152,62 @@ describe("usersStoreMock", () => {
     expect(store.getState().account.accountID).toBe("first");
     state = usersStoreState({ account: { accountID: "second" } });
     expect(store.getState().account.accountID).toBe("second");
+  });
+});
+
+// What the counting harness is for: a component that selects one thing from the
+// session must not be woken by a change to another, or a render count measures
+// the harness rather than the component.
+describe("usersStoreOverSession", () => {
+  const openJob = (store) =>
+    store.getState().editSession.actions.openJob("job-1", {
+      jobID: "job-1",
+      name: "Rifter",
+      build: { materials: { 34: { typeID: 34 } }, extrasCosts: {} },
+    });
+
+  it("carries the stub slices and the real session together", () => {
+    const { default: store } = usersStoreOverSession({
+      account: { accountID: "acc-2" },
+    });
+
+    expect(store.getState().account.accountID).toBe("acc-2");
+    expect(store.getState().editSession.activeJobID).toBeNull();
+    expect(typeof store.getState().editSession.actions.openJob).toBe(
+      "function",
+    );
+  });
+
+  it("holds a component still through a change it did not select", () => {
+    const { default: store } = usersStoreOverSession();
+    openJob(store);
+    const renders = renderCounts();
+    const Panel = renders.watch("panel", () => {
+      const held = store((state) => state.editSession.activeJobID);
+      return <span>{held}</span>;
+    });
+
+    render(<Panel />);
+    renders.reset();
+    act(() => {
+      store.getState().editSession.actions.run({
+        name: "add extra cost",
+        recipe: (job) => {
+          job.build.extrasCosts = { "extra-1": { id: "extra-1", cost: 1 } };
+        },
+      });
+    });
+
+    expect(renders.of("panel")).toBe(0);
+  });
+
+  it("keeps the session when a test replaces the stubs", () => {
+    const { default: store } = usersStoreOverSession();
+    openJob(store);
+
+    store.setState(usersStoreState({ account: { accountID: "acc-3" } }));
+
+    expect(store.getState().account.accountID).toBe("acc-3");
+    expect(store.getState().editSession.activeJobID).toBe("job-1");
   });
 });

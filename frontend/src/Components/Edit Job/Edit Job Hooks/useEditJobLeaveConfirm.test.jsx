@@ -1,12 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
-const { navigated, store, search, persistGate, yielded } = vi.hoisted(() => ({
+const {
+  navigated,
+  store,
+  search,
+  persistGate,
+  yielded,
+  saved,
+  handedOver,
+  leaveSteps,
+} = vi.hoisted(() => ({
   navigated: [],
   store: { current: null },
   search: { current: {} },
   persistGate: { canPersist: true },
   yielded: [],
+  saved: [],
+  handedOver: [],
+  // One log for both, because the order of the two is the thing worth
+  // pinning: two arrays say each happened, not which happened first.
+  leaveSteps: [],
 }));
 
 // Stable, as the router's own is: a fresh function each render would re-run the
@@ -46,7 +60,11 @@ vi.mock(
 );
 
 vi.mock("../../../Functions/JobPlanner/closeActiveJob", () => ({
-  default: async () => true,
+  default: async (jobToSave, jobModifiedFlag) => {
+    saved.push({ jobID: jobToSave?.jobID, jobModifiedFlag });
+    leaveSteps.push("saved");
+    return true;
+  },
 }));
 
 vi.mock("../../../Events/jobDependencyTreeDialogueEvents", () => ({
@@ -84,7 +102,14 @@ function seed({
         updateOrAddJobsToJobArray: (job) => restored.push(job),
       },
     },
-    documentLock: { actions: { handOverEditAccess: async () => {} } },
+    documentLock: {
+      actions: {
+        handOverEditAccess: async (collection, docID) => {
+          handedOver.push({ collection, docID });
+          leaveSteps.push("handedOver");
+        },
+      },
+    },
   };
 
   // Leaving reads the job from the session, which is where the editor holds it,
@@ -93,22 +118,34 @@ function seed({
   actions.closeSession();
   if (activeJob) actions.openJob(activeJob.jobID, activeJob);
 
+  // Unsaved changes are a real change to the draft, because that is what the
+  // hook asks: a flag handed in would say the job had been edited while the
+  // layers under it said it had not.
+  if (jobModified && activeJob) {
+    actions.run({
+      name: "rename the job",
+      recipe: (held) => {
+        held.name = `${held.name} (edited)`;
+      },
+    });
+  }
+
   return { activeJob, jobModified };
 }
 
 /** Jobs put back into the array by a discard. */
 const restored = [];
 
-function mount(state) {
-  return renderHook(
-    (props) => useEditJobLeaveConfirm({ state: props?.state ?? state }),
-    { initialProps: { state } },
-  );
+function mount() {
+  return renderHook(() => useEditJobLeaveConfirm());
 }
 
 beforeEach(() => {
   navigated.length = 0;
   yielded.length = 0;
+  saved.length = 0;
+  handedOver.length = 0;
+  leaveSteps.length = 0;
   search.current = {};
   persistGate.canPersist = true;
 });
@@ -119,7 +156,9 @@ afterEach(() => {
 
 describe("asking to navigate away from an edited job", () => {
   it("leaves the page alone when there is no job open", async () => {
-    mount(seed({ activeJob: null }));
+    seed({ activeJob: null });
+
+    mount();
 
     const outcome = await act(async () =>
       requestEditJobNavigation({ jobID: "job-2" }),
@@ -129,7 +168,9 @@ describe("asking to navigate away from an edited job", () => {
   });
 
   it("does nothing when asked for the job already open", async () => {
-    mount(seed({ activeJob: job("job-1") }));
+    seed({ activeJob: job("job-1") });
+
+    mount();
 
     const outcome = await act(async () =>
       requestEditJobNavigation({ jobID: "job-1" }),
@@ -139,7 +180,9 @@ describe("asking to navigate away from an edited job", () => {
   });
 
   it("goes straight there when nothing has been changed", async () => {
-    mount(seed({ jobModified: false }));
+    seed({ jobModified: false });
+
+    mount();
 
     const outcome = await act(async () =>
       requestEditJobNavigation({ jobID: "job-2" }),
@@ -151,7 +194,9 @@ describe("asking to navigate away from an edited job", () => {
   });
 
   it("asks first when there are unsaved changes", async () => {
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
 
     let settled = false;
     await act(async () => {
@@ -167,7 +212,9 @@ describe("asking to navigate away from an edited job", () => {
   });
 
   it("names the job it would move to", async () => {
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
 
     await act(async () => {
       requestEditJobNavigation({ jobID: "job-2" });
@@ -179,7 +226,9 @@ describe("asking to navigate away from an edited job", () => {
   });
 
   it("stays put when the prompt is dismissed", async () => {
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
     let outcome;
     await act(async () => {
       requestEditJobNavigation({ jobID: "job-2" }).then((o) => {
@@ -196,7 +245,9 @@ describe("asking to navigate away from an edited job", () => {
 
 describe("another session asking for the lock", () => {
   it("leaves it to the slice when there is no job open", async () => {
-    mount(seed({ activeJob: null }));
+    seed({ activeJob: null });
+
+    mount();
 
     const outcome = await act(async () =>
       requestEditJobReleaseConfirmation({ collection: "jobs", docID: "job-1" }),
@@ -206,7 +257,9 @@ describe("another session asking for the lock", () => {
   });
 
   it("leaves it to the slice when nothing has been changed", async () => {
-    mount(seed({ jobModified: false }));
+    seed({ jobModified: false });
+
+    mount();
 
     const outcome = await act(async () =>
       requestEditJobReleaseConfirmation({ collection: "jobs", docID: "job-1" }),
@@ -216,7 +269,9 @@ describe("another session asking for the lock", () => {
   });
 
   it("asks before handing over unsaved changes", async () => {
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
 
     await act(async () => {
       requestEditJobReleaseConfirmation({
@@ -236,8 +291,8 @@ describe("another session asking for the lock", () => {
   // would answer the other session on the reader's behalf and leave the
   // dialogue open with nothing behind it.
   it("does not answer for the reader when the page re-renders", async () => {
-    const state = seed({ jobModified: true });
-    const { result, rerender } = mount(state);
+    seed({ jobModified: true });
+    const { result, rerender } = mount();
 
     let outcome;
     await act(async () => {
@@ -249,15 +304,17 @@ describe("another session asking for the lock", () => {
       });
     });
 
-    rerender({ state: { ...state } });
-    rerender({ state: { ...state } });
+    rerender();
+    rerender();
 
     expect(outcome).toBeUndefined();
     expect(result.current.leaveConfirmDialogueProps.open).toBe(true);
   });
 
   it("cancels what is pending when the page goes", async () => {
-    const { unmount } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { unmount } = mount();
     let outcome;
     await act(async () => {
       requestEditJobReleaseConfirmation({
@@ -274,7 +331,9 @@ describe("another session asking for the lock", () => {
   });
 
   it("tells the other session to carry on when dismissed", async () => {
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
     let outcome;
     await act(async () => {
       requestEditJobReleaseConfirmation({
@@ -294,7 +353,9 @@ describe("another session asking for the lock", () => {
 describe("saving from the prompt", () => {
   it("is refused while the job cannot be written", async () => {
     persistGate.canPersist = false;
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
     await act(async () => {
       requestEditJobNavigation({ jobID: "job-2" });
     });
@@ -307,7 +368,9 @@ describe("saving from the prompt", () => {
 
   it("greys out saving while the job cannot be written", async () => {
     persistGate.canPersist = false;
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
 
     await act(async () => {
       requestEditJobNavigation({ jobID: "job-2" });
@@ -320,9 +383,9 @@ describe("saving from the prompt", () => {
   // while the reader had it open, when putting it back would show them what they
   // have just been told is gone.
   it("does not put back a job deleted while it was open", async () => {
-    const { result } = mount(
-      seed({ jobModified: true, deletedJobIDs: ["job-1"] }),
-    );
+    seed({ jobModified: true, deletedJobIDs: ["job-1"] });
+
+    const { result } = mount();
 
     await act(async () => {
       requestEditJobNavigation({ jobID: "job-2" });
@@ -335,7 +398,9 @@ describe("saving from the prompt", () => {
   });
 
   it("puts back a job the store still holds", async () => {
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
 
     await act(async () => {
       requestEditJobNavigation({ jobID: "job-2" });
@@ -351,9 +416,9 @@ describe("saving from the prompt", () => {
   // needs the same refusal: a job that went while this reader held it must not
   // be put back for the session taking over.
   it("does not put back a job deleted while the lock was handed over", async () => {
-    const { result } = mount(
-      seed({ jobModified: true, deletedJobIDs: ["job-1"] }),
-    );
+    seed({ jobModified: true, deletedJobIDs: ["job-1"] });
+
+    const { result } = mount();
 
     await act(async () => {
       requestEditJobReleaseConfirmation({
@@ -369,7 +434,9 @@ describe("saving from the prompt", () => {
   });
 
   it("puts back a job the store still holds when handing the lock over", async () => {
-    const { result } = mount(seed({ jobModified: true }));
+    seed({ jobModified: true });
+
+    const { result } = mount();
 
     await act(async () => {
       requestEditJobReleaseConfirmation({
@@ -382,5 +449,64 @@ describe("saving from the prompt", () => {
     });
 
     expect(restored.map((job) => job.jobID)).toEqual(["job-1"]);
+  });
+
+  // The whole of the save-and-hand-over path, which is the one a reader takes
+  // when another session asks for a job they have unsaved work on: the job is
+  // written first, the lock goes to the session waiting for it, and only then
+  // does the holder leave the page. In that order, because a hand-over that
+  // went first would let the other session read the job as it was before the
+  // save.
+  it("saves, hands the lock over and then leaves", async () => {
+    search.current = { activeGroup: "group-1" };
+    seed({ jobModified: true });
+
+    const { result } = mount();
+
+    let outcome;
+    await act(async () => {
+      requestEditJobReleaseConfirmation({
+        collection: "jobs",
+        docID: "job-1",
+      }).then((answer) => {
+        outcome = answer;
+      });
+    });
+    await act(async () => {
+      await result.current.leaveConfirmDialogueProps.onSave();
+    });
+
+    expect(saved).toEqual([{ jobID: "job-1", jobModifiedFlag: true }]);
+    expect(handedOver).toEqual([{ collection: "jobs", docID: "job-1" }]);
+    expect(leaveSteps).toEqual(["saved", "handedOver"]);
+    expect(navigated[0]).toMatchObject({ params: { groupID: "group-1" } });
+    expect(outcome).toBe("proceed");
+  });
+
+  // Handing the lock over sends the holder back where they came from, and a
+  // reader who was looking at the group's job tree is sent back to it centred
+  // on the job they have just let go of. The id has to be the route's own: by
+  // the time this navigates, the save or the discard has ended the session, so
+  // a job read out of it then is no job at all.
+  it("centres the group's job tree on the job it handed over", async () => {
+    search.current = { activeGroup: "group-1", pageView: "jobTree" };
+    seed({ jobModified: true });
+
+    const { result } = mount();
+
+    await act(async () => {
+      requestEditJobReleaseConfirmation({
+        collection: "jobs",
+        docID: "job-1",
+      });
+    });
+    await act(async () => {
+      await result.current.leaveConfirmDialogueProps.onDiscard();
+    });
+
+    expect(navigated[0]).toMatchObject({
+      params: { groupID: "group-1" },
+      search: { pageView: "jobTree", focusJobId: "job-1" },
+    });
   });
 });

@@ -6,6 +6,11 @@ import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
 import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
+import {
+  useJobActions,
+  useJobDraft,
+  useParentLinkIntents,
+} from "./Edit Job Hooks/useJobDraft";
 
 /**
  * The jobs the job being edited can be linked to as a parent, as the body of a
@@ -13,40 +18,41 @@ import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
  * planner's jobs costs nothing while nobody is looking at it.
  *
  * @param {Object} props
- * @param {Object} props.state - Edit Job reducer state
- * @param {Object} props.actions - Edit Job reducer actions
  * @param {Function} props.onLinked - Called once a parent has been chosen
  */
-export function ParentJobOptions({ state, actions, onLinked }) {
+export function ParentJobOptions({ onLinked }) {
   const { jobArray } = useUsersStore((rootState) => rootState.jobData);
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const linkEdits = useParentLinkIntents();
+  const itemID = useJobDraft((job) => job.itemID);
+  const parentJobs = useJobDraft((job) => job.parentJobs);
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const groupID = useJobDraft((job) => job.groupID);
+  const actions = useJobActions();
+  const jobLockReadOnly = useActiveJobReadOnly();
 
   const matches = useMemo(() => {
-    const active = state.activeJob;
-    const itemID = active.itemID;
-
     const usesActiveOutputAsMaterial = (job) =>
       job.build?.materials?.[String(itemID)] !== undefined;
 
     return jobArray.filter((job) => {
-      if (state.parentChildToEdit.parentJobs.remove.includes(job.jobID)) {
+      if (linkEdits.remove.includes(job.jobID)) {
         return true;
       }
       if (!usesActiveOutputAsMaterial(job)) {
         return false;
       }
-      if (active.parentJobs.includes(job.jobID)) {
+      if (parentJobs.includes(job.jobID)) {
         return false;
       }
-      if (state.parentChildToEdit.parentJobs.add.includes(job.jobID)) {
+      if (linkEdits.add.includes(job.jobID)) {
         return false;
       }
-      if (active.includedInGroup && job.groupID !== active.groupID) {
+      if (includedInGroup && job.groupID !== groupID) {
         return false;
       }
       return true;
     });
-  }, [jobArray, state.activeJob, state.parentChildToEdit.parentJobs]);
+  }, [jobArray, linkEdits, itemID, parentJobs, includedInGroup, groupID]);
 
   return (
     <Grid container>

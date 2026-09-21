@@ -16,16 +16,22 @@ import {
   importedQuantities,
   importPurchaseToMaterial,
 } from "../../../../Edit Job Hooks/jobCommands";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { useMaterialFigures } from "../../../../Edit Job Hooks/useMaterialFigures";
 
 export function AddMaterialCost_Purchasing({
-  state,
-  actions,
   material,
   childSupply,
   childJobs,
 }) {
+  const localPricing = useJobDraft((job) => job.build.localPricing);
+  const { remaining } = useMaterialFigures(material);
+  const actions = useJobActions();
   const { marketLocation, listingType } = useEffectiveMarketHub(
-    state.activeJob.build,
+    localPricing,
     PRICING_SIDE.BUYING,
   );
 
@@ -39,7 +45,7 @@ export function AddMaterialCost_Purchasing({
   // imported, so the form offers what the children cannot be counted on for.
   const stillToBuy = Math.max(
     0,
-    material.quantityRemaining - (childJobs.length === 0 ? 0 : childSupply.min),
+    remaining - (childJobs.length === 0 ? 0 : childSupply.min),
   );
 
   const getInitialQuantity = () => stillToBuy;
@@ -61,7 +67,7 @@ export function AddMaterialCost_Purchasing({
       itemCount: itemCountInput,
       itemCost: itemCostInput,
     };
-    const availableToBuy = material.quantityRemaining;
+    const availableToBuy = remaining;
     const { leftOver } = importedQuantities(purchase, availableToBuy);
 
     actions.run(

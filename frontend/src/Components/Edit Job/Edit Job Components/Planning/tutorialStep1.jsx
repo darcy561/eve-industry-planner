@@ -1,7 +1,8 @@
 import { Typography, Grid } from "@mui/material";
+import { useJobDraft } from "../../Edit Job Hooks/useJobDraft";
 
-export function TutorialStep1(props) {
-  const { state } = props;
+export function TutorialStep1() {
+  const jobName = useJobDraft((job) => job.name);
   return (
     <Grid
       container
@@ -23,8 +24,8 @@ export function TutorialStep1(props) {
             overflowWrap: "break-word",
           }}
         >
-          This is your first step along the way to building your{" "}
-          {state.activeJob.name}.{<br />}
+          This is your first step along the way to building your {jobName}.
+          {<br />}
           {<br />}
           Use the available options to set up the build and calculate the
           resources that are needed to complete your job.{<br />}

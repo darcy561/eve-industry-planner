@@ -42,7 +42,6 @@ beforeEach(() => {
   store.current = {
     jobData: {
       actions: {
-        setActiveJobID: () => {},
         findJobInJobArray: () => (held.current ? { jobID: "job-1" } : null),
         updateOrAddJobsToJobArray: (job) => restored.push(job),
       },

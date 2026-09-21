@@ -40,18 +40,14 @@ vi.mock("./parentJobOptions", () => ({
 }));
 
 const { LinkedJobBadge } = await import("./Linked Job Badge.jsx");
+const { default: useUsersStore } = await import("../../Zustand/usersStore");
 
 const theme = createTheme();
-
-const actions = {
-  getCurrentParentJobs: () => [],
-  markParentJobForRemoval: vi.fn(),
-};
 
 function show() {
   return render(
     <ThemeProvider theme={theme}>
-      <LinkedJobBadge state={{ activeJob: {} }} actions={actions} />
+      <LinkedJobBadge />
     </ThemeProvider>,
   );
 }
@@ -69,6 +65,15 @@ beforeEach(() => {
   readOnly.current = false;
   dialogueRenders.count = 0;
   store.current = { jobData: { actions: { findJobInJobArray: () => null } } };
+  const { actions } = useUsersStore.getState().editSession;
+  actions.closeSession();
+  actions.openJob("job-1", {
+    jobID: "job-1",
+    name: "Tritanium",
+    parentJobs: [],
+    build: {},
+    esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+  });
 });
 
 describe("linking a parent job from the job being edited", () => {

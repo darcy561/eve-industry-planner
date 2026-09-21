@@ -191,7 +191,7 @@ describe("selling a job's output, from listing to a stored document", () => {
       ],
     };
 
-    const offered = findOrderTransactions(job, null);
+    const offered = findOrderTransactions(job.esi, null);
 
     expect(offered.map((t) => t.transaction_id)).toEqual([700, 701]);
     expect(offered.every((t) => t.isFromMarket)).toBe(true);
@@ -211,7 +211,7 @@ describe("selling a job's output, from listing to a stored document", () => {
     expect(job.averageItemSalePrice()).toBe(1000000);
 
     // 6. A sale already linked is not offered a second time.
-    expect(findOrderTransactions(job, null)).toEqual([]);
+    expect(findOrderTransactions(job.esi, null)).toEqual([]);
 
     // 7. The document carries the rows, and nothing derived.
     const document = job.toDocument();
@@ -266,7 +266,7 @@ describe("selling a job's output, from listing to a stored document", () => {
         ...journalFor(sales),
       ],
     };
-    job.addTransaction(findOrderTransactions(job, null));
+    job.addTransaction(findOrderTransactions(job.esi, null));
 
     expect(job.totalSales).toBe(100000000);
 
@@ -299,10 +299,10 @@ describe("selling a job's output, from listing to a stored document", () => {
       ),
     };
 
-    expect(findOrderTransactions(job, null)).toEqual([]);
+    expect(findOrderTransactions(job.esi, null)).toEqual([]);
 
     characterJournal.data = { 2117000001: journalFor(sales) };
 
-    expect(findOrderTransactions(job, null)).toHaveLength(2);
+    expect(findOrderTransactions(job.esi, null)).toHaveLength(2);
   });
 });

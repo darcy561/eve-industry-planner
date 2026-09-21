@@ -1,4 +1,6 @@
 import useUsersStore from "../../Zustand/usersStore";
+import { jobDraftNow } from "../../Components/Edit Job/Edit Job Hooks/useJobDraft";
+import { hasChanges } from "../../Components/Edit Job/Edit Job Hooks/jobDraftStore";
 
 /**
  * Small JSON-safe hints for Sentry `extra` fields. Avoid attaching full Zustand
@@ -29,24 +31,32 @@ export function getSentryUsersStoreContextHints() {
 }
 
 /**
- * @param {object | null | undefined} state - Edit job reducer state
+ * What the edit session held when something threw.
+ *
+ * Read from the store rather than taken as an argument: this is asked for at the
+ * moment of an error, and a page that carried the session down to the error
+ * boundary to have it ready is the prop-drilled page these hints describe.
+ *
+ * @returns {object}
  */
-export function getSentryEditJobStateHints(state) {
-  if (!state || typeof state !== "object") {
+export function getSentryEditJobStateHints() {
+  const session = useUsersStore.getState().editSession;
+  if (!session) {
     return { editJobState: "missing" };
   }
-  const aj = state.activeJob;
+
+  const openJob = jobDraftNow();
   return {
-    editJobStepIndex: typeof aj?.jobStatus === "number" ? aj.jobStatus : null,
-    editJobId: aj?.jobID ?? null,
-    jobModified: Boolean(state.jobModified),
-    isLoading: Boolean(state.isLoading),
-    temporaryChildJobsCount: Array.isArray(state.temporaryChildJobs)
-      ? state.temporaryChildJobs.length
-      : 0,
-    hasEsiDataToLink: Boolean(state.esiDataToLink),
-    hasParentChildToEdit: Boolean(state.parentChildToEdit),
-    includedInGroup: Boolean(aj?.includedInGroup),
-    isReadyToSell: Boolean(aj?.isReadyToSell),
+    editJobStepIndex:
+      typeof openJob?.jobStatus === "number" ? openJob.jobStatus : null,
+    editJobId: openJob?.jobID ?? null,
+    jobModified: hasChanges(session.draft),
+    isLoading: Boolean(session.isLoading),
+    temporaryChildJobsCount: Object.keys(session.temporaryChildJobs ?? {})
+      .length,
+    hasEsiDataToLink: Boolean(session.esiDataToLink),
+    hasParentChildToEdit: Boolean(session.parentChildToEdit),
+    includedInGroup: Boolean(openJob?.includedInGroup),
+    isReadyToSell: Boolean(openJob?.isReadyToSell),
   };
 }

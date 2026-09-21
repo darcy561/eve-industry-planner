@@ -3,6 +3,7 @@ import {
   formatNumberForLocale,
   numberToShortText,
 } from "../../../../../../Functions/Helper/numberParser";
+import { useMaterialFigures } from "../../../../Edit Job Hooks/useMaterialFigures";
 
 /**
  * Says when more of a material was bought than the job needs.
@@ -14,12 +15,12 @@ import {
  * @param {import("../../../../../../Classes/jobMaterial").default} props.material
  */
 export function MaterialExcessBox_Purchasing({ material }) {
-  const excess = material.excessQuantity;
+  const { excess, imported, needed } = useMaterialFigures(material);
 
   return (
     <Fade in={excess > 0} unmountOnExit>
       <Tooltip
-        title={`${numberToShortText(material.quantityImported, 0)} bought for a job needing ${numberToShortText(material.quantity, 0)}. The extra is not charged to this job.`}
+        title={`${numberToShortText(imported, 0)} bought for a job needing ${numberToShortText(needed, 0)}. The extra is not charged to this job.`}
         arrow
         placement="top"
       >

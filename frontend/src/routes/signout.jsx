@@ -8,6 +8,7 @@ import { clearInboundJobDocumentCoalesce } from "../Functions/Debounce/inboundJo
 import useUsersStore from "../Zustand/usersStore";
 import esiCredentials from "../Functions/Auth/esiCredentials/provider.js";
 import { isDeliberateSignout } from "../Functions/Auth/signoutIntent.js";
+import { endEditSession } from "../Functions/JobPlanner/editSessionLifetime.js";
 
 function clearClientSessionState() {
   const { resetJobDataStore } = useUsersStore.getState().jobData.actions;
@@ -31,6 +32,9 @@ function clearClientSessionState() {
   resetPlannerSettingsStore();
   resetActivePlannerStore();
   resetWorldDataStore();
+  // The job somebody was editing, and what they had changed on it, goes with the
+  // rest of their data rather than waiting for the next page to replace it.
+  endEditSession();
   clearPlannerAuthCookiesClientSide();
   // Held ESI access tokens live outside the store, so no slice reset drops them.
   esiCredentials.reset();

@@ -214,7 +214,7 @@ describe("which sales are offered for linking", () => {
       },
     ]);
 
-    expect(findOrderTransactions(job, null)).toEqual([]);
+    expect(findOrderTransactions(job.esi, null)).toEqual([]);
 
     // Both entries present: the row is complete and can be offered.
     withJournal([
@@ -237,7 +237,7 @@ describe("which sales are offered for linking", () => {
       },
     ]);
 
-    const [offered] = findOrderTransactions(job, null);
+    const [offered] = findOrderTransactions(job.esi, null);
     expect(offered.amount).toBe(500);
     expect(offered.tax).toBe(18);
     // "Market: " and everything from " bought" are the journal's wording, not

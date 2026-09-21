@@ -3,9 +3,10 @@ import { Selling_StandardLayout_EditJob } from "./Standard Layout/standardLayout
 import useUsersStore from "../../../../Zustand/usersStore";
 import { useGetCharacterOrdersAndWalletData } from "../../../../Hooks/EveEsi/useGetCharacterOrdersAndWalletData";
 import { useSellingRateInputs } from "../../../../Hooks/React Query/Character/useSellingRateInputs";
+import { useJobDraft } from "../../Edit Job Hooks/useJobDraft";
 
-export function LayoutSelector_EditJob_Selling(props) {
-  const { state } = props;
+export function LayoutSelector_EditJob_Selling() {
+  const marketOrders = useJobDraft((job) => job.esi.marketOrders);
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
   const mainCharacterHash = useUsersStore
     .getState()
@@ -15,9 +16,7 @@ export function LayoutSelector_EditJob_Selling(props) {
     ...new Set(
       [
         mainCharacterHash,
-        ...Object.values(state.activeJob.esi.marketOrders).map(
-          (order) => order.CharacterHash,
-        ),
+        ...Object.values(marketOrders).map((order) => order.CharacterHash),
       ].filter(Boolean),
     ),
   ];
@@ -48,7 +47,6 @@ export function LayoutSelector_EditJob_Selling(props) {
     case true:
       return (
         <Selling_StandardLayout_EditJob
-          {...props}
           isLoading={isLoading}
           isError={isError}
           error={error}
@@ -57,7 +55,6 @@ export function LayoutSelector_EditJob_Selling(props) {
     case false:
       return (
         <Selling_StandardLayout_EditJob
-          {...props}
           isLoading={isLoading}
           isError={isError}
           error={error}
@@ -66,7 +63,6 @@ export function LayoutSelector_EditJob_Selling(props) {
     default:
       return (
         <Selling_StandardLayout_EditJob
-          {...props}
           isLoading={isLoading}
           isError={isError}
           error={error}

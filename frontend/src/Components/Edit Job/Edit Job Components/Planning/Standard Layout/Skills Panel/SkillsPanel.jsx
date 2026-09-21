@@ -19,6 +19,8 @@ import SkillsWhatIf from "./skillsWhatIf";
 import SkillLevelPips from "./skillLevelPips";
 import SkillsTimeEffect from "./skillsTimeEffect";
 import { useJobCommitment } from "../../../../../../Hooks/Planner/useJobCommitment";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
+import { useSelectedSetup } from "../../../../Edit Job Hooks/useSelectedSetup";
 
 /**
  * What this job asks of a character, what would make it quicker, and what makes
@@ -28,14 +30,14 @@ import { useJobCommitment } from "../../../../../../Hooks/Planner/useJobCommitme
  * job, the seller lists the order — so each group says whose levels it is
  * quoting.
  *
- * @param {object} props
- * @param {object} props.state - Edit Job state
- * @param {object} props.actions - Edit Job actions
  */
-export function SkillsPanel({ state, actions }) {
-  const { activeJob } = state;
-  const buildCharacterHash = quotedCharacterHash(activeJob.selectedSetup);
-  const { seller, saleLocation } = useJobSellingContext(activeJob);
+export function SkillsPanel() {
+  const selectedSetup = useSelectedSetup();
+  const skills = useJobDraft((job) => job.skills);
+  const jobType = useJobDraft((job) => job.jobType);
+  const itemID = useJobDraft((job) => job.itemID);
+  const buildCharacterHash = quotedCharacterHash(selectedSetup);
+  const { seller, saleLocation } = useJobSellingContext();
 
   const findCharacterByHash = useUsersStore(
     (store) => store.account.actions.findCharacterByHash,
@@ -50,17 +52,17 @@ export function SkillsPanel({ state, actions }) {
 
   // A job whose output is owed to its parents never lists anything, so what
   // selling would cost is not a question it has.
-  const { surplus } = useJobCommitment({ state, actions });
+  const { surplus } = useJobCommitment();
   const build = useGetCharacterSkills(buildCharacterHash);
   const sell = useGetCharacterSkills(seller.hash);
   const { data: rates } = useSellingRates(saleLocation, seller.hash);
 
-  if (!activeJob.selectedSetup) return null;
+  if (!selectedSetup) return null;
 
   const groups = groupJobSkills({
-    jobSkills: activeJob.skills,
+    jobSkills: skills,
     characterSkills: build.data ?? null,
-    jobType: activeJob.jobType,
+    jobType: jobType,
     saleLocation,
     sells: surplus > 0,
     proposed,
@@ -131,8 +133,8 @@ export function SkillsPanel({ state, actions }) {
         ))}
 
         <SkillsTimeEffect
-          setup={activeJob.selectedSetup}
-          jobSkills={activeJob.skills}
+          setup={selectedSetup}
+          jobSkills={skills}
           characterSkills={build.data ?? null}
           proposed={proposed}
         />
@@ -142,11 +144,8 @@ export function SkillsPanel({ state, actions }) {
             brokerFee={rates.brokerFee}
             salesTax={rates.salesTax}
             listedValue={
-              getMarketPriceForType(
-                activeJob.itemID,
-                saleLocation?.pricedAtID,
-                "sell",
-              ) * surplus
+              getMarketPriceForType(itemID, saleLocation?.pricedAtID, "sell") *
+              surplus
             }
             quantity={surplus}
             proposed={proposed}

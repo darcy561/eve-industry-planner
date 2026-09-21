@@ -9,8 +9,8 @@ import { render, screen } from "@testing-library/react";
  * player is not answering fewer questions on a phone. Nothing else checks that,
  * and a panel dropped from one layout is invisible to every per-panel test.
  *
- * The panels themselves are stubbed — this is about which are mounted and that
- * each is handed the stage's props, not about what any of them renders.
+ * The panels themselves are stubbed — this is about which are mounted, and that
+ * none of them is handed the job, not about what any of them renders.
  */
 
 const PANELS = [
@@ -67,7 +67,6 @@ const { Planning_StandardLayout_EditJob } =
   await import("./Standard Layout/standardLayout");
 const { Planning_MobileLayout_EditJob } =
   await import("./Mobile Layout/mobileLayout");
-const { jobFixture } = await import("../../../../tests/jobFixture");
 
 const expected = [
   "ProductionStats",
@@ -80,30 +79,28 @@ const expected = [
   "SkillsPanel",
 ];
 
-const props = {
-  state: { activeJob: jobFixture() },
-  actions: { getCurrentParentJobs: () => [] },
-};
-
 describe.each([
   ["the standard layout", Planning_StandardLayout_EditJob],
   ["the mobile layout", Planning_MobileLayout_EditJob],
 ])("%s", (_name, Layout) => {
   it("mounts every panel the stage answers with", () => {
-    render(<Layout {...props} />);
+    render(<Layout />);
 
     for (const panel of expected) {
       expect(screen.getByTestId(panel)).toBeInTheDocument();
     }
   });
 
-  it("hands each panel the stage's state", () => {
-    render(<Layout {...props} />);
+  // Every panel on this stage reads the job out of the store for itself, so the
+  // layout hands none of them anything. One starting to take the job again is a
+  // step back to the prop-drilled page.
+  it("hands nothing to the panels, which read the job themselves", () => {
+    render(<Layout />);
 
     for (const panel of expected) {
       expect(screen.getByTestId(panel)).toHaveAttribute(
         "data-has-state",
-        "true",
+        "false",
       );
     }
   });

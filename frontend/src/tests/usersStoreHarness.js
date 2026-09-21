@@ -91,7 +91,6 @@ const sliceDefaults = {
       findJobInJobArray: () => null,
       getGroupObject: () => null,
       getActiveGroupObject: () => null,
-      getCurrentParentJobs: () => [],
       updateOrAddJobsToJobArray: vi.fn(),
       addGroupToGroupArray: vi.fn(),
       updateModifiedGroups: vi.fn(),
@@ -310,5 +309,37 @@ export function usersStoreMock(state = {}) {
     default: Object.assign(useStore, {
       getState: () => withSession(read()),
     }),
+  };
+}
+
+/**
+ * The module body for `vi.mock("…/Zustand/usersStore")` when the test reads what
+ * re-rendered.
+ *
+ * {@link usersStoreMock} subscribes every caller to the whole edit session, so a
+ * component re-renders on any change to it however narrowly it selects. A test
+ * asserting on what is drawn cannot tell; a render count reads zero where it
+ * should read one, or never reaches zero at all. This is a real store instead —
+ * the stub slices as its state, the real edit session slice over them — so a
+ * selector subscribes the way it does in the app.
+ *
+ * The state is built once, so a field set on an object the caller passed in does
+ * not reach it — the trap {@link usersStoreMock} carries, with no reader form
+ * here to escape it. A test that needs different stubs partway through sets
+ * them: `useUsersStore.setState(usersStoreState({…}))`, which replaces the stub
+ * slices and leaves the session alone.
+ *
+ * @param {Object} [state] - A state from {@link usersStoreState}, or the
+ *   overrides to build one from.
+ * @returns {{default: Function}} The mocked module.
+ */
+export function usersStoreOverSession(state = {}) {
+  const built = state[BUILT] ? state : usersStoreState(state);
+
+  return {
+    default: create((set, get) => ({
+      ...built,
+      ...editSessionSlice(set, get),
+    })),
   };
 }

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { LoadingPage } from "../loadingPage";
+import { useJobDraft } from "./Edit Job Hooks/useJobDraft";
 
 const LayoutSelector_EditJob_Planning = lazy(() =>
   import("./Edit Job Components/Planning/layoutSelector").then((module) => ({
@@ -27,9 +28,8 @@ const LayoutSelector_EditJob_Selling = lazy(() =>
   })),
 );
 
-export default function EditJobStepContentSelector(props) {
-  const { state } = props;
-  const status = state.activeJob?.jobStatus ?? 0;
+export default function EditJobStepContentSelector() {
+  const status = useJobDraft((job) => job.jobStatus) ?? 0;
 
   switch (status) {
     case 0:
@@ -39,7 +39,7 @@ export default function EditJobStepContentSelector(props) {
             <LoadingPage variant="simple" helperText="Loading step..." />
           }
         >
-          <LayoutSelector_EditJob_Planning {...props} />
+          <LayoutSelector_EditJob_Planning />
         </Suspense>
       );
     case 1:
@@ -49,7 +49,7 @@ export default function EditJobStepContentSelector(props) {
             <LoadingPage variant="simple" helperText="Loading step..." />
           }
         >
-          <LayoutSelector_EditJob_Purchasing {...props} />
+          <LayoutSelector_EditJob_Purchasing />
         </Suspense>
       );
     case 2:
@@ -59,7 +59,7 @@ export default function EditJobStepContentSelector(props) {
             <LoadingPage variant="simple" helperText="Loading step..." />
           }
         >
-          <LayoutSelector_EditJob_Building {...props} />
+          <LayoutSelector_EditJob_Building />
         </Suspense>
       );
     case 3:
@@ -69,7 +69,7 @@ export default function EditJobStepContentSelector(props) {
             <LoadingPage variant="simple" helperText="Loading step..." />
           }
         >
-          <LayoutSelector_EditJob_Complete {...props} />
+          <LayoutSelector_EditJob_Complete />
         </Suspense>
       );
     case 4:
@@ -79,7 +79,7 @@ export default function EditJobStepContentSelector(props) {
             <LoadingPage variant="simple" helperText="Loading step..." />
           }
         >
-          <LayoutSelector_EditJob_Selling {...props} />
+          <LayoutSelector_EditJob_Selling />
         </Suspense>
       );
     default:
@@ -89,7 +89,7 @@ export default function EditJobStepContentSelector(props) {
             <LoadingPage variant="simple" helperText="Loading step..." />
           }
         >
-          <LayoutSelector_EditJob_Planning {...props} />
+          <LayoutSelector_EditJob_Planning />
         </Suspense>
       );
   }

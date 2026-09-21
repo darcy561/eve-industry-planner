@@ -10,6 +10,10 @@ import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import Transaction from "../../../../../../Classes/transaction";
 import ContentDialogue from "../../../../../../Styled Components/Dialogue/ContentDialogue";
 import { addCustomTransaction } from "../../../../Edit Job Hooks/jobCommands";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 
 /**
  * The trigger for this dialogue already gates on the active job lock, but we
@@ -17,11 +21,13 @@ import { addCustomTransaction } from "../../../../Edit Job Hooks/jobCommands";
  * locks its internal AddIcon rows): if the dialogue is mounted while the lock
  * flips to read-only, we still refuse to mutate the persisted job.
  */
-export function AddCustomTransactionDialogue({ state, actions, onClose }) {
+export function AddCustomTransactionDialogue({ onClose }) {
   const CharacterHash = useUsersStore
     .getState()
     .account.actions.getMainCharacterHash();
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const jobLockReadOnly = useActiveJobReadOnly();
+  const itemID = useJobDraft((job) => job.itemID);
+  const actions = useJobActions();
   const [transactionData, setTransactionData] = useState({
     order_id: null,
     journal_ref_id: null,
@@ -32,7 +38,7 @@ export function AddCustomTransactionDialogue({ state, actions, onClose }) {
     date: new Date(),
     location_id: null,
     is_corp: false,
-    type_id: state.activeJob.itemID,
+    type_id: itemID,
     tax: 0,
     description: null,
     CharacterHash: CharacterHash,

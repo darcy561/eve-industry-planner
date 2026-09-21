@@ -24,16 +24,31 @@ import {
   PRICING_SIDE,
   setJobPricingSide,
 } from "../../../../../../Functions/MarketData/pricingSide.js";
+import { useBuildCost } from "../../../../Edit Job Hooks/useBuildCost";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import {
+  materialRequirementOf,
+  materialsBoughtInFull,
+  perItem,
+} from "../../../../Edit Job Hooks/jobSelectors";
+import { quantityRemaining } from "../../../../Edit Job Hooks/materialSelectors";
 
-export function PurchasingDataPanel_EditJob(props) {
-  const { state, actions } = props;
+export function PurchasingDataPanel_EditJob() {
+  const { materialCost, produced } = useBuildCost();
+  const materials = useJobDraft((job) => job.build.materials);
+  const setups = useJobDraft((job) => job.build.setup);
+  const jobID = useJobDraft((job) => job.jobID);
+  const localPricing = useJobDraft((job) => job.build.localPricing);
+  const actions = useJobActions();
+  const totalComplete = materialsBoughtInFull(materials, setups);
   const hideCompleteMaterials = useUsersStore(
     (state) => state.applicationSettings.hideCompleteMaterials,
   );
   const { toggleHideCompleteMaterials } =
     useUsersStore.getState().applicationSettings.actions;
-
-  const totalComplete = state.activeJob.completedMaterialCount;
 
   return (
     <ContentPanel>
@@ -54,7 +69,7 @@ export function PurchasingDataPanel_EditJob(props) {
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body1" } }}>
               Total Complete Items: {totalComplete} /{" "}
-              {Object.keys(state.activeJob.build.materials).length}
+              {Object.keys(materials).length}
             </Typography>
           </Grid>
           <Grid
@@ -65,8 +80,7 @@ export function PurchasingDataPanel_EditJob(props) {
             }}
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
-              Total Material Cost:{" "}
-              {formatNumberForLocale(state.activeJob.totalMaterialCost)}
+              Total Material Cost: {formatNumberForLocale(materialCost)}
             </Typography>
           </Grid>
           <Grid
@@ -78,10 +92,7 @@ export function PurchasingDataPanel_EditJob(props) {
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
               Material Cost Per Item:{" "}
-              {formatNumberForLocale(
-                state.activeJob.totalMaterialCost /
-                  state.activeJob.totalQuantityProduced,
-              )}
+              {formatNumberForLocale(perItem(materialCost, produced))}
             </Typography>
           </Grid>
         </Grid>
@@ -116,8 +127,7 @@ export function PurchasingDataPanel_EditJob(props) {
               md: 4,
             }}
           >
-            {totalComplete <
-              Object.keys(state.activeJob.build.materials).length && (
+            {totalComplete < Object.keys(materials).length && (
               <Grid container size={12}>
                 <Grid size={6}>
                   <Tooltip
@@ -128,7 +138,7 @@ export function PurchasingDataPanel_EditJob(props) {
                       variant="outlined"
                       size="small"
                       onClick={() => {
-                        showShoppingList([state.activeJob.jobID]);
+                        showShoppingList([jobID]);
                       }}
                     >
                       Shopping List
@@ -150,16 +160,17 @@ export function PurchasingDataPanel_EditJob(props) {
                           let importedCount = 0;
                           const imports = [];
 
-                          for (const material of Object.values(
-                            state.activeJob.build.materials,
-                          )) {
+                          for (const material of Object.values(materials)) {
                             const matchedItem = matches.find(
                               (i) => i.importedName === material.name,
                             );
                             if (!matchedItem) continue;
                             matchedCount++;
 
-                            const stillRequired = material.quantityRemaining;
+                            const stillRequired = quantityRemaining(
+                              material,
+                              materialRequirementOf(setups, material.typeID),
+                            );
                             if (stillRequired <= 0) continue;
 
                             const pastedQuantity =
@@ -226,14 +237,13 @@ export function PurchasingDataPanel_EditJob(props) {
               <MarketLocationSelectApplicationSettings
                 side={PRICING_SIDE.BUYING}
                 overrideMarketLocation={
-                  state.activeJob.build.localPricing?.buying?.market ??
-                  undefined
+                  localPricing?.buying?.market ?? undefined
                 }
                 onMarketLocationCommit={(id) => {
                   actions.run(
                     setJobPricing({
                       localPricing: setJobPricingSide(
-                        state.activeJob.build.localPricing,
+                        localPricing,
                         PRICING_SIDE.BUYING,
                         "market",
                         id,
@@ -250,14 +260,12 @@ export function PurchasingDataPanel_EditJob(props) {
             <Grid size={6}>
               <ListingTypeSelectApplicationSettings
                 side={PRICING_SIDE.BUYING}
-                overrideListingType={
-                  state.activeJob.build.localPricing?.buying?.basis ?? undefined
-                }
+                overrideListingType={localPricing?.buying?.basis ?? undefined}
                 onListingTypeCommit={(id) => {
                   actions.run(
                     setJobPricing({
                       localPricing: setJobPricingSide(
-                        state.activeJob.build.localPricing,
+                        localPricing,
                         PRICING_SIDE.BUYING,
                         "basis",
                         id,

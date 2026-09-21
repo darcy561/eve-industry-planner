@@ -1,35 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { TRITANIUM } from "../tests/editJobFixtures.js";
+import { TRITANIUM } from "../../../../../../tests/editJobFixtures.js";
 
-const store = {
-  account: {
-    accountID: "acc-1",
-    isLoggedIn: false,
-    actions: { findCharacterByHash: () => null, findCharacterById: () => null },
-  },
-  jobData: {
-    jobArray: [],
-    actions: { findJobInJobArray: () => null },
-  },
-  applicationSettings: {
-    actions: { getCurrentLocale: () => "en-GB" },
-  },
-  documentLock: { scopes: {} },
-};
-
-vi.mock("../Zustand/usersStore.js", async () => {
-  const { usersStoreMock, usersStoreState } =
-    await import("../tests/usersStoreHarness.js");
-  return usersStoreMock(() => usersStoreState(store));
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreOverSession } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreOverSession({ jobData: { jobArray: [] } });
 });
 
 const { MaterialCardFrame_Purchasing } =
-  await import("../Components/Edit Job/Edit Job Components/Purchasing/Standard Layout/Material Cards/materialCardFrame.jsx");
-const { default: Job } = await import("./job.js");
+  await import("./materialCardFrame.jsx");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
 
-function jobNeeding(quantity, { materialJobType = 0 } = {}) {
-  return new Job({
+const session = () => useUsersStore.getState().editSession;
+
+/** The job the card belongs to, as the session holds it. */
+function jobNeeding(quantity, { materialJobType = 0, purchasing = {} } = {}) {
+  const document = {
     jobID: "job-1",
     itemID: 587,
     jobType: 1,
@@ -48,24 +36,21 @@ function jobNeeding(quantity, { materialJobType = 0 } = {}) {
           typeID: TRITANIUM,
           name: "Tritanium",
           jobType: materialJobType,
+          purchasing,
         },
       },
       childJobs: { [TRITANIUM]: [] },
     },
-  });
+  };
+  session().actions.closeSession();
+  session().actions.openJob("job-1", document);
+  return document;
 }
 
 function renderCard(job) {
-  const props = {
-    state: {
-      activeJob: job,
-      temporaryChildJobs: {},
-      parentChildToEdit: { childJobs: {} },
-    },
-    actions: { run: vi.fn() },
-    material: job.build.materials[34],
-  };
-  return render(<MaterialCardFrame_Purchasing {...props} />);
+  return render(
+    <MaterialCardFrame_Purchasing material={job.build.materials[TRITANIUM]} />,
+  );
 }
 
 // The card is where every material figure is read together, so rendering it is
@@ -92,12 +77,9 @@ describe("a material card", () => {
   });
 
   it("says how many were bought beyond the requirement", () => {
-    const job = jobNeeding(100);
-    job.importPurchaseToMaterial(
-      TRITANIUM,
-      { itemCount: 120, itemCost: 5 },
-      { recordExcess: true },
-    );
+    const job = jobNeeding(100, {
+      purchasing: { a: { id: "a", itemCount: 120, itemCost: 5 } },
+    });
 
     renderCard(job);
 

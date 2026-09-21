@@ -4,8 +4,9 @@ import { ReactionLayout_BlueprintOptions } from "./reactionLayout";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { jobTypes } from "../../../../../../Context/defaultValues";
 import useUsersStore from "../../../../../../Zustand/usersStore";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 
-export function AvailableBlueprintsPanel(props) {
+export function AvailableBlueprintsPanel() {
   const isLoggedIn = useUsersStore((s) => s.account.isLoggedIn);
 
   return (
@@ -16,18 +17,19 @@ export function AvailableBlueprintsPanel(props) {
       paperSx={{ height: "auto" }}
       titleMarginBottom={2}
     >
-      <LayoutSwitcher {...props} />
+      <LayoutSwitcher />
     </ContentPanel>
   );
 }
 
-function LayoutSwitcher(props) {
-  const { state } = props;
-  switch (state.activeJob.jobType) {
+function LayoutSwitcher() {
+  const jobType = useJobDraft((job) => job.jobType);
+
+  switch (jobType) {
     case jobTypes.manufacturing:
-      return <ManufacturingLayout_BlueprintPanel {...props} />;
+      return <ManufacturingLayout_BlueprintPanel />;
     case jobTypes.reaction:
-      return <ReactionLayout_BlueprintOptions {...props} />;
+      return <ReactionLayout_BlueprintOptions />;
     default:
       return (
         <Grid align="center" size={12}>

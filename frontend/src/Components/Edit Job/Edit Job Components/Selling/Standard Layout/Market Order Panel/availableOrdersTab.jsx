@@ -27,15 +27,17 @@ import {
   characterImageUrl,
   corporationImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
+import { useJobActions } from "../../../../Edit Job Hooks/useJobDraft";
 
-export function AvailableMarketOrdersTab({ state, actions, itemOrderMatch }) {
+export function AvailableMarketOrdersTab({ itemOrderMatch }) {
   const queryClient = useQueryClient();
+  const actions = useJobActions();
   const citadelBrokersFee = useUsersStore(
     (state) => state.applicationSettings.defaultCitadelBrokersFee,
   );
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const jobLockReadOnly = useActiveJobReadOnly();
   const locationIds = useMemo(
     () => itemOrderMatch.map((order) => order.location_id),
     [itemOrderMatch],

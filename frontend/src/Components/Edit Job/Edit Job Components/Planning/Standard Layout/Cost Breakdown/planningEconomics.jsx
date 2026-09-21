@@ -15,6 +15,15 @@ import { Typography } from "@mui/material";
 
 import { Disclosure } from "../../../../../../Styled Components/Typography/figures";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { useSelectedSetup } from "../../../../Edit Job Hooks/useSelectedSetup";
+import {
+  costOfExtras,
+  costOfInvention,
+} from "../../../../Edit Job Hooks/jobSelectors";
 
 /**
  * Cost Breakdown and Returns, drawn from one set of figures.
@@ -23,18 +32,21 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
  * cost to build is what Returns subtracts, and a second derivation of it is how
  * two panels come to disagree. They are mounted together so the figures are
  * assembled once.
- *
- * @param {object} props - Edit Job props
  */
-export default function PlanningEconomics(props) {
-  const { state } = props;
+export default function PlanningEconomics() {
   // The model is a way of reading this job's cost, not a change to it — it is
   // never written to the document, so a reader coming back sees the real one.
   const [pricingModel, setPricingModel] = useState(PRICING_MODEL.CHEAPEST);
-  const { rows } = useMaterialsSourcing({
-    state,
-    actions: props.actions,
-  });
+  const actions = useJobActions();
+  const selectedSetup = useSelectedSetup();
+  const extrasCosts = useJobDraft((job) => job.build.extrasCosts);
+  const inventionEntries = useJobDraft((job) => job.build.inventionEntries);
+  const sellerCharacter = useJobDraft((job) => job.build.sellerCharacter);
+  const saleLocationID = useJobDraft((job) => job.build.saleLocationID);
+  const itemID = useJobDraft((job) => job.itemID);
+  const name = useJobDraft((job) => job.name);
+  const metaLevel = useJobDraft((job) => job.metaLevel);
+  const { rows } = useMaterialsSourcing();
   const {
     cost,
     returns,
@@ -50,13 +62,11 @@ export default function PlanningEconomics(props) {
     contributedCost,
     sellableBuildCost,
   } = useJobEconomics({
-    state,
-    actions: props.actions,
     rows,
     buyEverything: pricingModel === PRICING_MODEL.BUY_ALL,
   });
 
-  if (!state.activeJob.selectedSetup) return null;
+  if (!selectedSetup) return null;
 
   return (
     <>
@@ -72,16 +82,16 @@ export default function PlanningEconomics(props) {
           />
         }
       >
-        <Disclosure label={extrasLabel(state.activeJob)}>
-          <ExtrasEditor state={state} actions={props.actions} />
+        <Disclosure label={extrasLabel(extrasCosts)}>
+          <ExtrasEditor />
         </Disclosure>
 
         {/* Only a T2 or T3 item is invented, so only one of those is asked what
             invention cost. What is recorded here is what the Purchasing stage
             shows: both write the same rows on the job. */}
-        {invitesInvention(state.activeJob) ? (
-          <Disclosure label={inventionLabel(state.activeJob)}>
-            <InventionEditor state={state} actions={props.actions} />
+        {invitesInvention({ metaLevel, itemID }) ? (
+          <Disclosure label={inventionLabel(inventionEntries)}>
+            <InventionEditor />
           </Disclosure>
         ) : null}
       </CostBreakdownPanel>
@@ -106,8 +116,8 @@ export default function PlanningEconomics(props) {
           ) : null
         }
         output={{
-          typeID: state.activeJob.itemID,
-          name: state.activeJob.name,
+          typeID: itemID,
+          name,
           pricedAtID: saleLocation?.pricedAtID,
           unitPrice: sellPrice,
           quantityProduced: commitment.surplus,
@@ -117,9 +127,9 @@ export default function PlanningEconomics(props) {
           saleLocation={saleLocation}
           rates={rates}
           isLoading={ratesLoading}
-          plan={state.activeJob.build ?? {}}
+          plan={{ sellerCharacter, saleLocationID }}
           onPlanChange={(next) => {
-            props.actions.run(setSellingPlan(next));
+            actions.run(setSellingPlan(next));
           }}
           seller={seller}
           pricedAtName={saleLocation?.pricedAtName}
@@ -133,18 +143,18 @@ export default function PlanningEconomics(props) {
  * Says what opening the extras section would show, so a reader knows whether
  * there is anything behind it before they open it.
  *
- * @param {object} activeJob
+ * @param {object} inventionEntries
  */
-function inventionLabel(activeJob) {
-  const rows = Object.values(activeJob.build?.inventionEntries ?? {});
+function inventionLabel(inventionEntries) {
+  const rows = Object.values(inventionEntries ?? {});
   if (rows.length === 0) return "Add an invention cost";
 
-  return `Invention — ${rows.length}, ${formatNumberForLocale(activeJob.totalInventionCost ?? 0)}`;
+  return `Invention — ${rows.length}, ${formatNumberForLocale(costOfInvention(inventionEntries))}`;
 }
 
-function extrasLabel(activeJob) {
-  const rows = Object.values(activeJob.build?.extrasCosts ?? {});
+function extrasLabel(extrasCosts) {
+  const rows = Object.values(extrasCosts ?? {});
   if (rows.length === 0) return "Add an extra cost";
 
-  return `Extra costs — ${rows.length}, ${formatNumberForLocale(activeJob.totalExtrasCost ?? 0)}`;
+  return `Extra costs — ${rows.length}, ${formatNumberForLocale(costOfExtras(extrasCosts))}`;
 }

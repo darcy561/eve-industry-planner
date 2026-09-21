@@ -94,15 +94,17 @@ function flush() {
     const entries = [...pendingUpserts.entries()];
     pendingUpserts = new Map();
     actions.removePendingInboundNewJobSkeletons(entries.map(([id]) => id));
-    actions.updateOrAddJobsToJobArray(
-      entries.map(([, held]) => new Job(held.document)),
-    );
+    const arrived = entries.map(([jobID, held]) => [
+      jobID,
+      new Job(held.document),
+    ]);
+    actions.updateOrAddJobsToJobArray(arrived.map(([, job]) => job));
     // An editor holding one of these has it as the document it started from
     // plus what the reader has changed since. Handing it the new document
     // replaces the first without disturbing the second; one it is not holding
     // is ignored.
-    for (const [jobID, held] of entries) {
-      editSession.actions.documentArrived(jobID, held.document);
+    for (const [jobID, job] of arrived) {
+      editSession.actions.documentArrived(jobID, job.toDocument());
     }
     rs.setPositionBatch(
       entries

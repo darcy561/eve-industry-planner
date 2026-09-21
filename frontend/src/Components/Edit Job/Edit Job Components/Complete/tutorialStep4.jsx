@@ -1,6 +1,8 @@
 import { Typography, Grid } from "@mui/material";
+import { useJobDraft } from "../../Edit Job Hooks/useJobDraft";
 
-export function TutorialStep4({ state }) {
+export function TutorialStep4() {
+  const jobName = useJobDraft((job) => job.name);
   return (
     <Grid
       container
@@ -22,9 +24,9 @@ export function TutorialStep4({ state }) {
             overflowWrap: "break-word",
           }}
         >
-          You have now finished building your {state.activeJob.name}. This stage
-          completes the build cost calculations before moving on to selling or
-          using the item in another job.{<br />}
+          You have now finished building your {jobName}. This stage completes
+          the build cost calculations before moving on to selling or using the
+          item in another job.{<br />}
           {<br />}
           You'll see the total material cost, installation costs from linked
           industry jobs, and any additional costs.{<br />}

@@ -4,11 +4,14 @@ import {
   formatNumberForLocale,
   numberToShortText,
 } from "../../../../../../Functions/Helper/numberParser";
+import { useMaterialFigures } from "../../../../Edit Job Hooks/useMaterialFigures";
 
 export function TotalCost_Purchasing({ material }) {
+  const { cost } = useMaterialFigures(material);
+
   return (
     <Tooltip
-      title={`Total Cost: ${numberToShortText(material.purchasedCost)} ISK`}
+      title={`Total Cost: ${numberToShortText(cost)} ISK`}
       arrow
       placement="top"
     >
@@ -19,7 +22,7 @@ export function TotalCost_Purchasing({ material }) {
           marginTop: { xs: 0.5, sm: 0.25 },
         }}
       >
-        Total Cost: {formatNumberForLocale(material.purchasedCost)} ISK
+        Total Cost: {formatNumberForLocale(cost)} ISK
       </Typography>
     </Tooltip>
   );

@@ -14,7 +14,7 @@ export function Selling_StandardLayout_EditJob(props) {
     <Grid container spacing={2}>
       <TutorialTemplate TutorialContent={<TutorialStep5 />} />
       <Grid size={12}>
-        <MarketCostsPanel {...props} />
+        <MarketCostsPanel />
       </Grid>
       <Grid
         size={{
@@ -30,16 +30,16 @@ export function Selling_StandardLayout_EditJob(props) {
           md: 4,
         }}
       >
-        <SalesStats {...props} />
+        <SalesStats />
       </Grid>
       <Grid size={12}>
         <AvailableTransactionsPanel {...props} />
       </Grid>
       <Grid size={12}>
-        <LinkedTransactionPanel {...props} />
+        <LinkedTransactionPanel />
       </Grid>
       <Grid size={12}>
-        <Selling_ButtonPanel_EditJob {...props} />
+        <Selling_ButtonPanel_EditJob />
       </Grid>
     </Grid>
   );

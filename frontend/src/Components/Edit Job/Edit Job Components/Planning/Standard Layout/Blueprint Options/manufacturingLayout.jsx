@@ -10,11 +10,23 @@ import useGetAllIndustryJobs from "../../../../../../Hooks/EveEsi/useGetAllIndus
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import applySetupChange from "../../../../../../Functions/JobPlanner/applySetupChange";
 import { typeImageUrl } from "../../../../../../Functions/Shared/eveImage";
+import {
+  jobDraftNow,
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { selectedSetup } from "../../../../Edit Job Hooks/jobSelectors";
 const inUse = yellow[800];
 const expiring = red[600];
 
 // Extracted component for individual blueprint item
-const BlueprintItem = ({ print, esiJob, state, actions }) => {
+/**
+ * One blueprint the job could be built from. Exported so a test can count its
+ * renders: the list holds one per blueprint the reader owns, so what a tile
+ * subscribes to is multiplied by however many they have.
+ */
+export const BlueprintItem = ({ print, esiJob }) => {
+  const actions = useJobActions();
   const blueprintType = print.isCopy ? "copy" : "original";
   const blueprintTypeUrl = print.isCopy ? "bpc" : "bp";
 
@@ -50,7 +62,9 @@ const BlueprintItem = ({ print, esiJob, state, actions }) => {
         container
         onClick={async () => {
           await applySetupChange(
-            state.activeJob.selectedSetup,
+            // Read when the tile is pressed rather than subscribed to: a tile
+            // draws none of the setup, and there is one of these per blueprint.
+            selectedSetup(jobDraftNow()),
             "use a blueprint you own",
             (setup) => {
               setup.updateMEValue(print.me);
@@ -142,7 +156,8 @@ const BlueprintLegend = () => (
   </Grid>
 );
 
-export function ManufacturingLayout_BlueprintPanel({ state, actions }) {
+export function ManufacturingLayout_BlueprintPanel() {
+  const blueprintTypeID = useJobDraft((job) => job.blueprintTypeID);
   const {
     data: blueprints,
     isLoading: isLoadingBlueprints,
@@ -156,18 +171,17 @@ export function ManufacturingLayout_BlueprintPanel({ state, actions }) {
 
   // Memoize the filtered blueprints and job selection with better logic
   const { blueprintOptions, esiJobSelection } = useMemo(() => {
-    const blueprintOptions =
-      blueprints.byTypeId.get(state.activeJob.blueprintTypeID) ?? [];
+    const blueprintOptions = blueprints.byTypeId.get(blueprintTypeID) ?? [];
 
     // Ordered and deduplicated when the collection was built — originals before copies, then the
     // most researched — so there is nothing to sort or collapse here.
     return {
       blueprintOptions,
       esiJobSelection: (industryJobs ?? []).filter(
-        (job) => job.blueprint_type_id === state.activeJob.blueprintTypeID,
+        (job) => job.blueprint_type_id === blueprintTypeID,
       ),
     };
-  }, [blueprints, state.activeJob.blueprintTypeID, industryJobs]);
+  }, [blueprints, blueprintTypeID, industryJobs]);
 
   // Memoize the job lookup map for better performance
   const jobLookupMap = useMemo(() => {
@@ -236,13 +250,7 @@ export function ManufacturingLayout_BlueprintPanel({ state, actions }) {
           const esiJob = jobLookupMap.get(print.itemId);
 
           return (
-            <BlueprintItem
-              key={print.itemId}
-              print={print}
-              esiJob={esiJob}
-              state={state}
-              actions={actions}
-            />
+            <BlueprintItem key={print.itemId} print={print} esiJob={esiJob} />
           );
         })}
       </Grid>

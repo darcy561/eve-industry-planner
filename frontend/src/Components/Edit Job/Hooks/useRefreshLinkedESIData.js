@@ -20,17 +20,17 @@ import {
  * this data, so an open costs nothing, and a cold cache simply leaves the job
  * for the tabs to refresh.
  *
- * @param {import("../../../Classes/job").default|null} activeJob
+ * @param {string|undefined} jobID - The job the editor is holding
  * @param {(command: {name: string, recipe: Function}) => void} run
  */
-export function useRefreshLinkedESIData(activeJob, run) {
+export function useRefreshLinkedESIData(jobID, run) {
   const queryClient = useQueryClient();
   const refreshedJobID = useRef(null);
 
   useEffect(() => {
-    if (!activeJob?.jobID) return;
-    if (refreshedJobID.current === activeJob.jobID) return;
-    refreshedJobID.current = activeJob.jobID;
+    if (!jobID) return;
+    if (refreshedJobID.current === jobID) return;
+    refreshedJobID.current = jobID;
 
     const { data: characterOrders, isLoading: charactersLoading } =
       getAllCachedCharacterMarketOrders(queryClient);
@@ -53,7 +53,7 @@ export function useRefreshLinkedESIData(activeJob, run) {
     if (!jobsLoading && industryJobs?.length) {
       run(updateLinkedJobData(industryJobs));
     }
-  }, [activeJob, queryClient, run]);
+  }, [jobID, queryClient, run]);
 }
 
 export default useRefreshLinkedESIData;

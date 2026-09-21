@@ -6,19 +6,49 @@ import {
   buildChildJobs,
   hydrateChildJobsWithMissingData,
 } from "../Helpers/childJobBuildPipeline";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../../Edit Job Hooks/useJobDraft";
+import {
+  materialRequirementOf,
+  selectedSetupOf,
+} from "../../../../../Edit Job Hooks/jobSelectors";
+import useUsersStore from "../../../../../../../Zustand/usersStore";
 
-export function useChildJobBuildActions({ state, actions }) {
+/**
+ * Building a child job for a material, either one row at a time or every
+ * buildable row at once.
+ *
+ * @returns {{buildSingleChildJobPreview: function, buildSpeculativeChildJobs: function}}
+ */
+export function useChildJobBuildActions() {
   const queryClient = useQueryClient();
+  const actions = useJobActions();
+  const jobID = useJobDraft((job) => job.jobID);
+  const groupID = useJobDraft((job) => job.groupID);
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const materials = useJobDraft((job) => job.build.materials);
+  const childJobs = useJobDraft((job) => job.build.childJobs);
+  const setups = useJobDraft((job) => job.build.setup);
+  const setupToEdit = useJobDraft((job) => job.layout.setupToEdit);
+  const temporaryChildJobs = useUsersStore(
+    (store) => store.editSession.temporaryChildJobs,
+  );
+  const speculativeChildJobs = useUsersStore(
+    (store) => store.editSession.speculativeChildJobs,
+  );
+  const systemID = selectedSetupOf(setups, setupToEdit)?.systemID;
 
   const buildSingleChildJobPreview = useCallback(
     async ({ material }) => {
       const builtJobs = await buildChildJobs(
         {
           itemID: material.typeID,
-          itemQty: material.quantity,
-          parentJobs: [state.activeJob.jobID],
-          groupID: state.activeJob.groupID,
-          systemID: state.activeJob.selectedSetup.systemID,
+          itemQty: materialRequirementOf(setups, material.typeID),
+          parentJobs: [jobID],
+          groupID,
+          systemID,
           skipJobCreateAnalytics: true,
         },
         { queryClient },
@@ -37,7 +67,7 @@ export function useChildJobBuildActions({ state, actions }) {
 
       return newJob;
     },
-    [actions, queryClient, state.activeJob],
+    [actions, queryClient, jobID, groupID, systemID, setups],
   );
 
   /**
@@ -52,26 +82,23 @@ export function useChildJobBuildActions({ state, actions }) {
    * @returns {Promise<number>} How many rows were costed
    */
   const buildSpeculativeChildJobs = useCallback(async () => {
-    const uncosted = Object.values(state.activeJob.build.materials).filter(
-      ({ jobType, typeID }) => {
-        if (!checkJobTypeIsBuildable(jobType)) return false;
-        // A row with something already linked or marked has a real build cost
-        // and does not need a guess beside it.
-        if ((state.activeJob.build.childJobs[typeID] ?? []).length > 0)
-          return false;
-        if (state.temporaryChildJobs[typeID]) return false;
-        return !state.speculativeChildJobs?.[typeID];
-      },
-    );
+    const uncosted = Object.values(materials).filter(({ jobType, typeID }) => {
+      if (!checkJobTypeIsBuildable(jobType)) return false;
+      // A row with something already linked or marked has a real build cost
+      // and does not need a guess beside it.
+      if ((childJobs[typeID] ?? []).length > 0) return false;
+      if (temporaryChildJobs[typeID]) return false;
+      return !speculativeChildJobs?.[typeID];
+    });
 
     // A group that already builds this material answers the question without
     // being asked again: its job is what confirming would link to, so pricing a
     // fresh one instead would quote a figure the plan would never use.
     const seeded = [];
     const requests = [];
-    for (const { typeID, quantity } of uncosted) {
-      const groupJob = state.activeJob.includedInGroup
-        ? findMaterialJobInGroup(typeID, state.activeJob.groupID)
+    for (const { typeID } of uncosted) {
+      const groupJob = includedInGroup
+        ? findMaterialJobInGroup(typeID, groupID)
         : null;
 
       if (groupJob) {
@@ -81,10 +108,10 @@ export function useChildJobBuildActions({ state, actions }) {
 
       requests.push({
         itemID: typeID,
-        itemQty: quantity,
-        parentJobs: [state.activeJob.jobID],
-        groupID: state.activeJob.groupID,
-        systemID: state.activeJob.selectedSetup?.systemID,
+        itemQty: materialRequirementOf(setups, typeID),
+        parentJobs: [jobID],
+        groupID,
+        systemID,
         skipJobCreateAnalytics: true,
       });
     }
@@ -102,9 +129,15 @@ export function useChildJobBuildActions({ state, actions }) {
   }, [
     actions,
     queryClient,
-    state.activeJob,
-    state.speculativeChildJobs,
-    state.temporaryChildJobs,
+    jobID,
+    groupID,
+    includedInGroup,
+    materials,
+    childJobs,
+    setups,
+    systemID,
+    speculativeChildJobs,
+    temporaryChildJobs,
   ]);
 
   return {

@@ -47,9 +47,9 @@ vi.mock(
 const reader = { own: ["builder"], main: "my-main" };
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock({
+  return usersStoreOverSession({
     account: {
       actions: {
         findCharacterByHash: (hash) =>
@@ -69,30 +69,67 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
 const jobsInStore = {};
 
 const { SkillsPanel } = await import("./SkillsPanel");
-const { jobFixture } = await import("../../../../../../tests/jobFixture");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
 const { SALE_LOCATION_KIND } =
   await import("../../../../../../Functions/MarketOrders/saleLocations");
 const { industrySkillIDs, jobTypes, marketSkillIDs } =
   await import("../../../../../../Context/defaultValues");
 
-const noParents = { getCurrentParentJobs: () => [] };
+const session = () => useUsersStore.getState().editSession;
 
-const state = {
-  activeJob: jobFixture({
-    jobType: jobTypes.manufacturing,
-    setup: { jobType: jobTypes.manufacturing },
-    skills: {
-      [industrySkillIDs.industry]: {
-        typeID: industrySkillIDs.industry,
-        level: 4,
-      },
-      3395: { typeID: 3395, level: 3 },
+/** The job as the planner stores one: ten items, and two skills on it. */
+const jobDocument = ({ setup = {}, build = {}, ...rest } = {}) => ({
+  jobID: "job-1",
+  itemID: 34,
+  name: "Tritanium",
+  jobType: jobTypes.manufacturing,
+  itemsProducedPerRun: 10,
+  parentJobs: [],
+  skills: {
+    [industrySkillIDs.industry]: {
+      typeID: industrySkillIDs.industry,
+      level: 4,
     },
-  }),
+    3395: { typeID: 3395, level: 3 },
+  },
+  layout: { setupToEdit: "setup0" },
+  build: {
+    materials: {},
+    childJobs: {},
+    extrasCosts: {},
+    inventionEntries: {},
+    sellerCharacter: null,
+    saleLocationID: null,
+    setup: {
+      setup0: {
+        id: "setup0",
+        selectedCharacter: "builder",
+        jobType: jobTypes.manufacturing,
+        rawTime: 10000,
+        runCount: 1,
+        jobCount: 1,
+        TE: 0,
+        structureID: 0,
+        rigID: 0,
+        materialCount: {},
+        ...setup,
+      },
+    },
+    ...build,
+  },
+  esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+  ...rest,
+});
+
+const show = (document = jobDocument()) => {
+  session().actions.openJob(document.jobID, document);
+  return render(<SkillsPanel />);
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session().actions.closeSession();
   reader.own = ["builder"];
   useSellingRates.mockReturnValue({ data: undefined, isLoading: false });
   resolveSellerCharacter.mockReturnValue({
@@ -118,7 +155,7 @@ beforeEach(() => {
 
 describe("the Skills panel", () => {
   it("answers all three questions, not only what is required", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getByText(/Required to build/)).toBeInTheDocument();
     expect(screen.getByText("Shortens the job")).toBeInTheDocument();
@@ -126,7 +163,7 @@ describe("the Skills panel", () => {
   });
 
   it("marks a requirement the character falls short of", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getByText("5 / 4")).toBeInTheDocument();
     expect(screen.getByText("2 / 3")).toBeInTheDocument();
@@ -135,14 +172,14 @@ describe("the Skills panel", () => {
   // The builder runs the job and the seller lists the order; they are routinely
   // different characters, so each group says whose levels it is quoting.
   it("names the character each group is quoted for", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getAllByText("Builder Pilot").length).toBeGreaterThan(0);
     expect(screen.getByText("Market Alt")).toBeInTheDocument();
   });
 
   it("reads the selling skills from the seller, not the builder", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(useGetCharacterSkills).toHaveBeenCalledWith("builder");
     expect(useGetCharacterSkills).toHaveBeenCalledWith("trader");
@@ -154,7 +191,7 @@ describe("the Skills panel", () => {
   it("quotes the reader's main when the setup names another member", () => {
     reader.own = [];
 
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(useGetCharacterSkills).toHaveBeenCalledWith("my-main");
     expect(useGetCharacterSkills).not.toHaveBeenCalledWith("builder");
@@ -167,7 +204,7 @@ describe("the Skills panel", () => {
       name: "A Citadel",
     });
 
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getByText("Broker Relations")).toBeInTheDocument();
     expect(screen.getByText(/not applied here/)).toBeInTheDocument();
@@ -187,37 +224,20 @@ describe("the Skills panel", () => {
       isDefault: true,
     });
 
-    render(
-      <SkillsPanel
-        state={{
-          activeJob: {
-            ...state.activeJob,
-            selectedSetup: { selectedCharacter: null },
-          },
-        }}
-        actions={noParents}
-      />,
-    );
+    show(jobDocument({ setup: { selectedCharacter: null } }));
 
     expect(screen.getByText("needs 4")).toBeInTheDocument();
     expect(screen.getByText("needs 3")).toBeInTheDocument();
   });
 
   it("draws nothing without a setup to read", () => {
-    const { container } = render(
-      <SkillsPanel
-        state={{ activeJob: { ...state.activeJob, selectedSetup: null } }}
-        actions={noParents}
-      />,
-    );
+    const { container } = show(jobDocument({ layout: { setupToEdit: null } }));
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it("takes its own height rather than its parent's", () => {
-    const { container } = render(
-      <SkillsPanel state={state} actions={noParents} />,
-    );
+    const { container } = show();
 
     expect(container.querySelector(".MuiPaper-root")).not.toHaveStyle({
       height: "100%",
@@ -237,12 +257,7 @@ describe("a job with nothing to sell", () => {
       },
     };
 
-    render(
-      <SkillsPanel
-        state={state}
-        actions={{ getCurrentParentJobs: () => ["parent"] }}
-      />,
-    );
+    show(jobDocument({ parentJobs: ["parent"] }));
 
     expect(
       screen.queryByText("Affects what selling costs"),
@@ -258,12 +273,7 @@ describe("a job with nothing to sell", () => {
       },
     };
 
-    render(
-      <SkillsPanel
-        state={state}
-        actions={{ getCurrentParentJobs: () => ["parent"] }}
-      />,
-    );
+    show(jobDocument({ parentJobs: ["parent"] }));
 
     expect(screen.getByText("Affects what selling costs")).toBeInTheDocument();
   });
@@ -290,7 +300,7 @@ describe("the what-if it carries", () => {
   it("offers the what-if once the rates are known", () => {
     useSellingRates.mockReturnValue({ data: rates, isLoading: false });
 
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getByText("What selling costs")).toBeInTheDocument();
   });
@@ -298,7 +308,7 @@ describe("the what-if it carries", () => {
   it("prices it against what this job would actually list", () => {
     useSellingRates.mockReturnValue({ data: rates, isLoading: false });
 
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     // 10,000 a unit across the 10 produced is a 100,000 listing: 2.4% fee and
     // 7.5% tax come to 9,900.
@@ -306,7 +316,7 @@ describe("the what-if it carries", () => {
   });
 
   it("offers nothing to try until the rates arrive", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.queryByText("What selling costs")).not.toBeInTheDocument();
   });
@@ -320,12 +330,7 @@ describe("the what-if it carries", () => {
       },
     };
 
-    render(
-      <SkillsPanel
-        state={state}
-        actions={{ getCurrentParentJobs: () => ["parent"] }}
-      />,
-    );
+    show(jobDocument({ parentJobs: ["parent"] }));
 
     expect(screen.queryByText("What selling costs")).not.toBeInTheDocument();
   });
@@ -335,7 +340,7 @@ describe("the what-if it carries", () => {
 // count and the shortfall are what turn it into an answer.
 describe("what a shortfall blocks", () => {
   it("counts how much of the requirement is met", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(
       screen.getByText("Required to build — 1 of 2 met"),
@@ -343,7 +348,7 @@ describe("what a shortfall blocks", () => {
   });
 
   it("says the job cannot start, and what is short by how much", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getByText("Job cannot start")).toBeInTheDocument();
     expect(screen.getByText(/needs 1 more level/)).toBeInTheDocument();
@@ -359,7 +364,7 @@ describe("what a shortfall blocks", () => {
       isError: false,
     });
 
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getByText("Job can be run")).toBeInTheDocument();
   });
@@ -369,7 +374,7 @@ describe("what a shortfall blocks", () => {
 // figures on screen are hypothetical, and offers the way back.
 describe("trying a level", () => {
   it("marks the panel as a what-if once a level is raised", async () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     await userEvent.click(screen.getAllByLabelText("Industry at level 3")[0]);
 
@@ -378,7 +383,7 @@ describe("trying a level", () => {
   });
 
   it("states the move rather than replacing the real level", async () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     await userEvent.click(screen.getAllByLabelText("Industry at level 3")[0]);
 
@@ -388,7 +393,7 @@ describe("trying a level", () => {
 
   // Raising the blocked skill answers the question the row poses.
   it("re-counts the requirement at the level being tried", async () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     await userEvent.click(
       screen.getAllByLabelText(
@@ -403,7 +408,7 @@ describe("trying a level", () => {
   });
 
   it("puts the question back", async () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     await userEvent.click(screen.getAllByLabelText("Industry at level 3")[0]);
     await userEvent.click(screen.getByText("Reset"));
@@ -416,14 +421,14 @@ describe("trying a level", () => {
 // were the only rows on the panel that could be tried and produce no answer.
 describe("what a level does to the job's time", () => {
   it("states how long the job takes", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getByText("How long it takes")).toBeInTheDocument();
     expect(screen.getByText("Job time")).toBeInTheDocument();
   });
 
   it("re-derives the time at the level being tried", async () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
     const before = screen.getByText("Job time").closest("div").textContent;
 
     await userEvent.click(
@@ -438,7 +443,7 @@ describe("what a level does to the job's time", () => {
   });
 
   it("says how much shorter or longer it would be", async () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     await userEvent.click(
       screen.getAllByLabelText(
@@ -458,9 +463,7 @@ describe("its shape while a level is being tried", () => {
     container.querySelectorAll("[data-fill]").length;
 
   it("keeps the header's action slot whether or not anything is proposed", () => {
-    const { container } = render(
-      <SkillsPanel state={state} actions={noParents} />,
-    );
+    const { container } = show();
 
     // The slot exists before the chip does.
     expect(screen.queryByText("What-if")).not.toBeInTheDocument();
@@ -468,15 +471,13 @@ describe("its shape while a level is being tried", () => {
   });
 
   it("says something on the time line before a level is tried", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(screen.getByText("at your current levels")).toBeInTheDocument();
   });
 
   it("keeps the same number of lines once a level is tried", async () => {
-    const { container } = render(
-      <SkillsPanel state={state} actions={noParents} />,
-    );
+    const { container } = show();
     const before = container.querySelectorAll("p, span").length;
 
     await userEvent.click(screen.getAllByLabelText("Industry at level 3")[0]);
@@ -494,16 +495,11 @@ describe("its shape while a level is being tried", () => {
 // answering for a character who is not selling this job's output.
 describe("whose rates it is quoting", () => {
   it("reads the seller and the sale location the job names", () => {
-    const planned = {
-      activeJob: jobFixture({
-        jobType: jobTypes.manufacturing,
-        setup: { jobType: jobTypes.manufacturing },
+    show(
+      jobDocument({
+        build: { sellerCharacter: "job-seller", saleLocationID: "job-citadel" },
       }),
-    };
-    planned.activeJob.build.sellerCharacter = "job-seller";
-    planned.activeJob.build.saleLocationID = "job-citadel";
-
-    render(<SkillsPanel state={planned} actions={noParents} />);
+    );
 
     expect(resolveSellerCharacter).toHaveBeenCalledWith("job-seller");
     expect(resolveSaleLocation).toHaveBeenCalledWith(
@@ -513,7 +509,7 @@ describe("whose rates it is quoting", () => {
   });
 
   it("falls back to the account default when the job names neither", () => {
-    render(<SkillsPanel state={state} actions={noParents} />);
+    show();
 
     expect(resolveSellerCharacter).toHaveBeenCalledWith(null);
     expect(resolveSaleLocation).toHaveBeenCalledWith(

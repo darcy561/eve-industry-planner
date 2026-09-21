@@ -22,10 +22,15 @@ vi.mock("../../Zustand/usersStore.js", async () => {
     await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() => usersStoreState(storeState));
 });
+// Enough of the class for what this module asks of it: it builds one for the
+// planner's list, and hands the editor what the same job says as a document.
 vi.mock("../../Classes/job.js", () => ({
   default: class {
     constructor(doc) {
       Object.assign(this, doc);
+    }
+    toDocument() {
+      return { ...this };
     }
   },
 }));

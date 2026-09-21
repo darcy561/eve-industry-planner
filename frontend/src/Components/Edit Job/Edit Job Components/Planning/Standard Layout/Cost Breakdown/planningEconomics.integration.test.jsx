@@ -24,7 +24,7 @@ vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
 }));
 
 vi.mock("../../../../../../Functions/Installation Costs/installCosts", () => ({
-  getJobInstallCostForPlanning: () => 100,
+  installCostForPlanning: () => 100,
 }));
 
 vi.mock(
@@ -60,11 +60,11 @@ vi.mock("../../../../../../Functions/MarketOrders/sellerCharacter", () => ({
 }));
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
   const { structureKinds } =
     await import("../../../../../../Context/defaultValues");
-  return usersStoreMock({
+  return usersStoreOverSession({
     applicationSettings: {
       customStructures: [
         {
@@ -103,37 +103,72 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
 const parentJobs = {};
 
 const { default: PlanningEconomics } = await import("./planningEconomics");
-const { jobFixture, materialFixture } =
-  await import("../../../../../../tests/jobFixture");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
 
-const state = {
-  activeJob: jobFixture({
-    materials: [
-      materialFixture({ typeID: 35, name: "Pyerite", quantity: 100 }),
-    ],
+const session = () => useUsersStore.getState().editSession;
+
+/**
+ * Ten Tritanium made from 100 Pyerite, as the planner stores the job.
+ *
+ * The requirement is stated by the setup rather than on the material row, which
+ * is where a job says what it takes.
+ */
+const jobDocument = ({ build = {}, ...rest } = {}) => ({
+  jobID: "job-1",
+  itemID: 34,
+  name: "Tritanium",
+  jobType: 1,
+  itemsProducedPerRun: 10,
+  parentJobs: [],
+  skills: {},
+  layout: { setupToEdit: "setup0" },
+  build: {
+    materialPriceOverrides: {},
+    materials: {
+      35: { typeID: 35, name: "Pyerite", jobType: 0, volume: 0.01 },
+    },
     childJobs: { 35: [] },
-  }),
-  temporaryChildJobs: {},
-  speculativeChildJobs: {},
-  parentChildToEdit: { childJobs: {} },
-};
+    extrasCosts: {},
+    inventionEntries: {},
+    sellerCharacter: null,
+    saleLocationID: null,
+    setup: {
+      setup0: {
+        id: "setup0",
+        selectedCharacter: "builder",
+        jobType: 1,
+        rawTime: 10000,
+        runCount: 1,
+        jobCount: 1,
+        TE: 0,
+        structureID: 0,
+        rigID: 0,
+        materialCount: { 35: { typeID: 35, quantity: 100 } },
+      },
+    },
+    ...build,
+  },
+  esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+  ...rest,
+});
 
-const actions = {
-  run: vi.fn(),
-  getCurrentParentJobs: () => [],
-  getCurrentMaterialChildJobs: () => [],
+const show = (document = jobDocument()) => {
+  session().actions.openJob(document.jobID, document);
+  return render(<PlanningEconomics />);
 };
 
 const panelNamed = (title) => screen.getByText(title).closest(".MuiPaper-root");
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session().actions.closeSession();
   for (const key of Object.keys(parentJobs)) delete parentJobs[key];
 });
 
 describe("the Planning stage's figures, end to end", () => {
   it("prices the materials through to a cost to build", () => {
-    render(<PlanningEconomics state={state} actions={actions} />);
+    show();
 
     // 100 Pyerite at the sell price of 5 is 500, plus 100 install.
     const cost = within(panelNamed("Cost Breakdown"));
@@ -143,7 +178,7 @@ describe("the Planning stage's figures, end to end", () => {
   // The plan's own words: a cost to build stated on one panel and subtracted on
   // the other has to be the same number.
   it("subtracts on Returns exactly what Cost Breakdown states", async () => {
-    render(<PlanningEconomics state={state} actions={actions} />);
+    show();
 
     const stated = within(panelNamed("Cost Breakdown")).getByText("600.00");
     expect(stated).toBeInTheDocument();
@@ -159,7 +194,7 @@ describe("the Planning stage's figures, end to end", () => {
   // Both lines in the selling band say where the charge is paid. The fee saying
   // it and the tax not made the second look like a charge from somewhere else.
   it("says where each selling charge is paid", () => {
-    render(<PlanningEconomics state={state} actions={actions} />);
+    show();
 
     const cost = within(panelNamed("Cost Breakdown"));
 
@@ -170,7 +205,7 @@ describe("the Planning stage's figures, end to end", () => {
   });
 
   it("charges the fee and tax on what the listing is worth", () => {
-    render(<PlanningEconomics state={state} actions={actions} />);
+    show();
 
     // 200 a unit across 10 is a 2,000 listing: the 1.5% fee is under the 100
     // floor, and tax is 7.5%. Asserted against their own rows, since the install
@@ -184,7 +219,7 @@ describe("the Planning stage's figures, end to end", () => {
   });
 
   it("nets the sale down to a return", () => {
-    render(<PlanningEconomics state={state} actions={actions} />);
+    show();
 
     // 2,000 revenue less 250 of charges less 600 to build.
     // Stated as the headline and again on the route it belongs to.
@@ -200,18 +235,16 @@ describe("the Planning stage's figures, end to end", () => {
 // the fixtures.
 describe("a job that had to invent its blueprint", () => {
   it("carries the attempts into the cost to build and into the return", async () => {
-    const invented = {
-      ...state,
-      activeJob: jobFixture({
-        materials: [
-          materialFixture({ typeID: 35, name: "Pyerite", quantity: 100 }),
-        ],
-        childJobs: { 35: [] },
-        inventionEntries: [{ itemCost: 400 }, { itemCost: 200 }],
+    show(
+      jobDocument({
+        build: {
+          inventionEntries: {
+            1: { id: 1, itemCost: 400 },
+            2: { id: 2, itemCost: 200 },
+          },
+        },
       }),
-    };
-
-    render(<PlanningEconomics state={invented} actions={actions} />);
+    );
 
     // 500 of materials, 100 install, 600 of attempts.
     const cost = within(panelNamed("Cost Breakdown"));
@@ -229,19 +262,7 @@ describe("a job that had to invent its blueprint", () => {
 // charge a fee on it, or state a return for it. Each panel's silence is tested
 // on its own elsewhere; this checks the stage agrees as a whole.
 describe("a job whose output is owed to the job above it", () => {
-  const parented = {
-    ...state,
-    activeJob: jobFixture({
-      materials: [
-        materialFixture({ typeID: 35, name: "Pyerite", quantity: 100 }),
-      ],
-      childJobs: { 35: [] },
-    }),
-  };
-  const withParent = {
-    ...actions,
-    getCurrentParentJobs: () => ["parent-1"],
-  };
+  const parented = () => jobDocument({ parentJobs: ["parent-1"] });
 
   it("states no return and charges nothing when all of it is committed", () => {
     // The parent needs 10 and this job makes 10, so nothing is left to sell.
@@ -253,7 +274,7 @@ describe("a job whose output is owed to the job above it", () => {
       totalQuantityProduced: 10,
     };
 
-    render(<PlanningEconomics state={parented} actions={withParent} />);
+    show(parented());
 
     // Contribution replaces Returns where nothing can be sold.
     expect(screen.queryByText("Returns")).not.toBeInTheDocument();
@@ -273,7 +294,7 @@ describe("a job whose output is owed to the job above it", () => {
       totalQuantityProduced: 10,
     };
 
-    render(<PlanningEconomics state={parented} actions={withParent} />);
+    show(parented());
 
     // 6 at 200 is a 1,200 listing: 1.5% is 18, under the 100 floor, and tax is
     // 7.5% of 1,200. The whole job's output would have charged more.
@@ -289,18 +310,7 @@ describe("a job whose output is owed to the job above it", () => {
 // free build or a sale worth nothing in particular.
 describe("an item the market has no price for", () => {
   it("charges nothing to list and states no return", () => {
-    const unpriced = {
-      ...state,
-      activeJob: jobFixture({
-        itemID: 99,
-        materials: [
-          materialFixture({ typeID: 35, name: "Pyerite", quantity: 100 }),
-        ],
-        childJobs: { 35: [] },
-      }),
-    };
-
-    render(<PlanningEconomics state={unpriced} actions={actions} />);
+    show(jobDocument({ itemID: 99 }));
 
     // Nothing listed is charged nothing: the 100 ISK floor must not bill a
     // listing that cannot be made.

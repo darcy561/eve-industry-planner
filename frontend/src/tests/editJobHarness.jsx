@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEditJobSession } from "../Components/Edit Job/Edit Job Hooks/useEditJobSession";
+import useUsersStore from "../Zustand/usersStore";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../Components/Edit Job/Edit Job Hooks/useJobDraft";
+import { jobLens } from "../Components/Edit Job/Edit Job Hooks/jobLens";
+import { hasChanges } from "../Components/Edit Job/Edit Job Hooks/jobDraftStore";
 import Job from "../Classes/job";
 import seedLocationNames from "./seedLocationNames";
 import { testQueryClient } from "./queryClients.js";
@@ -30,7 +36,7 @@ const theme = createTheme({
  * @param {Object} props
  * @param {Object} props.job - Job fields to start from, as stored.
  * @param {(props: {state: Object, actions: Object}) => React.ReactNode} props.children
- * @param {{current: Object}} props.editJobRef - Filled in with the live reducer state.
+ * @param {{current: Object}} props.editJobRef - Filled in with the live session.
  * @param {Object<string, string|Object>} [props.locationNames] - Names the panels should find
  *   already resolved, seeded into the cache the real hook reads.
  */
@@ -40,7 +46,9 @@ export function EditJobHarness({ job, children, editJobRef, locationNames }) {
     if (locationNames) seedLocationNames(client, locationNames);
     return client;
   });
-  const { state, actions } = useEditJobSession();
+  const actions = useJobActions();
+  const openJob = useJobDraft((document) => document);
+  const session = useUsersStore((store) => store.editSession);
 
   useEffect(() => {
     const seeded = new Job(job);
@@ -49,6 +57,19 @@ export function EditJobHarness({ job, children, editJobRef, locationNames }) {
     // Seeded once, from the job this harness was given.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* The page itself reads the job in parts, out of the store. A test asserts on
+   * the whole of it, so the harness is where the session is assembled — and the
+   * job is handed over as a class, because a test asks it for figures the page
+   * reads through selectors. */
+  const state = {
+    activeJob: jobLens(openJob),
+    jobModified: hasChanges(session.draft),
+    temporaryChildJobs: session.temporaryChildJobs,
+    speculativeChildJobs: session.speculativeChildJobs,
+    esiDataToLink: session.esiDataToLink,
+    parentChildToEdit: session.parentChildToEdit,
+  };
 
   /* Handing the current state out to the test is exactly what an effect is for:
    * telling something outside React what React now holds. */

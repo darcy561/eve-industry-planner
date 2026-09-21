@@ -4,10 +4,11 @@ import useUsersStore from "../../Zustand/usersStore";
  * Puts a job back as it was before editing, unless it is no longer there to put
  * back.
  *
- * Leaving an editor without saving restores the copy taken when it opened. A job
- * deleted while the reader had it open is not there to restore, and adding it
- * back would show them a job they have just been told is gone — so every path
- * that discards an edit asks this rather than writing the backup in.
+ * What goes back is the document the session holds underneath what the reader
+ * changed, so anything that arrived while they were editing survives. A job
+ * deleted while they had it open is not there to restore, and adding it back
+ * would show them a job they have just been told is gone — so every path that
+ * discards an edit asks this rather than writing one in.
  *
  * @param {{jobID?: string}|null|undefined} job - the job as it should be left
  * @returns {boolean} whether the job was put back

@@ -28,6 +28,23 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({}),
 }));
 
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreOverSession } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreOverSession({
+    // A row names whoever installed the run, and one whose installer this
+    // account cannot name is not offered at all.
+    account: {
+      actions: {
+        findCharacterById: () => ({
+          CharacterID: 95465499,
+          CharacterName: "Builder",
+        }),
+      },
+    },
+  });
+});
+
 // This file is about a job's clock and status, not about resolving places: the names arrive
 // already resolved so the rows render without the query layer this mock has replaced.
 vi.mock("../../../../../../Hooks/EveEsi/useLocationNames", () => ({
@@ -52,6 +69,10 @@ vi.mock("../../../../panelStates", () => ({
 }));
 
 const { AvailableJobsTab } = await import("./availableJobs.jsx");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
+
+const session = () => useUsersStore.getState().editSession;
 
 const HOUR = 60 * 60 * 1000;
 const START = Date.parse("2026-01-01T00:00:00.000Z");
@@ -70,17 +91,21 @@ function esiJob(overrides = {}) {
   };
 }
 
+/** A job with ten slots and nothing linked, so every match is offered. */
+function openJob() {
+  session().actions.openJob("job-1", {
+    jobID: "job-1",
+    build: {
+      setup: { "setup-1": { id: "setup-1", runCount: 1, jobCount: 10 } },
+    },
+    esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+  });
+}
+
 function renderTab(jobs) {
+  openJob();
   return render(
     <AvailableJobsTab
-      state={{
-        activeJob: {
-          jobID: "job-1",
-          esiJobIDs: new Set(),
-          totalJobSlots: 10,
-        },
-      }}
-      actions={{}}
       jobMatches={jobs}
       isLoading={false}
       isError={false}
@@ -90,6 +115,7 @@ function renderTab(jobs) {
 }
 
 beforeEach(() => {
+  session().actions.closeSession();
   vi.useFakeTimers();
   vi.setSystemTime(new Date(START));
 });

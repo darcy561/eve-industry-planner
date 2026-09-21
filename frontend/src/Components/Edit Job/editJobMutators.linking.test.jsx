@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
 import Group from "../../Classes/group";
 import {
   TRITANIUM,
@@ -60,20 +60,14 @@ describe("linking jobs to each other, end to end", () => {
   it("marks a parent job for linking", () => {
     const { editJob } = renderOverEditJob(
       storedJob({ itemID: TRITANIUM }),
-      ({ state, actions }) => {
+      () => {
         onThePlanner(
           plannerJob("job-2", "Rifter", {
             itemID: 587,
             builtFrom: [TRITANIUM],
           }),
         );
-        return (
-          <ParentJobOptions
-            state={state}
-            actions={actions}
-            onLinked={() => {}}
-          />
-        );
+        return <ParentJobOptions onLinked={() => {}} />;
       },
     );
 
@@ -81,6 +75,32 @@ describe("linking jobs to each other, end to end", () => {
 
     expect(editJob.current.parentChildToEdit.parentJobs.add).toContain("job-2");
     expect(editJob.current.parentChildToEdit.parentJobs.remove).toEqual([]);
+  });
+
+  // Through the badge that mounts it, because the two are only ever used
+  // together and what passes between them is what a conversion breaks.
+  it("offers a parent from the dialogue the badge opens", async () => {
+    const { editJob } = renderOverEditJob(
+      storedJob({ itemID: TRITANIUM }),
+      () => {
+        onThePlanner(
+          plannerJob("job-2", "Rifter", {
+            itemID: 587,
+            builtFrom: [TRITANIUM],
+          }),
+        );
+        return <LinkedJobBadge />;
+      },
+    );
+
+    fireEvent.click(screen.getByTestId("AddIcon").closest("button"));
+    const offer = (await screen.findByText("Rifter")).closest(
+      ".MuiGrid-container",
+    );
+
+    fireEvent.click(within(offer).getByTestId("AddIcon").closest("button"));
+
+    expect(editJob.current.parentChildToEdit.parentJobs.add).toContain("job-2");
   });
 
   it("marks a child job for linking against the material it makes", () => {
@@ -93,11 +113,9 @@ describe("linking jobs to each other, end to end", () => {
           childJobs: { [TRITANIUM]: [] },
         },
       }),
-      ({ state, actions }) => {
+      () => {
         onThePlanner(plannerJob("job-3", "Tritanium", { itemID: TRITANIUM }));
-        return (
-          <ChildJobLinks state={state} actions={actions} material={material} />
-        );
+        return <ChildJobLinks material={material} />;
       },
     );
 
@@ -122,11 +140,9 @@ describe("linking jobs to each other, end to end", () => {
           childJobs: { [TRITANIUM]: ["job-3"] },
         },
       }),
-      ({ state, actions }) => {
+      () => {
         onThePlanner(child);
-        return (
-          <ChildJobLinks state={state} actions={actions} material={material} />
-        );
+        return <ChildJobLinks material={material} />;
       },
     );
 
@@ -148,9 +164,9 @@ describe("unlinking a parent job, end to end", () => {
     const parent = plannerJob("job-9", "Rifter", { itemID: 587 });
     const { editJob } = renderOverEditJob(
       storedJob({ parentJobs: ["job-9"] }),
-      ({ state, actions }) => {
+      () => {
         onThePlanner(parent);
-        return <LinkedJobBadge state={state} actions={actions} />;
+        return <LinkedJobBadge />;
       },
     );
 

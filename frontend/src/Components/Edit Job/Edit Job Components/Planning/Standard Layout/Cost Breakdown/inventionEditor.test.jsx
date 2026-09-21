@@ -1,9 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  appliedTo,
-  commandActions,
-  commandsRun,
-} from "../../../../../../tests/jobCommandSpy.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -14,9 +9,9 @@ vi.mock("../../../../../../Events/snackbarEvents", async () => {
 });
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock({
+  return usersStoreOverSession({
     account: { accountID: "acc-1", isLoggedIn: true },
     applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
   });
@@ -25,17 +20,27 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
 const { default: InventionEditor, invitesInvention } =
   await import("./inventionEditor");
 const { default: Job } = await import("../../../../../../Classes/job");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
+const { draftFor } =
+  await import("../../../../Edit Job Hooks/jobDraftStore.js");
+
+const session = () => useUsersStore.getState().editSession;
+/** The job as it stands after what the reader did. */
+const jobNow = () => new Job(draftFor(session().draft, "job-1"));
 
 const jobFor = (overrides = {}) =>
   new Job({ jobType: 1, name: "Item", itemID: 34, ...overrides });
 
 const show = (job) => {
-  const actions = commandActions();
-  render(<InventionEditor state={{ activeJob: job }} actions={actions} />);
-  return actions;
+  session().actions.openJob("job-1", job.toDocument());
+  render(<InventionEditor />);
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  session().actions.closeSession();
+});
 
 // Only a T2 or T3 item is invented, and the meta group is what says so. Reading
 // it was broken for every job, so nothing was ever asked what invention cost.
@@ -61,8 +66,7 @@ describe("recording what invention cost", () => {
   });
 
   it("writes an entry onto the job, where Purchasing reads it too", async () => {
-    const job = jobFor({ metaGroupID: 2 });
-    const actions = show(job);
+    show(jobFor({ metaGroupID: 2 }));
 
     await userEvent.type(
       screen.getByPlaceholderText("What invention used…"),
@@ -75,7 +79,7 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    const changed = new Job(appliedTo(actions, job.toDocument()));
+    const changed = jobNow();
     expect(Object.keys(changed.build.inventionEntries)).toHaveLength(1);
     expect(Object.values(changed.build.inventionEntries)[0]).toMatchObject({
       itemName: "Datacore",
@@ -86,8 +90,7 @@ describe("recording what invention cost", () => {
   });
 
   it("refuses an entry with no name", async () => {
-    const job = jobFor({ metaGroupID: 2 });
-    const actions = show(job);
+    show(jobFor({ metaGroupID: 2 }));
 
     const cost = screen.getByPlaceholderText("0.00");
     await userEvent.clear(cost);
@@ -96,12 +99,11 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    expect(commandsRun(actions)).toEqual([]);
+    expect(session().draft.log).toEqual([]);
   });
 
   it("refuses an entry costing nothing", async () => {
-    const job = jobFor({ metaGroupID: 2 });
-    const actions = show(job);
+    show(jobFor({ metaGroupID: 2 }));
 
     await userEvent.type(
       screen.getByPlaceholderText("What invention used…"),
@@ -111,7 +113,7 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Add invention cost" }),
     );
 
-    expect(commandsRun(actions)).toEqual([]);
+    expect(session().draft.log).toEqual([]);
   });
 
   it("lists what has been recorded, and takes one back off", async () => {
@@ -123,7 +125,7 @@ describe("recording what invention cost", () => {
         },
       },
     });
-    const actions = show(job);
+    show(job);
 
     expect(screen.getByText("Datacore")).toBeInTheDocument();
 
@@ -131,8 +133,6 @@ describe("recording what invention cost", () => {
       screen.getByRole("button", { name: "Remove Datacore" }),
     );
 
-    expect(appliedTo(actions, job.toDocument()).build.inventionEntries).toEqual(
-      {},
-    );
+    expect(jobNow().build.inventionEntries).toEqual({});
   });
 });

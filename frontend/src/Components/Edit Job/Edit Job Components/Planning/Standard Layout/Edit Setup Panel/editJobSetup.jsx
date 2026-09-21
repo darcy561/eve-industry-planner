@@ -18,15 +18,21 @@ import UseAlternativeCheckbox from "../../../../../../Styled Components/Checkbox
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import applySetupChange from "../../../../../../Functions/JobPlanner/applySetupChange";
 import { setupShowsManualStructureFields } from "../../../../../../Functions/Helper/customStructureSetup";
+import { useSelectedSetup } from "../../../../Edit Job Hooks/useSelectedSetup";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 
-export function EditJobSetup(props) {
-  const { state, actions } = props;
+export function EditJobSetup() {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
 
   const getCustomStructureWithID =
     useUsersStore.getState().applicationSettings.actions
       .getCustomStructureWithID;
-  const selectedSetup = state.activeJob.selectedSetup;
+  const selectedSetup = useSelectedSetup();
+  const jobType = useJobDraft((job) => job.jobType);
+  const actions = useJobActions();
 
   if (!selectedSetup) return null;
 
@@ -60,7 +66,7 @@ export function EditJobSetup(props) {
               }}
             />
           </Grid>
-          {state.activeJob.jobType === jobTypes.manufacturing && (
+          {jobType === jobTypes.manufacturing && (
             <>
               <Grid size={6}>
                 <MaterialEfficiencySelect
@@ -91,7 +97,7 @@ export function EditJobSetup(props) {
             </>
           )}
 
-          <ManualStructureSelection {...props} selectedSetup={selectedSetup} />
+          <ManualStructureSelection selectedSetup={selectedSetup} />
           <Grid container size={12}>
             <Grid size={6}>
               <UseAlternativeCheckbox
@@ -138,7 +144,7 @@ export function EditJobSetup(props) {
               <Grid size={12}>
                 <CustomStructureSelect
                   value={selectedSetup.customStructureID}
-                  jobType={state.activeJob.jobType}
+                  jobType={jobType}
                   onChange={async (value) => {
                     await applySetupChange(
                       selectedSetup,
@@ -179,9 +185,11 @@ export function EditJobSetup(props) {
   );
 }
 
-function ManualStructureSelection({ state, actions, selectedSetup }) {
+function ManualStructureSelection({ selectedSetup }) {
   const [fetchSystemDataTrigger, updateFetchSystemDataTrigger] =
     useState(false);
+  const jobType = useJobDraft((job) => job.jobType);
+  const actions = useJobActions();
 
   const getCustomStructureWithID =
     useUsersStore.getState().applicationSettings.actions
@@ -198,7 +206,7 @@ function ManualStructureSelection({ state, actions, selectedSetup }) {
       <Grid size={6}>
         <StructureTypeSelect
           value={selectedSetup.structureID}
-          jobType={state.activeJob.jobType}
+          jobType={jobType}
           onChange={async (selectedEntry) => {
             await applySetupChange(
               selectedSetup,
@@ -212,7 +220,7 @@ function ManualStructureSelection({ state, actions, selectedSetup }) {
       <Grid size={6}>
         <RigTypeSelect
           value={selectedSetup.rigSlot1}
-          jobType={state.activeJob.jobType}
+          jobType={jobType}
           onChange={async (selectedEntry) => {
             await applySetupChange(
               selectedSetup,
@@ -226,7 +234,7 @@ function ManualStructureSelection({ state, actions, selectedSetup }) {
       <Grid size={6}>
         <SystemTypeSelect
           value={selectedSetup.systemTypeID}
-          jobType={state.activeJob.jobType}
+          jobType={jobType}
           onChange={async (selectedEntry) => {
             await applySetupChange(
               selectedSetup,
@@ -241,7 +249,7 @@ function ManualStructureSelection({ state, actions, selectedSetup }) {
         {!fetchSystemDataTrigger ? (
           <VirtualisedSystemSearch
             selectedValue={selectedSetup.systemID}
-            jobType={state.activeJob.jobType}
+            jobType={jobType}
             updateSelectedValue={async (value) => {
               updateFetchSystemDataTrigger((prev) => !prev);
               await applySetupChange(

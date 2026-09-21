@@ -20,6 +20,9 @@ enablePatches();
  * @property {Array<DraftEntry>} scratch - What the player asked about
  * @property {Array<UndoneEntry>} undone - What undo took off, newest last
  * @property {number} nextSeq - The sequence the next entry takes
+ * @property {Object<string, object>} drafts - Job id to the job as it reads now.
+ *   Derived from the layers and rebuilt whenever they move, rather than worked
+ *   out by whoever asks
  */
 
 /**
@@ -42,11 +45,62 @@ enablePatches();
  * The base holds a map rather than one document because an edit session is not
  * one job — linking a child writes the child's parents, and close time
  * recalculates the tree — so every entry names the job it changed.
+ *
+ * The draft each job reads as is a **field**, rebuilt by every function here that
+ * returns a changed state. Worked out on demand instead, it would be a new object
+ * on every read: the layers are replayed with `applyPatches`, which copies the
+ * job it returns, so a panel subscribing to part of the job would be handed
+ * something new every time it was asked and would never settle.
  */
 
 /** @returns {DraftState} An editor holding nothing */
 export function emptyDraftState() {
-  return { base: {}, log: [], scratch: [], undone: [], nextSeq: 1 };
+  return { base: {}, log: [], scratch: [], undone: [], nextSeq: 1, drafts: {} };
+}
+
+/**
+ * The layers replayed for one job: base, then what was changed, then what was
+ * asked.
+ *
+ * Scratch applies last so an experiment is not disturbed by a change arriving
+ * underneath it — the what-if is the topmost answer to "what does this say".
+ *
+ * @param {DraftState} state
+ * @param {string} jobID
+ * @returns {object|undefined}
+ */
+function replay(state, jobID) {
+  const held = state.base[jobID];
+  if (!held) return undefined;
+
+  const entries = [
+    ...state.log.filter((entry) => entry.jobID === jobID),
+    ...state.scratch.filter((entry) => entry.jobID === jobID),
+  ];
+  return entries.reduce(
+    (applied, entry) => applyPatches(applied, entry.patches),
+    held,
+  );
+}
+
+/**
+ * The state with every held job's draft rebuilt, which is how every function
+ * here returns one.
+ *
+ * That is the whole of the discipline: a state that left this module without
+ * coming through here would carry a draft describing layers it no longer has,
+ * and a reader comparing by identity would never notice. `the draft a writer
+ * leaves behind` in the tests beside this file holds each of them to it.
+ *
+ * @param {DraftState} state
+ * @returns {DraftState}
+ */
+function withDrafts(state) {
+  const drafts = {};
+  for (const jobID of Object.keys(state.base)) {
+    drafts[jobID] = replay(state, jobID);
+  }
+  return { ...state, drafts };
 }
 
 /**
@@ -66,20 +120,23 @@ export function setBase(state, jobID, document) {
   // Frozen on the way in, so the job a reader is shown cannot be written to
   // from the moment it opens. What a change produces is frozen by `produce`
   // anyway; without this the guarantee would only start at the first edit.
-  return { ...state, base: { ...state.base, [jobID]: freeze(document, true) } };
+  return withDrafts({
+    ...state,
+    base: { ...state.base, [jobID]: freeze(document, true) },
+  });
 }
 
 /** @param {DraftState} state @param {string} jobID @returns {DraftState} */
 export function forgetJob(state, jobID) {
   const base = { ...state.base };
   delete base[jobID];
-  return {
+  return withDrafts({
     ...state,
     base,
     log: state.log.filter((entry) => entry.jobID !== jobID),
     scratch: state.scratch.filter((entry) => entry.jobID !== jobID),
     undone: state.undone.filter((entry) => entry.jobID !== jobID),
-  };
+  });
 }
 
 /** How long a run of typing keeps merging into one undo step. */
@@ -144,19 +201,19 @@ function record(state, layer, jobID, command, recipe) {
       seq: previous.seq,
       inversePatches: previous.inversePatches,
     };
-    return {
+    return withDrafts({
       ...state,
       [layer]: entries.map((held) => (held.seq === merged.seq ? merged : held)),
       undone: [],
-    };
+    });
   }
 
-  return {
+  return withDrafts({
     ...state,
     [layer]: [...entries, entry],
     undone: [],
     nextSeq: state.nextSeq + 1,
-  };
+  });
 }
 
 /**
@@ -193,28 +250,17 @@ export function ask(state, jobID, command, recipe) {
 /**
  * The job as it reads now: base, then what was changed, then what was asked.
  *
- * Scratch applies last so an experiment is not disturbed by a change arriving
- * underneath it — the what-if is the topmost answer to "what does this say".
- *
- * Every subtree an entry did not touch is the same object it was in the base, so
- * a reader holding one can compare by identity rather than by value.
+ * The same object for as long as the layers under it hold, so a reader compares
+ * it by identity rather than by value — and every subtree an entry did not touch
+ * is the object it was in the base, so the comparison holds part by part as well
+ * as whole.
  *
  * @param {DraftState} state
  * @param {string} jobID
  * @returns {object|undefined} Plain data, or undefined for a job not held
  */
 export function draftFor(state, jobID) {
-  const held = state.base[jobID];
-  if (!held) return undefined;
-
-  const entries = [
-    ...state.log.filter((entry) => entry.jobID === jobID),
-    ...state.scratch.filter((entry) => entry.jobID === jobID),
-  ];
-  return entries.reduce(
-    (document, entry) => applyPatches(document, entry.patches),
-    held,
-  );
+  return state.drafts[jobID];
 }
 
 /**
@@ -265,13 +311,13 @@ export function changedJobIDs(state) {
  */
 export function discard(state, jobID) {
   if (jobID === undefined)
-    return { ...state, log: [], scratch: [], undone: [] };
-  return {
+    return withDrafts({ ...state, log: [], scratch: [], undone: [] });
+  return withDrafts({
     ...state,
     log: state.log.filter((entry) => entry.jobID !== jobID),
     scratch: state.scratch.filter((entry) => entry.jobID !== jobID),
     undone: state.undone.filter((entry) => entry.jobID !== jobID),
-  };
+  });
 }
 
 /**
@@ -284,18 +330,18 @@ export function discard(state, jobID) {
 export function leaveScratch(state, jobID) {
   const asked = (entry) => entry.layer === "scratch";
   if (jobID === undefined)
-    return {
+    return withDrafts({
       ...state,
       scratch: [],
       undone: state.undone.filter((entry) => !asked(entry)),
-    };
-  return {
+    });
+  return withDrafts({
     ...state,
     scratch: state.scratch.filter((entry) => entry.jobID !== jobID),
     undone: state.undone.filter(
       (entry) => !asked(entry) || entry.jobID !== jobID,
     ),
-  };
+  });
 }
 
 /**
@@ -321,11 +367,11 @@ export function keepAsked(state, seq) {
       ? [...state.log, entry]
       : [...state.log.slice(0, at), entry, ...state.log.slice(at)];
 
-  return {
+  return withDrafts({
     ...state,
     log,
     scratch: state.scratch.filter((held) => held.seq !== seq),
-  };
+  });
 }
 
 /** @param {DraftState} state @returns {UndoneEntry|undefined} */
@@ -369,11 +415,11 @@ export function undo(state) {
   const step = newestStep(state);
   if (!step) return state;
 
-  return {
+  return withDrafts({
     ...state,
     [step.layer]: state[step.layer].filter((entry) => entry.seq !== step.seq),
     undone: [...state.undone, step],
-  };
+  });
 }
 
 /**
@@ -391,9 +437,9 @@ export function redo(state) {
   if (!step) return state;
 
   const { layer, ...entry } = step;
-  return {
+  return withDrafts({
     ...state,
     [layer]: [...state[layer], entry],
     undone: state.undone.slice(0, -1),
-  };
+  });
 }

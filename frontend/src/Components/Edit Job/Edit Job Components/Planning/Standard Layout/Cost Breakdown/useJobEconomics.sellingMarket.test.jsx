@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-const { getMarketPriceForType, sellingGroups } = vi.hoisted(() => ({
+const { getMarketPriceForType } = vi.hoisted(() => ({
   getMarketPriceForType: vi.fn(() => 200),
-  sellingGroups: { current: {} },
 }));
 
 vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
@@ -31,7 +30,7 @@ vi.mock("../../../../../../Hooks/React Query/Backend/statisticsTotals", () => ({
 }));
 
 vi.mock("../../../../../../Functions/Installation Costs/installCosts", () => ({
-  getJobInstallCostForPlanning: () => 0,
+  installCostForPlanning: () => 0,
 }));
 
 vi.mock("../../../../../../Functions/MarketOrders/sellerCharacter", () => ({
@@ -57,20 +56,12 @@ vi.mock("../../../../../../Functions/Helper/getCachedData", async () => {
 // The two sides name different markets, so a lookup against the wrong one is
 // visible rather than passing on a fixture that agrees with itself.
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession, usersStoreState } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock(() =>
+  return usersStoreOverSession(
     usersStoreState({
       applicationSettings: {
         actions: { getCurrentLocale: () => "en-GB" },
-        defaultPricing: {
-          buying: { market: "jita", basis: "sell" },
-          selling: {
-            market: "amarr",
-            exit: "listed",
-            ...sellingGroups.current,
-          },
-        },
       },
       jobData: { actions: { findJobInJobArray: () => undefined } },
     }),
@@ -78,23 +69,49 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
 });
 
 const { useJobEconomics } = await import("./useJobEconomics");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
 const { primeMarketGroupData, resetMarketGroupData } =
   await import("../../../../../../Functions/MarketData/marketGroupData");
 
-const state = {
-  activeJob: {
-    itemID: 34,
-    totalQuantityProduced: 10,
-    layout: { setupToEdit: "setup0" },
-    build: {
-      setup: { setup0: { selectedCharacter: "hash" } },
-      costs: { extrasCosts: [] },
+const session = () => useUsersStore.getState().editSession;
+
+/** The account's own markets, with whatever a market group says over them. */
+const pricedWith = (groups = {}) =>
+  useUsersStore.setState((store) => ({
+    applicationSettings: {
+      ...store.applicationSettings,
+      defaultPricing: {
+        buying: { market: "jita", basis: "sell" },
+        selling: { market: "amarr", exit: "listed", ...groups },
+      },
     },
-    get selectedSetup() {
-      return this.build.setup[this.layout.setupToEdit];
+  }));
+
+/** Ten units of Tritanium, as the planner stores the job that makes them. */
+const jobDocument = () => ({
+  jobID: "job-1",
+  itemID: 34,
+  itemsProducedPerRun: 10,
+  parentJobs: [],
+  layout: { setupToEdit: "setup0" },
+  build: {
+    materials: {},
+    childJobs: {},
+    extrasCosts: {},
+    inventionEntries: {},
+    setup: {
+      setup0: {
+        id: "setup0",
+        selectedCharacter: "hash",
+        runCount: 1,
+        jobCount: 1,
+        materialCount: {},
+      },
     },
   },
-};
+  esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+});
 
 // A job's output is sold, and the market it is sold on is the selling side's.
 // Pricing it against the buying side quotes a sale from where the materials come
@@ -102,21 +119,16 @@ const state = {
 describe("which market a sale is quoted against", () => {
   beforeEach(async () => {
     getMarketPriceForType.mockClear();
-    sellingGroups.current = {};
+    pricedWith();
     // The module holds the tree for the whole worker, so another file may have
     // primed it with data of its own.
     resetMarketGroupData();
     await primeMarketGroupData();
+    session().actions.closeSession();
+    session().actions.openJob("job-1", jobDocument());
   });
 
-  const price = () =>
-    renderHook(() =>
-      useJobEconomics({
-        state,
-        actions: { getCurrentParentJobs: () => [] },
-        rows: [],
-      }),
-    );
+  const price = () => renderHook(() => useJobEconomics({ rows: [] }));
 
   const hubsAskedForOutput = () =>
     new Set(
@@ -126,13 +138,7 @@ describe("which market a sale is quoted against", () => {
     );
 
   it("asks the selling side's market, not the buying side's", () => {
-    renderHook(() =>
-      useJobEconomics({
-        state,
-        actions: { getCurrentParentJobs: () => [] },
-        rows: [],
-      }),
-    );
+    price();
 
     const forOutput = getMarketPriceForType.mock.calls.filter(
       ([typeID]) => typeID === 34,
@@ -148,7 +154,7 @@ describe("which market a sale is quoted against", () => {
   // the output is an item like any other — so pricing minerals somewhere else
   // has to reach a job that makes one.
   it("takes a market group default over the side's own market", () => {
-    sellingGroups.current = { groups: { 1857: { market: "hek" } } };
+    pricedWith({ groups: { 1857: { market: "hek" } } });
 
     price();
 
@@ -156,7 +162,7 @@ describe("which market a sale is quoted against", () => {
   });
 
   it("keeps the side's market for an item no group prices", () => {
-    sellingGroups.current = { groups: { 9999: { market: "hek" } } };
+    pricedWith({ groups: { 9999: { market: "hek" } } });
 
     price();
 

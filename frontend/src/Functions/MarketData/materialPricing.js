@@ -117,7 +117,8 @@ function beneathTheJob(chosen, rung) {
  * ignored overrides would not be the total the player would get.
  *
  * @param {object} params
- * @param {Array<object>} params.materials - The job's materials
+ * @param {Array<{typeID: number, quantity: number}>} params.rows - The rows the
+ *   panel draws, each stating how many the job takes
  * @param {object} params.build - The job's build, holding materialPriceOverrides
  * @param {string} params.marketLocation - The market in effect
  * @param {string} params.listingType - The listing type in effect
@@ -126,14 +127,14 @@ function beneathTheJob(chosen, rung) {
  * @returns {BasisOption[]}
  */
 export function materialCostByBasis({
-  materials,
+  rows: materialRows,
   build,
   marketLocation,
   listingType,
   getPrice,
   groupPricing,
 }) {
-  const rows = Array.isArray(materials) ? materials : [];
+  const rows = Array.isArray(materialRows) ? materialRows : [];
 
   // The basis is the axis being varied, so nothing below the panel may answer it:
   // a group default naming one would answer every candidate identically and

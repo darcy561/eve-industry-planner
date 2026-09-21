@@ -176,7 +176,8 @@ describe.skipIf(!RUN)("two members of one planner", () => {
     const held = (await bob.read("jobData.jobArray")).find(
       (job) => job.jobID === "job-doomed",
     );
-    await bob.action("jobData", "setActiveJobID", "job-doomed");
+    await bob.action("editSession", "openJob", "job-doomed", held);
+    expect(await bob.read("editSession.activeJobID")).toBe("job-doomed");
 
     await alice.call(
       "/src/Functions/Endpoints/Private/jobDocuments.js",
@@ -204,7 +205,7 @@ describe.skipIf(!RUN)("two members of one planner", () => {
     expect(
       (await bob.requests()).filter((request) => request.method !== "GET"),
     ).toEqual([]);
-    expect(await bob.read("jobData.activeJobID")).toBeNull();
+    expect(await bob.read("editSession.activeJobID")).toBeNull();
   }, 60_000);
 
   // A member cannot clear a lock another member holds, and must be told so.

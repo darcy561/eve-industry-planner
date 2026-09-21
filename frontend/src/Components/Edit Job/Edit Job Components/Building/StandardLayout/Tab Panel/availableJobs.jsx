@@ -35,6 +35,15 @@ import {
   corporationImageUrl,
   typeImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
+import {
+  isReadyToDeliver,
+  progressPercent,
+} from "../../../../Edit Job Hooks/linkedRunSelectors";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { jobSlotsOf } from "../../../../Edit Job Hooks/jobSelectors";
 
 /**
  * Linking an ESI job adds a run to `activeJob.esi.industryJobs` (persisted),
@@ -43,7 +52,12 @@ import {
  * (matches the save/delete-icon pattern, no need for the composite hook).
  */
 export function AvailableJobsTab(props) {
-  const { state, actions, jobMatches, isLoading, isError, error } = props;
+  const { jobMatches, isLoading, isError, error } = props;
+  const setups = useJobDraft((job) => job.build.setup);
+  const industryJobs = useJobDraft((job) => job.esi.industryJobs);
+  const actions = useJobActions();
+  const jobSlots = jobSlotsOf(setups);
+  const linkedCount = Object.keys(industryJobs).length;
   const facilityIds = useMemo(
     () => jobMatches.map((job) => job.facility_id),
     [jobMatches],
@@ -52,10 +66,10 @@ export function AvailableJobsTab(props) {
   const queryClient = useQueryClient();
   const [clickedJobs, setClickedJobs] = useState(new Set());
   const now = useCurrentTime();
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const jobLockReadOnly = useActiveJobReadOnly();
 
-  const getStatusColor = (status, isReadyToDeliver) => {
-    if (isReadyToDeliver) {
+  const getStatusColor = (status, readyToDeliver) => {
+    if (readyToDeliver) {
       return "success";
     }
     switch (status) {
@@ -113,10 +127,7 @@ export function AvailableJobsTab(props) {
   }
 
   // Show jobs if we have matches and haven't reached the job limit
-  if (
-    jobMatches.length !== 0 &&
-    state.activeJob.esiJobIDs.size < state.activeJob.totalJobSlots
-  ) {
+  if (jobMatches.length !== 0 && linkedCount < jobSlots) {
     return (
       <>
         <Grid
@@ -162,19 +173,10 @@ export function AvailableJobsTab(props) {
               Date.parse(job.end_date),
               { now },
             );
-            const isReadyToDeliver =
-              job.status === "active" &&
-              (timeRemaining === "Complete" ||
-                Date.parse(job.end_date) - now <= 0);
+            const readyToDeliver = isReadyToDeliver(job, now);
             // The bar and the tooltip beside it read the same figure; the
             // tooltip is the only one that rounds.
-            const progressPercent =
-              job.status === "delivered" || isReadyToDeliver
-                ? 100
-                : 100 -
-                  ((Date.parse(job.end_date) - now) /
-                    (Date.parse(job.end_date) - Date.parse(job.start_date))) *
-                    100;
+            const progress = progressPercent(job, now);
 
             return (
               <Grid
@@ -212,13 +214,10 @@ export function AvailableJobsTab(props) {
                       handleJobClick(job);
                     }}
                   >
-                    <Tooltip
-                      title={`Progress: ${Math.round(progressPercent)}%`}
-                      arrow
-                    >
+                    <Tooltip title={`Progress: ${Math.round(progress)}%`} arrow>
                       <LinearProgress
                         variant="determinate"
-                        value={progressPercent}
+                        value={progress}
                         sx={{
                           position: "absolute",
                           top: 0,
@@ -321,19 +320,19 @@ export function AvailableJobsTab(props) {
                               color: "text.secondary",
                             }}
                           >
-                            {isReadyToDeliver
+                            {readyToDeliver
                               ? "Ready to Deliver"
                               : timeRemaining}
                           </Typography>
                         )}
                         <Chip
                           label={
-                            isReadyToDeliver
+                            readyToDeliver
                               ? "Ready for Delivery"
                               : job.status.charAt(0).toUpperCase() +
                                 job.status.slice(1)
                           }
-                          color={getStatusColor(job.status, isReadyToDeliver)}
+                          color={getStatusColor(job.status, readyToDeliver)}
                           size="small"
                           sx={{
                             width: "100%",
@@ -358,7 +357,7 @@ export function AvailableJobsTab(props) {
                 title={
                   jobLockReadOnly
                     ? lockReasonText({ action: "bulk linking is disabled" })
-                    : jobMatches.length > state.activeJob.jobCount
+                    : jobMatches.length > jobSlots
                       ? "Cannot link all jobs: Not enough job slots available"
                       : "Click to link all available jobs at once"
                 }
@@ -369,10 +368,7 @@ export function AvailableJobsTab(props) {
                     variant="contained"
                     color="primary"
                     onClick={handleLinkAll}
-                    disabled={
-                      jobLockReadOnly ||
-                      jobMatches.length > state.activeJob.jobCount
-                    }
+                    disabled={jobLockReadOnly || jobMatches.length > jobSlots}
                     startIcon={<MdOutlineAddLink />}
                   >
                     Link All Jobs
@@ -384,10 +380,7 @@ export function AvailableJobsTab(props) {
         )}
       </>
     );
-  } else if (
-    Object.keys(state.activeJob.esi.industryJobs).length >=
-    state.activeJob.jobCount
-  ) {
+  } else if (linkedCount >= jobSlots) {
     return (
       <Grid
         align="center"

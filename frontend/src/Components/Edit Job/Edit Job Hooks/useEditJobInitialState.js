@@ -8,16 +8,13 @@ import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
 import { loadAllRelatedJobs } from "../../../Functions/Helper/getAllRelatedJobs";
 import useUsersStore from "../../../Zustand/usersStore";
 
-export function useEditJobInitialState({
-  jobID,
-  currentActiveJobID,
-  actions,
-  setActiveJobID,
-}) {
+export function useEditJobInitialState({ jobID, currentActiveJobID, actions }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: "/editjob/$jobID" });
 
   useEffect(() => {
+    let open = true;
+
     async function setInitialState() {
       if (jobID === currentActiveJobID) return;
 
@@ -54,10 +51,14 @@ export function useEditJobInitialState({
           .getState()
           .worldData.actions.addSystemIndex(requestedSystemIndexes);
 
+        // Before the session is touched, not after: opening replaces it whole,
+        // so a load that lost the race would seed the job the reader has left
+        // over the one they are now on.
+        if (!open) return;
+
         // The session holds the job as plain data: what the reader changes is
         // recorded against this rather than written into it.
         actions.openJob(matchedJob.jobID, new Job(matchedJob).toDocument());
-        setActiveJobID(matchedJob.jobID);
       } catch (err) {
         console.error("Error importing job data:", err);
         navigate({ to: "/jobplanner" });
@@ -65,12 +66,11 @@ export function useEditJobInitialState({
     }
 
     setInitialState();
-  }, [
-    actions,
-    currentActiveJobID,
-    jobID,
-    navigate,
-    queryClient,
-    setActiveJobID,
-  ]);
+
+    // A load that finishes after the page has gone, or after the reader has
+    // moved to another job, must not seed a session nobody is looking at.
+    return () => {
+      open = false;
+    };
+  }, [actions, currentActiveJobID, jobID, navigate, queryClient]);
 }

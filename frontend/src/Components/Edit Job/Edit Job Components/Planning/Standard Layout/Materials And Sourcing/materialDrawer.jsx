@@ -12,6 +12,7 @@ import { ImportingStateLayout } from "./Child Job Drawer/fetchState";
 import { useChildJobBuildActions } from "./Hooks/useChildJobBuildActions";
 import { useChildJobDrawerData } from "./Hooks/useChildJobDrawerData";
 import RowPricingOverride from "./rowPricingOverride";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 
 /**
  * What building a material would involve, opened from its row.
@@ -22,8 +23,6 @@ import RowPricingOverride from "./rowPricingOverride";
  * @param {object} props
  * @param {boolean} props.isOpen
  * @param {object} props.material
- * @param {object} props.state - Edit Job state
- * @param {object} props.actions - Edit Job actions
  * @param {string} props.marketLocation
  * @param {string} props.listingType
  * @param {number} props.currentMaterialPrice
@@ -35,8 +34,6 @@ import RowPricingOverride from "./rowPricingOverride";
 export default function MaterialDrawer({
   isOpen,
   material,
-  state,
-  actions,
   currentMaterialPrice,
   matchedChildJobs,
   marketLocation,
@@ -48,13 +45,15 @@ export default function MaterialDrawer({
   const checkTypeIDisExempt = useUsersStore(
     (store) => store.applicationSettings.actions.checkTypeIDisExempt,
   );
-  const { buildSingleChildJobPreview } = useChildJobBuildActions({
-    state,
-    actions,
-  });
+  const linkedChildJobs = useJobDraft(
+    (job) => job.build.childJobs[material.typeID],
+  );
+  const temporaryChildJobs = useUsersStore(
+    (store) => store.editSession.temporaryChildJobs,
+  );
+  const { buildSingleChildJobPreview } = useChildJobBuildActions();
 
-  const childJobsLocation =
-    state.activeJob.build.childJobs[material.typeID] || [];
+  const childJobsLocation = linkedChildJobs ?? [];
 
   const {
     jobImportState,
@@ -63,7 +62,6 @@ export default function MaterialDrawer({
     childJobObjects,
     fetchError,
   } = useChildJobDrawerData({
-    state,
     isOpen,
     material,
     matchedChildJobs,
@@ -75,15 +73,13 @@ export default function MaterialDrawer({
   // here rather than handed in with the row.
   const totals = calculateChildJobTotals(
     childJobObjects[jobDisplay],
-    state.temporaryChildJobs,
+    temporaryChildJobs,
     marketLocation,
     listingType,
   );
 
   const shared = {
     ...rest,
-    state,
-    actions,
     material,
     matchedChildJobs,
     marketLocation,
@@ -136,7 +132,6 @@ export default function MaterialDrawer({
             {isRealJob(childJobObjects[jobDisplay], matchedChildJobs) ? (
               <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
                 <OpenChildJobButton
-                  {...shared}
                   childJobObjects={childJobObjects}
                   jobDisplay={jobDisplay}
                 />

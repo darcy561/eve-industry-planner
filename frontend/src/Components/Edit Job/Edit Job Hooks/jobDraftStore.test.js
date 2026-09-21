@@ -1,3 +1,4 @@
+import { applyPatches } from "immer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -100,6 +101,80 @@ describe("what an edit leaves alone", () => {
     expect(after.build.setup["setup-1"]).not.toBe(
       before.build.setup["setup-1"],
     );
+  });
+});
+
+// Not an optimisation: a panel subscribing through the store is asked for its
+// value more than once per render, and a read that rebuilds the job each time
+// never settles.
+describe("reading the same state twice", () => {
+  it("answers with the same job both times", () => {
+    const state = change(holding(), "job-1", "set run count", (job) => {
+      job.build.setup["setup-1"].runCount = 40;
+    });
+
+    expect(draftFor(state, "job-1")).toBe(draftFor(state, "job-1"));
+  });
+});
+
+// The draft is a field rather than something a reader works out, so a function
+// returning a state around the rebuild would leave one describing layers it no
+// longer has — and a reader comparing by identity would never notice. Each of
+// them is held to it here, against the layers replayed from scratch.
+describe("the draft a writer leaves behind", () => {
+  const replayed = (state, jobID) =>
+    [
+      ...state.log.filter((entry) => entry.jobID === jobID),
+      ...state.scratch.filter((entry) => entry.jobID === jobID),
+    ].reduce(
+      (applied, entry) => applyPatches(applied, entry.patches),
+      state.base[jobID],
+    );
+
+  const bothJobs = () =>
+    setBase(holding(), "job-2", document({ jobID: "job-2" }));
+  const rename = (state, jobID = "job-1") =>
+    change(state, jobID, "rename", (job) => {
+      job.name = `${job.name} renamed`;
+    });
+  const question = (state) =>
+    ask(state, "job-1", "look at planning", (job) => {
+      job.jobStatus = 0;
+    });
+
+  const writers = {
+    setBase: () => setBase(rename(holding()), "job-1", document({ esi: {} })),
+    forgetJob: () =>
+      forgetJob(rename(rename(bothJobs(), "job-2"), "job-1"), "job-2"),
+    change: () => rename(holding()),
+    ask: () => question(holding()),
+    "a coalesced change": () => rename(rename(holding())),
+    discard: () => discard(question(rename(holding())), "job-1"),
+    "discard, every job": () => discard(question(rename(holding()))),
+    leaveScratch: () => leaveScratch(question(rename(holding())), "job-1"),
+    "leaveScratch, every job": () => leaveScratch(question(rename(holding()))),
+    keepAsked: () => {
+      const state = question(holding());
+      return keepAsked(state, state.scratch[0].seq);
+    },
+    undo: () => undo(question(rename(holding()))),
+    redo: () => redo(undo(question(rename(holding())))),
+  };
+
+  for (const [name, produce] of Object.entries(writers)) {
+    it(`is the layers as ${name} left them`, () => {
+      const state = produce();
+
+      for (const jobID of Object.keys(state.base)) {
+        expect(draftFor(state, jobID)).toEqual(replayed(state, jobID));
+      }
+    });
+  }
+
+  it("knows nothing about a job it has been told to forget", () => {
+    const state = forgetJob(rename(holding()), "job-1");
+
+    expect(draftFor(state, "job-1")).toBeUndefined();
   });
 });
 

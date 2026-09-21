@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { getJobInstallCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
+import { installCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
 import { buildCostBreakdown } from "../../../../../../Functions/MarketData/costBreakdown";
 import { calculateReturns } from "../../../../../../Functions/MarketData/returns";
 import { compareToHistory } from "../../../../../../Functions/MarketData/buildComparison";
@@ -13,6 +13,11 @@ import { formatPercentage } from "../../../../../../Functions/Helper/numberParse
 import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
 import { useJobCommitment } from "../../../../../../Hooks/Planner/useJobCommitment";
 import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSellingContext";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
+import {
+  costOfInvention,
+  quantityProduced,
+} from "../../../../Edit Job Hooks/jobSelectors";
 
 /**
  * The figures Cost Breakdown and Returns both draw from.
@@ -22,36 +27,34 @@ import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSell
  * moment each panel totals the rows itself.
  *
  * @param {object} params
- * @param {object} params.state - Edit Job state
- * @param {object} params.actions - Edit Job actions
  * @param {Array<object>} params.rows - Rows from useMaterialsSourcing
  * @param {boolean} [params.buyEverything] - Price every material at market
  */
-export function useJobEconomics({
-  state,
-  actions,
-  rows,
-  buyEverything = false,
-}) {
-  const { activeJob } = state;
+export function useJobEconomics({ rows, buyEverything = false }) {
+  const itemID = useJobDraft((job) => job.itemID);
+  const setups = useJobDraft((job) => job.build.setup);
+  const extrasCosts = useJobDraft((job) => job.build.extrasCosts);
+  const inventionEntries = useJobDraft((job) => job.build.inventionEntries);
+  const industryJobs = useJobDraft((job) => job.esi.industryJobs);
+  const itemsProducedPerRun = useJobDraft((job) => job.itemsProducedPerRun);
 
   const {
     seller,
     saleLocation,
     exitRoute,
     marketLocation: sellingMarket,
-  } = useJobSellingContext(activeJob);
+  } = useJobSellingContext();
 
   const { data: rates, isLoading: ratesLoading } = useSellingRates(
     saleLocation,
     seller.hash,
   );
-  const { data: totalsData } = useAccountTotalsQuery(activeJob.itemID);
+  const { data: totalsData } = useAccountTotalsQuery(itemID);
 
-  const commitment = useJobCommitment({ state, actions });
+  const commitment = useJobCommitment();
 
   return useMemo(() => {
-    const quantityProduced = activeJob.totalQuantityProduced ?? 0;
+    const produced = quantityProduced(setups, itemsProducedPerRun);
 
     // Output owed to a parent is never listed, so it has no sale price, no fee
     // and no tax. Only what is left over can honestly be sold.
@@ -63,8 +66,8 @@ export function useJobEconomics({
     // are bought, and quoting a sale against it is the crossing this whole
     // arrangement exists to stop.
     const pricedAt = saleLocation?.pricedAtID ?? sellingMarket;
-    const sellPrice = getMarketPriceForType(activeJob.itemID, pricedAt, "sell");
-    const buyPrice = getMarketPriceForType(activeJob.itemID, pricedAt, "buy");
+    const sellPrice = getMarketPriceForType(itemID, pricedAt, "sell");
+    const buyPrice = getMarketPriceForType(itemID, pricedAt, "buy");
 
     // The fee is charged on what the listing is worth, which is the sell-side
     // revenue of what is actually going to be listed.
@@ -83,15 +86,15 @@ export function useJobEconomics({
 
     const cost = buildCostBreakdown({
       rows,
-      installCost: getJobInstallCostForPlanning(activeJob),
+      installCost: installCostForPlanning({ industryJobs, setups }),
       // The attempts that produced the blueprint, which the archive counts in a
       // build's cost. Left out here, the stage reads a T2 job as cheaper than
       // its own history says every previous one was.
-      inventionCost: activeJob.totalInventionCost ?? 0,
-      extras: Object.values(activeJob.build?.extrasCosts ?? {}),
+      inventionCost: costOfInvention(inventionEntries),
+      extras: Object.values(extrasCosts ?? {}),
       brokerFee,
       salesTax,
-      quantityProduced,
+      quantityProduced: produced,
       buyEverything,
       sellDetail: rates
         ? {
@@ -141,7 +144,12 @@ export function useJobEconomics({
       charges: { brokerFee, salesTax },
     };
   }, [
-    activeJob,
+    itemID,
+    setups,
+    extrasCosts,
+    inventionEntries,
+    industryJobs,
+    itemsProducedPerRun,
     buyEverything,
     commitment,
     exitRoute,

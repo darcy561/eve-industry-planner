@@ -65,7 +65,10 @@ function withSkills(entries) {
 }
 
 describe("calculateTimeForSetup", () => {
-  it("gives nothing back when it was not handed a real setup", () => {
+  // A setup carrying no raw time has no time to state. It is read as stored
+  // data rather than as an instance, so what it is matters less than what it
+  // holds.
+  it("gives nothing back without the figures it multiplies", () => {
     expect(calculateTimeForSetup({}, {}, {})).toBeUndefined();
     expect(calculateTimeForSetup(setup(), null, {})).toBeUndefined();
     expect(calculateTimeForSetup(setup(), {}, null)).toBeUndefined();

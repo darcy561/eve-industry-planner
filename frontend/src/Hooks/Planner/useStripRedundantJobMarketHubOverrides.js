@@ -13,17 +13,16 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * market the account already buys at is redundant on that side alone, and its
  * selling choice is left as it is.
  *
- * @param {Object} activeJob
+ * @param {Object|undefined} jobPricing - The job's own market choices
  * @param {(pricingPatch: Object) => void} updateActiveJobPricing
  */
 export function useStripRedundantJobMarketHubOverrides(
-  activeJob,
+  jobPricing,
   updateActiveJobPricing,
 ) {
   const accountPricing = useUsersStore(
     (s) => s.applicationSettings.defaultPricing,
   );
-  const jobPricing = activeJob?.build?.localPricing;
 
   useEffect(() => {
     if (!jobPricing) return;

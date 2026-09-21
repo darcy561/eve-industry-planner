@@ -54,12 +54,9 @@ describe("the costs a reader adds by hand, end to end", () => {
   }
 
   it("records what invention cost", () => {
-    const { editJob } = renderOverEditJob(
-      storedJob({ jobType: 1 }),
-      ({ state, actions }) => (
-        <InventionEditor state={state} actions={actions} />
-      ),
-    );
+    const { editJob } = renderOverEditJob(storedJob({ jobType: 1 }), () => (
+      <InventionEditor />
+    ));
 
     fireEvent.change(screen.getByPlaceholderText("What invention used…"), {
       target: { value: "Datacores" },
@@ -112,9 +109,7 @@ describe("the costs a reader adds by hand, end to end", () => {
           },
         },
       }),
-      ({ state, actions }) => (
-        <InventionEditor state={state} actions={actions} />
-      ),
+      () => <InventionEditor />,
     );
     expect(Object.keys(costsOf(editJob.current).inventionEntries)).toHaveLength(
       1,

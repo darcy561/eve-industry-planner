@@ -3,13 +3,19 @@ import { Button } from "@mui/material";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { requestEditJobNavigation } from "../../../../../../../Events/editJobNavigationEvents";
-import closeActiveJob from "../../../../../../../Functions/JobPlanner/closeActiveJob";
-import useUsersStore from "../../../../../../../Zustand/usersStore";
+import { leaveEditedJobWhereItStands } from "../../../../../../../Functions/JobPlanner/editSessionLifetime.js";
 import EditJobLeaveConfirmDialogue from "../../../../../EditJobLeaveConfirmDialogue";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { useActiveJobPersistGate } from "../../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import {
+  useJobDraft,
+  useJobModified,
+} from "../../../../../Edit Job Hooks/useJobDraft";
+import { saveOpenJob } from "../../../../../Edit Job Hooks/saveOpenJob";
 
-export function OpenChildJobButton({ state, childJobObjects, jobDisplay }) {
+export function OpenChildJobButton({ childJobObjects, jobDisplay }) {
+  const jobName = useJobDraft((job) => job.name);
+  const jobModified = useJobModified();
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const search = useSearch({ from: "/editjob/$jobID" });
   const { jobID: routeJobID } = useParams({ from: "/editjob/$jobID" });
@@ -17,8 +23,7 @@ export function OpenChildJobButton({ state, childJobObjects, jobDisplay }) {
   const [fallbackOpen, setFallbackOpen] = useState(false);
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [pendingNav, setPendingNav] = useState(null);
-  const { setActiveJobID } = useUsersStore.getState().jobData.actions;
-  const persist = useActiveJobPersistGate(state);
+  const persist = useActiveJobPersistGate();
 
   const closeFallbackDialogue = () => {
     if (leaveSaving) return;
@@ -60,7 +65,7 @@ export function OpenChildJobButton({ state, childJobObjects, jobDisplay }) {
             search: navSearch,
           });
           if (outcome === "not-handled") {
-            if (state.jobModified) {
+            if (jobModified) {
               setPendingNav({ jobID: childId, search: navSearch });
               setFallbackOpen(true);
               return;
@@ -79,7 +84,7 @@ export function OpenChildJobButton({ state, childJobObjects, jobDisplay }) {
         open={fallbackOpen}
         onClose={closeFallbackDialogue}
         onDiscard={async () => {
-          setActiveJobID(null);
+          leaveEditedJobWhereItStands();
           await navigateToPendingJob();
         }}
         saveDisabled={!persist.canPersist}
@@ -87,21 +92,14 @@ export function OpenChildJobButton({ state, childJobObjects, jobDisplay }) {
           if (!pendingNav || !persist.canPersist) return;
           setLeaveSaving(true);
           try {
-            await closeActiveJob(
-              state.activeJob,
-              state.jobModified,
-              state.temporaryChildJobs,
-              state.esiDataToLink,
-              state.parentChildToEdit,
-              queryClient,
-            );
+            await saveOpenJob(queryClient);
             navigateToPendingJob();
           } finally {
             setLeaveSaving(false);
           }
         }}
         leaveSaving={leaveSaving}
-        currentJobName={state.activeJob?.name ?? ""}
+        currentJobName={jobName ?? ""}
         nextJobName={childJobObjects[jobDisplay]?.name ?? null}
       />
     </>

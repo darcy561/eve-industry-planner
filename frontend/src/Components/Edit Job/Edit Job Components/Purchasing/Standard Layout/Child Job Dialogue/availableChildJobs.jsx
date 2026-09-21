@@ -7,6 +7,7 @@ import {
   TYPE_IMAGE,
   typeImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
+import { useJobActions } from "../../../../Edit Job Hooks/useJobDraft";
 
 export function AvailableChildJobs_Purchasing(props) {
   const { availableChildJobs } = props;
@@ -29,7 +30,8 @@ export function AvailableChildJobs_Purchasing(props) {
   );
 }
 
-function AvailableJobEntry({ job, actions, siblingLinkLock }) {
+function AvailableJobEntry({ job, siblingLinkLock }) {
+  const actions = useJobActions();
   const { readOnly = false, reason = "" } = siblingLinkLock ?? {};
   const linkButton = (
     <IconButton

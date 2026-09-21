@@ -8,9 +8,9 @@ const { collection, industryJobs, characters } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock(() => usersStoreState(state));
+  return usersStoreOverSession();
 });
 
 vi.mock("../../../../../../Hooks/EveEsi/useBlueprintIndex", () => ({
@@ -30,6 +30,7 @@ vi.mock("../../../../../../Hooks/EveEsi/useGetAllIndustryJobs", () => ({
   }),
 }));
 
+import useUsersStore from "../../../../../../Zustand/usersStore";
 import { ReactionLayout_BlueprintOptions } from "./reactionLayout";
 import buildBlueprintRows from "../../../../../../Functions/Blueprints/buildBlueprintRows";
 import {
@@ -40,9 +41,14 @@ import {
   reactionFormulaStackRow,
 } from "../../../../../../tests/blueprintFixtures";
 
-const state = {
-  activeJob: { blueprintTypeID: POLYMER_REACTION_TYPE_ID },
-};
+const session = () => useUsersStore.getState().editSession;
+
+const openReactionJob = () =>
+  session().actions.openJob("job-1", {
+    jobID: "job-1",
+    blueprintTypeID: POLYMER_REACTION_TYPE_ID,
+    build: {},
+  });
 
 function corporationFormula(itemId) {
   return {
@@ -63,11 +69,13 @@ beforeEach(() => {
   characters[0].CharacterHash = CHARACTER_HASH;
   industryJobs.current = [];
   withRows([reactionFormulaStackRow]);
+  session().actions.closeSession();
+  openReactionJob();
 });
 
 describe("the formulas a reaction job can be built from", () => {
   it("counts every formula in a stack, not the row", () => {
-    render(<ReactionLayout_BlueprintOptions state={state} />);
+    render(<ReactionLayout_BlueprintOptions />);
 
     expect(reactionFormulaStackRow.quantity).toBe(4);
     expect(screen.getByText("Total: 4")).toBeTruthy();
@@ -76,7 +84,7 @@ describe("the formulas a reaction job can be built from", () => {
   it("groups a character's and a corporation's formulas apart", () => {
     withRows([reactionFormulaStackRow, corporationFormula(8500)]);
 
-    render(<ReactionLayout_BlueprintOptions state={state} />);
+    render(<ReactionLayout_BlueprintOptions />);
 
     expect(screen.getAllByText(/^Total: /)).toHaveLength(2);
   });
@@ -88,7 +96,7 @@ describe("the formulas a reaction job can be built from", () => {
       { blueprint_id: reactionFormulaStackRow.item_id, status: "delivered" },
     ];
 
-    render(<ReactionLayout_BlueprintOptions state={state} />);
+    render(<ReactionLayout_BlueprintOptions />);
 
     expect(screen.getByText("In Use: 1")).toBeTruthy();
   });
@@ -100,7 +108,7 @@ describe("the formulas a reaction job can be built from", () => {
     withRows(rows);
     const before = JSON.stringify(collection.current.rows);
 
-    render(<ReactionLayout_BlueprintOptions state={state} />);
+    render(<ReactionLayout_BlueprintOptions />);
 
     expect(JSON.stringify(collection.current.rows)).toBe(before);
   });
@@ -108,7 +116,7 @@ describe("the formulas a reaction job can be built from", () => {
   it("shows nothing when no formula of the type is held", () => {
     withRows([]);
 
-    render(<ReactionLayout_BlueprintOptions state={state} />);
+    render(<ReactionLayout_BlueprintOptions />);
 
     expect(screen.queryByText(/^Total: /)).toBeNull();
   });

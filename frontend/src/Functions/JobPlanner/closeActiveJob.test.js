@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { freeze } from "immer";
 import { create } from "zustand";
 import documentLockSlice from "../../Zustand/documentLockSlice.js";
+import editSessionSlice from "../../Zustand/editSessionSlice.js";
 import {
   USER_JOBS_COLLECTION,
   USER_JOB_GROUPS_COLLECTION,
@@ -66,7 +67,7 @@ vi.mock("../../Zustand/usersStore.js", () => ({
 }));
 
 import closeActiveJob from "./closeActiveJob.js";
-import { jobLens } from "../../Components/Edit Job/Edit Job Hooks/useEditJobSession.js";
+import { jobLens } from "../../Components/Edit Job/Edit Job Hooks/jobLens.js";
 import { snackbarSpies } from "../../tests/snackbarHarness.js";
 
 const { showSnackbarInfo, showSnackbarWarning } = snackbarSpies;
@@ -100,7 +101,6 @@ function seedStore() {
       jobArray: [job],
       groupArray: [],
       actions: {
-        setActiveJobID: vi.fn(),
         updateModifiedGroups: vi.fn(),
         getGroupObject: vi.fn(),
         updateOrAddJobsToJobArray: vi.fn(),
@@ -110,6 +110,9 @@ function seedStore() {
       },
     },
     ...documentLockSlice(set, get),
+    // The close ends the edit session as well, so the store it reads has to
+    // hold one.
+    ...editSessionSlice(set, get),
   }));
 }
 
@@ -297,9 +300,6 @@ describe("closeActiveJob", () => {
       expect.stringContaining("removed while you had it open"),
       expect.any(Number),
     );
-    expect(
-      storeHolder.current.getState().jobData.actions.setActiveJobID,
-    ).toHaveBeenCalledWith(null);
   });
 });
 
@@ -337,5 +337,58 @@ describe("closing a job the editor froze", () => {
 
     expect(document.displayOnPlanner).toBe(false);
     expect(Object.isFrozen(document)).toBe(true);
+  });
+});
+
+// The session is a slice of the store, so it outlives the page. A job left in it
+// after a save is the one the next open reads instead of loading — the reader is
+// shown what they had before they saved, and saving again writes it back.
+describe("what the save leaves behind", () => {
+  beforeEach(seedStore);
+
+  const sessionHolds = () => {
+    const { draft, activeJobID } = storeHolder.current.getState().editSession;
+    return {
+      jobs: Object.keys(draft.base),
+      log: draft.log.length,
+      activeJobID,
+    };
+  };
+
+  const openAndChange = () => {
+    const { actions } = storeHolder.current.getState().editSession;
+    actions.openJob("j1", { jobID: "j1", name: "Test Job", jobStatus: 1 });
+    actions.run({
+      name: "move to the next stage",
+      recipe: (job) => {
+        job.jobStatus = 2;
+      },
+    });
+  };
+
+  it("keeps nothing once the job is saved", async () => {
+    openAndChange();
+
+    await closeActiveJob(makeJob(), true, {}, {}, {}, null);
+
+    expect(sessionHolds()).toEqual({ jobs: [], log: 0, activeJobID: null });
+  });
+
+  it("keeps nothing when there was nothing to save", async () => {
+    openAndChange();
+
+    await closeActiveJob(makeJob(), false, {}, {}, {}, null);
+
+    expect(sessionHolds()).toEqual({ jobs: [], log: 0, activeJobID: null });
+  });
+
+  it("keeps nothing when the job went while it was open", async () => {
+    openAndChange();
+    storeHolder.current.getState().jobData.actions.findJobInJobArray = () =>
+      null;
+
+    await closeActiveJob(makeJob(), true, {}, {}, {}, null);
+
+    expect(sessionHolds()).toEqual({ jobs: [], log: 0, activeJobID: null });
   });
 });

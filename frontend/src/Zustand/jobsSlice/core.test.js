@@ -45,7 +45,6 @@ describe("the planner's jobs", () => {
   it("resets every field the planner holds", () => {
     actions().replaceJobArray([job("job-1")], { owner: "corp:1" });
     actions().replaceGroupArray([{ groupID: "group-1" }]);
-    actions().setActiveJobID("job-1");
     actions().setActiveGroupID("group-1");
     actions().addToMultiSelect(["job-1"]);
     actions().setUserWatchlist([{ id: "item-1" }], [{ id: "wgroup-1" }]);
@@ -68,7 +67,6 @@ describe("the planner's jobs", () => {
       groupArray: [],
       pendingJobGroupWrites: [],
       pendingJobDocumentWrites: [],
-      activeJobID: null,
       activeGroupID: null,
       userWatchlist: { groups: [], items: [] },
     });

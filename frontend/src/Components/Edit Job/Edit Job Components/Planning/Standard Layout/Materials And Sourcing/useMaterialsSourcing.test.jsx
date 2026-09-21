@@ -48,32 +48,12 @@ vi.mock("./Helpers/materialChildJobs", () => ({
 let automaticRecalculation = true;
 let groupDefaults;
 
-// A reader rather than a built state: the harness builds one once, and a getter
-// does not survive that — it is evaluated as the state is spread, freezing
-// whatever the first test set.
 vi.mock("../../../../../../Zustand/usersStore.js", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  // The reader form, not the eager one: two of these are read per render, and an
-  // eagerly built state spreads the getter away and freezes the first value.
-  return usersStoreMock(() =>
-    usersStoreState({
-      applicationSettings: {
-        get enableAutomaticJobRecalculation() {
-          return automaticRecalculation;
-        },
-        actions: { checkTypeIDisExempt: () => false },
-        // The two sides carry different values, so a hook asking for the wrong
-        // one is visible.
-        get defaultPricing() {
-          return {
-            buying: { market: "jita", basis: "sell", groups: groupDefaults },
-            selling: { market: "amarr", basis: "buy" },
-          };
-        },
-      },
-    }),
-  );
+  return usersStoreOverSession({
+    applicationSettings: { actions: { checkTypeIDisExempt: () => false } },
+  });
 });
 vi.mock(
   "../../../../../../Functions/Helper/checkJobTypeIsBuildable.js",
@@ -93,39 +73,89 @@ vi.mock("../../../../../../Functions/Groups/childJobTotals", () => ({
 }));
 
 const { useMaterialsSourcing } = await import("./useMaterialsSourcing.js");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore.js");
+
+const session = () => useUsersStore.getState().editSession;
 
 const material = (typeID, jobType = 1, overrides = {}) => ({
   typeID,
   name: `Material ${typeID}`,
   jobType,
-  quantity: 100,
   volume: 0.01,
-  purchasing: [],
-  quantityPurchased: 0,
-  purchasedCost: 0,
-  purchaseComplete: false,
   ...overrides,
 });
 
+/**
+ * A job taking 100 of each material, as the planner stores one.
+ *
+ * The requirement is stated by the setup: a stored material row carries no
+ * quantity of its own.
+ */
 function setup({
   materials = [material(34)],
   materialPriceOverrides = {},
   speculativeChildJobs = {},
 } = {}) {
   return {
-    activeJob: {
-      build: { materials, childJobs: {}, materialPriceOverrides },
-      layout: {},
-      selectedSetup: { materialCount: {} },
+    document: {
+      jobID: "job-1",
+      itemID: 587,
+      itemsProducedPerRun: 1,
+      parentJobs: [],
+      layout: { setupToEdit: "setup0" },
+      build: {
+        materials: Object.fromEntries(
+          materials.map((row) => [String(row.typeID), row]),
+        ),
+        childJobs: {},
+        extrasCosts: {},
+        inventionEntries: {},
+        materialPriceOverrides,
+        setup: {
+          setup0: {
+            id: "setup0",
+            runCount: 1,
+            jobCount: 1,
+            materialCount: Object.fromEntries(
+              materials.map((row) => [
+                String(row.typeID),
+                { typeID: row.typeID, quantity: 100 },
+              ]),
+            ),
+          },
+        },
+      },
+      esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
     },
-    parentChildToEdit: { childJobs: {} },
-    temporaryChildJobs: {},
     speculativeChildJobs,
   };
 }
 
-const render = (state) =>
-  renderHook(() => useMaterialsSourcing({ state, actions: {} })).result.current;
+/** The account's markets, which two of these tests vary per case. */
+const settleAccountSettings = () =>
+  useUsersStore.setState((store) => ({
+    applicationSettings: {
+      ...store.applicationSettings,
+      enableAutomaticJobRecalculation: automaticRecalculation,
+      // The two sides carry different values, so a hook asking for the wrong
+      // one is visible.
+      defaultPricing: {
+        buying: { market: "jita", basis: "sell", groups: groupDefaults },
+        selling: { market: "amarr", basis: "buy" },
+      },
+    },
+  }));
+
+const render = ({ document, speculativeChildJobs }) => {
+  settleAccountSettings();
+  session().actions.closeSession();
+  session().actions.openJob(document.jobID, document);
+  for (const job of Object.values(speculativeChildJobs)) {
+    session().actions.recordSpeculativeChildJobs(job);
+  }
+  return renderHook(() => useMaterialsSourcing()).result.current;
+};
 
 describe("useMaterialsSourcing", () => {
   it("gives the panel every part it draws", () => {

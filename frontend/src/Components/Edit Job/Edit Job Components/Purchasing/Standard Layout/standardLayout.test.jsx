@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 
 import {
   renderOverEditJob,
   storedJob,
 } from "../../../../../tests/editJobHarness";
 
-const { store } = vi.hoisted(() => ({ store: { current: null } }));
-
+// Built once rather than rebuilt per read: the panel memoises its list on the
+// parts it is made of, and a store that handed out a new `jobData` every read
+// would recompute that memo on every render and hide a missing dependency.
 vi.mock("../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession } =
     await import("../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock(() => usersStoreState(store.current));
+  return usersStoreOverSession();
 });
 vi.mock("../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
   useActiveJobReadOnly: () => false,
@@ -19,12 +20,17 @@ vi.mock("../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
 }));
 
 const { Purchasing_StandardLayout_EditJob } = await import("./standardLayout");
+const { default: useUsersStore } =
+  await import("../../../../../Zustand/usersStore");
 
+/**
+ * A material row as the job stores one: what was bought against it, and nothing
+ * about how many are needed — that belongs to the setups, which is why the job
+ * below carries one calling for each material.
+ */
 const material = (typeID, name, overrides = {}) => ({
   typeID,
   name,
-  quantity: 100,
-  quantityPurchased: 0,
   purchasing: {},
   jobType: 0,
   ...overrides,
@@ -33,7 +39,19 @@ const material = (typeID, name, overrides = {}) => ({
 const jobWith = (materials) =>
   storedJob({
     build: {
-      setup: {},
+      setup: {
+        "setup-1": {
+          id: "setup-1",
+          runCount: 1,
+          jobCount: 1,
+          materialCount: Object.fromEntries(
+            materials.map((row) => [
+              String(row.typeID),
+              { typeID: row.typeID, quantity: 100 },
+            ]),
+          ),
+        },
+      },
       childJobs: {},
       materials: Object.fromEntries(
         materials.map((row) => [String(row.typeID), row]),
@@ -41,8 +59,17 @@ const jobWith = (materials) =>
     },
   });
 
+/** The account's choice about whether bought-in-full rows stay on the stage. */
+const hidingCompleteRows = (hideCompleteMaterials) =>
+  useUsersStore.setState((store) => ({
+    applicationSettings: {
+      ...store.applicationSettings,
+      hideCompleteMaterials,
+    },
+  }));
+
 beforeEach(() => {
-  store.current = { applicationSettings: { hideCompleteMaterials: false } };
+  hidingCompleteRows(false);
 });
 
 // The job keys its materials by type id. A panel reading them as an array threw
@@ -52,9 +79,7 @@ describe("the purchasing stage's material list", () => {
   it("draws a card for every material the job needs", () => {
     renderOverEditJob(
       jobWith([material(34, "Tritanium"), material(35, "Pyerite")]),
-      ({ state, actions }) => (
-        <Purchasing_StandardLayout_EditJob state={state} actions={actions} />
-      ),
+      () => <Purchasing_StandardLayout_EditJob />,
     );
 
     expect(screen.getByText("Tritanium")).toBeInTheDocument();
@@ -70,9 +95,7 @@ describe("the purchasing stage's material list", () => {
         material(35, "Pyerite"),
         material(36, "Mexallon"),
       ]),
-      ({ state, actions }) => (
-        <Purchasing_StandardLayout_EditJob state={state} actions={actions} />
-      ),
+      () => <Purchasing_StandardLayout_EditJob />,
     );
 
     const shown = ["Mexallon", "Pyerite", "Tritanium"].map((name) =>
@@ -82,5 +105,35 @@ describe("the purchasing stage's material list", () => {
     expect(order[0]).toBe(0);
     expect(order[1] & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(order[2] & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  // What the list shows and how it is ordered are both answers about how many
+  // of each material the job takes, which its setups state. A list that did not
+  // follow them would keep showing a material as bought in full after the run
+  // count that emptied it moved.
+  it("follows the setups being resized", async () => {
+    hidingCompleteRows(true);
+    renderOverEditJob(
+      jobWith([
+        material(34, "Tritanium", {
+          purchasing: { a: { id: "a", itemCount: 100, itemCost: 5 } },
+        }),
+      ]),
+      () => <Purchasing_StandardLayout_EditJob />,
+    );
+
+    // Bought in full at 100, so the stage hides it.
+    expect(screen.queryByText("Tritanium")).toBeNull();
+
+    await act(async () => {
+      useUsersStore.getState().editSession.actions.run({
+        name: "double the runs",
+        recipe: (job) => {
+          job.build.setup["setup-1"].materialCount[34].quantity = 200;
+        },
+      });
+    });
+
+    expect(screen.getByText("Tritanium")).toBeInTheDocument();
   });
 });

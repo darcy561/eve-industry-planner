@@ -15,28 +15,33 @@ import { invalidateArchiveQueries } from "../../../../../../Hooks/React Query/Ba
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
+import { jobDraftNow } from "../../../../Edit Job Hooks/useJobDraft";
+import { jobLens } from "../../../../Edit Job Hooks/jobLens";
 
-export function ArchiveJobButton({ state }) {
+export function ArchiveJobButton() {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { removeJobsFromJobArray } = useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const { jobID } = useParams({ from: "/editjob/$jobID" });
   const queryClient = useQueryClient();
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const jobLockReadOnly = useActiveJobReadOnly();
 
   const archiveJobProcess = async () => {
     if (jobLockReadOnly) return;
+    // Archiving writes the job as a document and releases the rows it holds,
+    // both of which the class answers for.
+    const job = jobLens(jobDraftNow());
     useUsersStore.getState().account.actions.addLinkedEsiData({
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),
       transactionsToAdd: new Set(),
-      ordersToRemove: state.activeJob.esiOrderIDs,
-      jobsToRemove: state.activeJob.esiJobIDs,
-      transactionsToRemove: state.activeJob.esiTransactionIDs,
+      ordersToRemove: job.esiOrderIDs,
+      jobsToRemove: job.esiJobIDs,
+      transactionsToRemove: job.esiTransactionIDs,
     });
 
-    const archivedOk = await saveArchivedJobs([state.activeJob]);
+    const archivedOk = await saveArchivedJobs([job]);
     if (!archivedOk) {
       showSnackbarError(
         "Could not archive job on the server. Please try again.",
@@ -46,11 +51,11 @@ export function ArchiveJobButton({ state }) {
 
     invalidateArchiveQueries(queryClient);
 
-    await markJobsArchivedInGroups([state.activeJob]);
+    await markJobsArchivedInGroups([job]);
 
     try {
       await flushPendingJobDocumentsSave();
-      await deleteJobDocumentsFromApi([state.activeJob.jobID]);
+      await deleteJobDocumentsFromApi([job.jobID]);
     } catch (err) {
       console.error(err);
       showSnackbarError(
@@ -60,10 +65,10 @@ export function ArchiveJobButton({ state }) {
       return;
     }
 
-    showSnackbarSuccess(`${state.activeJob.name} Archived`);
+    showSnackbarSuccess(`${job.name} Archived`);
 
     await saveUserAccountDocument();
-    removeJobsFromJobArray(state.activeJob.jobID);
+    removeJobsFromJobArray(job.jobID);
     await yieldEditJobDocumentLocksOnLeave({ jobID, groupID: null });
     navigate({ to: "/jobplanner" });
   };

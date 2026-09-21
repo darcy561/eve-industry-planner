@@ -65,9 +65,13 @@ function child(jobID, produces, parentJobs) {
 }
 
 function supplyFor(job, childJob) {
-  return childJobSupplyForMaterial(job, job.build.materials[TRITANIUM], [
-    childJob,
-  ]);
+  const material = job.build.materials[TRITANIUM];
+  return childJobSupplyForMaterial(
+    job.jobID,
+    material,
+    material.quantityRemaining,
+    [childJob],
+  );
 }
 
 describe("what a child job can be counted on to supply", () => {
@@ -145,9 +149,11 @@ describe("what a child job can be counted on to supply", () => {
       ["child-2", childB],
     ]);
 
+    const ownMaterial = first.build.materials[TRITANIUM];
     const supply = childJobSupplyForMaterial(
-      first,
-      first.build.materials[TRITANIUM],
+      first.jobID,
+      ownMaterial,
+      ownMaterial.quantityRemaining,
       [childA, childB],
     );
 

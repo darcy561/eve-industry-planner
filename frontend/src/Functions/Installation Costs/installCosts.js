@@ -7,7 +7,6 @@
  * stand in with estimates before anything is linked.
  */
 
-import Setup from "../../Classes/jobSetup";
 import findSystemIndexForJob from "../Helper/findSystemIndexValue";
 import {
   structureTypeMap,
@@ -18,11 +17,17 @@ import {
 import useUsersStore from "../../Zustand/usersStore";
 import { getAdjustedPriceForType } from "../MarketData/marketPriceForType";
 import { quotedCharacterHash } from "../Skills/quotedCharacter";
+import { costOfInstalls } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
  * Calculates the install cost for a single setup (per job slot, before × jobCount).
  *
- * @param {Setup} setup
+ * Takes the setup as it is stored as readily as an instance of the class built
+ * over it: every figure it reads is a field of the row, and the job being edited
+ * holds plain rows. A setup carrying none of them costs nothing either way,
+ * because the material count it prices is what the estimate is made of.
+ *
+ * @param {Setup|Object} setup
  * @param {Object} [additionalSystemIndexValues]
  * @returns {number}
  */
@@ -30,12 +35,17 @@ export function calculateInstallCostfromSetup(
   setup,
   additionalSystemIndexValues = {},
 ) {
-  if (!(setup instanceof Setup)) return 0;
+  if (!setup || typeof setup !== "object") return 0;
 
+  // Nothing to price means nothing to charge for, and the answer would be zero
+  // anyway — every term below is a share of this. It is a guard rather than a
+  // shortcut because a setup this incomplete usually has no job type either,
+  // and the facility lookup indexes a map by that before it checks anything.
   const estimatedItemValue = estimatedItemPriceCalc(
     setup.materialCount,
     setup.jobCount,
   );
+  if (!estimatedItemValue) return 0;
 
   const facilityModifier = findFacilityModifier(
     setup.structureID,
@@ -105,12 +115,26 @@ export function sumSetupInstallCostEstimates(setups) {
 export function getJobInstallCostForPlanning(job) {
   if (!job?.build) return 0;
 
-  const linkedJobs = Object.values(job.esi?.industryJobs ?? {});
-  if (Array.isArray(linkedJobs) && linkedJobs.length > 0) {
-    return job.totalInstallCost;
+  return installCostForPlanning({
+    industryJobs: job.esi?.industryJobs,
+    setups: job.build.setup,
+  });
+}
+
+/**
+ * The same figure for a reader that already holds the runs and the setups.
+ *
+ * @param {object} params
+ * @param {object} [params.industryJobs] - The runs linked to the job
+ * @param {object} [params.setups] - The job's setups
+ * @returns {number}
+ */
+export function installCostForPlanning({ industryJobs, setups }) {
+  if (Object.values(industryJobs ?? {}).length > 0) {
+    return costOfInstalls(industryJobs);
   }
 
-  return sumSetupInstallCostEstimates(job.build.setup);
+  return sumSetupInstallCostEstimates(setups);
 }
 
 function estimatedItemPriceCalc(materialArray, jobCount) {

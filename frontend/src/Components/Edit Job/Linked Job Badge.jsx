@@ -19,17 +19,17 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import { requestEditJobNavigation } from "../../Events/editJobNavigationEvents";
 import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
+import { useJobActions, useParentJobIDs } from "./Edit Job Hooks/useJobDraft";
 import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
 
-export function LinkedJobBadge(props) {
-  const { state, actions } = props;
+export function LinkedJobBadge() {
+  const actions = useJobActions();
+  const parentJobSelection = useParentJobIDs();
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
   const linkParent = useDialogueTrigger();
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const search = useSearch({ from: "/editjob/$jobID" });
-  const jobLockReadOnly = useActiveJobReadOnly(state);
-
-  const parentJobSelection = actions.getCurrentParentJobs();
+  const jobLockReadOnly = useActiveJobReadOnly();
 
   return (
     <>
@@ -40,7 +40,7 @@ export function LinkedJobBadge(props) {
         dialogueTitleProps={{ align: "center", color: "primary" }}
         actions={<DialogueCloseAction onClose={linkParent.close} />}
       >
-        <ParentJobOptions {...props} onLinked={linkParent.close} />
+        <ParentJobOptions onLinked={linkParent.close} />
       </ContentDialogue>
       <Stack
         direction="row"

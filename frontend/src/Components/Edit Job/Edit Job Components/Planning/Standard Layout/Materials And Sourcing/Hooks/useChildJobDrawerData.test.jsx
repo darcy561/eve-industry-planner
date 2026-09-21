@@ -10,7 +10,17 @@ vi.mock(
   }),
 );
 
+vi.mock("../../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreOverSession } =
+    await import("../../../../../../../tests/usersStoreHarness.js");
+  return usersStoreOverSession();
+});
+
 const { useChildJobDrawerData } = await import("./useChildJobDrawerData");
+const { default: useUsersStore } =
+  await import("../../../../../../../Zustand/usersStore");
+
+const session = () => useUsersStore.getState().editSession;
 
 const material = { typeID: 34, quantity: 100 };
 
@@ -20,21 +30,19 @@ const material = { typeID: 34, quantity: 100 };
 // measuring its own fixture.
 const NONE = [];
 
-const jobState = (overrides = {}) => ({
-  activeJob: {
+/** The job the drawer reads, opened in the session it reads it from. */
+const jobState = ({ costed } = {}) => {
+  session().actions.openJob("job-1", {
+    jobID: "job-1",
     groupID: "",
     build: { childJobs: { 34: [] } },
-  },
-  temporaryChildJobs: {},
-  speculativeChildJobs: {},
-  parentChildToEdit: { childJobs: {} },
-  ...overrides,
-});
+  });
+  if (costed) session().actions.recordSpeculativeChildJobs([costed]);
+};
 
-const open = (state, buildSingleChildJobPreview) =>
+const open = (_state, buildSingleChildJobPreview) =>
   renderHook(() =>
     useChildJobDrawerData({
-      state,
       isOpen: true,
       material,
       matchedChildJobs: NONE,
@@ -46,13 +54,15 @@ const open = (state, buildSingleChildJobPreview) =>
 beforeEach(() => {
   vi.clearAllMocks();
   findMaterialJobInGroup.mockReturnValue(null);
+  session().actions.closeSession();
 });
 
 describe("what an opened row is costed from", () => {
   it("costs the row when nothing has priced it yet", async () => {
     const build = vi.fn(async () => ({ itemID: 34, jobID: "fresh" }));
 
-    const { result } = open(jobState(), build);
+    jobState();
+    const { result } = open(null, build);
 
     await waitFor(() => expect(result.current.jobImportState).toBe(true));
     expect(build).toHaveBeenCalled();
@@ -69,10 +79,8 @@ describe("what an opened row is costed from", () => {
     const costed = { itemID: 34, jobID: "spec-34" };
     const build = vi.fn();
 
-    const { result } = open(
-      jobState({ speculativeChildJobs: { 34: costed } }),
-      build,
-    );
+    jobState({ costed });
+    const { result } = open(null, build);
 
     await waitFor(() => expect(result.current.jobImportState).toBe(true));
     expect(build).not.toHaveBeenCalled();
@@ -84,13 +92,15 @@ describe("what an opened row is costed from", () => {
   // the one after that.
   it("costs a row once however many times the effect runs", async () => {
     const build = vi.fn(async () => ({ itemID: 34, jobID: "fresh" }));
-    const state = jobState();
+    jobState();
 
-    const { result, rerender } = open(state, build);
+    const { result, rerender } = open(null, build);
     await waitFor(() => expect(result.current.jobImportState).toBe(true));
 
     // What recording the job does to this hook's inputs.
-    state.speculativeChildJobs = { 34: { itemID: 34, jobID: "fresh" } };
+    session().actions.recordSpeculativeChildJobs([
+      { itemID: 34, jobID: "fresh" },
+    ]);
     rerender();
     rerender();
 
@@ -104,7 +114,8 @@ describe("what an opened row is costed from", () => {
     findMaterialJobInGroup.mockReturnValue(groupJob);
     const build = vi.fn();
 
-    const { result } = open(jobState(), build);
+    jobState();
+    const { result } = open(null, build);
 
     await waitFor(() => expect(result.current.jobImportState).toBe(true));
     expect(build).not.toHaveBeenCalled();
@@ -114,8 +125,9 @@ describe("what an opened row is costed from", () => {
   // A row that could not be costed has to stay on the fetch state: a drawer
   // drawn with nothing in it reads as a material that costs nothing to build.
   it("says so when the row could not be costed", async () => {
+    jobState();
     const { result } = open(
-      jobState(),
+      null,
       vi.fn(async () => null),
     );
 
@@ -125,9 +137,9 @@ describe("what an opened row is costed from", () => {
   it("costs nothing for a row that is not open", async () => {
     const build = vi.fn();
 
+    jobState();
     renderHook(() =>
       useChildJobDrawerData({
-        state: jobState(),
         isOpen: false,
         material,
         matchedChildJobs: NONE,
@@ -146,13 +158,12 @@ describe("what an opened row is costed from", () => {
 describe("what an open drawer does on a render that changed nothing", () => {
   it("holds the same jobs rather than replacing them with equal ones", async () => {
     const costed = { itemID: 34, jobID: "spec-34" };
-    const { result, rerender } = open(
-      jobState({ speculativeChildJobs: { 34: costed } }),
-      vi.fn(),
-    );
+    jobState({ costed });
+    const { result, rerender } = open(null, vi.fn());
 
     await waitFor(() => expect(result.current.jobImportState).toBe(true));
     const first = result.current.childJobObjects;
+    expect(first).toEqual([costed]);
 
     rerender();
     rerender();

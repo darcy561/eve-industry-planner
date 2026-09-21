@@ -1,4 +1,3 @@
-import Setup from "../../Classes/jobSetup";
 import { industrySkillIDs, jobTypes } from "../../Context/defaultValues";
 import manufacturingTimeModifierCalculation from "./manufacturingTimeModifierCalculation";
 import reactionTimeModifierCalculation from "./reactionTimeModifierCalculation";
@@ -9,7 +8,11 @@ import rigSlotBonuses from "../Helper/rigSlotBonuses";
 /**
  * How long this setup takes the account reading it.
  *
- * @param {Setup} setupObject - The job setup object
+ * Takes the setup as it is stored as readily as an instance of the class built
+ * over it: every figure it reads is a field of the row, and the job being edited
+ * holds plain rows.
+ *
+ * @param {object} setupObject - The job setup, stored or as a class
  * @param {Object<string, {typeID: number, level: number}>} jobSkillRequirements -
  *   The job's required skills, keyed by type id - The job skill requirements
  * @param {QueryClient} queryClient - The react query client
@@ -21,8 +24,11 @@ export default function calculateTimeForSetup(
   jobSkillRequirements,
   queryClient,
 ) {
-  if (!(setupObject instanceof Setup) || !jobSkillRequirements || !queryClient)
-    return;
+  // The raw time is the figure everything below multiplies, so a setup without
+  // one has no time to state. A data check rather than a type check: the job
+  // being edited holds stored rows, and a class gate here reads as a job that
+  // takes no time at all.
+  if (!setupObject?.rawTime || !jobSkillRequirements || !queryClient) return;
 
   const usersSkills =
     getCachedCharacterSkills(queryClient, quotedCharacterHash(setupObject))
@@ -38,7 +44,7 @@ export default function calculateTimeForSetup(
  * panel's what-if needs the time at a level the character does not have, and a
  * function that fetches its own skills can only ever answer for the real ones.
  *
- * @param {Setup} setupObject
+ * @param {object} setupObject
  * @param {Object<string, {typeID: number, level: number}>} jobSkillRequirements -
  *   The job's required skills, keyed by type id
  * @param {Object} usersSkills - Keyed by skill type id, `{ id, activeLevel }`

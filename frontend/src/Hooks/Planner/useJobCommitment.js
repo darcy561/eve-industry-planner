@@ -5,6 +5,11 @@ import {
   resolveParentRequirements,
 } from "../../Functions/Groups/parentRequirements";
 import useUsersStore from "../../Zustand/usersStore";
+import {
+  useJobDraft,
+  useParentJobIDs,
+} from "../../Components/Edit Job/Edit Job Hooks/useJobDraft";
+import { quantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
  * How much of a job's output is owed to the jobs above it, and how much is left
@@ -15,32 +20,34 @@ import useUsersStore from "../../Zustand/usersStore";
  * it, and Skills only asks what selling costs when there is something to sell.
  * Two of them deriving it separately is how they come to disagree.
  *
- * @param {object} params
- * @param {object} params.state - Edit Job state
- * @param {object} params.actions - Edit Job actions
  * @returns {import("../../Functions/Groups/parentRequirements").ParentCommitment}
  */
-export function useJobCommitment({ state, actions }) {
-  const { activeJob } = state;
+export function useJobCommitment() {
   const findJobInJobArray = useUsersStore(
     (store) => store.jobData.actions.findJobInJobArray,
   );
-  const parentJobIDs = actions?.getCurrentParentJobs?.() ?? [];
+  const setups = useJobDraft((job) => job.build.setup);
+  const itemsProducedPerRun = useJobDraft((job) => job.itemsProducedPerRun);
+  const jobID = useJobDraft((job) => job.jobID);
+  const itemID = useJobDraft((job) => job.itemID);
+  const parentJobIDs = useParentJobIDs();
   const parentKey = parentJobIDs.join(",");
 
   return useMemo(
     () =>
       parentCommitment({
-        produced: activeJob.totalQuantityProduced ?? 0,
-        jobID: activeJob.jobID,
+        produced: quantityProduced(setups, itemsProducedPerRun),
+        jobID,
         hasParents: parentJobIDs.length > 0,
         requirements: resolveParentRequirements({
           parentJobIDs,
           findJobInJobArray,
-          itemID: activeJob.itemID,
-          jobID: activeJob.jobID,
+          itemID,
+          jobID,
         }),
       }),
-    [activeJob, findJobInJobArray, parentKey],
+    // The ids are a string because the list is rebuilt on every read of it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setups, itemsProducedPerRun, jobID, itemID, findJobInJobArray, parentKey],
   );
 }

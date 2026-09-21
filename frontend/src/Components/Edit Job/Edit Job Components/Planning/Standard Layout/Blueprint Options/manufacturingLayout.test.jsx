@@ -9,9 +9,9 @@ const { collection, industryJobs, characters } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock(() => usersStoreState(state));
+  return usersStoreOverSession();
 });
 
 vi.mock("../../../../../../Hooks/EveEsi/useBlueprintIndex", () => ({
@@ -27,7 +27,10 @@ vi.mock("../../../../../../Hooks/EveEsi/useGetAllIndustryJobs", () => ({
   }),
 }));
 
-import { ManufacturingLayout_BlueprintPanel } from "./manufacturingLayout";
+import {
+  BlueprintItem,
+  ManufacturingLayout_BlueprintPanel,
+} from "./manufacturingLayout";
 import buildBlueprintRows from "../../../../../../Functions/Blueprints/buildBlueprintRows";
 import {
   blueprintSearchIndex,
@@ -36,16 +39,29 @@ import {
   RIFTER_BLUEPRINT_TYPE_ID,
 } from "../../../../../../tests/blueprintFixtures";
 import { testQueryClient } from "../../../../../../tests/queryClients.js";
+import useUsersStore from "../../../../../../Zustand/usersStore";
+import { act } from "@testing-library/react";
+import { renderCounts } from "../../../../../../tests/renderCounts.jsx";
 
-const state = {
-  activeJob: { blueprintTypeID: RIFTER_BLUEPRINT_TYPE_ID, selectedSetup: {} },
-};
+const session = () => useUsersStore.getState().editSession;
 
-function renderPanel(withState = state) {
+/** The job the panel reads, opened in the session it reads it from. */
+function openJob(blueprintTypeID = RIFTER_BLUEPRINT_TYPE_ID) {
+  session().actions.closeSession();
+  session().actions.openJob("job-1", {
+    jobID: "job-1",
+    blueprintTypeID,
+    build: { setup: { "setup-1": { id: "setup-1" } } },
+    layout: { setupToEdit: "setup-1" },
+  });
+}
+
+function renderPanel(blueprintTypeID) {
+  openJob(blueprintTypeID);
   const client = testQueryClient();
   return render(
     <QueryClientProvider client={client}>
-      <ManufacturingLayout_BlueprintPanel state={withState} actions={{}} />
+      <ManufacturingLayout_BlueprintPanel />
     </QueryClientProvider>,
   );
 }
@@ -89,7 +105,7 @@ describe("the blueprints a manufacturing job can be built from", () => {
   });
 
   it("shows nothing when the type is not held", () => {
-    renderPanel({ activeJob: { blueprintTypeID: 123456, selectedSetup: {} } });
+    renderPanel(123456);
 
     expect(screen.queryByText(/^ME:/)).toBeNull();
   });
@@ -100,5 +116,34 @@ describe("the blueprints a manufacturing job can be built from", () => {
     renderPanel();
 
     expect(JSON.stringify(collection.current.rows)).toBe(before);
+  });
+});
+
+// A tile draws a blueprint, not the job: it reads the setup only when it is
+// pressed. Subscribed to it instead, every tile on the page would be redrawn by
+// every keystroke in the setup editor beside them.
+describe("what redraws the blueprints", () => {
+  it("leaves the list alone while the open setup is edited", async () => {
+    const renders = renderCounts();
+    const Counted = renders.watch("tile", BlueprintItem);
+    openJob();
+    const client = testQueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <Counted print={{ itemId: 1, me: 10, te: 20, runs: -1 }} />
+      </QueryClientProvider>,
+    );
+    renders.reset();
+
+    await act(async () => {
+      session().actions.run({
+        name: "set run count",
+        recipe: (job) => {
+          job.build.setup["setup-1"].runCount = 40;
+        },
+      });
+    });
+
+    expect(renders.of("tile")).toBe(0);
   });
 });

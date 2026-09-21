@@ -8,6 +8,7 @@ import {
   TYPE_IMAGE,
   typeImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
+import { useJobActions } from "../../../../Edit Job Hooks/useJobDraft";
 
 export function ExistingChildJobs_Purchasing(props) {
   const { existingChildJobs } = props;
@@ -32,7 +33,8 @@ export function ExistingChildJobs_Purchasing(props) {
   );
 }
 
-function ChildJobEntry({ actions, childJobID, siblingLinkLock }) {
+function ChildJobEntry({ childJobID, siblingLinkLock }) {
+  const actions = useJobActions();
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
 
   const job = findJobInJobArray(childJobID);

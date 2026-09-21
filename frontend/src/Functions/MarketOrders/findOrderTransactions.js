@@ -1,17 +1,28 @@
 import findTransactionsForMarketOrders from "./findTransactionsForMarketOrders";
 import findJournalEntriesFromTransaction from "./findJournalEntriesFromTransaction";
 import Transaction from "../../Classes/transaction";
+import { esiTransactionIDsOf } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
+/**
+ * The sales the account holds that belong to this job's linked market orders
+ * and are not linked to it already.
+ *
+ * @param {{marketOrders: object, transactions: object}} esi - The job's ESI data
+ * @param {import("@tanstack/react-query").QueryClient} queryClient
+ * @param {number[]} temporaryTransactionsToAdd
+ * @param {number[]} temporaryTransactionsToRemove
+ * @returns {import("../../Classes/transaction").default[]}
+ */
 export default function findOrderTransactions(
-  inputJob,
+  esi,
   queryClient,
   temporaryTransactionsToAdd = [],
   temporaryTransactionsToRemove = [],
 ) {
   const transactionData = [];
-  const matchedTransactionIDs = inputJob.esiTransactionIDs;
+  const matchedTransactionIDs = esiTransactionIDsOf(esi.transactions);
 
-  Object.values(inputJob.esi.marketOrders).forEach((order) => {
+  Object.values(esi.marketOrders ?? {}).forEach((order) => {
     const itemTransactions = findTransactionsForMarketOrders(
       order,
       queryClient,

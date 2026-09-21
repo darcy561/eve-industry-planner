@@ -1,16 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
-import { appliedTo, commandActions } from "../tests/jobCommandSpy.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../Zustand/usersStore.js", async () => {
-  const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
-  return usersStoreMock();
+  const { usersStoreOverSession } =
+    await import("../tests/usersStoreHarness.js");
+  return usersStoreOverSession();
 });
 
 const { MaterialCostsFrame_Purchasing } =
   await import("../Components/Edit Job/Edit Job Components/Purchasing/Standard Layout/Material Cards/materialCostsFrame.jsx");
 const { default: Job } = await import("./job.js");
+const { default: useUsersStore } = await import("../Zustand/usersStore.js");
+const { jobDraftNow } =
+  await import("../Components/Edit Job/Edit Job Hooks/useJobDraft.js");
+
+const session = () => useUsersStore.getState().editSession;
 
 // The same scenarios each purchasing surface handled before the material class
 // owned them, run through the methods the call sites use now.
@@ -122,16 +127,17 @@ describe("removing a purchase from a material card", () => {
     job.importPurchaseToMaterial(34, priced(40, 5));
     job.importPurchaseToMaterial(34, priced(30, 8));
 
-    const material = job.build.materials[34];
-    const actions = commandActions();
+    // Mounted over the session the card reads, so the click runs the command
+    // the reader's click runs.
+    session().actions.closeSession();
+    session().actions.openJob(job.jobID, job.toDocument());
+    const material = jobDraftNow().build.materials[34];
 
-    render(
-      <MaterialCostsFrame_Purchasing actions={actions} material={material} />,
-    );
+    render(<MaterialCostsFrame_Purchasing material={material} />);
 
     await userEvent.click(screen.getAllByTestId("ClearIcon")[0]);
 
-    const changed = new Job(appliedTo(actions, job.toDocument()));
+    const changed = new Job(jobDraftNow());
     const remaining = changed.build.materials[34];
     expect(
       Object.values(remaining.purchasing).map((row) => row.itemCount),

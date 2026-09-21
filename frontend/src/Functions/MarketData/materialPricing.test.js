@@ -32,7 +32,7 @@ function basisById(options) {
 describe("materialCostByBasis", () => {
   it("costs the job on every basis the app offers", () => {
     const options = materialCostByBasis({
-      materials,
+      rows: materials,
       build: {},
       marketLocation: "jita",
       listingType: "sell",
@@ -49,7 +49,7 @@ describe("materialCostByBasis", () => {
   it("marks the basis in effect and measures the others against it", () => {
     const byId = basisById(
       materialCostByBasis({
-        materials,
+        rows: materials,
         build: {},
         marketLocation: "jita",
         listingType: "sell",
@@ -71,7 +71,7 @@ describe("materialCostByBasis", () => {
 
     const byId = basisById(
       materialCostByBasis({
-        materials,
+        rows: materials,
         build,
         marketLocation: "jita",
         listingType: "sell",
@@ -92,7 +92,7 @@ describe("materialCostByBasis", () => {
 
     const byId = basisById(
       materialCostByBasis({
-        materials: [{ typeID: 36, quantity: 1 }],
+        rows: [{ typeID: 36, quantity: 1 }],
         build,
         marketLocation: "jita",
         listingType: "sell",
@@ -105,7 +105,7 @@ describe("materialCostByBasis", () => {
 
   it("costs a job with no materials at zero on every basis", () => {
     const options = materialCostByBasis({
-      materials: [],
+      rows: [],
       build: {},
       marketLocation: "jita",
       listingType: "sell",
@@ -119,7 +119,7 @@ describe("materialCostByBasis", () => {
   it("treats a price the market has no figure for as zero rather than failing", () => {
     const byId = basisById(
       materialCostByBasis({
-        materials: [{ typeID: 999, quantity: 5 }],
+        rows: [{ typeID: 999, quantity: 5 }],
         build: {},
         marketLocation: "jita",
         listingType: "sell",
@@ -447,7 +447,7 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
   it("still costs each basis apart when a group names one", () => {
     const byId = basisById(
       materialCostByBasis({
-        materials,
+        rows: materials,
         build: {},
         marketLocation: "jita",
         listingType: "sell",
@@ -465,7 +465,7 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
   it("keeps a group's market on every candidate basis", () => {
     const byId = basisById(
       materialCostByBasis({
-        materials: [{ typeID: 34, quantity: 1 }],
+        rows: [{ typeID: 34, quantity: 1 }],
         build: {},
         marketLocation: "amarr",
         listingType: "sell",

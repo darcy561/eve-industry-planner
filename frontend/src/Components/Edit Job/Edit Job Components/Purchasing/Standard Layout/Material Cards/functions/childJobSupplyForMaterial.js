@@ -9,8 +9,9 @@ import useUsersStore from "../../../../../../../Zustand/usersStore";
  * parent takes what it still needs, at most what this job needs. Only when the
  * children out-produce every claim on them is a parent certainly covered.
  *
- * @param {import("../../../../../../../Classes/job").default} activeJob - The job the card belongs to
- * @param {import("../../../../../../../Classes/jobMaterial").default} material
+ * @param {string} activeJobID - The job the card belongs to
+ * @param {object} material - That job's own row for this material
+ * @param {number} ownNeed - How many of it this job still has to get
  * @param {Array<import("../../../../../../../Classes/job").default>} childJobs - The material's linked child jobs
  * @returns {{
  *   output: number,
@@ -24,7 +25,12 @@ import useUsersStore from "../../../../../../../Zustand/usersStore";
  *   claimsKnown: boolean,
  * }}
  */
-export function childJobSupplyForMaterial(activeJob, material, childJobs) {
+export function childJobSupplyForMaterial(
+  activeJobID,
+  material,
+  ownNeed,
+  childJobs,
+) {
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
 
   const childIDs = new Set(childJobs.map((childJob) => childJob.jobID));
@@ -36,29 +42,31 @@ export function childJobSupplyForMaterial(activeJob, material, childJobs) {
   // Every job these children supply, this one included: a job that links a child
   // is a parent of it whether or not the child names it back, and a parent that
   // takes from two of them still only claims once.
-  const parentIDs = new Set([activeJob.jobID]);
+  const parentIDs = new Set([activeJobID]);
   for (const childJob of childJobs) {
     for (const parentID of childJob.parentJobIDs) {
       parentIDs.add(parentID);
     }
   }
 
-  const ownNeed = material.quantityRemaining;
   let imported = 0;
   let otherClaims = 0;
   let sharedWith = 0;
   let claimsKnown = true;
 
   for (const parentID of parentIDs) {
-    const parent =
-      parentID === activeJob.jobID ? activeJob : findJobInJobArray(parentID);
-
-    if (!parent) {
-      claimsKnown = false;
-      continue;
+    // This job's own row is the one the card was handed; every other parent's
+    // has to be looked up, and one the planner does not hold leaves the claims
+    // unknown rather than understated.
+    let parentMaterial = material;
+    if (parentID !== activeJobID) {
+      const parent = findJobInJobArray(parentID);
+      if (!parent) {
+        claimsKnown = false;
+        continue;
+      }
+      parentMaterial = parent.build.materials?.[String(material.typeID)];
     }
-
-    const parentMaterial = parent.build.materials?.[String(material.typeID)];
     if (!parentMaterial) continue;
 
     imported += Object.values(parentMaterial.purchasing).reduce(
@@ -67,7 +75,7 @@ export function childJobSupplyForMaterial(activeJob, material, childJobs) {
       0,
     );
 
-    if (parentID === activeJob.jobID) continue;
+    if (parentID === activeJobID) continue;
     otherClaims += parentMaterial.quantityRemaining;
     sharedWith++;
   }

@@ -6,20 +6,13 @@ import {
   observerWatching,
 } from "../../tests/intersectionObservers.js";
 
-const { session, run } = vi.hoisted(() => ({
-  session: { current: null },
-  run: vi.fn(),
-}));
-
-vi.mock("./Edit Job Hooks/useEditJobSession", () => ({
-  useEditJobSession: () => session.current,
-}));
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ jobID: "job-1" }),
 }));
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
-  return usersStoreMock({ jobData: { actions: { setActiveJobID: vi.fn() } } });
+  const { usersStoreOverSession } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreOverSession();
 });
 vi.mock("../../Hooks/useJobStatuses", () => ({
   useJobStatuses: () => ({
@@ -70,24 +63,26 @@ vi.mock("../Dialogues/Market Data/dialogueFrame", () => ({ default: nothing }));
 vi.mock("../Dialogues/Assets/dialogueFrame", () => ({ default: nothing }));
 
 const { default: EditJob } = await import("./editJob.jsx");
+const { default: useUsersStore } = await import("../../Zustand/usersStore");
+const { jobDraftNow } = await import("./Edit Job Hooks/useJobDraft");
 
 const theme = createTheme();
+const session = () => useUsersStore.getState().editSession;
 let observers = [];
 
-/** The session hands the page a job sitting on one of the three steps. */
+/** Opens a job sitting on one of the three steps. */
 function onStep(jobStatus) {
-  session.current = {
-    state: {
-      isLoading: false,
-      activeJob: {
-        jobID: "job-1",
-        name: "Rifter",
-        itemID: 587,
-        jobStatus,
-      },
-    },
-    actions: { run },
-  };
+  session().actions.closeSession();
+  session().actions.openJob("job-1", {
+    jobID: "job-1",
+    name: "Rifter",
+    itemID: 587,
+    jobStatus,
+    parentJobs: [],
+    layout: { setupToEdit: null },
+    build: { materials: {}, childJobs: {}, setup: {} },
+    esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+  });
 }
 
 function show() {
@@ -177,9 +172,9 @@ describe("the edit job page's floating step buttons", () => {
 
     fireEvent.click(floatingButton(/move to next step/i));
 
-    expect(run).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "move to the next stage" }),
-    );
+    // The step moved on the draft, and the job as the server last stated it is
+    // left where it was until the reader saves.
+    expect(jobDraftNow().jobStatus).toBe(2);
   });
 
   it("offers no way back from the first step", () => {

@@ -3,17 +3,24 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import { toggleReadyForSaleFromGroup } from "../../../../Edit Job Hooks/jobCommands";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 
-export function SellGroupJobButton({ state, actions }) {
+export function SellGroupJobButton() {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const hasParents = useJobDraft((job) => job.parentJobs.length > 0);
+  const isReadyToSell = useJobDraft((job) => job.isReadyToSell);
+  const actions = useJobActions();
+  const jobLockReadOnly = useActiveJobReadOnly();
 
   const toggleMarkForSell = () => {
     if (jobLockReadOnly) return;
     actions.run(toggleReadyForSaleFromGroup());
   };
 
-  if (!activeGroupID || state.activeJob.parentJobs.length !== 0) {
+  if (!activeGroupID || hasParents) {
     return null;
   }
 
@@ -30,11 +37,9 @@ export function SellGroupJobButton({ state, actions }) {
           size="small"
           onClick={toggleMarkForSell}
           sx={{ margin: 1 }}
-          disabled={jobLockReadOnly || state.activeJob.isReadyToSell}
+          disabled={jobLockReadOnly || isReadyToSell}
         >
-          {state.activeJob.isReadyToSell
-            ? "Not Ready For Sale"
-            : "Ready For Sale"}
+          {isReadyToSell ? "Not Ready For Sale" : "Ready For Sale"}
         </Button>
       </span>
     </Tooltip>

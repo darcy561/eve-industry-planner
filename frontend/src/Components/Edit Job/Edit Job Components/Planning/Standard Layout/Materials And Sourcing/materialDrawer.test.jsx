@@ -79,27 +79,22 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
 });
 
 const { default: MaterialDrawer } = await import("./materialDrawer");
-const { jobFixture, materialFixture } =
-  await import("../../../../../../tests/jobFixture");
 
-const material = materialFixture({
+// A material row as the job stores one: no quantity of its own, and purchases
+// keyed by id. What the job takes of it is stated by the setups.
+const material = {
   typeID: 35,
   name: "Pyerite",
-  quantity: 100,
-});
+  jobType: 0,
+  volume: 0.01,
+  purchasing: {},
+};
 
 function renderDrawer(overrides = {}) {
   return render(
     <MaterialDrawer
       isOpen
       material={material}
-      state={{
-        activeJob: jobFixture({ childJobs: { 35: [] } }),
-        temporaryChildJobs: {},
-        speculativeChildJobs: {},
-        parentChildToEdit: { childJobs: {} },
-      }}
-      actions={{ getCurrentMaterialChildJobs: () => [] }}
       currentMaterialPrice={5}
       matchedChildJobs={[]}
       marketLocation="jita"
@@ -197,15 +192,7 @@ describe("opening the job behind a row", () => {
   it("offers the job once the row is actually built by one", async () => {
     const linked = { jobID: "child-1", name: "Tritanium", build: {} };
 
-    renderDrawer({
-      matchedChildJobs: [linked],
-      state: {
-        activeJob: jobFixture({ childJobs: { 35: ["child-1"] } }),
-        temporaryChildJobs: {},
-        speculativeChildJobs: {},
-        parentChildToEdit: { childJobs: {} },
-      },
-    });
+    renderDrawer({ matchedChildJobs: [linked] });
 
     expect(
       await screen.findByRole("button", { name: "Open job" }),

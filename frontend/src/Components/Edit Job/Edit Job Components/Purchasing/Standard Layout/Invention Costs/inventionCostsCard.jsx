@@ -27,8 +27,17 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import DOMPurify from "dompurify";
 import InventionEntry from "../../../../../../Classes/inventionEntry";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { costOfInvention } from "../../../../Edit Job Hooks/jobSelectors";
 
-export function InventionCostsCard({ state, actions }) {
+export function InventionCostsCard() {
+  const metaLevel = useJobDraft((job) => job.metaLevel);
+  const itemID = useJobDraft((job) => job.itemID);
+  const inventionEntries = useJobDraft((job) => job.build.inventionEntries);
+  const actions = useJobActions();
   function handleRemove(record) {
     actions.run(removeInventionCost(record));
     showSnackbarError("Deleted");
@@ -52,8 +61,8 @@ export function InventionCostsCard({ state, actions }) {
   }
 
   if (
-    !META_LEVELS_THAT_REQUIRE_INVENTION_COSTS.has(state.activeJob.metaLevel) &&
-    !TYPE_IDS_TO_IGNORE_FOR_INVENTION_COSTS.has(state.activeJob.itemID)
+    !META_LEVELS_THAT_REQUIRE_INVENTION_COSTS.has(metaLevel) &&
+    !TYPE_IDS_TO_IGNORE_FOR_INVENTION_COSTS.has(itemID)
   )
     return null;
 
@@ -104,7 +113,7 @@ export function InventionCostsCard({ state, actions }) {
             <Grid sx={{ marginTop: "5px", height: "4.5rem" }} size={12}>
               <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
                 Total Cost:{" "}
-                {formatNumberForLocale(state.activeJob.totalInventionCost)}
+                {formatNumberForLocale(costOfInvention(inventionEntries))}
               </Typography>
             </Grid>
           </Grid>
@@ -115,40 +124,38 @@ export function InventionCostsCard({ state, actions }) {
               overflowY: "auto",
             }}
           >
-            {Object.values(state.activeJob.build.inventionEntries).map(
-              (record) => {
-                return (
-                  <Grid
+            {Object.values(inventionEntries).map((record) => {
+              return (
+                <Grid
+                  key={record.id}
+                  container
+                  sx={{
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginBottom: "5px",
+                  }}
+                >
+                  <Chip
                     key={record.id}
-                    container
+                    label={`${record.itemName} ${formatNumberForLocale(
+                      record.itemCost,
+                    )}`}
+                    variant="outlined"
+                    deleteIcon={<ClearIcon />}
                     sx={{
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginBottom: "5px",
+                      "& .MuiChip-deleteIcon": {
+                        color: "error.main",
+                      },
+                      boxShadow: 2,
                     }}
-                  >
-                    <Chip
-                      key={record.id}
-                      label={`${record.itemName} ${formatNumberForLocale(
-                        record.itemCost,
-                      )}`}
-                      variant="outlined"
-                      deleteIcon={<ClearIcon />}
-                      sx={{
-                        "& .MuiChip-deleteIcon": {
-                          color: "error.main",
-                        },
-                        boxShadow: 2,
-                      }}
-                      onDelete={() => {
-                        handleRemove(record);
-                      }}
-                      color="secondary"
-                    />
-                  </Grid>
-                );
-              },
-            )}
+                    onDelete={() => {
+                      handleRemove(record);
+                    }}
+                    color="secondary"
+                  />
+                </Grid>
+              );
+            })}
           </Grid>
           <form action={handleSubmit}>
             <Grid container spacing={1}>

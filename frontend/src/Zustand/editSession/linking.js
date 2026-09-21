@@ -171,19 +171,19 @@ export const linkingActions = (set) => {
     // Merged and deleted rather than replaced, because rows are costed
     // concurrently: a caller writing back a map it read before another finished
     // would lose the row costed in between.
-    /** @param {Array<object>} jobs */
+    /** @param {object|Array<object>} jobs - One costed job, or several */
     recordSpeculativeChildJobs: (jobs) =>
       update("recordSpeculativeChildJobs", (session) => {
         const costed = { ...session.speculativeChildJobs };
-        for (const job of jobs) costed[job.itemID] = job;
+        for (const job of asList(jobs)) costed[job.itemID] = job;
         return { speculativeChildJobs: costed };
       }),
 
-    /** @param {Array<number>} typeIDs */
+    /** @param {number|Array<number>} typeIDs - One material, or several */
     forgetSpeculativeChildJobs: (typeIDs) =>
       update("forgetSpeculativeChildJobs", (session) => {
         const costed = { ...session.speculativeChildJobs };
-        for (const typeID of typeIDs) delete costed[typeID];
+        for (const typeID of asList(typeIDs)) delete costed[typeID];
         return { speculativeChildJobs: costed };
       }),
   };

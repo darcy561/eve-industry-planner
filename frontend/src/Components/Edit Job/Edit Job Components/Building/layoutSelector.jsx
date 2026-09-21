@@ -3,9 +3,17 @@ import { Building_StandardLayout_EditJob } from "./StandardLayout/standardLayout
 import useUsersStore from "../../../../Zustand/usersStore";
 import useGetAllIndustryJobs from "../../../../Hooks/EveEsi/useGetAllIndustryJobs";
 import { useGatherJobMatchesAndUpdateExistingLinkedJobs } from "../../Hooks/useJobMatchesAndWorldData";
+import {
+  useEsiLinkIntents,
+  useJobActions,
+  useJobDraft,
+} from "../../Edit Job Hooks/useJobDraft";
 
-export function LayoutSelector_EditJob_Building(props) {
-  const { state, actions } = props;
+export function LayoutSelector_EditJob_Building() {
+  const actions = useJobActions();
+  const itemID = useJobDraft((job) => job.itemID);
+  const industryJobs = useJobDraft((job) => job.esi.industryJobs);
+  const runsToLink = useEsiLinkIntents("industryJobs");
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
   const {
     data: allIndustryJobs,
@@ -21,9 +29,10 @@ export function LayoutSelector_EditJob_Building(props) {
     error: worldDataError,
   } = useGatherJobMatchesAndUpdateExistingLinkedJobs(
     allIndustryJobs,
-    state.activeJob,
+    itemID,
+    industryJobs,
     linkedJobs,
-    state.esiDataToLink,
+    runsToLink,
     actions.run,
   );
 
@@ -34,7 +43,6 @@ export function LayoutSelector_EditJob_Building(props) {
     case true:
       return (
         <Building_StandardLayout_EditJob
-          {...props}
           jobMatches={jobMatches}
           isLoading={totalIsLoading}
           isError={totalError}
@@ -44,7 +52,6 @@ export function LayoutSelector_EditJob_Building(props) {
     case false:
       return (
         <Building_StandardLayout_EditJob
-          {...props}
           jobMatches={jobMatches}
           isLoading={totalIsLoading}
           isError={totalError}
@@ -54,7 +61,6 @@ export function LayoutSelector_EditJob_Building(props) {
     default:
       return (
         <Building_StandardLayout_EditJob
-          {...props}
           jobMatches={jobMatches}
           isLoading={totalIsLoading}
           isError={totalError}

@@ -18,6 +18,7 @@ import {
 import { useAccountTotalsQuery } from "../../../../../../Hooks/React Query/Backend/statisticsTotals";
 import { useAccountTimelineQuery } from "../../../../../../Hooks/React Query/Backend/statisticsTimeline";
 import CostOverTime from "./costOverTime";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 import {
   historyWindow,
   monthLabel,
@@ -133,9 +134,9 @@ function DestinationSplit({ totals }) {
   );
 }
 
-export default function ArchiveJobsPanel({ state }) {
+export default function ArchiveJobsPanel() {
   const isLoggedIn = useUsersStore((s) => s.account.isLoggedIn);
-  const typeID = state.activeJob?.itemID;
+  const typeID = useJobDraft((job) => job.itemID);
   const [showChart, setShowChart] = useState(false);
 
   const {

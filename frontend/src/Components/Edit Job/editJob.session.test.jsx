@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-const { store, navigated, job } = vi.hoisted(() => ({
+const { store, navigated, job, StepContent } = vi.hoisted(() => ({
+  StepContent: { current: () => null },
   store: { current: null },
   navigated: [],
   job: { current: null },
@@ -14,9 +21,9 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => ({}),
 }));
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession } =
     await import("../../tests/usersStoreHarness.js");
-  return usersStoreMock(() => usersStoreState(store.current));
+  return usersStoreOverSession();
 });
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({}),
@@ -63,7 +70,9 @@ vi.mock("./deleteIcon", () => ({ DeleteJobIcon: nothing }));
 vi.mock("./closeIcon", () => ({ CloseJobIcon: nothing }));
 vi.mock("./Linked Job Badge", () => ({ LinkedJobBadge: nothing }));
 vi.mock("./StepErrorBoundary", () => ({ default: ({ children }) => children }));
-vi.mock("./EditJobStepContentSelector", () => ({ default: nothing }));
+vi.mock("./EditJobStepContentSelector", () => ({
+  default: (props) => StepContent.current(props),
+}));
 vi.mock("./EditJobLeaveConfirmDialogue", () => ({ default: nothing }));
 vi.mock("../Dialogues/Shopping List/ShoppingList", () => ({
   ShoppingListDialogue: nothing,
@@ -75,7 +84,9 @@ vi.mock("../Dialogues/Market Data/dialogueFrame", () => ({ default: nothing }));
 vi.mock("../Dialogues/Assets/dialogueFrame", () => ({ default: nothing }));
 
 const { default: EditJob } = await import("./editJob.jsx");
+const { renderCounts } = await import("../../tests/renderCounts.jsx");
 const { default: useUsersStore } = await import("../../Zustand/usersStore");
+const { usersStoreState } = await import("../../tests/usersStoreHarness.js");
 
 const theme = createTheme();
 
@@ -93,7 +104,6 @@ beforeEach(() => {
   store.current = {
     jobData: {
       actions: {
-        setActiveJobID: () => {},
         findJobInJobArray: () => job.current,
       },
     },
@@ -102,6 +112,7 @@ beforeEach(() => {
       actions: { getCustomStructureWithID: () => null },
     },
   };
+  useUsersStore.setState(usersStoreState(store.current));
   useUsersStore.getState().editSession.actions.closeSession();
 });
 
@@ -148,5 +159,67 @@ describe("opening the edit job page", () => {
         useUsersStore.getState().editSession.draft.log.map((e) => e.command),
       ).toEqual(["move to another stage"]),
     );
+  });
+
+  // The session outlives this page, so leaving it has to end the session too.
+  // Before it did, a reader who changed a job and then clicked any ordinary link
+  // away was handed their abandoned draft back the next time they opened that
+  // job — and saving it wrote that edit over whatever the job had become.
+  it("leaves nothing behind when the reader navigates away", async () => {
+    const { unmount } = show();
+    await screen.findByText("Rifter");
+
+    fireEvent.click(screen.getAllByLabelText(/move to next step/i)[0]);
+    await waitFor(() =>
+      expect(useUsersStore.getState().editSession.draft.log).toHaveLength(1),
+    );
+
+    unmount();
+
+    const { draft, activeJobID } = useUsersStore.getState().editSession;
+    expect(Object.keys(draft.base)).toEqual([]);
+    expect(draft.log).toEqual([]);
+    expect(activeJobID).toBeNull();
+  });
+
+  it("loads the job again when it is opened after that", async () => {
+    const { unmount } = show();
+    await screen.findByText("Rifter");
+    fireEvent.click(screen.getAllByLabelText(/move to next step/i)[0]);
+    unmount();
+
+    show();
+
+    expect(await screen.findByText("Rifter")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        useUsersStore.getState().editSession.draft.base["job-1"]?.jobStatus,
+      ).toBe(1),
+    );
+    expect(useUsersStore.getState().editSession.draft.log).toEqual([]);
+  });
+
+  // The frame reads the job in the parts it draws, so an edit over none of them
+  // redraws nothing beneath it. Held to a number rather than a description,
+  // because widening any one of those reads back to the job is invisible on
+  // screen. Moving stage is left out on purpose: it swaps which layout is shown,
+  // so the frame re-renders on it for good.
+  it("leaves the step's content alone on an edit it reads nothing of", async () => {
+    const renders = renderCounts();
+    StepContent.current = renders.watch("stepContent", () => null);
+    show();
+    await screen.findByText("Rifter");
+
+    renders.reset();
+    await act(async () => {
+      useUsersStore.getState().editSession.actions.run({
+        name: "add extra cost",
+        recipe: (held) => {
+          held.build.extrasCosts = { "extra-1": { id: "extra-1", cost: 1 } };
+        },
+      });
+    });
+
+    expect(renders.of("stepContent")).toBe(0);
   });
 });

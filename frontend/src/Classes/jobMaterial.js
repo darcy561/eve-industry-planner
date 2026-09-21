@@ -10,6 +10,12 @@
  *
  * @class Material
  */
+
+import {
+  countedPurchases,
+  isValidPurchase,
+} from "../Components/Edit Job/Edit Job Hooks/materialSelectors";
+
 class Material {
   /**
    * @param {Object} [row] - A material row from a job document, or the recipe
@@ -191,31 +197,11 @@ class Material {
    *
    * @returns {{ quantity: number, cost: number }}
    */
+  // The rule lives with the selectors, which is where the rest of the app is
+  // moving to read it; holding a second copy here is how the two come to
+  // disagree about which of two equal-cost rows is counted first.
   #countedPurchases() {
-    const counted = new Map();
-    let quantity = 0;
-    let cost = 0;
-    // By id where the cost ties: the rows come out of a map, so their order is
-    // whatever the keys happen to give, and which of two equal-cost rows is
-    // counted first decides each one's own share. `models.JobMaterial` sorts the
-    // same way on the backend.
-    for (const row of Object.values(this.purchasing)
-      .filter(isValidPurchase)
-      .sort((a, b) =>
-        a.itemCost !== b.itemCost
-          ? a.itemCost - b.itemCost
-          : String(a.id).localeCompare(String(b.id)),
-      )) {
-      const take = Math.min(
-        row.itemCount,
-        Math.max(0, this.quantity - quantity),
-      );
-      counted.set(row.id, Math.max(0, take));
-      if (take <= 0) continue;
-      quantity += take;
-      cost += take * row.itemCost;
-    }
-    return { quantity, cost, counted };
+    return countedPurchases(this, this.quantity);
   }
 
   /**
@@ -285,15 +271,6 @@ function keyPurchasesByID(rows) {
     out[String(row.id)] = row;
   }
   return out;
-}
-
-function isValidPurchase(row) {
-  return (
-    Number.isFinite(row?.itemCount) &&
-    row.itemCount >= 0 &&
-    Number.isFinite(row?.itemCost) &&
-    row.itemCost >= 0
-  );
 }
 
 export default Material;

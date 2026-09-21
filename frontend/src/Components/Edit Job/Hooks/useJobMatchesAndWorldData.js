@@ -13,9 +13,10 @@ function jobLocationIds(jobs = []) {
 
 export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
   allIndustryJobs,
-  activeJob,
+  itemID,
+  industryJobs,
   linkedJobs,
-  esiDataToLink,
+  runsToLink,
   run,
 ) {
   // Derived while rendering rather than set from an effect: the matches are a function of the jobs
@@ -24,16 +25,20 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
     if (!allIndustryJobs) return { jobMatches: [], error: null };
     try {
       return {
-        jobMatches: findIndustryJobsForItem(allIndustryJobs, activeJob, {
-          linkedAcrossAccount: linkedJobs,
-          beingRemoved: esiDataToLink.industryJobs.remove,
-        }),
+        jobMatches: findIndustryJobsForItem(
+          allIndustryJobs,
+          { itemID, industryJobs },
+          {
+            linkedAcrossAccount: linkedJobs,
+            beingRemoved: runsToLink.remove,
+          },
+        ),
         error: null,
       };
     } catch (err) {
       return { jobMatches: [], error: err };
     }
-  }, [allIndustryJobs, activeJob, linkedJobs, esiDataToLink]);
+  }, [allIndustryJobs, itemID, industryJobs, linkedJobs, runsToLink]);
 
   // The one thing here that is not a derivation: the job being edited takes the latest figures ESI
   // reported for the jobs already linked to it. Said as a command, because a change written into the
@@ -42,7 +47,7 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
     if (allIndustryJobs) run(updateLinkedJobData(allIndustryJobs));
   }, [allIndustryJobs, run]);
 
-  const linkedJobRows = Object.values(activeJob.esi.industryJobs);
+  const linkedJobRows = Object.values(industryJobs);
   const locationIds = useMemo(
     () => jobLocationIds([...jobMatches, ...linkedJobRows]),
     [jobMatches, linkedJobRows],

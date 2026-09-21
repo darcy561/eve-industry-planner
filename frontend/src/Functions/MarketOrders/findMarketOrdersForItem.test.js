@@ -46,7 +46,7 @@ vi.mock(
 const { default: findMarketOrdersForItem } =
   await import("./findMarketOrdersForItem.js");
 
-const JOB = { itemID: 587 };
+const ITEM = 587;
 
 function order(order_id, overrides = {}) {
   return {
@@ -86,20 +86,20 @@ describe("the market orders a job can link", () => {
   it("offers orders listing this job's item", () => {
     withOrders({ character: [order(900), order(901, { type_id: 34 })] });
 
-    expect(ids(findMarketOrdersForItem(null, JOB))).toEqual([900]);
+    expect(ids(findMarketOrdersForItem(null, ITEM))).toEqual([900]);
   });
 
   it("offers historic orders alongside live ones", () => {
     withOrders({ character: [order(900)], historic: [order(901)] });
 
-    expect(ids(findMarketOrdersForItem(null, JOB))).toEqual([900, 901]);
+    expect(ids(findMarketOrdersForItem(null, ITEM))).toEqual([900, 901]);
   });
 
   it("does not offer an order already linked to a job", () => {
     withOrders({ character: [order(900), order(901)] });
     linkedOrders.add(900);
 
-    expect(ids(findMarketOrdersForItem(null, JOB))).toEqual([901]);
+    expect(ids(findMarketOrdersForItem(null, ITEM))).toEqual([901]);
   });
 
   // Unlinking is pending until the job saves, so an order on its way out is
@@ -108,13 +108,13 @@ describe("the market orders a job can link", () => {
     withOrders({ character: [order(900)] });
     linkedOrders.add(900);
 
-    expect(ids(findMarketOrdersForItem(null, JOB, [], [900]))).toEqual([900]);
+    expect(ids(findMarketOrdersForItem(null, ITEM, [], [900]))).toEqual([900]);
   });
 
   it("does not offer an order already queued for adding", () => {
     withOrders({ character: [order(900), order(901)] });
 
-    expect(ids(findMarketOrdersForItem(null, JOB, [900]))).toEqual([901]);
+    expect(ids(findMarketOrdersForItem(null, ITEM, [900]))).toEqual([901]);
   });
 
   // The same order is reported on the character wallet and the corporation
@@ -125,7 +125,7 @@ describe("the market orders a job can link", () => {
       corp: [order(900, { is_corporation: true, volume_remain: 12 })],
     });
 
-    const offered = findMarketOrdersForItem(null, JOB);
+    const offered = findMarketOrdersForItem(null, ITEM);
 
     expect(offered).toHaveLength(1);
     expect(offered[0].is_corporation).toBe(true);
@@ -138,7 +138,7 @@ describe("the market orders a job can link", () => {
       historic: [order(900, { volume_remain: 40 })],
     });
 
-    const offered = findMarketOrdersForItem(null, JOB);
+    const offered = findMarketOrdersForItem(null, ITEM);
 
     expect(offered).toHaveLength(1);
     expect(offered[0].volume_remain).toBe(12);
@@ -152,7 +152,7 @@ describe("the market orders a job can link", () => {
       historic: [order(900, { volume_remain: 0, state: "expired" })],
     });
 
-    expect(ids(findMarketOrdersForItem(null, JOB))).toEqual([900]);
+    expect(ids(findMarketOrdersForItem(null, ITEM))).toEqual([900]);
   });
 
   it("offers a corporation order once across its two lists", () => {
@@ -161,7 +161,7 @@ describe("the market orders a job can link", () => {
       corpHistoric: [order(900, { is_corporation: true, state: "expired" })],
     });
 
-    expect(ids(findMarketOrdersForItem(null, JOB))).toEqual([900]);
+    expect(ids(findMarketOrdersForItem(null, ITEM))).toEqual([900]);
   });
 
   // A corporation's list carries every member's orders, and the broker fee is worked out from the
@@ -175,7 +175,7 @@ describe("the market orders a job can link", () => {
       ],
     });
 
-    expect(ids(findMarketOrdersForItem(null, JOB))).toEqual([900]);
+    expect(ids(findMarketOrdersForItem(null, ITEM))).toEqual([900]);
   });
 
   // The corporation fetcher stamps no CharacterHash: it would name whoever's token made the call.
@@ -184,13 +184,13 @@ describe("the market orders a job can link", () => {
       corp: [order(900, { is_corporation: true, CharacterHash: undefined })],
     });
 
-    const [offered] = findMarketOrdersForItem(null, JOB);
+    const [offered] = findMarketOrdersForItem(null, ITEM);
     expect(offered.CharacterHash).toBe(OWN_CHARACTER_HASH);
   });
 
   it("offers nothing when no order lists the item", () => {
     withOrders({ character: [order(900, { type_id: 34 })] });
 
-    expect(findMarketOrdersForItem(null, JOB)).toEqual([]);
+    expect(findMarketOrdersForItem(null, ITEM)).toEqual([]);
   });
 });

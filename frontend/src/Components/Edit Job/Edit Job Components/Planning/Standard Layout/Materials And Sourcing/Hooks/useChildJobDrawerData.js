@@ -1,15 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { findMaterialJobInGroup } from "../../../../../../../Functions/Groups/findMaterialJobInGroup.js";
 import { resolveMaterialChildJobStatus } from "../Helpers/materialChildJobs";
+import {
+  useChildLinkIntents,
+  useJobDraft,
+  useSpeculativeChildJob,
+  useTemporaryChildJob,
+} from "../../../../../Edit Job Hooks/useJobDraft";
 
 export function useChildJobDrawerData({
-  state,
   isOpen,
   material,
   matchedChildJobs,
   childJobsLocation,
   buildSingleChildJobPreview,
 }) {
+  const groupID = useJobDraft((job) => job.groupID);
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const markedChildJobs = useChildLinkIntents(material.typeID);
+  const temporaryChildJob = useTemporaryChildJob(material.typeID);
+  const costedChildJob = useSpeculativeChildJob(material.typeID);
   const [jobImportState, updateJobImportState] = useState(false);
   const [jobDisplay, setJobDisplay] = useState(0);
   const [childJobObjects, updateChildJobObjects] = useState([]);
@@ -20,17 +30,15 @@ export function useChildJobDrawerData({
     async function fetchData() {
       if (!isOpen) return;
       const baseChildJobs = [...matchedChildJobs];
-      const matchedGroupJob = findMaterialJobInGroup(
-        material.typeID,
-        state.activeJob.groupID,
-      );
+      const matchedGroupJob = findMaterialJobInGroup(material.typeID, groupID);
       let nextChildJobObjects = baseChildJobs;
 
       const { hasLinked, hasTemp, hasPendingAdd } =
         resolveMaterialChildJobStatus({
-          state,
-          materialTypeID: material.typeID,
+          inGroup: includedInGroup,
           childJobsLocation,
+          temporaryChildJob,
+          markedChildJobs,
           isExistingJobInGroup: isExistingJobInGroup.current,
         });
 
@@ -44,10 +52,8 @@ export function useChildJobDrawerData({
         // earlier open of this drawer — is not costed again. Rebuilding it would
         // also loop: costing now records the job, which is state this effect
         // reads.
-        const costed = state.speculativeChildJobs?.[material.typeID];
-
-        if (costed) {
-          nextChildJobObjects = [...baseChildJobs, costed];
+        if (costedChildJob) {
+          nextChildJobObjects = [...baseChildJobs, costedChildJob];
         } else {
           const newJob = await buildSingleChildJobPreview({ material });
           if (!newJob) {
@@ -74,10 +80,14 @@ export function useChildJobDrawerData({
   }, [
     buildSingleChildJobPreview,
     childJobsLocation,
+    costedChildJob,
+    groupID,
+    includedInGroup,
     isOpen,
+    markedChildJobs,
     matchedChildJobs,
     material,
-    state,
+    temporaryChildJob,
   ]);
 
   return {

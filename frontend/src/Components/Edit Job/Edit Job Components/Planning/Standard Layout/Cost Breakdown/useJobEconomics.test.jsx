@@ -22,15 +22,15 @@ vi.mock("../../../../../../Hooks/React Query/Backend/statisticsTotals", () => ({
 }));
 
 vi.mock("../../../../../../Functions/Installation Costs/installCosts", () => ({
-  getJobInstallCostForPlanning: () => 100,
+  installCostForPlanning: () => 100,
 }));
 
 const findJobInJobArray = vi.fn(() => undefined);
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock({
+  return usersStoreOverSession({
     applicationSettings: { actions: { getCurrentLocale: () => "en-GB" } },
     jobData: {
       actions: { findJobInJobArray: (...a) => findJobInJobArray(...a) },
@@ -47,35 +47,45 @@ vi.mock("../../../../../../Functions/MarketOrders/sellerCharacter", () => ({
 }));
 
 const { useJobEconomics } = await import("./useJobEconomics");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
 const { MATERIAL_PLAN } =
   await import("../../../../../../Functions/MarketData/materialSourcingRow");
 
-// `selectedSetup` is a getter on the real Job class returning the setup itself,
-// and a setup names its character in `selectedCharacter`. A fixture that flattens
-// either would let a wrong read pass here and quote signed-out rates on the page.
-const jobState = (setupToEdit = "setup0") => ({
-  activeJob: {
-    itemID: 34,
-    totalQuantityProduced: 10,
-    layout: { setupToEdit },
-    build: {
-      setup: { setup0: { selectedCharacter: "hash" } },
-      extrasCosts: {
-        e1: {
-          id: "e1",
-          category: "1",
-          categoryLabel: "Hauling",
-          extraValue: 50,
-        },
+const session = () => useUsersStore.getState().editSession;
+
+/** Ten items made, 50 of extras on them, as the planner stores a job. */
+const jobDocument = ({ setupToEdit = "setup0", ...rest } = {}) => ({
+  jobID: "job-1",
+  itemID: 34,
+  itemsProducedPerRun: 10,
+  parentJobs: [],
+  layout: { setupToEdit },
+  build: {
+    materials: {},
+    childJobs: {},
+    inventionEntries: {},
+    setup: {
+      setup0: {
+        id: "setup0",
+        selectedCharacter: "hash",
+        runCount: 1,
+        jobCount: 1,
+        materialCount: {},
       },
     },
-    get selectedSetup() {
-      return this.build.setup[this.layout.setupToEdit];
+    extrasCosts: {
+      e1: {
+        id: "e1",
+        category: "1",
+        categoryLabel: "Hauling",
+        extraValue: 50,
+      },
     },
   },
+  esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+  ...rest,
 });
-
-const state = jobState();
 
 const rows = [
   {
@@ -87,18 +97,14 @@ const rows = [
   },
 ];
 
-const render = (overrides = {}) =>
-  renderHook(() =>
-    useJobEconomics({
-      state,
-      actions: { getCurrentParentJobs: () => [] },
-      rows,
-      ...overrides,
-    }),
-  );
+const render = ({ document = jobDocument(), ...overrides } = {}) => {
+  session().actions.openJob(document.jobID, document);
+  return renderHook(() => useJobEconomics({ rows, ...overrides }));
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session().actions.closeSession();
   findJobInJobArray.mockReturnValue(undefined);
   getMarketPriceForType.mockImplementation((_typeID, hub, listing) =>
     listing === "sell" ? 200 : 150,
@@ -125,7 +131,7 @@ describe("useJobEconomics", () => {
   });
 
   it("still quotes a seller when no setup is selected", () => {
-    render({ state: jobState(null) });
+    render({ document: jobDocument({ setupToEdit: null }) });
 
     expect(useSellingRates).toHaveBeenCalledWith(expect.anything(), "trader");
   });
@@ -212,32 +218,18 @@ describe("useJobEconomics", () => {
 // so quoting a sale price for it invites a player to read a profit that does not
 // exist.
 describe("a job whose output is owed to a parent", () => {
-  const withParents = (parentQuantity, produced = 10) => ({
-    state: jobState(),
-    actions: { getCurrentParentJobs: () => ["p1"] },
-    parent: {
+  const renderWithParent = (parentQuantity) => {
+    findJobInJobArray.mockReturnValue({
       build: {
         materials: { [String(34)]: { typeID: 34, quantity: parentQuantity } },
         childJobs: { 34: ["job-1"] },
       },
-    },
-    produced,
-  });
+    });
 
-  const renderWithParent = (parentQuantity, produced = 10) => {
-    const fixture = withParents(parentQuantity, produced);
-    fixture.state.activeJob.totalQuantityProduced = produced;
-    fixture.state.activeJob.jobID = "job-1";
-    findJobInJobArray.mockReturnValue(fixture.parent);
-
-    return renderHook(() =>
-      useJobEconomics({
-        state: fixture.state,
-        actions: fixture.actions,
-        rows,
-        marketLocation: "jita",
-      }),
-    ).result;
+    return render({
+      document: jobDocument({ parentJobs: ["p1"] }),
+      marketLocation: "jita",
+    }).result;
   };
 
   it("states no returns when every unit is spoken for", () => {

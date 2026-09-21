@@ -33,6 +33,15 @@ import {
   corporationImageUrl,
   typeImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import {
+  finishesAt,
+  isReadyToDeliver,
+  progressPercent,
+} from "../../../../Edit Job Hooks/linkedRunSelectors";
 
 /**
  * Unlinking an ESI job removes a run from `activeJob.esi.industryJobs` (persisted), so
@@ -40,20 +49,22 @@ import {
  */
 export function LinkedJobsTab(props) {
   const now = useCurrentTime();
-  const { state, actions, isLoading, isError, error } = props;
+  const { isLoading, isError, error } = props;
+  const industryJobs = useJobDraft((job) => job.esi.industryJobs);
+  const actions = useJobActions();
   const queryClient = useQueryClient();
   const [clickedJobs, setClickedJobs] = useState(new Set());
   const [removedJobs, setRemovedJobs] = useState(new Set());
-  const jobLockReadOnly = useActiveJobReadOnly(state);
-  const linkedJobs = Object.values(state.activeJob.esi.industryJobs);
+  const jobLockReadOnly = useActiveJobReadOnly();
+  const linkedJobs = Object.values(industryJobs);
   const stationIds = useMemo(
     () => linkedJobs.map((job) => job.station_id),
     [linkedJobs],
   );
   const { names: facilityNames } = useLocationNames(stationIds);
 
-  const getStatusColor = (status, isReadyToDeliver) => {
-    if (isReadyToDeliver) {
+  const getStatusColor = (status, readyToDeliver) => {
+    if (readyToDeliver) {
       return "info";
     }
     switch (status) {
@@ -92,7 +103,7 @@ export function LinkedJobsTab(props) {
     );
   }
 
-  if (state.activeJob.esiJobIDs.size !== 0) {
+  if (linkedJobs.length !== 0) {
     return (
       <Grid
         container
@@ -132,8 +143,10 @@ export function LinkedJobsTab(props) {
               queryClient,
             );
             const facilityData = facilityNames[job.station_id];
-            const timeRemaining = formatTimeRemaining(job.finishesAt, { now });
-            const isReadyToDeliver = job.isReadyToDeliver;
+            const timeRemaining = formatTimeRemaining(finishesAt(job), {
+              now,
+            });
+            const readyToDeliver = isReadyToDeliver(job, now);
 
             return (
               <Grid
@@ -170,7 +183,7 @@ export function LinkedJobsTab(props) {
                   >
                     <LinearProgress
                       variant="determinate"
-                      value={job.progressPercent()}
+                      value={progressPercent(job, now)}
                       sx={{
                         position: "absolute",
                         top: 0,
@@ -272,7 +285,7 @@ export function LinkedJobsTab(props) {
                               color: "text.secondary",
                             }}
                           >
-                            {isReadyToDeliver
+                            {readyToDeliver
                               ? "Ready to Deliver"
                               : timeRemaining}
                           </Typography>
@@ -288,12 +301,12 @@ export function LinkedJobsTab(props) {
                         </Typography>
                         <Chip
                           label={
-                            isReadyToDeliver
+                            readyToDeliver
                               ? "Ready for Delivery"
                               : job.status.charAt(0).toUpperCase() +
                                 job.status.slice(1)
                           }
-                          color={getStatusColor(job.status, isReadyToDeliver)}
+                          color={getStatusColor(job.status, readyToDeliver)}
                           size="small"
                           sx={{
                             width: "100%",

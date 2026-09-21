@@ -7,16 +7,21 @@ import {
   USER_JOBS_COLLECTION,
 } from "../../../Functions/DocumentLock/documentLockCollections.js";
 
-export function useEditJobDocumentLocks({ jobID, activeJob, isLoading }) {
+export function useEditJobDocumentLocks({
+  jobID,
+  openJobID,
+  groupID,
+  isLoading,
+}) {
   const isLoggedIn = useUsersStore((s) => s.account.isLoggedIn);
   const activeGroupID = useUsersStore((s) => s.jobData.activeGroupID);
 
   const documentLockReady = Boolean(
-    isLoggedIn && jobID && activeJob && activeJob.jobID === jobID && !isLoading,
+    isLoggedIn && jobID && openJobID === jobID && !isLoading,
   );
 
   const groupLockReady = Boolean(
-    documentLockReady && activeGroupID && activeJob?.groupID === activeGroupID,
+    documentLockReady && activeGroupID && groupID === activeGroupID,
   );
 
   // Group edit sessions: the group lock owns every member job — no per-job acquire.

@@ -12,9 +12,9 @@ const { store, lock } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock(() => usersStoreState(store.current));
+  return usersStoreOverSession();
 });
 
 vi.mock("../../../../../../Events/snackbarEvents", async () => {
@@ -28,6 +28,12 @@ vi.mock("../../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
 }));
 
 const { ChildJobLinks } = await import("./childJobLinks.jsx");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
+const { usersStoreState } =
+  await import("../../../../../../tests/usersStoreHarness.js");
+
+const session = () => useUsersStore.getState().editSession;
 
 const theme = createTheme();
 
@@ -54,14 +60,15 @@ function planner(...jobs) {
       },
     },
   };
+  useUsersStore.setState(usersStoreState(store.current));
 }
 
 /**
  * The card's job, with whatever child links are already in place or pending.
  *
- * The job object is kept across calls because that is what the Edit Job reducer
- * does: marking a link spreads a new state around the *same* `activeJob`, and
- * only the pending changes are rebuilt.
+ * The job is kept across calls because that is what the session does: marking a
+ * link records an intent beside the job rather than changing it, so the document
+ * the card reads is the same one until something actually edits it.
  */
 function editing({
   linked = [],
@@ -71,10 +78,20 @@ function editing({
   groupID = null,
 } = {}) {
   activeJob = activeJob ?? {
+    jobID: "job-1",
     includedInGroup,
     groupID,
     build: { childJobs: { [TRITANIUM]: linked } },
   };
+  // The card reads the job and the links it is waiting on from the session; its
+  // two lists are still handed the state they have always taken.
+  session().actions.openJob("job-1", activeJob);
+  add.forEach((jobID) =>
+    session().actions.markChildJobsForAddition([{ jobID, itemID: TRITANIUM }]),
+  );
+  remove.forEach((jobID) =>
+    session().actions.markChildJobsForRemoval([{ jobID, itemID: TRITANIUM }]),
+  );
   return {
     activeJob,
     temporaryChildJobs: {},
@@ -82,23 +99,18 @@ function editing({
   };
 }
 
-const actions = {
-  markChildJobsForAddition: vi.fn(),
-  markChildJobsForRemoval: vi.fn(),
-};
-
-function show(state) {
+function show() {
   return render(
     <ThemeProvider theme={theme}>
-      <ChildJobLinks state={state} actions={actions} material={material} />
+      <ChildJobLinks material={material} />
     </ThemeProvider>,
   );
 }
 
-function again(state) {
+function again() {
   return (
     <ThemeProvider theme={theme}>
-      <ChildJobLinks state={state} actions={actions} material={material} />
+      <ChildJobLinks material={material} />
     </ThemeProvider>
   );
 }
@@ -172,8 +184,22 @@ describe("choosing child jobs for a material", () => {
 
     fireEvent.click(screen.getByTestId("AddIcon").closest("button"));
 
-    expect(actions.markChildJobsForAddition).toHaveBeenCalled();
+    expect(session().parentChildToEdit.childJobs[TRITANIUM].add).toContain(
+      "job-a",
+    );
     expect(showSnackbarSuccess).toHaveBeenCalledWith("Tritanium Run Linked");
+  });
+
+  // The other half of the same control: a row already linked carries the way to
+  // sever it, and marking the removal is what the dialogue is for.
+  it("unlinks the job that was already linked", () => {
+    show(editing({ linked: ["job-a"] }));
+
+    fireEvent.click(screen.getByTestId("ClearIcon").closest("button"));
+
+    expect(session().parentChildToEdit.childJobs[TRITANIUM].remove).toContain(
+      "job-a",
+    );
   });
 
   it("will not link while a sibling holds the lock", () => {

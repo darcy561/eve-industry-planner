@@ -18,6 +18,10 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import { removeMarketOrder } from "../../../../Edit Job Hooks/jobCommands";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 import useLocationNames from "../../../../../../Hooks/EveEsi/useLocationNames";
 import { UNNAMED_LOCATION_LABEL } from "../../../../../../Functions/Assets/assetLocationConstants";
 import {
@@ -25,11 +29,14 @@ import {
   corporationImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
 
-export function LinkedMarketOrdersTab({ state, actions }) {
+export function LinkedMarketOrdersTab() {
+  const linkedOrders = useJobDraft((job) => job.esi.marketOrders);
+  const linkedTransactions = useJobDraft((job) => job.esi.transactions);
+  const actions = useJobActions();
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
-  const jobLockReadOnly = useActiveJobReadOnly(state);
-  const marketOrders = Object.values(state.activeJob.esi.marketOrders);
+  const jobLockReadOnly = useActiveJobReadOnly();
+  const marketOrders = Object.values(linkedOrders);
   const locationIds = useMemo(
     () => (marketOrders ?? []).map((order) => order.location_id),
     [marketOrders],
@@ -237,9 +244,7 @@ export function LinkedMarketOrdersTab({ state, actions }) {
                           actions.run(removeMarketOrder(order));
                           actions.addMarketOrdersForRemoval(
                             order.order_id,
-                            Object.values(
-                              state.activeJob.esi.transactions,
-                            ).filter(
+                            Object.values(linkedTransactions).filter(
                               (item) => item.location_id === order.location_id,
                             ),
                           );

@@ -16,9 +16,11 @@ function offeredRuns(
   activeJob,
   linkedAcrossAccount = new Set(),
 ) {
-  return findIndustryJobsForItem(allIndustryJobs, activeJob, {
-    linkedAcrossAccount,
-  });
+  return findIndustryJobsForItem(
+    allIndustryJobs,
+    { itemID: activeJob.itemID, industryJobs: activeJob.esi.industryJobs },
+    { linkedAcrossAccount },
+  );
 }
 
 const OWNER = { CharacterHash: "hash-1", CharacterID: 2117000001 };

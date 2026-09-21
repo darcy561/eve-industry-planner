@@ -2,14 +2,19 @@ import { Typography, Grid } from "@mui/material";
 import { calculateMaterialCostFromChildJobs } from "../../../../../../../Functions/Groups/materialCostFromChildJobs.js";
 import { SMALL_TEXT_FORMAT } from "../../../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../../../Functions/Helper/numberParser";
+import useUsersStore from "../../../../../../../Zustand/usersStore";
 
 export function ChildJobMaterials({
-  state,
   jobDisplay,
   childJobObjects,
   marketLocation,
   listingType,
 }) {
+  // The child jobs built on this page but not saved, which are what a material
+  // of the job on show may itself be built by.
+  const temporaryChildJobs = useUsersStore(
+    (store) => store.editSession.temporaryChildJobs,
+  );
   const row = childJobObjects?.[jobDisplay];
   const materials = Object.values(row?.build?.materials ?? {});
   if (materials.length === 0) {
@@ -23,7 +28,7 @@ export function ChildJobMaterials({
     const calculatedMaterialPrice = calculateMaterialCostFromChildJobs(
       material,
       childJobIds,
-      state.temporaryChildJobs?.[material.typeID],
+      temporaryChildJobs?.[material.typeID],
       marketLocation,
       listingType,
     );

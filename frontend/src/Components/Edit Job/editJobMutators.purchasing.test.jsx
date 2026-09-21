@@ -94,18 +94,13 @@ function materialOf(state) {
 
 describe("costing the materials a job needs, end to end", () => {
   it("charges the job for what was bought", () => {
-    const { editJob } = renderOverEditJob(
-      needing(100),
-      ({ state, actions }) => (
-        <AddMaterialCost_Purchasing
-          state={state}
-          actions={actions}
-          material={materialOf(state)}
-          childJobs={[]}
-          childSupply={{ min: 0 }}
-        />
-      ),
-    );
+    const { editJob } = renderOverEditJob(needing(100), ({ state }) => (
+      <AddMaterialCost_Purchasing
+        material={materialOf(state)}
+        childJobs={[]}
+        childSupply={{ min: 0 }}
+      />
+    ));
 
     fireEvent.change(screen.getByLabelText("Quantity"), {
       target: { value: "100" },
@@ -124,18 +119,13 @@ describe("costing the materials a job needs, end to end", () => {
   // Buying more than the job needs is allowed, but the job is only charged for
   // what it needed.
   it("does not charge the job for more than it needed", () => {
-    const { editJob } = renderOverEditJob(
-      needing(100),
-      ({ state, actions }) => (
-        <AddMaterialCost_Purchasing
-          state={state}
-          actions={actions}
-          material={materialOf(state)}
-          childJobs={[]}
-          childSupply={{ min: 0 }}
-        />
-      ),
-    );
+    const { editJob } = renderOverEditJob(needing(100), ({ state }) => (
+      <AddMaterialCost_Purchasing
+        material={materialOf(state)}
+        childJobs={[]}
+        childSupply={{ min: 0 }}
+      />
+    ));
 
     fireEvent.change(screen.getByLabelText("Quantity"), {
       target: { value: "150" },
@@ -193,12 +183,9 @@ describe("importing costs pasted from the game, end to end", () => {
     pasted.current = [
       { importedName: "Tritanium", importedQuantity: 100, importedCost: 5 },
     ];
-    const { editJob } = renderOverEditJob(
-      needing(100),
-      ({ state, actions }) => (
-        <PurchasingDataPanel_EditJob state={state} actions={actions} />
-      ),
-    );
+    const { editJob } = renderOverEditJob(needing(100), () => (
+      <PurchasingDataPanel_EditJob />
+    ));
 
     importCosts();
 
@@ -212,12 +199,9 @@ describe("importing costs pasted from the game, end to end", () => {
     pasted.current = [
       { importedName: "Pyerite", importedQuantity: 10, importedCost: 5 },
     ];
-    const { editJob } = renderOverEditJob(
-      needing(100),
-      ({ state, actions }) => (
-        <PurchasingDataPanel_EditJob state={state} actions={actions} />
-      ),
-    );
+    const { editJob } = renderOverEditJob(needing(100), () => (
+      <PurchasingDataPanel_EditJob />
+    ));
 
     importCosts();
 
@@ -235,9 +219,7 @@ describe("importing costs pasted from the game, end to end", () => {
 // has, so pressing one threw.
 describe("choosing where the job buys, end to end", () => {
   const openPanel = () =>
-    renderOverEditJob(needing(100), ({ state, actions }) => (
-      <PurchasingDataPanel_EditJob state={state} actions={actions} />
-    ));
+    renderOverEditJob(needing(100), () => <PurchasingDataPanel_EditJob />);
 
   const buyingPricing = () =>
     committedFor(useUsersStore.getState().editSession.draft, "job-1").build

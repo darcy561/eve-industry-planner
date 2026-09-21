@@ -2,8 +2,19 @@ import { Tooltip, Typography, Grid } from "@mui/material";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
+import { useBuildCost } from "../../../../Edit Job Hooks/useBuildCost";
 
-export function JobCostSummaryPanel({ state }) {
+export function JobCostSummaryPanel() {
+  const {
+    materialCost,
+    installCost,
+    extrasCost,
+    inventionCost,
+    buildCost,
+    produced,
+    costPerItem,
+  } = useBuildCost();
+
   return (
     <ContentPanel componentName="Job Cost Summary Panel">
       <Grid container spacing={1} sx={{ flexDirection: "row" }}>
@@ -25,7 +36,7 @@ export function JobCostSummaryPanel({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalMaterialCost)}
+              {formatNumberForLocale(materialCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -49,7 +60,7 @@ export function JobCostSummaryPanel({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalInstallCost)}
+              {formatNumberForLocale(installCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -72,7 +83,7 @@ export function JobCostSummaryPanel({ state }) {
             sx={{ marginBottom: 1 }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalExtrasCost)}
+              {formatNumberForLocale(extrasCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -95,7 +106,7 @@ export function JobCostSummaryPanel({ state }) {
             sx={{ marginBottom: 1 }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalInventionCost)}
+              {formatNumberForLocale(inventionCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -117,7 +128,7 @@ export function JobCostSummaryPanel({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.buildCost)}
+              {formatNumberForLocale(buildCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -139,7 +150,7 @@ export function JobCostSummaryPanel({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalQuantityProduced, {
+              {formatNumberForLocale(produced, {
                 max: 0,
               })}
             </Typography>
@@ -163,7 +174,7 @@ export function JobCostSummaryPanel({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.buildCostPerItem())}
+              {formatNumberForLocale(costPerItem)}
             </Typography>
           </Grid>
         </Grid>

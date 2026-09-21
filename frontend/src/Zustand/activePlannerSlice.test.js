@@ -1,11 +1,15 @@
 import { create } from "zustand";
 import { describe, expect, it } from "vitest";
 import activePlannerSlice from "./activePlannerSlice.js";
+import editSessionSlice from "./editSessionSlice.js";
 
 function storeWithAccount(accountID) {
   return create((set, get) => ({
     account: { accountID },
     ...activePlannerSlice(set, get),
+    // Changing the planner ends the edit session with it, so the store it reads
+    // has to hold one.
+    ...editSessionSlice(set, get),
   }));
 }
 
@@ -75,5 +79,36 @@ describe("the planner the app works in", () => {
     resetActivePlannerStore();
 
     expect(store.getState().activePlanner.owner).toBeNull();
+  });
+});
+
+// A job belongs to the planner it was made in. Switching planner does not take
+// the reader's job with it, so what they were editing is left behind rather than
+// carried into a planner it does not belong to.
+describe("the job being edited when the planner changes", () => {
+  const opened = (store) => {
+    store
+      .getState()
+      .editSession.actions.openJob("job-1", { jobID: "job-1", name: "Rifter" });
+    return store;
+  };
+
+  it("is left behind when another planner is named", () => {
+    const store = opened(storeWithAccount("acct-1"));
+
+    store.getState().activePlanner.actions.setActivePlannerOwner("corp:9");
+
+    expect(store.getState().editSession.draft.base).toEqual({});
+    expect(store.getState().editSession.activeJobID).toBeNull();
+  });
+
+  it("stays where it is when the planner does not actually change", () => {
+    const store = storeWithAccount("acct-1");
+    store.getState().activePlanner.actions.setActivePlannerOwner("corp:9");
+    opened(store);
+
+    store.getState().activePlanner.actions.setActivePlannerOwner("corp:9");
+
+    expect(store.getState().editSession.draft.base["job-1"]).toBeDefined();
   });
 });

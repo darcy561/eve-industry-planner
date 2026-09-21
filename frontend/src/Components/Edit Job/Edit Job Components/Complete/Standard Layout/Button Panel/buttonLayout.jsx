@@ -5,7 +5,7 @@ import { MarkAsCompleteButton } from "./markAsComplete";
 import { PassBuildCostsButton } from "./passBuildCosts";
 import { ArchiveJobButton } from "./archiveJobButton";
 
-export function Complete_ButtonPanel_EditJob(props) {
+export function Complete_ButtonPanel_EditJob() {
   return (
     <Grid
       container
@@ -13,10 +13,10 @@ export function Complete_ButtonPanel_EditJob(props) {
         justifyContent: "flex-end",
       }}
     >
-      <SellGroupJobButton {...props} />
-      <MarkAsCompleteButton {...props} />
-      <PassBuildCostsButton {...props} />
-      <ArchiveJobButton {...props} />
+      <SellGroupJobButton />
+      <MarkAsCompleteButton />
+      <PassBuildCostsButton />
+      <ArchiveJobButton />
     </Grid>
   );
 }

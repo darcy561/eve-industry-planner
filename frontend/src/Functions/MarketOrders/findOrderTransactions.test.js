@@ -64,14 +64,12 @@ function journalFor(ids) {
   ]);
 }
 
-function jobWithOrders(orders) {
+function esiWithOrders(orders, transactions = {}) {
   return {
-    esiTransactionIDs: new Set(),
-    esi: {
-      marketOrders: Object.fromEntries(
-        orders.map((order) => [String(order.order_id), order]),
-      ),
-    },
+    transactions,
+    marketOrders: Object.fromEntries(
+      orders.map((order) => [String(order.order_id), order]),
+    ),
   };
 }
 
@@ -87,7 +85,7 @@ describe("the sales a job can link", () => {
     characterJournal.data = { 2117000001: journalFor([1, 2]) };
 
     const offered = findOrderTransactions(
-      jobWithOrders([
+      esiWithOrders([
         {
           order_id: 900,
           location_id: 60003760,
@@ -116,17 +114,19 @@ describe("the sales a job can link", () => {
     corporationTransactions.data = {};
     characterJournal.data = { 2117000001: journalFor([1, 2]) };
 
-    const job = jobWithOrders([
-      {
-        order_id: 900,
-        location_id: 60003760,
-        type_id: 34,
-        CharacterHash: "hash-1",
-      },
-    ]);
-    job.esiTransactionIDs = new Set([1]);
+    const esi = esiWithOrders(
+      [
+        {
+          order_id: 900,
+          location_id: 60003760,
+          type_id: 34,
+          CharacterHash: "hash-1",
+        },
+      ],
+      { 1: { transaction_id: 1 } },
+    );
 
-    const offered = findOrderTransactions(job, null);
+    const offered = findOrderTransactions(esi, null);
 
     expect(offered.map((t) => t.transaction_id)).toEqual([2]);
   });
@@ -138,7 +138,7 @@ describe("the sales a job can link", () => {
     characterJournal.data = { 2117000001: journalFor([1]) };
 
     const [offered] = findOrderTransactions(
-      jobWithOrders([
+      esiWithOrders([
         {
           order_id: 900,
           location_id: 60003760,
@@ -160,6 +160,6 @@ describe("the sales a job can link", () => {
     characterTransactions.data = { "hash-1": [sale(1, 60003760)] };
     characterJournal.data = { 2117000001: journalFor([1]) };
 
-    expect(findOrderTransactions(jobWithOrders([]), null)).toEqual([]);
+    expect(findOrderTransactions(esiWithOrders([]), null)).toEqual([]);
   });
 });

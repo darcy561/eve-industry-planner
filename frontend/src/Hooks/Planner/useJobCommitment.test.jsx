@@ -4,14 +4,17 @@ import { renderHook } from "@testing-library/react";
 const jobsInStore = {};
 
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
-  return usersStoreMock({
+  const { usersStoreOverSession } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreOverSession({
     jobData: { actions: { findJobInJobArray: (id) => jobsInStore[id] } },
   });
 });
 
 const { useJobCommitment } = await import("./useJobCommitment");
-const { jobFixture } = await import("../../tests/jobFixture");
+const { default: useUsersStore } = await import("../../Zustand/usersStore");
+
+const session = () => useUsersStore.getState().editSession;
 
 const parentNeeding = (quantity, children = ["job-1"]) => ({
   build: {
@@ -20,13 +23,32 @@ const parentNeeding = (quantity, children = ["job-1"]) => ({
   },
 });
 
-const commitmentFor = (parentJobIDs = [], activeJob = jobFixture()) =>
-  renderHook(() =>
-    useJobCommitment({
-      state: { activeJob },
-      actions: { getCurrentParentJobs: () => parentJobIDs },
-    }),
-  ).result.current;
+/** A job making ten of item 34, as the planner stores one. */
+const jobDocument = (parentJobs = []) => ({
+  jobID: "job-1",
+  itemID: 34,
+  itemsProducedPerRun: 10,
+  parentJobs,
+  layout: { setupToEdit: "setup0" },
+  build: {
+    materials: {},
+    childJobs: {},
+    setup: {
+      setup0: { id: "setup0", runCount: 1, jobCount: 1, materialCount: {} },
+    },
+  },
+  esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+});
+
+const openJob = (parentJobIDs = []) => {
+  session().actions.closeSession();
+  session().actions.openJob("job-1", jobDocument(parentJobIDs));
+};
+
+const commitmentFor = (parentJobIDs = []) => {
+  openJob(parentJobIDs);
+  return renderHook(() => useJobCommitment()).result.current;
+};
 
 // Three panels act on this figure and must agree: Returns prices the surplus,
 // Cost Breakdown charges fee and tax on it, and Skills only asks what selling
@@ -65,18 +87,13 @@ describe("useJobCommitment", () => {
     expect(commitment.surplus).toBe(10);
   });
 
-  // The array from getCurrentParentJobs is rebuilt on every render, so keying
-  // the memo on it directly would re-derive on every dispatch anywhere.
+  // The parent ids are rebuilt on every read of them, so keying the memo on the
+  // array itself would re-derive on every dispatch anywhere.
   it("holds its answer while the parents are unchanged", () => {
     jobsInStore.p1 = parentNeeding(4);
-    const activeJob = jobFixture();
+    openJob(["p1"]);
 
-    const { result, rerender } = renderHook(() =>
-      useJobCommitment({
-        state: { activeJob },
-        actions: { getCurrentParentJobs: () => ["p1"] },
-      }),
-    );
+    const { result, rerender } = renderHook(() => useJobCommitment());
     const first = result.current;
     rerender();
 

@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  appliedTo,
-  commandActions,
-  commandsRun,
-  unchangedBy,
-} from "../../../tests/jobCommandSpy.js";
+
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
@@ -30,12 +25,11 @@ const {
 }));
 
 vi.mock("../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession } =
     await import("../../../tests/usersStoreHarness.js");
-  return usersStoreMock(() => usersStoreState(store));
+  return usersStoreOverSession();
 });
 
-// The path this hook used to take.
 vi.mock("../../../Hooks/React Query/World/names", async (original) => ({
   ...(await original()),
   fetchNames: (...args) => imperativeFetch(...args),
@@ -78,42 +72,47 @@ vi.mock(
 
 import { useGatherMarketOrdersAndUpdateExistingLinkedOrders } from "./useMarketOrdersAndWorldData";
 import { testQueryClientCollapsingRetries } from "../../../tests/queryClients.js";
+import useUsersStore from "../../../Zustand/usersStore";
+import { usersStoreState } from "../../../tests/usersStoreHarness.js";
+import { draftFor } from "../Edit Job Hooks/jobDraftStore.js";
+
+const session = () => useUsersStore.getState().editSession;
+const jobNow = () => draftFor(session().draft, "job-1");
 
 const JITA = 60003760;
 const RAITARU = 1035466617946;
 
+/** The job the hook reads, opened in the session it reads it from. */
 function activeJob(marketOrders = []) {
-  return {
+  const job = {
+    jobID: "job-1",
     itemID: 587,
+    build: {},
     esi: {
       marketOrders: Object.fromEntries(
         marketOrders.map((row) => [String(row.order_id), row]),
       ),
     },
   };
+  session().actions.openJob("job-1", job);
+  return job;
 }
 
-function render(job, actions = commandActions()) {
+function render() {
   const client = testQueryClientCollapsingRetries();
-  const rendered = renderHook(
-    () =>
-      useGatherMarketOrdersAndUpdateExistingLinkedOrders(
-        client,
-        job,
-        new Set(),
-        { marketOrders: { add: [], remove: [] } },
-        actions,
-      ),
+  return renderHook(
+    () => useGatherMarketOrdersAndUpdateExistingLinkedOrders(client, new Set()),
     {
       wrapper: ({ children }) =>
         createElement(QueryClientProvider, { client }, children),
     },
   );
-  return { ...rendered, actions };
 }
 
 beforeEach(() => {
   store.account = { characters: [{ CharacterHash: "hash-a" }] };
+  session().actions.closeSession();
+  useUsersStore.setState(usersStoreState(store));
   requested.length = 0;
   resolved.current = {};
   pending.current = new Set();
@@ -200,28 +199,26 @@ describe("bringing a linked order up to date", () => {
   });
 
   it("records what ESI now says about the order", async () => {
-    const job = activeJob([linked()]);
+    activeJob([linked()]);
     characterOrders.current = {
       "hash-a": [reported({ volume_remain: 12, price: 6.5 })],
     };
 
-    const { result, actions } = render(job);
+    const { result } = render();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    const order = appliedTo(actions, job).esi.marketOrders["700003"];
+    const order = jobNow().esi.marketOrders["700003"];
     expect(order.volume_remain).toBe(12);
     expect(order.item_price).toBe(6.5);
   });
 
   it("records nothing when the order has not moved", async () => {
-    const job = activeJob([linked({ state: "open" })]);
+    activeJob([linked({ state: "open" })]);
     characterOrders.current = { "hash-a": [reported()] };
 
-    const { result, actions } = render(job);
+    const { result } = render();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(
-      commandsRun(actions).every((command) => unchangedBy(command, job)),
-    ).toBe(true);
+    expect(session().draft.log).toEqual([]);
   });
 });

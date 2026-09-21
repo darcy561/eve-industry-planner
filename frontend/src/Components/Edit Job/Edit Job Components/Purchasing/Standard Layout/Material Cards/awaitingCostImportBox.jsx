@@ -1,10 +1,12 @@
 import { Box, Typography } from "@mui/material";
+import { useMaterialFigures } from "../../../../Edit Job Hooks/useMaterialFigures";
 
 export function AwaitingCostImportBox_Purchasing({
   material,
   childJobs,
   childSupply,
 }) {
+  const { remaining } = useMaterialFigures(material);
   if (childJobs.length === 0) return null;
 
   function findImportStatus() {
@@ -26,7 +28,7 @@ export function AwaitingCostImportBox_Purchasing({
   // Whatever the child jobs cannot be counted on for has to be bought first,
   // otherwise the card would say a cost is on its way for units nobody is making
   // for this job.
-  if (material.quantityRemaining > childSupply.min) return null;
+  if (remaining > childSupply.min) return null;
 
   return (
     <Box

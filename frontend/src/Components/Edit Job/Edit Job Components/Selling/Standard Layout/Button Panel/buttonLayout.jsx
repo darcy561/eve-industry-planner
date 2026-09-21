@@ -2,7 +2,7 @@ import { Grid } from "@mui/material";
 
 import { ArchiveJobButton } from "../../../Complete/Standard Layout/Button Panel/archiveJobButton";
 
-export function Selling_ButtonPanel_EditJob(props) {
+export function Selling_ButtonPanel_EditJob() {
   return (
     <Grid
       container
@@ -10,7 +10,7 @@ export function Selling_ButtonPanel_EditJob(props) {
         justifyContent: "flex-end",
       }}
     >
-      <ArchiveJobButton {...props} />
+      <ArchiveJobButton />
     </Grid>
   );
 }

@@ -8,16 +8,16 @@ import JobSetupInfoFrame from "../../Purchasing/Standard Layout/JobSetupInfo/Job
 export function Building_StandardLayout_EditJob(props) {
   return (
     <Grid container spacing={2} sx={{ width: "100%", flexGrow: 1 }}>
-      <TutorialTemplate TutorialContent={<TutorialStep3 {...props} />} />
+      <TutorialTemplate TutorialContent={<TutorialStep3 />} />
 
       <Grid size={12}>
-        <InformationPanel {...props} />
+        <InformationPanel />
       </Grid>
       <Grid size={12}>
         <TabPanel_Building {...props} />
       </Grid>
       <Grid size={12}>
-        <JobSetupInfoFrame {...props} />
+        <JobSetupInfoFrame />
       </Grid>
     </Grid>
   );

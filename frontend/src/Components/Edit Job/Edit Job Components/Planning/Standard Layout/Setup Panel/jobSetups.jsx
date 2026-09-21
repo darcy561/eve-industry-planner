@@ -16,9 +16,15 @@ import {
   buildSetupContextForJob,
   buildSetupFromQuantity,
 } from "../../../../../../Functions/JobPlanner/setupBuildHelpers";
+import {
+  jobDraftNow,
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 
-export function JobSetupPanel(props) {
-  const { state, actions } = props;
+export function JobSetupPanel() {
+  const setups = useJobDraft((job) => job.build.setup);
+  const actions = useJobActions();
   const queryClient = useQueryClient();
 
   return (
@@ -30,7 +36,7 @@ export function JobSetupPanel(props) {
         {
           label: "Delete Active Setup",
           onClick: () => {
-            if (Object.keys(state.activeJob.build.setup).length <= 1) {
+            if (Object.keys(setups).length <= 1) {
               showSnackbarWarning(
                 "Cannot delete the final setup. Create a replacement setup first.",
                 3,
@@ -49,7 +55,7 @@ export function JobSetupPanel(props) {
           sx={{ position: "absolute", top: "10px", left: "10px" }}
           color="primary"
           onClick={() => {
-            const job = state.activeJob;
+            const job = jobDraftNow();
             actions.run(
               attachNewSetupToJob(
                 buildSetupFromQuantity(
@@ -69,14 +75,8 @@ export function JobSetupPanel(props) {
       </Tooltip>
 
       <Grid container spacing={2} size={12}>
-        {Object.values(state.activeJob.build.setup).map((setupEntry) => {
-          return (
-            <JobSetupCard
-              {...props}
-              key={setupEntry.id}
-              setupEntry={setupEntry}
-            />
-          );
+        {Object.values(setups).map((setupEntry) => {
+          return <JobSetupCard key={setupEntry.id} setupEntry={setupEntry} />;
         })}
       </Grid>
     </ContentPanel>

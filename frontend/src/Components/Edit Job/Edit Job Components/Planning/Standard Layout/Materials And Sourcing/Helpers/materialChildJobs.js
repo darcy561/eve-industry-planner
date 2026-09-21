@@ -1,22 +1,29 @@
 import useUsersStore from "../../../../../../../Zustand/usersStore";
 
 /**
- * Resolve child jobs for a material from active links + pending edits + temp jobs.
- * Returns both IDs and object map so callers can reuse one canonical merge.
+ * The jobs building one material: what it is linked to once the reader's marks
+ * are folded in, plus the job built for it but not yet saved.
+ *
+ * Takes the ids rather than the session they come from, so a caller reading them
+ * narrowly out of the store asks the same question as one holding the whole of
+ * it.
+ *
+ * @param {object} params
+ * @param {Array<string>} [params.childJobIDs] - The links after the reader's marks
+ * @param {object} [params.temporaryChildJob] - The child job built but not saved
+ * @param {Array<object>} [params.jobArray] - The planner's jobs, read from the
+ *   store where none is given
+ * @returns {{childJobsById: Map<string, object>, childJobIDs: Array<string>,
+ *   hasChildJobs: boolean}}
  */
 export function resolveMaterialChildJobs({
-  state,
-  actions,
-  materialTypeID,
+  childJobIDs: currentChildJobIDs = [],
+  temporaryChildJob = null,
   jobArray,
 }) {
   const sourceJobs = Array.isArray(jobArray)
     ? jobArray
     : useUsersStore.getState().jobData.jobArray || [];
-
-  const currentChildJobIDs = actions?.getCurrentMaterialChildJobs
-    ? actions.getCurrentMaterialChildJobs(materialTypeID)
-    : [];
 
   const childJobsById = new Map();
   currentChildJobIDs.forEach((jobID) => {
@@ -26,7 +33,6 @@ export function resolveMaterialChildJobs({
     }
   });
 
-  const temporaryChildJob = state.temporaryChildJobs?.[materialTypeID];
   if (temporaryChildJob) {
     childJobsById.set(temporaryChildJob.jobID, temporaryChildJob);
   }
@@ -45,23 +51,37 @@ export function resolveMaterialChildJobs({
   };
 }
 
+/**
+ * How a material's row stands: what it is already linked to, what has been
+ * built for it, and what the reader has asked for.
+ *
+ * Takes the four answers rather than the session they come from, so a caller
+ * that reads them narrowly out of the store and one that still holds the whole
+ * state ask the same question.
+ *
+ * @param {object} args
+ * @param {boolean} args.inGroup - Whether the job being edited is in a group
+ * @param {Array<string>} [args.childJobsLocation] - What the job holds for it
+ * @param {object} [args.temporaryChildJob] - A child job built but not saved
+ * @param {{add?: Array<string>}} [args.markedChildJobs] - Links the reader marked
+ * @param {boolean} [args.isExistingJobInGroup]
+ */
 export function resolveMaterialChildJobStatus({
-  state,
-  materialTypeID,
+  inGroup = false,
   childJobsLocation = [],
+  temporaryChildJob = null,
+  markedChildJobs,
   isExistingJobInGroup = false,
 }) {
-  const inGroup = Boolean(state.activeJob.includedInGroup);
   const hasLinked =
     Array.isArray(childJobsLocation) && childJobsLocation.length > 0;
-  const tempJob = state.temporaryChildJobs?.[materialTypeID] || null;
+  const tempJob = temporaryChildJob || null;
   const hasTemp = Boolean(tempJob);
-  const hasPendingAdd =
-    (state.parentChildToEdit.childJobs?.[materialTypeID]?.add?.length || 0) > 0;
+  const hasPendingAdd = (markedChildJobs?.add?.length || 0) > 0;
   const hasGroupMatch = Boolean(isExistingJobInGroup);
 
   return {
-    inGroup,
+    inGroup: Boolean(inGroup),
     hasLinked,
     hasTemp,
     hasPendingAdd,

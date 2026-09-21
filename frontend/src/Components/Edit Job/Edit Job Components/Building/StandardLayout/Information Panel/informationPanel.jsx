@@ -2,8 +2,11 @@ import { Typography, Grid } from "@mui/material";
 import { LARGE_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import { useBuildCost } from "../../../../Edit Job Hooks/useBuildCost";
 
-export function InformationPanel({ state }) {
+export function InformationPanel() {
+  const { materialCost, installCost, costPerItem } = useBuildCost();
+
   return (
     <ContentPanel componentName="Information Panel">
       <Grid container sx={{ width: "100%" }}>
@@ -16,8 +19,7 @@ export function InformationPanel({ state }) {
           }}
         >
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            Total Material Cost:{" "}
-            {formatNumberForLocale(state.activeJob.totalMaterialCost)}
+            Total Material Cost: {formatNumberForLocale(materialCost)}
           </Typography>
         </Grid>
         <Grid
@@ -29,8 +31,7 @@ export function InformationPanel({ state }) {
           }}
         >
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            Total Install Costs:{" "}
-            {formatNumberForLocale(state.activeJob.totalInstallCost)}
+            Total Install Costs: {formatNumberForLocale(installCost)}
           </Typography>
         </Grid>
         <Grid
@@ -42,8 +43,7 @@ export function InformationPanel({ state }) {
           }}
         >
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            Estimated Cost Per Item:{" "}
-            {formatNumberForLocale(state.activeJob.buildCostPerItem())}
+            Estimated Cost Per Item: {formatNumberForLocale(costPerItem)}
           </Typography>
         </Grid>
       </Grid>

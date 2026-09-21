@@ -12,8 +12,8 @@ import { lockReasonText } from "../../Components/DocumentLock/LockGatedTooltip";
  *
  * The Edit-Job page already has analogous hooks in
  * `Components/Edit Job/Edit Job Hooks/useActiveJobDocumentLock.js`, but those
- * read `state.activeJob?.jobID` / `state.activeJob?.groupID` from the
- * edit-job reducer. The planner job cards, group cards, group page wrapper,
+ * read the open job out of the edit session for themselves. The planner job
+ * cards, group cards, group page wrapper,
  * search bar, group-name frame and DnD machinery all work from raw IDs
  * (`job.jobID`, `group.groupID`, `state.jobData.activeGroupID`), so these
  * hooks take the ID directly and route through the same

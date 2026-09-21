@@ -29,18 +29,26 @@ import { finaliseCreatedChildJobs } from "./Helpers/finaliseCreatedChildJobs";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { hasSavingAvailable } from "../../../../../../Functions/MarketData/materialSourcingRow";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { useSelectedSetup } from "../../../../Edit Job Hooks/useSelectedSetup";
+import useUsersStore from "../../../../../../Zustand/usersStore";
 
 /**
  * What the build takes, and whether each part is bought or built.
  *
  * One row per material, stating the quantity, both prices and which of them the
  * plan is on — so the list exists once and the comparison is on it.
- *
- * @param {object} props
- * @param {object} props.state - Edit Job state
- * @param {object} props.actions - Edit Job actions
  */
-export default function MaterialsAndSourcingPanel({ state, actions }) {
+export default function MaterialsAndSourcingPanel() {
+  const actions = useJobActions();
+  const build = useJobDraft((job) => job.build);
+  const selectedSetup = useSelectedSetup();
+  const speculativeChildJobs = useUsersStore(
+    (store) => store.editSession.speculativeChildJobs,
+  );
   const [displayType, setDisplayType] = useState("all");
   const [openTypeIDs, setOpenTypeIDs] = useState([]);
   const [isCosting, setIsCosting] = useState(false);
@@ -53,7 +61,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
 
   // The job's own lock, the way every other panel on the page gates its
   // actions: a job someone else holds is read from, not edited.
-  const readOnly = useActiveJobReadOnly(state);
+  const readOnly = useActiveJobReadOnly();
   // A seven-column table cannot survive a 360px stack; the figures can.
   const theme = useTheme();
   const asCards = useMediaQuery(theme.breakpoints.down("sm"));
@@ -67,7 +75,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
     priceAge,
     marketLocation,
     listingType,
-  } = useMaterialsSourcing({ state, actions, displayType });
+  } = useMaterialsSourcing({ displayType });
 
   const {
     updateJobPricing,
@@ -75,16 +83,13 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
     resetMaterialPriceOverride,
     clearAllMaterialPriceOverrides,
   } = useMaterialOverrides({
-    build: state.activeJob.build,
-    materials: Object.values(state.activeJob.build?.materials ?? {}),
+    build,
+    materials: Object.values(build?.materials ?? {}),
     updatePricing: (patch) => actions.run(setJobPricing(patch)),
   });
 
   const { buildSpeculativeChildJobs, buildSingleChildJobPreview } =
-    useChildJobBuildActions({
-      state,
-      actions,
-    });
+    useChildJobBuildActions();
 
   // Buildable rows with nothing to compare against yet, taken from the summary
   // so the banner and the footer cannot disagree about what counts as buildable.
@@ -125,7 +130,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
     };
   }, [readOnly, uncosted, attempt, buildSpeculativeChildJobs]);
 
-  if (!state.activeJob?.selectedSetup) return null;
+  if (!selectedSetup) return null;
 
   /**
    * Promotes every costed row that would be cheaper to build. The speculative
@@ -135,7 +140,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
   const applyBuildableRows = async () => {
     const jobs = rows
       .filter(hasSavingAvailable)
-      .map((row) => state.speculativeChildJobs?.[row.typeID])
+      .map((row) => speculativeChildJobs?.[row.typeID])
       .filter(Boolean);
 
     if (jobs.length === 0) return;
@@ -180,9 +185,7 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
         <Stack direction="row" spacing={1.5} sx={{ alignItems: "flex-end" }}>
           <MarketLocationSelectApplicationSettings
             side={PRICING_SIDE.BUYING}
-            overrideMarketLocation={
-              state.activeJob.build.localPricing?.buying?.market
-            }
+            overrideMarketLocation={build.localPricing?.buying?.market}
             onMarketLocationCommit={(id) =>
               updateJobPricing(PRICING_SIDE.BUYING, "market", id ?? null)
             }
@@ -243,11 +246,9 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
           renderPlan={(row) =>
             row.isBuildable ? (
               <PlanChip
-                state={state}
-                actions={actions}
                 material={row.material}
                 rowJob={
-                  state.speculativeChildJobs?.[row.typeID] ??
+                  speculativeChildJobs?.[row.typeID] ??
                   row.matchedChildJobs?.[0] ??
                   null
                 }
@@ -261,8 +262,6 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
           renderDrawer={(row, isOpen) => (
             <MaterialDrawer
               isOpen={isOpen}
-              state={state}
-              actions={actions}
               material={row.material}
               matchedChildJobs={row.matchedChildJobs}
               marketLocation={row.marketLocation}
@@ -270,9 +269,9 @@ export default function MaterialsAndSourcingPanel({ state, actions }) {
               currentMaterialPrice={row.buyPrice ?? 0}
               coverage={row.coverage}
               pricing={{
-                overrideMarketLocation: overrideFor(state, row.typeID)
+                overrideMarketLocation: overrideFor(build, row.typeID)
                   .marketDisplay,
-                overrideListingType: overrideFor(state, row.typeID)
+                overrideListingType: overrideFor(build, row.typeID)
                   .orderDisplay,
                 panelMarketLocation: marketLocation,
                 panelListingType: listingType,
@@ -303,12 +302,12 @@ const formatVolume = (value) =>
 /**
  * What a material's own pricing override holds, if it has one.
  *
- * @param {object} state
+ * @param {object} build
  * @param {number} typeID
  * @returns {{marketDisplay?: string, orderDisplay?: string}}
  */
-function overrideFor(state, typeID) {
-  return getSafeMaterialPriceOverrides(state.activeJob.build)[typeID] ?? {};
+function overrideFor(build, typeID) {
+  return getSafeMaterialPriceOverrides(build)[typeID] ?? {};
 }
 
 /**

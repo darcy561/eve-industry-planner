@@ -24,45 +24,65 @@ vi.mock("../../../../../../analytics/trackNewJobsCreated", () => ({
   trackNewJobsCreated: vi.fn(),
 }));
 
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreOverSession } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreOverSession();
+});
+
 const { default: PlanChip } = await import("./planChip");
 const { withQueryClient } = await import("../../../../../../tests/utils.js");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
+
+const session = () => useUsersStore.getState().editSession;
 
 const material = { typeID: 34, name: "Tritanium" };
 const speculative = { jobID: "spec-34", itemID: 34 };
 
-const state = (overrides = {}) => ({
-  activeJob: {
+/**
+ * The job the chip reads, opened in the session it reads it from.
+ *
+ * Its setup states the 250 Tritanium the job takes, which is what a job built
+ * for this row is sized to.
+ */
+const editing = ({ childJobs = { 34: [] }, ...job } = {}) =>
+  session().actions.openJob("job-1", {
+    jobID: "job-1",
     groupID: "",
     includedInGroup: false,
-    build: { childJobs: { 34: [] } },
-    ...overrides.activeJob,
-  },
-  temporaryChildJobs: {},
-  parentChildToEdit: { childJobs: {} },
-  ...overrides,
-});
+    layout: { setupToEdit: "setup0" },
+    build: {
+      childJobs,
+      setup: {
+        setup0: {
+          id: "setup0",
+          runCount: 1,
+          jobCount: 1,
+          materialCount: { 34: { typeID: 34, quantity: 250 } },
+        },
+      },
+    },
+    ...job,
+  });
 
 const renderChip = (props = {}) => {
-  const actions = {
-    markChildJobsForRemoval: vi.fn(),
-    forgetSpeculativeChildJobs: vi.fn(),
-  };
+  if (!session().activeJobID) editing();
+  const actions = session().actions;
+  vi.spyOn(actions, "markChildJobsForRemoval");
+  vi.spyOn(actions, "forgetSpeculativeChildJobs");
   render(
     withQueryClient(
-      <PlanChip
-        state={state()}
-        actions={actions}
-        material={material}
-        rowJob={speculative}
-        {...props}
-      />,
+      <PlanChip material={material} rowJob={speculative} {...props} />,
     ),
   );
   return actions;
 };
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
+  session().actions.closeSession();
   findMaterialJobInGroup.mockReturnValue(null);
   useActiveGroupReadOnly.mockReturnValue(false);
   useSiblingLinkLock.mockReturnValue({ readOnly: false, reason: "" });
@@ -97,9 +117,9 @@ describe("the plan chip", () => {
 
   it("reads as Build once a job is marked, and offers the way back", async () => {
     const tempJob = { jobID: "temp-34", itemID: 34 };
-    const actions = renderChip({
-      state: state({ temporaryChildJobs: { 34: tempJob } }),
-    });
+    editing();
+    session().actions.setTemporaryChildJobs({ 34: tempJob });
+    const actions = renderChip();
 
     expect(screen.getByText("Build")).toBeInTheDocument();
 
@@ -113,12 +133,8 @@ describe("the plan chip", () => {
   // report it — a button that reads as live and does nothing is worse than none.
   it("severs a link committed before this session", async () => {
     const linkedJob = { jobID: "linked-34", itemID: 34 };
-    const actions = renderChip({
-      state: state({
-        activeJob: { build: { childJobs: { 34: ["linked-34"] } } },
-      }),
-      rowJob: linkedJob,
-    });
+    editing({ childJobs: { 34: ["linked-34"] } });
+    const actions = renderChip({ rowJob: linkedJob });
 
     expect(screen.getByText("Build")).toBeInTheDocument();
 
@@ -132,23 +148,15 @@ describe("the plan chip", () => {
   it("gates the way back on the sibling lock, group or not", () => {
     useSiblingLinkLock.mockReturnValue({ readOnly: true, reason: "locked" });
 
-    renderChip({
-      state: state({
-        activeJob: { build: { childJobs: { 34: ["linked-34"] } } },
-      }),
-      rowJob: { jobID: "linked-34", itemID: 34 },
-    });
+    editing({ childJobs: { 34: ["linked-34"] } });
+    renderChip({ rowJob: { jobID: "linked-34", itemID: 34 } });
 
     expect(screen.getByRole("button", { name: "Buy instead" })).toBeDisabled();
   });
 
   it("offers no way back when nothing names the linked job", () => {
-    renderChip({
-      state: state({
-        activeJob: { build: { childJobs: { 34: ["linked-34"] } } },
-      }),
-      rowJob: null,
-    });
+    editing({ childJobs: { 34: ["linked-34"] } });
+    renderChip({ rowJob: null });
 
     expect(screen.getByRole("button", { name: "Buy instead" })).toBeDisabled();
   });
@@ -162,7 +170,7 @@ describe("committing a job built for this row", () => {
     await userEvent.click(screen.getByRole("button", { name: "Build it" }));
 
     expect(finaliseCreatedChildJobs).toHaveBeenCalledWith(
-      expect.objectContaining({ requiredQuantity: material.quantity }),
+      expect.objectContaining({ requiredQuantity: 250 }),
     );
   });
 });
@@ -171,19 +179,13 @@ describe("committing a job built for this row", () => {
 // second one that makes the same thing.
 describe("the plan chip inside a group", () => {
   const groupJob = { jobID: "group-34", itemID: 34 };
-  const inGroup = () =>
-    state({
-      activeJob: {
-        groupID: "g1",
-        includedInGroup: true,
-        build: { childJobs: { 34: [] } },
-      },
-    });
+  const inGroup = () => editing({ groupID: "g1", includedInGroup: true });
 
   it("offers to build within the group", () => {
     findMaterialJobInGroup.mockReturnValue(groupJob);
 
-    renderChip({ state: inGroup() });
+    inGroup();
+    renderChip();
 
     expect(
       screen.getByRole("button", { name: "Build in this group" }),
@@ -193,7 +195,8 @@ describe("the plan chip inside a group", () => {
   it("links the group's own job rather than the costed one", async () => {
     findMaterialJobInGroup.mockReturnValue(groupJob);
 
-    renderChip({ state: inGroup() });
+    inGroup();
+    renderChip();
     await userEvent.click(
       screen.getByRole("button", { name: "Build in this group" }),
     );
@@ -209,7 +212,8 @@ describe("the plan chip inside a group", () => {
   it("does not resize a job the group already runs", async () => {
     findMaterialJobInGroup.mockReturnValue(groupJob);
 
-    renderChip({ state: inGroup() });
+    inGroup();
+    renderChip();
     await userEvent.click(
       screen.getByRole("button", { name: "Build in this group" }),
     );
@@ -225,7 +229,8 @@ describe("the plan chip inside a group", () => {
     findMaterialJobInGroup.mockReturnValue(groupJob);
     useSiblingLinkLock.mockReturnValue({ readOnly: true, reason: "locked" });
 
-    renderChip({ state: inGroup() });
+    inGroup();
+    renderChip();
 
     expect(
       screen.getByRole("button", { name: "Build in this group" }),
@@ -258,9 +263,9 @@ describe("what the row was costed with, once it has been decided", () => {
   // again, and opening its drawer shows the figure from the job that was just
   // removed rather than costing it afresh.
   it("is dropped when the row goes back to being bought", async () => {
-    const actions = renderChip({
-      state: state({ temporaryChildJobs: { 34: { jobID: "temp-34" } } }),
-    });
+    editing();
+    session().actions.setTemporaryChildJobs({ 34: { jobID: "temp-34" } });
+    const actions = renderChip();
 
     await userEvent.click(screen.getByRole("button", { name: "Buy instead" }));
 
@@ -283,15 +288,8 @@ describe("what the row was costed with, once it has been decided", () => {
   // gained it, so the entry is cleared on the same terms.
   it("is dropped when the row links the group's own job", async () => {
     findMaterialJobInGroup.mockReturnValue({ jobID: "group-34", itemID: 34 });
-    const actions = renderChip({
-      state: state({
-        activeJob: {
-          includedInGroup: true,
-          groupID: "g1",
-          build: { childJobs: { 34: [] } },
-        },
-      }),
-    });
+    editing({ groupID: "g1", includedInGroup: true });
+    const actions = renderChip();
 
     await userEvent.click(
       screen.getByRole("button", { name: "Build in this group" }),

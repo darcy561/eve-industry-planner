@@ -75,6 +75,8 @@ async function buildState() {
     await import("../../../Zustand/jobsSlice/index.js");
   const { activePlannerActions } =
     await import("../../../Zustand/activePlanner/actions.js");
+  const { default: editSessionSlice } =
+    await import("../../../Zustand/editSessionSlice.js");
 
   const built = usersStoreState({
     account: { isLoggedIn: true, accountID: "acct-1" },
@@ -90,6 +92,9 @@ async function buildState() {
   // right for a test that only reads them and wrong here: naming the planner has
   // to actually move the store, or every scoped read after it is for the old one.
   built.activePlanner.actions = activePlannerActions(set, get);
+  // Naming the planner ends the edit session with it, so this needs a real one
+  // for the same reason the planner actions do.
+  Object.assign(built, editSessionSlice(set, get));
   built.jobData.actions = {
     ...built.jobData.actions,
     ...coreActions(set, get),

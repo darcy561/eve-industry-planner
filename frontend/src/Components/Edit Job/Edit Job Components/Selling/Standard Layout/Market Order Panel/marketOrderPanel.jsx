@@ -7,17 +7,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useGatherMarketOrdersAndUpdateExistingLinkedOrders } from "../../../../Hooks/useMarketOrdersAndWorldData";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 
 export function MarketOrderPanel(props) {
   const {
-    state,
-    actions,
     isLoading: parentIsLoading,
     isError: parentIsError,
     error: parentError,
   } = props;
+  const linkedMarketOrders = useJobDraft((job) => job.esi.marketOrders);
   const [currentTab, updateTab] = useState(() =>
-    Object.keys(state.activeJob.esi.marketOrders).length === 0 ? "1" : "0",
+    Object.keys(linkedMarketOrders).length === 0 ? "1" : "0",
   );
   const queryClient = useQueryClient();
   const linkedOrders = useUsersStore((state) => state.account.linkedOrders);
@@ -28,10 +28,7 @@ export function MarketOrderPanel(props) {
     error: worldDataError,
   } = useGatherMarketOrdersAndUpdateExistingLinkedOrders(
     queryClient,
-    state.activeJob,
     linkedOrders,
-    state.esiDataToLink,
-    actions,
   );
 
   const isLoading = parentIsLoading || ordersLoading;
@@ -65,20 +62,17 @@ export function MarketOrderPanel(props) {
               value="1"
             />
             <Tab
-              label={`${Object.keys(state.activeJob.esi.marketOrders).length} Linked Orders`}
+              label={`${Object.keys(linkedMarketOrders).length} Linked Orders`}
               value="0"
             />
           </TabList>
         </Box>
         <Box sx={{ width: "100%" }}>
           <TabPanel value="0">
-            <LinkedMarketOrdersTab {...props} />
+            <LinkedMarketOrdersTab />
           </TabPanel>
           <TabPanel value="1">
-            <AvailableMarketOrdersTab
-              {...props}
-              itemOrderMatch={itemOrderMatch}
-            />
+            <AvailableMarketOrdersTab itemOrderMatch={itemOrderMatch} />
           </TabPanel>
         </Box>
       </TabContext>

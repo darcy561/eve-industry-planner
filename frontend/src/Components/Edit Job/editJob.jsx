@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useParams } from "@tanstack/react-router";
 import {
   Avatar,
@@ -26,11 +27,15 @@ import { useIsScrolledOutOfView } from "../../Hooks/GeneralHooks/useIsScrolledOu
 import StepErrorBoundary from "./StepErrorBoundary";
 import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
 import MarketDataDialogue from "../Dialogues/Market Data/dialogueFrame";
-import useUsersStore from "../../Zustand/usersStore";
 import { openJobLinkTreeFromEditPage } from "../../Events/jobDependencyTreeDialogueEvents";
 import { useJobStatuses } from "../../Hooks/useJobStatuses";
 import AssetsDialogue from "../Dialogues/Assets/dialogueFrame";
-import { useEditJobSession } from "./Edit Job Hooks/useEditJobSession";
+import {
+  useJobActions,
+  useJobDraft,
+  useSessionLoading,
+  useSessionLoadingMessage,
+} from "./Edit Job Hooks/useJobDraft";
 import {
   setJobPricing,
   setJobStatus,
@@ -53,46 +58,67 @@ import {
   isFinalStepLockedForJob,
 } from "../../Functions/Job/jobStepNavigation";
 import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
+import { endEditSession } from "../../Functions/JobPlanner/editSessionLifetime.js";
 
 export default function EditJob_New() {
-  const { state, actions } = useEditJobSession();
-  const { setActiveJobID } = useUsersStore.getState().jobData.actions;
+  const actions = useJobActions();
+  const openJobID = useJobDraft((job) => job.jobID);
+  const openJobName = useJobDraft((job) => job.name);
+  const openJobItemID = useJobDraft((job) => job.itemID);
+  const openJobGroupID = useJobDraft((job) => job.groupID);
+  const jobPricing = useJobDraft((job) => job.build.localPricing);
+  // The three fields the step rules are made of, rather than the job: the frame
+  // draws a header and a stepper, and a page that read the whole job to place
+  // its stepper would redraw every panel under it on any edit at all.
+  const jobStatus = useJobDraft((job) => job.jobStatus) ?? 0;
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const isReadyToSell = useJobDraft((job) => job.isReadyToSell);
+  const isLoading = useSessionLoading();
+  const loadingMessage = useSessionLoadingMessage();
   const { jobStatuses } = useJobStatuses();
   const params = useParams({ from: "/editjob/$jobID" });
   const { jobID } = params;
   const [prevStepButtonOutOfView, prevStepButtonRef] = useIsScrolledOutOfView();
   const [nextStepButtonOutOfView, nextStepButtonRef] = useIsScrolledOutOfView();
 
-  useStripRedundantJobMarketHubOverrides(state.activeJob, (patch) =>
+  useStripRedundantJobMarketHubOverrides(jobPricing, (patch) =>
     actions.run(setJobPricing(patch)),
   );
-  useRefreshLinkedESIData(state.activeJob, actions.run);
+  useRefreshLinkedESIData(openJobID, actions.run);
   useEditJobDocumentLocks({
     jobID,
-    activeJob: state.activeJob,
-    isLoading: state.isLoading,
+    openJobID,
+    groupID: openJobGroupID,
+    isLoading,
   });
+
+  // The session is a slice of the store, so leaving this page does not end it.
+  // A job left in it is one the next open reads instead of loading — the reader
+  // is handed back a draft they walked away from, and saving it writes that
+  // abandoned edit over whatever the job now holds.
+  useEffect(() => () => endEditSession(), []);
 
   useWarnBeforeUnload();
   useJobDeletedRemotely(jobID);
 
-  const { leaveConfirmDialogueProps } = useEditJobLeaveConfirm({ state });
+  const { leaveConfirmDialogueProps } = useEditJobLeaveConfirm();
   useEditJobInitialState({
     jobID,
-    currentActiveJobID: state.activeJob?.jobID,
+    currentActiveJobID: openJobID,
     actions,
-    setActiveJobID,
   });
 
-  const currentStep = state.activeJob?.jobStatus ?? 0;
+  const openJob = openJobID
+    ? { jobStatus, includedInGroup, isReadyToSell }
+    : null;
   const lastStepIndex = getLastStepIndex(jobStatuses.length);
-  const finalStepGateActive = isFinalStepLockedForJob(state.activeJob);
-  const canMoveBackward = canMoveJobBackward(state.activeJob);
-  const canMoveForward = canMoveJobForward(state.activeJob, {
+  const finalStepGateActive = isFinalStepLockedForJob(openJob);
+  const canMoveBackward = canMoveJobBackward(openJob);
+  const canMoveForward = canMoveJobForward(openJob, {
     lastStepIndex,
     lockFinalStep: false,
   });
-  const disableMoveForward = !canMoveJobForward(state.activeJob, {
+  const disableMoveForward = !canMoveJobForward(openJob, {
     lastStepIndex,
     lockFinalStep: finalStepGateActive,
   });
@@ -101,7 +127,7 @@ export default function EditJob_New() {
 
   function jumpToJobStep(targetStep) {
     if (
-      !canJumpToJobStep(state.activeJob, targetStep, {
+      !canJumpToJobStep(openJob, targetStep, {
         lastStepIndex,
         lockFinalStep: finalStepGateActive,
       })
@@ -116,12 +142,12 @@ export default function EditJob_New() {
     <>
       <ContentPanel
         componentName="Edit Job"
-        isLoading={state.isLoading || !state.activeJob}
-        loadingMessage={state.loadingMessage}
+        isLoading={isLoading || !openJobID}
+        loadingMessage={loadingMessage}
         loadingVariant="simple"
         contentGridSx={{ overflow: "visible" }}
       >
-        {state.activeJob && (
+        {openJobID && (
           <Grid container sx={{ width: "100%" }}>
             <Grid
               size={12}
@@ -158,12 +184,8 @@ export default function EditJob_New() {
                   }}
                 >
                   <Avatar
-                    src={typeImageUrl(
-                      state.activeJob.itemID,
-                      TYPE_IMAGE.ICON,
-                      32,
-                    )}
-                    alt={state.activeJob.name}
+                    src={typeImageUrl(openJobItemID, TYPE_IMAGE.ICON, 32)}
+                    alt={openJobName}
                     variant="square"
                     sx={{
                       display: { xs: "none", sm: "block" },
@@ -194,7 +216,7 @@ export default function EditJob_New() {
                       overflowWrap: "anywhere",
                     }}
                   >
-                    {state.activeJob.name}
+                    {openJobName}
                   </Typography>
                 </Grid>
                 <Grid
@@ -223,18 +245,18 @@ export default function EditJob_New() {
                       <IconButton
                         color="primary"
                         onClick={() => {
-                          if (!state.activeJob) return;
+                          if (!openJobID) return;
                           const { activeGroup, pageView } =
                             readEditJobUrlSearch();
                           openJobLinkTreeFromEditPage({
-                            jobId: state.activeJob.jobID,
+                            jobId: openJobID,
                             activeGroup,
                             pageView,
                           });
                         }}
                         size="small"
                         aria-label="View this jobs item tree"
-                        disabled={!state.activeJob}
+                        disabled={!openJobID}
                         sx={{
                           paddingRight: 2,
                         }}
@@ -243,9 +265,9 @@ export default function EditJob_New() {
                       </IconButton>
                     </span>
                   </Tooltip>
-                  <DeleteJobIcon state={state} />
+                  <DeleteJobIcon />
                   <CloseJobIcon />
-                  <SaveJobIcon state={state} />
+                  <SaveJobIcon />
                 </Grid>
               </Grid>
             </Grid>
@@ -309,13 +331,10 @@ export default function EditJob_New() {
                 sm: 10,
               }}
             >
-              <LinkedJobBadge state={state} actions={actions} />
+              <LinkedJobBadge />
             </Grid>
             <Grid size={12}>
-              <Stepper
-                activeStep={state.activeJob.jobStatus}
-                orientation="vertical"
-              >
+              <Stepper activeStep={jobStatus} orientation="vertical">
                 {jobStatuses.map((status) => {
                   return (
                     <Step
@@ -329,7 +348,7 @@ export default function EditJob_New() {
                       <StepButton
                         onClick={() => jumpToJobStep(status.id)}
                         disabled={
-                          status.id === currentStep ||
+                          status.id === jobStatus ||
                           (status.id === lastStepIndex && finalStepGateActive)
                         }
                         sx={{
@@ -374,16 +393,11 @@ export default function EditJob_New() {
                         )}
                         <StepErrorBoundary
                           currentStep={
-                            jobStatuses[state.activeJob.jobStatus]?.name ||
-                            `Step ${state.activeJob.jobStatus}`
+                            jobStatuses[jobStatus]?.name || `Step ${jobStatus}`
                           }
-                          state={state}
                         >
                           <Box sx={{ width: "100%" }}>
-                            <EditJobStepContentSelector
-                              state={state}
-                              actions={actions}
-                            />
+                            <EditJobStepContentSelector />
                           </Box>
                         </StepErrorBoundary>
                         {canMoveForward && (

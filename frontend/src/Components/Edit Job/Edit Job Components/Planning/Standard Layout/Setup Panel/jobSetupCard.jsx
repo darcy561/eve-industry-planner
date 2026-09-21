@@ -22,8 +22,14 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
 import { calculateInstallCostfromSetup } from "../../../../../../Functions/Installation Costs/installCosts";
 import rigSlotLabel from "../../../../../../Functions/Helper/rigSlotLabel";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 
-export function JobSetupCard({ setupEntry, state, actions }) {
+export function JobSetupCard({ setupEntry }) {
+  const setupToEdit = useJobDraft((job) => job.layout.setupToEdit);
+  const actions = useJobActions();
   const installCostPerJob = calculateInstallCostfromSetup(setupEntry);
   const assignedCharacterName =
     useUsersStore
@@ -127,7 +133,7 @@ export function JobSetupCard({ setupEntry, state, actions }) {
               sx={{
                 height: "1px",
                 backgroundColor: (theme) =>
-                  setupEntry.id === state.activeJob.layout.setupToEdit
+                  setupEntry.id === setupToEdit
                     ? theme.palette[jobTypeMapping[setupEntry.jobType]].main
                     : null,
               }}

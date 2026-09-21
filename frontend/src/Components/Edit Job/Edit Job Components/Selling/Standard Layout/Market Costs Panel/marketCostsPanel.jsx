@@ -6,10 +6,12 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { useMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
 import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 
-export function MarketCostsPanel({ state }) {
+export function MarketCostsPanel() {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("sm"));
   const marketSources = useMarketSources();
+  const itemID = useJobDraft((job) => job.itemID);
 
   return (
     <ContentPanel
@@ -27,10 +29,7 @@ export function MarketCostsPanel({ state }) {
           gap: 1,
         }}
       >
-        <ItemMarketActions
-          typeID={state.activeJob.itemID}
-          side={PRICING_SIDE.SELLING}
-        />
+        <ItemMarketActions typeID={itemID} side={PRICING_SIDE.SELLING} />
       </Box>
       <Grid
         container
@@ -39,7 +38,6 @@ export function MarketCostsPanel({ state }) {
         }}
       >
         {marketSources.map(({ id, name }) => {
-          const itemID = state.activeJob.itemID;
           return (
             <Grid
               container

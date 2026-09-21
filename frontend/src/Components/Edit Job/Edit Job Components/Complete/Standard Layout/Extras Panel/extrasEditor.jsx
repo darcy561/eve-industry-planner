@@ -26,6 +26,10 @@ import {
   addExtrasCost,
   removeExtrasCost,
 } from "../../../../Edit Job Hooks/jobCommands";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 import { usePlannerExtrasCategories } from "../../../../../../Hooks/React Query/plannerSettings.js";
 
 /**
@@ -35,14 +39,12 @@ import { usePlannerExtrasCategories } from "../../../../../../Hooks/React Query/
  * Shared rather than rendered twice: the Planning stage costs a build before it
  * happens and the Complete stage records what it actually cost, and both need
  * the same list and the same form.
- *
- * @param {object} props
- * @param {object} props.state - Edit Job state
- * @param {object} props.actions - Edit Job actions
  */
-export default function ExtrasEditor({ state, actions }) {
+export default function ExtrasEditor() {
   const [extrasCategory, setExtrasCategory] = useState("0");
   const { categories: extrasCategories } = usePlannerExtrasCategories();
+  const extrasCosts = useJobDraft((job) => job.build.extrasCosts);
+  const actions = useJobActions();
 
   // Consulted when an extra is added, to name the category it was filed under.
   // A stored row already carries its name and does not come back here.
@@ -98,7 +100,10 @@ export default function ExtrasEditor({ state, actions }) {
     showSnackbarError("Extra cost removed");
   }
 
-  const rows = Object.values(state.activeJob.build.extrasCosts);
+  // Listed in the component rather than selected: a selector building an array
+  // is a new one every time it is asked, which subscribes this panel to the
+  // whole job — `useJobDraft` refuses it.
+  const rows = Object.values(extrasCosts ?? {});
 
   return (
     <Stack spacing={1.5}>

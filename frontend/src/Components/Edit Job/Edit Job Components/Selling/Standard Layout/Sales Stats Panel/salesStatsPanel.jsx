@@ -2,15 +2,27 @@ import { Typography, Grid } from "@mui/material";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
+import { useBuildCost } from "../../../../Edit Job Hooks/useBuildCost";
+import { useSellingTotals } from "../../../../Edit Job Hooks/useSellingTotals";
+import { perItem, totalCostOf } from "../../../../Edit Job Hooks/jobSelectors";
 
-export function SalesStats({ state }) {
-  const brokersFeesTotal = state.activeJob.totalBrokersFees;
-  const transactionFeeTotal = state.activeJob.totalTransactionFees;
+export function SalesStats() {
+  const { buildCost, produced } = useBuildCost();
+  const {
+    brokersFees: brokersFeesTotal,
+    transactionFees: transactionFeeTotal,
+    taxOutstanding: estimatedTaxOutstanding,
+    sales: totalSale,
+    averageSalePrice,
+  } = useSellingTotals();
+  const jobCost = totalCostOf({
+    buildCost,
+    brokersFees: brokersFeesTotal,
+    transactionFees: transactionFeeTotal,
+  });
   // Orders that have not sold yet carry the estimate made when they were linked.
   // Stated separately because it is a forecast, and mixing it into the charged
   // total would read as money already taken.
-  const estimatedTaxOutstanding = state.activeJob.estimatedSalesTaxOutstanding;
-  const totalSale = state.activeJob.totalSales;
 
   return (
     <ContentPanel componentName="Sales Stats Panel">
@@ -23,7 +35,7 @@ export function SalesStats({ state }) {
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalQuantityProduced, {
+              {formatNumberForLocale(produced, {
                 max: 0,
               })}
             </Typography>
@@ -47,7 +59,7 @@ export function SalesStats({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.buildCost)}
+              {formatNumberForLocale(buildCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -131,7 +143,7 @@ export function SalesStats({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalCost)}
+              {formatNumberForLocale(jobCost)}
             </Typography>
           </Grid>
         </Grid>
@@ -153,7 +165,7 @@ export function SalesStats({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.totalCostPerItem())}
+              {formatNumberForLocale(perItem(jobCost, produced))}
             </Typography>
           </Grid>
         </Grid>
@@ -197,7 +209,7 @@ export function SalesStats({ state }) {
             }}
           >
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
-              {formatNumberForLocale(state.activeJob.averageItemSalePrice())}
+              {formatNumberForLocale(averageSalePrice)}
             </Typography>
           </Grid>
         </Grid>
@@ -221,11 +233,9 @@ export function SalesStats({ state }) {
             <Typography
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
-              color={
-                totalSale - state.activeJob.totalCost < 0 ? "error" : "primary"
-              }
+              color={totalSale - jobCost < 0 ? "error" : "primary"}
             >
-              {formatNumberForLocale(totalSale - state.activeJob.totalCost)}
+              {formatNumberForLocale(totalSale - jobCost)}
             </Typography>
           </Grid>
         </Grid>

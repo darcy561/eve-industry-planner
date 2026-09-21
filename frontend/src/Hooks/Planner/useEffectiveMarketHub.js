@@ -15,16 +15,16 @@ import { resolvePricingSideRungs } from "../../Functions/MarketData/pricingSide.
  * what it would be displacing. A caller with no rung of its own to insert reads
  * the two values and ignores the rest.
  *
- * @param {object} build - The job's build, holding its pricing choice
+ * @param {object|undefined} jobPricing - The job's own pricing choice, from its
+ *   build; absent where it has made none
  * @param {string} side - One of PRICING_SIDE
  * @returns {{marketLocation: string, listingType: string,
  *   marketLocationRung: string, listingTypeRung: string}}
  */
-export function useEffectiveMarketHub(build, side) {
+export function useEffectiveMarketHub(jobPricing, side) {
   const accountPricing = useUsersStore(
     (s) => s.applicationSettings.defaultPricing,
   );
-  const jobPricing = build?.localPricing;
 
   return useMemo(
     () => resolvePricingSideRungs({ jobPricing, accountPricing, side }),

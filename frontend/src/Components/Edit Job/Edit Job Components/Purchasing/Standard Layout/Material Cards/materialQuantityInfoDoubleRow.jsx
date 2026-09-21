@@ -4,6 +4,7 @@ import {
   formatNumberForLocale,
   numberToShortText,
 } from "../../../../../../Functions/Helper/numberParser";
+import { useMaterialFigures } from "../../../../Edit Job Hooks/useMaterialFigures";
 
 function childSupplyTooltip(childSupply, remaining) {
   const { min, max, sharedWith, claimsKnown, output } = childSupply;
@@ -22,16 +23,17 @@ export function MaterialQuantityInfoDoubleRow({
   childSupply,
   remainingTotalToBeImported,
 }) {
+  const { needed, purchased, remaining } = useMaterialFigures(material);
   const { min, max, coversEveryClaim } = childSupply;
   const fromChildJobs = coversEveryClaim
     ? formatNumberForLocale(max, { max: 0 })
     : `${formatNumberForLocale(min, { max: 0 })}–${formatNumberForLocale(max, {
         max: 0,
       })}`;
-  const remainingWithChildJobs = Math.max(0, material.quantityRemaining - min);
+  const remainingWithChildJobs = Math.max(0, remaining - min);
   const remainingWithoutChildJobs = Math.max(
     0,
-    material.quantity - material.quantityPurchased - remainingTotalToBeImported,
+    needed - purchased - remainingTotalToBeImported,
   );
 
   return (
@@ -44,7 +46,7 @@ export function MaterialQuantityInfoDoubleRow({
       }}
     >
       <Tooltip
-        title={`Total Needed: ${numberToShortText(material.quantity)}`}
+        title={`Total Needed: ${numberToShortText(needed)}`}
         arrow
         placement="top"
       >
@@ -54,7 +56,7 @@ export function MaterialQuantityInfoDoubleRow({
             color: "text.secondary",
           }}
         >
-          Total Needed: {formatNumberForLocale(material.quantity, { max: 0 })}
+          Total Needed: {formatNumberForLocale(needed, { max: 0 })}
         </Typography>
       </Tooltip>
       <Tooltip

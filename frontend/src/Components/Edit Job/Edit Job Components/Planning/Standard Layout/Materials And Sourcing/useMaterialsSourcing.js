@@ -29,6 +29,12 @@ import {
 } from "./Helpers/materialChildJobs";
 import { materialMark } from "../../../../../../Functions/MarketData/materialMark.js";
 import useUsersStore from "../../../../../../Zustand/usersStore.js";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
+import {
+  childJobIDsAfterEdits,
+  materialRequirementOf,
+  selectedSetupOf,
+} from "../../../../Edit Job Hooks/jobSelectors";
 
 /**
  * What Materials & Sourcing draws: a row per material, the figures the panel
@@ -38,16 +44,27 @@ import useUsersStore from "../../../../../../Zustand/usersStore.js";
  * be checked without rendering one.
  *
  * @param {object} params
- * @param {object} params.state - Edit Job state
- * @param {object} params.actions - Edit Job actions
  * @param {'all'|'active'} [params.displayType] - Whether quantities are the whole
  *   job's or only the selected setup's
  */
-export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
-  const { activeJob } = state;
-  const { build } = activeJob;
+export function useMaterialsSourcing({ displayType = "all" } = {}) {
+  // The whole build rather than a part of it: the rows are made of its
+  // materials, its setups, its links and its price overrides at once, so naming
+  // them one at a time would subscribe this to nearly all of it anyway.
+  const build = useJobDraft((job) => job.build);
+  const setupToEdit = useJobDraft((job) => job.layout.setupToEdit);
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const temporaryChildJobs = useUsersStore(
+    (store) => store.editSession.temporaryChildJobs,
+  );
+  const speculativeChildJobs = useUsersStore(
+    (store) => store.editSession.speculativeChildJobs,
+  );
+  const childJobEdits = useUsersStore(
+    (store) => store.editSession.parentChildToEdit.childJobs,
+  );
   const { marketLocation, listingType, marketLocationRung, listingTypeRung } =
-    useEffectiveMarketHub(build, PRICING_SIDE.BUYING);
+    useEffectiveMarketHub(build?.localPricing, PRICING_SIDE.BUYING);
 
   const groupPricing = useMaterialGroupPricing({
     side: PRICING_SIDE.BUYING,
@@ -66,8 +83,9 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
     // Sorted here rather than held sorted: the job keys its materials by type
     // id, which says nothing about the order to read them in, so the panel that
     // shows them decides it.
-    const materials = Object.values(activeJob.build?.materials ?? {}).sort(
-      (a, b) => (a.name ?? "").localeCompare(b.name ?? ""),
+    const selectedSetup = selectedSetupOf(build?.setup, setupToEdit);
+    const materials = Object.values(build?.materials ?? {}).sort((a, b) =>
+      (a.name ?? "").localeCompare(b.name ?? ""),
     );
 
     const rows = materials.map((material) => {
@@ -79,26 +97,34 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
         groupPricing,
       );
       const { childJobsById, hasChildJobs } = resolveMaterialChildJobs({
-        state,
-        actions,
-        materialTypeID: material.typeID,
+        childJobIDs: childJobIDsAfterEdits(
+          build?.childJobs?.[material.typeID],
+          childJobEdits[material.typeID],
+        ),
+        temporaryChildJob: temporaryChildJobs?.[material.typeID],
       });
       const matchedChildJobs = Array.from(childJobsById.values());
       const { hasLinked, hasTemp, hasPendingAdd } =
         resolveMaterialChildJobStatus({
-          state,
-          materialTypeID: material.typeID,
-          childJobsLocation: activeJob.build.childJobs[material.typeID] || [],
+          inGroup: includedInGroup,
+          childJobsLocation: build?.childJobs?.[material.typeID] || [],
+          temporaryChildJob: temporaryChildJobs?.[material.typeID],
+          markedChildJobs: childJobEdits?.[material.typeID],
         });
 
-      const quantity = quantityFor(activeJob, material, displayType);
+      const quantity = quantityFor({
+        setups: build?.setup,
+        selectedSetup,
+        typeID: material.typeID,
+        displayType,
+      });
 
       // A speculative job prices the row without committing it. It deliberately
       // does not count towards `isLinked`: a row that is costed but still on Buy
       // is the whole point — it is what lets the panel offer the switch.
       const speculative = hasChildJobs
         ? null
-        : (state.speculativeChildJobs?.[material.typeID] ?? null);
+        : (speculativeChildJobs?.[material.typeID] ?? null);
 
       const buyPrice = getMarketPriceForType(
         material.typeID,
@@ -110,7 +136,7 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
         contributingJobs: speculative ? [speculative] : matchedChildJobs,
         quantity,
         buyPrice,
-        state,
+        temporaryChildJobs,
         resolved,
         isCommitted: hasChildJobs && !speculative,
         automaticRecalculation,
@@ -145,7 +171,7 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
       basisUsage: summariseBasisUse(rows, marketLocation, listingType),
       priceAge: priceAge(materials, getPriceRefreshedAt),
       basisOptions: materialCostByBasis({
-        materials,
+        rows,
         build,
         marketLocation,
         listingType,
@@ -153,21 +179,19 @@ export function useMaterialsSourcing({ state, actions, displayType = "all" }) {
         groupPricing,
       }),
     };
-    // The reducer returns a new state object on every dispatch anywhere on the
-    // page, so this lists the parts the rows are actually built from.
   }, [
-    actions,
-    activeJob,
     build,
+    setupToEdit,
+    includedInGroup,
     displayType,
     listingType,
     checkTypeIDisExempt,
     automaticRecalculation,
     groupPricing,
     marketLocation,
-    state.parentChildToEdit.childJobs,
-    state.speculativeChildJobs,
-    state.temporaryChildJobs,
+    childJobEdits,
+    speculativeChildJobs,
+    temporaryChildJobs,
   ]);
 }
 
@@ -186,7 +210,7 @@ function coverageFor({
   contributingJobs,
   quantity,
   buyPrice,
-  state,
+  temporaryChildJobs,
   resolved,
   isCommitted,
   automaticRecalculation,
@@ -196,7 +220,7 @@ function coverageFor({
   const contributors = contributingJobs.map((job) => {
     const totals = calculateChildJobTotals(
       job,
-      state.temporaryChildJobs,
+      temporaryChildJobs,
       resolved.marketLocation,
       resolved.listingType,
     );
@@ -220,18 +244,19 @@ function coverageFor({
  * How many the row states.
  *
  * A player can read the whole job's requirement or only the selected setup's,
- * which are different figures on a job with more than one setup.
+ * which are different figures on a job with more than one setup. Neither is on
+ * the material row: what a job takes is stated by its setups.
  *
- * @param {object} activeJob
- * @param {object} material
- * @param {'all'|'active'} displayType
+ * @param {object} params
+ * @param {object} params.setups - The job's setups
+ * @param {object} [params.selectedSetup] - The setup being read
+ * @param {number} params.typeID
+ * @param {'all'|'active'} params.displayType
  * @returns {number}
  */
-function quantityFor(activeJob, material, displayType) {
-  if (displayType !== "active") return material.quantity;
+function quantityFor({ setups, selectedSetup, typeID, displayType }) {
+  const wholeJob = materialRequirementOf(setups, typeID);
+  if (displayType !== "active") return wholeJob;
 
-  return (
-    activeJob.selectedSetup?.materialCount?.[material.typeID]?.quantity ??
-    material.quantity
-  );
+  return selectedSetup?.materialCount?.[typeID]?.quantity ?? wholeJob;
 }

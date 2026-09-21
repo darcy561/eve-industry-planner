@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { appliedTo } from "../../../../../../tests/jobCommandSpy.js";
-
 import { MATERIAL_PLAN } from "../../../../../../Functions/MarketData/materialSourcingRow";
 
 const sourcing = {
@@ -60,15 +58,25 @@ vi.mock("./useMaterialsSourcing", () => ({
   useMaterialsSourcing: (...args) => useMaterialsSourcingMock(...args),
 }));
 
+vi.mock("../../../../../../Zustand/usersStore", async () => {
+  const { usersStoreOverSession } =
+    await import("../../../../../../tests/usersStoreHarness.js");
+  return usersStoreOverSession({
+    applicationSettings: {
+      actions: {
+        getCurrentLocale: () => "en-GB",
+        checkTypeIDisExempt: () => false,
+      },
+    },
+  });
+});
+
 const buildSpeculativeChildJobs = vi.fn().mockResolvedValue(0);
 const useActiveJobReadOnly = vi.fn(() => false);
 
 vi.mock("../../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
   useActiveJobReadOnly: (...args) => useActiveJobReadOnly(...args),
 }));
-const markChildJobsForAddition = vi.fn();
-const forgetSpeculativeChildJobs = vi.fn();
-
 vi.mock("./Hooks/useChildJobBuildActions", () => ({
   useChildJobBuildActions: () => ({ buildSpeculativeChildJobs }),
 }));
@@ -100,30 +108,45 @@ vi.mock("./materialDrawer", () => ({
 
 const { default: MaterialsAndSourcingPanel } =
   await import("./materialsAndSourcingPanel.jsx");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
+const { jobDraftNow } = await import("../../../../Edit Job Hooks/useJobDraft");
 
-const state = {
-  activeJob: {
-    selectedSetup: { id: "setup-1" },
-    layout: {},
-    build: { materials: {}, materialPriceOverrides: {} },
+const session = () => useUsersStore.getState().editSession;
+
+/** A job with one setup, which is all this panel needs to draw itself. */
+const jobDocument = ({ build = {}, ...rest } = {}) => ({
+  jobID: "job-1",
+  itemID: 34,
+  itemsProducedPerRun: 1,
+  parentJobs: [],
+  layout: { setupToEdit: "setup-1" },
+  build: {
+    materials: {},
+    childJobs: {},
+    extrasCosts: {},
+    inventionEntries: {},
+    materialPriceOverrides: {},
+    setup: {
+      "setup-1": { id: "setup-1", runCount: 1, jobCount: 1, materialCount: {} },
+    },
+    ...build,
   },
-};
+  esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+  ...rest,
+});
 
-function renderPanel(props = {}) {
-  return render(
-    <MaterialsAndSourcingPanel
-      state={state}
-      actions={{
-        run: () => {},
-        markChildJobsForAddition,
-        forgetSpeculativeChildJobs,
-      }}
-      {...props}
-    />,
-  );
+function renderPanel({ document = jobDocument(), speculative } = {}) {
+  session().actions.openJob(document.jobID, document);
+  if (speculative) session().actions.recordSpeculativeChildJobs(speculative);
+  return render(<MaterialsAndSourcingPanel />);
 }
 
+/** What the controls put on the job's pricing. */
+const pricingOnJob = () => jobDraftNow().build.localPricing;
+
 beforeEach(() => {
+  session().actions.closeSession();
   useActiveJobReadOnly.mockReturnValue(false);
   // Every test starts from a fully costed panel; the ones about pricing say so.
   useMaterialsSourcingMock.mockReturnValue(sourcing);
@@ -198,16 +221,9 @@ describe("the Materials and Sourcing panel", () => {
   });
 
   it("draws nothing at all without a setup to cost", () => {
-    const { container } = render(
-      <MaterialsAndSourcingPanel
-        state={{ activeJob: {} }}
-        actions={{
-          run: () => {},
-          markChildJobsForAddition,
-          forgetSpeculativeChildJobs,
-        }}
-      />,
-    );
+    const { container } = renderPanel({
+      document: jobDocument({ layout: { setupToEdit: null } }),
+    });
 
     expect(container).toBeEmptyDOMElement();
   });
@@ -261,16 +277,7 @@ describe("costing the buildable rows", () => {
       ...uncosted(),
       summary: { ...sourcing.summary, buildable: 2, costed: 0 },
     });
-    rerender(
-      <MaterialsAndSourcingPanel
-        state={state}
-        actions={{
-          run: () => {},
-          markChildJobsForAddition,
-          forgetSpeculativeChildJobs,
-        }}
-      />,
-    );
+    rerender(<MaterialsAndSourcingPanel />);
 
     expect(buildSpeculativeChildJobs).toHaveBeenCalledTimes(1);
   });
@@ -291,16 +298,7 @@ describe("costing the buildable rows", () => {
     const { rerender } = renderPanel();
     await waitFor(() => expect(buildSpeculativeChildJobs).toHaveBeenCalled());
 
-    rerender(
-      <MaterialsAndSourcingPanel
-        state={state}
-        actions={{
-          run: () => {},
-          markChildJobsForAddition,
-          forgetSpeculativeChildJobs,
-        }}
-      />,
-    );
+    rerender(<MaterialsAndSourcingPanel />);
 
     await waitFor(() =>
       expect(buildSpeculativeChildJobs).toHaveBeenCalledTimes(2),
@@ -326,52 +324,39 @@ describe("applying the offer", () => {
     const speculative = { jobID: "spec-34", itemID: 34 };
     useMaterialsSourcingMock.mockReturnValueOnce(sourcing);
 
-    renderPanel({
-      state: { ...state, speculativeChildJobs: { 34: speculative } },
-    });
+    renderPanel({ speculative });
 
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
 
-    expect(markChildJobsForAddition).toHaveBeenCalledWith([speculative]);
+    expect(session().parentChildToEdit.childJobs[34].add).toEqual(["spec-34"]);
   });
 
   // The committed job now lives in the temporary map, and a row reads that
   // first; a copy left behind would be offered again after an unlink.
   it("drops the promoted jobs from the speculative map", async () => {
-    const speculative = { jobID: "spec-34", itemID: 34 };
-
-    renderPanel({
-      state: { ...state, speculativeChildJobs: { 34: speculative } },
-    });
+    renderPanel({ speculative: { jobID: "spec-34", itemID: 34 } });
 
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
 
-    expect(forgetSpeculativeChildJobs).toHaveBeenCalledWith([34]);
+    expect(session().speculativeChildJobs).toEqual({});
   });
 
   it("does nothing when no speculative job backs the offer", async () => {
-    renderPanel({ state: { ...state, speculativeChildJobs: {} } });
+    renderPanel();
 
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
 
-    expect(markChildJobsForAddition).not.toHaveBeenCalled();
+    expect(session().parentChildToEdit.childJobs).toEqual({});
   });
 });
 
 // The picker names the basis every row is priced on. It listed four options with
 // real totals long before choosing one did anything, which reads as a working
 // control and is not.
-/** What the commands a control ran put on the job's pricing. */
-function pricingFrom(run) {
-  return appliedTo({ run }, { build: {} }).build.localPricing;
-}
-
 describe("choosing a pricing basis", () => {
-  const run = vi.fn();
-
   // The trigger is labelled with the basis currently in effect.
   const openPicker = async () => {
-    renderPanel({ actions: { run } });
+    renderPanel();
     await userEvent.click(screen.getByRole("button", { name: "Sell Orders" }));
   };
 
@@ -379,7 +364,6 @@ describe("choosing a pricing basis", () => {
     userEvent.click(within(screen.getByRole("listbox")).getByText(label));
 
   beforeEach(() => {
-    run.mockClear();
     useActiveJobReadOnly.mockReturnValue(false);
   });
 
@@ -388,7 +372,7 @@ describe("choosing a pricing basis", () => {
 
     await chooseOption("Buy Orders");
 
-    expect(pricingFrom(run)).toMatchObject({ buying: { basis: "buy" } });
+    expect(pricingOnJob()).toMatchObject({ buying: { basis: "buy" } });
   });
 
   it("writes nothing when the basis chosen is the one already in effect", async () => {
@@ -396,7 +380,7 @@ describe("choosing a pricing basis", () => {
 
     await chooseOption("Sell Orders");
 
-    expect(run).not.toHaveBeenCalled();
+    expect(pricingOnJob()).toBeUndefined();
   });
 
   // A job someone else holds is read from, not edited — every other panel on
@@ -404,7 +388,7 @@ describe("choosing a pricing basis", () => {
   it("cannot be changed on a job that is locked", () => {
     useActiveJobReadOnly.mockReturnValue(true);
 
-    renderPanel({ actions: { run } });
+    renderPanel();
 
     expect(screen.getByRole("button", { name: "Sell Orders" })).toBeDisabled();
   });
@@ -414,8 +398,7 @@ describe("choosing a pricing basis", () => {
 // is, and until now only one of them could be changed from the panel.
 describe("choosing a hub", () => {
   it("writes the chosen hub onto the job", async () => {
-    const run = vi.fn();
-    renderPanel({ actions: { run } });
+    renderPanel();
 
     const [hub] = screen.getAllByRole("combobox");
     await userEvent.click(hub);
@@ -423,7 +406,7 @@ describe("choosing a hub", () => {
       within(screen.getByRole("listbox")).getByText(/Amarr/i),
     );
 
-    expect(pricingFrom(run)).toMatchObject({ buying: { market: "amarr" } });
+    expect(pricingOnJob()).toMatchObject({ buying: { market: "amarr" } });
   });
 });
 
@@ -463,12 +446,7 @@ describe("deciding a row without expanding it", () => {
   // The control acts on a job, and confirming a row with none behind it has
   // nothing to confirm.
   it("hands the control the job the row was costed with", () => {
-    renderPanel({
-      state: {
-        ...state,
-        speculativeChildJobs: { 34: { itemID: 34, jobID: "spec-1" } },
-      },
-    });
+    renderPanel({ speculative: { itemID: 34, jobID: "spec-1" } });
 
     expect(screen.getByTestId("plan-34")).toHaveTextContent("costed");
   });

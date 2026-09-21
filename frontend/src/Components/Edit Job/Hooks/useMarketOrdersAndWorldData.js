@@ -7,6 +7,11 @@ import { useGetAllCharacterHistoricMarketOrders } from "../../../Hooks/EveEsi/Ch
 import { useGetAllCorporationMarketOrders } from "../../../Hooks/EveEsi/Corporation/useGetAllCorporationMarketOrders";
 import { useGetAllCorporationHistoricMarketOrders } from "../../../Hooks/EveEsi/Corporation/useGetAllCorporationHistoricMarketOrders";
 import { asNumberIDSet } from "../../../Functions/Helper/ids";
+import {
+  useEsiLinkIntents,
+  useJobActions,
+  useJobDraft,
+} from "../Edit Job Hooks/useJobDraft";
 
 function updateLinkedMarketOrdersWithLatestData(allOrders, actions) {
   actions.run(refreshLinkedMarketOrders(allOrders));
@@ -14,11 +19,12 @@ function updateLinkedMarketOrdersWithLatestData(allOrders, actions) {
 
 export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
   queryClient,
-  activeJob,
   linkedOrders,
-  esiDataToLink,
-  actions,
 ) {
+  const linkedMarketOrders = useJobDraft((job) => job.esi.marketOrders);
+  const itemID = useJobDraft((job) => job.itemID);
+  const markedOrders = useEsiLinkIntents("marketOrders");
+  const actions = useJobActions();
   const [marketOrderMatches, setMarketOrderMatches] = useState([]);
   const [error, setError] = useState(null);
 
@@ -47,7 +53,7 @@ export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
     error: corporationHistoricMarketOrdersError,
   } = useGetAllCorporationHistoricMarketOrders();
 
-  const linkedOrderRows = Object.values(activeJob.esi.marketOrders);
+  const linkedOrderRows = Object.values(linkedMarketOrders);
   const locationIds = useMemo(
     () =>
       asNumberIDSet(
@@ -105,13 +111,13 @@ export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
 
         const matches = findMarketOrdersForItem(
           queryClient,
-          activeJob,
-          esiDataToLink.marketOrders.add,
-          esiDataToLink.marketOrders.remove,
+          itemID,
+          markedOrders.add,
+          markedOrders.remove,
         );
 
         const jobSpecificOrders = allOrders.filter(
-          (order) => order.type_id === activeJob.itemID,
+          (order) => order.type_id === itemID,
         );
 
         updateLinkedMarketOrdersWithLatestData(jobSpecificOrders, actions);
@@ -122,14 +128,14 @@ export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
     }
 
     processGatherMarketOrdersAndUpdateExistingLinkedOrders();
-    // `activeJob` and `actions` are written to here, not read from: listing the job would re-run the
-    // match on every edit the reducer makes to it, including the one this effect itself causes.
+    // `actions` is written through here, not read from: listing it would re-run
+    // the match on the very edit this effect makes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     queryClient,
     linkedOrders,
-    esiDataToLink,
-    activeJob.itemID,
+    markedOrders,
+    itemID,
     characterMarketOrders,
     characterHistoricMarketOrders,
     corporationMarketOrders,

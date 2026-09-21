@@ -6,6 +6,11 @@ import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import { removeTransaction } from "../../../../Edit Job Hooks/jobCommands";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { salesNewestFirst } from "../../../../Edit Job Hooks/jobSelectors";
+import {
   formatDateForLocale,
   formatNumberForLocale,
 } from "../../../../../../Functions/Helper/numberParser";
@@ -18,12 +23,14 @@ import {
   corporationImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
 
-export function LinkedTransactionPanel(props) {
-  const { state, actions } = props;
+export function LinkedTransactionPanel() {
+  const actions = useJobActions();
+  const transactions = useJobDraft((job) => job.esi.transactions);
+  const sales = salesNewestFirst(transactions);
   const newTransactionDialogue = useDialogueTrigger();
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const jobLockReadOnly = useActiveJobReadOnly();
 
   return (
     <ContentPanel
@@ -66,8 +73,8 @@ export function LinkedTransactionPanel(props) {
           size={12}
           spacing={1}
         >
-          {state.activeJob.salesByDate.length !== 0 ? (
-            state.activeJob.salesByDate.map((tData) => {
+          {sales.length !== 0 ? (
+            sales.map((tData) => {
               const charData = useUsersStore
                 .getState()
                 .account.actions.findCharacterByHash(tData.CharacterHash);
@@ -215,10 +222,7 @@ export function LinkedTransactionPanel(props) {
         </Grid>
       </Grid>
       {newTransactionDialogue.isOpen && (
-        <AddCustomTransactionDialogue
-          {...props}
-          onClose={newTransactionDialogue.close}
-        />
+        <AddCustomTransactionDialogue onClose={newTransactionDialogue.close} />
       )}
     </ContentPanel>
   );

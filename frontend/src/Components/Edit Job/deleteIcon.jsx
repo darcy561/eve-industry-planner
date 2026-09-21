@@ -7,12 +7,14 @@ import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPage
 import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { useActiveJobPersistGate } from "./Edit Job Hooks/useActiveJobDocumentLock";
 import { persistAffordanceBlockedReason } from "../DocumentLock/LockGatedTooltip";
+import { useJobDraft } from "./Edit Job Hooks/useJobDraft";
 
-export function DeleteJobIcon({ state }) {
+export function DeleteJobIcon() {
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const search = useSearch({ from: "/editjob/$jobID" });
   const { jobID } = useParams({ from: "/editjob/$jobID" });
-  const persist = useActiveJobPersistGate(state);
+  const persist = useActiveJobPersistGate();
+  const openJobID = useJobDraft((job) => job.jobID);
 
   const deleteBlockedReason = persistAffordanceBlockedReason({
     readOnly: persist.readOnly,
@@ -37,7 +39,7 @@ export function DeleteJobIcon({ state }) {
           disabled={!persist.canPersist}
           onClick={async () => {
             if (!persist.canPersist) return;
-            await deleteJobsFromPlanner(state.activeJob.jobID);
+            await deleteJobsFromPlanner(openJobID);
             const groupIDFromParams = search.activeGroup;
             await yieldEditJobDocumentLocksOnLeave({
               jobID,
@@ -47,10 +49,7 @@ export function DeleteJobIcon({ state }) {
               navigate({
                 to: "/group/$groupID",
                 params: { groupID: groupIDFromParams },
-                search: buildGroupSearchAfterEditClose(
-                  search,
-                  state.activeJob?.jobID,
-                ),
+                search: buildGroupSearchAfterEditClose(search, openJobID),
               });
             } else {
               navigate({ to: "/jobplanner" });

@@ -20,7 +20,8 @@
  * Walks the parents to total what they ask of this job.
  *
  * @param {object} params
- * @param {string[]} params.parentJobIDs - From `actions.getCurrentParentJobs()`
+ * @param {string[]} params.parentJobIDs - The parents the job will have, as
+ *   `useParentJobIDs` reads them
  * @param {(jobID: string) => object|undefined} params.findJobInJobArray
  * @param {number} params.itemID - What this job produces
  * @param {string} params.jobID - This job, so it does not count itself as a sibling

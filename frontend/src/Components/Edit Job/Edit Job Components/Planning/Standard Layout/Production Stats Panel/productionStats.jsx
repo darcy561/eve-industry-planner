@@ -9,29 +9,45 @@ import {
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { resolveParentRequirements } from "../../../../../../Functions/Groups/parentRequirements";
 import calculateTimeForSetup from "../../../../../../Functions/Blueprint Calculations/calculateTimeForSetup";
+import {
+  useJobDraft,
+  useParentJobIDs,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { useSelectedSetup } from "../../../../Edit Job Hooks/useSelectedSetup";
+import { quantityProduced } from "../../../../Edit Job Hooks/jobSelectors";
 
-export function ProductionStats({ state, actions }) {
-  const { activeJob } = state;
-  const { jobArray } = useUsersStore((state) => state.jobData);
+export function ProductionStats() {
+  const { jobArray } = useUsersStore((store) => store.jobData);
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
-  const selectedSetup = activeJob.selectedSetup;
+  const setups = useJobDraft((job) => job.build.setup);
+  const itemsProducedPerRun = useJobDraft((job) => job.itemsProducedPerRun);
+  const skills = useJobDraft((job) => job.skills);
+  const jobID = useJobDraft((job) => job.jobID);
+  const itemID = useJobDraft((job) => job.itemID);
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const selectedSetup = useSelectedSetup();
+  const parentJobIDs = useParentJobIDs();
+  const parentKey = parentJobIDs.join(",");
   const queryClient = useQueryClient();
 
   const calculateParentRequirements = useCallback(
     () =>
       resolveParentRequirements({
-        parentJobIDs: actions.getCurrentParentJobs(),
+        parentJobIDs,
         findJobInJobArray,
-        itemID: activeJob.itemID,
-        jobID: activeJob.jobID,
+        itemID,
+        jobID,
       }),
-    [jobArray, state.parentChildToEdit],
+    // The ids are a string because the list is rebuilt on every read of it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [jobArray, parentKey, findJobInJobArray, itemID, jobID],
   );
 
   if (!selectedSetup) return null;
 
+  const totalQuantityProduced = quantityProduced(setups, itemsProducedPerRun);
   const timeDisplayFigure = formatTimeDuration(
-    calculateTimeForSetup(selectedSetup, activeJob.skills, queryClient),
+    calculateTimeForSetup(selectedSetup, skills, queryClient),
   );
   const parentRequirements = calculateParentRequirements();
 
@@ -50,7 +66,7 @@ export function ProductionStats({ state, actions }) {
                 sx={{ typography: { xs: "caption", sm: "body2" } }}
                 align="right"
               >
-                {formatNumberForLocale(activeJob.itemsProducedPerRun, {
+                {formatNumberForLocale(itemsProducedPerRun, {
                   max: 0,
                 })}
               </Typography>
@@ -68,7 +84,7 @@ export function ProductionStats({ state, actions }) {
                 align="right"
               >
                 {formatNumberForLocale(
-                  activeJob.itemsProducedPerRun * selectedSetup.runCount,
+                  itemsProducedPerRun * selectedSetup.runCount,
                   { max: 0 },
                 )}
               </Typography>
@@ -86,7 +102,7 @@ export function ProductionStats({ state, actions }) {
                 align="right"
               >
                 {formatNumberForLocale(
-                  activeJob.itemsProducedPerRun *
+                  itemsProducedPerRun *
                     selectedSetup.runCount *
                     selectedSetup.jobCount,
                   { max: 0 },
@@ -99,8 +115,7 @@ export function ProductionStats({ state, actions }) {
               <Typography
                 sx={{ typography: { xs: "caption", sm: "body2" } }}
                 color={
-                  activeJob.totalQuantityProduced +
-                    parentRequirements.childrenTotal <
+                  totalQuantityProduced + parentRequirements.childrenTotal <
                   parentRequirements.parentTotal
                     ? "error.main"
                     : null
@@ -115,20 +130,19 @@ export function ProductionStats({ state, actions }) {
                 sx={{ typography: { xs: "caption", sm: "body2" } }}
                 align="right"
                 color={
-                  activeJob.totalQuantityProduced +
-                    parentRequirements.childrenTotal <
+                  totalQuantityProduced + parentRequirements.childrenTotal <
                   parentRequirements.parentTotal
                     ? "error.main"
                     : null
                 }
               >
-                {formatNumberForLocale(activeJob.totalQuantityProduced, {
+                {formatNumberForLocale(totalQuantityProduced, {
                   max: 0,
                 })}
               </Typography>
             </Grid>
           </Grid>
-          {activeJob.parentJobs.length > 0 && activeJob.includedInGroup ? (
+          {parentJobIDs.length > 0 && includedInGroup ? (
             <>
               <Grid container sx={{ marginTop: "10px" }} size={12}>
                 <Grid size={10}>
@@ -155,7 +169,7 @@ export function ProductionStats({ state, actions }) {
                     <Typography
                       sx={{ typography: { xs: "caption", sm: "body2" } }}
                       color={
-                        activeJob.totalQuantityProduced +
+                        totalQuantityProduced +
                           parentRequirements.childrenTotal <
                         parentRequirements.parentTotal
                           ? "error.main"
@@ -170,7 +184,7 @@ export function ProductionStats({ state, actions }) {
                       sx={{ typography: { xs: "caption", sm: "body2" } }}
                       align="right"
                       color={
-                        activeJob.totalQuantityProduced +
+                        totalQuantityProduced +
                           parentRequirements.childrenTotal <
                         parentRequirements.parentTotal
                           ? "error.main"

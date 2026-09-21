@@ -4,19 +4,21 @@ import {
   formatNumberForLocale,
   numberToShortText,
 } from "../../../../../../Functions/Helper/numberParser";
+import { useMaterialFigures } from "../../../../Edit Job Hooks/useMaterialFigures";
 
 export function MaterialQuantityInfoSingleRow({
   material,
   remainingTotalToBeImported,
 }) {
+  const { needed, purchased } = useMaterialFigures(material);
   const remaining = Math.max(
     0,
-    material.quantity - material.quantityPurchased - remainingTotalToBeImported,
+    needed - purchased - remainingTotalToBeImported,
   );
 
   return (
     <Tooltip
-      title={`Total Needed: ${numberToShortText(material.quantity)} | Remaining: ${numberToShortText(remaining)}`}
+      title={`Total Needed: ${numberToShortText(needed)} | Remaining: ${numberToShortText(remaining)}`}
       arrow
       placement="top"
     >
@@ -27,8 +29,8 @@ export function MaterialQuantityInfoSingleRow({
           marginTop: { xs: 0.5, sm: 0 },
         }}
       >
-        Total Needed: {formatNumberForLocale(material.quantity, { max: 0 })} |{" "}
-        Remaining: {formatNumberForLocale(remaining, { max: 0 })}
+        Total Needed: {formatNumberForLocale(needed, { max: 0 })} | Remaining:{" "}
+        {formatNumberForLocale(remaining, { max: 0 })}
       </Typography>
     </Tooltip>
   );

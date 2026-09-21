@@ -27,6 +27,10 @@ import {
   addInventionCost,
   removeInventionCost,
 } from "../../../../Edit Job Hooks/jobCommands";
+import {
+  useJobActions,
+  useJobDraft,
+} from "../../../../Edit Job Hooks/useJobDraft";
 
 /**
  * Whether invention is a cost this item can carry.
@@ -52,12 +56,10 @@ export function invitesInvention(activeJob) {
  * accounts for, so this is shaped like the extras editor beside it rather than
  * like the card the Purchasing stage draws. Both write the same rows on the job,
  * so what is recorded here is what Purchasing shows.
- *
- * @param {object} props
- * @param {object} props.state - Edit Job state
- * @param {object} props.actions - Edit Job actions
  */
-export default function InventionEditor({ state, actions }) {
+export default function InventionEditor() {
+  const inventionEntries = useJobDraft((job) => job.build.inventionEntries);
+  const actions = useJobActions();
   function handleAddAction(formData) {
     const itemName = DOMPurify.sanitize(
       String(formData.get("itemName") ?? ""),
@@ -87,7 +89,7 @@ export default function InventionEditor({ state, actions }) {
     showSnackbarError("Invention cost removed");
   }
 
-  const rows = Object.values(state.activeJob.build.inventionEntries);
+  const rows = Object.values(inventionEntries);
 
   return (
     <Stack spacing={1.5}>

@@ -15,7 +15,6 @@
  * @property {Array} jobArray - Array of job objects
  * @property {Array} groupArray - Array of group objects
  * @property {string[]} pendingJobGroupWrites - Group IDs waiting to be persisted to the API
- * @property {string|null} activeJobID - Currently active job ID
  * @property {string|null} activeGroupID - Currently active group ID
  * @property {Object} userWatchlist - User's watchlist data
  * @property {Array} userWatchlist.groups - Watchlist group objects
@@ -40,7 +39,6 @@ export const stateDefault = () => ({
   pendingJobGroupWrites: [],
   /** Job IDs with a pending write to the API (`PUT /api/v1/job-documents`). */
   pendingJobDocumentWrites: [],
-  activeJobID: null,
   activeGroupID: null,
   userWatchlist: {
     groups: [],

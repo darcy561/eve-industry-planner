@@ -10,8 +10,10 @@ import {
   TYPE_IMAGE,
   typeImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
+import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 
-export function ReactionLayout_BlueprintOptions({ state }) {
+export function ReactionLayout_BlueprintOptions() {
+  const blueprintTypeID = useJobDraft((job) => job.blueprintTypeID);
   const {
     data: blueprints,
     isLoading: isLoadingBlueprints,
@@ -24,7 +26,7 @@ export function ReactionLayout_BlueprintOptions({ state }) {
   } = useGetAllIndustryJobs();
 
   const blueprintOptions = useMemo(() => {
-    const rows = blueprints.byTypeId.get(state.activeJob.blueprintTypeID) ?? [];
+    const rows = blueprints.byTypeId.get(blueprintTypeID) ?? [];
     if (rows.length === 0) return [];
 
     const activeJobBlueprintIDs = new Set(
@@ -68,7 +70,7 @@ export function ReactionLayout_BlueprintOptions({ state }) {
           b.blueprints[0].me - a.blueprints[0].me ||
           b.blueprints[0].te - a.blueprints[0].te,
       );
-  }, [blueprints, industryJobs, state.activeJob.blueprintTypeID]);
+  }, [blueprints, industryJobs, blueprintTypeID]);
 
   // Loading state
   if (isLoadingBlueprints || isLoadingIndustryJobs) {
@@ -154,14 +156,14 @@ export function ReactionLayout_BlueprintOptions({ state }) {
                   <source
                     media="(max-width:700px)"
                     srcSet={typeImageUrl(
-                      state.activeJob.blueprintTypeID,
+                      blueprintTypeID,
                       TYPE_IMAGE.BLUEPRINT_COPY,
                       32,
                     )}
                   />
                   <img
                     src={typeImageUrl(
-                      state.activeJob.blueprintTypeID,
+                      blueprintTypeID,
                       TYPE_IMAGE.BLUEPRINT_COPY,
                       64,
                     )}

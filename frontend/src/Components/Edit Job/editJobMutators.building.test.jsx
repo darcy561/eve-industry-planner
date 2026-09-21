@@ -49,9 +49,9 @@ beforeEach(() => {
   store.current = editJobStore({ group });
 });
 
-// A control and the reducer can each be right on their own and still disagree
-// about what an action means. These press what a reader presses and then read
-// the job the reducer built.
+// A control and the command it runs can each be right on their own and still
+// disagree about what a reader asked for. These press what a reader presses and
+// then read the job that came out of it.
 describe("what the reader changes on a job, end to end", () => {
   it("remembers which tab of the building step was open", () => {
     const { editJob } = renderOverEditJob(
@@ -84,9 +84,7 @@ describe("what the reader changes on a job, end to end", () => {
   it("marks a grouped job ready for sale and moves it on a step", () => {
     const { editJob } = renderOverEditJob(
       storedJob({ jobStatus: 3, parentJobs: [] }),
-      ({ state, actions }) => (
-        <SellGroupJobButton state={state} actions={actions} />
-      ),
+      () => <SellGroupJobButton />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Ready For Sale" }));
@@ -98,12 +96,9 @@ describe("what the reader changes on a job, end to end", () => {
   // Once it is on sale this button cannot take it back off: it disables itself,
   // and the label it then carries is the state, not an offer.
   it("stops offering the sale once the job is on sale", () => {
-    renderOverEditJob(
-      storedJob({ jobStatus: 3, parentJobs: [] }),
-      ({ state, actions }) => (
-        <SellGroupJobButton state={state} actions={actions} />
-      ),
-    );
+    renderOverEditJob(storedJob({ jobStatus: 3, parentJobs: [] }), () => (
+      <SellGroupJobButton />
+    ));
 
     fireEvent.click(screen.getByRole("button", { name: "Ready For Sale" }));
 
@@ -116,9 +111,7 @@ describe("what the reader changes on a job, end to end", () => {
     readOnly.current = true;
     const { editJob } = renderOverEditJob(
       storedJob({ jobStatus: 3, parentJobs: [] }),
-      ({ state, actions }) => (
-        <SellGroupJobButton state={state} actions={actions} />
-      ),
+      () => <SellGroupJobButton />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Ready For Sale" }));

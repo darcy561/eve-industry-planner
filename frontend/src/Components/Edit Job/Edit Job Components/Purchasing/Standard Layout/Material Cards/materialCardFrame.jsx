@@ -12,31 +12,43 @@ import { AddMaterialCost_Purchasing } from "./addMaterialCosts";
 import { MaterialCompleteBox_Purchasing } from "./materialCompleteBox";
 import { MaterialExcessBox_Purchasing } from "./materialExcessBox";
 import { AwaitingCostImportBox_Purchasing } from "./awaitingCostImportBox";
-import getCurrentLinkedChildJobIDsForMaterial from "./functions/getCurrentLinkedChildJobIDsForMaterial.js";
 import { childJobSupplyForMaterial } from "./functions/childJobSupplyForMaterial.js";
 import ItemMarketActions from "../../../../../../Styled Components/Item/marketActions";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { MaterialQuantityInfoSingleRow } from "./materialQuantityInfoSingleRow";
 import { MaterialQuantityInfoDoubleRow } from "./materialQuantityInfoDoubleRow";
 import {
+  useChildLinkIntents,
+  useJobDraft,
+  useTemporaryChildJob,
+} from "../../../../Edit Job Hooks/useJobDraft";
+import { childJobIDsAfterEdits } from "../../../../Edit Job Hooks/jobSelectors";
+import {
   TYPE_IMAGE,
   typeImageUrl,
 } from "../../../../../../Functions/Shared/eveImage";
+import { useMaterialFigures } from "../../../../Edit Job Hooks/useMaterialFigures";
 
-export function MaterialCardFrame_Purchasing(props) {
-  const { state, material } = props;
+export function MaterialCardFrame_Purchasing({ material }) {
   const { jobArray } = useUsersStore((state) => state.jobData);
   const childJobDialogue = useDialogueTrigger();
+  const jobID = useJobDraft((job) => job.jobID);
+  const includedInGroup = useJobDraft((job) => job.includedInGroup);
+  const linkedChildJobs = useJobDraft(
+    (job) => job.build.childJobs[material.typeID],
+  );
+  const markedChildJobs = useChildLinkIntents(material.typeID);
+  const temporaryChildJob = useTemporaryChildJob(material.typeID);
+  const { remaining } = useMaterialFigures(material);
 
   function calculateChildJobData() {
     let childJobs = [];
     let childJobProductionTotal = 0;
     let remainingTotalToBeImported = 0;
-    const childJobLocation = getCurrentLinkedChildJobIDsForMaterial(
-      material.typeID,
-      state.activeJob,
-      state.temporaryChildJobs,
-      state.parentChildToEdit,
+    const childJobLocation = childJobIDsAfterEdits(
+      linkedChildJobs,
+      markedChildJobs,
+      temporaryChildJob,
     );
 
     if (childJobLocation.length > 0) {
@@ -44,7 +56,7 @@ export function MaterialCardFrame_Purchasing(props) {
         return jobList.filter((job) => childJobLocation.includes(job.jobID));
       }
 
-      if (!state.activeJob.includedInGroup) {
+      if (!includedInGroup) {
         childJobs = filterJobs(jobArray);
         childJobProductionTotal = childJobs.reduce(
           (total, job) => total + job.totalQuantityProduced,
@@ -63,7 +75,7 @@ export function MaterialCardFrame_Purchasing(props) {
       } else {
         childJobs = filterJobs([
           ...jobArray,
-          ...Object.values(state.temporaryChildJobs),
+          ...(temporaryChildJob ? [temporaryChildJob] : []),
         ]);
         childJobProductionTotal = childJobs.reduce((total, job) => {
           return total + job.totalQuantityProduced;
@@ -93,8 +105,9 @@ export function MaterialCardFrame_Purchasing(props) {
     calculateChildJobData();
 
   const childSupply = childJobSupplyForMaterial(
-    state.activeJob,
+    jobID,
     material,
+    remaining,
     childJobs,
   );
 
@@ -196,7 +209,7 @@ export function MaterialCardFrame_Purchasing(props) {
             }}
           >
             <ChildJobsAvatar_Purchasing
-              {...props}
+              material={material}
               onOpen={childJobDialogue.open}
               childJobs={childJobs}
             />
@@ -258,12 +271,12 @@ export function MaterialCardFrame_Purchasing(props) {
                 alignItems: "flex-start",
               }}
             >
-              <MaterialCostsFrame_Purchasing {...props} />
+              <MaterialCostsFrame_Purchasing material={material} />
             </Box>
           </Box>
           <Box sx={{ flexShrink: 0 }}>
             <AwaitingCostImportBox_Purchasing
-              {...props}
+              material={material}
               childJobs={childJobs}
               childSupply={childSupply}
             />
@@ -281,7 +294,7 @@ export function MaterialCardFrame_Purchasing(props) {
           </Box>
           <Box sx={{ flexShrink: 0, marginTop: "auto" }}>
             <AddMaterialCost_Purchasing
-              {...props}
+              material={material}
               childSupply={childSupply}
               childJobs={childJobs}
             />
@@ -295,7 +308,7 @@ export function MaterialCardFrame_Purchasing(props) {
           fullWidth
           actions={<DialogueCloseAction onClose={childJobDialogue.close} />}
         >
-          <ChildJobLinks {...props} />
+          <ChildJobLinks material={material} />
         </ContentDialogue>
       </ContentPanel>
     </Grid>

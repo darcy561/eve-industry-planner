@@ -43,8 +43,26 @@ const storedJob = (overrides = {}) => ({
   ...overrides,
 });
 
+/** Renders the hook for a job, handing back the control React gives over it. */
+function renderFor(jobID, job) {
+  store.current = {
+    jobData: { actions: { findJobInJobArray: () => job } },
+    worldData: { actions: { addSystemIndex: () => {} } },
+    applicationSettings: { actions: { getCustomStructureWithID: () => null } },
+  };
+  const { editSession } = useUsersStore.getState();
+
+  const rendered = renderHook(() =>
+    useEditJobInitialState({
+      jobID,
+      currentActiveJobID: undefined,
+      actions: editSession.actions,
+    }),
+  );
+  return rendered;
+}
+
 function open(job) {
-  const setActiveJobID = vi.fn();
   store.current = {
     jobData: {
       actions: { findJobInJobArray: () => job },
@@ -62,10 +80,8 @@ function open(job) {
       jobID: "job-1",
       currentActiveJobID: undefined,
       actions: editSession.actions,
-      setActiveJobID,
     }),
   );
-  return { setActiveJobID };
 }
 
 beforeEach(() => {
@@ -106,12 +122,6 @@ describe("opening a job", () => {
     );
   });
 
-  it("tells the planner which job is being edited", async () => {
-    const { setActiveJobID } = open(storedJob());
-
-    await waitFor(() => expect(setActiveJobID).toHaveBeenCalledWith("job-1"));
-  });
-
   // A job that cannot be assembled is not something to sit on a broken page
   // for: the reader goes back to the planner.
   it("returns to the planner when the job cannot be loaded", async () => {
@@ -126,5 +136,30 @@ describe("opening a job", () => {
     expect(
       useUsersStore.getState().editSession.draft.base["job-1"],
     ).toBeUndefined();
+  });
+});
+
+// Opening replaces the session whole, so a load that finishes after the reader
+// has gone elsewhere must not seed it: the job they left would land on top of
+// the one they are now looking at.
+describe("a load that loses the race", () => {
+  it("does not open a job the reader has left", async () => {
+    let release;
+    related.current = () =>
+      new Promise((resolve) => {
+        release = resolve;
+      });
+    const { editSession } = useUsersStore.getState();
+    editSession.actions.closeSession();
+
+    const { unmount } = renderFor("job-1", storedJob());
+    unmount();
+    release([]);
+    await waitFor(() => expect(related.current).toBeDefined());
+
+    expect(
+      useUsersStore.getState().editSession.draft.base["job-1"],
+    ).toBeUndefined();
+    expect(useUsersStore.getState().editSession.activeJobID).toBeNull();
   });
 });

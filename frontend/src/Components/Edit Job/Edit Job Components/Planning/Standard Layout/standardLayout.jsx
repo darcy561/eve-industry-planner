@@ -20,27 +20,26 @@ import TutorialTemplate from "../../../../Tutorials/tutorialTemplate";
  * whenever any one of them changes height. Opening a material's drawer moved
  * every panel beneath it.
  */
-export function Planning_StandardLayout_EditJob(props) {
-  const { state } = props;
+export function Planning_StandardLayout_EditJob() {
   return (
     <Grid container sx={{ marginTop: { xs: 0, sm: 2 } }}>
       <Grid size={12} sx={{ marginBottom: 2 }}>
-        <TutorialTemplate TutorialContent={<TutorialStep1 state={state} />} />
+        <TutorialTemplate TutorialContent={<TutorialStep1 />} />
       </Grid>
       <Grid size={3}>
         <Stack spacing={2}>
-          <ProductionStats {...props} />
-          <EditJobSetup {...props} />
-          <AvailableBlueprintsPanel {...props} />
-          <SkillsPanel {...props} />
+          <ProductionStats />
+          <EditJobSetup />
+          <AvailableBlueprintsPanel />
+          <SkillsPanel />
         </Stack>
       </Grid>
       <Grid size={9}>
         <Stack spacing={2}>
-          <JobSetupPanel {...props} />
-          <MaterialsAndSourcingPanel {...props} />
-          <PlanningEconomics {...props} />
-          <ArchiveJobsPanel {...props} />
+          <JobSetupPanel />
+          <MaterialsAndSourcingPanel />
+          <PlanningEconomics />
+          <ArchiveJobsPanel />
         </Stack>
       </Grid>
     </Grid>

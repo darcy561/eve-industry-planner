@@ -11,6 +11,7 @@ import {
 } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
 import workingCopyOfJob from "./workingCopyOfJob";
+import { endEditSession } from "./editSessionLifetime.js";
 import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
 import { closeAdjustmentSummary } from "./closeAdjustmentSummary";
@@ -30,7 +31,6 @@ export default async function closeActiveJob(
   const inputJob = workingCopyOfJob(jobToSave);
 
   const {
-    setActiveJobID,
     updateModifiedGroups,
     getGroupObject,
     clearPendingJobDocumentWrites,
@@ -45,12 +45,12 @@ export default async function closeActiveJob(
       .enableAutomaticJobRecalculation;
 
   if (!jobModifiedFlag) {
-    setActiveJobID(null);
+    endEditSession();
     return;
   }
 
   if (!inputJob?.jobID) {
-    setActiveJobID(null);
+    endEditSession();
     return;
   }
 
@@ -64,7 +64,7 @@ export default async function closeActiveJob(
       "This job was removed while you had it open, so your changes were not saved.",
       8,
     );
-    setActiveJobID(null);
+    endEditSession();
     return;
   }
 
@@ -211,7 +211,7 @@ export default async function closeActiveJob(
   }
 
   updateOrAddJobsToJobArray([inputJob, ...tempJobs, ...batchUpdates]);
-  setActiveJobID(null);
+  endEditSession();
   if (persistToServer) {
     // The adjustment summary reports what was saved, so it is shown only for a
     // write that landed. A refused write has already raised its own warning,

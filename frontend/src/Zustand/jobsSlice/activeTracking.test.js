@@ -15,14 +15,6 @@ describe("active job and group tracking", () => {
     actions().resetJobDataStore();
   });
 
-  it("holds the job being edited, and lets go of it", () => {
-    actions().setActiveJobID("job-1");
-    expect(jobData().activeJobID).toBe("job-1");
-
-    actions().setActiveJobID(null);
-    expect(jobData().activeJobID).toBeNull();
-  });
-
   it("holds the group being edited", () => {
     actions().setActiveGroupID("group-1");
     expect(jobData().activeGroupID).toBe("group-1");

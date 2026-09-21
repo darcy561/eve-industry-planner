@@ -8,14 +8,12 @@ import ExtrasEditor from "./extrasEditor";
  *
  * The Planning stage puts the same editor inside Cost Breakdown instead, beside
  * the line the extras total feeds.
- *
- * @param {object} props
  */
-export function ExtrasPanel({ state, actions }) {
+export function ExtrasPanel() {
   return (
     <ContentPanel title="Extra Costs" paperSx={{ height: "auto" }}>
       <Grid size={12}>
-        <ExtrasEditor state={state} actions={actions} />
+        <ExtrasEditor />
       </Grid>
     </ContentPanel>
   );

@@ -11,6 +11,7 @@ import { getEffectiveMaterialPriceHub } from "../../Functions/MarketData/materia
 import { useMaterialGroupPricing } from "./useMaterialGroupPricing.js";
 import { EXIT_ROUTE } from "../../Functions/MarketData/returns";
 import useUsersStore from "../../Zustand/usersStore.js";
+import { useJobDraft } from "../../Components/Edit Job/Edit Job Hooks/useJobDraft";
 
 /**
  * Who sells this job's output, and from where.
@@ -21,17 +22,21 @@ import useUsersStore from "../../Zustand/usersStore.js";
  * against. Resolving that in each panel is how Skills came to quote one
  * character's Accounting against a fee Returns had struck for another.
  *
- * @param {object} activeJob
  * @returns {{seller: import("../../Functions/MarketOrders/sellerCharacter").SellerCharacter,
  *   saleLocation: object|null, marketLocation: string, exitRoute: string}}
  */
-export function useJobSellingContext(activeJob) {
+export function useJobSellingContext() {
+  const localPricing = useJobDraft((job) => job.build.localPricing);
+  const itemID = useJobDraft((job) => job.itemID);
+  const saleLocationID = useJobDraft((job) => job.build.saleLocationID);
+  const sellerCharacter = useJobDraft((job) => job.build.sellerCharacter);
+
   const {
     marketLocation: sideMarketLocation,
     listingType: sideListingType,
     marketLocationRung,
     listingTypeRung,
-  } = useEffectiveMarketHub(activeJob?.build, PRICING_SIDE.SELLING);
+  } = useEffectiveMarketHub(localPricing, PRICING_SIDE.SELLING);
 
   const groupPricing = useMaterialGroupPricing({
     side: PRICING_SIDE.SELLING,
@@ -45,13 +50,11 @@ export function useJobSellingContext(activeJob) {
   // override for its own output, so the build it is passed carries none.
   const { marketLocation } = getEffectiveMaterialPriceHub(
     null,
-    activeJob?.itemID,
+    itemID,
     sideMarketLocation,
     sideListingType,
     groupPricing,
   );
-
-  const plan = activeJob?.build ?? {};
 
   const exitRoute =
     useUsersStore(
@@ -62,10 +65,10 @@ export function useJobSellingContext(activeJob) {
   const saleLocation = useMemo(
     () =>
       resolveSaleLocation(
-        plan.saleLocationID ?? getDefaultSaleStructure()?.id,
+        saleLocationID ?? getDefaultSaleStructure()?.id,
         marketLocation,
       ),
-    [plan.saleLocationID, marketLocation],
+    [saleLocationID, marketLocation],
   );
 
   // The seller, not the builder. Market skills and standings live on whichever
@@ -75,7 +78,7 @@ export function useJobSellingContext(activeJob) {
   // A seller named by the job is only usable by the account that owns that
   // character — no member of a shared planner can work out another member's fee
   // — so `resolveSellerCharacter` falls back to their own and says it is.
-  const seller = resolveSellerCharacter(plan.sellerCharacter);
+  const seller = resolveSellerCharacter(sellerCharacter);
 
   // The route out belongs here rather than in the panel: it decides which figure
   // Returns leads with *and* whether the broker fee this hook's seller is quoted

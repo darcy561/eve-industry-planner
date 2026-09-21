@@ -1,21 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  appliedTo,
-  commandActions,
-} from "../../../../../../tests/jobCommandSpy.js";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const { readOnly } = vi.hoisted(() => ({ readOnly: { current: false } }));
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } =
+  const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock(() =>
-    usersStoreState({
-      account: { actions: { getMainCharacterHash: () => "hash-main" } },
-    }),
-  );
+  return usersStoreOverSession({
+    account: { actions: { getMainCharacterHash: () => "hash-main" } },
+  });
 });
 
 vi.mock("../../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
@@ -24,34 +18,35 @@ vi.mock("../../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
 
 const { AddCustomTransactionDialogue } =
   await import("./addCustomTransaction.jsx");
+const { default: useUsersStore } =
+  await import("../../../../../../Zustand/usersStore");
+const { draftFor } =
+  await import("../../../../Edit Job Hooks/jobDraftStore.js");
 
 const theme = createTheme();
 
-function sellingJob() {
-  return {
-    itemID: 587,
-    build: { sale: { transactions: [] } },
-  };
-}
+const session = () => useUsersStore.getState().editSession;
 
 const onClose = vi.fn();
 
-/** The sales the recorded commands write onto an empty job. */
+/** The sales the job carries after what the reader did. */
 const sales = () =>
-  Object.values(
-    appliedTo(actions, { esi: { transactions: {} } }).esi.transactions,
-  );
+  Object.values(draftFor(session().draft, "job-1").esi.transactions);
 const addedSale = () => sales()[0];
-const actions = commandActions();
 
-function show(activeJob) {
+function sellingJob() {
+  session().actions.openJob("job-1", {
+    jobID: "job-1",
+    itemID: 587,
+    build: {},
+    esi: { transactions: {} },
+  });
+}
+
+function show() {
   return render(
     <ThemeProvider theme={theme}>
-      <AddCustomTransactionDialogue
-        state={{ activeJob }}
-        actions={actions}
-        onClose={onClose}
-      />
+      <AddCustomTransactionDialogue onClose={onClose} />
     </ThemeProvider>,
   );
 }
@@ -63,11 +58,13 @@ function addButton() {
 beforeEach(() => {
   vi.clearAllMocks();
   readOnly.current = false;
+  session().actions.closeSession();
+  sellingJob();
 });
 
 describe("adding a transaction by hand", () => {
   it("hands the transaction over and closes", () => {
-    show(sellingJob());
+    show();
 
     fireEvent.click(addButton());
 
@@ -76,7 +73,7 @@ describe("adding a transaction by hand", () => {
   });
 
   it("records it against the account's main character", () => {
-    show(sellingJob());
+    show();
 
     fireEvent.click(addButton());
 
@@ -86,11 +83,11 @@ describe("adding a transaction by hand", () => {
   // Each opening mints its own id, which is what keeps two transactions added
   // one after the other from sharing one.
   it("gives each opening its own transaction id", () => {
-    const { unmount } = show(sellingJob());
+    const { unmount } = show();
     fireEvent.click(addButton());
     unmount();
 
-    show(sellingJob());
+    show();
     fireEvent.click(addButton());
 
     const [first, second] = sales();
@@ -100,7 +97,7 @@ describe("adding a transaction by hand", () => {
   it("will not add while the job is locked", () => {
     readOnly.current = true;
 
-    show(sellingJob());
+    show();
 
     expect(addButton()).toBeDisabled();
   });

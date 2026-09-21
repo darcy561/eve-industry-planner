@@ -102,7 +102,7 @@ describe("the setups a job is built from, end to end", () => {
   it("deletes the setup being edited", () => {
     const { editJob } = renderOverEditJob(
       withSetups("setup-1", "setup-2"),
-      ({ state, actions }) => <JobSetupPanel state={state} actions={actions} />,
+      () => <JobSetupPanel />,
     );
 
     openTheMenu();
@@ -115,10 +115,9 @@ describe("the setups a job is built from, end to end", () => {
 
   // Something has to be built, so the last setup cannot be deleted.
   it("refuses to delete the only setup", () => {
-    const { editJob } = renderOverEditJob(
-      withSetups("setup-1"),
-      ({ state, actions }) => <JobSetupPanel state={state} actions={actions} />,
-    );
+    const { editJob } = renderOverEditJob(withSetups("setup-1"), () => (
+      <JobSetupPanel />
+    ));
 
     openTheMenu();
     fireEvent.click(
@@ -129,10 +128,9 @@ describe("the setups a job is built from, end to end", () => {
   });
 
   it("adds a setup to build from", () => {
-    const { editJob } = renderOverEditJob(
-      withSetups("setup-1"),
-      ({ state, actions }) => <JobSetupPanel state={state} actions={actions} />,
-    );
+    const { editJob } = renderOverEditJob(withSetups("setup-1"), () => (
+      <JobSetupPanel />
+    ));
 
     fireEvent.click(screen.getByRole("button", { name: "Add Setup" }));
 
@@ -143,7 +141,7 @@ describe("the setups a job is built from, end to end", () => {
   it("moves the editing to a setup that is still there", () => {
     const { editJob } = renderOverEditJob(
       withSetups("setup-1", "setup-2"),
-      ({ state, actions }) => <JobSetupPanel state={state} actions={actions} />,
+      () => <JobSetupPanel />,
     );
 
     openTheMenu();
@@ -157,12 +155,9 @@ describe("the setups a job is built from, end to end", () => {
 
 describe("marking a job finished within its group, end to end", () => {
   it("records the job as finished, on the group rather than the job", () => {
-    const { editJob } = renderOverEditJob(
-      storedJob({ jobStatus: 4 }),
-      ({ state, actions }) => (
-        <MarkAsCompleteButton state={state} actions={actions} />
-      ),
-    );
+    const { editJob } = renderOverEditJob(storedJob({ jobStatus: 4 }), () => (
+      <MarkAsCompleteButton />
+    ));
     expect(editJob.current.jobModified).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Mark As Complete" }));
@@ -179,8 +174,8 @@ describe("marking a job finished within its group, end to end", () => {
 
   it("takes it back off finished", () => {
     group.areComplete.add("job-1");
-    renderOverEditJob(storedJob({ jobStatus: 4 }), ({ state, actions }) => (
-      <MarkAsCompleteButton state={state} actions={actions} />
+    renderOverEditJob(storedJob({ jobStatus: 4 }), () => (
+      <MarkAsCompleteButton />
     ));
 
     fireEvent.click(screen.getByRole("button", { name: "Mark As Incomplete" }));
@@ -194,10 +189,7 @@ describe("marking a job finished within its group, end to end", () => {
 // what the session holds — which is how these controls came to look like they
 // worked while changing nothing.
 describe("changing the setup a job is built from, end to end", () => {
-  const openSetup = (job) =>
-    renderOverEditJob(job, ({ state, actions }) => (
-      <EditJobSetup state={state} actions={actions} />
-    ));
+  const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
 
   /**
    * The setup as the session holds it, not as the job on screen shows it: a

@@ -10,22 +10,21 @@ import { SkillsPanel } from "../Standard Layout/Skills Panel/SkillsPanel";
 import ArchiveJobsPanel from "../Standard Layout/Archive Jobs Panel/archiveJobsPanel";
 import TutorialTemplate from "../../../../Tutorials/tutorialTemplate";
 
-export function Planning_MobileLayout_EditJob(props) {
-  const { state } = props;
+export function Planning_MobileLayout_EditJob() {
   return (
     <Grid container spacing={2} sx={{ marginTop: 1 }}>
       <Grid size={{ xs: 12 }}>
-        <TutorialTemplate TutorialContent={<TutorialStep1 state={state} />} />
+        <TutorialTemplate TutorialContent={<TutorialStep1 />} />
       </Grid>
       <Grid size={{ xs: 12 }} spacing={2} container>
-        <ProductionStats {...props} />
-        <JobSetupPanel {...props} />
-        <EditJobSetup {...props} />
-        <AvailableBlueprintsPanel {...props} />
-        <MaterialsAndSourcingPanel {...props} />
-        <PlanningEconomics {...props} />
-        <ArchiveJobsPanel {...props} />
-        <SkillsPanel {...props} />
+        <ProductionStats />
+        <JobSetupPanel />
+        <EditJobSetup />
+        <AvailableBlueprintsPanel />
+        <MaterialsAndSourcingPanel />
+        <PlanningEconomics />
+        <ArchiveJobsPanel />
+        <SkillsPanel />
       </Grid>
     </Grid>
   );

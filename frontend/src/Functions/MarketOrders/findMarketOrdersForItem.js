@@ -10,23 +10,14 @@ import { getAllCachedCorporationHistoricMarketOrders } from "../../Hooks/EveEsi/
  * and filtering based on linked orders and temporary modifications.
  *
  * @param {Object} queryClient - React Query client for data access
- * @param {Object} inputJob - Job object containing itemID to search for
+ * @param {number} itemID - The item whose orders are wanted
  * @param {Array<number>} [temporaryOrderIDsToAdd=[]] - Temporary order IDs to add
  * @param {Array<number>} [temporaryOrderIDsToRemove=[]] - Temporary order IDs to remove
  * @returns {Array<Object>} Array of matching market orders
- *
- * @example
- * const orders = findMarketOrdersForItem(
- *   queryClient,
- *   { itemID: 34 },
- *   [],
- *   []
- * );
- * console.log(orders.length); // Number of matching orders
  */
 export default function findMarketOrdersForItem(
   queryClient,
-  inputJob,
+  itemID,
   temporaryOrderIDsToAdd = [],
   temporaryOrderIDsToRemove = [],
 ) {
@@ -107,7 +98,7 @@ export default function findMarketOrdersForItem(
    */
   function orderCriteria(order) {
     // Must be the correct item type
-    if (order.type_id !== inputJob.itemID) {
+    if (order.type_id !== itemID) {
       return false;
     }
 

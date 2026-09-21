@@ -45,8 +45,14 @@ export const coreActions = (set, get) => ({
    * The reader's own changes sit above it and re-apply, which is what lets an
    * open editor follow the document instead of keeping the copy it opened.
    *
+   * The document is normalised before it gets here, the same way an opened job
+   * is: one written before the reshape names its ESI rows elsewhere, and a base
+   * holding it would answer nothing to every figure read off it. This slice
+   * cannot do that itself — the class that normalises reads the store, and the
+   * store holds this slice.
+   *
    * @param {string} jobID
-   * @param {object} document
+   * @param {object} document - The job as plain data, normalised
    */
   documentArrived: (jobID, document) => {
     const { draft } = get().editSession;

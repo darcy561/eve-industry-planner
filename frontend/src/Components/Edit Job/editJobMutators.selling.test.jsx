@@ -63,13 +63,7 @@ describe("recording a sale by hand, end to end", () => {
         },
         esi: { transactions: {} },
       }),
-      ({ state, actions }) => (
-        <AddCustomTransactionDialogue
-          state={state}
-          actions={actions}
-          onClose={() => {}}
-        />
-      ),
+      () => <AddCustomTransactionDialogue onClose={() => {}} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
@@ -91,13 +85,7 @@ describe("recording a sale by hand, end to end", () => {
         },
         esi: { transactions: {} },
       }),
-      ({ state, actions }) => (
-        <AddCustomTransactionDialogue
-          state={state}
-          actions={actions}
-          onClose={() => {}}
-        />
-      ),
+      () => <AddCustomTransactionDialogue onClose={() => {}} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
@@ -123,9 +111,7 @@ describe("unlinking a sale from a job, end to end", () => {
           transactions: { 800001: linkedTransaction(800001) },
         },
       }),
-      ({ state, actions }) => (
-        <LinkedTransactionPanel state={state} actions={actions} />
-      ),
+      () => <LinkedTransactionPanel />,
     );
     expect(editJob.current.activeJob.esi.transactions["800001"]).toBeDefined();
 

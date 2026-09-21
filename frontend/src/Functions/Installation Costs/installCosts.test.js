@@ -180,8 +180,28 @@ describe("installCosts", () => {
     );
   });
 
-  it("returns 0 from calculateInstallCostfromSetup for non-Setup input", () => {
+  it("costs nothing for a setup that consumes nothing", () => {
     expect(calculateInstallCostfromSetup({})).toBe(0);
+    expect(calculateInstallCostfromSetup(undefined)).toBe(0);
+  });
+
+  // The job being edited holds its setups as stored data rather than as
+  // instances, and the watchlist has always passed `toDocument()` output. Both
+  // are the same setup, so both cost the same.
+  it("prices a stored setup as it prices the instance built over it", () => {
+    const job = jobWith({
+      setup: { s1: { id: "s1", ...setupFields() } },
+      costs: { linkedJobs: [] },
+      products: { totalQuantity: 1 },
+      materials: {},
+    });
+    omega("me");
+    const instance = job.build.setup.s1;
+
+    expect(calculateInstallCostfromSetup(instance.toDocument())).toBe(
+      calculateInstallCostfromSetup(instance),
+    );
+    expect(calculateInstallCostfromSetup(instance)).toBeGreaterThan(0);
   });
 });
 

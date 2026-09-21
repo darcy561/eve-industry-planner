@@ -1,6 +1,8 @@
 import { Typography, Grid } from "@mui/material";
+import { useJobDraft } from "../../Edit Job Hooks/useJobDraft";
 
-export function TutorialStep3({ state }) {
+export function TutorialStep3() {
+  const jobName = useJobDraft((job) => job.name);
   return (
     <Grid
       container
@@ -23,8 +25,8 @@ export function TutorialStep3({ state }) {
           }}
         >
           Now that you have acquired the items and hauled them back to your
-          chosen system, it is time to build your {state.activeJob.name}. Start
-          your job running within the Eve Online client.{<br />}
+          chosen system, it is time to build your {jobName}. Start your job
+          running within the Eve Online client.{<br />}
           {<br />}
           In the Available Jobs panel, you'll see current industry jobs from the
           Eve ESI that match your build. Use the link icon to attach relevant
