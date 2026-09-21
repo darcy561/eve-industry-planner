@@ -1,6 +1,7 @@
 import getUniverseNames from "./getUniverseNames";
 import { fetchStructureName, communityNameOrRefusal } from "./getCitadelData";
-import { LOCATION_OUTCOME, LocationResolutionError } from "./locationOutcome";
+import { LOCATION_OUTCOME } from "./locationOutcome";
+import { askEachCharacter } from "./askEachCharacter";
 import nameSource, { NAME_SOURCE } from "./nameSource";
 
 /** ESI resolves up to a thousand ids in one `POST /universe/names`. */
@@ -140,60 +141,21 @@ async function settlePublicNames(ids, batch) {
 
 async function settleStructureName(id, batch) {
   const { characters } = batch.get(id);
-  let refusals = 0;
-  let unaskable = 0;
-  let lastFailure = null;
 
-  for (const character of characters) {
-    let answer;
-    try {
-      answer = await fetchStructureName(id, character);
-    } catch (err) {
-      if (err?.needsReauthorisation) {
-        // Not a refusal and not a failure to retry: this token will never carry the scope. The
-        // character is simply not one that can answer until it is linked again.
-        unaskable += 1;
-        reportCharacterNeedsReauthorisation(character);
-        continue;
-      }
-      // This character could not ask this time. Another may still be able to.
-      lastFailure = err;
-      continue;
-    }
-    if (!answer.refused) {
-      settleWaiters(batch, id, answer.name);
-      return;
-    }
-    refusals += 1;
-  }
-
-  // A character that could not ask might have been the one that could see it, so the account has
-  // not established that it cannot — settling as no access would make a transient failure permanent.
-  if (lastFailure && refusals + unaskable < characters.length) {
-    rejectWaiters(batch, id, lastFailure);
+  let walk;
+  try {
+    walk = await askEachCharacter(
+      characters,
+      (character) => fetchStructureName(id, character),
+      { locationID: id, reads: "structure names" },
+    );
+  } catch (err) {
+    rejectWaiters(batch, id, err);
     return;
   }
-  if (unaskable > 0 && refusals === 0) {
-    // Nobody was in a position to ask. Saying "no access" here would state something about the
-    // structure that nothing has established.
-    rejectWaiters(
-      batch,
-      id,
-      new LocationResolutionError(
-        "structure lookup: no character is authorised to read structures",
-        { locationId: id, needsReauthorisation: true },
-      ),
-    );
-    return;
-  }
-  if (characters.length === 0) {
-    rejectWaiters(
-      batch,
-      id,
-      new LocationResolutionError("structure lookup: no characters", {
-        locationId: id,
-      }),
-    );
+
+  if (!walk.refused) {
+    settleWaiters(batch, id, walk.answer.name);
     return;
   }
 
@@ -221,23 +183,6 @@ function reportRefusedRequest(ids, err) {
   reportedRefusals.add(seen);
   console.error(
     `Location names: ESI refused a batch of ${ids.length} outright — ${err.message}`,
-  );
-}
-
-/**
- * Characters already named as needing re-authorisation, so one un-scoped character is reported once
- * rather than once per location it could not be asked about.
- *
- * @type {Set<string>}
- */
-const reportedReauthorisations = new Set();
-
-function reportCharacterNeedsReauthorisation(character) {
-  const hash = character?.CharacterHash;
-  if (!hash || reportedReauthorisations.has(hash)) return;
-  reportedReauthorisations.add(hash);
-  console.warn(
-    `${character?.CharacterName ?? hash} cannot read structure names: its ESI authorisation predates that permission. Link the character again to restore structure names.`,
   );
 }
 
