@@ -127,13 +127,15 @@ function syncExistingCharacterRefreshTokens(tokenByHash) {
 
 /**
  * @param {ReturnType<typeof groupRefreshTokensByCharacterHash>} tokenCandidatesByHash
+ * @returns {Promise<boolean>} Whether the account's characters actually moved.
+ *   A token resynced for one already held is not a move
  */
 async function reconcileCloudCharactersFromTokenMap(tokenCandidatesByHash) {
   const accountIdAtStart = useUsersStore.getState().account.accountID;
-  if (accountIdAtStart == null) return;
+  if (accountIdAtStart == null) return false;
 
   if (useUsersStore.getState().account.linkedBootstrapHydrationPending) {
-    return;
+    return false;
   }
 
   syncExistingCharacterRefreshTokens(tokenCandidatesByHash);
@@ -144,12 +146,14 @@ async function reconcileCloudCharactersFromTokenMap(tokenCandidatesByHash) {
     (ch) => !ch.isMainCharacter,
   );
 
+  let moved = false;
   for (const character of additionalCharacters) {
     if (targetHashes.has(canonicalCharacterHashKey(character.CharacterHash))) {
       continue;
     }
     account.actions.removeCharacter(character);
     account.actions.removeCharacterFromCorporations(character.CharacterHash);
+    moved = true;
   }
 
   const existingHashes = new Set(
@@ -170,12 +174,15 @@ async function reconcileCloudCharactersFromTokenMap(tokenCandidatesByHash) {
       );
     }
     if (accountSessionBecameStale(accountIdAtStart)) {
-      return;
+      return moved;
     }
     if (!built) continue;
     useUsersStore.getState().account.actions.addCharacter(built);
     existingHashes.add(canonicalCharacterHashKey(built.CharacterHash));
+    moved = true;
   }
+
+  return moved;
 }
 
 /**
@@ -270,10 +277,20 @@ export async function reconcileAfterRemoteUserDoc(snap, incomingUserDoc) {
   }
 
   const tokenCandidatesByHash = groupRefreshTokensByCharacterHash(effective);
-  await reconcileCloudCharactersFromTokenMap(tokenCandidatesByHash);
+  const rosterMoved = await reconcileCloudCharactersFromTokenMap(
+    tokenCandidatesByHash,
+  );
   if (accountSessionBecameStale(accountId)) {
     return;
   }
+  if (!rosterMoved) return;
+
+  // Dynamic, and it must stay that way: a static import here closes a cycle
+  // back onto this module through `priceCache`'s module-level clock listener,
+  // which then registers against a loader that has not begun.
+  const { readSavedMarketsNow } =
+    await import("../../Functions/MarketData/priceRefreshSchedule.js");
+  readSavedMarketsNow();
 }
 
 /**

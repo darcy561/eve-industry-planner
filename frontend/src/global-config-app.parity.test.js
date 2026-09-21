@@ -6,7 +6,7 @@ import GLOBAL_CONFIG from "./global-config-app";
 
 // The markets this SPA offers, checked against the ones the server actually
 // prices. Why this exists, and how to regenerate the fixture, are in
-// services/shared/core/esi/locations_parity_test.go.
+// services/shared/models/market_hubs_parity_test.go.
 const { hubs } = JSON.parse(
   fs.readFileSync(
     resolve(process.cwd(), "../testing/fixtures/market-hubs/hubs.json"),

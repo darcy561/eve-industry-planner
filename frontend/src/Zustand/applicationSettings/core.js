@@ -177,6 +177,11 @@ export const stateDefault = () => ({
   // accessor stands in with the account's main.
   defaultMarketCharacter: null,
   customStructures: [],
+  // Carried, not read. The settings endpoint replaces the whole document, so a
+  // client that dropped this field would take every market the reader saved
+  // with it on the next save of any setting at all. What fills it and what
+  // reads it are a later stage's.
+  marketLocations: [],
   exemptTypeIDs: new Set(),
   enableAutomaticJobRecalculation: true,
   enableSkipMissingBlueprints: false,
@@ -283,6 +288,9 @@ export function mergeApplicationSettingsState(
     }),
     defaultMarketCharacter: incoming.defaultMarketCharacter ?? null,
     customStructures: nextCustomStructures,
+    marketLocations: Array.isArray(incoming.marketLocations)
+      ? incoming.marketLocations
+      : prev.marketLocations,
     exemptTypeIDs:
       incoming.exemptTypeIDs != null
         ? new Set(incoming.exemptTypeIDs)
@@ -369,6 +377,7 @@ export const coreActions = (set, get) => ({
       }),
       defaultMaterialEfficiencyValue: state.defaultMaterialEfficiencyValue,
       customStructures: cs.map(customStructureRowToDocument),
+      marketLocations: state.marketLocations ?? [],
       exemptTypeIDs: [...(state.exemptTypeIDs || [])],
       reprocessingSettings: {
         defaultReprocessingCharacter: rs.defaultReprocessingCharacter ?? null,

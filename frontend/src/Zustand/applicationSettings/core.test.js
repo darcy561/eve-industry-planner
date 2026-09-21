@@ -200,3 +200,39 @@ describe("a chosen route out survives later merges", () => {
     expect(merged.defaultPricing.selling.exit).toBe("listed");
   });
 });
+
+// The settings endpoint replaces the whole document with what it is sent, so a
+// field this client does not carry is not left alone — it is dropped, and with
+// it every market the reader saved. Nothing reads the lane yet; carrying it
+// through is the whole of what this stage owes.
+describe("a market lane this client does not yet use", () => {
+  const saved = [
+    { id: "market-1", name: "Perimeter Azbel", regionID: 10000002 },
+  ];
+
+  it("starts empty rather than absent", () => {
+    expect(stateDefault().marketLocations).toEqual([]);
+  });
+
+  it("takes what the server holds", () => {
+    expect(merge({ marketLocations: saved }).marketLocations).toEqual(saved);
+  });
+
+  it("is left alone by an answer that does not mention it", () => {
+    const held = merge({ marketLocations: saved });
+
+    expect(merge({ displayHelpCards: false }, held).marketLocations).toEqual(
+      saved,
+    );
+  });
+
+  // A server that sent null, or a field that arrived as something else, must not
+  // replace a list the client is holding on the reader's behalf.
+  it("keeps what it holds when the answer is not a list", () => {
+    const held = merge({ marketLocations: saved });
+
+    expect(merge({ marketLocations: null }, held).marketLocations).toEqual(
+      saved,
+    );
+  });
+});
