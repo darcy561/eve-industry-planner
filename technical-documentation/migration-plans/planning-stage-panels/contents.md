@@ -27,6 +27,12 @@ answer it.
 - The **archive figures** used as context beside an estimate, and where they render.
 - **Which character the selling figures are quoted for** — an account-level default market character
   and a per-job override of it, both planning inputs only.
+- **What the job produces and who it is owed to** — the panel that replaces Production Stats, reading
+  the commitment through the one hook three other panels already read, and carrying the **parent jobs**
+  as rows rather than leaving them an unmanaged list in the page header.
+- **The Edit Job page frame** — stage navigation as tabs rather than a vertical `Stepper`, the four
+  navigation controls reduced to one labelled pair, and the header controls that save, close and delete
+  the job.
 
 ## Does not own
 
@@ -59,6 +65,16 @@ answer it.
   the existing single default through the resolver hooks and changes neither.
 - **Document write granularity.** Settings and job writes keep whatever shape
   [document-write-granularity](../document-write-granularity/contents.md) leaves them in.
+- **The two panels still on the old shell.** Build Setup with its untitled setup editor, and the
+  Blueprint Library. A design exists for both — see [plan.md](./plan.md) § Design reference — and the
+  section task map carries a row pointing at it. Neither is scoped here and nothing here waits on them.
+- **A save that does not close the job.** `saveOpenJob` calls `closeActiveJob`, which persists the draft
+  and ends the edit session in one call, applying the parent and child link intents as it goes.
+  Splitting it is named in [plan.md](./plan.md) § Stage Q and belongs to whoever takes the edit
+  session's lifetime; this project relabels the control to say what it does.
+- **What a linked ESI job is worth.** `layout.esiJobTab` and everything else that goes with the Building
+  stage's tabs belongs to [building-stage-panels](../building-stage-panels/contents.md); § Stage Q
+  changes how a reader moves between stages and touches none of it.
 - Live SPA and backend behaviour, promoted only when this project closes.
 
 ## Task map
@@ -88,12 +104,16 @@ answer it.
 | Know what happens when a child job stops covering its material | [plan.md](./plan.md) § Stage M |
 | See how the sale location list and its fee figures work | [plan.md](./plan.md) § Stage N |
 | Check the fee and tax formulas against real sales | [measurements/selling-charges-against-stored-jobs.md](./measurements/selling-charges-against-stored-jobs.md) |
+| See what the parent-job and stage-lock counts were measured against | [measurements/parent-jobs-and-stage-locks.md](./measurements/parent-jobs-and-stage-locks.md) |
 | Find what this project owes another release | [plan.md](./plan.md) § Owed to the shared-planners release |
 | See what each panel was owed visually and what was built | [plan.md](./plan.md) § Design fidelity |
 | Find where a shared helper moved to | [plan.md](./plan.md) § Where the shared helpers ended up |
 | Know which hooks keep the panels agreeing | [plan.md](./plan.md) § Two seams the panels are held together by |
 | Know what this project could not finish and why | [plan.md](./plan.md) § Known limits |
 | See the stages and their order | [plan.md](./plan.md) § Stages |
+| Know what Output states and where the parent jobs live | [plan.md](./plan.md) § Stage P |
+| Find why the stepper becomes tabs, and what happens to the header controls | [plan.md](./plan.md) § Stage Q |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | See the visual design the stages build to | [plan.md](./plan.md) § Design reference |
+| Find the design for the panels and frame this project never owned | [plan.md](./plan.md) § Design reference, *A second design covers the rest of the stage* |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |

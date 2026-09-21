@@ -1,8 +1,13 @@
 # Promotion drafts — planning-stage-panels
 
-Every stage is done (`plan.md` § Stage status, § Start here). Links inside each drafted file are
-written relative to the file's **live target**, not to this folder, so they resolve the moment the
-draft is folded in.
+> **Paused — do not apply these.** The project has since taken on two more stages, **P (Output, and the
+> parent jobs inside it)** and **Q (the page frame and its controls)**, and promotion waits on them:
+> `plan.md` § Start here. Folding these drafts in now would write a live description of a stage that is
+> about to change again. They cover Stages A–O and stay accurate for those; what they do not yet carry
+> is Output, the parent-job rows, the tab bar and the header controls. Revisit them when P and Q land.
+
+These drafts cover Stages A–O. Links inside each drafted file are written relative to the file's
+**live target**, not to this folder, so they resolve the moment the draft is folded in.
 
 ## Index
 

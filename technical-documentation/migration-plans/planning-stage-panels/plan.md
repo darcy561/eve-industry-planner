@@ -1112,6 +1112,115 @@ Two things worth carrying forward: the 100 ISK minimum has never applied to a re
 of fees showing any standings contribution collapses in 2026 — the shape of standings having stopped
 resolving, which is what the faction-lookup fix addresses.
 
+## Stage P — Output, and the parent jobs inside it
+
+**SPA.**
+
+`productionStats.jsx` is the last `ContentPanel` in the left column and the only panel on the stage with
+no title. It prints four rows — items per run, per slot, for the selected setup, for the whole job —
+which are three multiplications of one number, and then the figure a reader came for: **is this enough
+for the jobs above it?** That one is last, is carried only by a red tint on two lines, and renders at
+all only when the job is *in a group*. **6,457 planning-stage jobs have parent jobs and are not in a
+group**, and on every one of them the requirement is not drawn.
+
+Worse, it is the fourth panel on this stage to answer that question and the only one that answers it
+itself. `useJobCommitment` exists because three panels must agree — its own comment says "two of them
+deriving it separately is how they come to disagree" — and this panel calls `resolveParentRequirements`
+directly. Moving it onto the hook removes the second rule and fixes the blind spot in one change,
+because `parentCommitment` keys on *having parents* rather than on being in a group, and shares the
+requirement across siblings in a stable order.
+
+The panel becomes **Output**: what the job produces, how much of that is owed, what is free to sell, and
+the derivation as one line rather than three rows. `calculateTimeForSetup` returns one slot's duration
+for the *selected* setup, so the time figure states the **longest setup** and names the assumption that
+slots run side by side.
+
+**The parent jobs come here**, out of the header. `Linked Job Badge` draws a centred heading, an
+absolutely positioned `＋` and a 200–300px nested scroll region on every job including the 7,325 with no
+parents at all, and its chips carry a name and a `✕` and no figures — though `resolveParentRequirements`
+already reads each parent's requirement and `parentCommitment` already allocates against it. Each parent
+becomes **one row** in Output's own list: a name, what it needs, whether it is covered, and a muted
+unlink. Up to six are shown and the rest fold behind a counting line, so the panel is bounded at seven
+lines of parents whether a job has seven or twenty-two. Sizing a job against its parents is a planning
+decision, which is why the rows live on this stage; the header keeps a summary line so the fact is never
+off screen.
+
+`ParentJobOptions` lists each candidate's setup count and total output — facts about *that* job. What
+decides a link is how many of *this* job's item the candidate needs, which the picker already holds: it
+finds candidates by testing `job.build.materials[String(itemID)] !== undefined`.
+
+**Wire compatibility:** none. No stored field changes; `parentJobs` keeps its meaning and the link
+intents keep theirs.
+
+The counts above, and the distribution the six-row fold is set against, are in
+[measurements/parent-jobs-and-stage-locks.md](./measurements/parent-jobs-and-stage-locks.md) with the
+queries and the database they ran against.
+
+**Done when:** the panel reads `useJobCommitment` and nothing on the stage derives the commitment twice;
+a job with parents states its requirement whether or not it is in a group; the parents are rows in
+Output with the fold at six; the picker states what each candidate needs; and `Linked Job Badge`'s
+heading, floating `＋` and nested scroll region are gone.
+
+## Stage Q — The page frame, and the controls that manage the job
+
+**SPA.**
+
+`editJob.jsx` navigates stages with a vertical MUI `Stepper` whose active `Step` holds the whole stage,
+indented behind the rail that draws the connector. **A stepper states a sequence with completion, and
+`jobStepNavigation.js` implements neither**: `canJumpToJobStep` permits any stage from any stage,
+refusing only the current one, an out-of-range index, and the final stage when it is locked. Tabs say
+what is true — five views of one job — and read the same helpers and set the same `jobStatus`.
+
+Stage labels come from `applicationSettings.jobStatuses` over `JOB_STATUS_CATALOG`'s defaults, so the bar
+carries arbitrary text: 34 of 4,822 accounts rename a stage, to labels up to 29 characters against a
+median of 8. No tab is labelled by position, because a renamed stage makes "step 3" meaningless.
+
+`isFinalStepLockedForJob` is `includedInGroup && !isReadyToSell` — **19,301 of 31,953 jobs**. Today that
+is a disabled bead with no reason given. Stating the reason is what exposes the rest: 16,413 of those
+have parents, and `SellGroupJobButton` returns `null` for a job with parents, so the lock cannot be
+lifted — which is probably right, since a child's output is committed, and the wording should say so
+rather than imply something is unfinished.
+
+**Four navigation controls become one labelled pair.** The step labels, the in-content arrows, and the
+two viewport-fixed copies driven by `useIsScrolledOutOfView` all move the same two ways. Sticky tabs
+make the floating pair pointless, so they, their refs and that hook's only use on this page go. What
+remains names its destination — *Continue to Purchasing →* — which survives a renamed stage where an
+arrow tooltip reading "move to next step" does not.
+
+**The header controls.** Four icon buttons sit in one row: the item tree at `size="small"`, and Delete,
+Close and Save identical at `size="medium"`. Three of them leave the page and each does something
+different with the reader's changes, and **none of them asks**. `DeleteJobIcon` calls
+`deleteJobsFromPlanner` straight out of `onClick`; `CloseJobIcon` abandons every change; the
+unsaved-changes dialogue is wired by `useEditJobLeaveConfirm` to job-to-job navigation and lock
+hand-over, not to these buttons, and `useWarnBeforeUnload` catches only a browser unload. They become
+labelled controls weighted by consequence, with the destructive one outlined and set apart, and a
+confirmation that names the job and what its parents lose.
+
+`useJobModified` exists and nothing renders it, so the header states whether there is unsaved work.
+
+**Save closes the job, and a save point is separate work.** `saveOpenJob` calls `closeActiveJob`, which
+persists *and* ends the session — and `applyParentChildChanges` runs inside it, so the link intents are
+applied at that moment. A Save that keeps the page open needs `closeActiveJob` split into a persist step
+and a session-end step. Until then the control reads **Save & close**, which is what its tooltip already
+says. The split is named here, not scoped here.
+
+**Ordering:** independent of every other stage. `EditJobStepContentSelector` switches on `jobStatus`
+alone and no stage panel imports anything from `editJob.jsx`, so this can land before, after or beside
+the panel work. The delete confirmation is worth taking first and alone: it is a few lines, it needs
+nothing else, and until it lands a mis-aimed click destroys a job with no way back.
+
+**Wire compatibility:** none. `jobStatus` is still the stage and tabs still set it through
+`setJobStatus`. The one field the frame could shed is `layout.esiJobTab`, which belongs to
+[building-stage-panels](../building-stage-panels/plan.md) § Stage A.
+
+The lock counts and the stage-name lengths are in
+[measurements/parent-jobs-and-stage-locks.md](./measurements/parent-jobs-and-stage-locks.md).
+
+**Done when:** the stepper is a tab bar reading the same navigation helpers; the locked final tab states
+why it is locked for that job; the floating arrows and `useIsScrolledOutOfView`'s use here are gone and
+one labelled control names its destination; the header controls are labelled and weighted, Delete
+confirms, Close asks when there is unsaved work, and the header states whether there is any.
+
 ## Owed to the shared-planners release
 
 **Invention entry ids were minted from the clock and are now uuids.** Two entries minted in the same
@@ -1157,6 +1266,37 @@ superseded by live docs on promote. Sections worth reading before building the s
 It also records two **rejected drafts** of the Returns panel — one that mixed a toggle, a ledger and
 the exit routes, and one that led with a graded verdict word — both worth reading before rebuilding it,
 so neither failure mode is repeated.
+
+### A second design covers the rest of the stage, and the frame around it
+
+The proposal above covers the panels **this project rebuilt**. A later proposal covers the ones it did
+not, and the page frame both sit inside: <https://claude.ai/artifact/HtfuYNi9Te5xzEWwSsXg2w>
+
+| It covers | Which this project |
+|-----------|--------------------|
+| Production Stats, rebuilt as **Output** | **§ Stage P** |
+| **Parent jobs**, as rows inside Output rather than the header block | **§ Stage P** |
+| The **page frame** — the vertical `Stepper` becoming tabs, the four navigation controls and the header icons | **§ Stage Q** |
+| Build Setup and the untitled setup editor, merged into one **Setups** panel whose rows open in place | not scoped — both are still `ContentPanel` |
+| Blueprint Library — rows rather than tiles, the colour legend retired | not scoped — still `ContentPanel` |
+
+**Where the two disagree about a panel this project already built, this plan and the first proposal
+win**, because that panel shipped. The later proposal only represents those panels; it does not
+re-specify them. For Stages P and Q it is the reference, the same way the first proposal is for
+Stages A–O.
+
+**The two rows this project does not own outlive this folder.** A promoted project folder goes, so the
+section task map [`../contents.md`](../contents.md) carries a row of its own for the Setups panel and the
+Blueprint Library, pointing straight at the design rather than at this plan. That row survives the
+delete, which is the whole reason it points where it does. When that work is scheduled it takes a folder
+like any other — the pattern `market-pricing-defaults` and `custom-structure-model` already follow for
+work found inside one project that belongs to another.
+
+The **stepper-to-tabs** change appears in the first proposal as well, and the question of whether it had
+to land before the stage work could start was raised while this project was open and left unanswered.
+It is answered now, and the answer is why taking it on here costs the landed stages nothing: the frame
+touches `editJob.jsx` and `Linked Job Badge.jsx`, no stage panel imports either, so § Stage Q is
+order-independent from every other stage in this plan.
 
 ### The offer strip fires once a row is costed
 
@@ -1384,13 +1524,26 @@ nothing can build still shows a dash, which is the distinction the old panel cou
 | L — per-job selling override | SPA + job document field | **Done.** `JobSale.Plan` holds the seller and the sale location, both nil on a job that uses the account's defaults; the pickers are on the Returns rate block |
 | M — what a child job actually covers | SPA | **Done.** The requirement is allocated across the contributing jobs rather than charged to each; a shortfall is bought, extrapolated or resized away depending on what is going to happen to the job, and the drawer and Cost Breakdown both say which |
 | N — the sale location list and its standings | SPA | **Done.** Citadels and NPC stations are separated, the account default is the marked item rather than a second entry, and a station's faction standing resolves through the race-to-faction map instead of matching a race id against the standing list |
+| P — Output, and the parent jobs inside it | SPA | **Designed, not started.** Production Stats becomes Output, reads `useJobCommitment` rather than deriving the commitment a fourth time, and takes the parent jobs out of the header as rows |
+| Q — the page frame and its controls | SPA | **Designed, not started.** The vertical `Stepper` becomes tabs, the four navigation controls become one labelled pair, and the header controls are labelled, weighted and asked about |
 
 ## Start here
 
-**Every stage is done.** The Planning stage runs the three panels on both layouts, the old market and
-Raw Resources panels are deleted, and the selling charges are counted. What remains is promotion:
-[`overlay.md`](./overlay.md) carries how each part works now, in the shape it takes when it is folded
-into live SoT under [`../../frontend/`](../../frontend/contents.md).
+**Stages A–O are done; P and Q are designed and not started.** The three panels this project first
+owned run on both layouts, the old market and Raw Resources panels are deleted, and the selling charges
+are counted. [`overlay.md`](./overlay.md) carries how each landed part works now, in the shape it takes
+when it is folded into live SoT under [`../../frontend/`](../../frontend/contents.md).
+
+**Promotion waits on P and Q.** The project was promotion-ready and has since taken on two more stages —
+**Output**, which is the panel that must read the seam Stage M built rather than deriving the commitment
+a fourth time, and **the page frame**, which is what every panel here renders inside. Promoting the
+landed stages while those two are open would write a live description of a stage that is about to change
+again.
+
+Two panels on the stage are still outside this project and still on the old `ContentPanel` shell —
+**Build Setup with its untitled setup editor**, and **Blueprint Library**. A design for them exists and
+the section task map [`../contents.md`](../contents.md) carries a row pointing straight at it. They are
+not scoped here and nothing in this project waits on them.
 
 Three things deliberately did not land here, and a reader picking this up should not go looking for
 them:
