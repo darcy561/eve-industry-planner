@@ -190,7 +190,6 @@ describe("what each kind is asked for", () => {
     "Security Status",
     "Structure Tax",
     "Broker fee",
-    "Read its market with",
     "Solar System",
   ];
   const asked = () =>
@@ -258,7 +257,6 @@ describe("every field the form offers can be set", () => {
       systemType: ["setSystemType"],
       tax: ["setTax"],
       brokerFee: ["setBrokerFee"],
-      characterHash: ["setCharacterHash"],
       systemID: ["setSystemID"],
     };
 

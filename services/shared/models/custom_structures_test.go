@@ -239,7 +239,7 @@ func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
 		{
 			ID: "citadel-1", JobType: StructureKindMarket, Name: "Perimeter Azbel",
 			RegionID: 10000002, StructureID: 1035466617946,
-			BrokerFee: 1.5, CharacterHash: "hash-1",
+			BrokerFee: 1.5,
 		},
 	}
 
@@ -267,20 +267,17 @@ func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
 		t.Errorf("station owner = race %v owner %v, want both stored",
 			npc["raceID"], npc["ownerID"])
 	}
-	// A station's fee is derived from the seller, so storing one would let a
-	// saved number stand in for that derivation.
+	// A fee of zero is left out rather than stored as 0, so a station reads back
+	// with nothing where a rate would be. Which kinds carry a rate at all is the
+	// SPA's to decide — it builds the document — and is asserted there.
 	if _, held := npc["brokerFee"]; held {
-		t.Error("an NPC station stored a broker fee")
-	}
-	if _, held := npc["characterHash"]; held {
-		t.Error("an NPC station stored an access character")
+		t.Error("a zero broker fee was stored rather than omitted")
 	}
 
 	for field, want := range map[string]any{
-		"regionID":      int64(10000002),
-		"structureID":   int64(1035466617946),
-		"brokerFee":     1.5,
-		"characterHash": "hash-1",
+		"regionID":    int64(10000002),
+		"structureID": int64(1035466617946),
+		"brokerFee":   1.5,
 	} {
 		if citadel[field] != want {
 			t.Errorf("citadel %s = %v, want %v", field, citadel[field], want)
@@ -294,7 +291,7 @@ func TestAMarketStructuresFieldsReachTheDocument(t *testing.T) {
 		t.Fatalf("read back: %v", err)
 	}
 	if got := back.WithID("citadel-1"); got == nil || got.BrokerFee != 1.5 ||
-		got.CharacterHash != "hash-1" || got.StructureID != 1035466617946 {
+		got.StructureID != 1035466617946 {
 		t.Errorf("read back = %+v, want the citadel's own fields", got)
 	}
 }

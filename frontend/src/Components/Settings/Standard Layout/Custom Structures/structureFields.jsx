@@ -5,7 +5,6 @@ import StructureTypeSelect from "../../../../Styled Components/Select/structureT
 import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
 import RigTypeSelect from "../../../../Styled Components/Select/rigType";
 import ImplantSelect from "../../../../Styled Components/Select/implantSelector";
-import AssignUsersSelect from "../../../../Styled Components/Select/users";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
 import VirtualisedSystemSearch from "../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 import VirtualisedLocationSearch from "../../../../Styled Components/autocomplete/virtualisedLocationSearch";
@@ -166,21 +165,6 @@ export const STRUCTURE_FIELDS = [
         label="Broker fee %"
         helperText="The owner's rate"
         sx={textFieldSx}
-      />
-    ),
-  },
-  {
-    id: "characterHash",
-    shows: (fields, structure) =>
-      Boolean(fields.characterHash && structure?.structureID),
-    title: "Read its market with",
-    description:
-      "A character who can dock at this citadel. Nothing records who has access where, so this is the character its order book is read for.",
-    render: ({ structure, onCharacter }) => (
-      <AssignUsersSelect
-        value={structure.characterHash}
-        onChange={onCharacter}
-        formHelperText="Docking access"
       />
     ),
   },

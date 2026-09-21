@@ -160,11 +160,6 @@ type CustomStructure struct {
 	// storing one there would let a saved number stand in for that derivation and
 	// quote the untrained rate without saying so.
 	BrokerFee float64 `bson:"brokerFee,omitempty" json:"brokerFee,omitzero"`
-
-	// The character whose docking access reads a citadel's order book. Nothing
-	// records which character can see where, so this is the account's answer for
-	// this structure rather than a fact that can be looked up.
-	CharacterHash string `bson:"characterHash,omitempty" json:"characterHash,omitempty"`
 }
 
 // CustomStructures is every structure a player has configured, of every kind.

@@ -142,7 +142,6 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     onImplant: (entry) => settled((s) => s.setImplant(entry.id)),
     onTax: (value) => settled((s) => s.setTax(value)),
     onBrokerFee: (value) => settled((s) => s.setBrokerFee(value)),
-    onCharacter: (hash) => settled((s) => s.setCharacterHash(hash ?? "")),
     // A system can carry a preset of its own, and can refuse a kind of job
     // outright — the Fulcrum is manufacturing only. Refusing here is what stops
     // a structure being saved somewhere its jobs cannot run.

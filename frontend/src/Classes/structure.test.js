@@ -422,12 +422,10 @@ describe("the kind that is a market", () => {
       regionID: 10000002,
       structureID: 1035466617946,
       brokerFee: 1.5,
-      characterHash: "hash-1",
     });
 
     expect(structure.structureID).toBe(1035466617946);
     expect(structure.brokerFee).toBe(1.5);
-    expect(structure.characterHash).toBe("hash-1");
   });
 
   // A citadel's fee is a percentage like every other rate in the class, and is
@@ -480,7 +478,6 @@ describe("the kind that is a market", () => {
 
     structure.setPlace(1035466617946);
     structure.setBrokerFee(1.5);
-    structure.setCharacterHash("hash-1");
     expect(structure.structureID).toBe(1035466617946);
 
     structure.setPlace(60003760);
@@ -490,7 +487,6 @@ describe("the kind that is a market", () => {
     // A station's fee comes from the seller, so a citadel's rate must not
     // follow it across — it would be quoted as though the station charged it.
     expect(structure.brokerFee).toBe(0);
-    expect(structure.characterHash).toBe("");
   });
 
   it("clears a station's fee inputs when a citadel replaces it", () => {
@@ -518,7 +514,6 @@ describe("the kind that is a market", () => {
       regionID: 10000002,
       structureID: 1035466617946,
       brokerFee: 1.5,
-      characterHash: "hash-1",
     });
 
     expect(new Structure(citadel.toDocument())).toEqual(citadel);
@@ -538,11 +533,20 @@ describe("what an instance holds matches what it stores", () => {
     expect(structure.structureType).toBeUndefined();
   });
 
+  // Both directions. A field the document carries and the instance does not is
+  // a row read back wrong; a field the instance holds and the document drops is
+  // a value a reader configures and loses on the next save, silently — and only
+  // the first of those is visible from walking the document's keys.
   it("stores exactly the fields its kind carries, for every kind", () => {
     for (const jobType of Object.values(structureKinds)) {
       const structure = new Structure({ jobType });
       const document = structure.toDocument();
 
+      // Sound because derived values on this class are getters, so they are
+      // absent from an instance's own keys.
+      expect(Object.keys(document).sort()).toEqual(
+        Object.keys(structure).sort(),
+      );
       for (const key of Object.keys(document)) {
         expect(structure[key]).toBe(document[key]);
       }

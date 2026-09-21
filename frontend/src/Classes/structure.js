@@ -27,14 +27,12 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
  *
  * @type {Object<number, {built?: boolean, rigSlots?: boolean, implant?: boolean,
  *   systemID?: boolean, regionID?: boolean, stationID?: boolean,
- *   stationOwner?: boolean, structureID?: boolean, brokerFee?: boolean,
- *   characterHash?: boolean}>}
+ *   stationOwner?: boolean, structureID?: boolean, brokerFee?: boolean}>}
  */
 const fieldsByJobType = {
   // `built` is the three fields a place a job is performed in carries: a
   // security modifier, a structure type carrying bonuses, and an installation
-  // tax. They read as shared because every kind was a build kind until a market
-  // became one; a market charges a broker fee instead and has none of them.
+  // tax. A market charges a broker fee instead and has none of them.
   [structureKinds.manufacturing]: {
     built: true,
     rigSlots: true,
@@ -53,7 +51,6 @@ const fieldsByJobType = {
     structureID: true,
     stationOwner: true,
     brokerFee: true,
-    characterHash: true,
   },
 };
 
@@ -81,9 +78,7 @@ class Structure {
   /**
    * @param {Object} [existingValue] - Stored structure data, or nothing for a new one
    * @param {string} [existingValue.id] - Structure id
-   * @param {number} [existingValue.jobType] - One of `structureKinds`. Named
-   *   `jobType` because every kind was once a job; the market kinds are not, and
-   *   the stored field keeps its name rather than migrating every document
+   * @param {number} [existingValue.jobType] - One of `structureKinds`
    * @param {string} [existingValue.name] - Structure name
    * @param {number} [existingValue.systemType] - System security type id
    * @param {number} [existingValue.structureType] - Structure type id
@@ -99,7 +94,6 @@ class Structure {
    * @param {number} [existingValue.ownerID] - The corporation that owns it
    * @param {number} [existingValue.structureID] - Citadel id, on that kind
    * @param {number} [existingValue.brokerFee] - Owner's rate as a percentage, on a citadel
-   * @param {string} [existingValue.characterHash] - Docking access character, on a citadel
    * @param {number} [jobType] - The kind, for a new structure that does not name its own
    */
   constructor(existingValue, jobType) {
@@ -145,9 +139,6 @@ class Structure {
     if (fields.brokerFee) {
       this.brokerFee = coerceTaxPercentage(existingValue?.brokerFee);
     }
-    if (fields.characterHash) {
-      this.characterHash = existingValue?.characterHash ?? "";
-    }
   }
 
   /**
@@ -155,8 +146,7 @@ class Structure {
    *
    * @returns {{built?: boolean, rigSlots?: boolean, implant?: boolean,
    *   systemID?: boolean, regionID?: boolean, stationID?: boolean,
-   *   stationOwner?: boolean, structureID?: boolean, brokerFee?: boolean,
-   *   characterHash?: boolean}}
+   *   stationOwner?: boolean, structureID?: boolean, brokerFee?: boolean}}
    */
   get fields() {
     return fieldsByJobType[this.jobType] ?? {};
@@ -243,8 +233,7 @@ class Structure {
    *
    * One choice, so naming a place clears whatever was named before: a row
    * holding both ids is a market of neither sort, and the fields that follow
-   * from the place — an owner's rate, a docking character — would be the last
-   * place's rather than this one's.
+   * from the place would be the last place's rather than this one's.
    *
    * Which field it lands in is what says the sort, and an EVE location id says
    * that by the range it falls in.
@@ -259,7 +248,6 @@ class Structure {
     this.structureID = atStation ? 0 : id;
 
     if (this.fields.brokerFee) this.brokerFee = 0;
-    if (this.fields.characterHash) this.characterHash = "";
     if (this.fields.stationOwner) {
       this.raceID = 0;
       this.ownerID = 0;
@@ -279,18 +267,6 @@ class Structure {
   setStationOwner(raceID, ownerID) {
     this.raceID = coerceFiniteNumber(raceID, 0);
     this.ownerID = coerceFiniteNumber(ownerID, 0);
-  }
-
-  /**
-   * The character whose docking access reads this citadel's order book.
-   *
-   * Nothing records which character can see where, so this is the account's
-   * answer for this structure rather than a fact that can be looked up.
-   *
-   * @param {string} characterHash - The chosen character's hash
-   */
-  setCharacterHash(characterHash) {
-    this.characterHash = characterHash ?? "";
   }
 
   /**
@@ -408,7 +384,6 @@ class Structure {
         : {}),
       ...(fields.structureID ? { structureID: this.structureID } : {}),
       ...(fields.brokerFee ? { brokerFee: this.brokerFee } : {}),
-      ...(fields.characterHash ? { characterHash: this.characterHash } : {}),
     };
   }
 }
