@@ -10,9 +10,9 @@ Promote target on go-ahead: [frontend/](../../frontend/contents.md) and
 
 ### A1 — The two hub lists are held together by a test
 
-`esicore.DefaultMarketLocations` is the source of truth for which markets this server prices.
+`models.DefaultMarketLocations` is the source of truth for which markets this server prices.
 `testing/fixtures/market-hubs/hubs.json` is derived from it by
-`shared/core/esi/locations_parity_test.go`, committed, and read by
+`shared/models/market_hubs_parity_test.go`, committed, and read by
 `frontend/src/global-config-app.parity.test.js`, which checks the SPA's `MARKET_OPTIONS` against it.
 Either side moving without the other fails a test rather than reaching a reader.
 
@@ -354,13 +354,11 @@ reader fetched on their own token can never be had for free.
 maps to persistent and the tier waits for the citadel — the section below is the tier's design, not
 a list of what uses it today.
 
-**A stored row carries its book's expiry, and refusing an expired one is the whole eviction path.**
+**A stored row carried its book's expiry, and refusing an expired one was the whole eviction path.**
 Without it the tier would have made freshness *worse* than not having it: `PRICE_STALE_TIME` is
-`Infinity` and nothing paces a saved station yet (§ E3), so a row written to disk would have been
-served as current for ever, across every reload — where today a reload at least re-fetches. A row is
-only ever read when something wants that exact type at that exact market, so the moment a reader
-stops pricing something is the moment its row stops being visited; sweeping on a timer would spend
-work to discover that.
+`Infinity` and nothing paced a saved station yet (§ E3), so a row written to disk would have been
+served as current for ever, across every reload. **Superseded in § E6** — the rotation replaces a
+market whole, so nothing on a row has to say when it stops standing.
 
 **A version bump abandons rows, which is not the same as removing them.** The version sits in the key,
 so old rows stop being addressed — and therefore stop being reachable by the per-row eviction above,
@@ -388,10 +386,9 @@ would hold a reader at "nothing here" for as long as the row survived.
 
 ### What this stage still owes
 
-A row stays in memory at `staleTime: Infinity`, so the expiry check only fires on a **disk** read — a
-cold start, or after the query cache has evicted the entry. While a surface keeps a station's row
-warm, nothing re-asks. That is the pacing work § C2 names `priceRefreshSchedule.js` as the home for,
-and it is still open.
+The pacing this tier needs is the work § C2 names `priceRefreshSchedule.js` as the home for. It lands
+as the hourly rotation in § E5, and § E6 is what makes the rotation the only thing deciding when a
+row stops standing.
 
 There is no end-to-end test of the persistent tier, for the same reason § E3 gives: nothing in a
 running app reaches a saved source until Stage F stores one.
@@ -531,24 +528,14 @@ and a wait past the backoff are what the test needs.
 
 ### E4 — Pacing a market nobody reports on
 
-The schedule tick now retires a reader-saved market's finished rows before
-probing the hubs, and `expireSavedSourceRows` in `priceCache.js` is what does it.
+A hub's clock belongs to the server, so learning whether its rows still stand costs a request; a
+market the browser reads itself states its own freshness as it is fetched, so that half of the tick
+reaches no network. The two halves are run outside each other's failure, because nothing about one
+market being unreachable changes whether a different market's prices have run out.
 
-**A saved market is not asked anything.** A hub's clock belongs to the server, so
-learning whether its rows still stand costs a request; a station's prices state
-its own expiry as it is fetched, and that expiry is carried on the row. So this
-half of the tick is local — it reads the cache, drops what has expired, and
-reaches no network at all. Retiring is done before the hub probe and outside its
-failure, because nothing about a market being unreachable changes whether a
-different market's book has run out.
-
-**Dropping rather than refetching.** A row nothing is reading does not need
-replacing: the next reader to want it fetches it, and the tier beneath refuses
-the expired copy on the way past. What this buys is the case that matters — a
-surface already open stops showing a figure whose own source has declared it
-finished. A citadel will want the other answer, because its book is one walk for
-every type and a panel should not pay for it; a station's re-read is a single
-per-type query.
+**What did the retiring has since gone.** This stage built a per-row expiry and a sweep over the
+query cache to act on it, `expireSavedSourceRows`. Both are deleted in § E6: a market is now replaced
+whole on its turn, and `gcTime` is what retires a row nothing is reading.
 
 ### What a surface subscribes to, and the bug that proved it
 
@@ -575,12 +562,12 @@ part at fault.
 
 ### E5 — A citadel is read by the reader who saved it
 
-**What follows from a kind is one table.** `marketSources` answers four questions about a market
-kind separately — where its rows live, who reads it, whether it can be asked a cheap question about
-its freshness, and whether its rows state their own expiry. For the three kinds there are today the
-answers line up, and they are asked apart anyway: a kind this server prices but the reader must
-authenticate for would split them, and one predicate standing in for four would be wrong in four
-places at once rather than missing a row in a table.
+**What follows from a kind is one table.** `marketSources` answers three questions about a market
+kind separately — where its rows live, who reads it, and whether it can be asked a cheap question
+about its freshness. For the three kinds there are today the answers line up, and they are asked
+apart anyway: a kind this server prices but the reader must authenticate for would split them, and
+one predicate standing in for three would be wrong in three places at once rather than missing a row
+in a table.
 
 **This is the one market the browser still fetches.** A hub and a saved NPC station are priced by
 this server (§ G2-G4); a player structure's orders are private, so no server can walk one — the call
@@ -620,21 +607,23 @@ same thing. A type with no order is absent rather than zero.
 **What a read owes, in order.** `priceLoader`'s `readAndKeep` is the one place that knows it: read,
 **await** the write to the device, then record the clock and announce that the market moved. The
 order is load-bearing. Announcing drops the market's held rows and wakes every surface reading them,
-and what those surfaces read through is the device — so announcing first sent them to rows that were
-still the lapsed ones, refused on the way past, and cost a second walk of everything the read had
-just fetched. One read-and-keep runs per market at a time, so a rotation and a panel wanting the same
+and what those surfaces read through is the device — so announcing first sent them to the rows the
+read was in the middle of replacing, which they would then hold until something else moved the
+market. One read-and-keep runs per market at a time, so a rotation and a panel wanting the same
 market share one.
 
 **What is kept.** A citadel is the only kind in the persistent tier, because its rows were read at
-the reader's own expense and cannot be had for free again. `replaceStoredPrices` takes the whole set:
-a type the read did not mention has stopped trading there and goes. The rows carry their own expiry
-into memory as well as onto the device, or an open surface would hold a finished figure for the life
-of the tab with the retirement sweep unable to see it. Restoring a row from the device restores that
+the reader's own expense and cannot be had for free again. `replaceStoredPrices` takes the whole set, and clears
+what was held for that market before writing it: a whole-market read is a statement about every type
+on it, so what was there before has no standing. Restoring a row from the device restores that
 market's clock too — a reload empties the clock record while the rows survive, and a market with no
 clock cannot be seen to move, so the next read would count as its first and drop nothing.
 
-**When it is read again.** Once an hour, `PRICE_ROTATION_MS`, and **every saved citadel is on that
-schedule** — not only the ones a reader has already priced against. A market is saved because they
+**When it is read again.** Once an hour, `PRICE_ROTATION_MS` — which `citadelPrices.js` owns while
+the rotation that reads it is kind-generic, and a second kind the reader reads themselves would want
+it moved to the trait table or to the schedule. Nothing is wrong today, with one such kind.
+
+**Every saved citadel is on that schedule** — not only the ones a reader has already priced against. A market is saved because they
 mean to price against it, so refreshing only what has been asked for would leave figures fresh
 exactly where a reader has been and stale everywhere else.
 
@@ -648,14 +637,34 @@ characters are first known — waiting for the first tick would leave the prices
 markets for a quarter of an hour behind. Reading several at once takes nothing from the markets this
 server prices: a structure's orders are on an ESI allowance of their own.
 
+**A cloud account's characters arrive after that**, on the users-document reconcile rather than
+during login, so the same read runs again as the roster lands — but **only when the roster actually
+moved**. The snapshot that drives a reconcile hardcodes "the roster may have changed", and a tab
+refocus and a socket reconnect both take that path, so reaching the end of a reconcile says nothing
+about whether anybody was added or removed. The reconcile reports what it changed and the read
+follows that instead: otherwise a reader alt-tabbing back walks their own structures again every
+time, on top of the wake probe that at least holds a five-minute floor. A refreshed token for a
+character already held is not a move — the same characters can still read the same markets.
+
+Nothing was refused while the account had no characters to ask — `askEachCharacter` throws for "no characters" rather than answering
+"refused", and only a refusal puts a market's turn back — so those markets are still due and the read
+takes them. Without it they wait out the quarter hour to the next tick with a reader looking at
+figures that are not there.
+
+**The reconcile reaches the price layer through a dynamic import, and that is load-bearing.** Reading
+a market reaches the users store for the account's characters, so importing the schedule at the top
+of `accountReconcile.js` closes a cycle back onto it: `priceCache` registers its clock listener as a
+module side effect, and in that cycle the registration runs before the loader it registers with has
+begun, leaving the listener's binding unset and every price test entered through the loader failing
+on import. The loader cannot defend itself — `var` would hoist without the dead zone but the module
+body would then reset it, discarding a listener already registered, which is a silent wrong answer in
+place of a loud crash. **Anything else the store can reach must import the price layer the same way.**
+
 The rotation reads due-ness from the device rather than from what is held in memory: a price row is
 watched by nothing, so the query cache lets one go within minutes, and a rotation paced by that would
 stop rotating the moment a reader looked away — which is exactly when reading ahead is worth
-anything. It runs before the retirement sweep, so a market that can be read is replaced rather than
-emptied; it is skipped while the tab is hidden, being the only part of a tick that spends the
-reader's own ESI allowance; and a market the account was *refused* waits its full turn again rather than
-being read on every probe — where a read that merely failed does not, a failure
-saying nothing about the market.
+anything. A market the account was *refused* waits its full turn again rather than being read on
+every probe — where a read that merely failed does not, a failure saying nothing about the market.
 
 **One clock model, not two.** `clocksFor` keyed a market's clock per type as well as per source,
 for a saved station read one type at a time — which no longer exists, every kind now reporting a
@@ -665,6 +674,100 @@ a reader to be left looking at either.
 **A refusal is not an empty market.** Every character being refused fails the read, because "no
 orders here" is a figure a surface will print as zero.
 
+### E6 — One expiry per market, and none per row
+
+E4 and E5 left three things deciding when a citadel's prices stopped standing: an `expiresAt` on
+every row, a sweep over the query cache acting on it, and the market's own turn on the rotation. They
+are now one — the turn — and the other two are deleted.
+
+**A row has no expiry, and nothing retires one.** `expireSavedSourceRows`, `rowsStateTheirOwnExpiry`
+and the whole `priceFreshness` module are gone, along with the store's read-time lapse check. What a
+row carries is `refreshedAt`, the moment the walk that read it was current, which is what a surface
+displays and what the clock is recorded from.
+
+**`gcTime` is what a row's lifetime is now.** Nothing subscribes to a price row — surfaces read them
+synchronously — so every entry is unobserved from the moment it lands, and `gcTime` is in effect how
+long one lives. `PRICE_CACHE_TIME` sets it to thirty minutes against the default five: long enough
+that a reader moving between screens finds the prices still there, short enough that a tab left open
+does not hold a market's whole set for the day. Below it the device answers, and what the device
+holds is whatever the last rotation wrote.
+
+**A market is cleared and written again, not reconciled.** `replaceStoredPrices` used to list the
+market's held keys, work out which the new set did not mention, and delete those. It now deletes
+everything under the market's prefix and writes the new set — the same end state, reached without the
+comparison. The character record and the freshness record sit outside that prefix and survive it, and
+the freshness record is written last, so a write that gives out halfway leaves a market due again
+rather than one claiming rows it does not hold.
+
+**The freshness record is the only expiry left.** `market-read|v2|<market>` carries when the market
+is due again, the rotation reads it to decide due-ness, and a market with no record is due now.
+§ E7 adds the second moment it carries and says why the two cannot be one. One moment per market rather than one per row, for a fact that was never per-row:
+every row in a market was read at the same instant and stops standing at the same instant.
+
+**What is still load-bearing.** Announcing that a market moved — dropping its held rows and
+invalidating `MARKET_PRICES_QUERY_KEY` — stays. Without it a surface that is already open reads the
+rows it read at mount until `gcTime` collects them, which is the defect § "What a surface subscribes
+to" was written about. Reading what is there is the rule for a row; being told the market moved is
+what makes a reader see a refresh.
+
+**The tick no longer skips a hidden tab.** The rotation was held back while the tab was hidden on the
+reasoning that a whole-market walk spends the reader's ESI allowance. It does not spend the one that
+mattered — `GET /markets/structures/{id}/` is on a bucket of its own — so the guard was arguing from
+a cost that is not charged. A hidden tab's timers are throttled by the browser regardless, and the
+wake probe already catches a reader coming back.
+
+### E7 — What bounds the device tier
+
+E6 left one thing unanswered: with no expiry on a row and nothing sweeping, what is held for a market
+the reader has **removed** — or one no character can reach any more — is never refreshed and never
+thrown away. It would sit on the device for good, priced against whenever it was last read and
+indistinguishable from a market still in use.
+
+**Anything unread for a day goes, whole.** `dropUnreadMarkets` throws away a market's rows, its
+character record and its freshness record together. That is the bound, and it needs nothing to know
+which markets a reader still has: a market is refreshed *because* it is still saved, so one that has
+stopped being saved stops being refreshed and falls out a day later on its own.
+
+**Not judged against the registry**, which was the first shape tried. `allMarketSources()` reads the
+settings store, and before an account's settings have loaded it answers with the hubs alone — a sweep
+that deleted every market the registry did not carry would empty the device on any page load that ran
+first. Age needs no such knowledge and cannot be wrong that way.
+
+**The record now carries `readAt`, this device's own clock, and not ESI's.** The moment a walk
+reports is `last-modified` on the orders, and a structure nobody has traded at for days states one
+that is already old — a market judged by it would look untouched the second it was refreshed. Nor can
+the sweep use `expiresAt`: a market that keeps failing has its turn moved forward on every attempt,
+so pacing and age have to be two separate facts. `deferMarket` moves `expiresAt` and leaves `readAt`
+exactly where it was, which is what lets a market nobody can reach age out rather than staying alive
+on its own failures.
+
+**A market never read successfully keeps its record.** It holds no rows to throw away, and the record
+is what paces the attempts — taking it would make the market due at once and have it walked on every
+probe, a refusal per character at five times the cost of a hit.
+
+**The store's version is bumped to 2, so a returning reader starts clean.** The record's shape
+changed, and a record written before it states no moment this device read the market. A market the
+reader has since *removed* is never read again, so nothing would ever give it one — and the sweep
+reads exactly that field, so the markets it exists to throw away would have been the markets it could
+never reach. `prunePastVersions` already abandons everything under an earlier prefix; the cost is
+that every reader rebuilds their markets once, on the rotation they would have had anyway.
+
+**A market is re-read immediately before it is dropped, not decided about up front.** The tick, a
+sign-in and a panel asking for a price are three chains with nothing between them, and a scan is as
+long as the reader has markets. Deciding about every market first and deleting afterwards threw away
+one refreshed while the scan was still walking — losing the walk that had just been paid for. The
+window is now a single read rather than the whole scan; IndexedDB offers nothing to close it
+entirely, and what is left costs a re-read rather than anything a reader would see.
+
+**It runs after the rotation**, on the tick and at sign-in both. After, so a market whose turn has
+just come is refreshed rather than thrown away and read again from nothing; at sign-in because that
+is when a machine that has been away comes back, and a reader returning after a week should rebuild
+their prices rather than open on the ones they left.
+
+**What this does not do is label the figures inside the day.** A row carries `refreshedAt` and
+nothing in the app displays it, so prices up to a day old still read as current. That is a surface
+question rather than a storage one, and it is open.
+
 ### What only these tests could say
 
 `citadelDelivery.e2e.test.jsx` stands in for the outside world alone — ESI's HTTP, the account's
@@ -673,9 +776,9 @@ derivation, the loader, IndexedDB, the cache and a real render together. It exis
 test on this path mocks its neighbours, which is right for a unit test and is why none of them can
 say that a price arrives at all.
 
-Its fixtures are dated relative to now. Fixed dates made every stored row lapsed the moment the
-calendar passed them, and a row refused for being lapsed reads exactly like one that was never kept —
-a fixture that rots into a test proving nothing.
+Its fixtures are dated relative to now. Fixed dates put every market past its turn the moment the
+calendar passed them, so a test about a market being read once read it twice — a fixture that rots
+into a test proving nothing.
 
 ## Stage G — An NPC station is priced by the server
 

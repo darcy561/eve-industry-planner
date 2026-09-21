@@ -241,7 +241,7 @@ until the release runs, and retires once it has. Either way
 no `*SchemaCurrent` constant moves: this is a backfill, not a migration.
 
 Nothing in `services/` computes anything from these two fields; the backend only stores them.
-`esicore.DefaultMarketLocations` is an unrelated constant naming which hubs to refresh, and is not
+`models.DefaultMarketLocations` is an unrelated constant naming which hubs to refresh, and is not
 touched.
 
 The SPA already carries a merge of exactly this kind, from the older `localMarketDisplay` /

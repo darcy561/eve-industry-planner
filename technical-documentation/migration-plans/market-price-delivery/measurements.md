@@ -53,7 +53,7 @@ the deployment before assuming the SPA cannot read a structure market today.
 ## Duplicated hub list
 
 `GLOBAL_CONFIG.MARKET_OPTIONS` (`frontend/src/global-config-app.js`) and
-`esicore.DefaultMarketLocations` (`services/shared/core/esi/locations.go`) carry the same four hubs
+`models.DefaultMarketLocations` (`services/shared/models/marketLocations.go`) carry the same four hubs
 with the same region and station ids. Readers of the SPA copy, excluding tests, at the time the plan
 was written — **13 files**:
 

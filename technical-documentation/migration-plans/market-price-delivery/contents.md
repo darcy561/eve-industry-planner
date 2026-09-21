@@ -102,5 +102,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know who owns the object-store bucket list, and what holds the two modules' copies together | [overlay.md](./overlay.md) § G0 |
 | Know where a region's pages are written, and what keeps the bucket from growing for ever | [overlay.md](./overlay.md) § G1 |
 | Know why there is an in-memory object store, and what it is held to | [overlay.md](./overlay.md) § An in-memory Backend, because the tests had nowhere to run |
+| Know how long a price is held, where, and what decides when it stops standing | [overlay.md](./overlay.md) § E6 |
+| Know what stops the device filling up with markets a reader no longer uses | [overlay.md](./overlay.md) § E7 |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
 | The measurements this design was argued from | [measurements.md](./measurements.md) |

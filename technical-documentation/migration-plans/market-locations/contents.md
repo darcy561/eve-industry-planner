@@ -7,9 +7,16 @@ for managing one — in place of a row in the custom-structures array whose kind
 `jobType`.
 
 - **The stored shape.** A market location with the fields a market has and none of the fields a place
-  a job runs in has, on its own lane of the settings document, both the account's and a planner's.
+  a job runs in has, on its own lane of the settings document — the account's and every planner's,
+  including the planners owned by a corporation or an alliance.
+- **Who may price against a market, and who shares one.** A market saved for a corporation or an
+  alliance reaches its members' accounts when that organisation ticks it as shared, rather than being
+  added by each of them by hand or reaching everybody the moment it is saved. The server composes
+  what a reader may price against from what their account may access, collapsing two rows that name
+  one place into one market.
 - **The move that gets there.** Lifting every `jobType === structureKinds.market` row out of
-  `customStructures` into the new lane, in a prerelease step, idempotent, leaving job setups that
+  `customStructures` into the new lane on every owner's document, in a prerelease step, idempotent,
+  leaving job setups that
   reference a market by id untouched.
 - **The surface for managing them.** A panel that lists saved markets with what is true of each one
   right now — whether it can be read, when it was last read, what it charges — rather than a form
@@ -56,5 +63,6 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know what must survive the move | [plan.md](./plan.md) § What must not be lost |
 | Know what is additive, what breaks the wire, and what needs a migration | [plan.md](./plan.md) § Wire compatibility |
 | Know what this project owes market-price-delivery, and what it must not decide for it | [plan.md](./plan.md) § Who owns what |
-| Know why this waits on another project promoting first | [plan.md](./plan.md) § What this waits on |
+| Know why custom-structure-model cannot promote until this project has landed | [plan.md](./plan.md) § This project unblocks custom-structure-model, not the other way round |
+| Know what the stored market looks like, where it lives and how a reader's set is composed | [plan.md](./plan.md) § Stage A — the settled shape |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |

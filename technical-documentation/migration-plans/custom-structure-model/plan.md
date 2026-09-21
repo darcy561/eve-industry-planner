@@ -1,9 +1,20 @@
 # Custom structure model — plan
 
 **Status:** Every stage this project owns has landed — A, B, C, BR and D, including the prerelease
-steps that convert stored documents, stored rig ids and a saved structure's rig. The project is at
-its close condition and waits on promotion go-ahead. Stage BR2 remains and is named here for what it
-inherits rather than owned here.
+steps that convert stored documents, stored rig ids and a saved structure's rig. Stage BR2 remains
+and is named here for what it inherits rather than owned here.
+
+**It is not ready to promote, and the code is not what is missing.** Stage D landed the market kind
+inside this model's one form, and promoting now would write into live SoT that a saved market is a
+custom-structure kind managed from the shared custom-structures form — which
+[market-locations](../market-locations/contents.md) removes. It would teach a reader something about
+to stop being true, and a market has no other surface to be managed from until that project's panel
+exists.
+
+**What it waits on:** market-locations Stages A, B and C — a saved market on its own lane, off this
+form, with its own panel. This project then promotes describing the four build kinds it keeps. See
+[market-locations/plan.md](../market-locations/plan.md) § This project unblocks custom-structure-model,
+not the other way round.
 
 **No gap is open in what has landed.** The settings store reads either stored shape; rigs are two
 slots everywhere — in the tables, the form, a stored setup, a stored structure, and the prerelease

@@ -7,6 +7,13 @@ Measuring every market region in New Eden said a saved NPC station belongs on th
 in the browser, which is § Stage G; the browser-side station fetch built for item 2 is deleted. A
 citadel is read by the reader who saved it, because its orders are authenticated per character.
 
+**One fact here is about to move, and it is not a gate.** The registry reads saved markets out of
+`customStructures`; [market-locations](../market-locations/contents.md) Stage B puts them on their
+own lane. That changes where `allMarketSources()` looks and nothing about how a price is fetched,
+derived, held or rotated. Promote in either order — whichever project goes second owns the edit to
+the promoted topic doc. See that project's plan § This project unblocks custom-structure-model, not
+the other way round.
+
 **The shelf has lifted.** What the browser-side remainder waited on — a saved citadel that is a
 market — landed in [custom-structure-model](../custom-structure-model/contents.md) § Stage D, so
 § What to pick up is work to schedule rather than work to wait for. Stage G never waited on it: it is
@@ -34,7 +41,7 @@ for the same reason.
 `global-config-app.js`, and the surfaces listed in § Stage A and § The pipeline prices travel today;
 [`services/api/v1endpoints/marketPricesQuery.go`](../../../services/api/v1endpoints/marketPricesQuery.go),
 [`services/shared/redis/marketorders.go`](../../../services/shared/redis/marketorders.go),
-[`services/shared/core/esi/locations.go`](../../../services/shared/core/esi/locations.go).
+[`services/shared/models/marketLocations.go`](../../../services/shared/models/marketLocations.go).
 **Live SoT (until promote):** [frontend/](../../frontend/contents.md), [backend/](../../backend/contents.md)
 
 **Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
@@ -71,7 +78,7 @@ nobody is looking at drags a type into a refetch — while the server knows exac
 book was last walked and never says.
 
 **It has no idea a market could be anything else.** `GLOBAL_CONFIG.MARKET_OPTIONS` and
-`esicore.DefaultMarketLocations` are two hand-maintained copies of the same four hubs, and a market id
+`models.DefaultMarketLocations` are two hand-maintained copies of the same four hubs, and a market id
 is assumed throughout to be one of them. The custom-structure work is about to make that false.
 
 ## What the present design costs
@@ -281,7 +288,7 @@ asserted by a test on both — `testing/fixtures/session-responses/surface.json`
 rather than reaching a client, which is the failure this was ever about: someone adds a fifth hub
 server-side and the SPA does not know.
 
-So the SPA keeps a constant, `esicore.DefaultMarketLocations` stays the source of truth, and a parity
+So the SPA keeps a constant, `models.DefaultMarketLocations` stays the source of truth, and a parity
 test fails when they disagree. The SPA's full source registry is that constant plus whatever sources
 the reader has saved — available at module load, as it is today.
 
@@ -356,9 +363,9 @@ The SPA's four hard-coded markets become a registry that admits more than four. 
 constant — they are static configuration, and a test is what stops them drifting from the server's —
 but nothing above the registry may assume the set is those four, or that a source is one of them.
 
-1. ~~A parity test holds the SPA's hub list and `esicore.DefaultMarketLocations` in agreement, on the
+1. ~~A parity test holds the SPA's hub list and `models.DefaultMarketLocations` in agreement, on the
    pattern of the session-response surface.~~ Done — `testing/fixtures/market-hubs/hubs.json`, written
-   by `shared/core/esi/locations_parity_test.go` and read by `global-config-app.parity.test.js`. See
+   by `shared/models/market_hubs_parity_test.go` and read by `global-config-app.parity.test.js`. See
    [overlay.md](./overlay.md) § A1. **No endpoint**: the list is static configuration, and the clock it
    would once have carried now arrives with the prices.
 2. ~~The SPA holds a source registry: the hubs the server prices, each marked as server-held, with
@@ -540,9 +547,9 @@ a second one.
    material does not pay for a book walk. **Its home exists:**
    `Functions/MarketData/priceRefreshSchedule.js`, started from `index.jsx` and owned by no component
    — see [overlay.md](./overlay.md) § C2. Add each source's expiry there rather than building a second
-   mechanism beside the fetching.~~ Done for a station, in that home — the tick retires its expired
-   rows without asking anything, because its expiry is carried on the row — see
-   [overlay.md](./overlay.md) § E4. **A citadel will want the other half:** a station re-reads with one
+   mechanism beside the fetching.~~ Done, in that home: a citadel is read again on its own turn, once
+   an hour, and one moment recorded per market is what the tick reads to decide whose turn has come —
+   see [overlay.md](./overlay.md) § E4, § E5, § E6. **A citadel wants the other half:** a station re-reads with one
    per-type query, so letting the next reader pay for it is cheap, where a citadel is one whole-book
    walk and this item's "does not pay for a book walk" means refetching ahead of the reader.
 5. The accessor from Stage D answers for these sources without its callers changing.
@@ -594,7 +601,7 @@ Nothing about the backend's price store is hub-shaped. `priceKey` is
 `/marketPricesQuery` already answers `{sources, typeIDs}` in that shape, and the SPA's loader already
 routes a hub through it.
 
-Three references to `esicore.DefaultMarketLocations` are the whole of what ties this to four hubs:
+Three references to `models.DefaultMarketLocations` are the whole of what ties this to four hubs:
 
 - `core/scheduler/esi/regionMarketOrdersRefresh.go` sweeps that list — it sweeps every region instead.
 - `api/v1endpoints/marketPricesQuery.go` resolves a source id against it — it resolves a saved NPC
@@ -924,11 +931,11 @@ browser a legitimate version of this path for custom sources, where there is no 
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project folder and docs | Done |
-| Stage A — The source registry | **Done.** A parity test holds the SPA's hub list and `esicore.DefaultMarketLocations` together with no endpoint; `allMarketSources()` is the registry every consumer reads, and `MARKET_OPTIONS` has one reader left. The registry is not in the world-data store — see [overlay.md](./overlay.md) § A1, § A2-A4 |
+| Stage A — The source registry | **Done.** A parity test holds the SPA's hub list and `models.DefaultMarketLocations` together with no endpoint; `allMarketSources()` is the registry every consumer reads, and `MARKET_OPTIONS` has one reader left. The registry is not in the world-data store — see [overlay.md](./overlay.md) § A1, § A2-A4 |
 | Stage B — The price row and the narrowed query | **Done.** Every price is read from the query cache through one accessor; `worldData.marketData` and the alternative price table are retired; every surface resolves its market through `priceResolution.js`, so the fetch and the read cannot disagree; the old `/market-prices`, its `MarshalJSON` and the `PricesByType` reader are deleted — see [overlay.md](./overlay.md) § B1-B5 |
 | Stage C — Freshness from the source's clock | **Done.** A market's own clock decides what survives: `sourceClocks.js` holds it, every price answer records it, and a moved one removes that market's rows and wakes the query holding each open surface. The age guess is gone — `PRICE_STALE_TIME` is `Infinity`. A fifteen-minute probe asks one held type per market so nothing polls for a clock. SPA-only; the wire did not move — see [overlay.md](./overlay.md) § C1-C5 |
 | Stage D — The price cache and its two tiers | **Done.** Items 1-3 landed in Stage B or are inherited from it; the persistent tier is read-through on `idb-keyval`, entered at one seam, holding the markets a reader reads themselves, with a stored row refused once its turn has passed and rows abandoned by a version bump removed on first touch — see [overlay.md](./overlay.md) § D1, § E5 |
-| Stage E — Sources the browser fetches | **Done, and item 2 is retired.** Item 1 (the derivation) and the pacing home item 4 needs landed first — see [overlay.md](./overlay.md) § E1, § E3, § C2. Item 2's browser-side station fetch is **deleted**: this server prices a saved station now, and § G4 routes it through the same query as a hub, with the end-to-end coverage that path never had. Item 3 is the citadel, and with it the per-character walk shared with name resolution, the whole-market read, the persistent tier's first real consumer, the hourly rotation and an end-to-end test of the path — see [overlay.md](./overlay.md) § E5 |
+| Stage E — Sources the browser fetches | **Done, and item 2 is retired.** Item 1 (the derivation) and the pacing home item 4 needs landed first — see [overlay.md](./overlay.md) § E1, § E3, § C2. Item 2's browser-side station fetch is **deleted**: this server prices a saved station now, and § G4 routes it through the same query as a hub, with the end-to-end coverage that path never had. Item 3 is the citadel, and with it the per-character walk shared with name resolution, the whole-market read, the persistent tier's first real consumer, the hourly rotation and an end-to-end test of the path — see [overlay.md](./overlay.md) § E5. § E6 then reduced the three things deciding when a price stopped standing to one: the market's turn on the rotation, with the per-row expiry, the retirement sweep and `priceFreshness` deleted. § E7 bounds what that leaves on the device: anything unread for a day is thrown away whole, which is what retires a market the reader has removed or that no character can reach any more |
 | Stage G — An NPC station is priced by the server | **Done.** G0 has landed: the object-store bucket list had two hand-synced copies in two modules that cannot import each other, so it now has one owner and a committed fixture across the boundary, and the dead `S3_BUCKET` stack line is gone — the prerequisite for adding a bucket at all ([overlay.md](./overlay.md) § G0). G1 has landed: a region's pages are written to the `market-pages` bucket, the Redis page cache is deleted, and retention is explicit because object storage has no expiry — plus an in-memory `Backend`, without which the move would have turned four fetch tests into silent skips ([overlay.md](./overlay.md) § G1). What the rest was built from is measured in [measurements.md](./measurements.md): all 70 known-space regions cost 1,613 pages an hour, 3.4% of the ESI budget, against the 830 the four hubs already cost, and The Forge alone is 408 pages and 92 MB — which a browser cannot walk hourly for each reader, and is why this moved to the server. G2 and G3 have landed: the walk and the derive are two tasks, prices are keyed per station, a saved station is registered at login and on save, the sweep reads the tracked-region registry rather than the four hubs, and a daily task retires what nothing asks for ([overlay.md](./overlay.md) § G2, § G3). G4 finished it: the SPA reads a saved station's prices from the endpoint, `regionOrders.js` is deleted, and a market waiting on its first walk is asked again rather than read as empty ([overlay.md](./overlay.md) § G4). Supersedes Stage E item 2, and leaves a citadel as the reader's own fetch — see § Stage G |
 | Stage F — Custom market locations | **Not this project's to build, and built.** It is what makes a saved location a market rather than a selling point priced from a hub, and it belonged to the separate custom-structure work — [custom-structure-model](../custom-structure-model/contents.md) § Stage D landed it, which is what released Stage E item 3. See § Stage F |
 
