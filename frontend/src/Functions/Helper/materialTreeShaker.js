@@ -7,6 +7,8 @@
  * @param {Function} recalculateJob - Function to recalculate a job's production quantities
  * @returns {Set<string>} Set of job IDs that were recalculated
  */
+
+import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 function materialTreeShaker(allJobObjects, recalculateJob) {
   if (!allJobObjects || !recalculateJob) {
     console.warn("Missing inputs for materialTreeShaker");
@@ -83,7 +85,7 @@ const shouldRecalculate = (job, parentJobRequirements) => {
   const neededRuns = Math.ceil(parentJobRequirements / job.itemsProducedPerRun);
   const minBuildQuantity = neededRuns * job.itemsProducedPerRun;
 
-  const currentProduction = job.totalQuantityProduced;
+  const currentProduction = totalQuantityProduced(job);
 
   const isOverproducing =
     currentProduction > minBuildQuantity + job.itemsProducedPerRun;

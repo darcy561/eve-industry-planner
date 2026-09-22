@@ -1,3 +1,4 @@
+import { jobMaking } from "../../tests/editJobFixtures";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -35,7 +36,7 @@ describe("resolveParentRequirements", () => {
   it("counts what siblings already produce, and not itself", () => {
     const jobs = {
       p1: parent(100, ["self", "sibling"]),
-      sibling: { totalQuantityProduced: 40 },
+      sibling: jobMaking(40),
     };
 
     expect(walk(jobs, ["p1"])).toMatchObject({

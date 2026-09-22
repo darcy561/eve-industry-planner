@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import Group from "../../Classes/group";
 import { buildJob } from "../JobPlanner/buildJob";
 import mergeJobs from "../JobPlanner/mergeJobs";
@@ -66,9 +67,9 @@ export async function instantiateGroupTemplate({
         `Could not build job for item ${node.itemID} (${node.name || node.templateJobId}). The blueprint may be unavailable.`,
       );
     }
-    if (job.totalQuantityProduced !== desired) {
+    if (totalQuantityProduced(job) !== desired) {
       throw new Error(
-        `Could not match target quantity for "${job.name}" (wanted ${desired}, got ${job.totalQuantityProduced}).`,
+        `Could not match target quantity for "${job.name}" (wanted ${desired}, got ${totalQuantityProduced(job)}).`,
       );
     }
     templateToJob.set(node.templateJobId, job);

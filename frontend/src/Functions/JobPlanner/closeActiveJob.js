@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import applyParentChildChanges from "../../Components/Edit Job/functions/applyParentChildChanges";
 import repairMissingParentChildRelationships from "../Shared/repairParentChildRelationships";
 import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
@@ -102,9 +103,9 @@ export default async function closeActiveJob(
     recalculatedJobIds = materialTreeShaker(
       allRelatedJobs,
       (job, requiredQuantity) => {
-        const before = job.totalQuantityProduced;
+        const before = totalQuantityProduced(job);
         recalculateJobForNewTotal(job, requiredQuantity, queryClient);
-        const after = job.totalQuantityProduced;
+        const after = totalQuantityProduced(job);
         if (before !== after) {
           adjustments.push({ jobID: job.jobID, name: job.name, before, after });
         }

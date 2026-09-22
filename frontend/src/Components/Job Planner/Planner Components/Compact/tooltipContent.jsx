@@ -1,3 +1,13 @@
+import {
+  completedMaterialCount,
+  setupCount,
+  totalQuantityProduced,
+} from "../../../Edit Job/Edit Job Hooks/jobSelectors";
+import {
+  esiJobIDs,
+  esiOrderIDs,
+  esiTransactionIDs,
+} from "../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 
 function getTooltipContent(job) {
@@ -5,12 +15,12 @@ function getTooltipContent(job) {
     case 0:
       return (
         <span>
-          <p>Job Setups: {job.setupCount}</p>
+          <p>Job Setups: {setupCount(job)}</p>
         </span>
       );
     case 1: {
       const totalMaterials = Object.keys(job.build.materials).length;
-      const totalComplete = job.completedMaterialCount;
+      const totalComplete = completedMaterialCount(job);
       if (!job.isReadyToBuild) {
         return (
           <span>
@@ -28,7 +38,7 @@ function getTooltipContent(job) {
         <span>
           <p>
             ESI Jobs Linked:{" "}
-            {formatNumberForLocale(job.esiJobIDs.size, { max: 0 })}
+            {formatNumberForLocale(esiJobIDs(job).size, { max: 0 })}
           </p>
         </span>
       );
@@ -37,7 +47,7 @@ function getTooltipContent(job) {
         <span>
           <p>
             Items Built:{" "}
-            {formatNumberForLocale(job.totalQuantityProduced, { max: 0 })}
+            {formatNumberForLocale(totalQuantityProduced(job), { max: 0 })}
           </p>
         </span>
       );
@@ -46,11 +56,13 @@ function getTooltipContent(job) {
         <span>
           <p>
             Market Orders:{" "}
-            {formatNumberForLocale(job.esiOrderIDs.size, { max: 0 })}
+            {formatNumberForLocale(esiOrderIDs(job).size, { max: 0 })}
           </p>
           <p>
             Transactions:{" "}
-            {formatNumberForLocale(job.esiTransactionIDs.size, { max: 0 })}{" "}
+            {formatNumberForLocale(esiTransactionIDs(job).size, {
+              max: 0,
+            })}{" "}
           </p>
         </span>
       );

@@ -1,3 +1,12 @@
+import {
+  buildCost,
+  buildCostPerItem,
+  totalCost,
+  totalCostPerItem,
+  totalInstallCost,
+  totalInventionCost,
+  totalSales,
+} from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 import { describe, expect, test } from "vitest";
 import Job from "./job.js";
 import Setup from "./jobSetup.js";
@@ -57,7 +66,7 @@ describe("cost per item", () => {
     const job = jobWith({ materials: [60, 40], invention: 2 });
 
     // 100 materials + 5 install + 3 extras + 2 invention, over 10
-    expect(job.buildCostPerItem()).toBe(11);
+    expect(buildCostPerItem(job)).toBe(11);
   });
 
   // A parent build pays a child's build cost, so these cannot be one method:
@@ -70,8 +79,8 @@ describe("cost per item", () => {
       0: { transaction_id: 0, tax: 10, amount: 0, quantity: 1 },
     };
 
-    expect(job.buildCostPerItem()).toBe(10.8);
-    expect(job.totalCostPerItem()).toBe(12.8);
+    expect(buildCostPerItem(job)).toBe(10.8);
+    expect(totalCostPerItem(job)).toBe(12.8);
   });
 
   // Producing nothing must not divide by zero and report Infinity as a cost —
@@ -79,8 +88,8 @@ describe("cost per item", () => {
   test("a job producing nothing costs nothing per item", () => {
     const job = jobWith({ materials: [100], totalQuantity: 0 });
 
-    expect(job.buildCostPerItem()).toBe(0);
-    expect(job.totalCostPerItem()).toBe(0);
+    expect(buildCostPerItem(job)).toBe(0);
+    expect(totalCostPerItem(job)).toBe(0);
   });
 });
 
@@ -94,8 +103,8 @@ describe("what the installs cost", () => {
       2: { job_id: 2, cost: 8 },
     };
 
-    expect(job.totalInstallCost).toBe(20);
-    expect(job.buildCost).toBe(123);
+    expect(totalInstallCost(job)).toBe(20);
+    expect(buildCost(job)).toBe(123);
   });
 
   // Setup estimates are a planning figure — getJobInstallCostForPlanning owns
@@ -112,78 +121,54 @@ describe("what the installs cost", () => {
       }),
     };
 
-    expect(job.totalInstallCost).toBe(0);
-    expect(job.buildCost).toBe(103);
-  });
-
-  test("unlinking a job takes its cost back off", () => {
-    const job = jobWith({ materials: [100] });
-    job.esi.industryJobs = {
-      1: { job_id: 1, cost: 12 },
-      2: { job_id: 2, cost: 8 },
-    };
-
-    job.unlinkESIJob({ job_id: 2, cost: 8 });
-
-    expect(job.totalInstallCost).toBe(12);
+    expect(totalInstallCost(job)).toBe(0);
+    expect(buildCost(job)).toBe(103);
   });
 });
 
 describe("invention is its own cost", () => {
   // Invention is its own component: a job that had to invent its blueprint paid
   // that on top of its materials, and neither figure belongs in the other.
-  test("recording invention does not change the material total", () => {
-    const job = jobWith({ materials: [100] });
+  test("invention is counted on top of the material total", () => {
+    const job = jobWith({ materials: [100], invention: 25 });
 
-    job.addInventionCost({ id: "inv-1", itemCost: 25 });
-
-    expect(job.totalInventionCost).toBe(25);
+    expect(totalInventionCost(job)).toBe(25);
     expect(job.totalMaterialCost).toBe(100);
-    expect(job.buildCost).toBe(133);
+    expect(buildCost(job)).toBe(133);
   });
 
-  test("removing it puts the cost back", () => {
+  test("a job that invented nothing carries none of it", () => {
     const job = jobWith({ materials: [100] });
-    job.addInventionCost({ id: "inv-1", itemCost: 25 });
 
-    job.removeInventionCost({ id: "inv-1", itemCost: 25 });
-
-    expect(job.totalInventionCost).toBe(0);
-    expect(job.buildCost).toBe(108);
-  });
-});
-
-describe("what a sold item went for", () => {
-  test("the average is the sales over the items sold", () => {
-    const job = jobWith({ materials: [100] });
-    job.esi.transactions = {
-      1: { transaction_id: 1, amount: 300, quantity: 2 },
-      2: { transaction_id: 2, amount: 100, quantity: 2 },
-    };
-
-    expect(job.averageItemSalePrice()).toBe(100);
-  });
-
-  // Nothing sold has no average price, and must not be reported as NaN: the
-  // Selling panel hands this straight to the number formatter.
-  test("nothing sold has no average", () => {
-    expect(jobWith({ materials: [100] }).averageItemSalePrice()).toBe(0);
+    expect(totalInventionCost(job)).toBe(0);
+    expect(buildCost(job)).toBe(108);
   });
 });
 
 describe("what the job cost in total", () => {
   function sold(job, { fees = [], taxes = [], sales = [] }) {
-    // Each fee rides the order it was charged against, so one order per fee.
-    job.esi.marketOrders = Object.fromEntries(
-      fees.map((fee, i) => [String(700000 + i), { order_id: 700000 + i, fee }]),
-    );
-    job.esi.transactions = Object.fromEntries(
-      taxes.map((tax, i) => [
-        String(i),
-        { transaction_id: i, tax, amount: sales[i] ?? 0, quantity: 1 },
-      ]),
-    );
-    return job;
+    const document = job.toDocument();
+    return new Job({
+      ...document,
+      esi: {
+        // The runs the job is installed on carry its install cost, so they
+        // travel with it rather than being replaced by the sale.
+        ...document.esi,
+        // Each fee rides the order it was charged against, so one order per fee.
+        marketOrders: Object.fromEntries(
+          fees.map((fee, i) => [
+            String(700000 + i),
+            { order_id: 700000 + i, fee },
+          ]),
+        ),
+        transactions: Object.fromEntries(
+          taxes.map((tax, i) => [
+            String(i),
+            { transaction_id: i, tax, amount: sales[i] ?? 0, quantity: 1 },
+          ]),
+        ),
+      },
+    });
   }
 
   test("adds the cost of selling to the cost of building", () => {
@@ -193,35 +178,41 @@ describe("what the job cost in total", () => {
       sales: [200, 50],
     });
 
-    expect(job.buildCost).toBe(108);
+    expect(buildCost(job)).toBe(108);
     expect(job.totalBrokersFees).toBe(3);
     expect(job.totalTransactionFees).toBe(0.75);
-    expect(job.totalSales).toBe(250);
-    expect(job.totalCost).toBe(111.75);
+    expect(totalSales(job.toDocument())).toBe(250);
+    expect(totalCost(job)).toBe(111.75);
   });
 
   test("a job that never sold cost only what it took to build", () => {
     const job = jobWith({ materials: [100] });
 
-    expect(job.totalCost).toBe(job.buildCost);
-    expect(job.totalSales).toBe(0);
+    expect(totalCost(job)).toBe(buildCost(job));
+    expect(totalSales(job.toDocument())).toBe(0);
   });
 });
 
 describe("reading a job's figures", () => {
   function sold(job) {
-    job.esi.marketOrders = { 700001: { order_id: 700001, fee: 3 } };
-    job.esi.transactions = {
-      1: { transaction_id: 1, tax: 0.5, amount: 200, quantity: 2 },
-      2: { transaction_id: 2, tax: 0.25, amount: 50, quantity: 1 },
-    };
-    return job;
+    const document = job.toDocument();
+    return new Job({
+      ...document,
+      esi: {
+        ...document.esi,
+        marketOrders: { 700001: { order_id: 700001, fee: 3 } },
+        transactions: {
+          1: { transaction_id: 1, tax: 0.5, amount: 200, quantity: 2 },
+          2: { transaction_id: 2, tax: 0.25, amount: 50, quantity: 1 },
+        },
+      },
+    });
   }
 
   test("the sale totals read as values", () => {
     const job = sold(jobWith({ materials: [100] }));
 
-    expect(job.totalSales).toBe(250);
+    expect(totalSales(job.toDocument())).toBe(250);
     expect(job.totalBrokersFees).toBe(3);
     expect(job.totalTransactionFees).toBe(0.75);
   });
@@ -233,27 +224,6 @@ describe("reading a job's figures", () => {
     expect(job.totalJobSlots).toBe(1);
     expect(job.completedMaterialCount).toBe(1);
     expect(job.remainingMaterialCount).toBe(1);
-  });
-
-  test("the id lists read as values", () => {
-    const job = jobWith({ materials: [100] });
-    job.parentJobs = ["parent-1"];
-    job.build.childJobs = { 34: ["child-1"], 35: [] };
-
-    expect(job.parentJobIDs).toEqual(["parent-1"]);
-    expect(job.childJobIDs).toEqual(["child-1"]);
-    expect(job.relatedJobIDs).toEqual(["parent-1", "child-1"]);
-    expect(job.setupSystemIDs).toHaveLength(1);
-  });
-
-  // Which types a job needs priced, and the reason the two are not the same
-  // list: a child job's type is a material of this job only where it happens to
-  // be one, so reading the child jobs left any other material unpriced.
-  test("the types to price are what the job makes and is made from", () => {
-    const job = jobWith({ materials: [100, 50] });
-    job.build.childJobs = { 9999: ["child-1"] };
-
-    expect(job.materialIDs).toEqual([587, 34, 35]);
   });
 
   // Every character that worked on the job, counted once, whether they ran it or

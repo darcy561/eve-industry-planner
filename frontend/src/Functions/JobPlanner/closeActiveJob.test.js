@@ -36,9 +36,16 @@ vi.mock("../Helper/getAllRelatedJobs", () => ({
 }));
 
 const shakerAdjustments = { current: [] };
+const resizes = { current: false };
 
+// The real one rebuilds the job's setups to make the quantity asked for, which
+// is how the close can see a job's output change under it. Only the case about
+// that needs it to do anything.
 vi.mock("./recalculateJobForNewTotal", () => ({
-  default: () => {},
+  default: (job, requiredQuantity) => {
+    if (!resizes.current) return;
+    job.itemsProducedPerRun = requiredQuantity;
+  },
 }));
 
 vi.mock("../Helper/materialTreeShaker", () => ({
@@ -80,7 +87,12 @@ function makeJob(id = "j1", groupID = null) {
     groupID,
     isReadyToSell: false,
     parentJobs: [],
-    build: { materials: {}, childJobs: {} },
+    itemsProducedPerRun: 280,
+    build: {
+      materials: {},
+      childJobs: {},
+      setup: { "setup-1": { id: "setup-1", runCount: 1, jobCount: 1 } },
+    },
   };
 }
 
@@ -117,17 +129,17 @@ function seedStore() {
 }
 
 describe("closeActiveJob", () => {
-  beforeEach(seedStore);
+  beforeEach(() => {
+    resizes.current = false;
+    seedStore();
+  });
 
   // Closing recalculates production against what the parents need, so a
   // quantity someone set by hand can be replaced on the way out. The person
   // closing the job is told, rather than finding out when they reopen it.
   it("says what the recalculation changed on the way out", async () => {
     const job = makeJob();
-    const produced = [280, 3440];
-    Object.defineProperty(job, "totalQuantityProduced", {
-      get: () => produced.shift() ?? 3440,
-    });
+    resizes.current = true;
     shakerAdjustments.current = [{ job, required: 3440 }];
     storeHolder.current.setState((state) => ({
       applicationSettings: {
@@ -307,7 +319,10 @@ describe("closeActiveJob", () => {
 // rewrites a job in place, and it works on its own copy. Without that, saving a
 // grouped job ready for sale throws where it sets the planner flag.
 describe("closing a job the editor froze", () => {
-  beforeEach(seedStore);
+  beforeEach(() => {
+    resizes.current = false;
+    seedStore();
+  });
 
   const frozenJob = () => {
     const document = freeze(
@@ -344,7 +359,10 @@ describe("closing a job the editor froze", () => {
 // after a save is the one the next open reads instead of loading — the reader is
 // shown what they had before they saved, and saving again writes it back.
 describe("what the save leaves behind", () => {
-  beforeEach(seedStore);
+  beforeEach(() => {
+    resizes.current = false;
+    seedStore();
+  });
 
   const sessionHolds = () => {
     const { draft, activeJobID } = storeHolder.current.getState().editSession;

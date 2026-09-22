@@ -3,30 +3,24 @@ import Setup from "./jobSetup";
 import Material from "./jobMaterial";
 import LinkedESIJob from "./linkedESIJob";
 import BrokerFee from "./brokerFee";
+import { asIDList, asStringID } from "../Functions/Helper/ids";
 import {
-  asIDList,
-  asNumberIDList,
-  asStringID,
-  asStringIDList,
-} from "../Functions/Helper/ids";
+  brokersFeesOf,
+  buildCost,
+  costOfMaterials,
+  jobSlotsOf,
+  materialRequirementOf,
+  materialsBoughtInFull,
+  quantityProduced,
+  totalCostOf,
+  transactionFeesOf,
+} from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import ExtraCost from "./extraCost";
 import InventionEntry from "./inventionEntry";
 import MarketOrder from "./marketOrder";
 import Transaction from "./transaction";
 import useUsersStore from "../Zustand/usersStore";
-import {
-  buildSetupContextForJob,
-  buildSetupFromQuantity,
-} from "../Functions/JobPlanner/setupBuildHelpers";
 
-/**
- * An industry job: its setups, materials, costs, and the ESI rows linked to it.
- *
- * Figures the job derives — costs, totals and quantities — are getters computed
- * from the rows they come from, so none of them can fall behind an edit.
- *
- * @class Job
- */
 /**
  * A job's own choice of where each side of it is priced, or null where it has
  * made none.
@@ -58,6 +52,15 @@ function jobPricingOverride(stored, market, basis) {
   return chosenAnywhere ? { buying, selling } : null;
 }
 
+/**
+ * An industry job: its setups, materials, and the ESI rows linked to it.
+ *
+ * The job holds what it is made of. What it is worth is derived by the
+ * selectors in `Edit Job Hooks/jobSelectors.js`, and the members here that
+ * still answer a figure read one rather than summing the rows again.
+ *
+ * @class Job
+ */
 class Job {
   /**
    * @param {Object} itemJson - Job data object containing job configuration
@@ -142,7 +145,7 @@ class Job {
       saleLocationID:
         build?.saleLocationID ?? build?.sale?.plan?.saleLocationID ?? null,
       materials: documentToMaterials(itemJson, (typeID) =>
-        this.materialRequirement(typeID),
+        this.#materialRequirement(typeID),
       ),
     };
     this.esi = documentToESI(itemJson);
@@ -215,7 +218,7 @@ class Job {
       this.skills = keyByTypeID(itemJson.activities.manufacturing.skills);
       this.build.materials = keyMaterialsByTypeID(
         itemJson.activities.manufacturing.materials,
-        (typeID) => this.materialRequirement(typeID),
+        (typeID) => this.#materialRequirement(typeID),
       );
       this.itemsProducedPerRun =
         itemJson.activities.manufacturing.products[0].quantity;
@@ -227,7 +230,7 @@ class Job {
       this.skills = keyByTypeID(itemJson.activities.reaction.skills);
       this.build.materials = keyMaterialsByTypeID(
         itemJson.activities.reaction.materials,
-        (typeID) => this.materialRequirement(typeID),
+        (typeID) => this.#materialRequirement(typeID),
       );
       this.itemsProducedPerRun =
         itemJson.activities.reaction.products[0].quantity;
@@ -301,82 +304,6 @@ class Job {
     };
   }
 
-  /**
-   * Parent job IDs, each as a string. A hydrated document may carry `parentJob` as
-   * a single value rather than an array.
-   *
-   * @returns {string[]}
-   */
-  get parentJobIDs() {
-    return asStringIDList(this.parentJobs);
-  }
-
-  /**
-   * The ESI industry jobs linked to this job. These ids release the run back to
-   * the account when the job is archived, deleted or merged.
-   *
-   * @returns {Set<number>}
-   */
-  get esiJobIDs() {
-    return new Set(Object.values(this.esi.industryJobs).map((j) => j.job_id));
-  }
-
-  /**
-   * @returns {Set<number>} The ESI market orders linked to this job
-   */
-  get esiOrderIDs() {
-    return new Set(Object.values(this.esi.marketOrders).map((o) => o.order_id));
-  }
-
-  /**
-   * @returns {Set<number>} The ESI transactions linked to this job
-   */
-  get esiTransactionIDs() {
-    return new Set(
-      Object.values(this.esi.transactions).map(
-        (transaction) => transaction.transaction_id,
-      ),
-    );
-  }
-
-  /**
-   * @returns {Array<string>} Array of related job IDs
-   */
-  get relatedJobIDs() {
-    return [...this.parentJobIDs, ...this.childJobIDs];
-  }
-
-  /**
-   * @returns {Array<string>} Array of child job IDs
-   */
-  get childJobIDs() {
-    return Object.values(this.build.childJobs).flat();
-  }
-
-  /**
-   * Every type this job needs a price for: what it makes, and what it is made
-   * from. `models.groupShape` gathers a group's the same way.
-   *
-   * The output is here as well as the materials because a job is priced on both
-   * sides — what its materials cost to buy, and what its output sells for.
-   *
-   * @returns {Array<number>} Array of type IDs
-   */
-  get materialIDs() {
-    return [this.itemID, ...asNumberIDList(Object.keys(this.build.materials))];
-  }
-
-  /**
-   * @returns {Array<number>} Array of system IDs
-   */
-  get setupSystemIDs() {
-    return [
-      ...Object.values(this.build.setup).reduce((prev, { systemID }) => {
-        return prev.add(systemID);
-      }, new Set()),
-    ];
-  }
-
   stepForward() {
     this.jobStatus++;
   }
@@ -395,87 +322,6 @@ class Job {
   }
 
   /**
-   * The linked rows are what the installs cost — see {@link Job#totalInstallCost}
-   * — so there is no separate total to keep in step.
-   *
-   * @param {Object} esiJob - ESI job data from EVE Online API
-   * @param {number} esiJob.job_id - ESI job ID
-   * @param {number} esiJob.cost - Installation cost
-   * @param {Object} jobOwner - The character the job was read for
-   * @param {string} jobOwner.CharacterHash
-   * @param {number} [jobOwner.CharacterID]
-   */
-  linkESIJob(esiJob, jobOwner) {
-    if (!esiJob || !jobOwner) return;
-    // Linking the same run twice would show it twice and charge its install
-    // cost twice, and the panel links on a delay, so a second click or a "link
-    // all" can arrive before the first has landed.
-    if (this.esiJobIDs.has(esiJob.job_id)) return;
-    const linked = LinkedESIJob.fromESI(esiJob, jobOwner);
-    this.esi.industryJobs[String(linked.job_id)] = linked;
-  }
-
-  /**
-   * Its install cost goes with it, because {@link Job#totalInstallCost} reads the
-   * remaining rows.
-   *
-   * @param {Object} linkedJob - Linked ESI job object to remove
-   * @param {number} linkedJob.job_id - ESI job ID to remove
-   */
-  unlinkESIJob(linkedJob) {
-    if (!linkedJob) return;
-    delete this.esi.industryJobs[String(linkedJob.job_id)];
-  }
-
-  /**
-   * Canonical row shape (same as Extras panel): `{ id, category, extraText, extraValue }`.
-   *
-   * @param {Object} newItem - Extra cost row
-   * @param {string} newItem.id
-   * @param {string|number} newItem.category - coerced to string before store
-   * @param {string} newItem.extraText
-   * @param {number} newItem.extraValue
-   */
-  addExtrasCost(newItem) {
-    if (!newItem) return;
-    const extra =
-      newItem instanceof ExtraCost ? newItem : new ExtraCost(newItem);
-    this.build.extrasCosts[extra.id] = extra;
-  }
-
-  /**
-   * @param {Object} item - Extra cost item to remove
-   * @param {string} item.id - Unique identifier for the cost item
-   */
-  removeExtrasCost(item) {
-    if (!item) return;
-    delete this.build.extrasCosts[item.id];
-  }
-  /**
-   * @param {Object} inputObject - Invention cost object
-   * @param {string} inputObject.id - Unique identifier
-   * @param {number} inputObject.itemCost - Cost of the invention item
-   */
-  addInventionCost(inputObject) {
-    if (!inputObject) return;
-    const entry =
-      inputObject instanceof InventionEntry
-        ? inputObject
-        : new InventionEntry(inputObject);
-    this.build.inventionEntries[entry.id] = entry;
-  }
-
-  /**
-   * @param {Object} inputObject - Invention cost object to remove
-   * @param {string} inputObject.id - Unique identifier
-   * @param {number} inputObject.itemCost - Cost to subtract
-   */
-  removeInventionCost(inputObject) {
-    if (!inputObject) return;
-    delete this.build.inventionEntries[inputObject.id];
-  }
-
-  /**
    * @returns {number} Number of setups
    */
   get setupCount() {
@@ -486,9 +332,7 @@ class Job {
    * @returns {number} Number of completed materials
    */
   get completedMaterialCount() {
-    return Object.values(this.build.materials).filter(
-      (material) => material.purchaseComplete,
-    ).length;
+    return materialsBoughtInFull(this.build.materials, this.build.setup);
   }
 
   /**
@@ -513,7 +357,7 @@ class Job {
     const status = Number(this.jobStatus);
     if (status === 3 || status === 4) return false;
     if (!this.isReadyToBuild) return false;
-    return this.esiJobIDs.size === 0;
+    return Object.keys(this.esi.industryJobs).length === 0;
   }
 
   /**
@@ -529,67 +373,7 @@ class Job {
    * @returns {number} Total job count
    */
   get totalJobSlots() {
-    return Object.values(this.build.setup).reduce(
-      (total, { jobCount }) => total + jobCount,
-      0,
-    );
-  }
-
-  /**
-   * Summed from the linked rows at call time, so linking or unlinking a run moves
-   * it and there is no stored total to keep in step.
-   *
-   * Backend twin: `models.Job.TotalInstallCost`.
-   *
-   * @returns {number} Install cost
-   */
-  get totalInstallCost() {
-    return Object.values(this.esi.industryJobs).reduce(
-      (total, linkedJob) => total + (Number(linkedJob?.cost) || 0),
-      0,
-    );
-  }
-
-  /**
-   * What the extras cost, summed from the rows the Extras panel keeps.
-   *
-   * Backend twin: `models.Job.TotalExtrasCost`.
-   *
-   * @returns {number} Extras total
-   */
-  get totalExtrasCost() {
-    return Object.values(this.build.extrasCosts).reduce(
-      (total, extra) => total + (Number(extra?.extraValue) || 0),
-      0,
-    );
-  }
-
-  /**
-   * What invention cost, summed from the entries recorded against the job.
-   *
-   * Backend twin: `models.Job.TotalInventionCost`.
-   *
-   * @returns {number} Invention total
-   */
-  get totalInventionCost() {
-    return Object.values(this.build.inventionEntries).reduce(
-      (total, entry) => total + (Number(entry?.itemCost) || 0),
-      0,
-    );
-  }
-
-  /**
-   * What it cost to build the item, before any cost of selling it.
-   *
-   * @returns {number} Build cost
-   */
-  get buildCost() {
-    return (
-      this.totalMaterialCost +
-      this.totalInstallCost +
-      this.totalExtrasCost +
-      this.totalInventionCost
-    );
+    return jobSlotsOf(this.build.setup);
   }
 
   /**
@@ -598,7 +382,11 @@ class Job {
    * @returns {number} Total cost
    */
   get totalCost() {
-    return this.buildCost + this.totalBrokersFees + this.totalTransactionFees;
+    return totalCostOf({
+      buildCost: buildCost(this),
+      brokersFees: this.totalBrokersFees,
+      transactionFees: this.totalTransactionFees,
+    });
   }
 
   /**
@@ -607,10 +395,7 @@ class Job {
    * @returns {number} Fee total
    */
   get totalBrokersFees() {
-    return Object.values(this.esi.marketOrders).reduce(
-      (total, order) => total + (order.fee || 0),
-      0,
-    );
+    return brokersFeesOf(this.esi.marketOrders);
   }
 
   /**
@@ -622,44 +407,7 @@ class Job {
    * @returns {number} Transaction fee total
    */
   get totalTransactionFees() {
-    return Object.values(this.esi.transactions).reduce(
-      (total, transaction) => total + (transaction.tax || 0),
-      0,
-    );
-  }
-
-  /**
-   * Tax expected on orders that have not sold yet.
-   *
-   * The estimate stored with each order's fee, counted only while the order has
-   * produced no transaction. Once it has, `totalTransactionFees` carries what
-   * EVE actually charged, and that is the figure the job's cost is built from —
-   * counting both would charge the same sale twice.
-   *
-   * @returns {number} Estimated tax still to come
-   */
-  get estimatedSalesTaxOutstanding() {
-    const sold = new Set(
-      Object.values(this.esi.transactions).map((t) => t.order_id),
-    );
-
-    return Object.values(this.esi.marketOrders).reduce(
-      (total, order) =>
-        sold.has(order.order_id) ? total : total + (order.salesTax || 0),
-      0,
-    );
-  }
-
-  /**
-   * What the sales brought in.
-   *
-   * @returns {number} Sales total
-   */
-  get totalSales() {
-    return Object.values(this.esi.transactions).reduce(
-      (total, transaction) => total + (transaction.amount || 0),
-      0,
-    );
+    return transactionFeesOf(this.esi.transactions);
   }
 
   /**
@@ -669,10 +417,7 @@ class Job {
    * @returns {number} Material cost
    */
   get totalMaterialCost() {
-    return Object.values(this.build.materials).reduce(
-      (total, material) => total + material.purchasedCost,
-      0,
-    );
+    return costOfMaterials(this.build.materials, this.build.setup);
   }
 
   /**
@@ -681,38 +426,8 @@ class Job {
    * @param {number} typeID - EVE type id of the material
    * @returns {number} Quantity required
    */
-  materialRequirement(typeID) {
-    return Object.values(this.build.setup).reduce(
-      (total, setup) => total + setup.materialQuantity(typeID),
-      0,
-    );
-  }
-
-  /**
-   * How many items the job produces: what its setups are set to make.
-   *
-   * Backend twin: `models.Job.TotalQuantityProduced`.
-   *
-   * @returns {number} Items produced
-   */
-  get totalQuantityProduced() {
-    return Object.values(this.build.setup).reduce(
-      (total, { runCount, jobCount }) =>
-        total + this.itemsProducedPerRun * runCount * jobCount,
-      0,
-    );
-  }
-
-  /**
-   * What one unit cost to make, before any cost of selling it.
-   *
-   * This is the figure a parent build pays for a child job's output, so it must
-   * not carry the child's selling costs.
-   *
-   * @returns {number} Build cost per item (rounded to 2 decimal places)
-   */
-  buildCostPerItem() {
-    return this.#costPerItem(this.buildCost);
+  #materialRequirement(typeID) {
+    return materialRequirementOf(this.build.setup, typeID);
   }
 
   /**
@@ -734,23 +449,13 @@ class Job {
    * @returns {number} Cost per item
    */
   #costPerItem(cost) {
-    if (!this.totalQuantityProduced) return 0;
-
-    return cost / this.totalQuantityProduced;
-  }
-
-  /**
-   * What a sold item went for on average.
-   *
-   * @returns {number} Sales over items sold, or 0 when nothing has sold
-   */
-  averageItemSalePrice() {
-    const itemsSold = Object.values(this.esi.transactions).reduce(
-      (total, transaction) => total + (transaction.quantity || 0),
-      0,
+    const produced = quantityProduced(
+      this.build.setup,
+      this.itemsProducedPerRun,
     );
-    if (!itemsSold) return 0;
-    return this.totalSales / itemsSold;
+    if (!produced) return 0;
+
+    return cost / produced;
   }
 
   /**
@@ -903,19 +608,6 @@ class Job {
   }
 
   /**
-   * Group edit flow: **Ready for sale** flags (`sellGroupJob` UI). Workflow stage changes stay with the caller.
-   */
-  toggleGroupJobReadyForSale() {
-    if (!this.isReadyToSell) {
-      this.isReadyToSell = true;
-      this.displayOnPlanner = true;
-    } else {
-      this.isReadyToSell = false;
-      this.displayOnPlanner = false;
-    }
-  }
-
-  /**
    * Records a purchase against one of the job's materials.
    *
    * @param {number} materialID - Type ID of the material
@@ -932,20 +624,6 @@ class Job {
   }
 
   /**
-   * Removes a purchase from one of the job's materials.
-   *
-   * @param {number} materialID - Type ID of the material
-   * @param {string} purchaseID
-   * @returns {boolean} Whether a purchase was removed
-   */
-  removeMaterialPurchase(materialID, purchaseID) {
-    const material = this.build.materials?.[String(materialID)];
-    if (!material) return false;
-
-    return material.removePurchase(purchaseID);
-  }
-
-  /**
    * What the job spent buying materials rather than building them: every
    * purchase except the ones imported from a child job, which are that child's
    * cost and not a spend of this job's.
@@ -957,144 +635,6 @@ class Job {
       (total, material) => total + material.boughtCost,
       0,
     );
-  }
-
-  /**
-   * Adds transaction data to the job's sales tracking.
-   *
-   * Which order a sale belongs to is a guess, and on a job selling through more
-   * than one order it is only that. ESI carries no reference between a market
-   * order and a transaction or journal entry — a journal entry and a transaction
-   * name each other, an order names neither — and matching on item, location and
-   * time stops working as soon as a character holds two orders for the same item
-   * in the same station. Figures derived per order from linked sales are
-   * approximate for multi-order jobs.
-   *
-   * A sale is attributed to the job's order when it has exactly one, and left
-   * unattributed otherwise — with several orders there is nothing to choose
-   * between them, and with none there is nothing to name.
-   *
-   * @param {Object|Array<Object>} transaction - Transaction data or array of transactions
-   */
-  addTransaction(transaction) {
-    if (!transaction) return;
-
-    const transactionsToAdd = (
-      Array.isArray(transaction) ? transaction : [transaction]
-    ).map((row) => (row instanceof Transaction ? row : new Transaction(row)));
-
-    const orders = Object.values(this.esi.marketOrders);
-    const soleOrderID = orders.length === 1 ? orders[0].order_id : null;
-    for (let trans of transactionsToAdd) {
-      trans.order_id = soleOrderID;
-    }
-    for (const trans of transactionsToAdd) {
-      this.esi.transactions[String(trans.transaction_id)] = trans;
-    }
-  }
-
-  /**
-   * This job's sales, newest first.
-   *
-   * The collection is keyed rather than ordered, so a reader that shows sales in
-   * the order they happened asks for it here rather than relying on the order
-   * rows were added in.
-   *
-   * @returns {Array<Transaction>} Sales, newest first
-   */
-  get salesByDate() {
-    return Object.values(this.esi.transactions).sort(
-      (a, b) => new Date(b.date) - new Date(a.date),
-    );
-  }
-
-  /**
-   * Removes a transaction from the job's sales tracking.
-   *
-   * @param {Object} transaction - Transaction object to remove
-   * @param {number} transaction.transaction_id - Transaction ID to remove
-   */
-  removeTransaction(transaction) {
-    if (!transaction) return;
-    delete this.esi.transactions[String(transaction.transaction_id)];
-  }
-
-  /**
-   * Names where this job's output is meant to go.
-   *
-   * Passing null for either puts that half back on the account's default, which
-   * is what most jobs use — the override exists for the minority that sell
-   * somewhere other than the usual place.
-   *
-   * @param {{sellerCharacter?: string|null, saleLocationID?: string|null}} plan
-   */
-  setSellingPlan(plan) {
-    if ("sellerCharacter" in plan) {
-      this.build.sellerCharacter = plan.sellerCharacter;
-    }
-    if ("saleLocationID" in plan) {
-      this.build.saleLocationID = plan.saleLocationID;
-    }
-  }
-
-  /**
-   * Adds a market order to the job's sales tracking.
-   *
-   * The fee is carried by the order rather than stored beside it: a fee has no
-   * identity of its own, since the journal entry it arrives from is shared
-   * between orders sold together in one multi-sell.
-   *
-   * @param {Object} order - Market order data
-   * @param {Object} brokersFee - Broker's fee information
-   */
-  addMarketOrder(order, brokersFee) {
-    if (!order) return;
-
-    const row = MarketOrder.fromESI(order);
-    if (brokersFee) {
-      row.recordBrokerFee(
-        brokersFee instanceof BrokerFee
-          ? brokersFee
-          : new BrokerFee(brokersFee),
-      );
-    }
-    this.esi.marketOrders[String(row.order_id)] = row;
-  }
-
-  /**
-   * Removes a market order from the job's sales tracking.
-   *
-   * Sales made through the order go with it, matched on location.
-   *
-   * @param {Object} order - Market order object to remove
-   * @param {number} order.order_id - Order ID to remove
-   * @param {number} order.location_id - Location ID for related transactions
-   */
-  removeMarketOrder(order) {
-    if (!order) return;
-
-    // The fee goes with the order it sits on.
-    delete this.esi.marketOrders[String(order.order_id)];
-
-    for (const [id, trans] of Object.entries(this.esi.transactions)) {
-      if (trans.location_id === order.location_id) {
-        delete this.esi.transactions[id];
-      }
-    }
-  }
-
-  /**
-   * Updates linked ESI job data with latest information.
-   *
-   * @param {Array<Object>} latestESIJobs - Array of latest ESI job data
-   */
-  updateLinkedJobData(latestESIJobs) {
-    if (!latestESIJobs) return;
-    Object.values(this.esi.industryJobs).forEach((linkedJob) => {
-      linkedJob.applyLatest(
-        latestESIJobs.find((i) => i.job_id === linkedJob.job_id),
-      );
-    });
   }
 
   /**
@@ -1157,37 +697,6 @@ class Job {
   attachNewSetupToJob(setup) {
     this.build.setup[setup.id] = setup;
     this.layout.setupToEdit = setup.id;
-  }
-
-  /**
-   * Adds a setup to the job, copying the one being edited: another run of the same
-   * production line, made where that one is made. It starts at a single run,
-   * whatever the copied setup is sized at.
-   */
-  addNewSetup(queryClient) {
-    const newSetup = buildSetupFromQuantity(
-      this,
-      { runCount: 1, jobCount: 1 },
-      queryClient,
-      buildSetupContextForJob(this, queryClient),
-      { basedOn: this.setupToBuildFrom },
-    );
-    this.attachNewSetupToJob(newSetup);
-  }
-
-  /**
-   * Deletes the active setup from the job.
-   *
-   * @returns {boolean} True if the setup was deleted, false if not
-   */
-
-  deleteActiveSetup() {
-    if (Object.keys(this.build.setup).length === 1) {
-      return false;
-    }
-    delete this.build.setup[this.layout.setupToEdit];
-    this.layout.setupToEdit = Object.keys(this.build.setup).at(-1);
-    return true;
   }
 
   recalculateSelectedSetup(setupId) {

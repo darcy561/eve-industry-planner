@@ -1,3 +1,8 @@
+import {
+  esiJobIDs,
+  esiOrderIDs,
+  esiTransactionIDs,
+} from "../../../../Edit Job Hooks/jobSelectors";
 import { Button, Tooltip } from "@mui/material";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,9 +41,9 @@ export function ArchiveJobButton() {
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),
       transactionsToAdd: new Set(),
-      ordersToRemove: job.esiOrderIDs,
-      jobsToRemove: job.esiJobIDs,
-      transactionsToRemove: job.esiTransactionIDs,
+      ordersToRemove: esiOrderIDs(job),
+      jobsToRemove: esiJobIDs(job),
+      transactionsToRemove: esiTransactionIDs(job),
     });
 
     const archivedOk = await saveArchivedJobs([job]);

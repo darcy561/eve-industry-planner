@@ -1,5 +1,6 @@
 import { PRICING_SIDE } from "./pricingSide.js";
 import { resolveFor, sideDefaults } from "./priceResolution";
+import { materialTypeIDsOf } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
  * Which market each of a job's figures is actually priced against.
@@ -32,7 +33,9 @@ export function pricesWantedBy(inputJobs) {
     const buying = sideDefaults(PRICING_SIDE.BUYING, { jobPricing });
     const selling = sideDefaults(PRICING_SIDE.SELLING, { jobPricing });
 
-    for (const typeID of job.materialIDs ?? []) {
+    // What the job is made of, and not what it makes: the output is priced
+    // below, at the market it will be sold on rather than bought at.
+    for (const typeID of materialTypeIDsOf(job.build?.materials)) {
       add(wants, typeID, resolveFor(buying, job.build, typeID).marketLocation);
       // The install cost estimate prices materials at CCP's adjusted price,
       // which belongs to no market and is wanted for the same set.

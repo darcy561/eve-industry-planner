@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { buildCostPerItem } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 
 const store = {
   jobs: new Map(),
@@ -100,7 +101,7 @@ describe("collecting what the child jobs produced", () => {
       ["child-2", childB],
     ]);
 
-    expect(childA.buildCostPerItem()).toBe(childB.buildCostPerItem());
+    expect(buildCostPerItem(childA)).toBe(buildCostPerItem(childB));
 
     await passBuildCostsToParentJobs([childA, childB]);
 

@@ -1,3 +1,8 @@
+import {
+  esiJobIDs,
+  esiOrderIDs,
+  esiTransactionIDs,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import Job from "../../Classes/job";
 import Group from "../../Classes/group";
 import {
@@ -83,11 +88,11 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     jobArray.map((job) => workingJobsByID.get(job.jobID) ?? job);
 
   for (const inputJob of jobsToDelete) {
-    inputJob.esiJobIDs.forEach((jobID) => linkedJobIdsToRemove.add(jobID));
-    inputJob.esiOrderIDs.forEach((orderID) =>
+    esiJobIDs(inputJob).forEach((jobID) => linkedJobIdsToRemove.add(jobID));
+    esiOrderIDs(inputJob).forEach((orderID) =>
       linkedOrderIdsToRemove.add(orderID),
     );
-    inputJob.esiTransactionIDs.forEach((transactionID) =>
+    esiTransactionIDs(inputJob).forEach((transactionID) =>
       linkedTransIdsToRemove.add(transactionID),
     );
 

@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import Job from "../../Classes/job";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import { displayOutdatedAppVersionDialogue } from "../../Events/notificationDialogueEvents";
@@ -135,7 +136,7 @@ async function buildSetupOptions(
       typeof requiredQuantity === "number" && requiredQuantity > 0
         ? requiredQuantity
         : null;
-    if (target != null && inputJobObject.totalQuantityProduced !== target) {
+    if (target != null && totalQuantityProduced(inputJobObject) !== target) {
       recalculateJobForNewTotal(inputJobObject, target, queryClient);
     }
     return;

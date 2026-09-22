@@ -1,10 +1,14 @@
+import {
+  setupCount,
+  totalQuantityProduced,
+} from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Typography, Box } from "@mui/material";
 
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../Functions/Helper/numberParser";
 
 export default function GroupStep1JobCard({ job }) {
-  const totalSetupCount = job.setupCount;
+  const totalSetupCount = setupCount(job);
   return (
     <Box
       sx={{
@@ -29,7 +33,7 @@ export default function GroupStep1JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.totalQuantityProduced, { max: 0 })}
+            {formatNumberForLocale(totalQuantityProduced(job), { max: 0 })}
           </Typography>
         </Box>
       </Box>

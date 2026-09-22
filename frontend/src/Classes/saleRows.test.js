@@ -1,3 +1,9 @@
+import {
+  buildCost,
+  esiOrderIDs,
+  estimatedSalesTaxOutstanding,
+  totalCost,
+} from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { describe, expect, it } from "vitest";
 
 import BrokerFee from "./brokerFee";
@@ -5,6 +11,12 @@ import MarketOrder from "./marketOrder";
 import Transaction from "./transaction";
 import Job from "./job";
 import InventionEntry from "./inventionEntry";
+import {
+  addMarketOrder,
+  addTransaction,
+  removeMarketOrder,
+} from "../Components/Edit Job/Edit Job Hooks/jobCommands";
+import { jobAfterCommands } from "../tests/jobAfterCommands";
 
 describe("Transaction", () => {
   it("takes the stored id as it finds it", () => {
@@ -374,14 +386,17 @@ describe("linking a market order", () => {
       name: "Tritanium",
     });
 
-    job.addMarketOrder({ order_id: 1, price: 5, volume_total: 10 }, null);
+    const listed = jobAfterCommands(
+      job,
+      addMarketOrder({ order_id: 1, price: 5, volume_total: 10 }, null),
+    );
 
-    expect(job.esiOrderIDs.has(1)).toBe(true);
+    expect(esiOrderIDs(listed.toDocument()).has(1)).toBe(true);
     // Charged nothing rather than unknown: the figure is summed, so a missing
     // one would take the total with it.
-    expect(job.esi.marketOrders["1"].fee).toBe(0);
-    expect(job.esi.marketOrders["1"].feeDate).toBeNull();
-    expect(job.totalBrokersFees).toBe(0);
+    expect(listed.esi.marketOrders["1"].fee).toBe(0);
+    expect(listed.esi.marketOrders["1"].feeDate).toBeNull();
+    expect(listed.totalBrokersFees).toBe(0);
   });
 
   it("records the fee alongside the order when there is one", () => {
@@ -392,19 +407,18 @@ describe("linking a market order", () => {
       name: "Tritanium",
     });
 
-    job.addMarketOrder(
-      { order_id: 1, price: 5, volume_total: 10 },
-      {
-        order_id: 1,
-        id: 500,
-        amount: 1200,
-      },
+    const listed = jobAfterCommands(
+      job,
+      addMarketOrder(
+        { order_id: 1, price: 5, volume_total: 10 },
+        { order_id: 1, id: 500, amount: 1200 },
+      ),
     );
 
-    expect(job.esiOrderIDs.has(1)).toBe(true);
-    expect(job.totalBrokersFees).toBe(1200);
+    expect(esiOrderIDs(listed.toDocument()).has(1)).toBe(true);
+    expect(listed.totalBrokersFees).toBe(1200);
     // The fee rides the order it was charged against rather than sitting beside it.
-    expect(job.esi.marketOrders["1"].fee).toBe(1200);
+    expect(listed.esi.marketOrders["1"].fee).toBe(1200);
   });
 
   it("holds a stored fee on its order and writes it back", () => {
@@ -460,9 +474,12 @@ describe("linking a market order", () => {
       },
     });
 
-    job.removeMarketOrder({ order_id: 1, location_id: 60003760 });
+    const unlisted = jobAfterCommands(
+      job,
+      removeMarketOrder({ order_id: 1, location_id: 60003760 }),
+    );
 
-    expect(job.totalBrokersFees).toBe(800);
+    expect(unlisted.totalBrokersFees).toBe(800);
   });
 });
 
@@ -481,9 +498,12 @@ describe("which order a linked sale is attributed to", () => {
   it("attributes the sale to the job's only order", () => {
     const job = jobSellingThrough([{ order_id: 700001, price: 5 }]);
 
-    job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
+    const sold = jobAfterCommands(
+      job,
+      addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 }),
+    );
 
-    expect(job.esi.transactions["800001"].order_id).toBe(700001);
+    expect(sold.esi.transactions["800001"].order_id).toBe(700001);
   });
 
   // Guessing between them would put the sale's figures against an order that
@@ -494,9 +514,12 @@ describe("which order a linked sale is attributed to", () => {
       { order_id: 700002, price: 6 },
     ]);
 
-    job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
+    const sold = jobAfterCommands(
+      job,
+      addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 }),
+    );
 
-    expect(job.esi.transactions["800001"].order_id).toBeNull();
+    expect(sold.esi.transactions["800001"].order_id).toBeNull();
   });
 
   // A sale can be linked before its order is: the job holds the sale rather
@@ -504,10 +527,13 @@ describe("which order a linked sale is attributed to", () => {
   it("takes a sale on a job with no orders at all", () => {
     const job = jobSellingThrough([]);
 
-    job.addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 });
+    const sold = jobAfterCommands(
+      job,
+      addTransaction({ transaction_id: 800001, quantity: 1, amount: 10 }),
+    );
 
-    expect(Object.keys(job.esi.transactions)).toHaveLength(1);
-    expect(job.esi.transactions["800001"].order_id).toBeNull();
+    expect(Object.keys(sold.esi.transactions)).toHaveLength(1);
+    expect(sold.esi.transactions["800001"].order_id).toBeNull();
   });
 });
 
@@ -538,7 +564,7 @@ describe("tax expected on orders that have not sold", () => {
       fees: [{ order_id: 1, amount: 1200, salesTax: 500 }],
     });
 
-    expect(job.estimatedSalesTaxOutstanding).toBe(500);
+    expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(500);
   });
 
   it("stops counting it once the order has sold", () => {
@@ -547,7 +573,7 @@ describe("tax expected on orders that have not sold", () => {
       transactions: [{ order_id: 1, transaction_id: 9, tax: 480, amount: 100 }],
     });
 
-    expect(job.estimatedSalesTaxOutstanding).toBe(0);
+    expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(0);
     // What was actually charged is the figure that survives.
     expect(job.totalTransactionFees).toBe(480);
   });
@@ -561,7 +587,7 @@ describe("tax expected on orders that have not sold", () => {
       transactions: [{ order_id: 1, transaction_id: 9, tax: 480, amount: 100 }],
     });
 
-    expect(job.estimatedSalesTaxOutstanding).toBe(300);
+    expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(300);
   });
 
   // The estimate is a forecast, so it must never reach the figure the job is
@@ -571,13 +597,13 @@ describe("tax expected on orders that have not sold", () => {
       fees: [{ order_id: 1, amount: 1200, salesTax: 500 }],
     });
 
-    expect(job.totalCost).toBe(job.buildCost + 1200);
+    expect(totalCost(job)).toBe(buildCost(job) + 1200);
   });
 
   it("counts nothing for rows stored before estimates existed", () => {
     const job = jobWith({ fees: [{ order_id: 1, amount: 1200 }] });
 
-    expect(job.estimatedSalesTaxOutstanding).toBe(0);
+    expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(0);
   });
 });
 
@@ -631,35 +657,5 @@ describe("minting an invention entry's id", () => {
 
     expect(entry.id).toBe(1789083363901);
     expect(entry.toDocument().id).toBe(1789083363901);
-  });
-
-  it("removes a row carrying a numeric id", () => {
-    const job = new Job({ jobType: 1, name: "Item", build: { materials: {} } });
-    job.addInventionCost({ id: 1789083363901, itemName: "Old", itemCost: 5 });
-    job.addInventionCost(InventionEntry.forItem("New", 10));
-
-    job.removeInventionCost(job.build.inventionEntries["1789083363901"]);
-
-    expect(Object.keys(job.build.inventionEntries)).toHaveLength(1);
-    expect(Object.values(job.build.inventionEntries)[0].itemName).toBe("New");
-  });
-
-  // Removing one of two rows added together must leave the other.
-  it("leaves the other row when one of a pair is removed", () => {
-    const job = new Job({ jobType: 1, name: "Item", build: { materials: {} } });
-    job.addInventionCost(InventionEntry.forItem("Datacore", 100));
-    job.addInventionCost(InventionEntry.forItem("Decryptor", 200));
-
-    // Both ids are minted, so the row to remove is named by what it holds
-    // rather than by a key the test can write down.
-    const datacore = Object.values(job.build.inventionEntries).find(
-      (entry) => entry.itemName === "Datacore",
-    );
-    job.removeInventionCost(datacore);
-
-    expect(Object.keys(job.build.inventionEntries)).toHaveLength(1);
-    expect(Object.values(job.build.inventionEntries)[0].itemName).toBe(
-      "Decryptor",
-    );
   });
 });

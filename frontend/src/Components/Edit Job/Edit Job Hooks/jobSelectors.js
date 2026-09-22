@@ -6,9 +6,82 @@
  * can read one from a draft without a class being built around it. Each reads
  * only the part of the job it names, which is what lets a reader subscribe to
  * that part rather than to the whole job.
+ *
+ * Most come in a pair: the one named for the figure takes the job, and the `…Of`
+ * beside it takes only the rows that figure is read from, for a caller that
+ * already holds them.
  */
 
+import { asNumberIDList, asStringIDList } from "../../../Functions/Helper/ids";
 import { purchasedCost, quantityRemaining } from "./materialSelectors";
+
+/**
+ * The jobs this one feeds.
+ *
+ * @param {object} job
+ * @returns {Array<string>}
+ */
+export function parentJobIDs(job) {
+  return asStringIDList(job?.parentJobs);
+}
+
+/**
+ * The jobs building this one's materials, across every material.
+ *
+ * @param {object} job
+ * @returns {Array<string>}
+ */
+export function childJobIDs(job) {
+  return Object.values(job?.build?.childJobs ?? {}).flat();
+}
+
+/**
+ * Every job this one is linked to in either direction, parents first.
+ *
+ * @param {object} job
+ * @returns {Array<string>}
+ */
+export function relatedJobIDs(job) {
+  return [...parentJobIDs(job), ...childJobIDs(job)];
+}
+
+/**
+ * The systems the job's setups build in, one entry each.
+ *
+ * @param {object} job
+ * @returns {Array<number>}
+ */
+export function setupSystemIDs(job) {
+  return systemIDsOf(job?.build?.setup);
+}
+
+/**
+ * @param {object} setups
+ * @returns {Array<number>}
+ */
+function systemIDsOf(setups) {
+  return [
+    ...new Set(Object.values(setups ?? {}).map((setup) => setup?.systemID)),
+  ];
+}
+
+/**
+ * Every type the job prices: what it makes, and what it is made of.
+ *
+ * @param {object} job
+ * @returns {Array<number>}
+ */
+export function materialIDs(job) {
+  return [job?.itemID, ...materialTypeIDsOf(job?.build?.materials)];
+}
+
+/**
+ * @param {object} materials
+ * @returns {Array<number>}
+ */
+export function materialTypeIDsOf(materials) {
+  return asNumberIDList(Object.keys(materials ?? {}));
+}
 
 /**
  * The setup the reader has open.
@@ -21,8 +94,6 @@ export function selectedSetup(job) {
 }
 
 /**
- * The same setup for a reader that already holds them and the choice.
- *
  * @param {object} setups
  * @param {string} setupToEdit
  * @returns {object|undefined}
@@ -88,9 +159,6 @@ export function childJobsAfterEdits(
 }
 
 /**
- * The same answer for a reader that already holds one material's links rather
- * than the whole job.
- *
  * @param {Array<string>|undefined} linkedChildJobIDs - What the job holds
  * @param {{add?: Array<string>, remove?: Array<string>}} [edits] - What the
  *   reader has marked for this material
@@ -134,9 +202,6 @@ export function esiJobIDs(job) {
 }
 
 /**
- * The same ids for a reader that already holds the runs. A set is built fresh
- * every time it is asked for, so a panel selects the rows and names them here.
- *
  * @param {object} industryJobs
  * @returns {Set<number>}
  */
@@ -153,8 +218,6 @@ export function esiOrderIDs(job) {
 }
 
 /**
- * The same ids for a reader that already holds the orders.
- *
  * @param {object} marketOrders
  * @returns {Set<number>}
  */
@@ -171,8 +234,6 @@ export function esiTransactionIDs(job) {
 }
 
 /**
- * The same ids for a reader that already holds the sales.
- *
  * @param {object} transactions
  * @returns {Set<number>}
  */
@@ -196,8 +257,6 @@ export function totalInstallCost(job) {
 }
 
 /**
- * The same total for a reader that already holds the runs.
- *
  * @param {object} industryJobs
  * @returns {number}
  */
@@ -216,8 +275,6 @@ export function totalExtrasCost(job) {
 }
 
 /**
- * The same total for a reader that already holds the rows.
- *
  * @param {object} extrasCosts
  * @returns {number}
  */
@@ -236,8 +293,6 @@ export function totalInventionCost(job) {
 }
 
 /**
- * The same total for a reader that already holds the entries.
- *
  * @param {object} inventionEntries
  * @returns {number}
  */
@@ -264,8 +319,6 @@ export function materialRequirement(job, typeID) {
 }
 
 /**
- * The same figure for a reader that already holds the setups.
- *
  * @param {object} setups
  * @param {number|string} typeID
  * @returns {number}
@@ -289,9 +342,6 @@ export function totalMaterialCost(job) {
 }
 
 /**
- * The same total for a reader that already holds the materials. The setups come
- * with them, because how many of each the job needs belongs to those.
- *
  * @param {object} materials
  * @param {object} setups
  * @returns {number}
@@ -316,8 +366,6 @@ export function completedMaterialCount(job) {
 }
 
 /**
- * The same count for a reader that already holds the materials and setups.
- *
  * @param {object} materials
  * @param {object} setups
  * @returns {number}
@@ -352,8 +400,6 @@ export function totalQuantityProduced(job) {
 }
 
 /**
- * The same count for a reader that already holds the setups.
- *
  * @param {object} setups
  * @param {number} itemsProducedPerRun
  * @returns {number}
@@ -383,8 +429,6 @@ export function buildCost(job) {
 }
 
 /**
- * The same total for a reader that already holds the parts it is made of.
- *
  * What a build costs is these four and nothing else, which is a rule worth
  * having in one place: a panel adding them up itself is a second answer to keep
  * in step with this one.
@@ -418,8 +462,6 @@ export function totalJobSlots(job) {
 }
 
 /**
- * The same count for a reader that already holds the setups.
- *
  * @param {object} setups
  * @returns {number}
  */
@@ -441,8 +483,6 @@ export function totalBrokersFees(job) {
 }
 
 /**
- * The same total for a reader that already holds the orders.
- *
  * @param {object} marketOrders
  * @returns {number}
  */
@@ -462,8 +502,6 @@ export function totalTransactionFees(job) {
 }
 
 /**
- * The same total for a reader that already holds the sales.
- *
  * @param {object} transactions
  * @returns {number}
  */
@@ -482,8 +520,6 @@ export function totalSales(job) {
 }
 
 /**
- * The same total for a reader that already holds the sales.
- *
  * @param {object} transactions
  * @returns {number}
  */
@@ -506,8 +542,6 @@ export function estimatedSalesTaxOutstanding(job) {
 }
 
 /**
- * The same estimate for a reader that already holds the orders and the sales.
- *
  * @param {object} marketOrders
  * @param {object} transactions
  * @returns {number}
@@ -539,8 +573,6 @@ export function totalCost(job) {
 }
 
 /**
- * The same total for a reader that already holds the three it is made of.
- *
  * @param {{buildCost: number, brokersFees: number, transactionFees: number}} parts
  * @returns {number}
  */
@@ -597,8 +629,6 @@ export function averageItemSalePrice(job) {
 }
 
 /**
- * The same average for a reader that already holds the sales.
- *
  * @param {object} transactions
  * @returns {number}
  */
@@ -622,8 +652,6 @@ export function salesByDate(job) {
 }
 
 /**
- * The same order for a reader that already holds the sales.
- *
  * @param {object} transactions
  * @returns {Array<object>}
  */

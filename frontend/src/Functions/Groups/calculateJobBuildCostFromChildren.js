@@ -1,3 +1,8 @@
+import {
+  totalExtrasCost,
+  totalInstallCost,
+  totalQuantityProduced,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { captureException } from "@sentry/react";
 
 import useUsersStore from "../../Zustand/usersStore.js";
@@ -37,16 +42,16 @@ export function calculateCurrentJobBuildCostFromChildren(
 
   const getInstallCost =
     options.installCostMode === "actual"
-      ? (job) => job.totalInstallCost
+      ? (job) => totalInstallCost(job)
       : getJobInstallCostForPlanning;
 
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
-  const outTotalQty = toFinite(outputJob.totalQuantityProduced);
+  const outTotalQty = toFinite(totalQuantityProduced(outputJob));
   if (outTotalQty <= 0) {
     return 0;
   }
 
-  let finalBuildCost = getInstallCost(outputJob) + outputJob.totalExtrasCost;
+  let finalBuildCost = getInstallCost(outputJob) + totalExtrasCost(outputJob);
 
   // The job being costed opens the walk's ancestry so a job listing itself as
   // its own child is caught on the first descent rather than the second.
@@ -105,8 +110,8 @@ function findItemBuildCost(
     }
 
     returnTotal += getInstallCost(childJob);
-    returnTotal += childJob.totalExtrasCost;
-    totalProduced += toFinite(childJob.totalQuantityProduced);
+    returnTotal += totalExtrasCost(childJob);
+    totalProduced += toFinite(totalQuantityProduced(childJob));
 
     // Ancestry is per path, not per walk: the same job reached down two separate
     // branches is two real contributions and must still be counted twice.

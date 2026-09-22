@@ -1,9 +1,10 @@
+import { completedMaterialCount } from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Typography, Box } from "@mui/material";
 
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 
 export default function GroupStep2JobCard({ job }) {
-  const totalComplete = job.completedMaterialCount;
+  const totalComplete = completedMaterialCount(job);
   const isNotReadyToBuild = !job.isReadyToBuild;
 
   return (

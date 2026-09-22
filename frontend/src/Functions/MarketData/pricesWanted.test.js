@@ -5,6 +5,7 @@ let accountPricing;
 vi.mock("../../Zustand/usersStore", () => ({
   default: {
     getState: () => ({
+      account: { accountID: "acc-1" },
       applicationSettings: {
         get defaultPricing() {
           return accountPricing;
@@ -17,6 +18,7 @@ vi.mock("../../Zustand/usersStore", () => ({
 vi.mock("./marketGroupData", () => ({ groupPricingFor: () => undefined }));
 
 const { PRICING_SIDE } = await import("./pricingSide.js");
+const { default: Job } = await import("../../Classes/job.js");
 const { pricesWantedBy, pricesWantedByWatchlist, pricesWantedForTypes } =
   await import("./pricesWanted.js");
 
@@ -37,14 +39,19 @@ beforeEach(() => {
 });
 
 describe("what a job needs priced", () => {
-  // A stand-in rather than a real Job: these cases are about which market each
-  // side is priced at, not about what a job counts as its types. `materialIDs`
-  // itself is asserted in Classes/jobCost.test.js, against the class.
-  const job = (overrides = {}) => ({
-    materialIDs: [34, 35],
+  // A stand-in rather than a real Job, but shaped like one: what a job is made
+  // of sits under `build.materials`, keyed by type. A fixture naming its
+  // materials any other way is one no caller supplies, and the fetch would ask
+  // for nothing without the case noticing.
+  const job = ({ materials = [34, 35], build = {}, ...overrides } = {}) => ({
     itemID: 99,
-    build: {},
     ...overrides,
+    build: {
+      materials: Object.fromEntries(
+        materials.map((typeID) => [String(typeID), { typeID }]),
+      ),
+      ...build,
+    },
   });
 
   it("asks for materials where they are bought and the output where it is sold", () => {
@@ -72,15 +79,34 @@ describe("what a job needs priced", () => {
   // differently and the batch must carry both answers.
   it("keeps two jobs' different markets apart in one call", () => {
     const { wants } = pricesWantedBy([
-      job({ materialIDs: [34], itemID: 98 }),
+      job({ materials: [34], itemID: 98 }),
       job({
-        materialIDs: [34],
+        materials: [34],
         itemID: 99,
         build: { localPricing: { buying: { market: "hek" } } },
       }),
     ]);
 
     expect(marketsFor(wants, 34)).toEqual(["hek", "jita"]);
+  });
+
+  // The callers hand this real jobs out of the store, not the plain shape the
+  // cases above use, and a job carries what it makes as well as what it is made
+  // of. Asking for the output on the buying side as well would price it twice,
+  // at two different markets.
+  it("asks for the output once, even for a job out of the store", () => {
+    const stored = new Job({
+      jobID: "job-1",
+      itemID: 99,
+      jobType: 1,
+      name: "Item",
+      build: { materials: { 34: { typeID: 34, name: "Tritanium" } } },
+    });
+
+    const { wants } = pricesWantedBy(stored);
+
+    expect(marketsFor(wants, 99)).toEqual(["amarr"]);
+    expect(marketsFor(wants, 34)).toEqual(["jita"]);
   });
 
   it("asks once for a type two jobs want at the same market", () => {
@@ -97,7 +123,7 @@ describe("what a job needs priced", () => {
 
   it("asks for nothing for a job with no output and no materials", () => {
     const { wants, adjustedTypeIDs } = pricesWantedBy(
-      job({ materialIDs: [], itemID: null }),
+      job({ materials: [], itemID: null }),
     );
 
     expect(wants).toEqual([]);

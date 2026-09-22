@@ -9,8 +9,6 @@ const { default: findIndustryJobsForItem } =
   await import("./findIndustryJobsForItem.js");
 const { default: Job } = await import("../../Classes/job.js");
 
-const OWNER = { CharacterHash: "hash-1", CharacterID: 2117000001 };
-
 function run(job_id, overrides = {}) {
   return {
     job_id,
@@ -40,6 +38,14 @@ const linkable = (job) => ({
   industryJobs: job.esi.industryJobs,
 });
 
+/** The same, for a job already holding these runs. */
+const holding = (...runs) => ({
+  itemID: 587,
+  industryJobs: Object.fromEntries(
+    runs.map((linked) => [String(linked.job_id), linked]),
+  ),
+});
+
 describe("the industry runs a job can link", () => {
   it("offers runs that made this job's item", () => {
     expect(
@@ -63,11 +69,8 @@ describe("the industry runs a job can link", () => {
   });
 
   it("does not offer a run this job already holds", () => {
-    const activeJob = job();
-    activeJob.linkESIJob(run(1), OWNER);
-
     expect(
-      ids(findIndustryJobsForItem([run(1), run(2)], linkable(activeJob))),
+      ids(findIndustryJobsForItem([run(1), run(2)], holding(run(1)))),
     ).toEqual([2]);
   });
 
@@ -93,10 +96,7 @@ describe("the industry runs a job can link", () => {
   // A run this job holds stays hidden even while it is queued for removal:
   // it is already on the job, and the panel lists it as linked.
   it("keeps a run this job holds out of the list", () => {
-    const activeJob = job();
-    activeJob.linkESIJob(run(1), OWNER);
-
-    const offered = findIndustryJobsForItem([run(1)], linkable(activeJob), {
+    const offered = findIndustryJobsForItem([run(1)], holding(run(1)), {
       beingRemoved: [1],
     });
 

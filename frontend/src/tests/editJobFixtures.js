@@ -97,6 +97,29 @@ export function linkedTransaction(
 }
 
 /** Another job on the planner, as the linking panels read one. */
+/**
+ * A job making `produced` items, and whatever else the caller names.
+ *
+ * What a job makes is derived from its setups, so a fixture says so by carrying
+ * a setup that makes them. One naming `totalQuantityProduced` instead is a job
+ * no caller supplies, and every figure read off it answers zero.
+ *
+ * @param {number} produced
+ * @param {object} [overrides] - Merged over the job; a `build` is merged into it
+ * @returns {object}
+ */
+export function jobMaking(produced, overrides = {}) {
+  const { build = {}, ...rest } = overrides;
+  return {
+    itemsProducedPerRun: produced,
+    ...rest,
+    build: {
+      setup: { "setup-1": { id: "setup-1", runCount: 1, jobCount: 1 } },
+      ...build,
+    },
+  };
+}
+
 export function plannerJob(
   jobID,
   name,
@@ -107,11 +130,9 @@ export function plannerJob(
     name,
     itemID,
     groupID: null,
-    setupCount: 1,
-    totalSetupCount: 1,
-    totalQuantityProduced: 10,
+    itemsProducedPerRun: 10,
     build: {
-      setup: { one: {} },
+      setup: { one: { id: "one", runCount: 1, jobCount: 1 } },
       materials: Object.fromEntries(
         builtFrom.map((typeID) => [String(typeID), { typeID }]),
       ),

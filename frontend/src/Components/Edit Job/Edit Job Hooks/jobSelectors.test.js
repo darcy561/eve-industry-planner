@@ -2,9 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import Job from "../../../Classes/job";
 import {
+  childJobIDs,
   childJobIDsAfterEdits,
   childJobsAfterEdits,
+  materialIDs,
+  materialRequirementOf,
+  parentJobIDs,
+  perItem,
+  relatedJobIDs,
   selectedSetup,
+  selectedSetupOf,
+  setupSystemIDs,
   setupToBuildFrom,
 } from "./jobSelectors";
 
@@ -154,5 +162,120 @@ describe("the child jobs a material counts", () => {
     expect(childJobsAfterEdits(job, 34, { 34: { add: ["job-b"] } })).toEqual(
       childJobIDsAfterEdits(linked, { add: ["job-b"] }),
     );
+  });
+});
+
+// How much of a material a job calls for is every setup's requirement summed,
+// which is what decides whether enough of it has been bought.
+describe("what the setups call for of a material", () => {
+  const setups = {
+    "setup-1": { id: "setup-1", materialCount: { 34: { quantity: 100 } } },
+    "setup-2": { id: "setup-2", materialCount: { 34: { quantity: 50 } } },
+  };
+
+  it("adds up what every setup asks for", () => {
+    expect(materialRequirementOf(setups, 34)).toBe(150);
+  });
+
+  it("asks for none of a material no setup names", () => {
+    expect(materialRequirementOf(setups, 35)).toBe(0);
+  });
+
+  it("asks for none where a setup carries no materials at all", () => {
+    expect(materialRequirementOf({ "setup-1": {} }, 34)).toBe(0);
+    expect(materialRequirementOf(undefined, 34)).toBe(0);
+  });
+
+  // A quantity stored as text still counts: what is stored has been through the
+  // wire, and a NaN here would take the whole requirement with it.
+  it("reads a quantity stored as text", () => {
+    const stored = { "setup-1": { materialCount: { 34: { quantity: "40" } } } };
+
+    expect(materialRequirementOf(stored, 34)).toBe(40);
+  });
+});
+
+describe("the setup a reader has open, read off the setups alone", () => {
+  const setups = { "setup-1": { id: "setup-1" }, "setup-2": { id: "setup-2" } };
+
+  it("is the one named", () => {
+    expect(selectedSetupOf(setups, "setup-2")).toBe(setups["setup-2"]);
+  });
+
+  it("is nothing where the name matches none, or there are none", () => {
+    expect(selectedSetupOf(setups, "setup-9")).toBeUndefined();
+    expect(selectedSetupOf(setups, undefined)).toBeUndefined();
+    expect(selectedSetupOf(undefined, "setup-1")).toBeUndefined();
+  });
+});
+
+// A job that makes nothing has no cost per item, and must not report one as
+// Infinity or NaN: the panels hand this straight to the number formatter.
+describe("a cost spread over what was produced", () => {
+  it("divides the cost by the count", () => {
+    expect(perItem(100, 4)).toBe(25);
+  });
+
+  it("is nothing where nothing was produced", () => {
+    expect(perItem(100, 0)).toBe(0);
+    expect(perItem(100, undefined)).toBe(0);
+  });
+});
+
+describe("the jobs a job is linked to", () => {
+  const linked = {
+    parentJobs: ["parent-1"],
+    build: { childJobs: { 34: ["child-1"], 35: [] } },
+  };
+
+  it("names its parents and its children", () => {
+    expect(parentJobIDs(linked)).toEqual(["parent-1"]);
+    expect(childJobIDs(linked)).toEqual(["child-1"]);
+  });
+
+  // A material with no child job against it contributes nothing rather than an
+  // empty entry, and the two directions are one list, parents first.
+  it("names both directions as one list", () => {
+    expect(relatedJobIDs(linked)).toEqual(["parent-1", "child-1"]);
+  });
+
+  it("names none for a job that is linked to nothing", () => {
+    expect(relatedJobIDs({})).toEqual([]);
+    expect(relatedJobIDs(undefined)).toEqual([]);
+  });
+});
+
+describe("the systems a job's setups build in", () => {
+  it("names each once, however many setups share it", () => {
+    const job = {
+      build: {
+        setup: {
+          a: { id: "a", systemID: 30000142 },
+          b: { id: "b", systemID: 30000142 },
+          c: { id: "c", systemID: 30002187 },
+        },
+      },
+    };
+
+    expect(setupSystemIDs(job)).toEqual([30000142, 30002187]);
+  });
+
+  it("names none for a job with no setups", () => {
+    expect(setupSystemIDs({ build: { setup: {} } })).toEqual([]);
+    expect(setupSystemIDs(undefined)).toEqual([]);
+  });
+});
+
+// Which types a job needs priced: what it makes, and what it is made from. A
+// child job's type is a material of this job only where it happens to be one,
+// so reading the child jobs left any other material unpriced.
+describe("the types a job prices", () => {
+  it("names what it makes first, then what it is made from", () => {
+    const job = {
+      itemID: 587,
+      build: { materials: { 34: { typeID: 34 }, 35: { typeID: 35 } } },
+    };
+
+    expect(materialIDs(job)).toEqual([587, 34, 35]);
   });
 });

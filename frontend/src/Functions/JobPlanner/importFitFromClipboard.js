@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import getMissingESIData from "../Shared/getMissingESIData";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { primeItemSearchIndex, searchEntryByName } from "../Static/items";
@@ -159,7 +160,7 @@ export async function finalBuildRequests(itemArray, queryClient) {
   for (const entry of groupEntriesToModifiy) {
     const job = newJobArray.find((i) => i.itemID === entry.itemID);
     if (!job) continue;
-    const newQuantity = job.totalQuantityProduced + entry.itemQty;
+    const newQuantity = totalQuantityProduced(job) + entry.itemQty;
     recalculateJobForNewTotal(job, newQuantity, queryClient);
     jobsToSave.add(job.jobID);
   }

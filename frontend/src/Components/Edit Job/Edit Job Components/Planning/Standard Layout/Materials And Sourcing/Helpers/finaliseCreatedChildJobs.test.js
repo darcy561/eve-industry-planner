@@ -1,3 +1,4 @@
+import { jobMaking } from "../../../../../../../tests/editJobFixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const recalculateJobForNewTotal = vi.fn();
@@ -21,10 +22,7 @@ const { finaliseCreatedChildJobs } = await import("./finaliseCreatedChildJobs");
 const queryClient = {};
 const actions = { markChildJobsForAddition: vi.fn() };
 
-const job = (produced) => ({
-  jobID: "child-1",
-  totalQuantityProduced: produced,
-});
+const job = (produced) => jobMaking(produced, { jobID: "child-1" });
 
 const commit = (overrides = {}) =>
   finaliseCreatedChildJobs({

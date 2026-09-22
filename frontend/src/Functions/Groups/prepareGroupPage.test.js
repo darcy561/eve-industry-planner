@@ -47,7 +47,11 @@ vi.mock("../Shared/getMissingESIData", () => ({
 
 const { prepareGroupPage } = await import("./prepareGroupPage.js");
 
-const job = (jobID, relatedJobIDs = []) => ({ jobID, relatedJobIDs });
+const job = (jobID, children = []) => ({
+  jobID,
+  parentJobs: [],
+  build: { childJobs: children.length ? { 34: [...children] } : {} },
+});
 
 beforeEach(() => {
   planner.group = null;

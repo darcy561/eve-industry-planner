@@ -1,3 +1,7 @@
+import {
+  buildCostPerItem,
+  totalQuantityProduced,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 
@@ -53,8 +57,8 @@ function collectMaterialsAndParentJobs(chosenJobs) {
 
   for (let job of chosenJobs) {
     const materialID = job.itemID;
-    const quantity = job.totalQuantityProduced;
-    const itemCost = job.buildCostPerItem();
+    const quantity = totalQuantityProduced(job);
+    const itemCost = buildCostPerItem(job);
 
     if (!collectedMaterials[materialID]) {
       collectedMaterials[materialID] = {

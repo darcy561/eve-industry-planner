@@ -1,6 +1,7 @@
 import { fetchPrices } from "../MarketData/priceCache";
 import { pricesWantedBy } from "../MarketData/pricesWanted";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
+import { setupSystemIDs } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
  * Fetches what a job needs priced and what its setups cost to install.
@@ -28,7 +29,7 @@ async function getMissingESIData(inputJobs) {
   for (const job of jobsAsArray) {
     requiredSystemIndexes = new Set([
       ...requiredSystemIndexes,
-      ...job.setupSystemIDs,
+      ...setupSystemIDs(job),
     ]);
   }
 

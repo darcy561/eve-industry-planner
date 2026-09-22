@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import HighlightIcon from "@mui/icons-material/Highlight";
 import { useMemo } from "react";
 import { PRICING_SIDE } from "../../../../../Functions/MarketData/pricingSide.js";
@@ -87,7 +88,7 @@ function OutputJobCard({ inputJob, state, actions }) {
             <Grid size={12}>
               <Typography variant="caption">
                 Quantity Produced:{" "}
-                {formatNumberForLocale(inputJob.totalQuantityProduced, {
+                {formatNumberForLocale(totalQuantityProduced(inputJob), {
                   max: 0,
                 })}
               </Typography>

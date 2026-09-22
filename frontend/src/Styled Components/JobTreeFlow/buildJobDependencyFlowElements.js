@@ -1,3 +1,8 @@
+import {
+  childJobIDs,
+  esiJobIDs,
+  parentJobIDs,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 const NODE_WIDTH = 248;
 const NODE_HEIGHT = 80;
 const H_GAP = 68;
@@ -190,13 +195,13 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
   }
 
   for (const parentJob of jobs) {
-    for (const rawChildId of parentJob.childJobIDs) {
+    for (const rawChildId of childJobIDs(parentJob)) {
       addChildParentEdge(String(rawChildId), parentJob.jobID);
     }
   }
 
   for (const job of jobs) {
-    for (const pid of job.parentJobIDs) {
+    for (const pid of parentJobIDs(job)) {
       addChildParentEdge(job.jobID, String(pid));
     }
   }
@@ -214,7 +219,7 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
     changed = false;
     guard += 1;
     for (const job of jobs) {
-      const parents = job.parentJobIDs.filter((p) => ids.has(p));
+      const parents = parentJobIDs(job).filter((p) => ids.has(p));
       if (parents.length === 0) continue;
       const next = 1 + Math.max(...parents.map((p) => level.get(p) ?? 0), 0);
       const cur = level.get(job.jobID) ?? 0;
@@ -247,7 +252,7 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
     const startX = -rowW / 2;
     row.forEach((job, i) => {
       const { x: nx, y: ny } = positionNudge(job.jobID, i, lv);
-      const esiCount = job.esiJobIDs.size;
+      const esiCount = esiJobIDs(job).size;
       const readyToBuild = job.isReadyToStart;
       rowNodes.push({
         id: job.jobID,
@@ -293,21 +298,21 @@ export function relatedJobIdsInJobTree(emphasisId, jobs) {
   const rel = new Set([eid]);
   if (!focal) return rel;
 
-  for (const pid of focal.parentJobIDs) {
+  for (const pid of parentJobIDs(focal)) {
     const p = String(pid);
     if (idSet.has(p)) rel.add(p);
   }
-  for (const cid of focal.childJobIDs) {
+  for (const cid of childJobIDs(focal)) {
     const c = String(cid);
     if (idSet.has(c)) rel.add(c);
   }
   for (const j of jobs) {
     const jid = String(j.jobID);
-    const children = j.childJobIDs.map(String);
+    const children = childJobIDs(j).map(String);
     if (children.includes(eid)) {
       rel.add(jid);
     }
-    const parents = j.parentJobIDs.map(String);
+    const parents = parentJobIDs(j).map(String);
     if (parents.includes(eid)) {
       rel.add(jid);
     }

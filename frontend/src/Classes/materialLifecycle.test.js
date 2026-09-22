@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  buildCost,
+  buildCostPerItem,
+  totalQuantityProduced,
+} from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 
 vi.mock("../Zustand/usersStore.js", async () => {
   const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
@@ -93,7 +98,7 @@ describe("a job's materials through its life", () => {
       }),
     );
     expect(tritanium.quantity).toBe(100);
-    expect(job.totalQuantityProduced).toBe(100);
+    expect(totalQuantityProduced(job)).toBe(100);
     expect(tritanium.quantityRemaining).toBe(100);
 
     // Buying part of it moves the cost and nothing else.
@@ -102,7 +107,7 @@ describe("a job's materials through its life", () => {
     expect(tritanium.purchasedCost).toBe(300);
     expect(tritanium.purchaseComplete).toBe(false);
     expect(job.totalMaterialCost).toBe(300);
-    expect(job.buildCost).toBe(300);
+    expect(buildCost(job)).toBe(300);
     expect(job.isReadyToBuild).toBe(false);
 
     // Buying past the requirement is recorded but not charged.
@@ -135,7 +140,7 @@ describe("a job's materials through its life", () => {
       }),
     );
     expect(tritanium.quantity).toBe(150);
-    expect(job.totalQuantityProduced).toBe(150);
+    expect(totalQuantityProduced(job)).toBe(150);
     expect(tritanium.purchaseComplete).toBe(false);
     expect(tritanium.quantityRemaining).toBe(30);
     expect(tritanium.excessQuantity).toBe(0);
@@ -145,8 +150,7 @@ describe("a job's materials through its life", () => {
 
     // Dropping a setup takes the requirement back down, and the dearest units
     // are the ones that stop counting.
-    job.layout.setupToEdit = "setup-2";
-    expect(job.deleteActiveSetup()).toBe(true);
+    delete job.build.setup["setup-2"];
     expect(tritanium.quantity).toBe(100);
     expect(tritanium.purchasedCost).toBe(620);
     expect(tritanium.excessQuantity).toBe(20);
@@ -154,8 +158,8 @@ describe("a job's materials through its life", () => {
 
     // What the job cost, per item, is the sum of the parts over what it makes.
     expect(job.totalMaterialCost).toBe(700);
-    expect(job.buildCost).toBe(700);
-    expect(job.buildCostPerItem()).toBe(7);
+    expect(buildCost(job)).toBe(700);
+    expect(buildCostPerItem(job)).toBe(7);
 
     // A saved job comes back the same, figures and all.
     const reloaded = new Job(job.toDocument());
@@ -165,7 +169,7 @@ describe("a job's materials through its life", () => {
     expect(reloadedTritanium.purchasedCost).toBe(620);
     expect(reloadedTritanium.excessQuantity).toBe(20);
     expect(reloaded.totalMaterialCost).toBe(700);
-    expect(reloaded.buildCostPerItem()).toBe(7);
+    expect(buildCostPerItem(reloaded)).toBe(7);
   });
 
   it("keeps a child job's output apart from what was bought", () => {
@@ -236,7 +240,7 @@ describe("a job's materials through its life", () => {
     );
     expect(tritanium.purchasedCost).toBe(660);
 
-    expect(job.removeMaterialPurchase(TRITANIUM, cheapest.id)).toBe(true);
+    expect(tritanium.removePurchase(cheapest.id)).toBe(true);
 
     expect(tritanium.quantityPurchased).toBe(40);
     expect(tritanium.purchasedCost).toBe(360);

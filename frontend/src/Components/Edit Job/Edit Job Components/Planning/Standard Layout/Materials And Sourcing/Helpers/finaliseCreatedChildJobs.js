@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../../../../Edit Job Hooks/jobSelectors";
 import recalculateJobForNewTotal from "../../../../../../../Functions/JobPlanner/recalculateJobForNewTotal";
 import {
   asJobArray,
@@ -59,7 +60,7 @@ function resizeToRequirement(jobs, requiredQuantity, queryClient) {
   if (!requiredQuantity || !queryClient || jobs.length !== 1) return;
 
   const [job] = jobs;
-  if (job.totalQuantityProduced === requiredQuantity) return;
+  if (totalQuantityProduced(job) === requiredQuantity) return;
 
   recalculateJobForNewTotal(job, requiredQuantity, queryClient);
 }

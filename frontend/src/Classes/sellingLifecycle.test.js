@@ -65,6 +65,14 @@ const { default: findOrderTransactions } =
   await import("../Functions/MarketOrders/findOrderTransactions.js");
 const { default: applyLatestOrderData } =
   await import("../Functions/MarketOrders/applyLatestOrderData.js");
+const { addMarketOrder, addTransaction, removeMarketOrder } =
+  await import("../Components/Edit Job/Edit Job Hooks/jobCommands.js");
+const { esiOrderIDs, esiTransactionIDs } =
+  await import("../Components/Edit Job/Edit Job Hooks/jobSelectors.js");
+const { jobAfterCommands: after } =
+  await import("../tests/jobAfterCommands.js");
+const { averageItemSalePrice, totalSales } =
+  await import("../Components/Edit Job/Edit Job Hooks/jobSelectors.js");
 
 const CITADEL = 1035466617946;
 const ISSUED = "2026-08-01T00:00:00Z";
@@ -152,7 +160,7 @@ function newJob() {
 describe("selling a job's output, from listing to a stored document", () => {
   it("keeps every figure in step through the whole sale", async () => {
     linkedTrans.clear();
-    const job = newJob();
+    let job = newJob();
     const order = esiOrder();
 
     // 1. Listing the order charges a broker fee, worked out for this order
@@ -164,9 +172,12 @@ describe("selling a job's output, from listing to a stored document", () => {
     const feeAmount = charges.brokerFee;
     expect(feeAmount).toBe(1500000); // 1.5% of 100,000,000
 
-    job.addMarketOrder(order, findBrokersFeeEntry(order, charges, null));
+    job = after(
+      job,
+      addMarketOrder(order, findBrokersFeeEntry(order, charges, null)),
+    );
 
-    expect(job.esiOrderIDs.has(900)).toBe(true);
+    expect(esiOrderIDs(job.toDocument()).has(900)).toBe(true);
     expect(job.totalBrokersFees).toBe(1500000);
     expect(job.esi.marketOrders["900"].isComplete).toBe(false);
     expect(job.esi.marketOrders["900"].quantitySold).toBe(0);
@@ -197,18 +208,18 @@ describe("selling a job's output, from listing to a stored document", () => {
     expect(offered.every((t) => t.isFromMarket)).toBe(true);
 
     // 4. Linking them attributes each sale to the order it came through.
-    job.addTransaction(offered);
+    job = after(job, addTransaction(offered));
 
-    expect(job.esiTransactionIDs.size).toBe(2);
+    expect(esiTransactionIDs(job.toDocument()).size).toBe(2);
     expect(
       Object.values(job.esi.transactions).every((t) => t.belongsToOrder(900)),
     ).toBe(true);
 
     // 5. What the job made: 100,000,000 of sales, 3.6% tax, and the listing fee.
-    expect(job.totalSales).toBe(100000000);
+    expect(totalSales(job.toDocument())).toBe(100000000);
     expect(job.totalTransactionFees).toBeCloseTo(3600000, 6);
     expect(job.totalBrokersFees).toBe(1500000);
-    expect(job.averageItemSalePrice()).toBe(1000000);
+    expect(averageItemSalePrice(job.toDocument())).toBe(1000000);
 
     // 6. A sale already linked is not offered a second time.
     expect(findOrderTransactions(job.esi, null)).toEqual([]);
@@ -232,7 +243,9 @@ describe("selling a job's output, from listing to a stored document", () => {
     // 8. Reading it back gives the same figures.
     const reopened = new Job(document);
 
-    expect(reopened.totalSales).toBe(job.totalSales);
+    expect(totalSales(reopened.toDocument())).toBe(
+      totalSales(job.toDocument()),
+    );
     expect(reopened.totalTransactionFees).toBeCloseTo(
       job.totalTransactionFees,
       6,
@@ -243,18 +256,21 @@ describe("selling a job's output, from listing to a stored document", () => {
 
   it("takes the order's fee and its sales away together when it is unlinked", async () => {
     linkedTrans.clear();
-    const job = newJob();
+    let job = newJob();
     const order = esiOrder();
     characterJournal.data = {
       2117000001: [{ id: 55, ref_type: "brokers_fee", date: ISSUED }],
     };
 
-    job.addMarketOrder(
-      order,
-      findBrokersFeeEntry(
+    job = after(
+      job,
+      addMarketOrder(
         order,
-        await calcSellingCharges(order, client(), 1.5),
-        null,
+        findBrokersFeeEntry(
+          order,
+          await calcSellingCharges(order, client(), 1.5),
+          null,
+        ),
       ),
     );
 
@@ -266,29 +282,35 @@ describe("selling a job's output, from listing to a stored document", () => {
         ...journalFor(sales),
       ],
     };
-    job.addTransaction(findOrderTransactions(job.esi, null));
+    job = after(job, addTransaction(findOrderTransactions(job.esi, null)));
 
-    expect(job.totalSales).toBe(100000000);
+    expect(totalSales(job.toDocument())).toBe(100000000);
 
-    job.removeMarketOrder({ order_id: 900, location_id: CITADEL });
+    job = after(
+      job,
+      removeMarketOrder({ order_id: 900, location_id: CITADEL }),
+    );
 
-    expect(job.esiOrderIDs.size).toBe(0);
+    expect(esiOrderIDs(job.toDocument()).size).toBe(0);
     expect(job.totalBrokersFees).toBe(0);
     // The sales came through that order, at that station, so they go with it.
-    expect(job.totalSales).toBe(0);
-    expect(job.esiTransactionIDs.size).toBe(0);
+    expect(totalSales(job.toDocument())).toBe(0);
+    expect(esiTransactionIDs(job.toDocument()).size).toBe(0);
   });
 
   // A sale the journal has not caught up with is not offered, so the job cannot
   // store a blank description or a tax of zero.
   it("offers nothing until the journal has both entries for a sale", async () => {
     linkedTrans.clear();
-    const job = newJob();
+    let job = newJob();
     const order = esiOrder();
     characterJournal.data = { 2117000001: [] };
-    job.addMarketOrder(
-      order,
-      findBrokersFeeEntry(order, { brokerFee: 1500000, salesTax: 0 }, null),
+    job = after(
+      job,
+      addMarketOrder(
+        order,
+        findBrokersFeeEntry(order, { brokerFee: 1500000, salesTax: 0 }, null),
+      ),
     );
 
     const sales = esiSales();

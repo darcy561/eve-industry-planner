@@ -1,3 +1,7 @@
+import {
+  esiJobIDs,
+  totalJobSlots,
+} from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Typography, Box } from "@mui/material";
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../Functions/Helper/numberParser";
@@ -28,8 +32,8 @@ export default function Step3JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.esiJobIDs.size, { max: 0 })}/
-            {job.totalJobSlots}
+            {formatNumberForLocale(esiJobIDs(job).size, { max: 0 })}/
+            {totalJobSlots(job)}
           </Typography>
         </Box>
       </Box>

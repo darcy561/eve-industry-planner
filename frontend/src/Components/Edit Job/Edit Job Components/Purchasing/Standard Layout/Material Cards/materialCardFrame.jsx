@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../../../Edit Job Hooks/jobSelectors";
 import { Avatar, Typography, Grid, Box } from "@mui/material";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { ChildJobLinks } from "../Child Job Dialogue/childJobLinks";
@@ -59,7 +60,7 @@ export function MaterialCardFrame_Purchasing({ material }) {
       if (!includedInGroup) {
         childJobs = filterJobs(jobArray);
         childJobProductionTotal = childJobs.reduce(
-          (total, job) => total + job.totalQuantityProduced,
+          (total, job) => total + totalQuantityProduced(job),
           0,
         );
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -68,7 +69,7 @@ export function MaterialCardFrame_Purchasing({ material }) {
           );
 
           if (!matchingCostImport) {
-            return total + job.totalQuantityProduced;
+            return total + totalQuantityProduced(job);
           }
           return total;
         }, 0);
@@ -78,7 +79,7 @@ export function MaterialCardFrame_Purchasing({ material }) {
           ...(temporaryChildJob ? [temporaryChildJob] : []),
         ]);
         childJobProductionTotal = childJobs.reduce((total, job) => {
-          return total + job.totalQuantityProduced;
+          return total + totalQuantityProduced(job);
         }, 0);
 
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -87,7 +88,7 @@ export function MaterialCardFrame_Purchasing({ material }) {
           );
 
           if (!matchingCostImport) {
-            return total + job.totalQuantityProduced;
+            return total + totalQuantityProduced(job);
           }
           return total;
         }, 0);

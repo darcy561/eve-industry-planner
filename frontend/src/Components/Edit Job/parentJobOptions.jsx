@@ -1,3 +1,7 @@
+import {
+  setupCount,
+  totalQuantityProduced,
+} from "./Edit Job Hooks/jobSelectors";
 import { useMemo } from "react";
 import { Grid, IconButton, Tooltip, Typography } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
@@ -87,9 +91,9 @@ export function ParentJobOptions({ onLinked }) {
               </Grid>
               <Grid align="center" size={4}>
                 <Typography variant="body2">
-                  {job.setupCount} setup
-                  {job.setupCount === 1 ? "" : "s"} ·{" "}
-                  {job.totalQuantityProduced} items produced
+                  {setupCount(job)} setup
+                  {setupCount(job) === 1 ? "" : "s"} ·{" "}
+                  {totalQuantityProduced(job)} items produced
                 </Typography>
               </Grid>
               <Grid size={1}>

@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../../Edit Job Hooks/jobSelectors";
 import { Grid } from "@mui/material";
 import { useMemo } from "react";
 
@@ -57,7 +58,7 @@ export function Purchasing_StandardLayout_EditJob() {
           );
 
           if (!matchingCostImport) {
-            return total + job.totalQuantityProduced;
+            return total + totalQuantityProduced(job);
           }
           return total;
         }, 0);
@@ -72,7 +73,7 @@ export function Purchasing_StandardLayout_EditJob() {
           );
 
           if (!matchingCostImport) {
-            return total + job.totalQuantityProduced;
+            return total + totalQuantityProduced(job);
           }
           return total;
         }, 0);

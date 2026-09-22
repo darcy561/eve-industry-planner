@@ -1,3 +1,4 @@
+import { totalInstallCost } from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import LinkedESIJob from "./linkedESIJob.js";
 import Job from "./job.js";
@@ -156,11 +157,21 @@ describe("taking the latest from ESI", () => {
 
 describe("a job's linked runs", () => {
   function jobWithLinkedRuns(...runs) {
-    const job = new Job({ jobID: "job-1", itemID: 587, jobType: 1 });
-    for (const run of runs) {
-      job.linkESIJob(run, { CharacterHash: "ABC123" });
-    }
-    return job;
+    return new Job({
+      jobID: "job-1",
+      itemID: 587,
+      jobType: 1,
+      esi: {
+        industryJobs: Object.fromEntries(
+          runs.map((run) => {
+            const linked = LinkedESIJob.fromESI(run, {
+              CharacterHash: "ABC123",
+            });
+            return [String(linked.job_id), linked.toDocument()];
+          }),
+        ),
+      },
+    });
   }
 
   test("are hydrated as linked jobs and serialise back to rows", () => {
@@ -170,7 +181,7 @@ describe("a job's linked runs", () => {
 
     const reloaded = new Job(job.toDocument());
     expect(reloaded.esi.industryJobs["900001"]).toBeInstanceOf(LinkedESIJob);
-    expect(reloaded.totalInstallCost).toBe(1500);
+    expect(totalInstallCost(reloaded)).toBe(1500);
   });
 
   test("the one finishing first is what the planner counts down to", () => {

@@ -369,12 +369,38 @@ describe("adding a setup to a job that already has one", () => {
     job.build = { setup: { [existing.id]: existing } };
     job.layout = { setupToEdit: existing.id };
 
-    job.addNewSetup(emptyQueryClient());
+    const { buildSetupFromQuantity, buildSetupContextForJob } =
+      await import("../Functions/JobPlanner/setupBuildHelpers");
+    const { setupToBuildFrom } =
+      await import("../Components/Edit Job/Edit Job Hooks/jobSelectors");
+    const { attachNewSetupToJob } =
+      await import("../Components/Edit Job/Edit Job Hooks/jobCommands");
 
-    const added = Object.values(job.build.setup).find(
-      (s) => s.id !== existing.id,
+    // Both halves of what the Setup panel's add button does: build the setup
+    // from the one being edited, then put it on the job.
+    const client = emptyQueryClient();
+    // The fake job stands in for the parts the helpers read; the command needs
+    // only the two the panel's button changes.
+    const document = {
+      build: { setup: { ...job.build.setup } },
+      layout: { ...job.layout },
+    };
+    attachNewSetupToJob(
+      buildSetupFromQuantity(
+        job,
+        { runCount: 1, jobCount: 1 },
+        client,
+        buildSetupContextForJob(job, client),
+        { basedOn: setupToBuildFrom(job) },
+      ),
+    ).recipe(document);
+
+    const added = Object.values(document.build.setup).find(
+      (setup) => setup.id !== existing.id,
     );
-    expect(added).toBeDefined();
+
+    expect(Object.keys(document.build.setup)).toHaveLength(2);
+    expect(document.layout.setupToEdit).toBe(added.id);
     expect(added.customStructureID).toBe(JOB_AS_BUILT.customStructureID);
     expect(added.structureID).toBe(JOB_AS_BUILT.structureID);
     expect(added.ME).toBe(JOB_AS_BUILT.ME);

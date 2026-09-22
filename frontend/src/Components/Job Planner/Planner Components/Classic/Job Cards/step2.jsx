@@ -1,10 +1,11 @@
+import { completedMaterialCount } from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Typography, Box } from "@mui/material";
 
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 
 export default function Step2JobCard({ job }) {
   const totalMaterials = Object.keys(job.build.materials).length;
-  const totalComplete = job.completedMaterialCount;
+  const totalComplete = completedMaterialCount(job);
   const isNotReadyToBuild = !job.isReadyToBuild;
 
   return (

@@ -1,3 +1,4 @@
+import { relatedJobIDs } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
@@ -41,7 +42,7 @@ function getAllRelatedJobs(inputJobIDs) {
 
       jobIDMap[jobID] = matchedJob;
 
-      const relatedJobs = matchedJob.relatedJobIDs;
+      const relatedJobs = relatedJobIDs(matchedJob);
 
       if (relatedJobs && Array.isArray(relatedJobs)) {
         stack.push(...relatedJobs);
@@ -90,7 +91,7 @@ export async function loadAllRelatedJobs(inputJobIDs) {
     for (const job of jobs) {
       if (!job?.jobID || found.has(job.jobID)) continue;
       found.set(job.jobID, job);
-      frontier.push(...(job.relatedJobIDs ?? []));
+      frontier.push(...relatedJobIDs(job));
     }
   }
 

@@ -1,3 +1,4 @@
+import { esiJobIDs } from "./Edit Job Hooks/jobSelectors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent, act, waitFor } from "@testing-library/react";
 import Group from "../../Classes/group";
@@ -119,13 +120,17 @@ describe("linking the industry jobs ESI reported, end to end", () => {
       ),
     );
 
-    expect(editJob.current.activeJob.esiJobIDs.has(500001)).toBe(false);
+    expect(esiJobIDs(editJob.current.activeJob.toDocument()).has(500001)).toBe(
+      false,
+    );
 
     // The card carries no name of its own; the runs it reports identify it.
     fireEvent.click(screen.getByText("3 Runs").closest(".MuiCard-root"));
     await act(async () => vi.advanceTimersByTime(1000));
 
-    expect(editJob.current.activeJob.esiJobIDs.has(500001)).toBe(true);
+    expect(esiJobIDs(editJob.current.activeJob.toDocument()).has(500001)).toBe(
+      true,
+    );
     expect(editJob.current.esiDataToLink.industryJobs.add).toContain(500001);
   });
 
@@ -141,13 +146,17 @@ describe("linking the industry jobs ESI reported, end to end", () => {
         />
       ),
     );
-    expect(editJob.current.activeJob.esiJobIDs.has(500001)).toBe(true);
+    expect(esiJobIDs(editJob.current.activeJob.toDocument()).has(500001)).toBe(
+      true,
+    );
 
     // Unlinking is the same gesture as linking: the card itself.
     fireEvent.click(screen.getByText("3 Runs").closest(".MuiCard-root"));
     await act(async () => vi.advanceTimersByTime(1000));
 
-    expect(editJob.current.activeJob.esiJobIDs.has(500001)).toBe(false);
+    expect(esiJobIDs(editJob.current.activeJob.toDocument()).has(500001)).toBe(
+      false,
+    );
     expect(editJob.current.esiDataToLink.industryJobs.remove).toContain(500001);
   });
 });

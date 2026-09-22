@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 /**
  * Serialise the jobs of a group into a v1 group-template payload (+ POST metadata).
  */
@@ -150,7 +151,7 @@ export function serialiseGroupToTemplatePayload({
       throw new Error(`Job ${job.name || job.jobID} has no setups to capture.`);
     }
 
-    const desiredTotal = Math.round(job.totalQuantityProduced);
+    const desiredTotal = Math.round(totalQuantityProduced(job));
 
     nodes.push({
       templateJobId,

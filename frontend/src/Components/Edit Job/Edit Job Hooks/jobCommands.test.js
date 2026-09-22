@@ -1,25 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { produce } from "immer";
 
+import ExtraCost from "../../../Classes/extraCost";
+import InventionEntry from "../../../Classes/inventionEntry";
 import Job from "../../../Classes/job";
 import Setup from "../../../Classes/jobSetup";
+import LinkedESIJob from "../../../Classes/linkedESIJob";
+import MarketOrder from "../../../Classes/marketOrder";
+import BrokerFee from "../../../Classes/brokerFee";
+import Transaction from "../../../Classes/transaction";
 import * as commands from "./jobCommands";
 
 /**
- * Each command is checked against the method on `Job` it replaces: both are run
- * over the same document and the results are compared. A command writing the
- * paths its author had in mind proves much less than a command agreeing with
- * what runs today, and where the two differ one of them is wrong.
+ * A command is checked one of two ways.
  *
- * The comparison is made on documents, because that is the shape the command
- * works in and the shape the class stores to.
+ * `changes` compares the document the command produced with the same document
+ * changed by hand. `agree` compares it with what the method of the same name on
+ * `Job` produces, for the commands whose method the class still carries: a
+ * command writing the paths its author had in mind proves much less than two
+ * answers agreeing, and where they differ one of them is wrong.
+ *
+ * Either way the comparison is on whole documents, because that is the shape a
+ * command works in, and because a command that also moved something the case
+ * did not name then fails.
  */
 
 /* eslint-disable vitest/expect-expect --
- * Every case below asserts through `agree`, which the rule cannot see into: it
- * matches `expect` at the top level of a test. Naming the helper in the shared
- * config would turn the rule off for any function called `agree` anywhere,
- * which is a wider change than this file is owed.
+ * A case asserting through `agree` or `changes` is one the rule cannot see
+ * into: it matches `expect` at the top level of a test. Naming either helper in
+ * the shared config would turn the rule off for any function of that name
+ * anywhere, which is a wider change than this file is owed.
  */
 
 const documentFor = (overrides = {}) =>
@@ -80,6 +90,25 @@ const agree = (document, command, applyToInstance) => {
   expect(viaCommand).toEqual(viaClass);
 };
 
+/**
+ * Runs the command over the document and compares the result with the same
+ * document changed by hand.
+ *
+ * The comparison is still on whole documents, so a command that also moved
+ * something the case did not name fails. What it does not do is ask the class:
+ * a method with no caller left is one this project is removing, and a test
+ * holding the only reference to it would have to be rewritten on the way out.
+ */
+function changes(document, command, applyToDocument) {
+  const viaCommand = structuredClone(document);
+  command.recipe(viaCommand);
+
+  const expected = structuredClone(document);
+  applyToDocument(expected);
+
+  expect(viaCommand).toEqual(expected);
+}
+
 describe("moving between stages", () => {
   it("steps forward as the job does", () => {
     agree(documentFor(), commands.stepForward(), (job) => job.stepForward());
@@ -105,72 +134,158 @@ describe("moving between stages", () => {
 describe("linking what ESI reported", () => {
   const linked = { job_id: 901, status: "active", station_id: 60003760 };
 
-  it("links a job as the job does", () => {
-    const owner = { CharacterHash: "hash", CharacterID: 500 };
-    agree(documentFor(), commands.linkESIJob(linked, owner), (job) =>
-      job.linkESIJob(linked, owner),
-    );
+  const owner = { CharacterHash: "hash", CharacterID: 500 };
+
+  it("stores the run against the character who installed it", () => {
+    changes(documentFor(), commands.linkESIJob(linked, owner), (job) => {
+      job.esi.industryJobs["901"] = LinkedESIJob.fromESI(
+        linked,
+        owner,
+      ).toDocument();
+    });
   });
 
-  it("leaves a job already linked alone, as the job does", () => {
+  // The panel links on a delay, so a second click or a "link all" can arrive
+  // before the first has landed; linking twice would show the run twice and
+  // charge its install cost twice.
+  it("leaves a run it already holds alone", () => {
     const already = { job_id: 900, status: "delivered" };
-    const owner = { CharacterHash: "hash", CharacterID: 500 };
-    agree(documentFor(), commands.linkESIJob(already, owner), (job) =>
-      job.linkESIJob(already, owner),
-    );
+
+    changes(documentFor(), commands.linkESIJob(already, owner), () => {});
   });
 
-  it("unlinks a job as the job does", () => {
-    agree(documentFor(), commands.unlinkESIJob({ job_id: 900 }), (job) =>
-      job.unlinkESIJob({ job_id: 900 }),
-    );
+  it("will not store a run whose installer it cannot name", () => {
+    changes(documentFor(), commands.linkESIJob(linked, null), () => {});
   });
 
-  it("unlinks an order and its sales as the job does", () => {
+  it("takes a linked run off again", () => {
+    changes(documentFor(), commands.unlinkESIJob({ job_id: 900 }), (job) => {
+      delete job.esi.industryJobs["900"];
+    });
+  });
+
+  // A sale is attributed to an order by where it happened, so taking the order
+  // off takes the sales made at that place with it — and leaves the one made
+  // somewhere else.
+  it("takes an order off with the sales made where it was listed", () => {
     const order = { order_id: 700, location_id: 60003760 };
-    agree(documentFor(), commands.removeMarketOrder(order), (job) =>
-      job.removeMarketOrder(order),
-    );
+
+    changes(documentFor(), commands.removeMarketOrder(order), (job) => {
+      delete job.esi.marketOrders["700"];
+      delete job.esi.transactions["800"];
+    });
   });
 
-  it("unlinks a sale as the job does", () => {
-    const sale = { transaction_id: 800 };
-    agree(documentFor(), commands.removeTransaction(sale), (job) =>
-      job.removeTransaction(sale),
+  it("takes a sale off by its own id", () => {
+    changes(
+      documentFor(),
+      commands.removeTransaction({ transaction_id: 800 }),
+      (job) => {
+        delete job.esi.transactions["800"];
+      },
     );
   });
 });
 
 describe("the costs a reader adds by hand", () => {
-  it("adds an extra cost as the job does", () => {
+  // Stored as the row class writes it rather than as the reader typed it: the
+  // row carries defaults the panel reading it back expects to find.
+  it("stores an extra cost under its own id", () => {
     const extra = { id: "extra-2", category: "1", extraValue: 25 };
-    agree(documentFor(), commands.addExtrasCost(extra), (job) =>
-      job.addExtrasCost(extra),
+
+    changes(documentFor(), commands.addExtrasCost(extra), (job) => {
+      job.build.extrasCosts["extra-2"] = new ExtraCost(extra).toDocument();
+    });
+  });
+
+  it("takes an extra cost off by id", () => {
+    changes(
+      documentFor(),
+      commands.removeExtrasCost({ id: "extra-1" }),
+      (job) => {
+        delete job.build.extrasCosts["extra-1"];
+      },
     );
   });
 
-  it("removes an extra cost as the job does", () => {
-    agree(documentFor(), commands.removeExtrasCost({ id: "extra-1" }), (job) =>
-      job.removeExtrasCost({ id: "extra-1" }),
-    );
-  });
-
-  it("adds an invention cost as the job does", () => {
+  it("stores an invention cost under its own id", () => {
     const entry = { id: "inv-2", itemName: "Decryptor", itemCost: 10 };
-    agree(documentFor(), commands.addInventionCost(entry), (job) =>
-      job.addInventionCost(entry),
+
+    changes(documentFor(), commands.addInventionCost(entry), (job) => {
+      job.build.inventionEntries["inv-2"] = new InventionEntry(
+        entry,
+      ).toDocument();
+    });
+  });
+
+  // Rows written before the change carry a number rather than a string. The id
+  // is only ever compared, never parsed, so both kinds sit in one job without
+  // anything having to know which it is holding.
+  it("takes off an invention cost whose id is a number", () => {
+    const numbered = documentFor({
+      build: {
+        ...documentFor().build,
+        inventionEntries: {
+          1789083363901: { id: 1789083363901, itemName: "Old", itemCost: 5 },
+          "inv-1": { id: "inv-1", itemCost: 50 },
+        },
+      },
+    });
+
+    changes(
+      numbered,
+      commands.removeInventionCost({ id: 1789083363901 }),
+      (job) => {
+        delete job.build.inventionEntries["1789083363901"];
+      },
     );
   });
 
-  it("removes an invention cost as the job does", () => {
-    agree(documentFor(), commands.removeInventionCost({ id: "inv-1" }), (job) =>
-      job.removeInventionCost({ id: "inv-1" }),
+  // Two rows minted in the same moment are told apart by their ids alone, so a
+  // remove matching on id has to take one of a pair without the other.
+  it("takes off one of a pair minted together, leaving the other", () => {
+    const datacore = InventionEntry.forItem("Datacore", 100).toDocument();
+    const decryptor = InventionEntry.forItem("Decryptor", 200).toDocument();
+    const pair = documentFor({
+      build: {
+        ...documentFor().build,
+        inventionEntries: {
+          [datacore.id]: datacore,
+          [decryptor.id]: decryptor,
+        },
+      },
+    });
+
+    changes(pair, commands.removeInventionCost(datacore), (job) => {
+      delete job.build.inventionEntries[datacore.id];
+    });
+  });
+
+  it("takes an invention cost off by id", () => {
+    changes(
+      documentFor(),
+      commands.removeInventionCost({ id: "inv-1" }),
+      (job) => {
+        delete job.build.inventionEntries["inv-1"];
+      },
     );
   });
 
-  it("removes a purchase as the job does", () => {
-    agree(documentFor(), commands.removeMaterialPurchase(34, "buy-1"), (job) =>
-      job.removeMaterialPurchase(34, "buy-1"),
+  it("takes a purchase off the material it was bought for", () => {
+    changes(
+      documentFor(),
+      commands.removeMaterialPurchase(34, "buy-1"),
+      (job) => {
+        delete job.build.materials["34"].purchasing["buy-1"];
+      },
+    );
+  });
+
+  it("leaves the job alone where the material is not one it builds", () => {
+    changes(
+      documentFor(),
+      commands.removeMaterialPurchase(99, "buy-1"),
+      () => {},
     );
   });
 });
@@ -252,29 +367,36 @@ describe("groups and selling", () => {
     );
   });
 
-  it("marks ready for sale as the job does", () => {
-    agree(grouped(), commands.toggleGroupJobReadyForSale(), (job) =>
-      job.toggleGroupJobReadyForSale(),
-    );
+  // A job inside a group is not on the planner until it is ready to sell, and
+  // then it is: the two move together in both directions.
+  it("marks ready for sale, and puts the job on the planner", () => {
+    changes(grouped(), commands.toggleGroupJobReadyForSale(), (job) => {
+      job.isReadyToSell = true;
+      job.displayOnPlanner = true;
+    });
   });
 
-  it("takes the mark back off as the job does", () => {
+  it("takes the mark back off, and the job off the planner with it", () => {
     const ready = documentFor({
       groupID: "group-1",
       includedInGroup: true,
       isReadyToSell: true,
       displayOnPlanner: true,
     });
-    agree(ready, commands.toggleGroupJobReadyForSale(), (job) =>
-      job.toggleGroupJobReadyForSale(),
-    );
+
+    changes(ready, commands.toggleGroupJobReadyForSale(), (job) => {
+      job.isReadyToSell = false;
+      job.displayOnPlanner = false;
+    });
   });
 
-  it("chooses a seller and a place as the job does", () => {
+  it("records the seller and the place chosen", () => {
     const plan = { sellerCharacter: "hash-1", saleLocationID: "60003760" };
-    agree(documentFor(), commands.setSellingPlan(plan), (job) =>
-      job.setSellingPlan(plan),
-    );
+
+    changes(documentFor(), commands.setSellingPlan(plan), (job) => {
+      job.build.sellerCharacter = "hash-1";
+      job.build.saleLocationID = "60003760";
+    });
   });
 
   // A player taking their seller off is not the same as a caller saying nothing
@@ -289,22 +411,17 @@ describe("groups and selling", () => {
     });
     const plan = { sellerCharacter: null };
 
-    const { viaCommand, viaClass } = bothWays(
-      chosen,
-      commands.setSellingPlan(plan),
-      (job) => job.setSellingPlan(plan),
-    );
-
-    expect(viaCommand).toEqual(viaClass);
-    expect(viaCommand.build.sellerCharacter).toBeNull();
-    expect(viaCommand.build.saleLocationID).toBe("60003760");
+    changes(chosen, commands.setSellingPlan(plan), (job) => {
+      job.build.sellerCharacter = null;
+    });
   });
 
-  it("leaves a choice it was told nothing about, as the job does", () => {
+  it("leaves a choice it was told nothing about", () => {
     const plan = { saleLocationID: "60008494" };
-    agree(documentFor(), commands.setSellingPlan(plan), (job) =>
-      job.setSellingPlan(plan),
-    );
+
+    changes(documentFor(), commands.setSellingPlan(plan), (job) => {
+      job.build.saleLocationID = "60008494";
+    });
   });
 });
 
@@ -330,34 +447,43 @@ describe("what a command is allowed to touch", () => {
 });
 
 describe("sales and orders ESI reported", () => {
-  it("links a sale as the job does", () => {
+  it("stores a sale under its own id", () => {
     const sale = { transaction_id: 802, location_id: 60003760, quantity: 5 };
-    agree(documentFor(), commands.addTransaction(sale), (job) =>
-      job.addTransaction(sale),
-    );
+
+    changes(documentFor(), commands.addTransaction(sale), (job) => {
+      job.esi.transactions["802"] = {
+        ...new Transaction(sale).toDocument(),
+        order_id: 700,
+      };
+    });
   });
 
-  it("links several sales at once, as the job does", () => {
+  it("stores several sales at once", () => {
     const sales = [
       { transaction_id: 802, location_id: 60003760 },
       { transaction_id: 803, location_id: 60003760 },
     ];
-    agree(documentFor(), commands.addTransaction(sales), (job) =>
-      job.addTransaction(sales),
-    );
+
+    changes(documentFor(), commands.addTransaction(sales), (job) => {
+      for (const sale of sales) {
+        job.esi.transactions[String(sale.transaction_id)] = {
+          ...new Transaction(sale).toDocument(),
+          order_id: 700,
+        };
+      }
+    });
   });
 
   // One order is the only case where a sale can be attributed at all.
-  it("attributes a sale to the only order, as the job does", () => {
+  it("attributes a sale to the only order there is", () => {
     const sale = { transaction_id: 802, location_id: 60003760 };
-    const { viaCommand, viaClass } = bothWays(
-      documentFor(),
-      commands.addTransaction(sale),
-      (job) => job.addTransaction(sale),
-    );
 
-    expect(viaCommand).toEqual(viaClass);
-    expect(viaCommand.esi.transactions["802"].order_id).toBe(700);
+    changes(documentFor(), commands.addTransaction(sale), (job) => {
+      job.esi.transactions["802"] = {
+        ...new Transaction(sale).toDocument(),
+        order_id: 700,
+      };
+    });
   });
 
   it("attributes to nothing where the job has two orders", () => {
@@ -372,28 +498,27 @@ describe("sales and orders ESI reported", () => {
       },
     });
     const sale = { transaction_id: 802, location_id: 60003760 };
-    const { viaCommand, viaClass } = bothWays(
-      twoOrders,
-      commands.addTransaction(sale),
-      (job) => job.addTransaction(sale),
-    );
 
-    expect(viaCommand).toEqual(viaClass);
-    expect(viaCommand.esi.transactions["802"].order_id).toBeNull();
+    changes(twoOrders, commands.addTransaction(sale), (job) => {
+      job.esi.transactions["802"] = {
+        ...new Transaction(sale).toDocument(),
+        order_id: null,
+      };
+    });
   });
 
-  it("links an order as the job does", () => {
+  it("stores an order under its own id", () => {
     const order = {
       order_id: 701,
       location_id: 60008494,
       issued: "2026-01-01T00:00:00Z",
     };
-    agree(documentFor(), commands.addMarketOrder(order), (job) =>
-      job.addMarketOrder(order),
-    );
+    changes(documentFor(), commands.addMarketOrder(order), (job) => {
+      job.esi.marketOrders["701"] = MarketOrder.fromESI(order).toDocument();
+    });
   });
 
-  it("records the fee charged for listing it, as the job does", () => {
+  it("records the fee charged for listing it", () => {
     const order = { order_id: 701, location_id: 60008494 };
     const fee = {
       order_id: 701,
@@ -401,18 +526,40 @@ describe("sales and orders ESI reported", () => {
       salesTax: 10,
       date: "2026-01-01",
     };
-    agree(documentFor(), commands.addMarketOrder(order, fee), (job) =>
-      job.addMarketOrder(order, fee),
-    );
+    changes(documentFor(), commands.addMarketOrder(order, fee), (job) => {
+      const row = MarketOrder.fromESI(order);
+      row.recordBrokerFee(new BrokerFee(fee));
+      job.esi.marketOrders["701"] = row.toDocument();
+    });
   });
 
-  it("takes the latest figures for a linked run, as the job does", () => {
+  it("takes the latest figures for a linked run", () => {
     const latest = [
       { job_id: 900, status: "delivered", end_date: "2026-01-02" },
     ];
-    agree(documentFor(), commands.updateLinkedJobData(latest), (job) =>
-      job.updateLinkedJobData(latest),
-    );
+
+    changes(documentFor(), commands.updateLinkedJobData(latest), (job) => {
+      job.esi.industryJobs["900"] = {
+        ...job.esi.industryJobs["900"],
+        status: "delivered",
+        completed_date: null,
+        end_date: "2026-01-02",
+      };
+    });
+  });
+
+  // A run the game has already finished with is not asked about again: what it
+  // ended as is what the job records, and a later report cannot move it.
+  it("leaves a run that is no longer active where it stands", () => {
+    const finished = documentFor({
+      esi: {
+        ...documentFor().esi,
+        industryJobs: { 900: { job_id: 900, status: "delivered" } },
+      },
+    });
+    const latest = [{ job_id: 900, status: "active", end_date: "2026-01-09" }];
+
+    changes(finished, commands.updateLinkedJobData(latest), () => {});
   });
 });
 
@@ -488,13 +635,16 @@ describe("the setups a job builds from", () => {
     expect(document.layout.setupToEdit).toBe("setup-3");
   });
 
-  it("removes the setup being edited, as the job does", () => {
-    agree(withSetups(), commands.deleteActiveSetup(), (job) =>
-      job.deleteActiveSetup(),
-    );
+  it("removes the setup being edited, and opens what is left", () => {
+    changes(withSetups(), commands.deleteActiveSetup(), (job) => {
+      delete job.build.setup["setup-1"];
+      job.layout.setupToEdit = "setup-2";
+    });
   });
 
-  it("will not remove the last setup, as the job does", () => {
+  // A job always builds from something, so there is no state in which it has
+  // none: the control that removes one is what stops at the last.
+  it("will not remove the last setup", () => {
     const one = documentFor({
       build: {
         ...documentFor().build,
@@ -502,7 +652,8 @@ describe("the setups a job builds from", () => {
       },
       layout: { setupToEdit: "setup-1" },
     });
-    agree(one, commands.deleteActiveSetup(), (job) => job.deleteActiveSetup());
+
+    changes(one, commands.deleteActiveSetup(), () => {});
   });
 });
 

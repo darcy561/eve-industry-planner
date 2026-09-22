@@ -1,9 +1,6 @@
 import useUsersStore from "../../../Zustand/usersStore";
 import { draftFor, hasChanges } from "./jobDraftStore";
-import {
-  childJobIDsAfterEdits,
-  parentJobIDsAfterEdits,
-} from "./jobSelectors";
+import { childJobIDsAfterEdits, parentJobIDsAfterEdits } from "./jobSelectors";
 
 /**
  * Reads one part of the open job, and re-renders only when that part changes.

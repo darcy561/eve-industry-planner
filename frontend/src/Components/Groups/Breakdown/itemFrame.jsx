@@ -1,3 +1,8 @@
+import {
+  totalExtrasCost,
+  totalInstallCost,
+  totalInventionCost,
+} from "../../Edit Job/Edit Job Hooks/jobSelectors";
 import { useEffect, useState } from "react";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { Avatar, Box, Divider, Typography } from "@mui/material";
@@ -44,9 +49,9 @@ export default function ItemBreakdownFrame({ outputJob = null }) {
 
         for (const job of matchedJobs) {
           totalBoughtMaterialCost += job.totalBoughtMaterialCost;
-          totalInstallCosts += job.totalInstallCost;
-          totalExtrasCosts += job.totalExtrasCost;
-          totalInventionCosts += job.totalInventionCost;
+          totalInstallCosts += totalInstallCost(job);
+          totalExtrasCosts += totalExtrasCost(job);
+          totalInventionCosts += totalInventionCost(job);
           totalInvolvedCharacters += job.involvedCharacters.size;
         }
 

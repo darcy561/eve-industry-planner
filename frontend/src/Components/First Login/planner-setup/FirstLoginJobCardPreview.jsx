@@ -26,16 +26,22 @@ export function FirstLoginJobCardPreview({ layoutCompact = false }) {
       itemID: 2679,
       jobType: jobTypes.manufacturing,
       jobStatus: 0,
+      // A job as the card reads one: the figures it shows are derived from the
+      // setups and materials, so the preview carries those rather than the
+      // answers.
+      itemsProducedPerRun: 100,
       build: {
-        materials: [],
+        materials: {},
+        setup: {
+          "preview-setup": {
+            id: "preview-setup",
+            runCount: 10,
+            jobCount: 1,
+          },
+        },
       },
-      totalQuantityProduced: () => 1000,
-      esiJobIDs: new Set(),
-      esiOrderIDs: new Set(),
-      esiTransactionIDs: new Set(),
-      setupCount: () => 10,
-      totalCompletedMaterials: () => 0,
-      isReadyToBuild: () => false,
+      esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+      isReadyToBuild: false,
     }),
     [],
   );

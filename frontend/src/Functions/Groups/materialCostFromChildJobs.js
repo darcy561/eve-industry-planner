@@ -1,3 +1,7 @@
+import {
+  totalExtrasCost,
+  totalQuantityProduced,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts.js";
 import { getMarketPriceForType } from "../MarketData/marketPriceForType";
@@ -34,7 +38,7 @@ function calculateJobUnitCost(inputJob, ctx) {
   }
 
   try {
-    let jobCost = inputJob.totalExtrasCost;
+    let jobCost = totalExtrasCost(inputJob);
     jobCost += getJobInstallCostForPlanning(inputJob);
 
     for (const material of Object.values(inputJob.build.materials)) {
@@ -57,7 +61,7 @@ function calculateJobUnitCost(inputJob, ctx) {
       }
     }
 
-    return jobCost / inputJob.totalQuantityProduced;
+    return jobCost / totalQuantityProduced(inputJob);
   } finally {
     if (jobID != null) {
       visiting.delete(jobID);

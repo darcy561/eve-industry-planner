@@ -1,3 +1,7 @@
+import {
+  esiOrderIDs,
+  esiTransactionIDs,
+} from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Typography, Box } from "@mui/material";
 
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
@@ -29,7 +33,7 @@ export default function Step5JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.esiOrderIDs.size, { max: 0 })}
+            {formatNumberForLocale(esiOrderIDs(job).size, { max: 0 })}
           </Typography>
         </Box>
       </Box>
@@ -47,7 +51,7 @@ export default function Step5JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.esiTransactionIDs.size, { max: 0 })}
+            {formatNumberForLocale(esiTransactionIDs(job).size, { max: 0 })}
           </Typography>
         </Box>
       </Box>

@@ -1,41 +1,41 @@
-import { describe, expect, it } from "vitest";
-
-import Job from "../../../Classes/job";
-import Material from "../../../Classes/jobMaterial";
 import {
   averageItemSalePrice,
+  buildCost,
+  buildCostPerItem,
+  completedMaterialCount,
   costOfExtras,
   costOfInstalls,
   costOfInvention,
   costOfMaterials,
-  buildCost,
-  buildCostPerItem,
-  completedMaterialCount,
-  estimatedSalesTaxOutstanding,
-  salesByDate,
-  salesNewestFirst,
-  totalBrokersFees,
-  totalCost,
-  totalCostPerItem,
-  totalJobSlots,
-  totalSales,
-  totalTransactionFees,
   esiJobIDs,
   esiJobIDsOf,
   esiOrderIDs,
   esiOrderIDsOf,
   esiTransactionIDs,
   esiTransactionIDsOf,
+  estimatedSalesTaxOutstanding,
   jobSlotsOf,
+  materialRequirement,
   quantityProduced,
+  salesByDate,
+  salesNewestFirst,
   setupCount,
+  totalBrokersFees,
+  totalCost,
+  totalCostPerItem,
   totalExtrasCost,
   totalInstallCost,
   totalInventionCost,
+  totalJobSlots,
   totalMaterialCost,
   totalQuantityProduced,
+  totalSales,
+  totalTransactionFees,
 } from "./jobSelectors";
-import { materialRequirement } from "./jobSelectors";
+import { describe, expect, it } from "vitest";
+
+import Job from "../../../Classes/job";
+import Material from "../../../Classes/jobMaterial";
 import {
   countedFromPurchase,
   purchasedCost,
@@ -44,9 +44,12 @@ import {
 } from "./materialSelectors";
 
 /**
- * Every figure here is checked against the getter it replaces: the class and the
- * selector read one job, and the two answers are compared. Where they disagree
- * one of them is wrong, and the getter is what runs today.
+ * A figure is checked against what it should be, written out, and a narrow form
+ * against the whole-job one beside it.
+ *
+ * Some are also compared with the getter of the same name on `Job`, where the
+ * class still carries one: two answers to one question, and where they disagree
+ * one of them is wrong.
  */
 
 const TRITANIUM = 34;
@@ -200,14 +203,6 @@ describe("the figures a job derives", () => {
   );
   const document = job.toDocument();
 
-  it.each([
-    ["the linked runs", esiJobIDs, (held) => held.esiJobIDs],
-    ["the linked orders", esiOrderIDs, (held) => held.esiOrderIDs],
-    ["the linked sales", esiTransactionIDs, (held) => held.esiTransactionIDs],
-  ])("names %s the class names", (_what, selector, getter) => {
-    expect(selector(document)).toEqual(getter(job));
-  });
-
   // Each figure a panel can already hold the rows for has a narrow form, and it
   // has to answer what the job-level one does.
   it.each([
@@ -257,32 +252,41 @@ describe("the figures a job derives", () => {
     expect(narrow(rowsOf(document))).toEqual(whole(document));
   });
 
+  it("names the runs, the orders and the sales the job holds", () => {
+    expect(esiJobIDs(document)).toEqual(new Set([1, 2]));
+    expect(esiOrderIDs(document)).toEqual(new Set([900, 901]));
+    expect(esiTransactionIDs(document)).toEqual(new Set([7, 8]));
+  });
+
+  it("counts what the setups make", () => {
+    expect(totalQuantityProduced(document)).toBe(70);
+  });
+
+  it("adds up what the installs, the extras and the invention cost", () => {
+    expect(totalInstallCost(document)).toBe(750);
+    expect(totalExtrasCost(document)).toBe(375.5);
+    expect(totalInventionCost(document)).toBe(900);
+  });
+
+  it("builds the job's cost out of the four it is made of", () => {
+    expect(totalMaterialCost(document)).toBe(640);
+    expect(buildCost(document)).toBe(640 + 750 + 375.5 + 900);
+  });
+
+  it("divides the build cost by what the setups make", () => {
+    expect(buildCostPerItem(document)).toBeCloseTo(38.0786, 4);
+  });
+
   it.each([
-    ["install", totalInstallCost, (held) => held.totalInstallCost],
-    ["extras", totalExtrasCost, (held) => held.totalExtrasCost],
-    ["invention", totalInventionCost, (held) => held.totalInventionCost],
     ["materials", totalMaterialCost, (held) => held.totalMaterialCost],
-    ["the build", buildCost, (held) => held.buildCost],
     ["broker fees", totalBrokersFees, (held) => held.totalBrokersFees],
     [
       "transaction fees",
       totalTransactionFees,
       (held) => held.totalTransactionFees,
     ],
-    [
-      "the tax still to come",
-      estimatedSalesTaxOutstanding,
-      (held) => held.estimatedSalesTaxOutstanding,
-    ],
-    ["the sales", totalSales, (held) => held.totalSales],
     ["the job", totalCost, (held) => held.totalCost],
-    ["one built item", buildCostPerItem, (held) => held.buildCostPerItem()],
     ["one item in all", totalCostPerItem, (held) => held.totalCostPerItem()],
-    [
-      "a sold item on average",
-      averageItemSalePrice,
-      (held) => held.averageItemSalePrice(),
-    ],
   ])("costs %s the same as the class", (_what, selector, getter) => {
     expect(selector(document)).toBe(getter(job));
     expect(selector(document)).toBeGreaterThan(0);
@@ -303,21 +307,13 @@ describe("the figures a job derives", () => {
     expect(narrow(document)).toBe(whole(document));
   });
 
-  it("asks for the material its setups call for, as the class does", () => {
+  it("asks for the material its setups call for", () => {
     expect(materialRequirement(document, TRITANIUM)).toBe(NEEDED);
-    expect(materialRequirement(document, TRITANIUM)).toBe(
-      job.materialRequirement(TRITANIUM),
-    );
   });
 
   it.each([
     ["setups", setupCount, (held) => held.setupCount],
     ["job slots", totalJobSlots, (held) => held.totalJobSlots],
-    [
-      "items produced",
-      totalQuantityProduced,
-      (held) => held.totalQuantityProduced,
-    ],
     [
       "materials bought in full",
       completedMaterialCount,
@@ -327,9 +323,27 @@ describe("the figures a job derives", () => {
     expect(selector(document)).toBe(getter(job));
   });
 
+  it("counts the tax still to come on the order that has not sold", () => {
+    expect(estimatedSalesTaxOutstanding(document)).toBe(9);
+  });
+
+  it("sums what the sales brought in", () => {
+    expect(totalSales(document)).toBe(6000);
+  });
+
+  it("averages what sold over how many were sold", () => {
+    expect(averageItemSalePrice(document)).toBe(240);
+  });
+
+  // Nothing sold has no average, and must not come back as NaN: the Selling
+  // panel hands this straight to the number formatter.
+  it("has no average for a job that has sold nothing", () => {
+    expect(averageItemSalePrice({ esi: { transactions: {} } })).toBe(0);
+    expect(averageItemSalePrice(undefined)).toBe(0);
+  });
+
   // Newest first, because that is the order the panel lists them in.
-  it("lists the sales the way the class orders them", () => {
-    expect(salesByDate(document)).toEqual(job.salesByDate);
+  it("lists the sales newest first", () => {
     expect(salesByDate(document).map((sale) => sale.transaction_id)).toEqual([
       8, 7,
     ]);
@@ -353,10 +367,9 @@ describe("the figures a job derives", () => {
       },
     });
 
-    expect(completedMaterialCount(withSpare.toDocument())).toBe(
-      withSpare.completedMaterialCount,
-    );
-    expect(spare.purchaseComplete).toBe(false);
+    // The Tritanium row is bought in full and the spare is not wanted at all,
+    // so one of the two counts.
+    expect(completedMaterialCount(withSpare.toDocument())).toBe(1);
   });
 
   it("counts none where nothing has been bought", () => {

@@ -1,3 +1,4 @@
+import { setupCount } from "../../../../Edit Job Hooks/jobSelectors";
 import { Avatar, IconButton, Typography, Grid } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -77,9 +78,7 @@ function AvailableJobEntry({ job, siblingLinkLock }) {
         <Typography variant="body1">{job.name}</Typography>
       </Grid>
       <Grid size={4}>
-        <Typography variant="body2">
-          Setups: {job.totalSetupCount ? job.totalSetupCount : 0}
-        </Typography>
+        <Typography variant="body2">Setups: {setupCount(job)}</Typography>
       </Grid>
       <Grid size={1}>
         <LockGatedTooltip readOnly={readOnly} reason={reason}>

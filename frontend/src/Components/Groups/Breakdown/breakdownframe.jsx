@@ -1,3 +1,8 @@
+import {
+  totalExtrasCost,
+  totalInstallCost,
+  totalInventionCost,
+} from "../../Edit Job/Edit Job Hooks/jobSelectors";
 import { useMemo } from "react";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { Box, Divider, Typography } from "@mui/material";
@@ -29,9 +34,9 @@ export default function GroupBreakdownFrame({ groupJobs = [] }) {
     let totalInvolvedCharacters = 0;
     for (const job of groupJobs) {
       totalBoughtMaterialCost += job.totalBoughtMaterialCost;
-      totalInstallCosts += job.totalInstallCost;
-      totalExtrasCosts += job.totalExtrasCost;
-      totalInventionCosts += job.totalInventionCost;
+      totalInstallCosts += totalInstallCost(job);
+      totalExtrasCosts += totalExtrasCost(job);
+      totalInventionCosts += totalInventionCost(job);
       totalInvolvedCharacters += job.involvedCharacters.size;
     }
     return {

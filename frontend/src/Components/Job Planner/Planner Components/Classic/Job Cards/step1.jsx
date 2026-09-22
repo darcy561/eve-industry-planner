@@ -1,3 +1,7 @@
+import {
+  setupCount,
+  totalQuantityProduced,
+} from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Typography, Box } from "@mui/material";
 
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
@@ -28,7 +32,7 @@ export default function Step1JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.totalQuantityProduced, { max: 0 })}
+            {formatNumberForLocale(totalQuantityProduced(job), { max: 0 })}
           </Typography>
         </Box>
       </Box>
@@ -46,7 +50,7 @@ export default function Step1JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.setupCount, { max: 0 })}
+            {formatNumberForLocale(setupCount(job), { max: 0 })}
           </Typography>
         </Box>
       </Box>

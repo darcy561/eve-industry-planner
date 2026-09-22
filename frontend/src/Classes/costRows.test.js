@@ -1,3 +1,7 @@
+import {
+  totalExtrasCost,
+  totalInventionCost,
+} from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { describe, expect, it } from "vitest";
 
 import ExtraCost from "./extraCost";
@@ -136,21 +140,17 @@ describe("invention entries on a job", () => {
     expect(activeJob.build.inventionEntries["1"]).toBeInstanceOf(
       InventionEntry,
     );
-    expect(activeJob.totalInventionCost).toBe(525000);
+    expect(totalInventionCost(activeJob)).toBe(525000);
   });
 
   it("takes an entry added by hand and writes it back unchanged", () => {
-    const activeJob = job([]);
-
-    activeJob.addInventionCost(InventionEntry.forItem("Datacore", 125000));
-    activeJob.addInventionCost({
-      id: 7,
-      itemName: "Decryptor",
-      itemCost: 400000,
-    });
+    const activeJob = job([
+      InventionEntry.forItem("Datacore", 125000),
+      { id: 7, itemName: "Decryptor", itemCost: 400000 },
+    ]);
 
     expect(Object.keys(activeJob.build.inventionEntries)).toHaveLength(2);
-    expect(activeJob.totalInventionCost).toBe(525000);
+    expect(totalInventionCost(activeJob)).toBe(525000);
     // Whatever a caller hands over becomes a row of its own class.
     expect(activeJob.build.inventionEntries["7"]).toBeInstanceOf(
       InventionEntry,
@@ -164,18 +164,7 @@ describe("invention entries on a job", () => {
       itemCost: 400000,
     });
 
-    expect(new Job(document).totalInventionCost).toBe(525000);
-  });
-
-  it("removes an entry by its id", () => {
-    const activeJob = job([
-      { id: 1, itemName: "Datacore", itemCost: 125000 },
-      { id: 2, itemName: "Decryptor", itemCost: 400000 },
-    ]);
-
-    activeJob.removeInventionCost({ id: 1 });
-
-    expect(activeJob.totalInventionCost).toBe(400000);
+    expect(totalInventionCost(new Job(document))).toBe(525000);
   });
 });
 
@@ -202,7 +191,7 @@ describe("extra costs on a job", () => {
     ]);
 
     expect(activeJob.build.extrasCosts["extra-1"]).toBeInstanceOf(ExtraCost);
-    expect(activeJob.totalExtrasCost).toBe(1750000);
+    expect(totalExtrasCost(activeJob)).toBe(1750000);
   });
 
   // A row can arrive with its category numeric or missing, whether it is being
@@ -210,9 +199,8 @@ describe("extra costs on a job", () => {
   it("settles a numeric or missing category on the way through", () => {
     const activeJob = job([
       { id: "extra-1", category: 3, extraText: "Courier", extraValue: 10 },
+      { id: "extra-2", extraValue: 5 },
     ]);
-
-    activeJob.addExtrasCost({ id: "extra-2", extraValue: 5 });
 
     const document = activeJob.toDocument();
     expect(document.build.extrasCosts).toEqual({
@@ -231,22 +219,6 @@ describe("extra costs on a job", () => {
         extraValue: 5,
       },
     });
-    expect(new Job(document).totalExtrasCost).toBe(15);
-  });
-
-  it("removes a row by its id", () => {
-    const activeJob = job([
-      {
-        id: "extra-1",
-        category: "3",
-        extraText: "Courier",
-        extraValue: 1500000,
-      },
-      { id: "extra-2", category: "0", extraText: "", extraValue: 250000 },
-    ]);
-
-    activeJob.removeExtrasCost({ id: "extra-1" });
-
-    expect(activeJob.totalExtrasCost).toBe(250000);
+    expect(totalExtrasCost(new Job(document))).toBe(15);
   });
 });

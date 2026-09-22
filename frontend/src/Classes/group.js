@@ -1,3 +1,8 @@
+import {
+  esiJobIDs,
+  esiOrderIDs,
+  esiTransactionIDs,
+} from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import DOMPurify from "dompurify";
 import getAllRelatedJobs from "../Functions/Helper/getAllRelatedJobs";
 import { getWsClientID } from "../WebSocket/wsClientIdentity.js";
@@ -147,9 +152,9 @@ class Group {
       newMaterialIDs.add(job.itemID);
       newJobTypeIDs.add(job.itemID);
       newIncludedJobIDs.add(job.jobID);
-      updateSet(newLinkedJobIDs, job.esiJobIDs);
-      updateSet(newLinkedOrderIDs, job.esiOrderIDs);
-      updateSet(newLinkedTransIDs, job.esiTransactionIDs);
+      updateSet(newLinkedJobIDs, esiJobIDs(job));
+      updateSet(newLinkedOrderIDs, esiOrderIDs(job));
+      updateSet(newLinkedTransIDs, esiTransactionIDs(job));
 
       for (const typeID of Object.keys(job.build.materials)) {
         newMaterialIDs.add(Number(typeID));

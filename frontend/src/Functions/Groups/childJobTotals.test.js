@@ -1,3 +1,4 @@
+import { jobMaking } from "../../tests/editJobFixtures";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./materialCostFromChildJobs.js", () => ({
@@ -9,11 +10,11 @@ vi.mock("../Installation Costs/installCosts.js", () => ({
 
 const { calculateChildJobTotals } = await import("./childJobTotals.js");
 
-const childJob = ({ materials = [], installCost = 0, produced = 10 } = {}) => ({
-  installCost,
-  totalQuantityProduced: produced,
-  build: { materials, childJobs: {} },
-});
+const childJob = ({ materials = [], installCost = 0, produced = 10 } = {}) =>
+  jobMaking(produced, {
+    installCost,
+    build: { materials, childJobs: {} },
+  });
 
 describe("what a child job costs", () => {
   it("adds every material it needs", () => {

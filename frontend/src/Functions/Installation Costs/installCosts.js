@@ -2,9 +2,9 @@
  * Install cost estimates — the setup formula and the sum of those estimates
  * across a job's setups.
  *
- * What a job's installs actually cost is Job.totalInstallCost: the ESI jobs
- * linked to it. Only getJobInstallCostForPlanning mixes the two, and only to
- * stand in with estimates before anything is linked.
+ * What a job's installs actually cost is `totalInstallCost` in `jobSelectors`:
+ * the ESI jobs linked to it. Only getJobInstallCostForPlanning mixes the two,
+ * and only to stand in with estimates before anything is linked.
  */
 
 import findSystemIndexForJob from "../Helper/findSystemIndexValue";

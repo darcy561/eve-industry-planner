@@ -51,6 +51,11 @@ const client = () => testQueryClient();
 const { default: findBrokersFeeEntry } =
   await import("./findBrokersFeeEntry.js");
 const { default: Job } = await import("../../Classes/job.js");
+const { addMarketOrder } =
+  await import("../../Components/Edit Job/Edit Job Hooks/jobCommands.js");
+const { esiOrderIDs } =
+  await import("../../Components/Edit Job/Edit Job Hooks/jobSelectors.js");
+const { jobAfterCommands } = await import("../../tests/jobAfterCommands.js");
 
 const ISSUED = "2026-08-01T00:00:00Z";
 
@@ -138,11 +143,13 @@ describe("the fee that reaches the job", () => {
       name: "Tritanium",
     });
     const order = orderAt(CITADEL);
-    job.addMarketOrder(
-      order,
-      findBrokersFeeEntry(order, { brokerFee: feeAmount }, null),
+    return jobAfterCommands(
+      job,
+      addMarketOrder(
+        order,
+        findBrokersFeeEntry(order, { brokerFee: feeAmount }, null),
+      ),
     );
-    return job;
   }
 
   it("records the worked-out amount, not the journal's", () => {
@@ -162,7 +169,7 @@ describe("the fee that reaches the job", () => {
     const job = jobWithOrder(1500000, null);
 
     expect(job.totalBrokersFees).toBe(1500000);
-    expect(job.esiOrderIDs.has(900)).toBe(true);
+    expect(esiOrderIDs(job.toDocument()).has(900)).toBe(true);
     expect(job.esi.marketOrders["900"].feeDate).toBe(ISSUED);
   });
 

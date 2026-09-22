@@ -46,7 +46,6 @@ function job(jobID, name, { itemID = TRITANIUM, groupID = null } = {}) {
     name,
     itemID,
     groupID,
-    totalSetupCount: 1,
     build: { setup: { one: {} } },
   };
 }

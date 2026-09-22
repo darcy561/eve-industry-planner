@@ -35,7 +35,8 @@ const { default: getAllRelatedJobs, loadAllRelatedJobs } =
 function job(jobID, children, parents = []) {
   planner.jobs[jobID] = {
     jobID,
-    relatedJobIDs: [...parents, ...children],
+    parentJobs: parents,
+    build: { childJobs: children.length ? { 34: [...children] } : {} },
   };
 }
 

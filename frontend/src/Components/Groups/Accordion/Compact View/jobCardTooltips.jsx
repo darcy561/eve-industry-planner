@@ -1,4 +1,12 @@
 import {
+  buildCostPerItem,
+  esiJobIDs,
+  esiOrderIDs,
+  esiTransactionIDs,
+  setupCount,
+  totalQuantityProduced,
+} from "../../../Edit Job/Edit Job Hooks/jobSelectors";
+import {
   formatNumberForLocale,
   formatTimeRemaining,
 } from "../../../../Functions/Helper/numberParser";
@@ -10,11 +18,13 @@ function getTooltipContent(job, now) {
         <span>
           <p>
             Quantity:{" "}
-            {formatNumberForLocale(job.totalQuantityProduced, {
+            {formatNumberForLocale(totalQuantityProduced(job), {
               max: 0,
             })}
           </p>
-          <p>Job Setups: {formatNumberForLocale(job.setupCount, { max: 0 })}</p>
+          <p>
+            Job Setups: {formatNumberForLocale(setupCount(job), { max: 0 })}
+          </p>
         </span>
       );
     case 1: {
@@ -24,7 +34,8 @@ function getTooltipContent(job, now) {
         return (
           <span>
             <p>
-              Awaiting Materials: {totalRemaining}/{Object.keys(job.build.materials).length}
+              Awaiting Materials: {totalRemaining}/
+              {Object.keys(job.build.materials).length}
             </p>
           </span>
         );
@@ -33,14 +44,14 @@ function getTooltipContent(job, now) {
     }
     case 2: {
       const timeRemaining = timeUntilNextJobFinishes(job, now);
+      const linkedRunCount = esiJobIDs(job).size;
 
       return (
         <span>
           <p>
-            ESI Jobs Linked:{" "}
-            {formatNumberForLocale(job.esiJobIDs.size, { max: 0 })}
+            ESI Jobs Linked: {formatNumberForLocale(linkedRunCount, { max: 0 })}
           </p>
-          {job.esiJobIDs.size > 0 && (
+          {linkedRunCount > 0 && (
             <p>
               {timeRemaining === "Complete"
                 ? "Complete"
@@ -55,12 +66,12 @@ function getTooltipContent(job, now) {
         <span>
           <p>
             Items Built:{" "}
-            {formatNumberForLocale(job.totalQuantityProduced, {
+            {formatNumberForLocale(totalQuantityProduced(job), {
               max: 0,
             })}
           </p>
           <p>
-            Build Cost Per Item: {formatNumberForLocale(job.buildCostPerItem())}
+            Build Cost Per Item: {formatNumberForLocale(buildCostPerItem(job))}
           </p>
         </span>
       );
@@ -69,11 +80,11 @@ function getTooltipContent(job, now) {
         <span>
           <p>
             Market Orders:{" "}
-            {formatNumberForLocale(job.esiOrderIDs.size, { max: 0 })}
+            {formatNumberForLocale(esiOrderIDs(job).size, { max: 0 })}
           </p>
           <p>
             Transactions:{" "}
-            {formatNumberForLocale(job.esiTransactionIDs.size, { max: 0 })}
+            {formatNumberForLocale(esiTransactionIDs(job).size, { max: 0 })}
           </p>
         </span>
       );

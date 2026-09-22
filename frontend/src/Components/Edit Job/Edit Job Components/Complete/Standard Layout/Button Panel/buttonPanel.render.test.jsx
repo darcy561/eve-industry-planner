@@ -1,3 +1,4 @@
+import { buildCostPerItem } from "../../../../Edit Job Hooks/jobSelectors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -64,18 +65,20 @@ const aParent = () =>
     },
   });
 
-const openJob = (parentJobs = []) =>
+const openJob = (parentJobs = [], build = {}) =>
   session().actions.openJob("job-1", {
     jobID: "job-1",
     name: "Rifter",
     itemID: 587,
     jobType: 1,
+    itemsProducedPerRun: 10,
     parentJobs,
     isReadyToSell: false,
     build: {
       setup: { "setup-1": { id: "setup-1", runCount: 1, jobCount: 1 } },
       materials: {},
       products: { totalQuantity: 10 },
+      ...build,
     },
   });
 
@@ -184,7 +187,9 @@ describe("the Complete stage's buttons", () => {
   // on it: handed the job as the session stores it, the pass reads that figure
   // off nothing.
   it("hands over a job the cost per item can be read from", async () => {
-    openJob(["job-2"]);
+    openJob(["job-2"], {
+      extrasCosts: { "extra-1": { id: "extra-1", extraValue: 500 } },
+    });
     render(<PassBuildCostsButton />);
 
     await userEvent.click(
@@ -192,7 +197,10 @@ describe("the Complete stage's buttons", () => {
     );
 
     expect(passedOver.current.jobID).toBe("job-1");
-    expect(typeof passedOver.current.buildCostPerItem).toBe("function");
+    // What the parent pays for this job's output is worked out from what it
+    // holds, so the job handed over has to carry it rather than a figure.
+    // 500 of extras over the ten the setup makes.
+    expect(buildCostPerItem(passedOver.current)).toBe(50);
   });
 
   it("draws nothing for a group the planner no longer holds", () => {

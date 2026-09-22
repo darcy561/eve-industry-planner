@@ -7,6 +7,7 @@
  * is the surplus, and that is what this works out.
  */
 
+import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 /**
  * @typedef {object} ParentRequirements
  * @property {number} parentTotal - How much the parents require in total
@@ -55,10 +56,10 @@ export function resolveParentRequirements({
       const sibling = findJobInJobArray(siblingID);
       if (!sibling) continue;
       totals.multipleChildren = true;
-      totals.childrenTotal += sibling.totalQuantityProduced;
+      totals.childrenTotal += totalQuantityProduced(sibling);
       totals.siblings.push({
         jobID: siblingID,
-        produced: sibling.totalQuantityProduced ?? 0,
+        produced: totalQuantityProduced(sibling),
       });
     }
   }

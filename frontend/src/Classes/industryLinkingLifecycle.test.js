@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  esiJobIDs,
+  totalInstallCost,
+} from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 
 vi.mock("../Zustand/usersStore", async () => {
   const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
@@ -9,6 +13,10 @@ const { default: Job } = await import("./job.js");
 const { default: LinkedESIJob } = await import("./linkedESIJob.js");
 const { default: findIndustryJobsForItem } =
   await import("../Functions/IndustryJobs/findIndustryJobsForItem.js");
+const { linkESIJob, unlinkESIJob, updateLinkedJobData } =
+  await import("../Components/Edit Job/Edit Job Hooks/jobCommands.js");
+const { jobAfterCommands: after } =
+  await import("../tests/jobAfterCommands.js");
 
 // The shipped rule the Building panel offers runs by.
 function offeredRuns(
@@ -57,11 +65,11 @@ function newJob() {
 
 describe("linking industry runs to a job", () => {
   it("keeps every figure in step from an ESI run to a stored document", () => {
-    const job = newJob();
+    let job = newJob();
 
     // 1. Nothing linked: the job has no install cost and holds no runs.
-    expect(job.totalInstallCost).toBe(0);
-    expect(job.esiJobIDs.size).toBe(0);
+    expect(totalInstallCost(job)).toBe(0);
+    expect(esiJobIDs(job.toDocument()).size).toBe(0);
 
     // 2. ESI reports two runs of this item, and one of something else.
     const reported = [
@@ -75,11 +83,16 @@ describe("linking industry runs to a job", () => {
     ]);
 
     // 3. Linking them records what each run cost, summed at call time.
-    job.linkESIJob(reported[0], OWNER);
-    job.linkESIJob(reported[1], OWNER);
+    job = after(
+      job,
+      linkESIJob(reported[0], OWNER),
+      linkESIJob(reported[1], OWNER),
+    );
 
-    expect(job.totalInstallCost).toBe(2000000);
-    expect(job.esiJobIDs).toEqual(new Set([500000001, 500000002]));
+    expect(totalInstallCost(job)).toBe(2000000);
+    expect(esiJobIDs(job.toDocument())).toEqual(
+      new Set([500000001, 500000002]),
+    );
     // A job with runs against it is no longer waiting to be started.
     expect(job.isReadyToStart).toBe(false);
 
@@ -94,19 +107,22 @@ describe("linking industry runs to a job", () => {
     expect(offeredRuns(reported, job)).toEqual([]);
 
     // 6. ESI reports the first run delivered; the row takes it.
-    job.updateLinkedJobData([
-      {
-        ...reported[0],
-        status: "delivered",
-        completed_date: "2026-08-02T01:00:00Z",
-      },
-      reported[1],
-    ]);
+    job = after(
+      job,
+      updateLinkedJobData([
+        {
+          ...reported[0],
+          status: "delivered",
+          completed_date: "2026-08-02T01:00:00Z",
+        },
+        reported[1],
+      ]),
+    );
 
     expect(job.esi.industryJobs["500000001"].isDelivered).toBe(true);
     expect(job.esi.industryJobs["500000002"].isActive).toBe(true);
     // Delivery does not change what the run cost.
-    expect(job.totalInstallCost).toBe(2000000);
+    expect(totalInstallCost(job)).toBe(2000000);
 
     // 7. The document carries the rows, and the cost is worked out again on read.
     const document = job.toDocument();
@@ -114,28 +130,32 @@ describe("linking industry runs to a job", () => {
     expect(document.esi.industryJobs["500000001"].job_id).toBe(500000001);
 
     const reopened = new Job(document);
-    expect(reopened.totalInstallCost).toBe(2000000);
-    expect(reopened.esiJobIDs).toEqual(job.esiJobIDs);
+    expect(totalInstallCost(reopened)).toBe(2000000);
+    expect(esiJobIDs(reopened.toDocument())).toEqual(
+      esiJobIDs(job.toDocument()),
+    );
 
     // 8. Unlinking takes the run and its cost away together.
-    reopened.unlinkESIJob({ job_id: 500000001 });
+    const unlinked = after(reopened, unlinkESIJob({ job_id: 500000001 }));
 
-    expect(reopened.totalInstallCost).toBe(750000);
-    expect(reopened.esiJobIDs).toEqual(new Set([500000002]));
+    expect(totalInstallCost(unlinked)).toBe(750000);
+    expect(esiJobIDs(unlinked.toDocument())).toEqual(new Set([500000002]));
   });
 
   // The panel links on an 800ms delay, so a second click, or "link all" landing
   // while a click is still pending, asks for the same run twice.
   it("links a run once however many times it is asked for", () => {
-    const job = newJob();
     const run = esiRun(500000001);
 
-    job.linkESIJob(run, OWNER);
-    job.linkESIJob(run, OWNER);
-    job.linkESIJob({ ...run }, OTHER_OWNER);
+    const job = after(
+      newJob(),
+      linkESIJob(run, OWNER),
+      linkESIJob(run, OWNER),
+      linkESIJob({ ...run }, OTHER_OWNER),
+    );
 
     expect(Object.keys(job.esi.industryJobs)).toHaveLength(1);
-    expect(job.totalInstallCost).toBe(1250000);
+    expect(totalInstallCost(job)).toBe(1250000);
     expect(job.esi.industryJobs["500000001"].character_id).toBe(
       OWNER.CharacterID,
     );
@@ -168,25 +188,28 @@ describe("linking industry runs to a job", () => {
   // Unlinking is pending until the job saves, so the run must not come back
   // twice if it is linked again in the same sitting.
   it("can relink a run that was unlinked", () => {
-    const job = newJob();
     const run = esiRun(500000001);
 
-    job.linkESIJob(run, OWNER);
-    job.unlinkESIJob({ job_id: 500000001 });
-    job.linkESIJob(run, OWNER);
+    const job = after(
+      newJob(),
+      linkESIJob(run, OWNER),
+      unlinkESIJob({ job_id: 500000001 }),
+      linkESIJob(run, OWNER),
+    );
 
     expect(job.esi.industryJobs["500000001"]).toBeDefined();
     expect(Object.keys(job.esi.industryJobs)).toHaveLength(1);
-    expect(job.totalInstallCost).toBe(1250000);
+    expect(totalInstallCost(job)).toBe(1250000);
   });
 
   it("ignores a run with no owner rather than storing a nameless one", () => {
-    const job = newJob();
-
-    job.linkESIJob(esiRun(500000001), null);
-    job.linkESIJob(null, OWNER);
+    const job = after(
+      newJob(),
+      linkESIJob(esiRun(500000001), null),
+      linkESIJob(null, OWNER),
+    );
 
     expect(Object.keys(job.esi.industryJobs)).toHaveLength(0);
-    expect(job.totalInstallCost).toBe(0);
+    expect(totalInstallCost(job)).toBe(0);
   });
 });

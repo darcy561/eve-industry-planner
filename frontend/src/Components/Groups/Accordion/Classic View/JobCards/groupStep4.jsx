@@ -1,3 +1,7 @@
+import {
+  buildCostPerItem,
+  totalQuantityProduced,
+} from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Typography, Box } from "@mui/material";
 
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
@@ -29,7 +33,7 @@ export default function GroupStep4JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.totalQuantityProduced, {
+            {formatNumberForLocale(totalQuantityProduced(job), {
               max: 0,
             })}
           </Typography>
@@ -49,7 +53,7 @@ export default function GroupStep4JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.buildCostPerItem())}
+            {formatNumberForLocale(buildCostPerItem(job))}
           </Typography>
         </Box>
       </Box>

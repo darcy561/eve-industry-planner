@@ -43,9 +43,9 @@ class Material {
   /**
    * How many of this material the job needs.
    *
-   * The figure belongs to the setups — {@link Job#materialRequirement} sums each
-   * setup's `materialCount` — so resizing, adding or removing a setup moves it
-   * at once and there is nothing on the row to fall behind.
+   * The figure belongs to the setups — the job sums each setup's `materialCount`
+   * — so resizing, adding or removing a setup moves it at once and there is
+   * nothing on the row to fall behind.
    *
    * @returns {number}
    */

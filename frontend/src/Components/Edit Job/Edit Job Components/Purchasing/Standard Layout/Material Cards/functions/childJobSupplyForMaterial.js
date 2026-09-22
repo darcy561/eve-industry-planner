@@ -1,3 +1,7 @@
+import {
+  parentJobIDs,
+  totalQuantityProduced,
+} from "../../../../../Edit Job Hooks/jobSelectors";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
 
 /**
@@ -35,7 +39,7 @@ export function childJobSupplyForMaterial(
 
   const childIDs = new Set(childJobs.map((childJob) => childJob.jobID));
   const output = childJobs.reduce(
-    (total, childJob) => total + childJob.totalQuantityProduced,
+    (total, childJob) => total + totalQuantityProduced(childJob),
     0,
   );
 
@@ -44,7 +48,7 @@ export function childJobSupplyForMaterial(
   // takes from two of them still only claims once.
   const parentIDs = new Set([activeJobID]);
   for (const childJob of childJobs) {
-    for (const parentID of childJob.parentJobIDs) {
+    for (const parentID of parentJobIDs(childJob)) {
       parentIDs.add(parentID);
     }
   }

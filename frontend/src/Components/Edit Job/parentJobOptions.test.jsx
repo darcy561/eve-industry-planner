@@ -40,9 +40,9 @@ function job(jobID, name, { builtFrom = [], groupID = null } = {}) {
     name,
     itemID: 587,
     groupID,
-    setupCount: 1,
-    totalQuantityProduced: 10,
+    itemsProducedPerRun: 10,
     build: {
+      setup: { one: { id: "one", runCount: 1, jobCount: 1 } },
       materials: Object.fromEntries(
         builtFrom.map((typeID) => [String(typeID), { typeID }]),
       ),

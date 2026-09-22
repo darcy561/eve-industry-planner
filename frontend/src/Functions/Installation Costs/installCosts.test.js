@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { totalInstallCost } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 
 /** The account doing the reading, and what it knows about its characters. */
 const reader = { own: {}, main: "me" };
@@ -111,7 +112,7 @@ describe("installCosts", () => {
     // Per slot, on 10 units at 100 each: 100 of system index, plus the 4%
     // surcharge and the structure's own tax on the same 1000.
     expect(getJobInstallCostForPlanning(job)).toBe(3 * 142.5);
-    expect(job.totalInstallCost).toBe(0);
+    expect(totalInstallCost(job)).toBe(0);
   });
 
   it("planning mode prefers actual when ESI jobs are linked", () => {
@@ -123,7 +124,7 @@ describe("installCosts", () => {
       materials: {},
     });
     expect(getJobInstallCostForPlanning(job)).toBe(42);
-    expect(job.totalInstallCost).toBe(42);
+    expect(totalInstallCost(job)).toBe(42);
   });
 
   it("actual mode returns zero when ESI linked but cost not yet recorded", () => {
@@ -134,7 +135,7 @@ describe("installCosts", () => {
       products: { totalQuantity: 1 },
       materials: {},
     });
-    expect(job.totalInstallCost).toBe(0);
+    expect(totalInstallCost(job)).toBe(0);
     expect(getJobInstallCostForPlanning(job)).toBe(0);
   });
 

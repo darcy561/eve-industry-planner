@@ -1,3 +1,4 @@
+import { jobMaking } from "../../tests/editJobFixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const jobsById = new Map();
@@ -39,13 +40,21 @@ function job({
   materials = [],
   childJobs = {},
 } = {}) {
-  const built = {
+  const built = jobMaking(produced, {
     plannedInstallCost: installCost,
-    totalInstallCost: actualInstallCost,
-    totalExtrasCost: extras,
-    totalQuantityProduced: produced,
-    build: { materials, childJobs },
-  };
+    esi: {
+      industryJobs: actualInstallCost
+        ? { 1: { job_id: 1, cost: actualInstallCost } }
+        : {},
+    },
+    build: {
+      materials,
+      childJobs,
+      extrasCosts: extras
+        ? { "extra-1": { id: "extra-1", extraValue: extras } }
+        : {},
+    },
+  });
   if (id) jobsById.set(id, built);
   return built;
 }
@@ -272,7 +281,7 @@ describe("what it does with awkward input", () => {
   });
 
   it("skips a child job that has no build without dropping its siblings", () => {
-    jobsById.set("shell", { totalQuantityProduced: 100 });
+    jobsById.set("shell", { jobID: "shell" });
     job({ id: "child-1", produced: 100, installCost: 1000 });
     const outputJob = job({
       produced: 1,

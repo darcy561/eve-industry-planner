@@ -1,3 +1,4 @@
+import { jobMaking } from "../../../../../../tests/editJobFixtures";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { beforeAll } from "vitest";
@@ -63,14 +64,18 @@ vi.mock(
 );
 // The child jobs behind a row are costed for what they actually make, so the
 // stub answers per job rather than per material.
-vi.mock("../../../../../../Functions/Groups/childJobTotals", () => ({
-  calculateChildJobTotals: (job) => ({
-    totalCostOfMaterials: 0,
-    totalInstallCosts: 0,
-    quantityProduced: job?.totalQuantityProduced ?? 100,
-    totalCostPerItem: job?.unitCost ?? 7,
-  }),
-}));
+vi.mock("../../../../../../Functions/Groups/childJobTotals", async () => {
+  const { totalQuantityProduced } =
+    await import("../../../../Edit Job Hooks/jobSelectors");
+  return {
+    calculateChildJobTotals: (job) => ({
+      totalCostOfMaterials: 0,
+      totalInstallCosts: 0,
+      quantityProduced: totalQuantityProduced(job),
+      totalCostPerItem: job?.unitCost ?? 7,
+    }),
+  };
+});
 
 const { useMaterialsSourcing } = await import("./useMaterialsSourcing.js");
 const { default: useUsersStore } =
@@ -266,11 +271,9 @@ describe("a row whose child jobs no longer cover it", () => {
   }
 
   it("says how much of the requirement the child actually makes", () => {
-    const { rows } = renderLinked({
-      jobID: "child-1",
-      totalQuantityProduced: 40,
-      unitCost: 7,
-    });
+    const { rows } = renderLinked(
+      jobMaking(40, { jobID: "child-1", unitCost: 7 }),
+    );
 
     expect(rows[0].coverage).toMatchObject({
       required: 100,
@@ -284,11 +287,9 @@ describe("a row whose child jobs no longer cover it", () => {
   it("buys the shortfall when nothing will resize the child on close", () => {
     automaticRecalculation = false;
 
-    const { rows } = renderLinked({
-      jobID: "child-1",
-      totalQuantityProduced: 40,
-      unitCost: 7,
-    });
+    const { rows } = renderLinked(
+      jobMaking(40, { jobID: "child-1", unitCost: 7 }),
+    );
 
     // 40 built at 7, 60 bought at the sell price of 10.
     expect(rows[0].coverage.buildCost).toBe(280);
@@ -298,22 +299,18 @@ describe("a row whose child jobs no longer cover it", () => {
   });
 
   it("extrapolates and flags it when the child will be resized on close", () => {
-    const { rows } = renderLinked({
-      jobID: "child-1",
-      totalQuantityProduced: 40,
-      unitCost: 7,
-    });
+    const { rows } = renderLinked(
+      jobMaking(40, { jobID: "child-1", unitCost: 7 }),
+    );
 
     expect(rows[0].buildPrice).toBe(7);
     expect(rows[0].coverage.assumed).toBe(true);
   });
 
   it("carries no shortfall when the child still covers the requirement", () => {
-    const { rows } = renderLinked({
-      jobID: "child-1",
-      totalQuantityProduced: 100,
-      unitCost: 7,
-    });
+    const { rows } = renderLinked(
+      jobMaking(100, { jobID: "child-1", unitCost: 7 }),
+    );
 
     expect(rows[0].coverage.isShort).toBe(false);
     expect(rows[0].coverage.assumed).toBe(false);
@@ -323,8 +320,8 @@ describe("a row whose child jobs no longer cover it", () => {
   // material built by siblings cost twice what it should.
   it("splits the requirement between siblings rather than giving each all of it", () => {
     const { rows } = renderLinked(
-      { jobID: "child-1", totalQuantityProduced: 50, unitCost: 7 },
-      { jobID: "child-2", totalQuantityProduced: 50, unitCost: 7 },
+      jobMaking(50, { jobID: "child-1", unitCost: 7 }),
+      jobMaking(50, { jobID: "child-2", unitCost: 7 }),
     );
 
     expect(rows[0].coverage.covered).toBe(100);

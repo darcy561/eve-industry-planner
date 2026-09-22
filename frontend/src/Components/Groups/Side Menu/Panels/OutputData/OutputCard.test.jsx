@@ -36,8 +36,12 @@ const job = {
   jobID: "job-9",
   itemID: 587,
   name: "Rifter",
-  totalQuantityProduced: 10,
-  build: { materials: {}, costs: {} },
+  itemsProducedPerRun: 10,
+  build: {
+    setup: { one: { id: "one", runCount: 1, jobCount: 1 } },
+    materials: {},
+    costs: {},
+  },
 };
 
 function showCard(pageView, inputJob = job) {

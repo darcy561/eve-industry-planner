@@ -1,3 +1,9 @@
+import {
+  esiJobIDs,
+  esiOrderIDs,
+  esiTransactionIDs,
+  totalQuantityProduced,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import useUsersStore from "../../Zustand/usersStore";
 import Job from "../../Classes/job";
 import {
@@ -77,7 +83,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     let totalItemQuantity = 0;
 
     for (const job of group) {
-      totalItemQuantity += job.totalQuantityProduced;
+      totalItemQuantity += totalQuantityProduced(job);
 
       for (const parentID of job.parentJobs ?? []) {
         parentJobs.add(parentID);
@@ -210,9 +216,9 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   for (const oldJobID of oldJobIDsToRemove) {
     const oldJob = findJobInJobArray(oldJobID);
     if (!oldJob) continue;
-    for (const id of oldJob.esiJobIDs) linkedJobIdsToRemove.add(id);
-    for (const id of oldJob.esiOrderIDs) linkedOrderIdsToRemove.add(id);
-    for (const id of oldJob.esiTransactionIDs) linkedTransIdsToRemove.add(id);
+    for (const id of esiJobIDs(oldJob)) linkedJobIdsToRemove.add(id);
+    for (const id of esiOrderIDs(oldJob)) linkedOrderIdsToRemove.add(id);
+    for (const id of esiTransactionIDs(oldJob)) linkedTransIdsToRemove.add(id);
   }
 
   if (isLoggedIn) {

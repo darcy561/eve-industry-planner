@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Button, Grid } from "@mui/material";
 import ContentDialogue from "../../../../../Styled Components/Dialogue/ContentDialogue";
 import { useState } from "react";
@@ -47,7 +48,7 @@ export function AddWatchItemDialogue({ watchlistItemToEdit, onClose }) {
           typeID: mat.typeID,
           name: mat.name,
           quantity: mat.quantity,
-          quantityProduced: job !== undefined ? job.totalQuantityProduced : 0,
+          quantityProduced: job !== undefined ? totalQuantityProduced(job) : 0,
           materials: [],
           group: groupSelect,
           buildData:
@@ -77,7 +78,7 @@ export function AddWatchItemDialogue({ watchlistItemToEdit, onClose }) {
       typeID: watchlistItemRequest,
       group: groupSelect,
       name: materialJobs[watchlistItemRequest].name,
-      quantity: materialJobs[watchlistItemRequest].totalQuantityProduced,
+      quantity: totalQuantityProduced(materialJobs[watchlistItemRequest]),
       materials: mainJobMaterials,
       childJobPresent: childJobPresent,
       buildData: Object.values(

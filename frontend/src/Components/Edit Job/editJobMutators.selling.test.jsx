@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import Group from "../../Classes/group";
+import { salesNewestFirst } from "./Edit Job Hooks/jobSelectors";
 import {
   editJobStore,
   esiMarketOrder,
@@ -68,7 +69,7 @@ describe("recording a sale by hand, end to end", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
-    const sales = editJob.current.activeJob.salesByDate;
+    const sales = salesNewestFirst(editJob.current.activeJob.esi.transactions);
     expect(sales).toHaveLength(1);
     expect(sales[0].type_id).toBe(587);
     expect(editJob.current.jobModified).toBe(true);

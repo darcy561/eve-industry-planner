@@ -1,3 +1,4 @@
+import { totalInventionCost } from "../../../../Edit Job Hooks/jobSelectors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -86,7 +87,7 @@ describe("recording what invention cost", () => {
       itemCost: 1500,
     });
     // The same figure the cost breakdown counts.
-    expect(changed.totalInventionCost).toBe(1500);
+    expect(totalInventionCost(changed)).toBe(1500);
   });
 
   it("refuses an entry with no name", async () => {

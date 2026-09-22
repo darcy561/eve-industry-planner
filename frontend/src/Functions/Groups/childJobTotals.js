@@ -1,3 +1,4 @@
+import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { calculateMaterialCostFromChildJobs } from "./materialCostFromChildJobs.js";
 import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts.js";
 
@@ -43,7 +44,7 @@ export function calculateChildJobTotals(
   );
 
   const totalInstallCosts = getJobInstallCostForPlanning(childJob);
-  const quantityProduced = childJob?.totalQuantityProduced ?? 0;
+  const quantityProduced = totalQuantityProduced(childJob);
 
   return {
     totalCostOfMaterials,

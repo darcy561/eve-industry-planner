@@ -24,9 +24,9 @@ function job(jobID, name, { childJobIDs = [], parentJobIDs = [] } = {}) {
     name,
     itemID: 587,
     jobType: 1,
-    childJobIDs,
-    parentJobIDs,
-    esiJobIDs: new Set(),
+    parentJobs: parentJobIDs,
+    build: { childJobs: childJobIDs.length ? { 34: [...childJobIDs] } : {} },
+    esi: { industryJobs: {} },
     isReadyToStart: false,
   };
 }

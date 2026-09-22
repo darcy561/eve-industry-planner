@@ -1,3 +1,7 @@
+import {
+  childJobIDs,
+  parentJobIDs,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { formatNumberForLocale } from "../Helper/numberParser";
 
 /**
@@ -18,8 +22,8 @@ export function closeAdjustmentSummary(job, adjustments = []) {
   if (adjustments.length === 0) return `${name} Updated`;
 
   const own = adjustments.find(({ jobID }) => jobID === job?.jobID);
-  const parentIDs = new Set(job?.parentJobIDs ?? []);
-  const childIDs = new Set(job?.childJobIDs ?? []);
+  const parentIDs = new Set(parentJobIDs(job));
+  const childIDs = new Set(childJobIDs(job));
 
   let parents = 0;
   let children = 0;

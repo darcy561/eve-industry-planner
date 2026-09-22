@@ -1,3 +1,7 @@
+import {
+  esiJobIDs,
+  totalJobSlots,
+} from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { useMemo } from "react";
 import { Typography, Box } from "@mui/material";
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
@@ -14,7 +18,8 @@ export default function GroupStep3JobCard({ job }) {
     return next ? formatTimeRemaining(next.finishesAt, { now }) : null;
   }, [job, now]);
 
-  const totalJobCount = job.totalJobSlots;
+  const totalJobCount = totalJobSlots(job);
+  const linkedRunCount = esiJobIDs(job).size;
 
   return (
     <Box
@@ -41,13 +46,12 @@ export default function GroupStep3JobCard({ job }) {
           }}
         >
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {formatNumberForLocale(job.esiJobIDs.size, { max: 0 })}/
-            {totalJobCount}
+            {formatNumberForLocale(linkedRunCount, { max: 0 })}/{totalJobCount}
           </Typography>
         </Box>
       </Box>
 
-      {job.esiJobIDs.size > 0 ? (
+      {linkedRunCount > 0 ? (
         timeRemaining === "Complete" ? (
           <Box sx={{ width: "100%" }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
