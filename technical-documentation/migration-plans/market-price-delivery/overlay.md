@@ -283,7 +283,7 @@ This is the part the stage's design missed on the first pass, and it is worth st
 nothing about it is visible from the cache module alone.
 
 **A priced surface subscribes to none of the row entries.** It reads figures synchronously while
-rendering, through `getMarketPriceForType`, because a shopping list row and a basis comparison read
+rendering, through `getMarketPriceForType`, because a shopping list row and an order type comparison read
 inside a reduce and neither can await. So dropping a market's rows reaches nobody on its own: React is
 never told anything changed.
 
@@ -766,7 +766,9 @@ their prices rather than open on the ones they left.
 
 **What this does not do is label the figures inside the day.** A row carries `refreshedAt` and
 nothing in the app displays it, so prices up to a day old still read as current. That is a surface
-question rather than a storage one, and it is open.
+question rather than a storage one, and it is answered in
+[market-locations](../market-locations/plan.md) § A market says when it was last read, whose panel
+shows each market's last-read moment.
 
 ### What only these tests could say
 

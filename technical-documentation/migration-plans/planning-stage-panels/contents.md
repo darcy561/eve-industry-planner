@@ -17,7 +17,7 @@ answer it.
   derived from Accounting at both. The base rates and coefficients are SPA constants; how a saved
   citadel is *stored* belongs to the custom-structure work, and this project reads one through a single
   accessor.
-- The **pricing basis** a figure is quoted on — which of the four server-served price modes
+- The **pricing order type** a figure is quoted on — which of the four server-served price modes
   (`buy`, `sell`, `buyP95`, `sellP05`) a row used, and how a player is shown what each does.
 - **Speculative child jobs**: costing a buildable material's build before the player commits to it,
   so the comparison exists before the decision rather than after.
@@ -94,7 +94,7 @@ answer it.
 | Find where the rate block renders on a job | [plan.md](./plan.md) § Stage F |
 | See what the fee estimate reuses from Selling | [plan.md](./plan.md) § Stage B |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
-| Understand the pricing basis and its four modes | [plan.md](./plan.md) § Stage D |
+| Understand the pricing order type and its four modes | [plan.md](./plan.md) § Stage D |
 | See the speculative child job change and its cost | [plan.md](./plan.md) § Stage G |
 | Know what a job with parents shows | [plan.md](./plan.md) § Stage H |
 | See how the Skills panel models a build's cost | [plan.md](./plan.md) § Stage I |

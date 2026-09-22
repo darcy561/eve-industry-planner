@@ -29,7 +29,7 @@ The Edit Job **Purchasing** stage: what it asks, what it answers, and the shape 
 - **The pricing ladder itself.** The rungs, the market group walk and the resolver hooks are
   [market-pricing-defaults](../market-pricing-defaults/contents.md)'s work and are built. This project
   is the last consumer to adopt them and changes none of them.
-- **The Planning stage.** Its three panels, the basis picker and the selling charges are
+- **The Planning stage.** Its three panels, the order type picker and the selling charges are
   [planning-stage-panels](../planning-stage-panels/contents.md). This project reuses the picker and the
   Materials & Sourcing table shape and alters neither.
 - **The shopping list.** Its asset choice, its location scoping and its dialogue stay exactly as they

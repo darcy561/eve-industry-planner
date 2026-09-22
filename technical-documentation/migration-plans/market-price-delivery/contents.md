@@ -44,7 +44,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   the percentile trim are current behaviour and are not being changed →
   [backend/](../../backend/contents.md). Where the walk's **pages** are held is this project's, and
   has moved to object storage; what the walk does with them has not changed.
-- **Which market source and basis a figure is priced against.** The resolution ladder, the account's
+- **Which market source and order type a figure is priced against.** The resolution ladder, the account's
   buying and selling defaults, and defaults keyed to an item's market group belong to
   [market-pricing-defaults/contents.md](../market-pricing-defaults/contents.md). That project decides
   what to ask for; this one decides how the asking works.

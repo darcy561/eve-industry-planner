@@ -11,7 +11,7 @@ Promote target on go-ahead: [frontend/](../../frontend/contents.md) and
 ### A1 — The stored fields
 
 `ApplicationSettings.DefaultPricing` holds a `PricingSide` for each of `Buying` and `Selling`, each
-naming a `Market` and a `Basis`. A basis is a listing type, so a side that buys carries `Basis:
+naming a `Market` and an `OrderType`, as ESI names that axis. A side that buys carries `OrderType:
 "sell"` — the ask is what buying costs. A new account starts both sides on Jita sell orders.
 
 The SPA mirrors the shape at `applicationSettings.defaultPricing` and persists it. Where the server
@@ -33,8 +33,8 @@ a schema step, and what stops writing the single pair.
 
 `resolvePricingSide({jobPricing, accountPricing, side})` in `Functions/MarketData/pricingSide.js` is
 the whole ladder below a material's own override: the job's choice, then the account's, then the
-global default. Market and basis resolve independently, so a job naming a market without a basis keeps
-the account's basis rather than losing it, and an empty value is not a choice at any rung.
+global default. Market and order type resolve independently, so a job naming a market without an order type keeps
+the account's order type rather than losing it, and an empty value is not a choice at any rung.
 `useEffectiveMarketHubFromLayout(layout, side)` wraps it with the store read.
 
 `PRICING_SIDE.BUYING` / `.SELLING` name the side of the **job**, never the side of the order book. The
@@ -54,7 +54,7 @@ Purchasing data panel buy; `useJobSellingContext` sells.
 
 `setJobPricingSide(jobPricing, side, key, value)` is how a control changes one field of one side. It
 answers null once the last choice is cleared, so a job that has chosen nothing carries no override.
-The hub and basis controls on both panels read and write through it, and
+The hub and order type controls on both panels read and write through it, and
 `useStripRedundantJobMarketHubOverrides` judges each side against its own account default rather than
 clearing both at once.
 
@@ -82,7 +82,7 @@ Every surface names its own side where it asks, so moving one is a single token:
 The watchlist is the case that shows why the two are separate: one row prices its materials on one
 side and the item on the other, which the single default could not express. It takes the selling
 **market** only — the column states what listing the item would fetch, so the sell price is the figure
-it wants whatever basis the account prices on.
+it wants whatever order type the account prices on.
 
 **A link's side must match the figure it sits beside.** A group's output card and the Selling stage's
 market costs panel both show a selling figure, so their market and price-history buttons take
@@ -95,24 +95,27 @@ three in `ItemRowExpanded.jsx` and one in `shoppingList.js` indexed that result 
 and raised a `TypeError`; they are guarded now. In `ItemRow` the item's own worth is derived once in
 `buildCosts` rather than re-indexed at ten render sites.
 
-`calculateMaterialCostFromChildJobs` took its hub and basis as arguments named for the account
+`calculateMaterialCostFromChildJobs` took its hub and order type as arguments named for the account
 defaults. Both callers already passed a resolved pair, so only the names moved — `marketSelect` and
 `listingSelect`, matching what is handed in.
 
 ### A4 — Setting the defaults
 
-Job Settings and the first-login setup both offer a market and a basis for each side, built from
-`PRICING_SIDES` in `Functions/MarketData/pricingSide.js` so the two screens cannot drift apart.
+A side's market and the figure read at it are one choice made together, so both sit on the Market
+Locations tab, beside the markets they pick from. `PricedAgainst` is that pair of controls, and the
+first-login setup mounts the same component rather than a second copy of it — the two screens
+cannot drift apart because there is only one. What first login supplies is the app shell's outlined
+styling, through `selectProps`.
 
-The controls are labelled **Materials** and **Output** rather than buying and selling. A basis is
-itself called buy or sell, so "buying market" sitting beside a basis of "Sell Orders" reads as a
+The controls are labelled **Materials** and **Output** rather than buying and selling. An order type is
+itself called buy or sell, so "buying market" sitting beside an order type of "Sell Orders" reads as a
 contradiction when that is the normal, correct case — naming the thing being priced avoids putting the
 two axes in the same phrase.
 
 `updatePricingDefault(side, key, value)` replaced `updateDefaultMarket` and `updateDefaultOrders`;
 nothing writes the single pair now.
 
-Both screens are covered control by control — all four of market and basis on each side — rather than
+The controls are covered corner by corner — all four of market and order type on each side — rather than
 by one write path standing in for the rest. A control wired to the right side but the wrong field
 renders and saves exactly like a correct one, so only naming each corner catches it.
 
@@ -142,7 +145,7 @@ point it is written rather than the first time something reaches for it.
 ### B2 — The walk
 
 `resolveGroupDefault({marketGroupID, marketGroups, groupDefaults})` climbs from an item's own market
-group towards a root, and answers market and basis separately: each stops at the first ancestor naming
+group towards a root, and answers market and order type separately: each stops at the first ancestor naming
 it, so a nearer group narrows what it names and leaves the rest to whatever answers next. An empty
 value is not a choice here either, so a group naming `""` is climbed past rather than treated as an
 answer.
@@ -150,7 +153,7 @@ answer.
 Group defaults are stored per side, inside `PricingSide.Groups` keyed by market group id — a group
 cannot answer the side it was not set on. A job's own override is `JobPricing`, which has no group
 table at all: groups are an account rung beneath the job, so a job carrying one would answer a question
-it does not own. `PricingChoice` is the market-and-basis pair both are built from.
+it does not own. `PricingChoice` is the market-and-order type pair both are built from.
 
 Neither the upgrader's seed nor the SPA's merge may replace a whole side to fill part of it: a side can
 carry groups before it names a market, and what is persisted is the merged copy.
@@ -169,8 +172,8 @@ truncated.
 ### B3 — Where the walk sits in the ladder
 
 The rung is consulted from `getEffectiveMaterialPriceHub`, which is the one place a material row's
-hub and basis are decided. It sits between a row's own override and the panel default, and it is
-answered per axis like every other rung: a group naming a market and no basis narrows one and leaves
+hub and order type are decided. It sits between a row's own override and the panel default, and it is
+answered per axis like every other rung: a group naming a market and no order type narrows one and leaves
 the other.
 
 **The panel default had to stop being a single value for this to work.** `resolvePricingSide` collapses
@@ -185,10 +188,10 @@ holds the data for them, and are never returned from it.
 `useEffectiveMarketHubFromLayout` returns the rungs too. A caller with nothing to insert underneath
 reads the two values and ignores the rest, which is every caller except Materials & Sourcing.
 
-**Costing the four bases suspends the basis rung.** `materialCostByBasis` asks what the job would cost
-on each basis in turn, so a group default naming a basis would answer all four identically and flatten
+**Costing the four bases suspends the order type rung.** `materialCostByOrderType` asks what the job would cost
+on each order type in turn, so a group default naming an order type would answer all four identically and flatten
 the comparison into one figure repeated four times. That axis is marked `SUPPRESSED` rather than being
-given the job's rung: the basis is not a rung question for that call at all, and borrowing the job's
+given the job's rung: the order type is not a rung question for that call at all, and borrowing the job's
 would read as a choice the player never made. The group's *market* still applies to every candidate,
 because the market is not the axis being varied.
 
@@ -242,14 +245,14 @@ list every consumer already holds, rather than copied into a second structure.
 ### B5 — The selling side names a route out
 
 The selling default names an **exit route** — listing on the market, or selling into buy orders —
-rather than a pricing basis. A basis says which side of the book a figure comes from; it cannot say
+rather than an order type. An order type says which side of the book a figure comes from; it cannot say
 whether a broker fee is charged, and those are the same question. Listing pays fee and tax; selling
 into bids pays tax only, because nothing is listed.
 
-`PricingSide` gains `Exit`, on the selling side only, and the selling side stops carrying a `Basis`:
-two stored answers to one question are free to disagree. `basisForExit` is the single place that turns
+`PricingSide` gains `Exit`, on the selling side only, and the selling side stops carrying an `OrderType`:
+two stored answers to one question are free to disagree. `orderTypeForExit` is the single place that turns
 a route into a side of the book, and `resolvePricingSide` consults it when the selling side has no
-basis of its own — a job that named one still outranks it, because a job that named a basis has
+order type of its own — a job that named one still outranks it, because a job that named an order type has
 answered for itself.
 
 **Returns stops assuming the listing.** `returnsPanel` hardcoded `EXIT_ROUTE.LISTED` as the figure it
@@ -258,9 +261,9 @@ leads with, for everyone. It now leads with the account's route, carried there t
 decides both which figure leads and whether the broker fee that hook's seller is quoted for applies at
 all. Both routes are still stated; only which one is the headline changed.
 
-**The seed reads the route from the basis an account already had.** Returns led with the listing for
+**The seed reads the route from the order type an account already had.** Returns led with the listing for
 everyone, so an account that named the bid side was reading a listing's fee against a bid's price.
-Taking its stored basis at its word repairs that where it was set and leaves everyone else on the route
+Taking its stored order type at its word repairs that where it was set and leaves everyone else on the route
 they were already shown. Both the Go upgrader and the SPA merge do this, and neither consults a
 previously held route: that would outrank an answer the server has just given.
 
@@ -275,10 +278,10 @@ default is still written on every save and so arrives with merges that are not a
 route derived from it each time would quietly undo the player's choice — the setting would appear to
 save and then revert on the next unrelated write. The merge therefore keeps a route it already holds,
 which it can only treat as a choice because nothing seeds one: a seeded route is indistinguishable from
-a chosen one, and a legacy account's first load still has to read its route from the basis it stored.
+a chosen one, and a legacy account's first load still has to read its route from the order type it stored.
 Readers supply `EXIT_ROUTE.LISTED` where none is held, which is where that default belongs.
 
-The precedence, in full: a route the server sent; then the basis it sent beside it, because a document
+The precedence, in full: a route the server sent; then the order type it sent beside it, because a document
 stored before routes existed is still the server answering; then the route already held; then the
 legacy single default.
 
@@ -314,7 +317,7 @@ are primed separately — so a hook that consulted one to decide the other had a
 showing paths that come and go. A caller holding a tree passes it.
 
 **`setGroupPricing` is the merge, and `updateGroupPricingDefault` is the store's use of it.** A side's
-own market, basis and route sit beside its group table, so a write to one group has to leave them
+own market, order type and route sit beside its group table, so a write to one group has to leave them
 alone — the reason this is not `updatePricingDefault` with a `groups` key. Clearing a group's last
 field drops the entry; clearing the last entry drops `groups` from the side entirely, because an empty
 table would be persisted and read back as a table answering nothing.
@@ -405,12 +408,12 @@ Two things changed in the folding, both deliberate:
 A watched item is costed on both sides at once — its materials are bought, the item itself is valued at
 what it would fetch — which makes the watchlist the only surface reading both account defaults.
 `ItemRow` and `ItemRowExpanded` each held an identical copy of that pair, comments and all, and
-`itemWatchContainer` re-derived the buying basis a third time for a column header.
+`itemWatchContainer` re-derived the buying order type a third time for a column header.
 `useWatchlistPricing` now holds it, and all three read through it.
 
 ### One unguarded price read
 
-`addMaterialCosts.jsx` indexed `materialPrice[market][basis]` with no guard, the shape § A3 guarded in
+`addMaterialCosts.jsx` indexed `materialPrice[market][order type]` with no guard, the shape § A3 guarded in
 three other files. It was not reachable to throw — every rung feeding it draws from `MARKET_OPTIONS`,
 which `findMarketData`'s empty default always carries — but a market group id is not drawn from that
 list, so wiring the group rung into that component would have made it the fourth throw site.
@@ -419,9 +422,9 @@ list, so wiring the group rung into that component would have made it the fourth
 
 ### N1 — What the SPA calls the two values
 
-`marketLocation` is which market a figure is priced against; `listingType` is which side of the order
+`marketLocation` is which market a figure is priced against; `orderType` is which side of the order
 book it comes from. Every in-memory name in the SPA is one of those two, and the rung that answered
-each is `marketLocationRung` / `listingTypeRung`.
+each is `marketLocationRung` / `orderTypeRung`.
 
 Six vocabularies became one. A material row said `marketSelect` / `listingSelect`, the resolution
 ladder said `marketDisplay` / `orderDisplay`, the rung was `listingRung` on one side and `orderRung`
@@ -429,14 +432,14 @@ on the other, the Select and the Reprocessing page said `marketListing`, and Pri
 `displayMarket` / `displayOrder`. Each layer converted once and passed on, so nothing was wrong — a
 reader tracing a price simply changed vocabulary at every boundary.
 
-**`listingType` is the name the app already used for the list of values this axis may take.** That
-list is now `LISTING_TYPES`, because a value and the set it is drawn from cannot share a name in the
+**`orderType` is the name the app already used for the list of values this axis may take.** That
+list is now `ORDER_TYPES`, because a value and the set it is drawn from cannot share a name in the
 three modules that read both.
 
 ### N2 — Where the stored names stop
 
 `MaterialPriceOverride` persists `marketDisplay` and `orderDisplay`; `PricingChoice` persists `market`
-and `basis`. Neither moved, and neither should: the SPA writes those as literal string keys, so a
+and `orderType`. Neither moved, and neither should: the SPA writes those as literal string keys, so a
 rename reaches Mongo and drops a player's saved override.
 
 The boundary is visible in one expression. `getEffectiveMaterialPriceHub` reads
@@ -456,7 +459,7 @@ the three `listingRung: orderRung` lines in `useJobSellingContext`, `useMaterial
 argument and is now the `resolvePricingSide` call it was wrapping.
 
 The two Selects are named for the two axes rather than one for an axis and one for a widget:
-`marketLocation.jsx` holds `MarketLocationSelect`, and `listingType.jsx` holds `ListingTypeSelect`.
+`marketLocation.jsx` holds `MarketLocationSelect`, and `orderType.jsx` holds `OrderTypeSelect`.
 
 ### N4 — The rename's own failure mode
 

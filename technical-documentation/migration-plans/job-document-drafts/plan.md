@@ -545,7 +545,7 @@ goes to where it belongs on its own merits:
 neighbours, but `useEffectiveMarketHubFromLayout` resolves each as `job ?? account default`, and
 `useStripRedundantJobMarketHubOverrides` exists to clear a job's value once it matches the account's. A
 field with a hook dedicated to keeping it only while it differs is an override, and an override of a
-pricing basis is a decision about the job. So this part of the bag is not view state at all.
+pricing order type is a decision about the job. So this part of the bag is not view state at all.
 
 **The second surprise is that two of the three are already superseded.** No control writes
 `localMarketDisplay` or `localOrderDisplay`: every writer — the purchasing panel, `useMaterialOverrides`,
@@ -1516,9 +1516,9 @@ one place left that builds the lens per render, and it is test-only.
 
 **A quantity on a material row is the trap this stage keeps setting.** A stored material carries no
 quantity: what a job takes of it is stated by its setups, and the class exposed the sum as a field. Four
-separate readers were still asking the row — the sourcing rows, the basis comparison, the row's own
+separate readers were still asking the row — the sourcing rows, the order type comparison, the row's own
 Build control and the bulk costing behind it — and each would have built or priced against `undefined`
-in silence. They read `materialRequirementOf(setups, typeID)` now. `materialCostByBasis` takes the rows
+in silence. They read `materialRequirementOf(setups, typeID)` now. `materialCostByOrderType` takes the rows
 the panel has already built rather than the raw materials, because those carry the requirement and the
 raw ones cannot. Any remaining reader of `material.quantity` under the editor is the same defect.
 

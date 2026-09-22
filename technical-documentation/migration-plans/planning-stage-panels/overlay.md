@@ -79,14 +79,14 @@ character's Accounting level resolves through `getSkills` like any other. Nothin
 sales tax is calculated — but a skill absent from this file reads as untrained rather than as missing,
 which is why it goes in before the figure that depends on it.
 
-## The pricing basis
+## The pricing order type
 
 *Stage D. Landed — no visible behaviour change.*
 
 Live behaviour stands on screen: hub and listing are still set in the material sources popover, reached
 from the market panel's kebab menu, and the resolved pair still prints as caption text on each row.
 
-What has landed is the replacement, unmounted. `Styled Components/Select/pricingBasis.jsx` is a header
+What has landed is the replacement, unmounted. `Styled Components/Select/pricingOrderType.jsx` is a header
 control that offers the four modes each with its own total and how far that sits from the mode in
 effect, so a percentile stops reading as jargon. `Functions/MarketData/materialPricing.js` computes
 those totals — honouring a row's own override on every candidate, since an override outranks the panel
@@ -107,7 +107,7 @@ chip** says whether the material is bought, built by a child job, or already pai
 column names the hub and which of the server's four price modes the figure came from, and says *Price
 Entry* where the figure is a real purchase rather than an estimate; a **Δ** column states what building
 the row would save or cost against buying it. A row whose figure is a market price can be overridden in
-place, and an override outranks the panel's basis for that row only.
+place, and an override outranks the panel's order type for that row only.
 
 On a buildable row the plan chip **is** the decision: it carries the buy-or-build control and its undo,
 so a costed list is settled from the list itself. The drawer below is for reading what building a
@@ -131,7 +131,7 @@ only move the units nobody has bought yet, and the offer has to be a figure acce
 `useMaterialsSourcing` builds the rows, one walk per material, and every panel on the stage that needs
 a per-material figure reads them rather than recomputing.
 
-The panel header carries the **pricing basis** and the **hub** together, since both decide what a row's
+The panel header carries the **pricing order type** and the **hub** together, since both decide what a row's
 buy figure is, and reports the age of the stalest price behind the total.
 
 ## What a child job actually covers
@@ -272,8 +272,8 @@ The mobile layout mounts **the same panels as the standard layout**. Raw Resourc
 are deleted from it.
 
 The materials table becomes **cards** below `sm`; nothing else changes shape. Figures **shorten** rather
-than wrap, with the full value on tap. The pricing-basis picker opens as a **bottom sheet** — four
-full-width rows, each stating what that basis does to the total. The child-job drawer stays an inline
+than wrap, with the full value on tap. The pricing-order type picker opens as a **bottom sheet** — four
+full-width rows, each stating what that order type does to the total. The child-job drawer stays an inline
 collapse, since it already opens under its own row.
 
 ## A default market character

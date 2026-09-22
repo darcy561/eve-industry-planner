@@ -6,7 +6,7 @@ Which market a figure is priced against when nobody has said, and how that answe
 
 - **The account's stored defaults.** Retiring the single `defaultMarketLocation` /
   `defaultOrderType` pair in favour of separate defaults for the buying side and the selling side of
-  a job, each naming a market and a pricing basis.
+  a job, each naming a market and a pricing order type.
 - **The resolution ladder** every surface resolves a market id through, and the rule that a nearer
   rung outranks a further one.
 - **Which side each surface asks for.** A call site names the side it wants; nothing infers it.
@@ -34,7 +34,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   project decides what to ask for; that one decides how the asking works. Boundary and the one-way
   dependency: [plan.md](./plan.md) § Where this project stops and market price delivery starts.
 - **The four pricing bases themselves** (`buy`, `sell`, `buyP95`, `sellP05`) and the server-side
-  figures behind them. This project decides which basis is reached for by default, not what a basis
+  figures behind them. This project decides which order type is reached for by default, not what an order type
   means.
 - **Where a job sells from.** `JobSale.Plan` and its sale location are a per-job choice already built
   — see [planning-stage-panels/contents.md](../planning-stage-panels/contents.md). This project owns
@@ -63,6 +63,6 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know why a group default sits inside a side | [plan.md](./plan.md) § A group default belongs to a side |
 | Read what has already gone wrong here before changing a stored shape | [plan.md](./plan.md) § Traps this work has already fallen into |
 | Find what the market group tree actually contains | [measurements/market-group-tree.md](./measurements/market-group-tree.md) |
-| See which name for a market and a basis the SPA already uses | [measurements/vocabulary-counts.md](./measurements/vocabulary-counts.md) |
+| See which name for a market and an order type the SPA already uses | [measurements/vocabulary-counts.md](./measurements/vocabulary-counts.md) |
 | Know which vocabulary the rename converges on, and why | [plan.md](./plan.md) § Stage N |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |

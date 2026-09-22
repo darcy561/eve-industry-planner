@@ -45,7 +45,7 @@ can be quoted one price on Planning and another in the Purchasing form.
 the last consumer that does not.
 
 **Nothing records what the build was planned at.** `totalMaterialCost` is what was paid, and any
-estimate beside it is re-derived at whatever basis is current — so a job bought last week is silently
+estimate beside it is re-derived at whatever order type is current — so a job bought last week is silently
 compared against this morning's market. There is no figure the stage can show that means "against
 plan".
 
@@ -204,7 +204,7 @@ Both action buttons stay at completion. A price typed wrong is corrected after t
 during, and a job's requirement moves whenever a setup is added.
 
 **Done when:** the ISK figures replace the counts; the bar segments sum to the job's planned cost; the
-actions are present in every state; the two market selects are the one basis control in the header.
+actions are present in every state; the two market selects are the one order type control in the header.
 
 ### Stage F1 — one place that records a purchase
 
@@ -253,7 +253,7 @@ multibuy paste writing the same rows it writes today.
 
 **SPA + one job document field. Additive on both sides of the wire.**
 
-A small record on the material — the resolved **unit price**, the hub and basis it came from, which
+A small record on the material — the resolved **unit price**, the hub and order type it came from, which
 rung answered, and when — written the first time a purchase lands on that material and **only when the
 field is absent**. First purchase wins; nothing later overwrites it.
 
@@ -427,7 +427,7 @@ superseded by live docs on promote. Sections worth reading before building the s
 | §9b | The whole stage at page width, for a real 20-run Ishtar |
 | §10 | Mobile |
 
-The companion proposal for the Planning stage, whose table shape and basis picker this one reuses, is
+The companion proposal for the Planning stage, whose table shape and order type picker this one reuses, is
 linked from [planning-stage-panels/plan.md](../planning-stage-panels/plan.md) § Design reference.
 
 ## Stage status
@@ -455,7 +455,7 @@ surface, it is small, and Stage F2 cannot be trusted without it.
 
 Two things this project depends on and does not own: the pricing ladder from
 [market-pricing-defaults](../market-pricing-defaults/contents.md), which is built and firing, and the
-Materials & Sourcing table shape and basis picker from
+Materials & Sourcing table shape and order type picker from
 [planning-stage-panels](../planning-stage-panels/contents.md), which are done and awaiting promotion.
 If either promotes before this project starts, read the promoted live docs rather than those project
 folders.

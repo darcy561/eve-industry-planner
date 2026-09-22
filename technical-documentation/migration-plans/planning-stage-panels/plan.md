@@ -77,7 +77,7 @@ Stage A  sale locations and their rates                 frontend, no stored shap
 Stage B  fee + tax estimation shared with Selling       frontend logic, no UI
 Stage C  Accounting in the skill catalogue              data
    ────────────────────────────────────────────────  UI work starts here
-Stage D  pricing basis surfaced in panel headers
+Stage D  pricing order type surfaced in panel headers
 Stage E  Materials & Sourcing absorbs Raw Resources
 Stage F  Cost Breakdown and Returns replace the totals
 Stage G  speculative child jobs                          behavioural
@@ -560,7 +560,7 @@ every id in `marketSkillIDs` resolves there, so the pair cannot drift apart.
 
 **Done when:** Accounting resolves by type id through the same lookup as every other skill.
 
-## Stage D — Pricing basis in the panel headers
+## Stage D — Pricing order type in the panel headers
 
 The listing dropdown already offers `buy`, `sell`, `buyP95` and `sellP05`, and
 `useMaterialPricingModel` already resolves them per material through three precedence levels. The
@@ -568,8 +568,8 @@ percentiles are computed by the worker, served by the API, labelled by `getListi
 effectively invisible, because a row prints the resolved choice as 10px caption text with nothing to
 say why one mode would beat another.
 
-- The basis becomes a **picker built to sit in a panel header**, and this stage builds the picker
-  rather than mounting it. The headers it belongs in — Materials & Sourcing owns the material basis,
+- The order type becomes a **picker built to sit in a panel header**, and this stage builds the picker
+  rather than mounting it. The headers it belongs in — Materials & Sourcing owns the material order type,
   Returns owns the sale hub, Cost Breakdown owns the build-vs-buy model — are created in Stages E and
   F, which mount it through the `action` that `AppShellPanel` already takes.
 
@@ -590,7 +590,7 @@ say why one mode would beat another.
 `materialPriceOverrides` already hold exactly a hub id and one of the four listing ids. This stage is
 presentation over data that exists.
 
-The pricing basis is the first of two shared inputs; the second is the sale location, which Stage F
+The pricing order type is the first of two shared inputs; the second is the sale location, which Stage F
 renders inside Returns. They are separate because one decides what materials cost and the other what
 selling costs, and a job can price at one hub while selling from a structure beside another.
 
@@ -623,12 +623,12 @@ the design — the design says what the new panel shows, not what the old ones l
 |------------|--------------|-------|
 | The drawer at all | The info-icon popover | **Carried.** The panel renders one per row and opens it on click |
 | Child job totals in the drawer | The popover computed them itself from `currentJob` | **Carried.** `calculateChildJobTotals` is the shared figure, worked out in the drawer because it follows whichever child job is on show |
-| The hub and basis a child's own materials price at | Popover children read `marketSelect` / `listingSelect` | **Carried.** The row resolves them and the drawer passes them down |
+| The hub and order type a child's own materials price at | Popover children read `marketSelect` / `listingSelect` | **Carried.** The row resolves them and the drawer passes them down |
 | The material itself, and its matched child jobs | Row components held them | **Carried.** A row carries them, so a row is enough to open a drawer on |
 | The material's own popover | Both old row components | **Carried.** The name opens it as it did |
-| Per-material hub and basis override — seeing one | "Manage Material Sources" | **Carried, and better.** The basis picker counts the rows that depart from it, so an override is discoverable without opening a dialogue that lists every material |
-| Per-material hub and basis override — clearing them | "Manage Material Sources" | **Carried.** The picker offers to put every overridden row back |
-| Per-material hub and basis override — setting one | "Manage Material Sources" | **Carried, and closer to hand.** The row's own drawer holds the market and listing selects, so a player changes the row they are looking at rather than finding it in a list of every material |
+| Per-material hub and order type override — seeing one | "Manage Material Sources" | **Carried, and better.** The order type picker counts the rows that depart from it, so an override is discoverable without opening a dialogue that lists every material |
+| Per-material hub and order type override — clearing them | "Manage Material Sources" | **Carried.** The picker offers to put every overridden row back |
+| Per-material hub and order type override — setting one | "Manage Material Sources" | **Carried, and closer to hand.** The row's own drawer holds the market and listing selects, so a player changes the row they are looking at rather than finding it in a list of every material |
 | Job type marker, linked-versus-pending | Raw Resources' dot and tick | **Carried.** A dot becomes a tick once a child job is linked, in the job type's colour, amber where something is pending against a material nothing is linked to yet |
 | Exempt-from-builds marker | The info icon turned amber | **Carried, and told apart.** The mark is struck out and greyed rather than amber: it was a separate icon in a separate panel, and merging the panels put it on the same glyph as pending, which means the opposite thing |
 | Create All Child Jobs | The market panel's kebab | **Deliberately not carried.** Stage G replaces it with "build all where cheaper": the summary strip costs every buildable row in one action, the offer promotes the ones that would save, and a row's own chip settles the rest without expanding it. A bulk create of jobs nobody has costed is the thing that change exists to stop, and `buildAllChildJobs` — the hook behind the old control — is deleted rather than left for it |
@@ -821,7 +821,7 @@ else is already a vertical arrangement.
   being unusable at 360px.
 - Figures shorten; labels never truncate. Full values stay available on tap.
 
-**Done when:** every panel is usable at 360px; no label is clipped; the basis picker and the drawer
+**Done when:** every panel is usable at 360px; no label is clipped; the order type picker and the drawer
 both open as sheets.
 
 ## Stage K — A default market character in application settings
@@ -1258,7 +1258,7 @@ superseded by live docs on promote. Sections worth reading before building the s
 | Section | Covers |
 |---------|--------|
 | §3–§6 | The four panels, each in light and dark on the app shell surface |
-| §7a | The pricing basis picker and the four server price modes |
+| §7a | The pricing order type picker and the four server price modes |
 | §7b | The sale location: the station-vs-citadel rate block, the picker, the add-a-citadel form |
 | §8, §9 | The two behavioural changes, drawn as before-and-after flows |
 | §10 | Mobile layouts for every panel |
@@ -1324,7 +1324,7 @@ readable at a glance was missed on all four panels. It has since been built; wha
 each panel was owed and what was done about it.
 
 **Materials & Sourcing (Stage E).** *Done.* The Δ column, plan chips, row accent stripe, footer and
-basis select were already there; the **item icon** and the **Source column** have been added. The
+order type select were already there; the **item icon** and the **Source column** have been added. The
 source names the hub and which of the four server price modes the row used, and says **Price Entry**
 where the figure came from a real purchase — the plan chip already says "Paid", and one row does not
 need to say it twice.
@@ -1390,9 +1390,9 @@ What-if now covers the required skills too, not only the market ones, so raising
 answers whether the job becomes runnable. The levels live in the panel's own state and reach no store,
 no document and no other panel.
 
-**Pricing basis (§7a).** *Done.* The four modes with their totals and explanations were already built.
-Two things were missing and are now in: the **hub select** beside the basis — the design pairs them,
-both decide what a row's buy figure is, and only the basis could be changed from the panel — and the
+**Pricing order type (§7a).** *Done.* The four modes with their totals and explanations were already built.
+Two things were missing and are now in: the **hub select** beside the order type — the design pairs them,
+both decide what a row's buy figure is, and only the order type could be changed from the panel — and the
 **age of the figures**. The server refreshes on a period measured in hours, and a price from this
 morning looks exactly as authoritative as one from a minute ago; `priceAge` reports the stalest price
 behind the total, because a total is only as fresh as the oldest figure in it.
@@ -1404,9 +1404,9 @@ for. §8 and §9 are Stages G and H, built as the plan describes.
 **Mobile (§10).** The table is the only thing that could not survive a 360px stack, so it becomes
 cards and everything else keeps its shape. Two details came from re-reading §10 after the first build:
 figures **shorten** rather than wrap, with the full value on tap — shortening costs a reader nothing
-they cannot get back, where truncating a label costs them the label — and the basis picker opens as a
+they cannot get back, where truncating a label costs them the label — and the order type picker opens as a
 **bottom sheet**, which is where the design says mobile gains most: four full-width rows each stating
-what that basis does to the total, instead of an anchored menu opening against the edge of the screen.
+what that order type does to the total, instead of an anchored menu opening against the edge of the screen.
 
 The material drawer stays an inline collapse rather than becoming a sheet. The design asked for a sheet
 because the thing it replaced was a popover anchored to a click target and unusable at 360px; the
@@ -1512,14 +1512,14 @@ nothing can build still shows a dash, which is the distinction the old panel cou
 | A — sale locations and their rates | SPA | **Done.** Storing citadels is handed to the custom-structure work |
 | B — fee and tax estimation | frontend logic | **Done** |
 | C — Accounting in skill catalogue | data | **Done** |
-| D — pricing basis in panel headers | SPA | **Done** — picker built; Stages E and F mount it |
+| D — pricing order type in panel headers | SPA | **Done** — picker built; Stages E and F mount it |
 | E — Materials & Sourcing | SPA | **Done** for the standard layout. Mobile still renders Raw Resources until Stage J; the market panel is reduced to the figures Stage F absorbs |
 | F — Cost Breakdown and Returns | SPA | **Done** for the standard layout. Both panels mounted, Extras absorbed into Cost Breakdown, and the totals panel retired from it. Mobile keeps the old panel until Stage J |
 | G — speculative child jobs | SPA, behavioural | **Done.** Rows are priced as the panel opens rather than on demand, stay on Buy, the offer that switches them works, group jobs seed their own rows, and the five buttons are one chip with an undo |
 | O — a missing price is stated, not counted as zero | SPA, behavioural | **Done.** Returns names the market holding no orders; the materials list tags the row and the cost line counts what it left out |
 | H — jobs with parent jobs | SPA, behavioural | **Done.** Committed output carries no sale figures and no charges; a surplus is priced on its own; Contribution replaces Returns where nothing is sellable |
 | I — Skills as a model | SPA | **Done.** Three groups, the selling one read from the seller's own skills, Broker Relations kept and marked at a citadel, the signed-out path states requirements, and what-if re-derives the charges without touching the panels |
-| J — mobile layouts | SPA | **Done.** Mobile mounts the same panels as the standard layout; the materials table becomes cards below `sm`, figures shorten with the full value on tap, and the basis picker opens as a bottom sheet. Raw Resources and the totals panel are deleted |
+| J — mobile layouts | SPA | **Done.** Mobile mounts the same panels as the standard layout; the materials table becomes cards below `sm`, figures shorten with the full value on tap, and the order type picker opens as a bottom sheet. Raw Resources and the totals panel are deleted |
 | K — default market character in settings | SPA + document field | **Done.** `DefaultMarketCharacter` on application settings, the picker on Job Settings, and `sellerCharacter.js` reading it. Nil until chosen, standing in with the account's main and saying so |
 | L — per-job selling override | SPA + job document field | **Done.** `JobSale.Plan` holds the seller and the sale location, both nil on a job that uses the account's defaults; the pickers are on the Returns rate block |
 | M — what a child job actually covers | SPA | **Done.** The requirement is allocated across the contributing jobs rather than charged to each; a shortfall is bought, extrapolated or resized away depending on what is going to happen to the job, and the drawer and Cost Breakdown both say which |
@@ -1571,7 +1571,7 @@ These are named rather than decided, because each changes what gets built:
   touches every consumer of the job's cost.
 - **How deep do speculative child jobs recurse?** One level is proposed; deeper is more accurate and
   unbounded.
-- **Does a Price Entry purchase price override the basis automatically, or only when the row is told
+- **Does a Price Entry purchase price override the order type automatically, or only when the row is told
   to?** Automatic is what a player probably expects; explicit is predictable.
 - **Where is a saved citadel edited from — Returns, or application settings?** Settings is where the
   form is built, since it is where the rest of the `CustomStructures` family is managed and where the

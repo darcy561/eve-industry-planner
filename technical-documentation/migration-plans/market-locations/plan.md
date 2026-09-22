@@ -1,9 +1,12 @@
 # Market locations — plan
 
-**Status: Phase 1.** The project folder and its docs exist; no product work has started. Phase 1 is
-the gate, and § What this waits on carries the one remaining condition — a release already carrying a
-prerelease migration. This project is what unblocks custom-structure-model's promotion rather than
-waiting on it: see § This project unblocks custom-structure-model, not the other way round.
+**Status: Stages A, B and C landed.** A market is stored on its own lane, the rows move as a document
+is read, every reader that asked for one out of `customStructures` now asks the lane, and a reader
+lists, adds and edits their own markets and their organisations' on a tab of their own — see
+[overlay.md](./overlay.md) §§ Stage A, Stage B, Stage C, and § Handoff status below for what is left.
+The release window it rides is open. This project is what unblocks custom-structure-model's promotion
+rather than waiting on it: see § This project unblocks custom-structure-model, not the other way
+round.
 
 **Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
 and [`../technical-rules.md`](../technical-rules.md) (migration-plans).
@@ -119,8 +122,8 @@ two turns on the rotation, and two full walks of the same structure on the reade
 hour apart for ever.
 
 So the union is collapsed **by the place a row names**, not by its id. Where a reader's own row and
-an inherited one name the same place, the reader's own wins: it carries the name they gave it, their
-default flag, and the owner's rate they recorded. One source reaches the registry either way.
+an inherited one name the same place, the reader's own wins: it carries the name they gave it and the
+owner's rate they recorded. One source reaches the registry either way.
 
 ## Stage A — the settled shape
 
@@ -134,9 +137,8 @@ default flag, and the owner's rate they recorded. One source reaches the registr
 // structure id, never both. Nothing stores a kind, because nothing would agree
 // with the place if the two ever disagreed.
 type MarketLocation struct {
-	ID      string `bson:"id" json:"id"`
-	Name    string `bson:"name" json:"name"`
-	Default bool   `bson:"default" json:"default"`
+	ID   string `bson:"id" json:"id"`
+	Name string `bson:"name" json:"name"`
 
 	// Whether a market an organisation saved reaches its members' accounts, set
 	// by whoever manages that organisation's markets. Meaningless on an account's
@@ -185,10 +187,9 @@ reaches 2 leaves every settings document in the system below current for ever, s
 and reported as `Remaining`.
 
 An empty lane needs no bump in any case: a document written before this stage decodes with no
-markets, which is what it has. The version moves in **Stage B**, where the upgrader can move the rows
-out of `customStructures` and raise the version in the same step, which is the point at which a
-document's meaning actually changes. `ApplicationSettingsSchemaCurrent` and
-`planner.SettingsSchemaCurrent` are both 1 today.
+markets, which is what it has. **Nor does Stage B move it** — see § How B and C land for why a bump
+would cost more than the step it would save. `ApplicationSettingsSchemaCurrent` and
+`planner.SettingsSchemaCurrent` are both 1, and stay there.
 
 **The empty lane is written to disk by a release step, not repaired on every read.**
 `seedMarketLocationLane` gives every settings document in both collections a `marketLocations: []`,
@@ -206,8 +207,8 @@ One exported function, server-side, and the only place the rule exists:
   that planner has ticked as shared. An unshared row on an organisation's document reaches nobody.
 - Collapse by **place** — `structureID` when it has one, else `stationID`. Two rows naming one place
   are one market.
-- On a collision the reader's **own** row wins: their name for it, their default flag, the rate they
-  recorded. An inherited row supplies a market they have not saved, never overrides one they have.
+- On a collision the reader's **own** row wins: their name for it and the rate they recorded. An
+  inherited row supplies a market they have not saved, never overrides one they have.
 - **Where two inherited rows collide and neither is the reader's**, the nearer owner wins:
   corporation before alliance, and any other planner after both. A reader is in a corporation that is
   in an alliance, so the corporation's row is the more specific. Where that still ties — two custom
@@ -226,6 +227,23 @@ One exported function, server-side, and the only place the rule exists:
 
 The SPA reads the answer and composes nothing. A pushed change to any owner's settings re-reads it.
 
+**The union is delivered apart from the document the SPA writes back, and that is not a preference.**
+`application_settings` goes to the SPA and comes back from it: `toPersistPayload` sends the whole
+document and the endpoint replaces what is stored with it. So filling that document's
+`marketLocations` with the resolved union would have the next save of any setting write another
+owner's markets into this account's own lane — a corporation's markets silently copied into every
+member's account, and no longer removable by the corporation. The account's lane on that document
+stays the account's own markets and nothing else.
+
+**Settled: `GET /api/v1/user/market-locations` carries it, and the session bootstrap carries the same
+shape beside `application_settings`** — beside, never inside. The bootstrap copy is so a first load
+does not pay a round trip for something the server already had in hand; the endpoint is what a
+pushed change re-reads, because re-reading the whole bootstrap to learn that a corporation added a
+market couples an unrelated refresh to a rare edit.
+
+Wire: **additive**. Nothing already on the wire changes shape, and a client that does not know the
+new field or the new endpoint behaves exactly as it does today.
+
 ### The SPA carries the lane before anything fills it
 
 `toPersistPayload()` builds the settings document from a fixed list of fields, and the endpoint
@@ -238,6 +256,37 @@ stage, not the one that fills it.
 
 No behaviour moves. Every reader still reads `customStructures`, and the lane is written but unfed
 until Stage B fills it and switches them over in one change.
+
+## A market says when it was last read
+
+**The panel shows each market's last-read moment.** Today nothing in the app does: every price row
+carries `refreshedAt` and no surface displays it, so a figure from twenty hours ago reads exactly
+like one from five minutes ago. That is the one place the price work left a reader worse off than
+before it, and this is where it is answered —
+[market-price-delivery](../market-price-delivery/contents.md) § E7 records it as owed and hands it
+here.
+
+**Where the moment comes from is not the same for every kind**, and the panel must not pretend it is:
+
+- A **citadel** is read by this reader, on this device. Its moment is the `readAt` on that market's
+  record in IndexedDB — this device's own clock, written only by a read that landed, and left where
+  it was by one that failed. Another of the reader's machines has its own answer, and a market with
+  no record has never been read here.
+
+  **Deliberately not the `refreshedAt` the rows carry**, which is ESI's own last-modified for the
+  orders. A quiet structure states one that is already days old the moment it is walked, so showing
+  it would call a market stale that had just been read. `readAt` answers what a reader is actually
+  asking.
+- A **hub or an NPC station** is priced by the server. Its moment is the clock that server states with
+  the prices, the same for every reader.
+
+So the panel is showing "when these figures were current for you", not a property of the market. A
+market shared by an organisation makes that plain: two members can be looking at the same market with
+different answers, because one of them can dock there and the other cannot.
+
+**It is also what makes a market that has stopped answering visible.** A citadel nobody can read any
+more keeps its rows for a day and then loses them; until this, the only sign was figures quietly not
+changing. Stage D says why; this says how long it has been.
 
 ## What must not be lost
 
@@ -262,13 +311,73 @@ until Stage B fills it and switches them over in one change.
 
 | Stage | What it is |
 |-------|------------|
-| A — The stored shape | The Go type and the lane on each owner's settings document, plus the SPA carrying the lane through a save untouched. Composition and de-duplication are specified here and built in B; the schema version moves in B with the rows. No behaviour moves |
+| A — The stored shape | **Done.** The Go type, the lane on each owner's settings document, the release step that writes an empty one, and the SPA carrying the lane through a save untouched. Composition and de-duplication are specified here and built in B. No behaviour moved |
 | B — The move | The prerelease step, and every reader switched to the new lane in one change: the registry, `trackMarketSources`, `saleLocations`, `calcSellingCharges`, the settings screens |
-| C — The panel | A surface for managing saved markets, built from the app-shell components, listing what is true of each market now |
+| C — The panel | A surface for managing saved markets, built from the app-shell components, listing what is true of each market now — **including when each was last read**. Ships with B: a market cannot leave the shared form until it has somewhere else to be managed |
 | D — Telling a reader a market cannot be read | The state the read already produces, shown where it can be acted on — handed here by [market-price-delivery](../market-price-delivery/plan.md) § Start here |
 
 **Done when** a saved market is stored on its own lane, managed from its own panel, a reader can see
 why one is not answering, and nothing about how a market is priced has changed.
+
+### How B and C land
+
+**B1 — the union, dormant.** The composition function and the read that delivers it. Nothing calls
+either: the lane is still empty and every reader still reads `customStructures`. Safe on its own,
+and it is where the de-duplication rule and the owner precedence get their tests.
+
+**How the rows move.** The upgrader does the move: a settings document has its market rows lifted out
+of `customStructures` into `marketLocations` as it is read, tested by the data rather than by the
+version, so it reaches a document whatever version it claims. Every loader runs the upgrader, so
+nothing is broken before a release and nothing breaks if one is late.
+
+`moveMarketsToTheirOwnLane` writes it down, `$set`ting the two lanes on each document that still
+holds a market among its structures. Without it every reader pays the move for ever and the stored
+documents keep both shapes. It writes those fields only: these documents are edited by their owner
+while a release runs against a live stack.
+
+**The settings schema does not move for this, and that decision is the whole reason the step exists.**
+A draft raised both currents to 2 and deleted the step as redundant — which it would have been:
+`completeSchemaMaintenance` takes every document below the current version, runs the upgrader and
+writes the whole document back, so a bump hands it both collections entire and there is nothing left
+for a later step to find.
+
+But this release is not moving the settings schema, and a bump is not free. It would have rewritten
+every settings document wholesale, with none of the field-scoped care a live stack wants, and it
+would have made `foldCustomStructures` and `seedPricingDefaults` redundant in passing — two steps
+belonging to other projects, written to work by data shape precisely so a fix can ship *without* a
+version bump.
+
+So: **a transform that moves the version needs no step; one that does not, needs one.** This one does
+not.
+
+**B2 — the move and the switch, together.** The prerelease step lifts every market row out of
+`customStructures` on both documents, leaving the schema version where it is, and every
+reader changes over in the same release: `allMarketSources`, `trackMarketSources`, `saleLocations`,
+`calcSellingCharges`, the settings screens. Not separable — a reader still on the old lane after the
+rows have left it finds no markets, and one switched before they arrive finds the same.
+
+**C ships with B2**, because the switch takes markets out of the custom-structures form and they need
+somewhere to be managed the same day.
+
+**C1 — the panel, for the markets an account owns.** A tab of its own on the settings page beside the
+custom structures it is leaving, listing every market the reader may price against: what it is called
+and where, when it was last read, and what it charges. *Why* one cannot be read, and what a reader can
+do about it, is Stage D — what C1 owes is the place to say it. A reader adds,
+edits and removes their **own** markets here, and the market kind comes off the custom-structures
+form in the same change. A market an organisation shares is listed and named by the owner it comes
+from, and is not editable from here — not because a rule forbids it, but because nothing can write it
+yet.
+
+**C2 — editing what an organisation shares.** `planner.SettingsUpdate` carries one field today,
+`extrasCategories`, so the endpoint that saves a planner's settings cannot express a change to its
+markets. C2 extends that and opens the panel's editing to an owner's markets. It is separable from C1
+and does not block B: a corporation's markets can be added through the same panel once the write
+exists, and until then they are read where they are already composed.
+
+**The permission check goes in C2, or after it.** Editing is ungated — see § Open decisions — so C1
+has nothing to check and C2 has a write with nobody forbidden from it. What both owe is that the gate
+has one place to go: `marketWriter` takes the owner a row came from and answers with the edits for
+it, and every control asks it rather than deciding for itself.
 
 ## Wire compatibility
 
@@ -285,12 +394,10 @@ why one is not answering, and nothing about how a market is priced has changed.
 1. **A release that already carries a prerelease migration.** A stored-document reshape rides one
    rather than standing up an upgrader path of its own.
 
-**This may already be satisfied.** The window in `core/commands/prepare_release.go` carries twenty-odd
-steps for this release, several of them document reshapes — the custom-structures fold, both rig-slot
-folds, the job-document reshape — and Stage A has just added one to it. If that window is still open
-when Stage B is written, Stage B rides it and this condition is spent rather than waiting. Worth
-confirming against the release's own state before treating the project as blocked, because the answer
-decides whether Stage B is available now or after the next release.
+**Satisfied.** The window in `core/commands/prepare_release.go` is open for this release and already
+carries twenty-odd steps, several of them document reshapes — the custom-structures fold, both
+rig-slot folds, the job-document reshape — and Stage A has added one to it. Stage B rides the same
+window. Nothing else is outstanding: **Stage B is available now.**
 
 ## This project unblocks custom-structure-model, not the other way round
 
@@ -332,24 +439,42 @@ owns the edit.
 
 | Question | Notes |
 |----------|-------|
-| Whether a pushed document re-reads the union or is merged into it | Settled in principle — re-read, so the de-duplication rule is not written twice. Named here because it is the first thing Stage B builds against |
-| **Who may tick `sharedWithMembers`, and who may add or remove an organisation's market** — *still open* | One question rather than two: a market reaching every member of a corporation is not a setting one member should change unremarked. The flag narrows the blast radius, since an unshared market affects nobody, but somebody still has to be allowed to tick it. The panel needs to say which owner a row belongs to and whether this reader may edit it |
-| **A region id has four widths across the server** | `CustomStructure.RegionID` and `MarketLocation.RegionID` are `int64`, the Redis market-orders store is `int32`, and a job's market-order row is plain `int`. Unifying the two `MarketLocation` types closed one instance of this, not the pattern. Nothing is broken — every EVE region id sits three orders of magnitude below the `int32` ceiling, so every conversion is lossless, which is exactly why it has survived. The cost is that each boundary has to be got right by hand and nothing fails when one is not. Stage B adds boundaries here, in `trackMarketSources`, so it is the moment to decide whether to settle on one width or keep converting deliberately |
+| ~~Whether a pushed document re-reads the union or is merged into it~~ | **Settled: re-read**, so the de-duplication rule is not written twice. Named here because it is the first thing Stage B builds against |
+| ~~Who may tick `sharedWithMembers`, and who may add or remove an organisation's market~~ | **Settled: ungated for now.** There is no roles model to gate it with, and inventing one here would be a second answer to a question the app has not asked yet. Every member who can see an organisation's markets may edit them. What this stage owes is that the gate is cheap to add later: the panel knows which owner every row belongs to, so the check has one place to go when there is something to check against |
+| ~~A region id has four widths across the server~~ | **Settled: `int64` everywhere, because that is what ESI declares `region_id` as.** It was `int64` on `CustomStructure` and `MarketLocation`, `int32` through the Redis market-orders store, the object store, the NATS task requests and the refresh scheduler, and plain `int` on a job's market-order row. Nothing was broken — every EVE region id sits three orders of magnitude below the `int32` ceiling, which is why it survived — but each boundary had to be got right by hand and nothing failed when one was not. Widening removed every cast and every int32-bounded parse, and collapsed the store's two key helpers into one. Two compatibility notes: the Redis keys are unchanged, because the same number renders to the same string; and a job's `region_id` now writes as a BSON int64 where it wrote an int32, which `TestAMarketOrderStoredWithANarrowRegionStillReads` holds to reading the older rows back. A type id is a separate question and stays `int32` |
 | What the panel shows about a market that cannot be read | The read already distinguishes "every character was refused" from "no character could be asked" from "the request failed". Which of those a reader should be shown, and what they are offered to fix it, is Stage D's to settle |
-| Whether `structureKinds` keeps a market value at all | Nothing outside the market path would read it once the lane is separate, but `customStructureLocationMap` mints ids from it |
+| ~~Whether `structureKinds` keeps a market value at all~~ | **Settled: it keeps it.** The table is a parity surface with the server, which still means the kind by a stored `jobType` — the upgrader finds market rows by it. What went is the SPA's ability to create one. `customStructureLocationMap` keeps its entry for the same reason and is still the one place the id prefix is spelled |
 | Whether the move renames the stored field `jobType` on the remaining build kinds | Out of scope as written; it is the other half of the same misfit and would ride a later migration |
 
 ## Handoff status
 
-**Stage A has landed** — see [overlay.md](./overlay.md) § Stage A. The type exists, both settings
-documents carry the lane, and the SPA carries it through a save. Nothing reads it and nothing fills
-it yet.
+**Stage A has landed** — see [overlay.md](./overlay.md) § Stage A.
 
-**Stage B is next**, and it is the one that waits on a release already carrying a prerelease
-migration — see § What this waits on. It moves the rows, raises both schema versions in the same
-step, and switches every reader over in one change.
+**Stage B has landed** — see [overlay.md](./overlay.md) § Stage B. The rows move as a
+document is read, a release step writes the move down, the settings schema version stays where it is,
+and every reader that asked for a market out of `customStructures` now asks the lane: on the server
+`MarketLocations.StationIDs` and `marketsources.Register`, in the SPA the price registry and
+`saleLocations`.
+
+**Stage C has landed** — see [overlay.md](./overlay.md) § Stage C. A market is listed, added and
+edited on its own tab, the custom-structures form no longer offers the kind, and an organisation's
+markets are edited there too: `planner.SettingsUpdate` carries the lane, `marketWriter` decides which
+document an edit lands on, and the composed set is registered for pricing at sign-in.
+
+**Everything that names a market is chosen on that tab.** A market is not a place to hang a default
+flag, so where a job is priced is the account's own setting and sits above the list it picks from:
+the market materials are bought at and the one output is sold at, each beside the figure read there,
+because a side's market and its order type are one choice. `PricedAgainst` is those controls and the
+first-login setup mounts the same component rather than a second copy. The account's rate for a
+citadel it has not saved moved to the same tab and is named for what it answers for, every saved
+market carrying its own rate. None of it is offered on Job Settings any more.
+
+What is left is Stage D — telling a reader *why* a market cannot be read, and what they can do about
+it.
 
 The project is on the critical path: custom-structure-model cannot promote until Stages A to C have
-landed and a saved market has left the shared form. The one decision still open —
-**who may add or remove a market an owner shares** — is Stage C's rather than Stage B's, because the
-panel is where a reader finds out.
+landed and a saved market has left the shared form. The decision that gated Stage C is settled:
+editing an organisation's markets is ungated until there is a roles model to gate it with. One
+question in § Open decisions is still live — what the panel tells a reader about a market that
+cannot be read, which is Stage D's. The region id widths are settled: `int64` throughout, as ESI
+declares it.

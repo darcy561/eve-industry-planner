@@ -33,6 +33,7 @@ to read, not easier, and it goes stale in ways the code does not.
 | A *why* that stops a plausible-looking change: "no cache options here — the layer below keys its own cache by version" | The design discussion behind the choice; that belongs in the plan or overlay |
 | A trap that has already cost something: a field that must be unset rather than omitted | A prose essay above a function, bulleted restatements of its steps, or `@example` blocks that re-type the call |
 | What a package or exported surface owns | Anything the name already says |
+| A header above the file, function or member it describes | A run of comments inside a body, labelling the statements beneath each one |
 | Why a new component holds the shape it does, stated as its own contract | Why it is better than the one it was split out of — "the panel this replaces…", "all that is left of…", a retelling of the retired control's branching |
 
 A component born from splitting an older one is where this goes wrong most often, because the reason
@@ -41,6 +42,30 @@ comparison in the migration plan: a reader of the running code cannot see the re
 plan says it better and in one place. "Replaces the totals block that printed both models at once"
 becomes "one pricing model at a time, named in the header, so every figure beneath it has one
 meaning" — the invariant survives, the archaeology goes.
+
+### Comments sit above a declaration, not inside it
+
+Comments in this repo are **document-based**: they belong at the top of the file and at the top of
+the things the file declares — the package or module, a function, a class or one of its members, an
+exported constant or config object. A reader scanning a file should be able to learn what it
+contains from those headers alone.
+
+**Inside a function body the default is no comment at all.** Do not break a block up into labelled
+sections — `// validate input`, `// build the payload`, `// now save it` — and do not annotate steps
+as you write them. Sectioning comments make a body longer and harder to read than the statements
+they interrupt, they drift out of step with the code the first time it is edited, and a body that
+needs them is usually a body that wanted splitting into named functions instead.
+
+| Do | Don’t |
+|----|--------|
+| Say what a function does and what it owns, once, above it | Retell that function's steps from inside it |
+| Let a body run uninterrupted from first line to last | Divide a body into commented phases or numbered steps |
+| Split a long body into named functions when it stops reading clearly | Leave it long and sign-post it with comments |
+
+The one thing that still earns a comment inside a body is a single line stating an invariant, a
+*why*, or a trap **at the exact statement it guards** — something a reader would otherwise undo, and
+which makes no sense anywhere but next to that line. It is one line, it is rare, and it is not a
+licence to reintroduce narration a sentence at a time.
 
 ### JSDoc: the types stay, the essay goes
 

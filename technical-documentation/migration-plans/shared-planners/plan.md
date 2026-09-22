@@ -1317,7 +1317,7 @@ rolls out rather than migrating; a version there would imply a migration that ca
 
 **The pricing defaults ride the window rather than a schema step.** The
 [market-pricing-defaults](../market-pricing-defaults/plan.md) project adds `DefaultPricing` to
-`ApplicationSettings` — a buying and a selling side, each naming a market and a basis — replacing the
+`ApplicationSettings` — a buying and a selling side, each naming a market and an order type — replacing the
 single `defaultMarketLocation` / `defaultOrderType` an account holds today. A document stored before
 it decodes to empty sides, and Go serialises them whether or not Mongo held them, so something has to
 fill them before a client can tell "unset" from "chosen".

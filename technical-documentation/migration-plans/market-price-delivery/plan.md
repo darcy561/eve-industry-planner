@@ -68,7 +68,7 @@ question it does not need the answer to, answers a question it cannot actually k
 world with exactly four markets in it.
 
 **It asks too widely.** A caller wants one material's price at one market. The endpoint returns every
-hub and every basis for that type, so a Planning stage reading four figures per material is sent
+hub and every order type for that type, so a Planning stage reading four figures per material is sent
 sixteen. On a full 500-type request that is **208 KB where 43 KB would do** — the measurements are in
 [measurements.md](./measurements.md).
 
@@ -87,7 +87,7 @@ One request, end to end:
 
 | Step | What happens today |
 |------|--------------------|
-| Ask | `POST /api/v1/market-prices`, up to 500 type ids, no market or basis named |
+| Ask | `POST /api/v1/market-prices`, up to 500 type ids, no market or order type named |
 | Server read | A loop per type: one `GET` for the adjusted price, one `MGET` across the four hub regions. 500 types is about 1,000 sequential Redis round trips, none pipelined |
 | Answer | Per type: four hubs × four bases, plus `adjustedPrice`, `lastUpdated` and `typeID`, flattened by a custom `MarshalJSON` so a hub id and a metadata field are both top-level keys |
 | Hold | Merged whole into `worldData.marketData`, keyed by type id, in memory for the session |
@@ -222,7 +222,7 @@ once, answerable from more than one transport — so they take the same answer.
 cache already holds and reports absence rather than waiting — which is what every caller already
 copes with, because `findMarketData` returns a zero-filled shape today. That is what keeps the
 synchronous readers working: `Classes/shoppingList.js` reads a price inside a row build, and
-`materialCostByBasis` takes a `getPrice` callback it calls in a reduce. Neither can await, and
+`materialCostByOrderType` takes a `getPrice` callback it calls in a reduce. Neither can await, and
 neither has to.
 
 Asking is the other half, and has the two entry points the name cache has: the hook for a view that
@@ -324,7 +324,7 @@ client-side mistake and is rejected rather than silently empty. Three things fol
 - **The caller names the sources**, so a surface pricing against one market carries one market's
   figures. Rows where the market holds no order for a type are absent rather than a block of zeroes.
 - **All four bases stay together in a row.** Narrowing to one would save a further tenth and break the
-  basis picker: [`materialCostByBasis`](../../../frontend/src/Functions/MarketData/materialPricing.js)
+  order type picker: [`materialCostByOrderType`](../../../frontend/src/Functions/MarketData/materialPricing.js)
   prices the whole job on all four so a player choosing one sees its effect rather than its name.
 - **The adjusted price is its own block.** It is source-independent and refreshes daily, so repeating
   it inside each row would tie a figure that has not moved to the clock of one that has. It is asked
@@ -909,7 +909,7 @@ browser a legitimate version of this path for custom sources, where there is no 
 ## Non-goals
 
 - Changing how the server builds the four hubs' books, or the meaning of the four bases.
-- Deciding which market or basis a figure is priced against — [market-pricing-defaults](../market-pricing-defaults/contents.md).
+- Deciding which market or order type a figure is priced against — [market-pricing-defaults](../market-pricing-defaults/contents.md).
 - Serving any reader-saved market from the server, private or public.
 
 ## Open decisions
@@ -1021,12 +1021,12 @@ left this project less to do rather than more:
   four of them behind the single `marketLinkTarget.js` — see § Stage A item 3.
 - **Stage B item 5 has its answer.** The resolver it names is built, so "name the source you want" is
   a call the code can already make rather than a thing to invent alongside.
-- **Stage B item 3 inherits guards.** The unguarded `findMarketData(typeID)[market][basis]` reads were
+- **Stage B item 3 inherits guards.** The unguarded `findMarketData(typeID)[market][order type]` reads were
   guarded by that project, because the split made an unrecognised id reachable. Those guards sit on the
   function this stage rekeys and puts behind one accessor, so expect to reshape them rather than
   preserve them — that project's plan says the same from its side.
 
 **One name to know before reading its code.** That project renamed the SPA's pricing vocabulary: a
-market is `marketLocation` and a pricing basis is `listingType`, everywhere except where a name is a
+market is `marketLocation` and a pricing order type is `orderType`, everywhere except where a name is a
 stored document key. The `marketDisplay` / `orderDisplay` still in the tree are `MaterialPriceOverride`
 keys and are not the in-memory vocabulary.

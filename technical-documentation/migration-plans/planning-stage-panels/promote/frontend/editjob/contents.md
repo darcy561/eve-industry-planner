@@ -6,7 +6,7 @@ The Edit Job **Planning** stage — the panels under
 [`frontend/src/Components/Edit Job/Edit Job Components/Planning`](../../../frontend/src/Components/Edit%20Job/Edit%20Job%20Components/Planning) —
 and the selling-charge estimation it shares with the Selling stage:
 
-- **Materials & Sourcing**: the material list, per-row buy-or-build sourcing, the pricing basis and
+- **Materials & Sourcing**: the material list, per-row buy-or-build sourcing, the pricing order type and
   hub a row's figures are quoted on, and costing a build before committing to it.
 - **Cost Breakdown**: what a build costs and what that is made of, against the range of previous
   builds of the item.

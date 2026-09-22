@@ -67,7 +67,7 @@ surface inventory and the market group tree; this project's plan keeps only a po
 - Whether the Cost Breakdown pricing-model toggle should ever drive what the rest of the app costs
   against, rather than staying display-only.
 - How deep speculative child jobs should recurse beyond the current one level.
-- Whether a Price Entry purchase price should override the pricing basis automatically or only when
+- Whether a Price Entry purchase price should override the pricing order type automatically or only when
   told to.
 - Where a saved citadel should be edited from once the custom-structure work builds the form —
   application settings alone, or also reachable from the Returns rate block.

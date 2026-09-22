@@ -20,16 +20,16 @@ Each row states its own comparison rather than leaving a reader to work it out f
 
 A row whose material has a Price Entry purchase reads **Paid**; one bought in part states both what
 was paid and what remains to buy. A row priced from the market can be overridden per row through
-`useMaterialOverrides` — the override outranks the panel's own pricing basis and hub for that row
-only, and the basis picker in the panel header counts how many rows currently depart from it.
+`useMaterialOverrides` — the override outranks the panel's own pricing order type and hub for that row
+only, and the order type picker in the panel header counts how many rows currently depart from it.
 
 `useMaterialsSourcing` builds every row in one walk; every other consumer on the panel — the drawer,
 the footer, the offer strip — reads its output rather than recomputing.
 
-## The pricing basis
+## The pricing order type
 
-The panel header carries the **pricing basis** (`buy`, `sell`, `buyP95`, `sellP05`) and the **hub**
-together, since both decide what a row's buy figure is. `Styled Components/Select/pricingBasis.jsx`
+The panel header carries the **pricing order type** (`buy`, `sell`, `buyP95`, `sellP05`) and the **hub**
+together, since both decide what a row's buy figure is. `Styled Components/Select/pricingOrderType.jsx`
 shows each mode with what it does to this job's total; `Functions/MarketData/materialPricing.js`
 computes those totals, honouring a row's own override on every candidate, and reports the age of the
 stalest price behind the total — the server refreshes on a period of hours, so a total is only as
@@ -39,7 +39,7 @@ fresh as its oldest input.
 
 Each buildable row opens an inline drawer under itself — an inset surface, not a dialogue, since more
 than one can stay open while the list scrolls. It states the linked child job's own totals
-(`calculateChildJobTotals`), its own hub and basis, and a shortfall against the requirement it does
+(`calculateChildJobTotals`), its own hub and order type, and a shortfall against the requirement it does
 not cover (see below). A build the drawer cannot cost says so rather than drawing an empty
 comparison.
 
@@ -97,5 +97,5 @@ resize on close.
 a shared grid row, so each sets `AppShellPanel`'s `paperSx={{ height: "auto" }}` — see
 [../technical-rules.md](../technical-rules.md) § Stacked panels. Below `sm`, the
 table becomes cards — name and plan chip on one line, the four figures on the next — and the
-pricing-basis picker opens as a bottom sheet instead of an anchored menu; the child-job drawer stays
+pricing-order type picker opens as a bottom sheet instead of an anchored menu; the child-job drawer stays
 an inline collapse on every layout, since it already opens under its own row.

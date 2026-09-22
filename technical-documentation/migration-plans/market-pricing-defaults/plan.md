@@ -57,22 +57,23 @@ things here, and the existing field uses one of them:
 
 - **Which side of the job.** Materials are *bought*; output is *sold*. This is the axis the split
   introduces.
-- **Which side of the order book.** `listingType` publishes `buy`, `sell`, `buyP95` and `sellP05` —
+- **Which side of the order book.** `orderType` publishes `buy`, `sell`, `buyP95` and `sellP05` —
   the best bid, the best ask, and each trimmed of outliers. `defaultOrderType: "sell"` means *price
   from sell orders*, not *this is my selling default*.
 
 The two axes disagree on purpose. Buying materials is normally priced from the **sell** side, because
 that is the ask you actually pay; selling output is normally priced from the **buy** side if you are
 dumping into bids, or the sell side if you are listing. So a correctly configured account will hold
-`buying.basis = "sell"`, which reads as a contradiction and is not one.
+`buying.orderType = "sell"`, which reads as a contradiction and is not one.
 
-Name the axes apart and never let one field carry both. The job side is **buying** / **selling**; the
-book side keeps the existing `listingType` vocabulary and is called a **basis**, not an order type.
+Name the axes apart and never let one field carry both. The job side is **buying** / **selling**, and
+is labelled **Materials** / **Output** wherever a reader sees it; the book side is the **order type**,
+named as ESI names it.
 
 ## Where this project stops and market price delivery starts
 
 This project decides **what to ask for**; [market-price-delivery](../market-price-delivery/contents.md)
-decides **how the asking works**. One picks the market and the basis, the other carries the request,
+decides **how the asking works**. One picks the market and the order type, the other carries the request,
 shapes the row that comes back, holds it and decides when it has gone stale. Neither redefines the four
 bases.
 
@@ -81,7 +82,7 @@ obvious from the file names:
 
 | Question | Owned by |
 |----------|----------|
-| Which market and basis a figure is priced against | here — the ladder, the two account sides, group defaults |
+| Which market and order type a figure is priced against | here — the ladder, the two account sides, group defaults |
 | What a request names and what the response carries | market-price-delivery § Stage B |
 | Where a price row is held, and what makes it stale | market-price-delivery § Stage C, § Stage D |
 | Which markets may exist at all beyond the four hubs | market-price-delivery § Stage A, § Stage F |
@@ -115,7 +116,7 @@ Resolving a market id is one ladder, and only its ends are built:
 
 A nearer rung outranks a further one, on both sides of the job. Rung 1 already holds that rule —
 `getEffectiveMaterialPriceHub` returns `override?.marketDisplay ?? panelDefault`, resolving hub and
-basis independently so a row can name a hub without naming a basis — and the split must not break it:
+order type independently so a row can name a hub without naming an order type — and the split must not break it:
 a player who sets one material to a hub and then changes the panel's must not lose the row they had
 already answered.
 
@@ -140,11 +141,11 @@ account can buy in Jita and sell in Amarr could not say the same thing about a s
 as a regression the moment anyone tries it.
 
 So the job's override takes the same shape as the account's: a side each, each naming a market and a
-basis.
+order type.
 
 **An empty value is not a choice.** That one rule holds at every rung — an account side the upgrader
 has not filled, a job side the player has not set, a material override naming a market but not a
-basis. It is why `PricingSide` marks both fields `omitempty`, and why the resolver tests a field for
+order type. It is why `PricingSide` marks both fields `omitempty`, and why the resolver tests a field for
 emptiness rather than for presence.
 
 **The job's is nil-able where the account's is not.** An account always has defaults; a job usually
@@ -162,7 +163,7 @@ seed went — worth stating, because the two look like the same problem.
 
 **Frontend and stored shape. Backend stores only.**
 
-Separate defaults for the buying and selling sides, each naming a market and a basis, replacing
+Separate defaults for the buying and selling sides, each naming a market and an order type, replacing
 `defaultMarketLocation` / `defaultOrderType`.
 
 ### What reads them today
@@ -174,7 +175,7 @@ Separate defaults for the buying and selling sides, each naming a market and a b
 | `Styled Components/Select/{marketLocation,marketListing}.jsx` | the `…ApplicationSettings` variants |
 | `Classes/shoppingList.js` | direct, in `calculateTotalValue` |
 | `Components/Dashboard/Components/ItemWatch/{ItemRow,ItemRowExpanded,itemWatchContainer}.jsx` | direct |
-| `Components/Dialogues/Price Entry/Hooks/usePriceEntryReducer.js` | seeds the dialogue's own hub and basis |
+| `Components/Dialogues/Price Entry/Hooks/usePriceEntryReducer.js` | seeds the dialogue's own hub and order type |
 | `Components/Groups/Side Menu/Panels/OutputData/OutputCard.jsx` | direct |
 | `Components/Reprocessing/Hooks/useReprocessingReducer.js` | seeds the reducer's own `marketLocation` |
 | `Styled Components/{IconButton,Typography}/market{Data,History}.jsx` | direct, to build a market link |
@@ -190,14 +191,14 @@ one hook answering for both sides and has to be split or parameterised rather th
 ### Three files throw rather than degrade
 
 `shoppingList.calculateTotalValue`, `ItemWatch/ItemRow.jsx` and `ItemWatch/ItemRowExpanded.jsx` index
-`findMarketData(typeID)[hub][basis]` with no guard on either step. The guarded form is the exception —
+`findMarketData(typeID)[hub][order type]` with no guard on either step. The guarded form is the exception —
 `OutputCard.jsx` is the one checked example that degrades to `0`. An id the per-hub shape does not
 carry was a `TypeError` rather than a figure of nothing, and the split was the moment that became
 reachable, so they were guarded with the stage — see [overlay.md](./overlay.md) § A3.
 
 `ItemRow.jsx` alone holds **13** of them: three in `buildCosts`, and ten more in render reading
 `calculatedCosts.mainItemPrice[defaultMarket]`. Those ten then take `.sell` directly rather than the
-account's basis, so the row already prices the watched item from the ask whatever the setting says —
+account's order type, so the row already prices the watched item from the ask whatever the setting says —
 which is a small piece of evidence for what side that surface is on.
 
 `worldData.findMarketData` builds its empty default by reducing `MARKET_OPTIONS`, which is what makes
@@ -253,7 +254,7 @@ again, and the old pair stops being written and ages out with the documents.
 1. ~~Name the two axes apart (§ Two axes, both called buy and sell) and add the fields.~~ Done.
 2. ~~Seed them in `Upgrader.ApplicationSettings` from the existing single value.~~ Done — landed with step 1, because step 1 alone is a data-loss bug.
 3. ~~Split the job's own override the same way, give the resolver a side argument, and move the job's
-   hub and basis controls onto it (§ The job's override splits too).~~ Done — the controls had to move
+   hub and order type controls onto it (§ The job's override splits too).~~ Done — the controls had to move
    in the same step, because a read path on the new field and a write path on the old one freezes the
    override at whatever was picked first.
 4. ~~Point each surface in the table at a side, explicitly.~~ Done.
@@ -312,8 +313,8 @@ a market of its own, so the upgrader's seed assigns the embedded pair and leaves
 the SPA's merge carries `groups` through rather than rebuilding the side without them. What is
 persisted is the merged copy, so a merge that dropped them would lose them on the next unrelated save.
 
-**A nearer group outranks a further one, field by field.** Market and basis are answered separately and
-each stops at the first ancestor naming it, so a group naming a market without a basis narrows one axis
+**A nearer group outranks a further one, field by field.** Market and order type are answered separately and
+each stops at the first ancestor naming it, so a group naming a market without an order type narrows one axis
 and leaves the other to whatever answers next. That is the rule rungs 1, 2 and 4 already use; making
 rung 3 behave differently inside itself would be the surprise.
 
@@ -392,7 +393,7 @@ than a file.
    flat-spreads a side and cannot reach one level deeper — passing `groups` replaces the whole table,
    which is the trap § A group default belongs to a side already records.
 4. ~~The panel: `AppShellPanel`, a section per side, each listing that side's groups with the market
-   and the basis it prices against.~~ Done (B6.4), read-only.
+   and the order type it prices against.~~ Done (B6.4), read-only.
 5. ~~Editing a row and removing one, through the action from item 3.~~ Done (B6.5).
 6. ~~The picker: a `ContentDialogue` browsing the tree, any level selectable, with a name search
    beside it.~~ Done (B6.6).
@@ -402,60 +403,64 @@ than a file.
 **Done when** a player can say "price minerals from Jita buy orders" from Settings and see every
 mineral on every job follow it.
 
-## Stage N — One vocabulary for a market and a basis
+## Stage N — One vocabulary for a market and an order type
 
 **Frontend only, no behaviour change.** Deferred until the rest of the project had landed: it is a
 rename, it spans more code than this project owns, and it is better done once, whole, than in pieces
 as each stage passes through.
 
-### The direction is settled: `marketLocation` and `listingType`
+### The direction is settled: `marketLocation` and `orderType`
 
-The axes are **`marketLocation`** — which market a figure is priced against — and **`listingType`** —
+The axes are **`marketLocation`** — which market a figure is priced against — and **`orderType`** —
 which side of the order book it comes from.
 
 A survey of the whole SPA was run first and is kept at
 [measurements/vocabulary-counts.md](./measurements/vocabulary-counts.md); it is what sized the work and
-found the layers this section did not know about. **It is not what chose the names.** The counts argue
-for `market` and `basis`, because those already dominate the tree and are what `PricingChoice` stores.
-That pair was tried across the row and ladder layers and rejected on reading it: `basis` is short and
-consistent and tells someone meeting it nothing about which side of the order book it means.
+found the layers this section did not know about. **It is not what chose the names.**
 
-`listingType` is chosen because the app already owns it — `Context/defaultValues` exports the list of
-the four values this axis may take under that exact name, so the name leads a reader to what it may
-be. `marketLocation` is already the name of the Select component that sets the other axis.
+`orderType` is chosen because **ESI chooses it**. The app already asks for a region's book with
+`order_type=all` in `getMarketData.js` and `regionMarketOrdersFetch.go`, and reads `is_buy_order` back
+off every order; naming the axis anything else means the app calls one thing by two names across a
+boundary it crosses constantly. `marketLocation` is already the name of the Select component that sets
+the other axis.
+
+The name has one cost, and it is worth stating because it was once taken as decisive: **the two axes
+are both called buy and sell and they do not agree.** Buying materials is normally priced from the
+**sell** side, because the ask is what you pay, so a correctly configured account holds
+`buying.orderType = "sell"`. An earlier draft of this section rejected `orderType` for exactly that
+reason and called the axis a *basis* instead, on the grounds that "order type" invites reading
+`buying` → `buy`. That was overruled: a made-up word does not stop a reader drawing the wrong
+inference, it only stops them recognising the field when they meet it in ESI. What does stop it is
+naming the sides for what is being priced — **Materials** and **Output**, not buying and selling —
+which the controls already do, and saying the disagreement out loud where the shape is declared.
 
 **The conversion layers go away rather than being renamed**, which is the part that makes the work
 worth doing.
 
-### The cost: the SPA stops matching the stored names
+### The stored documents say the same word
 
-`PricingChoice` stores `market` and `basis` — those are its `bson` and `json` tags in
+`PricingChoice` stores `market` and `orderType` — those are its `bson` and `json` tags in
 `services/shared/models/accountDocuments.go`, and they are what `JobPricing`, `PricingSide` and the
-account's `defaultPricing` carry on the wire. Naming the SPA's vocabulary `marketLocation` and
-`listingType` means the SPA no longer says what the document says.
+account's `defaultPricing` carry on the wire.
 
-**That leaves one conversion, at the store boundary**, where `resolvePricingSideRungs` reads
-`job?.market` and `account?.basis` and returns `marketLocation` and `listingType`. It is the same shape
-the ladder already has against `MaterialPriceOverride`, and it is deliberate rather than overlooked:
-the alternative was naming the SPA after the wire and keeping `basis`, which reads as nothing to
-someone meeting it.
+Renaming the stored field cost nothing: `defaultPricing` had never been released. `seedPricingDefaults`
+is a prepareRelease step on the branch and no tag carries it, so no stored document had the old name in
+it and no migration was owed. The live field it is seeded **from** is `defaultOrderType`, which already
+spelled the axis this way.
 
-So this stage does not end with one word for each axis everywhere. It ends with **one word inside the
-SPA, one word in the documents, and a single named place where they meet** — which is the thing worth
-having, since the four-vocabulary problem was never that the wire disagreed but that the SPA disagreed
-with itself.
+So the SPA and the documents agree on this axis, and the only conversion `resolvePricingSideRungs`
+still performs is `market` → `marketLocation`.
 
-### `listingType` collides with the list it is named after
+### The value and the list it is named after cannot share a name
 
-`Context/defaultValues` exports the four options as `listingType`, and three modules import it —
-`materialPricing.js`, `marketLabelHelpers.js` and the `marketListing` Select. A value called
-`listingType` in those files shadows the list called `listingType`, and `materialPricing.js` reads both
-in one function: `materialCostByBasis` would take the chosen one as a parameter while mapping over all
-four.
+`Context/defaultValues` exported the four options under the same name the single chosen value wanted,
+and three modules import it — `materialPricing.js`, `marketLabelHelpers.js` and the order type Select.
+`materialPricing.js` reads both in one function: `materialCostByOrderType` takes the chosen one as a
+parameter while mapping over all four.
 
-The export is the one to move, because it holds a set of options rather than a single value. It becomes
-`LISTING_TYPES`, matching `JOB_STATUS_CATALOG` beside it and `MARKET_OPTIONS`, and that frees
-`listingType` for the value throughout. Four files.
+The export is the one to move, because it holds a set of options rather than a single value. It is
+`ORDER_TYPES`, matching `JOB_STATUS_CATALOG` beside it and `MARKET_OPTIONS`, and that frees
+`orderType` for the value throughout.
 
 The layers still to move:
 
@@ -487,17 +492,17 @@ in the row layer.
 
 ### The work
 
-0. ~~Free the name: `Context/defaultValues`'s `listingType` export becomes `LISTING_TYPES`, across its
+0. ~~Free the name: `Context/defaultValues`'s `orderType` export becomes `ORDER_TYPES`, across its
    four importers.~~ Done.
 1. ~~The row layer: `marketSelect` / `listingSelect`, and the rung pair with it.~~ Done. The rung pair
-   collapsed to `marketLocationRung` / `listingTypeRung`, deleting the three `listingRung: orderRung`
+   collapsed to `marketLocationRung` / `orderTypeRung`, deleting the three `listingRung: orderRung`
    conversion lines.
 2. ~~The ladder layer: `marketDisplay` / `orderDisplay` — **in-memory uses only**, per § The ladder layer
    is half a stored shape.~~ Done. Eleven occurrences of `marketDisplay` / `orderDisplay` remain and are
    meant to: every one is a `MaterialPriceOverride` key.
 3. ~~The Select components, their props, and every panel wiring them — including the Reprocessing
    reducer's state, which is the same names and cannot be split off.~~ Done. `marketListing.jsx`
-   became `listingType.jsx` and `MarketListingSelect` became `ListingTypeSelect`, so the two Selects
+   became `orderType.jsx` and `MarketListingSelect` became `OrderTypeSelect`, so the two Selects
    are now named for the two axes.
 4. ~~Delete the conversion points the layers above needed.~~ Done — and a **sixth** vocabulary turned
    up while doing it: Price Entry called the pair `displayMarket` / `displayOrder` across its reducer,
@@ -528,9 +533,9 @@ So the ladder layer does not rename as one thing. It splits:
 | `override?.marketDisplay`, the literal `"marketDisplay"` key, the typedef describing an override | **No.** That is the stored document's shape |
 
 The resolver reads correctly across the boundary: `getEffectiveMaterialPriceHub` returns
-`{marketLocation, listingType}` while reading `override?.marketDisplay` — the document's name on the
+`{marketLocation, orderType}` while reading `override?.marketDisplay` — the document's name on the
 right of the assignment, the app's name on the left. That is the shape the whole layer ends in —
-**the SPA speaks `marketLocation` and `listingType` everywhere except where it is naming a stored
+**the SPA speaks `marketLocation` and `orderType` everywhere except where it is naming a stored
 key.**
 
 Renaming the stored keys as well would be a document migration on `jobs`, needing an upgrader and a
@@ -539,7 +544,7 @@ it rides a release that is already rewriting those documents.
 
 **Wire compatibility:** the in-memory rename is none — nothing renamed crosses a process boundary. The
 stored keys are **deliberately not renamed**, which is what keeps it that way. `JobPricing` and
-`PricingChoice` already store `market` and `basis`, so the stored shapes disagree with each other and
+`PricingChoice` already store `market` and `orderType`, so the stored shapes disagree with each other and
 that is not this project's to fix.
 
 ## A sale was priced from the buying side
@@ -563,7 +568,7 @@ that prices a sale is the wrong market by construction now.
 
 ## Non-goals
 
-- Changing what a pricing basis means, or adding a fifth.
+- Changing what a pricing order type means, or adding a fifth.
 - Making `MARKET_OPTIONS` hold anything but the four NPC hubs. Widening what a market id may be is
   [market-price-delivery](../market-price-delivery/contents.md), which retires that list for a source
   registry admitting reader-saved markets (§ Stage A) and takes saved citadels as pricing locations
@@ -583,7 +588,7 @@ has to land in the same change, or every existing document answers with an empty
 § Wire compatibility.
 
 **The shape of "empty" changed under a comment that described it.** `PricingSide`'s fields gained
-`omitempty` a stage later, so an unfilled side went from `{"market":"","basis":""}` to `{}` — and the
+`omitempty` a stage later, so an unfilled side went from `{"market":"","orderType":""}` to `{}` — and the
 comment, the plan and the regression test all still described the old shape. The test had never
 exercised the real payload. A claim about the wire is worth re-probing whenever the tags move.
 
@@ -606,9 +611,9 @@ identical values, so a surface asking for the wrong side passed. Give the two si
 in every fixture.
 
 **A plan naming the target wrongly in one paragraph.** § The ladder layer is half a stored shape was
-written before the names were settled and said the SPA would speak `market` and `basis`. Three call
+written before the names were settled and said the SPA would speak `market` and `orderType`. Three call
 sites — the Price Entry reducer, the Purchasing material costs and the Reprocessing reducer — were then
-edited to destructure exactly that pair from functions returning `marketLocation` and `listingType`, so
+edited to destructure exactly that pair from functions returning `marketLocation` and `orderType`, so
 each silently read `undefined`: a dialogue seeded with no market, a price field defaulting to zero, a
 reducer falling through to the global default. **Destructuring the wrong key is not a lint error and
 not a type error here**, and none of the three files has a test, so a green suite proved nothing. One
@@ -635,7 +640,7 @@ until then a key naming something the other side never had throws only when firs
 | Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
 | Stage B5 — the selling side names a route, and the controls for it | Done |
 | Stage B6 — a surface for setting a group default | Done |
-| Stage N — one vocabulary for a market and a listing type | **Done.** Every in-memory name is `marketLocation` / `listingType`. What survives is `marketDisplay` / `orderDisplay` where they name a `MaterialPriceOverride` key — in `materialsAndSourcingPanel.jsx`, `useMaterialOverrides.js`, `materialPriceOverridesState.js` and `materialPricing.js` — plus one legacy read in `Classes/job.js` that goes with Stage A step 7 |
+| Stage N — one vocabulary for a market and an order type | **Done.** Every in-memory name is `marketLocation` / `orderType`. What survives is `marketDisplay` / `orderDisplay` where they name a `MaterialPriceOverride` key — in `materialsAndSourcingPanel.jsx`, `useMaterialOverrides.js`, `materialPriceOverridesState.js` and `materialPricing.js` — plus one legacy read in `Classes/job.js` that goes with Stage A step 7 |
 
 ## Start here
 
@@ -663,9 +668,10 @@ server never overwrites a filled side.
 stage and on the shopping list, a group default outranks the account default while losing to a job's
 own choice, and Settings browses the tree to set, edit and remove one on either side.
 
-**Stage N is finished.** The SPA says `marketLocation` and `listingType` everywhere it is not naming a
-stored key: six vocabularies became one, and three conversion sites plus one wrapper function were
-deleted rather than renamed. What survives is deliberate and listed in § The ladder layer is half a
+**Stage N is finished.** The SPA says `marketLocation` and `orderType` everywhere: six vocabularies
+became one, and three conversion sites plus one wrapper function were deleted rather than renamed. The
+stored documents say `orderType` too, so the only conversion left on either axis is `market` →
+`marketLocation`. What survives is deliberate and listed in § The ladder layer is half a
 stored shape.
 
 **Only Stage A step 7 is left in this project**, and it now waits on nothing but the release itself:
