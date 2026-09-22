@@ -45,6 +45,10 @@ share one first source at a time, evicted oldest first — enough for the charac
 corporation and all scopes that can all start from the same array without evicting each other on
 every render.
 
+The cache's second argument is compared by identity, so each hook hands it one string naming where
+every source came from — the owner, and the character whose request returned it. That second fact is
+what a row's `seenBy` carries out of the merge ([assets.md](./assets.md)).
+
 Derivation happens in each hook's own body rather than inside `useQueries`' `combine`. React Query
 structurally shares whatever `combine` returns, which would clone the derived collection and hand
 each consumer its own copy; only the raw source arrays and the loading/error flags cross that

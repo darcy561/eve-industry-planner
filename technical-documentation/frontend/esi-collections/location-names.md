@@ -12,7 +12,7 @@ into a name.
 
 ## Asking for names
 
-`useLocationNames(locationIds)` takes the ids a view wants named and returns the names it has,
+`useLocationNames(locationIds, likely)` takes the ids a view wants named and returns the names it has,
 alongside loading and error state and `failed` — the ids whose lookup did not settle. A failure is
 never cached, so those ids have no entry among the names and nothing there tells them apart from an
 id still being asked about; `failed` is how a surface that shows what it could not resolve tells the
@@ -70,11 +70,31 @@ location dropdown needs no filter: it takes its ids from `assetLocationIds`, whi
 place kinds, so a ship never reaches it. Either way an id that was never going to resolve is never
 asked about.
 
-## Asking every character for a structure
+## Asking the characters that can see a structure first
 
-Docking access is per character, and nothing records which one holds it, so a structure is named by
-asking each linked character in turn (`fetchStructureName`). One character's refusal decides nothing
-for the account by itself — the next character is still asked — and only once every character has
+Docking access is per character and nothing records who holds it, so a structure is named by asking
+linked characters in turn (`fetchStructureName`) — but the order they are asked in is not arbitrary.
+A caller that knows a character has already seen the place says so through `likely`, a
+`Map<locationId, Set<characterHash>>` built by `charactersByLocation`, and those characters are asked
+ahead of the rest of the account. `askOrder` in
+[`askEachCharacter.js`](../../../frontend/src/Functions/EveESI/World/askEachCharacter.js) does the
+reordering, and the market rotation aims its own structure walks with the same function.
+
+The knowledge is never treated as authority: the rest of the account still follows, and the
+community store still sits beneath that, so a hint that has gone stale — a character unlinked,
+docking rights lost — costs nothing beyond the walk that would have happened anyway. Each surface
+draws the pair from what it already holds: an asset node's `seenBy`, which for a corporation is the
+member whose roles reached the row rather than the corporation that owns it
+(`assetLocationCharacters`); an industry job's installer or the hash a linked run was stored under
+(`jobLocationCharacters`); a market order's seller; and, for a corporation office, the corporation's
+own members. Where a surface knows nothing — a structure id the reader typed into the market
+locations form — the account is walked as it always was.
+
+Hints are pooled rather than raced: where two views ask for the same structure in one tick they
+share a lookup, and it carries what each of them knew. A hint that arrives after the entry already
+exists does not reach the walk, since the answer is already on its way.
+
+One character's refusal decides nothing for the account by itself — the next character is still asked — and only once every character has
 been asked and refused does the community store come into it (`communityNameOrRefusal`), never
 earlier: asking it sooner would take a community name over an alt's own docking rights. An account
 that has opted out of sharing citadel names does not read them either, and settles on `no-access`

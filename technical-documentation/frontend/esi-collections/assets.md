@@ -14,15 +14,17 @@ blueprint sits, which reads this collection, is [blueprints.md](./blueprints.md)
 
 `buildAssetNodes(rows)` (`buildAssetNodes.js`) turns raw ESI asset rows into one node per item, pure
 and synchronous. It returns the node list in input order and a `Map` from `item_id` to node.
-`buildAssetCollection(sources, owners)` is the multi-owner form — several raw row arrays and a
-parallel owner list — used to build the corporation union below without losing which member's fetch
-a stack came from; `buildAssetNodes` is `buildAssetCollection` for the single-owner case.
+`buildAssetCollection(sources, from)` is the multi-owner form — several raw row arrays and a parallel
+list of where each came from, `{owner, seenBy}` — used to build the corporation union below without
+losing which member's fetch a stack came from; `buildAssetNodes` is `buildAssetCollection` for the
+single-owner case.
 
 | Field | Holds |
 |-------|-------|
 | `itemId`, `typeId`, `quantity`, `flag` | as ESI gives them; `flag` is the raw `location_flag` |
 | `isSingleton` | assembled, or otherwise unable to stack |
 | `owner` | `{ kind, id }` — see [row-collections.md](./row-collections.md) § Owner vocabulary; `null` for a single-owner build |
+| `seenBy` | the character whose request returned the row — for a corporation the member whose roles reached it, not its owner. What [location-names.md](./location-names.md) § Asking the characters that can see a structure first asks first |
 | `parentId` / `childIds` | the holding asset's `item_id`, or `null` when held directly by a location; children ordered once, by type then item id |
 | `locationId` | resolved: the station, structure, system or asset-safety sentinel the chain ends at |
 | `locationKind` | resolved: what that id refers to — see below |
@@ -80,8 +82,9 @@ whether it has a resolvable category. The same fallback applies to a blueprint's
 Roles gate access to individual offices, hangars and divisions, so no single character's fetch sees
 a corporation's whole asset set. The account's view is the **union** of what each tracked member can
 see. `useAssetIndex`'s `corporation` scope fans a query out over every member and hands the merged
-rows — one array per member, with its owner attached — to `buildAssetCollection`, which deduplicates
-by `item_id` as it merges.
+rows — one array per member, with its owner and that member attached — to `buildAssetCollection`,
+which deduplicates by `item_id` as it merges. The member kept on a deduplicated row is the first that
+returned it, which is a character that can see where it sits.
 
 `Hooks/EveEsi/useGetSingleCorporationAssets.js` performs the same per-member fan-out and dedup
 independently, for the shopping list's corporation hooks, which read the merged rows directly rather

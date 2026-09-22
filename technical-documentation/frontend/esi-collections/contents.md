@@ -36,4 +36,5 @@ corporation.
 | Know what state a collection reports for a character or corporation, or add a new state | [prefetch.md](./prefetch.md) § Collection status |
 | Decide whether a corporation endpoint is fetched once or per member | [blueprints.md](./blueprints.md) § Corporation blueprints as a single access point |
 | Resolve a location or container id into a name | [location-names.md](./location-names.md) |
+| Spare a structure's name lookup a refusal from every character that cannot dock there | [location-names.md](./location-names.md) § Asking the characters that can see a structure first |
 | Show a location whose name is refused, absent, or could not be resolved | [assets.md](./assets.md) § Assembling a view, [location-names.md](./location-names.md) § What a lookup can settle on |
