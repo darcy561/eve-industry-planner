@@ -54,6 +54,18 @@ func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID
 		doc.SchemaVersion = models.ApplicationSettingsSchemaCurrent
 	}
 
+	// A market is not a place a job runs in, and is stored on its own lane. Tested
+	// by the data rather than the version, as everything here is: a row whose kind
+	// says market is one wherever the document's version claims to be.
+	//
+	// In memory only, and the schema version deliberately does not move for it —
+	// this release is not moving the settings schema. `moveMarketsToTheirOwnLane`
+	// is what writes the move down.
+	if taken, left := models.TakeMarketLocations(doc.CustomStructures); len(taken) > 0 {
+		doc.MarketLocations = append(doc.MarketLocations, taken...)
+		doc.CustomStructures = left
+	}
+
 	// Not gated on the schema version: an unversioned document is stamped with the
 	// current one above, so a version test would never fire for the legacy rows
 	// this fills. The empty market is the signal instead.
@@ -63,7 +75,7 @@ func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID
 	if doc.DefaultPricing.Buying.Market == "" {
 		doc.DefaultPricing.Buying.PricingChoice = legacyPricingChoice(doc)
 	}
-	// The market only: the selling side's basis follows from its route, so writing
+	// The market only: the selling side's order type follows from its route, so writing
 	// one here would store a second answer to the same question, free to disagree.
 	if doc.DefaultPricing.Selling.Market == "" {
 		doc.DefaultPricing.Selling.Market = legacyPricingChoice(doc).Market
@@ -80,18 +92,18 @@ func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID
 //
 // Returns led with the listing for everyone, so an account that named the buy
 // side was being priced from bids while reading a listing's fee. Taking the
-// stored basis at its word repairs that where it was set, and leaves everyone
+// stored order type at its word repairs that where it was set, and leaves everyone
 // else on the route they were already being shown.
 func legacyExitRoute(doc *models.ApplicationSettings) string {
 	// The stored side first, then the single default behind it: a document from
 	// before the split has its only answer in the legacy field, and one from after
-	// it carries a basis the route now replaces.
-	basis := doc.DefaultPricing.Selling.Basis
-	if basis == "" {
-		basis = doc.DefaultOrderType
+	// it carries an order type the route now replaces.
+	orderType := doc.DefaultPricing.Selling.OrderType
+	if orderType == "" {
+		orderType = doc.DefaultOrderType
 	}
 
-	switch basis {
+	switch orderType {
 	case "buy", "buyP95":
 		return models.ExitRouteImmediate
 	default:
@@ -99,7 +111,7 @@ func legacyExitRoute(doc *models.ApplicationSettings) string {
 	}
 }
 
-// legacyPricingChoice is the market and basis an account named before the buying
+// legacyPricingChoice is the market and order type an account named before the buying
 // and selling sides were told apart.
 //
 // Both sides seed from it: an account that named one market said nothing about
@@ -110,7 +122,7 @@ func legacyPricingChoice(doc *models.ApplicationSettings) models.PricingChoice {
 		choice.Market = doc.DefaultMarketLocation
 	}
 	if doc.DefaultOrderType != "" {
-		choice.Basis = doc.DefaultOrderType
+		choice.OrderType = doc.DefaultOrderType
 	}
 	return choice
 }
@@ -197,4 +209,12 @@ func (u Upgrader) PlannerSettings(doc *planner.Settings) {
 	if doc.SchemaVersion <= 0 || doc.SchemaVersion > planner.SettingsSchemaCurrent {
 		doc.SchemaVersion = planner.SettingsSchemaCurrent
 	}
+
+	// As on an account's settings, and for the same reasons: tested by the data,
+	// in memory only, and the version deliberately left where it is.
+	if taken, left := models.TakeMarketLocations(doc.CustomStructures); len(taken) > 0 {
+		doc.MarketLocations = append(doc.MarketLocations, taken...)
+		doc.CustomStructures = left
+	}
+
 }

@@ -1,6 +1,5 @@
 import GLOBAL_CONFIG from "../../global-config-app";
-import useUsersStore from "../../Zustand/usersStore";
-import { structureKinds } from "../../Context/defaultValues";
+import { marketsToOffer } from "./marketLocations";
 
 /**
  * Where a price can come from. A caller names a source and never learns its
@@ -92,6 +91,9 @@ export function answersAPerTypeProbe(kind) {
  * @property {number} [stationID] - The NPC station its prices are taken from
  * @property {number} [structureID] - The player structure they are read from
  * @property {string} kind - One of SOURCE_KIND
+ * @property {number} [brokerFee] - A citadel owner's rate, where one is saved
+ * @property {boolean} [default] - Whether the reader flagged this one
+ * @property {string} [sharedBy] - The owner that shared it, where one did
  */
 
 /**
@@ -110,35 +112,29 @@ function serverHeldSources() {
 }
 
 /**
- * The markets a reader has saved, as sources. Which kind a row is follows from
- * the place it names; one naming neither has nowhere to ask and is left out.
+ * The markets a reader may price against, as sources. Which kind a row is
+ * follows from the place it names; one naming neither has nowhere to ask and is
+ * left out.
+ *
+ * **The stored row with its kind on it**, rather than a narrower copy of it. A
+ * caller wanting a citadel's rate, or which owner shared a market, would
+ * otherwise have to go back to the lane for a second list of the same markets —
+ * and one of them was reading both, choosing per market which to believe.
+ *
+ * The composed set where the server has answered with one — the account's own
+ * markets plus what each organisation it belongs to has shared. The account's
+ * own lane until then, so a reader who has not finished signing in is offered
+ * the markets they saved rather than none.
  *
  * @returns {MarketSource[]}
  */
 function readerSavedSources() {
-  return (useUsersStore.getState().applicationSettings.customStructures ?? [])
-    .filter(
-      (structure) =>
-        structure.jobType === structureKinds.market &&
-        (structure.stationID || structure.structureID),
-    )
-    .map((structure) =>
-      structure.stationID
-        ? {
-            id: structure.id,
-            name: structure.name,
-            regionID: structure.regionID,
-            stationID: structure.stationID,
-            kind: SOURCE_KIND.STATION,
-          }
-        : {
-            id: structure.id,
-            name: structure.name,
-            regionID: structure.regionID,
-            structureID: structure.structureID,
-            kind: SOURCE_KIND.CITADEL,
-          },
-    );
+  return marketsToOffer()
+    .filter((market) => market.stationID || market.structureID)
+    .map((market) => ({
+      ...market,
+      kind: market.stationID ? SOURCE_KIND.STATION : SOURCE_KIND.CITADEL,
+    }));
 }
 
 /**
@@ -150,6 +146,20 @@ function readerSavedSources() {
 export function allMarketSources() {
   return [...serverHeldSources(), ...readerSavedSources()];
 }
+
+/**
+ * What names one type at one of these markets, wherever a pair has to be told
+ * apart from another: batching a tick's asks, skipping a want the cache already
+ * holds, and keying a surface's query on what it asked for.
+ *
+ * Here because all three are the same question, and four spellings of it would
+ * agree until one of them changed.
+ *
+ * @param {string} sourceID
+ * @param {number|string} typeID
+ * @returns {string}
+ */
+export const wantKey = (sourceID, typeID) => `${sourceID}|${typeID}`;
 
 /**
  * One source from a registry, or undefined.

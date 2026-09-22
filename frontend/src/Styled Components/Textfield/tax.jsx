@@ -19,18 +19,19 @@ function coercePercentToNumber(value) {
  * Rounds the value to 2 decimal places on blur.
  *
  * @param {Object} props - Component props
+ * @param {string} [props.id] - Given where more than one of these is on the page
+ *   at once, so each still labels its own control
+ * @param {number} [props.max] - The highest rate this field will take. Given
+ *   where a server rule caps the figure, so a reader cannot type a number the
+ *   save is going to be refused for
  * @param {number} [props.initialState] - Initial value for the text field
  * @param {Function} props.onBlur - Callback function called on blur. Receives the rounded percentage value.
  * @returns {JSX.Element} Tax percentage text field component
- *
- * @example
- * <TaxPercentageTextField
- *   initialState={0}
- *   onBlur={(tax) => setTaxPercentage(tax)}
- * />
  */
 function TaxPercentageTextField({
+  id = "tax-percentage-textfield",
   initialState,
+  max,
   onBlur,
   variant = "standard",
   label,
@@ -49,7 +50,7 @@ function TaxPercentageTextField({
 
   return (
     <TextField
-      id="tax-percentage-textfield"
+      id={id}
       aria-label="job-percentage-textfield"
       value={inputValue}
       size="small"
@@ -71,7 +72,7 @@ function TaxPercentageTextField({
       ]}
       onChange={(e) => {
         const value = e.target.value;
-        if (!isNaN(value) && Number(value) >= 0) {
+        if (!isNaN(value) && Number(value) >= 0 && withinMax(value, max)) {
           updateInputValue(value);
         }
       }}
@@ -84,6 +85,9 @@ function TaxPercentageTextField({
           if (isNaN(valueToPass) || valueToPass < 0) {
             valueToPass = 0;
           }
+          if (max !== undefined && valueToPass > max) {
+            valueToPass = max;
+          }
           onBlur(valueToPass);
         } else {
           console.error("Tax Percentage is missing an onChange Function");
@@ -91,6 +95,11 @@ function TaxPercentageTextField({
       }}
     />
   );
+}
+
+/** An empty field is still being typed into, so it is not over any ceiling yet. */
+function withinMax(value, max) {
+  return max === undefined || value === "" || Number(value) <= max;
 }
 
 export default TaxPercentageTextField;

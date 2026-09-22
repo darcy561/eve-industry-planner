@@ -270,7 +270,11 @@ export function useGroupScheduler(
           selectedCharacter: characterHash,
         });
 
-        const duration = calculateTimeForSetup(tempSetup, job.skills, queryClient);
+        const duration = calculateTimeForSetup(
+          tempSetup,
+          job.skills,
+          queryClient,
+        );
 
         if (duration && duration > 0) {
           durationByCharacter[task.id][characterHash] = duration;

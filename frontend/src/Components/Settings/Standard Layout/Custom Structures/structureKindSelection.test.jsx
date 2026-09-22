@@ -20,9 +20,9 @@ function renderPicker(props = {}) {
 }
 
 describe("choosing what kind of structure to save", () => {
-  // Every kind the model can express is a kind a reader can save. A kind the
-  // class carries fields for and the picker does not offer is unreachable.
-  it("offers every kind the model has", () => {
+  // A place a job is performed in is what this form saves. A kind the class
+  // carries fields for and the picker does not offer is unreachable.
+  it("offers every kind of place a job is performed in", () => {
     renderPicker();
 
     for (const label of [
@@ -30,13 +30,18 @@ describe("choosing what kind of structure to save", () => {
       "Reaction",
       "Invention",
       "Reprocessing",
-      "Market",
     ]) {
       expect(screen.getByRole("radio", { name: label })).toBeInTheDocument();
     }
-    expect(screen.getAllByRole("radio")).toHaveLength(
-      Object.keys(structureKinds).length,
-    );
+    expect(screen.getAllByRole("radio")).toHaveLength(4);
+  });
+
+  // A market is saved as a market on its own tab. Offering it here would save
+  // one onto the custom structures, where nothing that prices would find it.
+  it("does not offer a market", () => {
+    renderPicker();
+
+    expect(screen.queryByRole("radio", { name: "Market" })).toBeNull();
   });
 
   // The value is what the form reads to decide which fields to ask for, so a
@@ -44,25 +49,17 @@ describe("choosing what kind of structure to save", () => {
   it("reports the kind that was chosen", async () => {
     const { setSelectedJobType, setInitialSelectionMade } = renderPicker();
 
-    await userEvent.click(screen.getByRole("radio", { name: "Market" }));
-
-    expect(setSelectedJobType).toHaveBeenCalledWith(structureKinds.market);
-    expect(setInitialSelectionMade).toHaveBeenCalledWith(true);
-  });
-
-  it("reports a build kind by its own value too", async () => {
-    const { setSelectedJobType } = renderPicker();
-
     await userEvent.click(screen.getByRole("radio", { name: "Reprocessing" }));
 
     expect(setSelectedJobType).toHaveBeenCalledWith(
       structureKinds.reprocessing,
     );
+    expect(setInitialSelectionMade).toHaveBeenCalledWith(true);
   });
 
   it("shows the kind already chosen", () => {
-    renderPicker({ selectedJobType: structureKinds.market });
+    renderPicker({ selectedJobType: structureKinds.reaction });
 
-    expect(screen.getByRole("radio", { name: "Market" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Reaction" })).toBeChecked();
   });
 });

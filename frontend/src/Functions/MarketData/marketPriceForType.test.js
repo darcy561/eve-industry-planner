@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("reading a price", () => {
-  it("answers the basis asked for", () => {
+  it("answers the order type asked for", () => {
     hold(34, "jita", { buy: 9, sell: 10, buyP95: 8, sellP05: 11 });
 
     expect(getMarketPriceForType(34, "jita", "buy")).toBe(9);
@@ -42,7 +42,7 @@ describe("reading a price", () => {
     expect(getMarketPriceForType(34, "jita", "sell")).toBe(0);
   });
 
-  it("answers zero for a basis the row does not carry", () => {
+  it("answers zero for an order type the row does not carry", () => {
     hold(34, "jita", { buy: 9, sell: 10 });
 
     expect(getMarketPriceForType(34, "jita", "buyP95")).toBe(0);

@@ -24,9 +24,9 @@ export const EXIT_ROUTE_OPTIONS = [
 /**
  * A select for how output leaves a build.
  *
- * The selling side names a route rather than a pricing basis: the route decides
+ * The selling side names a route rather than a pricing order type: the route decides
  * which side of the book the figure comes from *and* whether a broker fee is
- * charged, which a basis alone cannot say.
+ * charged, which an order type alone cannot say.
  *
  * @param {Object} props
  * @param {string} [props.value] - One of EXIT_ROUTE

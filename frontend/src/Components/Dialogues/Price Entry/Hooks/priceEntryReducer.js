@@ -41,7 +41,7 @@ export function priceEntryReducer(state, action, createInitialState) {
     case PRICE_ENTRY_ACTION_TYPES.SET_MARKET_LOCATION:
       return { ...state, marketLocation: action.payload };
     case PRICE_ENTRY_ACTION_TYPES.SET_LISTING_TYPE:
-      return { ...state, listingType: action.payload };
+      return { ...state, orderType: action.payload };
     case PRICE_ENTRY_ACTION_TYPES.RESET_STATE:
       return createInitialState();
     default:

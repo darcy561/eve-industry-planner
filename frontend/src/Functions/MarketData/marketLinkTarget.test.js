@@ -6,8 +6,8 @@ import { PRICING_SIDE } from "./pricingSide";
 // The two sides name different markets, so a link resolving the wrong one is
 // visible rather than passing on a fixture that agrees with itself.
 const accountPricing = {
-  buying: { market: "amarr", basis: "sell" },
-  selling: { market: "hek", basis: "buy" },
+  buying: { market: "amarr", orderType: "sell" },
+  selling: { market: "hek", orderType: "buy" },
 };
 
 const resolve = (given, side = PRICING_SIDE.BUYING, needsRegion = false) =>

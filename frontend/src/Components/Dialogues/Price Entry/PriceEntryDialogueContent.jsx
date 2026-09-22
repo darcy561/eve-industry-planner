@@ -3,7 +3,7 @@ import { Box, Button, Grid, Typography } from "@mui/material";
 import { ItemPriceRow, itemPriceEntryFactory } from "./itemRow";
 import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
-import ListingTypeSelect from "../../../Styled Components/Select/listingType";
+import OrderTypeSelect from "../../../Styled Components/Select/orderType";
 import {
   showSnackbarSuccess,
   showSnackbarError,
@@ -288,7 +288,7 @@ export function PriceEntryDialogueContent({ state, actions }) {
                     key={item.typeID}
                     item={item}
                     index={index}
-                    listingType={state.listingType}
+                    orderType={state.orderType}
                     marketLocation={state.marketLocation}
                     pricesSettled={!pricesLoading}
                     priceEntryListData={{ list: state.priceEntryList }}
@@ -354,10 +354,10 @@ export function PriceEntryDialogueContent({ state, actions }) {
                   width: "100%",
                 }}
               />
-              <ListingTypeSelect
-                value={state.listingType}
+              <OrderTypeSelect
+                value={state.orderType}
                 onChange={(e) => {
-                  actions.setListingType(e.id);
+                  actions.setOrderType(e.id);
                 }}
                 customFormStyling={{
                   width: "100%",
@@ -378,7 +378,7 @@ export function PriceEntryDialogueContent({ state, actions }) {
                     const defaultPrice = getMarketPriceForType(
                       item.typeID,
                       state.marketLocation,
-                      state.listingType,
+                      state.orderType,
                     );
 
                     if (

@@ -74,4 +74,43 @@ describe("the tax percentage field", () => {
 
     expect(field()).toHaveValue(9);
   });
+
+  // A ceiling is given where a server rule caps the figure. A field that took
+  // more would build a document the save is refused for, which reaches a reader
+  // as nothing but a number that never sticks.
+  describe("a rate with a ceiling", () => {
+    it("refuses a figure above it", () => {
+      show({ initialState: 2, max: 100 });
+
+      fireEvent.change(field(), { target: { value: "150" } });
+
+      expect(field()).toHaveValue(2);
+    });
+
+    it("takes the ceiling itself", () => {
+      show({ initialState: 2, max: 100 });
+
+      fireEvent.change(field(), { target: { value: "100" } });
+
+      expect(field()).toHaveValue(100);
+    });
+
+    // Cleared on the way to typing another figure, so an empty field is not yet
+    // over anything.
+    it("still lets the field be emptied", () => {
+      show({ initialState: 2, max: 100 });
+
+      fireEvent.change(field(), { target: { value: "" } });
+
+      expect(field()).toHaveValue(null);
+    });
+
+    it("leaves a field with no ceiling unbounded", () => {
+      show({ initialState: 2 });
+
+      fireEvent.change(field(), { target: { value: "150" } });
+
+      expect(field()).toHaveValue(150);
+    });
+  });
 });

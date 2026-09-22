@@ -15,7 +15,7 @@ import { primeReprocessing, selectableItems } from "../Static/reprocessing";
  * @param {Object} skillsMap - the player's reprocessing skills by level
  * @param {Object} chosenStructure - the structure the reprocessing is done in
  * @param {string} marketLocation - which market's prices to cost against
- * @param {string} listingType - buy or sell orders
+ * @param {string} orderType - buy or sell orders
  * @param {Array<number>} oreIDsToBeIgnored - ores the player has excluded
  * @param {Object} reprocessingCalculationSettings - how selection weighs its options
  * @returns {Promise<{oreSelection: Object, requestedMinerals: Object}>} Prices
@@ -26,7 +26,7 @@ async function reprocessFromMinerals(
   skillsMap,
   chosenStructure,
   marketLocation,
-  listingType,
+  orderType,
   oreIDsToBeIgnored,
   reprocessingCalculationSettings,
 ) {
@@ -55,11 +55,7 @@ async function reprocessFromMinerals(
   await pricesSettled;
 
   Object.values(reprocessingObjects).forEach((item) => {
-    item.unitPrice = getMarketPriceForType(
-      item.id,
-      marketLocation,
-      listingType,
-    );
+    item.unitPrice = getMarketPriceForType(item.id, marketLocation, orderType);
   });
 
   const oreSelection = oreSelector(

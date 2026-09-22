@@ -7,7 +7,6 @@ import RigTypeSelect from "../../../../Styled Components/Select/rigType";
 import ImplantSelect from "../../../../Styled Components/Select/implantSelector";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
 import VirtualisedSystemSearch from "../../../../Styled Components/autocomplete/virtualisedSystemSearch";
-import VirtualisedLocationSearch from "../../../../Styled Components/autocomplete/virtualisedLocationSearch";
 
 const RIG_HELP =
   "A structure carries two rig slots. Rigs that compete for the same purpose cannot be fitted together.";
@@ -24,7 +23,7 @@ const RIG_HELP =
  *
  * @type {Array<{
  *   id: string,
- *   shows: (fields: object, structure: object) => boolean,
+ *   shows: (fields: object) => boolean,
  *   title: string,
  *   description: string,
  *   describe?: (context: object) => string|null,
@@ -33,28 +32,6 @@ const RIG_HELP =
  * }>}
  */
 export const STRUCTURE_FIELDS = [
-  {
-    id: "place",
-    shows: (fields) => Boolean(fields.stationID || fields.structureID),
-    title: "Location",
-    description:
-      "The market this is. Offered from the places your characters keep things, because a market you sell at is somewhere you have docked.",
-    width: 12,
-    // A place whose region could not be read is as unusable as one that could
-    // not be listed, so it is said where the field is described rather than
-    // left for the reader to find when nothing prices.
-    describe: ({ placeError }) => placeError,
-    render: ({ structure, places, placeError, onPlace }) => (
-      <VirtualisedLocationSearch
-        places={places.locations}
-        value={structure.stationID || structure.structureID || ""}
-        isLoading={places.isLoading}
-        isError={places.isError || Boolean(placeError)}
-        label="Market location"
-        onChange={onPlace}
-      />
-    ),
-  },
   {
     id: "structureType",
     shows: (fields) => Boolean(fields.built),
@@ -148,27 +125,6 @@ export const STRUCTURE_FIELDS = [
     ),
   },
   {
-    id: "brokerFee",
-    // Only once a citadel is the place chosen. An NPC station's fee comes from
-    // the seller's skills and standings, so there is nothing to ask for, and
-    // asking before a place is named would ask about nowhere.
-    shows: (fields, structure) =>
-      Boolean(fields.brokerFee && structure?.structureID),
-    title: "Broker fee",
-    description:
-      "The rate this citadel's owner set. Nothing can work it out, so it is the figure the structure shows you in game.",
-    render: ({ structure, textFieldSx, onBrokerFee }) => (
-      <TaxPercentageTextField
-        initialState={structure.brokerFee}
-        onBlur={onBrokerFee}
-        variant="outlined"
-        label="Broker fee %"
-        helperText="The owner's rate"
-        sx={textFieldSx}
-      />
-    ),
-  },
-  {
     id: "systemID",
     shows: (fields) => Boolean(fields.systemID),
     title: "Solar System",
@@ -188,15 +144,11 @@ export const STRUCTURE_FIELDS = [
 /**
  * The fields a kind asks for, in reading order.
  *
- * A few fields wait on what has been filled in already: a market asks a citadel
- * for its fee and access character, and asks a station for neither.
- *
  * @param {object} fields - The kind's entry from the class's field map
- * @param {object} [structure] - What has been described so far
  * @returns {typeof STRUCTURE_FIELDS}
  */
-export function fieldsFor(fields, structure) {
-  return STRUCTURE_FIELDS.filter((entry) => entry.shows(fields, structure));
+export function fieldsFor(fields) {
+  return STRUCTURE_FIELDS.filter((entry) => entry.shows(fields));
 }
 
 /**

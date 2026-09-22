@@ -42,7 +42,7 @@ export function AccountInfo() {
           direction="row"
           spacing={2}
           sx={{
-            // Only where the band is a row: a flex basis is measured along the main axis, so at
+            // Only where the band is a row: a flex order type is measured along the main axis, so at
             // `xs` — a column — a 260px floor is 260px of height, and the band grows a hole.
             flex: { sm: "1 1 260px" },
             minWidth: { sm: 260 },

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { PricedSurface } from "../../../../../../tests/pricedSurface.jsx";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TRITANIUM } from "../../../../../../tests/editJobFixtures.js";
 
@@ -49,7 +50,9 @@ function jobNeeding(quantity, { materialJobType = 0, purchasing = {} } = {}) {
 
 function renderCard(job) {
   return render(
-    <MaterialCardFrame_Purchasing material={job.build.materials[TRITANIUM]} />,
+    <PricedSurface>
+      <MaterialCardFrame_Purchasing material={job.build.materials[TRITANIUM]} />
+    </PricedSurface>,
   );
 }
 

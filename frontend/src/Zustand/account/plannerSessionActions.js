@@ -21,6 +21,7 @@ import {
 import GLOBAL_CONFIG from "../../global-config-app.js";
 import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
+import { seedMarketLocations } from "../../Functions/MarketData/marketLocations";
 import { asNumberIDSet } from "../../Functions/Helper/ids";
 
 /**
@@ -195,6 +196,12 @@ export const plannerSessionActions = (set, get) => ({
           mainCharacterHash !== undefined
             ? mainCharacterHash || undefined
             : (state.account.mainCharacterHash ?? undefined);
+
+        // Beside the settings document rather than inside it, because the
+        // document goes back to the server on save and this is composed from
+        // several owners. A bootstrap that could not compose it omits the field,
+        // which is not the same as the account having no markets.
+        seedMarketLocations(response.market_locations);
 
         let nextApplicationSettings = state.applicationSettings;
         if (

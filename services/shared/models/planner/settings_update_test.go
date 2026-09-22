@@ -85,3 +85,63 @@ func TestSettingsUpdateValidate(t *testing.T) {
 		})
 	}
 }
+
+func aPlannerMarket() models.MarketLocation {
+	return models.MarketLocation{
+		ID: "mkt-1", Name: "Perimeter Azbel", RegionID: 10000002,
+		StructureID: 1035466617946, SharedWithMembers: true,
+	}
+}
+
+func markets(rows ...models.MarketLocation) *models.MarketLocations {
+	lane := models.MarketLocations(rows)
+	return &lane
+}
+
+// A nil field is left as it is stored, so an update naming only the markets
+// must not also rewrite the categories with an empty list.
+func TestSettingsUpdateCarriesTheMarketsAlone(t *testing.T) {
+	t.Parallel()
+
+	fields := SettingsUpdate{MarketLocations: markets(aPlannerMarket())}.Fields()
+
+	if len(fields) != 1 {
+		t.Fatalf("Fields() = %v, want only the markets", fields)
+	}
+	if _, ok := fields[fieldMarketLocations]; !ok {
+		t.Fatalf("Fields() = %v, want a %s entry", fields, fieldMarketLocations)
+	}
+}
+
+// An owner clearing their last market says so. An empty lane is a change, not
+// the absence of one, so it has to reach the document.
+func TestAnEmptyMarketLaneIsStillAChange(t *testing.T) {
+	t.Parallel()
+
+	fields := SettingsUpdate{MarketLocations: markets()}.Fields()
+
+	if _, ok := fields[fieldMarketLocations]; !ok {
+		t.Fatalf("Fields() = %v, want the emptied lane written", fields)
+	}
+}
+
+// The rule lives on the model both settings documents embed; this is the check
+// that the planner's update actually applies it.
+func TestSettingsUpdateRefusesAMarketLaneTheModelRefuses(t *testing.T) {
+	t.Parallel()
+
+	placeless := aPlannerMarket()
+	placeless.StructureID = 0
+
+	if err := (SettingsUpdate{MarketLocations: markets(placeless)}).Validate(); err == nil {
+		t.Error("an update carrying a market naming nowhere was accepted")
+	}
+}
+
+func TestSettingsUpdateAcceptsAWellFormedMarketLane(t *testing.T) {
+	t.Parallel()
+
+	if err := (SettingsUpdate{MarketLocations: markets(aPlannerMarket())}).Validate(); err != nil {
+		t.Errorf("a well-formed market lane was refused: %v", err)
+	}
+}

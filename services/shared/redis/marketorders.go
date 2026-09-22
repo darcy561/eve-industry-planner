@@ -22,7 +22,7 @@ type MarketPriceEntry struct {
 
 // RegionRefreshTime is when one region's order book last refreshed.
 type RegionRefreshTime struct {
-	RegionID    int32
+	RegionID    int64
 	LastUpdated time.Time
 }
 
@@ -60,10 +60,10 @@ const (
 // station anybody has asked about, so a region id here would collide the moment
 // two of them are priced.
 func priceKey(typeID int32, locationID int64) string {
-	return "esi:market_orders:" + itoa(typeID) + ":" + itoa64(locationID)
+	return "esi:market_orders:" + itoa(int64(typeID)) + ":" + itoa(locationID)
 }
 
-func regionETagsKey(regionID int32) string {
+func regionETagsKey(regionID int64) string {
 	return "esi:market_orders:region:" + itoa(regionID) + ":etags"
 }
 
@@ -76,13 +76,13 @@ const trackedRegionsKey = "esi:market_orders:tracked_regions"
 // single round trip whatever the answer, rather than a read per region.
 const trackedStationsIndexKey = "esi:market_orders:tracked_station_regions"
 
-func trackedStationsKey(regionID int32) string {
+func trackedStationsKey(regionID int64) string {
 	return "esi:market_orders:region:" + itoa(regionID) + ":stations"
 }
 
-func itoa(id int32) string { return strconv.FormatInt(int64(id), 10) }
-
-func itoa64(id int64) string { return strconv.FormatInt(id, 10) }
+// itoa renders an EVE id for a key. Every id the store keys by is an int64, as
+// ESI declares them.
+func itoa(id int64) string { return strconv.FormatInt(id, 10) }
 
 // MarketOrders returns the surface for the region order books.
 func (r *Redis) MarketOrders() *MarketOrdersStore { return &MarketOrdersStore{redis: r} }
@@ -122,7 +122,7 @@ func (m *MarketOrdersStore) PricesAtLocation(ctx context.Context, locationID int
 
 // PutETags stores the ETag of each page of one region's order book. Pages with
 // an empty ETag are not stored.
-func (m *MarketOrdersStore) PutETags(ctx context.Context, regionID int32, etags map[int]string) error {
+func (m *MarketOrdersStore) PutETags(ctx context.Context, regionID int64, etags map[int]string) error {
 	fields := make(map[string]any, len(etags))
 	for page, etag := range etags {
 		if etag != "" {
@@ -134,7 +134,7 @@ func (m *MarketOrdersStore) PutETags(ctx context.Context, regionID int32, etags 
 
 // ETags reads the stored ETag of each page of one region's order book. A region
 // with none returns an empty map.
-func (m *MarketOrdersStore) ETags(ctx context.Context, regionID int32) (map[int]string, error) {
+func (m *MarketOrdersStore) ETags(ctx context.Context, regionID int64) (map[int]string, error) {
 	stored, err := m.redis.Fields(ctx, regionETagsKey(regionID))
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func (m *MarketOrdersStore) ETags(ctx context.Context, regionID int32) (map[int]
 
 // DeleteETagsFrom removes the stored ETags for pages at or above fromPage, so a
 // book that has shrunk does not replay pages it no longer has.
-func (m *MarketOrdersStore) DeleteETagsFrom(ctx context.Context, regionID int32, fromPage int) error {
+func (m *MarketOrdersStore) DeleteETagsFrom(ctx context.Context, regionID int64, fromPage int) error {
 	key := regionETagsKey(regionID)
 	stored, err := m.redis.Fields(ctx, key)
 	if err != nil {
@@ -168,7 +168,7 @@ func (m *MarketOrdersStore) DeleteETagsFrom(ctx context.Context, regionID int32,
 }
 
 // PutRefreshTime records when a region last refreshed.
-func (m *MarketOrdersStore) PutRefreshTime(ctx context.Context, regionID int32, at time.Time) error {
+func (m *MarketOrdersStore) PutRefreshTime(ctx context.Context, regionID int64, at time.Time) error {
 	return m.redis.PutScored(ctx, regionRefreshTimesKey, itoa(regionID),
 		float64(at.UnixMilli()), ttlRegionRefreshTimes)
 }
@@ -182,12 +182,12 @@ func (m *MarketOrdersStore) RefreshTimes(ctx context.Context) ([]RegionRefreshTi
 
 	times := make([]RegionRefreshTime, 0, len(stored))
 	for _, member := range stored {
-		regionID, err := strconv.ParseInt(member.Member, 10, 32)
+		regionID, err := strconv.ParseInt(member.Member, 10, 64)
 		if err != nil {
 			continue
 		}
 		times = append(times, RegionRefreshTime{
-			RegionID:    int32(regionID),
+			RegionID:    regionID,
 			LastUpdated: time.UnixMilli(int64(member.Score)).UTC(),
 		})
 	}
@@ -203,8 +203,8 @@ func (m *MarketOrdersStore) RefreshTimes(ctx context.Context) ([]RegionRefreshTi
 // Tracking is what a walk is for: a region is swept because stations in it are
 // tracked, and a derive pass prices exactly these. Nothing is priced ahead of
 // being asked for.
-func (m *MarketOrdersStore) TrackStation(ctx context.Context, regionID int32, stationID int64, at time.Time) error {
-	if err := m.redis.PutScored(ctx, trackedStationsKey(regionID), itoa64(stationID),
+func (m *MarketOrdersStore) TrackStation(ctx context.Context, regionID int64, stationID int64, at time.Time) error {
+	if err := m.redis.PutScored(ctx, trackedStationsKey(regionID), itoa(stationID),
 		float64(at.UnixMilli()), ttlTrackedStations); err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func (m *MarketOrdersStore) TrackStation(ctx context.Context, regionID int32, st
 	// written first, a failure after it would leave a market that looks tracked
 	// and is never swept.
 	return m.redis.PutFields(ctx, trackedStationsIndexKey,
-		map[string]any{itoa64(stationID): itoa(regionID)}, ttlTrackedStations)
+		map[string]any{itoa(stationID): itoa(regionID)}, ttlTrackedStations)
 }
 
 // RegionsOfTrackedStations answers, for the stations asked about, which region
@@ -226,14 +226,14 @@ func (m *MarketOrdersStore) TrackStation(ctx context.Context, regionID int32, st
 // One round trip for the whole question. It is what a caller holding an
 // account's saved markets reads to decide whether anything needs registering at
 // all, and what a price read resolves a station by.
-func (m *MarketOrdersStore) RegionsOfTrackedStations(ctx context.Context, stationIDs []int64) (map[int64]int32, error) {
+func (m *MarketOrdersStore) RegionsOfTrackedStations(ctx context.Context, stationIDs []int64) (map[int64]int64, error) {
 	if len(stationIDs) == 0 {
-		return map[int64]int32{}, nil
+		return map[int64]int64{}, nil
 	}
 
 	fields := make([]string, 0, len(stationIDs))
 	for _, stationID := range stationIDs {
-		fields = append(fields, itoa64(stationID))
+		fields = append(fields, itoa(stationID))
 	}
 
 	held, err := m.redis.NamedFields(ctx, trackedStationsIndexKey, fields...)
@@ -241,43 +241,43 @@ func (m *MarketOrdersStore) RegionsOfTrackedStations(ctx context.Context, statio
 		return nil, err
 	}
 
-	regions := make(map[int64]int32, len(held))
+	regions := make(map[int64]int64, len(held))
 	for field, value := range held {
 		stationID, err := strconv.ParseInt(field, 10, 64)
 		if err != nil {
 			continue
 		}
-		regionID, err := strconv.ParseInt(value, 10, 32)
+		regionID, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			continue
 		}
-		regions[stationID] = int32(regionID)
+		regions[stationID] = regionID
 	}
 	return regions, nil
 }
 
 // TrackedRegions reports every region a station is tracked in, which is what the
 // sweep walks. The four hubs are among them because the sweep tracks them.
-func (m *MarketOrdersStore) TrackedRegions(ctx context.Context) ([]int32, error) {
+func (m *MarketOrdersStore) TrackedRegions(ctx context.Context) ([]int64, error) {
 	stored, err := m.redis.Scored(ctx, trackedRegionsKey)
 	if err != nil {
 		return nil, err
 	}
 
-	regions := make([]int32, 0, len(stored))
+	regions := make([]int64, 0, len(stored))
 	for _, member := range stored {
-		regionID, err := strconv.ParseInt(member.Member, 10, 32)
+		regionID, err := strconv.ParseInt(member.Member, 10, 64)
 		if err != nil {
 			continue
 		}
-		regions = append(regions, int32(regionID))
+		regions = append(regions, regionID)
 	}
 	return regions, nil
 }
 
 // TrackedStations reports the stations wanted in one region, least recently
 // asked for first.
-func (m *MarketOrdersStore) TrackedStations(ctx context.Context, regionID int32) ([]TrackedStation, error) {
+func (m *MarketOrdersStore) TrackedStations(ctx context.Context, regionID int64) ([]TrackedStation, error) {
 	stored, err := m.redis.Scored(ctx, trackedStationsKey(regionID))
 	if err != nil {
 		return nil, err
@@ -302,7 +302,7 @@ func (m *MarketOrdersStore) TrackedStations(ctx context.Context, regionID int32)
 //
 // A caller reading zero remaining is what retires the region itself: its pages
 // and its place in the sweep are worth nothing once no station wants them.
-func (m *MarketOrdersStore) DropStationsAskedBefore(ctx context.Context, regionID int32, cutoff time.Time) (int, error) {
+func (m *MarketOrdersStore) DropStationsAskedBefore(ctx context.Context, regionID int64, cutoff time.Time) (int, error) {
 	stations, err := m.TrackedStations(ctx, regionID)
 	if err != nil {
 		return 0, err
@@ -312,7 +312,7 @@ func (m *MarketOrdersStore) DropStationsAskedBefore(ctx context.Context, regionI
 	remaining := 0
 	for _, station := range stations {
 		if station.LastAsked.Before(cutoff) {
-			stale = append(stale, itoa64(station.StationID))
+			stale = append(stale, itoa(station.StationID))
 			continue
 		}
 		remaining++
@@ -338,7 +338,7 @@ func (m *MarketOrdersStore) DropStationsAskedBefore(ctx context.Context, regionI
 // caller's count and its delete would otherwise have their registration wiped
 // and the walk it just asked for run for nobody. A registration that lands
 // mid-call aborts this instead, and the region keeps its place.
-func (m *MarketOrdersStore) StopTrackingRegionIfUnwanted(ctx context.Context, regionID int32) (bool, error) {
+func (m *MarketOrdersStore) StopTrackingRegionIfUnwanted(ctx context.Context, regionID int64) (bool, error) {
 	c, err := m.redis.client()
 	if err != nil {
 		return false, err

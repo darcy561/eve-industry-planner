@@ -17,9 +17,9 @@ import (
 // Rens and Jita: one market an account saves, and one already priced.
 const (
 	rensStation = int64(60004588)
-	rensRegion  = int32(10000030)
+	rensRegion  = int64(10000030)
 	jitaStation = int64(60003760)
-	jitaRegion  = int32(10000002)
+	jitaRegion  = int64(10000002)
 )
 
 func registrar(t *testing.T) (*eipredis.Redis, *eipnats.NATS, jetstream.Stream) {
@@ -43,10 +43,8 @@ func published(t *testing.T, stream jetstream.Stream) int {
 	return int(info.State.Msgs)
 }
 
-func market(stationID int64) models.CustomStructure {
-	return models.CustomStructure{
-		ID: "mkt", JobType: models.StructureKindMarket, Name: "A market", StationID: stationID,
-	}
+func market(stationID int64) models.MarketLocation {
+	return models.MarketLocation{ID: "mkt", Name: "A market", StationID: stationID}
 }
 
 // Most sign-ins and most settings saves change no market at all, so the common
@@ -57,7 +55,7 @@ func TestAnAccountWhoseMarketsAreAllPricedAsksForNothing(t *testing.T) {
 		t.Fatalf("track station: %v", err)
 	}
 
-	Register(t.Context(), redis, nats, models.CustomStructures{market(rensStation)})
+	Register(t.Context(), redis, nats, models.MarketLocations{market(rensStation)})
 
 	if count := published(t, stream); count != 0 {
 		t.Errorf("published %d tasks for an account whose markets are all priced", count)
@@ -73,7 +71,7 @@ func TestOnlyTheMarketsThatAreNotPricedAreAskedFor(t *testing.T) {
 	}
 
 	Register(t.Context(), redis, nats,
-		models.CustomStructures{market(jitaStation), market(rensStation)})
+		models.MarketLocations{market(jitaStation), market(rensStation)})
 
 	if count := published(t, stream); count != 1 {
 		t.Fatalf("published %d tasks, want one", count)
@@ -97,11 +95,24 @@ func TestOnlyTheMarketsThatAreNotPricedAreAskedFor(t *testing.T) {
 func TestAnAccountWithNoMarketsAsksForNothing(t *testing.T) {
 	redis, nats, stream := registrar(t)
 
-	Register(t.Context(), redis, nats, models.CustomStructures{
-		{ID: "man-1", JobType: models.JobTypeManufacturing, Name: "Home", SystemID: 30000142},
-	})
+	Register(t.Context(), redis, nats, models.MarketLocations{})
 
 	if count := published(t, stream); count != 0 {
 		t.Errorf("published %d tasks for an account with no markets", count)
+	}
+}
+
+// A citadel's orders are read with a character's token and cannot be walked
+// centrally, so the server is never asked to price one — an account whose only
+// market is a citadel asks for exactly as much as an account with none.
+func TestACitadelIsNotSomethingTheServerIsAskedToPrice(t *testing.T) {
+	redis, nats, stream := registrar(t)
+
+	Register(t.Context(), redis, nats, models.MarketLocations{
+		{ID: "mkt", Name: "A citadel", StructureID: 1035466617946, RegionID: 10000030},
+	})
+
+	if count := published(t, stream); count != 0 {
+		t.Errorf("published %d tasks for an account whose only market is a citadel", count)
 	}
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PricedSurface } from "../../../../../../tests/pricedSurface.jsx";
 import { act, render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { renderCounts } from "../../../../../../tests/renderCounts.jsx";
@@ -55,9 +56,11 @@ const openJob = () =>
 
 const show = (Card = MaterialCardFrame_Purchasing) =>
   render(
-    <ThemeProvider theme={theme}>
-      <Card material={material} />
-    </ThemeProvider>,
+    <PricedSurface>
+      <ThemeProvider theme={theme}>
+        <Card material={material} />
+      </ThemeProvider>
+    </PricedSurface>,
   );
 
 beforeEach(() => {

@@ -33,7 +33,7 @@ beforeEach(() => {
   accountPricing = {
     // Deliberately different sides: a fixture whose sides agree cannot tell a
     // caller asking for the wrong one.
-    buying: { market: "jita", basis: "sell" },
+    buying: { market: "jita", orderType: "sell" },
     selling: { market: "amarr", exit: "listed" },
   };
 });
@@ -190,7 +190,7 @@ describe("what the watchlist needs priced", () => {
 
   it("takes the account pricing it is handed over the stored one", () => {
     const { wants } = pricesWantedByWatchlist([watched()], {
-      buying: { market: "hek", basis: "sell" },
+      buying: { market: "hek", orderType: "sell" },
       selling: { market: "dodixie", exit: "listed" },
     });
 

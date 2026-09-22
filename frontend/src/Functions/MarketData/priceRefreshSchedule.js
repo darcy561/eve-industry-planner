@@ -11,9 +11,12 @@ import { rotateSelfReadMarkets, revalidateSourceClocks } from "./priceCache.js";
 import { dropUnreadMarkets } from "./priceStore.js";
 
 /**
- * How often to ask the markets holding rows where they have got to. The server
- * publishes on the same fifteen minutes, so a shorter interval sees nothing new
- * and a longer one leaves a reader on figures already replaced.
+ * How often a tick comes round.
+ *
+ * Not the server's publishing cadence — it walks a hub's orders once an hour —
+ * but how promptly a market whose own turn has come is noticed. A market the
+ * reader reads is due on the hour, and a tick four times that often means it
+ * waits a quarter of an hour at worst rather than a whole one.
  *
  * @type {number}
  */

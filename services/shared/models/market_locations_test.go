@@ -131,3 +131,105 @@ func TestSharingIsStatedEvenWhenItIsNotShared(t *testing.T) {
 		t.Error("a market that is not shared says nothing about sharing")
 	}
 }
+
+func marketRow(id string, structureID int64) CustomStructure {
+	return CustomStructure{
+		ID:          id,
+		Name:        id,
+		JobType:     StructureKindMarket,
+		RegionID:    10000002,
+		StructureID: structureID,
+		BrokerFee:   2.5,
+	}
+}
+
+// The move is what puts a market on its own lane. Ids are not rewritten, so a
+// job setup naming one keeps working and the device keeps the prices it holds
+// under that id.
+func TestTakingMarketsOutOfTheStructures(t *testing.T) {
+	taken, left := TakeMarketLocations(CustomStructures{
+		// JobType 1 is manufacturing; only the market kind has a constant here.
+		{ID: "sotiyo", Name: "Sotiyo", JobType: 1, RigType: 3},
+		marketRow("azbel-market", 1035466617946),
+	})
+
+	if len(taken) != 1 || taken[0].ID != "azbel-market" {
+		t.Fatalf("taken = %+v, want the market", taken)
+	}
+	if taken[0].BrokerFee != 2.5 || taken[0].StructureID != 1035466617946 {
+		t.Errorf("taken = %+v, want the fee and the place carried over", taken[0])
+	}
+	if len(left) != 1 || left[0].ID != "sotiyo" {
+		t.Errorf("left = %+v, want the place a job runs in", left)
+	}
+}
+
+// A market naming nowhere cannot be priced. Moving it would put a row on the
+// market lane nothing could ask about, and take it out of the one place a
+// reader might still see it and fix it.
+func TestAMarketNamingNowhereIsNotMoved(t *testing.T) {
+	taken, left := TakeMarketLocations(CustomStructures{
+		{ID: "half-filled-in", Name: "Half filled in", JobType: StructureKindMarket, RegionID: 10000002},
+	})
+
+	if len(taken) != 0 {
+		t.Errorf("taken = %+v, want nothing moved", taken)
+	}
+	if len(left) != 1 {
+		t.Errorf("left = %+v, want the row left where a reader can see it", left)
+	}
+}
+
+// Run twice over a document that has already moved, which a release step is,
+// and nothing moves the second time.
+func TestTakingMarketsTwiceTakesNothingTheSecondTime(t *testing.T) {
+	_, left := TakeMarketLocations(CustomStructures{marketRow("azbel-market", 1035466617946)})
+
+	taken, stillLeft := TakeMarketLocations(left)
+
+	if len(taken) != 0 || len(stillLeft) != 0 {
+		t.Errorf("second pass took %+v and left %+v, want nothing and nothing", taken, stillLeft)
+	}
+}
+
+// Neither side is nil, so a document written from either states that it holds
+// none rather than saying nothing about them.
+func TestTakingFromNothingGivesTwoEmptyLists(t *testing.T) {
+	taken, left := TakeMarketLocations(nil)
+
+	if taken == nil || left == nil {
+		t.Errorf("taken = %v, left = %v, want empty lists", taken, left)
+	}
+}
+
+// What the server is told to price. A citadel is left out: its orders are read
+// with a character's token and cannot be walked centrally, so naming one here
+// would have the server tracking a region for a market it can never fill.
+func TestStationIDsNamesOnlyTheMarketsAServerCanWalk(t *testing.T) {
+	markets := MarketLocations{
+		{ID: "mkt-1", Name: "Rens", StationID: 60004588, RegionID: 10000030},
+		{ID: "mkt-2", Name: "A citadel", StructureID: 1035466617946, RegionID: 10000030},
+		{ID: "mkt-3", Name: "Jita", StationID: 60003760, RegionID: 10000002},
+	}
+
+	got := markets.StationIDs()
+	want := []int64{60004588, 60003760}
+
+	if len(got) != len(want) {
+		t.Fatalf("named %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("named %v, want %v", got, want)
+		}
+	}
+}
+
+// An empty list rather than nil, so a caller can range over it without asking
+// whether the account had any.
+func TestStationIDsOfNoMarketsIsAnEmptyList(t *testing.T) {
+	empty := MarketLocations{}
+	if got := empty.StationIDs(); got == nil {
+		t.Error("named nil rather than an empty list")
+	}
+}

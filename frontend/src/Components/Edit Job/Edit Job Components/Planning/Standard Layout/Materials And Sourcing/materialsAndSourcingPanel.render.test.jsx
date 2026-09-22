@@ -19,7 +19,7 @@ const sourcing = {
       material: { typeID: 34, name: "Tritanium" },
       matchedChildJobs: [],
       marketLocation: "jita",
-      listingType: "sell",
+      orderType: "sell",
     },
   ],
   summary: {
@@ -32,9 +32,9 @@ const sourcing = {
     cheaperToBuild: 1,
   },
   marketLocation: "jita",
-  listingType: "sell",
-  basisUsage: { overridden: 1, purchased: 0 },
-  basisOptions: [
+  orderType: "sell",
+  orderTypeUsage: { overridden: 1, purchased: 0 },
+  orderTypeOptions: [
     {
       id: "sell",
       label: "Sell Orders",
@@ -99,7 +99,7 @@ vi.mock("./materialDrawer", () => ({
       {isOpen ? `open at ${marketLocation}` : "shut"}
       <span data-testid={`pricing-${material.typeID}`}>
         {pricing
-          ? `panel ${pricing.panelMarketLocation}/${pricing.panelListingType}`
+          ? `panel ${pricing.panelMarketLocation}/${pricing.panelOrderType}`
           : "none"}
       </span>
     </div>
@@ -200,7 +200,7 @@ describe("the Materials and Sourcing panel", () => {
     expect(screen.getByTestId("drawer-34")).toHaveTextContent("shut");
   });
 
-  it("says how many rows are off the panel's basis", async () => {
+  it("says how many rows are off the panel's order type", async () => {
     // An override is invisible on the row, so the picker is where it surfaces.
     const user = userEvent.setup();
     renderPanel();
@@ -211,7 +211,7 @@ describe("the Materials and Sourcing panel", () => {
   });
 
   it("gives each row the means to price itself differently", () => {
-    // A row's own price outranks the panel's basis, so the control that sets
+    // A row's own price outranks the panel's order type, so the control that sets
     // it has to be on the row.
     renderPanel();
 
@@ -350,11 +350,11 @@ describe("applying the offer", () => {
   });
 });
 
-// The picker names the basis every row is priced on. It listed four options with
+// The picker names the order type every row is priced on. It listed four options with
 // real totals long before choosing one did anything, which reads as a working
 // control and is not.
-describe("choosing a pricing basis", () => {
-  // The trigger is labelled with the basis currently in effect.
+describe("choosing a pricing order type", () => {
+  // The trigger is labelled with the order type currently in effect.
   const openPicker = async () => {
     renderPanel();
     await userEvent.click(screen.getByRole("button", { name: "Sell Orders" }));
@@ -367,15 +367,15 @@ describe("choosing a pricing basis", () => {
     useActiveJobReadOnly.mockReturnValue(false);
   });
 
-  it("writes the chosen basis onto the job", async () => {
+  it("writes the chosen order type onto the job", async () => {
     await openPicker();
 
     await chooseOption("Buy Orders");
 
-    expect(pricingOnJob()).toMatchObject({ buying: { basis: "buy" } });
+    expect(pricingOnJob()).toMatchObject({ buying: { orderType: "buy" } });
   });
 
-  it("writes nothing when the basis chosen is the one already in effect", async () => {
+  it("writes nothing when the order type chosen is the one already in effect", async () => {
     await openPicker();
 
     await chooseOption("Sell Orders");
@@ -394,7 +394,7 @@ describe("choosing a pricing basis", () => {
   });
 });
 
-// The design pairs the basis with the hub: both decide what a row's buy figure
+// The design pairs the order type with the hub: both decide what a row's buy figure
 // is, and until now only one of them could be changed from the panel.
 describe("choosing a hub", () => {
   it("writes the chosen hub onto the job", async () => {

@@ -26,7 +26,7 @@ func CountsTowardBuildHistory(row models.ArchivedJobStats) bool {
 // BuildHistory reduces one item type's rows to the marks a build history
 // is read from.
 //
-// Ordered by cost month, the same basis the timeline plots. Archive dates order
+// Ordered by cost month, the same order type the timeline plots. Archive dates order
 // rows by when they were written, which on imported history bears no relation to
 // when the builds happened.
 func BuildHistory(rows []models.ArchivedJobStats) models.BuildHistoryMarks {

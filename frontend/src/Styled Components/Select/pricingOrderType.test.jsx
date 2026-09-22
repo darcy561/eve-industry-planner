@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import PricingBasisSelect from "./pricingBasis";
+import PricingOrderTypeSelect from "./pricingOrderType";
 
 const formatValue = (value) => `${value} ISK`;
 
@@ -28,7 +28,7 @@ const options = [
 async function open(props = {}) {
   const user = userEvent.setup();
   render(
-    <PricingBasisSelect
+    <PricingOrderTypeSelect
       options={options}
       formatValue={formatValue}
       onChange={() => {}}
@@ -39,10 +39,10 @@ async function open(props = {}) {
   return user;
 }
 
-describe("PricingBasisSelect", () => {
-  it("shows the basis in effect without opening", () => {
+describe("PricingOrderTypeSelect", () => {
+  it("shows the order type in effect without opening", () => {
     render(
-      <PricingBasisSelect
+      <PricingOrderTypeSelect
         options={options}
         formatValue={formatValue}
         onChange={() => {}}
@@ -52,7 +52,7 @@ describe("PricingBasisSelect", () => {
     expect(screen.getByRole("button")).toHaveTextContent("Sell Orders");
   });
 
-  it("offers every basis with what each one costs", async () => {
+  it("offers every order type with what each one costs", async () => {
     await open();
 
     const items = screen.getAllByRole("option");
@@ -65,7 +65,7 @@ describe("PricingBasisSelect", () => {
     });
   });
 
-  it("marks the basis in effect as selected", async () => {
+  it("marks the order type in effect as selected", async () => {
     await open();
 
     const items = screen.getAllByRole("option");
@@ -73,14 +73,14 @@ describe("PricingBasisSelect", () => {
     expect(items[0]).toHaveAttribute("aria-selected", "false");
   });
 
-  it("shows how far each other basis sits from the one in effect", async () => {
+  it("shows how far each other order type sits from the one in effect", async () => {
     await open();
 
     const buyP95 = screen.getAllByRole("option")[2];
     expect(within(buyP95).getByText("−30 ISK")).toBeInTheDocument();
   });
 
-  it("shows no delta against the basis already in effect", async () => {
+  it("shows no delta against the order type already in effect", async () => {
     await open();
 
     const sell = screen.getAllByRole("option")[1];
@@ -88,7 +88,7 @@ describe("PricingBasisSelect", () => {
     expect(within(sell).queryByText(/^[+−]/)).toBeNull();
   });
 
-  it("reports the basis a player picks", async () => {
+  it("reports the order type a player picks", async () => {
     const onChange = vi.fn();
     const user = await open({ onChange });
 
@@ -97,7 +97,7 @@ describe("PricingBasisSelect", () => {
     expect(onChange).toHaveBeenCalledWith("buyP95");
   });
 
-  it("does not report a change when the basis in effect is picked again", async () => {
+  it("does not report a change when the order type in effect is picked again", async () => {
     const onChange = vi.fn();
     const user = await open({ onChange });
 
@@ -108,7 +108,7 @@ describe("PricingBasisSelect", () => {
 
   it("renders nothing when there are no bases to offer", () => {
     const { container } = render(
-      <PricingBasisSelect
+      <PricingOrderTypeSelect
         options={[]}
         formatValue={formatValue}
         onChange={() => {}}
@@ -119,7 +119,7 @@ describe("PricingBasisSelect", () => {
   });
 });
 
-describe("what each basis means", () => {
+describe("what each order type means", () => {
   const explained = options.map((option, index) => ({
     ...option,
     caption: `caption ${index}`,
@@ -133,14 +133,14 @@ describe("what each basis means", () => {
     expect(screen.getByText("caption 0")).toBeInTheDocument();
   });
 
-  it("still lists a basis that carries no explanation", async () => {
+  it("still lists an order type that carries no explanation", async () => {
     await open();
 
     expect(screen.getAllByRole("option")).toHaveLength(options.length);
   });
 });
 
-describe("rows that are not on this basis", () => {
+describe("rows that are not on this order type", () => {
   it("counts them, so an override is visible without opening a dialogue", async () => {
     await open({ usage: { overridden: 2, purchased: 3 } });
 
@@ -153,7 +153,7 @@ describe("rows that are not on this basis", () => {
     expect(screen.getByText("3 purchased")).toBeInTheDocument();
   });
 
-  it("says nothing when every row is on the basis", async () => {
+  it("says nothing when every row is on the order type", async () => {
     await open({ usage: { overridden: 0, purchased: 0 } });
 
     expect(screen.queryByText(/overridden|purchased/)).toBeNull();

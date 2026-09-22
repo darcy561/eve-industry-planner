@@ -19,14 +19,14 @@ import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts
  * @param {object} childJob - The job being costed, real or speculative
  * @param {object} temporaryChildJobs - Speculative jobs by material type id
  * @param {string} marketLocation
- * @param {string} listingType
+ * @param {string} orderType
  * @returns {ChildJobTotals}
  */
 export function calculateChildJobTotals(
   childJob,
   temporaryChildJobs = {},
   marketLocation,
-  listingType,
+  orderType,
 ) {
   const totalCostOfMaterials = Object.values(
     childJob?.build?.materials ?? {},
@@ -38,7 +38,7 @@ export function calculateChildJobTotals(
         childJob.build.childJobs[material.typeID],
         temporaryChildJobs[material.typeID],
         marketLocation,
-        listingType,
+        orderType,
       ),
     0,
   );

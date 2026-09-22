@@ -1,34 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { stubElementHeights } from "../../../../tests/elementHeights";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import StructureForm from "./structureForm";
-import { jobTypes, structureKinds } from "../../../../Context/defaultValues";
+import { jobTypes } from "../../../../Context/defaultValues";
 import { testQueryClient } from "../../../../tests/queryClients.js";
 
 const addCustomStructure = vi.fn();
 const addCustomStructureFunction = vi.fn();
-const describeMarketLocation = vi.fn();
 
 vi.mock("../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../tests/usersStoreHarness.js");
   return usersStoreMock({});
 });
-
-vi.mock("../../../../Hooks/EveEsi/useAssetLocations", () => ({
-  default: () => ({
-    locations: [{ locationId: 60003760, name: "Jita IV-4", unreadable: false }],
-    isLoading: false,
-    isError: false,
-  }),
-}));
-
-vi.mock("../../../../Functions/Structure/describeMarketLocation", () => ({
-  default: (...args) => describeMarketLocation(...args),
-}));
 
 vi.mock("../../../../Functions/Structure/addCustomStructure", () => ({
   addCustomStructure: (...args) => addCustomStructureFunction(...args),
@@ -182,14 +168,12 @@ describe("what each kind is asked for", () => {
   // Matched on the field's own title rather than on any text: a control carries
   // its own label too, so a loose match counts one field twice.
   const TITLES = [
-    "Location",
     "Structure Type",
     "Rig slot 1",
     "Rig slot 2",
     "Implant",
     "Security Status",
     "Structure Tax",
-    "Broker fee",
     "Solar System",
   ];
   const asked = () =>
@@ -225,17 +209,6 @@ describe("what each kind is asked for", () => {
     expect(asked()).not.toContain("Implant");
     expect(asked()).not.toContain("Solar System");
   });
-
-  // A market is a place and a rate. Asking it for a rig or an installation tax
-  // would be describing it as somewhere a job is built.
-  // A market is asked where it is and nothing else until it knows: a station
-  // has no rate of its own to give, and a citadel cannot be asked for one
-  // before a citadel is the place chosen.
-  it("asks a market for its location alone before a place is chosen", () => {
-    renderForm({ selectedJobType: structureKinds.market });
-
-    expect(asked()).toEqual(["Location"]);
-  });
 });
 
 // Rendering a field is not the same as being able to use it. Every control the
@@ -256,11 +229,10 @@ describe("every field the form offers can be set", () => {
       implant: ["setImplant"],
       systemType: ["setSystemType"],
       tax: ["setTax"],
-      brokerFee: ["setBrokerFee"],
       systemID: ["setSystemID"],
     };
 
-    const structure = new Structure(undefined, structureKinds.market);
+    const structure = new Structure(undefined, jobTypes.manufacturing);
     for (const entry of STRUCTURE_FIELDS) {
       for (const setter of setterFor[entry.id] ?? []) {
         expect(typeof structure[setter], `${entry.id} needs ${setter}`).toBe(
@@ -273,53 +245,12 @@ describe("every field the form offers can be set", () => {
   });
 });
 
-// A field being settable is not the same as being settled. A saved market must
-// carry a region, because an order book is read per region — a row without one
-// is offered in every picker and prices nothing.
-describe("what a saved market carries", () => {
-  // The picker virtualises its list, and jsdom measures every element as zero
-  // high, so without this it renders no options to choose from.
-  let restoreHeights;
-  beforeEach(() => {
-    restoreHeights = stubElementHeights();
-  });
-  afterEach(() => restoreHeights?.());
-
-  it("stores the region and fee inputs derived from the place chosen", async () => {
-    // Three ESI calls deep, so it settles after the render that set the place.
-    describeMarketLocation.mockImplementation(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(
-            () => resolve({ regionID: 10000002, raceID: 1, ownerID: 1000035 }),
-            10,
-          ),
-        ),
-    );
-    renderForm({ selectedJobType: structureKinds.market });
-
-    const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/Structure name/i), "My Jita office");
-    await user.type(screen.getByRole("combobox"), "Jita");
-    await user.click(await screen.findByRole("option", { name: /Jita IV-4/ }));
-    await user.click(screen.getByRole("button", { name: /Add structure/i }));
-
-    const saved = addCustomStructureFunction.mock.calls.at(-1)[0].structure;
-    expect(saved.toDocument()).toMatchObject({
-      stationID: 60003760,
-      regionID: 10000002,
-      raceID: 1,
-      ownerID: 1000035,
-    });
-  });
-});
-
 // Every picker lists saved rows by name, so a nameless one is an empty option
 // among other empty options — a reader cannot pick the right one or tell they
 // picked wrong.
 describe("saving needs a name", () => {
-  it("refuses a market with no name and says why", async () => {
-    renderForm({ selectedJobType: structureKinds.market });
+  it("refuses a structure with no name and says why", async () => {
+    renderForm({ selectedJobType: jobTypes.reprocessing });
 
     await userEvent.click(
       screen.getByRole("button", { name: /Add structure/i }),
@@ -331,9 +262,7 @@ describe("saving needs a name", () => {
     ).toBeInTheDocument();
   });
 
-  // Not a market rule: nothing has ever checked, so every kind could be saved
-  // nameless.
-  it("refuses a build structure with no name too", async () => {
+  it("refuses another kind with no name too", async () => {
     renderForm({ selectedJobType: jobTypes.manufacturing });
 
     await userEvent.click(
@@ -346,7 +275,7 @@ describe("saving needs a name", () => {
   // Spaces are not a name. A row called " " is as hard to pick out as one
   // called nothing.
   it("refuses a name that is only spaces", async () => {
-    renderForm({ selectedJobType: structureKinds.market });
+    renderForm({ selectedJobType: jobTypes.reprocessing });
 
     await userEvent.type(screen.getByLabelText(/Structure name/i), "   ");
     await userEvent.click(
@@ -357,7 +286,7 @@ describe("saving needs a name", () => {
   });
 
   it("stops saying so once a name is given", async () => {
-    renderForm({ selectedJobType: structureKinds.market });
+    renderForm({ selectedJobType: jobTypes.reprocessing });
     await userEvent.click(
       screen.getByRole("button", { name: /Add structure/i }),
     );

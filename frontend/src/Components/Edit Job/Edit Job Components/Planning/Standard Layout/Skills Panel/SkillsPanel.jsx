@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Box, Chip, Link, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
@@ -15,6 +15,7 @@ import { quotedCharacterHash } from "../../../../../../Functions/Skills/quotedCh
 import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSellingContext";
 import { useSellingRates } from "../../../../../../Hooks/React Query/Character/useSellingRates";
 import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
+import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import SkillsWhatIf from "./skillsWhatIf";
 import SkillLevelPips from "./skillLevelPips";
 import SkillsTimeEffect from "./skillsTimeEffect";
@@ -53,6 +54,17 @@ export function SkillsPanel() {
   // A job whose output is owed to its parents never lists anything, so what
   // selling would cost is not a question it has.
   const { surplus } = useJobCommitment();
+  // The listed value below is read out of the cache as this renders, so the
+  // query is what tells it the figure has moved.
+  const pricedAtID = saleLocation?.pricedAtID;
+  const wants = useMemo(
+    () =>
+      itemID == null || !pricedAtID
+        ? []
+        : [{ typeID: itemID, sourceID: pricedAtID }],
+    [itemID, pricedAtID],
+  );
+  useMarketPricesQuery(wants);
   const build = useGetCharacterSkills(buildCharacterHash);
   const sell = useGetCharacterSkills(seller.hash);
   const { data: rates } = useSellingRates(saleLocation, seller.hash);

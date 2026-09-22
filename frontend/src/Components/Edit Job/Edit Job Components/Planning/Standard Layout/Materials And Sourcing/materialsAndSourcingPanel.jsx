@@ -9,7 +9,7 @@ import {
 } from "@mui/material";
 
 import AppShellPanel from "../../../../../../Styled Components/Paper/AppShellPanel";
-import PricingBasisSelect from "../../../../../../Styled Components/Select/pricingBasis";
+import PricingOrderTypeSelect from "../../../../../../Styled Components/Select/pricingOrderType";
 import { MarketLocationSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketLocation";
 import writeTextToClipboard from "../../../../../../Functions/Clipboard/writeTextToClipboard";
 import {
@@ -70,11 +70,11 @@ export default function MaterialsAndSourcingPanel() {
   const {
     rows,
     summary,
-    basisOptions,
-    basisUsage,
+    orderTypeOptions,
+    orderTypeUsage,
     priceAge,
     marketLocation,
-    listingType,
+    orderType,
   } = useMaterialsSourcing({ displayType });
 
   const {
@@ -156,9 +156,9 @@ export default function MaterialsAndSourcingPanel() {
     actions.forgetSpeculativeChildJobs(jobs.map((job) => job.itemID));
   };
 
-  // The basis every row is priced on unless it carries an override of its own.
-  const changeBasis = (basisID) =>
-    updateJobPricing(PRICING_SIDE.BUYING, "basis", basisID);
+  // The order type every row is priced on unless it carries an override of its own.
+  const changeOrderType = (orderTypeID) =>
+    updateJobPricing(PRICING_SIDE.BUYING, "orderType", orderTypeID);
 
   const toggleRow = (typeID) =>
     setOpenTypeIDs((open) =>
@@ -193,13 +193,13 @@ export default function MaterialsAndSourcingPanel() {
             disabled={readOnly}
             customFormStyling={{ minWidth: 120 }}
           />
-          <PricingBasisSelect
-            options={basisOptions}
+          <PricingOrderTypeSelect
+            options={orderTypeOptions}
             formatValue={formatIsk}
             label="Materials"
-            usage={basisUsage}
+            usage={orderTypeUsage}
             age={priceAge}
-            onChange={changeBasis}
+            onChange={changeOrderType}
             onReset={clearAllMaterialPriceOverrides}
             disabled={readOnly}
           />
@@ -265,19 +265,18 @@ export default function MaterialsAndSourcingPanel() {
               material={row.material}
               matchedChildJobs={row.matchedChildJobs}
               marketLocation={row.marketLocation}
-              listingType={row.listingType}
+              orderType={row.orderType}
               currentMaterialPrice={row.buyPrice ?? 0}
               coverage={row.coverage}
               pricing={{
                 overrideMarketLocation: overrideFor(build, row.typeID)
                   .marketDisplay,
-                overrideListingType: overrideFor(build, row.typeID)
-                  .orderDisplay,
+                overrideOrderType: overrideFor(build, row.typeID).orderDisplay,
                 panelMarketLocation: marketLocation,
-                panelListingType: listingType,
+                panelOrderType: orderType,
                 onMarketLocationCommit: (typeID, id) =>
                   updateMaterialPriceOverride(typeID, "marketDisplay", id),
-                onListingTypeCommit: (typeID, id) =>
+                onOrderTypeCommit: (typeID, id) =>
                   updateMaterialPriceOverride(typeID, "orderDisplay", id),
                 onReset: resetMaterialPriceOverride,
                 disabled: readOnly,

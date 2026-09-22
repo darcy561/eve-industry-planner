@@ -43,7 +43,7 @@ function OutputJobCard({ inputJob, state, actions }) {
   // way: reading the account's market for a job that names another would read
   // an entry nobody asked for and show a zero.
   const currentMarketPrice = useMemo(() => {
-    const { marketLocation, listingType } = resolveFor(
+    const { marketLocation, orderType } = resolveFor(
       sideDefaults(PRICING_SIDE.SELLING, {
         jobPricing: inputJob.build?.localPricing,
         accountPricing,
@@ -51,7 +51,7 @@ function OutputJobCard({ inputJob, state, actions }) {
       inputJob.build,
       inputJob.itemID,
     );
-    return getMarketPriceForType(inputJob.itemID, marketLocation, listingType);
+    return getMarketPriceForType(inputJob.itemID, marketLocation, orderType);
   }, [inputJob.build, inputJob.itemID, accountPricing]);
 
   const isHighlighted = state.highlightedItems.has(inputJob.jobID);

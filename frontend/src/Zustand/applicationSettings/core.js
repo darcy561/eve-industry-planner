@@ -16,7 +16,7 @@ import customStructuresFromServer from "../../Functions/Helper/customStructuresF
 import { detectUserLocale } from "../../Functions/Helper/localeDetection";
 import { jobStatusesForPersist } from "../../Functions/Helper/jobStatuses";
 
-const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION, DEFAULT_ASSET_LOCATION } =
+const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE, DEFAULT_ASSET_LOCATION } =
   GLOBAL_CONFIG;
 
 function defaultReprocessingSettings() {
@@ -27,26 +27,26 @@ function defaultReprocessingSettings() {
 }
 
 /**
- * One side's default. The buying side names a basis; the selling side names the
- * route its output leaves by, which decides the basis and the charges together.
+ * One side's default. The buying side names an order type; the selling side names the
+ * route its output leaves by, which decides the order type and the charges together.
  *
- * @typedef {{market: string, basis?: string, exit?: string,
- *   groups?: Object<string, {market?: string, basis?: string}>}} PricingSide
+ * @typedef {{market: string, orderType?: string, exit?: string,
+ *   groups?: Object<string, {market?: string, orderType?: string}>}} PricingSide
  */
 
 /**
- * The route an account priced on a basis was already being shown.
+ * The route an account priced on an order type was already being shown.
  *
  * Returns led with the listing for everyone before the route was stored, so an
  * account that named the bid side was reading a listing's fee against a bid's
- * price. Taking its basis at its word repairs that, and leaves everyone else on
+ * price. Taking its order type at its word repairs that, and leaves everyone else on
  * the route they already had.
  *
- * @param {string|null|undefined} basis
+ * @param {string|null|undefined} orderType
  * @returns {string}
  */
-function exitForBasis(basis) {
-  return basis === "buy" || basis === "buyP95"
+function exitForOrderType(orderType) {
+  return orderType === "buy" || orderType === "buyP95"
     ? EXIT_ROUTE.IMMEDIATE
     : EXIT_ROUTE.LISTED;
 }
@@ -58,11 +58,11 @@ function exitForBasis(basis) {
  */
 function defaultPricingSides() {
   return {
-    buying: { market: DEFAULT_MARKET_OPTION, basis: DEFAULT_ORDER_OPTION },
-    // The selling side names a route out rather than a basis, and the blank
+    buying: { market: DEFAULT_MARKET_OPTION, orderType: DEFAULT_ORDER_TYPE },
+    // The selling side names a route out rather than an order type, and the blank
     // state names none: a route seeded here could not be told from one the
     // player chose, and the merge has to keep a choice while still letting a
-    // legacy account's stored basis answer on first load. Readers fall back to
+    // legacy account's stored order type answer on first load. Readers fall back to
     // EXIT_ROUTE.LISTED, which is where that default belongs.
     selling: { market: DEFAULT_MARKET_OPTION },
   };
@@ -79,10 +79,10 @@ function defaultPricingSides() {
  * @param {object} incoming
  * @param {object} prev
  * @param {string} market - The single default, already merged
- * @param {string} basis - The single order type, already merged
+ * @param {string} orderType - The single order type, already merged
  * @returns {{buying: PricingSide, selling: PricingSide}}
  */
-function mergePricingDefaults(incoming, prev, market, basis) {
+function mergePricingDefaults(incoming, prev, market, orderType) {
   const previous = prev.defaultPricing ?? defaultPricingSides();
 
   const side = (name) => {
@@ -91,8 +91,11 @@ function mergePricingDefaults(incoming, prev, market, basis) {
     // so an account stored before the split arrives as `{}` on each side.
     const sent = incoming.defaultPricing?.[name];
     const chosen = sent?.market
-      ? { market: sent.market, basis: sent.basis || previous[name].basis }
-      : { market, basis };
+      ? {
+          market: sent.market,
+          orderType: sent.orderType || previous[name].orderType,
+        }
+      : { market, orderType };
 
     // The side's market group defaults and its route out travel with it.
     // Dropping either here would lose it on the next save, because what is
@@ -103,12 +106,12 @@ function mergePricingDefaults(incoming, prev, market, basis) {
       return groups ? { ...chosen, groups } : chosen;
     }
 
-    // The selling side names a route instead of a basis, so the basis it seeded
+    // The selling side names a route instead of an order type, so the order type it seeded
     // from is read as one and then dropped: two stored answers to the same
     // question are free to disagree, and the route is the one that also decides
     // whether a broker fee is charged.
     // A route the server sent wins. Where it sent this side without one, its
-    // basis answers — a document stored before routes existed is still the
+    // order type answers — a document stored before routes existed is still the
     // server answering. Only where it sent nothing for this side does the route
     // already held stand, which is a choice because the blank state names none;
     // and behind that the legacy single default, for a legacy account's first
@@ -117,12 +120,12 @@ function mergePricingDefaults(incoming, prev, market, basis) {
     // chosen route on the next merge that said nothing about pricing.
     const exit =
       sent?.exit ??
-      (sent?.market || sent?.basis
-        ? exitForBasis(chosen.basis)
-        : (previous[name].exit ?? exitForBasis(chosen.basis)));
-    const { basis: _seeded, ...withoutBasis } = chosen;
+      (sent?.market || sent?.orderType
+        ? exitForOrderType(chosen.orderType)
+        : (previous[name].exit ?? exitForOrderType(chosen.orderType)));
+    const { orderType: _seeded, ...withoutOrderType } = chosen;
 
-    return { ...withoutBasis, exit, ...(groups ? { groups } : {}) };
+    return { ...withoutOrderType, exit, ...(groups ? { groups } : {}) };
   };
 
   return { buying: side("buying"), selling: side("selling") };
@@ -168,7 +171,7 @@ export const stateDefault = () => ({
   esiJobTab: null,
   defaultMaterialEfficiencyValue: 0,
   defaultMarketLocation: DEFAULT_MARKET_OPTION,
-  defaultOrderType: DEFAULT_ORDER_OPTION,
+  defaultOrderType: DEFAULT_ORDER_TYPE,
   defaultPricing: defaultPricingSides(),
   hideCompleteMaterials: false,
   defaultStationIDForAssets: DEFAULT_ASSET_LOCATION,

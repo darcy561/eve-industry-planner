@@ -40,9 +40,8 @@ import { ensureSellingRateInputs } from "../../Hooks/React Query/Character/useSe
  * @returns {number|undefined} The saved rate, or nothing when none is saved
  */
 function savedCitadelFee(locationID) {
-  return getSaleCitadels().find(
-    (citadel) => citadel.structureID === locationID,
-  )?.brokerFee;
+  return getSaleCitadels().find((citadel) => citadel.structureID === locationID)
+    ?.brokerFee;
 }
 
 export default async function calcSellingCharges(

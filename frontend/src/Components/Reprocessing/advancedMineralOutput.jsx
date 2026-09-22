@@ -108,7 +108,7 @@ export function AdvancedMineralOutput(props) {
         const unitPrice = getMarketPriceForType(
           item.id,
           pageState.marketLocation,
-          pageState.listingType,
+          pageState.orderType,
         );
         return acc + unitPrice * item.quantity;
       }, 0);
@@ -123,7 +123,7 @@ export function AdvancedMineralOutput(props) {
           const unitPrice = getMarketPriceForType(
             mineralId,
             pageState.marketLocation,
-            pageState.listingType,
+            pageState.orderType,
           );
           const totalQuantity =
             item.itemType === reprocessingItemTypes.gas
@@ -138,7 +138,7 @@ export function AdvancedMineralOutput(props) {
     pageState.processedInput,
     pageState.reprocessingObjects,
     pageState.marketLocation,
-    pageState.listingType,
+    pageState.orderType,
     pageState.toMinerals,
     isLoading,
   ]);
@@ -150,14 +150,14 @@ export function AdvancedMineralOutput(props) {
       const unitPrice = getMarketPriceForType(
         item.id,
         pageState.marketLocation,
-        pageState.listingType,
+        pageState.orderType,
       );
       return acc + unitPrice * item.totalQuantity;
     }, 0);
   }, [
     pageState.reprocessingObjects,
     pageState.marketLocation,
-    pageState.listingType,
+    pageState.orderType,
     isLoading,
   ]);
 
@@ -185,7 +185,7 @@ export function AdvancedMineralOutput(props) {
           const unitPrice = getMarketPriceForType(
             mineralId,
             pageState.marketLocation,
-            pageState.listingType,
+            pageState.orderType,
           );
           const totalQuantity =
             item.itemType === reprocessingItemTypes.gas
@@ -201,7 +201,7 @@ export function AdvancedMineralOutput(props) {
     pageState.requestedMinerals,
     pageState.reprocessingCalculationSettings.sellExcessMineralTypes,
     pageState.marketLocation,
-    pageState.listingType,
+    pageState.orderType,
     pageState.toMinerals,
     isLoading,
   ]);
@@ -227,7 +227,7 @@ export function AdvancedMineralOutput(props) {
       getMarketPriceForType(
         item.id,
         pageState.marketLocation,
-        pageState.listingType,
+        pageState.orderType,
       ) * item.totalQuantity;
 
     // Calculate total reprocessed quantity of all minerals
@@ -253,7 +253,7 @@ export function AdvancedMineralOutput(props) {
         const mineralPrice = getMarketPriceForType(
           mineralId,
           pageState.marketLocation,
-          pageState.listingType,
+          pageState.orderType,
         );
         const marketValue = mineralPrice * reprocessedQuantity;
 
@@ -542,7 +542,7 @@ export function AdvancedMineralOutput(props) {
               const unitPrice = getMarketPriceForType(
                 item.id,
                 pageState.marketLocation,
-                pageState.listingType,
+                pageState.orderType,
               );
               const totalValue = unitPrice * item.totalQuantity;
 
@@ -696,7 +696,7 @@ export function AdvancedMineralOutput(props) {
                         const unitPrice = getMarketPriceForType(
                           key,
                           pageState.marketLocation,
-                          pageState.listingType,
+                          pageState.orderType,
                         );
 
                         // Calculate reprocessing cost for this mineral from this specific ore

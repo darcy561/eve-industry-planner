@@ -18,8 +18,8 @@ import { resolvePricingSideRungs } from "../../Functions/MarketData/pricingSide.
  * @param {object|undefined} jobPricing - The job's own pricing choice, from its
  *   build; absent where it has made none
  * @param {string} side - One of PRICING_SIDE
- * @returns {{marketLocation: string, listingType: string,
- *   marketLocationRung: string, listingTypeRung: string}}
+ * @returns {{marketLocation: string, orderType: string,
+ *   marketLocationRung: string, orderTypeRung: string}}
  */
 export function useEffectiveMarketHub(jobPricing, side) {
   const accountPricing = useUsersStore(

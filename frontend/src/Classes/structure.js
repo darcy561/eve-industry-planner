@@ -12,10 +12,6 @@ import DOMPurify from "dompurify";
 import coerceFiniteNumber from "../Functions/Helper/coerceFiniteNumber";
 import coerceTaxPercentage from "../Functions/Helper/coerceTaxPercentage";
 import rigSlotBonuses from "../Functions/Helper/rigSlotBonuses";
-import {
-  LOCATION_KIND,
-  resolveLocationKind,
-} from "../Functions/Assets/assetLocationConstants";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
 /**
@@ -26,13 +22,12 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
  * Adding a kind is an entry here, not a new class.
  *
  * @type {Object<number, {built?: boolean, rigSlots?: boolean, implant?: boolean,
- *   systemID?: boolean, regionID?: boolean, stationID?: boolean,
- *   stationOwner?: boolean, structureID?: boolean, brokerFee?: boolean}>}
+ *   systemID?: boolean}>}
  */
 const fieldsByJobType = {
   // `built` is the three fields a place a job is performed in carries: a
   // security modifier, a structure type carrying bonuses, and an installation
-  // tax. A market charges a broker fee instead and has none of them.
+  // tax.
   [structureKinds.manufacturing]: {
     built: true,
     rigSlots: true,
@@ -41,17 +36,6 @@ const fieldsByJobType = {
   [structureKinds.reaction]: { built: true, rigSlots: true, systemID: true },
   [structureKinds.reprocessing]: { built: true, rigSlots: true, implant: true },
   [structureKinds.invention]: { built: true, rigSlots: true },
-  // A market names a region, because a price is asked for per region and then
-  // narrowed to one location. Which field narrows it — and whether the row
-  // carries a fee of its own or what its fee is derived from — follows from the
-  // place chosen rather than from a kind of its own.
-  [structureKinds.market]: {
-    regionID: true,
-    stationID: true,
-    structureID: true,
-    stationOwner: true,
-    brokerFee: true,
-  },
 };
 
 /**
@@ -88,12 +72,6 @@ class Structure {
    * @param {number} [existingValue.rigSlot2] - Second rig slot id
    * @param {number} [existingValue.implant] - Implant id, on the kinds that have one
    * @param {number} [existingValue.systemID] - System id, on the kinds that have one
-   * @param {number} [existingValue.regionID] - Region id, on the market kinds
-   * @param {number} [existingValue.stationID] - NPC station id, on that kind
-   * @param {number} [existingValue.raceID] - The race that built the station
-   * @param {number} [existingValue.ownerID] - The corporation that owns it
-   * @param {number} [existingValue.structureID] - Citadel id, on that kind
-   * @param {number} [existingValue.brokerFee] - Owner's rate as a percentage, on a citadel
    * @param {number} [jobType] - The kind, for a new structure that does not name its own
    */
   constructor(existingValue, jobType) {
@@ -123,30 +101,13 @@ class Structure {
         DEFAULT_SYSTEM,
       );
     }
-    if (fields.regionID) {
-      this.regionID = coerceFiniteNumber(existingValue?.regionID, 0);
-    }
-    if (fields.stationID) {
-      this.stationID = coerceFiniteNumber(existingValue?.stationID, 0);
-    }
-    if (fields.stationOwner) {
-      this.raceID = coerceFiniteNumber(existingValue?.raceID, 0);
-      this.ownerID = coerceFiniteNumber(existingValue?.ownerID, 0);
-    }
-    if (fields.structureID) {
-      this.structureID = coerceFiniteNumber(existingValue?.structureID, 0);
-    }
-    if (fields.brokerFee) {
-      this.brokerFee = coerceTaxPercentage(existingValue?.brokerFee);
-    }
   }
 
   /**
    * Which optional fields this structure's kind carries.
    *
    * @returns {{built?: boolean, rigSlots?: boolean, implant?: boolean,
-   *   systemID?: boolean, regionID?: boolean, stationID?: boolean,
-   *   stationOwner?: boolean, structureID?: boolean, brokerFee?: boolean}}
+   *   systemID?: boolean}}
    */
   get fields() {
     return fieldsByJobType[this.jobType] ?? {};
@@ -219,67 +180,6 @@ class Structure {
    */
   setDefault(isDefault) {
     this.default = isDefault;
-  }
-
-  /**
-   * @param {number} regionID - The region whose order book carries this market
-   */
-  setRegionID(regionID) {
-    this.regionID = coerceFiniteNumber(regionID, 0);
-  }
-
-  /**
-   * The place this market is.
-   *
-   * One choice, so naming a place clears whatever was named before: a row
-   * holding both ids is a market of neither sort, and the fields that follow
-   * from the place would be the last place's rather than this one's.
-   *
-   * Which field it lands in is what says the sort, and an EVE location id says
-   * that by the range it falls in.
-   *
-   * @param {number} locationID - The station or citadel chosen
-   */
-  setPlace(locationID) {
-    const id = coerceFiniteNumber(locationID, 0);
-    const atStation = resolveLocationKind(id) === LOCATION_KIND.STATION;
-
-    this.stationID = atStation ? id : 0;
-    this.structureID = atStation ? 0 : id;
-
-    if (this.fields.brokerFee) this.brokerFee = 0;
-    if (this.fields.stationOwner) {
-      this.raceID = 0;
-      this.ownerID = 0;
-    }
-  }
-
-  /**
-   * What an NPC station's broker fee is worked out from.
-   *
-   * The race names the faction a standing is held against and the owner is the
-   * corporation holding the other. Both are fixed for the life of the station,
-   * so they are read once when it is saved.
-   *
-   * @param {number} raceID - The race that built the station
-   * @param {number} ownerID - The corporation that owns it
-   */
-  setStationOwner(raceID, ownerID) {
-    this.raceID = coerceFiniteNumber(raceID, 0);
-    this.ownerID = coerceFiniteNumber(ownerID, 0);
-  }
-
-  /**
-   * The rate a citadel's owner set, as a percentage.
-   *
-   * Only a citadel stores one. An NPC station's broker fee is worked out from
-   * the seller's skills and standings, so a stored number there would stand in
-   * for that derivation and quote the untrained rate without saying so.
-   *
-   * @param {number} brokerFee - Rate as a percentage, so 1.5 means 1.5%
-   */
-  setBrokerFee(brokerFee) {
-    this.brokerFee = coerceTaxPercentage(brokerFee);
   }
 
   /**
@@ -377,13 +277,6 @@ class Structure {
         : {}),
       ...(fields.implant ? { implant: this.implant } : {}),
       ...(fields.systemID ? { systemID: this.systemID } : {}),
-      ...(fields.regionID ? { regionID: this.regionID } : {}),
-      ...(fields.stationID ? { stationID: this.stationID } : {}),
-      ...(fields.stationOwner
-        ? { raceID: this.raceID, ownerID: this.ownerID }
-        : {}),
-      ...(fields.structureID ? { structureID: this.structureID } : {}),
-      ...(fields.brokerFee ? { brokerFee: this.brokerFee } : {}),
     };
   }
 }

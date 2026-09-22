@@ -12,8 +12,8 @@ vi.mock("../Helper/getCachedData", async () => {
 
 import { getFullItemList, getMarketGroups } from "../Helper/getCachedData";
 import {
-  ancestorPath,
-  childrenOf,
+  ancestorPathIn,
+  childrenIn,
   groupPricingFor,
   marketGroupOf,
   primeMarketGroupData,
@@ -97,7 +97,7 @@ describe("groupPricingFor", () => {
     groupPricingFor({
       groupDefaults,
       marketLocationRung: PRICING_RUNG.ACCOUNT,
-      listingTypeRung: PRICING_RUNG.ACCOUNT,
+      orderTypeRung: PRICING_RUNG.ACCOUNT,
     });
 
   it("answers with the tree, the defaults and a reader", async () => {
@@ -114,7 +114,7 @@ describe("groupPricingFor", () => {
 
     const answer = build({ 1857: { market: "jita" } });
     expect(answer.marketLocationRung).toBe(PRICING_RUNG.ACCOUNT);
-    expect(answer.listingTypeRung).toBe(PRICING_RUNG.ACCOUNT);
+    expect(answer.orderTypeRung).toBe(PRICING_RUNG.ACCOUNT);
   });
 
   // Each of these leaves the ladder reading as it did before the rung existed,
@@ -164,7 +164,7 @@ describe("childrenOf", () => {
 
     // Ids 4, 5, 1849 against names Ammunition, Materials, Zydrine Holdings: the
     // two orders disagree, so this fails if the file's order is passed through.
-    expect(childrenOf().map((g) => g.name)).toEqual([
+    expect(childrenIn(readMarketGroups()).map((g) => g.name)).toEqual([
       "Ammunition",
       "Materials",
       "Zydrine Holdings",
@@ -176,7 +176,7 @@ describe("childrenOf", () => {
 
     // The file lists these as [1857, 1996] — Moon Materials then Minerals — so
     // the names come back in the opposite order to the ids.
-    expect(childrenOf(1849).map((g) => g.name)).toEqual([
+    expect(childrenIn(readMarketGroups(), 1849).map((g) => g.name)).toEqual([
       "Minerals",
       "Moon Materials",
     ]);
@@ -188,7 +188,9 @@ describe("childrenOf", () => {
   it("orders by name rather than by id", async () => {
     await primeBranch();
 
-    expect(childrenOf().map((g) => g.id)).toEqual([5, 1849, 4]);
+    expect(childrenIn(readMarketGroups()).map((g) => g.id)).toEqual([
+      5, 1849, 4,
+    ]);
   });
 
   // Both answers matter to a picker: one says whether opening the row leads
@@ -196,7 +198,7 @@ describe("childrenOf", () => {
   it("says whether a group can be opened and whether it holds items", async () => {
     await primeBranch();
 
-    const [minerals, moon] = childrenOf(1849);
+    const [minerals, moon] = childrenIn(readMarketGroups(), 1849);
     expect(minerals).toMatchObject({ hasChildren: false, hasTypes: true });
     expect(moon).toMatchObject({ hasChildren: true, hasTypes: false });
   });
@@ -204,17 +206,17 @@ describe("childrenOf", () => {
   it("answers nothing for a leaf", async () => {
     await primeBranch();
 
-    expect(childrenOf(1996)).toEqual([]);
+    expect(childrenIn(readMarketGroups(), 1996)).toEqual([]);
   });
 
   it("answers nothing for a group the tree does not carry", async () => {
     await primeBranch();
 
-    expect(childrenOf(9999)).toEqual([]);
+    expect(childrenIn(readMarketGroups(), 9999)).toEqual([]);
   });
 
   it("answers nothing before the tree has loaded", () => {
-    expect(childrenOf()).toEqual([]);
+    expect(childrenIn(readMarketGroups())).toEqual([]);
   });
 });
 
@@ -222,27 +224,27 @@ describe("ancestorPath", () => {
   it("names what contains a group, outermost first", async () => {
     await primeBranch();
 
-    expect(ancestorPath(1998).map((g) => g.name)).toEqual([
-      "Materials",
-      "Moon Materials",
-      "Raw Moon Materials",
-    ]);
+    expect(ancestorPathIn(readMarketGroups(), 1998).map((g) => g.name)).toEqual(
+      ["Materials", "Moon Materials", "Raw Moon Materials"],
+    );
   });
 
   it("answers a root as itself", async () => {
     await primeBranch();
 
-    expect(ancestorPath(1849)).toEqual([{ id: 1849, name: "Materials" }]);
+    expect(ancestorPathIn(readMarketGroups(), 1849)).toEqual([
+      { id: 1849, name: "Materials" },
+    ]);
   });
 
   it("answers nothing for no group", async () => {
     await primeBranch();
 
-    expect(ancestorPath(undefined)).toEqual([]);
+    expect(ancestorPathIn(readMarketGroups(), undefined)).toEqual([]);
   });
 
   it("answers nothing before the tree has loaded", () => {
-    expect(ancestorPath(1857)).toEqual([]);
+    expect(ancestorPathIn(readMarketGroups(), 1857)).toEqual([]);
   });
 
   // The walk down is driven by a reader and stops when they stop; this one runs
@@ -254,6 +256,8 @@ describe("ancestorPath", () => {
     });
     await primeMarketGroupData();
 
-    expect(ancestorPath(1).length).toBeLessThanOrEqual(32);
+    expect(ancestorPathIn(readMarketGroups(), 1).length).toBeLessThanOrEqual(
+      32,
+    );
   });
 });

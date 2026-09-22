@@ -11,7 +11,7 @@ import { useMarketPricesQuery } from "../../../../Hooks/React Query/World/market
 function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   // Both columns state a build cost, which is what the materials cost to buy.
-  const { listingType } = useWatchlistPricing();
+  const { orderType } = useWatchlistPricing();
 
   const hasItems = userWatchlist.items.length > 0;
   const hasGroups = userWatchlist.groups?.length > 0;
@@ -72,8 +72,7 @@ function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
               align="center"
               sx={{ typography: { xs: "caption", sm: "body2" } }}
             >
-              ({listingType.charAt(0).toUpperCase() + listingType.slice(1)}{" "}
-              Orders)
+              ({orderType.charAt(0).toUpperCase() + orderType.slice(1)} Orders)
             </Typography>
           </Grid>
           <Grid
@@ -92,8 +91,7 @@ function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {
               align="center"
               sx={{ typography: { xs: "caption", sm: "body2" } }}
             >
-              ({listingType.charAt(0).toUpperCase() + listingType.slice(1)}{" "}
-              Orders)
+              ({orderType.charAt(0).toUpperCase() + orderType.slice(1)} Orders)
             </Typography>
           </Grid>
         </Grid>

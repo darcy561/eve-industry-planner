@@ -20,11 +20,11 @@ import { PRICING_SIDE } from "../../../../Functions/MarketData/pricingSide.js";
  * material's market group can name one — and `pricesWantedByWatchlist` asks for
  * exactly what these two return.
  *
- * Only the sell basis is taken for worth. The column states what the item would
- * fetch listed, so the sell price is the figure it wants whatever basis the
+ * Only the sell order type is taken for worth. The column states what the item would
+ * fetch listed, so the sell price is the figure it wants whatever order type the
  * account prices its own sales on.
  *
- * @returns {{listingType: string, buyingPrice: (typeID: number) => number,
+ * @returns {{orderType: string, buyingPrice: (typeID: number) => number,
  *   sellWorth: (typeID: number) => number}}
  */
 export function useWatchlistPricing() {
@@ -43,8 +43,8 @@ export function useWatchlistPricing() {
 
   const buyingPrice = useCallback(
     (typeID) => {
-      const { marketLocation, listingType } = resolveFor(buying, null, typeID);
-      return getMarketPriceForType(typeID, marketLocation, listingType);
+      const { marketLocation, orderType } = resolveFor(buying, null, typeID);
+      return getMarketPriceForType(typeID, marketLocation, orderType);
     },
     [buying],
   );
@@ -59,5 +59,5 @@ export function useWatchlistPricing() {
     [selling],
   );
 
-  return { listingType: buying.listingType, buyingPrice, sellWorth };
+  return { orderType: buying.orderType, buyingPrice, sellWorth };
 }

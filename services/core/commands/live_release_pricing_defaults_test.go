@@ -53,8 +53,8 @@ func TestLive_seedPricingDefaults_fillsEveryUnansweredSide(t *testing.T) {
 				if got.DefaultPricing.Buying.Market != "amarr" {
 					t.Errorf("buying market: got %q, want amarr", got.DefaultPricing.Buying.Market)
 				}
-				if got.DefaultPricing.Buying.Basis != "buy" {
-					t.Errorf("buying basis: got %q, want buy", got.DefaultPricing.Buying.Basis)
+				if got.DefaultPricing.Buying.OrderType != "buy" {
+					t.Errorf("buying orderType: got %q, want buy", got.DefaultPricing.Buying.OrderType)
 				}
 				if got.DefaultPricing.Selling.Market != "amarr" {
 					t.Errorf("selling market: got %q, want amarr", got.DefaultPricing.Selling.Market)
@@ -124,7 +124,7 @@ func TestLive_seedPricingDefaults_fillsEveryUnansweredSide(t *testing.T) {
 				"defaultMarketLocation": "jita",
 				"defaultOrderType":      "sell",
 				"defaultPricing": bson.M{
-					"buying":  bson.M{"market": "hek", "basis": "buyP95"},
+					"buying":  bson.M{"market": "hek", "orderType": "buyP95"},
 					"selling": bson.M{"market": "rens", "exit": models.ExitRouteImmediate},
 				},
 			}},
@@ -132,8 +132,8 @@ func TestLive_seedPricingDefaults_fillsEveryUnansweredSide(t *testing.T) {
 				if got.DefaultPricing.Buying.Market != "hek" {
 					t.Errorf("buying market: got %q, want hek", got.DefaultPricing.Buying.Market)
 				}
-				if got.DefaultPricing.Buying.Basis != "buyP95" {
-					t.Errorf("buying basis: got %q, want buyP95", got.DefaultPricing.Buying.Basis)
+				if got.DefaultPricing.Buying.OrderType != "buyP95" {
+					t.Errorf("buying orderType: got %q, want buyP95", got.DefaultPricing.Buying.OrderType)
 				}
 				if got.DefaultPricing.Selling.Market != "rens" {
 					t.Errorf("selling market: got %q, want rens", got.DefaultPricing.Selling.Market)

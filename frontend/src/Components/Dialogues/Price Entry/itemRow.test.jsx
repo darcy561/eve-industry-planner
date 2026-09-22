@@ -53,7 +53,7 @@ function row(listItem) {
       <ItemPriceRow
         item={listItem}
         index={0}
-        listingType="sell"
+        orderType="sell"
         marketLocation="jita"
         priceEntryListData={{ list: [listItem] }}
         setPriceEntryListData={setPriceEntryListData}

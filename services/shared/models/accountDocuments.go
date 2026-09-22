@@ -68,7 +68,7 @@ func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSett
 	return ApplicationSettings{
 		SchemaVersion:                    ApplicationSettingsSchemaCurrent,
 		DisplayHelpCards:                 false,
-		DefaultMarketLocation:            "jita",
+		DefaultMarketLocation:            DefaultHubID,
 		DefaultOrderType:                 "sell",
 		DefaultPricing:                   DefaultPricingDefaults(),
 		EsiJobTab:                        nil,
@@ -169,21 +169,6 @@ type CustomStructure struct {
 // are still stored; UnmarshalBSON reads either shape, so a caller that wants one
 // kind filters on JobType rather than choosing a list.
 type CustomStructures []CustomStructure
-
-// MarketStationIDs names the NPC stations behind the markets an account has
-// saved, which is what the server has to be told to price.
-//
-// A citadel market is left out: its book is read with a character's token and
-// cannot be walked centrally.
-func (c CustomStructures) MarketStationIDs() []int64 {
-	stations := make([]int64, 0, len(c))
-	for _, structure := range c {
-		if structure.JobType == StructureKindMarket && structure.StationID != 0 {
-			stations = append(stations, structure.StationID)
-		}
-	}
-	return stations
-}
 
 // OfJobType returns the structures configured for one kind, in stored order.
 func (c CustomStructures) OfJobType(jobType int) []CustomStructure {
@@ -298,16 +283,17 @@ type ReprocessingSettings struct {
 // PricingChoice is a market and which side of its order book a figure comes from.
 // It is the shape of an answer at every rung that can give one.
 //
-// Both axes are called buy and sell and they do not agree. Basis is a listing
-// type — buy, sell, buyP95 or sellP05 — so materials being bought are normally
-// priced with Basis "sell", because the ask is what buying actually costs.
+// OrderType is named as ESI names it and takes one of buy, sell, buyP95 or
+// sellP05. It and the side being priced are both called buy and sell, and they do
+// not agree: materials being bought are normally priced with OrderType "sell",
+// because the ask is what buying actually costs.
 //
 // An empty field is not a choice. Both are omitempty, so an unanswered pair is
 // sent as an empty object rather than as empty strings, and a consumer must read
 // either as "not answered".
 type PricingChoice struct {
-	Market string `bson:"market,omitempty" json:"market,omitempty"`
-	Basis  string `bson:"basis,omitempty" json:"basis,omitempty"`
+	Market    string `bson:"market,omitempty" json:"market,omitempty"`
+	OrderType string `bson:"orderType,omitempty" json:"orderType,omitempty"`
 }
 
 // PricingSide is one side of the account's defaults: what it prices against, and
@@ -318,30 +304,30 @@ type PricingChoice struct {
 // it was not set on.
 // GroupPricing is what one market group is priced against, beneath a side.
 //
-// It carries a route as well as a basis because a group answers the same question
+// It carries a route as well as an order type because a group answers the same question
 // its side does: the selling side names how output leaves a build, and a group
-// beneath it has to be able to name a different route rather than a basis its own
-// side no longer reads. The buying side's groups name a basis and no route.
+// beneath it has to be able to name a different route rather than an order type its own
+// side no longer reads. The buying side's groups name an order type and no route.
 //
 // Kept apart from PricingChoice, which rungs 1 and 2 also use: a job's own
 // override and a material's are about where a figure comes from, not about how a
 // build is sold, so a route on that type would be a field two rungs could never
 // answer.
 type GroupPricing struct {
-	Market string `bson:"market,omitempty" json:"market,omitempty"`
-	Basis  string `bson:"basis,omitempty" json:"basis,omitempty"`
-	Exit   string `bson:"exit,omitempty" json:"exit,omitempty"`
+	Market    string `bson:"market,omitempty" json:"market,omitempty"`
+	OrderType string `bson:"orderType,omitempty" json:"orderType,omitempty"`
+	Exit      string `bson:"exit,omitempty" json:"exit,omitempty"`
 }
 
 type PricingSide struct {
 	PricingChoice `bson:",inline" json:",inline"`
 	Groups        map[string]GroupPricing `bson:"groups,omitempty" json:"groups,omitempty"`
 	// Exit is the route out of a finished build — listing it, or selling into
-	// bids — and is answered on the selling side only. It decides the basis
+	// bids — and is answered on the selling side only. It decides the order type
 	// rather than sitting beside one: a listing is priced from the ask and pays a
 	// broker fee, a buy-order sale is priced from the bid and pays none. A stored
-	// basis cannot carry that second half, which is why the selling side names a
-	// route and derives its basis from it.
+	// order type cannot carry that second half, which is why the selling side names a
+	// route and derives its order type from it.
 	Exit string `bson:"exit,omitempty" json:"exit,omitempty"`
 }
 
@@ -372,8 +358,8 @@ type JobPricing struct {
 
 // DefaultPricingDefaults returns the pricing defaults a new account starts with.
 func DefaultPricingDefaults() PricingDefaults {
-	buying := PricingSide{Market: "jita", Basis: "sell"}
-	selling := PricingSide{Market: "jita", Exit: ExitRouteListed}
+	buying := PricingSide{Market: DefaultHubID, OrderType: "sell"}
+	selling := PricingSide{Market: DefaultHubID, Exit: ExitRouteListed}
 
 	return PricingDefaults{Buying: buying, Selling: selling}
 }

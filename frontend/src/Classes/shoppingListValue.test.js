@@ -19,8 +19,8 @@ const seed = ({ market, prices, groups }) => {
     applicationSettings: {
       ...state.applicationSettings,
       defaultPricing: {
-        buying: { market, basis: "sell", groups },
-        selling: { market: "amarr", basis: "buy" },
+        buying: { market, orderType: "sell", groups },
+        selling: { market: "amarr", orderType: "buy" },
       },
     },
   }));
@@ -87,7 +87,7 @@ describe("a shopping list against a market group default", () => {
   it("prices an item from its group rather than the account default", async () => {
     seed({
       market: "jita",
-      groups: { 1857: { market: "amarr", basis: "buy" } },
+      groups: { 1857: { market: "amarr", orderType: "buy" } },
       prices: { jita: { 34: { sell: 10 } }, amarr: { 34: { buy: 3 } } },
     });
 
@@ -100,7 +100,7 @@ describe("a shopping list against a market group default", () => {
   it("leaves an item outside the group on the account default", async () => {
     seed({
       market: "jita",
-      groups: { 9999: { market: "amarr", basis: "buy" } },
+      groups: { 9999: { market: "amarr", orderType: "buy" } },
       prices: { jita: { 34: { sell: 10 } }, amarr: { 34: { buy: 3 } } },
     });
 

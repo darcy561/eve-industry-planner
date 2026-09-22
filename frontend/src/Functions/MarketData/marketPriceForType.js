@@ -9,7 +9,7 @@ import { readAdjustedPrice, readPrice } from "./priceCache";
  *
  * Reading and asking are separate. These answer from what is already held and
  * report absence rather than waiting, which is what keeps the synchronous
- * callers working: a shopping list row and a basis comparison both read a price
+ * callers working: a shopping list row and an order type comparison both read a price
  * inside a reduce, and neither can await.
  */
 
@@ -19,11 +19,11 @@ import { readAdjustedPrice, readPrice } from "./priceCache";
  *
  * @param {number} typeID
  * @param {string} marketLocation - A market source id
- * @param {string} listingType - buy, sell, buyP95 or sellP05
+ * @param {string} orderType - buy, sell, buyP95 or sellP05
  * @returns {number} 0 where nothing holds a figure for the type at that market
  */
-export function getMarketPriceForType(typeID, marketLocation, listingType) {
-  return readPrice(typeID, marketLocation)?.[listingType] || 0;
+export function getMarketPriceForType(typeID, marketLocation, orderType) {
+  return readPrice(typeID, marketLocation)?.[orderType] || 0;
 }
 
 /**

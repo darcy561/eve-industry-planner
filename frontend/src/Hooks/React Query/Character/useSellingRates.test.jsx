@@ -133,9 +133,7 @@ describe("useSellingRates", () => {
 
     rerender({ location: citadel(3.25) });
 
-    await waitFor(() =>
-      expect(result.current.data.brokerFee.rate).toBe(3.25),
-    );
+    await waitFor(() => expect(result.current.data.brokerFee.rate).toBe(3.25));
   });
 
   it("asks for nothing until it has a location to price", () => {

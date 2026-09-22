@@ -45,7 +45,7 @@ export const extrasCategoriesDefault = [
 export const permanentExtrasCategories = new Set(["0", "5"]);
 
 /**
- * Market listing types for EVE Online market data.
+ * The order types a figure may be read on, named as ESI names them.
  *
  * Buy and sell orders report the best price available at a trade hub. The percentile variants
  * report the same order books with outlying quotes excluded: the 95th percentile of buy prices
@@ -54,10 +54,11 @@ export const permanentExtrasCategories = new Set(["0", "5"]);
  * meaningful.
  *
  * @type {Array<Object>}
- * @property {string} id - Unique identifier for the listing type
- * @property {string} name - Display name for the listing type
+ * @property {string} id - `buy` and `sell` are ESI's own; the percentile forms
+ *   are this server's, derived from the same books
+ * @property {string} name - Display name for the order type
  */
-export let LISTING_TYPES = [
+export let ORDER_TYPES = [
   {
     id: "buy",
     name: "Buy Orders",
@@ -121,10 +122,9 @@ export let jobTypes = {
  * deliberately **not** in `jobTypes`: nothing that asks what job a character is
  * running should be offered a market as an answer.
  *
- * There is one market kind rather than one per sort of place. Whether a market
- * is an NPC station or a citadel follows from the location id it holds, which
- * `resolveLocationKind` reads by range — so asking a reader to say which would
- * be asking them for something already known.
+ * The market kind is not one a reader can create: a market is saved as a market
+ * and stored on its own lane. The value stays here because the server still
+ * means it by a stored `jobType`, and the two must agree about what it is worth.
  *
  * @type {Object<string, number>}
  */
@@ -689,13 +689,13 @@ export const customStructureMap = {
 };
 
 /**
- * Mapping of job types to their custom structure location property names.
+ * What a saved row's id is prefixed with, by the kind the row is.
  *
- * @type {Object}
- * @property {string} 1 - "manStruct"
- * @property {string} 2 - "reacStruct"
- * @property {string} 5 - "reprocessingStruct"
- * @property {string} 4 - "inventionStruct"
+ * The prefix is part of every id already minted, so it is fixed: changing one
+ * would not rename the rows a reader holds, it would mint ids in a second shape
+ * beside them.
+ *
+ * @type {Object<number, string>}
  */
 export const customStructureLocationMap = {
   [jobTypes.manufacturing]: "manStruct",

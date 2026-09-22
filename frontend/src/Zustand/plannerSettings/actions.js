@@ -8,6 +8,7 @@ import {
   savePlannerSettingsToApi,
 } from "../../Functions/Endpoints/Private/planners.js";
 import { permanentExtrasCategories } from "../../Context/defaultValues";
+import { refreshMarketLocationsAfterWrite } from "../../Functions/MarketData/marketLocations.js";
 import {
   mergePlannerSettings,
   plannerSettingsDefault,
@@ -43,10 +44,11 @@ export const plannerSettingsActions = (set, get) => ({
     // The same rule the server holds the list to: a category with no id or no
     // label cannot be shown, and would have the whole write refused.
     if (!category?.id || !category.label?.trim()) return;
-    get().plannerSettings.actions.writePlannerExtrasCategories(
+    get().plannerSettings.actions.writePlannerSetting(
       ownerHandle,
+      "extrasCategories",
       (categories) => [
-        ...categories,
+        ...(categories ?? []),
         { ...category, deleted: false, deletedAt: null },
       ],
     );
@@ -64,10 +66,11 @@ export const plannerSettingsActions = (set, get) => ({
    */
   setPlannerExtrasCategoryDeleted: (ownerHandle, categoryID, deleted) => {
     if (permanentExtrasCategories.has(categoryID)) return;
-    get().plannerSettings.actions.writePlannerExtrasCategories(
+    get().plannerSettings.actions.writePlannerSetting(
       ownerHandle,
+      "extrasCategories",
       (categories) =>
-        categories.map((entry) =>
+        (categories ?? []).map((entry) =>
           entry.id === categoryID
             ? {
                 ...entry,
@@ -80,54 +83,89 @@ export const plannerSettingsActions = (set, get) => ({
   },
 
   /**
-   * Applies a change to one planner's categories. The caller schedules the
-   * write, as the account's own settings do.
+   * Changes the markets an organisation has saved.
+   *
+   * The same transforms the account's own markets go through, so a market
+   * behaves the same whoever saved it — what differs is only which document it
+   * lands on and that an organisation's may be shared with its members.
    *
    * @param {string} ownerHandle
-   * @param {(categories: object[]) => object[]} change
+   * @param {(lane: object[]) => object[]} change - from `marketWriter`
    */
-  writePlannerExtrasCategories: (ownerHandle, change) => {
-    if (!ownerHandle) return;
+  writePlannerMarketLocations: (ownerHandle, change) => {
+    get().plannerSettings.actions.writePlannerSetting(
+      ownerHandle,
+      "marketLocations",
+      (lane) => change(lane ?? []),
+    );
+  },
+
+  /**
+   * Applies a change to one of a planner's settings. The caller schedules the
+   * write, as the account's own settings do.
+   *
+   * The field is named rather than one action per setting, because the save is
+   * field-scoped: what is recorded here is what the save sends, and a setting
+   * this member never touched is left for whoever did touch it.
+   *
+   * @param {string} ownerHandle
+   * @param {string} field - a key of `planner.SettingsUpdate`
+   * @param {(held: any) => any} change
+   */
+  writePlannerSetting: (ownerHandle, field, change) => {
+    if (!ownerHandle || !field) return;
     // Only a planner whose settings have arrived: editing the fallback defaults
-    // and saving them would replace the planner's stored list with them.
+    // and saving them would replace the planner's stored ones with them.
     const settings = get().plannerSettings.byOwner[ownerHandle];
     if (!settings) return;
-    const next = change(settings.extrasCategories ?? []);
+    const next = change(settings[field]);
     set(
       (state) => ({
         plannerSettings: {
           ...state.plannerSettings,
           byOwner: {
             ...state.plannerSettings.byOwner,
-            [ownerHandle]: { ...settings, extrasCategories: next },
+            [ownerHandle]: { ...settings, [field]: next },
           },
           unsavedByOwner: {
             ...state.plannerSettings.unsavedByOwner,
-            [ownerHandle]: true,
+            [ownerHandle]: withField(
+              state.plannerSettings.unsavedByOwner[ownerHandle],
+              field,
+            ),
           },
         },
       }),
       false,
-      "plannerSettings/writePlannerExtrasCategories",
+      `plannerSettings/writePlannerSetting/${field}`,
     );
   },
 
   /**
-   * Writes one planner's extras categories to the API and holds what came back.
+   * Writes one planner's edited settings to the API and holds what came back.
+   *
+   * Only the settings this session edited: the endpoint leaves a field it is not
+   * sent as it is stored, so a member who changed the markets does not carry
+   * their copy of another member's categories back over it.
    *
    * @param {string} ownerHandle
    * @returns {Promise<void>}
    */
-  savePlannerExtrasCategories: async (ownerHandle) => {
+  savePlannerSettings: async (ownerHandle) => {
     if (!ownerHandle || !get().account.isLoggedIn) return;
-    // Held settings only, for the reason writePlannerExtrasCategories refuses
-    // the same case: the fallback defaults are not this planner's list, and
-    // sending them would replace it.
+    // Held settings only, for the reason writePlannerSetting refuses the same
+    // case: the fallback defaults are not this planner's, and sending them
+    // would replace what it has stored.
     const settings = get().plannerSettings.byOwner[ownerHandle];
     if (!settings) return;
-    const response = await savePlannerSettingsToApi(ownerHandle, {
-      extrasCategories: settings.extrasCategories ?? [],
-    });
+
+    const edited = get().plannerSettings.unsavedByOwner[ownerHandle] ?? [];
+    if (edited.length === 0) return;
+    const update = Object.fromEntries(
+      edited.map((field) => [field, settings[field]]),
+    );
+
+    const response = await savePlannerSettingsToApi(ownerHandle, update);
     // Marked saved only once the server has it: a failed write leaves the edit
     // held and still ahead of the stored settings, which is what stops a later
     // read replacing it with what was never changed.
@@ -137,6 +175,9 @@ export const plannerSettingsActions = (set, get) => ({
       response?.settings,
       response?.seeded,
     );
+    // The composed markets are derived from this document too, and an
+    // organisation's are shared with every member rather than only this reader.
+    await refreshMarketLocationsAfterWrite();
   },
 
   /**
@@ -146,11 +187,13 @@ export const plannerSettingsActions = (set, get) => ({
    * @returns {boolean}
    */
   hasUnsavedPlannerSettings: (ownerHandle) =>
-    get().plannerSettings.unsavedByOwner[ownerHandle] ?? false,
+    (get().plannerSettings.unsavedByOwner[ownerHandle] ?? []).length > 0,
 
   /** @param {string} ownerHandle */
   markPlannerSettingsSaved: (ownerHandle) => {
-    if (!get().plannerSettings.unsavedByOwner[ownerHandle]) return;
+    if (!get().plannerSettings.actions.hasUnsavedPlannerSettings(ownerHandle)) {
+      return;
+    }
     set(
       (state) => {
         const unsavedByOwner = { ...state.plannerSettings.unsavedByOwner };
@@ -264,3 +307,9 @@ export const plannerSettingsActions = (set, get) => ({
     );
   },
 });
+
+/** The edited fields, with one more named. Order is the order they were first edited. */
+function withField(edited, field) {
+  const held = edited ?? [];
+  return held.includes(field) ? held : [...held, field];
+}

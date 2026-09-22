@@ -82,7 +82,7 @@ export function pricesByType(orders, locationID) {
  * @param {number[]} sellPrices
  * @returns {{buy: number, sell: number, buyP95: number, sellP05: number}}
  */
-export function pricesFromSides(buyPrices, sellPrices) {
+function pricesFromSides(buyPrices, sellPrices) {
   const buy = highestPrice(buyPrices);
   const sell = lowestPrice(sellPrices);
 

@@ -1,28 +1,34 @@
-import { LISTING_TYPES } from "../../Context/defaultValues";
+import { ORDER_TYPES } from "../../Context/defaultValues";
 import { MATERIAL_PLAN } from "./materialSourcingRow";
 import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
 
 /**
  * How a material row is priced on the Planning stage: what the job's materials
- * would cost on each pricing basis, and whether a row is still an estimate at all.
+ * would cost on each pricing order type, and whether a row is still an estimate at all.
  */
 
 /**
- * @typedef {object} GroupPricing
+ * What answering the market-group rung takes: the tree, the account's table
+ * against it, and which rung each axis was answered by.
+ *
+ * Named apart from the server's `GroupPricing`, which is one group's stored
+ * `{market, orderType, exit}` — the thing this walks over rather than the walk.
+ *
+ * @typedef {object} GroupRungContext
  * @property {Object<string, {parent_id?: number}>} marketGroups - The tree
- * @property {Object<string, {market?: string, basis?: string}>} groupDefaults -
+ * @property {Object<string, {market?: string, orderType?: string}>} groupDefaults -
  *   The account side's group table
  * @property {(typeID: number) => number|undefined} marketGroupOf - An item's own
  *   market group
  * @property {string} marketLocationRung - Which rung answered defaultMarketLocation
- * @property {string} listingTypeRung - Which rung answered defaultListingType
+ * @property {string} orderTypeRung - Which rung answered defaultOrderType
  */
 
 /**
- * Which hub and basis apply to one material row.
+ * Which hub and order type apply to one material row.
  *
  * A row's own override outranks the panel default on each axis independently, so
- * a row can name a hub without naming a basis. This is the one place that rule
+ * a row can name a hub without naming an order type. This is the one place that rule
  * lives; a second copy of it would let a quoted total disagree with the row it
  * quotes.
  *
@@ -35,16 +41,16 @@ import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
  * @param {object} build - The job's build, holding materialPriceOverrides
  * @param {number} materialTypeID
  * @param {string} defaultMarketLocation
- * @param {string} defaultListingType
- * @param {GroupPricing} [groupPricing] - Absent until the tree has loaded, which
+ * @param {string} defaultOrderType
+ * @param {GroupRungContext} [groupPricing] - Absent until the tree has loaded, which
  *   is a normal early state: the ladder then reads as it did before rung 3
- * @returns {{marketLocation: string, listingType: string}}
+ * @returns {{marketLocation: string, orderType: string}}
  */
 export function getEffectiveMaterialPriceHub(
   build,
   materialTypeID,
   defaultMarketLocation,
-  defaultListingType,
+  defaultOrderType,
   groupPricing,
 ) {
   const override = build?.materialPriceOverrides?.[materialTypeID];
@@ -62,18 +68,18 @@ export function getEffectiveMaterialPriceHub(
       override?.marketDisplay ??
       beneathTheJob(group?.marketLocation, groupPricing?.marketLocationRung) ??
       defaultMarketLocation,
-    listingType:
+    orderType:
       override?.orderDisplay ??
-      beneathTheJob(group?.listingType, groupPricing?.listingTypeRung) ??
-      defaultListingType,
+      beneathTheJob(group?.orderType, groupPricing?.orderTypeRung) ??
+      defaultOrderType,
   };
 }
 
 /**
  * Marks an axis as one the group rung may not answer.
  *
- * `materialCostByBasis` varies the basis to cost each candidate, so for that call
- * the basis is not a rung question at all. It is named rather than borrowing the
+ * `materialCostByOrderType` varies the order type to cost each candidate, so for that call
+ * the order type is not a rung question at all. It is named rather than borrowing the
  * job's rung, which would read as a job choice that was never made.
  */
 const SUPPRESSED = "suppressed";
@@ -100,19 +106,19 @@ function beneathTheJob(chosen, rung) {
 }
 
 /**
- * @typedef {object} BasisOption
- * @property {string} id - One of the LISTING_TYPES ids
+ * @typedef {object} OrderTypeOption
+ * @property {string} id - One of the ORDER_TYPES ids
  * @property {string} label - Display name
- * @property {number} total - What the job's materials cost on this basis
- * @property {number} delta - That total less the current basis's total
- * @property {boolean} isCurrent - Whether this is the basis in effect
+ * @property {number} total - What the job's materials cost on this orderType
+ * @property {number} delta - That total less the current orderType's total
+ * @property {boolean} isCurrent - Whether this is the orderType in effect
  */
 
 /**
  * What the job's materials cost on each of the four bases, so a player choosing
  * one sees its effect rather than a label.
  *
- * A material carrying its own override keeps it on every basis: the picker sets
+ * A material carrying its own override keeps it on every order type: the picker sets
  * the panel's default, and an override outranks the default, so a total that
  * ignored overrides would not be the total the player would get.
  *
@@ -121,28 +127,28 @@ function beneathTheJob(chosen, rung) {
  *   panel draws, each stating how many the job takes
  * @param {object} params.build - The job's build, holding materialPriceOverrides
  * @param {string} params.marketLocation - The market in effect
- * @param {string} params.listingType - The listing type in effect
- * @param {(typeID: number, hub: string, basis: string) => number} params.getPrice
- * @param {GroupPricing} [params.groupPricing]
- * @returns {BasisOption[]}
+ * @param {string} params.orderType - The order type in effect
+ * @param {(typeID: number, hub: string, orderType: string) => number} params.getPrice
+ * @param {GroupRungContext} [params.groupPricing]
+ * @returns {OrderTypeOption[]}
  */
-export function materialCostByBasis({
+export function materialCostByOrderType({
   rows: materialRows,
   build,
   marketLocation,
-  listingType,
+  orderType,
   getPrice,
   groupPricing,
 }) {
   const rows = Array.isArray(materialRows) ? materialRows : [];
 
-  // The basis is the axis being varied, so nothing below the panel may answer it:
+  // The order type is the axis being varied, so nothing below the panel may answer it:
   // a group default naming one would answer every candidate identically and
   // flatten the comparison into one figure repeated four times. Its market still
   // applies, because that axis is not the one being asked about.
   const perCandidate = groupPricing && {
     ...groupPricing,
-    listingTypeRung: SUPPRESSED,
+    orderTypeRung: SUPPRESSED,
   };
 
   const totalOn = (candidate) =>
@@ -157,17 +163,17 @@ export function materialCostByBasis({
       const price = getPrice(
         material.typeID,
         resolved.marketLocation,
-        resolved.listingType,
+        resolved.orderType,
       );
       return total + price * material.quantity;
     }, 0);
 
   const totalsById = new Map(
-    LISTING_TYPES.map((entry) => [entry.id, totalOn(entry.id)]),
+    ORDER_TYPES.map((entry) => [entry.id, totalOn(entry.id)]),
   );
-  const current = totalsById.get(listingType) ?? 0;
+  const current = totalsById.get(orderType) ?? 0;
 
-  return LISTING_TYPES.map((entry) => {
+  return ORDER_TYPES.map((entry) => {
     const total = totalsById.get(entry.id) ?? 0;
     return {
       id: entry.id,
@@ -176,13 +182,13 @@ export function materialCostByBasis({
       description: entry.description,
       total,
       delta: total - current,
-      isCurrent: entry.id === listingType,
+      isCurrent: entry.id === orderType,
     };
   });
 }
 
 /**
- * How many rows are not on the panel's basis, and how many are not estimates at
+ * How many rows are not on the panel's order type, and how many are not estimates at
  * all.
  *
  * An override is otherwise invisible: a row priced against a different hub looks
@@ -191,17 +197,17 @@ export function materialCostByBasis({
  *
  * @param {Array<object>} rows - Rows from buildMaterialSourcingRow
  * @param {string} marketLocation - The panel's market
- * @param {string} listingType - The panel's listing type
+ * @param {string} orderType - The panel's order type
  * @returns {{overridden: number, purchased: number}}
  */
-export function summariseBasisUse(rows, marketLocation, listingType) {
+export function summariseOrderTypeUse(rows, marketLocation, orderType) {
   const list = Array.isArray(rows) ? rows : [];
 
   return {
     overridden: list.filter(
       (row) =>
         (row.marketLocation && row.marketLocation !== marketLocation) ||
-        (row.listingType && row.listingType !== listingType),
+        (row.orderType && row.orderType !== orderType),
     ).length,
     purchased: list.filter((row) => row.plan === MATERIAL_PLAN.PAID).length,
   };

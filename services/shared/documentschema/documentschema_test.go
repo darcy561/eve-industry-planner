@@ -125,11 +125,11 @@ func TestApplicationSettingsSeedsPricingFromTheSingleDefault(t *testing.T) {
 	var u Upgrader
 	u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
 
-	want := models.PricingSide{Market: "amarr", Basis: "buy"}
+	want := models.PricingSide{Market: "amarr", OrderType: "buy"}
 	if !reflect.DeepEqual(doc.DefaultPricing.Buying, want) {
 		t.Fatalf("buying = %+v, want %+v", doc.DefaultPricing.Buying, want)
 	}
-	// The selling side takes the market and no basis — its route answers that —
+	// The selling side takes the market and no order type — its route answers that —
 	// and the route is read from the single default it was being priced on.
 	want = models.PricingSide{Market: "amarr", Exit: models.ExitRouteImmediate}
 	if !reflect.DeepEqual(doc.DefaultPricing.Selling, want) {
@@ -140,8 +140,8 @@ func TestApplicationSettingsSeedsPricingFromTheSingleDefault(t *testing.T) {
 // An account priced from the ask was being shown a listing, which is the route
 // it keeps; one priced from bids was reading a listing's fee against a bid's
 // price, and the seed is what ends that.
-func TestApplicationSettingsReadsTheExitRouteFromTheStoredBasis(t *testing.T) {
-	for basis, want := range map[string]string{
+func TestApplicationSettingsReadsTheExitRouteFromTheStoredOrderType(t *testing.T) {
+	for orderType, want := range map[string]string{
 		"sell":    models.ExitRouteListed,
 		"sellP05": models.ExitRouteListed,
 		"buy":     models.ExitRouteImmediate,
@@ -149,7 +149,7 @@ func TestApplicationSettingsReadsTheExitRouteFromTheStoredBasis(t *testing.T) {
 	} {
 		doc := &models.ApplicationSettings{
 			DefaultPricing: models.PricingDefaults{
-				Selling: models.PricingSide{Market: "jita", Basis: basis},
+				Selling: models.PricingSide{Market: "jita", OrderType: orderType},
 			},
 		}
 
@@ -157,13 +157,13 @@ func TestApplicationSettingsReadsTheExitRouteFromTheStoredBasis(t *testing.T) {
 		u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
 
 		if got := doc.DefaultPricing.Selling.Exit; got != want {
-			t.Fatalf("basis %q gave exit %q, want %q", basis, got, want)
+			t.Fatalf("orderType %q gave exit %q, want %q", orderType, got, want)
 		}
 	}
 }
 
 func TestApplicationSettingsLeavesAChosenPricingSideAlone(t *testing.T) {
-	chosen := models.PricingSide{Market: "hek", Basis: "buyP95"}
+	chosen := models.PricingSide{Market: "hek", OrderType: "buyP95"}
 	doc := &models.ApplicationSettings{
 		DefaultMarketLocation: "amarr",
 		DefaultOrderType:      "buy",
@@ -173,13 +173,13 @@ func TestApplicationSettingsLeavesAChosenPricingSideAlone(t *testing.T) {
 	var u Upgrader
 	u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
 
-	// The market and basis it chose are untouched; the route is filled because it
-	// had none, and follows the basis it was already priced on.
+	// The market and order type it chose are untouched; the route is filled because it
+	// had none, and follows the order type it was already priced on.
 	chosen.Exit = models.ExitRouteImmediate
 	if !reflect.DeepEqual(doc.DefaultPricing.Selling, chosen) {
 		t.Fatalf("selling = %+v, want %+v", doc.DefaultPricing.Selling, chosen)
 	}
-	want := models.PricingSide{Market: "amarr", Basis: "buy"}
+	want := models.PricingSide{Market: "amarr", OrderType: "buy"}
 	if !reflect.DeepEqual(doc.DefaultPricing.Buying, want) {
 		t.Fatalf("buying = %+v, want %+v", doc.DefaultPricing.Buying, want)
 	}
@@ -256,17 +256,55 @@ func TestApplicationSettingsKeepsAChosenExitRoute(t *testing.T) {
 	}
 }
 
-// The lane is added without moving the version: schemamaint selects documents
-// below the current version and skips any the upgrader did not raise, so a
-// current moved ahead of a step that reaches it leaves every document below it
-// for ever.
-func TestAddingTheMarketLaneDidNotMoveTheSettingsSchema(t *testing.T) {
+// A market row is lifted onto its own lane as the document is read, whatever
+// version the document claims — an unversioned one is stamped current before any
+// step runs, so a step that gated on the version would never fire for the rows
+// most needing it.
+func TestASettingsDocumentsMarketsMoveToTheirOwnLane(t *testing.T) {
+	doc := models.ApplicationSettings{
+		CustomStructures: models.CustomStructures{
+			{ID: "sotiyo", Name: "Sotiyo", JobType: 1},
+			{ID: "azbel", Name: "Azbel", JobType: models.StructureKindMarket, StructureID: 1035466617946},
+		},
+	}
+
+	Upgrader{}.ApplicationSettings(&doc, "account-1", time.Now().UTC())
+
+	if len(doc.MarketLocations) != 1 || doc.MarketLocations[0].ID != "azbel" {
+		t.Errorf("markets = %+v, want the saved market on its own lane", doc.MarketLocations)
+	}
+	if len(doc.CustomStructures) != 1 || doc.CustomStructures[0].ID != "sotiyo" {
+		t.Errorf("structures = %+v, want only the place a job runs in", doc.CustomStructures)
+	}
+}
+
+func TestAPlannersMarketsMoveToTheirOwnLane(t *testing.T) {
+	doc := planner.Settings{
+		CustomStructures: models.CustomStructures{
+			{ID: "azbel", Name: "Azbel", JobType: models.StructureKindMarket, StructureID: 1035466617946},
+		},
+	}
+
+	Upgrader{}.PlannerSettings(&doc)
+
+	if len(doc.MarketLocations) != 1 || len(doc.CustomStructures) != 0 {
+		t.Errorf("markets = %+v, structures = %+v, want the market moved",
+			doc.MarketLocations, doc.CustomStructures)
+	}
+}
+
+// The settings schema is not moving in this release, and the market move is
+// deliberately not a reason to move it: the move is tested by the data, so it
+// reaches a document whatever version it claims. A current raised here would
+// hand every settings document to schema maintenance for a whole-document
+// rewrite, and make three other release steps redundant on the way past.
+func TestTheMarketMoveDidNotMoveTheSettingsSchema(t *testing.T) {
 	if models.ApplicationSettingsSchemaCurrent != 1 {
-		t.Errorf("ApplicationSettingsSchemaCurrent = %d; the rows move in the stage that raises it",
+		t.Errorf("ApplicationSettingsSchemaCurrent = %d, want 1 — the release step writes the move",
 			models.ApplicationSettingsSchemaCurrent)
 	}
 	if planner.SettingsSchemaCurrent != 1 {
-		t.Errorf("planner.SettingsSchemaCurrent = %d; the rows move in the stage that raises it",
+		t.Errorf("planner.SettingsSchemaCurrent = %d, want 1 — the release step writes the move",
 			planner.SettingsSchemaCurrent)
 	}
 }

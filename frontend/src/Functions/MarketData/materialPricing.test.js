@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 import JobMaterial from "../../Classes/jobMaterial";
 import {
   getEffectiveMaterialPriceHub,
-  materialCostByBasis,
+  materialCostByOrderType,
   materialPurchaseState,
-  summariseBasisUse,
+  summariseOrderTypeUse,
   priceAge,
 } from "./materialPricing";
 import { PRICING_RUNG } from "./pricingSide";
 
-// Prices differ per basis so a total can only come out right if the basis reached
+// Prices differ per order type so a total can only come out right if the order type reached
 // the lookup; the hub is included so an override on the hub is visible too.
 const PRICES = {
   34: { jita: { buy: 5, sell: 10, buyP95: 6, sellP05: 9 } },
@@ -18,41 +18,42 @@ const PRICES = {
   36: { amarr: { buy: 500, sell: 1000, buyP95: 600, sellP05: 900 } },
 };
 
-const getPrice = (typeID, hub, basis) => PRICES[typeID]?.[hub]?.[basis] ?? 0;
+const getPrice = (typeID, hub, orderType) =>
+  PRICES[typeID]?.[hub]?.[orderType] ?? 0;
 
 const materials = [
   { typeID: 34, quantity: 10 },
   { typeID: 35, quantity: 2 },
 ];
 
-function basisById(options) {
+function orderTypeById(options) {
   return Object.fromEntries(options.map((o) => [o.id, o]));
 }
 
-describe("materialCostByBasis", () => {
-  it("costs the job on every basis the app offers", () => {
-    const options = materialCostByBasis({
+describe("materialCostByOrderType", () => {
+  it("costs the job on every order type the app offers", () => {
+    const options = materialCostByOrderType({
       rows: materials,
       build: {},
       marketLocation: "jita",
-      listingType: "sell",
+      orderType: "sell",
       getPrice,
     });
 
-    const byId = basisById(options);
+    const byId = orderTypeById(options);
     expect(byId.buy.total).toBe(10 * 5 + 2 * 50);
     expect(byId.sell.total).toBe(10 * 10 + 2 * 100);
     expect(byId.buyP95.total).toBe(10 * 6 + 2 * 60);
     expect(byId.sellP05.total).toBe(10 * 9 + 2 * 90);
   });
 
-  it("marks the basis in effect and measures the others against it", () => {
-    const byId = basisById(
-      materialCostByBasis({
+  it("marks the order type in effect and measures the others against it", () => {
+    const byId = orderTypeById(
+      materialCostByOrderType({
         rows: materials,
         build: {},
         marketLocation: "jita",
-        listingType: "sell",
+        orderType: "sell",
         getPrice,
       }),
     );
@@ -64,22 +65,22 @@ describe("materialCostByBasis", () => {
     expect(byId.buyP95.isCurrent).toBe(false);
   });
 
-  it("keeps a row's own basis override on every candidate", () => {
+  it("keeps a row's own order type override on every candidate", () => {
     const build = {
       materialPriceOverrides: { 34: { orderDisplay: "buy" } },
     };
 
-    const byId = basisById(
-      materialCostByBasis({
+    const byId = orderTypeById(
+      materialCostByOrderType({
         rows: materials,
         build,
         marketLocation: "jita",
-        listingType: "sell",
+        orderType: "sell",
         getPrice,
       }),
     );
 
-    // The overridden row stays on buy (5) whichever basis is being costed, so
+    // The overridden row stays on buy (5) whichever order type is being costed, so
     // only the un-overridden row moves between them.
     expect(byId.sell.total).toBe(10 * 5 + 2 * 100);
     expect(byId.buyP95.total).toBe(10 * 5 + 2 * 60);
@@ -90,12 +91,12 @@ describe("materialCostByBasis", () => {
       materialPriceOverrides: { 36: { marketDisplay: "amarr" } },
     };
 
-    const byId = basisById(
-      materialCostByBasis({
+    const byId = orderTypeById(
+      materialCostByOrderType({
         rows: [{ typeID: 36, quantity: 1 }],
         build,
         marketLocation: "jita",
-        listingType: "sell",
+        orderType: "sell",
         getPrice,
       }),
     );
@@ -103,12 +104,12 @@ describe("materialCostByBasis", () => {
     expect(byId.sell.total).toBe(1000);
   });
 
-  it("costs a job with no materials at zero on every basis", () => {
-    const options = materialCostByBasis({
+  it("costs a job with no materials at zero on every order type", () => {
+    const options = materialCostByOrderType({
       rows: [],
       build: {},
       marketLocation: "jita",
-      listingType: "sell",
+      orderType: "sell",
       getPrice,
     });
 
@@ -117,12 +118,12 @@ describe("materialCostByBasis", () => {
   });
 
   it("treats a price the market has no figure for as zero rather than failing", () => {
-    const byId = basisById(
-      materialCostByBasis({
+    const byId = orderTypeById(
+      materialCostByOrderType({
         rows: [{ typeID: 999, quantity: 5 }],
         build: {},
         marketLocation: "jita",
-        listingType: "sell",
+        orderType: "sell",
         getPrice,
       }),
     );
@@ -212,10 +213,10 @@ describe("a material the job needs none of", () => {
   });
 });
 
-describe("summariseBasisUse", () => {
+describe("summariseOrderTypeUse", () => {
   const row = (overrides) => ({
     marketLocation: "jita",
-    listingType: "sell",
+    orderType: "sell",
     plan: "buy",
     ...overrides,
   });
@@ -223,36 +224,38 @@ describe("summariseBasisUse", () => {
   it("counts a row priced against another hub", () => {
     const rows = [row(), row({ marketLocation: "amarr" })];
 
-    expect(summariseBasisUse(rows, "jita", "sell").overridden).toBe(1);
+    expect(summariseOrderTypeUse(rows, "jita", "sell").overridden).toBe(1);
   });
 
-  it("counts a row priced on another basis", () => {
-    const rows = [row(), row({ listingType: "buyP95" })];
+  it("counts a row priced on another order type", () => {
+    const rows = [row(), row({ orderType: "buyP95" })];
 
-    expect(summariseBasisUse(rows, "jita", "sell").overridden).toBe(1);
+    expect(summariseOrderTypeUse(rows, "jita", "sell").overridden).toBe(1);
   });
 
   it("counts a row departing on both as one row, not two", () => {
-    const rows = [row({ marketLocation: "amarr", listingType: "buy" })];
+    const rows = [row({ marketLocation: "amarr", orderType: "buy" })];
 
-    expect(summariseBasisUse(rows, "jita", "sell").overridden).toBe(1);
+    expect(summariseOrderTypeUse(rows, "jita", "sell").overridden).toBe(1);
   });
 
   it("counts rows that are not estimates at all", () => {
     const rows = [row(), row({ plan: "paid" }), row({ plan: "paid" })];
 
-    expect(summariseBasisUse(rows, "jita", "sell").purchased).toBe(2);
+    expect(summariseOrderTypeUse(rows, "jita", "sell").purchased).toBe(2);
   });
 
-  it("counts nothing when every row is on the basis", () => {
-    expect(summariseBasisUse([row(), row()], "jita", "sell")).toMatchObject({
-      overridden: 0,
-      purchased: 0,
-    });
+  it("counts nothing when every row is on the order type", () => {
+    expect(summariseOrderTypeUse([row(), row()], "jita", "sell")).toMatchObject(
+      {
+        overridden: 0,
+        purchased: 0,
+      },
+    );
   });
 
   it("copes with no rows", () => {
-    expect(summariseBasisUse(undefined, "jita", "sell").overridden).toBe(0);
+    expect(summariseOrderTypeUse(undefined, "jita", "sell").overridden).toBe(0);
   });
 });
 
@@ -317,7 +320,7 @@ function groupPricing(groupDefaults, rung = PRICING_RUNG.ACCOUNT) {
     groupDefaults,
     marketGroupOf: (typeID) => GROUP_OF[typeID],
     marketLocationRung: rung,
-    listingTypeRung: rung,
+    orderTypeRung: rung,
   };
 }
 
@@ -328,10 +331,10 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       34,
       "jita",
       "sell",
-      groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
+      groupPricing({ 1857: { market: "amarr", orderType: "buy" } }),
     );
 
-    expect(resolved).toEqual({ marketLocation: "amarr", listingType: "buy" });
+    expect(resolved).toEqual({ marketLocation: "amarr", orderType: "buy" });
   });
 
   it("climbs to an ancestor group", () => {
@@ -344,8 +347,8 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
     );
 
     expect(resolved.marketLocation).toBe("hek");
-    // Nothing named a basis, so the panel still answers it.
-    expect(resolved.listingType).toBe("sell");
+    // Nothing named an order type, so the panel still answers it.
+    expect(resolved.orderType).toBe("sell");
   });
 
   it("leaves an item with no market group on the panel default", () => {
@@ -357,7 +360,7 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       groupPricing({ 1857: { market: "amarr" } }),
     );
 
-    expect(resolved).toEqual({ marketLocation: "jita", listingType: "sell" });
+    expect(resolved).toEqual({ marketLocation: "jita", orderType: "sell" });
   });
 
   // The whole reason the rung arrives with the panel's: a group sits beneath a
@@ -369,22 +372,22 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       "jita",
       "sell",
       groupPricing(
-        { 1857: { market: "amarr", basis: "buy" } },
+        { 1857: { market: "amarr", orderType: "buy" } },
         PRICING_RUNG.JOB,
       ),
     );
 
-    expect(resolved).toEqual({ marketLocation: "jita", listingType: "sell" });
+    expect(resolved).toEqual({ marketLocation: "jita", orderType: "sell" });
   });
 
   it("yields per axis, where the job named only one", () => {
     const resolved = getEffectiveMaterialPriceHub({}, 34, "jita", "sell", {
-      ...groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
+      ...groupPricing({ 1857: { market: "amarr", orderType: "buy" } }),
       marketLocationRung: PRICING_RUNG.JOB,
-      listingTypeRung: PRICING_RUNG.ACCOUNT,
+      orderTypeRung: PRICING_RUNG.ACCOUNT,
     });
 
-    expect(resolved).toEqual({ marketLocation: "jita", listingType: "buy" });
+    expect(resolved).toEqual({ marketLocation: "jita", orderType: "buy" });
   });
 
   it("loses to the row's own override", () => {
@@ -397,12 +400,12 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       34,
       "jita",
       "sell",
-      groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
+      groupPricing({ 1857: { market: "amarr", orderType: "buy" } }),
     );
 
     expect(resolved.marketLocation).toBe("dodixie");
-    // The override named no basis, so the group still answers that axis.
-    expect(resolved.listingType).toBe("buy");
+    // The override named no order type, so the group still answers that axis.
+    expect(resolved.orderType).toBe("buy");
   });
 
   // Rung 1 clears to null rather than to an empty string — the override writers
@@ -427,32 +430,32 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
   // does not know, not an account default waiting to be displaced.
   it("yields where the rung that answered was not named", () => {
     const resolved = getEffectiveMaterialPriceHub({}, 34, "jita", "sell", {
-      ...groupPricing({ 1857: { market: "amarr", basis: "buy" } }),
+      ...groupPricing({ 1857: { market: "amarr", orderType: "buy" } }),
       marketLocationRung: undefined,
-      listingTypeRung: undefined,
+      orderTypeRung: undefined,
     });
 
-    expect(resolved).toEqual({ marketLocation: "jita", listingType: "sell" });
+    expect(resolved).toEqual({ marketLocation: "jita", orderType: "sell" });
   });
 
   it("reads as it did before the rung when the tree has not loaded", () => {
     expect(getEffectiveMaterialPriceHub({}, 34, "jita", "sell")).toEqual({
       marketLocation: "jita",
-      listingType: "sell",
+      orderType: "sell",
     });
   });
 
-  // A group naming a basis must not answer every candidate identically, or the
+  // A group naming an order type must not answer every candidate identically, or the
   // comparison offers four copies of one figure.
-  it("still costs each basis apart when a group names one", () => {
-    const byId = basisById(
-      materialCostByBasis({
+  it("still costs each order type apart when a group names one", () => {
+    const byId = orderTypeById(
+      materialCostByOrderType({
         rows: materials,
         build: {},
         marketLocation: "jita",
-        listingType: "sell",
+        orderType: "sell",
         getPrice,
-        groupPricing: groupPricing({ 1857: { basis: "buy" } }),
+        groupPricing: groupPricing({ 1857: { orderType: "buy" } }),
       }),
     );
 
@@ -462,13 +465,13 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
   });
 
   // A group naming a market is not a candidate axis, so it applies to all four.
-  it("keeps a group's market on every candidate basis", () => {
-    const byId = basisById(
-      materialCostByBasis({
+  it("keeps a group's market on every candidate order type", () => {
+    const byId = orderTypeById(
+      materialCostByOrderType({
         rows: [{ typeID: 34, quantity: 1 }],
         build: {},
         marketLocation: "amarr",
-        listingType: "sell",
+        orderType: "sell",
         getPrice,
         groupPricing: groupPricing({ 1857: { market: "jita" } }),
       }),

@@ -94,7 +94,10 @@ func SettingsFromAccount(owner models.Owner, settings models.ApplicationSettings
 }
 
 // Settings field names, as SettingsUpdate writes them.
-const fieldExtrasCategories = "extrasCategories"
+const (
+	fieldExtrasCategories = "extrasCategories"
+	fieldMarketLocations  = "marketLocations"
+)
 
 // A list long enough to be a mistake rather than a preference, and a label
 // longer than anything a picker can show.
@@ -107,10 +110,22 @@ const (
 // field is left as it is stored, so a client sends only what it edited.
 type SettingsUpdate struct {
 	ExtrasCategories *[]models.ExtraCategory `json:"extrasCategories"`
+	MarketLocations  *models.MarketLocations `json:"marketLocations"`
 }
 
 // Validate refuses an update that would leave the planner's settings unusable.
 func (u SettingsUpdate) Validate() error {
+	if u.MarketLocations != nil {
+		if err := u.MarketLocations.Validate(); err != nil {
+			return err
+		}
+	}
+	return u.validateExtrasCategories()
+}
+
+// validateExtrasCategories holds the list to what a picker can show and what the
+// costs filed under it need to still resolve.
+func (u SettingsUpdate) validateExtrasCategories() error {
 	if u.ExtrasCategories == nil {
 		return nil
 	}
@@ -152,6 +167,9 @@ func (u SettingsUpdate) Fields() bson.M {
 	fields := bson.M{}
 	if u.ExtrasCategories != nil {
 		fields[fieldExtrasCategories] = *u.ExtrasCategories
+	}
+	if u.MarketLocations != nil {
+		fields[fieldMarketLocations] = *u.MarketLocations
 	}
 	return fields
 }

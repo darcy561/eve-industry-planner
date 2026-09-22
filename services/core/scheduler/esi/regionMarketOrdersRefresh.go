@@ -52,9 +52,7 @@ func runRegionMarketOrdersRefresh(
 	// Tracked every tick, not when walked: a hub must never be the market that goes unasked for.
 	now := time.Now()
 	for _, hub := range models.DefaultMarketLocations {
-		// A region id is 64 bits on a market and 32 to the store, which is what
-		// ESI states it as. Narrowed here rather than either side widening.
-		if err := r.MarketOrders().TrackStation(ctx, int32(hub.RegionID), hub.StationID, now); err != nil {
+		if err := r.MarketOrders().TrackStation(ctx, hub.RegionID, hub.StationID, now); err != nil {
 			return err
 		}
 	}
@@ -107,7 +105,7 @@ func runRegionMarketOrdersRefresh(
 // answered 304 and still costs a token, so it buys nothing. The sweep interval
 // is the binding constraint while it stays longer than the max-age; the
 // max-age check is what keeps a shorter interval safe to set.
-func regionsDue(ctx context.Context, r *eipredis.Redis, regions []int32, now time.Time) ([]int32, error) {
+func regionsDue(ctx context.Context, r *eipredis.Redis, regions []int64, now time.Time) ([]int64, error) {
 	if r.Driver() == nil {
 		return regions, nil
 	}
@@ -116,12 +114,12 @@ func regionsDue(ctx context.Context, r *eipredis.Redis, regions []int32, now tim
 	if err != nil {
 		return nil, err
 	}
-	lastPass := make(map[int32]time.Time, len(times))
+	lastPass := make(map[int64]time.Time, len(times))
 	for _, t := range times {
 		lastPass[t.RegionID] = t.LastUpdated
 	}
 
-	var due []int32
+	var due []int64
 	for _, regionID := range regions {
 		last, walked := lastPass[regionID]
 		if walked && now.Before(last.Add(regionSweepInterval)) {
@@ -133,7 +131,7 @@ func regionsDue(ctx context.Context, r *eipredis.Redis, regions []int32, now tim
 		due = append(due, regionID)
 	}
 
-	slices.SortStableFunc(due, func(a, b int32) int {
+	slices.SortStableFunc(due, func(a, b int64) int {
 		return lastPass[a].Compare(lastPass[b])
 	})
 	return due, nil
@@ -145,7 +143,7 @@ func regionsDue(ctx context.Context, r *eipredis.Redis, regions []int32, now tim
 //
 // A region never fetched has no page count, and the first pass is what
 // establishes it — so it is published and the limiter paces it.
-func canAffordRegionRefresh(ctx context.Context, esi esiclient.API, r *eipredis.Redis, regionID int32) bool {
+func canAffordRegionRefresh(ctx context.Context, esi esiclient.API, r *eipredis.Redis, regionID int64) bool {
 	if esi == nil {
 		return true
 	}
@@ -189,7 +187,7 @@ func canAffordRegionRefresh(ctx context.Context, esi esiclient.API, r *eipredis.
 // regionStillFresh reports whether ESI's own max-age says this region's book
 // cannot have changed yet. A region nothing has fetched has no answer, and the
 // first pass is what establishes one.
-func regionStillFresh(ctx context.Context, r *eipredis.Redis, regionID int32, now time.Time) (bool, time.Time) {
+func regionStillFresh(ctx context.Context, r *eipredis.Redis, regionID int64, now time.Time) (bool, time.Time) {
 	due, err := r.NextRefresh(ctx, eipredis.RegionMarketOrdersDataset(regionID))
 	if err != nil {
 		logs.WarnCtx(ctx, "could not read region freshness, publishing anyway",

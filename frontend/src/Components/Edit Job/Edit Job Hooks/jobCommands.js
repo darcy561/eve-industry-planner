@@ -277,7 +277,7 @@ export const setJobLayout = (patch) =>
   });
 
 /**
- * The job's own pricing choice — which market and basis each side is read at.
+ * The job's own pricing choice — which market and order type each side is read at.
  *
  * @param {object} patch - The build keys to set
  */

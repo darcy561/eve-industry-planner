@@ -260,13 +260,13 @@ func TriggerRefreshAdjustedPrices(ctx context.Context, n *NATS) error {
 }
 
 // PublishRefreshRegionMarketOrders asks the worker to walk one region's order book.
-func PublishRefreshRegionMarketOrders(ctx context.Context, n *NATS, regionID int32) error {
+func PublishRefreshRegionMarketOrders(ctx context.Context, n *NATS, regionID int64) error {
 	return publish(ctx, n, RefreshRegionMarketOrders, RegionMarketOrdersRequest{RegionID: regionID})
 }
 
 // PublishDeriveRegionMarketPrices asks the worker to price one region's tracked
 // stations from the pages already stored for it.
-func PublishDeriveRegionMarketPrices(ctx context.Context, n *NATS, regionID int32) error {
+func PublishDeriveRegionMarketPrices(ctx context.Context, n *NATS, regionID int64) error {
 	return publish(ctx, n, DeriveRegionMarketPrices, RegionMarketPricesRequest{RegionID: regionID})
 }
 

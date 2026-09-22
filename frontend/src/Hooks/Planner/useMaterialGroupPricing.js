@@ -13,21 +13,20 @@ import useUsersStore from "../../Zustand/usersStore.js";
  * @param {object} params
  * @param {string} params.side - One of PRICING_SIDE
  * @param {string} params.marketLocationRung - Which rung answered the panel's market
- * @param {string} params.listingTypeRung - Which rung answered the panel's listing type
- * @returns {import("../../Functions/MarketData/materialPricing.js").GroupPricing|undefined}
+ * @param {string} params.orderTypeRung - Which rung answered the panel's order type
+ * @returns {import("../../Functions/MarketData/materialPricing.js").GroupRungContext|undefined}
  */
 export function useMaterialGroupPricing({
   side,
   marketLocationRung,
-  listingTypeRung,
+  orderTypeRung,
 }) {
   const groupDefaults = useUsersStore(
     (s) => s.applicationSettings.defaultPricing?.[side]?.groups,
   );
 
   return useMemo(
-    () =>
-      groupPricingFor({ groupDefaults, marketLocationRung, listingTypeRung }),
-    [groupDefaults, marketLocationRung, listingTypeRung],
+    () => groupPricingFor({ groupDefaults, marketLocationRung, orderTypeRung }),
+    [groupDefaults, marketLocationRung, orderTypeRung],
   );
 }

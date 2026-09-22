@@ -17,7 +17,7 @@ import (
 
 // Rens, which no default hub sits in.
 const (
-	unaskedRegion  = int32(10000030)
+	unaskedRegion  = int64(10000030)
 	unaskedStation = int64(60004588)
 )
 
@@ -111,7 +111,7 @@ func TestTheHubsAreNeverRetired(t *testing.T) {
 
 	longAgo := time.Now().Add(-90 * 24 * time.Hour)
 	for _, hub := range models.DefaultMarketLocations {
-		if err := orders.TrackStation(t.Context(), int32(hub.RegionID), hub.StationID, longAgo); err != nil {
+		if err := orders.TrackStation(t.Context(), hub.RegionID, hub.StationID, longAgo); err != nil {
 			t.Fatalf("track hub %s: %v", hub.ID, err)
 		}
 	}
@@ -125,7 +125,7 @@ func TestTheHubsAreNeverRetired(t *testing.T) {
 		t.Fatalf("tracked regions: %v", err)
 	}
 	for _, hub := range models.DefaultMarketLocations {
-		if !slices.Contains(regions, int32(hub.RegionID)) {
+		if !slices.Contains(regions, hub.RegionID) {
 			t.Errorf("hub %s was retired after a quiet spell", hub.ID)
 		}
 	}
@@ -176,7 +176,7 @@ func TestAMarketAskedForMidSweepIsKept(t *testing.T) {
 func TestAnOrphanedBookIsSweptByAge(t *testing.T) {
 	deps, pages, backend := retirementDeps(t)
 
-	const orphaned = int32(10000016)
+	const orphaned = int64(10000016)
 	// Written a month ago, so the backstop's cutoff has passed by the time the sweep looks.
 	backend.SetClock(func() time.Time { return time.Now().Add(-30 * 24 * time.Hour) })
 	if err := pages.Put(t.Context(), orphaned, 1, []string{}); err != nil {

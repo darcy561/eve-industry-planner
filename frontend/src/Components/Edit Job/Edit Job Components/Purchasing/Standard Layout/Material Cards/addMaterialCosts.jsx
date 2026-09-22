@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   IconButton,
   TextField,
@@ -12,6 +13,7 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
 import { useEffectiveMarketHub } from "../../../../../../Hooks/Planner/useEffectiveMarketHub.js";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
+import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import {
   importedQuantities,
   importPurchaseToMaterial,
@@ -30,15 +32,23 @@ export function AddMaterialCost_Purchasing({
   const localPricing = useJobDraft((job) => job.build.localPricing);
   const { remaining } = useMaterialFigures(material);
   const actions = useJobActions();
-  const { marketLocation, listingType } = useEffectiveMarketHub(
+  const { marketLocation, orderType } = useEffectiveMarketHub(
     localPricing,
     PRICING_SIDE.BUYING,
   );
 
+  // The one price this card draws. Read out of the cache as it renders, so the
+  // query is what tells it the figure has moved.
+  const wants = useMemo(
+    () => [{ typeID: material.typeID, sourceID: marketLocation }],
+    [material.typeID, marketLocation],
+  );
+  useMarketPricesQuery(wants);
+
   const materialPrice = getMarketPriceForType(
     material.typeID,
     marketLocation,
-    listingType,
+    orderType,
   );
 
   // A child job's output is not promised to this job until its cost is

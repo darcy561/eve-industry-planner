@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { storedCitadel } from "../../tests/marketSourceFixtures.js";
 import { testQueryClient } from "../../tests/queryClients.js";
 
 // Jita 4-4 as ESI actually reports it: the station names the race that built it
@@ -50,21 +52,15 @@ vi.mock("../../Hooks/EveEsi/Character/useGetCharacterStandings", () => ({
 vi.mock("../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../../tests/usersStoreHarness.js");
-  const { structureKinds } = await import("../../Context/defaultValues");
   return usersStoreMock(() =>
     usersStoreState({
       applicationSettings: {
-        customStructures: [
-          {
-            id: "citadelMarket-1",
-            jobType: structureKinds.market,
-            name: "Perimeter Azbel",
-            regionID: 10000002,
-            structureID: 1035466617946,
-            brokerFee: 1.5,
-            default: true,
-          },
+        marketLocations: [
+          storedCitadel({ id: "citadelMarket-1", brokerFee: 1.5 }),
         ],
+        // The account sells at the saved citadel, which is what makes it the
+        // default these cases price against.
+        defaultPricing: { selling: { market: "citadelMarket-1" } },
       },
     }),
   );
@@ -320,7 +316,7 @@ describe("which standing a station's fee is reduced by", () => {
 
 // A standing that could not be read is not a standing of zero. Quoting the fee
 // as though the seller had ground nothing anywhere is a claim about them the app
-// has no basis for, and it is the reason a fee can look right and be wrong.
+// has no order type for, and it is the reason a fee can look right and be wrong.
 //
 // The cache accessor hands back an empty list while loading and again after a
 // failure, so the list itself cannot be inspected to tell the three apart — the

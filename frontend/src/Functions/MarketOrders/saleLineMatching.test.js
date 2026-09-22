@@ -184,7 +184,6 @@ describe("which sales are offered for linking", () => {
       await import("./findOrderTransactions.js");
 
     const job = {
-      esiTransactionIDs: new Set(),
       esi: {
         marketOrders: {
           900: {

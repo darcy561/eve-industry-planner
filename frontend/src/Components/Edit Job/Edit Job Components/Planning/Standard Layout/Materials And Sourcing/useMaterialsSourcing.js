@@ -1,5 +1,8 @@
 import { useMemo } from "react";
 
+import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
+import { pricesWantedBy } from "../../../../../../Functions/MarketData/pricesWanted";
+
 import { useEffectiveMarketHub } from "../../../../../../Hooks/Planner/useEffectiveMarketHub.js";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 import { useMaterialGroupPricing } from "../../../../../../Hooks/Planner/useMaterialGroupPricing.js";
@@ -11,9 +14,9 @@ import { calculateChildJobTotals } from "../../../../../../Functions/Groups/chil
 import checkJobTypeIsBuildable from "../../../../../../Functions/Helper/checkJobTypeIsBuildable.js";
 import {
   getEffectiveMaterialPriceHub,
-  materialCostByBasis,
+  materialCostByOrderType,
   priceAge,
-  summariseBasisUse,
+  summariseOrderTypeUse,
 } from "../../../../../../Functions/MarketData/materialPricing.js";
 import {
   buildMaterialSourcingRow,
@@ -27,7 +30,7 @@ import {
   resolveMaterialChildJobStatus,
   resolveMaterialChildJobs,
 } from "./Helpers/materialChildJobs";
-import { materialMark } from "../../../../../../Functions/MarketData/materialMark.js";
+import { sourcingMark } from "./sourcingMark";
 import useUsersStore from "../../../../../../Zustand/usersStore.js";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 import {
@@ -38,7 +41,7 @@ import {
 
 /**
  * What Materials & Sourcing draws: a row per material, the figures the panel
- * states around them, and what each pricing basis would do to the total.
+ * states around them, and what each pricing order type would do to the total.
  *
  * The rows are built here rather than inside the row components, so a figure can
  * be checked without rendering one.
@@ -52,6 +55,9 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
   // materials, its setups, its links and its price overrides at once, so naming
   // them one at a time would subscribe this to nearly all of it anyway.
   const build = useJobDraft((job) => job.build);
+  const accountPricing = useUsersStore(
+    (store) => store.applicationSettings.defaultPricing,
+  );
   const setupToEdit = useJobDraft((job) => job.layout.setupToEdit);
   const includedInGroup = useJobDraft((job) => job.includedInGroup);
   const temporaryChildJobs = useUsersStore(
@@ -63,13 +69,13 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
   const childJobEdits = useUsersStore(
     (store) => store.editSession.parentChildToEdit.childJobs,
   );
-  const { marketLocation, listingType, marketLocationRung, listingTypeRung } =
+  const { marketLocation, orderType, marketLocationRung, orderTypeRung } =
     useEffectiveMarketHub(build?.localPricing, PRICING_SIDE.BUYING);
 
   const groupPricing = useMaterialGroupPricing({
     side: PRICING_SIDE.BUYING,
     marketLocationRung,
-    listingTypeRung,
+    orderTypeRung,
   });
 
   const checkTypeIDisExempt = useUsersStore(
@@ -78,6 +84,19 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
   const automaticRecalculation = useUsersStore(
     (store) => store.applicationSettings.enableAutomaticJobRecalculation,
   );
+  // The pairs these rows are read at, through the same resolution they are read
+  // back with — so what is asked for and what is drawn cannot disagree.
+  //
+  // The materials and not the output: the job's own item is priced on the
+  // selling side by Cost Breakdown, and nothing here draws it. Asking anyway
+  // costs nothing while the two panels are mounted together and their wants
+  // fold into one request, and starts fetching a price nobody reads the moment
+  // they are not.
+  const { wants, adjustedTypeIDs } = useMemo(
+    () => pricesWantedBy({ build }, accountPricing),
+    [build, accountPricing],
+  );
+  const { clocks } = useMarketPricesQuery(wants, { adjustedTypeIDs });
 
   return useMemo(() => {
     // Sorted here rather than held sorted: the job keys its materials by type
@@ -93,7 +112,7 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
         build,
         material.typeID,
         marketLocation,
-        listingType,
+        orderType,
         groupPricing,
       );
       const { childJobsById, hasChildJobs } = resolveMaterialChildJobs({
@@ -129,7 +148,7 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
       const buyPrice = getMarketPriceForType(
         material.typeID,
         resolved.marketLocation,
-        resolved.listingType,
+        resolved.orderType,
       );
 
       const coverage = coverageFor({
@@ -152,14 +171,14 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
         isBuildable: checkJobTypeIsBuildable(material.jobType),
         isLinked: hasChildJobs,
         matchedChildJobs,
-        mark: materialMark({
+        mark: sourcingMark({
           jobType: material.jobType,
           hasLinked,
           hasPending: hasTemp || hasPendingAdd,
           isExempt: checkTypeIDisExempt(material.typeID),
         }),
         marketLocation: resolved.marketLocation,
-        listingType: resolved.listingType,
+        orderType: resolved.orderType,
       });
     });
 
@@ -167,24 +186,27 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
       rows,
       summary: summariseSourcing(rows),
       marketLocation,
-      listingType,
-      basisUsage: summariseBasisUse(rows, marketLocation, listingType),
+      orderType,
+      orderTypeUsage: summariseOrderTypeUse(rows, marketLocation, orderType),
       priceAge: priceAge(materials, getPriceRefreshedAt),
-      basisOptions: materialCostByBasis({
+      orderTypeOptions: materialCostByOrderType({
         rows,
         build,
         marketLocation,
-        listingType,
+        orderType,
         getPrice: getMarketPriceForType,
         groupPricing,
       }),
     };
+    // `clocks` is read by nothing in here on purpose. The prices are,
+    // synchronously out of the cache, and this is what says they have moved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     build,
     setupToEdit,
     includedInGroup,
     displayType,
-    listingType,
+    orderType,
     checkTypeIDisExempt,
     automaticRecalculation,
     groupPricing,
@@ -192,6 +214,7 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
     childJobEdits,
     speculativeChildJobs,
     temporaryChildJobs,
+    clocks,
   ]);
 }
 
@@ -222,7 +245,7 @@ function coverageFor({
       job,
       temporaryChildJobs,
       resolved.marketLocation,
-      resolved.listingType,
+      resolved.orderType,
     );
 
     return {

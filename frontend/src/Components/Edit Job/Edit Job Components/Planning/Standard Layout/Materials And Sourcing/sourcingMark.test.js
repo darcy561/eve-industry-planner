@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { jobTypes } from "../../Context/defaultValues";
-import { MATERIAL_MARK, materialMark } from "./materialMark";
+import { jobTypes } from "../../../../../../Context/defaultValues";
+import { SOURCING_MARK, sourcingMark } from "./sourcingMark";
 
 const mark = (overrides = {}) =>
-  materialMark({
+  sourcingMark({
     jobType: jobTypes.manufacturing,
     hasLinked: false,
     hasPending: false,
@@ -23,20 +23,20 @@ describe("the mark at the head of a row", () => {
   it("says so when a child job is linked", () => {
     const linked = mark({ hasLinked: true });
 
-    expect(linked.kind).toBe(MATERIAL_MARK.LINKED);
+    expect(linked.kind).toBe(SOURCING_MARK.LINKED);
     expect(linked.label).toBe("Manufacturing Job Linked");
   });
 
   it("tells a pending child job apart from a linked one", () => {
     const pending = mark({ hasPending: true });
 
-    expect(pending.kind).toBe(MATERIAL_MARK.PENDING);
+    expect(pending.kind).toBe(SOURCING_MARK.PENDING);
     expect(pending.label).toBe("Manufacturing Job Pending");
   });
 
   it("counts a material as linked once it is, pending or not", () => {
     expect(mark({ hasLinked: true, hasPending: true }).kind).toBe(
-      MATERIAL_MARK.LINKED,
+      SOURCING_MARK.LINKED,
     );
   });
 

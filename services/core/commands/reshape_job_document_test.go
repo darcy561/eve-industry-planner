@@ -371,7 +371,7 @@ func TestEmptyLayout_movesThePricingDecisionAndDropsTheRest(t *testing.T) {
 func TestEmptyLayout_letsAChosenSideStandOverTheSingleMarket(t *testing.T) {
 	doc := bson.M{"build": bson.M{}, "layout": bson.M{
 		"localMarketDisplay": "jita",
-		"localPricing":       bson.M{"buying": bson.M{"market": "amarr", "basis": "buy"}},
+		"localPricing":       bson.M{"buying": bson.M{"market": "amarr", "orderType": "buy"}},
 	}}
 
 	out, _ := reshapeJobDocument(doc, fixedMint(-1))
@@ -420,7 +420,7 @@ func TestReshapeJobDocument_keepsAFeeWhenItsOrderRowLosesTheHistoryComparison(t 
 
 func TestEmptyLayout_writesAnEmptySideAsTheModelDefinesIt(t *testing.T) {
 	doc := bson.M{"build": bson.M{}, "layout": bson.M{
-		"localPricing": bson.M{"buying": bson.M{"market": "amarr", "basis": "buy"}},
+		"localPricing": bson.M{"buying": bson.M{"market": "amarr", "orderType": "buy"}},
 	}}
 
 	out, _ := reshapeJobDocument(doc, fixedMint(-1))

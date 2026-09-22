@@ -13,7 +13,7 @@ import {
 } from "../../../../Edit Job Hooks/jobCommands";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import { MarketLocationSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketLocation.jsx";
-import { ListingTypeSelectApplicationSettings } from "../../../../../../Styled Components/Select/listingType.jsx";
+import { OrderTypeSelectApplicationSettings } from "../../../../../../Styled Components/Select/orderType.jsx";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { showShoppingList } from "../../../../../../Events/shoppingListEvents";
@@ -258,16 +258,16 @@ export function PurchasingDataPanel_EditJob() {
               />
             </Grid>
             <Grid size={6}>
-              <ListingTypeSelectApplicationSettings
+              <OrderTypeSelectApplicationSettings
                 side={PRICING_SIDE.BUYING}
-                overrideListingType={localPricing?.buying?.basis ?? undefined}
-                onListingTypeCommit={(id) => {
+                overrideOrderType={localPricing?.buying?.orderType ?? undefined}
+                onOrderTypeCommit={(id) => {
                   actions.run(
                     setJobPricing({
                       localPricing: setJobPricingSide(
                         localPricing,
                         PRICING_SIDE.BUYING,
-                        "basis",
+                        "orderType",
                         id,
                       ),
                     }),

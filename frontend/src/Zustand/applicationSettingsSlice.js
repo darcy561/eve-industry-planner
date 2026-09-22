@@ -5,6 +5,7 @@
 import {
   stateDefault,
   coreActions,
+  marketActions,
   structureActions,
   preferencesActions,
   predefinedSystemIndexActions,
@@ -24,6 +25,7 @@ const applicationSettingsSlice = (set, get) => ({
     actions: {
       ...coreActions(set, get),
       ...structureActions(set, get),
+      ...marketActions(set),
       ...preferencesActions(set, get),
       ...predefinedSystemIndexActions(set, get),
     },

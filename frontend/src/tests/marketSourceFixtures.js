@@ -87,3 +87,44 @@ export async function marketSourcesWith(...saved) {
     ],
   };
 }
+
+/**
+ * A market as an account has it stored, on the lane a market lives on.
+ *
+ * The stored row, as against the source a price is asked for — `savedCitadel`
+ * above is what the registry hands a caller, this is what the settings document
+ * holds. A test that seeds a reader's markets wants this one.
+ *
+ * @param {object} [overrides]
+ * @returns {object} A stored market location
+ */
+export function storedCitadel(overrides = {}) {
+  return {
+    id: "market-1",
+    name: "Perimeter Azbel",
+    regionID: 10000002,
+    structureID: SAVED_STRUCTURE_ID,
+    brokerFee: 2.5,
+    ...overrides,
+  };
+}
+
+/**
+ * An NPC station as an account has it stored.
+ *
+ * No broker fee: a station's is worked out from the seller's skills and
+ * standings, and a stored number there would quote the untrained rate without
+ * saying so.
+ *
+ * @param {object} [overrides]
+ * @returns {object} A stored market location
+ */
+export function storedStation(overrides = {}) {
+  return {
+    id: "market-station-1",
+    name: "Rens VI - Moon 8",
+    regionID: 10000030,
+    stationID: SAVED_STATION_ID,
+    ...overrides,
+  };
+}

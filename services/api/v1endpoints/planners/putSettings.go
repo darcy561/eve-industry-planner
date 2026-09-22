@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/marketsources"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/models/planner"
@@ -74,6 +75,12 @@ func (h *Handlers) PutPlannerSettingsHandler(w http.ResponseWriter, r *http.Requ
 			"planner_settings", err, nil)
 		return
 	}
+
+	// Asked for as the planner saves them, so a market an organisation has just
+	// shared is already being walked by the time a member's job wants a figure.
+	// The shared ones only: one kept internal to the planner reaches no member
+	// and is a region walked for nobody.
+	marketsources.Register(ctx, h.Redis, h.NATS, stored.MarketLocations.Shared())
 
 	w.WriteHeader(http.StatusOK)
 	if err := helper.EncodeJSON(w, settingsResponse{

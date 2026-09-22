@@ -4,7 +4,7 @@ import { getEffectiveMaterialPriceHub } from "./materialPricing";
 import { resolvePricingSideRungs } from "./pricingSide.js";
 
 /**
- * Which market and listing type one side of a job prices against.
+ * Which market and order type one side of a job prices against.
  *
  * **One place answers this for every caller outside render.** Deciding what to
  * fetch and reading it back are two paths that must agree exactly: a fetch that
@@ -21,7 +21,7 @@ import { resolvePricingSideRungs } from "./pricingSide.js";
  * @typedef {object} SideDefaults
  * @property {string} marketLocation - What the side prices against before any
  *   nearer rung answers
- * @property {string} listingType
+ * @property {string} orderType
  * @property {object|undefined} groupPricing - The market group table and the
  *   rungs it may outrank, or undefined where the account priced no group
  */
@@ -50,16 +50,16 @@ export function sideDefaults(side, { jobPricing, accountPricing } = {}) {
     accountPricing ??
     useUsersStore.getState().applicationSettings.defaultPricing;
 
-  const { marketLocation, listingType, marketLocationRung, listingTypeRung } =
+  const { marketLocation, orderType, marketLocationRung, orderTypeRung } =
     resolvePricingSideRungs({ jobPricing, accountPricing: pricing, side });
 
   return {
     marketLocation,
-    listingType,
+    orderType,
     groupPricing: groupPricingFor({
       groupDefaults: pricing?.[side]?.groups,
       marketLocationRung,
-      listingTypeRung,
+      orderTypeRung,
     }),
   };
 }
@@ -71,14 +71,14 @@ export function sideDefaults(side, { jobPricing, accountPricing } = {}) {
  * @param {object|null} build - The job's build, holding any per-material
  *   override. Null for a caller with no job, such as a shopping list
  * @param {number|string} typeID
- * @returns {{marketLocation: string, listingType: string}}
+ * @returns {{marketLocation: string, orderType: string}}
  */
 export function resolveFor(defaults, build, typeID) {
   return getEffectiveMaterialPriceHub(
     build,
     typeID,
     defaults.marketLocation,
-    defaults.listingType,
+    defaults.orderType,
     defaults.groupPricing,
   );
 }

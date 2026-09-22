@@ -19,7 +19,7 @@ import (
 // Rens, a station an account registers, in a region no default hub sits in.
 const (
 	savedStation = int64(60004588)
-	savedRegion  = int32(10000030)
+	savedRegion  = int64(10000030)
 )
 
 // savedStationHandler wires a handler that can resolve a station: ESI answers

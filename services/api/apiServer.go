@@ -234,6 +234,10 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients, esi esi
 			Handler: userH.ApplicationSettingsHandler,
 		},
 		{
+			Path:    "/api/v1/user/market-locations",
+			Handler: userH.MarketLocationsHandler,
+		},
+		{
 			Path:    "/api/v1/user/citadel-names",
 			Handler: userH.CitadelNamesHandler,
 		},

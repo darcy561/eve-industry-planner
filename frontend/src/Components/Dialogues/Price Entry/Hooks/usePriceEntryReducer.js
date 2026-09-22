@@ -20,13 +20,13 @@ import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/set
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import { useAdvanceWhenFollowingAppDefault } from "../../../../Hooks/Planner/useAdvanceWhenFollowingAppDefault.js";
 
-const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
+const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 
 /**
  * What the dialogue opens on: the account's buying default, read fresh rather
  * than closed over, because the reducer rebuilds its initial state on reset.
  *
- * @returns {{marketLocation: string, listingType: string}}
+ * @returns {{marketLocation: string, orderType: string}}
  */
 function resolveBuyingDefault() {
   return resolvePricingSide({
@@ -39,13 +39,13 @@ function resolveBuyingDefault() {
  * Custom hook for managing price entry dialogue state.
  */
 export default function usePriceEntryReducer() {
-  const {
-    marketLocation: defaultMarketLocation,
-    listingType: defaultListingType,
-  } = resolvePricingSide({
-    accountPricing: useUsersStore((s) => s.applicationSettings.defaultPricing),
-    side: PRICING_SIDE.BUYING,
-  });
+  const { marketLocation: defaultMarketLocation, orderType: defaultOrderType } =
+    resolvePricingSide({
+      accountPricing: useUsersStore(
+        (s) => s.applicationSettings.defaultPricing,
+      ),
+      side: PRICING_SIDE.BUYING,
+    });
 
   /**
    * Creates the initial state for the price entry dialogue.
@@ -74,9 +74,9 @@ export default function usePriceEntryReducer() {
   });
 
   useAdvanceWhenFollowingAppDefault({
-    applicationDefault: defaultListingType,
-    committedValue: state.listingType,
-    fallback: DEFAULT_ORDER_OPTION,
+    applicationDefault: defaultOrderType,
+    committedValue: state.orderType,
+    fallback: DEFAULT_ORDER_TYPE,
     dispatch,
     advanceActionType: PRICE_ENTRY_ACTION_TYPES.SET_LISTING_TYPE,
   });
@@ -117,7 +117,7 @@ export default function usePriceEntryReducer() {
           payload: market,
         });
       },
-      setListingType: (order) => {
+      setOrderType: (order) => {
         dispatch({
           type: PRICE_ENTRY_ACTION_TYPES.SET_LISTING_TYPE,
           payload: order,

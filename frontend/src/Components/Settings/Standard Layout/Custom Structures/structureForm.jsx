@@ -6,8 +6,6 @@ import { StructureField, fieldsFor } from "./structureFields";
 import { FormField } from "../../../../Styled Components/Textfield/FormField";
 import Structure from "../../../../Classes/structure";
 import useRigSlots from "./useRigSlots";
-import useAssetLocations from "../../../../Hooks/EveEsi/useAssetLocations";
-import describeMarketLocation from "../../../../Functions/Structure/describeMarketLocation";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
 import { showSnackbarSuccess } from "../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
@@ -31,8 +29,8 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
  * What a new structure of a kind starts as.
  *
  * Only the kinds that carry a field are given one, because the class drops what
- * its kind does not name — passing a rig slot to a market would be discarded,
- * and reading it back as a default would be a lie about what was stored.
+ * its kind does not name — passing a system to invention would be discarded, and
+ * reading it back as a default would be a lie about what was stored.
  */
 function blankStructure(jobType) {
   const seed = { jobType };
@@ -76,15 +74,9 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
   const [structure, setStructure] = useState(() =>
     blankStructure(selectedJobType),
   );
-  const [placeError, setPlaceError] = useState(null);
   const [nameError, setNameError] = useState(false);
 
   const fields = structure.fields;
-  const isMarket = Boolean(fields.stationID || fields.structureID);
-
-  // Asked for only by a kind that names a place, so an account's assets are not
-  // read to describe somewhere a job is built.
-  const places = useAssetLocations({ enabled: isMarket });
 
   const settled = (mutate) => {
     mutate(structure);
@@ -123,12 +115,10 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
 
   const context = {
     structure,
-    placeError,
     jobType: selectedJobType,
     fieldProps,
     textFieldSx,
     rigSlots,
-    places,
     onStructureType: (entry) => {
       structure.setStructureType(entry.id);
       setStructure(new Structure(structure));
@@ -141,7 +131,6 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     },
     onImplant: (entry) => settled((s) => s.setImplant(entry.id)),
     onTax: (value) => settled((s) => s.setTax(value)),
-    onBrokerFee: (value) => settled((s) => s.setBrokerFee(value)),
     // A system can carry a preset of its own, and can refuse a kind of job
     // outright — the Fulcrum is manufacturing only. Refusing here is what stops
     // a structure being saved somewhere its jobs cannot run.
@@ -159,36 +148,6 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
       structure.setSystemID(systemID);
       setStructure(new Structure(structure));
       applyRequirements(preset);
-    },
-    // One picker names the place, and which field it lands in is what the kind
-    // already says: a station id and a structure id are the same number from
-    // ESI and are told apart by range.
-    //
-    // The region and the fee's inputs are derived from the place rather than
-    // asked for, and asked for here rather than when something tries to price
-    // at it — a market saved without a region is offered in every picker and
-    // prices nothing.
-    onPlace: async (locationID) => {
-      if (!locationID) return;
-      settled((s) => s.setPlace(locationID));
-
-      const facts = await describeMarketLocation(
-        locationID,
-        structure.systemID,
-      );
-      if (!facts) {
-        setPlaceError(
-          "This location could not be read. Try again in a moment.",
-        );
-        return;
-      }
-      setPlaceError(null);
-      settled((s) => {
-        s.setRegionID(facts.regionID);
-        if (facts.raceID !== undefined) {
-          s.setStationOwner(facts.raceID, facts.ownerID);
-        }
-      });
     },
   };
 
@@ -210,7 +169,6 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
         setIsLoading,
       });
       setStructure(blankStructure(selectedJobType));
-      setPlaceError(null);
       scheduleDebouncedApplicationSettingsSave();
       showSnackbarSuccess(`${structure.name} Added`);
     } catch (error) {
@@ -251,7 +209,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
           </FormField>
         </Grid>
 
-        {fieldsFor(fields, structure).map((entry) => (
+        {fieldsFor(fields).map((entry) => (
           <StructureField key={entry.id} entry={entry} context={context} />
         ))}
 

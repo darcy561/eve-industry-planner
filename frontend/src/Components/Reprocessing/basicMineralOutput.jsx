@@ -31,14 +31,14 @@ function BasicMineralOutput({ pageState }) {
       const unitPrice = getMarketPriceForType(
         item.id,
         pageState.marketLocation,
-        pageState.listingType,
+        pageState.orderType,
       );
       return acc + unitPrice * item.quantity;
     }, 0);
   }, [
     pageState.processedInput,
     pageState.marketLocation,
-    pageState.listingType,
+    pageState.orderType,
     isLoading,
   ]);
 
@@ -49,14 +49,14 @@ function BasicMineralOutput({ pageState }) {
       const unitPrice = getMarketPriceForType(
         item.id,
         pageState.marketLocation,
-        pageState.listingType,
+        pageState.orderType,
       );
       return acc + unitPrice * item.totalQuantity;
     }, 0);
   }, [
     pageState.reprocessingObjects,
     pageState.marketLocation,
-    pageState.listingType,
+    pageState.orderType,
     isLoading,
   ]);
 
@@ -189,7 +189,7 @@ function BasicMineralOutput({ pageState }) {
           const unitPrice = getMarketPriceForType(
             item.id,
             pageState.marketLocation,
-            pageState.listingType,
+            pageState.orderType,
           );
           const totalValue = unitPrice * item.quantity;
 

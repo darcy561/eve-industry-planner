@@ -67,7 +67,7 @@ const GLOBAL_CONFIG = Object.freeze({
 
   /**
    * ESI X-Compatibility-Date (YYYY-MM-DD). Single pin for all browser ESI calls.
-   * Keep in sync with Go `worker/esi` package `CompatibilityDate` (compatibility_date.go) when bumping.
+   * Keep in sync with the `CompatibilityDate` values in Go `shared/esiclient/config.go` when bumping.
    *
    * @type {string}
    */
@@ -129,7 +129,7 @@ const GLOBAL_CONFIG = Object.freeze({
    * @type {string}
    * @enum {string} "buy" | "sell"
    */
-  DEFAULT_ORDER_OPTION: "sell",
+  DEFAULT_ORDER_TYPE: "sell",
 
   /**
    * Default asset location station ID for new users.

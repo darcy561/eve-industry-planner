@@ -24,7 +24,7 @@ import { jobTypes } from "../../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import { useAdvanceWhenFollowingAppDefault } from "../../../Hooks/Planner/useAdvanceWhenFollowingAppDefault.js";
 
-const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
+const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 
 /**
  * Custom hook for managing reprocessing page state.
@@ -49,7 +49,7 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * @returns {Object} returns.state.rigSlotErrors - Rig slot validation errors
  * @returns {Array} returns.state.oreIDsToBeIgnored - Array of ore IDs to ignore
  * @returns {string} returns.state.marketLocation - Market location for pricing
- * @returns {string} returns.state.listingType - Market listing type (buy/sell)
+ * @returns {string} returns.state.orderType - Market order type (buy/sell)
  * @returns {boolean} returns.state.inputModified - Whether input has been modified
  * @returns {Object} returns.state.requestedMinerals - Requested minerals data
  * @returns {Object} returns.state.reprocessingCalculationSettings - Calculation settings
@@ -71,7 +71,7 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * @returns {Function} returns.actions.removeOreIDToBeIgnored - Remove ore ID from ignore list
  * @returns {Function} returns.actions.clearOreIDsToBeIgnored - Clear all ignored ore IDs
  * @returns {Function} returns.actions.setMarketLocation - Set market location
- * @returns {Function} returns.actions.setMarketListing - Set market listing type
+ * @returns {Function} returns.actions.setMarketOrderType - Set market order type
  * @returns {Function} returns.actions.setInputModified - Set input modification flag
  * @returns {Function} returns.actions.setRequestedMinerals - Set requested minerals
  * @returns {Function} returns.actions.setReprocessingCalculationSettings - Set calculation settings
@@ -104,15 +104,13 @@ export default function useReprocessingReducer() {
   );
   const { getDefaultReprocessingCharacter } =
     useUsersStore.getState().applicationSettings.actions;
-  const {
-    marketLocation: defaultMarketLocation,
-    listingType: defaultListingType,
-  } = resolvePricingSide({
-    accountPricing: useUsersStore(
-      (state) => state.applicationSettings.defaultPricing,
-    ),
-    side: PRICING_SIDE.SELLING,
-  });
+  const { marketLocation: defaultMarketLocation, orderType: defaultOrderType } =
+    resolvePricingSide({
+      accountPricing: useUsersStore(
+        (state) => state.applicationSettings.defaultPricing,
+      ),
+      side: PRICING_SIDE.SELLING,
+    });
 
   const characters = useUsersStore((state) => state.account.characters);
 
@@ -135,7 +133,7 @@ export default function useReprocessingReducer() {
     rigSlotErrors: { slot1: false, slot2: false },
     oreIDsToBeIgnored: [],
     marketLocation: defaultMarketLocation || DEFAULT_MARKET_OPTION,
-    listingType: defaultListingType || DEFAULT_ORDER_OPTION,
+    orderType: defaultOrderType || DEFAULT_ORDER_TYPE,
     inputModified: false,
     requestedMinerals: {},
     reprocessingCalculationSettings: (() => {
@@ -154,11 +152,11 @@ export default function useReprocessingReducer() {
   const [state, dispatch] = useReducer(reprocessingReducer, initialState);
 
   useAdvanceWhenFollowingAppDefault({
-    applicationDefault: defaultListingType,
-    committedValue: state.listingType,
-    fallback: DEFAULT_ORDER_OPTION,
+    applicationDefault: defaultOrderType,
+    committedValue: state.orderType,
+    fallback: DEFAULT_ORDER_TYPE,
     dispatch,
-    advanceActionType: REPROCESSING_ACTION_TYPES.SET_MARKET_LISTING,
+    advanceActionType: REPROCESSING_ACTION_TYPES.SET_MARKET_ORDER_TYPE,
   });
 
   useAdvanceWhenFollowingAppDefault({
@@ -408,17 +406,17 @@ export default function useReprocessingReducer() {
       });
     },
     /**
-     * Sets the market listing type (buy/sell).
+     * Sets the market order type (buy/sell).
      *
-     * @param {string} listing - Market listing type ('buy' or 'sell')
+     * @param {string} orderType - Market order type ('buy' or 'sell')
      *
      * @example
-     * actions.setMarketListing('sell');
+     * actions.setMarketOrderType('sell');
      */
-    setMarketListing: (listing) => {
+    setMarketOrderType: (orderType) => {
       dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_MARKET_LISTING,
-        payload: listing,
+        type: REPROCESSING_ACTION_TYPES.SET_MARKET_ORDER_TYPE,
+        payload: orderType,
       });
     },
     /**

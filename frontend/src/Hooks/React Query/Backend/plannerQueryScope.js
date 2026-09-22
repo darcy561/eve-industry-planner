@@ -33,7 +33,22 @@ const PLANNER_SCOPED_QUERY_ROOTS = [
  * @returns {import("@tanstack/react-query").QueryKey}
  */
 export function plannerQueryScope(root) {
-  return ["backend", root, activePlannerOwnerHandle() ?? ""];
+  return plannerOwnerQueryScope(root, activePlannerOwnerHandle() ?? "");
+}
+
+/**
+ * The same prefix for a named planner rather than the active one.
+ *
+ * For the surfaces that reach a planner the reader is not working in — the
+ * markets an organisation shares are read and edited from the settings page,
+ * whichever planner happens to be open.
+ *
+ * @param {string} root - what the keys beneath this scope are for
+ * @param {string} ownerHandle - whose documents they are
+ * @returns {import("@tanstack/react-query").QueryKey}
+ */
+export function plannerOwnerQueryScope(root, ownerHandle) {
+  return ["backend", root, ownerHandle ?? ""];
 }
 
 /**

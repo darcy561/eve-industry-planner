@@ -213,8 +213,8 @@ func emptyLayout(out bson.M, build bson.M) {
 		build["materialPriceOverrides"] = overrides
 	}
 	market := firstString(layout["localMarketDisplay"], layout["marketLocation"])
-	basis := firstString(layout["localOrderDisplay"], layout["orderType"])
-	if pricing := jobPricingOverride(asDocument(layout["localPricing"]), market, basis); pricing != nil {
+	orderType := firstString(layout["localOrderDisplay"], layout["orderType"])
+	if pricing := jobPricingOverride(asDocument(layout["localPricing"]), market, orderType); pricing != nil {
 		build["localPricing"] = pricing
 	}
 }
@@ -225,13 +225,13 @@ func emptyLayout(out bson.M, build bson.M) {
 // A side the player has not chosen seeds from the job's single market, because
 // naming one market said nothing about which side of the job it meant — so
 // neither side may claim it over the other.
-func jobPricingOverride(stored bson.M, market string, basis string) bson.M {
+func jobPricingOverride(stored bson.M, market string, orderType string) bson.M {
 	side := func(name string) bson.M {
 		chosen := asDocument(stored[name])
-		if asString(chosen["market"]) != "" || asString(chosen["basis"]) != "" {
-			return pricingSide(asString(chosen["market"]), asString(chosen["basis"]))
+		if asString(chosen["market"]) != "" || asString(chosen["orderType"]) != "" {
+			return pricingSide(asString(chosen["market"]), asString(chosen["orderType"]))
 		}
-		return pricingSide(market, basis)
+		return pricingSide(market, orderType)
 	}
 	buying, selling := side("buying"), side("selling")
 	if len(buying) > 0 || len(selling) > 0 {
@@ -243,13 +243,13 @@ func jobPricingOverride(stored bson.M, market string, basis string) bson.M {
 // pricingSide writes only what was chosen. `models.PricingChoice` tags both
 // fields `omitempty` and an empty side is `{}`, so writing `""` would put a
 // value where the model states there is none.
-func pricingSide(market string, basis string) bson.M {
+func pricingSide(market string, orderType string) bson.M {
 	side := bson.M{}
 	if market != "" {
 		side["market"] = market
 	}
-	if basis != "" {
-		side["basis"] = basis
+	if orderType != "" {
+		side["orderType"] = orderType
 	}
 	return side
 }

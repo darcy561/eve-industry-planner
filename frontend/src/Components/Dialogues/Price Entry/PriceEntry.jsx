@@ -7,7 +7,7 @@ function serializePriceEntryEvent(messageData) {
     isOpen: Boolean(messageData.isOpen),
     jobIDs: messageData.jobIDs ?? [],
     marketLocation: messageData.marketLocation ?? null,
-    listingType: messageData.listingType ?? null,
+    orderType: messageData.orderType ?? null,
   });
 }
 
@@ -20,7 +20,7 @@ export function PriceEntryDialogue() {
       isOpen: false,
       jobIDs: [],
       marketLocation: null,
-      listingType: null,
+      orderType: null,
     }),
     serializePriceEntryEvent,
     (msg) => {
@@ -29,8 +29,8 @@ export function PriceEntryDialogue() {
         if (msg.marketLocation) {
           actions.setMarketLocation(msg.marketLocation);
         }
-        if (msg.listingType) {
-          actions.setListingType(msg.listingType);
+        if (msg.orderType) {
+          actions.setOrderType(msg.orderType);
         }
         if (!state.isOpen) {
           actions.toggleIsOpen();

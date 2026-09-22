@@ -41,7 +41,7 @@ afterEach(() => {
 
 describe("reading a price", () => {
   // The synchronous readers are the reason this is a read rather than a hook: a
-  // shopping list row and a basis comparison each read inside a reduce.
+  // shopping list row and an order type comparison each read inside a reduce.
   it("answers nothing before anything has been asked for", () => {
     expect(readPrice(34, "jita")).toBeUndefined();
     expect(readAdjustedPrice(34)).toBeUndefined();

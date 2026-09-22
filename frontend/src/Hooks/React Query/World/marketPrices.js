@@ -3,8 +3,10 @@ import { useMemo } from "react";
 import {
   fetchPrices,
   MARKET_PRICES_QUERY_KEY,
+  readPrice,
 } from "../../../Functions/MarketData/priceCache";
 import { idsQueryKeySuffix } from "../idsQueryKey.js";
+import { wantKey } from "../../../Functions/MarketData/marketSources";
 import {
   readAdjustedClock,
   readSourceClock,
@@ -41,7 +43,7 @@ export function useMarketPricesQuery(
   const asked = useMemo(() => {
     const unique = new Map();
     for (const { typeID, sourceID } of wants ?? []) {
-      unique.set(`${sourceID}|${typeID}`, { typeID, sourceID });
+      unique.set(wantKey(sourceID, typeID), { typeID, sourceID });
     }
     return [...unique.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [wants]);
@@ -84,24 +86,36 @@ export function useMarketPricesQuery(
   // `data` is read rather than ignored on purpose: the query tracks which of
   // its fields a caller uses and notifies only on those, so a hook that reads
   // none of it is never re-rendered when the prices behind it are replaced.
-  // Returning the clocks is what lets a caller see a market's book move.
+  // Returning the clocks is what lets a caller see a market move — a surface
+  // that works its figures out in a `useMemo` names them among its dependencies.
+  //
+  // Which is why `clocksFor` keys a market with no clock of its own per type:
+  // structural sharing hands back the same object when a settle is deeply equal
+  // to the last, so a value that could not tell two settles apart would leave
+  // every reader on the figures the fetch had just replaced.
   return { isLoading, isError, error, clocks: data };
 }
 
 /**
  * Each market's clock as it stands, keyed so a moved one changes the value.
  *
- * Every kind reports one: a market this server prices states its clock on every
- * answer, and a market the reader reads themselves records one as the read
- * lands. A market that has never answered has no clock and nothing here until
- * it does — and no figures for a reader to be left looking at either.
+ * **A market with no clock of its own is keyed per type.** A market this server
+ * walks states one clock for everything it answered; a market that has never
+ * been walked states none at all, and neither does a market the reader reads
+ * for themselves — their freshness is carried on each row instead. Keying those
+ * by source alone reads as nothing at all, so a fetch lands rows while every
+ * surface goes on showing the figures they replaced.
  */
 function clocksFor(asked) {
   const clocks = { adjusted: readAdjustedClock() ?? 0 };
 
-  for (const [, { sourceID }] of asked) {
+  for (const [pair, { typeID, sourceID }] of asked) {
     const walked = readSourceClock(sourceID);
-    if (walked !== undefined) clocks[sourceID] = walked;
+    if (walked !== undefined) {
+      clocks[sourceID] = walked;
+      continue;
+    }
+    clocks[pair] = readPrice(typeID, sourceID)?.refreshedAt ?? 0;
   }
 
   return clocks;

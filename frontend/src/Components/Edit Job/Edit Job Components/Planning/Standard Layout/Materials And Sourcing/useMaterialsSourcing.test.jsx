@@ -6,9 +6,9 @@ import { beforeAll } from "vitest";
 vi.mock("../../../../../../Hooks/Planner/useEffectiveMarketHub.js", () => ({
   useEffectiveMarketHub: () => ({
     marketLocation: "jita",
-    listingType: "sell",
+    orderType: "sell",
     marketLocationRung: "account",
-    listingTypeRung: "account",
+    orderTypeRung: "account",
   }),
 }));
 // Tritanium (34) sits in Minerals; 35 carries no market group, as most
@@ -22,13 +22,33 @@ vi.mock(
     getFullItemList: async () => ({ 34: { market_group_id: 1857 } }),
   }),
 );
+// A market with nothing held answers zero, as the real accessor does for a
+// market nothing has fetched. Set per test so a price can be made to land.
+let heldPrices = {
+  jita: { sell: 10, buy: 8, buyP95: 9, sellP05: 11 },
+  amarr: { sell: 20, buy: 16, buyP95: 18, sellP05: 22 },
+};
+
 vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
   getPriceRefreshedAt: () => undefined,
-  getMarketPriceForType: (typeID, hub, basis) =>
-    ({
-      jita: { sell: 10, buy: 8, buyP95: 9, sellP05: 11 },
-      amarr: { sell: 20, buy: 16, buyP95: 18, sellP05: 22 },
-    })[hub]?.[basis] ?? 0,
+  getMarketPriceForType: (typeID, hub, orderType) =>
+    heldPrices[hub]?.[orderType] ?? 0,
+}));
+
+// The clocks the prices came back with. The panel reads the figures out of the
+// cache rather than subscribing to a row, so this is what tells it they moved.
+//
+// Mocked rather than run behind `tests/pricedSurface.jsx`, which is what every
+// other test of a priced surface uses: this file is the one testing the signal
+// itself, and a clock cannot be moved through a real fetch deterministically.
+let clocks = { jita: 1 };
+let asked = [];
+
+vi.mock("../../../../../../Hooks/React Query/World/marketPrices", () => ({
+  useMarketPricesQuery: (wants) => {
+    asked = wants;
+    return { isLoading: false, isError: false, error: null, clocks };
+  },
 }));
 // Set per test rather than remocked, so a case with linked children does not
 // need the module registry reset around it.
@@ -146,8 +166,8 @@ const settleAccountSettings = () =>
       // The two sides carry different values, so a hook asking for the wrong
       // one is visible.
       defaultPricing: {
-        buying: { market: "jita", basis: "sell", groups: groupDefaults },
-        selling: { market: "amarr", basis: "buy" },
+        buying: { market: "jita", orderType: "sell", groups: groupDefaults },
+        selling: { market: "amarr", orderType: "buy" },
       },
     },
   }));
@@ -162,6 +182,84 @@ const render = ({ document, speculativeChildJobs }) => {
   return renderHook(() => useMaterialsSourcing()).result.current;
 };
 
+// The panel reads its figures out of the price cache and subscribes to no row,
+// so a fetch landing changes nothing it can see. Moving the market points every
+// figure at a market this session may never have asked about — which draws
+// zeroes, and then stays showing them while the prices sit in the cache.
+describe("prices that land after the rows were built", () => {
+  const priceless = { jita: {}, amarr: {} };
+
+  afterEach(() => {
+    heldPrices = {
+      jita: { sell: 10, buy: 8, buyP95: 9, sellP05: 11 },
+      amarr: { sell: 20, buy: 16, buyP95: 18, sellP05: 22 },
+    };
+    clocks = { jita: 1 };
+  });
+
+  // The signal is half of it. A panel asking the wrong market is the other, and
+  // is how the figures came back zero in the first place — so what it asks for
+  // is asserted rather than assumed from the figures happening to be right.
+  it("asks for each material at the market it is drawn at", () => {
+    render(setup({ materials: [material(34), material(35)] }));
+
+    expect(asked.map((want) => want.sourceID)).toEqual(["jita", "jita"]);
+    expect(asked.map((want) => want.typeID).sort()).toEqual([34, 35]);
+  });
+
+  // The job's own item is priced on the selling side by Cost Breakdown, and
+  // nothing here draws it — so asking for it would be fetching a price no row
+  // reads.
+  it("does not ask for the job's own output", () => {
+    const { document } = setup();
+
+    render({ ...setup(), document });
+
+    expect(asked.some((want) => want.typeID === document.itemID)).toBe(false);
+  });
+
+  it("draws zero for a market nothing has been fetched for", () => {
+    heldPrices = priceless;
+
+    expect(render(setup()).rows[0].buyPrice).toBe(0);
+  });
+
+  it("takes up the figures once they have settled", () => {
+    heldPrices = priceless;
+    settleAccountSettings();
+    session().actions.closeSession();
+    const { document } = setup();
+    session().actions.openJob(document.jobID, document);
+
+    const { result, rerender } = renderHook(() => useMaterialsSourcing());
+    expect(result.current.rows[0].buyPrice).toBe(0);
+
+    heldPrices = { jita: { sell: 10 } };
+    clocks = { jita: 2 };
+    rerender();
+
+    expect(result.current.rows[0].buyPrice).toBe(10);
+  });
+
+  // The control for the case above: a render that is not told the prices moved
+  // keeps what it built, which is what makes the moment load-bearing rather
+  // than incidental.
+  it("keeps the figures it built when nothing says they moved", () => {
+    heldPrices = priceless;
+    settleAccountSettings();
+    session().actions.closeSession();
+    const { document } = setup();
+    session().actions.openJob(document.jobID, document);
+
+    const { result, rerender } = renderHook(() => useMaterialsSourcing());
+
+    heldPrices = { jita: { sell: 10 } };
+    rerender();
+
+    expect(result.current.rows[0].buyPrice).toBe(0);
+  });
+});
+
 describe("useMaterialsSourcing", () => {
   it("gives the panel every part it draws", () => {
     // The panel destructures each of these; one missing is a feature that
@@ -170,9 +268,9 @@ describe("useMaterialsSourcing", () => {
 
     expect(Object.keys(result).sort()).toEqual(
       [
-        "basisOptions",
-        "basisUsage",
-        "listingType",
+        "orderTypeOptions",
+        "orderTypeUsage",
+        "orderType",
         "marketLocation",
         "priceAge",
         "rows",
@@ -200,14 +298,14 @@ describe("useMaterialsSourcing", () => {
 
     expect(result.rows[0]).toMatchObject({
       marketLocation: "jita",
-      listingType: "sell",
+      orderType: "sell",
       matchedChildJobs: [],
     });
     expect(result.rows[0].material).toBeDefined();
   });
 
-  it("counts no overrides when every row is on the panel's basis", () => {
-    expect(render(setup()).basisUsage).toMatchObject({ overridden: 0 });
+  it("counts no overrides when every row is on the panel's order type", () => {
+    expect(render(setup()).orderTypeUsage).toMatchObject({ overridden: 0 });
   });
 
   it("counts a row that carries its own hub", () => {
@@ -215,14 +313,14 @@ describe("useMaterialsSourcing", () => {
       materialPriceOverrides: { 34: { marketDisplay: "amarr" } },
     });
 
-    expect(render(state).basisUsage.overridden).toBe(1);
+    expect(render(state).orderTypeUsage.overridden).toBe(1);
   });
 
-  it("costs the job on every basis the picker offers", () => {
+  it("costs the job on every order type the picker offers", () => {
     const result = render(setup());
 
-    expect(result.basisOptions).toHaveLength(4);
-    expect(result.basisOptions.find((o) => o.isCurrent).id).toBe("sell");
+    expect(result.orderTypeOptions).toHaveLength(4);
+    expect(result.orderTypeOptions.find((o) => o.isCurrent).id).toBe("sell");
   });
 });
 
@@ -348,25 +446,25 @@ describe("a material priced from its market group", () => {
   });
 
   it("prices the row from the group rather than the account default", () => {
-    groupDefaults = { 1857: { market: "amarr", basis: "buy" } };
+    groupDefaults = { 1857: { market: "amarr", orderType: "buy" } };
 
     const { rows } = render(setup());
 
     expect(rows[0]).toMatchObject({
       marketLocation: "amarr",
-      listingType: "buy",
+      orderType: "buy",
       buyPrice: 16,
     });
   });
 
   it("leaves the account default where the item's group says nothing", () => {
-    groupDefaults = { 9999: { market: "amarr", basis: "buy" } };
+    groupDefaults = { 9999: { market: "amarr", orderType: "buy" } };
 
     const { rows } = render(setup());
 
     expect(rows[0]).toMatchObject({
       marketLocation: "jita",
-      listingType: "sell",
+      orderType: "sell",
       buyPrice: 10,
     });
   });
@@ -377,13 +475,15 @@ describe("a material priced from its market group", () => {
     expect(rows[0]).toMatchObject({ marketLocation: "jita", buyPrice: 10 });
   });
 
-  // The basis comparison varies the basis itself, so a group naming one must not
+  // The order type comparison varies the order type itself, so a group naming one must not
   // answer all four candidates identically.
-  it("still costs each basis apart when the group names one", () => {
-    groupDefaults = { 1857: { basis: "buy" } };
+  it("still costs each order type apart when the group names one", () => {
+    groupDefaults = { 1857: { orderType: "buy" } };
 
-    const { basisOptions } = render(setup());
-    const byId = Object.fromEntries(basisOptions.map((o) => [o.id, o.total]));
+    const { orderTypeOptions } = render(setup());
+    const byId = Object.fromEntries(
+      orderTypeOptions.map((o) => [o.id, o.total]),
+    );
 
     expect(byId.sell).not.toBe(byId.buy);
   });

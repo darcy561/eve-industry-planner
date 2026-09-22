@@ -25,7 +25,7 @@ import {
  * @param {number} props.contributedCost - What the committed output cost to make
  * @param {number} props.marketPrice - Unit price the parent would otherwise pay.
  *   Sell-side at this job's own hub: a parent buying the material pays the ask.
- *   Where the parent prices that material on another basis or hub, its own delta
+ *   Where the parent prices that material on another order type or hub, its own delta
  *   column will differ from this by that much.
  */
 export default function ContributionPanel({

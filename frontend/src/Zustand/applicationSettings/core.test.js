@@ -7,10 +7,10 @@ const merge = (incoming, prev = stateDefault()) =>
 describe("pricing defaults", () => {
   it("starts both sides on the global default", () => {
     expect(stateDefault().defaultPricing).toEqual({
-      buying: { market: "jita", basis: "sell" },
+      buying: { market: "jita", orderType: "sell" },
       // No route: one seeded here could not be told from one the player chose,
       // and the merge has to keep a choice while still letting a legacy
-      // account's stored basis answer on first load.
+      // account's stored order type answer on first load.
       selling: { market: "jita" },
     });
   });
@@ -22,8 +22,8 @@ describe("pricing defaults", () => {
     });
 
     expect(merged.defaultPricing).toEqual({
-      buying: { market: "amarr", basis: "buy" },
-      // The basis it seeded from is read as a route and then dropped: an
+      buying: { market: "amarr", orderType: "buy" },
+      // The order type it seeded from is read as a route and then dropped: an
       // account priced from bids was reading a listing's fee against a bid.
       selling: { market: "amarr", exit: "immediate" },
     });
@@ -34,14 +34,14 @@ describe("pricing defaults", () => {
       defaultMarketLocation: "amarr",
       defaultOrderType: "buy",
       defaultPricing: {
-        buying: { market: "jita", basis: "sell" },
-        selling: { market: "hek", basis: "buy" },
+        buying: { market: "jita", orderType: "sell" },
+        selling: { market: "hek", orderType: "buy" },
       },
     });
 
     expect(merged.defaultPricing.buying).toEqual({
       market: "jita",
-      basis: "sell",
+      orderType: "sell",
     });
     expect(merged.defaultPricing.selling).toEqual({
       market: "hek",
@@ -53,12 +53,12 @@ describe("pricing defaults", () => {
     const merged = merge({
       defaultMarketLocation: "dodixie",
       defaultOrderType: "sellP05",
-      defaultPricing: { selling: { market: "hek", basis: "buy" } },
+      defaultPricing: { selling: { market: "hek", orderType: "buy" } },
     });
 
     expect(merged.defaultPricing.buying).toEqual({
       market: "dodixie",
-      basis: "sellP05",
+      orderType: "sellP05",
     });
     expect(merged.defaultPricing.selling).toEqual({
       market: "hek",
@@ -76,7 +76,7 @@ describe("pricing defaults", () => {
   // empty strings.
   it.each([
     ["omitted by Go", {}],
-    ["written out in full", { market: "", basis: "" }],
+    ["written out in full", { market: "", orderType: "" }],
   ])("seeds from the single default when a side arrives %s", (_name, side) => {
     const merged = merge({
       defaultMarketLocation: "amarr",
@@ -85,7 +85,7 @@ describe("pricing defaults", () => {
     });
 
     expect(merged.defaultPricing).toEqual({
-      buying: { market: "amarr", basis: "buy" },
+      buying: { market: "amarr", orderType: "buy" },
       selling: { market: "amarr", exit: "immediate" },
     });
   });
@@ -95,7 +95,7 @@ describe("pricing defaults", () => {
     delete prev.defaultPricing;
 
     expect(merge({ displayHelpCards: true }, prev).defaultPricing).toEqual({
-      buying: { market: "hek", basis: "sell" },
+      buying: { market: "hek", orderType: "sell" },
       selling: { market: "hek", exit: "listed" },
     });
   });
@@ -107,8 +107,8 @@ describe("pricing defaults", () => {
 
     const merged = merge({
       defaultPricing: {
-        buying: { market: "jita", basis: "sell", groups },
-        selling: { market: "amarr", basis: "buy" },
+        buying: { market: "jita", orderType: "sell", groups },
+        selling: { market: "amarr", orderType: "buy" },
       },
     });
 
@@ -121,8 +121,8 @@ describe("pricing defaults", () => {
     const prev = {
       ...stateDefault(),
       defaultPricing: {
-        buying: { market: "jita", basis: "sell", groups },
-        selling: { market: "jita", basis: "sell" },
+        buying: { market: "jita", orderType: "sell", groups },
+        selling: { market: "jita", orderType: "sell" },
       },
     };
 
@@ -144,7 +144,7 @@ describe("pricing defaults", () => {
 
     expect(merged.defaultPricing.buying).toEqual({
       market: "amarr",
-      basis: "buy",
+      orderType: "buy",
       groups,
     });
   });
@@ -158,7 +158,7 @@ describe("a chosen route out survives later merges", () => {
   const chosen = () => ({
     ...stateDefault(),
     defaultPricing: {
-      buying: { market: "jita", basis: "sell" },
+      buying: { market: "jita", orderType: "sell" },
       selling: { market: "jita", exit: "immediate" },
     },
   });
@@ -189,11 +189,11 @@ describe("a chosen route out survives later merges", () => {
     expect(merged.defaultPricing.selling.exit).toBe("listed");
   });
 
-  // A document stored before the route existed answers with its basis, and that
+  // A document stored before the route existed answers with its order type, and that
   // is the server answering — so it outranks a held route too.
   it("reads a route from a side the server sent without one", () => {
     const merged = merge(
-      { defaultPricing: { selling: { market: "hek", basis: "sell" } } },
+      { defaultPricing: { selling: { market: "hek", orderType: "sell" } } },
       chosen(),
     );
 

@@ -238,8 +238,15 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// The composed set rather than the account's own lane: a market an
+	// organisation shares is one this reader prices against, so it needs its
+	// region walked as much as one they saved themselves.
+	//
 	// Registered at sign-in, so a new market's walk is already running by the time a job wants a figure.
-	marketsources.Register(ctx, h.Redis, natsHandle, loginDocs.Settings.CustomStructures)
+	composedMarkets := marketLocationsForSession(ctx, h.Mongo, h.Redis, accountID)
+	if composedMarkets != nil {
+		marketsources.Register(ctx, h.Redis, natsHandle, *composedMarkets)
+	}
 
 	// Per-tab sessions: client stores session_id + refresh_token in sessionStorage (X-Session-ID).
 	// Do not set shared HttpOnly cookies — they would collide across browser tabs.
@@ -254,6 +261,7 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		FirstLogin:          loginDocs.FirstLogin,
 		UserDocument:        userOut,
 		ApplicationSettings: loginDocs.Settings,
+		MarketLocations:     composedMarkets,
 		LinkedCharacters:    linkedCharacters,
 	}
 	auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)

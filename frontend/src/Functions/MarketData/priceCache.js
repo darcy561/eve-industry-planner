@@ -5,6 +5,7 @@ import {
   isReadByTheReader,
   persistsAcrossSessions,
   sourceIn,
+  wantKey,
 } from "./marketSources";
 import {
   requestAdjustedPrice,
@@ -24,7 +25,7 @@ import { readSourceClock, recordSourceClock } from "./sourceClocks";
  * Where a price is held, and the two halves of getting one.
  *
  * **Reading and asking are separate.** The readers below answer from what is
- * held and report absence rather than waiting — a shopping list row and a basis
+ * held and report absence rather than waiting — a shopping list row and an order type
  * comparison both read a price inside a reduce, and neither can await.
  *
  * One entry per type at one market, so a market that fails fails against itself
@@ -61,14 +62,10 @@ const PRICE_CACHE_TIME = 30 * 60 * 1000;
  * @param {string} sourceID
  * @returns {string[]}
  */
-export const marketPricesKey = (sourceID) => [
-  "market",
-  "price",
-  String(sourceID),
-];
+const marketPricesKey = (sourceID) => ["market", "price", String(sourceID)];
 
 /** @type {string[]} */
-export const ADJUSTED_PRICES_KEY = ["market", "adjusted"];
+const ADJUSTED_PRICES_QUERY_KEY = ["market", "adjusted"];
 
 /**
  * What a surface waiting on a set of prices is keyed under. Here beside the rows
@@ -87,7 +84,7 @@ export const priceQueryKey = (typeID, sourceID) => [
 
 /** @param {number|string} typeID */
 export const adjustedQueryKey = (typeID) => [
-  ...ADJUSTED_PRICES_KEY,
+  ...ADJUSTED_PRICES_QUERY_KEY,
   String(typeID),
 ];
 
@@ -143,7 +140,7 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
 
   for (const { typeID, sourceID } of wants ?? []) {
     if (typeID == null || !sourceID) continue;
-    const key = `${sourceID}|${typeID}`;
+    const key = wantKey(sourceID, typeID);
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -224,7 +221,7 @@ setClockMovedListener(({ sources, adjusted }) => {
   }
 
   if (adjusted) {
-    queryClient.removeQueries({ queryKey: ADJUSTED_PRICES_KEY });
+    queryClient.removeQueries({ queryKey: ADJUSTED_PRICES_QUERY_KEY });
   }
 
   // Dropping rows reaches nobody on its own: a priced surface subscribes to no

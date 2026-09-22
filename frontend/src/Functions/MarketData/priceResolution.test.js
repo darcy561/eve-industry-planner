@@ -16,7 +16,7 @@ vi.mock("../../Zustand/usersStore", () => ({
 }));
 
 vi.mock("./marketGroupData", () => ({
-  groupPricingFor: ({ marketLocationRung, listingTypeRung }) =>
+  groupPricingFor: ({ marketLocationRung, orderTypeRung }) =>
     groupDefaults
       ? {
           marketGroups: { 1857: { name: "Minerals" } },
@@ -24,7 +24,7 @@ vi.mock("./marketGroupData", () => ({
           marketGroupOf: (typeID) =>
             String(typeID) === "34" ? 1857 : undefined,
           marketLocationRung,
-          listingTypeRung,
+          orderTypeRung,
         }
       : undefined,
 }));
@@ -39,16 +39,15 @@ const setAccount = (pricing) => {
   groupDefaults = pricing?.buying?.groups;
 };
 
-const job = (overrides = {}) => ({
-  materialIDs: [34],
+const job = ({ build = {}, ...overrides } = {}) => ({
   itemID: 99,
-  build: {},
   ...overrides,
+  build: { materials: { 34: { typeID: 34 } }, ...build },
 });
 
 describe("where a type is priced", () => {
   it("answers the account's market when nothing nearer does", () => {
-    setAccount({ buying: { market: "jita", basis: "sell" }, selling: {} });
+    setAccount({ buying: { market: "jita", orderType: "sell" }, selling: {} });
 
     const resolved = resolveFor(sideDefaults(PRICING_SIDE.BUYING), null, 34);
 
@@ -58,7 +57,7 @@ describe("where a type is priced", () => {
   // Rung 2. It is resolved into the side's defaults rather than per type, so a
   // caller that forgot to pass it would silently fall back to the account's.
   it("lets the job's own choice outrank the account", () => {
-    setAccount({ buying: { market: "jita", basis: "sell" }, selling: {} });
+    setAccount({ buying: { market: "jita", orderType: "sell" }, selling: {} });
 
     const resolved = resolveFor(
       sideDefaults(PRICING_SIDE.BUYING, {
@@ -74,7 +73,7 @@ describe("where a type is priced", () => {
   // Rung 1, which is per type and so answered by resolveFor rather than by the
   // side's defaults.
   it("lets a material's own override outrank the job", () => {
-    setAccount({ buying: { market: "jita", basis: "sell" }, selling: {} });
+    setAccount({ buying: { market: "jita", orderType: "sell" }, selling: {} });
 
     const resolved = resolveFor(
       sideDefaults(PRICING_SIDE.BUYING, {
@@ -94,7 +93,7 @@ describe("where a type is priced", () => {
 // were written the same way.
 describe("what is fetched is what is read", () => {
   it("agrees for a job whose own choice is not the account's", () => {
-    setAccount({ buying: { market: "jita", basis: "sell" }, selling: {} });
+    setAccount({ buying: { market: "jita", orderType: "sell" }, selling: {} });
     const withOwnMarket = job({
       build: { localPricing: { buying: { market: "amarr" } } },
     });
@@ -114,7 +113,7 @@ describe("what is fetched is what is read", () => {
   });
 
   it("agrees for a material carrying its own override", () => {
-    setAccount({ buying: { market: "jita", basis: "sell" }, selling: {} });
+    setAccount({ buying: { market: "jita", orderType: "sell" }, selling: {} });
     const withOverride = job({
       build: { materialPriceOverrides: { 34: { marketDisplay: "hek" } } },
     });
@@ -133,7 +132,10 @@ describe("what is fetched is what is read", () => {
 
   // The shopping list carries no job, and resolves through the same pair.
   it("agrees for a list with no job at all", () => {
-    setAccount({ buying: { market: "dodixie", basis: "sell" }, selling: {} });
+    setAccount({
+      buying: { market: "dodixie", orderType: "sell" },
+      selling: {},
+    });
 
     const { wants } = pricesWantedForTypes([34], PRICING_SIDE.BUYING);
     const read = resolveFor(sideDefaults(PRICING_SIDE.BUYING), null, 34);
@@ -145,7 +147,7 @@ describe("what is fetched is what is read", () => {
   // The output is sold, not bought, and the two sides routinely differ.
   it("asks for the output at the selling market", () => {
     setAccount({
-      buying: { market: "jita", basis: "sell" },
+      buying: { market: "jita", orderType: "sell" },
       selling: { market: "amarr", exit: "listed" },
     });
 

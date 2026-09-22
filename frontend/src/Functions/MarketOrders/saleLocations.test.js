@@ -1,14 +1,29 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-import { structureKinds } from "../../Context/defaultValues";
+import {
+  storedCitadel,
+  storedStation,
+} from "../../tests/marketSourceFixtures.js";
+import {
+  MARKET_LOCATIONS_QUERY_KEY,
+  seedMarketLocations,
+} from "../MarketData/marketLocations.js";
+import { queryClient } from "../../queryClient.js";
 
 let structures = [];
+/** Which market the account sells at — the setting the default now comes from. */
+let sellingMarket = "market-1";
 
 vi.mock("../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
-    usersStoreState({ applicationSettings: { customStructures: structures } }),
+    usersStoreState({
+      applicationSettings: {
+        marketLocations: structures,
+        defaultPricing: { selling: { market: sellingMarket } },
+      },
+    }),
   );
 });
 
@@ -19,21 +34,17 @@ const {
   resolveSaleLocation,
 } = await import("./saleLocations");
 
-function aCitadel(overrides = {}) {
-  return {
-    id: "market-1",
-    jobType: structureKinds.market,
-    name: "Perimeter Azbel",
-    regionID: 10000002,
-    structureID: 1035466617946,
-    brokerFee: 1.5,
-    default: true,
-    ...overrides,
-  };
-}
+/** The shared saved citadel, as the default this file's cases expect. */
+const aCitadel = (overrides = {}) =>
+  storedCitadel({ brokerFee: 1.5, ...overrides });
+
+beforeEach(() => {
+  queryClient.removeQueries({ queryKey: MARKET_LOCATIONS_QUERY_KEY });
+});
 
 beforeEach(() => {
   structures = [aCitadel()];
+  sellingMarket = "market-1";
 });
 
 describe("saved sale structures", () => {
@@ -49,44 +60,50 @@ describe("saved sale structures", () => {
     }
   });
 
-  // A market holding a station is not somewhere a citadel's own rate applies,
-  // and a build structure is not somewhere anything sells — the place a row
-  // holds is what tells them apart now that one kind covers both markets.
+  // A market holding a station is not somewhere a citadel's own rate applies.
+  // The place a row holds is the whole of what tells the two apart.
   test("offers only markets that are a citadel", () => {
-    structures = [
-      aCitadel(),
-      {
-        id: "manStruct-1",
-        jobType: structureKinds.manufacturing,
-        name: "Sotiyo",
-      },
-      {
-        id: "market-station",
-        jobType: structureKinds.market,
-        name: "Jita IV-4",
-        stationID: 60003760,
-      },
-    ];
+    structures = [aCitadel(), storedStation({ id: "market-station" })];
 
     expect(getSaleCitadels().map((i) => i.id)).toEqual(["market-1"]);
   });
 
-  // A reader who has saved none is the ordinary case, not an error: the hub
-  // fallback is what a sale prices against until they save one.
-  test("has no default when none is saved", () => {
+  // A reader who has saved none is the ordinary case, not an error: the trading
+  // hub is what a sale prices against until they choose otherwise.
+  test("sells at the hub when none is saved", () => {
     structures = [];
+    sellingMarket = undefined;
 
     expect(getSaleCitadels()).toEqual([]);
-    expect(getDefaultSaleStructure()).toBeNull();
+    expect(getDefaultSaleStructure().id).toBe("jita");
   });
 
-  test("falls back to the first when none is flagged default", () => {
+  test("sells at the market the account chose", () => {
     structures = [
-      aCitadel({ id: "citadelMarket-1", default: false }),
-      aCitadel({ id: "citadelMarket-2", default: false }),
+      aCitadel({ id: "citadelMarket-1" }),
+      aCitadel({ id: "citadelMarket-2" }),
     ];
+    sellingMarket = "citadelMarket-2";
 
-    expect(getDefaultSaleStructure().id).toBe("citadelMarket-1");
+    expect(getDefaultSaleStructure().id).toBe("citadelMarket-2");
+  });
+
+  // A market that has been removed, or that an organisation stopped sharing,
+  // leaves the choice naming nothing — which is the state before one was made.
+  test("falls back to the hub when the chosen market is gone", () => {
+    structures = [];
+    sellingMarket = "market-1";
+
+    expect(getDefaultSaleStructure().id).toBe("jita");
+  });
+
+  // Saving a market is not choosing one: the account's setting is untouched by
+  // it, so a reader who adds their first market still prices at the hub.
+  test("does not take a saved market as the choice", () => {
+    structures = [aCitadel({ id: "market-1" })];
+    sellingMarket = undefined;
+
+    expect(getDefaultSaleStructure().id).toBe("jita");
   });
 });
 
@@ -134,5 +151,44 @@ describe("resolveSaleLocation", () => {
 
   test("naming neither still resolves, so a caller always has a location", () => {
     expect(resolveSaleLocation()).not.toBeNull();
+  });
+});
+
+// A market an organisation shares is on the composed set the server answers
+// with, and never on the reader's own account. It has to resolve all the same —
+// a job priced against one would otherwise fall back to a hub, quietly, and
+// charge the wrong rate for the sale.
+describe("a market the reader inherited rather than saved", () => {
+  const inherited = storedCitadel({
+    id: "corp-market",
+    name: "The corporation's Azbel",
+    structureID: 1035466617999,
+    brokerFee: 0.5,
+  });
+
+  beforeEach(() => {
+    structures = [];
+    seedMarketLocations([inherited]);
+  });
+
+  test("resolves for a job that names it", () => {
+    const location = resolveSaleLocation("corp-market", "jita");
+
+    expect(location.kind).toBe(SALE_LOCATION_KIND.CITADEL);
+    expect(location.brokerFee).toBe(0.5);
+  });
+
+  test("is offered as somewhere a job can sell from", () => {
+    expect(getSaleCitadels().map((market) => market.id)).toEqual([
+      "corp-market",
+    ]);
+  });
+
+  // Chosen the same way one of the reader's own is: the account names it, and
+  // nothing about it being inherited changes that.
+  test("can be the market the account sells at", () => {
+    sellingMarket = "corp-market";
+
+    expect(getDefaultSaleStructure()?.id).toBe("corp-market");
   });
 });

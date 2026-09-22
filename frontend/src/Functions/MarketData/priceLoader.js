@@ -1,6 +1,12 @@
 import { fetchMarketPricesQuery } from "../Endpoints/Public/marketPricesQuery";
 import { readCitadelPrices } from "./citadelPrices";
-import { allMarketSources, SOURCE_KIND, sourceIn } from "./marketSources";
+import {
+  allMarketSources,
+  isReadByTheReader,
+  SOURCE_KIND,
+  sourceIn,
+  wantKey,
+} from "./marketSources";
 import { replaceStoredPrices } from "./priceStore";
 import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 
@@ -16,7 +22,6 @@ import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 const pending = new Map();
 let flushScheduled = false;
 
-const priceKey = (sourceID, typeID) => `${sourceID}|${typeID}`;
 const adjustedKey = (typeID) => `adjusted|${typeID}`;
 
 /**
@@ -34,7 +39,7 @@ const adjustedKey = (typeID) => `adjusted|${typeID}`;
  *   refreshedAt: number}|null>} null where the market holds no order for the type
  */
 export function requestPrice(typeID, sourceID) {
-  return enqueue(priceKey(sourceID, typeID));
+  return enqueue(wantKey(sourceID, typeID));
 }
 
 /**
@@ -50,7 +55,7 @@ export function requestPrice(typeID, sourceID) {
  */
 export async function requestMarketRead(sourceID) {
   const source = sourceIn(allMarketSources(), sourceID);
-  if (source?.kind !== SOURCE_KIND.CITADEL) return;
+  if (!isReadByTheReader(source?.kind)) return;
 
   await readAndKeep(sourceID, source);
 }
@@ -141,15 +146,15 @@ function splitByTransport(batch) {
     const source = sourceIn(sources, head);
     const want = { typeID, sourceID: head, source, waiters };
 
-    if (
-      source?.kind === SOURCE_KIND.HUB ||
-      source?.kind === SOURCE_KIND.STATION
-    ) {
-      served.push(want);
-    } else if (source?.kind === SOURCE_KIND.CITADEL) {
+    // A market the registry does not carry cannot be asked at all. One it does
+    // carry is asked whichever way its kind says, rather than this listing the
+    // kinds again — `marketSources` is where that is decided.
+    if (!source) {
+      unaskable.push(want);
+    } else if (isReadByTheReader(source.kind)) {
       walked.push(want);
     } else {
-      unaskable.push(want);
+      served.push(want);
     }
   }
 

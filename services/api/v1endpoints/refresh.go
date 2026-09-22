@@ -404,6 +404,7 @@ func (a *Handlers) refreshHandler(w http.ResponseWriter, r *http.Request, touchL
 			FirstLogin:          loginDocs.FirstLogin,
 			UserDocument:        userOut,
 			ApplicationSettings: loginDocs.Settings,
+			MarketLocations:     marketLocationsForSession(ctx, h.Mongo, h.Redis, tokenData.AccountID),
 			LinkedCharacters:    linkedCharacters,
 			RefreshToken:        newRefreshToken,
 		}

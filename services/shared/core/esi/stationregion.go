@@ -35,7 +35,7 @@ const (
 
 // unknownStation is what a remembered refusal stores. A region id is never
 // negative, so it cannot be mistaken for an answer.
-const unknownStation int32 = -1
+const unknownStation int64 = -1
 
 func stationRegionKey(stationID int64) string {
 	return fmt.Sprintf("esi:station_region:%d", stationID)
@@ -54,7 +54,7 @@ func IsStationID(id int64) bool { return id >= stationIDFloor && id < stationIDC
 // Only ESI answering 404 about the station itself is remembered as unknown: a
 // timeout, a 5xx or a later hop failing says nothing about whether the station
 // is real, and remembering one would refuse a reader's market over a hiccup.
-func RegionOfStation(ctx context.Context, client esiclient.API, r *eipredis.Redis, stationID int64) (int32, error) {
+func RegionOfStation(ctx context.Context, client esiclient.API, r *eipredis.Redis, stationID int64) (int64, error) {
 	if !IsStationID(stationID) {
 		return 0, fmt.Errorf("%d is not an NPC station id", stationID)
 	}
@@ -62,7 +62,7 @@ func RegionOfStation(ctx context.Context, client esiclient.API, r *eipredis.Redi
 	key := stationRegionKey(stationID)
 	cacheable := r != nil && r.Driver() != nil
 	if cacheable {
-		var cached int32
+		var cached int64
 		if err := r.GetJSON(ctx, key, &cached); err == nil {
 			if cached == unknownStation {
 				return 0, fmt.Errorf("ESI does not know station %d", stationID)
@@ -96,7 +96,7 @@ func RegionOfStation(ctx context.Context, client esiclient.API, r *eipredis.Redi
 	}
 
 	var constellation struct {
-		RegionID int32 `json:"region_id"`
+		RegionID int64 `json:"region_id"`
 	}
 	if err := publicGet(ctx, client, fmt.Sprintf("/universe/constellations/%d/", system.ConstellationID), &constellation); err != nil {
 		return 0, err

@@ -4,6 +4,7 @@ import { Box, Tab, useMediaQuery } from "@mui/material";
 import LayoutSettingsFrame from "./Standard Layout/layoutSettingsFrame";
 import JobSettingsFrame from "./Standard Layout/jobSettingsFrame";
 import CustomStructuresForm from "./Standard Layout/Custom Structures/CustomStructuresForm";
+import MarketLocationsFrame from "./Standard Layout/Market Locations/marketLocationsFrame";
 import BlueprintSettingsFrame from "./Standard Layout/blueprintSettingsFrame";
 import ReprocessingSettingsFrame from "./Standard Layout/ReprocessingSettingsFrame";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
@@ -49,6 +50,10 @@ function SettingsPage() {
               >
                 <Tab label={"Layout Settings"} wrapped value={"0"} />
                 <Tab label={"Job Settings"} wrapped value={"1"} />
+                {/* Sits with the job settings it belongs beside rather than at
+                    the end: the value is the tab's identity, so the order here
+                    is free to be the order a reader wants. */}
+                <Tab label={"Market Locations"} wrapped value={"5"} />
                 <Tab label={"Custom Structures"} wrapped value={"2"} />
                 <Tab label={"Blueprint Settings"} wrapped value={"3"} />
                 <Tab label={"Reprocessing Settings"} wrapped value={"4"} />
@@ -69,6 +74,9 @@ function SettingsPage() {
               </TabPanel>
               <TabPanel value={"1"}>
                 <JobSettingsFrame />
+              </TabPanel>
+              <TabPanel value={"5"}>
+                <MarketLocationsFrame />
               </TabPanel>
               <TabPanel value={"2"}>
                 <CustomStructuresForm />

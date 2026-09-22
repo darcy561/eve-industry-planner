@@ -1,8 +1,7 @@
 import GLOBAL_CONFIG from "../../global-config-app";
-import { sourceIn } from "../MarketData/marketSources";
-import { readMarketSources } from "../../Hooks/Static/useMarketSources";
 import useUsersStore from "../../Zustand/usersStore";
-import { structureKinds } from "../../Context/defaultValues";
+import { SOURCE_KIND, sourceIn } from "../MarketData/marketSources";
+import { readMarketSources } from "../../Hooks/Static/useMarketSources";
 
 /**
  * The kinds of place a job can be sold from.
@@ -19,7 +18,18 @@ export const SALE_LOCATION_KIND = {
 };
 
 /**
- * @typedef {import("../../Classes/structure").default} SaleStructure
+ * A saved market as it is stored, which is what these read — not the class the
+ * four build kinds are held in, which a market left when it got its own lane.
+ *
+ * @typedef {object} SaleStructure
+ * @property {string} id
+ * @property {string} name
+ * @property {number} regionID
+ * @property {number} [structureID] - A citadel holds one, a station none
+ * @property {number} [stationID] - And the other way about
+ * @property {number} [brokerFee] - The rate a citadel's owner set; a station's
+ *   is worked out from the seller's skills and standings instead
+ * @property {boolean} [default]
  */
 
 /**
@@ -42,17 +52,21 @@ export const SALE_LOCATION_KIND = {
  * @returns {SaleStructure[]}
  */
 export function getSaleCitadels() {
-  return (
-    useUsersStore.getState().applicationSettings.customStructures ?? []
-  ).filter(
-    (structure) =>
-      structure.jobType === structureKinds.market &&
-      Boolean(structure.structureID),
+  return readMarketSources().filter(
+    (market) => market.kind === SOURCE_KIND.CITADEL,
   );
 }
 
 /**
- * The saved citadel a job sells from when it names none.
+ * The market a job sells from when it names none: the one the account chose.
+ *
+ * The account's own choice rather than a flag on one of the saved markets. A
+ * reader buys in one place and lists in another as a matter of course, so the
+ * question has two answers and they are kept where both are asked.
+ *
+ * A choice naming a market that is no longer saved — removed, or an
+ * organisation stopped sharing it — resolves to the trading hub rather than to
+ * nothing, which is the same answer as before anything was chosen.
  *
  * Read imperatively rather than through a hook because the callers here run in
  * a query function and a reducer as well as in render.
@@ -60,11 +74,16 @@ export function getSaleCitadels() {
  * @returns {SaleStructure|null}
  */
 export function getDefaultSaleStructure() {
-  return useUsersStore
-    .getState()
-    .applicationSettings.actions.getDefaultCustomStructureWithJobType(
-      structureKinds.market,
-    );
+  const sources = readMarketSources();
+  const chosen =
+    useUsersStore.getState().applicationSettings.defaultPricing?.selling
+      ?.market;
+
+  return (
+    sourceIn(sources, chosen) ??
+    sourceIn(sources, GLOBAL_CONFIG.DEFAULT_MARKET_OPTION) ??
+    null
+  );
 }
 
 /**
@@ -78,17 +97,14 @@ export function getDefaultSaleStructure() {
  */
 export function resolveSaleLocation(saleLocationID, marketID) {
   if (saleLocationID) {
-    const citadel = useUsersStore
-      .getState()
-      .applicationSettings.actions.getCustomStructureWithID(saleLocationID);
-    if (citadel?.jobType === structureKinds.market && citadel.structureID) {
-      return saleLocationFromCitadel(citadel);
+    const named = sourceIn(readMarketSources(), saleLocationID);
+    if (named?.kind === SOURCE_KIND.CITADEL) {
+      return saleLocationFromCitadel(named);
     }
 
     // A named NPC station is a choice like any other, and is not overridden by
     // the market the materials happen to be priced against.
-    const chosen = sourceIn(readMarketSources(), saleLocationID);
-    if (chosen) return saleLocationFromStation(chosen);
+    if (named) return saleLocationFromStation(named);
   }
 
   const sources = readMarketSources();

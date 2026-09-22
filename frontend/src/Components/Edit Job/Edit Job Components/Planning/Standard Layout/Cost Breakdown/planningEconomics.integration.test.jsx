@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PricedSurface } from "../../../../../../tests/pricedSurface.jsx";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -62,25 +63,22 @@ vi.mock("../../../../../../Functions/MarketOrders/sellerCharacter", () => ({
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  const { structureKinds } =
-    await import("../../../../../../Context/defaultValues");
   return usersStoreOverSession({
     applicationSettings: {
-      customStructures: [
+      marketLocations: [
         {
           id: "citadelMarket-1",
-          jobType: structureKinds.market,
           name: "Perimeter Azbel",
           structureID: 1035466617946,
           brokerFee: 1.5,
-          default: true,
         },
       ],
       defaultPricing: {
-        buying: { market: "jita", basis: "sell" },
-        // Deliberately different: a fixture whose sides agree cannot tell a
-        // surface asking for the wrong one.
-        selling: { market: "amarr", basis: "buy" },
+        buying: { market: "jita", orderType: "sell" },
+        // Deliberately different from the buying side: a fixture whose sides
+        // agree cannot tell a surface asking for the wrong one. The saved
+        // citadel, because these cases price a sale against its own rate.
+        selling: { market: "citadelMarket-1", orderType: "buy" },
       },
       actions: {
         getCurrentLocale: () => "en-GB",
@@ -155,7 +153,11 @@ const jobDocument = ({ build = {}, ...rest } = {}) => ({
 
 const show = (document = jobDocument()) => {
   session().actions.openJob(document.jobID, document);
-  return render(<PlanningEconomics />);
+  return render(
+    <PricedSurface>
+      <PlanningEconomics />
+    </PricedSurface>,
+  );
 };
 
 const panelNamed = (title) => screen.getByText(title).closest(".MuiPaper-root");

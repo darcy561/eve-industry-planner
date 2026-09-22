@@ -19,15 +19,15 @@ describe("a job's pricing override", () => {
       jobWith({ localMarketDisplay: "hek", localOrderDisplay: "buy" })
         .localPricing,
     ).toEqual({
-      buying: { market: "hek", basis: "buy" },
-      selling: { market: "hek", basis: "buy" },
+      buying: { market: "hek", orderType: "buy" },
+      selling: { market: "hek", orderType: "buy" },
     });
   });
 
   it("seeds from the older marketLocation key too", () => {
     expect(jobWith({ marketLocation: "amarr" }).localPricing).toEqual({
-      buying: { market: "amarr", basis: null },
-      selling: { market: "amarr", basis: null },
+      buying: { market: "amarr", orderType: null },
+      selling: { market: "amarr", orderType: null },
     });
   });
 
@@ -36,11 +36,11 @@ describe("a job's pricing override", () => {
       jobWith({
         localMarketDisplay: "hek",
         localOrderDisplay: "buy",
-        localPricing: { selling: { market: "dodixie", basis: "sellP05" } },
+        localPricing: { selling: { market: "dodixie", orderType: "sellP05" } },
       }).localPricing,
     ).toEqual({
-      buying: { market: "hek", basis: "buy" },
-      selling: { market: "dodixie", basis: "sellP05" },
+      buying: { market: "hek", orderType: "buy" },
+      selling: { market: "dodixie", orderType: "sellP05" },
     });
   });
 
@@ -99,7 +99,7 @@ describe("a job's pricing override", () => {
       itemID: 34,
       build: { localPricing: null, materialPriceOverrides: {} },
       layout: {
-        localPricing: { buying: { market: "jita", basis: "sell" } },
+        localPricing: { buying: { market: "jita", orderType: "sell" } },
         materialPriceOverrides: { 34: { marketDisplay: "amarr" } },
       },
     });
@@ -113,7 +113,7 @@ describe("a job's pricing override", () => {
       jobID: "j1",
       itemID: 34,
       layout: {
-        localPricing: { buying: { market: "jita", basis: "sell" } },
+        localPricing: { buying: { market: "jita", orderType: "sell" } },
         materialPriceOverrides: { 34: { marketDisplay: "amarr" } },
       },
     });
@@ -128,12 +128,14 @@ describe("a job's pricing override", () => {
     const stored = new Job({
       jobID: "j1",
       itemID: 34,
-      layout: { localPricing: { buying: { market: "hek", basis: "buyP95" } } },
+      layout: {
+        localPricing: { buying: { market: "hek", orderType: "buyP95" } },
+      },
     }).toDocument();
 
     expect(new Job(stored).build.localPricing.buying).toEqual({
       market: "hek",
-      basis: "buyP95",
+      orderType: "buyP95",
     });
   });
 });

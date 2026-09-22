@@ -214,7 +214,7 @@ describe("importing costs pasted from the game, end to end", () => {
   });
 });
 
-// The buying market and basis are the job's own choice, stored on it. They were
+// The buying market and order type are the job's own choice, stored on it. They were
 // the last controls on this panel still calling an action the session no longer
 // has, so pressing one threw.
 describe("choosing where the job buys, end to end", () => {

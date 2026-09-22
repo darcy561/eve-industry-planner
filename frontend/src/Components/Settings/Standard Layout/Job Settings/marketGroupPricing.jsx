@@ -26,7 +26,7 @@ import {
 } from "../../../../Hooks/Static/useMarketGroups";
 import useUsersStore from "../../../../Zustand/usersStore";
 import MarketLocationSelect from "../../../../Styled Components/Select/marketLocation";
-import ListingTypeSelect from "../../../../Styled Components/Select/listingType";
+import OrderTypeSelect from "../../../../Styled Components/Select/orderType";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 /**
@@ -39,7 +39,7 @@ import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/
  * @param {object} props
  * @param {string} props.side - One of PRICING_SIDE
  * @param {number} props.groupID
- * @param {{market?: string, basis?: string}} props.choice
+ * @param {{market?: string, orderType?: string}} props.choice
  */
 function GroupRow({ side, groupID, choice }) {
   const path = useAncestorPath(groupID);
@@ -78,7 +78,7 @@ function GroupRow({ side, groupID, choice }) {
             />
           </ExplainerTooltip>
           {/* A group answers its own side's axis: output leaves by a route,
-              materials are priced on a basis. */}
+              materials are priced on an order type. */}
           {selling ? (
             <ExplainerTooltip title="How this group's output leaves a build: listing pays a broker fee, selling into bids does not">
               <ExitRouteSelect
@@ -90,9 +90,9 @@ function GroupRow({ side, groupID, choice }) {
             </ExplainerTooltip>
           ) : (
             <ExplainerTooltip title="Which side of the order book a price comes from — the ask you would pay, or the bid you would be offered">
-              <ListingTypeSelect
-                value={choice?.basis}
-                onChange={(option) => commit("basis", option.id)}
+              <OrderTypeSelect
+                value={choice?.orderType}
+                onChange={(option) => commit("orderType", option.id)}
                 labelText="Prices"
                 customFormStyling={{ minWidth: 150 }}
               />
@@ -109,7 +109,7 @@ function GroupRow({ side, groupID, choice }) {
                 updateGroupPricingDefault(
                   side,
                   groupID,
-                  selling ? "exit" : "basis",
+                  selling ? "exit" : "orderType",
                   "",
                 );
                 scheduleDebouncedApplicationSettingsSave();
@@ -130,7 +130,7 @@ function GroupRow({ side, groupID, choice }) {
  * @param {object} props
  * @param {string} props.side - One of PRICING_SIDE
  * @param {string} props.noun - What this side prices, for the heading
- * @param {Object<string, {market?: string, basis?: string}>|undefined} props.groups
+ * @param {Object<string, {market?: string, orderType?: string}>|undefined} props.groups
  */
 function SideSection({ side, noun, groups }) {
   const entries = Object.entries(groups ?? {});

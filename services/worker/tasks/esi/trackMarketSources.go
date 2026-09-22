@@ -51,7 +51,7 @@ func TrackMarketSources(ctx context.Context, request eipnats.MarketSourcesReques
 // trackStation records that a station is wanted, and asks for whatever the
 // market still needs to be priced: the first station in a region pays for its
 // walk, and a later one is derived from the pages that walk already stored.
-func trackStation(ctx context.Context, deps *taskrun.Dependencies, regionID int32, stationID int64) error {
+func trackStation(ctx context.Context, deps *taskrun.Dependencies, regionID int64, stationID int64) error {
 	orders := deps.Redis.MarketOrders()
 
 	tracked, err := orders.TrackedStations(ctx, regionID)

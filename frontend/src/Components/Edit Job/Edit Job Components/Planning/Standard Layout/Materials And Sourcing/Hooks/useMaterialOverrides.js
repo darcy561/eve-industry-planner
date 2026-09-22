@@ -6,7 +6,7 @@ import {
 } from "../Helpers/materialPriceOverridesState";
 
 /**
- * Writes a job's pricing decisions: the basis a row is priced on, and the
+ * Writes a job's pricing decisions: the order type a row is priced on, and the
  * per-material overrides that depart from it.
  */
 export function useMaterialOverrides({ build, materials, updatePricing }) {

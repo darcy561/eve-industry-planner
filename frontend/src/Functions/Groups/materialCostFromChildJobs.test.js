@@ -8,7 +8,7 @@ vi.mock("../../Zustand/usersStore.js", async () => {
   return usersStoreMock({});
 });
 
-// The market and listing type are the caller's answer, resolved for its side, so
+// The market and order type are the caller's answer, resolved for its side, so
 // this prices at whatever it is handed rather than choosing for itself. Two
 // markets in the fixture, because one that agrees cannot tell them apart.
 describe("pricing a material with no child job", () => {
@@ -20,7 +20,7 @@ describe("pricing a material with no child job", () => {
     });
   });
 
-  it("prices at the market and basis it was given", () => {
+  it("prices at the market and order type it was given", () => {
     const material = { typeID: 34, quantity: 5, purchaseComplete: false };
 
     expect(

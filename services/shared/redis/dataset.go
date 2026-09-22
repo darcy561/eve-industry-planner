@@ -46,7 +46,7 @@ const (
 )
 
 // RegionMarketOrdersDataset names one region's order book.
-func RegionMarketOrdersDataset(regionID int32) Dataset {
+func RegionMarketOrdersDataset(regionID int64) Dataset {
 	return Dataset(fmt.Sprintf("market_orders:region:%d", regionID))
 }
 

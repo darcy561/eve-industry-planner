@@ -53,7 +53,7 @@ func RetireUnaskedMarkets(ctx context.Context, deps *taskrun.Dependencies) error
 	retired := 0
 	for _, regionID := range regions {
 		if slices.ContainsFunc(models.DefaultMarketLocations, func(hub models.MarketLocation) bool {
-			return int32(hub.RegionID) == regionID
+			return hub.RegionID == regionID
 		}) {
 			continue
 		}

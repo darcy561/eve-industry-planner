@@ -26,11 +26,11 @@ export async function flushPendingPlannerSettingsSaves() {
   pendingOwners.clear();
   if (owners.length === 0) return;
 
-  const { savePlannerExtrasCategories } =
+  const { savePlannerSettings } =
     useUsersStore.getState().plannerSettings.actions;
   await Promise.all(
     owners.map((owner) =>
-      savePlannerExtrasCategories(owner).catch((e) =>
+      savePlannerSettings(owner).catch((e) =>
         console.error("[plannerSettings] save failed", owner, e),
       ),
     ),

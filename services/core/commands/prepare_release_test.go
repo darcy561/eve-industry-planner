@@ -237,6 +237,22 @@ func TestTheMarketLaneSeedRunsAfterEveryWholeSettingsWrite(t *testing.T) {
 	}
 }
 
+// The move selects a document by a market row inside the structures array, and a
+// document still holding the four keyed lists has no such array to match.
+func TestTheMarketMoveRunsAfterTheStructureFold(t *testing.T) {
+	t.Parallel()
+
+	move := stepIndex(t, currentRelease, "move every saved market onto its own lane")
+	for _, before := range []string{
+		"fold custom structures into one array",
+		"fold rig slots onto every saved structure",
+	} {
+		if at := stepIndex(t, currentRelease, before); at > move {
+			t.Errorf("%q runs at %d, after the market move at %d", before, at, move)
+		}
+	}
+}
+
 // The copy is first and required: every step after it writes, and a copy taken
 // after a step ran is a copy of that step's output rather than of the state an
 // operator would revert to.

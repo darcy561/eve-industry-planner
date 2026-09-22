@@ -38,7 +38,7 @@ func FetchRegionMarketOrders(
 	ctx context.Context,
 	client esiclient.API,
 	pages *objectstore.MarketPages,
-	regionID int32,
+	regionID int64,
 	prevETags map[int]string,
 	onOrder func(esiclient.MarketOrder) error,
 ) (RegionOrdersFetchResult, error) {
@@ -80,7 +80,7 @@ func fetchRegionOrdersPage(
 	client esiclient.API,
 	pages *objectstore.MarketPages,
 	path string,
-	regionID int32,
+	regionID int64,
 	page int,
 	ifNoneMatch string,
 	result *RegionOrdersFetchResult,
@@ -165,7 +165,7 @@ func fetchRegionOrdersPage(
 func replayStoredRegionPage(
 	ctx context.Context,
 	pages *objectstore.MarketPages,
-	regionID int32,
+	regionID int64,
 	page int,
 	result *RegionOrdersFetchResult,
 	onOrder func(esiclient.MarketOrder) error,

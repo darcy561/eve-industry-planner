@@ -132,14 +132,14 @@ class ShoppingList {
         item.quantityToPurchase - item.assetQuantity,
         0,
       );
-      const { marketLocation, listingType } = resolveFor(
+      const { marketLocation, orderType } = resolveFor(
         buying,
         null,
         item.typeID,
       );
       this.totalValue +=
         quantityAfterAssets *
-        getMarketPriceForType(item.typeID, marketLocation, listingType);
+        getMarketPriceForType(item.typeID, marketLocation, orderType);
     });
   }
 

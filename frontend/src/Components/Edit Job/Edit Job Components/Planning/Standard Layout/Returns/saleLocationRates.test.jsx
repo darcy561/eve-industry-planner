@@ -1,33 +1,25 @@
 import { describe, expect, it, vi } from "vitest";
+
+import { storedCitadel } from "../../../../../../tests/marketSourceFixtures.js";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  const { structureKinds } =
-    await import("../../../../../../Context/defaultValues");
   return usersStoreMock(() =>
     usersStoreState({
       applicationSettings: {
-        customStructures: [
-          {
-            id: "citadelMarket-1",
-            jobType: structureKinds.market,
-            name: "Perimeter Azbel",
-            structureID: 1035466617946,
-            brokerFee: 1.5,
-            default: true,
-          },
+        marketLocations: [
+          storedCitadel({ id: "citadelMarket-1", brokerFee: 1.5 }),
           {
             id: "citadelMarket-2",
-            jobType: structureKinds.market,
             name: "Jita Sotiyo",
             structureID: 1035466617947,
             brokerFee: 3.25,
-            default: false,
           },
         ],
+        defaultPricing: { selling: { market: "citadelMarket-1" } },
       },
     }),
   );

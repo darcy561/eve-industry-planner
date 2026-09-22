@@ -2,6 +2,7 @@ import { jobTypes } from "../Context/defaultValues";
 import Setup from "./jobSetup";
 import Material from "./jobMaterial";
 import LinkedESIJob from "./linkedESIJob";
+import { finishesAt } from "../Components/Edit Job/Edit Job Hooks/linkedRunSelectors";
 import BrokerFee from "./brokerFee";
 import { asIDList, asStringID } from "../Functions/Helper/ids";
 import {
@@ -31,23 +32,26 @@ import useUsersStore from "../Zustand/usersStore";
  *
  * @param {object|null|undefined} stored - `build.localPricing` as stored
  * @param {string|null} market - The job's single market, already resolved
- * @param {string|null} basis - The job's single order type, already resolved
- * @returns {{buying: {market: string|null, basis: string|null},
- *   selling: {market: string|null, basis: string|null}}|null}
+ * @param {string|null} orderType - The job's single order type, already resolved
+ * @returns {{buying: {market: string|null, orderType: string|null},
+ *   selling: {market: string|null, orderType: string|null}}|null}
  */
-function jobPricingOverride(stored, market, basis) {
+function jobPricingOverride(stored, market, orderType) {
   const side = (name) => {
     const chosen = stored?.[name];
-    if (chosen?.market || chosen?.basis) {
-      return { market: chosen.market || null, basis: chosen.basis || null };
+    if (chosen?.market || chosen?.orderType) {
+      return {
+        market: chosen.market || null,
+        orderType: chosen.orderType || null,
+      };
     }
-    return { market: market ?? null, basis: basis ?? null };
+    return { market: market ?? null, orderType: orderType ?? null };
   };
 
   const buying = side("buying");
   const selling = side("selling");
   const chosenAnywhere =
-    buying.market || buying.basis || selling.market || selling.basis;
+    buying.market || buying.orderType || selling.market || selling.orderType;
 
   return chosenAnywhere ? { buying, selling } : null;
 }
@@ -645,8 +649,8 @@ class Job {
    */
   get lastRunToFinish() {
     return Object.values(this.esi.industryJobs).reduce((latest, linkedJob) => {
-      if (linkedJob.finishesAt === null) return latest;
-      if (!latest || linkedJob.finishesAt > latest.finishesAt) {
+      if (finishesAt(linkedJob) === null) return latest;
+      if (!latest || finishesAt(linkedJob) > finishesAt(latest)) {
         return linkedJob;
       }
       return latest;
@@ -661,8 +665,8 @@ class Job {
    */
   get nextRunToFinish() {
     return Object.values(this.esi.industryJobs).reduce((soonest, linkedJob) => {
-      if (linkedJob.finishesAt === null) return soonest;
-      if (!soonest || linkedJob.finishesAt < soonest.finishesAt) {
+      if (finishesAt(linkedJob) === null) return soonest;
+      if (!soonest || finishesAt(linkedJob) < finishesAt(soonest)) {
         return linkedJob;
       }
       return soonest;

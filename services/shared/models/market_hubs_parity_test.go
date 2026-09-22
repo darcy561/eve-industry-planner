@@ -33,7 +33,7 @@ const hubsWhy = "The markets this server prices against, from " +
 // read by the SPA, so it is written in the SPA's terms rather than the wire's.
 type hub struct {
 	Name      string `json:"name"`
-	RegionID  int32  `json:"regionID"`
+	RegionID  int64  `json:"regionID"`
 	StationID int64  `json:"stationID"`
 }
 
@@ -50,7 +50,7 @@ func currentMarketHubs() marketHubs {
 	for _, location := range models.DefaultMarketLocations {
 		hubs[location.ID] = hub{
 			Name:      location.Name,
-			RegionID:  int32(location.RegionID),
+			RegionID:  location.RegionID,
 			StationID: location.StationID,
 		}
 	}

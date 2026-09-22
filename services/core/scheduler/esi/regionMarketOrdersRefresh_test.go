@@ -151,7 +151,7 @@ func TestAKnownPageCountWithAnUnknownAllowanceStillPublishes(t *testing.T) {
 }
 
 // walked records a hub as having been paged at t, and its book as expired.
-func walked(t *testing.T, client *redislib.Client, regionID int32, at time.Time) {
+func walked(t *testing.T, client *redislib.Client, regionID int64, at time.Time) {
 	t.Helper()
 	if err := eipredis.NewRedis(client).MarketOrders().PutRefreshTime(t.Context(), regionID, at); err != nil {
 		t.Fatalf("seeding refresh time: %v", err)
@@ -163,10 +163,10 @@ func walked(t *testing.T, client *redislib.Client, regionID int32, at time.Time)
 
 // hubRegions is the regions the four default hubs sit in — what the sweep
 // tracks and walks on a deployment nobody has saved a market on.
-func hubRegions() []int32 {
-	out := make([]int32, 0, len(models.DefaultMarketLocations))
+func hubRegions() []int64 {
+	out := make([]int64, 0, len(models.DefaultMarketLocations))
 	for _, hub := range models.DefaultMarketLocations {
-		out = append(out, int32(hub.RegionID))
+		out = append(out, hub.RegionID)
 	}
 	return out
 }
@@ -234,7 +234,7 @@ func TestStalestHubIsSweptFirst(t *testing.T) {
 	}
 
 	// A hub never walked at all sorts ahead of every dated one.
-	want := []int32{regions[1], regions[2], regions[0]}
+	want := []int64{regions[1], regions[2], regions[0]}
 	dated := due[len(due)-3:]
 	if !slices.Equal(dated, want) {
 		t.Errorf("swept dated hubs %v, want stalest first %v", dated, want)
@@ -306,7 +306,7 @@ func TestTheSweepTracksTheHubsItWalks(t *testing.T) {
 	}
 
 	for _, hub := range models.DefaultMarketLocations {
-		tracked, err := redis.MarketOrders().TrackedStations(t.Context(), int32(hub.RegionID))
+		tracked, err := redis.MarketOrders().TrackedStations(t.Context(), hub.RegionID)
 		if err != nil {
 			t.Fatalf("tracked stations for %d: %v", hub.RegionID, err)
 		}
@@ -321,7 +321,7 @@ func TestTheSweepTracksTheHubsItWalks(t *testing.T) {
 // prices would be derived once and never refreshed.
 func TestTheSweepWalksAReaderRegisteredRegion(t *testing.T) {
 	// Rens: a hub region would have been walked whether the sweep read the registry or not.
-	const savedRegion = int32(10000030)
+	const savedRegion = int64(10000030)
 	const savedStation = int64(60004588)
 
 	fake := redisfake.New(t)
@@ -345,14 +345,14 @@ func TestTheSweepWalksAReaderRegisteredRegion(t *testing.T) {
 		t.Errorf("the sweep published walks for %v, want the reader-registered %d among them", published, savedRegion)
 	}
 	for _, hub := range models.DefaultMarketLocations {
-		if !slices.Contains(published, int32(hub.RegionID)) {
+		if !slices.Contains(published, hub.RegionID) {
 			t.Errorf("the sweep skipped hub %s, which every reader prices against", hub.ID)
 		}
 	}
 }
 
 // walksPublished reads the regions the sweep asked to be walked off the stream.
-func walksPublished(t *testing.T, stream jetstream.Stream) []int32 {
+func walksPublished(t *testing.T, stream jetstream.Stream) []int64 {
 	t.Helper()
 
 	info, err := stream.Info(t.Context())
@@ -360,7 +360,7 @@ func walksPublished(t *testing.T, stream jetstream.Stream) []int32 {
 		t.Fatalf("stream info: %v", err)
 	}
 
-	regions := []int32{}
+	regions := []int64{}
 	for seq := uint64(1); seq <= info.State.LastSeq; seq++ {
 		msg, err := stream.GetMsg(t.Context(), seq)
 		if err != nil {

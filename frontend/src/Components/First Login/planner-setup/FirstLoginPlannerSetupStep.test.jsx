@@ -10,7 +10,7 @@ vi.mock("../../../Zustand/usersStore", async () => {
   return usersStoreMock({
     applicationSettings: {
       defaultPricing: {
-        buying: { market: "jita", basis: "sell" },
+        buying: { market: "jita", orderType: "sell" },
         // Deliberately different from the buying side: a fixture whose sides
         // agree cannot tell a control reading the wrong one.
         selling: { market: "amarr", exit: "immediate" },
@@ -49,8 +49,9 @@ vi.mock("../shared/FirstLoginAssetLocationSelect", () => ({
 const { FirstLoginPlannerSetupStep } =
   await import("./FirstLoginPlannerSetupStep");
 
-// Setup shares PRICING_SIDES with Job Settings so the two screens cannot offer
-// different things, but it wires its own controls and nothing else covers them.
+// Setup mounts the same `PricedAgainst` the Market Locations tab does, so what
+// is worth covering here is that it is mounted and reaches this screen's store —
+// the controls themselves are covered beside the component.
 describe("the pricing defaults on first login", () => {
   beforeEach(() => {
     updatePricingDefault.mockClear();
@@ -75,7 +76,7 @@ describe("the pricing defaults on first login", () => {
     expect(screen.getByText("Jita")).toBeInTheDocument();
     expect(screen.getByText("Amarr")).toBeInTheDocument();
     expect(screen.getByText("Sell Orders")).toBeInTheDocument();
-    // The selling side states its route out, not a basis.
+    // The selling side states its route out, not an order type.
     expect(screen.getByText("Sell into buy orders")).toBeInTheDocument();
   });
 

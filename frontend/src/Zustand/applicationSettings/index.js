@@ -14,5 +14,6 @@ export {
   mergeApplicationSettingsState,
 } from "./core.js";
 export { structureActions } from "./structures.js";
+export { marketActions } from "./markets.js";
 export { preferencesActions } from "./preferences.js";
 export { predefinedSystemIndexActions } from "./predefinedSystemIndexes.js";

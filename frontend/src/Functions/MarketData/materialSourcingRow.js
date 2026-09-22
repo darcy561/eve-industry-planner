@@ -29,7 +29,7 @@ export const MATERIAL_PLAN = {
  * @property {number} typeID
  * @property {string} name
  * @property {number} quantity - How many the job needs
- * @property {number|null} buyPrice - Unit price at the row's hub and basis
+ * @property {number|null} buyPrice - Unit price at the row's hub and orderType
  * @property {number|null} buildPrice - Unit cost of building it, null when it cannot be built
  * @property {number|null} delta - Build against buy, as a fraction; negative is cheaper to build
  * @property {string} plan - One of MATERIAL_PLAN
@@ -47,7 +47,7 @@ export const MATERIAL_PLAN = {
  * @property {object} material - The material itself, for a drawer opened on this row
  * @property {Array<object>} matchedChildJobs - The child jobs behind it
  * @property {string} marketLocation - The market this row resolved to
- * @property {string} listingType - The listing type this row is priced from
+ * @property {string} orderType - The order type this row is priced from
  */
 
 /**
@@ -55,14 +55,14 @@ export const MATERIAL_PLAN = {
  *
  * @param {object} params
  * @param {object} params.material - A JobMaterial instance; its totals are getters
- * @param {number} params.buyPrice - Unit price at the resolved hub and basis
+ * @param {number} params.buyPrice - Unit price at the resolved hub and orderType
  * @param {number|null} params.buildPrice - Unit cost from linked child jobs, or null
  * @param {boolean} params.isBuildable - Whether the material has a blueprint at all
  * @param {boolean} params.isLinked - Whether child jobs are linked for it
  * @param {boolean} [params.isSpeculative] - Whether the build price is a guess
  * @param {Array<object>} [params.matchedChildJobs] - The child jobs behind it
  * @param {string} [params.marketLocation] - The market the row resolved to
- * @param {string} [params.listingType] - The listing type the row is priced from
+ * @param {string} [params.orderType] - The order type the row is priced from
  * @param {number} [params.quantity] - Overrides the material's own requirement,
  *   for a row stating one setup's need rather than the whole job's
  * @param {import("../Groups/childJobCoverage").ChildJobCoverage} [params.coverage]
@@ -78,7 +78,7 @@ export function buildMaterialSourcingRow({
   matchedChildJobs = [],
   mark = null,
   marketLocation,
-  listingType,
+  orderType,
   quantity: quantityOverride,
   coverage = null,
 }) {
@@ -110,7 +110,7 @@ export function buildMaterialSourcingRow({
     matchedChildJobs,
     mark,
     marketLocation,
-    listingType,
+    orderType,
   };
 }
 

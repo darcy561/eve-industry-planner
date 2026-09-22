@@ -6,19 +6,19 @@ import { eventEmitter } from "../utils/EventSystem";
  *
  * @param {Array<string>} jobIDs - Array of job IDs to show price entry for
  * @param {string|null} [marketLocation=null] - Market location to display (e.g., "jita", "amarr")
- * @param {string|null} [listingType=null] - Order type to display ("buy" or "sell")
+ * @param {string|null} [orderType=null] - Order type to display ("buy" or "sell")
  * @returns {void}
  */
 export function showPriceEntryDialogue(
   jobIDs,
   marketLocation = null,
-  listingType = null,
+  orderType = null,
 ) {
   eventEmitter.emit("priceEntry", {
     isOpen: true,
     jobIDs,
     marketLocation,
-    listingType,
+    orderType,
   });
 }
 
@@ -33,6 +33,6 @@ export function hidePriceEntryDialogue() {
     isOpen: false,
     jobIDs: [],
     marketLocation: null,
-    listingType: null,
+    orderType: null,
   });
 }

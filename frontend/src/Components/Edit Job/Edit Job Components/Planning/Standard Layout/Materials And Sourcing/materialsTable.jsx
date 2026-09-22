@@ -32,7 +32,7 @@ import {
   getListingModeLabel,
   getMarketLocationLabel,
 } from "./Helpers/marketLabelHelpers";
-import { MATERIAL_MARK } from "../../../../../../Functions/MarketData/materialMark";
+import { SOURCING_MARK } from "./sourcingMark";
 import StatusChip, {
   STATUS_TONE,
 } from "../../../../../../Styled Components/Chip/statusChip";
@@ -257,7 +257,7 @@ function MaterialRow({
  * without hovering, which a tooltip alone is not.
  *
  * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/materialMark").MaterialMark} [props.mark]
+ * @param {import("./sourcingMark").SourcingMark} [props.mark]
  */
 function MaterialMark({ mark }) {
   const theme = useTheme();
@@ -271,7 +271,7 @@ function MaterialMark({ mark }) {
 
   const Glyph = mark.isExempt
     ? BlockIcon
-    : mark.kind === MATERIAL_MARK.PLAIN
+    : mark.kind === SOURCING_MARK.PLAIN
       ? LensIcon
       : DoneIcon;
 
@@ -462,7 +462,7 @@ function SourceCell({ row }) {
   return (
     <Typography variant="caption" color="text.secondary" noWrap>
       {getMarketLocationLabel(row.marketLocation)} ·{" "}
-      {getListingModeLabel(row.listingType)}
+      {getListingModeLabel(row.orderType)}
     </Typography>
   );
 }

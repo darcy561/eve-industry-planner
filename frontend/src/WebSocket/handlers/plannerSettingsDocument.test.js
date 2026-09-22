@@ -86,7 +86,7 @@ describe("planner settings change deliveries", () => {
 
   it("leaves an edit that has not reached the server alone", () => {
     actions().setPlannerSettings(OWNER, { extrasCategories: CATEGORIES }, true);
-    actions().writePlannerExtrasCategories(OWNER, (categories) => [
+    actions().writePlannerSetting(OWNER, "extrasCategories", (categories) => [
       ...categories,
       { id: "cat-mine", label: "Mine", deleted: false },
     ]);
@@ -121,7 +121,11 @@ describe("planner settings change deliveries", () => {
 
   it("keeps an unsaved edit through a delete, because the save recreates it", () => {
     actions().setPlannerSettings(OWNER, { extrasCategories: CATEGORIES }, true);
-    actions().writePlannerExtrasCategories(OWNER, (categories) => categories);
+    actions().writePlannerSetting(
+      OWNER,
+      "extrasCategories",
+      (categories) => categories,
+    );
 
     handlePlannerSettingsDelete(ctx(OWNER, undefined, 13));
 

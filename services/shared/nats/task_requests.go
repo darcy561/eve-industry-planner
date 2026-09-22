@@ -11,7 +11,7 @@ import (
 // One request covers every order in the region: no type filter and no station, because the walk
 // stores the book and the stations wanted in it are read where prices are derived.
 type RegionMarketOrdersRequest struct {
-	RegionID int32 `json:"region_id"` // Region ID for the market endpoint
+	RegionID int64 `json:"region_id"` // Region ID for the market endpoint
 }
 
 // MarketSourcesRequest names the stations behind the markets an account prices
@@ -24,7 +24,7 @@ type MarketSourcesRequest struct {
 // RegionMarketPricesRequest names the region whose tracked stations are to be priced from the
 // pages already stored for it.
 type RegionMarketPricesRequest struct {
-	RegionID int32 `json:"region_id"`
+	RegionID int64 `json:"region_id"`
 }
 
 // SDEApplyVersionRequest represents a request to apply a specific SDE build.
@@ -121,7 +121,7 @@ func (r RebuildOwnerStatisticsRequest) SpanAttributes() []attribute.KeyValue {
 
 // SpanAttributes records the region a market-orders walk covers.
 func (r RegionMarketOrdersRequest) SpanAttributes() []attribute.KeyValue {
-	return []attribute.KeyValue{attribute.Int64("task.data.region_id", int64(r.RegionID))}
+	return []attribute.KeyValue{attribute.Int64("task.data.region_id", r.RegionID)}
 }
 
 // SpanAttributes records how many markets a registration covers.
@@ -131,7 +131,7 @@ func (r MarketSourcesRequest) SpanAttributes() []attribute.KeyValue {
 
 // SpanAttributes records the region a derive pass prices.
 func (r RegionMarketPricesRequest) SpanAttributes() []attribute.KeyValue {
-	return []attribute.KeyValue{attribute.Int64("task.data.region_id", int64(r.RegionID))}
+	return []attribute.KeyValue{attribute.Int64("task.data.region_id", r.RegionID)}
 }
 
 // SpanAttributes records the SDE build a task applies.

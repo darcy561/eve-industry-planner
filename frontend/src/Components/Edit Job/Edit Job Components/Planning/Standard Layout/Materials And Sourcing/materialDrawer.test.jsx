@@ -98,7 +98,7 @@ function renderDrawer(overrides = {}) {
       currentMaterialPrice={5}
       matchedChildJobs={[]}
       marketLocation="jita"
-      listingType="sell"
+      orderType="sell"
       {...overrides}
     />,
   );

@@ -3,10 +3,10 @@ import useUsersStore from "../../Zustand/usersStore.js";
 import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
 import GLOBAL_CONFIG from "../../global-config-app";
 
-const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
+const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 
 /**
- * Drops a job's own market or basis once it matches what the account defaults
+ * Drops a job's own market or order type once it matches what the account defaults
  * to, so the job carries an override only while it differs.
  *
  * Each side is judged against its own default: a job that names the buying
@@ -34,20 +34,22 @@ export function useStripRedundantJobMarketHubOverrides(
       const chosen = jobPricing[side] ?? {};
       const canonMarket =
         accountPricing?.[side]?.market ?? DEFAULT_MARKET_OPTION;
-      const canonBasis = accountPricing?.[side]?.basis ?? DEFAULT_ORDER_OPTION;
+      const canonOrderType =
+        accountPricing?.[side]?.orderType ?? DEFAULT_ORDER_TYPE;
 
       const market = chosen.market === canonMarket ? null : chosen.market;
-      const basis = chosen.basis === canonBasis ? null : chosen.basis;
+      const orderType =
+        chosen.orderType === canonOrderType ? null : chosen.orderType;
 
       if (market !== (chosen.market ?? null)) changed = true;
-      if (basis !== (chosen.basis ?? null)) changed = true;
-      kept[side] = { market: market ?? null, basis: basis ?? null };
+      if (orderType !== (chosen.orderType ?? null)) changed = true;
+      kept[side] = { market: market ?? null, orderType: orderType ?? null };
     }
 
     if (!changed) return;
 
     const stillChosen = Object.values(kept).some(
-      (side) => side.market || side.basis,
+      (side) => side.market || side.orderType,
     );
     updateActiveJobPricing({ localPricing: stillChosen ? kept : null });
   }, [jobPricing, accountPricing, updateActiveJobPricing]);

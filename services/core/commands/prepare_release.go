@@ -120,6 +120,12 @@ var releases = []release{{
 		// array and skips a document still holding the four keyed lists, so run
 		// early it would report nothing to do and leave every rig unconverted.
 		{name: "fold rig slots onto every saved structure", run: foldStructureRigSlots},
+		// After the fold, never before: it selects a document by a market row
+		// inside the structures array, which a document still holding the four
+		// keyed lists does not have. After the rig fold as well, so that fold
+		// sees the structures as they were stored rather than a set a market has
+		// already left.
+		{name: "move every saved market onto its own lane", run: moveMarketsToTheirOwnLane},
 		// After the job reshape, which rewrites the setups this reads: a fold run
 		// before it would convert setups that reshape then writes over.
 		{name: "fold rig slots onto every setup", run: foldRigSlots},

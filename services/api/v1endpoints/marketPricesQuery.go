@@ -151,7 +151,7 @@ func (a *Handlers) MarketPricesQueryHandler(w http.ResponseWriter, r *http.Reque
 			}
 		}
 		response.Sources[source.location.ID] = SourcePrices{
-			RefreshedAt: refreshedAt[int32(source.location.RegionID)],
+			RefreshedAt: refreshedAt[source.location.RegionID],
 			Prices:      prices,
 		}
 	}
@@ -315,12 +315,12 @@ func sourceIDsOf(sources map[string][]string) []string { return sortedKeys(sourc
 //
 // A region nothing has walked is absent, which reaches a caller as zero — "no
 // rows from here can be trusted to be current" rather than the epoch.
-func regionClocks(ctx context.Context, orders *eipredis.MarketOrdersStore) map[int32]int64 {
+func regionClocks(ctx context.Context, orders *eipredis.MarketOrdersStore) map[int64]int64 {
 	times, err := orders.RefreshTimes(ctx)
 	if err != nil {
-		return map[int32]int64{}
+		return map[int64]int64{}
 	}
-	clocks := make(map[int32]int64, len(times))
+	clocks := make(map[int64]int64, len(times))
 	for _, entry := range times {
 		clocks[entry.RegionID] = entry.LastUpdated.UnixMilli()
 	}

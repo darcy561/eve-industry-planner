@@ -23,7 +23,7 @@ import (
 // is what makes "one walk, several stations priced" a real claim rather than the
 // single-station walk wearing a new name.
 const (
-	testRegion   = int32(10000002)
+	testRegion   = int64(10000002)
 	firstStation = int64(60003760)
 	nextStation  = int64(60003761)
 )

@@ -33,15 +33,15 @@ export function useJobSellingContext() {
 
   const {
     marketLocation: sideMarketLocation,
-    listingType: sideListingType,
+    orderType: sideOrderType,
     marketLocationRung,
-    listingTypeRung,
+    orderTypeRung,
   } = useEffectiveMarketHub(localPricing, PRICING_SIDE.SELLING);
 
   const groupPricing = useMaterialGroupPricing({
     side: PRICING_SIDE.SELLING,
     marketLocationRung,
-    listingTypeRung,
+    orderTypeRung,
   });
 
   // The output's own market group, if it has one and the account priced it. The
@@ -52,7 +52,7 @@ export function useJobSellingContext() {
     null,
     itemID,
     sideMarketLocation,
-    sideListingType,
+    sideOrderType,
     groupPricing,
   );
 

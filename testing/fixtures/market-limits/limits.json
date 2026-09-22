@@ -1,0 +1,4 @@
+{
+  "why": "What MarketLocations.Validate holds a saved market lane to. The SPA enforces these at the field, so a reader cannot build a document the save is refused for. Regenerate with: EIP_UPDATE_MARKET_LIMITS=1 go test ./shared/models/ -run TestTheMarketLimitsAreCurrent",
+  "maxBrokerFeePercent": 100
+}

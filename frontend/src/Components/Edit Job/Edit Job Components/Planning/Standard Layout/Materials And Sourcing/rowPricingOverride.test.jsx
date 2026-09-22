@@ -8,10 +8,10 @@ vi.mock("../../../../../../Zustand/usersStore.js", async () => {
   return usersStoreMock({
     applicationSettings: {
       defaultPricing: {
-        buying: { market: "jita", basis: "sell" },
+        buying: { market: "jita", orderType: "sell" },
         // Deliberately different: a fixture whose sides agree cannot tell a
         // surface asking for the wrong one.
-        selling: { market: "amarr", basis: "buy" },
+        selling: { market: "amarr", orderType: "buy" },
       },
     },
   });
@@ -25,9 +25,9 @@ function renderControl(props = {}) {
     <RowPricingOverride
       typeID={34}
       panelMarketLocation="jita"
-      panelListingType="sell"
+      panelOrderType="sell"
       onMarketLocationCommit={() => {}}
-      onListingTypeCommit={() => {}}
+      onOrderTypeCommit={() => {}}
       onReset={() => {}}
       {...props}
     />,
@@ -59,15 +59,15 @@ describe("where a single material is priced", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers a way back once the row has its own basis", () => {
-    renderControl({ overrideListingType: "buyP95" });
+  it("offers a way back once the row has its own order type", () => {
+    renderControl({ overrideOrderType: "buyP95" });
 
     expect(
       screen.getByRole("button", { name: /use panel pricing/i }),
     ).toBeInTheDocument();
   });
 
-  it("names the material when putting it back on the panel's basis", async () => {
+  it("names the material when putting it back on the panel's order type", async () => {
     const onReset = vi.fn();
     const user = userEvent.setup();
     renderControl({ overrideMarketLocation: "amarr", onReset });
@@ -96,9 +96,9 @@ describe("a locked job", () => {
       <RowPricingOverride
         typeID={34}
         panelMarketLocation="jita"
-        panelListingType="sell"
+        panelOrderType="sell"
         onMarketLocationCommit={() => {}}
-        onListingTypeCommit={() => {}}
+        onOrderTypeCommit={() => {}}
         onReset={() => {}}
         disabled
       />,

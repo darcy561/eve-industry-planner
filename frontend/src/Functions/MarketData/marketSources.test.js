@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import GLOBAL_CONFIG from "../../global-config-app";
-import { structureKinds } from "../../Context/defaultValues";
 
-let structures = [];
+let markets = [];
+
+let composed;
+vi.mock("./marketLocations", () => ({
+  marketsToOffer: () => composed ?? markets,
+}));
 
 vi.mock("../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
-    usersStoreState({ applicationSettings: { customStructures: structures } }),
+    usersStoreState({ applicationSettings: { marketLocations: markets } }),
   );
 });
 
@@ -24,7 +28,8 @@ const {
 } = await import("./marketSources");
 
 beforeEach(() => {
-  structures = [];
+  markets = [];
+  composed = undefined;
 });
 
 describe("the market source registry", () => {
@@ -39,10 +44,9 @@ describe("the market source registry", () => {
   // A reader who saves a market expects to be offered it wherever a market is
   // offered, and every such surface reads this one function.
   it("carries the NPC stations a reader has saved", () => {
-    structures = [
+    markets = [
       {
         id: "npcMarket-1",
-        jobType: structureKinds.market,
         name: "Jita IV-4",
         regionID: 10000002,
         stationID: 60003760,
@@ -62,10 +66,9 @@ describe("the market source registry", () => {
   });
 
   it("carries the citadels a reader has saved", () => {
-    structures = [
+    markets = [
       {
         id: "citadelMarket-1",
-        jobType: structureKinds.market,
         name: "Perimeter Azbel",
         regionID: 10000002,
         structureID: 1035466617946,
@@ -85,28 +88,15 @@ describe("the market source registry", () => {
 
   // A market with no place named is a market with nowhere to ask about it.
   it("does not carry a saved market that names no place", () => {
-    structures = [
+    markets = [
       {
         id: "citadelMarket-2",
-        jobType: structureKinds.market,
         name: "Half-filled in",
         regionID: 10000002,
       },
     ];
 
     expect(sourceIn(allMarketSources(), "citadelMarket-2")).toBeUndefined();
-  });
-
-  it("does not carry a structure that is somewhere to build", () => {
-    structures = [
-      {
-        id: "manStruct-1",
-        jobType: structureKinds.manufacturing,
-        name: "Sotiyo",
-      },
-    ];
-
-    expect(sourceIn(allMarketSources(), "manStruct-1")).toBeUndefined();
   });
 
   // The region and station are what a price is fetched and filtered by, so a
@@ -209,5 +199,38 @@ describe("what follows from a kind", () => {
   it("does not keep an unknown kind on the reader's device", () => {
     expect(persistsAcrossSessions("a kind from a later release")).toBe(false);
     expect(isReadByTheReader("a kind from a later release")).toBe(false);
+  });
+});
+
+// What a reader may price against is composed by the server: their own markets
+// plus the ones each organisation they belong to has shared. The account's own
+// lane answers until that arrives, so a reader part-way through signing in is
+// offered the markets they saved rather than none.
+describe("the markets the server composed", () => {
+  it("are what the registry offers once they have arrived", () => {
+    markets = [{ id: "own", name: "Mine", regionID: 1, stationID: 60003760 }];
+    composed = [
+      { id: "shared", name: "The corporation's", regionID: 1, structureID: 99 },
+    ];
+
+    const ids = allMarketSources().map((source) => source.id);
+
+    expect(ids).toContain("shared");
+    expect(ids).not.toContain("own");
+  });
+
+  it("leave the account's own lane answering until they do", () => {
+    markets = [{ id: "own", name: "Mine", regionID: 1, stationID: 60003760 }];
+
+    expect(allMarketSources().map((source) => source.id)).toContain("own");
+  });
+
+  // An account that genuinely has none is an answer, not an absence: falling
+  // back to its own lane here would offer markets the server did not compose.
+  it("offer nothing for an account the server says has none", () => {
+    markets = [{ id: "own", name: "Mine", regionID: 1, stationID: 60003760 }];
+    composed = [];
+
+    expect(allMarketSources().map((source) => source.id)).not.toContain("own");
   });
 });

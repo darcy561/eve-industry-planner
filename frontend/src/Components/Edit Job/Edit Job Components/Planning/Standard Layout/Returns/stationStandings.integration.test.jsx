@@ -82,8 +82,6 @@ const SELLER = {
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../../../tests/usersStoreHarness.js");
-  const { structureKinds } =
-    await import("../../../../../../Context/defaultValues");
   return usersStoreMock({
     account: {
       isLoggedIn: true,
@@ -95,16 +93,17 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
     },
     applicationSettings: {
       defaultMarketCharacter: SELLER.CharacterHash,
-      customStructures: [
+      marketLocations: [
         {
           id: "citadelMarket-1",
-          jobType: structureKinds.market,
           name: "Perimeter Azbel",
           structureID: 1035466617946,
           brokerFee: 1.5,
-          default: true,
         },
       ],
+      // The citadel this case starts at, which the account sells from until the
+      // reader switches the job to the station.
+      defaultPricing: { selling: { market: "citadelMarket-1" } },
       actions: { getCurrentLocale: () => "en-GB" },
     },
   });

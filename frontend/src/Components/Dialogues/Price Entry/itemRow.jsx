@@ -24,7 +24,7 @@ const { PRIMARY_THEME } = GLOBAL_CONFIG;
 export function ItemPriceRow({
   item,
   index,
-  listingType,
+  orderType,
   marketLocation,
   pricesSettled,
   priceEntryListData,
@@ -33,7 +33,7 @@ export function ItemPriceRow({
   const defaultPrice = getMarketPriceForType(
     item.typeID,
     marketLocation,
-    listingType,
+    orderType,
   );
 
   const lastListingKeyRef = useRef(null);
@@ -93,10 +93,10 @@ export function ItemPriceRow({
     const nextDefault = getMarketPriceForType(
       item.typeID,
       marketLocation,
-      listingType,
+      orderType,
     );
 
-    const listingKey = `${marketLocation}:${listingType}`;
+    const listingKey = `${marketLocation}:${orderType}`;
     const listingChanged =
       lastListingKeyRef.current === null ||
       lastListingKeyRef.current !== listingKey;
@@ -135,7 +135,7 @@ export function ItemPriceRow({
     lastSyncedDefaultRef.current = nextDefault;
     // `pricesSettled` rather than the figures themselves: nothing re-renders
     // when a cache entry is written, so the dialogue says when its fetch landed.
-  }, [pricesSettled, marketLocation, listingType, item.typeID]);
+  }, [pricesSettled, marketLocation, orderType, item.typeID]);
 
   const updateConfirmedEntries = (newConfirmedEntries) => {
     let newList = [...priceEntryListData.list];

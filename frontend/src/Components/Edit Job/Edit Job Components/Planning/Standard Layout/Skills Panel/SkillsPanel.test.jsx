@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PricedSurface } from "../../../../../../tests/pricedSurface.jsx";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -124,7 +125,11 @@ const jobDocument = ({ setup = {}, build = {}, ...rest } = {}) => ({
 
 const show = (document = jobDocument()) => {
   session().actions.openJob(document.jobID, document);
-  return render(<SkillsPanel />);
+  return render(
+    <PricedSurface>
+      <SkillsPanel />
+    </PricedSurface>,
+  );
 };
 
 beforeEach(() => {

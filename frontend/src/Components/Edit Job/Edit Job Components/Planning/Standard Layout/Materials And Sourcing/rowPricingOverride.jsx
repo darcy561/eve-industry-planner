@@ -2,39 +2,39 @@ import { Box, Button, Typography } from "@mui/material";
 import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
 
-import { ListingTypeSelectApplicationSettings } from "../../../../../../Styled Components/Select/listingType";
+import { OrderTypeSelectApplicationSettings } from "../../../../../../Styled Components/Select/orderType";
 import { MarketLocationSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketLocation";
 
 /**
  * Where a single material is priced, when it should not follow the panel.
  *
- * The panel's basis picker says how many rows depart from it; this is where one
+ * The panel's order type picker says how many rows depart from it; this is where one
  * departs. It sits in the row's own drawer rather than in a dialogue listing
  * every material, so a player changes the row they are already looking at.
  *
  * @param {object} props
  * @param {number} props.typeID
  * @param {string|undefined} props.overrideMarketLocation - The row's own market, if it has one
- * @param {string|undefined} props.overrideListingType - The row's own listing type, if it has one
+ * @param {string|undefined} props.overrideOrderType - The row's own order type, if it has one
  * @param {string} props.panelMarketLocation - What the row falls back to
- * @param {string} props.panelListingType
+ * @param {string} props.panelOrderType
  * @param {(typeID: number, marketID: string|undefined) => void} props.onMarketLocationCommit
- * @param {(typeID: number, listingID: string|undefined) => void} props.onListingTypeCommit
+ * @param {(typeID: number, listingID: string|undefined) => void} props.onOrderTypeCommit
  * @param {(typeID: number) => void} props.onReset
  * @param {boolean} [props.disabled]
  */
 export default function RowPricingOverride({
   typeID,
   overrideMarketLocation,
-  overrideListingType,
+  overrideOrderType,
   panelMarketLocation,
-  panelListingType,
+  panelOrderType,
   onMarketLocationCommit,
-  onListingTypeCommit,
+  onOrderTypeCommit,
   onReset,
   disabled = false,
 }) {
-  const hasOverride = Boolean(overrideMarketLocation || overrideListingType);
+  const hasOverride = Boolean(overrideMarketLocation || overrideOrderType);
 
   return (
     <Box>
@@ -67,11 +67,11 @@ export default function RowPricingOverride({
           />
         </Box>
         <Box sx={{ minWidth: 140 }}>
-          <ListingTypeSelectApplicationSettings
+          <OrderTypeSelectApplicationSettings
             side={PRICING_SIDE.BUYING}
-            overrideListingType={overrideListingType}
-            alternativeDefaultListingType={panelListingType}
-            onListingTypeCommit={(id) => onListingTypeCommit?.(typeID, id)}
+            overrideOrderType={overrideOrderType}
+            alternativeDefaultOrderType={panelOrderType}
+            onOrderTypeCommit={(id) => onOrderTypeCommit?.(typeID, id)}
             customFormStyling={{ width: "100%" }}
             labelText="Listing"
             disabled={disabled}

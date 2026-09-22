@@ -26,6 +26,16 @@ const { extrasCategoriesDefault } =
 
 const OWNER = "corporation:98000001";
 
+function aSharedMarket() {
+  return {
+    id: "mkt-1",
+    name: "Perimeter Azbel",
+    regionID: 10000002,
+    structureID: 1035466617946,
+    sharedWithMembers: true,
+  };
+}
+
 function actions() {
   return useUsersStore.getState().plannerSettings.actions;
 }
@@ -182,7 +192,7 @@ describe("planner settings slice", () => {
       settings: { extrasCategories: [{ id: "a", label: "Freight (renamed)" }] },
     };
 
-    await actions().savePlannerExtrasCategories(OWNER);
+    await actions().savePlannerSettings(OWNER);
 
     expect(saved).toHaveLength(1);
     expect(saved[0].handle).toBe(OWNER);
@@ -220,7 +230,7 @@ describe("planner settings slice", () => {
   });
 
   it("sends nothing for a planner whose settings have not arrived", async () => {
-    await actions().savePlannerExtrasCategories(OWNER);
+    await actions().savePlannerSettings(OWNER);
 
     expect(saved).toEqual([]);
   });
@@ -257,7 +267,7 @@ describe("planner settings slice", () => {
       seeded: true,
       settings: { extrasCategories: [{ id: "a", label: "Freight" }] },
     };
-    await actions().savePlannerExtrasCategories(OWNER);
+    await actions().savePlannerSettings(OWNER);
     expect(actions().hasUnsavedPlannerSettings(OWNER)).toBe(false);
 
     nextResponse = {
@@ -279,7 +289,7 @@ describe("planner settings slice", () => {
     actions().addPlannerExtrasCategory(OWNER, { id: "a", label: "Freight" });
     nextError = new Error("refused");
 
-    await expect(actions().savePlannerExtrasCategories(OWNER)).rejects.toThrow(
+    await expect(actions().savePlannerSettings(OWNER)).rejects.toThrow(
       "refused",
     );
 
@@ -295,9 +305,65 @@ describe("planner settings slice", () => {
     hold(OWNER);
     useUsersStore.getState().account.actions.setLoggedIn(false);
 
-    await actions().savePlannerExtrasCategories(OWNER);
+    await actions().savePlannerSettings(OWNER);
 
     expect(saved).toEqual([]);
+  });
+
+  // The endpoint leaves a field it is not sent as it is stored, which is what
+  // lets two members edit one planner at once. A save that carried a field this
+  // member never touched would put their stale copy over the other's edit.
+  it("sends only the settings this session edited", async () => {
+    hold(OWNER);
+    actions().writePlannerMarketLocations(OWNER, () => [aSharedMarket()]);
+    nextResponse = { owner: OWNER, seeded: true, settings: {} };
+
+    await actions().savePlannerSettings(OWNER);
+
+    expect(Object.keys(saved[0].update)).toEqual(["marketLocations"]);
+  });
+
+  it("sends both settings when both were edited", async () => {
+    hold(OWNER);
+    actions().addPlannerExtrasCategory(OWNER, { id: "a", label: "Freight" });
+    actions().writePlannerMarketLocations(OWNER, () => [aSharedMarket()]);
+    nextResponse = { owner: OWNER, seeded: true, settings: {} };
+
+    await actions().savePlannerSettings(OWNER);
+
+    expect(Object.keys(saved[0].update).sort()).toEqual([
+      "extrasCategories",
+      "marketLocations",
+    ]);
+  });
+
+  it("sends nothing for a planner nothing was edited on", async () => {
+    hold(OWNER);
+
+    await actions().savePlannerSettings(OWNER);
+
+    expect(saved).toEqual([]);
+  });
+
+  // An organisation's markets go through the same transforms an account's own
+  // do, so a market behaves the same whoever saved it.
+  it("changes an organisation's markets", () => {
+    hold(OWNER);
+
+    actions().writePlannerMarketLocations(OWNER, () => [aSharedMarket()]);
+
+    const lane = actions().getPlannerSettings(OWNER).marketLocations;
+    expect(lane).toHaveLength(1);
+    expect(lane[0].id).toBe("mkt-1");
+    expect(actions().hasUnsavedPlannerSettings(OWNER)).toBe(true);
+  });
+
+  // Editing the fallback defaults and saving them would replace what the
+  // planner has stored, markets included.
+  it("refuses a market edit to a planner whose settings have not arrived", () => {
+    actions().writePlannerMarketLocations(OWNER, () => [aSharedMarket()]);
+
+    expect(actions().getPlannerSettings(OWNER).marketLocations).toEqual([]);
   });
 
   it("leaves the account's own application settings untouched", async () => {

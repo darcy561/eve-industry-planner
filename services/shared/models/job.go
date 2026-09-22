@@ -653,7 +653,7 @@ type MarketOrder struct {
 	OrderID        int      `json:"order_id" bson:"order_id"`                               // Unique order ID
 	ItemPrice      float64  `json:"item_price" bson:"item_price"`                           // Order price per unit
 	Range          string   `json:"range" bson:"range"`                                     // ESI string (e.g. "region")
-	RegionID       int      `json:"region_id" bson:"region_id"`                             // Region ID where order is placed
+	RegionID       int64    `json:"region_id" bson:"region_id"`                             // Region ID where order is placed
 	TypeID         int      `json:"type_id" bson:"type_id"`                                 // Item type ID
 	VolumeRemain   int      `json:"volume_remain" bson:"volume_remain"`                     // Remaining volume
 	VolumeTotal    int      `json:"volume_total" bson:"volume_total"`                       // Total volume

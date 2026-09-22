@@ -25,7 +25,7 @@ const row = (overrides = {}) => ({
   volume: 10,
   mark: { kind: "buildable", label: "Buildable", jobType: 1 },
   marketLocation: "jita",
-  listingType: "buyP95",
+  orderType: "buyP95",
   ...overrides,
 });
 

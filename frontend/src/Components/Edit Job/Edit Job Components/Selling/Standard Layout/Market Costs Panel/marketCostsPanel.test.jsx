@@ -1,7 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { renderCounts } from "../../../../../../tests/renderCounts.jsx";
+import { testQueryClient } from "../../../../../../tests/queryClients.js";
+
+// The panel asks for every market it compares, so the boundary beneath it is
+// mocked rather than left to reach the network and fail quickly.
+vi.mock("../../../../../../Functions/MarketData/priceCache", async () => {
+  const actual = await vi.importActual(
+    "../../../../../../Functions/MarketData/priceCache",
+  );
+  return {
+    ...actual,
+    fetchPrices: vi.fn(async () => ({ asked: 0, failed: 0 })),
+  };
+});
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreOverSession } =
@@ -36,11 +50,14 @@ const openJob = () =>
     build: {},
   });
 
+// A query client, the way the surfaces that fetch their own figures have one.
 const show = (Panel = MarketCostsPanel) =>
   render(
-    <ThemeProvider theme={theme}>
-      <Panel />
-    </ThemeProvider>,
+    <QueryClientProvider client={testQueryClient()}>
+      <ThemeProvider theme={theme}>
+        <Panel />
+      </ThemeProvider>
+    </QueryClientProvider>,
   );
 
 beforeEach(() => {

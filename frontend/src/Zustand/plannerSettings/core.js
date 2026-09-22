@@ -11,7 +11,6 @@ import {
 } from "../../Context/defaultValues";
 import customStructuresFromServer from "../../Functions/Helper/customStructuresFromServer";
 
-
 /**
  * The settings a planner falls back to before its document has been read.
  *
@@ -22,6 +21,7 @@ export const plannerSettingsDefault = () => ({
   defaultMaterialEfficiencyValue: 0,
   predefinedSystemIndexes: {},
   extrasCategories: extrasCategoriesDefault,
+  marketLocations: [],
   defaultCitadelBrokersFee: 1,
   reprocessingSettings: {
     defaultReprocessingCharacter: null,
@@ -39,13 +39,18 @@ export const stateDefault = () => ({
   /** @type {Object<string, boolean>} owner handle -> whether the planner has settings of its own */
   seededByOwner: {},
   /**
-   * Owner handles carrying an edit that has not reached the server yet.
+   * Which settings each planner is holding an edit to, not yet on the server.
    *
    * A read must not overwrite one of these: the held settings are ahead of the
    * stored ones, and replacing them with what the server still has would discard
    * the edit and then save the result over it.
    *
-   * @type {Object<string, boolean>}
+   * The fields rather than a flag, because the save is field-scoped. Two members
+   * editing one planner each send what they changed, so a save that carried a
+   * field this member never touched would put their stale copy of it over the
+   * other's edit.
+   *
+   * @type {Object<string, Array<string>>}
    */
   unsavedByOwner: {},
 });
@@ -72,6 +77,9 @@ export function mergePlannerSettings(incoming) {
     extrasCategories: Array.isArray(incoming.extrasCategories)
       ? incoming.extrasCategories
       : base.extrasCategories,
+    marketLocations: Array.isArray(incoming.marketLocations)
+      ? incoming.marketLocations
+      : base.marketLocations,
     predefinedSystemIndexes: incoming.predefinedSystemIndexes ?? {},
     // A Set, as the account's own settings hold it, so a consumer reads either
     // the same way.

@@ -198,7 +198,7 @@ export const preferencesActions = (set, get) => ({
    *
    * @param {string} side - One of PRICING_SIDE
    * @param {number|string} groupID - A market group id
-   * @param {"market"|"basis"} key
+   * @param {"market"|"orderType"} key
    * @param {string|null|undefined} value - Empty clears the field, and clearing
    *   the last field drops the group
    *
@@ -230,13 +230,13 @@ export const preferencesActions = (set, get) => ({
    * Sets one field of one side of the account's pricing defaults.
    *
    * The side is which half of a job is being priced, and the key is the market
-   * or the basis it is priced on. The two axes are both called buy and sell and
-   * do not agree: a basis is a listing type, so buying materials normally uses
-   * the "sell" basis, because the ask is what buying costs.
+   * or the order type it is priced on. Both axes are called buy and sell and they
+   * do not agree: buying materials normally uses the "sell" order type, because
+   * the ask is what buying costs.
    *
    * @param {string} side - One of PRICING_SIDE
-   * @param {"market"|"basis"|"exit"} key - The selling side takes `exit` in place
-   *   of `basis`: its route decides which side of the book it reads.
+   * @param {"market"|"orderType"|"exit"} key - The selling side takes `exit` in place
+   *   of `orderType`: its route decides which side of the book it reads.
    * @param {string} value
    *
    * @example

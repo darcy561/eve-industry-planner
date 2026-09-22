@@ -23,7 +23,7 @@
  * @property {string} REMOVE_ORE_ID_TO_BE_IGNORED - Remove ore ID from ignore list
  * @property {string} CLEAR_ORE_IDS_TO_BE_IGNORED - Clear all ignored ore IDs
  * @property {string} SET_MARKET_LOCATION - Set market location for pricing
- * @property {string} SET_MARKET_LISTING - Set market listing type (buy/sell)
+ * @property {string} SET_MARKET_ORDER_TYPE - Set market order type (buy/sell)
  * @property {string} SET_INPUT_MODIFIED - Set input modification flag
  * @property {string} SET_REQUESTED_MINERALS - Set requested minerals data
  * @property {string} SET_REPROCESSING_CALCULATION_SETTINGS - Set calculation settings
@@ -46,7 +46,7 @@ export const REPROCESSING_ACTION_TYPES = {
   REMOVE_ORE_ID_TO_BE_IGNORED: "REMOVE_ORE_ID_TO_BE_IGNORED",
   CLEAR_ORE_IDS_TO_BE_IGNORED: "CLEAR_ORE_IDS_TO_BE_IGNORED",
   SET_MARKET_LOCATION: "SET_MARKET_LOCATION",
-  SET_MARKET_LISTING: "SET_MARKET_LISTING",
+  SET_MARKET_ORDER_TYPE: "SET_MARKET_ORDER_TYPE",
   SET_INPUT_MODIFIED: "SET_INPUT_MODIFIED",
   SET_REQUESTED_MINERALS: "SET_REQUESTED_MINERALS",
   SET_REPROCESSING_CALCULATION_SETTINGS:
@@ -70,7 +70,7 @@ export const REPROCESSING_ACTION_TYPES = {
  * @param {Object} state.rigSlotErrors - Rig slot validation errors
  * @param {Array} state.oreIDsToBeIgnored - Array of ore IDs to ignore
  * @param {string} state.marketLocation - Market location for pricing
- * @param {string} state.listingType - Market listing type (buy/sell)
+ * @param {string} state.orderType - Market order type (buy/sell)
  * @param {boolean} state.inputModified - Whether input has been modified
  * @param {Object} state.requestedMinerals - Requested minerals data
  * @param {Object} state.reprocessingCalculationSettings - Calculation settings
@@ -150,8 +150,8 @@ export function reprocessingReducer(state, action) {
       return { ...state, oreIDsToBeIgnored: [] };
     case REPROCESSING_ACTION_TYPES.SET_MARKET_LOCATION:
       return { ...state, marketLocation: action.payload };
-    case REPROCESSING_ACTION_TYPES.SET_MARKET_LISTING:
-      return { ...state, listingType: action.payload };
+    case REPROCESSING_ACTION_TYPES.SET_MARKET_ORDER_TYPE:
+      return { ...state, orderType: action.payload };
     case REPROCESSING_ACTION_TYPES.SET_INPUT_MODIFIED:
       return { ...state, inputModified: action.payload };
     case REPROCESSING_ACTION_TYPES.SET_REQUESTED_MINERALS:

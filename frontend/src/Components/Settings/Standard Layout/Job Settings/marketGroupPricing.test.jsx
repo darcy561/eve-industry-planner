@@ -51,7 +51,7 @@ const TREE = {
 // visible rather than passing on a fixture that agrees with itself.
 function seed({ buying, selling } = {}) {
   store.applicationSettings.defaultPricing = {
-    buying: { market: "jita", basis: "sell", groups: buying },
+    buying: { market: "jita", orderType: "sell", groups: buying },
     selling: { market: "amarr", exit: "listed", groups: selling },
   };
   tree.current = TREE;
@@ -70,7 +70,7 @@ const renderPanel = () =>
 
 describe("the market group pricing panel", () => {
   it("states a group's name and what it prices against", () => {
-    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+    seed({ buying: { 1857: { market: "hek", orderType: "buy" } } });
     renderPanel();
 
     expect(screen.getByText("Minerals")).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe("the market group pricing panel", () => {
   // The name alone does not say whether it is the group the reader meant, and a
   // default set on a container covers everything beneath it.
   it("states where the group sits", () => {
-    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+    seed({ buying: { 1857: { market: "hek", orderType: "buy" } } });
     renderPanel();
 
     expect(screen.getByText("Manufacture & Research")).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe("the market group pricing panel", () => {
 
   it("lists each side's own groups", () => {
     seed({
-      buying: { 1857: { market: "hek", basis: "buy" } },
+      buying: { 1857: { market: "hek", orderType: "buy" } },
       selling: { 1849: { market: "dodixie" } },
     });
     renderPanel();
@@ -120,7 +120,7 @@ describe("the market group pricing panel", () => {
 // remove are the same write reaching the same entry.
 describe("changing what a group prices against", () => {
   it("writes the market to the side the row belongs to", async () => {
-    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+    seed({ buying: { 1857: { market: "hek", orderType: "buy" } } });
     renderPanel();
 
     const [market] = screen.getAllByRole("combobox");
@@ -137,8 +137,8 @@ describe("changing what a group prices against", () => {
     );
   });
 
-  it("writes the basis without disturbing the market", async () => {
-    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+  it("writes the order type without disturbing the market", async () => {
+    seed({ buying: { 1857: { market: "hek", orderType: "buy" } } });
     renderPanel();
 
     await userEvent.click(screen.getAllByRole("combobox")[1]);
@@ -149,7 +149,7 @@ describe("changing what a group prices against", () => {
     expect(updateGroupPricingDefault).toHaveBeenCalledWith(
       "buying",
       1857,
-      "basis",
+      "orderType",
       "sell",
     );
   });
@@ -175,7 +175,7 @@ describe("changing what a group prices against", () => {
   // Removing is clearing both fields: the store reads an entry naming nothing as
   // no entry, so there is no separate delete to get out of step with it.
   it("clears both fields to stop pricing a group separately", async () => {
-    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+    seed({ buying: { 1857: { market: "hek", orderType: "buy" } } });
     renderPanel();
 
     await userEvent.click(screen.getByRole("button", { name: /Remove/ }));
@@ -189,18 +189,18 @@ describe("changing what a group prices against", () => {
     expect(updateGroupPricingDefault).toHaveBeenCalledWith(
       "buying",
       1857,
-      "basis",
+      "orderType",
       "",
     );
   });
 });
 
 // A group answers its own side's axis. The selling side names how output leaves
-// a build, so a group beneath it names a route rather than a basis its side no
+// a build, so a group beneath it names a route rather than an order type its side no
 // longer reads.
 describe("what each side's groups answer", () => {
-  it("offers the buying side a pricing basis", async () => {
-    seed({ buying: { 1857: { market: "hek", basis: "buy" } } });
+  it("offers the buying side a pricing order type", async () => {
+    seed({ buying: { 1857: { market: "hek", orderType: "buy" } } });
     renderPanel();
 
     await userEvent.click(screen.getAllByRole("combobox")[1]);

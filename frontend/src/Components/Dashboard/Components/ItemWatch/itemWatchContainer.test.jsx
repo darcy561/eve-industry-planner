@@ -37,10 +37,10 @@ function watching({ items = [], groups = [] } = {}) {
     jobData: { userWatchlist: { items, groups } },
     applicationSettings: {
       defaultPricing: {
-        buying: { market: "jita", basis: "sell" },
+        buying: { market: "jita", orderType: "sell" },
         // Deliberately different: a fixture whose sides agree cannot tell a
         // surface asking for the wrong one.
-        selling: { market: "amarr", basis: "buy" },
+        selling: { market: "amarr", orderType: "buy" },
       },
     },
   };

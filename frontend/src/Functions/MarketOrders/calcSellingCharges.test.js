@@ -10,12 +10,11 @@ const { rateMock, ensureMock, saleLocations, savedCitadels } = vi.hoisted(
 );
 
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
     usersStoreState({
-      applicationSettings: { customStructures: savedCitadels.rows },
+      applicationSettings: { marketLocations: savedCitadels.rows },
     }),
   );
 });
@@ -110,11 +109,9 @@ describe("where a market order's broker fee is charged", () => {
 // Selling stage quoted the account-wide default, so one job showed two fees.
 describe("a citadel the reader has saved", () => {
   it("charges the rate recorded for that citadel", async () => {
-    const { structureKinds } = await import("../../Context/defaultValues");
     savedCitadels.rows = [
       {
         id: "citadelMarket-1",
-        jobType: structureKinds.market,
         structureID: RAITARU,
         brokerFee: 0.032,
       },
@@ -128,11 +125,9 @@ describe("a citadel the reader has saved", () => {
   // A reader who has not saved the citadel an order sits at still gets a
   // figure, so linking an order never depends on having described where it is.
   it("falls back to the account figure for a citadel it does not hold", async () => {
-    const { structureKinds } = await import("../../Context/defaultValues");
     savedCitadels.rows = [
       {
         id: "citadelMarket-1",
-        jobType: structureKinds.market,
         structureID: 1234567890,
         brokerFee: 0.032,
       },

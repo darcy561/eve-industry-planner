@@ -60,6 +60,12 @@ func (h *Handlers) handleGetApplicationSettings(w http.ResponseWriter, r *http.R
 		"settings_found": true,
 	})
 
+	// The account's own markets are answered from here as well as from the
+	// composed set, and a client reads whichever it has — so a market left
+	// unstamped on this path reads as never walked on the loads that fall back
+	// to it.
+	settingsDoc.MarketLocations = marketsources.StampPricedAt(ctx, h.Redis, settingsDoc.MarketLocations)
+
 	if err := helper.EncodeJSON(w, settingsDoc); err != nil {
 		metrics.Error("encode_error")
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode application settings response", "app_settings_encode_failed", "eve_token_login", err, nil)
@@ -101,6 +107,14 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 		})
 		return
 	}
+	if err := settingsDoc.MarketLocations.Validate(); err != nil {
+		metrics.Error("invalid_market_locations")
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(),
+			"application settings: market locations refused", "app_settings_invalid_markets",
+			"eve_token_login", err, nil)
+		return
+	}
+
 	helper.PopulateRequestMeta(r, &settingsDoc.MetaData.MetaData, models.AccountOwner(accountID))
 
 	result, retriedWithoutWSClientID, err := h.Mongo.ApplicationSettings.UpsertApplicationSettings(ctx, accountID, settingsDoc)
@@ -122,7 +136,7 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 	})
 
 	// Registered as it is saved, so a market added mid-session does not wait for the next sign-in.
-	marketsources.Register(ctx, h.Redis, h.NATS, settingsDoc.CustomStructures)
+	marketsources.Register(ctx, h.Redis, h.NATS, settingsDoc.MarketLocations)
 
 	w.WriteHeader(http.StatusNoContent)
 

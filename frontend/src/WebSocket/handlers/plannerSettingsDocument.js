@@ -2,6 +2,7 @@
  * Change-stream handlers for `planner_settings` — one document per planner.
  */
 
+import { refreshMarketLocations } from "../../Functions/MarketData/marketLocations.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
@@ -38,6 +39,14 @@ export function handlePlannerSettingsUpsert(ctx) {
     actions.setPlannerSettings(owner, document, true);
   }
   rs.setPosition(docKey, position);
+
+  // A planner's markets are part of what this account may price against, and
+  // this document is where an organisation's live. What changed is not worked
+  // out here: the server composes the set, so it is asked again.
+  void refreshMarketLocations().catch(() => {
+    // The set a reader already has stands until the next ask. Nobody is waiting
+    // on this, and a market they cannot see yet is not worth an error.
+  });
   return true;
 }
 

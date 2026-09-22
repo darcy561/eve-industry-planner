@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PricedSurface } from "../../../../../../tests/pricedSurface.jsx";
 import { renderHook } from "@testing-library/react";
 
 const { getMarketPriceForType } = vi.hoisted(() => ({
@@ -82,7 +83,7 @@ const pricedWith = (groups = {}) =>
     applicationSettings: {
       ...store.applicationSettings,
       defaultPricing: {
-        buying: { market: "jita", basis: "sell" },
+        buying: { market: "jita", orderType: "sell" },
         selling: { market: "amarr", exit: "listed", ...groups },
       },
     },
@@ -128,7 +129,10 @@ describe("which market a sale is quoted against", () => {
     session().actions.openJob("job-1", jobDocument());
   });
 
-  const price = () => renderHook(() => useJobEconomics({ rows: [] }));
+  const price = () =>
+    renderHook(() => useJobEconomics({ rows: [] }), {
+      wrapper: PricedSurface,
+    });
 
   const hubsAskedForOutput = () =>
     new Set(

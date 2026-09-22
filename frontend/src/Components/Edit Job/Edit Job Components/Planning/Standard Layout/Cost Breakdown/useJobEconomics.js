@@ -1,4 +1,8 @@
 import { useMemo } from "react";
+
+import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
+import useUsersStore from "../../../../../../Zustand/usersStore";
+import { pricesWantedBy } from "../../../../../../Functions/MarketData/pricesWanted";
 import { installCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
 import { buildCostBreakdown } from "../../../../../../Functions/MarketData/costBreakdown";
 import { calculateReturns } from "../../../../../../Functions/MarketData/returns";
@@ -32,11 +36,22 @@ import {
  */
 export function useJobEconomics({ rows, buyEverything = false }) {
   const itemID = useJobDraft((job) => job.itemID);
+  const build = useJobDraft((job) => job.build);
+  const accountPricing = useUsersStore(
+    (store) => store.applicationSettings.defaultPricing,
+  );
   const setups = useJobDraft((job) => job.build.setup);
   const extrasCosts = useJobDraft((job) => job.build.extrasCosts);
   const inventionEntries = useJobDraft((job) => job.build.inventionEntries);
   const industryJobs = useJobDraft((job) => job.esi.industryJobs);
   const itemsProducedPerRun = useJobDraft((job) => job.itemsProducedPerRun);
+  // The pairs these figures are read at, through the same resolution they are
+  // read back with — so what is asked for and what is drawn cannot disagree.
+  const { wants, adjustedTypeIDs } = useMemo(
+    () => pricesWantedBy({ itemID, build }, accountPricing),
+    [itemID, build, accountPricing],
+  );
+  const { clocks } = useMarketPricesQuery(wants, { adjustedTypeIDs });
 
   const {
     seller,
@@ -143,6 +158,14 @@ export function useJobEconomics({ rows, buyEverything = false }) {
       comparison: compareToHistory(totalsData?.history, cost.toBuild.perUnit),
       charges: { brokerFee, salesTax },
     };
+    // `clocks` is read by nothing in here on purpose. The prices are,
+    // synchronously out of the cache, and this is what says they have moved.
+    //
+    // Inert while `seller` is rebuilt unmemoised by `useJobSellingContext`,
+    // which recomputes this every render anyway. Named so the figures still
+    // follow the prices when that is fixed, rather than the fix quietly taking
+    // them off it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     itemID,
     setups,
@@ -160,5 +183,6 @@ export function useJobEconomics({ rows, buyEverything = false }) {
     seller,
     sellingMarket,
     totalsData,
+    clocks,
   ]);
 }

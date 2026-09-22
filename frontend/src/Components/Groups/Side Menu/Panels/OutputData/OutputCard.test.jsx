@@ -16,8 +16,8 @@ vi.mock("../../../../../Zustand/usersStore", async () => {
       },
       applicationSettings: {
         defaultPricing: {
-          buying: { market: "jita", basis: "sell" },
-          selling: { market: 60003760, basis: "sell" },
+          buying: { market: "jita", orderType: "sell" },
+          selling: { market: 60003760, orderType: "sell" },
         },
         actions: { getCurrentLocale: () => "en-GB" },
       },

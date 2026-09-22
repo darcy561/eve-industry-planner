@@ -27,17 +27,17 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
  * from the one in effect.
  *
  * @param {object} props
- * @param {import("../../Functions/MarketData/materialPricing").BasisOption[]} props.options
- * @param {(basisID: string) => void} props.onChange
+ * @param {import("../../Functions/MarketData/materialPricing").OrderTypeOption[]} props.options
+ * @param {(orderTypeID: string) => void} props.onChange
  * @param {(value: number) => string} props.formatValue - Renders a total as ISK
  * @param {string} [props.label] - What the totals are of, e.g. "Materials"
  * @param {{overridden: number, purchased: number}} [props.usage] - How many rows
- *   depart from this basis, and how many are not estimates at all
- * @param {() => void} [props.onReset] - Puts every row back on this basis
+ *   depart from this order type, and how many are not estimates at all
+ * @param {() => void} [props.onReset] - Puts every row back on this order type
  * @param {number|null} [props.age] - How old the figures are, in milliseconds
  * @param {boolean} [props.disabled]
  */
-export default function PricingBasisSelect({
+export default function PricingOrderTypeSelect({
   options = [],
   onChange,
   formatValue,
@@ -58,9 +58,9 @@ export default function PricingBasisSelect({
 
   if (!current) return null;
 
-  const choose = (basisID) => {
+  const choose = (orderTypeID) => {
     setAnchor(null);
-    if (basisID !== current.id) onChange?.(basisID);
+    if (orderTypeID !== current.id) onChange?.(orderTypeID);
   };
 
   return (
@@ -133,11 +133,11 @@ export default function PricingBasisSelect({
               <Typography variant="body2">
                 {formatValue(option.total)}
               </Typography>
-              <BasisDelta delta={option.delta} formatValue={formatValue} />
+              <OrderTypeDelta delta={option.delta} formatValue={formatValue} />
             </Box>
           </MenuItem>
         ))}
-        <BasisUsage usage={usage} onReset={onReset} />
+        <OrderTypeUsage usage={usage} onReset={onReset} />
         <PriceAge age={age} />
       </Options>
     </>
@@ -145,7 +145,7 @@ export default function PricingBasisSelect({
 }
 
 /**
- * How many rows are not on this basis.
+ * How many rows are not on this order type.
  *
  * An override is invisible on the row itself, so saying how many there are is
  * what makes one discoverable without opening anything.
@@ -154,7 +154,7 @@ export default function PricingBasisSelect({
  * @param {{overridden: number, purchased: number}} [props.usage]
  * @param {() => void} [props.onReset]
  */
-function BasisUsage({ usage, onReset }) {
+function OrderTypeUsage({ usage, onReset }) {
   if (!usage || (!usage.overridden && !usage.purchased)) return null;
 
   const parts = [];
@@ -171,7 +171,7 @@ function BasisUsage({ usage, onReset }) {
           {parts.join(" \u00b7 ")}
         </Typography>
         {usage.overridden && onReset ? (
-          <ExplainerTooltip title="Puts every row back on this panel's market and basis, clearing the ones that departed">
+          <ExplainerTooltip title="Puts every row back on this panel's market and order type, clearing the ones that departed">
             <Button size="small" onClick={onReset}>
               Reset overrides
             </Button>
@@ -183,14 +183,14 @@ function BasisUsage({ usage, onReset }) {
 }
 
 /**
- * How far an option sits from the basis in effect. Colour marks sign only, and
+ * How far an option sits from the order type in effect. Colour marks sign only, and
  * the option in effect shows nothing rather than a zero.
  *
  * @param {object} props
  * @param {number} props.delta
  * @param {(value: number) => string} props.formatValue
  */
-function BasisDelta({ delta, formatValue }) {
+function OrderTypeDelta({ delta, formatValue }) {
   if (!delta) return null;
 
   return (

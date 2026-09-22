@@ -7,11 +7,26 @@ import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { useMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
 import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
+import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
+import { useMemo } from "react";
 
 export function MarketCostsPanel() {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("sm"));
   const marketSources = useMarketSources();
   const itemID = useJobDraft((job) => job.itemID);
+
+  // This panel is the one surface that compares every market at once, so it is
+  // the one that has to ask for every market. Everything else resolves a single
+  // market per figure and fetches only that, which leaves every other column
+  // here reading a cache entry nothing filled.
+  const wants = useMemo(
+    () =>
+      itemID == null
+        ? []
+        : marketSources.map(({ id }) => ({ typeID: itemID, sourceID: id })),
+    [itemID, marketSources],
+  );
+  useMarketPricesQuery(wants);
 
   return (
     <ContentPanel

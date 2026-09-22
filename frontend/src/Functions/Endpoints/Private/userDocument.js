@@ -1,4 +1,5 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
+import { refreshMarketLocationsAfterWrite } from "../../MarketData/marketLocations.js";
 import useUsersStore from "../../../Zustand/usersStore";
 
 const USER_MAIN_URL = "/api/v1/user/document";
@@ -75,6 +76,9 @@ async function saveApplicationSettings() {
       return false;
     }
 
+    // The composed markets are derived from this document, so a market saved in
+    // it is absent from them until they are read again.
+    await refreshMarketLocationsAfterWrite();
     return true;
   } catch (error) {
     console.error("Error saving application settings:", error);

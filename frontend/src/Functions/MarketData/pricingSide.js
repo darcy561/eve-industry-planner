@@ -1,11 +1,11 @@
 import GLOBAL_CONFIG from "../../global-config-app";
 import { EXIT_ROUTE } from "./returns.js";
 
-const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
+const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 
 /**
  * Which side of a job is being priced. Not which side of the order book — that
- * is the basis, and the two disagree: materials being bought are normally priced
+ * is the order type, and the two disagree: materials being bought are normally priced
  * from the sell side, because the ask is what buying costs.
  */
 export const PRICING_SIDE = {
@@ -16,34 +16,34 @@ export const PRICING_SIDE = {
 /**
  * Which side of the book each route out reads.
  *
- * The selling side names a route rather than a basis because a route answers two
- * questions a basis cannot answer alone: which side of the book a figure comes
+ * The selling side names a route rather than an order type because a route answers two
+ * questions an order type cannot answer alone: which side of the book a figure comes
  * from, and whether a broker fee is charged. Listing pays fee and tax; selling
  * into bids pays tax only, because nothing is listed.
  */
-const BASIS_FOR_EXIT = {
+const ORDER_TYPE_FOR_EXIT = {
   [EXIT_ROUTE.LISTED]: "sell",
   [EXIT_ROUTE.IMMEDIATE]: "buy",
 };
 
 /**
- * The basis a route prices on.
+ * The order type a route prices on.
  *
- * The selling side stores a route rather than a basis, so this is the one place
+ * The selling side stores a route rather than an order type, so this is the one place
  * that turns one into the other — a second copy would let a quoted price
  * disagree with the fee quoted beside it.
  *
  * @param {string|null|undefined} exit - One of EXIT_ROUTE
  * @returns {string|undefined}
  */
-export function basisForExit(exit) {
-  return BASIS_FOR_EXIT[exit];
+export function orderTypeForExit(exit) {
+  return ORDER_TYPE_FOR_EXIT[exit];
 }
 
 /**
  * The sides a control offers, named for what is being priced rather than for the
- * side itself: a basis is also called buy or sell, so "buying market" beside a
- * basis of "Sell Orders" reads as a contradiction when it is the normal case.
+ * side itself: an order type is also called buy or sell, so "buying market" beside a
+ * order type of "Sell Orders" reads as a contradiction when it is the normal case.
  */
 export const PRICING_SIDES = [
   { side: PRICING_SIDE.BUYING, noun: "Materials" },
@@ -67,8 +67,8 @@ export const PRICING_RUNG = {
  * Where one side of a job is priced: the job's own choice, then the account's
  * default, then the global one.
  *
- * Market and basis resolve independently, so a job naming a market without a
- * basis keeps the account's basis rather than losing it. An empty value is not a
+ * Market and order type resolve independently, so a job naming a market without a
+ * order type keeps the account's order type rather than losing it. An empty value is not a
  * choice at any rung — that rule is what lets a stored document leave a field out
  * rather than having to carry a placeholder.
  *
@@ -76,16 +76,16 @@ export const PRICING_RUNG = {
  * @param {object|null|undefined} params.jobPricing - `build.localPricing`
  * @param {object|null|undefined} params.accountPricing - `defaultPricing`
  * @param {string} params.side - One of PRICING_SIDE
- * @returns {{marketLocation: string, listingType: string}}
+ * @returns {{marketLocation: string, orderType: string}}
  */
 export function resolvePricingSide({ jobPricing, accountPricing, side }) {
-  const { marketLocation, listingType } = resolvePricingSideRungs({
+  const { marketLocation, orderType } = resolvePricingSideRungs({
     jobPricing,
     accountPricing,
     side,
   });
 
-  return { marketLocation, listingType };
+  return { marketLocation, orderType };
 }
 
 /**
@@ -105,8 +105,8 @@ export function resolvePricingSide({ jobPricing, accountPricing, side }) {
  * @param {object|null|undefined} params.jobPricing - `build.localPricing`
  * @param {object|null|undefined} params.accountPricing - `defaultPricing`
  * @param {string} params.side - One of PRICING_SIDE
- * @returns {{marketLocation: string, listingType: string,
- *   marketLocationRung: string, listingTypeRung: string}}
+ * @returns {{marketLocation: string, orderType: string,
+ *   marketLocationRung: string, orderTypeRung: string}}
  */
 export function resolvePricingSideRungs({ jobPricing, accountPricing, side }) {
   const job = jobPricing?.[side];
@@ -117,20 +117,20 @@ export function resolvePricingSideRungs({ jobPricing, accountPricing, side }) {
     account?.market,
     DEFAULT_MARKET_OPTION,
   );
-  // The selling side answers its basis with a route; the buying side stores one
-  // directly. A job's own basis still outranks either, because a job that named
+  // The selling side answers its order type with a route; the buying side stores one
+  // directly. A job's own order type still outranks either, because a job that named
   // one has answered for itself.
-  const basisAnswer = answer(
-    job?.basis,
-    account?.basis || basisForExit(account?.exit),
-    DEFAULT_ORDER_OPTION,
+  const orderTypeAnswer = answer(
+    job?.orderType,
+    account?.orderType || orderTypeForExit(account?.exit),
+    DEFAULT_ORDER_TYPE,
   );
 
   return {
     marketLocation: marketAnswer.value,
-    listingType: basisAnswer.value,
+    orderType: orderTypeAnswer.value,
     marketLocationRung: marketAnswer.rung,
-    listingTypeRung: basisAnswer.rung,
+    orderTypeRung: orderTypeAnswer.rung,
   };
 }
 
@@ -149,18 +149,18 @@ function answer(job, account, global) {
  *
  * @param {object|null|undefined} jobPricing - `build.localPricing`
  * @param {string} side - One of PRICING_SIDE
- * @param {"market"|"basis"} key
+ * @param {"market"|"orderType"} key
  * @param {string|null|undefined} value
  * @returns {object|null}
  */
 export function setJobPricingSide(jobPricing, side, key, value) {
   const next = {
-    buying: { market: null, basis: null, ...jobPricing?.buying },
-    selling: { market: null, basis: null, ...jobPricing?.selling },
+    buying: { market: null, orderType: null, ...jobPricing?.buying },
+    selling: { market: null, orderType: null, ...jobPricing?.selling },
   };
   next[side] = { ...next[side], [key]: value || null };
 
-  const chosen = Object.values(next).some((one) => one.market || one.basis);
+  const chosen = Object.values(next).some((one) => one.market || one.orderType);
 
   return chosen ? next : null;
 }
@@ -174,19 +174,19 @@ export function setJobPricingSide(jobPricing, side, key, value) {
  * document answering nothing, and the walk reads an empty value as no choice
  * anyway — so keeping it would be a row a reader could see and not use.
  *
- * @param {Object<string, {market?: string, basis?: string}>|null|undefined} groups
+ * @param {Object<string, {market?: string, orderType?: string}>|null|undefined} groups
  * @param {number|string} groupID
- * @param {"market"|"basis"|"exit"} key - The selling side's groups name a route
- *   in place of a basis, as the side itself does
+ * @param {"market"|"orderType"|"exit"} key - The selling side's groups name a route
+ *   in place of an order type, as the side itself does
  * @param {string|null|undefined} value
- * @returns {Object<string, {market?: string, basis?: string, exit?: string}>|undefined}
+ * @returns {Object<string, {market?: string, orderType?: string, exit?: string}>|undefined}
  */
 export function setGroupPricing(groups, groupID, key, value) {
   const id = String(groupID);
   const next = { ...groups };
   const entry = { ...next[id], [key]: value || undefined };
 
-  if (!entry.market && !entry.basis && !entry.exit) {
+  if (!entry.market && !entry.orderType && !entry.exit) {
     delete next[id];
   } else {
     next[id] = entry;
@@ -207,23 +207,23 @@ const MAX_GROUP_DEPTH = 32;
 /**
  * The nearest market group default above an item, for one side of a job.
  *
- * Market and basis are answered separately and each stops at the first group
- * that names it, so a group naming a market without a basis narrows one axis and
+ * Market and order type are answered separately and each stops at the first group
+ * that names it, so a group naming a market without an order type narrows one axis and
  * leaves the other to whatever answers next. A nearer group outranks a further
  * one, which is the same rule every other rung uses.
  *
  * @param {object} params
  * @param {number|undefined} params.marketGroupID - The item's own market group
  * @param {Object<string, {parent_id?: number}>} params.marketGroups - The tree
- * @param {Object<string, {market?: string, basis?: string}>} [params.groupDefaults]
- * @returns {{marketLocation: string|null, listingType: string|null}}
+ * @param {Object<string, {market?: string, orderType?: string}>} [params.groupDefaults]
+ * @returns {{marketLocation: string|null, orderType: string|null}}
  */
 export function resolveGroupDefault({
   marketGroupID,
   marketGroups,
   groupDefaults,
 }) {
-  const answer = { marketLocation: null, listingType: null };
+  const answer = { marketLocation: null, orderType: null };
   if (!marketGroupID || !groupDefaults) return answer;
 
   let id = marketGroupID;
@@ -232,12 +232,13 @@ export function resolveGroupDefault({
     if (chosen) {
       answer.marketLocation ||= chosen.market || null;
       // A group answers its side's own axis: the selling side names a route out,
-      // which decides the basis, and the buying side names the basis directly.
-      // Both reach the caller as a basis, because that is what a price is read
+      // which decides the order type, and the buying side names the order type directly.
+      // Both reach the caller as an order type, because that is what a price is read
       // on — the route's other half, the broker fee, belongs to the side rather
       // than to a group beneath it.
-      answer.listingType ||= chosen.basis || basisForExit(chosen.exit) || null;
-      if (answer.marketLocation && answer.listingType) return answer;
+      answer.orderType ||=
+        chosen.orderType || orderTypeForExit(chosen.exit) || null;
+      if (answer.marketLocation && answer.orderType) return answer;
     }
     id = marketGroups?.[String(id)]?.parent_id;
   }

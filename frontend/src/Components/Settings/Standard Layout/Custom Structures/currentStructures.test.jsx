@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import CurrentStructuresFrame from "./currentStructures";
-import { jobTypes, structureKinds } from "../../../../Context/defaultValues";
+import { jobTypes } from "../../../../Context/defaultValues";
 
 const setDefaultCustomStructure = vi.fn();
 const deleteCustomStructure = vi.fn();
@@ -237,77 +237,5 @@ describe("what a card says about each kind of structure", () => {
     expect(screen.getByText("Jita Sotiyo")).toBeInTheDocument();
     expect(screen.getByText("Implant")).toBeInTheDocument();
     expect(screen.getByText("Rigs")).toBeInTheDocument();
-  });
-});
-
-// The card body falls through to the build fields for any kind that does not
-// return early, so a market would be described as somewhere a job is installed:
-// a structure type it has no bonuses from, rigs it cannot fit, an installation
-// tax it does not charge, and a system index it has no cost to apply one to.
-describe("what a card says about a market", () => {
-  const JITA_STATION = 60003760;
-  const AN_AZBEL = 1035466617946;
-  const THE_FORGE = 10000002;
-
-  it("names the station, its region, and where its fee comes from", () => {
-    structures = [
-      {
-        id: "market-1",
-        jobType: structureKinds.market,
-        name: "My Jita office",
-        stationID: JITA_STATION,
-        regionID: THE_FORGE,
-        default: true,
-      },
-    ];
-    renderFrame({ selectedJobType: structureKinds.market });
-
-    expect(screen.getByText("Station")).toBeInTheDocument();
-    expect(screen.getByText("Jita IV-4")).toBeInTheDocument();
-    expect(screen.getByText("The Forge")).toBeInTheDocument();
-    // A station charges what the seller's skills and standings make it, so a
-    // percentage here would be a number nothing charges.
-    expect(
-      screen.getByText("From your skills and standings"),
-    ).toBeInTheDocument();
-  });
-
-  it("names the citadel and the rate its owner set", () => {
-    structures = [
-      {
-        id: "market-2",
-        jobType: structureKinds.market,
-        name: "Perimeter",
-        structureID: AN_AZBEL,
-        regionID: THE_FORGE,
-        brokerFee: 1.5,
-        default: true,
-      },
-    ];
-    renderFrame({ selectedJobType: structureKinds.market });
-
-    expect(screen.getByText("Citadel")).toBeInTheDocument();
-    expect(screen.getByText("Perimeter Azbel")).toBeInTheDocument();
-    expect(screen.getByText("1.5%")).toBeInTheDocument();
-  });
-
-  // A market is described by where it is and what it charges. The build fields
-  // belong to a place a job is installed in.
-  it("does not describe a market as somewhere a job is built", () => {
-    structures = [
-      {
-        id: "market-1",
-        jobType: structureKinds.market,
-        name: "Perimeter",
-        structureID: AN_AZBEL,
-        brokerFee: 1.5,
-        default: true,
-      },
-    ];
-    renderFrame({ selectedJobType: structureKinds.market });
-
-    for (const label of ["Rigs", "Tax", "Security", "System"]) {
-      expect(screen.queryByText(label)).not.toBeInTheDocument();
-    }
   });
 });

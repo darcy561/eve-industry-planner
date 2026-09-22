@@ -750,7 +750,7 @@ func TestJobLayout_BSONRoundTripKeepsEveryField(t *testing.T) {
 // A job's own pricing choice stands in for the account's defaults, so losing it
 // silently reprices the job rather than failing.
 func TestJobBuild_localPricingSurvivesJSON(t *testing.T) {
-	const raw = `{"localPricing":{"buying":{"market":"jita","basis":"sell"},"selling":{"market":"amarr","basis":"buy"}}}`
+	const raw = `{"localPricing":{"buying":{"market":"jita","orderType":"sell"},"selling":{"market":"amarr","orderType":"buy"}}}`
 
 	var l JobBuild
 	if err := json.Unmarshal([]byte(raw), &l); err != nil {
@@ -759,7 +759,7 @@ func TestJobBuild_localPricingSurvivesJSON(t *testing.T) {
 	if l.LocalPricing == nil {
 		t.Fatal("localPricing was dropped")
 	}
-	if got := l.LocalPricing.Selling; got.Market != "amarr" || got.Basis != "buy" {
+	if got := l.LocalPricing.Selling; got.Market != "amarr" || got.OrderType != "buy" {
 		t.Fatalf("selling = %+v, want amarr/buy", got)
 	}
 

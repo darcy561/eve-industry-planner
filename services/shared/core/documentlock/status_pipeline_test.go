@@ -306,7 +306,7 @@ func TestStatusPayloadForDoc_MatchesBatchPath(t *testing.T) {
 	}
 }
 
-// Whether the holder is the reader's own account is the whole basis on which a
+// Whether the holder is the reader's own account is the whole order type on which a
 // client decides to offer taking the lock back, and it is answered here — so a
 // reader must never be told a colleague's lock is theirs to clear.
 func TestStatusBatchFetch_SaysWhoseAccountHoldsIt(t *testing.T) {

@@ -2,6 +2,7 @@
  * Change-stream handlers for `application_settings` collection (account singleton doc).
  */
 
+import { refreshMarketLocations } from "../../Functions/MarketData/marketLocations.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { mergeApplicationSettingsState } from "../../Zustand/applicationSettings/core.js";
 import {
@@ -62,6 +63,13 @@ export function handleApplicationSettingsDocumentUpsert(ctx) {
     "websocket/applyApplicationSettings",
   );
   rs.setPosition(docKey, position);
+
+  // The account's own markets are half of what it may price against, and this
+  // document carries them. The other half is its organisations', so the set is
+  // asked for rather than worked out from this one document.
+  void refreshMarketLocations().catch(() => {
+    /* The set a reader already has stands until the next ask. */
+  });
 
   enqueueReconcile(async () => {
     await reconcileAfterRemoteApplicationSettings(prevCloudAccounts);

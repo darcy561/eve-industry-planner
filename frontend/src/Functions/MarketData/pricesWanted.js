@@ -1,4 +1,5 @@
 import { PRICING_SIDE } from "./pricingSide.js";
+import { wantKey } from "./marketSources";
 import { resolveFor, sideDefaults } from "./priceResolution";
 import { materialTypeIDsOf } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
@@ -15,10 +16,13 @@ import { materialTypeIDsOf } from "../../Components/Edit Job/Edit Job Hooks/jobS
  * from where its materials are bought and frequently a different answer.
  *
  * @param {Array<Object>|Object} inputJobs
+ * @param {Object} [accountPricing] - Defaults to the account's stored pricing.
+ *   Taken rather than read where a caller re-resolves as it moves, so what the
+ *   wants depend on is visible at the call site
  * @returns {{wants: Array<{typeID: number, sourceID: string}>,
  *   adjustedTypeIDs: number[]}}
  */
-export function pricesWantedBy(inputJobs) {
+export function pricesWantedBy(inputJobs, accountPricing) {
   const jobs = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
 
   const wants = new Map();
@@ -30,8 +34,14 @@ export function pricesWantedBy(inputJobs) {
     // Per job rather than once for the batch: a job's own choice of market is a
     // rung, and two jobs in one call can answer it differently.
     const jobPricing = job.build?.localPricing;
-    const buying = sideDefaults(PRICING_SIDE.BUYING, { jobPricing });
-    const selling = sideDefaults(PRICING_SIDE.SELLING, { jobPricing });
+    const buying = sideDefaults(PRICING_SIDE.BUYING, {
+      jobPricing,
+      accountPricing,
+    });
+    const selling = sideDefaults(PRICING_SIDE.SELLING, {
+      jobPricing,
+      accountPricing,
+    });
 
     // What the job is made of, and not what it makes: the output is priced
     // below, at the market it will be sold on rather than bought at.
@@ -77,7 +87,7 @@ export function pricesWantedForTypes(typeIDs, side) {
 
 function add(wants, typeID, sourceID) {
   if (typeID == null || !sourceID) return;
-  wants.set(`${sourceID}|${typeID}`, { typeID, sourceID });
+  wants.set(wantKey(sourceID, typeID), { typeID, sourceID });
 }
 
 /**

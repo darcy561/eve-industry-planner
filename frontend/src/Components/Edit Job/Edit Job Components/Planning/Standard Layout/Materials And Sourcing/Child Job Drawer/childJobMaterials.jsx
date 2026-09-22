@@ -8,7 +8,7 @@ export function ChildJobMaterials({
   jobDisplay,
   childJobObjects,
   marketLocation,
-  listingType,
+  orderType,
 }) {
   // The child jobs built on this page but not saved, which are what a material
   // of the job on show may itself be built by.
@@ -30,7 +30,7 @@ export function ChildJobMaterials({
       childJobIds,
       temporaryChildJobs?.[material.typeID],
       marketLocation,
-      listingType,
+      orderType,
     );
 
     return (

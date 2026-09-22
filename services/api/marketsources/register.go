@@ -23,12 +23,12 @@ import (
 // A market this cannot ask about is left for the next sign-in: the registration
 // is worth nothing to the request that triggered it, so nothing about it is
 // worth failing.
-func Register(ctx context.Context, redis *eipredis.Redis, nats *eipnats.NATS, structures models.CustomStructures) {
+func Register(ctx context.Context, redis *eipredis.Redis, nats *eipnats.NATS, markets models.MarketLocations) {
 	if redis == nil || nats == nil {
 		return
 	}
 
-	saved := structures.MarketStationIDs()
+	saved := markets.StationIDs()
 	if len(saved) == 0 {
 		return
 	}

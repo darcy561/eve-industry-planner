@@ -60,19 +60,10 @@ export function readMarketGroups() {
  * Ordered by name, because a reader browsing is looking for one; the file orders
  * children by id, which is what makes a published build comparable to the last.
  *
- * @param {number|null} [parentID] - null or omitted for the roots
- * @returns {Array<{id: number, name: string, hasChildren: boolean, hasTypes: boolean}>}
- */
-export function childrenOf(parentID = null) {
-  return childrenIn(tree.read(), parentID);
-}
-
-/**
- * The same answer, against a tree the caller already holds.
- *
- * React reads this file through the query cache while the pricing rung reads the
- * copy held here, and the two are primed separately — so a caller that has a tree
- * passes it rather than asking which copy arrived first.
+ * The tree is passed in rather than read here. React reads this file through the
+ * query cache while the pricing rung reads the copy held in this module, and the
+ * two are primed separately — so a caller hands over the one it has rather than
+ * this guessing which arrived first.
  *
  * @param {Object<string, Object>|null|undefined} groups
  * @param {number|null} [parentID]
@@ -134,16 +125,6 @@ function rootIDs(groups) {
  * build a path forever. Nothing in the data does that, but this runs per row of
  * a list a reader is scrolling.
  *
- * @param {number|null|undefined} groupID
- * @returns {Array<{id: number, name: string}>}
- */
-export function ancestorPath(groupID) {
-  return ancestorPathIn(tree.read(), groupID);
-}
-
-/**
- * The same answer, against a tree the caller already holds.
- *
  * @param {Object<string, Object>|null|undefined} groups
  * @param {number|null|undefined} groupID
  * @returns {Array<{id: number, name: string}>}
@@ -201,15 +182,15 @@ export function marketGroupOf(typeID) {
  * rung answered, and only the caller knows that.
  *
  * @param {object} params
- * @param {Object<string, {market?: string, basis?: string}>|undefined} params.groupDefaults
+ * @param {Object<string, {market?: string, orderType?: string}>|undefined} params.groupDefaults
  * @param {string} params.marketLocationRung
- * @param {string} params.listingTypeRung
- * @returns {import("./materialPricing.js").GroupPricing|undefined}
+ * @param {string} params.orderTypeRung
+ * @returns {import("./materialPricing.js").GroupRungContext|undefined}
  */
 export function groupPricingFor({
   groupDefaults,
   marketLocationRung,
-  listingTypeRung,
+  orderTypeRung,
 }) {
   if (Object.keys(groupDefaults ?? {}).length === 0) return undefined;
 
@@ -221,7 +202,7 @@ export function groupPricingFor({
     groupDefaults,
     marketGroupOf,
     marketLocationRung,
-    listingTypeRung,
+    orderTypeRung,
   };
 }
 

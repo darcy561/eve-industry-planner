@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const savePlannerExtrasCategories = vi.fn(async () => {});
+const savePlannerSettings = vi.fn(async () => {});
 
 vi.mock("../../Zustand/usersStore.js", async () => {
   const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
   return usersStoreMock({
     account: { isLoggedIn: true },
-    plannerSettings: { actions: { savePlannerExtrasCategories } },
+    plannerSettings: { actions: { savePlannerSettings } },
   });
 });
 
@@ -15,7 +15,7 @@ const { scheduleDebouncedPlannerSettingsSave } =
 
 beforeEach(() => {
   vi.useFakeTimers();
-  savePlannerExtrasCategories.mockClear();
+  savePlannerSettings.mockClear();
 });
 afterEach(() => vi.useRealTimers());
 
@@ -24,10 +24,10 @@ describe("scheduling a planner settings save", () => {
     scheduleDebouncedPlannerSettingsSave("account:acc-1");
     scheduleDebouncedPlannerSettingsSave("account:acc-1");
 
-    expect(savePlannerExtrasCategories).not.toHaveBeenCalled();
+    expect(savePlannerSettings).not.toHaveBeenCalled();
     await vi.runAllTimersAsync();
 
-    expect(savePlannerExtrasCategories).toHaveBeenCalledExactlyOnceWith(
+    expect(savePlannerSettings).toHaveBeenCalledExactlyOnceWith(
       "account:acc-1",
     );
   });
@@ -40,16 +40,17 @@ describe("scheduling a planner settings save", () => {
 
     await vi.runAllTimersAsync();
 
-    expect(
-      savePlannerExtrasCategories.mock.calls.map(([o]) => o).sort(),
-    ).toEqual(["account:acc-1", "corporation:98000001"]);
+    expect(savePlannerSettings.mock.calls.map(([o]) => o).sort()).toEqual([
+      "account:acc-1",
+      "corporation:98000001",
+    ]);
   });
 
   // The house pattern for a settings write: the failure is logged and the flush
   // carries on, so one planner's refusal does not strand another's write.
   it("still writes the other planners when one fails", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    savePlannerExtrasCategories.mockImplementation(async (owner) => {
+    savePlannerSettings.mockImplementation(async (owner) => {
       if (owner === "account:acc-1") throw new Error("refused");
     });
 
@@ -57,12 +58,10 @@ describe("scheduling a planner settings save", () => {
     scheduleDebouncedPlannerSettingsSave("corporation:98000001");
     await vi.runAllTimersAsync();
 
-    expect(savePlannerExtrasCategories).toHaveBeenCalledWith(
-      "corporation:98000001",
-    );
+    expect(savePlannerSettings).toHaveBeenCalledWith("corporation:98000001");
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
-    savePlannerExtrasCategories.mockImplementation(async () => {});
+    savePlannerSettings.mockImplementation(async () => {});
   });
 
   // Otherwise a failed write would be retried by every later edit to any
@@ -70,12 +69,12 @@ describe("scheduling a planner settings save", () => {
   it("does not carry a planner over into the next window", async () => {
     scheduleDebouncedPlannerSettingsSave("account:acc-1");
     await vi.runAllTimersAsync();
-    savePlannerExtrasCategories.mockClear();
+    savePlannerSettings.mockClear();
 
     scheduleDebouncedPlannerSettingsSave("corporation:98000001");
     await vi.runAllTimersAsync();
 
-    expect(savePlannerExtrasCategories).toHaveBeenCalledExactlyOnceWith(
+    expect(savePlannerSettings).toHaveBeenCalledExactlyOnceWith(
       "corporation:98000001",
     );
   });
@@ -85,6 +84,6 @@ describe("scheduling a planner settings save", () => {
 
     await vi.runAllTimersAsync();
 
-    expect(savePlannerExtrasCategories).not.toHaveBeenCalled();
+    expect(savePlannerSettings).not.toHaveBeenCalled();
   });
 });

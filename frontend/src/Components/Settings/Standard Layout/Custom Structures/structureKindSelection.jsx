@@ -10,18 +10,17 @@ import {
 import { structureKinds } from "../../../../Context/defaultValues";
 
 /**
- * The kinds a reader can save, in the order they are offered.
+ * The kinds a reader can save here, in the order they are offered.
  *
- * Named here rather than derived from `structureKinds` so the wording and the
- * order are a choice: a reader meets the places they build in before the place
- * they sell at.
+ * Named rather than derived from `structureKinds`, which is the wider set the
+ * server also knows: the market kind is among those and is deliberately not
+ * offered, because a market is saved as a market on the Market Locations tab.
  */
 const KINDS = [
   { value: structureKinds.manufacturing, label: "Manufacturing" },
   { value: structureKinds.reaction, label: "Reaction" },
   { value: structureKinds.invention, label: "Invention" },
   { value: structureKinds.reprocessing, label: "Reprocessing" },
-  { value: structureKinds.market, label: "Market" },
 ];
 
 /**

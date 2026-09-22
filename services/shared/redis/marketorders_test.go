@@ -18,7 +18,7 @@ import (
 // testRegion is The Forge, and testStation Jita 4-4 inside it — the region the
 // market-order tests walk and the station they price.
 const (
-	testRegion  int32 = 10000002
+	testRegion  int64 = 10000002
 	testStation int64 = 60003760
 )
 

@@ -11,13 +11,13 @@ import (
 func TestDefaultApplicationSettingsPricesBothSides(t *testing.T) {
 	settings := DefaultApplicationSettings("acct-1", time.Now().UTC())
 
-	buying := PricingSide{Market: "jita", Basis: "sell"}
+	buying := PricingSide{Market: "jita", OrderType: "sell"}
 	if !reflect.DeepEqual(settings.DefaultPricing.Buying, buying) {
 		t.Fatalf("buying = %+v, want %+v", settings.DefaultPricing.Buying, buying)
 	}
 
-	// The selling side names a route and no basis: the route decides which side of
-	// the book a figure comes from, so a stored basis beside it could disagree
+	// The selling side names a route and no order type: the route decides which side of
+	// the book a figure comes from, so a stored order type beside it could disagree
 	// with it.
 	selling := PricingSide{Market: "jita", Exit: ExitRouteListed}
 	if !reflect.DeepEqual(settings.DefaultPricing.Selling, selling) {
@@ -28,7 +28,7 @@ func TestDefaultApplicationSettingsPricesBothSides(t *testing.T) {
 // A side is stored as its own subdocument, so the two cannot be read back as one.
 func TestPricingDefaultsRoundTripThroughBSON(t *testing.T) {
 	in := PricingDefaults{
-		Buying:  PricingSide{Market: "jita", Basis: "sell"},
+		Buying:  PricingSide{Market: "jita", OrderType: "sell"},
 		Selling: PricingSide{Market: "hek", Exit: ExitRouteImmediate},
 	}
 
@@ -47,9 +47,9 @@ func TestPricingDefaultsRoundTripThroughBSON(t *testing.T) {
 
 	doc := bson.Raw(raw)
 	// Each side carries what it answers: both name a market, the buying side names
-	// a basis, and the selling side names a route instead of one.
+	// an order type, and the selling side names a route instead of one.
 	for key, fields := range map[string][]string{
-		"buying":  {"market", "basis"},
+		"buying":  {"market", "orderType"},
 		"selling": {"market", "exit"},
 	} {
 		side, err := doc.LookupErr(key)
@@ -63,14 +63,14 @@ func TestPricingDefaultsRoundTripThroughBSON(t *testing.T) {
 		}
 	}
 
-	// And the selling side carries no basis at all: omitempty leaves it out, so a
+	// And the selling side carries no order type at all: omitempty leaves it out, so a
 	// reader cannot find a second answer to what the route already decides.
 	selling, err := doc.LookupErr("selling")
 	if err != nil {
 		t.Fatalf("no selling subdocument: %v", err)
 	}
-	if _, err := selling.Document().LookupErr("basis"); err == nil {
-		t.Fatal("selling carries a basis; the route is what answers that")
+	if _, err := selling.Document().LookupErr("orderType"); err == nil {
+		t.Fatal("selling carries an order type; the route is what answers that")
 	}
 }
 
@@ -79,10 +79,10 @@ func TestPricingDefaultsRoundTripThroughBSON(t *testing.T) {
 func TestPricingGroupsRoundTripUnderTheirSide(t *testing.T) {
 	in := PricingDefaults{
 		Buying: PricingSide{
-			PricingChoice: PricingChoice{Market: "jita", Basis: "sell"},
+			PricingChoice: PricingChoice{Market: "jita", OrderType: "sell"},
 			Groups:        map[string]GroupPricing{"1857": {Market: "hek"}},
 		},
-		Selling: PricingSide{PricingChoice: PricingChoice{Market: "amarr", Basis: "buy"}},
+		Selling: PricingSide{PricingChoice: PricingChoice{Market: "amarr", OrderType: "buy"}},
 	}
 
 	raw, err := bson.Marshal(in)

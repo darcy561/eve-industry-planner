@@ -16,12 +16,12 @@ const act = (...args) =>
     .getState()
     .applicationSettings.actions.updateGroupPricingDefault(...args);
 
-// The side's own market and basis sit beside its group table, and this project
+// The side's own market and order type sit beside its group table, and this project
 // has already lost a field once by replacing a whole side to fill part of it.
 describe("setting a market group's pricing", () => {
   it("keeps the side's own choices", () => {
     seed({
-      buying: { market: "jita", basis: "sell" },
+      buying: { market: "jita", orderType: "sell" },
       selling: { market: "amarr", exit: "listed" },
     });
 
@@ -29,14 +29,14 @@ describe("setting a market group's pricing", () => {
 
     expect(pricing().buying).toEqual({
       market: "jita",
-      basis: "sell",
+      orderType: "sell",
       groups: { 1857: { market: "hek" } },
     });
   });
 
   it("leaves the other side alone", () => {
     seed({
-      buying: { market: "jita", basis: "sell" },
+      buying: { market: "jita", orderType: "sell" },
       selling: { market: "amarr", exit: "listed" },
     });
 
@@ -47,7 +47,7 @@ describe("setting a market group's pricing", () => {
 
   it("holds a group per side rather than one between them", () => {
     seed({
-      buying: { market: "jita", basis: "sell" },
+      buying: { market: "jita", orderType: "sell" },
       selling: { market: "amarr", exit: "listed" },
     });
 
@@ -62,17 +62,17 @@ describe("setting a market group's pricing", () => {
     seed({
       buying: {
         market: "jita",
-        basis: "sell",
-        groups: { 1857: { market: "hek" }, 1996: { basis: "buy" } },
+        orderType: "sell",
+        groups: { 1857: { market: "hek" }, 1996: { orderType: "buy" } },
       },
       selling: { market: "amarr", exit: "listed" },
     });
 
-    act(PRICING_SIDE.BUYING, 1857, "basis", "buyP95");
+    act(PRICING_SIDE.BUYING, 1857, "orderType", "buyP95");
 
     expect(pricing().buying.groups).toEqual({
-      1857: { market: "hek", basis: "buyP95" },
-      1996: { basis: "buy" },
+      1857: { market: "hek", orderType: "buyP95" },
+      1996: { orderType: "buy" },
     });
   });
 
@@ -82,7 +82,7 @@ describe("setting a market group's pricing", () => {
     seed({
       buying: {
         market: "jita",
-        basis: "sell",
+        orderType: "sell",
         groups: { 1857: { market: "hek" } },
       },
       selling: { market: "amarr", exit: "listed" },
@@ -90,7 +90,7 @@ describe("setting a market group's pricing", () => {
 
     act(PRICING_SIDE.BUYING, 1857, "market", "");
 
-    expect(pricing().buying).toEqual({ market: "jita", basis: "sell" });
+    expect(pricing().buying).toEqual({ market: "jita", orderType: "sell" });
     expect(pricing().buying).not.toHaveProperty("groups");
   });
 });
