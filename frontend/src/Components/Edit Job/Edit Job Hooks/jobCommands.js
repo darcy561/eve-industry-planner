@@ -61,7 +61,10 @@ export const setJobStatus = (statusID) =>
  */
 export const linkESIJob = (esiJob, jobOwner) =>
   command("link industry job", (job) => {
-    if (!esiJob) return;
+    // A run whose installer is none of the account's characters has no owner to
+    // resolve, and "link all" reaches those rows even though the list does not
+    // draw them. Storing one leaves a run on the job that names nobody.
+    if (!esiJob || !jobOwner) return;
     const linked = LinkedESIJob.fromESI(esiJob, jobOwner);
     const id = String(linked.job_id);
     if (job.esi.industryJobs[id]) return;

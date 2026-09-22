@@ -1,28 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 
-const { store } = vi.hoisted(() => ({
-  store: {
-    account: {
-      actions: {
-        findCharacterById: (id) => ({
-          CharacterID: id,
-          CharacterName: "Test Pilot",
-          CharacterHash: "hash-1",
-        }),
-      },
-    },
-    applicationSettings: {
-      actions: { getCurrentLocale: () => "en-GB" },
-    },
-  },
-}));
-
-vi.mock("../../../../../../Zustand/usersStore", async () => {
-  const { usersStoreMock } =
-    await import("../../../../../../tests/usersStoreHarness.js");
-  return usersStoreMock(store);
-});
+const { BUILDER } = vi.hoisted(() => ({ BUILDER: 95465499 }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({}),
@@ -36,10 +15,10 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
     // account cannot name is not offered at all.
     account: {
       actions: {
-        findCharacterById: () => ({
-          CharacterID: 95465499,
-          CharacterName: "Builder",
-        }),
+        findCharacterById: (characterID) =>
+          characterID === BUILDER
+            ? { CharacterID: BUILDER, CharacterName: "Builder" }
+            : null,
       },
     },
   });
@@ -71,6 +50,8 @@ vi.mock("../../../../panelStates", () => ({
 const { AvailableJobsTab } = await import("./availableJobs.jsx");
 const { default: useUsersStore } =
   await import("../../../../../../Zustand/usersStore");
+const { jobDraftNow } =
+  await import("../../../../Edit Job Hooks/useJobDraft.js");
 
 const session = () => useUsersStore.getState().editSession;
 
@@ -80,7 +61,7 @@ const START = Date.parse("2026-01-01T00:00:00.000Z");
 function esiJob(overrides = {}) {
   return {
     job_id: 1,
-    installer_id: 95465499,
+    installer_id: BUILDER,
     blueprint_id: 1000000000001,
     facility_id: 60003760,
     status: "active",
@@ -154,6 +135,19 @@ describe("AvailableJobsTab", () => {
 
     expect(screen.getByText("Ready for Delivery")).toBeInTheDocument();
     expect(screen.queryByText("Active")).not.toBeInTheDocument();
+  });
+
+  // "Link all" walks the matches rather than the rows, and a row whose
+  // installer this account cannot name is not drawn at all — so without a
+  // filter of its own it linked runs naming nobody, and said it had linked
+  // more than it did.
+  it("links only the runs it can name, and counts those", () => {
+    renderTab([esiJob(), esiJob({ job_id: 2, installer_id: 90000001 })]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Link All Jobs/i }));
+
+    expect(Object.keys(jobDraftNow().esi.industryJobs)).toEqual(["1"]);
+    expect(session().esiDataToLink.industryJobs.add).toEqual([1]);
   });
 
   it("leaves a delivered job alone as the clock runs", async () => {

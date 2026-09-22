@@ -86,15 +86,24 @@ export function AvailableJobsTab(props) {
 
   const handleLinkAll = () => {
     if (jobLockReadOnly) return;
-    for (let job of jobMatches) {
-      const jobOwner = useUsersStore
-        .getState()
-        .account.actions.findCharacterById(job.installer_id);
+
+    const { findCharacterById } = useUsersStore.getState().account.actions;
+    // A run installed by a character this account cannot name is left where it
+    // is: linking one stores a run naming nobody. The rows do not draw those
+    // either, but this walks the matches rather than the rows, so it says on
+    // its own how many it took.
+    const nameable = jobMatches
+      .map((job) => ({ job, jobOwner: findCharacterById(job.installer_id) }))
+      .filter(({ jobOwner }) => jobOwner);
+
+    for (const { job, jobOwner } of nameable) {
       actions.run(linkESIJob(job, jobOwner));
     }
-    actions.addIndustryESIJobsForAddition(jobMatches.map((job) => job.job_id));
+    actions.addIndustryESIJobsForAddition(
+      nameable.map(({ job }) => job.job_id),
+    );
 
-    showSnackbarSuccess(`${jobMatches.length} Jobs Linked`);
+    showSnackbarSuccess(`${nameable.length} Jobs Linked`);
   };
 
   const handleJobClick = (job) => {
