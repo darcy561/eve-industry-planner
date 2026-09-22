@@ -188,10 +188,66 @@ local-only editing is the intended behaviour there, not a refusal.
 
 ## Stage C — Field-scoped writes
 
-*Not landed* for jobs. The persist debounce and the outbound coalescer both carry whole documents.
+*Not landed* for jobs. The persist queue still holds job ids and resolves them against `jobArray` at
+flush time, so a whole document is what reaches the endpoint.
 
-Owed here: how the SPA tracks what changed through the persist debounce and the outbound coalescer,
-and what the write endpoint accepts.
+### What a write body says
+
+One piece has landed ahead of the rest: what a write body *is*.
+[`writeBody.js`](../../../frontend/src/Functions/JobDocuments/writeBody.js) turns a job and the
+entries of its edit-draft change log into the two parts a field-scoped write carries.
+
+`document` is a partial job — a field that is present is being written, a field that is absent is
+unchanged. Values are read from the job as it now reads rather than from the patches, so a field
+changed several times is sent once, at the value it ended on, and a path the job no longer has
+anything at is not sent at all.
+
+`removed` is a list of paths naming the rows that went, because a partial document spends absence on
+"unchanged" and has none left to say "delete this row". A removal from a **list** is not said this
+way: clearing one element by path leaves a hole where the row was, so the list is written whole
+instead and `removed` names only a key of a keyed collection.
+
+Both parts are settled against the job as it now reads, so they never name the same ground — which a
+stored document refuses. A removal inside a collection the write already carries whole is dropped, as
+is a removal of a key the job still has, which is what a retry against a reloaded job produces.
+
+Removing a top-level field throws rather than being written: a job has no optional top-level field,
+and one stored without its `build` cannot be read back.
+
+### What a close writes
+
+*Not landed.* A close collects every job it changed besides the edited one — the parent and child
+links the reader made, anything the defensive pass repaired, and anything the recalculation resized —
+and writes the edited job, its temporary children and all of those, whole and unconditionally,
+through `saveJobsViaApi`.
+
+What it will write is decided: the edited job from its change log, and every job it changed besides
+that one whole, but conditional on the revision of the copy it was written from. A job the client holds no stored
+copy of is the exception — there is nothing for a revision to be read from, so it is written as a
+create. That is decided per job by whether a stored copy exists, not by the job having arrived as a
+new child: the map of children a close adds can also carry a group job that already exists. § Stage C of [plan.md](./plan.md)
+carries why. The behaviour a reader sees is unchanged except that a write built on a job that has
+since moved is refused instead of overwriting it; the planner already shows a parent and child whose
+sizes disagree, so a write that did not land is visible where it matters.
+
+### What the server derives a write from
+
+`models.JobSetPaths` walks the body's raw JSON for presence beside the decoded job for values, and
+takes each stored path from the model's bson tags. Presence has to come from the raw JSON because a
+decoded zero and an absent field are the same value; the values come from the decoded job so a field
+the handler rewrote — a ciphered id, a stamped schema version — is written as it left it. A field
+with no stored path of its own promotes the write to the row holding it, whatever else that row
+carried.
+
+`models.JobUnsetPaths` resolves each removed row against `models.Job` itself, a segment naming a
+field and a segment after a map naming one of its keys. A path that leaves the model is refused, and
+so is one that does not end at a key of a keyed collection: a struct field is not a row, and a list
+row cleared by path would leave a hole where it was.
+
+Owed here: the handler that calls both and builds the update — including dropping a removal the
+document already carries wholesale, which neither function can see on its own because they do not
+meet — the persist queue carrying what changed rather than a job id, and a held job keeping the
+revision `Job` currently drops when it rebuilds `_meta`.
 
 ## Stage D — The lock stops being broad
 

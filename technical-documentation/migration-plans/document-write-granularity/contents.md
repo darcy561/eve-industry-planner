@@ -7,8 +7,8 @@ as the fields that changed.
 
 - The **write shape**: `BulkUpsertJobs` and its siblings setting an entire document on every save,
   and what replaces it.
-- What the **client tracks** so it can say what changed: dirty fields through the persist debounce and
-  the outbound coalescer.
+- What the **client tracks** so it can say what changed: the edit draft's change log, and the persist
+  queue that today holds job ids rather than what those edits were.
 - What **delivery carries**: `updatedFields` / `removedFields` from the change stream, which are
   already captured and currently discarded.
 - How a **client applies** a change onto the document it holds rather than replacing it.

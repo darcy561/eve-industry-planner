@@ -45,7 +45,7 @@ closed**, so each is now a fact this project builds on rather than a bet it is t
 | The owner-scoped baseline | Stage G1 | Landed. One loader behind the switch, the reconnect and the background-tab wake, with every load but the newest discarded and the planner recorded on the store. This is what a delta stream is applied *onto* |
 | `session_resume` answering from position | Stage G3 | Landed. A resume carries how far the tab applied and is answered by comparing it against what was published, rather than asserting nothing happened. A gap is reloaded through rather than replayed |
 | The lock namespaced on the owner key | Stage H2 | Landed. Lock key, waitlist, pulse and viewer set are on the owner, with the owner resolved from the request's planner rather than the JWT — so a lock now holds between two members, which is what Stage D here has to have before it can relax one |
-| The change set a field-scoped write sends | [job-document-drafts](../job-document-drafts/plan.md) Stage 3 | **Not started.** That project holds a job as an untouched base plus an ordered log of what the player changed. The log *is* what Stage C sends: without it the client has nothing field-scoped to offer. Stage C is blocked on it |
+| The change set a field-scoped write sends | [job-document-drafts](../job-document-drafts/plan.md) Stage 3 | **Arrived.** Slices 1 to 4 landed: a job is held as a frozen base plus an ordered log of what the reader changed, and the log's patches name paths into the document. Stage C is no longer blocked on it — see § What arrived, and what it changes for what that leaves |
 | A job document whose row collections are keyed | Same, Stage 2 | **Built and wired in, not yet run against live.** Arrays keyed by the id they already carry rather than positional, which is what makes a path into a row stable under insertion and reordering. A converter runs as a required release step and has been proved against a restored copy of live — 42,065 documents, none refused. The gate behind it has also run: the key each collection would use is unique per document, so no row is silently lost to a repeated key. What remains is the SPA and API reading the new shape |
 
 **What that changes for this plan.** Nothing in this project waits on shared-planners any more: Stage
@@ -260,9 +260,208 @@ refusal comes first.
 
 Dirty tracking through the SPA persist path, and an API that sets only the paths it was given.
 
-**Blocked on [job-document-drafts](../job-document-drafts/plan.md) Stage 3**, which supplies the
-change set this stage sends. That project's § What depends on this states it: *"The log is the change
-set that stage sends; without it the client has nothing field-scoped to offer."*
+**The change set has arrived.** [job-document-drafts](../job-document-drafts/plan.md) Stage 3 slices 1
+to 4 have landed: an open job is a frozen base plus an ordered log of what the reader changed, every
+way of changing a job is a command, and the editor cannot be changed any other way — a write into the
+job on screen throws. Each log entry names its job and carries Immer patches over the **document**
+shape, so the paths are the stored document's own. This stage is no longer waiting on that project.
+
+What it is waiting on, and what it has to decide first, is § What arrived, and what it changes below.
+
+#### What arrived, and what it changes
+
+**A removal cannot be said in a partial document.** This stage settled that the client "does not name
+Mongo paths. It sends a partial document and the server derives them", where a field's presence is
+what says it is being written. A reader unlinking an ESI job, removing an extras cost or deleting a
+setup records `{op: "remove", path: [...]}` — and in a partial document an absent key means
+*unchanged*, so absence is already spent and nothing in the body says "delete this row".
+`SetDocumentWithRevision` already takes an unset map, so the server can delete; the body cannot ask.
+
+**Decided: the body carries a second part naming the rows that went.** The request becomes an
+envelope of two parts rather than a bare job:
+
+```json
+{ "document": { "build": { "materials": { "34": { "quantity": 100 } } } },
+  "removed":  [ ["esi", "industryJobs", "500001"],
+                ["build", "materials", "35", "purchasing", "p-1"] ] }
+```
+
+`document` is the partial job, unchanged from what this stage settled. `removed` names each row that
+went, as the path into the job it sat at. Seven commands produce a removal: unlinking a run, removing
+an extras cost, an invention entry, a transaction, a market order with the sales made against it, and
+deleting a setup.
+
+**The model itself is what a removal path is checked against.** The server walks each path segment by
+segment over `models.Job` by reflection: a segment matches a field's json name, and a segment
+following a **map** field is that map's key. A path that leaves the model, or that reaches a field
+which is not a keyed collection, is refused before any write is built, and the `$unset` path is
+derived from bson tags rather than accepted from the body. So `_meta.owner`, `_meta.revision` and a
+field the model does not carry are as unreachable as they are through `document` — the authority is
+the same struct in both halves, and it cannot fall behind the model because it *is* the model.
+
+**A list is written whole rather than cleared by path.** `parentJobs` and `build.childJobs`'s values
+are lists, and `$unset` on a list element leaves a null hole where the row was. The client sees that
+from the document it is building against and promotes such a removal to writing the list whole, so
+`removed` only ever names a key of a keyed collection — which is exactly the shape the server checks
+for.
+
+The three rejected alternatives, and why:
+
+- **A typed mirror of the job's shape**, one Go struct per collection, with removals as key lists at
+  the leaves. It was taken first and then reversed, for two reasons found while building it. A node
+  cannot be both a key list and an object, so a row removed from a collection and a row removed from
+  inside a *sibling* row of that same collection have no shape they can share — `build.materials`
+  would have to be a list and an object in one body. Working around that needs a two-field node, and
+  then the client has to know which of the job's fields are collections in order to build the nodes:
+  a second copy of model knowledge, in another language, that no parity test can span. The mirror
+  also owed a parity test of its own, since a new collection on `models.Job` would otherwise be
+  silently unremovable.
+- **A removal list of dotted path strings**, validated against a hand-kept list of the model's map
+  fields. Close in form to what was taken, and the difference is the whole point: a list someone
+  maintains drifts from the model, while reflection over the model cannot. Segments also stay
+  separate rather than joined, so a key containing a dot is not ambiguous.
+- **A null sentinel** against each removed key. Cheapest on the wire, and it gives `null` a second
+  meaning in a document where an empty collection already goes as its empty form and `null` is
+  reserved for something genuinely absent. It also needs the raw-JSON walk to carry a third state,
+  since a typed decode cannot tell an absent key from an explicit null.
+
+**Promotion to the collection was the first decision here, and is worth recording as rejected.** The
+body would have carried the whole collection a removed row sat in, so the row was gone because the
+map replaced it — no second part at all. It sends every row of a collection to remove one, and it
+makes concurrent removals from one collection destroy each other: last write wins within the map, so
+two members unlinking different runs lose one of the two. § Decisions taken, and what still stands
+gives members no longer conflicting at all as the reason the lock can become advisory in Stage D, and
+promotion holds a class of conflict open against that.
+
+**Both parts are settled against the job as it now reads, not trusted from the log.** A stored
+document refuses an update naming the same ground twice — `$set` on `esi.industryJobs` and `$unset`
+on `esi.industryJobs.500001` conflict — so a removal inside a collection the write already carries
+whole is dropped, and so is a removal of a key the job still has, which is what a stale log against a
+reloaded job produces. The same check on the other side drops a written path the job no longer has
+anything at.
+
+**A top-level field cannot be removed, and the client refuses to ask.** A job has no optional
+top-level field: one stored without its `build` cannot be read back. Rather than let that arrive at
+the server as a refused path, the client throws where the command produced it. No command produces
+one today; the guard is for the one written later.
+
+**A row the cipher rewrites is written whole, and the server is what knows it.** `character_id` and
+`corporation_id` arrive on a linked run, a market order or a transaction and are stored ciphered as
+`character_ref` and `corporation_ref`. The field carrying the json name is `bson:"-"` — it has no
+stored path of its own — so a present json key whose field has no bson name promotes the write to the
+row containing it, which is the unit the cipher rewrites anyway. No pair table is needed: the tag
+says it. **This belongs to the server walk, not the client**, which sees neither bson tags nor the
+ciphered value; the client's own promotion rule is the list one above, and that is the only one it
+owes.
+
+*One field does not follow the rule, and it is the model that is inconsistent.*
+`LinkedESIJob.CorporationID` is `bson:"corporation_id,omitempty"` while the same field on
+`MarketOrder` and `Transaction` is `bson:"-"`, so a linked run stores the plain corporation id beside
+the ciphered `corporation_ref` its own comment says it is converted to. A field-scoped write
+reproduces that faithfully — the path is stored, so it is written — which is what a whole-document
+write does today. Whether the tag is the defect is § Open questions; this stage does not change it
+either way.
+
+**Wire compatibility: breaking, and deliberately so.** The endpoint's body goes from a whole job to
+the envelope above, which is the change § Wire compatibility already carries — the API and the SPA
+deploy together for this stage, and `BulkUpsertJobs` keeps taking a whole job for the archived-jobs
+restore.
+
+**Built on the client.** [`writeBody.js`](../../../frontend/src/Functions/JobDocuments/writeBody.js)
+turns a job and its log entries into the two parts, with the rules above as its tests. The server
+half is this stage's remaining work: the reflection walk over `models.Job` that turns `document` into
+`$set` paths and `removed` into `$unset` paths, and the handler that carries them.
+
+**Close time does more than the log holds, and only part of it is a change.** `closeActiveJob` takes a
+working copy and works on it outside any command, but the three things it does are not alike:
+
+- **The reader's parent and child intent.** `parentChildToEdit`, applied by `applyParentChildChanges`.
+  A decision, deliberately held outside the log.
+- **The defensive pass.** `repairMissingParentChildRelationships` and
+  `normaliseParentChildRelationships` check that links are two-sided and possible. They are a
+  correctness check that should find nothing, not a rewrite closing intends. Both already return a set
+  of ids and add one **only when they changed that job**, so a clean close returns empty sets and
+  writes nothing beyond the edited job. A pass that fires is evidence something else wrote a bad link.
+- **The recalculation.** With automatic recalculation on, `materialTreeShaker` and
+  `recalculateJobForNewTotal` resize related jobs for real — which is what the adjustment summary
+  reports to the reader.
+
+So the log is the change set for what the reader did in the editor; the defensive pass contributes a
+write only in the rare case it found something wrong; and the recalculation is the genuine cascade.
+
+**Decided: every job a close touches besides the edited one is written whole, and each of those
+writes carries a revision.** None of the three passes becomes commands on the jobs it reaches. What
+makes this safe is not the width of the write but the condition on it: each of those jobs is written
+from whatever copy `jobArray` is holding — the last document delivered for it, untouched since,
+because nothing in the edit session touches a related job before close. If that job has moved, the
+write is stale by construction and being refused is the right outcome rather than a failure to work
+around. Field-scoping it would narrow the window without making the copy any fresher.
+
+The decision covers all of them because the write set does: `closeActiveJob` unions
+`modifiedLinkedJobIDs`, `repairedJobIDs`, `normalizedJobIDs` and `recalculatedJobIds` into one set and
+writes the `jobArray` copy of each. The three passes differ in how often they contribute and in what
+a contribution means — a link the reader made is routine, a repair that fires is evidence of a bad
+link, a resize is the cascade — but each produces the same kind of write from the same kind of copy,
+so each is refused on the same terms.
+
+**A job this close creates is the one case with no revision to carry.** `closeActiveJob` filters the
+ids of `tempJobsToAdd` out of that union and appends those jobs to the write directly. A genuinely new
+one has no stored document and no `jobArray` entry, so there is no copy for a revision to be read from,
+and its write takes `buildJobUnconditionalUpsertModel` — an upsert on the id with no filter on
+revision or on the document existing at all.
+
+**What makes that safe is that no document stands at the id, not that no revision was read.** A write
+with nothing to compare against cannot be refused as stale, so an id that already held a document
+would be overwritten with no conflict reported.
+
+**Which is why the test has to be the stored copy, not the list the job arrived in.**
+`temporaryChildJobs` does not hold only new jobs. `planChip` resolves a material through
+`findMaterialJobInGroup`, which returns a job the group already runs — a live `jobArray` entry with a
+stored document behind it — and promotes that job through `finaliseCreatedChildJobs`, whose own
+comment says its list "may include linked group jobs with no new build";
+`markChildJobsForAddition` then puts it in the map. (`buildSpeculativeChildJobs` resolves the same
+way but records into `speculativeChildJobs`, which a close does not write.) `Job` mints `jobID` from
+`crypto.randomUUID()` only when no id
+was passed in, and that path passes the existing one. So a member of `tempJobsToAdd` can be a job with
+a real revision to check against, and writing everything in that map unconditionally would overwrite
+whatever else had changed it — the exact failure Stages A and C exist to close.
+
+**What this stage builds, then:** a write is unconditional when the client holds no stored copy of that
+job, and conditional on the revision of that copy otherwise. Which list the job arrived in decides
+nothing. A close-created child is the common case of the first, not its definition.
+
+The cost, stated: a refused write leaves that related job as it already stood until something touches
+it again. That is recoverable and it is visible — the planner surfaces a parent and child whose sizes
+disagree rather than correcting it silently.
+
+**So a revision is not a draft-only concern.** § The revision is further away than this plan says
+puts the revision on the draft's base, which is right for the job the reader edited. Every other job
+a close writes was never open in the editor and has no draft base, and needs a revision just as much
+— an unconditional whole-document write is exactly what this decision refuses. The rule that covers
+both: **a write carries the revision of the copy it was built from, wherever that copy is held.** For
+the edited job that is the draft's base; for every other job a close writes it is whatever revision
+that job was last delivered at.
+
+`Job` rebuilds `_meta` from `lastModified`, `createdAt` and `lastUpdatedBy` at construction, so every
+job the client holds loses its revision, not only the one being edited. Keeping it is therefore work
+on the class and on whatever hands it a delivered document, not on the draft alone.
+
+**The reshape has to reach live first.** A path-scoped `$set` of `build.materials.<typeID>.quantity`
+into a stored document still holding a positional array writes a key that means nothing — the whole
+document write is what covers that up today. job-document-drafts Stage 2 is built and has been run
+against dev; this stage cannot deploy before its release window against live.
+
+**The revision is further away than this plan says.** § Carrying the revision belongs here says the
+`Job` class drops it when it rebuilds `_meta`. It is dropped at construction, so no part of the SPA has
+ever held one, and after a rebase the revision to send is the base's current one rather than the one
+read when the job opened. The draft's base is where it belongs.
+
+**Two things this stage said are now out of date.** The seam it says does not exist is `actions.run`:
+the reducer that rebuilt the whole job on every action is deleted. And "arrays are the sharp edge" is
+narrower than it was — the eight row collections are keyed on both sides, and what stays positional is
+`parentJobs`, `build.childJobs.<typeID>` and `rawData`, which the commands assign wholesale. Those are
+field-scoped but last-write-wins within the field, so two members linking different children of one
+material still lose one of them. That is a product judgement to record rather than a path problem.
 
 #### What the code shows today
 
@@ -416,7 +615,7 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
 
 | Surface | Change |
 |---------|--------|
-| Job write endpoint | **breaking** at Stage C — a body of changed paths replaces a body of a whole document, with no dual-shape period. API and SPA deploy together for this change; neither half rolls back alone |
+| Job write endpoint | **breaking** at Stage C — an envelope of a partial document and a list of removed row paths replaces a body of a whole document, with no dual-shape period. API and SPA deploy together for this change; neither half rolls back alone |
 | Document revision field | **already landed**, ahead of this project. `_meta.revision` is on every stored document and every job write increments it. Nothing here adds it |
 | Job write request body | additive at Stage A — a body may carry the revision it read. Absent means unversioned, and an unversioned write is accepted as it is today, which is what lets the server be converted before the client |
 | Job write response | **breaking** at Stage A — a per-document result replaces a whole-batch 409. The 409 shape stays available for a client that has not moved, but a mixed outcome has no representation in it |
@@ -439,6 +638,13 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
 
 ## Open questions
 
+- **Whether a linked run should store a plain corporation id.** `LinkedESIJob.CorporationID` is
+  `bson:"corporation_id,omitempty"` where the same field on `MarketOrder` and `Transaction` is
+  `bson:"-"`, so that one row stores the plain id beside the ciphered `corporation_ref` its own
+  comment says it is converted to. Found while writing the server walk's rule for ciphered rows, which
+  reads the tags rather than a pair table. This stage reproduces whatever the tag says and changes
+  nothing; if the tag is the defect, correcting it is a model change with stored documents behind it
+  and belongs to whoever owns the cipher, not here.
 - **Which documents.** Jobs are the case that motivates this. Whether groups, settings and the
   archive follow, or stay whole-document because they have one writer, is not answered here.
 - ~~**Where the counter lives.**~~ **Settled, and built.** `_meta.revision` is a
@@ -489,9 +695,9 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
 | Phase 1 — project docs | Complete |
 | A — a write that checks the revision | **Landed, server side, and proved against a real database.** A job carrying a revision is written conditionally on it as its own `UpdateOne`, whose match is the answer; a job carrying none is batched and upserted as before, so the change is additive. The refusal is answered per document as a 409 `revision_conflict` carrying `saved` and `rejected[]`. The first build batched the conditional writes and inferred the outcome from a later read, which passed every unit test and reported every refused write as applied — see § Stage A. **Landed is not the same as operating: nothing sends a revision yet**, so every production write still takes the unconditional path and no write is refused for a stale base. A project depending on this needs the client half — Stage C here — not Stage A. See [overlay.md](./overlay.md) § Stage A |
 | B — a refused write is an outcome the UI handles | **Landed.** All three defects closed: the client recognises a `revision_conflict` beside the lock conflict it already handled, drops the refused write from the pending queue rather than replaying it forever, and warns the user; `persistJobDocumentsToApi` answers an outcome that `saveJobsViaApi` passes through, so `closeActiveJob` stops reporting a refused write as saved; and the client's own gate warns instead of discarding edits silently — in `closeGroup` as well as `closeActiveJob`, which carried the same defect for the group lock. Stage A's ordering constraint is discharged. See [overlay.md](./overlay.md) § Stage B |
-| C — field-scoped writes | **Not started, and blocked on [job-document-drafts](../job-document-drafts/plan.md) Stage 3**, which supplies the change set this stage sends. Two decisions stand — the body is replaced outright rather than widened, and the slice is jobs only — and two are superseded by that project: it supplies the change set rather than a baseline diff, and its Stage 2 keys the row collections so a path into a row is stable. See § Stage C |
+| C — field-scoped writes | **Actionable.** [job-document-drafts](../job-document-drafts/plan.md) Stage 3 has supplied the change set: an open job is a frozen base plus an ordered log naming paths into the document. Both decisions taken — a removal is said as a path the server checks against the job model, and every job a close writes besides the edited one stays whole and carries a revision, bar one the client holds no stored copy of — and the deploy waits on that project's Stage 2 reaching live. See § What arrived, and what it changes |
 | D — the lock stops being broad | **Part landed: the batch refusal is per document.** A held job is dropped from the batch and the rest written, answered as a 409 carrying `saved` and every held document; the client keeps only the held ids queued. The other two removals are **not safe yet** — they rest on conditional writes, and no write is conditional until the SPA carries the revision, which is Stage C. Relaxing the lock now would remove the only protection operating. See [overlay.md](./overlay.md) § Stage D |
-| E — delta delivery and client apply | Not started. Its shared-planners dependency is discharged — Stage G landed and closed — but it is blocked behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped, and Stage C is itself blocked on [job-document-drafts](../job-document-drafts/plan.md) |
+| E — delta delivery and client apply | Not started, and behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped. Its shared-planners dependency is discharged. Applying a delta outside an open editor also wants [job-document-drafts](../job-document-drafts/plan.md) Stage 5, which makes `jobArray` plain |
 
 ## Recommended pickup order
 
@@ -500,15 +706,18 @@ document and answered with what the client must reconcile against; the client re
 refusal, drops it rather than retrying forever, and tells the user; and a job another session holds no
 longer costs the rest of the batch. What was silent write loss is a visible refusal end to end.
 
-**Nothing in this project is actionable next.** Every remaining stage is blocked, and the blockers are
-worth stating precisely because two of them are not obvious from the stage list:
+**Stage C is what to pick up, and its design questions are answered.** The change set it waited on has
+arrived — see § What arrived, and what it changes — and both decisions it owed have been taken. How a removal is said is **taken** — the body names removed rows as
+paths the server checks against `models.Job` itself, § What arrived, and the client half is built.
+What a close writes is **taken** too — every job it writes besides the edited one stays
+whole and carries the revision of the copy it was built from, except one the client holds no stored copy
+of, which has none, § What arrived. What gates the *deploy* rather than the building is
+[job-document-drafts](../job-document-drafts/plan.md) Stage 2 reaching live, because a path-scoped
+write into an un-reshaped document writes a key that means nothing.
 
-**Stage C is blocked on another project.** [job-document-drafts](../job-document-drafts/plan.md)
-Stage 3 supplies the change set a field-scoped write sends, and its Stage 2 keys the job's row
-collections so a path into a row survives another member's insert. Building Stage C first would mean a
-diff beside the log that project is adding, and index-based paths into arrays it is about to key —
-two mechanisms to throw away. That project's own plan states the dependency; this one had not, which
-is how Stage C came to be designed twice.
+**Stage C does not need that project's slice 5.** Slice 5 converts the panels to read from the draft,
+which narrows re-rendering; the log is complete without it, because every change already goes through
+a command and the job on screen cannot be changed any other way.
 
 **Stage D's remaining removals are blocked behind Stage C**, and the plan's own ordering argument
 hides why. The relaxation rests on a version check. The check is built and **inert**: the SPA's `Job`
@@ -519,10 +728,9 @@ remove the only protection operating rather than trade it for another.
 **Stage E was always behind Stage C**, because a delta is meaningless until the write producing it is
 field-scoped.
 
-**So the next work is in [job-document-drafts](../job-document-drafts/plan.md).** Its Stage 2 — the
-reshape that keys the row collections — is now built, wired into the release as a required step, and
-proved against a restored copy of live; what remains there is the SPA and API reading the new shape.
-Stage 3, the one Stage C here actually waits on, has not started.
+**What remains in [job-document-drafts](../job-document-drafts/plan.md)** is its Stage 2 reaching the
+live release window, and its own slice 5 and Stages 4 and 5. None of those gate building Stage C
+here; the window gates deploying it.
 
 **[job-groups](../job-groups/plan.md) waits on this project, and half its wait is over.** Its
 dependency table names Stage A — landed — and Stage D's removal of the group lease over member jobs,
@@ -536,10 +744,13 @@ a write that refuses a stale base. Both are built and proved against a real data
 is operating**: the SPA's `Job` class rebuilds `_meta` from three named fields, so `toDocument`
 structurally cannot carry a revision and every production write takes the unconditional path.
 
-A project that wants a stale write to be *refused* rather than reported is waiting on the client half
-— Stage C here, and [job-document-drafts](../job-document-drafts/plan.md) Stage 3 beneath it — not on
-Stage A. Saying Stage A has landed without that caveat reads as protection that does not exist, which
-is the error to avoid in either direction: the mechanism is live, the behaviour is not.
+A project that wants a stale write to be *refused* rather than reported is waiting on the client half,
+which is Stage C here. Saying Stage A has landed without that caveat reads as protection that does not
+exist, which is the error to avoid in either direction: the mechanism is live, the behaviour is not.
+
+**The revision is further from the client than this said.** `Job` drops it at construction rather than
+when `toDocument` rebuilds `_meta`, so no part of the SPA has ever held one. The draft's base is where
+it belongs now, and after a document arrives mid-edit the revision to send is that base's current one.
 
 **One gap is owed rather than blocked.** The Redis lock gate has no live test: nothing proves a lock
 genuinely held by another session makes the handler drop that job and write the rest. `testing/redislive`
