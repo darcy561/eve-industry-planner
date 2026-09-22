@@ -1,3 +1,8 @@
+import {
+  esiJobIDs,
+  esiOrderIDs,
+  esiTransactionIDs,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
 import saveArchivedJobs from "../Endpoints/Private/archivedJobs.js";
 import {
@@ -42,15 +47,18 @@ export async function archiveGroupJobs(selectedJobs) {
     (job) => !jobArray.find((j) => j.jobID === job.jobID && j.displayOnPlanner),
   );
 
-  for (let selectedJob of filteredJobs) {
-    for (const o of selectedJob.esiOrderIDs || []) {
-      newLinkedOrders.add(o);
+  // A job's own ESI rows, not the account's ledger of them: `linkedTrans` and
+  // `linkedJobs` are account fields, and reading them off a job released
+  // nothing, leaving every archived job's runs and sales spoken for forever.
+  for (const selectedJob of filteredJobs) {
+    for (const orderID of esiOrderIDs(selectedJob)) {
+      newLinkedOrders.add(orderID);
     }
-    for (const t of selectedJob.linkedTrans || []) {
-      newLinkedTrans.add(t);
+    for (const transactionID of esiTransactionIDs(selectedJob)) {
+      newLinkedTrans.add(transactionID);
     }
-    for (const j of selectedJob.linkedJobs || []) {
-      newLinkedJobs.add(j);
+    for (const jobID of esiJobIDs(selectedJob)) {
+      newLinkedJobs.add(jobID);
     }
   }
 
