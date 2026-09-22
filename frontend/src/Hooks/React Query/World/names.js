@@ -14,17 +14,20 @@ const NAME_QUERY_KEY = ["esi", "name"];
  * resolved is a failure on that id rather than a hole in some page's set. Keying by the set a page
  * happened to want is what let one page hold a cached gap the next page could not see.
  *
- * The characters are not part of the key. A location's name is a fact about the location; which of
- * the account's characters managed to read it is not something a consumer should have to match on.
+ * Neither the characters nor the hint are part of the key. A location's name is a fact about the
+ * location; which of the account's characters managed to read it, and which one a caller thought
+ * would, are not something a consumer should have to match on. The cost is that a hint arriving
+ * after the entry already exists does not reach the walk — the answer is already on its way.
  *
  * @param {number} id
  * @param {Array<Object>} characters - the account's characters, tried in order for a structure
+ * @param {Iterable<string>} [likely] - hashes of characters known to have seen this structure
  * @returns {object} React Query configuration
  */
-export function nameQuery(id, characters = []) {
+export function nameQuery(id, characters = [], likely = []) {
   return {
     queryKey: [...NAME_QUERY_KEY, id],
-    queryFn: () => requestName(id, characters),
+    queryFn: () => requestName(id, characters, likely),
     enabled: Boolean(id) && characters.length > 0,
     // A name does not change while the app is open, and every settled outcome — including a refusal
     // — is an answer worth keeping. A failure is not cached at all: it rejects, and is retried.

@@ -96,3 +96,31 @@ function reportCharacterNeedsReauthorisation(character, reads) {
 export function resetReauthorisationReports() {
   reported.clear();
 }
+
+/**
+ * The account's characters, the ones likely to be able to answer first.
+ *
+ * A structure refuses every character without docking rights, and ESI charges a
+ * refusal at five times what an answer costs, so a walk that starts with a
+ * character known to have seen the place is the difference between one request
+ * and one per character. What "known" means is the caller's: the market rotation
+ * records who last read a citadel, while a name lookup knows whose assets, jobs
+ * or orders the structure turned up in.
+ *
+ * The rest follow rather than being dropped, because the knowledge can be stale
+ * — a character no longer linked, docking rights lost — and stopping at it would
+ * let a structure go quiet with nothing saying why.
+ *
+ * @param {Array<object>} characters - The account's characters
+ * @param {Iterable<string>} [likely] - Character hashes to ask first, in the
+ *   account's own order among themselves
+ * @returns {Array<object>} `characters`, reordered
+ */
+export function askOrder(characters, likely = []) {
+  const first = new Set(likely);
+  const asked = characters ?? [];
+  if (first.size === 0) return asked;
+
+  const isLikely = (character) => first.has(character?.CharacterHash);
+  return [...asked.filter(isLikely), ...asked.filter((c) => !isLikely(c))];
+}

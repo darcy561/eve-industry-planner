@@ -35,6 +35,32 @@ export default function assetLocationIds(collection) {
 }
 
 /**
+ * Each location in a collection paired with a character that has seen it.
+ *
+ * A player structure refuses every character without docking rights, and a refusal costs five times
+ * what an answer does, so a name lookup is told where to start. A row arrived on some character's
+ * request — its own, or for a corporation the member whose roles reached it — and that character
+ * can see where the row sits.
+ *
+ * Pairs rather than distinct locations: a place several characters hold things at yields one per
+ * character, and every one of them is worth trying before the rest of the account.
+ *
+ * @param {import("./buildAssetNodes").AssetCollection} collection
+ * @returns {Array<[number, string|null]>} for {@link import("../../Hooks/EveEsi/useLocationNames").charactersByLocation}
+ */
+export function assetLocationCharacters(collection) {
+  const pairs = [];
+
+  for (const node of collection?.nodes ?? []) {
+    if (PLACE_KINDS.has(node.locationKind)) {
+      pairs.push([node.locationId, node.seenBy]);
+    }
+  }
+
+  return pairs;
+}
+
+/**
  * The ids among these that ESI will never name.
  *
  * A ship flying in space is absent from the asset set while the things aboard it are not, so each

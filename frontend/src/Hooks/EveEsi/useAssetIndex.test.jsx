@@ -163,6 +163,51 @@ describe("useAssetIndex", () => {
     ).toEqual([10, 11]);
   });
 
+  // A corporation's rows arrive once per member whose roles reach them, and which member that was
+  // is the one character known to be able to see where they sit. It survives the string the shared
+  // derivation cache is keyed by, where the owner alone would say only "the corporation".
+  it("keeps the member whose fetch returned each of a corporation's rows", async () => {
+    corporationRows.set("hash-a", [station(10)]);
+    corporationRows.set("hash-b", [station(11)]);
+
+    const { result } = render({
+      scope: ASSET_SCOPE.CORPORATION,
+      id: 98000001,
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const seenBy = new Map(
+      result.current.data.nodes.map((node) => [node.itemId, node.seenBy]),
+    );
+    expect(seenBy).toEqual(
+      new Map([
+        [10, "hash-a"],
+        [11, "hash-b"],
+      ]),
+    );
+    expect(
+      result.current.data.nodes.every(
+        (node) => node.owner.id === "98000001" || node.owner.id === 98000001,
+      ),
+    ).toBe(true);
+  });
+
+  // An office two members can both see yields the row twice, and the first that returned it is kept
+  // — which is a character that can see it, so the name lookup is aimed either way.
+  it("keeps the first member to return a row both can see", async () => {
+    corporationRows.set("hash-a", [station(10)]);
+    corporationRows.set("hash-b", [station(10)]);
+
+    const { result } = render({
+      scope: ASSET_SCOPE.CORPORATION,
+      id: 98000001,
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.data.nodes).toHaveLength(1);
+    expect(result.current.data.nodes[0].seenBy).toBe("hash-a");
+  });
+
   it("gives two consumers of one scope the same collection", async () => {
     characterRows.set("hash-a", [station(1)]);
 

@@ -1,7 +1,7 @@
 import getUniverseNames from "./getUniverseNames";
 import { fetchStructureName, communityNameOrRefusal } from "./getCitadelData";
 import { LOCATION_OUTCOME } from "./locationOutcome";
-import { askEachCharacter } from "./askEachCharacter";
+import { askEachCharacter, askOrder } from "./askEachCharacter";
 import nameSource, { NAME_SOURCE } from "./nameSource";
 
 /** ESI resolves up to a thousand ids in one `POST /universe/names`. */
@@ -10,7 +10,7 @@ const NAMES_BATCH_SIZE = 1000;
 /**
  * Ids waiting to be asked about, and everyone waiting on each.
  *
- * @type {Map<number, {characters: Array<Object>, waiters: Array<{resolve: Function, reject: Function}>}>}
+ * @type {Map<number, {characters: Array<Object>, likely: Set<string>, waiters: Array<{resolve: Function, reject: Function}>}>}
  */
 const pending = new Map();
 let flushScheduled = false;
@@ -23,18 +23,29 @@ let flushScheduled = false;
  * tick is collected here and issued as ESI takes it: the public ids in one bulk call, each structure
  * as its own walk. Two callers wanting the same id in the same tick wait on one lookup.
  *
+ * Where two callers want the same structure, their hints are pooled rather than the first one
+ * standing for both: each knows of a character that has seen the place, and a walk that tries all of
+ * them before the rest of the account is better informed than either caller alone.
+ *
  * @param {number} id
  * @param {Array<Object>} characters - the account's characters, tried in order for a structure
+ * @param {Iterable<string>} [likely] - hashes of characters the caller knows have seen this
+ *   structure, asked ahead of the rest
  * @returns {Promise<{id: number, name?: string, resolutionStatus: string}>}
  * @throws {LocationResolutionError} the lookup did not settle; the caller retries
  */
-export function requestName(id, characters = []) {
+export function requestName(id, characters = [], likely = []) {
   return new Promise((resolve, reject) => {
     const waiting = pending.get(id);
     if (waiting) {
       waiting.waiters.push({ resolve, reject });
+      for (const hash of likely) waiting.likely.add(hash);
     } else {
-      pending.set(id, { characters, waiters: [{ resolve, reject }] });
+      pending.set(id, {
+        characters,
+        likely: new Set(likely),
+        waiters: [{ resolve, reject }],
+      });
     }
 
     if (!flushScheduled) {
@@ -140,12 +151,12 @@ async function settlePublicNames(ids, batch) {
 }
 
 async function settleStructureName(id, batch) {
-  const { characters } = batch.get(id);
+  const { characters, likely } = batch.get(id);
 
   let walk;
   try {
     walk = await askEachCharacter(
-      characters,
+      askOrder(characters, likely),
       (character) => fetchStructureName(id, character),
       { locationID: id, reads: "structure names" },
     );

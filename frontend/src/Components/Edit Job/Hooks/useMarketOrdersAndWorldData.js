@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import useLocationNames from "../../../Hooks/EveEsi/useLocationNames";
+import useLocationNames, {
+  charactersByLocation,
+} from "../../../Hooks/EveEsi/useLocationNames";
+import marketOrderLocationCharacters from "../../../Functions/MarketOrders/marketOrderLocationCharacters";
 import findMarketOrdersForItem from "../../../Functions/MarketOrders/findMarketOrdersForItem";
 import { refreshLinkedMarketOrders } from "../Edit Job Hooks/jobCommands.js";
 import { useGetAllCharacterMarketOrders } from "../../../Hooks/EveEsi/Character/useGetAllCharacterMarketOrders";
@@ -65,7 +68,17 @@ export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
   );
   // The panel waits for the names before it draws, rather than drawing rows that say nothing yet.
   // The tabs beneath it read the same per-id cache, so this costs no extra lookup.
-  const { isLoading: areNamesLoading } = useLocationNames(locationIds);
+  const sellers = useMemo(
+    () =>
+      charactersByLocation(
+        marketOrderLocationCharacters([
+          ...marketOrderMatches,
+          ...linkedOrderRows,
+        ]),
+      ),
+    [marketOrderMatches, linkedOrderRows],
+  );
+  const { isLoading: areNamesLoading } = useLocationNames(locationIds, sellers);
 
   const isLoading =
     isCharacterMarketOrdersLoading ||

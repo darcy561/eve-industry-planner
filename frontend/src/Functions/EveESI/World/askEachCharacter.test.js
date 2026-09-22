@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   askEachCharacter,
+  askOrder,
   resetReauthorisationReports,
 } from "./askEachCharacter";
 import { LocationResolutionError } from "./locationOutcome";
@@ -189,5 +190,36 @@ describe("telling the reader a character needs linking again", () => {
     ).rejects.toThrow();
 
     expect(console.warn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("askOrder", () => {
+  const account = [main, alt, third];
+
+  it("brings the characters known to have seen the place to the front", () => {
+    expect(askOrder(account, ["hash-third"])).toEqual([third, main, alt]);
+  });
+
+  it("keeps the account's own order among the ones it brings forward", () => {
+    expect(askOrder(account, ["hash-third", "hash-main"])).toEqual([
+      main,
+      third,
+      alt,
+    ]);
+  });
+
+  // The knowledge goes stale — a character unlinked, docking rights lost — so the
+  // rest of the account still follows rather than the walk stopping at the hint.
+  it("keeps the rest of the account behind them", () => {
+    expect(askOrder(account, ["hash-gone"])).toEqual(account);
+  });
+
+  it("leaves the account as it is when nothing is known", () => {
+    expect(askOrder(account)).toBe(account);
+    expect(askOrder(account, [])).toBe(account);
+  });
+
+  it("answers for an account with no characters", () => {
+    expect(askOrder(undefined, ["hash-main"])).toEqual([]);
   });
 });

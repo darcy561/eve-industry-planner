@@ -324,3 +324,56 @@ describe("requestName", () => {
     );
   });
 });
+
+describe("the character a structure is asked of first", () => {
+  const asked = () =>
+    structureMock.mock.calls.map(([, character]) => character);
+
+  it("is the one the caller says has seen it", async () => {
+    structureMock.mockImplementation(async (id, character) =>
+      character === alt
+        ? { refused: false, name: named(id, "Home Raitaru") }
+        : { refused: true },
+    );
+
+    const outcome = await requestName(RAITARU, characters, ["hash-b"]);
+
+    expect(outcome.name).toBe("Home Raitaru");
+    expect(structureMock).toHaveBeenCalledTimes(1);
+    expect(asked()).toEqual([alt]);
+  });
+
+  // The hint goes stale — docking rights lost, the character unlinked — and the account has not
+  // established anything until everyone has been asked.
+  it("does not stop the rest of the account being asked behind it", async () => {
+    structureMock.mockImplementation(async (id, character) =>
+      character === main
+        ? { refused: false, name: named(id, "Home Raitaru") }
+        : { refused: true },
+    );
+
+    const outcome = await requestName(RAITARU, characters, ["hash-b"]);
+
+    expect(outcome.name).toBe("Home Raitaru");
+    expect(asked()).toEqual([alt, main]);
+  });
+
+  // Two views wanting one structure in a tick share its lookup, so the one walk they both wait on
+  // has to carry what each of them knew.
+  it("is drawn from every caller waiting on the same lookup", async () => {
+    structureMock.mockImplementation(async (id, character) =>
+      character === alt
+        ? { refused: false, name: named(id, "Home Raitaru") }
+        : { refused: true },
+    );
+
+    const [first, second] = await Promise.all([
+      requestName(RAITARU, characters),
+      requestName(RAITARU, characters, ["hash-b"]),
+    ]);
+
+    expect(first.name).toBe("Home Raitaru");
+    expect(second.name).toBe("Home Raitaru");
+    expect(asked()).toEqual([alt]);
+  });
+});

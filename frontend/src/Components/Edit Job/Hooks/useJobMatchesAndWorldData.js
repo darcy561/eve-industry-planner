@@ -1,5 +1,9 @@
 import { useEffect, useMemo } from "react";
-import useLocationNames from "../../../Hooks/EveEsi/useLocationNames";
+import useLocationNames, {
+  charactersByLocation,
+} from "../../../Hooks/EveEsi/useLocationNames";
+import jobLocationCharacters from "../../../Functions/IndustryJobs/jobLocationCharacters";
+import useUsersStore from "../../../Zustand/usersStore";
 import findIndustryJobsForItem from "../../../Functions/IndustryJobs/findIndustryJobsForItem";
 import { asNumberIDSet } from "../../../Functions/Helper/ids";
 import { updateLinkedJobData } from "../Edit Job Hooks/jobCommands";
@@ -47,6 +51,7 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
     if (allIndustryJobs) run(updateLinkedJobData(allIndustryJobs));
   }, [allIndustryJobs, run]);
 
+  const characters = useUsersStore((state) => state.account.characters);
   const linkedJobRows = Object.values(industryJobs);
   const locationIds = useMemo(
     () => jobLocationIds([...jobMatches, ...linkedJobRows]),
@@ -54,7 +59,17 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
   );
   // The panels below resolve their own rows' names from the same per-id cache; this is here because
   // the page waits for them before it draws, rather than drawing rows that say nothing yet.
-  const { isLoading: isWorldDataLoading } = useLocationNames(locationIds);
+  const installers = useMemo(
+    () =>
+      charactersByLocation(
+        jobLocationCharacters([...jobMatches, ...linkedJobRows], characters),
+      ),
+    [jobMatches, linkedJobRows, characters],
+  );
+  const { isLoading: isWorldDataLoading } = useLocationNames(
+    locationIds,
+    installers,
+  );
 
   return {
     jobMatches,

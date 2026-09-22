@@ -1,5 +1,5 @@
 import useUsersStore from "../../Zustand/usersStore";
-import { askEachCharacter } from "../EveESI/World/askEachCharacter";
+import { askEachCharacter, askOrder } from "../EveESI/World/askEachCharacter";
 import { fetchStructureOrders } from "../EveESI/World/getStructureOrders";
 import { LocationResolutionError } from "../EveESI/World/locationOutcome";
 import { pricesByType } from "./pricesFromOrders";
@@ -43,7 +43,10 @@ export async function readCitadelPrices(source) {
   const recorded = await readMarketCharacter(source.id);
 
   const walk = await askEachCharacter(
-    charactersFor(recorded),
+    askOrder(
+      useUsersStore.getState().account?.characters ?? [],
+      recorded ? [recorded] : [],
+    ),
     (character) => fetchStructureOrders(source.structureID, character),
     {
       locationID: source.structureID,
@@ -70,25 +73,6 @@ export async function readCitadelPrices(source) {
     // arrived.
     expiresAt: Date.now() + PRICE_ROTATION_MS,
   };
-}
-
-/**
- * The characters to try, the one that last read this market first.
- *
- * The rest follow for when the record cannot answer — nothing recorded, a
- * character no longer linked, docking rights lost. Stopping at the record would
- * let a market go quiet with nothing saying why; asking everybody every time
- * spends a 403 per character that cannot dock, at five times the cost of a hit.
- */
-function charactersFor(recorded) {
-  const characters = useUsersStore.getState().account?.characters ?? [];
-  const onRecord = (character) =>
-    Boolean(recorded) && character.CharacterHash === recorded;
-
-  return [
-    ...characters.filter(onRecord),
-    ...characters.filter((character) => !onRecord(character)),
-  ];
 }
 
 /**

@@ -21,7 +21,10 @@ import {
 } from "../../../../../../Functions/Helper/numberParser";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
-import useLocationNames from "../../../../../../Hooks/EveEsi/useLocationNames";
+import useLocationNames, {
+  charactersByLocation,
+} from "../../../../../../Hooks/EveEsi/useLocationNames";
+import marketOrderLocationCharacters from "../../../../../../Functions/MarketOrders/marketOrderLocationCharacters";
 import { UNNAMED_LOCATION_LABEL } from "../../../../../../Functions/Assets/assetLocationConstants";
 import {
   characterImageUrl,
@@ -42,7 +45,11 @@ export function AvailableMarketOrdersTab({ itemOrderMatch }) {
     () => itemOrderMatch.map((order) => order.location_id),
     [itemOrderMatch],
   );
-  const { names: locationNames } = useLocationNames(locationIds);
+  const sellers = useMemo(
+    () => charactersByLocation(marketOrderLocationCharacters(itemOrderMatch)),
+    [itemOrderMatch],
+  );
+  const { names: locationNames } = useLocationNames(locationIds, sellers);
 
   return (
     <Grid container>

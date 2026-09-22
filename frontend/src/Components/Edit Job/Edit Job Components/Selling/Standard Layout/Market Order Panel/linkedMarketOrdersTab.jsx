@@ -22,7 +22,10 @@ import {
   useJobActions,
   useJobDraft,
 } from "../../../../Edit Job Hooks/useJobDraft";
-import useLocationNames from "../../../../../../Hooks/EveEsi/useLocationNames";
+import useLocationNames, {
+  charactersByLocation,
+} from "../../../../../../Hooks/EveEsi/useLocationNames";
+import marketOrderLocationCharacters from "../../../../../../Functions/MarketOrders/marketOrderLocationCharacters";
 import { UNNAMED_LOCATION_LABEL } from "../../../../../../Functions/Assets/assetLocationConstants";
 import {
   characterImageUrl,
@@ -36,12 +39,19 @@ export function LinkedMarketOrdersTab() {
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
   const jobLockReadOnly = useActiveJobReadOnly();
-  const marketOrders = Object.values(linkedOrders);
+  const marketOrders = useMemo(
+    () => Object.values(linkedOrders),
+    [linkedOrders],
+  );
   const locationIds = useMemo(
-    () => (marketOrders ?? []).map((order) => order.location_id),
+    () => marketOrders.map((order) => order.location_id),
     [marketOrders],
   );
-  const { names: locationNames } = useLocationNames(locationIds);
+  const sellers = useMemo(
+    () => charactersByLocation(marketOrderLocationCharacters(marketOrders)),
+    [marketOrders],
+  );
+  const { names: locationNames } = useLocationNames(locationIds, sellers);
 
   return (
     <Grid container>

@@ -3,9 +3,10 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 
-const { store, requestCalls, answers, gate } = vi.hoisted(() => ({
+const { store, requestCalls, likelyCalls, answers, gate } = vi.hoisted(() => ({
   store: { account: { characters: [] } },
   requestCalls: [],
+  likelyCalls: new Map(),
   answers: { current: new Map() },
   gate: { current: null },
 }));
@@ -17,8 +18,9 @@ vi.mock("../../Zustand/usersStore", async () => {
 });
 
 vi.mock("../../Functions/EveESI/World/nameLoader", () => ({
-  requestName: async (id) => {
+  requestName: async (id, characters, likely) => {
     requestCalls.push(id);
+    likelyCalls.set(id, [...(likely ?? [])]);
     if (gate.current) await gate.current;
     const answer = answers.current.get(id);
     if (!answer) throw new Error(`nothing answered for ${id}`);
@@ -26,7 +28,7 @@ vi.mock("../../Functions/EveESI/World/nameLoader", () => ({
   },
 }));
 
-import useLocationNames from "./useLocationNames";
+import useLocationNames, { charactersByLocation } from "./useLocationNames";
 import { LOCATION_OUTCOME } from "../../Functions/EveESI/World/locationOutcome";
 import { testQueryClientCollapsingRetries } from "../../tests/queryClients.js";
 
@@ -45,8 +47,8 @@ function harness() {
   // The query asks for retries itself, and a per-query option outlives a client default — so the
   // wait between attempts is collapsed rather than the attempts removed.
   const client = testQueryClientCollapsingRetries();
-  const render = (ids) =>
-    renderHook(() => useLocationNames(ids), {
+  const render = (ids, likely) =>
+    renderHook(() => useLocationNames(ids, likely), {
       wrapper: ({ children }) =>
         createElement(QueryClientProvider, { client }, children),
     });
@@ -57,6 +59,7 @@ function harness() {
 beforeEach(() => {
   store.account = { characters: [{ CharacterHash: "hash-a" }] };
   requestCalls.length = 0;
+  likelyCalls.clear();
   answers.current = new Map();
   gate.current = null;
 });
@@ -181,5 +184,70 @@ describe("useLocationNames", () => {
     });
     expect(result.current.names[JITA].name).toBeUndefined();
     expect(result.current.isError).toBe(false);
+  });
+});
+
+describe("what a caller knows about who can see a structure", () => {
+  it("reaches the walk for that structure and nothing else", async () => {
+    answers.current = new Map([
+      [RAITARU, named(RAITARU, "Home Raitaru")],
+      [JITA, named(JITA, "Jita IV-4")],
+    ]);
+
+    const { result } = harness()(
+      [RAITARU, JITA],
+      new Map([[RAITARU, "hash-b"]]),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(likelyCalls.get(RAITARU)).toEqual(["hash-b"]);
+    expect(likelyCalls.get(JITA)).toEqual([]);
+  });
+
+  it("carries every character a caller names for one structure", async () => {
+    answers.current = new Map([[RAITARU, named(RAITARU, "Home Raitaru")]]);
+
+    const { result } = harness()(
+      [RAITARU],
+      new Map([[RAITARU, ["hash-b", "hash-c"]]]),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(likelyCalls.get(RAITARU)).toEqual(["hash-b", "hash-c"]);
+  });
+});
+
+describe("charactersByLocation", () => {
+  it("gathers every character a location was seen by", () => {
+    expect(
+      charactersByLocation([
+        [RAITARU, "hash-a"],
+        [RAITARU, "hash-b"],
+        [JITA, "hash-a"],
+      ]),
+    ).toEqual(
+      new Map([
+        [RAITARU, new Set(["hash-a", "hash-b"])],
+        [JITA, new Set(["hash-a"])],
+      ]),
+    );
+  });
+
+  // A row that names no character says nothing about who can see the place, and a pair with no
+  // location is not about a place at all.
+  it("drops a pair missing either half", () => {
+    expect(
+      charactersByLocation([
+        [RAITARU, null],
+        [null, "hash-a"],
+        [undefined, undefined],
+      ]),
+    ).toEqual(new Map());
+  });
+
+  it("takes an id given as a string", () => {
+    expect(charactersByLocation([[`${RAITARU}`, "hash-a"]])).toEqual(
+      new Map([[RAITARU, new Set(["hash-a"])]]),
+    );
   });
 });

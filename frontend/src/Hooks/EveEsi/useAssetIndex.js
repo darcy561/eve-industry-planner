@@ -28,23 +28,35 @@ export const ASSET_SCOPE = Object.freeze({
 const EMPTY_COLLECTION = buildAssetNodes([]);
 
 /**
- * Owners travel into the shared cache as one string.
+ * Where each set of rows came from travels into the shared cache as one string.
  *
  * The cache compares its second argument by identity, so an array rebuilt each render would miss
  * every time and each consumer would derive its own copy of the collection.
  */
-const OWNER_SEPARATOR = "\n";
-const ownersKey = (owners) =>
-  owners.map((owner) => `${owner.kind}:${owner.id}`).join(OWNER_SEPARATOR);
+const SOURCE_SEPARATOR = "\n";
+const SEEN_BY_SEPARATOR = "\t";
+const sourcesKey = (sources) =>
+  sources
+    .map(({ owner, seenBy }) =>
+      [`${owner.kind}:${owner.id}`, seenBy ?? ""].join(SEEN_BY_SEPARATOR),
+    )
+    .join(SOURCE_SEPARATOR);
 
-const readOwners = (key) =>
-  key.split(OWNER_SEPARATOR).map((entry) => {
-    const separator = entry.indexOf(":");
-    return { kind: entry.slice(0, separator), id: entry.slice(separator + 1) };
+const readSources = (key) =>
+  key.split(SOURCE_SEPARATOR).map((entry) => {
+    const [ownerPart, seenBy] = entry.split(SEEN_BY_SEPARATOR);
+    const separator = ownerPart.indexOf(":");
+    return {
+      owner: {
+        kind: ownerPart.slice(0, separator),
+        id: ownerPart.slice(separator + 1),
+      },
+      seenBy: seenBy || null,
+    };
   });
 
 const deriveNodes = createCollectionCache(
-  (sources, key) => buildAssetCollection(sources, readOwners(key)),
+  (sources, key) => buildAssetCollection(sources, readSources(key)),
   EMPTY_COLLECTION,
 );
 
@@ -60,13 +72,17 @@ const deriveNodes = createCollectionCache(
  * @param {Array<Object>} characters
  * @param {Array<Object>} corporations
  * Each query carries the owner its rows belong to, because nothing on the rows themselves says.
+ * It carries the character that fetched them too, which for a corporation is not the same fact: a
+ * member sees only the offices their roles reach, and that character is the one known to be able to
+ * see where those rows sit.
  *
- * @returns {Array<Object>} React Query configuration objects, each with an `owner`
+ * @returns {Array<Object>} React Query configuration objects, each with an `owner` and a `seenBy`
  */
 function queriesForScope(scope, id, characters, corporations) {
-  const held = (query, kind, ownerId) => ({
+  const held = (query, kind, ownerId, seenBy) => ({
     ...query,
     owner: { kind, id: ownerId },
+    seenBy,
   });
 
   const everyCharacter = () =>
@@ -74,6 +90,7 @@ function queriesForScope(scope, id, characters, corporations) {
       held(
         characterAssetsQuery(CharacterHash),
         OWNER_KIND.CHARACTER,
+        CharacterHash,
         CharacterHash,
       ),
     );
@@ -84,13 +101,14 @@ function queriesForScope(scope, id, characters, corporations) {
         corporationAssetsQuery(memberHash),
         OWNER_KIND.CORPORATION,
         corporation.corporation_id,
+        memberHash,
       ),
     );
 
   switch (scope) {
     case ASSET_SCOPE.CHARACTER:
       return id
-        ? [held(characterAssetsQuery(id), OWNER_KIND.CHARACTER, id)]
+        ? [held(characterAssetsQuery(id), OWNER_KIND.CHARACTER, id, id)]
         : [];
 
     case ASSET_SCOPE.CHARACTERS:
@@ -131,7 +149,7 @@ export function getCachedAssetIndex(queryClient, { scope, id } = {}) {
   );
 
   const sources = [];
-  const owners = [];
+  const from = [];
 
   for (const query of queries) {
     const state = queryClient.getQueryState(query.queryKey);
@@ -146,10 +164,10 @@ export function getCachedAssetIndex(queryClient, { scope, id } = {}) {
     if (!Array.isArray(rows)) continue;
 
     sources.push(rows);
-    owners.push(query.owner);
+    from.push({ owner: query.owner, seenBy: query.seenBy });
   }
 
-  return deriveNodes(sources, ownersKey(owners));
+  return deriveNodes(sources, sourcesKey(from));
 }
 
 /**
@@ -166,14 +184,18 @@ export default function useAssetIndex({ scope, id, enabled = true } = {}) {
     () => queriesForScope(scope, id, characters ?? [], corporations ?? []),
     [scope, id, characters, corporations],
   );
-  const owners = useMemo(() => queries.map((query) => query.owner), [queries]);
+  const from = useMemo(
+    () =>
+      queries.map((query) => ({ owner: query.owner, seenBy: query.seenBy })),
+    [queries],
+  );
 
   // Only the raw sources and the flags come back through `combine`. React Query structurally
   // shares whatever it returns, which would clone the derived collection and hand each consumer
   // its own copy; the source arrays survive that untouched, so the shared cache still hits.
   //
-  // Owners are paired here rather than outside, because a query with nothing yet contributes no
-  // source and the two lists have to stay aligned.
+  // Each source is paired with where it came from here rather than outside, because a query with
+  // nothing yet contributes no source and the two lists have to stay aligned.
   const combine = useCallback(
     (results) => {
       const error = results.find((result) => result.error)?.error ?? null;
@@ -183,29 +205,30 @@ export default function useAssetIndex({ scope, id, enabled = true } = {}) {
       results.forEach((result, index) => {
         if (!Array.isArray(result.data)) return;
         sources.push(result.data);
-        present.push(owners[index]);
+        present.push(from[index]);
       });
 
       return {
         sources,
-        owners: ownersKey(present),
+        from: sourcesKey(present),
         isLoading: results.some(isQueryObserverResultLoading),
         isError: Boolean(error),
         error,
       };
     },
-    [owners],
+    [from],
   );
 
   const {
     sources,
-    owners: key,
+    from: key,
     isLoading,
     isError,
     error,
   } = useQueries({
-    // `owner` is ours, not React Query's, so it does not travel into the query configuration.
-    queries: queries.map(({ owner, ...query }) => ({
+    // `owner` and `seenBy` are ours, not React Query's, so they do not travel into the query
+    // configuration.
+    queries: queries.map(({ owner, seenBy, ...query }) => ({
       ...query,
       enabled: enabled && query.enabled !== false,
     })),

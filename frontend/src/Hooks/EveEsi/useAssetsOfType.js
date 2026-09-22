@@ -1,8 +1,11 @@
 import { useMemo } from "react";
 import useAssetSource from "./useAssetSource";
-import useLocationNames from "./useLocationNames";
+import useLocationNames, { charactersByLocation } from "./useLocationNames";
 import assetsOfType from "../../Functions/Assets/assetsOfType";
-import { unnameableLocationIds } from "../../Functions/Assets/assetLocationIds";
+import {
+  assetLocationCharacters,
+  unnameableLocationIds,
+} from "../../Functions/Assets/assetLocationIds";
 import { orderLocations } from "../../Functions/Assets/assetTree";
 
 const EMPTY_LOCATIONS = [];
@@ -43,11 +46,16 @@ export default function useAssetsOfType({
     () => [...byLocation.keys()].filter((id) => !shipIds.has(id)),
     [byLocation, shipIds],
   );
+  const holders = useMemo(
+    () => charactersByLocation(assetLocationCharacters(collection)),
+    [collection],
+  );
+
   const {
     names: locationNames,
     failed: unresolvedLocations,
     isLoading: namesLoading,
-  } = useLocationNames(locationIds);
+  } = useLocationNames(locationIds, holders);
 
   const locations = useMemo(
     () =>

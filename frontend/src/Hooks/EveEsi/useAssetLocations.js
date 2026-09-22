@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import useAssetIndex, { ASSET_SCOPE } from "./useAssetIndex";
-import useLocationNames from "./useLocationNames";
-import assetLocationIds from "../../Functions/Assets/assetLocationIds";
+import useLocationNames, { charactersByLocation } from "./useLocationNames";
+import assetLocationIds, {
+  assetLocationCharacters,
+} from "../../Functions/Assets/assetLocationIds";
 import { locationOptions } from "../../Functions/Assets/assetTree";
 
 /**
@@ -36,12 +38,17 @@ export default function useAssetLocations({
     [collection, enabled],
   );
 
+  const holders = useMemo(
+    () => charactersByLocation(assetLocationCharacters(collection)),
+    [collection],
+  );
+
   const {
     names,
     failed,
     isLoading: namesLoading,
     isError: namesError,
-  } = useLocationNames(locationIds);
+  } = useLocationNames(locationIds, holders);
 
   const locations = useMemo(
     () => locationOptions(locationIds, names, failed),

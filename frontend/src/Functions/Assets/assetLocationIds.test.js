@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import assetLocationIds from "./assetLocationIds";
-import buildAssetNodes from "./buildAssetNodes";
+import assetLocationIds, { assetLocationCharacters } from "./assetLocationIds";
+import buildAssetNodes, { buildAssetCollection } from "./buildAssetNodes";
+import { OWNER_KIND } from "../Shared/ownerKind";
 import {
   ASSET_SAFETY_ID,
   characterAssetRows,
@@ -34,5 +35,52 @@ describe("the locations a collection's assets sit at", () => {
   it("answers nothing for an empty collection", () => {
     expect(assetLocationIds(buildAssetNodes([]))).toEqual([]);
     expect(assetLocationIds(undefined)).toEqual([]);
+  });
+});
+
+// A structure refuses every character without docking rights, so a name lookup starts with one that
+// has already seen the place rather than walking the whole account.
+describe("the character a collection's locations can be named by", () => {
+  const seenBy = (pairs, locationId) =>
+    pairs.filter(([id]) => id === locationId).map(([, hash]) => hash);
+
+  it("is the character whose set the row arrived in", () => {
+    const collection = buildAssetCollection(
+      [characterAssetRows],
+      [
+        {
+          owner: { kind: OWNER_KIND.CHARACTER, id: "hash-main" },
+          seenBy: "hash-main",
+        },
+      ],
+    );
+
+    expect(
+      seenBy(assetLocationCharacters(collection), RAITARU_STRUCTURE_ID),
+    ).toContain("hash-main");
+  });
+
+  // A corporation's rows arrive once per member whose roles reach them, and the owner recorded is
+  // the corporation — so without the member the office would be walked blind.
+  it("is the member that fetched a corporation's rows, not the corporation", () => {
+    const collection = buildAssetCollection(
+      [characterAssetRows],
+      [
+        {
+          owner: { kind: OWNER_KIND.CORPORATION, id: 98000001 },
+          seenBy: "hash-member",
+        },
+      ],
+    );
+
+    expect(
+      seenBy(assetLocationCharacters(collection), RAITARU_STRUCTURE_ID),
+    ).toContain("hash-member");
+  });
+
+  it("is nobody for a collection built without a request behind it", () => {
+    const pairs = assetLocationCharacters(buildAssetNodes(characterAssetRows));
+
+    expect(pairs.every(([, hash]) => hash === null)).toBe(true);
   });
 });

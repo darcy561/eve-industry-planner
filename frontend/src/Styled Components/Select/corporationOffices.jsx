@@ -1,7 +1,9 @@
 import { FormControl, Select, MenuItem, FormHelperText } from "@mui/material";
 import useUsersStore from "../../Zustand/usersStore";
 import { useMemo } from "react";
-import useLocationNames from "../../Hooks/EveEsi/useLocationNames";
+import useLocationNames, {
+  charactersByLocation,
+} from "../../Hooks/EveEsi/useLocationNames";
 import { locationOptions } from "../../Functions/Assets/assetTree";
 
 export default function CorporationOfficesSelect({
@@ -11,17 +13,35 @@ export default function CorporationOfficesSelect({
 }) {
   const corporations = useUsersStore((state) => state.account.corporations);
 
+  const corporation = useMemo(
+    () =>
+      corporations.find(
+        (c) => Number(c.corporation_id) === Number(selectedCorporation),
+      ),
+    [selectedCorporation, corporations],
+  );
+
   const officeLocations = useMemo(() => {
-    const corp = corporations.find(
-      (c) => Number(c.corporation_id) === Number(selectedCorporation),
-    );
-    if (!selectedCorporation || !corp) {
+    if (!selectedCorporation || !corporation) {
       return [];
     }
-    return corp.officeLocations || [];
-  }, [selectedCorporation, corporations]);
+    return corporation.officeLocations || [];
+  }, [selectedCorporation, corporation]);
 
-  const { names, failed } = useLocationNames(officeLocations);
+  // Nothing records which member holds docking rights at an office, but the corporation's own
+  // members are the characters that plausibly do, so they are asked ahead of the rest of the
+  // account.
+  const dockable = useMemo(
+    () =>
+      charactersByLocation(
+        officeLocations.flatMap((locationId) =>
+          (corporation?.members ?? []).map((hash) => [locationId, hash]),
+        ),
+      ),
+    [officeLocations, corporation],
+  );
+
+  const { names, failed } = useLocationNames(officeLocations, dockable);
 
   // An office nobody can dock at is offered carrying the name that says so, rather than left out:
   // the corporation has it either way, and hiding it reads as the office not existing. One whose

@@ -24,9 +24,18 @@ vi.mock("../../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
   useActiveJobReadOnly: () => readOnly.current,
 }));
 
-vi.mock("../../../../../../Hooks/EveEsi/useLocationNames", () => ({
-  default: () => ({ names: {} }),
-}));
+const { nameHints } = vi.hoisted(() => ({ nameHints: [] }));
+
+vi.mock(
+  "../../../../../../Hooks/EveEsi/useLocationNames",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    default: (ids, likely) => {
+      nameHints.push(likely);
+      return { names: {} };
+    },
+  }),
+);
 
 vi.mock("../../../../../../Events/snackbarEvents", async () => {
   const { snackbarMock } =
@@ -82,6 +91,7 @@ const show = (Tab = AvailableMarketOrdersTab, orders = [anOrder]) =>
 const linkButton = () => screen.getByRole("button");
 
 beforeEach(() => {
+  nameHints.length = 0;
   vi.clearAllMocks();
   readOnly.current = false;
   session().actions.closeSession();
@@ -143,5 +153,17 @@ describe("the market orders the job could be linked to", () => {
     });
 
     expect(renders.of("availableOrders")).toBe(0);
+  });
+});
+
+// A structure refuses every character that cannot dock there, so the order names its seller rather
+// than the whole account being walked.
+describe("naming an order's location", () => {
+  it("offers the character the order was listed by", () => {
+    show();
+
+    expect(nameHints.at(-1)).toEqual(
+      new Map([[anOrder.location_id, new Set(["hash-main"])]]),
+    );
   });
 });

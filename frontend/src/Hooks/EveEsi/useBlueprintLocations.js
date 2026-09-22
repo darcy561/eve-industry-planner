@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import useAssetIndex, { ASSET_SCOPE } from "./useAssetIndex";
-import useLocationNames from "./useLocationNames";
+import useLocationNames, { charactersByLocation } from "./useLocationNames";
 import { locationOptions } from "../../Functions/Assets/assetTree";
 import blueprintLocations from "../../Functions/Blueprints/blueprintLocations";
-import { unnameableLocationIds } from "../../Functions/Assets/assetLocationIds";
+import {
+  assetLocationCharacters,
+  unnameableLocationIds,
+} from "../../Functions/Assets/assetLocationIds";
 import { asNumberIDSet } from "../../Functions/Helper/ids";
 
 const EMPTY_NAMES = new Map();
@@ -38,13 +41,18 @@ export default function useBlueprintLocations(blueprints) {
       (id) => !ships.has(id),
     );
   }, [locationIds, assets]);
+  const holders = useMemo(
+    () => charactersByLocation(assetLocationCharacters(assets)),
+    [assets],
+  );
+
   const {
     names,
     failed,
     isLoading: namesLoading,
     isError: namesError,
     error: namesErrorValue,
-  } = useLocationNames(requested);
+  } = useLocationNames(requested, holders);
 
   const byItemId = useMemo(() => {
     if (locationIds.size === 0) return EMPTY_NAMES;

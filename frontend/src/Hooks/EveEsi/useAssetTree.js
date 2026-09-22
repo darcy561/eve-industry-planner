@@ -1,8 +1,11 @@
 import { useMemo } from "react";
 import useAssetSource from "./useAssetSource";
 import useBlueprintIndex from "./useBlueprintIndex";
-import useLocationNames from "./useLocationNames";
-import { unnameableLocationIds } from "../../Functions/Assets/assetLocationIds";
+import useLocationNames, { charactersByLocation } from "./useLocationNames";
+import {
+  assetLocationCharacters,
+  unnameableLocationIds,
+} from "../../Functions/Assets/assetLocationIds";
 import {
   assetRowsByLocation,
   orderLocations,
@@ -95,11 +98,16 @@ export default function useAssetTree({
     () => [...rowsByLocation.keys()].filter((id) => !shipIds.has(id)),
     [rowsByLocation, shipIds],
   );
+  const holders = useMemo(
+    () => charactersByLocation(assetLocationCharacters(collection)),
+    [collection],
+  );
+
   const {
     names: locationNames,
     failed: unresolvedLocations,
     isLoading: namesLoading,
-  } = useLocationNames(locationIds);
+  } = useLocationNames(locationIds, holders);
 
   const locations = useMemo(
     () =>

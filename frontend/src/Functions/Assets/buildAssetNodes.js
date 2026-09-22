@@ -44,6 +44,8 @@ const PLACE_FLAGS = new Set([
  * @property {number} depth - distance from that location
  * @property {boolean} isSingleton - assembled, or otherwise unable to stack
  * @property {import("../Shared/ownerKind").EveOwner|null} owner - whose set the row came from
+ * @property {string|null} seenBy - the character whose request returned the row; for a corporation
+ *   that is the member whose roles reached it, which is not who owns it
  */
 
 /**
@@ -72,16 +74,20 @@ export default function buildAssetNodes(rows = []) {
  * owner is attached here, where the sets are still separate. Merged afterwards there is no way back
  * to it, and a view spanning several characters cannot say which of them holds a stack.
  *
- * @param {Array<Array<Object>>} [sources] - raw ESI asset rows, one array per owner
- * @param {Array<import("../Shared/ownerKind").EveOwner|null>} [owners] - parallel to `sources`
+ * The character that fetched a set is kept beside its owner. A corporation's rows arrive once per
+ * member whose roles reach them, and that member is the one character known to be able to see where
+ * they sit — which is what spares a structure's name lookup a refusal from everybody else.
+ *
+ * @param {Array<Array<Object>>} [sources] - raw ESI asset rows, one array per request
+ * @param {Array<{owner: import("../Shared/ownerKind").EveOwner|null, seenBy: string|null}|null>} [from] - parallel to `sources`
  * @returns {AssetCollection}
  */
-export function buildAssetCollection(sources = [], owners = []) {
+export function buildAssetCollection(sources = [], from = []) {
   const byItemId = new Map();
   const nodes = [];
 
   sources.forEach((rows, index) => {
-    const owner = owners[index] ?? null;
+    const { owner, seenBy } = from[index] ?? { owner: null, seenBy: null };
 
     for (const row of rows ?? []) {
       if (!row || row.item_id == null) continue;
@@ -102,6 +108,7 @@ export function buildAssetCollection(sources = [], owners = []) {
         depth: 0,
         isSingleton: Boolean(row.is_singleton),
         owner,
+        seenBy: seenBy ?? null,
       };
 
       byItemId.set(node.itemId, node);
