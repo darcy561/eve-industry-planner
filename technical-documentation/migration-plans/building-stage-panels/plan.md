@@ -292,7 +292,7 @@ left on the size-class path. One additive field written at link time, its own sl
 |--------|-------|
 | Stage F — the owner filter on application settings | **Additive.** A new field with a default |
 | Stage G — the local-timezone checkbox on application settings | **Additive.** A new field with a default |
-| `layout.esiJobTab` | **Dropped.** The **job-level** field, remembering which of two tabs was open; with one list there is nothing to remember, and a stored value is simply ignored. The identically-named field on application settings is a different thing and is untouched — § Stage A |
+| `layout.esiJobTab` | **To be dropped with the tabs, at Stage E.** The **job-level** field, remembering which of two tabs was open; once the offers sit in a block of their own there is nothing to remember, and a stored value is simply ignored. Stage A left the tabs and the field alone — it replaced what the tabs draw, not the tabs. The identically-named field on application settings is a different thing and is untouched — § Stage A |
 | Every other stage | **Client only.** `esi.industryJobs` keeps its meaning and `LinkedESIJob` its fields |
 
 **No migration.** Both new settings have defaults, and the dropped field is read by nothing once the
@@ -328,7 +328,7 @@ one reuses, is linked from
 | Stage | Surface | Status |
 |-------|---------|--------|
 | Phase 1 — project folder and docs | docs | **Done** |
-| A — one row component | SPA | Not started |
+| A — one row component | SPA | **Landed.** One card, one list and one row model behind both tabs; one status vocabulary, where the two tabs had disagreed on two of the colours; characters resolved once per panel, with the counts beside the list reading the rows it drew; the link and unlink writes off the 800ms timeout; `LinkedESIJob`'s duplicated run getters gone in favour of `linkedRunSelectors.js`; `layoutSelector.jsx`'s three-way switch gone. See [overlay.md](./overlay.md) § Drawing a run |
 | B — one grouping rule | SPA | Not started |
 | C — Progress | SPA | Not started |
 | D — setups, slots and the match | SPA | Not started |
@@ -339,10 +339,17 @@ one reuses, is linked from
 
 ## Start here
 
-Phase 1 is complete and no product work has begun. **Stage A is the first thing to build**, and like
-the purchasing project's Stage A it is worth landing even if the rest is deferred: it removes a
-contradiction a player can see, collapses 757 lines of near-identical card into one component, and
-gives every later stage a row model to read.
+**Stage A has landed**, and it was worth landing on its own as the plan said it would be: it removed
+a contradiction a player could see, collapsed 757 lines of near-identical card into one component,
+and left every later stage a row model to read. The § Stage status row says what it did.
+
+**Stage B is next.** It is the stage the rest of the shape rests on — one grouping rule, applied to
+the runs, the schedule and the setup table — and Stage A's row model and single card are what a
+group row is built from, so the grouping decision lands in the list rather than being spread across
+two components.
+
+The project is paused here rather than finished. Nothing in it is blocked and nothing it depends on
+has moved; Stage B is available to whoever picks it up next.
 
 Two things this project depends on and does not own: the shared components from
 [purchasing-stage-panels](../purchasing-stage-panels/contents.md), and whatever
