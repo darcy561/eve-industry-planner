@@ -195,6 +195,9 @@ export function editJobStore({
     },
     account: {
       isLoggedIn: true,
+      // The account's own characters, which the panels resolve a run's owner
+      // from directly rather than through the lookups below.
+      characters: [character],
       actions: {
         getMainCharacterHash: () => character.CharacterHash,
         findCharacterById: () => character,

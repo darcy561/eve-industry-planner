@@ -1,4 +1,3 @@
-import { useMediaQuery } from "@mui/material";
 import { Building_StandardLayout_EditJob } from "./StandardLayout/standardLayout";
 import useUsersStore from "../../../../Zustand/usersStore";
 import useGetAllIndustryJobs from "../../../../Hooks/EveEsi/useGetAllIndustryJobs";
@@ -14,7 +13,6 @@ export function LayoutSelector_EditJob_Building() {
   const itemID = useJobDraft((job) => job.itemID);
   const industryJobs = useJobDraft((job) => job.esi.industryJobs);
   const runsToLink = useEsiLinkIntents("industryJobs");
-  const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
   const {
     data: allIndustryJobs,
     isLoading,
@@ -39,33 +37,12 @@ export function LayoutSelector_EditJob_Building() {
   const totalIsLoading = isLoading || isWorldDataLoading;
   const totalError = isError || worldDataError;
 
-  switch (deviceNotMobile) {
-    case true:
-      return (
-        <Building_StandardLayout_EditJob
-          jobMatches={jobMatches}
-          isLoading={totalIsLoading}
-          isError={totalError}
-          error={totalErrorObject}
-        />
-      );
-    case false:
-      return (
-        <Building_StandardLayout_EditJob
-          jobMatches={jobMatches}
-          isLoading={totalIsLoading}
-          isError={totalError}
-          error={totalErrorObject}
-        />
-      );
-    default:
-      return (
-        <Building_StandardLayout_EditJob
-          jobMatches={jobMatches}
-          isLoading={totalIsLoading}
-          isError={totalError}
-          error={totalErrorObject}
-        />
-      );
-  }
+  return (
+    <Building_StandardLayout_EditJob
+      jobMatches={jobMatches}
+      isLoading={totalIsLoading}
+      isError={totalError}
+      error={totalErrorObject}
+    />
+  );
 }

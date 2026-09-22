@@ -60,7 +60,7 @@ describe("linking a job from ESI", () => {
 
     expect(linked.character_id).toBe(94800326);
     expect(linked.corporation_id).toBeNull();
-    expect(linked.isCorporationJob).toBe(false);
+    expect(linked.is_corporation).toBe(false);
   });
 
   test("keeps the character id ESI gave over the character it was read for", () => {
@@ -86,7 +86,7 @@ describe("linking a job from ESI", () => {
 
     expect(personal.corporation_id).toBeNull();
     expect(corporate.corporation_id).toBe(98699553);
-    expect(corporate.isCorporationJob).toBe(true);
+    expect(corporate.is_corporation).toBe(true);
   });
 
   test("a stored row survives the round trip", () => {
@@ -95,39 +95,6 @@ describe("linking a job from ESI", () => {
     }).toDocument();
 
     expect(new LinkedESIJob(row).toDocument()).toEqual(row);
-  });
-});
-
-describe("where a linked job has got to", () => {
-  test("a run still going is active and part way through", () => {
-    const linked = runningBetween(6, 6);
-
-    expect(linked.isActive).toBe(true);
-    expect(linked.isReadyToDeliver).toBe(false);
-    expect(Math.round(linked.progressPercent())).toBe(50);
-  });
-
-  test("a run that has had its time is waiting to be delivered", () => {
-    const linked = runningBetween(24, -1);
-
-    expect(linked.isReadyToDeliver).toBe(true);
-    expect(linked.progressPercent()).toBe(100);
-  });
-
-  test("a delivered run is finished, however long ago it ended", () => {
-    const linked = runningBetween(24, -1, "delivered");
-
-    expect(linked.isDelivered).toBe(true);
-    expect(linked.isReadyToDeliver).toBe(false);
-    expect(linked.progressPercent()).toBe(100);
-  });
-
-  test("a run with no end date is not waited on", () => {
-    const linked = new LinkedESIJob({ job_id: 1, status: "active" });
-
-    expect(linked.finishesAt).toBeNull();
-    expect(linked.isReadyToDeliver).toBe(false);
-    expect(linked.progressPercent()).toBe(0);
   });
 });
 

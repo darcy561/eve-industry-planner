@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
@@ -12,9 +12,18 @@ vi.mock("../../../../Edit Job Hooks/useActiveJobDocumentLock", () => ({
   useActiveJobReadOnly: () => false,
 }));
 
-vi.mock("../../../../../../Hooks/EveEsi/useLocationNames", () => ({
-  default: () => ({ names: {} }),
-}));
+const { nameHints } = vi.hoisted(() => ({ nameHints: [] }));
+
+vi.mock(
+  "../../../../../../Hooks/EveEsi/useLocationNames",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    default: (ids, likely) => {
+      nameHints.push(likely);
+      return { names: {} };
+    },
+  }),
+);
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ getQueryData: () => undefined }),
@@ -22,6 +31,8 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 const { LinkedJobsTab } = await import("./linkedJobs.jsx");
+const { jobDraftNow } =
+  await import("../../../../Edit Job Hooks/useJobDraft.js");
 const { default: useUsersStore } =
   await import("../../../../../../Zustand/usersStore");
 
@@ -64,6 +75,7 @@ const show = () =>
   );
 
 beforeEach(() => {
+  nameHints.length = 0;
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(NOW);
   session().actions.closeSession();
@@ -99,5 +111,43 @@ describe("the runs already linked to the job", () => {
     show();
 
     expect(screen.queryByText(/Ready for Delivery/)).toBeNull();
+  });
+
+  // The write lands on the press rather than at the end of the fade, so a
+  // reader who presses a run and closes the job at once still unlinks it.
+  it("unlinks a run when the card is pressed, without waiting for the fade", () => {
+    openJob();
+
+    show();
+    fireEvent.click(screen.getByText("3 Runs"));
+
+    expect(jobDraftNow().esi.industryJobs).toEqual({});
+    expect(session().esiDataToLink.industryJobs.remove).toEqual([700]);
+  });
+
+  // The row is still drawn while it fades, and a second press on it would take
+  // the same run off twice.
+  it("takes no second press while the row is fading out", () => {
+    openJob();
+
+    show();
+    const card = screen.getByText("3 Runs");
+    fireEvent.click(card);
+    fireEvent.click(card);
+
+    expect(session().esiDataToLink.industryJobs.remove).toEqual([700]);
+  });
+});
+
+// A structure refuses every character that cannot dock there, so the run says which one saw it
+// rather than the whole account being walked.
+describe("naming a run's facility", () => {
+  it("offers the character the run was linked under", () => {
+    openJob(aRun({ CharacterHash: "hash-b", station_id: 1035466617946 }));
+    show();
+
+    expect(nameHints.at(-1)).toEqual(
+      new Map([[1035466617946, new Set(["hash-b"])]]),
+    );
   });
 });

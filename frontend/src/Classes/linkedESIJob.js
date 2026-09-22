@@ -1,3 +1,5 @@
+import { isActive } from "../Components/Edit Job/Edit Job Hooks/linkedRunSelectors";
+
 /**
  * An EVE industry job linked to one of the planner's jobs.
  *
@@ -5,6 +7,11 @@
  * where its updates come from: `job_id`, `end_date`, `is_corporation`. The same
  * fields are `models.LinkedESIJob` on the backend, and
  * {@link LinkedESIJob#toDocument} defines the shape for the SPA.
+ *
+ * What a row says about itself — whether it is running, when it finishes, how
+ * far through it is — is read by the selectors in
+ * `Edit Job Hooks/linkedRunSelectors.js`, which answer for a stored row as well
+ * as for one ESI has just returned.
  *
  * `character_id` and `corporation_id` say whose run it is. They travel as ids
  * and are held as refs once stored, which `shared/jobidentity` converts at the
@@ -67,76 +74,6 @@ class LinkedESIJob {
   }
 
   /**
-   * Whether the run was installed for a corporation rather than for the
-   * character itself.
-   *
-   * @returns {boolean}
-   */
-  get isCorporationJob() {
-    return Boolean(this.is_corporation);
-  }
-
-  /**
-   * Whether the job is still running as far as the planner knows.
-   *
-   * @returns {boolean}
-   */
-  get isActive() {
-    return this.status === "active";
-  }
-
-  /**
-   * Whether the output has been taken out of the job.
-   *
-   * @returns {boolean}
-   */
-  get isDelivered() {
-    return this.status === "delivered";
-  }
-
-  /**
-   * When the runs finish, in milliseconds, or `null` without an end date.
-   *
-   * @returns {number|null}
-   */
-  get finishesAt() {
-    const parsed = Date.parse(this.end_date);
-    return Number.isNaN(parsed) ? null : parsed;
-  }
-
-  /**
-   * Whether the job has run its time and is waiting to be delivered.
-   *
-   * @returns {boolean}
-   */
-  get isReadyToDeliver() {
-    return (
-      this.isActive && this.finishesAt !== null && this.finishesAt <= Date.now()
-    );
-  }
-
-  /**
-   * How far through its run the job is, as a percentage.
-   *
-   * A delivered job, and one that has run its time, are both finished.
-   *
-   * @returns {number} 0 to 100
-   */
-  progressPercent() {
-    if (this.isDelivered || this.isReadyToDeliver) return 100;
-
-    const finishes = this.finishesAt;
-    const starts = Date.parse(this.start_date);
-    if (finishes === null || Number.isNaN(starts) || finishes <= starts) {
-      return 0;
-    }
-
-    const run = finishes - starts;
-    const left = Math.min(Math.max(finishes - Date.now(), 0), run);
-    return 100 - (left / run) * 100;
-  }
-
-  /**
    * Takes the latest state of the job from ESI. A job the planner already knows
    * to have finished is left alone.
    *
@@ -144,7 +81,7 @@ class LinkedESIJob {
    * @returns {boolean} Whether anything was taken
    */
   applyLatest(latest) {
-    if (!latest || !this.isActive) return false;
+    if (!latest || !isActive(this)) return false;
 
     this.status = latest.status;
     this.completed_date = latest.completed_date || null;

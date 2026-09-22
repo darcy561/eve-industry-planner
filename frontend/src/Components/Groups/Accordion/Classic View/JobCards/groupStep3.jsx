@@ -1,3 +1,4 @@
+import { finishesAt } from "../../../../Edit Job/Edit Job Hooks/linkedRunSelectors";
 import {
   esiJobIDs,
   totalJobSlots,
@@ -15,7 +16,7 @@ export default function GroupStep3JobCard({ job }) {
   const now = useCurrentTime();
   const timeRemaining = useMemo(() => {
     const next = job.nextRunToFinish;
-    return next ? formatTimeRemaining(next.finishesAt, { now }) : null;
+    return next ? formatTimeRemaining(finishesAt(next), { now }) : null;
   }, [job, now]);
 
   const totalJobCount = totalJobSlots(job);

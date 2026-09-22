@@ -1,3 +1,7 @@
+import {
+  isActive,
+  isDelivered,
+} from "../Components/Edit Job/Edit Job Hooks/linkedRunSelectors";
 import { describe, expect, it, vi } from "vitest";
 import {
   esiJobIDs,
@@ -101,7 +105,7 @@ describe("linking industry runs to a job", () => {
     expect(first).toBeInstanceOf(LinkedESIJob);
     expect(first.station_id).toBe(1035466617946);
     expect(first.character_id).toBe(OWNER.CharacterID);
-    expect(first.isActive).toBe(true);
+    expect(isActive(first)).toBe(true);
 
     // 5. Linked runs are no longer offered.
     expect(offeredRuns(reported, job)).toEqual([]);
@@ -119,8 +123,8 @@ describe("linking industry runs to a job", () => {
       ]),
     );
 
-    expect(job.esi.industryJobs["500000001"].isDelivered).toBe(true);
-    expect(job.esi.industryJobs["500000002"].isActive).toBe(true);
+    expect(isDelivered(job.esi.industryJobs["500000001"])).toBe(true);
+    expect(isActive(job.esi.industryJobs["500000002"])).toBe(true);
     // Delivery does not change what the run cost.
     expect(totalInstallCost(job)).toBe(2000000);
 

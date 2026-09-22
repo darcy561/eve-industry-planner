@@ -1,422 +1,156 @@
-import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  Chip,
-  Grid,
-  LinearProgress,
-  Stack,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+import { Button, Grid, Tooltip, Typography } from "@mui/material";
 import { MdOutlineAddLink } from "react-icons/md";
 import { useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { LARGE_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { linkESIJob } from "../../../../Edit Job Hooks/jobCommands";
-import { useMemo, useState } from "react";
 import PanelFallBack from "../../../../panelStates";
-import {
-  formatNumberForLocale,
-  formatTimeRemaining,
-} from "../../../../../../Functions/Helper/numberParser";
-import findBlueprintType from "../../../../../../Functions/Shared/findBlueprintType";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { useCurrentTime } from "../../../../../../Hooks/useCurrentTime";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
-import useLocationNames from "../../../../../../Hooks/EveEsi/useLocationNames";
-import { UNNAMED_LOCATION_LABEL } from "../../../../../../Functions/Assets/assetLocationConstants";
-import {
-  characterImageUrl,
-  corporationImageUrl,
-  typeImageUrl,
-} from "../../../../../../Functions/Shared/eveImage";
-import {
-  isReadyToDeliver,
-  progressPercent,
-} from "../../../../Edit Job Hooks/linkedRunSelectors";
+import useLocationNames, {
+  charactersByLocation,
+} from "../../../../../../Hooks/EveEsi/useLocationNames";
+import jobLocationCharacters from "../../../../../../Functions/IndustryJobs/jobLocationCharacters";
 import {
   useJobActions,
   useJobDraft,
 } from "../../../../Edit Job Hooks/useJobDraft";
 import { jobSlotsOf } from "../../../../Edit Job Hooks/jobSelectors";
+import { IndustryRunList } from "./industryRunList";
+import { availableRunRows } from "./runRows";
 
 /**
- * Linking an ESI job adds a run to `activeJob.esi.industryJobs` (persisted),
- * so it follows the active job lock. Group locks already cascade into the
- * per-job lock, so `useActiveJobReadOnly` is the right single-source gate
- * (matches the save/delete-icon pattern, no need for the composite hook).
+ * Linking an ESI job adds a run to the job's `esi.industryJobs` (persisted), so
+ * it follows the active job lock. Group locks already cascade into the per-job
+ * lock, so `useActiveJobReadOnly` is the right single-source gate.
  */
 export function AvailableJobsTab(props) {
   const { jobMatches, isLoading, isError, error } = props;
   const setups = useJobDraft((job) => job.build.setup);
   const industryJobs = useJobDraft((job) => job.esi.industryJobs);
   const actions = useJobActions();
+  const characters = useUsersStore((state) => state.account.characters);
+  const queryClient = useQueryClient();
+  const now = useCurrentTime();
+  const jobLockReadOnly = useActiveJobReadOnly();
+
   const jobSlots = jobSlotsOf(setups);
-  const linkedCount = Object.keys(industryJobs).length;
+  const freeSlots = jobSlots - Object.keys(industryJobs).length;
   const facilityIds = useMemo(
     () => jobMatches.map((job) => job.facility_id),
     [jobMatches],
   );
-  const { names: facilityNames } = useLocationNames(facilityIds);
-  const queryClient = useQueryClient();
-  const [clickedJobs, setClickedJobs] = useState(new Set());
-  const now = useCurrentTime();
-  const jobLockReadOnly = useActiveJobReadOnly();
+  const installers = useMemo(
+    () => charactersByLocation(jobLocationCharacters(jobMatches, characters)),
+    [jobMatches, characters],
+  );
+  const { names: facilityNames } = useLocationNames(facilityIds, installers);
 
-  const getStatusColor = (status, readyToDeliver) => {
-    if (readyToDeliver) {
-      return "success";
-    }
-    switch (status) {
-      case "active":
-        return "warning";
-      case "delivered":
-        return "info";
-      case "cancelled":
-        return "error";
-      default:
-        return "default";
-    }
+  const rows = availableRunRows(jobMatches, {
+    characterById: (characterID) =>
+      characters?.find((character) => character.CharacterID === characterID) ??
+      null,
+    facilityNames,
+    queryClient,
+    now,
+  });
+
+  const linkRun = (row) => {
+    actions.run(linkESIJob(row.run, row.owner));
+    actions.addIndustryESIJobsForAddition(row.run.job_id);
   };
 
   const handleLinkAll = () => {
     if (jobLockReadOnly) return;
-
-    const { findCharacterById } = useUsersStore.getState().account.actions;
-    // A run installed by a character this account cannot name is left where it
-    // is: linking one stores a run naming nobody. The rows do not draw those
-    // either, but this walks the matches rather than the rows, so it says on
-    // its own how many it took.
-    const nameable = jobMatches
-      .map((job) => ({ job, jobOwner: findCharacterById(job.installer_id) }))
-      .filter(({ jobOwner }) => jobOwner);
-
-    for (const { job, jobOwner } of nameable) {
-      actions.run(linkESIJob(job, jobOwner));
+    for (const row of rows) {
+      linkRun(row);
     }
-    actions.addIndustryESIJobsForAddition(
-      nameable.map(({ job }) => job.job_id),
-    );
-
-    showSnackbarSuccess(`${nameable.length} Jobs Linked`);
+    showSnackbarSuccess(`${rows.length} Jobs Linked`);
   };
 
-  const handleJobClick = (job) => {
-    if (jobLockReadOnly) return;
-    const jobOwner = useUsersStore
-      .getState()
-      .account.actions.findCharacterById(job.installer_id);
-
-    setClickedJobs((prev) => new Set([...prev, job.job_id]));
-
-    setTimeout(() => {
-      actions.run(linkESIJob(job, jobOwner));
-      actions.addIndustryESIJobsForAddition(job.job_id);
-      showSnackbarSuccess("Linked");
-    }, 800);
-  };
-
-  // Show loading state first
-  if (isLoading) {
+  if (isLoading || isError) {
     return (
       <PanelFallBack isLoading={isLoading} isError={isError} error={error} />
     );
   }
 
-  // Show error state if there's an error
-  if (isError) {
+  if (freeSlots <= 0) {
     return (
-      <PanelFallBack isLoading={isLoading} isError={isError} error={error} />
+      <PanelMessage>
+        You have linked the maximum number of jobs from the API, if you need to
+        link more increase the number of job slots used.
+      </PanelMessage>
     );
   }
 
-  // Show jobs if we have matches and haven't reached the job limit
-  if (jobMatches.length !== 0 && linkedCount < jobSlots) {
+  if (rows.length === 0) {
     return (
-      <>
-        <Grid
-          container
-          spacing={2}
-          sx={{
-            marginBottom: "10px",
-            overflowY: "auto",
-            maxHeight: {
-              xs: "350px",
-              sm: "260px",
-              md: "240px",
-              lg: "240px",
-              xl: "480px",
-            },
-            "& > .MuiGrid-item": {
-              transition: "all 800ms ease-in-out",
-              "&.clicked": {
-                transform: "scale(0.95)",
-                opacity: 0,
-                height: 0,
-                margin: 0,
-                padding: 0,
-                overflow: "hidden",
-              },
-            },
-          }}
-        >
-          {jobMatches.map((job) => {
-            const jobOwner = useUsersStore
-              .getState()
-              .account.actions.findCharacterById(job.installer_id);
+      <PanelMessage>
+        There are no matching industry jobs from the API that match this job.
+      </PanelMessage>
+    );
+  }
 
-            if (!jobOwner) return null;
-
-            const blueprintType = findBlueprintType(
-              job.blueprint_id,
-              queryClient,
-            );
-            const facilityName =
-              facilityNames[job.facility_id]?.name || UNNAMED_LOCATION_LABEL;
-            const timeRemaining = formatTimeRemaining(
-              Date.parse(job.end_date),
-              { now },
-            );
-            const readyToDeliver = isReadyToDeliver(job, now);
-            // The bar and the tooltip beside it read the same figure; the
-            // tooltip is the only one that rounds.
-            const progress = progressPercent(job, now);
-
-            return (
-              <Grid
-                key={`job-${job.job_id}`}
-                className={clickedJobs.has(job.job_id) ? "clicked" : ""}
-                size={{
-                  xs: 12,
-                  sm: 6,
-                  md: 4,
-                  lg: 3,
-                }}
-              >
-                <Tooltip
-                  title={
-                    jobLockReadOnly
-                      ? lockReasonText({ action: "linking is disabled" })
-                      : "Click anywhere on the card to link this job"
-                  }
-                  placement="top"
-                  arrow
+  return (
+    <>
+      <IndustryRunList
+        rows={rows}
+        tooltip="Click anywhere on the card to link this job"
+        disabledTooltip={lockReasonText({ action: "linking is disabled" })}
+        disabled={jobLockReadOnly}
+        onSelect={(row) => {
+          linkRun(row);
+          showSnackbarSuccess("Linked");
+        }}
+      />
+      {rows.length > 1 && (
+        <Grid container sx={{ marginTop: 2 }}>
+          <Grid align="right" size={12}>
+            <Tooltip
+              title={
+                jobLockReadOnly
+                  ? lockReasonText({ action: "bulk linking is disabled" })
+                  : rows.length > freeSlots
+                    ? "Cannot link all jobs: Not enough job slots available"
+                    : "Click to link all available jobs at once"
+              }
+              arrow
+            >
+              <span>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleLinkAll}
+                  disabled={jobLockReadOnly || rows.length > freeSlots}
+                  startIcon={<MdOutlineAddLink />}
                 >
-                  <Card
-                    sx={{
-                      height: "100%",
-                      cursor: jobLockReadOnly ? "not-allowed" : "pointer",
-                      opacity: jobLockReadOnly ? 0.6 : 1,
-                      "&:hover": {
-                        boxShadow: jobLockReadOnly ? 1 : 6,
-                      },
-                      position: "relative",
-                      overflow: "visible",
-                    }}
-                    onClick={() => {
-                      if (jobLockReadOnly) return;
-                      handleJobClick(job);
-                    }}
-                  >
-                    <Tooltip title={`Progress: ${Math.round(progress)}%`} arrow>
-                      <LinearProgress
-                        variant="determinate"
-                        value={progress}
-                        sx={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: 4,
-                          borderRadius: "4px 4px 0 0",
-                          "& .MuiLinearProgress-bar": {
-                            borderRadius: "4px 4px 0 0",
-                          },
-                        }}
-                      />
-                    </Tooltip>
-                    <CardHeader
-                      avatar={
-                        <Tooltip
-                          title={`Character: ${jobOwner.CharacterName}`}
-                          arrow
-                        >
-                          <Badge
-                            overlap="circular"
-                            anchorOrigin={{
-                              vertical: "bottom",
-                              horizontal: "right",
-                            }}
-                            badgeContent={
-                              <Avatar
-                                src={characterImageUrl(
-                                  jobOwner.CharacterID,
-                                  48,
-                                )}
-                                variant="circular"
-                                sx={{
-                                  height: "24px",
-                                  width: "24px",
-                                  border: "1px solid white",
-                                }}
-                              />
-                            }
-                          >
-                            <Avatar
-                              src={typeImageUrl(
-                                job.blueprint_type_id,
-                                blueprintType,
-                                64,
-                              )}
-                              variant="square"
-                              sx={{ width: 40, height: 40 }}
-                            />
-                          </Badge>
-                        </Tooltip>
-                      }
-                      action={
-                        job.is_corporation && (
-                          <Tooltip title="Corporation Job" arrow>
-                            <Avatar
-                              src={corporationImageUrl(job.corporation_id, 32)}
-                              sx={{
-                                width: 32,
-                                height: 32,
-                                border: "1px solid",
-                                borderColor: "divider",
-                              }}
-                            />
-                          </Tooltip>
-                        )
-                      }
-                      title={
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          sx={{
-                            alignItems: "center",
-                          }}
-                        >
-                          <Typography variant="body1" noWrap>
-                            {formatNumberForLocale(job.runs, { max: 0 })} Runs
-                          </Typography>
-                        </Stack>
-                      }
-                      subheader={
-                        <Typography
-                          variant="caption"
-                          noWrap
-                          sx={{
-                            color: "text.secondary",
-                          }}
-                        >
-                          {facilityName}
-                        </Typography>
-                      }
-                    />
-                    <CardContent sx={{ pt: 0, pb: 0 }}>
-                      <Stack spacing={0.1}>
-                        {job.status === "active" && (
-                          <Typography
-                            variant="caption"
-                            align="center"
-                            sx={{
-                              color: "text.secondary",
-                            }}
-                          >
-                            {readyToDeliver
-                              ? "Ready to Deliver"
-                              : timeRemaining}
-                          </Typography>
-                        )}
-                        <Chip
-                          label={
-                            readyToDeliver
-                              ? "Ready for Delivery"
-                              : job.status.charAt(0).toUpperCase() +
-                                job.status.slice(1)
-                          }
-                          color={getStatusColor(job.status, readyToDeliver)}
-                          size="small"
-                          sx={{
-                            width: "100%",
-                            height: 20,
-                            "& .MuiChip-label": {
-                              px: 0.5,
-                            },
-                          }}
-                        />
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </Tooltip>
-              </Grid>
-            );
-          })}
-        </Grid>
-        {jobMatches.length > 1 && (
-          <Grid container sx={{ marginTop: 2 }}>
-            <Grid align="right" size={12}>
-              <Tooltip
-                title={
-                  jobLockReadOnly
-                    ? lockReasonText({ action: "bulk linking is disabled" })
-                    : jobMatches.length > jobSlots
-                      ? "Cannot link all jobs: Not enough job slots available"
-                      : "Click to link all available jobs at once"
-                }
-                arrow
-              >
-                <span>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleLinkAll}
-                    disabled={jobLockReadOnly || jobMatches.length > jobSlots}
-                    startIcon={<MdOutlineAddLink />}
-                  >
-                    Link All Jobs
-                  </Button>
-                </span>
-              </Tooltip>
-            </Grid>
+                  Link All Jobs
+                </Button>
+              </span>
+            </Tooltip>
           </Grid>
-        )}
-      </>
-    );
-  } else if (linkedCount >= jobSlots) {
-    return (
-      <Grid
-        align="center"
-        sx={{
-          marginTop: { xs: "20px", sm: "30px" },
-        }}
-        size={12}
-      >
-        <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-          You have linked the maximum number of jobs from the API, if you need
-          to link more increase the number of job slots used.
-        </Typography>
-      </Grid>
-    );
-  } else {
-    return (
-      <Grid
-        align="center"
-        sx={{
-          marginTop: { xs: "20px", sm: "30px" },
-        }}
-        size={12}
-      >
-        <Typography sx={{ typography: LARGE_TEXT_FORMAT }} align="center">
-          There are no matching industry jobs from the API that match this job.
-        </Typography>
-      </Grid>
-    );
-  }
+        </Grid>
+      )}
+    </>
+  );
+}
+
+/**
+ * @param {{children: import("react").ReactNode}} props
+ */
+function PanelMessage({ children }) {
+  return (
+    <Grid
+      align="center"
+      sx={{ marginTop: { xs: "20px", sm: "30px" } }}
+      size={12}
+    >
+      <Typography sx={{ typography: LARGE_TEXT_FORMAT }} align="center">
+        {children}
+      </Typography>
+    </Grid>
+  );
 }

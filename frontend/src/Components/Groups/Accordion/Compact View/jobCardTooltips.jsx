@@ -1,3 +1,4 @@
+import { finishesAt } from "../../../Edit Job/Edit Job Hooks/linkedRunSelectors";
 import {
   buildCostPerItem,
   esiJobIDs,
@@ -95,7 +96,7 @@ function getTooltipContent(job, now) {
 
 function timeUntilNextJobFinishes(job, now) {
   const next = job.nextRunToFinish;
-  return next ? formatTimeRemaining(next.finishesAt, { now }) : null;
+  return next ? formatTimeRemaining(finishesAt(next), { now }) : null;
 }
 
 export default getTooltipContent;
