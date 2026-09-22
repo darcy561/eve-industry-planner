@@ -26,17 +26,17 @@ them — as it now clears the fee row itself, which Stage 2 folds onto its order
 three being read. [plan.md](./plan.md) § Stage 1 says why. `materialPriceOverrides` and `localPricing`
 no longer do: Stage 2 moved them, below.
 
-## Stage 1b — The derived setup figures become derivations
+## Stage 1b — The derived setup figures
 
-*Not landed.* Split out of Stage 1, which had described all four as removals — see
+*Closed with nothing to do.* Split out of Stage 1, which had described all four as removals — see
 [plan.md](./plan.md) § Stage 1b.
 
 `estimatedTime` and `estimatedInstallCost` are already absent from the writers, so what remains for them
-is the stored residue the Stage 2 conversion clears. `materialCount` and `rawTime` are still persisted
-beside the fields they are derived from, and still read: the cost calculation and the time calculation
-consult them in both languages.
+is the stored residue the Stage 2 conversion clears. `materialCount` and `rawTime` stay stored: a setup
+is meant to be passable to a calculation on its own, `rawTime` cannot fall behind a snapshot that never
+changes, and Go has no material formula to derive `materialCount` from.
 
-Owed here: where each of the two is now derived from, and what a setup carries once neither is stored.
+Nothing is owed here beyond the conversion continuing not to prune those two.
 
 ## Stage 2 — The reshape, in the release window
 

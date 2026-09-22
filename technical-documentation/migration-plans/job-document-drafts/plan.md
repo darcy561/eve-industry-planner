@@ -412,10 +412,11 @@ sort parameter with it.
 
 ### Stored derived figures come out
 
-A setup stores `materialCount`, `estimatedTime`, `rawTime` and `estimatedInstallCost`, all recalculated
-from the run count, ME, structure and system index it sits beside. Stored, one changed run count has to
-write five paths, any of the four can disagree with its inputs, and two members can hold different
-values for a number neither of them chose.
+A setup used to store `materialCount`, `estimatedTime`, `rawTime` and `estimatedInstallCost`, all
+recalculated from the run count, ME, structure and system index it sits beside. Stored, one changed run
+count had to write five paths, any of the four could disagree with its inputs, and two members could hold
+different values for a number neither of them chose. Two are already gone from the writers and two are
+still stored — § Stage 1b measures which and why.
 
 `Material.quantity` already does this correctly — a getter over the setups' `materialCount`, absent from
 the document. That is the model.
@@ -442,6 +443,14 @@ that was run. The copy is the snapshot, and the snapshot is the point.
 `skills` is the same class and stays for the same reasons: it is the job's own record of what building it
 required, and `useGroupScheduler` reads `job.skills` off every job in a group to hand to
 `calculateTimeForSetup`.
+
+**The rule has a third qualification: a figure a calculation is handed on its own stays with it.** A
+setup is meant to be passable on its own — `calculateTimeForSetup`, `timeForSetup` and the material
+calculations all take a setup and nothing else.
+`rawTime` and `materialCount` stay stored for that reason, and § Stage 1b measures why removing either
+costs more than the duplication does. The rule reaches a figure when its inputs are in the document *and*
+the caller already holds them — `Material.quantity` is still the model, because a material is read from a
+job that holds its setups.
 
 ### The document splits by who writes it
 
@@ -954,7 +963,7 @@ need no upgrader — the writer stops writing them and stored copies age out.
 **A field nothing reads is what this stage is for.** Every field here is written and never consulted, so
 removing it changes no figure anywhere. Two groups were originally listed here and are not that:
 
-- **The derived setup figures.** Two no longer exist to remove and two are read — § Stage 1b.
+- **The derived setup figures.** Two no longer exist to remove and two are deliberately stored — § Stage 1b.
 - **`esiJobTab`, `setupToEdit` and `resourceDisplayType`**, per § `layout` stops existing. That section
   reasons about where each field belongs, which is right, and reads as though all three are unread,
   which is wrong. `setupToEdit` is read by `Job.selectedSetup` and `esiJobTab` by the building tab
@@ -976,7 +985,7 @@ Three more go with them, all found by the row-key gate: `ArchivedJobFeeLine.FeeI
 `buildFeeLines` and read by nothing, and the `complete` and `CharacterHash` fields stored broker fee rows
 carry that no model and no class reads.
 
-### Stage 1b — The derived setup figures become derivations
+### Stage 1b — The derived setup figures
 
 § Stored derived figures come out names four: `materialCount`, `estimatedTime`, `rawTime` and
 `estimatedInstallCost`. Against the code they are not one group, and none of them is the removal Stage 1
@@ -989,32 +998,53 @@ legacy copies do still sit, 45,385 setups' worth per [overlay.md](./overlay.md) 
 two the work is already done twice over: nothing writes them, and the conversion clears the residue.
 Nothing is owed here beyond not re-listing them as work.
 
-**The other two are read, and that is the whole of this stage.** `materialCount` backs
-`JobSetup.MaterialQuantity`, which `Job.MaterialRequirement` sums and `Job.TotalMaterialCost` and
-`Job.CostParts` are built on; in the SPA it backs `getMaterialQuantity` on `jobSetup.js` and is touched
-across 22 files. `rawTime` is the multiplicand in `calculateTimeForSetup`. Removing either means
-supplying its value from its inputs at every call site — `materialCount` from `rawData.materials` with
-the setup's ME and run count, `rawTime` from `rawData.time` — which is the model § Stored derived
-figures come out already names: `Material.quantity` is a getter over `materialCount`, absent from the
-document.
+**The other two are read, and they were costed as one piece of work.** Measured against the code after
+Stage 4 landed, they are not one piece of work, and neither should be done.
 
-**So this is a derivation stage, not a removal stage, and it is costed as one.** It changes what the
-cost calculation reads in both languages. It needs no release window, and it is worth taking with or
-just after Stage 4, where getters become functions and the same call sites are being converted anyway.
+**A setup is meant to be passable on its own, and that is why it carries these.** `calculateTimeForSetup`,
+`timeForSetup` and the material calculations all take a setup and nothing else. Both figures duplicate
+something reachable from the job, and that reads as redundancy only until the call sites are looked at:
+take either off the setup and every caller has to hand the parent job in beside it, coupling calculations
+that currently answer from one argument to the whole job they happen to belong to. The self-containment is
+the design.
 
-**The conversion must not run ahead of it, and once did.** Stage 2's `derivedSetupFields` listed all
-four, on the assumption — true when it was written — that Stage 1 would stop the writers first. Stage 1
-has since landed and deliberately did not, because two of the four are read. A `prepareRelease` run
-against dev converted 9,341 job documents and 9,270 archived jobs with the wider list, pruning
-`materialCount` and `rawTime` from every setup in them. A setup loaded without a `materialCount` reads
-as calling for no materials rather than as needing recalculation — `jobSetup.js` defaults it to `{}` and
-only `recalculateMaterials` refills it, which nothing calls on load — so `MaterialRequirement` returns
-zero, `countedPurchases` takes `min(ItemCount, 0)`, and every converted job's material cost computes as
-zero. The run was reverted from the release's own `_pre_0_9_0` copies.
+**`rawTime` stays.** `setupBuildHelpers.js` writes it as `job.rawData.time` and nothing changes it after,
+so it is a copy — but not one that can go stale, because `rawData` is a snapshot written when the job is
+created and never changed. Three SPA production files name it — the setup class, the time calculation
+and the helper that writes it — and Go declares the field and reads it nowhere. Removing it is reading
+`rawData.time` at the four sites that multiply by it, across `skillsTimeEffect.jsx`,
+`productionStats.jsx` and `useGroupScheduler.js` — which buys nothing and costs the coupling above.
 
-`derivedSetupFields` now holds only `estimatedTime` and `estimatedInstallCost`, the two nothing writes.
-The other two are removed from it by this stage, when their readers derive them instead — that
-ordering is the stage's precondition, not an implementation detail.
+**`materialCount` stays.** It is not a derivation from ME and run count, which is how § Stored derived
+figures come out describes it. It is the output of `calculateMaterialsForSetup`, which needs the setup's
+job type, run count, job count, ME, the structure it builds in, both rig slots and the system — through
+`manufacturingMaterialCalculation` or `reactionMaterialCalculation`, `getStructureInfoFromID` and
+`rigSlotBonuses`. Four SPA production files touch it: `jobSetup.js`, `jobSelectors.js`,
+`useMaterialsSourcing.js` and `installCosts.js`. **Go has none of that**: `services/` carries rig-slot
+release commands for stored data and no material formula at all, so deriving it server-side means porting
+both formulas and the structure, rig and system bonus tables the SPA holds — a second implementation of a
+rule this repo has only ever had one of. The cost of keeping it is that a setup's material list can fall
+behind its setup, which is what `recalculateMaterials` exists to stop and what the conversion that pruned
+it proved the hard way.
+
+So § Stored derived figures come out does not reach these two. It wants figures derived rather than stored
+where the derivation's inputs are in the document and the caller already holds them; neither condition
+holds here, and `Material.quantity` — a getter over the setups' `materialCount`, absent from the document
+— remains the model, because a material is read from a job that holds its setups. Should that change, a
+server needing a material requirement without asking the SPA, the options are a Go port of both formulas
+and their bonus tables, or moving the figure behind an API the SPA answers, and either is a stage of its
+own rather than a removal.
+
+**The conversion must not prune them, and once did.** Stage 2's `derivedSetupFields` listed all four, on
+the assumption — true when it was written — that Stage 1 would stop the writers first. Stage 1 has since
+landed and deliberately did not, because two of the four are read. A `prepareRelease` run against dev
+converted 9,341 job documents and 9,270 archived jobs with the wider list, pruning `materialCount` and
+`rawTime` from every setup in them. A setup loaded without a `materialCount` reads as calling for no
+materials rather than as needing recalculation — `jobSetup.js` defaults it to `{}` and only
+`recalculateMaterials` refills it, which nothing calls on load — so `MaterialRequirement` returns zero,
+`countedPurchases` takes `min(ItemCount, 0)`, and every converted job's material cost computes as zero.
+The run was reverted from the release's own `_pre_0_9_0` copies, and `derivedSetupFields` holds only
+`estimatedTime` and `estimatedInstallCost`.
 
 ### Stage 2 — The reshape, in the release window
 
@@ -1542,10 +1572,97 @@ being counted. Rendered as a child, a panel re-rendering itself off a badly chos
 — which is exactly the reading that would make an unconverted panel look converted, and it is the proof
 every step below leans on.
 
-### Stage 4 — Getters become functions, panel by panel
+### Stage 4 — Getters become functions
 
-Each converted panel drops its dependency on the lens. Incremental by construction, and the stage that
-can be paused without leaving anything half-built.
+Costed as a panel-by-panel conversion, and it is not one any more. Stage 3 took every panel off the
+lens: `jobLens` is reached by two controls on the Complete stage — the archive and the cost a finished
+job passes up to its parents — and by the two test harnesses, and by nothing else. What is left is the
+class itself, measured member by member in
+[measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-21.
+
+Three slices, in this order, because each shrinks the one after it.
+
+**4a — what nothing calls comes off.** Twenty members have no caller outside their own tests: the
+mutation methods Stage 3 replaced with commands, and the figures only those methods fed. This is not
+tidying — every one of them is a second way to change a job that the undo log does not see, and leaving
+them is how one gets called again. A member whose only reader is another member of the class stays, and
+stops being public.
+
+**What holds them in place is that the tests use the class as their oracle.** `jobCommands.test.js`
+runs each command and the class method of the same name over one job and compares the documents, through
+its own `agree` helper; `derivedFigures.test.js` asserts that each selector "agrees with the class". That
+is deliberate and it is why the conversion has been safe so far, but it means not one of the twenty can
+be deleted as unreferenced: the reference is the proof. So 4a is a decision before it is a deletion, and
+§ The oracle the tests are written against states it.
+
+`lastRunToFinish` is the one member with no reader at all, and it is **not** removed: it is named as an
+input by [building-stage-panels](../building-stage-panels/plan.md) § Stage C, beside `nextRunToFinish`,
+which the group job cards already read. Planned work is not dead code.
+
+**4b — the id lists become functions of the document.** `esiJobIDs`, `parentJobIDs`, `childJobIDs`,
+`materialIDs`, `esiOrderIDs`, `esiTransactionIDs`, `relatedJobIDs`, `setupSystemIDs` and
+`totalQuantityProduced` are each one line over stored fields, and between them they are most of the
+class's remaining reach — `totalQuantityProduced` alone is read at 35 sites. They convert as a group
+because they share a shape, and the call sites are mechanical.
+
+**4c — the figures with arithmetic in them.** `buildCost`, `totalInstallCost`, `buildCostPerItem`,
+`totalExtrasCost`, `totalInventionCost` and their internal summands. Each is read at three or four
+sites, so the risk is in the arithmetic rather than the breadth, and each is a selector with a test
+that pins the figure before it moves.
+
+Incremental by construction, and the stage that can be paused without leaving anything half-built —
+4a on its own is worth landing.
+
+**Stage 1b does not travel with this stage.** It was expected to, on the reading that `materialCount`
+and `rawTime` needed a derivation at the same call sites 4b and 4c convert. Measured against the code,
+both stay stored — § Stage 1b.
+
+#### What live SoT owes at promote
+
+[`frontend/technical-rules.md`](../../frontend/technical-rules.md) § Class members: getters and methods
+teaches the convention from `job.buildCost`, `job.childJobIDs`, `job.materialRequirement(typeID)` and
+`job.buildCostPerItem()`. Stage 4 removed all four, and the first two are functions in `jobSelectors.js`
+now. The section is not edited while this project runs; it is rewritten in the promotion drafts, and
+this is the note that stops it being missed — the promote checklist reads the project's own list, and a
+live doc the project never named is not on it.
+[`planning-stage-panels/promote/frontend/editjob/cost-breakdown.md`](../planning-stage-panels/promote/frontend/editjob/cost-breakdown.md)
+cites `job.buildCost` for the same reason and is a draft bound for the same place.
+
+#### A fixture that names a figure is a fixture nothing reads
+
+The defect 4b kept finding, in three separate bites and a dozen files: a test builds a job stub
+carrying the figure as a literal — `totalQuantityProduced: 40`, `materialIDs: [34]`,
+`relatedJobIDs: [...]`, `esiJobIDs: new Set()` — rather than the document shape a real job has. While
+the class had a getter of that name the stub was at least the same shape as the thing; once the figure
+is a function of `build.setup` or `build.childJobs`, the stub names nothing the code reads, and the
+selector answers zero or empty without the case noticing.
+
+Two of those cases were hiding a real defect rather than merely being inert. `pricesWanted.js` asked
+for the job's output on the buying side as well as the selling one, because `materialIDs` carried what
+the job makes as well as what it is made of; the fixtures that should have caught it named their
+materials as a flat array, so the loop ran over nothing. The fetch was wasted rather than read, so no
+figure was ever wrong on screen — but nothing in either test would have said so.
+
+The rule that follows, for 4c and for anything after it: **a stub stands in for a document, not for the
+class's surface.** When a conversion makes a fixture's assertion pass for a new reason, that is the
+finding, not a detail of the conversion.
+
+#### The oracle the tests are written against
+
+The class is what the commands and the selectors are proved against, so Stage 4 cannot remove it without
+saying what proves them instead. Two ways, and the stage takes the first.
+
+**Each assertion states its own expectation.** A parity assertion becomes the document, or the figure,
+written out. It is more to write and it is the only form that survives the class, so it is the one that
+matches where the project is going — Stage 5 deletes the class outright, and a test still comparing
+against it would have to be rewritten then anyway.
+
+**Or the class stays as a test-only oracle until Stage 5.** Cheaper now, and it keeps a proof that the
+new path and the old agree, which is worth something while the conversion is in flight. What it costs is
+that the class cannot shrink at all in Stage 4: every member stays reachable, and "unreferenced" stops
+meaning anything until the very end.
+
+Taking the first means 4a's work is mostly in the tests, and the deletions fall out of it.
 
 ### Stage 5 — `jobArray` goes plain and the lens is deleted
 
@@ -1562,7 +1679,7 @@ happened.
 |-------|--------|
 | Phase 1 — project folder and docs | **Done** |
 | Stage 1 — the removals | **Landed.** `Purchase.TypeID` and `ArchivedJobFeeLine.FeeID` are gone from the models, their writers and the parity fixtures. `complete` and `CharacterHash` on stored fee rows needed no code change — neither was on the broker fee in either language, so they are stored residue Stage 2's fold drops. `esiJobTab` / `setupToEdit` / `resourceDisplayType` are **deferred to Stage 3**, two of the three being read; § Stage 1 says why |
-| Stage 1b — derived setup figures become derivations | **Not started.** Split out of Stage 1, which had costed it as a removal it is not: `estimatedTime` and `estimatedInstallCost` no longer exist to remove, and `materialCount` and `rawTime` are read by the cost calculation in both languages, so each needs a derivation at its call sites. No window. Best taken with Stage 4. Stage 2's conversion no longer prunes the two that are read — § Stage 1b says what happened when it did |
+| Stage 1b — the derived setup figures | **Closed, nothing to do.** Split out of Stage 1, which had costed it as a removal it is not. `estimatedTime` and `estimatedInstallCost` no longer exist to remove. `materialCount` and `rawTime` are deliberately stored: a setup is meant to be passable on its own, `rawTime` cannot go stale against a snapshot, and Go has no material formula to derive `materialCount` from. Stage 2's conversion must not prune either — § Stage 1b says what happened when it did |
 | Stage 2 — the reshape, in the release window | **Landed, awaiting the window.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. All eight collections are keyed on both sides, the observations sit under `esi`, and the broker fee is folded onto its order. The SPA's `Job` constructor reads the pre-reshape paths as well, so a document written before the window still loads. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
 | Stage 3 — base, log, scratch and draft | **Landed — slices 1, 2, 2a, 3, 4 and every step of 5.** The layers hold a job and derive a draft; every way of changing a job is a command; two derived figures are selectors; a step can be taken back and put again; and the editor now runs on the store rather than its reducer, which is deleted. Immer is settled and declared, pinned to the version already resolved. §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape, and § Settled that an open editor follows the document. Measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20. Every panel that reads only stored fields reads them out of the
 store and is proved by its own render count — the document-lock hooks, the extras editor, the Complete
@@ -1570,7 +1687,7 @@ stage's buttons, the parent-link badge and body, five of Selling's, five of Plan
 Purchasing's and the three tutorial overlays. No file under the editor reads `state.activeJob`, where 52 did:
 the page has no prop-drilled session left, and an edit the frame reads nothing of
 re-renders nothing. Next: Stage 4 |
-| Stage 4 — getters become functions | Not started |
+| Stage 4 — getters become functions | **Landed.** Re-scoped first: Stage 3 took every panel off the lens, so the panel-by-panel conversion it was costed as no longer exists. 4a removed twenty members — every mutation method the commands replaced, the figures only those methods fed, and `totalSales`, which lost its last reader inside the class when `averageItemSalePrice` went. Nineteen of the twenty measured; `lastRunToFinish` stayed, being named as an input by another project, and `totalSales` came off in its place. `materialRequirement` stayed and became private. `Classes/job.js` is 1,076 lines, from 1,405. The work was in the tests: the class was their oracle, and each assertion now states its own expectation — § The oracle the tests are written against. 4b took all nine id lists, in three bites: `setupSystemIDs` and `materialIDs`, then the three ESI sets, then `parentJobIDs`, `childJobIDs`, `relatedJobIDs` and `totalQuantityProduced`. `Classes/job.js` is 985 lines, from 1,405. What the conversion kept finding is below. 4c took the cost figures — `totalInstallCost`, `totalExtrasCost`, `totalInventionCost`, `buildCost` and `buildCostPerItem` — whose production reach was seven files, most of what looked like a call site being a JSDoc name or a figure on something that is not a job. `Classes/job.js` is 919 lines, from 1,405. What is left on the class is the four summands only its own members read, `totalCostPerItem`, and the mutation methods with live callers, which are Stage 5's. The measurement the three slices were cut from: [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-21 |
 | Stage 5 — `jobArray` goes plain | Not started |
 
 ## Settled

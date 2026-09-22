@@ -226,3 +226,124 @@ arriving mid-edit depend on:
 `new Job(existing)` deep-rebuilds rather than sharing nested objects, confirmed by mutating a clone and
 asserting the original: the `backupJob` ref guards against the mutation sites above, not against the
 reducer's own clones.
+
+## Re-measured 2026-09-21, before Stage 4
+
+Stage 3 moved every way of changing a job onto a command, and the page onto plain data. What that left
+on `Job` had not been counted. Every member of the class, against the whole SPA — a caller under
+`Classes/job.js` itself is counted separately, because a member only its own neighbours read is not a
+surface anything outside has to be converted off.
+
+Counted with `grep -rn '\.<member>\b'` over `frontend/src`, splitting production from
+`*.test.*` and `tests/`. `toDocument` is left out: it is the counterpart of `buildJob` rather than a
+derived figure or a mutation, and § What happens to the classes keeps it.
+
+| Member | Kind | Production | Inside `job.js` | Tests |
+|---|---|---:|---:|---:|
+| `totalQuantityProduced` | getter | 35 | 2 | 5 |
+| `esiJobIDs` | getter | 11 | 2 | 9 |
+| `parentJobIDs` | getter | 9 | 1 | 1 |
+| `esiOrderIDs` | getter | 9 | 0 | 6 |
+| `removeParentJob` | method | 9 | 0 | 2 |
+| `esiTransactionIDs` | getter | 8 | 0 | 3 |
+| `removeChildJob` | method | 8 | 0 | 8 |
+| `addChildJob` | method | 7 | 0 | 4 |
+| `materialIDs` | getter | 7 | 0 | 7 |
+| `isReadyToBuild` | getter | 6 | 1 | 6 |
+| `addParentJob` | method | 6 | 0 | 4 |
+| `setupCount` | getter | 6 | 0 | 2 |
+| `childJobIDs` | getter | 5 | 1 | 1 |
+| `totalExtrasCost` | getter | 5 | 1 | 5 |
+| `totalInstallCost` | getter | 4 | 1 | 17 |
+| `assignToGroup` | method | 4 | 0 | 2 |
+| `buildCost` | getter | 3 | 2 | 14 |
+| `completedMaterialCount` | getter | 3 | 1 | 4 |
+| `buildCostPerItem` | method | 3 | 0 | 8 |
+| `totalBoughtMaterialCost` | getter | 3 | 0 | 1 |
+| `totalInventionCost` | getter | 2 | 1 | 9 |
+| `involvedCharacters` | getter | 2 | 0 | 1 |
+| `keepOnlyChildJobs` | method | 2 | 0 | 2 |
+| `keepOnlyParentJobs` | method | 2 | 0 | 2 |
+| `nextRunToFinish` | getter | 2 | 0 | 2 |
+| `relatedJobIDs` | getter | 2 | 0 | 1 |
+| `totalCostPerItem` | method | 2 | 0 | 5 |
+| `totalJobSlots` | getter | 2 | 0 | 4 |
+| `attachNewSetupToJob` | method | 1 | 1 | 7 |
+| `selectedSetup` | getter | 1 | 1 | 4 |
+| `setupToBuildFrom` | getter | 1 | 1 | 4 |
+| `importPurchaseToMaterial` | method | 1 | 0 | 24 |
+| `isReadyToStart` | getter | 1 | 0 | 1 |
+| `recalculateSelectedSetup` | method | 1 | 0 | 2 |
+| `releaseFromGroupToPlanner` | method | 1 | 0 | 2 |
+| `remainingMaterialCount` | getter | 1 | 0 | 1 |
+| `setJobStatus` | method | 1 | 0 | 4 |
+| `setupSystemIDs` | getter | 1 | 0 | 1 |
+| `stepBackward` | method | 1 | 0 | 1 |
+| `stepForward` | method | 1 | 0 | 2 |
+| `materialRequirement` | method | 0 | 3 | 1 |
+| `totalBrokersFees` | getter | 0 | 1 | 14 |
+| `totalCost` | getter | 0 | 1 | 4 |
+| `totalMaterialCost` | getter | 0 | 1 | 12 |
+| `totalSales` | getter | 0 | 1 | 8 |
+| `totalTransactionFees` | getter | 0 | 1 | 7 |
+| `addExtrasCost` | method | 0 | 0 | 4 |
+| `addInventionCost` | method | 0 | 0 | 10 |
+| `addMarketOrder` | method | 0 | 0 | 10 |
+| `addNewSetup` | method | 0 | 0 | 1 |
+| `addTransaction` | method | 0 | 0 | 13 |
+| `averageItemSalePrice` | method | 0 | 0 | 4 |
+| `deleteActiveSetup` | method | 0 | 0 | 4 |
+| `estimatedSalesTaxOutstanding` | getter | 0 | 0 | 5 |
+| `lastRunToFinish` | getter | 0 | 0 | 0 |
+| `linkESIJob` | method | 0 | 0 | 16 |
+| `removeExtrasCost` | method | 0 | 0 | 3 |
+| `removeInventionCost` | method | 0 | 0 | 6 |
+| `removeMarketOrder` | method | 0 | 0 | 4 |
+| `removeMaterialPurchase` | method | 0 | 0 | 4 |
+| `removeTransaction` | method | 0 | 0 | 2 |
+| `salesByDate` | getter | 0 | 0 | 2 |
+| `setSellingPlan` | method | 0 | 0 | 6 |
+| `toggleGroupJobReadyForSale` | method | 0 | 0 | 4 |
+| `unlinkESIJob` | method | 0 | 0 | 5 |
+| `updateLinkedJobData` | method | 0 | 0 | 3 |
+
+### What the counts say
+
+**Twenty members have no caller at all outside their own tests.** They are the mutation methods Stage 3
+replaced with commands — `linkESIJob`, `addTransaction`, `addMarketOrder`, `setSellingPlan`,
+`deleteActiveSetup` and the rest — plus the figures only those methods fed. Nothing in the running app
+reaches any of them.
+
+**Six more are read only by their own neighbours**: `totalCost`, `totalBrokersFees`,
+`totalTransactionFees`, `totalSales`, `totalMaterialCost` and `materialRequirement` are each summed by a
+getter that does have callers, so they are internal arithmetic rather than a surface.
+
+**The reach that is left is narrow and mostly id lists.** `totalQuantityProduced` at 35 sites is the
+widest by a distance; after it come `esiJobIDs`, `parentJobIDs`, `esiOrderIDs`, `materialIDs` and
+`childJobIDs` — all of them one line over stored fields. The heavy derived figures the stage was costed
+for — `buildCost`, `totalInstallCost`, `buildCostPerItem` — are each read at three or four sites.
+
+**The test counts are the work.** `linkESIJob` is named at sixteen test sites and `totalBrokersFees` at
+fourteen, and those tests are where several rules are proven at all. A member cannot be deleted before
+what it proves is proven of the command or the function that replaced it.
+
+### What Stage 4 removed, measured afterwards
+
+The table above is the surface as it stood before the stage. Against it, 4a removed twenty members,
+4b nine id lists, and 4c five cost figures — thirty-four in all. `Classes/job.js` went from 1,405
+lines to 919.
+
+`lastRunToFinish` is the one member measured as having no caller that stays: it is named as an input
+by [building-stage-panels](../../building-stage-panels/plan.md) § Stage C. `materialRequirement` and
+`#costPerItem` stay and are private, being read only by their own neighbours.
+
+What is left is more than the summands. The four nothing outside the class reads —
+`totalMaterialCost`, `totalBrokersFees`, `totalTransactionFees` and `totalCost` — plus
+`totalCostPerItem`, the counts and flags the planner and group cards still read off an instance
+(`setupCount`, `completedMaterialCount`, `totalJobSlots`, `remainingMaterialCount`,
+`totalBoughtMaterialCost`, `isReadyToBuild`, `isReadyToStart`), the setup and run reads
+(`selectedSetup`, `setupToBuildFrom`, `nextRunToFinish`, `lastRunToFinish`, `involvedCharacters`), and
+the mutation methods that still have production callers through `jobArray`. Every figure among them is
+a one-line read of the selector that owns it rather than a second sum. They go with the class itself,
+in Stage 5.
+
