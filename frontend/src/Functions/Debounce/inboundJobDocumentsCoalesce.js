@@ -44,7 +44,7 @@ function maybeRegisterInboundNewJobSkeleton(docID, document) {
   if (jobArray.some((j) => j.jobID === docID)) {
     return;
   }
-  if (pendingJobDocumentWrites.includes(docID)) {
+  if (docID in (pendingJobDocumentWrites ?? {})) {
     return;
   }
   const stageId = Number(document.jobStatus ?? 0);

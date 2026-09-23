@@ -12,7 +12,7 @@ function actions() {
 }
 
 function queued() {
-  return useUsersStore.getState().jobData.pendingJobDocumentWrites;
+  return Object.keys(useUsersStore.getState().jobData.pendingJobDocumentWrites);
 }
 
 describe("queueing job documents for the next save", () => {
@@ -131,5 +131,73 @@ describe("queueing job documents for the next save", () => {
     actions().replaceJobArray([]);
 
     expect(queued()).toEqual(["job-1"]);
+  });
+});
+
+// A write carries the fields the reader changed when the queue knows them, and
+// the whole document when it does not. Which of the two a job gets is decided
+// here, at the moment it is queued.
+describe("what a queued write knows about its changes", () => {
+  beforeEach(() => {
+    actions().clearPendingJobDocumentWrites();
+  });
+
+  function changesFor(jobID) {
+    return useUsersStore.getState().jobData.pendingJobDocumentWrites[jobID];
+  }
+
+  const entry = (path) => ({ patches: [{ op: "replace", path }] });
+
+  it("keeps the entries a write was queued against", () => {
+    actions().queueJobDocumentChanges({ "job-1": [entry(["name"])] });
+
+    expect(changesFor("job-1")).toEqual([entry(["name"])]);
+  });
+
+  it("has none for a change nothing recorded", () => {
+    actions().queueJobDocumentWrites("job-1");
+
+    expect(changesFor("job-1")).toBeNull();
+  });
+
+  it("gathers the entries of two writes to one job", () => {
+    actions().queueJobDocumentChanges({ "job-1": [entry(["name"])] });
+    actions().queueJobDocumentChanges({ "job-1": [entry(["jobStatus"])] });
+
+    expect(changesFor("job-1")).toEqual([
+      entry(["name"]),
+      entry(["jobStatus"]),
+    ]);
+  });
+
+  // A write that cannot say what changed covers the whole document, and one
+  // that can say does not narrow it back — the fields it does not name would
+  // stop being written.
+  it("stays whole once a write with no entries joins it", () => {
+    actions().queueJobDocumentChanges({ "job-1": [entry(["name"])] });
+    actions().queueJobDocumentWrites("job-1");
+    actions().queueJobDocumentChanges({ "job-1": [entry(["jobStatus"])] });
+
+    expect(changesFor("job-1")).toBeNull();
+  });
+
+  it("writes the whole document for a job the close did not edit", () => {
+    actions().queueJobDocumentWritesFromJobs(
+      [{ jobID: "job-edited" }, { jobID: "job-resized" }],
+      { "job-edited": [entry(["name"])] },
+    );
+
+    expect(changesFor("job-edited")).toEqual([entry(["name"])]);
+    expect(changesFor("job-resized")).toBeNull();
+  });
+
+  it("forgets a job's changes once its write has gone", () => {
+    actions().queueJobDocumentChanges({
+      "job-1": [entry(["name"])],
+      "job-2": [entry(["name"])],
+    });
+    actions().clearPendingJobDocumentWrites("job-1");
+
+    expect(queued()).toEqual(["job-2"]);
   });
 });

@@ -49,17 +49,21 @@ type conditionalJobWrite struct {
 //
 // A job carrying no revision is written unconditionally, which is what lets a
 // client that does not yet send one keep working.
-func (d *Docs) BulkUpsertJobs(ctx context.Context, owner models.Owner, accountID string, jobs []models.Job, now time.Time, sessionID, wsClientID string) (*mongo.BulkWriteResult, int, []RevisionConflict, error) {
+//
+// The jobs it could not write are named rather than counted, because a caller
+// answering a partly refused batch has to tell the client which documents it
+// must stop believing it saved, and a total cannot say that.
+func (d *Docs) BulkUpsertJobs(ctx context.Context, owner models.Owner, accountID string, jobs []models.Job, now time.Time, sessionID, wsClientID string) (*mongo.BulkWriteResult, []string, []RevisionConflict, error) {
 	coll, err := d.requireColl()
 	if err != nil || accountID == "" || owner.IsZero() {
-		return nil, 0, nil, fmt.Errorf("BulkUpsertJobs: invalid arguments")
+		return nil, nil, nil, fmt.Errorf("BulkUpsertJobs: invalid arguments")
 	}
 	bulkOps := make([]mongo.WriteModel, 0, len(jobs))
 	conditional := make([]conditionalJobWrite, 0, len(jobs))
-	failedCount := 0
+	var failed []string
 	for _, job := range jobs {
 		if job.JobID == "" {
-			failedCount++
+			failed = append(failed, job.JobID)
 			continue
 		}
 		expected := job.MetaData.Revision
@@ -69,7 +73,7 @@ func (d *Docs) BulkUpsertJobs(ctx context.Context, owner models.Owner, accountID
 		ApplyMetaSessionClient(&job.MetaData.MetaData, sessionID, wsClientID)
 		update, uerr := SetDocumentWithRevision(job, JobDocumentsUpsertUnset)
 		if uerr != nil {
-			failedCount++
+			failed = append(failed, job.JobID)
 			continue
 		}
 		if expected > 0 {
@@ -87,13 +91,13 @@ func (d *Docs) BulkUpsertJobs(ctx context.Context, owner models.Owner, accountID
 			return opErr
 		})
 		if err != nil {
-			return nil, failedCount, nil, err
+			return nil, failed, nil, err
 		}
 	}
 
 	conflicts, applied, cerr := d.applyConditionalWrites(ctx, owner, conditional)
 	if cerr != nil {
-		return result, failedCount, nil, cerr
+		return result, failed, nil, cerr
 	}
 	if result == nil {
 		result = &mongo.BulkWriteResult{}
@@ -101,9 +105,9 @@ func (d *Docs) BulkUpsertJobs(ctx context.Context, owner models.Owner, accountID
 	result.MatchedCount += applied
 	result.ModifiedCount += applied
 	if len(bulkOps) == 0 && len(conditional) == 0 {
-		return nil, failedCount, nil, nil
+		return nil, failed, nil, nil
 	}
-	return result, failedCount, conflicts, nil
+	return result, failed, conflicts, nil
 }
 
 // applyConditionalWrites issues each conditional write on its own and reports the

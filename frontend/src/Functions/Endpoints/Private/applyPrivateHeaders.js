@@ -18,6 +18,7 @@ import {
 import {
   applyLockHeldElsewhereFromApiBody,
   parseLockHeldElsewhereBody,
+  parseLockHeldElsewhereSaved,
 } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 import {
@@ -71,6 +72,10 @@ function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
     // a batch can now write part of itself, so a caller holding a queue keeps
     // the held ids and drops the rest rather than keeping all of them.
     err.lockHeldDocIDs = parseLockHeldElsewhereBody(text);
+    // Which documents the batch did write. A caller cannot work that out from
+    // the held ids: this answer is given whenever anything was held, so a
+    // document the same batch refused on its revision is named nowhere in it.
+    err.savedDocIDs = parseLockHeldElsewhereSaved(text);
     throw err;
   }
   if (res.status === 409) {
@@ -340,6 +345,7 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
 
   /** @type {PromiseSettledResult<unknown>[]} */
   const settled = [];
+  const delivered = [];
 
   for (const chunk of chunks) {
     try {
@@ -358,6 +364,7 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
         const data = await res.json();
         const rows = Array.isArray(data) ? data : [];
         settled.push({ status: "fulfilled", value: rows });
+        delivered.push(...chunk);
         continue;
       }
 
@@ -366,8 +373,16 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
         throwNonOkPrivateResponse(res, methodLabel, URL, text, errorLabel);
       }
       settled.push({ status: "fulfilled", value: res });
+      delivered.push(...chunk);
     } catch (reason) {
       settled.push({ status: "rejected", reason });
+      // What the earlier chunks delivered travels on the error. A refusal
+      // answers the one request it came from and says nothing about the
+      // requests before it, so a caller reconciling what it sent would leave
+      // work that already landed owed and send it again.
+      if (reason && typeof reason === "object" && !reason.deliveredBatchItems) {
+        reason.deliveredBatchItems = delivered;
+      }
       if (failure === "first") {
         throw reason;
       }

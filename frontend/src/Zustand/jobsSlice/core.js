@@ -66,7 +66,7 @@ export const coreActions = (set, get) => ({
           ...state.jobData,
           jobArray: jobArray || [],
           ...(opts.owner === undefined ? {} : { owner: opts.owner }),
-          ...(fromServer ? { pendingJobDocumentWrites: [] } : {}),
+          ...(fromServer ? { pendingJobDocumentWrites: {} } : {}),
         },
       }),
       false,

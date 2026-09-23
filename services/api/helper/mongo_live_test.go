@@ -110,8 +110,8 @@ func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BulkUpsertJobs: %v", err)
 	}
-	if failed != 0 || result == nil {
-		t.Fatalf("BulkUpsertJobs: failed=%d result=%v", failed, result)
+	if len(failed) != 0 || result == nil {
+		t.Fatalf("BulkUpsertJobs: failed=%d result=%v", len(failed), result)
 	}
 	if result.UpsertedCount+result.ModifiedCount < 1 {
 		t.Fatalf("BulkUpsertJobs: expected write, got %+v", result)
@@ -292,8 +292,8 @@ func TestLive_JobDocumentsDeleteFlow(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	job := scratchJob(fmt.Sprintf("eip-api-live-del-job-%d", now.UnixNano()), "eip-api-live-del")
-	if _, failed, _, err := m.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(apiLiveScratchAccount), apiLiveScratchAccount, []models.Job{job}, now, "api-live-sess", "api-live-client"); err != nil || failed != 0 {
-		t.Fatalf("seed BulkUpsertJobs: failed=%d err=%v", failed, err)
+	if _, failed, _, err := m.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(apiLiveScratchAccount), apiLiveScratchAccount, []models.Job{job}, now, "api-live-sess", "api-live-client"); err != nil || len(failed) != 0 {
+		t.Fatalf("seed BulkUpsertJobs: failed=%d err=%v", len(failed), err)
 	}
 
 	filter := bson.M{
@@ -365,8 +365,8 @@ func TestLive_JobsGroupsListFlows(t *testing.T) {
 	jobB := scratchJob(fmt.Sprintf("eip-api-live-list-b-%d", now.UnixNano()), "list-b")
 	group := scratchGroup(fmt.Sprintf("eip-api-live-list-g-%d", now.UnixNano()), "list-group")
 
-	if _, failed, _, err := m.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(apiLiveScratchAccount), apiLiveScratchAccount, []models.Job{jobA, jobB}, now, "api-live-sess", "api-live-client"); err != nil || failed != 0 {
-		t.Fatalf("BulkUpsertJobs: failed=%d err=%v", failed, err)
+	if _, failed, _, err := m.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(apiLiveScratchAccount), apiLiveScratchAccount, []models.Job{jobA, jobB}, now, "api-live-sess", "api-live-client"); err != nil || len(failed) != 0 {
+		t.Fatalf("BulkUpsertJobs: failed=%d err=%v", len(failed), err)
 	}
 	if _, err := m.Groups.BulkUpsertGroups(ctx, models.AccountOwner(apiLiveScratchAccount), apiLiveScratchAccount, []models.Group{group}, now, "api-live-sess", "api-live-client"); err != nil {
 		t.Fatalf("BulkUpsertGroups: %v", err)

@@ -7,6 +7,7 @@ import (
 	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 type Handlers struct {
@@ -96,4 +97,32 @@ func refusalFor(heldCount, conflictCount int) writeRefusal {
 	default:
 		return refusalNone
 	}
+}
+
+// writtenJobIDs names the documents the batch actually wrote.
+//
+// A batch answers with one refusal, so a client cannot work this out by taking
+// the documents it was told about away from the ones it sent: a batch holding
+// one document and refusing another on its revision says only that something was
+// held, and the refused one would be counted as written.
+func writtenJobIDs(sent []models.Job, failed []string, conflicts []eipmongo.RevisionConflict) []string {
+	missed := make(map[string]struct{}, len(failed)+len(conflicts))
+	for _, jobID := range failed {
+		missed[jobID] = struct{}{}
+	}
+	for _, conflict := range conflicts {
+		missed[conflict.JobID] = struct{}{}
+	}
+
+	written := make([]string, 0, len(sent))
+	for _, job := range sent {
+		if job.JobID == "" {
+			continue
+		}
+		if _, refused := missed[job.JobID]; refused {
+			continue
+		}
+		written = append(written, job.JobID)
+	}
+	return written
 }

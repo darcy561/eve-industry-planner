@@ -1,7 +1,7 @@
 import useUsersStore from "../../../Zustand/usersStore";
 import closeActiveJob from "../../../Functions/JobPlanner/closeActiveJob";
 import { jobDraftNow } from "./useJobDraft";
-import { hasChanges } from "./jobDraftStore";
+import { entriesFor, hasChanges } from "./jobDraftStore";
 
 /**
  * Saves the job the editor holds, and ends the session.
@@ -17,8 +17,13 @@ import { hasChanges } from "./jobDraftStore";
  * @returns {Promise<void>}
  */
 export async function saveOpenJob(queryClient) {
-  const { draft, temporaryChildJobs, esiDataToLink, parentChildToEdit } =
-    useUsersStore.getState().editSession;
+  const {
+    draft,
+    activeJobID,
+    temporaryChildJobs,
+    esiDataToLink,
+    parentChildToEdit,
+  } = useUsersStore.getState().editSession;
 
   await closeActiveJob(
     jobDraftNow(),
@@ -27,5 +32,6 @@ export async function saveOpenJob(queryClient) {
     esiDataToLink,
     parentChildToEdit,
     queryClient,
+    entriesFor(draft, activeJobID),
   );
 }

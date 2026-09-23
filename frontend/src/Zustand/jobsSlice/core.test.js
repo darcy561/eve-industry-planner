@@ -66,7 +66,7 @@ describe("the planner's jobs", () => {
       pendingInboundNewJobSkeletonByJobId: {},
       groupArray: [],
       pendingJobGroupWrites: [],
-      pendingJobDocumentWrites: [],
+      pendingJobDocumentWrites: {},
       activeGroupID: null,
       userWatchlist: { groups: [], items: [] },
     });

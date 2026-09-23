@@ -9,6 +9,10 @@
     "error": "revision_conflict",
     "collection": "job_documents",
     "saved": 2,
+    "savedDocIDs": [
+      "job-1",
+      "job-3"
+    ],
     "rejected": [
       {
         "docID": "job-moved",
@@ -31,6 +35,7 @@
     "rejected[].docID": "The job id the client sent, not the owner-scoped stored id. Named docID to match every other document-scoped payload, including the lock conflict this endpoint also answers.",
     "rejected[].expected": "The revision the client's write named in its filter.",
     "rejected[].current": "The revision the document carries now, for the client to reconcile against. Zero when the document is gone.",
-    "rejected[].gone": "The document no longer exists, so there is nothing to reconcile against. Always present, including when false, because a client branches on it and an absent flag would be one more state to decide about."
+    "rejected[].gone": "The document no longer exists, so there is nothing to reconcile against. Always present, including when false, because a client branches on it and an absent flag would be one more state to decide about.",
+    "savedDocIDs": "Which documents landed, by the same job id `rejected[].docID` uses. A count cannot answer this: one batch can hold a document and refuse another on its revision, and a response states one refusal, so a client working out what wrote by taking the refusals away from what it sent would count a document that never landed. Always present, empty when nothing wrote."
   }
 }

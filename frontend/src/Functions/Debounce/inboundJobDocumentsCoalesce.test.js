@@ -7,7 +7,7 @@ const updateOrAddJobsToJobArray = vi.fn();
 const removeJobsFromJobArray = vi.fn();
 storeState.account.isLoggedIn = true;
 storeState.jobData.jobArray = [];
-storeState.jobData.pendingJobDocumentWrites = [];
+storeState.jobData.pendingJobDocumentWrites = {};
 storeState.jobData.actions = {
   ...storeState.jobData.actions,
   updateOrAddJobsToJobArray,

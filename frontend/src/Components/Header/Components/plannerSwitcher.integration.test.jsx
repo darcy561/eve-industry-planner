@@ -124,7 +124,7 @@ beforeEach(() => {
   state.jobData.owner = OWN;
   state.jobData.jobArray = [];
   state.jobData.groupArray = [];
-  state.jobData.pendingJobDocumentWrites = [];
+  state.jobData.pendingJobDocumentWrites = {};
   state.jobData.pendingJobGroupWrites = [];
 
   global.fetch = vi.fn(async (url, options = {}) => {

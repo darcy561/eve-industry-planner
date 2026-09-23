@@ -218,8 +218,8 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 	holder.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		strconv.Itoa(contested): {JobID: contested},
 	}
-	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, []models.Job{holder}, now, "sess-3", ""); err != nil || failed > 0 {
-		t.Fatalf("seed holder job: %v, failed %d", err, failed)
+	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, []models.Job{holder}, now, "sess-3", ""); err != nil || len(failed) > 0 {
+		t.Fatalf("seed holder job: %v, failed %d", err, len(failed))
 	}
 
 	archived := seedJob("job-restore-contested")

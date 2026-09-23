@@ -92,8 +92,8 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 	// conditional write to be conditional on.
 	if _, failed, _, writeErr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, req.Archive.Owner, req.AccountID, req.Jobs, now, req.SessionID, req.WSClientID); writeErr != nil {
 		return restoreResult{}, fmt.Errorf("write job documents: %w", writeErr)
-	} else if failed > 0 {
-		return restoreResult{}, fmt.Errorf("write job documents: %d of %d rejected", failed, len(req.Jobs))
+	} else if len(failed) > 0 {
+		return restoreResult{}, fmt.Errorf("write job documents: %d of %d rejected", len(failed), len(req.Jobs))
 	}
 
 	if req.Archive.relinksESI {

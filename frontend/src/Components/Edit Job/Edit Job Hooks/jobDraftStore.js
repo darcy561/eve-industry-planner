@@ -293,6 +293,21 @@ export function hasChanges(state, jobID) {
   return state.log.some((entry) => entry.jobID === jobID);
 }
 
+/**
+ * What the reader changed to this job, oldest first.
+ *
+ * A write is built from these rather than from a comparison of two documents,
+ * so a job with no entries here had nothing recorded and its write carries the
+ * whole document.
+ *
+ * @param {DraftState} state
+ * @param {string} jobID
+ * @returns {Array<DraftEntry>}
+ */
+export function entriesFor(state, jobID) {
+  return state.log.filter((entry) => entry.jobID === jobID);
+}
+
 /** @param {DraftState} state @returns {Array<string>} Jobs the log changed */
 export function changedJobIDs(state) {
   return [...new Set(state.log.map((entry) => entry.jobID))];

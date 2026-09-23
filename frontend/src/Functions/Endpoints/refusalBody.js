@@ -41,6 +41,13 @@ export function parseRefusalBody(text, errorCode, mapRow) {
     // How many of the batch still landed. A refusal does not mean nothing
     // happened, and a caller that treats it that way re-sends what was written.
     saved: typeof body.saved === "number" ? body.saved : 0,
+    // Which documents landed, rather than how many. One batch can hold a
+    // document and refuse another on its revision, and a response states one
+    // refusal — so a caller taking the refusals away from what it sent would
+    // count a document that never landed.
+    savedDocIDs: Array.isArray(body.savedDocIDs)
+      ? body.savedDocIDs.filter((id) => typeof id === "string" && id !== "")
+      : [],
     rejected: rows,
   };
 }

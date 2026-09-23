@@ -18,10 +18,11 @@ type writeConflictCorpus struct {
 		LockHeldElsewhere string `json:"lockHeldElsewhere"`
 	} `json:"errorCodes"`
 	Body struct {
-		Error      string `json:"error"`
-		Collection string `json:"collection"`
-		Saved      int    `json:"saved"`
-		Rejected   []struct {
+		Error       string   `json:"error"`
+		Collection  string   `json:"collection"`
+		Saved       int      `json:"saved"`
+		SavedDocIDs []string `json:"savedDocIDs"`
+		Rejected    []struct {
 			DocID    string `json:"docID"`
 			Expected int64  `json:"expected"`
 			Current  int64  `json:"current"`
@@ -77,7 +78,7 @@ func TestRevisionConflictBodyMatchesTheCorpus(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/api/v1/job-documents", nil)
-	RespondRevisionConflictJSON(rec, req, corpus.Body.Collection, corpus.Body.Saved, conflicts)
+	RespondRevisionConflictJSON(rec, req, corpus.Body.Collection, corpus.Body.Saved, corpus.Body.SavedDocIDs, conflicts)
 
 	if rec.Code != 409 {
 		t.Fatalf("status = %d, want 409", rec.Code)

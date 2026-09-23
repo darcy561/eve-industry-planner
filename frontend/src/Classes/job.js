@@ -204,6 +204,13 @@ class Job {
       createdAt: itemJson?._meta?.createdAt || new Date().toISOString(),
       lastUpdatedBy: itemJson?._meta?.lastUpdatedBy || accountID || "",
     };
+    // The revision is the server's count of writes to this document, and a write
+    // carrying one is only made if the document is still at it. A job built from
+    // anything but a stored document has none, and its write is a create — so it
+    // is carried when it is there and absent when it is not, never defaulted.
+    if (itemJson?._meta && "revision" in itemJson._meta) {
+      this._meta.revision = itemJson._meta.revision;
+    }
   }
 
   /**

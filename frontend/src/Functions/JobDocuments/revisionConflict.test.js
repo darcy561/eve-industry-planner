@@ -22,6 +22,7 @@ describe("parseRevisionConflictBody", () => {
     expect(parsed).toEqual({
       collection: "job_documents",
       saved: 2,
+      savedDocIDs: [],
       rejected: [{ docID: "job-1", expected: 4, current: 9, gone: false }],
     });
   });

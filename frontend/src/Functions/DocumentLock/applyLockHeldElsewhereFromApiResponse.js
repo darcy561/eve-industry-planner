@@ -27,6 +27,22 @@ export function parseLockHeldElsewhereBody(text) {
 }
 
 /**
+ * The documents a partly refused batch wrote, as the body names them.
+ *
+ * @param {string} text - Raw response body (already read from `Response`).
+ * @returns {Array<string>}
+ */
+export function parseLockHeldElsewhereSaved(text) {
+  return (
+    parseRefusalBody(
+      text,
+      DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE,
+      (row) => refusalRowDocID(row) || null,
+    )?.savedDocIDs ?? []
+  );
+}
+
+/**
  * Parses a 409 response body and patches document-lock scopes for each `rejected` row.
  * @param {string} text - Raw response body (already read from `Response`).
  * @returns {boolean} true if this was a structured lock conflict and scopes were updated.

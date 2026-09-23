@@ -34,6 +34,7 @@ describe("the refused-write body", () => {
     expect(parsed).not.toBeNull();
     expect(parsed.collection).toBe(corpus.body.collection);
     expect(parsed.saved).toBe(corpus.body.saved);
+    expect(parsed.savedDocIDs).toEqual(corpus.body.savedDocIDs);
     expect(parsed.rejected).toHaveLength(corpus.body.rejected.length);
   });
 

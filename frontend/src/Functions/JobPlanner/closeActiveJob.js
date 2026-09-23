@@ -24,6 +24,7 @@ export default async function closeActiveJob(
   esiDataToLink,
   parentChildToEdit,
   queryClient,
+  changesToEditedJob,
 ) {
   // The job the editor showed is frozen, and closing rewrites it: links are
   // repaired, the tree is recalculated, the group flags are set. So the save
@@ -164,7 +165,15 @@ export default async function closeActiveJob(
     // refused, blocked and failed alike, because none of them saved anything.
     // An unrecognised answer is treated as saved rather than as failure, so a
     // caller that resolves nothing is not reported as an error.
-    const outcome = await saveJobsViaApi(jobsToPersist);
+    // Only the edited job has a log behind it. Everything else this close
+    // writes — a job it linked, repaired or resized, and a child it created —
+    // was changed outside the editor, so its write carries the whole document.
+    const outcome = await saveJobsViaApi(
+      jobsToPersist,
+      changesToEditedJob?.length
+        ? { [inputJob.jobID]: changesToEditedJob }
+        : undefined,
+    );
     saveRefused =
       outcome === "conflict" || outcome === "locked" || outcome === "failed";
   }

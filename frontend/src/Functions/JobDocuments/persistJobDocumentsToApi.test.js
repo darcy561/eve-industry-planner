@@ -20,7 +20,7 @@ const { persistJobDocumentsToApi } =
   await import("./persistJobDocumentsToApi.js");
 
 function queued() {
-  return useUsersStore.getState().jobData.pendingJobDocumentWrites;
+  return Object.keys(useUsersStore.getState().jobData.pendingJobDocumentWrites);
 }
 
 /** Queues one job id with a document behind it, as a real edit would. */
@@ -35,17 +35,42 @@ function queueOneJob(jobID = "job-1") {
     ]);
 }
 
-function lockConflictError(docIDs) {
+/** Queues several jobs, each holding the revision it was delivered at. */
+function queueJobsAtRevisions(revisions) {
+  useUsersStore.setState((state) => ({
+    account: { ...state.account, isLoggedIn: true },
+  }));
+  const jobs = Object.entries(revisions).map(([jobID, revision]) => ({
+    jobID,
+    _meta: { revision },
+    toDocument: () => ({ jobID, _meta: { revision } }),
+  }));
+  useUsersStore.getState().jobData.actions.queueJobDocumentWritesFromJobs(jobs);
+}
+
+function revisionOf(jobID) {
+  return useUsersStore
+    .getState()
+    .jobData.jobArray.find((job) => job.jobID === jobID)?._meta?.revision;
+}
+
+function lockConflictError(docIDs, savedDocIDs = []) {
   const err = new Error("document lock held elsewhere (409)");
   err.code = DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE;
   err.lockHeldDocIDs = docIDs;
+  err.savedDocIDs = savedDocIDs;
   return err;
 }
 
-function revisionConflictError(rejected) {
+function revisionConflictError(rejected, savedDocIDs = []) {
   const err = new Error("document revision conflict (409)");
   err.code = CLIENT_ERROR_REVISION_CONFLICT;
-  err.revisionConflict = { collection: "job_documents", saved: 0, rejected };
+  err.revisionConflict = {
+    collection: "job_documents",
+    saved: savedDocIDs.length,
+    savedDocIDs,
+    rejected,
+  };
   return err;
 }
 
@@ -107,7 +132,9 @@ describe("a refused write leaves the queue", () => {
     queueOneJob("job-wrote");
     expect(queued()).toHaveLength(2);
 
-    putJobDocumentsBatch.mockRejectedValueOnce(lockConflictError(["job-held"]));
+    putJobDocumentsBatch.mockRejectedValueOnce(
+      lockConflictError(["job-held"], ["job-wrote"]),
+    );
 
     const outcome = await persistJobDocumentsToApi();
 
@@ -138,5 +165,106 @@ describe("a refused write leaves the queue", () => {
     expect(outcome).toBe("saved");
     expect(queued()).toHaveLength(0);
     expect(warned).not.toHaveBeenCalled();
+  });
+});
+
+// The server counts a write by moving the document on by one and refuses a write
+// built on an older count. A client that waited for the document to come back
+// would be stale in between, and a second edit in that window would be refused
+// against nothing but its own earlier write.
+describe("a landed write counts against the jobs it wrote", () => {
+  beforeEach(() => {
+    putJobDocumentsBatch.mockReset();
+    warned.mockReset();
+    useUsersStore.getState().jobData.actions.clearPendingJobDocumentWrites();
+  });
+
+  it("moves each written job on by one", async () => {
+    queueJobsAtRevisions({ "job-1": 4, "job-2": 9 });
+    putJobDocumentsBatch.mockResolvedValue(undefined);
+
+    await persistJobDocumentsToApi();
+
+    expect(revisionOf("job-1")).toBe(5);
+    expect(revisionOf("job-2")).toBe(10);
+  });
+
+  it("leaves a job the lock held where it was", async () => {
+    queueJobsAtRevisions({ "job-1": 4, "job-2": 9 });
+    putJobDocumentsBatch.mockRejectedValue(
+      lockConflictError(["job-2"], ["job-1"]),
+    );
+
+    await persistJobDocumentsToApi();
+
+    expect(revisionOf("job-1")).toBe(5);
+    expect(revisionOf("job-2")).toBe(9);
+  });
+
+  // A batch can hold one document and refuse another on its revision, and the
+  // answer states one of the two. Working out what wrote by taking the refusals
+  // away from what was sent would count the one nothing said anything about.
+  it("counts only what the answer names, not what it failed to mention", async () => {
+    queueJobsAtRevisions({ "job-held": 2, "job-moved": 4, "job-clean": 6 });
+    putJobDocumentsBatch.mockRejectedValue(
+      lockConflictError(["job-held"], ["job-clean"]),
+    );
+
+    await persistJobDocumentsToApi();
+
+    expect(revisionOf("job-clean")).toBe(7);
+    expect(revisionOf("job-moved")).toBe(4);
+    expect(revisionOf("job-held")).toBe(2);
+    expect(queued()).toEqual(expect.arrayContaining(["job-held", "job-moved"]));
+    expect(queued()).not.toContain("job-clean");
+  });
+
+  // A part that landed before the part that failed is credited from the error,
+  // because the answer describes only the request it came from. Left uncredited,
+  // those jobs would be sent again against documents they had already written,
+  // and refused as stale — losing work that had in fact been saved.
+  it("counts the parts that landed before the part that failed", async () => {
+    queueJobsAtRevisions({ "job-early": 4, "job-late": 9 });
+    const err = revisionConflictError(
+      [{ docID: "job-late", expected: 9, current: 12 }],
+      [],
+    );
+    err.deliveredBatchItems = [{ jobID: "job-early" }];
+    putJobDocumentsBatch.mockRejectedValue(err);
+
+    await persistJobDocumentsToApi();
+
+    expect(revisionOf("job-early")).toBe(5);
+    expect(revisionOf("job-late")).toBe(9);
+    expect(queued()).not.toContain("job-early");
+  });
+
+  // Above the request limit a save is sent in parts, so a part that was refused
+  // says nothing about the parts behind it and they stay owed.
+  it("keeps a job the failed answer never mentioned", async () => {
+    queueJobsAtRevisions({ "job-1": 4, "job-unsent": 9 });
+    putJobDocumentsBatch.mockRejectedValue(
+      revisionConflictError([{ docID: "job-1", expected: 4, current: 7 }], []),
+    );
+
+    await persistJobDocumentsToApi();
+
+    expect(queued()).toContain("job-unsent");
+    expect(queued()).not.toContain("job-1");
+  });
+
+  it("leaves a job the revision check refused where it was", async () => {
+    queueJobsAtRevisions({ "job-1": 4, "job-2": 9 });
+    putJobDocumentsBatch.mockRejectedValue(
+      revisionConflictError(
+        [{ docID: "job-2", expected: 9, current: 11 }],
+        ["job-1"],
+      ),
+    );
+
+    await persistJobDocumentsToApi();
+
+    expect(revisionOf("job-1")).toBe(5);
+    expect(revisionOf("job-2")).toBe(9);
   });
 });

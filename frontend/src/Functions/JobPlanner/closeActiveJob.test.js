@@ -79,6 +79,20 @@ import { snackbarSpies } from "../../tests/snackbarHarness.js";
 
 const { showSnackbarInfo, showSnackbarWarning } = snackbarSpies;
 
+/** The close only persists when this session holds the job's lock. */
+function holdTheJobLock(jobID) {
+  storeHolder.current
+    .getState()
+    .documentLock.actions.patchDocumentLockForScope(
+      USER_JOBS_COLLECTION,
+      jobID,
+      {
+        readOnly: false,
+        lockHeld: true,
+      },
+    );
+}
+
 function makeJob(id = "j1", groupID = null) {
   return {
     jobID: id,
@@ -165,6 +179,43 @@ describe("closeActiveJob", () => {
       5,
     );
     shakerAdjustments.current = [];
+  });
+
+  // Only the job the reader had open has a log behind it. Everything else a
+  // close writes was changed outside the editor, so its write has to carry the
+  // whole document rather than the edited job's fields.
+  it("hands the save the edited job's changes and nothing else's", async () => {
+    const job = makeJob();
+    const child = makeJob("j2");
+    const changes = [
+      { jobID: job.jobID, patches: [{ op: "replace", path: ["name"] }] },
+    ];
+    holdTheJobLock(job.jobID);
+
+    await closeActiveJob(job, true, { 34: child }, {}, {}, null, changes);
+
+    const [written, sentChanges] = saveJobsViaApi.mock.calls.at(-1);
+    expect(written.map((held) => held.jobID)).toContain(child.jobID);
+    expect(sentChanges).toEqual({ [job.jobID]: changes });
+  });
+
+  // `entriesFor` answers an empty list for a job the reader changed nothing on,
+  // and an empty log is not the same claim as no log: it would queue the job as
+  // "these fields changed, and there are none of them".
+  it("writes the whole document when the edited job's log is empty", async () => {
+    holdTheJobLock("j1");
+
+    await closeActiveJob(makeJob(), true, {}, {}, {}, null, []);
+
+    expect(saveJobsViaApi).toHaveBeenCalledWith(expect.any(Array), undefined);
+  });
+
+  it("writes the whole document when the close recorded no changes", async () => {
+    holdTheJobLock("j1");
+
+    await closeActiveJob(makeJob(), true, {}, {}, {}, null);
+
+    expect(saveJobsViaApi).toHaveBeenCalledWith(expect.any(Array), undefined);
   });
 
   it("skips API persist without the job lock", async () => {

@@ -31,8 +31,8 @@ func writeJobs(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, owner m
 	if err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if failed != 0 {
-		t.Fatalf("write: %d jobs rejected before reaching mongo", failed)
+	if len(failed) != 0 {
+		t.Fatalf("write: %d jobs rejected before reaching mongo", len(failed))
 	}
 	return conflicts
 }

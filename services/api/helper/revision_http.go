@@ -37,8 +37,14 @@ type RevisionConflictItem struct {
 //
 // Always HTTP 409, whether or not part of the batch wrote: the status describes
 // the request's outcome, and a request that did not do everything it asked for
-// is not a success. `saved` is what stops that being read as nothing happened.
-func RespondRevisionConflictJSON(w http.ResponseWriter, r *http.Request, collection string, saved int, conflicts []eipmongo.RevisionConflict) {
+// is not a success. `saved` is what stops that being read as nothing happened,
+// and `savedDocIDs` names which documents it was — a client cannot work that out
+// by subtraction, because one batch can carry both kinds of refusal and a
+// response states one of them.
+func RespondRevisionConflictJSON(w http.ResponseWriter, r *http.Request, collection string, saved int, savedDocIDs []string, conflicts []eipmongo.RevisionConflict) {
+	if savedDocIDs == nil {
+		savedDocIDs = []string{}
+	}
 	items := make([]RevisionConflictItem, 0, len(conflicts))
 	for _, c := range conflicts {
 		items = append(items, RevisionConflictItem{
@@ -54,9 +60,10 @@ func RespondRevisionConflictJSON(w http.ResponseWriter, r *http.Request, collect
 		"saved":          saved,
 	}))
 	_ = EncodeJSONStatus(w, http.StatusConflict, map[string]any{
-		"error":      ErrCodeRevisionConflict,
-		"collection": collection,
-		"saved":      saved,
-		"rejected":   items,
+		"error":       ErrCodeRevisionConflict,
+		"collection":  collection,
+		"saved":       saved,
+		"savedDocIDs": savedDocIDs,
+		"rejected":    items,
 	})
 }

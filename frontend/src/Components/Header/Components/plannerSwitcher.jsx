@@ -85,7 +85,10 @@ export function PlannerSwitcher() {
         // loading the new planner clears the queue.
         const { pendingJobDocumentWrites, pendingJobGroupWrites } =
           useUsersStore.getState().jobData;
-        if (pendingJobDocumentWrites?.length || pendingJobGroupWrites?.length) {
+        if (
+          Object.keys(pendingJobDocumentWrites ?? {}).length ||
+          pendingJobGroupWrites?.length
+        ) {
           setFailure("Unsaved changes could not be saved");
           return;
         }

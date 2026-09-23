@@ -129,7 +129,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	now := time.Now()
-	result, failedCount, conflicts, err := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, owner, accountID, reqBody.Jobs, now, sessionID, wsClientID)
+	result, failed, conflicts, err := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, owner, accountID, reqBody.Jobs, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", err, nil)
@@ -141,6 +141,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
+	savedDocIDs := writtenJobIDs(reqBody.Jobs, failed, conflicts)
 
 	// Two refusals can arrive from one batch and a response carries one of them;
 	// refusalFor decides which, and says why.
@@ -151,7 +152,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 			"held":      len(lockRejects),
 			"conflicts": len(conflicts),
 		})
-		helper.RespondPartialLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, savedCount, lockRejects)
+		helper.RespondPartialLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, savedCount, savedDocIDs, lockRejects)
 		return
 
 	// A refused write is answered even when the rest of the batch landed: a job
@@ -161,22 +162,22 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		metrics.Error("revision_conflict")
 		logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 			"saved":     savedCount,
-			"failed":    failedCount,
+			"failed":    len(failed),
 			"conflicts": len(conflicts),
 		})
-		helper.RespondRevisionConflictJSON(w, r, eipmongo.CollectionJobDocuments, savedCount, conflicts)
+		helper.RespondRevisionConflictJSON(w, r, eipmongo.CollectionJobDocuments, savedCount, savedDocIDs, conflicts)
 		return
 	}
 
-	if failedCount > 0 {
+	if len(failed) > 0 {
 		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some job documents failed validation in batch", map[string]any{
-			"failed": failedCount,
+			"failed": len(failed),
 			"total":  len(reqBody.Jobs),
 		})
 	}
 	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 		"saved":  savedCount,
-		"failed": failedCount,
+		"failed": len(failed),
 	})
 	w.WriteHeader(http.StatusNoContent)
 
@@ -187,7 +188,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	logs.AttachHandlerSuccessDetail(r, "batch job documents upserted", map[string]any{
 		"total":       len(reqBody.Jobs),
 		"saved":       savedCount,
-		"failed":      failedCount,
+		"failed":      len(failed),
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }

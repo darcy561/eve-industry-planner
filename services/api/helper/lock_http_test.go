@@ -24,7 +24,7 @@ func TestPartialLockConflictReportsWhatWasWritten(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/api/v1/job-documents", nil)
 
-	RespondPartialLockHeldElsewhereJSON(rec, req, "job_documents", 3,
+	RespondPartialLockHeldElsewhereJSON(rec, req, "job_documents", 3, nil,
 		[]documentlock.LockHeldElsewhereItem{{DocID: "job-held"}})
 
 	if rec.Code != 409 {

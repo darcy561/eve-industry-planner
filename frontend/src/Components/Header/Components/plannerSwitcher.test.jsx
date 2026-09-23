@@ -90,7 +90,7 @@ beforeEach(() => {
   loadPlannerDocuments.mockReset().mockResolvedValue(true);
   flushPendingJobDocumentsSave.mockReset().mockResolvedValue(undefined);
   flushPendingGroupSave.mockReset().mockResolvedValue(undefined);
-  storeState.jobData.pendingJobDocumentWrites = [];
+  storeState.jobData.pendingJobDocumentWrites = {};
   storeState.jobData.pendingJobGroupWrites = [];
 });
 
@@ -162,7 +162,7 @@ describe("the planner switcher", () => {
   // The write's ids are still queued when it failed, and loading the new planner
   // clears that queue — so moving would lose the edit rather than delay it.
   it("refuses to switch while an edit is still unsaved", async () => {
-    storeState.jobData.pendingJobDocumentWrites = ["job-1"];
+    storeState.jobData.pendingJobDocumentWrites = { "job-1": null };
     renderSwitcher();
 
     chooseKarkur();

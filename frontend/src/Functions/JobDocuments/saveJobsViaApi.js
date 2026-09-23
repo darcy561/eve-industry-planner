@@ -9,14 +9,18 @@ import { flushPendingJobDocumentsSave } from "../Debounce/jobDocumentsPersistSch
  * itself, so a caller that does not care about the outcome can ignore it.
  *
  * @param {Array<object>|object} inputJobs - Job instance(s) with `jobID` and `toDocument`
+ * @param {Record<string, Array<object>>} [changes] - Log entries per job id; a
+ *   job absent from it has its whole document written
  * @returns {Promise<import("./persistJobDocumentsToApi.js").JobDocumentPersistOutcome>}
  */
-export async function saveJobsViaApi(inputJobs) {
+export async function saveJobsViaApi(inputJobs, changes) {
   if (!inputJobs) return "saved";
   const jobs = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
   if (jobs.length === 0) return "saved";
 
-  useUsersStore.getState().jobData.actions.queueJobDocumentWritesFromJobs(jobs);
+  useUsersStore
+    .getState()
+    .jobData.actions.queueJobDocumentWritesFromJobs(jobs, changes);
   return await flushPendingJobDocumentsSave();
 }
 

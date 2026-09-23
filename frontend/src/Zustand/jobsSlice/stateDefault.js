@@ -37,8 +37,12 @@ export const stateDefault = () => ({
   groupArray: [],
   /** Group IDs with a pending write to the API (`PUT /api/v1/groups`; keeps WS fan-out to touched docs only). */
   pendingJobGroupWrites: [],
-  /** Job IDs with a pending write to the API (`PUT /api/v1/job-documents`). */
-  pendingJobDocumentWrites: [],
+  /**
+   * Each job with a pending write to the API (`PUT /api/v1/job-documents`),
+   * against the log entries behind that write — or `null` where nothing
+   * recorded what changed, which is a write of the whole document.
+   */
+  pendingJobDocumentWrites: {},
   activeGroupID: null,
   userWatchlist: {
     groups: [],
