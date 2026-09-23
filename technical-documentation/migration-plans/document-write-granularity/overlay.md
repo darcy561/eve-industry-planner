@@ -188,8 +188,15 @@ local-only editing is the intended behaviour there, not a refusal.
 
 ## Stage C — Field-scoped writes
 
-*Not landed* for jobs. The persist queue still holds job ids and resolves them against `jobArray` at
-flush time, so a whole document is what reaches the endpoint.
+*Not landed* for jobs. A whole document is still what reaches the endpoint: the payload a flush sends
+is the `jobArray` copy of each queued job, whatever the queue knows about it.
+
+What the queue knows has changed. `pendingJobDocumentWrites` maps each job owed a write to the change
+log entries behind it, or to `null` where nothing recorded what changed — an ESI refresh, a group
+operation, a job a close resized. Closing a job supplies the entries for the job the reader had open;
+everything else a close writes was changed outside the editor and is queued whole. Joining a job that
+is already owed a whole-document write keeps it whole: a write that cannot say what changed cannot be
+narrowed by one that can, or the fields it does not name would stop being written.
 
 ### What a write body says
 
