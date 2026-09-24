@@ -12,10 +12,10 @@ func TestJSONPathsCoversNestedShapes(t *testing.T) {
 	paths := JSONPaths(reflect.TypeFor[models.Job]())
 	for _, want := range []string{
 		"jobID",
-		"build.costs.extrasCosts[]",
-		"build.costs.extrasCosts[].category",
+		"build.extrasCosts.{id}",
+		"build.extrasCosts.{id}.category",
 		"build.setup.{id}.runCount",
-		"build.sale.marketOrders[].order_id",
+		"esi.marketOrders.{id}.order_id",
 		"layout.esiJobTab",
 		"_meta.lastModified",
 	} {
@@ -30,9 +30,10 @@ func TestJSONPathsCoversNestedShapes(t *testing.T) {
 func TestJSONPathsOmitsUnserialisedFields(t *testing.T) {
 	paths := JSONPaths(reflect.TypeFor[models.Job]())
 	for _, unwanted := range []string{
-		"protected",                              // json:"-"
-		"build.costs.linkedJobs[].character_ref", // json:"-"
-		"_meta.owner",                            // json:"-"
+		"protected",                             // json:"-"
+		"esi.industryJobs.{id}.character_ref",   // json:"-"
+		"esi.industryJobs.{id}.corporation_ref", // json:"-"
+		"_meta.owner",                           // json:"-"
 	} {
 		if slices.Contains(paths, unwanted) {
 			t.Errorf("JSONPaths should not carry %q", unwanted)
@@ -45,8 +46,8 @@ func TestJSONPathsKeepsOmitemptyFields(t *testing.T) {
 	paths := JSONPaths(reflect.TypeFor[models.Job]())
 	for _, want := range []string{
 		"filedCostMonth.month",
-		"build.costs.linkedJobs[].character_id",
-		"build.costs.linkedJobs[].completed_date",
+		"esi.industryJobs.{id}.character_id",
+		"esi.industryJobs.{id}.completed_date",
 	} {
 		if !slices.Contains(paths, want) {
 			t.Errorf("JSONPaths is missing omitempty field %q", want)

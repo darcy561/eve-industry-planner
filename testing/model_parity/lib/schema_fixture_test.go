@@ -20,6 +20,23 @@ import (
 // faults for as long as the schema predated them.
 const schemaFixture = "../../fixtures/model-parity/job-schema.json"
 
+// TestRegenerateJobSchema rewrites the committed census from the model. It is
+// how the failure below is answered, and it is gated so an ordinary run never
+// rewrites what it is meant to be checking:
+//
+//	EIP_REGEN_JOB_SCHEMA=1 go test ./model_parity/lib -run TestRegenerateJobSchema
+func TestRegenerateJobSchema(t *testing.T) {
+	if os.Getenv("EIP_REGEN_JOB_SCHEMA") == "" {
+		t.Skip("set EIP_REGEN_JOB_SCHEMA=1 to rewrite the fixture from the model")
+	}
+	// The same writer the live sweep uses for the schema beside its corpus, so
+	// the committed census and a swept one cannot be written differently.
+	if err := WriteSchema(reflect.TypeFor[models.Job](), schemaFixture); err != nil {
+		t.Fatalf("write the census: %v", err)
+	}
+	t.Logf("wrote the census to %s", schemaFixture)
+}
+
 func TestJobSchemaFixtureMatchesTheModel(t *testing.T) {
 	t.Parallel()
 
