@@ -142,13 +142,6 @@ export function useShoppingListCharacterAssets({
         const { data: allCharacterAssets } =
           getAllCachedCharacterAssets(queryClient);
 
-        if (!allCharacterAssets) {
-          // Apply empty map to reset applied assets info
-          actions.applyAssetsFromMap(new Map(), countAssetQuantityFromMap);
-          actions.setIsLoading(false);
-          return;
-        }
-
         // A node's location is resolved when the collection is built, so a container's
         // contents are counted with whatever holds them.
         const collection = getCachedAssetIndex(queryClient, {

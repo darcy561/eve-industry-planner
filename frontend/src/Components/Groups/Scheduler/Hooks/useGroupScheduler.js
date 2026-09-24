@@ -97,8 +97,8 @@ export function useGroupScheduler(
     for (const characterRow of selectedCharacterRows) {
       const { CharacterHash, CharacterID } = characterRow;
 
-      // Get character-specific industry jobs from query cache
-      // The "all" hook deduplicates and loses characterHash, so we get it from cache
+      // Read straight from this character's own cache entry; the "all" hook is
+      // here only for its loading and error state.
       const charJobsQueryKey = [characterIndustryJobsQueryKey, CharacterHash];
       const charJobsCache = queryClient.getQueryData(charJobsQueryKey);
       const userIndJobs = charJobsCache?.data || [];
