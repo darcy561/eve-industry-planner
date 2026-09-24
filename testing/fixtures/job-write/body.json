@@ -1,0 +1,84 @@
+{
+  "why": "The envelope one job's write travels in, and the partial document inside it. Read by a vitest test that builds it and by Go tests that decode it, plan the stored update from it, and drive it through the real handler — so a field renamed, moved or dropped on one side turns the other side red. A drift here is silent until it reaches a user: the SPA sends a shape the endpoint refuses, every save 400s, and the reader is told only that something could not be saved. What the two sides agree the job's own fields are called is pinned separately, by model-parity/job-schema.json; this file pins what wraps them.",
+  "revision": 7,
+  "job": {
+    "jobID": "job-fixture",
+    "name": "Rifter build",
+    "jobType": 0,
+    "itemID": 587,
+    "groupID": "",
+    "includedInGroup": false,
+    "displayOnPlanner": true,
+    "build": {
+      "materials": {
+        "34": {
+          "typeID": 34,
+          "name": "Tritanium",
+          "jobType": 0,
+          "volume": 4200,
+          "purchasing": {}
+        },
+        "35": {
+          "typeID": 35,
+          "name": "Pyerite",
+          "jobType": 0,
+          "volume": 900,
+          "purchasing": {}
+        }
+      },
+      "extrasCosts": {
+        "e-1": {
+          "id": "e-1",
+          "category": "unassigned",
+          "categoryLabel": "Unassigned",
+          "extraText": "Courier",
+          "extraValue": 120000
+        }
+      }
+    },
+    "_meta": {
+      "revision": 7
+    }
+  },
+  "why_job": "The reader's copy as it stands after the edits below: the name and one material's volume are the values the write carries, and the extra cost the reader deleted is already gone from it. Both halves of the write are checked against this rather than trusted from the log, which is why a removal names a row the job no longer has.",
+  "changes": [
+    {
+      "jobID": "job-fixture",
+      "patches": [
+        { "op": "replace", "path": ["name"] },
+        { "op": "replace", "path": ["build", "materials", "34", "volume"] },
+        { "op": "remove", "path": ["build", "extrasCosts", "e-2"] }
+      ]
+    }
+  ],
+  "write": {
+    "jobID": "job-fixture",
+    "revision": 7,
+    "includedInGroup": false,
+    "groupID": "",
+    "document": {
+      "name": "Rifter build",
+      "build": {
+        "materials": {
+          "34": {
+            "volume": 4200
+          }
+        }
+      }
+    },
+    "removed": [["build", "extrasCosts", "e-2"]]
+  },
+  "storedPaths": {
+    "set": ["name", "build.materials.34.volume"],
+    "unset": ["build.extrasCosts.e-2"]
+  },
+  "fields": {
+    "jobID": "Which job is being written. It sits beside the document rather than in it: a partial document carries `jobID` only if the reader happened to change it, and the lock gate has to know which document a write is for before anything is decoded.",
+    "revision": "The revision of the document the write was built from. Its presence is what makes a write field-scoped — a write carrying no revision here carries its whole document instead, and is checked against whatever its `_meta` holds. Omitted rather than sent as zero.",
+    "includedInGroup": "Whether the job belongs to a group. Stated on the envelope for the same reason as `jobID`: nothing changes a job's group through this path, so a partial document would show every job as belonging to none, and the lock gate would stop bypassing the group lease.",
+    "groupID": "Which group, empty when none.",
+    "document": "The partial job. A field that is present is being written; a field that is absent is unchanged. It may not name `_meta` — the server states a document's owner, revision and stamps, and a body that could name them would be naming where the write lands rather than what it holds.",
+    "removed": "The rows that went, each as the path into the job it sat at. A partial document spends absence on `unchanged`, so it has no way left to say `delete this row`. Absent rather than empty when nothing went. Each path is resolved against the job model itself, so it can only reach what the model says is a keyed collection.",
+    "storedPaths": "What the two halves become once the model has walked them: the `$set` paths built from the document, and the `$unset` paths built from the removals. Stated here because the body deliberately names no stored path — the model derives them from its own bson tags — and this is what proves that derivation has not moved."
+  }
+}
