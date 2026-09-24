@@ -19,7 +19,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// The book the test origin serves spreads its orders across three stations, which
+// What the test origin serves spreads its orders across three stations, which
 // is what makes "one walk, several stations priced" a real claim rather than the
 // single-station walk wearing a new name.
 const (
@@ -147,7 +147,7 @@ func TestAWalkPricesNothingUntilAStationIsTracked(t *testing.T) {
 }
 
 // A deployment with no page store has nothing to derive from, so the walk prices
-// the stations it is streaming instead. Without that, every book would be walked
+// the stations it is streaming instead. Without that, every region would be walked
 // and nothing priced.
 func TestAWalkWithNoPageStorePricesWhatItStreams(t *testing.T) {
 	origin := newOrdersOrigin(t, 2, 20)
@@ -209,11 +209,11 @@ func (d *taskDeps) published(t *testing.T) []string {
 	return subjects
 }
 
-// A book that shrinks leaves trailing pages behind, and a derive reads every
-// page a region holds — so a page the book no longer has would go on being
+// A region that shrinks leaves trailing pages behind, and a derive reads every
+// page a region holds — so a page it no longer has would go on being
 // folded into that region's prices for as long as the object survived, and
 // nothing would ever refresh or remove it.
-func TestAShrunkBookStopsBeingPricedFrom(t *testing.T) {
+func TestAShrunkRegionStopsBeingPricedFrom(t *testing.T) {
 	origin := newOrdersOrigin(t, 3, 20)
 	deps, fake := marketTaskDeps(t, origin)
 
@@ -229,7 +229,7 @@ func TestAShrunkBookStopsBeingPricedFrom(t *testing.T) {
 		t.Fatalf("held %v after the first walk, want three pages", held)
 	}
 
-	// The book loses its last page, as a quiet market's does.
+	// The region loses its last page, as a quiet market's does.
 	origin.pages = 2
 	walkRegion(t, deps)
 
@@ -238,10 +238,10 @@ func TestAShrunkBookStopsBeingPricedFrom(t *testing.T) {
 		t.Fatalf("page numbers: %v", err)
 	}
 	if len(held) != 2 {
-		t.Errorf("held %v after the book shrank, want only the two pages it still has", held)
+		t.Errorf("held %v after the region shrank, want only the two pages it still has", held)
 	}
 
-	// And the derive that follows reads only what the book still holds.
+	// And the derive that follows reads only what the region still holds.
 	derive(t, deps)
 	if pricedTypes(t, fake, firstStation) == 0 {
 		t.Error("the station was priced for no types after the shrink")

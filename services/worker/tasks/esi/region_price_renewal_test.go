@@ -9,7 +9,7 @@ import (
 
 // A region whose pages all answer 304 still rewrites its prices, because the
 // write is what renews their expiry. The entries derive from the stored pages,
-// so they describe the current book.
+// so they describe the current orders.
 func TestUnchangedSweepRenewsRegionPrices(t *testing.T) {
 	const pages = 2
 
@@ -18,7 +18,7 @@ func TestUnchangedSweepRenewsRegionPrices(t *testing.T) {
 
 	track(t, deps, firstStation)
 
-	// A priming pass walks the book and prices the station from it.
+	// A priming pass walks the region and prices the station from it.
 	walkRegion(t, deps)
 	derive(t, deps)
 

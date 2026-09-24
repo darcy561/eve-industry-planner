@@ -86,7 +86,7 @@ func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarket
 		return HandleStreamError(ctx, err, eipnats.TaskNameRegionMarketOrdersRefresh)
 	}
 
-	// The first page's max-age speaks for the book: a region's pages expire together.
+	// The first page's max-age speaks for them all: a region's pages expire together.
 	recordNextRefresh(ctx, deps.Redis, dataset,
 		time.Duration(fetchResult.CacheSeconds)*time.Second)
 
@@ -96,9 +96,9 @@ func RefreshRegionMarketOrders(ctx context.Context, request eipnats.RegionMarket
 		if err := orders.PutETags(ctx, request.RegionID, fetchResult.ETags); err != nil {
 			logs.WarnCtx(ctx, "failed saving region market orders etags", "region_id", request.RegionID, "error", err)
 		}
-		// A shrunk book leaves trailing pages behind, and both halves have to go: the ETag
+		// A shrunk region leaves trailing pages behind, and both halves have to go: the ETag
 		// would replay one on the next 304, and the page itself is read by every later derive,
-		// which folds orders the book no longer holds into the prices it writes.
+		// which folds orders the region no longer holds into the prices it writes.
 		if fetchResult.TotalPages > 0 {
 			if err := orders.DeleteETagsFrom(ctx, request.RegionID, fetchResult.TotalPages+1); err != nil {
 				logs.WarnCtx(ctx, "failed pruning stale region etags", "region_id", request.RegionID, "error", err)
@@ -178,7 +178,7 @@ func percentilePrice(prices []float64, percentile float64, fallback float64) flo
 	return sorted[rank]
 }
 
-// highestPrice and lowestPrice report 0 for an empty book side rather than panicking.
+// highestPrice and lowestPrice report 0 for an empty side rather than panicking.
 func highestPrice(prices []float64) float64 {
 	if len(prices) == 0 {
 		return 0

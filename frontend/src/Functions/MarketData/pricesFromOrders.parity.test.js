@@ -15,7 +15,7 @@ import { pricesByType } from "./pricesFromOrders.js";
 // runs from frontend/, and the fixture is the repo's rather than the SPA's.
 const FIXTURE = resolve(
   process.cwd(),
-  "../testing/fixtures/market-derivation/books.json",
+  "../testing/fixtures/market-derivation/orders.json",
 );
 
 const REGENERATE =
@@ -49,9 +49,8 @@ describe("deriving the four prices as the server does", () => {
 describe("the rules the fixture exists to cover", () => {
   const byName = Object.fromEntries(fixture.cases.map((c) => [c.name, c]));
 
-  it("covers a book large enough for the rank to leave the extreme", () => {
-    const large =
-      byName["a book large enough for the rank to leave the extreme"];
+  it("covers enough orders for the rank to leave the extreme", () => {
+    const large = byName["enough orders for the rank to leave the extreme"];
 
     expect(large).toBeDefined();
     expect(large.expected.buyP95).not.toBe(large.expected.buy);
@@ -77,8 +76,8 @@ describe("the rules the fixture exists to cover", () => {
     expect(foreign.length).toBeGreaterThan(0);
   });
 
-  it("covers a book too small for the percentile", () => {
-    const small = byName["a book under the percentile floor"];
+  it("covers too few orders for the percentile", () => {
+    const small = byName["too few orders for the percentile"];
 
     expect(small).toBeDefined();
     expect(small.expected.buyP95).toBe(small.expected.buy);

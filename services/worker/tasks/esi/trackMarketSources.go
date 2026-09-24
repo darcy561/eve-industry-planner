@@ -12,7 +12,7 @@ import (
 )
 
 // TrackMarketSources registers the markets an account prices against, so their
-// books are swept from now on.
+// regions are swept from now on.
 //
 // Registering is what puts a market in the sweep, and it happens when an account
 // signs in or saves a market rather than when a price is asked for: the first

@@ -311,7 +311,7 @@ func sortedKeys(sources map[string][]string) []string {
 // sourceIDsOf names the markets a request asked about, for logging.
 func sourceIDsOf(sources map[string][]string) []string { return sortedKeys(sources) }
 
-// regionClocks is when each tracked region's book was last walked.
+// regionClocks is when each tracked region was last walked.
 //
 // A region nothing has walked is absent, which reaches a caller as zero — "no
 // rows from here can be trusted to be current" rather than the epoch.

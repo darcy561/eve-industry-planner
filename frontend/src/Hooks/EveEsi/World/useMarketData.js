@@ -1,50 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import getMarketData from "../../../Functions/EveESI/World/getMarketData";
 import useLocationNames from "../useLocationNames";
 import useESIRateLimiting from "../../App/useESIRateLimiting";
 import { asNumberIDSet } from "../../../Functions/Helper/ids";
+import {
+  mergeCitadelOrders,
+  placeOrdersInSystems,
+  systemsOfPlaces,
+} from "../../../Functions/MarketData/regionOrderMerge";
+import { useCitadelOrdersQuery } from "../../React Query/World/citadelOrders";
 
 /**
- * Custom hook that fetches market data for a specific item and region from EVE ESI API.
+ * Every order for one type across a region, with the places they sit in named.
  *
- * This hook provides market data fetching for EVE Online items:
- * - Fetches market orders for specific items in specific regions
- * - Handles pagination automatically for large market datasets
- * - Integrates with ESI rate limiting system
- * - Provides loading, error, and success states
- * - Uses React Query for caching and background updates
- * - Supports manual refetching for real-time data
+ * ESI answers market orders per region, so a region is what is asked for and a
+ * location the reader chose is reduced to the one it sits in. The answer carries
+ * every place ESI publishes, player structures included; the citadels it does
+ * not publish are read by the reader themselves and merged in here, so a caller
+ * is handed the whole region rather than the public half of it.
  *
- * The fetching process:
- * 1. Checks ESI rate limits for market group
- * 2. Fetches market data page by page until all data is retrieved
- * 3. Combines all pages into a single array
- * 4. Handles rate limiting errors with appropriate wait times
- * 5. Retains inactive cache (gcTime) 30 minutes with 5-minute stale time
+ * Paged whole before it resolves — a region runs to many pages and a partial
+ * answer would read as a thin market rather than an incomplete one.
  *
- * @param {number} typeID - EVE Online item type ID to fetch market data for
- * @param {Object} location - Location object containing region information
- * @param {number} location.regionID - EVE Online region ID for market data
- * @returns {Object} Object containing market data and states
- * @returns {Array<Object>} returns.marketData - Array of market order objects
- * @returns {boolean} returns.isLoading - Whether the query is still loading
- * @returns {Error|null} returns.error - Error object if an error occurred
- * @returns {Function} returns.refetch - Function to manually refetch the data
- *
- * @example
- * function MarketDataDisplay() {
- *   const { marketData, isLoading, error, refetch } = useMarketData(typeID, { regionID: 10000002 });
- *
- *   if (isLoading) return <div>Loading market data...</div>;
- *   if (error) return <div>Error: {error.message}</div>;
- *   return (
- *     <div>
- *       <button onClick={refetch}>Refresh</button>
- *       <div>Market Orders: {marketData.length}</div>
- *     </div>
- *   );
- * }
+ * @param {number} typeID
+ * @param {object} location - The market the reader chose
+ * @param {number} location.regionID - The region its orders are asked for
+ * @param {number} [location.stationID]
+ * @returns {{marketData: Array<object>, worldData: Object<string, object>,
+ *   isLoading: boolean, isEnriching: boolean, error: Error|null,
+ *   refetch: Function}}
  */
 export function useMarketData(typeID, location) {
   const { isRateLimited, getWaitTime } = useESIRateLimiting();
@@ -57,7 +42,6 @@ export function useMarketData(typeID, location) {
   } = useQuery({
     queryKey: ["marketData", typeID, location?.regionID],
     queryFn: async () => {
-      // Check if market group is rate limited
       if (isRateLimited("market")) {
         const waitTime = getWaitTime("market");
         throw new Error(
@@ -89,14 +73,13 @@ export function useMarketData(typeID, location) {
       return allPages;
     },
     enabled: !!typeID && !!location?.regionID && !isRateLimited("market"),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     retry: 3,
     retryDelay: (attemptIndex, error) => {
-      // If rate limited, use the wait time
       if (error?.message?.includes("rate limited")) {
         const waitTime = getWaitTime("market");
-        return Math.max(waitTime, 1000); // At least 1 second
+        return Math.max(waitTime, 1000);
       }
       return Math.min(1000 * 2 ** attemptIndex, 30000);
     },
@@ -105,7 +88,20 @@ export function useMarketData(typeID, location) {
     refetchOnReconnect: true,
   });
 
-  const marketData = data || [];
+  const { orders: citadelOrders } = useCitadelOrdersQuery(
+    typeID,
+    location?.regionID,
+  );
+  const orders = useMemo(
+    () => mergeCitadelOrders(data || [], citadelOrders),
+    [data, citadelOrders],
+  );
+
+  // Held as a key rather than a list: the name cache hands back a new object as
+  // each name lands, and a list of ids rebuilt from that would re-ask for every
+  // name on every one of them.
+  const [systemsFound, setSystemsFound] = useState("");
+  const heldSystems = (key) => (key ? key.split(",").map(Number) : []);
   const worldDataIDs = useMemo(() => {
     // The region is asked for whether or not any orders came back: its name is what the empty
     // market message says.
@@ -113,18 +109,36 @@ export function useMarketData(typeID, location) {
 
     return [
       ...asNumberIDSet([
-        ...marketData.flatMap((item) => [item.location_id, item.system_id]),
+        ...orders.flatMap((item) => [item.location_id, item.system_id]),
+        ...(systemsFound ? systemsFound.split(",") : []),
         location.regionID,
         location.stationID,
       ]),
     ].sort((a, b) => a - b);
-  }, [marketData, location?.regionID, location?.stationID]);
+  }, [orders, systemsFound, location?.regionID, location?.stationID]);
 
   const {
     names: worldData,
     isLoading: isWorldDataLoading,
     error: worldDataError,
   } = useLocationNames(worldDataIDs);
+
+  // Against what is held, not the render before — a name kept for the session is
+  // already in hand on the first render, which `useHasChanged` reads as no
+  // change, leaving the system it names never asked about.
+  const named = systemsOfPlaces(
+    orders,
+    worldData,
+    heldSystems(systemsFound),
+  ).join(",");
+  if (named !== systemsFound) {
+    setSystemsFound(named);
+  }
+
+  const marketData = useMemo(
+    () => placeOrdersInSystems(orders, worldData),
+    [orders, worldData],
+  );
 
   return {
     marketData,

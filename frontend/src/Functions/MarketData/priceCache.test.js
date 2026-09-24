@@ -12,6 +12,7 @@ vi.mock("./priceLoader", () => ({
   setClockMovedListener: (listener) => {
     clockMovedListener = listener;
   },
+  setOrdersStoredListener: () => {},
 }));
 
 const { queryClient } = await import("../../queryClient.js");

@@ -4,7 +4,7 @@
  * The server derives these for the markets it walks, and this derives them for
  * a market the browser reads on the reader's own token. A figure from either
  * sits in the same column, so the two must agree, and nothing connects them at
- * runtime. `testing/fixtures/market-derivation/books.json`
+ * runtime. `testing/fixtures/market-derivation/orders.json`
  * is written from the server's own derivation and read by the parity test beside
  * this file, so a change to one side without the other fails rather than quietly
  * giving one market a different meaning.
@@ -30,8 +30,9 @@ const SELL_PERCENTILE = 0.05;
 /**
  * The four prices for every type in a set of orders.
  *
- * Per type rather than for one, because that is how both sides read a market: a
- * whole order book arrives and every type on it is priced from the same pass.
+ * Per type rather than for one, because that is how both sides read a market:
+ * every order at a market arrives at once and every type is priced from the same
+ * pass.
  * A type with no order at the location is absent rather than zero — the
  * difference between "nothing is trading here" and a figure.
  *

@@ -1,4 +1,4 @@
-// How an order book becomes four prices, written down where the SPA can read it.
+// How a market's orders become four prices, written down where the SPA can read it.
 //
 // The server derives prices for the markets it walks; the SPA derives them for
 // the markets a reader saves, which it fetches itself. Two implementations of
@@ -20,11 +20,11 @@ import (
 )
 
 // derivationPath is the committed fixture, relative to this package.
-const derivationPath = "../../../../testing/fixtures/market-derivation/books.json"
+const derivationPath = "../../../../testing/fixtures/market-derivation/orders.json"
 
 const regenerateDerivation = "EIP_UPDATE_MARKET_DERIVATION=1 go test ./worker/tasks/esi/ -run TestTheDerivationIsCurrent"
 
-const derivationWhy = "Order books in, the four prices out, from " +
+const derivationWhy = "Market orders in, the four prices out, from " +
 	"buildMarketPriceEntry. The SPA derives the same prices for the markets it " +
 	"fetches itself, and nothing but this file holds the two in agreement. " +
 	"Regenerate with: " + regenerateDerivation
@@ -46,7 +46,7 @@ type derivedPrices struct {
 	SellP05 float64 `json:"sellP05"`
 }
 
-// derivationCase is one book and what it must derive to.
+// derivationCase is one set of orders and what it must derive to.
 type derivationCase struct {
 	Name string `json:"name"`
 	Why  string `json:"why"`
@@ -63,20 +63,20 @@ type derivationFixture struct {
 	Cases []derivationCase `json:"cases"`
 }
 
-// books returns the cases, each chosen for a rule the two sides could disagree
+// orderSets returns the cases, each chosen for a rule the two sides could disagree
 // about rather than to be a realistic market.
-func books() []derivationCase {
+func orderSets() []derivationCase {
 	return []derivationCase{
 		{
-			Name:      "a book big enough for percentiles",
-			Why:       "Both sides sort and take the nearest rank, so a book over the floor proves the ordinary path.",
+			Name:      "enough orders for percentiles",
+			Why:       "Both sides sort and take the nearest rank, so a market over the floor proves the ordinary path.",
 			StationID: 60003760,
 			TypeID:    34,
 			Orders: join(buys(60003760, 34, 10, 11, 12, 13, 14, 15),
 				sells(60003760, 34, 20, 21, 22, 23, 24, 25)),
 		},
 		{
-			Name:      "a book under the percentile floor",
+			Name:      "too few orders for the percentile",
 			Why:       "Below five orders the percentile degenerates, so both sides must fall back to the best price rather than to a rank.",
 			StationID: 60003760,
 			TypeID:    34,
@@ -121,10 +121,10 @@ func books() []derivationCase {
 				sells(60003760, 34, 4.03, 4.04, 4.02, 4.0399, 4.1)),
 		},
 		{
-			Name: "a book large enough for the rank to leave the extreme",
+			Name: "enough orders for the rank to leave the extreme",
 			Why: "The whole point of carrying both figures. ceil(0.95*n) only steps back " +
 				"from the last index at twenty-one orders, and ceil(0.05*n) only steps " +
-				"forward from the first at twenty-one, so a smaller book cannot tell a " +
+				"forward from the first at twenty-one, so fewer orders cannot tell a " +
 				"real percentile from one that simply returns the best price.",
 			StationID: 60003760,
 			TypeID:    34,
@@ -134,7 +134,7 @@ func books() []derivationCase {
 			),
 		},
 		{
-			Name: "a book where the rank falls on a whole number",
+			Name: "orders where the rank falls on a whole number",
 			Why: "Twenty orders makes 0.95*n and 0.05*n whole, which is the only size " +
 				"where ceil(p*n)-1 and floor(p*n) disagree. Without this size the fixture " +
 				"cannot tell nearest-rank from the off-by-one that looks just like it.",
@@ -164,7 +164,7 @@ func books() []derivationCase {
 type orderList = []order
 
 // ramp is count prices counting up from first, so a case can state the size of
-// book a rule needs without listing twenty numbers.
+// order set a rule needs without listing twenty numbers.
 func ramp(first float64, count int) []float64 {
 	out := make([]float64, 0, count)
 	for i := range count {
@@ -228,7 +228,7 @@ func derive(c derivationCase) derivedPrices {
 }
 
 func TestTheDerivationIsCurrent(t *testing.T) {
-	cases := books()
+	cases := orderSets()
 	for i := range cases {
 		cases[i].Expected = derive(cases[i])
 	}
@@ -267,12 +267,12 @@ func TestTheDerivationIsCurrent(t *testing.T) {
 // that was merely self-consistent.
 func TestTheDerivationRulesHold(t *testing.T) {
 	byName := map[string]derivedPrices{}
-	for _, c := range books() {
+	for _, c := range orderSets() {
 		byName[c.Name] = derive(c)
 	}
 
-	t.Run("a small book falls back to the best price", func(t *testing.T) {
-		got := byName["a book under the percentile floor"]
+	t.Run("too few orders falls back to the best price", func(t *testing.T) {
+		got := byName["too few orders for the percentile"]
 		if got.BuyP95 != got.Buy || got.SellP05 != got.Sell {
 			t.Errorf("under the floor the percentiles must equal the best prices, got %+v", got)
 		}
@@ -289,22 +289,22 @@ func TestTheDerivationRulesHold(t *testing.T) {
 	t.Run("an empty side reports zero", func(t *testing.T) {
 		got := byName["only sell orders"]
 		if got.Buy != 0 || got.BuyP95 != 0 {
-			t.Errorf("a book with no buy orders must report zero for both, got %+v", got)
+			t.Errorf("a market with no buy orders must report zero for both, got %+v", got)
 		}
 		if got.Sell == 0 {
 			t.Error("the side that has orders must still be priced")
 		}
 	})
 
-	t.Run("a percentile is a price from the book", func(t *testing.T) {
+	t.Run("a percentile is one of the stored prices", func(t *testing.T) {
 		got := byName["prices that are not whole numbers"]
 		if got.BuyP95 != 3.91 && got.BuyP95 != 3.9 {
 			t.Errorf("buyP95 must be one of the stored prices, got %v", got.BuyP95)
 		}
 	})
 
-	t.Run("a large book moves the percentile off the best price", func(t *testing.T) {
-		got := byName["a book large enough for the rank to leave the extreme"]
+	t.Run("enough orders moves the percentile off the best price", func(t *testing.T) {
+		got := byName["enough orders for the rank to leave the extreme"]
 		if got.BuyP95 == got.Buy {
 			t.Errorf("buyP95 must not be the best buy at this size, got %+v", got)
 		}
@@ -316,7 +316,7 @@ func TestTheDerivationRulesHold(t *testing.T) {
 	// ceil(p*n)-1 and floor(p*n) agree everywhere except where p*n is whole, so
 	// this size is what makes the fixture state which rule is in force.
 	t.Run("a whole-number rank takes the lower index", func(t *testing.T) {
-		got := byName["a book where the rank falls on a whole number"]
+		got := byName["orders where the rank falls on a whole number"]
 		// Prices ramp from 1, so the value is the index plus one.
 		if got.BuyP95 != 19 {
 			t.Errorf("buyP95 must be the 19th price (ceil(0.95*20)-1 = index 18), got %v", got.BuyP95)

@@ -9,17 +9,17 @@ import (
 )
 
 // The sweep publishes whatever is stale, so nothing in it spaces the hubs out.
-// They separate anyway: the dispatcher walks one book at a time, so their passes
+// They separate anyway: the dispatcher walks one region at a time, so their passes
 // finish seconds apart, and a hub whose hour is up just after a tick waits for
 // the next one. Each hour that repeats until every hub owns a tick of its own.
 //
 // This holds the property because it is emergent rather than written down —
-// books small enough to walk inside one tick's resolution would stay clustered
+// regions small enough to walk inside one tick's resolution would stay clustered
 // at one burst an hour, and nothing else would say so.
 func TestTheSweepSettlesToOneHubPerTick(t *testing.T) {
 	const (
 		tickEvery   = 15 * time.Minute
-		walkTakes   = 30 * time.Second // one book, serialised behind the last
+		walkTakes   = 30 * time.Second // one region, serialised behind the last
 		settleHours = 6
 	)
 

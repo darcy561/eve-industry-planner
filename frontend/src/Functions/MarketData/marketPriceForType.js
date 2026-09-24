@@ -6,11 +6,6 @@ import { readAdjustedPrice, readPrice } from "./priceCache";
  * One accessor so that a caller asks for a figure and never learns how it is
  * held — which market it came from decides who fetched it and where it lives,
  * and that is the loader's business rather than any surface's.
- *
- * Reading and asking are separate. These answer from what is already held and
- * report absence rather than waiting, which is what keeps the synchronous
- * callers working: a shopping list row and an order type comparison both read a price
- * inside a reduce, and neither can await.
  */
 
 /**

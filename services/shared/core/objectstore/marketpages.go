@@ -86,7 +86,7 @@ func (m *MarketPages) DropRegion(ctx context.Context, regionID int64) error {
 	return m.backend.DeletePrefix(ctx, regionPrefix(regionID))
 }
 
-// DropPagesFrom removes the pages at or above fromPage, so a book that has
+// DropPagesFrom removes the pages at or above fromPage, so a region that has
 // shrunk does not leave pages a later walk would replay as though they were
 // still part of it.
 func (m *MarketPages) DropPagesFrom(ctx context.Context, regionID int64, fromPage int) error {
@@ -110,7 +110,7 @@ func (m *MarketPages) DropPagesFrom(ctx context.Context, regionID int64, fromPag
 //
 // Object storage has no expiry of its own, so this is what keeps the bucket from
 // growing without bound. A region is judged by its newest page, because a walk
-// rewrites the whole book and a part-written region must not be dropped mid-walk.
+// rewrites the whole region and a part-written one must not be dropped mid-walk.
 func (m *MarketPages) DropRegionsOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
 	regions, err := m.backend.ListChildNames(ctx, "region")
 	if err != nil {

@@ -32,7 +32,7 @@ func retirementDeps(t *testing.T) (*taskrun.Dependencies, *objectstore.MarketPag
 	}, pages, backend
 }
 
-// A market nobody has asked about in a fortnight stops being swept. Its book
+// A market nobody has asked about in a fortnight stops being swept. Its pages
 // stays until age takes it, so a reader who comes back inside that window is
 // priced from pages that are already stored.
 func TestAMarketNobodyAsksAboutIsRetired(t *testing.T) {
@@ -64,7 +64,7 @@ func TestAMarketNobodyAsksAboutIsRetired(t *testing.T) {
 		t.Fatalf("page numbers: %v", err)
 	}
 	if len(held) != 1 {
-		t.Errorf("held %d pages, want the retired region's book left to age out", len(held))
+		t.Errorf("held %d pages, want the retired region's pages left to age out", len(held))
 	}
 }
 
@@ -171,9 +171,9 @@ func TestAMarketAskedForMidSweepIsKept(t *testing.T) {
 	}
 }
 
-// The backstop: a book left behind by a region retired without its pages is
+// The backstop: pages left behind by a region retired without them are
 // swept by age, because object storage expires nothing on its own.
-func TestAnOrphanedBookIsSweptByAge(t *testing.T) {
+func TestOrphanedPagesAreSweptByAge(t *testing.T) {
 	deps, pages, backend := retirementDeps(t)
 
 	const orphaned = int64(10000016)
@@ -198,10 +198,10 @@ func TestAnOrphanedBookIsSweptByAge(t *testing.T) {
 }
 
 // A market asked for again after being retired costs no walk: its region is
-// registered afresh and the book retirement left in place prices it. That window
-// is what the book's own lifetime buys, and it is why retirement does not delete
+// registered afresh and the pages retirement left in place price it. That window
+// is what their own lifetime buys, and it is why retirement does not delete
 // one.
-func TestAMarketAskedForAfterRetirementIsPricedFromTheBookLeftBehind(t *testing.T) {
+func TestAMarketAskedForAfterRetirementIsPricedFromThePagesLeftBehind(t *testing.T) {
 	deps, pages, _ := retirementDeps(t)
 	orders := deps.Redis.MarketOrders()
 
@@ -233,9 +233,9 @@ func TestAMarketAskedForAfterRetirementIsPricedFromTheBookLeftBehind(t *testing.
 		t.Fatalf("read prices: %v", err)
 	}
 	if priced[34] == nil {
-		t.Fatal("a market asked for again was not priced from the book left behind")
+		t.Fatal("a market asked for again was not priced from the pages left behind")
 	}
 	if priced[34].Buy != 5 || priced[34].Sell != 9 {
-		t.Errorf("priced %+v, want the stored book's buy 5 and sell 9", priced[34])
+		t.Errorf("priced %+v, want the stored orders' buy 5 and sell 9", priced[34])
 	}
 }

@@ -9,7 +9,7 @@ import (
 
 // RegionMarketOrdersRequest represents the JSON data payload for a region market orders walk.
 // One request covers every order in the region: no type filter and no station, because the walk
-// stores the book and the stations wanted in it are read where prices are derived.
+// stores the pages and the stations wanted in them are read where prices are derived.
 type RegionMarketOrdersRequest struct {
 	RegionID int64 `json:"region_id"` // Region ID for the market endpoint
 }

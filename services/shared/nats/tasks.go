@@ -94,7 +94,7 @@ var (
 		MaxRetries:      3,
 	})
 	// TrackMarketSources registers the markets an account prices against, so
-	// their books are walked before a job asks for a figure. Published when an
+	// their regions are walked before a job asks for a figure. Published when an
 	// account signs in and when it saves a market.
 	TrackMarketSources = defineTask(Definition{
 		Name:            "trackMarketSources",
@@ -104,7 +104,7 @@ var (
 		MaxRetries:      3,
 	})
 	// RetireUnaskedMarkets forgets the markets nothing has asked about lately and
-	// drops the books kept for them. Redis and object storage only, and it runs
+	// drops the pages kept for them. Redis and object storage only, and it runs
 	// while nobody waits, so it sits at the bulk priority.
 	RetireUnaskedMarkets = defineTask(Definition{
 		Name:            "retireUnaskedMarkets",

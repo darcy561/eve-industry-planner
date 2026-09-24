@@ -17,7 +17,7 @@ import { LocationResolutionError, isRefusalStatus } from "./locationOutcome";
  * apart from a request that merely failed.
  *
  * There is no per-type form of this endpoint. A reader pricing one item pays
- * for the structure's whole order book, which is why nothing calls this per
+ * for every order at the structure, which is why nothing calls this per
  * want and why what it returns is kept.
  */
 
@@ -25,7 +25,7 @@ import { LocationResolutionError, isRefusalStatus } from "./locationOutcome";
  * The most pages one structure's orders may run to before the read is refused.
  *
  * **A partial read is a wrong answer, not a cheap one.** Prices are derived
- * from every order at the place, so a book cut short can report an ask that
+ * from every order at the place, so a read cut short can report an ask that
  * nobody is offering and a spread that does not exist — and nothing downstream
  * could tell that from a real figure. So a structure past this is refused
  * whole.
@@ -93,8 +93,8 @@ export async function fetchStructureOrders(
   );
 
   // A page refused after the first is not the account being told it cannot see
-  // this structure — it already has been told it can. Whatever it is, the book
-  // it would have held is missing, and prices derived without it would be wrong.
+  // this structure — it already has been told it can. Whatever it is, the orders
+  // that page held are missing, and prices derived without them would be wrong.
   if (rest.some((page) => page.refused)) {
     throw new LocationResolutionError(
       "structure orders: a page was refused mid-read",
@@ -141,10 +141,10 @@ async function accessTokenFor(structureID, character) {
 /**
  * One page, and what its headers said.
  *
- * **No `If-None-Match` here, unlike a region's orders.** An etag buys a 304 for
- * a caller holding the orders it was last given; this one holds derived prices
- * and throws the orders away, so it has nothing a 304 could spare it from
- * fetching.
+ * **No `If-None-Match` here, unlike a region's orders.** A 304 is only worth
+ * asking for by whoever holds what it would stand in for, and what is kept from
+ * this read is a market's orders whole, under one key — while an etag belongs to
+ * a page.
  */
 async function readPage(structureID, accessToken, page, config) {
   let response;

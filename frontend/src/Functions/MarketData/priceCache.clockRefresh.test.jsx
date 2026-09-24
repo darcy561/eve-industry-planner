@@ -10,7 +10,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
  * says what a reader sees, because a surface does not call `fetchPrices` when
  * something changes — it reads prices synchronously while rendering and is held
  * up by `useMarketPricesQuery`. So the question this file exists for is whether
- * a market walking its book again reaches a dashboard someone is looking at.
+ * a market walking its orders again reaches a dashboard someone is looking at.
  */
 
 const fetchMarketPricesQuery = vi.fn();
@@ -53,7 +53,7 @@ afterEach(() => {
   resetSourceClocks();
 });
 
-describe("a market walks its book again while a surface is open", () => {
+describe("a market walks its orders again while a surface is open", () => {
   it("shows the reader the new figure", async () => {
     fetchMarketPricesQuery.mockResolvedValue(answerAt(1757000000000, 10));
 

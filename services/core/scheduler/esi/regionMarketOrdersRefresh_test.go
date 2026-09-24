@@ -150,7 +150,7 @@ func TestAKnownPageCountWithAnUnknownAllowanceStillPublishes(t *testing.T) {
 	}
 }
 
-// walked records a hub as having been paged at t, and its book as expired.
+// walked records a hub as having been paged at t, and its orders as expired.
 func walked(t *testing.T, client *redislib.Client, regionID int64, at time.Time) {
 	t.Helper()
 	if err := eipredis.NewRedis(client).MarketOrders().PutRefreshTime(t.Context(), regionID, at); err != nil {
@@ -212,7 +212,7 @@ func TestAHubInsideTheSweepIntervalIsNotDue(t *testing.T) {
 }
 
 func TestStalestHubIsSweptFirst(t *testing.T) {
-	// Under a budget too tight for every hub, the oldest book is the one worth
+	// Under a budget too tight for every hub, the oldest region is the one worth
 	// spending on.
 	fake := redisfake.New(t)
 	now := time.Now()
@@ -249,7 +249,7 @@ func TestAHubIsNotWalkedInsideItsMaxAge(t *testing.T) {
 	regions := hubRegions()[:1]
 	regionID := regions[0]
 
-	// Long past due by the sweep interval, but ESI says the book is current.
+	// Long past due by the sweep interval, but ESI says the region is current.
 	if err := eipredis.NewRedis(fake.Client).MarketOrders().PutRefreshTime(t.Context(),
 		regionID, now.Add(-4*time.Hour)); err != nil {
 		t.Fatalf("seeding refresh time: %v", err)

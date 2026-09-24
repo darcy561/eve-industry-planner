@@ -19,7 +19,7 @@ import (
 	eipredis "eve-industry-planner/shared/redis"
 )
 
-// The paged walk is the one with real state: a book spread over pages, an ETag
+// The paged walk is the one with real state: a region spread over pages, an ETag
 // per page, and a page store each page replays from when ESI answers 304. What
 // has to match is not just the orders delivered but the pages left behind, since
 // that is what the next pass depends on.
@@ -191,7 +191,7 @@ func TestRegionMarketOrdersReplaysFromStorageWhenPagesAreUnchanged(t *testing.T)
 			len(replayed), len(fresh), firstDifference(fresh, replayed))
 	}
 	if len(replayed) == 0 {
-		t.Error("a 304 pass should still deliver the book from storage")
+		t.Error("a 304 pass should still deliver the orders from storage")
 	}
 }
 
@@ -225,7 +225,7 @@ func TestRegionMarketOrdersTreatsAMissingPageCountAsOnePage(t *testing.T) {
 		t.Errorf("delivered %d orders, want the single page's 3", count)
 	}
 	if result.TotalPages != 0 {
-		t.Errorf("TotalPages = %d; with no X-Pages the first page is the whole book", result.TotalPages)
+		t.Errorf("TotalPages = %d; with no X-Pages the first page is the whole region", result.TotalPages)
 	}
 }
 
@@ -238,10 +238,10 @@ func firstDifference(a, b []string) string {
 	return fmt.Sprintf("index %d (one ran out)", min(len(a), len(b)))
 }
 
-// A worker started without object storage still walks the book and still prices
+// A worker started without object storage still walks the region and still prices
 // it; what it loses is the replay, so every page is refetched. Degrading is the
 // point — a missing page store must not take the sweep down with it.
-func TestAWalkWithNoPageStoreStillDeliversTheBook(t *testing.T) {
+func TestAWalkWithNoPageStoreStillDeliversTheOrders(t *testing.T) {
 	const pages, perPage = 2, 10
 	origin := newOrdersOrigin(t, pages, perPage)
 	fake := redisfake.New(t)
@@ -270,7 +270,7 @@ func TestAWalkWithNoPageStoreStillDeliversTheBook(t *testing.T) {
 
 // With nothing stored, a 304 has nothing to replay — so the pass must report
 // itself changed rather than unchanged, or the caller skips the price write and
-// the book silently lapses.
+// the walk silently lapses.
 func TestA304WithNoPageStoreIsNotUnchanged(t *testing.T) {
 	origin := newOrdersOrigin(t, 1, 5)
 	origin.notModified[1] = true
@@ -294,7 +294,7 @@ func TestA304WithNoPageStoreIsNotUnchanged(t *testing.T) {
 	}
 }
 
-// A walk that wants the book stored rather than delivered still has to know its
+// A walk that wants the pages stored rather than delivered still has to know its
 // 304s replayed something: a missing page reads as changed, so the next pass
 // refetches it instead of the region going on claiming to be current.
 func TestA304WithNoOrderConsumerStillChecksThePageIsHeld(t *testing.T) {

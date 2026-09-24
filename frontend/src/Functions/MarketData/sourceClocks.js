@@ -1,7 +1,7 @@
 /**
- * The moment each market's book was last walked, as the rows held for it say.
+ * The moment each market's orders were last walked, as the rows held for it say.
  *
- * A book refreshes as a whole, so every row a market answered with shares one
+ * A market refreshes as a whole, so every row it answered with shares one
  * moment and goes stale together. That makes the market's own clock the
  * staleness rule: a held row is current for exactly as long as the clock it
  * arrived with is the newest one that market has published, however long ago

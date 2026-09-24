@@ -6,6 +6,7 @@ vi.mock("./priceLoader", () => ({
   requestPrice: vi.fn(),
   requestAdjustedPrice: vi.fn(),
   setClockMovedListener: () => {},
+  setOrdersStoredListener: () => {},
 }));
 
 const readMarketFreshness = vi.fn();
@@ -30,6 +31,7 @@ vi.mock("./marketSources", async () => {
 
 const { rotateSelfReadMarkets } = await import("./priceCache.js");
 const { PRICE_ROTATION_MS } = await import("./citadelPrices.js");
+const { MARKET_READ_OUTCOME } = await import("./marketReadOutcome.js");
 
 /** Nothing on record, so every market is due. */
 const NEVER_READ = undefined;
@@ -97,6 +99,7 @@ describe("a rotation across several markets", () => {
     expect(deferMarket).toHaveBeenCalledWith(
       "astrahus",
       1000 + PRICE_ROTATION_MS,
+      MARKET_READ_OUTCOME.REFUSED,
     );
   });
 
@@ -134,5 +137,52 @@ describe("a market that could not be read, as against refused", () => {
     await rotateSelfReadMarkets(1000);
 
     expect(deferMarket).toHaveBeenCalledTimes(SAVED.length);
+  });
+
+  // Having nobody to ask with is an answer about the account rather than a
+  // failure to reach ESI, so it waits its turn out the way a refusal does.
+  it("waits its turn out when nothing could be asked", async () => {
+    requestMarketRead.mockImplementation(async () => {
+      const unaskable = new Error("no character is authorised to ask");
+      unaskable.needsReauthorisation = true;
+      throw unaskable;
+    });
+
+    await rotateSelfReadMarkets(1000);
+
+    expect(deferMarket).toHaveBeenCalledTimes(SAVED.length);
+  });
+});
+
+// The reason is the only thing a panel can say about a market whose figures
+// never arrive, so it has to survive the rotation rather than being read once
+// and dropped.
+describe("what the rotation records about a market it could not read", () => {
+  it("hands the reason on with the turn it puts back", async () => {
+    requestMarketRead.mockImplementation(async () => {
+      const refusal = new Error("no character can see it");
+      refusal.permanent = true;
+      throw refusal;
+    });
+
+    await rotateSelfReadMarkets(1000);
+
+    for (const [, , outcome] of deferMarket.mock.calls) {
+      expect(outcome).toBe(MARKET_READ_OUTCOME.REFUSED);
+    }
+  });
+
+  it("separates having nobody to ask from being told no", async () => {
+    requestMarketRead.mockImplementation(async () => {
+      const unaskable = new Error("no character is authorised to ask");
+      unaskable.needsReauthorisation = true;
+      throw unaskable;
+    });
+
+    await rotateSelfReadMarkets(1000);
+
+    for (const [, , outcome] of deferMarket.mock.calls) {
+      expect(outcome).toBe(MARKET_READ_OUTCOME.UNASKABLE);
+    }
   });
 });

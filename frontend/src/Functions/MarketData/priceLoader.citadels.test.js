@@ -11,8 +11,10 @@ vi.mock("./citadelPrices", () => ({
 }));
 
 const replaceStoredPrices = vi.fn();
+const replaceStoredOrders = vi.fn();
 vi.mock("./priceStore", () => ({
   replaceStoredPrices: (...args) => replaceStoredPrices(...args),
+  replaceStoredOrders: (...args) => replaceStoredOrders(...args),
   readStoredPrice: vi.fn(),
 }));
 
@@ -45,6 +47,7 @@ const { readSourceClock, recordSourceClock, resetSourceClocks } =
 
 const priced = (rows, extra = {}) => ({
   rows: new Map(rows),
+  orders: [{ order_id: 1, type_id: 34, price: 10, is_buy_order: false }],
   refreshedAt: 1757000000000,
   ...extra,
 });
@@ -52,6 +55,11 @@ const priced = (rows, extra = {}) => ({
 beforeEach(() => {
   fetchMarketPricesQuery.mockResolvedValue({ sources: {}, adjusted: null });
   readCitadelPrices.mockResolvedValue(priced([["34", { sell: 10, buy: 9 }]]));
+  // Resolved rather than bare: the loader does not await this write but does
+  // attach a catch to it, so a stub returning undefined would fail the tick on
+  // a path production never takes.
+  replaceStoredPrices.mockResolvedValue(undefined);
+  replaceStoredOrders.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -328,5 +336,32 @@ describe("a rotation and a reader wanting the same market", () => {
     expect(want.status).toBe("rejected");
     expect(rotation.status).toBe("rejected");
     expect(readCitadelPrices).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ESI has no per-type form of a structure's market, so this read is the only
+// copy of a market's orders anything gets without asking for all of them again.
+describe("the orders behind the prices", () => {
+  it("is kept beside them, with the moment it was read", async () => {
+    const orders = [
+      { order_id: 7, type_id: 34, price: 11, is_buy_order: true },
+    ];
+    readCitadelPrices.mockResolvedValue(
+      priced([["34", { sell: 10 }]], { orders, refreshedAt: 42 }),
+    );
+
+    await requestPrice(34, "azbel");
+
+    expect(replaceStoredOrders).toHaveBeenCalledWith("azbel", orders, 42);
+  });
+
+  // Pricing must not wait on it and must not fail with it: a reader whose quota
+  // will not take the orders still gets the four figures derived from it.
+  it("does not hold up the prices when it cannot be written", async () => {
+    replaceStoredOrders.mockRejectedValue(new Error("quota exceeded"));
+
+    await expect(requestPrice(34, "azbel")).resolves.not.toThrow();
+
+    expect(replaceStoredPrices).toHaveBeenCalled();
   });
 });

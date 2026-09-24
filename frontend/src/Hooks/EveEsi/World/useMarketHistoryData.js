@@ -5,24 +5,16 @@ import useLocationNames from "../useLocationNames";
 import useESIRateLimiting from "../../App/useESIRateLimiting";
 
 /**
- * Custom hook that fetches market history data for a specific item and region from EVE ESI API.
+ * One type's daily price history across a region.
  *
- * The fetching process:
- * 1. Validates typeID and regionID parameters
- * 2. Checks ESI rate limits for market group
- * 3. Fetches market history data with ETag support
- * 4. Transforms data to standardised format
- * 5. Handles rate limiting errors with appropriate wait times
- * 6. Retains inactive cache (gcTime) 30 minutes with 5-minute stale time
+ * ESI publishes history per region only, so a location the reader chose is
+ * reduced to the one it sits in — a structure's history is its region's.
  *
- * @param {number} typeID - EVE Online item type ID to fetch market history for
- * @param {Object} location - Location object containing region information
- * @param {number} location.regionID - EVE Online region ID for market history
- * @returns {Object} Object containing market history data and states
- * @returns {Array<Object>} returns.marketHistory - Array of market history objects with date, highest, lowest, average, volume
- * @returns {boolean} returns.isLoading - Whether the query is still loading
- * @returns {Error|null} returns.error - Error object if an error occurred
- * @returns {Function} returns.refetch - Function to manually refetch the data
+ * @param {number} typeID
+ * @param {object} location - The market the reader chose
+ * @param {number} location.regionID - The region its history is asked for
+ * @returns {{marketHistory: Array<object>, worldData: Object<string, object>,
+ *   isLoading: boolean, error: Error|null, refetch: Function}}
  */
 export function useMarketHistoryData(typeID, location) {
   const { isRateLimited, getWaitTime } = useESIRateLimiting();
@@ -37,7 +29,6 @@ export function useMarketHistoryData(typeID, location) {
     queryFn: async () => {
       if (!typeID || !location?.regionID) return null;
 
-      // Check if market group is rate limited
       if (isRateLimited("market")) {
         const waitTime = getWaitTime("market");
         throw new Error(
@@ -71,14 +62,13 @@ export function useMarketHistoryData(typeID, location) {
       return transformedData || [];
     },
     enabled: !!typeID && !!location?.regionID && !isRateLimited("market"),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     retry: 3,
     retryDelay: (attemptIndex, error) => {
-      // If rate limited, use the wait time
       if (error?.message?.includes("rate limited")) {
         const waitTime = getWaitTime("market");
-        return Math.max(waitTime, 1000); // At least 1 second
+        return Math.max(waitTime, 1000);
       }
       return Math.min(1000 * 2 ** attemptIndex, 30000);
     },

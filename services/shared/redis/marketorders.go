@@ -36,7 +36,7 @@ type TrackedStation struct {
 const regionRefreshTimesKey = "esi:market_orders:region_refresh_times"
 
 const (
-	// A pass writes only the types the book still holds, so expiry is what
+	// A pass writes only the types the market still holds, so expiry is what
 	// retires a sold-out type. Bounded both ways — see TestRegionPriceLifetime.
 	ttlRegionPrice = 2 * time.Hour
 
@@ -44,7 +44,7 @@ const (
 	ttlRegionETags = 24 * time.Hour
 
 	// A region missing from the refresh-times set reads as never walked and is
-	// refreshed at once, so an expiry would re-walk current books. One member
+	// refreshed at once, so an expiry would re-walk current regions. One member
 	// per region.
 	ttlRegionRefreshTimes = forever
 
@@ -150,7 +150,7 @@ func (m *MarketOrdersStore) ETags(ctx context.Context, regionID int64) (map[int]
 }
 
 // DeleteETagsFrom removes the stored ETags for pages at or above fromPage, so a
-// book that has shrunk does not replay pages it no longer has.
+// region that has shrunk does not replay pages it no longer has.
 func (m *MarketOrdersStore) DeleteETagsFrom(ctx context.Context, regionID int64, fromPage int) error {
 	key := regionETagsKey(regionID)
 	stored, err := m.redis.Fields(ctx, key)

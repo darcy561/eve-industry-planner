@@ -1,9 +1,9 @@
 {
-  "_why": "Order books in, the four prices out, from buildMarketPriceEntry. The SPA derives the same prices for the markets it fetches itself, and nothing but this file holds the two in agreement. Regenerate with: EIP_UPDATE_MARKET_DERIVATION=1 go test ./worker/tasks/esi/ -run TestTheDerivationIsCurrent",
+  "_why": "Market orders in, the four prices out, from buildMarketPriceEntry. The SPA derives the same prices for the markets it fetches itself, and nothing but this file holds the two in agreement. Regenerate with: EIP_UPDATE_MARKET_DERIVATION=1 go test ./worker/tasks/esi/ -run TestTheDerivationIsCurrent",
   "cases": [
     {
-      "name": "a book big enough for percentiles",
-      "why": "Both sides sort and take the nearest rank, so a book over the floor proves the ordinary path.",
+      "name": "enough orders for percentiles",
+      "why": "Both sides sort and take the nearest rank, so a market over the floor proves the ordinary path.",
       "stationID": 60003760,
       "typeID": 34,
       "orders": [
@@ -88,7 +88,7 @@
       }
     },
     {
-      "name": "a book under the percentile floor",
+      "name": "too few orders for the percentile",
       "why": "Below five orders the percentile degenerates, so both sides must fall back to the best price rather than to a rank.",
       "stationID": 60003760,
       "typeID": 34,
@@ -472,8 +472,8 @@
       }
     },
     {
-      "name": "a book large enough for the rank to leave the extreme",
-      "why": "The whole point of carrying both figures. ceil(0.95*n) only steps back from the last index at twenty-one orders, and ceil(0.05*n) only steps forward from the first at twenty-one, so a smaller book cannot tell a real percentile from one that simply returns the best price.",
+      "name": "enough orders for the rank to leave the extreme",
+      "why": "The whole point of carrying both figures. ceil(0.95*n) only steps back from the last index at twenty-one orders, and ceil(0.05*n) only steps forward from the first at twenty-one, so fewer orders cannot tell a real percentile from one that simply returns the best price.",
       "stationID": 60003760,
       "typeID": 34,
       "orders": [
@@ -738,7 +738,7 @@
       }
     },
     {
-      "name": "a book where the rank falls on a whole number",
+      "name": "orders where the rank falls on a whole number",
       "why": "Twenty orders makes 0.95*n and 0.05*n whole, which is the only size where ceil(p*n)-1 and floor(p*n) disagree. Without this size the fixture cannot tell nearest-rank from the off-by-one that looks just like it.",
       "stationID": 60003760,
       "typeID": 34,

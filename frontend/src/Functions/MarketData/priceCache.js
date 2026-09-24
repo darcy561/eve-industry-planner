@@ -12,6 +12,7 @@ import {
   requestMarketRead,
   requestPrice,
   setClockMovedListener,
+  setOrdersStoredListener,
 } from "./priceLoader";
 import {
   deferMarket,
@@ -20,6 +21,8 @@ import {
 } from "./priceStore";
 import { PRICE_ROTATION_MS } from "./citadelPrices";
 import { readSourceClock, recordSourceClock } from "./sourceClocks";
+import { outcomeOfFailedRead, readerCanAct } from "./marketReadOutcome";
+import { CITADEL_ORDERS_QUERY_KEY } from "./ordersAtCitadels";
 
 /**
  * Where a price is held, and the two halves of getting one.
@@ -230,6 +233,18 @@ setClockMovedListener(({ sources, adjusted }) => {
 });
 
 /**
+ * Tells a surface browsing a market's orders that they have been replaced.
+ *
+ * A browsing surface waits on nobody — the orders it draws come from the device
+ * rather than from a request it made — so without this it holds whatever was
+ * stored when it opened, including nothing at all for a market that had not
+ * been walked yet.
+ */
+setOrdersStoredListener(() => {
+  queryClient.invalidateQueries({ queryKey: CITADEL_ORDERS_QUERY_KEY });
+});
+
+/**
  * Reads again, before anybody asks, every market the reader reads themselves
  * whose turn has come round.
  *
@@ -265,43 +280,48 @@ export async function rotateSelfReadMarkets(now = Date.now()) {
   const refused = await readEach(rotating);
 
   await Promise.all(
-    refused.map((sourceID) => deferMarket(sourceID, now + PRICE_ROTATION_MS)),
+    refused.map(({ sourceID, outcome }) =>
+      deferMarket(sourceID, now + PRICE_ROTATION_MS, outcome),
+    ),
   );
 
   return rotating.length;
 }
 
 /**
- * Reads each market, and says which the account was refused.
+ * Reads each market, and says which of them settled on something the reader
+ * would want to know about.
  *
  * All of them at once: a structure's market is on an ESI allowance of its own
  * rather than the one a region's orders draw on, so reading several does not
  * take anything from the prices this server serves.
  *
- * **Only a refusal is reported back**, not every failure. A refusal is an answer
- * about the market and is worth waiting out; a read that failed says nothing —
- * ESI may be down, or the account's characters may not all have arrived yet, as
- * they have not when a cloud account signs in and its roster is still filling.
- * Putting a market's turn back for an hour on the strength of that would leave a
- * readable market unread on nothing more than bad timing.
+ * **Only an answer about the market is reported back**, not every failure. Being
+ * refused, or having nobody to ask with, is an answer and is worth waiting out;
+ * a read that failed says nothing — ESI may be down, or the account's characters
+ * may not all have arrived yet, as they have not when a cloud account signs in
+ * and its roster is still filling. Putting a market's turn back for an hour on
+ * the strength of that would leave a readable market unread on nothing more than
+ * bad timing.
  *
  * @param {string[]} sourceIDs
- * @returns {Promise<string[]>}
+ * @returns {Promise<Array<{sourceID: string, outcome: string}>>}
  */
 async function readEach(sourceIDs) {
-  const refused = [];
+  const settled = [];
 
   await Promise.all(
     sourceIDs.map(async (sourceID) => {
       try {
         await requestMarketRead(sourceID);
       } catch (error) {
-        if (error?.permanent) refused.push(sourceID);
+        const outcome = outcomeOfFailedRead(error);
+        if (readerCanAct(outcome)) settled.push({ sourceID, outcome });
       }
     }),
   );
 
-  return refused;
+  return settled;
 }
 
 function isDue(freshness, now) {

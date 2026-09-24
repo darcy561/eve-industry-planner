@@ -28,7 +28,7 @@ const regionSweepInterval = time.Hour
 //
 // Nothing is published while ESI is not answering. A hub whose cost the budget
 // cannot absorb is left for a later tick, and the ones behind it are still
-// tried — a cheaper book refreshed is better than none.
+// tried — a cheaper region refreshed is better than none.
 func RegionMarketOrdersRefresh(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	natsHandle := deps.NATS
 	r := deps.Redis
@@ -96,7 +96,7 @@ func runRegionMarketOrdersRefresh(
 	return nil
 }
 
-// regionsDue is every tracked region whose book should be walked again, stalest
+// regionsDue is every tracked region whose orders should be walked again, stalest
 // first, so that a budget too tight for all of them spends what it has on the
 // oldest.
 //
@@ -184,7 +184,7 @@ func canAffordRegionRefresh(ctx context.Context, esi esiclient.API, r *eipredis.
 	return false
 }
 
-// regionStillFresh reports whether ESI's own max-age says this region's book
+// regionStillFresh reports whether ESI's own max-age says this region's orders
 // cannot have changed yet. A region nothing has fetched has no answer, and the
 // first pass is what establishes one.
 func regionStillFresh(ctx context.Context, r *eipredis.Redis, regionID int64, now time.Time) (bool, time.Time) {

@@ -118,8 +118,8 @@ type call struct {
 	validatorKey string
 }
 
-// validatorKey identifies the thing a validator belongs to: a page of a book
-// rather than the book. The bucket and the endpoint policy stay keyed on the
+// validatorKey identifies the thing a validator belongs to: one page of a
+// region rather than the region. The bucket and the endpoint policy stay keyed on the
 // path, which is what ESI meters and what the tuning describes.
 func validatorKey(path string, query url.Values) string {
 	if len(query) == 0 {

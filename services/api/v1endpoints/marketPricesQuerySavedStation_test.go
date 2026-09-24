@@ -68,7 +68,7 @@ func register(t *testing.T, redis *eipredis.Redis, esi *esifake.Client, stationI
 }
 
 // A registered market's prices are answered under the id the caller asked with,
-// carrying the clock of the region its book was walked in.
+// carrying the clock of the region it was walked in.
 func TestARegisteredStationsPricesAreAnsweredUnderItsID(t *testing.T) {
 	handler, redis, esi := savedStationHandler(t)
 	register(t, redis, esi, savedStation)

@@ -28,6 +28,10 @@ export const PRICE_ROTATION_MS = 60 * 60 * 1000;
  * @typedef {object} CitadelPrices
  * @property {Map<string, import("./pricesFromOrders").DerivedPrices>} rows -
  *   Prices by type id
+ * @property {Array<object>} orders - The orders as ESI returned them. Handed on
+ *   rather than dropped after deriving: ESI has no per-type form of a
+ *   structure's market, so this is the only copy anything will get without
+ *   asking for every order again
  * @property {number} refreshedAt
  * @property {number} [expiresAt]
  */
@@ -67,6 +71,7 @@ export async function readCitadelPrices(source) {
 
   return {
     rows: pricesByType(walk.answer.orders, source.structureID),
+    orders: walk.answer.orders,
     refreshedAt: walk.answer.refreshedAt,
     // From when it was read, not from the moment the orders carried: a market
     // last traded in an hour ago would otherwise be due again the moment it

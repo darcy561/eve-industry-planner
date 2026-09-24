@@ -18,21 +18,21 @@ const (
 	// what falls out is a market saved once and abandoned.
 	unaskedMarketLifetime = 14 * 24 * time.Hour
 
-	// A book is dropped by age alone. Long enough that a region still being
+	// A region's pages are dropped by age alone. Long enough that a region still being
 	// walked is never a candidate and a market asked for again can be priced
-	// from what is already stored, short enough that a book nothing walks is not
+	// from what is already stored, short enough that pages nothing walks are not
 	// held for a month.
 	orphanedPageLifetime = 7 * 24 * time.Hour
 )
 
 // RetireUnaskedMarkets stops tracking the markets nothing has asked about, and
-// drops the books left behind by age.
+// drops the pages left behind by age.
 //
-// A retired region keeps its stored book until the backstop below takes it: a
+// A retired region keeps its stored pages until the backstop below takes them: a
 // market asked for again inside that window is priced from those pages with no
 // ESI call, and deleting them on retirement would instead leave the next walk
 // holding valid ETags for pages it no longer has — 304s it cannot replay, and a
-// book that cannot rebuild until ESI's own validator moves.
+// region that cannot rebuild until ESI's own validator moves.
 //
 // The four hubs are exempt: every reader prices against them, so a quiet
 // fortnight means the planner was quiet rather than that nobody wants Jita.
@@ -87,7 +87,7 @@ func RetireUnaskedMarkets(ctx context.Context, deps *taskrun.Dependencies) error
 	logs.InfoCtx(ctx, "unasked markets retired",
 		"regions_tracked", len(regions),
 		"regions_retired", retired,
-		"orphaned_books_dropped", orphaned,
+		"orphaned_pages_dropped", orphaned,
 		"duration_ms", time.Since(start).Milliseconds())
 
 	return nil

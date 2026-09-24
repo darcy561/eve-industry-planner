@@ -31,9 +31,9 @@ type RegionOrdersFetchResult struct {
 // Pages are stored unfiltered so they stay valid for any station in the region;
 // callers apply their own station filter inside onOrder.
 //
-// **onOrder may be nil**, for the caller that wants the book stored rather than
+// **onOrder may be nil**, for the caller that wants the pages stored rather than
 // delivered: a 304 then confirms its page is held instead of decoding it, which
-// is the difference between reading a region's whole book and reading a key.
+// is the difference between reading a region's every order and reading a key.
 func FetchRegionMarketOrders(
 	ctx context.Context,
 	client esiclient.API,
@@ -66,7 +66,7 @@ func FetchRegionMarketOrders(
 		}
 		result.TotalBytes += pageBytes
 
-		// No X-Pages means the first page is the whole book, rather than looping blind.
+		// No X-Pages means the first page is the whole region, rather than looping blind.
 		if result.TotalPages == 0 || page >= result.TotalPages {
 			return result, nil
 		}

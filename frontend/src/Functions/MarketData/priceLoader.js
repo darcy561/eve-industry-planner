@@ -7,7 +7,7 @@ import {
   sourceIn,
   wantKey,
 } from "./marketSources";
-import { replaceStoredPrices } from "./priceStore";
+import { replaceStoredOrders, replaceStoredPrices } from "./priceStore";
 import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 
 /**
@@ -299,6 +299,15 @@ async function keepWhatIsRead(sourceID, source) {
     expiresAt: prices.expiresAt,
   });
 
+  // The orders themselves, for the surfaces that browse orders rather than price
+  // against them. Not awaited with the rows above — pricing must not wait on a
+  // write it does not read — and its failure is swallowed here as well as
+  // inside, because an unawaited promise that rejects takes the whole tick down
+  // rather than the browse it belongs to.
+  replaceStoredOrders(sourceID, prices.orders, prices.refreshedAt)
+    .then(() => onOrdersStored?.(sourceID))
+    .catch(() => {});
+
   // Before any waiter, as the served transport does: a reader woken by one of
   // them reads the rows against the clock they arrived with.
   if (recordSourceClock(sourceID, prices.refreshedAt)) {
@@ -381,6 +390,24 @@ let onClocksMoved = null;
  */
 export function setClockMovedListener(listener) {
   onClocksMoved = listener;
+}
+
+/** @type {((sourceID: string) => void)|null} */
+let onOrdersStored = null;
+
+/**
+ * Sets what to tell when a market's stored orders have been replaced.
+ *
+ * Apart from the clock above because it is a different fact, not a second way
+ * of hearing the same one: a market walked for the first time moves no clock —
+ * the prices it read go to the callers waiting on them — while a surface
+ * browsing its orders is waiting on nobody and would sit on an empty market for
+ * as long as it stayed open.
+ *
+ * @param {((sourceID: string) => void)|null} listener
+ */
+export function setOrdersStoredListener(listener) {
+  onOrdersStored = listener;
 }
 
 /**

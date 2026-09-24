@@ -237,7 +237,7 @@ describe("the clock every answer carries", () => {
     expect(moved).not.toHaveBeenCalled();
   });
 
-  it("names the markets whose books were walked again", async () => {
+  it("names the markets that were walked again", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
       answer({
         jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } },

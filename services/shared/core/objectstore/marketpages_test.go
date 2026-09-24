@@ -125,7 +125,7 @@ func TestDroppingARegionLeavesTheOthers(t *testing.T) {
 	}
 }
 
-// A shrunk book leaves trailing pages that a later walk would otherwise replay
+// A shrunk region leaves trailing pages that a later walk would otherwise replay
 // as though they were still part of it.
 func TestDroppingFromAPageLeavesTheOnesBelow(t *testing.T) {
 	t.Parallel()
@@ -188,7 +188,7 @@ func TestRetentionDropsOnlyRegionsOlderThanTheCutoff(t *testing.T) {
 	}
 }
 
-// A region is judged by its newest page, because a walk rewrites the whole book
+// A region is judged by its newest page, because a walk rewrites the whole region
 // and the early pages of a walk in progress are older than the cutoff while the
 // region itself is being refreshed right now.
 func TestARegionMidWalkIsNotDropped(t *testing.T) {

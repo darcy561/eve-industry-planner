@@ -5,7 +5,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  *
  * Naming a type is what a caller pricing one thing wants — a type's orders run
  * to a page where a whole region runs to dozens. Leaving it out is what a caller
- * reading a market's whole book wants, and the two are different enough
+ * reading every order in a region wants, and the two are different enough
  * requests that ESI holds them under separate etags.
  *
  * @param {Object} params - Parameters object
@@ -16,7 +16,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * @param {Object} [params.config={}] - Additional configuration options
  * @returns {Promise<{data: Array, etag: string, totalPages: number,
  *   headers: Headers, unchanged: boolean}>} The orders, what identifies this
- *   answer, and the response's own headers — `expires` says when the book can
+ *   answer, and the response's own headers — `expires` says when the orders can
  *   next have changed, and a caller pacing its own refresh needs it
  *
  * @throws {Error} Throws error if regionID is missing
@@ -65,7 +65,7 @@ async function getMarketData({
         etag: existingData.etag || "",
         totalPages: existingData.totalPages || 1,
         headers: response.headers,
-        // The book has not moved, so a caller holding it can keep what it has
+        // Nothing has moved, so a caller holding these can keep what it has
         // and only take the new expiry from the headers above.
         unchanged: true,
       };

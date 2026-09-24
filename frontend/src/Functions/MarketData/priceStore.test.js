@@ -64,12 +64,21 @@ const {
   readMarketCharacter,
   readMarketFreshness,
   dropUnreadMarkets,
+  readStoredOrders,
   readStoredPrice,
+  replaceStoredOrders,
   replaceStoredPrices,
   UNREAD_MARKET_MS,
   resetPriceStore,
   writeMarketCharacter,
 } = await import("./priceStore.js");
+const { MARKET_READ_OUTCOME } = await import("./marketReadOutcome.js");
+
+/** The prefixes the store writes under now, so a version bump moves these with it. */
+const { STORE_VERSION } = await import("./priceStore.js");
+const rowKey = (sourceID, typeID) =>
+  `price|v${STORE_VERSION}|${sourceID}|${typeID}`;
+const readKey = (sourceID) => `market-read|v${STORE_VERSION}|${sourceID}`;
 
 /** Holds one row, the way a read of that market's whole set does. */
 const hold = (sourceID, typeID, entry) =>
@@ -288,7 +297,7 @@ describe("a write that gives out partway through", () => {
       expiresAt: 2_000,
     });
 
-    failWriteOf = "price|v2|half-written|35";
+    failWriteOf = rowKey("half-written", 35);
     await replaceStoredPrices(
       "half-written",
       new Map([
@@ -373,22 +382,22 @@ describe("the character that read a market", () => {
     );
   });
 
-  // The shape a market's record is kept in has changed once already. A record
-  // left behind under the old one states no moment this device read the market,
+  // A record left behind under an earlier shape states no moment this device
+  // read the market,
   // and a market the reader has since removed is never read again — so nothing
   // would ever give it one, and the sweep could not reach the markets it is for.
   it("abandons a market whose record was written under an earlier shape", async () => {
-    await set("market-read|v1|gone-citadel", {
+    await set("market-read|v0|gone-citadel", {
       refreshedAt: 1_000_000,
       expiresAt: 2_000_000,
     });
-    await set("price|v1|gone-citadel|34", { buy: 9, sell: 10 });
+    await set("price|v0|gone-citadel|34", { buy: 9, sell: 10 });
 
     await writeMarketCharacter("another-citadel", "hash-main");
 
     await vi.waitFor(async () => {
-      expect(await get("market-read|v1|gone-citadel")).toBeUndefined();
-      expect(await get("price|v1|gone-citadel|34")).toBeUndefined();
+      expect(await get("market-read|v0|gone-citadel")).toBeUndefined();
+      expect(await get("price|v0|gone-citadel|34")).toBeUndefined();
     });
   });
 });
@@ -428,6 +437,41 @@ describe("putting a market's turn back", () => {
 
     expect(await readMarketFreshness("never-read")).toMatchObject({
       expiresAt: 5000,
+    });
+  });
+
+  // Why the turn was put back is the only thing a panel can say about a market
+  // whose figures never arrive, so it is kept beside when it is due again.
+  it("keeps what the attempt settled on", async () => {
+    await deferMarket("saved-citadel", 5000, MARKET_READ_OUTCOME.REFUSED);
+
+    expect(await readMarketFreshness("saved-citadel")).toMatchObject({
+      outcome: MARKET_READ_OUTCOME.REFUSED,
+    });
+  });
+
+  // A caller that deferred for its own reasons has established nothing new, so
+  // the market keeps the last answer it did get rather than losing it.
+  it("leaves what it settled on alone when the caller names nothing", async () => {
+    await deferMarket("saved-citadel", 5000, MARKET_READ_OUTCOME.REFUSED);
+    await deferMarket("saved-citadel", 9000);
+
+    expect(await readMarketFreshness("saved-citadel")).toMatchObject({
+      expiresAt: 9000,
+      outcome: MARKET_READ_OUTCOME.REFUSED,
+    });
+  });
+
+  // Prices arriving disproves whatever the last turn could not do, so the
+  // reason must not outlive the read: a market the reader has just regained
+  // access to would otherwise go on saying they cannot see it.
+  it("stops saying a market was refused once it reads", async () => {
+    await deferMarket("saved-citadel", 5000, MARKET_READ_OUTCOME.REFUSED);
+
+    await hold("saved-citadel", 34, row());
+
+    expect(await readMarketFreshness("saved-citadel")).toMatchObject({
+      outcome: MARKET_READ_OUTCOME.READ,
     });
   });
 });
@@ -515,7 +559,7 @@ describe("a market nothing has read in a day", () => {
     // the order: a scan walks the keys as storage returns them, in ascending
     // order, so this is the market the scan has already passed.
     beforeReadOf = {
-      key: "market-read|v2|second-citadel",
+      key: readKey("second-citadel"),
       run: () => readAt("first-citadel", 1_000_000 + DAY + 1),
     };
 
@@ -530,5 +574,49 @@ describe("a market nothing has read in a day", () => {
     storageFailure = new Error("IndexedDB is not available");
 
     expect(await dropUnreadMarkets()).toBe(0);
+  });
+});
+
+// ESI has no per-type form of a structure's market, so a reader who wants one
+// type has already asked for every order. Keeping them is what stops the next
+// question costing another read.
+describe("a market's orders, as they were read", () => {
+  const orders = [
+    { order_id: 1, type_id: 34, price: 5, is_buy_order: false },
+    { order_id: 2, type_id: 34, price: 4, is_buy_order: true },
+  ];
+
+  it("hands the orders back with the moment they were read", async () => {
+    await replaceStoredOrders("saved-citadel", orders, 1700);
+
+    expect(await readStoredOrders("saved-citadel")).toEqual({
+      orders,
+      refreshedAt: 1700,
+    });
+  });
+
+  // A read of a structure is a statement about all of its orders: one filled
+  // since the last one is gone rather than stale, and merging would leave it.
+  it("replaces them rather than adding to them", async () => {
+    await replaceStoredOrders("saved-citadel", orders, 1700);
+    await replaceStoredOrders("saved-citadel", [orders[0]], 1800);
+
+    expect((await readStoredOrders("saved-citadel")).orders).toHaveLength(1);
+  });
+
+  it("answers nothing for a market nothing has read here", async () => {
+    expect(await readStoredOrders("never-read")).toBeUndefined();
+  });
+
+  // The prices a job is costed against are derived and stored separately, so a
+  // write that could not land costs the reader a browse and not a price.
+  it("is dropped with the market when it goes unread", async () => {
+    await hold("saved-citadel", 34, row());
+    await replaceStoredOrders("saved-citadel", orders, 1700);
+    vi.setSystemTime(Date.now() + UNREAD_MARKET_MS + 1);
+
+    await dropUnreadMarkets();
+
+    expect(await readStoredOrders("saved-citadel")).toBeUndefined();
   });
 });

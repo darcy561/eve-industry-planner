@@ -3,7 +3,7 @@
  *
  * The sibling end-to-end test covers the markets this server prices. This is
  * the other half: a market only the reader can read, which is the one path
- * where the browser walks a whole order book, derives every price itself, keeps
+ * where the browser walks every order at a market, derives every price itself, keeps
  * the answer on the device and decides for itself when to go again.
  *
  * Every piece of that is real here — the per-character walk, the read, the
@@ -66,6 +66,8 @@ const { getMarketPriceForType } = await import("./marketPriceForType.js");
 const { rotateSelfReadMarkets } = await import("./priceCache.js");
 const { useMarketPricesQuery } =
   await import("../../Hooks/React Query/World/marketPrices.js");
+const { useCitadelOrdersQuery } =
+  await import("../../Hooks/React Query/World/citadelOrders.js");
 
 const MINUTE = 60 * 1000;
 
@@ -139,6 +141,26 @@ function show(wants) {
     </QueryClientProvider>,
   );
 }
+
+/** Browses the orders themselves, the way the Market Data dialogue does. */
+function Browsing({ typeID, regionID }) {
+  const { orders } = useCitadelOrdersQuery(typeID, regionID);
+
+  return (
+    <p>{`${orders.length} orders: ${orders.map((o) => o.price).join()}`}</p>
+  );
+}
+
+function browse(typeID, regionID) {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <Subject wants={[{ typeID, sourceID: "saved-citadel" }]} />
+      <Browsing typeID={typeID} regionID={regionID} />
+    </QueryClientProvider>,
+  );
+}
+
+const THE_FORGE = 10000002;
 
 /** Every ESI request made, by the character that made it. */
 function asked() {
@@ -327,6 +349,35 @@ describe("a market whose hour is up", () => {
 
     expect(await screen.findByText("34: 10")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // The prices a job is costed against are four figures a type; the dialogue
+  // that browses a market wants the orders they were derived from, which the
+  // same walk saw and which nothing else can ask for per type.
+  it("gives a surface browsing it the orders behind the price", async () => {
+    fetchMock.mockResolvedValue(
+      ordersPage([order(34, 10), order(34, 12), order(35, 99)]),
+    );
+
+    browse(34, THE_FORGE);
+
+    expect(await screen.findByText("2 orders: 10,12")).toBeTruthy();
+  });
+
+  // A dialogue left open across a market's turn must not still be showing what
+  // it read when it opened. Nothing about it changes — no remount, no reopen.
+  it("shows a reader the new orders without their reopening it", async () => {
+    fetchMock.mockResolvedValue(ordersPage([order(34, 10)]));
+
+    browse(34, THE_FORGE);
+    expect(await screen.findByText("1 orders: 10")).toBeTruthy();
+
+    fetchMock.mockResolvedValue(
+      ordersPage([order(34, 30), order(34, 31)], { readAt: READ_AGAIN_AT }),
+    );
+    await rotateSelfReadMarkets(Date.now() + AFTER_ITS_TURN);
+
+    expect(await screen.findByText("2 orders: 30,31")).toBeTruthy();
   });
 
   it("is left alone until its hour is up", async () => {

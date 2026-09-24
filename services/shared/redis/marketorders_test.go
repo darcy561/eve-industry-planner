@@ -178,7 +178,7 @@ func TestDroppingStationsKeepsTheOnesStillAskedFor(t *testing.T) {
 }
 
 // Forgetting a region takes both the stations wanted in it and its place in the
-// sweep: leaving the refresh time behind would keep walking a book for nobody.
+// sweep: leaving the refresh time behind would keep walking a region for nobody.
 //
 // And a region something still wants is kept, because that is what stops a
 // market registered while a retirement pass was deciding from being wiped.

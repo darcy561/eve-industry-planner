@@ -43,7 +43,7 @@ type OriginConfig struct {
 	Allowance int
 	Window    time.Duration
 	Group     string
-	// Pages is reported as X-Pages, so a caller can walk a book.
+	// Pages is reported as X-Pages, so a caller can walk a whole region.
 	Pages int
 }
 
@@ -94,7 +94,7 @@ func (o *Origin) serve(w http.ResponseWriter, r *http.Request) {
 	spent := o.spent()
 	status := http.StatusOK
 	if r.Header.Get("If-None-Match") != "" && spent%7 == 0 {
-		// Some passes are unchanged, as a real book's would be.
+		// Some passes are unchanged, as a real region's would be.
 		status = http.StatusNotModified
 	}
 	if spent+2 > o.allowance {

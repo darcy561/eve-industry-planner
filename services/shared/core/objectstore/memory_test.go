@@ -138,7 +138,7 @@ func TestListChildNamesCollapsesToOneLevel(t *testing.T) {
 	}
 }
 
-// Dropping a region's whole book in one call is why the pages are here.
+// Dropping a region's whole set of pages in one call is why they are here.
 func TestDeletePrefixRemovesOnlyItsOwnSubtree(t *testing.T) {
 	t.Parallel()
 	b := NewMemoryBackend()

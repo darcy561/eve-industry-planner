@@ -173,7 +173,7 @@ describe("the three answers a character can give", () => {
   });
 });
 
-// Prices are derived from every order at the place, so a book cut short reports
+// Prices are derived from every order at the place, so a read cut short reports
 // a best ask nobody is offering — and nothing downstream could tell that from a
 // real figure.
 describe("a market too large to read whole", () => {

@@ -82,7 +82,7 @@ func TestBuildMarketPriceEntry_BestPrices(t *testing.T) {
 	}
 }
 
-func TestBuildMarketPriceEntry_EmptyBookSide(t *testing.T) {
+func TestBuildMarketPriceEntry_EmptySide(t *testing.T) {
 	acc := &typePriceAccumulator{sellPrices: []float64{100}}
 
 	entry := buildMarketPriceEntry(acc, 1)

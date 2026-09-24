@@ -8,6 +8,7 @@ vi.mock("./priceLoader", () => ({
   requestAdjustedPrice: (...args) => requestAdjustedPrice(...args),
   requestMarketRead: (...args) => requestMarketRead(...args),
   setClockMovedListener: () => {},
+  setOrdersStoredListener: () => {},
 }));
 
 const readStoredPrice = vi.fn();
@@ -238,6 +239,7 @@ describe("rotating a market the reader reads themselves", () => {
     expect(deferMarket).toHaveBeenCalledWith(
       "saved-citadel",
       2001 + PRICE_ROTATION_MS,
+      "refused",
     );
   });
 

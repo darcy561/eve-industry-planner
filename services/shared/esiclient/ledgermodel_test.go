@@ -140,7 +140,7 @@ func TestLedgerMatchesAModelOfOutstandingAndSettled(t *testing.T) {
 	at := make(map[string]esiclient.Bucket)
 
 	for step := range steps {
-		// An expiry needs an empty book, so the sequence drains to one now and
+		// An expiry needs an empty bucket, so the sequence drains to one now and
 		// then rather than reserving forever.
 		draining := step%37 > 30
 
