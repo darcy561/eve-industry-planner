@@ -26,27 +26,19 @@ import useUsersStore from "../Zustand/usersStore";
  * A job's own choice of where each side of it is priced, or null where it has
  * made none.
  *
- * A job stored before the sides were told apart carries one market and one order
- * type. Both sides seed from it: naming one market said nothing about which side
- * of the job it meant, so neither side may claim it over the other.
+ * Null rather than a pair of empty sides, because a job that chose nothing is
+ * priced by the account's defaults and a stored shape saying otherwise would
+ * outrank them.
  *
  * @param {object|null|undefined} stored - `build.localPricing` as stored
- * @param {string|null} market - The job's single market, already resolved
- * @param {string|null} orderType - The job's single order type, already resolved
  * @returns {{buying: {market: string|null, orderType: string|null},
  *   selling: {market: string|null, orderType: string|null}}|null}
  */
-function jobPricingOverride(stored, market, orderType) {
-  const side = (name) => {
-    const chosen = stored?.[name];
-    if (chosen?.market || chosen?.orderType) {
-      return {
-        market: chosen.market || null,
-        orderType: chosen.orderType || null,
-      };
-    }
-    return { market: market ?? null, orderType: orderType ?? null };
-  };
+function jobPricingOverride(stored) {
+  const side = (name) => ({
+    market: stored?.[name]?.market || null,
+    orderType: stored?.[name]?.orderType || null,
+  });
 
   const buying = side("buying");
   const selling = side("selling");
@@ -170,26 +162,13 @@ class Job {
         ? storedOverrides
         : {};
 
-    const localMarketDisplay =
-      itemJson?.layout?.localMarketDisplay ??
-      itemJson?.layout?.marketLocation ??
-      null;
-    const localOrderDisplay =
-      itemJson?.layout?.localOrderDisplay ??
-      itemJson?.layout?.orderType ??
-      null;
-
     this.build.localPricing = jobPricingOverride(
       build && "localPricing" in build
         ? build.localPricing
         : itemJson?.layout?.localPricing,
-      localMarketDisplay,
-      localOrderDisplay,
     );
 
     this.layout = {
-      localMarketDisplay,
-      localOrderDisplay,
       esiJobTab: itemJson?.layout?.esiJobTab || null,
       setupToEdit: itemJson?.layout?.setupToEdit || null,
       resourceDisplayType: itemJson?.layout?.resourceDisplayType || null,
@@ -287,7 +266,7 @@ class Job {
       // class happens to serialise to rather than as the row's own shape.
       build: {
         setup: rowsToDocuments(this.build.setup),
-        childJobs: this.build.childJobs,
+        childJobs: copiedChildJobs(this.build.childJobs),
         materials: rowsToDocuments(this.build.materials),
         extrasCosts: rowsToDocuments(this.build.extrasCosts),
         inventionEntries: rowsToDocuments(this.build.inventionEntries),
@@ -305,8 +284,6 @@ class Job {
       skills: this.skills,
       itemsProducedPerRun: this.itemsProducedPerRun,
       layout: {
-        localMarketDisplay: this.layout.localMarketDisplay,
-        localOrderDisplay: this.layout.localOrderDisplay,
         esiJobTab: this.layout.esiJobTab,
         setupToEdit: this.layout.setupToEdit,
         resourceDisplayType: this.layout.resourceDisplayType,
@@ -848,6 +825,33 @@ function documentToESI(object) {
 /** Rows as a list, whichever of the two shapes they are held in. */
 function asRows(rows) {
   return Array.isArray(rows) ? rows : Object.values(rows ?? {});
+}
+
+/**
+ * Helper function that copies the child job lists, so a document does not hand
+ * out the job's own.
+ *
+ * A document is what a job is copied through — `new Job(source.toDocument())` is
+ * how this app clones one before changing it, and a merge or a delete relies on
+ * that copy to leave the planner alone until its writes have landed. Every other
+ * member is rebuilt on the way out; this one was passed by reference, so a
+ * change to the copy reached the job it was copied from and a write that failed
+ * still left the planner altered.
+ *
+ * `parentJobs`, `rawData`, `skills` and `materialPriceOverrides` are still
+ * handed out live, and are safe only because every mutator replaces them rather
+ * than changing them in place. A mutator that does not needs copying here too.
+ *
+ * @param {Object<string, Array<string>>} childJobs
+ * @returns {Object<string, Array<string>>} The same keys, holding their own lists
+ */
+function copiedChildJobs(childJobs) {
+  return Object.fromEntries(
+    Object.entries(childJobs ?? {}).map(([typeID, childIDs]) => [
+      typeID,
+      Array.isArray(childIDs) ? [...childIDs] : childIDs,
+    ]),
+  );
 }
 
 /**
