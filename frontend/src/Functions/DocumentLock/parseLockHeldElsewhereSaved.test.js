@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseLockHeldElsewhereSaved } from "./applyLockHeldElsewhereFromApiResponse.js";
+import { parseLockHeldElsewhereRefusal } from "./applyLockHeldElsewhereFromApiResponse.js";
 
 const body = (extra = {}) =>
   JSON.stringify({
@@ -17,19 +17,20 @@ const body = (extra = {}) =>
 describe("the documents a partly refused batch wrote", () => {
   it("reads them from the body", () => {
     expect(
-      parseLockHeldElsewhereSaved(body({ savedDocIDs: ["job-1"] })),
+      parseLockHeldElsewhereRefusal(body({ savedDocIDs: ["job-1"] }))
+        .savedDocIDs,
     ).toEqual(["job-1"]);
   });
 
   it("is empty when the body names none", () => {
-    expect(parseLockHeldElsewhereSaved(body())).toEqual([]);
+    expect(parseLockHeldElsewhereRefusal(body()).savedDocIDs).toEqual([]);
   });
 
-  it("is empty for a body that is not a lock conflict", () => {
+  it("answers nothing at all for a body that is not a lock conflict", () => {
     expect(
-      parseLockHeldElsewhereSaved(
+      parseLockHeldElsewhereRefusal(
         JSON.stringify({ error: "revision_conflict", rejected: [] }),
       ),
-    ).toEqual([]);
+    ).toBeNull();
   });
 });

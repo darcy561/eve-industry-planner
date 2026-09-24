@@ -33,10 +33,53 @@ import (
 // would be naming where the write lands rather than what it holds.
 const metaFieldJSONName = "_meta"
 
-// JobWriteBody is a field-scoped write as it arrives.
+// JobWriteBody is one job's write as it arrives.
+//
+// JobID and Revision sit beside the document rather than in it. A partial
+// document names no job — `jobID` is in it only if the reader changed it — and
+// it may not name a revision, because `_meta` is the server's to state. The
+// lock gate reads both before anything is decoded or written.
+//
+// A write naming no revision here carries its whole document, and the revision
+// it is checked against — if it has one — rides in that document's `_meta` as
+// it always has. That covers a create, which has none, and a job changed
+// outside the editor with no log behind its write, which does.
 type JobWriteBody struct {
-	Document jsontext.Value `json:"document"`
-	Removed  [][]string     `json:"removed,omitempty"`
+	JobID    string `json:"jobID"`
+	Revision int64  `json:"revision,omitzero"`
+	// IncludedInGroup and GroupID are what the lock gate asks about, and it asks
+	// before any document is decoded. They are stated here rather than read from
+	// the document because a write carries a field only when it changed it, and
+	// nothing changes a job's group through this path — a gate reading them from
+	// a partial document would see every job as belonging to no group.
+	IncludedInGroup bool           `json:"includedInGroup,omitzero"`
+	GroupID         string         `json:"groupID,omitzero"`
+	Document        jsontext.Value `json:"document"`
+	Removed         [][]string     `json:"removed,omitempty"`
+}
+
+// IsWholeDocument reports whether this write carries the whole job rather than
+// the fields it changed.
+//
+// It is not the same question as whether the document exists: a job changed
+// with nothing recording what changed is written whole and still checked
+// against the revision its `_meta` carries. Only the envelope's own revision
+// marks a write as field-scoped, because only such a write has fields to scope.
+func (b JobWriteBody) IsWholeDocument() bool { return b.Revision <= 0 }
+
+// Validate reports what stops this write being made at all, before a batch is
+// walked or a lock asked about.
+func (b JobWriteBody) Validate() error {
+	if b.JobID == "" {
+		return fmt.Errorf("job write: a write named no job")
+	}
+	if len(b.Document) == 0 {
+		return fmt.Errorf("job write: %s carries no document", b.JobID)
+	}
+	if b.Revision < 0 {
+		return fmt.Errorf("job write: %s names a revision below zero", b.JobID)
+	}
+	return nil
 }
 
 // JobSetPaths pairs each field the body carried with the value the decoded job
@@ -142,6 +185,9 @@ func memberOf(held reflect.Value, name string) (stored string, value reflect.Val
 		}
 		return bsonName(field), held.FieldByIndex(field.Index), nil
 	case reflect.Map:
+		if err := usableAsKey(name); err != nil {
+			return "", reflect.Value{}, err
+		}
 		key := reflect.ValueOf(name)
 		if !key.Type().AssignableTo(held.Type().Key()) {
 			return "", reflect.Value{}, fmt.Errorf("job write: %s is not keyed by name", held.Type())
@@ -183,6 +229,9 @@ func resolveRowPath(t reflect.Type, path []string) (string, error) {
 			t = field.Type
 			fromMap = false
 		case reflect.Map:
+			if err := usableAsKey(segment); err != nil {
+				return "", err
+			}
 			stored = append(stored, segment)
 			t = t.Elem()
 			fromMap = true
@@ -208,6 +257,19 @@ func documentMembers(raw jsontext.Value) map[string]jsontext.Value {
 		return nil
 	}
 	return members
+}
+
+// usableAsKey refuses a row key that cannot be written as a stored path. A
+// stored path joins its steps with a dot, so a key holding one would be read
+// back as two steps, and an empty key names no row at all.
+func usableAsKey(name string) error {
+	if name == "" {
+		return fmt.Errorf("job write: a row was named by an empty key")
+	}
+	if strings.Contains(name, ".") {
+		return fmt.Errorf("job write: %q cannot be a row key", name)
+	}
+	return nil
 }
 
 func objectMembers(raw jsontext.Value) (map[string]jsontext.Value, error) {

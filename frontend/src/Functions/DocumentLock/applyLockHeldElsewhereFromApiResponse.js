@@ -6,40 +6,21 @@ import { DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE } from "./documentLockEvent
  * Reads a lock-conflict 409 body, or null when the body is not one.
  *
  * Separate from {@link applyLockHeldElsewhereFromApiBody} so a caller can learn
- * which documents were held, without the scope patching that the transport
- * helper wants.
- *
- * Answers the held documents alone. The envelope's `saved` count is not carried
- * because nothing reads it here: a caller keeping a queue needs to know what was
- * held, and derives what wrote from the ids it sent.
+ * what the write did, without the scope patching that the transport helper
+ * wants.
  *
  * @param {string} text - Raw response body (already read from `Response`).
- * @returns {string[]|null}
+ * @returns {{rejected: string[], savedDocIDs: string[]}|null} The documents held
+ *   elsewhere, and the ones the batch wrote anyway
  */
-export function parseLockHeldElsewhereBody(text) {
-  return (
-    parseRefusalBody(
-      text,
-      DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE,
-      (row) => refusalRowDocID(row) || null,
-    )?.rejected ?? null
+export function parseLockHeldElsewhereRefusal(text) {
+  const refusal = parseRefusalBody(
+    text,
+    DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE,
+    (row) => refusalRowDocID(row) || null,
   );
-}
-
-/**
- * The documents a partly refused batch wrote, as the body names them.
- *
- * @param {string} text - Raw response body (already read from `Response`).
- * @returns {Array<string>}
- */
-export function parseLockHeldElsewhereSaved(text) {
-  return (
-    parseRefusalBody(
-      text,
-      DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE,
-      (row) => refusalRowDocID(row) || null,
-    )?.savedDocIDs ?? []
-  );
+  if (!refusal) return null;
+  return { rejected: refusal.rejected, savedDocIDs: refusal.savedDocIDs };
 }
 
 /**

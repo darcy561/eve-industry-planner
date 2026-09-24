@@ -260,3 +260,22 @@ export function openClient(params) {
     };
   });
 }
+
+/**
+ * A whole-document job write, as the envelope `PUT /api/v1/job-documents`
+ * reads: the job's id and group beside the document itself.
+ *
+ * Built here rather than through `wholeJobWrites` because the argument crosses
+ * into a browser as JSON, so it cannot be a Job instance carrying `toDocument`.
+ *
+ * @param {object} document - The job document being saved
+ * @returns {{jobID: string, includedInGroup: boolean, groupID: string, document: object}}
+ */
+export function jobWrite(document) {
+  return {
+    jobID: document.jobID,
+    includedInGroup: Boolean(document.groupID),
+    groupID: document.groupID ?? "",
+    document,
+  };
+}

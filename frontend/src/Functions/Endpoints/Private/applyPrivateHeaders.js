@@ -17,8 +17,7 @@ import {
 } from "../../Auth/plannerSessionRedirect.js";
 import {
   applyLockHeldElsewhereFromApiBody,
-  parseLockHeldElsewhereBody,
-  parseLockHeldElsewhereSaved,
+  parseLockHeldElsewhereRefusal,
 } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 import {
@@ -71,11 +70,13 @@ function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
     // The held documents travel on the error, as a revision conflict's rows do:
     // a batch can now write part of itself, so a caller holding a queue keeps
     // the held ids and drops the rest rather than keeping all of them.
-    err.lockHeldDocIDs = parseLockHeldElsewhereBody(text);
-    // Which documents the batch did write. A caller cannot work that out from
-    // the held ids: this answer is given whenever anything was held, so a
-    // document the same batch refused on its revision is named nowhere in it.
-    err.savedDocIDs = parseLockHeldElsewhereSaved(text);
+    // Held and written are read together: the answer states both, and a caller
+    // cannot work the second out from the first — it is given whenever anything
+    // was held, so a document the same batch refused on its revision is named
+    // nowhere in it.
+    const refusal = parseLockHeldElsewhereRefusal(text);
+    err.lockHeldDocIDs = refusal?.rejected ?? null;
+    err.savedDocIDs = refusal?.savedDocIDs ?? [];
     throw err;
   }
   if (res.status === 409) {

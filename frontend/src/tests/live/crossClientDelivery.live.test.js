@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { openClient, startWebsocketHarness } from "./crossClientHarness.js";
+import {
+  openClient,
+  startWebsocketHarness,
+  jobWrite,
+} from "./crossClientHarness.js";
 
 /**
  * What two members of one planner see of each other.
@@ -53,7 +57,7 @@ describe.skipIf(!RUN)("two members of one planner", () => {
     await alice.call(
       "/src/Functions/Endpoints/Private/jobDocuments.js",
       "putJobDocumentsBatch",
-      [{ jobID: "job-from-alice", name: "Alice's build" }],
+      [jobWrite({ jobID: "job-from-alice", name: "Alice's build" })],
     );
 
     await bob.until(
@@ -116,7 +120,13 @@ describe.skipIf(!RUN)("two members of one planner", () => {
     await alice.call(
       "/src/Functions/Endpoints/Private/jobDocuments.js",
       "putJobDocumentsBatch",
-      [{ jobID: "job-in-group", name: "Grouped build", groupID: "group-gone" }],
+      [
+        jobWrite({
+          jobID: "job-in-group",
+          name: "Grouped build",
+          groupID: "group-gone",
+        }),
+      ],
     );
     for (const member of [alice, bob]) {
       await member.until(
@@ -164,7 +174,7 @@ describe.skipIf(!RUN)("two members of one planner", () => {
     await alice.call(
       "/src/Functions/Endpoints/Private/jobDocuments.js",
       "putJobDocumentsBatch",
-      [{ jobID: "job-doomed", name: "Doomed build" }],
+      [jobWrite({ jobID: "job-doomed", name: "Doomed build" })],
     );
     await bob.until(
       "jobData.jobArray",

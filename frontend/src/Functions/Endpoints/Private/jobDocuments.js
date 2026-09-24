@@ -174,20 +174,23 @@ export async function fetchJobDocumentsByIdsFromApi(jobIDs) {
 /**
  * Batch upsert (`PUT /api/v1/job-documents`).
  *
- * @param {Array<Job|object>} jobs - Plain or Job instances (serialised as JSON)
+ * Each write is an envelope built by
+ * [`jobWriteEnvelope`](../../JobDocuments/jobWriteEnvelope.js) — the job's id
+ * and group beside the document it carries — not a bare job document. A write
+ * the server cannot read is refused for the whole request, so nothing else
+ * builds this shape by hand.
+ *
+ * @param {Array<object>} writes
  */
-export async function putJobDocumentsBatch(jobs) {
-  const payload = jobs.map((j) =>
-    typeof j.toDocument === "function" ? j.toDocument() : j,
-  );
-  if (payload.length === 0) return;
+export async function putJobDocumentsBatch(writes) {
+  if (writes.length === 0) return;
 
   await requestWithPrivateHeaders(
     "/api/v1/job-documents",
     {
       method: "PUT",
       headers: jsonHeaders,
-      body: JSON.stringify({ jobs: payload }),
+      body: JSON.stringify({ jobs: writes }),
     },
     {
       requestName: "putJobDocuments",
@@ -196,6 +199,10 @@ export async function putJobDocumentsBatch(jobs) {
         size: MAX_PUT_JOB_DOCUMENTS_BATCH,
         arrayKey: "jobs",
         errorLabel: "PUT /api/v1/job-documents",
+        // The refusal itself is what the caller acts on — its status says
+        // whether the write can ever succeed — and aggregating would rewrite it
+        // as a message with the status dropped.
+        failure: "first",
       },
     },
   );

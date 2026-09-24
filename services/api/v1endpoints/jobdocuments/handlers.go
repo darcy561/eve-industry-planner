@@ -7,7 +7,6 @@ import (
 	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/models"
-	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 type Handlers struct {
@@ -53,20 +52,18 @@ func New(deps *apideps.Deps) *Handlers {
 	return &Handlers{Deps: deps, locks: deps.LockDeps()}
 }
 
-// dropHeldJobs removes the jobs another session holds a lock on, keeping the
-// rest in the order they arrived.
-//
-// Filters in place, so the caller's slice is consumed: the jobs it names are
-// already decoded and nothing reads the original afterwards.
-func dropHeldJobs(jobs []models.Job, held []documentlock.LockHeldElsewhereItem) []models.Job {
+// dropHeldWrites removes the writes another session holds a lock on, keeping
+// the rest: one member editing one job no longer costs every other job in the
+// same save.
+func dropHeldWrites(writes []models.JobWriteBody, held []documentlock.LockHeldElsewhereItem) []models.JobWriteBody {
 	blocked := make(map[string]struct{}, len(held))
 	for _, item := range held {
 		blocked[item.DocID] = struct{}{}
 	}
-	writable := jobs[:0]
-	for _, job := range jobs {
-		if _, isHeld := blocked[job.JobID]; !isHeld {
-			writable = append(writable, job)
+	writable := writes[:0]
+	for _, write := range writes {
+		if _, isHeld := blocked[write.JobID]; !isHeld {
+			writable = append(writable, write)
 		}
 	}
 	return writable
@@ -97,32 +94,4 @@ func refusalFor(heldCount, conflictCount int) writeRefusal {
 	default:
 		return refusalNone
 	}
-}
-
-// writtenJobIDs names the documents the batch actually wrote.
-//
-// A batch answers with one refusal, so a client cannot work this out by taking
-// the documents it was told about away from the ones it sent: a batch holding
-// one document and refusing another on its revision says only that something was
-// held, and the refused one would be counted as written.
-func writtenJobIDs(sent []models.Job, failed []string, conflicts []eipmongo.RevisionConflict) []string {
-	missed := make(map[string]struct{}, len(failed)+len(conflicts))
-	for _, jobID := range failed {
-		missed[jobID] = struct{}{}
-	}
-	for _, conflict := range conflicts {
-		missed[conflict.JobID] = struct{}{}
-	}
-
-	written := make([]string, 0, len(sent))
-	for _, job := range sent {
-		if job.JobID == "" {
-			continue
-		}
-		if _, refused := missed[job.JobID]; refused {
-			continue
-		}
-		written = append(written, job.JobID)
-	}
-	return written
 }

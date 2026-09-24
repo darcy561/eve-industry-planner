@@ -10,6 +10,7 @@ import {
   putJobDocumentsBatch,
 } from "../Endpoints/Private/jobDocuments.js";
 import { putJobGroupsBatch } from "../Endpoints/Private/groups.js";
+import { wholeJobWrites } from "../JobDocuments/jobWriteEnvelope.js";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
 import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
@@ -171,7 +172,7 @@ export default async function deleteMultipleJobs(inputJobIDs) {
       .account.actions.addLinkedEsiData(linkedEsiRemovalPatch);
     try {
       if (jobsToPersist.length > 0) {
-        await putJobDocumentsBatch(jobsToPersist);
+        await putJobDocumentsBatch(wholeJobWrites(jobsToPersist));
       }
       if (groupsToPersist.length > 0) {
         await putJobGroupsBatch(

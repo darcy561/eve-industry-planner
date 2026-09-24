@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"encoding/json/jsontext"
+
+	"eve-industry-planner/shared/jsoncodec"
 )
 
 func writeJob() *Job {
@@ -208,11 +210,92 @@ func TestJobUnsetPathsRefusesWhatLeavesTheModel(t *testing.T) {
 
 // A list row cannot be cleared by path — $unset leaves a hole where it was — so
 // the client writes the list whole and the server refuses to be asked otherwise.
+// A stored path joins its steps with a dot, so a key holding one would be read
+// back as two steps and reach somewhere nobody named. An empty key names no row.
+func TestJobWritePathsRefuseAKeyThatCannotBeAStep(t *testing.T) {
+	for _, path := range [][]string{
+		{"esi", "industryJobs", ""},
+		{"esi", "industryJobs", "500001.job_id"},
+		{"build", "materials", "34", "purchasing", ""},
+	} {
+		if _, err := JobUnsetPaths([][]string{path}); err == nil {
+			t.Errorf("want %v refused", path)
+		}
+	}
+
+	for _, body := range []string{
+		`{"esi":{"industryJobs":{"":{"job_id":1}}}}`,
+		`{"esi":{"industryJobs":{"500001.job_id":{"job_id":1}}}}`,
+	} {
+		if _, err := JobSetPaths(jsontext.Value(body), writeJob()); err == nil {
+			t.Errorf("want %s refused", body)
+		}
+	}
+}
+
 func TestJobUnsetPathsRefusesAListRow(t *testing.T) {
 	if _, err := JobUnsetPaths([][]string{{"build", "childJobs", "34", "0"}}); err == nil {
 		t.Error("want a list row refused")
 	}
 	if _, err := JobUnsetPaths([][]string{{"parentJobs", "0"}}); err == nil {
 		t.Error("want a parent job row refused")
+	}
+}
+
+func TestJobWriteBodyValidateRefusesWhatCannotBeWritten(t *testing.T) {
+	for name, body := range map[string]JobWriteBody{
+		"no job":      {Revision: 4, Document: jsontext.Value(`{}`)},
+		"no document": {JobID: "job-1", Revision: 4},
+		"a revision below zero": {
+			JobID: "job-1", Revision: -1, Document: jsontext.Value(`{}`),
+		},
+	} {
+		if err := body.Validate(); err == nil {
+			t.Errorf("want %s refused", name)
+		}
+	}
+}
+
+func TestJobWriteBodyValidateAllowsAWriteThatNamesEverything(t *testing.T) {
+	body := JobWriteBody{JobID: "job-1", Revision: 4, Document: jsontext.Value(`{"name":"A job"}`)}
+
+	if err := body.Validate(); err != nil {
+		t.Fatalf("want the write allowed, got %v", err)
+	}
+}
+
+// A write names a revision here only when it carries fields rather than a whole
+// document. A job written whole is still checked against a revision — the one
+// its own `_meta` carries — so "no revision named here" is not "no revision".
+func TestJobWriteBodyIsWholeDocumentWhenTheEnvelopeNamesNoRevision(t *testing.T) {
+	if !(JobWriteBody{JobID: "job-1"}).IsWholeDocument() {
+		t.Error("want a write naming no revision carried whole")
+	}
+	if (JobWriteBody{JobID: "job-1", Revision: 1}).IsWholeDocument() {
+		t.Error("want a write naming a revision carried by field")
+	}
+}
+
+// The envelope holds the job and the revision so the body never has to, which
+// is what keeps `_meta` unreachable from a request.
+func TestJobWriteBodyDecodesTheEnvelopeBesideTheDocument(t *testing.T) {
+	var body JobWriteBody
+	raw := `{"jobID":"job-1","revision":4,"document":{"name":"A job"},"removed":[["esi","industryJobs","500001"]]}`
+	if err := jsoncodec.Unmarshal([]byte(raw), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if body.JobID != "job-1" || body.Revision != 4 {
+		t.Errorf("want the job and revision beside the document, got %+v", body)
+	}
+	set, err := JobSetPaths(body.Document, writeJob())
+	if err != nil {
+		t.Fatalf("JobSetPaths: %v", err)
+	}
+	if set["name"] != "A job" {
+		t.Errorf("want the document still walkable, got %v", set)
+	}
+	if len(body.Removed) != 1 || body.Removed[0][2] != "500001" {
+		t.Errorf("want the removed row carried, got %v", body.Removed)
 	}
 }

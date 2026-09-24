@@ -122,11 +122,22 @@ func (s *plannerScope) request(method, path string, body any, accountID, planner
 	return r.WithContext(sessionreq.WithIdentity(r.Context(), accountID, "sess-planner-scope"))
 }
 
+// putJobs writes each job as a create: the caller holds no stored copy of it, so
+// it names no revision and the whole document goes.
 func (s *plannerScope) putJobs(jobs []models.Job, accountID, plannerHandle string) *httptest.ResponseRecorder {
 	s.t.Helper()
+	writes := make([]map[string]any, 0, len(jobs))
+	for _, job := range jobs {
+		writes = append(writes, map[string]any{
+			"jobID":           job.JobID,
+			"includedInGroup": job.IncludedInGroup,
+			"groupID":         job.GroupID,
+			"document":        job,
+		})
+	}
 	rec := httptest.NewRecorder()
 	s.h.PutJobDocumentsHandler(rec, s.request(http.MethodPut, "/api/v1/job-documents",
-		map[string]any{"jobs": jobs}, accountID, plannerHandle))
+		map[string]any{"jobs": writes}, accountID, plannerHandle))
 	return rec
 }
 

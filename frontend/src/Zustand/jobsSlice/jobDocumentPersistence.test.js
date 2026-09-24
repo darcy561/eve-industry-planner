@@ -15,6 +15,28 @@ function queued() {
   return Object.keys(useUsersStore.getState().jobData.pendingJobDocumentWrites);
 }
 
+/** A job as the array holds one, carrying the revision it was delivered at. */
+function held(jobID, name) {
+  return {
+    jobID,
+    name,
+    includedInGroup: false,
+    groupID: "",
+    _meta: { revision: 3 },
+    toDocument: () => ({ jobID, name }),
+  };
+}
+
+/** The whole-document write that job is sent as. */
+function envelope(jobID, name) {
+  return {
+    jobID,
+    includedInGroup: false,
+    groupID: "",
+    document: { jobID, name },
+  };
+}
+
 describe("queueing job documents for the next save", () => {
   beforeEach(() => {
     scheduled.mockClear();
@@ -85,16 +107,37 @@ describe("queueing job documents for the next save", () => {
   });
 
   describe("the payload the save sends", () => {
-    it("is the held job for every queued id", () => {
+    it("is the write envelope for every queued id", () => {
       actions().replaceJobArray([
-        { jobID: "job-1", name: "Rifter" },
-        { jobID: "job-2", name: "Punisher" },
+        held("job-1", "Rifter"),
+        held("job-2", "Punisher"),
       ]);
       actions().queueJobDocumentWrites(["job-2", "job-1"]);
 
       expect(actions().getPendingJobDocumentWritesPayload()).toEqual([
-        { jobID: "job-2", name: "Punisher" },
-        { jobID: "job-1", name: "Rifter" },
+        envelope("job-2", "Punisher"),
+        envelope("job-1", "Rifter"),
+      ]);
+    });
+
+    /*
+     * A write queued against what the reader changed carries those fields and
+     * the revision it was built from, rather than the whole document.
+     */
+    it("narrows a write to the fields the log recorded", () => {
+      actions().replaceJobArray([held("job-1", "Rifter")]);
+      actions().queueJobDocumentChanges({
+        "job-1": [{ patches: [{ op: "replace", path: ["name"] }] }],
+      });
+
+      expect(actions().getPendingJobDocumentWritesPayload()).toEqual([
+        {
+          jobID: "job-1",
+          includedInGroup: false,
+          groupID: "",
+          revision: 3,
+          document: { name: "Rifter" },
+        },
       ]);
     });
 
@@ -104,11 +147,11 @@ describe("queueing job documents for the next save", () => {
      * as a malformed document.
      */
     it("leaves out an id whose job is no longer held", () => {
-      actions().replaceJobArray([{ jobID: "job-1", name: "Rifter" }]);
+      actions().replaceJobArray([held("job-1", "Rifter")]);
       actions().queueJobDocumentWrites(["job-1", "job-gone"]);
 
       expect(actions().getPendingJobDocumentWritesPayload()).toEqual([
-        { jobID: "job-1", name: "Rifter" },
+        envelope("job-1", "Rifter"),
       ]);
     });
   });

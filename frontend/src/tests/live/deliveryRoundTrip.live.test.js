@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { openClient, startWebsocketHarness } from "./crossClientHarness.js";
+import {
+  openClient,
+  startWebsocketHarness,
+  jobWrite,
+} from "./crossClientHarness.js";
 
 /**
  * A save leaving the SPA and coming back into it as a delivery, over a real
@@ -57,7 +61,7 @@ describe.skipIf(!RUN)("a save coming back as a delivery", () => {
     await reader.call(
       "/src/Functions/Endpoints/Private/jobDocuments.js",
       "putJobDocumentsBatch",
-      [{ jobID: "job-shared", name: "Shared build" }],
+      [jobWrite({ jobID: "job-shared", name: "Shared build" })],
     );
 
     await reader.until(

@@ -2,6 +2,7 @@
  * Queues job document writes for `PUT /api/v1/job-documents` (mirrors `groupManagement` + groups).
  */
 import { scheduleDebouncedJobDocumentsSave } from "../../Functions/Debounce/jobDocumentsPersistSchedule.js";
+import { jobWriteEnvelope } from "../../Functions/JobDocuments/jobWriteEnvelope.js";
 
 /**
  * Adds to the queue what a write must carry for each job it names.
@@ -159,14 +160,24 @@ export const jobDocumentPersistenceActions = (set, get) => ({
     );
   },
 
+  /**
+   * The queued writes, each as the envelope the API reads.
+   *
+   * A queued id with no job behind it is dropped: the job was removed between
+   * the change being queued and the flush, and there is nothing left to write.
+   * So is one whose changes cancelled out before the flush reached them.
+   *
+   * @returns {Array<object>}
+   */
   getPendingJobDocumentWritesPayload: () => {
-    const { jobData } = get();
-    const ids = Object.keys(jobData.pendingJobDocumentWrites ?? {});
+    const queued = get().jobData.pendingJobDocumentWrites ?? {};
     const { findJobInJobArray } = get().jobData.actions;
     const out = [];
-    for (const id of ids) {
+    for (const [id, entries] of Object.entries(queued)) {
       const job = findJobInJobArray(id);
-      if (job) out.push(job);
+      if (!job) continue;
+      const write = jobWriteEnvelope(job, entries);
+      if (write) out.push(write);
     }
     return out;
   },

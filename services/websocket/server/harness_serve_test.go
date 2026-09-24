@@ -177,11 +177,16 @@ func TestHarnessServe(t *testing.T) {
 		// type, carrying no document — which is what makes the position it carries
 		// the only thing ordering it against the writes around it.
 		deliveries := make([]map[string]any, 0, len(body.Jobs)+len(body.JobIDs)+len(body.GroupIDs))
-		for _, job := range body.Jobs {
-			docID, _ := job["jobID"].(string)
+		// A write names its job beside the document it carries, so what is
+		// delivered is the document out of the envelope rather than the envelope.
+		// Echoing the whole write would deliver every field one level too deep,
+		// which a client reads as a job that has lost everything it was sent.
+		for _, write := range body.Jobs {
+			docID, _ := write["jobID"].(string)
+			document, _ := write["document"].(map[string]any)
 			deliveries = append(deliveries, map[string]any{
 				"collection": eipmongo.CollectionJobDocuments,
-				"docID":      docID, "operationType": "update", "document": job,
+				"docID":      docID, "operationType": "update", "document": document,
 			})
 		}
 		for _, docID := range body.JobIDs {

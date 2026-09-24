@@ -15,23 +15,29 @@ func heldItems(docIDs ...string) []documentlock.LockHeldElsewhereItem {
 	return items
 }
 
-func jobIDsOf(jobs []models.Job) []string {
-	ids := make([]string, 0, len(jobs))
-	for _, job := range jobs {
-		ids = append(ids, job.JobID)
+func writesFor(jobIDs ...string) []models.JobWriteBody {
+	writes := make([]models.JobWriteBody, 0, len(jobIDs))
+	for _, id := range jobIDs {
+		writes = append(writes, models.JobWriteBody{JobID: id})
+	}
+	return writes
+}
+
+func writtenJobIDs(writes []models.JobWriteBody) []string {
+	ids := make([]string, 0, len(writes))
+	for _, write := range writes {
+		ids = append(ids, write.JobID)
 	}
 	return ids
 }
 
 // One member editing one job used to cost every other job in the same save. The
 // jobs nobody holds are exactly the ones the writer may still save.
-func TestDropHeldJobsKeepsTheRestInOrder(t *testing.T) {
+func TestDropHeldWritesKeepsTheRestInOrder(t *testing.T) {
 	t.Parallel()
-	jobs := []models.Job{
-		{JobID: "a"}, {JobID: "held-1"}, {JobID: "b"}, {JobID: "held-2"}, {JobID: "c"},
-	}
+	writes := writesFor("a", "held-1", "b", "held-2", "c")
 
-	got := jobIDsOf(dropHeldJobs(jobs, heldItems("held-1", "held-2")))
+	got := writtenJobIDs(dropHeldWrites(writes, heldItems("held-1", "held-2")))
 
 	want := []string{"a", "b", "c"}
 	if len(got) != len(want) {
@@ -47,23 +53,40 @@ func TestDropHeldJobsKeepsTheRestInOrder(t *testing.T) {
 	}
 }
 
-func TestDropHeldJobsKeepsEverythingWhenNothingIsHeld(t *testing.T) {
+func TestDropHeldWritesKeepsEverythingWhenNothingIsHeld(t *testing.T) {
 	t.Parallel()
-	jobs := []models.Job{{JobID: "a"}, {JobID: "b"}}
+	writes := writesFor("a", "b")
 
-	if got := jobIDsOf(dropHeldJobs(jobs, nil)); len(got) != 2 {
+	if got := writtenJobIDs(dropHeldWrites(writes, nil)); len(got) != 2 {
 		t.Fatalf("kept %v, want both", got)
 	}
 }
 
 // Every job held means nothing to write, which the handler answers as the
 // whole-batch refusal rather than as a partial write.
-func TestDropHeldJobsCanKeepNothing(t *testing.T) {
+func TestDropHeldWritesCanKeepNothing(t *testing.T) {
 	t.Parallel()
-	jobs := []models.Job{{JobID: "a"}, {JobID: "b"}}
+	writes := writesFor("a", "b")
 
-	if got := dropHeldJobs(jobs, heldItems("a", "b")); len(got) != 0 {
-		t.Fatalf("kept %v, want none", jobIDsOf(got))
+	if got := dropHeldWrites(writes, heldItems("a", "b")); len(got) != 0 {
+		t.Fatalf("kept %v, want none", writtenJobIDs(got))
+	}
+}
+
+// A write is dropped by the job it names rather than by anything in its
+// document: the gate runs before a document is decoded, and a field-scoped write
+// carries `jobID` inside its document only if the reader happened to change it.
+func TestDropHeldWritesReadsTheIDBesideTheDocument(t *testing.T) {
+	t.Parallel()
+	writes := []models.JobWriteBody{
+		{JobID: "held", Revision: 4, Document: []byte(`{"name":"held"}`)},
+		{JobID: "free", Revision: 4, Document: []byte(`{"name":"free"}`)},
+	}
+
+	got := writtenJobIDs(dropHeldWrites(writes, heldItems("held")))
+
+	if len(got) != 1 || got[0] != "free" {
+		t.Fatalf("kept %v, want only the write nobody holds", got)
 	}
 }
 

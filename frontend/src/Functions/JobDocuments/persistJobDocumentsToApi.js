@@ -43,22 +43,25 @@ function deliveredJobIDs(err) {
 }
 
 export async function persistJobDocumentsToApi() {
+  if (!useUsersStore.getState().account.isLoggedIn) {
+    return "saved";
+  }
+
+  const { jobData } = useUsersStore.getState();
+  const {
+    getPendingJobDocumentWritesPayload,
+    clearPendingJobDocumentWrites,
+    countWrittenJobRevisions,
+  } = jobData.actions;
+  // Read before the flush and used after it: a change queued while the request
+  // was in the air belongs to the next flush, and neither clearing nor
+  // discarding may reach it.
+  const queuedIds = Object.keys(jobData.pendingJobDocumentWrites ?? {});
+  if (queuedIds.length === 0) {
+    return "saved";
+  }
+
   try {
-    if (!useUsersStore.getState().account.isLoggedIn) {
-      return "saved";
-    }
-
-    const { jobData } = useUsersStore.getState();
-    const {
-      getPendingJobDocumentWritesPayload,
-      clearPendingJobDocumentWrites,
-      countWrittenJobRevisions,
-    } = jobData.actions;
-    const queuedIds = Object.keys(jobData.pendingJobDocumentWrites ?? {});
-    if (queuedIds.length === 0) {
-      return "saved";
-    }
-
     const jobs = getPendingJobDocumentWritesPayload();
     if (jobs.length === 0) {
       clearPendingJobDocumentWrites(queuedIds);
@@ -113,6 +116,25 @@ export async function persistJobDocumentsToApi() {
       ]);
       showSnackbarWarning(revisionConflictMessage(rejected), 8);
       return "conflict";
+    }
+    // A write the server refuses to read cannot start being readable: the queue
+    // holds job ids and rebuilds the same envelopes from the same jobs at every
+    // flush, so keeping them retries a doomed request for as long as the tab is
+    // open, and the reader is told nothing. It is dropped and said out loud
+    // instead, which is the one outcome here that loses an edit.
+    if (err?.status === 400) {
+      const { actions } = useUsersStore.getState().jobData;
+      const wrote = deliveredJobIDs(err);
+      if (wrote.length > 0) {
+        actions.countWrittenJobRevisions(wrote);
+      }
+      actions.clearPendingJobDocumentWrites(queuedIds);
+      console.error("Job documents were refused as unreadable", err);
+      showSnackbarWarning(
+        "Some changes could not be saved and have been discarded. Reload to continue from the saved version.",
+        8,
+      );
+      return "failed";
     }
     console.error("Error saving job documents to API", err);
     return "failed";

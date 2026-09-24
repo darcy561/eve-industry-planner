@@ -6,6 +6,7 @@ import {
 } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import useUsersStore from "../../Zustand/usersStore";
 import Job from "../../Classes/job";
+import { wholeJobWrites } from "../JobDocuments/jobWriteEnvelope.js";
 import {
   putJobDocumentsBatch,
   deleteJobDocumentsFromApi,
@@ -223,7 +224,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
 
   if (isLoggedIn) {
     try {
-      await putJobDocumentsBatch(jobsToPersist);
+      await putJobDocumentsBatch(wholeJobWrites(jobsToPersist));
       await deleteJobDocumentsFromApi([...oldJobIDsToRemove]);
     } catch (err) {
       console.error("mergeJobs: failed to persist merge", err);

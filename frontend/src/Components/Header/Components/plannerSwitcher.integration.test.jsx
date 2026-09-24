@@ -186,7 +186,13 @@ describe("switching planner, end to end", () => {
   // The write names its planner when it goes, not when it was queued, so this is
   // the one that catches a flush moved to the wrong side of the switch.
   it("sends a queued edit under the planner it was made in", async () => {
-    state.jobData.jobArray = [{ jobID: "own-job", displayOnPlanner: true }];
+    state.jobData.jobArray = [
+      {
+        jobID: "own-job",
+        displayOnPlanner: true,
+        toDocument: () => ({ jobID: "own-job", displayOnPlanner: true }),
+      },
+    ];
     state.jobData.actions.queueJobDocumentWrites(["own-job"]);
 
     renderSwitcher();

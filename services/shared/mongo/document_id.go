@@ -93,13 +93,7 @@ func SetDocumentWithRevision(doc any, unset bson.M) (bson.M, error) {
 		maps.Copy(set, MetaSetByPath(meta))
 	}
 
-	update := bson.M{
-		"$set": set,
-		"$inc": bson.M{FieldMetaRevision: 1},
-	}
-	if len(unset) > 0 {
-		update["$unset"] = unset
-	}
+	update := revisionUpdate(set, unset)
 	return update, nil
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseLockHeldElsewhereBody } from "./applyLockHeldElsewhereFromApiResponse.js";
+import { parseLockHeldElsewhereRefusal } from "./applyLockHeldElsewhereFromApiResponse.js";
 
 function lockBody(rejected, saved) {
   return JSON.stringify({
@@ -10,18 +10,18 @@ function lockBody(rejected, saved) {
   });
 }
 
-describe("parseLockHeldElsewhereBody", () => {
+describe("what a lock refusal says", () => {
   it("names the held documents", () => {
     expect(
-      parseLockHeldElsewhereBody(lockBody([{ docID: "job-1" }], 3)),
+      parseLockHeldElsewhereRefusal(lockBody([{ docID: "job-1" }], 3)).rejected,
     ).toEqual(["job-1"]);
   });
 
   it("names every held document, not only the first", () => {
     expect(
-      parseLockHeldElsewhereBody(
+      parseLockHeldElsewhereRefusal(
         lockBody([{ docID: "job-1" }, { docID: "job-2" }], 1),
-      ),
+      ).rejected,
     ).toEqual(["job-1", "job-2"]);
   });
 
@@ -33,16 +33,16 @@ describe("parseLockHeldElsewhereBody", () => {
       collection: "job_documents",
       rejected: [{ jobID: "job-1", expected: 4, current: 9 }],
     });
-    expect(parseLockHeldElsewhereBody(revision)).toBeNull();
+    expect(parseLockHeldElsewhereRefusal(revision)).toBeNull();
   });
 
   it("is null for a body that is not JSON", () => {
-    expect(parseLockHeldElsewhereBody("<html>nope</html>")).toBeNull();
+    expect(parseLockHeldElsewhereRefusal("<html>nope</html>")).toBeNull();
   });
 
   it("is null when no row names a document", () => {
     expect(
-      parseLockHeldElsewhereBody(lockBody([{ holderSessionID: "s" }])),
+      parseLockHeldElsewhereRefusal(lockBody([{ holderSessionID: "s" }])),
     ).toBeNull();
   });
 });

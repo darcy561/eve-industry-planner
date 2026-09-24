@@ -31,7 +31,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	accountID := helper.AuthenticatedAccountID(r)
 
 	var reqBody struct {
-		Jobs []models.Job `json:"jobs"`
+		Jobs []models.JobWriteBody `json:"jobs"`
 	}
 
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &reqBody) {
@@ -52,6 +52,18 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 			"max":   maxBatchSize,
 		})
 		return
+	}
+
+	// A write that names no job cannot be answered for: a refusal names the
+	// documents it refused, and one with no id is nameable nowhere. So the batch
+	// is refused whole rather than dropping it and leaving the caller to wonder
+	// which of its writes never happened.
+	for _, write := range reqBody.Jobs {
+		if err := write.Validate(); err != nil {
+			metrics.Error("invalid_write")
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "A write could not be read", "job documents put invalid write", "job_docs_put_invalid_write", "job_documents", err, nil)
+			return
+		}
 	}
 
 	logs.AttachDebugStep(r, "batch_validated", map[string]any{
@@ -77,13 +89,10 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		}
 		jobIDs := make([]string, 0, len(reqBody.Jobs))
 		jobGroupBypass := documentlock.JobGroupBypass{}
-		for _, j := range reqBody.Jobs {
-			if j.JobID == "" {
-				continue
-			}
-			jobIDs = append(jobIDs, j.JobID)
-			if j.IncludedInGroup && j.GroupID != "" {
-				jobGroupBypass[j.JobID] = j.GroupID
+		for _, write := range reqBody.Jobs {
+			jobIDs = append(jobIDs, write.JobID)
+			if write.IncludedInGroup && write.GroupID != "" {
+				jobGroupBypass[write.JobID] = write.GroupID
 			}
 		}
 		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs, jobGroupBypass)
@@ -103,7 +112,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		// exactly the ones the writer may still save.
 		lockRejects = rejects
 		if len(rejects) > 0 {
-			reqBody.Jobs = dropHeldJobs(reqBody.Jobs, rejects)
+			reqBody.Jobs = dropHeldWrites(reqBody.Jobs, rejects)
 			metrics.Error("lock_conflict")
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
@@ -119,29 +128,77 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	if err := h.encryptJobs(reqBody.Jobs); err != nil {
+	// Decoded before anything is written, so a document this model cannot read
+	// is named rather than costing the batch. The typed decode is what bounds
+	// what a body may say, and the cipher runs before a write is planned so a
+	// field-scoped write carries the stored form of an id rather than the one
+	// the client sent.
+	read := make([]readJobWrite, 0, len(reqBody.Jobs))
+	var unreadable []string
+	for _, write := range reqBody.Jobs {
+		job, derr := decodeJobWrite(write)
+		if derr != nil {
+			unreadable = append(unreadable, write.JobID)
+			continue
+		}
+		read = append(read, readJobWrite{Body: write, Job: *job})
+	}
+
+	decoded := make([]models.Job, len(read))
+	for i := range read {
+		decoded[i] = read[i].Job
+	}
+	if err := h.encryptJobs(decoded); err != nil {
 		metrics.Error("entity_refs_failed")
 		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to convert entity ids to refs", "job_docs_entity_refs_failed", "job_documents", err, nil)
 		return
 	}
-	for i := range reqBody.Jobs {
-		reqBody.Jobs[i].SchemaVersion = models.JobSchemaCurrent
+
+	for i := range read {
+		read[i].Job = decoded[i]
 	}
 
+	wholeWrites, fieldWrites, unplannable := splitJobWrites(read)
+	failed := append(unreadable, unplannable...)
+
 	now := time.Now()
-	result, failed, conflicts, err := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, owner, accountID, reqBody.Jobs, now, sessionID, wsClientID)
-	if err != nil {
-		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", err, nil)
-		return
+	var savedCount int
+	var savedDocIDs []string
+	var conflicts []eipmongo.RevisionConflict
+
+	if len(wholeWrites) > 0 {
+		result, wholeFailed, wholeConflicts, cerr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, owner, accountID, wholeWrites, now, sessionID, wsClientID)
+		if cerr != nil {
+			metrics.Error("database_error")
+			helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", cerr, nil)
+			return
+		}
+		if result != nil {
+			savedCount += int(result.UpsertedCount + result.ModifiedCount)
+		}
+		failed = append(failed, wholeFailed...)
+		conflicts = append(conflicts, wholeConflicts...)
+		savedDocIDs = append(savedDocIDs, writtenIDs(wholeWrites, func(job models.Job) string { return job.JobID }, wholeFailed, wholeConflicts)...)
 	}
-	if result == nil {
+
+	if len(fieldWrites) > 0 {
+		applied, fieldFailed, fieldConflicts, ferr := h.Mongo.JobDocuments.BulkUpsertJobFields(ctx, owner, accountID, fieldWrites, now, sessionID, wsClientID)
+		if ferr != nil {
+			metrics.Error("database_error")
+			helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to write job document fields", "job_docs_field_write_failed", "job_documents", ferr, nil)
+			return
+		}
+		savedCount += int(applied)
+		failed = append(failed, fieldFailed...)
+		conflicts = append(conflicts, fieldConflicts...)
+		savedDocIDs = append(savedDocIDs, writtenIDs(fieldWrites, func(write eipmongo.JobFieldWrite) string { return write.JobID }, fieldFailed, fieldConflicts)...)
+	}
+
+	if len(wholeWrites) == 0 && len(fieldWrites) == 0 {
 		metrics.Error("no_valid_jobs")
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid jobs to save", "no valid jobs in batch", "job_docs_put_no_valid_jobs", "job_documents", nil, nil)
 		return
 	}
-	savedCount := int(result.UpsertedCount + result.ModifiedCount)
-	savedDocIDs := writtenJobIDs(reqBody.Jobs, failed, conflicts)
 
 	// Two refusals can arrive from one batch and a response carries one of them;
 	// refusalFor decides which, and says why.

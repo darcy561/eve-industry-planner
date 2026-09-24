@@ -268,3 +268,70 @@ describe("a landed write counts against the jobs it wrote", () => {
     expect(revisionOf("job-2")).toBe(9);
   });
 });
+
+// A write the server cannot read is the one failure retrying cannot help: the
+// queue rebuilds the same envelopes from the same jobs at every flush, so a kept
+// id re-sends a request that has already been refused for as long as the tab
+// stays open, and nothing tells the reader.
+describe("a write the server refuses to read", () => {
+  beforeEach(() => {
+    putJobDocumentsBatch.mockReset();
+    warned.mockReset();
+    useUsersStore.getState().jobData.actions.resetJobDataStore();
+  });
+
+  function unreadableWriteError() {
+    const err = new Error("PUT /api/v1/job-documents failed: 400");
+    err.status = 400;
+    return err;
+  }
+
+  it("drops the ids it sent rather than retrying forever", async () => {
+    queueOneJob("job-1");
+    putJobDocumentsBatch.mockRejectedValueOnce(unreadableWriteError());
+
+    const outcome = await persistJobDocumentsToApi();
+
+    expect(outcome).toBe("failed");
+    expect(queued()).toHaveLength(0);
+  });
+
+  // Discarding an edit silently is the worst of both, so the one outcome that
+  // loses work says so.
+  it("tells the reader the changes were discarded", async () => {
+    queueOneJob("job-1");
+    putJobDocumentsBatch.mockRejectedValueOnce(unreadableWriteError());
+
+    await persistJobDocumentsToApi();
+
+    expect(warned).toHaveBeenCalledOnce();
+    expect(warned.mock.calls[0][0]).toContain("could not be saved");
+  });
+
+  it("credits the parts that landed before the part that was refused", async () => {
+    queueJobsAtRevisions({ "job-early": 4, "job-bad": 9 });
+    const err = unreadableWriteError();
+    err.deliveredBatchItems = [{ jobID: "job-early" }];
+    putJobDocumentsBatch.mockRejectedValueOnce(err);
+
+    await persistJobDocumentsToApi();
+
+    expect(revisionOf("job-early")).toBe(5);
+    expect(revisionOf("job-bad")).toBe(9);
+  });
+
+  // The queue is cleared by the ids read before the request, never wholesale: an
+  // edit made while the request was in the air was never sent, and discarding it
+  // would lose work the refusal says nothing about.
+  it("leaves a change queued while the request was in the air", async () => {
+    queueOneJob("job-1");
+    putJobDocumentsBatch.mockImplementationOnce(async () => {
+      queueOneJob("job-during");
+      throw unreadableWriteError();
+    });
+
+    await persistJobDocumentsToApi();
+
+    expect(queued()).toEqual(["job-during"]);
+  });
+});
