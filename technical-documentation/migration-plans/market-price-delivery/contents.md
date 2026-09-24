@@ -27,11 +27,11 @@ price against, not only the four the server holds.
   for the session with nothing beneath them, and every reader-saved source — public station and
   private citadel alike — read through IndexedDB so it survives a reload.
 
-**Stage G in progress; the browser-side remainder is off the shelf.** Stages A to D and most of E
-have landed. Stage G moves a saved NPC station's pricing onto the server and is under way. What was
-shelved needed a citadel that is a market, which
-[custom-structure-model](../custom-structure-model/contents.md) § Stage D landed.
-[plan.md](./plan.md) § Start here lists what to pick up, in order.
+**Every stage has landed, and this project is at its close condition.** A saved NPC station is
+priced by the server, a citadel is read in the browser on the reader's own characters, and Stage H
+gave a citadel's orders somewhere to be read. What remains is promotion:
+[plan.md](./plan.md) § What is still owed until promote names the live document that stays wrong
+until it happens.
 
 **Not live SoT** until this project is complete and promotion is approved.
 
