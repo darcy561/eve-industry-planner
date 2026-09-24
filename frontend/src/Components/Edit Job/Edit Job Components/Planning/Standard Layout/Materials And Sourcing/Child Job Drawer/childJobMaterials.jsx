@@ -1,5 +1,5 @@
 import { Typography, Grid } from "@mui/material";
-import { calculateMaterialCostFromChildJobs } from "../../../../../../../Functions/Groups/materialCostFromChildJobs.js";
+import { estimatedMaterialCost } from "../../../../../../../Functions/Groups/estimatedMaterialCost.js";
 import { SMALL_TEXT_FORMAT } from "../../../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../../../Functions/Helper/numberParser";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
@@ -25,7 +25,7 @@ export function ChildJobMaterials({
     const childJobs = row.build?.childJobs?.[material.typeID];
     const childJobIds = Array.isArray(childJobs) ? childJobs : [];
 
-    const calculatedMaterialPrice = calculateMaterialCostFromChildJobs(
+    const calculatedMaterialPrice = estimatedMaterialCost(
       material,
       childJobIds,
       temporaryChildJobs?.[material.typeID],

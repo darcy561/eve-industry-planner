@@ -41,8 +41,8 @@ vi.mock("../../Zustand/usersStore", () => ({
 const world = { indexes: {} };
 
 const { default: Job } = await import("../../Classes/job.js");
-const { calculateCurrentJobBuildCostFromChildren } =
-  await import("../Groups/calculateJobBuildCostFromChildren.js");
+const { jobCostSoFar } =
+  await import("../Groups/jobCostSoFar.js");
 const {
   calculateInstallCostfromSetup,
   getJobInstallCostForPlanning,
@@ -265,10 +265,10 @@ describe("costing a chain deeper than one link", () => {
     const parent = link("parent", KNOWN, 34, "child");
 
     const missingTheGrandchild =
-      calculateCurrentJobBuildCostFromChildren(parent);
+      jobCostSoFar(parent);
 
     world.indexes[UNKNOWN] = { manufacturing: 0.1 };
-    const whole = calculateCurrentJobBuildCostFromChildren(parent);
+    const whole = jobCostSoFar(parent);
 
     expect(missingTheGrandchild).toBeLessThan(whole);
   });

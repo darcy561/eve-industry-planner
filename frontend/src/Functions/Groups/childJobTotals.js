@@ -1,5 +1,5 @@
 import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
-import { calculateMaterialCostFromChildJobs } from "./materialCostFromChildJobs.js";
+import { estimatedMaterialCost } from "./estimatedMaterialCost.js";
 import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts.js";
 
 /**
@@ -33,7 +33,7 @@ export function calculateChildJobTotals(
   ).reduce(
     (total, material) =>
       total +
-      calculateMaterialCostFromChildJobs(
+      estimatedMaterialCost(
         material,
         childJob.build.childJobs[material.typeID],
         temporaryChildJobs[material.typeID],

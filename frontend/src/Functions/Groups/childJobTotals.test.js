@@ -1,8 +1,8 @@
 import { jobMaking } from "../../tests/editJobFixtures";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("./materialCostFromChildJobs.js", () => ({
-  calculateMaterialCostFromChildJobs: (material) => material.cost ?? 0,
+vi.mock("./estimatedMaterialCost.js", () => ({
+  estimatedMaterialCost: (material) => material.cost ?? 0,
 }));
 vi.mock("../Installation Costs/installCosts.js", () => ({
   getJobInstallCostForPlanning: (job) => job?.installCost ?? 0,

@@ -17,7 +17,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { calculateCurrentJobBuildCostFromChildren } from "../../../../../Functions/Groups/calculateJobBuildCostFromChildren.js";
+import { jobCostSoFar } from "../../../../../Functions/Groups/jobCostSoFar.js";
 import findJobsToHighlight from "./findJobsToHighlight";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import { RouterCardActionArea } from "../../../../../Styled Components/Navigation/routerControls.jsx";
@@ -35,7 +35,7 @@ function OutputJobCard({ inputJob, state, actions }) {
   );
 
   const CurrentBuildCost =
-    calculateCurrentJobBuildCostFromChildren(inputJob, {
+    jobCostSoFar(inputJob, {
       installCostMode: "actual",
     }) || 0;
 

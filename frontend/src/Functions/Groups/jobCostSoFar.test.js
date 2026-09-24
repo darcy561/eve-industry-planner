@@ -25,8 +25,7 @@ vi.mock("../Installation Costs/installCosts.js", () => ({
   getJobInstallCostForPlanning: (job) => job.plannedInstallCost ?? 0,
 }));
 
-const { calculateCurrentJobBuildCostFromChildren } =
-  await import("./calculateJobBuildCostFromChildren.js");
+const { jobCostSoFar } = await import("./jobCostSoFar.js");
 
 /**
  * @param {object} overrides
@@ -82,20 +81,20 @@ beforeEach(() => {
 
 describe("build cost from children", () => {
   it("is nothing for a job with no build", () => {
-    expect(calculateCurrentJobBuildCostFromChildren({})).toBe(0);
-    expect(calculateCurrentJobBuildCostFromChildren(null)).toBe(0);
+    expect(jobCostSoFar({})).toBe(0);
+    expect(jobCostSoFar(null)).toBe(0);
   });
 
   it("is nothing for a job that produces nothing, rather than dividing by zero", () => {
     const outputJob = job({ produced: 0, installCost: 100 });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(0);
+    expect(jobCostSoFar(outputJob)).toBe(0);
   });
 
   it("is quoted per unit produced, not as the whole job", () => {
     const outputJob = job({ produced: 10, installCost: 500, extras: 500 });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(100);
+    expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
   it("charges a bought material at what was paid", () => {
@@ -104,7 +103,7 @@ describe("build cost from children", () => {
       materials: [bought(34, 250)],
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(250);
+    expect(jobCostSoFar(outputJob)).toBe(250);
   });
 
   it("charges a built material at what its child job costs per unit", () => {
@@ -122,7 +121,7 @@ describe("build cost from children", () => {
     });
 
     // Child costs 300 + 200 + 500 = 1000 for 100 units, so 10 units cost 100.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(100);
+    expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
   it("walks a child's own children rather than stopping a level down", () => {
@@ -147,7 +146,7 @@ describe("build cost from children", () => {
 
     // Grandchild: (100 + 900) / 10 = 100 per unit, so 10 units cost 1000.
     // Child: 1000 for 10 units = 100 per unit, so 10 units cost 1000.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(1000);
+    expect(jobCostSoFar(outputJob)).toBe(1000);
   });
 
   it("uses what was paid when a material is already bought in full, children or not", () => {
@@ -158,7 +157,7 @@ describe("build cost from children", () => {
       childJobs: { 35: ["child-1"] },
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(42);
+    expect(jobCostSoFar(outputJob)).toBe(42);
   });
 
   it("falls back to what was paid when a named child job cannot be found", () => {
@@ -168,7 +167,7 @@ describe("build cost from children", () => {
       childJobs: { 35: ["missing-job"] },
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(777);
+    expect(jobCostSoFar(outputJob)).toBe(777);
   });
 
   it("falls back to what was paid when the children produce nothing", () => {
@@ -179,7 +178,7 @@ describe("build cost from children", () => {
       childJobs: { 35: ["child-1"] },
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(640);
+    expect(jobCostSoFar(outputJob)).toBe(640);
   });
 
   it("spreads several children of one material over their combined output", () => {
@@ -192,7 +191,7 @@ describe("build cost from children", () => {
     });
 
     // 1000 across 100 units is 10 each, so 10 units cost 100.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(100);
+    expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
   it("charges the install cost actually incurred when asked for actuals", () => {
@@ -203,7 +202,7 @@ describe("build cost from children", () => {
     });
 
     expect(
-      calculateCurrentJobBuildCostFromChildren(outputJob, {
+      jobCostSoFar(outputJob, {
         installCostMode: "actual",
       }),
     ).toBe(250);
@@ -220,14 +219,14 @@ describe("what it does with awkward input", () => {
     const outputJob = job({ produced: 2, installCost: 100, extras: 50 });
     delete outputJob.build.materials;
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(75);
+    expect(jobCostSoFar(outputJob)).toBe(75);
   });
 
   it("treats a material with no child job list as bought", () => {
     const outputJob = job({ produced: 1, materials: [toBuild(35, 10, 500)] });
     delete outputJob.build.childJobs;
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(500);
+    expect(jobCostSoFar(outputJob)).toBe(500);
   });
 
   it("treats a child job entry that is not a list as no children at all", () => {
@@ -237,7 +236,7 @@ describe("what it does with awkward input", () => {
       childJobs: { 35: "child-1" },
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(500);
+    expect(jobCostSoFar(outputJob)).toBe(500);
   });
 
   it("reads a numeric string as the number it looks like", () => {
@@ -246,7 +245,7 @@ describe("what it does with awkward input", () => {
       materials: [{ ...bought(34, "250"), quantity: 1 }],
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(125);
+    expect(jobCostSoFar(outputJob)).toBe(125);
   });
 
   it("reads an unusable purchased cost as nothing rather than spreading NaN", () => {
@@ -255,20 +254,12 @@ describe("what it does with awkward input", () => {
       materials: [{ ...bought(34, "not a number"), quantity: 1 }],
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(0);
+    expect(jobCostSoFar(outputJob)).toBe(0);
   });
 
   it("is nothing when the output quantity is unusable", () => {
-    expect(
-      calculateCurrentJobBuildCostFromChildren(
-        job({ produced: "many", installCost: 100 }),
-      ),
-    ).toBe(0);
-    expect(
-      calculateCurrentJobBuildCostFromChildren(
-        job({ produced: -5, installCost: 100 }),
-      ),
-    ).toBe(0);
+    expect(jobCostSoFar(job({ produced: "many", installCost: 100 }))).toBe(0);
+    expect(jobCostSoFar(job({ produced: -5, installCost: 100 }))).toBe(0);
   });
 
   it("sums every material rather than stopping at the first", () => {
@@ -277,7 +268,7 @@ describe("what it does with awkward input", () => {
       materials: [bought(34, 100), bought(35, 200), bought(36, 300)],
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(600);
+    expect(jobCostSoFar(outputJob)).toBe(600);
   });
 
   it("skips a child job that has no build without dropping its siblings", () => {
@@ -290,7 +281,7 @@ describe("what it does with awkward input", () => {
     });
 
     // The shell contributes neither cost nor output, so the figure is child-1's.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(100);
+    expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
   it("counts a child named twice twice, cost and output alike", () => {
@@ -303,7 +294,7 @@ describe("what it does with awkward input", () => {
 
     // 1000 over 100 units is the same per unit as 500 over 50, so a duplicate
     // does not change the rate — only a per-unit reading makes that true.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(100);
+    expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
   it("charges nothing for a material the job needs none of", () => {
@@ -314,7 +305,7 @@ describe("what it does with awkward input", () => {
       childJobs: { 35: ["child-1"] },
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(0);
+    expect(jobCostSoFar(outputJob)).toBe(0);
   });
 
   it("charges a child's extras as well as its install", () => {
@@ -325,7 +316,7 @@ describe("what it does with awkward input", () => {
       childJobs: { 35: ["child-1"] },
     });
 
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(100);
+    expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
   it("stops a child job that leads back to itself, and says so", () => {
@@ -346,7 +337,7 @@ describe("what it does with awkward input", () => {
     // The cycle is skipped rather than walked, so the branch still costs what
     // the reachable part of it costs: 500 install plus the cycling material's
     // own purchased cost, over 10 units, for 10 units.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(542);
+    expect(jobCostSoFar(outputJob)).toBe(542);
     expect(captureException).toHaveBeenCalledTimes(1);
   });
 
@@ -360,7 +351,7 @@ describe("what it does with awkward input", () => {
     jobsById.set("self", outputJob);
 
     // Nothing reachable, so the material falls to what was paid for it.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(777);
+    expect(jobCostSoFar(outputJob)).toBe(777);
     expect(captureException).toHaveBeenCalledTimes(1);
   });
 
@@ -392,9 +383,7 @@ describe("what it does with awkward input", () => {
     // A costs 300, plus B's 200 and B's cycling material falling back to 11,
     // over B's 10 units for A's 1 unit = 21.1. A's total 321.1 over 10 units is
     // 32.11 each, for 10 units.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBeCloseTo(
-      321.1,
-    );
+    expect(jobCostSoFar(outputJob)).toBeCloseTo(321.1);
     expect(captureException).toHaveBeenCalledTimes(1);
   });
 
@@ -424,7 +413,7 @@ describe("what it does with awkward input", () => {
     });
 
     // Each child costs 100 for 10 units, so 20 units across both cost 200.
-    expect(calculateCurrentJobBuildCostFromChildren(outputJob)).toBe(200);
+    expect(jobCostSoFar(outputJob)).toBe(200);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -436,7 +425,7 @@ describe("what it does with awkward input", () => {
       childJobs: { 35: ["child-1"] },
     });
 
-    calculateCurrentJobBuildCostFromChildren(outputJob);
+    jobCostSoFar(outputJob);
 
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -461,9 +450,9 @@ describe("how often a cycle is reported", () => {
       childJobs: { 35: ["repeat-loop"] },
     });
 
-    calculateCurrentJobBuildCostFromChildren(outputJob);
-    calculateCurrentJobBuildCostFromChildren(outputJob);
-    calculateCurrentJobBuildCostFromChildren(outputJob);
+    jobCostSoFar(outputJob);
+    jobCostSoFar(outputJob);
+    jobCostSoFar(outputJob);
 
     expect(captureException).toHaveBeenCalledTimes(1);
   });
