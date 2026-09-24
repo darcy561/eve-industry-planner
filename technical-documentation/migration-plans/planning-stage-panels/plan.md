@@ -686,7 +686,7 @@ as the one in effect.
 **Cost Breakdown** draws the cost as proportions and subtotals **cost to build** separately from
 **cost to sell**, because the fee and tax are only paid on listing — which is also what lets the sell
 band disappear entirely in Stage H. Materials and child builds do not overlap:
-`calculateMaterialCostFromChildJobs` substitutes a child's own unit cost for the market price rather
+`estimatedMaterialCost` substitutes a child's own unit cost for the market price rather
 than adding to it, and recurses, so a linked material contributes nothing to the market-priced line.
 Install cost on this panel is this job's slots only. Archive figures render here as a range bar placing
 this build within previous builds, and a whole-build **vs last build** figure beside it. The
@@ -995,11 +995,12 @@ child making half of what was needed cost exactly as much as one making all of i
 
 ### The cost was an assumption presented as a figure
 
-`calculateMaterialCostFromChildJobs` returns `jobCost / totalQuantityProduced` and the parent multiplies
-by `material.quantity`. Extrapolating like that is right when the job is going to be resized and a
-fabrication when it is not, and nothing distinguished the two. The same loop also added
+A material's cost came back as the child's cost per unit and the parent multiplied by
+`material.quantity`. Extrapolating like that is right when the job is going to be resized and a
+fabrication when it is not, and nothing distinguished the two. The same loop also charged
 `unitCost × the whole requirement` **per contributing job**, so a material built by two child jobs cost
-twice what it should.
+twice what it should — `childJobCoverage` settles that at the row, and the walk underneath it now
+spreads several children over their combined output rather than charging each in turn.
 
 ### Three cases, because the answer depends on what happens next
 
@@ -1472,7 +1473,7 @@ absence.
 **Returns** priced a capital nobody was trading at −155 billion with a −100% return on outlay, which
 is what a missing sell price looks like rather than what the build is worth. `calculateReturns` marks
 each route `hasNoOrders` when its own side is empty, and the panel names the market instead of
-stating the figures. Per route, because the two sides are separate books: a capital commonly has bids
+stating the figures. Per route, because the two sides are priced apart: a capital commonly has bids
 and no listings, and the side that can be priced still says what it is worth. Break-even survives —
 what the build cost is still true — but the headroom beside it does not, having no current price to
 measure against.

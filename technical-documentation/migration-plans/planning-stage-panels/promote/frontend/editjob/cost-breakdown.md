@@ -23,7 +23,7 @@ The **build band** — materials, child builds, install, invention and extras �
 job with no sellable output (see [returns.md](./returns.md) § Jobs with parent jobs) carries no sell
 band at all, and the broker fee's 100 ISK floor is never quoted where there is nothing to list.
 
-Materials and child builds do not overlap: `calculateMaterialCostFromChildJobs` substitutes a linked
+Materials and child builds do not overlap: `estimatedMaterialCost` substitutes a linked
 child's own unit cost for the material's market price rather than adding to it, recursing through
 nested child jobs, so a linked material contributes to the total once. A material a child job falls
 short of covering appears in the shortfall's own line — see
