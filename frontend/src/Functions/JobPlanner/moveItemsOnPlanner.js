@@ -2,7 +2,7 @@ import Job from "../../Classes/job";
 import Group from "../../Classes/group";
 import { scheduleSaveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
-import { asIDList } from "../Helper/ids";
+import { asIDList, isGroupID, isJobID } from "../Helper/ids";
 import {
   canMoveJobBackward,
   canMoveJobForward,
@@ -59,7 +59,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
   };
 
   for (const inputID of selectedIDs) {
-    if (inputID.includes("group")) {
+    if (isGroupID(inputID)) {
       const selectedGroup = getWorkingGroup(inputID);
       if (!selectedGroup) continue;
       if (direction === "forward") {
@@ -68,7 +68,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
         selectedGroup.moveGroupStatusBackward();
       }
       modifiedGroupIDs.add(selectedGroup.groupID);
-    } else {
+    } else if (isJobID(inputID)) {
       if (direction === "forward") {
         moveForward(inputID);
       } else if (direction === "backward") {

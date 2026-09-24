@@ -1,3 +1,5 @@
+import { isGroupID, isJobID } from "./ids";
+
 /**
  * Separates group IDs and job IDs from a mixed array of identifiers.
  * Filters input items based on whether they contain "group" or "job" in their ID.
@@ -22,12 +24,10 @@ function separateGroupAndJobIDs(inputItems) {
 
   const { groupIDs, jobIDs } = inputArray.reduce(
     (acc, id) => {
-      if (typeof id === "string") {
-        if (id.includes("group")) {
-          acc.groupIDs.add(id);
-        } else if (id.includes("job")) {
-          acc.jobIDs.add(id);
-        }
+      if (isGroupID(id)) {
+        acc.groupIDs.add(id);
+      } else if (isJobID(id)) {
+        acc.jobIDs.add(id);
       }
       return acc;
     },

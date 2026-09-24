@@ -6,6 +6,7 @@ import { requestJobDocumentsByIdsFromApi } from "../../Functions/Endpoints/Priva
 import retrieveJobIDsFromGroupObjects from "../../Functions/Helper/getJobIDsFromGroupObjects";
 import separateGroupAndJobIDs from "../../Functions/Helper/separateGroupAndJobIDs";
 import { stateDefault } from "./stateDefault.js";
+import { isJobID } from "../../Functions/Helper/ids";
 
 /**
  * Core actions for jobs management.
@@ -247,7 +248,7 @@ export const coreActions = (set, get) => ({
     const collectStringIdsFromIterable = (iterable) => {
       const ids = new Set();
       for (const item of iterable) {
-        if (typeof item === "string" && item.includes("job")) {
+        if (isJobID(item)) {
           ids.add(item);
         }
       }
@@ -282,7 +283,7 @@ export const coreActions = (set, get) => ({
         if (typeof item === "object" && typeof item.jobID === "string") {
           pushJob(item);
         } else if (typeof item === "string") {
-          if (!item.includes("job")) continue;
+          if (!isJobID(item)) continue;
           const job = findJobInJobArray(item);
           if (job) pushJob(job);
         }
@@ -299,7 +300,7 @@ export const coreActions = (set, get) => ({
     }
 
     if (typeof inputItem === "string") {
-      if (!inputItem.includes("job")) return [];
+      if (!isJobID(inputItem)) return [];
       await resolveMissingIds(new Set([inputItem]));
       const job = findJobInJobArray(inputItem);
       return job ? [job] : [];

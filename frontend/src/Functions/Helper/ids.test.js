@@ -9,7 +9,10 @@ import {
   asStringID,
   asStringIDList,
   asStringIDSet,
+  isGroupID,
+  isJobID,
   removeIDsFromSet,
+  sameID,
 } from "./ids";
 
 describe("reading a list of ids from what a caller passed", () => {
@@ -69,6 +72,33 @@ describe("reading a single id", () => {
     expect(asNumberID("")).toBeNull();
     expect(asNumberID(null)).toBeNull();
     expect(asNumberID(Infinity)).toBeNull();
+  });
+});
+
+describe("telling whether two ids name the same thing", () => {
+  it("matches an id written as text against one written as a number", () => {
+    expect(sameID("587", 587)).toBe(true);
+    expect(sameID(587, "587")).toBe(true);
+  });
+
+  it("separates two different ids", () => {
+    expect(sameID(587, 588)).toBe(false);
+  });
+
+  // Both reading as nothing would otherwise make every unreadable value equal
+  // to every other one.
+  it("does not match two ids that read as nothing", () => {
+    expect(sameID(null, undefined)).toBe(false);
+    expect(sameID(undefined, undefined)).toBe(false);
+  });
+
+  it("does not match an id against nothing", () => {
+    expect(sameID(587, null)).toBe(false);
+    expect(sameID(null, 587)).toBe(false);
+  });
+
+  it("does not match an id against one that merely starts the same", () => {
+    expect(sameID(34, 345)).toBe(false);
   });
 });
 
@@ -164,5 +194,21 @@ describe("ids held in something other than an array", () => {
 
   it("still reads a string as one id, not as its characters", () => {
     expect(asStringIDList("587")).toEqual(["587"]);
+  });
+});
+
+describe("telling a job id from a group id", () => {
+  it("reads the ids the planner mints", () => {
+    expect(isJobID("job-3f2a")).toBe(true);
+    expect(isGroupID("job-3f2a")).toBe(false);
+    expect(isGroupID("group-9c1b")).toBe(true);
+    expect(isJobID("group-9c1b")).toBe(false);
+  });
+
+  it("calls an id that is neither one neither", () => {
+    for (const id of ["", "60003760", null, undefined, 587, {}]) {
+      expect(isJobID(id)).toBe(false);
+      expect(isGroupID(id)).toBe(false);
+    }
   });
 });

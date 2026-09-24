@@ -59,6 +59,24 @@ export function asNumberID(id) {
 }
 
 /**
+ * Whether two ids name the same thing, whichever way each was written.
+ *
+ * An id reaches one side of a comparison from a document, a route or a text
+ * field as a string, and the other from ESI as a number, so the two have to be
+ * read before they can be compared. Two ids that read as nothing are not the
+ * same id: `null === null` would make every unreadable value equal to every
+ * other one.
+ *
+ * @param {*} a
+ * @param {*} b
+ * @returns {boolean}
+ */
+export function sameID(a, b) {
+  const left = asStringID(a);
+  return left !== null && left === asStringID(b);
+}
+
+/**
  * A list of string ids, in the order given, with anything unreadable left out.
  *
  * @param {*} value - One id, or an iterable of them
@@ -124,6 +142,29 @@ export function removeIDsFromSet(target, value, read) {
     const readID = read(id);
     if (readID !== null) target.delete(readID);
   }
+}
+
+/**
+ * Whether an id names a job, and whether it names a job group.
+ *
+ * The planner mints these as `job-<uuid>` and `group-<uuid>`, so the word is
+ * what tells them apart. The two are asked separately rather than through one
+ * "which kind is this" call because an id that is neither must be left alone —
+ * branching on one and treating everything else as the other misclassifies it.
+ *
+ * @param {*} id
+ * @returns {boolean}
+ */
+export function isJobID(id) {
+  return typeof id === "string" && id.includes("job");
+}
+
+/**
+ * @param {*} id
+ * @returns {boolean}
+ */
+export function isGroupID(id) {
+  return typeof id === "string" && id.includes("group");
 }
 
 /** @param {*} value @param {Function} read @returns {Array} */
