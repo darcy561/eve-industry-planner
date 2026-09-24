@@ -9,8 +9,8 @@ write can now be *refused* rather than silently overwriting somebody else's, tha
 the user instead of disappearing, and that one job another session holds no longer costs the rest of
 the batch.
 
-**In practice nothing is refused yet for a revision**, because the SPA does not send one — see § Why
-no production write is conditional yet. The lock refusals below are live today.
+**A write is refused for its revision now**, because the SPA carries one — see § What a write is
+checked against. The lock refusals below are live too.
 
 One thing this project depends on **has** landed, delivered by
 [shared-planners](../shared-planners/plan.md) rather than here, and it is recorded below because a
@@ -32,9 +32,9 @@ Every scoped document carries `_meta.revision`, an integer counting writes to th
   missing field on null rather than on zero, so a filter built from a zero matches nothing — it would
   read as a conflict on a document that is perfectly current.
 
-**A write that carries one is checked against it** — Stage A below. Nothing the SPA sends carries one
-yet, so in practice every production write still takes the unconditional path; § Why no production
-write is conditional yet says what closes that.
+**A write that carries one is checked against it** — Stage A below. The SPA carries the revision a job
+was delivered at, so a whole-document write is conditional today; § What a write is checked against
+says which writes still are not.
 
 `UpdatePlannerSettings` is the one write path that is already field-scoped — it sets only the paths it
 was given and `$inc`s the counter. It is Stage C's shape, built for planner settings alone.
@@ -114,16 +114,21 @@ already *written* it.
 The archived-jobs restore path writes unconditionally: a restored job is rebuilt from the archive
 rather than edited, so it carries no revision to be conditional on.
 
-### Why no production write is conditional yet
+### What a write is checked against
 
-The SPA's `Job` class rebuilds `_meta` from `lastModified`, `createdAt` and `lastUpdatedBy` when it
-constructs a job, so the revision the server delivered is dropped before `toDocument` runs. Every
-write the SPA sends today therefore carries no revision and takes the unconditional path.
+A job keeps the revision it was delivered at and sends it back inside `_meta`, and a whole-document
+write is filtered on it — so two members writing one job now refuse each other rather than one
+overwriting the other silently. A job the client holds no stored copy of has no revision to carry and
+is written unconditionally, which is what a create is.
 
-**This is what made Stage A safe to land ahead of its client half.** Stage B has since taught the
-client to recognise a `revision_conflict`, drop the refused write and warn — so the ordering
-constraint it carried is discharged, and the first write to carry a revision meets a client that can
-answer it. Making one is Stage C's work.
+**Stage A landed ahead of this, when nothing carried a revision and every write took the
+unconditional path.** Stage B then taught the client to recognise a `revision_conflict`, drop the
+refused write and tell the reader, which is what made carrying one safe; a landed write also counts
+itself locally, so a second edit does not arrive stale against the client's own earlier write.
+
+What is still unconditional is nothing — every write either carries a revision or is a create. What
+is still *whole* is every write: the field-scoped path is built on both sides but not wired to the
+wire, so a job that changed one field still sends all of them. § Stage C.
 
 ## Stage B — A refused write is an outcome the UI handles
 
@@ -251,10 +256,68 @@ field and a segment after a map naming one of its keys. A path that leaves the m
 so is one that does not end at a key of a keyed collection: a struct field is not a row, and a list
 row cleared by path would leave a hole where it was.
 
-Owed here: the handler that calls both and builds the update — including dropping a removal the
-document already carries wholesale, which neither function can see on its own because they do not
-meet — the persist queue carrying what changed rather than a job id, and a held job keeping the
-revision `Job` currently drops when it rebuilds `_meta`.
+### What a field-scoped write becomes
+
+`SetFieldsWithRevision` builds the update a partial write makes, as
+`SetDocumentWithRevision` does for a whole one: the fields it was given, `_meta` set field by field,
+and the counter left to `$inc` alone — a stored document refuses an update that sets a subdocument
+and increments a path inside it.
+
+It refuses any two paths that reach into one another, whichever half named them, and any path into
+`_meta`. A stored document refuses such an update whole rather than in part, so the write would be
+lost either way; refusing it here is what names the two paths that disagreed. The client makes the
+same correction for itself over json names before the model has resolved anything — see
+§ Stage C of [plan.md](./plan.md) for why both exist.
+
+`BulkUpsertJobFields` applies each write conditionally and never upserts. A write carrying no
+revision is refused rather than written: setting some fields into a document that is not there would
+store a job made only of those fields. The handler never sends it one, so that refusal is a guard
+against a caller building such a write by hand rather than something a request can reach.
+
+### How the handler reads a write
+
+`PutJobDocumentsHandler` takes a batch of envelopes rather than a batch of jobs. A write naming no
+job is refused with the whole batch, because a refusal names the documents it refused and a write
+with no id is nameable nowhere — dropping it would leave the caller unable to tell which of its
+writes never happened. The lock gate then asks about each job by the id, membership and group the
+envelope carries, and a held job is dropped from the batch as before.
+
+What survives is decoded under the typed model — a document the model cannot read is named rather
+than costing the batch — and put through the entity cipher before any write is planned, because a row
+holding an id the cipher rewrites is written whole and is read from the job as it stands.
+
+**The envelope's revision marks a write as field-scoped, not as a change.** A write naming none
+carries its whole document, which covers a job with no stored copy and a job changed with nothing
+recording what changed; the second is still checked against the revision its own `_meta` carries,
+which is where `BulkUpsertJobs` has always read it. So the two go to different writers and both can
+be conditional.
+
+Each writer names what it wrote, and the answer carries the union — one refusal is reported per batch
+as before, so what wrote cannot be worked out by subtracting what was refused.
+
+A field-scoped write restates `schemaVersion`, because a document only ever written field by field
+would otherwise keep claiming the shape it had when something last sent it whole. It states the shape
+without running the upgrader over the rest of the document, exactly as a whole-document write does
+today — which is harmless while the job upgrader does nothing but clamp, and stops being harmless the
+day it migrates fields: `schemamaint` finds work by selecting documents below the current version, so
+both write paths would have to route through the upgrader rather than stamp the constant, or a
+document either of them touched becomes invisible to that selection.
+
+The SPA sends these envelopes: `getPendingJobDocumentWritesPayload` builds one per queued job through
+[jobWriteEnvelope.js](../../../frontend/src/Functions/JobDocuments/jobWriteEnvelope.js), and the write
+paths that record no log — a merge relinking parents, a delete cutting children loose — go through
+`wholeJobWrites` beside it. A write the server cannot read is dropped from the queue and said out
+loud, rather than retried for as long as the tab stays open.
+
+The envelope is pinned for both sides by
+[job-write/body.json](../../../testing/fixtures/job-write/body.json), the way
+[write-conflict/body.json](../../../testing/fixtures/write-conflict/body.json) pins the refusal. It
+states the reader's copy of a job, the log behind an edit, the envelope those two build, and the
+stored paths that envelope reaches. The SPA test builds the envelope from the job and the log and
+compares; the Go tests decode it, plan the stored update from it, and drive it through the real
+handler. What the job's own fields are called is pinned separately, by
+[model-parity/job-schema.json](../../../testing/fixtures/model-parity/job-schema.json); this file
+pins what wraps them.
 
 ## Stage D — The lock stops being broad
 
@@ -297,13 +360,18 @@ document, and clearing on an empty list would discard edits nothing wrote.
 ### Why the rest of Stage D is not safe yet
 
 [plan.md](./plan.md) § Why the lock is as broad as it is argues the relaxation rests on a version
-check: *"the version check is what makes the relaxation safe."* The check is built and inert. The
-SPA's `Job` class still drops `_meta.revision`, so every write arrives with no revision and takes the
-unconditional path — which makes the document lock the only thing today preventing two members
-overwriting each other.
+check: *"the version check is what makes the relaxation safe."* That check is no longer inert — the
+SPA carries the revision and a whole-document write is filtered on it, so two members writing one job
+already refuse each other.
+
+What it does not yet cover is why the lock still stands. A refusal protects a *document*, and the
+lock protects a *close*: a close writes the job the reader edited and every job it linked, repaired or
+resized, and those writes are made one batch at a time rather than atomically. A member whose
+neighbouring job moved under them learns so by refusal, and the reader is told — but the close has
+already half-landed. The lock is what stops two members reaching that state, and nothing in the
+revision check replaces it.
 
 So the group lease still stands in for every job in it, and every write path still consults the lock.
-Relaxing either now would remove the only protection operating rather than trade it for another.
 
 Owed here, once conditional writes are live: what the group lock covers once it stops covering member
 jobs, what a write path does with the lock after it stops gating, and which of the lock's Redis
@@ -340,6 +408,21 @@ So the behaviour this project exists for is proved against real Mongo, under
 | The same, over the handlers: a 409 carrying `error`, `saved` and the refused rows | `services/api/v1endpoints/jobdocuments/live_revision_conflict_test.go` |
 | A mixed batch answers `saved: 1` and names only the stale job | same |
 | An unversioned write is still accepted, so a client that sends no revision keeps working | same |
+| A field-scoped write changes only what it names, and leaves `createdAt` and the rows beside it alone | `services/shared/mongo/live_field_write_test.go` |
+| A stale field-scoped write is refused, and the landed one kept | same |
+| The envelope the SPA builds, driven through the real handler: only the named field, the named row and the revision move | `services/api/v1endpoints/jobdocuments/live_field_write_test.go` |
+| The same envelope sent twice is refused the second time | same |
+
+The `createdAt` row is there because the first version of that test passed against a deliberately
+broken write: it seeded a job whose creation time was already the zero time, so clobbering it changed
+nothing. A live test is only worth its name once the mutation it is meant to catch fails it.
+
+The cross-client suite under `EIP_WS_E2E=1` proves the SPA's own transports against a Go fixture
+rather than the real handler, and that fixture delivers back the document a write carried. A
+field-scoped write carries only the fields it changed, while the real watcher looks the whole stored
+document up (`SetFullDocument(options.UpdateLookup)`), so a live test driving a field-scoped save
+through the fixture would see a job missing everything the write did not touch. Every write that
+suite makes today is whole-document, which is why it holds.
 
 **Still only unit-tested:** the Redis lock gate dropping held jobs. `testing/redislive` exists and no
 test in this project uses it, so nothing proves a lock really held by another session causes the

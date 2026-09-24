@@ -291,6 +291,51 @@ went, as the path into the job it sat at. Seven commands produce a removal: unli
 an extras cost, an invention entry, a transaction, a market order with the sales made against it, and
 deleting a setup.
 
+**The envelope names the job and the revision; the document holds only what the job contains.** A
+partial document says nothing about which job it is — `jobID` appears in it only if the reader changed
+it, which no command does — and it cannot carry the revision either, because `_meta` is the server's
+and a body may not name it. Both travel beside the document instead:
+
+```json
+{ "jobs": [ { "jobID": "job-1", "revision": 4,
+              "document": { "build": { "materials": { "34": { "quantity": 100 } } } },
+              "removed":  [ ["esi", "industryJobs", "500001"] ] } ] }
+```
+
+The alternative — letting the partial document carry `_meta.revision` as the one permitted `_meta`
+path — keeps the client's existing shape and spends the structural guarantee that makes `_meta`
+unreachable, for one field the envelope can hold plainly.
+
+**The lock gate needs more than the envelope holds, and that is a decision the handler owes.** The
+gate asks about each job by id, which the envelope gives it, but it also builds a `JobGroupBypass`
+from each job's `includedInGroup` and `groupID` — and a partial document carries those only if the
+write changed them, which no command does. A handler reading them off a partial would see every job
+as belonging to no group and drop the bypass for the ones that do, which is most of a shared
+planner's close.
+
+**Taken: the envelope carries the two fields beside the id.** The gate already trusts what the request
+says about a job's group, so this keeps today's behaviour exactly and changes nothing about who is let
+past a lease.
+
+The alternative was to have the server read each job's stored group state, which would also stop a
+request claiming a membership it does not have. That is the better guarantee, and it is a change to
+who is trusted rather than to how a write is shaped — bundling it into this stage would move a trust
+boundary inside a migration nobody would think to look in for one. It is recorded in § Open questions
+instead.
+
+**A write naming no revision in the envelope carries its whole document.** That is not the same as
+being a create. Two writes carry a whole document: a job the writer holds no stored copy of, which
+has no revision at all; and a job changed with nothing recording what changed — an ESI refresh, a
+group operation, a job a close resized — which has one. The second is still checked against it,
+because the revision rides in the document's own `_meta` where `BulkUpsertJobs` has always read it.
+Conflating the two would have written every resized job unconditionally, which is exactly what
+§ What a close writes decided against.
+
+The envelope's revision therefore marks a write as **field-scoped**, not as a change: only a write
+carrying fields has fields to scope. A field-scoped write always names one, and the server refuses one
+that does not rather than upserting it — setting some fields into a document that is not there would
+store a job made only of those fields.
+
 **The model itself is what a removal path is checked against.** The server walks each path segment by
 segment over `models.Job` by reflection: a segment matches a field's json name, and a segment
 following a **map** field is that map's key. A path that leaves the model, or that reaches a field
@@ -333,6 +378,16 @@ two members unlinking different runs lose one of the two. § Decisions taken, an
 gives members no longer conflicting at all as the reason the lock can become advisory in Stage D, and
 promotion holds a class of conflict open against that.
 
+**The client drops an overlap; the server refuses one.** These are different answers to the same
+question and both are right for where they sit. The client is building the write against the job in
+front of it, so it can see that a removal is already covered by a collection it is sending whole, and
+dropping it is a correction rather than a loss. The server is handed paths whose history it cannot
+see: an overlap there is either a client that failed to make that correction or one asking for
+something it should not, and quietly dropping half of it would lose a removal the reader asked for
+with nothing said. So `SetFieldsWithRevision` refuses the write and names both paths. A stored
+document would refuse it anyway — and refuse the whole update rather than the offending half — so the
+choice is only whether the caller is told which two paths disagreed.
+
 **Both parts are settled against the job as it now reads, not trusted from the log.** A stored
 document refuses an update naming the same ground twice — `$set` on `esi.industryJobs` and `$unset`
 on `esi.industryJobs.500001` conflict — so a removal inside a collection the write already carries
@@ -367,10 +422,15 @@ the envelope above, which is the change § Wire compatibility already carries �
 deploy together for this stage, and `BulkUpsertJobs` keeps taking a whole job for the archived-jobs
 restore.
 
-**Built on the client.** [`writeBody.js`](../../../frontend/src/Functions/JobDocuments/writeBody.js)
-turns a job and its log entries into the two parts, with the rules above as its tests. The server
-half is this stage's remaining work: the reflection walk over `models.Job` that turns `document` into
-`$set` paths and `removed` into `$unset` paths, and the handler that carries them.
+**Built on both sides, and shippable on neither alone.**
+[`writeBody.js`](../../../frontend/src/Functions/JobDocuments/writeBody.js) turns a job and its log
+entries into the two parts. The server walks them through `models.Job` itself — `JobSetPaths` and
+`JobUnsetPaths` — and `PutJobDocumentsHandler` reads the envelope batch, splits the whole-document
+writes from the field-scoped ones and sends each to its own writer.
+
+What is left is what makes the two halves meet: the SPA's persist payload becoming these envelopes,
+a refusal the client can act on rather than retry, a fixture pinning the envelope for both sides, and
+a live-database case. [overlay.md](./overlay.md) § Stage C holds the list.
 
 **Close time does more than the log holds, and only part of it is a change.** `closeActiveJob` takes a
 working copy and works on it outside any command, but the three things it does are not alike:
@@ -638,6 +698,11 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
 
 ## Open questions
 
+- **Whether the lock gate should trust what a request says about a job's group.** It builds its
+  `JobGroupBypass` from the `includedInGroup` and `groupID` the request carries, so a request naming a
+  group it does not belong to is let past that group's lease. Reading each job's stored group state
+  instead costs a query per batch and closes it. Long-standing rather than introduced here — this
+  stage carries the two fields in the envelope precisely so it changes nothing about it.
 - **Whether a linked run should store a plain corporation id.** `LinkedESIJob.CorporationID` is
   `bson:"corporation_id,omitempty"` where the same field on `MarketOrder` and `Transaction` is
   `bson:"-"`, so that one row stores the plain id beside the ciphered `corporation_ref` its own
@@ -719,11 +784,16 @@ write into an un-reshaped document writes a key that means nothing.
 which narrows re-rendering; the log is complete without it, because every change already goes through
 a command and the job on screen cannot be changed any other way.
 
-**Stage D's remaining removals are blocked behind Stage C**, and the plan's own ordering argument
-hides why. The relaxation rests on a version check. The check is built and **inert**: the SPA's `Job`
-class drops `_meta.revision`, so no production write is conditional. Until Stage C carries it, the
-document lock is the only thing preventing two members overwriting each other — relaxing it would
-remove the only protection operating rather than trade it for another.
+**Stage D's remaining removals are still blocked, and no longer for the reason first written here.**
+The relaxation rests on a version check, and that check is no longer inert: the SPA carries the
+revision a job was delivered at and a whole-document write is filtered on it, so two members writing
+one job already refuse each other.
+
+What the check does not cover is what the lock covers. A refusal protects a document; the lock
+protects a close, which writes the edited job and every job it linked, repaired or resized, a batch
+at a time rather than atomically. A member whose neighbouring job moved learns so by refusal and is
+told — but the close has already half-landed. Relaxing the lock would trade a protection against
+reaching that state for one that only reports it afterwards.
 
 **Stage E was always behind Stage C**, because a delta is meaningless until the write producing it is
 field-scoped.
