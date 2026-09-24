@@ -749,15 +749,9 @@ type Skill struct {
 	Level  int `json:"level" bson:"level"`
 }
 
-// JobLayout is a job's own display choices. The `local*` fields are its
-// departures from the account's defaults, which live on ApplicationSettings.
-//
-// Both decoders below assign every field by hand, so a field added here and
-// nowhere else compiles, decodes to its zero value, and is written back empty by
-// the next save.
+// JobLayout is a job's own display choices. Where each side of a job is priced
+// is not among them: that is `Build.LocalPricing`, which names a side.
 type JobLayout struct {
-	LocalMarketDisplay  string `json:"localMarketDisplay,omitempty" bson:"localMarketDisplay,omitempty"`
-	LocalOrderDisplay   string `json:"localOrderDisplay,omitempty" bson:"localOrderDisplay,omitempty"`
 	ESIJobTab           string `json:"esiJobTab,omitempty" bson:"esiJobTab,omitempty"`
 	SetupToEdit         string `json:"setupToEdit,omitempty" bson:"setupToEdit,omitempty"`
 	ResourceDisplayType string `json:"resourceDisplayType,omitempty" bson:"resourceDisplayType,omitempty"`
@@ -770,63 +764,9 @@ type MaterialPriceOverride struct {
 	OrderDisplay  string `json:"orderDisplay,omitempty" bson:"orderDisplay,omitempty"`
 }
 
-// UnmarshalBSON prefers the local* fields, falling back to the marketLocation
-// and orderType keys some rows were written with.
-func (l *JobLayout) UnmarshalBSON(data []byte) error {
-	var aux struct {
-		LocalMarketDisplay  string `bson:"localMarketDisplay"`
-		LocalOrderDisplay   string `bson:"localOrderDisplay"`
-		MarketLocation      string `bson:"marketLocation"`
-		OrderType           string `bson:"orderType"`
-		ESIJobTab           string `bson:"esiJobTab"`
-		SetupToEdit         string `bson:"setupToEdit"`
-		ResourceDisplayType string `bson:"resourceDisplayType"`
-	}
-	if err := bson.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-	l.LocalMarketDisplay = aux.LocalMarketDisplay
-	if l.LocalMarketDisplay == "" {
-		l.LocalMarketDisplay = aux.MarketLocation
-	}
-	l.LocalOrderDisplay = aux.LocalOrderDisplay
-	if l.LocalOrderDisplay == "" {
-		l.LocalOrderDisplay = aux.OrderType
-	}
-	l.ESIJobTab = aux.ESIJobTab
-	l.SetupToEdit = aux.SetupToEdit
-	l.ResourceDisplayType = aux.ResourceDisplayType
-	return nil
-}
-
-// UnmarshalJSON prefers the local* fields, falling back to the marketLocation
-// and orderType keys some rows were written with.
-func (l *JobLayout) UnmarshalJSON(data []byte) error {
-	var aux struct {
-		LocalMarketDisplay  string `json:"localMarketDisplay"`
-		LocalOrderDisplay   string `json:"localOrderDisplay"`
-		MarketLocation      string `json:"marketLocation"`
-		OrderType           string `json:"orderType"`
-		ESIJobTab           string `json:"esiJobTab"`
-		SetupToEdit         string `json:"setupToEdit"`
-		ResourceDisplayType string `json:"resourceDisplayType"`
-	}
-	if err := jsoncodec.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-	l.LocalMarketDisplay = aux.LocalMarketDisplay
-	if l.LocalMarketDisplay == "" {
-		l.LocalMarketDisplay = aux.MarketLocation
-	}
-	l.LocalOrderDisplay = aux.LocalOrderDisplay
-	if l.LocalOrderDisplay == "" {
-		l.LocalOrderDisplay = aux.OrderType
-	}
-	l.ESIJobTab = aux.ESIJobTab
-	l.SetupToEdit = aux.SetupToEdit
-	l.ResourceDisplayType = aux.ResourceDisplayType
-	return nil
-}
+// MetaFieldLastUpdatedBy is the `_meta` key naming the account whose write the
+// document last carried.
+const MetaFieldLastUpdatedBy = "lastUpdatedBy"
 
 // JobMetaData is a job's ownership and lifecycle, kept apart from the job itself
 // under `_meta` so a field about who holds a job is never mistaken for one about

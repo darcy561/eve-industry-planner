@@ -17,7 +17,7 @@ func TestDefaultApplicationSettingsPricesBothSides(t *testing.T) {
 	}
 
 	// The selling side names a route and no order type: the route decides which side of
-	// the book a figure comes from, so a stored order type beside it could disagree
+	// the order book a figure comes from, so a stored order type beside it could disagree
 	// with it.
 	selling := PricingSide{Market: "jita", Exit: ExitRouteListed}
 	if !reflect.DeepEqual(settings.DefaultPricing.Selling, selling) {

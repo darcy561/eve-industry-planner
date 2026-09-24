@@ -11,7 +11,7 @@ const { DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
  * Which side of the order book a figure is read from.
  *
  * Named for ESI's own `order_type`, whose values this offers: `buy` and `sell`,
- * plus the two percentile-trimmed forms the server derives from the same books.
+ * plus the two percentile-trimmed forms the server derives from the same orders.
  *
  * @param {Object} props
  * @param {string} [props.value] - The chosen order type, defaulting to DEFAULT_ORDER_TYPE

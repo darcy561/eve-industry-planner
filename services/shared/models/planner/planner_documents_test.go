@@ -245,8 +245,7 @@ func TestPlannerSettingsSeedTakesOnlyThePlannerSide(t *testing.T) {
 	account.DefaultCitadelBrokersFee = 2.5
 	account.CustomStructures = models.CustomStructures{{ID: "s-1", JobType: models.JobTypeManufacturing, Name: "Home"}}
 	account.ExemptTypeIDs = []int{34}
-	// Account-side: these have no field on the planner's settings to land in.
-	account.DefaultMarketLocation = "amarr"
+	// Account-side: this has no field on the planner's settings to land in.
 	account.EnableCompactLayoutView = true
 
 	seeded := planner.SettingsFromAccount(owner, account, now)

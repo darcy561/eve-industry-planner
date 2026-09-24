@@ -113,30 +113,6 @@ func TestArchivedJobStatsUpgradeKeepsLabelsItAlreadyHas(t *testing.T) {
 	}
 }
 
-// A document stored before DefaultPricing existed decodes to empty sides, and Go
-// serialises them whether or not Mongo held them — so a caller downstream cannot
-// tell "unset" from "chosen" unless the upgrader fills them first.
-func TestApplicationSettingsSeedsPricingFromTheSingleDefault(t *testing.T) {
-	doc := &models.ApplicationSettings{
-		DefaultMarketLocation: "amarr",
-		DefaultOrderType:      "buy",
-	}
-
-	var u Upgrader
-	u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
-
-	want := models.PricingSide{Market: "amarr", OrderType: "buy"}
-	if !reflect.DeepEqual(doc.DefaultPricing.Buying, want) {
-		t.Fatalf("buying = %+v, want %+v", doc.DefaultPricing.Buying, want)
-	}
-	// The selling side takes the market and no order type — its route answers that —
-	// and the route is read from the single default it was being priced on.
-	want = models.PricingSide{Market: "amarr", Exit: models.ExitRouteImmediate}
-	if !reflect.DeepEqual(doc.DefaultPricing.Selling, want) {
-		t.Fatalf("selling = %+v, want %+v", doc.DefaultPricing.Selling, want)
-	}
-}
-
 // An account priced from the ask was being shown a listing, which is the route
 // it keeps; one priced from bids was reading a listing's fee against a bid's
 // price, and the seed is what ends that.
@@ -165,9 +141,7 @@ func TestApplicationSettingsReadsTheExitRouteFromTheStoredOrderType(t *testing.T
 func TestApplicationSettingsLeavesAChosenPricingSideAlone(t *testing.T) {
 	chosen := models.PricingSide{Market: "hek", OrderType: "buyP95"}
 	doc := &models.ApplicationSettings{
-		DefaultMarketLocation: "amarr",
-		DefaultOrderType:      "buy",
-		DefaultPricing:        models.PricingDefaults{Selling: chosen},
+		DefaultPricing: models.PricingDefaults{Selling: chosen},
 	}
 
 	var u Upgrader
@@ -179,8 +153,9 @@ func TestApplicationSettingsLeavesAChosenPricingSideAlone(t *testing.T) {
 	if !reflect.DeepEqual(doc.DefaultPricing.Selling, chosen) {
 		t.Fatalf("selling = %+v, want %+v", doc.DefaultPricing.Selling, chosen)
 	}
-	want := models.PricingSide{Market: "amarr", OrderType: "buy"}
-	if !reflect.DeepEqual(doc.DefaultPricing.Buying, want) {
+	// The side it said nothing about takes the defaults, and does not follow the
+	// side it did choose.
+	if want := models.DefaultPricingDefaults().Buying; !reflect.DeepEqual(doc.DefaultPricing.Buying, want) {
 		t.Fatalf("buying = %+v, want %+v", doc.DefaultPricing.Buying, want)
 	}
 }
@@ -188,7 +163,11 @@ func TestApplicationSettingsLeavesAChosenPricingSideAlone(t *testing.T) {
 // Every upgrade step must be safe to run twice; this one is gated on an empty
 // market rather than a version, so it has to be checked directly.
 func TestApplicationSettingsPricingSeedIsIdempotent(t *testing.T) {
-	doc := &models.ApplicationSettings{DefaultMarketLocation: "dodixie", DefaultOrderType: "sellP05"}
+	doc := &models.ApplicationSettings{
+		DefaultPricing: models.PricingDefaults{
+			Selling: models.PricingSide{Market: "dodixie", OrderType: "sellP05"},
+		},
+	}
 
 	var u Upgrader
 	u.ApplicationSettings(doc, "acct-1", time.Now().UTC())
@@ -217,8 +196,6 @@ func TestApplicationSettingsPricingFallsBackToTheGlobalDefault(t *testing.T) {
 func TestApplicationSettingsSeedKeepsAGroupTable(t *testing.T) {
 	groups := map[string]models.GroupPricing{"1857": {Market: "hek"}}
 	doc := &models.ApplicationSettings{
-		DefaultMarketLocation: "amarr",
-		DefaultOrderType:      "buy",
 		DefaultPricing: models.PricingDefaults{
 			Buying: models.PricingSide{Groups: groups},
 		},
@@ -230,18 +207,15 @@ func TestApplicationSettingsSeedKeepsAGroupTable(t *testing.T) {
 	if !reflect.DeepEqual(doc.DefaultPricing.Buying.Groups, groups) {
 		t.Fatalf("groups = %+v, want %+v", doc.DefaultPricing.Buying.Groups, groups)
 	}
-	if doc.DefaultPricing.Buying.Market != "amarr" {
-		t.Fatalf("market = %q, want amarr", doc.DefaultPricing.Buying.Market)
+	if want := models.DefaultPricingDefaults().Buying.Market; doc.DefaultPricing.Buying.Market != want {
+		t.Fatalf("market = %q, want %q", doc.DefaultPricing.Buying.Market, want)
 	}
 }
 
 // The seed runs on every read rather than in an offline drain, so a route the
-// player has chosen has to survive it — including when the legacy single default
-// still says something different, which it does until Stage A step 7 lands.
+// player has chosen has to survive it, however many times it runs.
 func TestApplicationSettingsKeepsAChosenExitRoute(t *testing.T) {
 	doc := &models.ApplicationSettings{
-		DefaultMarketLocation: "jita",
-		DefaultOrderType:      "sell",
 		DefaultPricing: models.PricingDefaults{
 			Selling: models.PricingSide{Market: "jita", Exit: models.ExitRouteImmediate},
 		},

@@ -67,64 +67,41 @@ func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID
 	}
 
 	// Not gated on the schema version: an unversioned document is stamped with the
-	// current one above, so a version test would never fire for the legacy rows
-	// this fills. The empty market is the signal instead.
+	// current one above, so a version test would never fire for the rows this
+	// fills. The empty market is the signal instead.
+	defaults := models.DefaultPricingDefaults()
+
 	// Only the two fields being filled: assigning the whole side would take its
 	// market group table with it, and a side can carry groups without yet naming
 	// a market of its own.
 	if doc.DefaultPricing.Buying.Market == "" {
-		doc.DefaultPricing.Buying.PricingChoice = legacyPricingChoice(doc)
+		doc.DefaultPricing.Buying.PricingChoice = defaults.Buying.PricingChoice
 	}
 	// The market only: the selling side's order type follows from its route, so writing
 	// one here would store a second answer to the same question, free to disagree.
 	if doc.DefaultPricing.Selling.Market == "" {
-		doc.DefaultPricing.Selling.Market = legacyPricingChoice(doc).Market
+		doc.DefaultPricing.Selling.Market = defaults.Selling.Market
 	}
 	// Seeded separately from the market: a side may already name one and still
 	// have no route, because the route is newer than the split that filled it.
 	if doc.DefaultPricing.Selling.Exit == "" {
-		doc.DefaultPricing.Selling.Exit = legacyExitRoute(doc)
+		doc.DefaultPricing.Selling.Exit = exitRouteFor(doc.DefaultPricing.Selling.OrderType)
 	}
 }
 
-// legacyExitRoute is the route out an account was being quoted before it could
-// say which one it took.
+// exitRouteFor is the route out that a selling side's stored order type implies.
 //
 // Returns led with the listing for everyone, so an account that named the buy
 // side was being priced from bids while reading a listing's fee. Taking the
 // stored order type at its word repairs that where it was set, and leaves everyone
 // else on the route they were already being shown.
-func legacyExitRoute(doc *models.ApplicationSettings) string {
-	// The stored side first, then the single default behind it: a document from
-	// before the split has its only answer in the legacy field, and one from after
-	// it carries an order type the route now replaces.
-	orderType := doc.DefaultPricing.Selling.OrderType
-	if orderType == "" {
-		orderType = doc.DefaultOrderType
-	}
-
+func exitRouteFor(orderType string) string {
 	switch orderType {
 	case "buy", "buyP95":
 		return models.ExitRouteImmediate
 	default:
 		return models.ExitRouteListed
 	}
-}
-
-// legacyPricingChoice is the market and order type an account named before the buying
-// and selling sides were told apart.
-//
-// Both sides seed from it: an account that named one market said nothing about
-// which side of a job it meant, so neither side may claim it over the other.
-func legacyPricingChoice(doc *models.ApplicationSettings) models.PricingChoice {
-	choice := models.DefaultPricingDefaults().Buying.PricingChoice
-	if doc.DefaultMarketLocation != "" {
-		choice.Market = doc.DefaultMarketLocation
-	}
-	if doc.DefaultOrderType != "" {
-		choice.OrderType = doc.DefaultOrderType
-	}
-	return choice
 }
 
 // Group normalises legacy job_groups documents in memory. Idempotent.

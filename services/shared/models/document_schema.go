@@ -11,3 +11,7 @@ const (
 	GroupSchemaCurrent               = 1
 	ArchivedJobStatsSchemaCurrent    = 2
 )
+
+// JobSchemaVersionPath is where a job's stored shape is recorded, for a write
+// that names its paths rather than sending the document whole.
+const JobSchemaVersionPath = "schemaVersion"

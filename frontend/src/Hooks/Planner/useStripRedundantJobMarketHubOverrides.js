@@ -1,17 +1,18 @@
 import { useEffect } from "react";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
-import GLOBAL_CONFIG from "../../global-config-app";
-
-const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
+import {
+  PRICING_SIDE,
+  resolvePricingSide,
+} from "../../Functions/MarketData/pricingSide.js";
 
 /**
  * Drops a job's own market or order type once it matches what the account defaults
  * to, so the job carries an override only while it differs.
  *
- * Each side is judged against its own default: a job that names the buying
- * market the account already buys at is redundant on that side alone, and its
- * selling choice is left as it is.
+ * What a side defaults to is asked of the ladder with no job in it, rather than
+ * read off the account: the selling side stores a route and derives its order
+ * type from it, so an account answering `exit` alone would be read as answering
+ * nothing and a reader's deliberate choice stripped as redundant.
  *
  * @param {Object|undefined} jobPricing - The job's own market choices
  * @param {(pricingPatch: Object) => void} updateActiveJobPricing
@@ -32,10 +33,8 @@ export function useStripRedundantJobMarketHubOverrides(
 
     for (const side of Object.values(PRICING_SIDE)) {
       const chosen = jobPricing[side] ?? {};
-      const canonMarket =
-        accountPricing?.[side]?.market ?? DEFAULT_MARKET_OPTION;
-      const canonOrderType =
-        accountPricing?.[side]?.orderType ?? DEFAULT_ORDER_TYPE;
+      const { marketLocation: canonMarket, orderType: canonOrderType } =
+        resolvePricingSide({ accountPricing, side });
 
       const market = chosen.market === canonMarket ? null : chosen.market;
       const orderType =

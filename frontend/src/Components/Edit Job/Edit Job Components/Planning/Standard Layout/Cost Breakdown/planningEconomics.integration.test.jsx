@@ -13,8 +13,14 @@ import userEvent from "@testing-library/user-event";
  * queries that leave the browser.
  */
 
+// The citadel's figures differ from the hub's on purpose. The sale is priced at
+// the citadel now, so a surface that slipped back to pricing it at the trading
+// hub would read 200 a unit here and be caught rather than quietly agreeing.
 const marketPrices = {
-  34: { jita: { sell: 200, buy: 150, buyP95: 160, sellP05: 190 } },
+  34: {
+    jita: { sell: 200, buy: 150, buyP95: 160, sellP05: 190 },
+    "citadelMarket-1": { sell: 300, buy: 250, buyP95: 260, sellP05: 290 },
+  },
   35: { jita: { sell: 5, buy: 4, buyP95: 4.2, sellP05: 4.8 } },
 };
 
@@ -209,24 +215,24 @@ describe("the Planning stage's figures, end to end", () => {
   it("charges the fee and tax on what the listing is worth", () => {
     show();
 
-    // 200 a unit across 10 is a 2,000 listing: the 1.5% fee is under the 100
-    // floor, and tax is 7.5%. Asserted against their own rows, since the install
-    // cost is also 100.
+    // 300 a unit at the citadel across 10 is a 3,000 listing: the 1.5% fee is
+    // under the 100 floor, and tax is 7.5%. Asserted against their own rows,
+    // since the install cost is also 100.
     const cost = within(panelNamed("Cost Breakdown"));
     const feeRow = cost.getByText("Broker fee to list").closest("tr");
     const taxRow = cost.getByText("Sales tax").closest("tr");
 
     expect(within(feeRow).getByText("100.00")).toBeInTheDocument();
-    expect(within(taxRow).getByText("150.00")).toBeInTheDocument();
+    expect(within(taxRow).getByText("225.00")).toBeInTheDocument();
   });
 
   it("nets the sale down to a return", () => {
     show();
 
-    // 2,000 revenue less 250 of charges less 600 to build.
+    // 3,000 revenue less 325 of charges less 600 to build.
     // Stated as the headline and again on the route it belongs to.
     expect(
-      within(panelNamed("Returns")).getAllByText("1,150.00").length,
+      within(panelNamed("Returns")).getAllByText("2,075.00").length,
     ).toBeGreaterThan(0);
   });
 });
@@ -298,11 +304,11 @@ describe("a job whose output is owed to the job above it", () => {
 
     show(parented());
 
-    // 6 at 200 is a 1,200 listing: 1.5% is 18, under the 100 floor, and tax is
-    // 7.5% of 1,200. The whole job's output would have charged more.
+    // 6 at 300 is an 1,800 listing: 1.5% is 27, under the 100 floor, and tax is
+    // 7.5% of 1,800. The whole job's output would have charged more.
     const cost = within(panelNamed("Cost Breakdown"));
     expect(
-      within(cost.getByText("Sales tax").closest("tr")).getByText("90.00"),
+      within(cost.getByText("Sales tax").closest("tr")).getByText("135.00"),
     ).toBeInTheDocument();
   });
 });

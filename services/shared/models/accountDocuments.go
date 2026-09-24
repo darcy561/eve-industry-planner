@@ -68,8 +68,6 @@ func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSett
 	return ApplicationSettings{
 		SchemaVersion:                    ApplicationSettingsSchemaCurrent,
 		DisplayHelpCards:                 false,
-		DefaultMarketLocation:            DefaultHubID,
-		DefaultOrderType:                 "sell",
 		DefaultPricing:                   DefaultPricingDefaults(),
 		EsiJobTab:                        nil,
 		EnableCompactLayoutView:          false,
@@ -379,10 +377,8 @@ type ApplicationSettingsMeta struct {
 }
 
 type ApplicationSettings struct {
-	SchemaVersion         int    `bson:"schemaVersion,omitempty" json:"schemaVersion,omitempty"`
-	DisplayHelpCards      bool   `bson:"displayHelpCards" json:"displayHelpCards"`
-	DefaultMarketLocation string `bson:"defaultMarketLocation" json:"defaultMarketLocation"`
-	DefaultOrderType      string `bson:"defaultOrderType" json:"defaultOrderType"`
+	SchemaVersion    int  `bson:"schemaVersion,omitempty" json:"schemaVersion,omitempty"`
+	DisplayHelpCards bool `bson:"displayHelpCards" json:"displayHelpCards"`
 	// DefaultPricing prices the buying and selling sides of a job separately.
 	DefaultPricing                   PricingDefaults `bson:"defaultPricing" json:"defaultPricing"`
 	EsiJobTab                        *string         `bson:"esiJobTab,omitempty" json:"esiJobTab,omitempty"`

@@ -79,7 +79,7 @@ describe("a group's output card", () => {
 // The card prices the output through the same resolution every other surface
 // uses, so a job that named its own market or overrode its own output's price
 // has to be read at what it chose. Reading the account's market instead shows a
-// figure from a book the job was never priced against, and nothing says so.
+// figure from a market the job was never priced against, and nothing says so.
 describe("what the card prices the output at", () => {
   afterEach(() => clearSeededPrices());
 

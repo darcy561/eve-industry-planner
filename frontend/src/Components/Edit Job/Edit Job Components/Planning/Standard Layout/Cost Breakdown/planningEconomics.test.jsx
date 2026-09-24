@@ -62,8 +62,6 @@ const economics = (overrides = {}) => ({
     kind: "citadel",
     id: "citadel",
     name: "Perimeter Azbel",
-    pricedAtID: "jita",
-    pricedAtName: "Jita",
     brokerFee: 1.5,
   },
   rates: {
@@ -179,13 +177,15 @@ describe("the planning economics wiring", () => {
     expect(screen.getByText("480.00")).toBeInTheDocument();
   });
 
-  it("names the item, its hub and the seller the rates are quoted for", () => {
+  it("names the item, where it is sold and the seller the rates are quoted for", () => {
     show();
 
     expect(screen.getByText("Tritanium")).toBeInTheDocument();
     expect(screen.getByText("Quoted for Market Alt")).toBeInTheDocument();
     expect(
-      screen.getByText("Prices from Jita; the fee is this citadel's own"),
+      screen.getByText(
+        "Priced on this citadel's own orders, at the rate its owner set",
+      ),
     ).toBeInTheDocument();
   });
 

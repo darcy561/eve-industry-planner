@@ -41,29 +41,20 @@ func TestLive_seedPricingDefaults_fillsEveryUnansweredSide(t *testing.T) {
 		expect func(t *testing.T, got models.ApplicationSettings)
 	}{
 		{
-			// A document from before the split: its only answer is in the legacy
-			// pair, and both sides have to be able to read it.
-			name:   "the legacy pair and no pricing at all",
-			suffix: "-legacy",
-			stored: bson.M{
-				"$set":   bson.M{"defaultMarketLocation": "amarr", "defaultOrderType": "buy"},
-				"$unset": bson.M{"defaultPricing": ""},
-			},
+			// No pricing block at all: the account gets a usable pair rather than
+			// a document downstream cannot tell "unset" from "chosen" on.
+			name:   "no pricing at all",
+			suffix: "-unanswered",
+			stored: bson.M{"$unset": bson.M{"defaultPricing": ""}},
 			expect: func(t *testing.T, got models.ApplicationSettings) {
-				if got.DefaultPricing.Buying.Market != "amarr" {
-					t.Errorf("buying market: got %q, want amarr", got.DefaultPricing.Buying.Market)
+				want := models.DefaultPricingDefaults()
+				if got.DefaultPricing.Buying.Market != want.Buying.Market {
+					t.Errorf("buying market: got %q, want %q",
+						got.DefaultPricing.Buying.Market, want.Buying.Market)
 				}
-				if got.DefaultPricing.Buying.OrderType != "buy" {
-					t.Errorf("buying orderType: got %q, want buy", got.DefaultPricing.Buying.OrderType)
-				}
-				if got.DefaultPricing.Selling.Market != "amarr" {
-					t.Errorf("selling market: got %q, want amarr", got.DefaultPricing.Selling.Market)
-				}
-				// The buy side of the book is a sale into bids, which is the
-				// immediate route rather than a listing.
-				if got.DefaultPricing.Selling.Exit != models.ExitRouteImmediate {
+				if got.DefaultPricing.Selling.Exit != models.ExitRouteListed {
 					t.Errorf("selling exit: got %q, want %q",
-						got.DefaultPricing.Selling.Exit, models.ExitRouteImmediate)
+						got.DefaultPricing.Selling.Exit, models.ExitRouteListed)
 				}
 			},
 		},
@@ -73,13 +64,11 @@ func TestLive_seedPricingDefaults_fillsEveryUnansweredSide(t *testing.T) {
 			name:   "the key present with both sides empty",
 			suffix: "-empty-sides",
 			stored: bson.M{"$set": bson.M{
-				"defaultMarketLocation": "dodixie",
-				"defaultOrderType":      "sell",
-				"defaultPricing":        bson.M{"buying": bson.M{}, "selling": bson.M{}},
+				"defaultPricing": bson.M{"buying": bson.M{}, "selling": bson.M{}},
 			}},
 			expect: func(t *testing.T, got models.ApplicationSettings) {
-				if got.DefaultPricing.Buying.Market != "dodixie" {
-					t.Errorf("buying market: got %q, want dodixie", got.DefaultPricing.Buying.Market)
+				if want := models.DefaultPricingDefaults().Buying.Market; got.DefaultPricing.Buying.Market != want {
+					t.Errorf("buying market: got %q, want %q", got.DefaultPricing.Buying.Market, want)
 				}
 				if got.DefaultPricing.Selling.Exit != models.ExitRouteListed {
 					t.Errorf("selling exit: got %q, want %q",
@@ -95,16 +84,14 @@ func TestLive_seedPricingDefaults_fillsEveryUnansweredSide(t *testing.T) {
 			name:   "a group table on a side that has not named a market",
 			suffix: "-groups",
 			stored: bson.M{"$set": bson.M{
-				"defaultMarketLocation": "jita",
-				"defaultOrderType":      "sell",
 				"defaultPricing": bson.M{
 					"buying":  bson.M{"groups": bson.M{"1857": bson.M{"market": "hek"}}},
 					"selling": bson.M{},
 				},
 			}},
 			expect: func(t *testing.T, got models.ApplicationSettings) {
-				if got.DefaultPricing.Buying.Market != "jita" {
-					t.Errorf("buying market: got %q, want jita", got.DefaultPricing.Buying.Market)
+				if want := models.DefaultPricingDefaults().Buying.Market; got.DefaultPricing.Buying.Market != want {
+					t.Errorf("buying market: got %q, want %q", got.DefaultPricing.Buying.Market, want)
 				}
 				group, held := got.DefaultPricing.Buying.Groups["1857"]
 				if !held {
@@ -116,13 +103,11 @@ func TestLive_seedPricingDefaults_fillsEveryUnansweredSide(t *testing.T) {
 			},
 		},
 		{
-			// A player who has answered keeps their answer, whatever the legacy
-			// pair beside it still says.
+			// A player who has answered keeps their answer: the step writes only
+			// where a side is unanswered.
 			name:   "a side the player has already chosen",
 			suffix: "-chosen",
 			stored: bson.M{"$set": bson.M{
-				"defaultMarketLocation": "jita",
-				"defaultOrderType":      "sell",
 				"defaultPricing": bson.M{
 					"buying":  bson.M{"market": "hek", "orderType": "buyP95"},
 					"selling": bson.M{"market": "rens", "exit": models.ExitRouteImmediate},

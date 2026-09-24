@@ -214,7 +214,7 @@ func TestLive_UserAndSettingsUpsertReload(t *testing.T) {
 	}
 
 	settings := models.DefaultApplicationSettings(apiLiveScratchAccount, now)
-	settings.DefaultMarketLocation = "amarr"
+	settings.DefaultPricing.Buying.Market = "amarr"
 	settings.MetaData.SessionID = "api-live-sess"
 	settings.MetaData.ClientID = "api-live-client"
 
@@ -230,8 +230,8 @@ func TestLive_UserAndSettingsUpsertReload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadApplicationSettings: %v", err)
 	}
-	if gotSettings.DefaultMarketLocation != "amarr" {
-		t.Fatalf("DefaultMarketLocation: got %q", gotSettings.DefaultMarketLocation)
+	if gotSettings.DefaultPricing.Buying.Market != "amarr" {
+		t.Fatalf("buying market: got %q", gotSettings.DefaultPricing.Buying.Market)
 	}
 	if gotSettings.MetaData.ClientID != "api-live-client" {
 		t.Fatalf("settings clientID: got %q", gotSettings.MetaData.ClientID)

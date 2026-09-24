@@ -37,8 +37,6 @@ import { readMarketSources } from "../../../../../../Hooks/Static/useMarketSourc
  *   salesTax: {base: number, accounting: number, rate: number}}} [props.rates]
  * @param {import("../../../../../../Functions/MarketOrders/sellerCharacter").SellerCharacter} [props.seller] -
  *   Whose skills and standings are quoted
- * @param {string} [props.pricedAtName] - Named for a citadel, whose prices come
- *   from a hub rather than from itself
  * @param {boolean} [props.isLoading]
  * @param {{sellerCharacter: string|null, saleLocationID: string|null}} [props.plan] -
  *   What this job has named, as against the account's defaults
@@ -49,7 +47,6 @@ export default function SaleLocationRates({
   saleLocation,
   rates,
   seller,
-  pricedAtName,
   isLoading = false,
   plan = {},
   onPlanChange,
@@ -68,9 +65,9 @@ export default function SaleLocationRates({
           {saleLocation.name}
         </Typography>
       )}
-      {atCitadel && pricedAtName ? (
+      {atCitadel ? (
         <Typography variant="caption" color="text.secondary">
-          Prices from {pricedAtName}; the fee is this citadel's own
+          Priced on this citadel&apos;s own orders, at the rate its owner set
         </Typography>
       ) : null}
 

@@ -56,13 +56,13 @@ export function SkillsPanel() {
   const { surplus } = useJobCommitment();
   // The listed value below is read out of the cache as this renders, so the
   // query is what tells it the figure has moved.
-  const pricedAtID = saleLocation?.pricedAtID;
+  const soldAtID = saleLocation?.id;
   const wants = useMemo(
     () =>
-      itemID == null || !pricedAtID
+      itemID == null || !soldAtID
         ? []
-        : [{ typeID: itemID, sourceID: pricedAtID }],
-    [itemID, pricedAtID],
+        : [{ typeID: itemID, sourceID: soldAtID }],
+    [itemID, soldAtID],
   );
   useMarketPricesQuery(wants);
   const build = useGetCharacterSkills(buildCharacterHash);
@@ -93,16 +93,10 @@ export function SkillsPanel() {
     <AppShellPanel
       title="Skills"
       componentName="SkillsPanel"
-      // AppShellPanel fills its parent by default, which is meant for panels
-      // sharing a grid row. These are stacked, so each takes its own height.
       paperSx={{ height: "auto" }}
       isLoading={build.isLoading}
       isError={build.isError}
       error={build.error}
-      // Always present, even with nothing to say. The header's columns and its
-      // height both depend on whether there is an action at all, so letting it
-      // appear on the first click changes the panel's shape underneath the
-      // control being clicked.
       action={
         <Stack
           direction="row"
@@ -156,8 +150,7 @@ export function SkillsPanel() {
             brokerFee={rates.brokerFee}
             salesTax={rates.salesTax}
             listedValue={
-              getMarketPriceForType(itemID, saleLocation?.pricedAtID, "sell") *
-              surplus
+              getMarketPriceForType(itemID, saleLocation?.id, "sell") * surplus
             }
             quantity={surplus}
             proposed={proposed}

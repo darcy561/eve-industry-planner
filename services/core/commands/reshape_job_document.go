@@ -219,12 +219,14 @@ func emptyLayout(out bson.M, build bson.M) {
 	}
 }
 
-// jobPricingOverride is `Classes/job.js`'s rule, applied once by the conversion
-// so the SPA stops having to apply it on every read.
+// jobPricingOverride folds a job's superseded single market and order type into
+// the per-side choice that replaced them, once, as the document is converted.
 //
-// A side the player has not chosen seeds from the job's single market, because
-// naming one market said nothing about which side of the job it meant — so
-// neither side may claim it over the other.
+// The SPA applied this rule on every read until the conversion existed; it no
+// longer does, so this is the only place a document predating the split is
+// given a side. A side the player has not chosen seeds from the single market,
+// because naming one market said nothing about which side of the job it meant —
+// so neither side may claim it over the other.
 func jobPricingOverride(stored bson.M, market string, orderType string) bson.M {
 	side := func(name string) bson.M {
 		chosen := asDocument(stored[name])

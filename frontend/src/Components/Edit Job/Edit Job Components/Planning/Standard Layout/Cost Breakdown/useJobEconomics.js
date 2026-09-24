@@ -75,12 +75,10 @@ export function useJobEconomics({ rows, buyEverything = false }) {
     // and no tax. Only what is left over can honestly be sold.
     const sellable = commitment.surplus;
 
-    // Both routes out are priced from the location's own hub, which for a
-    // citadel is not the citadel: it holds no market of its own. Behind that the
-    // selling side's market, not the panel's — the panel resolves where materials
-    // are bought, and quoting a sale against it is the crossing this whole
-    // arrangement exists to stop.
-    const pricedAt = saleLocation?.pricedAtID ?? sellingMarket;
+    // Behind the sale location, the selling side's market rather than the
+    // panel's: the panel resolves where materials are bought, and quoting a sale
+    // against it is the crossing this whole arrangement exists to stop.
+    const pricedAt = saleLocation?.id ?? sellingMarket;
     const sellPrice = getMarketPriceForType(itemID, pricedAt, "sell");
     const buyPrice = getMarketPriceForType(itemID, pricedAt, "buy");
 

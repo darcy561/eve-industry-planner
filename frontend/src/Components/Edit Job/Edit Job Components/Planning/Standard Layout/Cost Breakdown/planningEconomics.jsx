@@ -118,7 +118,7 @@ export default function PlanningEconomics() {
         output={{
           typeID: itemID,
           name,
-          pricedAtID: saleLocation?.pricedAtID,
+          marketID: saleLocation?.id,
           unitPrice: sellPrice,
           quantityProduced: commitment.surplus,
         }}
@@ -132,7 +132,6 @@ export default function PlanningEconomics() {
             actions.run(setSellingPlan(next));
           }}
           seller={seller}
-          pricedAtName={saleLocation?.pricedAtName}
         />
       </ReturnsPanel>
     </>

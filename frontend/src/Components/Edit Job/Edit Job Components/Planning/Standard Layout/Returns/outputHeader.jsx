@@ -18,14 +18,14 @@ import EveImageAvatar from "../../../../../../Styled Components/Avatar/EveImageA
  * @param {object} props
  * @param {number} props.typeID
  * @param {string} props.name
- * @param {string} props.pricedAtID - The hub the price and the links are for
+ * @param {string} props.marketID - The market the price and the links are for
  * @param {number} props.unitPrice - Sell-side, per unit
  * @param {number} props.quantityProduced - What is left to sell
  */
 export default function OutputHeader({
   typeID,
   name,
-  pricedAtID,
+  marketID,
   unitPrice,
   quantityProduced,
 }) {
@@ -33,7 +33,7 @@ export default function OutputHeader({
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
       <EveImageAvatar type={typeID} size={32} variant="square" />
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <ItemMarketActions typeID={typeID} regionID={pricedAtID}>
+        <ItemMarketActions typeID={typeID} regionID={marketID}>
           <Typography variant="body1" sx={{ fontWeight: 500 }}>
             {name}
           </Typography>

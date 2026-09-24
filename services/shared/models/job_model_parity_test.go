@@ -38,8 +38,6 @@ func TestJob_JSON_LegacyDocumentShape_IgnoresLegacyBuildVer(t *testing.T) {
 		"skills": {},
 		"itemsProducedPerRun": 1,
 		"layout": {
-			"localMarketDisplay": null,
-			"localOrderDisplay": null,
 			"esiJobTab": null,
 			"setupToEdit": null,
 			"resourceDisplayType": null
@@ -252,8 +250,6 @@ func TestJob_JSON_DisallowUnknownFields_acceptsFrontendExtrasCosts(t *testing.T)
 		"skills": {},
 		"itemsProducedPerRun": 1,
 		"layout": {
-			"localMarketDisplay": null,
-			"localOrderDisplay": null,
 			"esiJobTab": null,
 			"setupToEdit": null,
 			"resourceDisplayType": null
@@ -458,8 +454,6 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 		"skills": {"22242": {"level": 1, "typeID": 22242}},
 		"itemsProducedPerRun": 1,
 		"layout": {
-			"localMarketDisplay": null,
-			"localOrderDisplay": null,
 			"esiJobTab": null,
 			"setupToEdit": "a21b4ade-8312-0ebf-eccb-4146e2cec909",
 			"resourceDisplayType": null
@@ -698,7 +692,6 @@ func TestJobBuild_materialPriceOverridesSurviveJSON(t *testing.T) {
 
 func TestJobBuild_materialPriceOverridesSurviveBSON(t *testing.T) {
 	stored := bson.M{
-		"localMarketDisplay":     "jita",
 		"materialPriceOverrides": bson.M{"34": bson.M{"marketDisplay": "amarr"}},
 	}
 	b, err := bson.Marshal(stored)
@@ -714,12 +707,10 @@ func TestJobBuild_materialPriceOverridesSurviveBSON(t *testing.T) {
 	}
 }
 
-// JobLayout assigns each field by hand in both decoders, so a field added to the
-// struct alone is dropped without any build error to say so.
+// A layout field the SPA stores has to survive a round trip through Go, or the
+// next save writes the job back without the choice a reader made.
 func TestJobLayout_BSONRoundTripKeepsEveryField(t *testing.T) {
 	stored := bson.M{
-		"localMarketDisplay":  "jita",
-		"localOrderDisplay":   "sell",
 		"esiJobTab":           "1",
 		"setupToEdit":         "setup-1",
 		"resourceDisplayType": "grid",

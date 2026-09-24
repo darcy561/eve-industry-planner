@@ -132,32 +132,26 @@ describe("the sale location rates block", () => {
     ).toBeInTheDocument();
   });
 
-  // Prices from one location, fee from another — the assembly is explicit
-  // rather than hidden, because a citadel has no market of its own.
-  it("names the hub a citadel's prices came from", () => {
+  // A citadel's market is read on the reader's own characters, so the sale is
+  // priced where it happens and the rate is the one its owner set.
+  it("says a citadel is priced on its own orders", () => {
     render(
-      <SaleLocationRates
-        saleLocation={structure}
-        rates={structureRates}
-        pricedAtName="Jita"
-      />,
+      <SaleLocationRates saleLocation={structure} rates={structureRates} />,
     );
 
     expect(
-      screen.getByText("Prices from Jita; the fee is this citadel's own"),
+      screen.getByText(
+        "Priced on this citadel's own orders, at the rate its owner set",
+      ),
     ).toBeInTheDocument();
   });
 
-  it("does not claim a hub's prices came from somewhere else", () => {
-    render(
-      <SaleLocationRates
-        saleLocation={hub}
-        rates={hubRates}
-        pricedAtName="Jita"
-      />,
-    );
+  // A station's rate comes from the seller rather than the place, so the
+  // sentence would be wrong there.
+  it("says nothing of the sort about an NPC station", () => {
+    render(<SaleLocationRates saleLocation={hub} rates={hubRates} />);
 
-    expect(screen.queryByText(/Prices from/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/its own orders/)).not.toBeInTheDocument();
   });
 
   // Standings are per character, so the same station quotes two characters
@@ -451,19 +445,13 @@ describe("the rates block while a new location is being worked out", () => {
     container.querySelectorAll(".MuiTypography-caption").length;
 
   it("states the same rows pending as it does settled, at a station", () => {
-    const first = render(
-      <SaleLocationRates saleLocation={hub} isLoading pricedAtName="Jita" />,
-    );
+    const first = render(<SaleLocationRates saleLocation={hub} isLoading />);
     const pending = labelsOf();
     const pendingDetails = detailLineCount(first.container);
     first.unmount();
 
     const settled = render(
-      <SaleLocationRates
-        saleLocation={hub}
-        rates={hubRates}
-        pricedAtName="Jita"
-      />,
+      <SaleLocationRates saleLocation={hub} rates={hubRates} />,
     );
 
     expect(pending).toEqual(labelsOf());
@@ -472,22 +460,14 @@ describe("the rates block while a new location is being worked out", () => {
 
   it("states the same rows pending as it does settled, at a citadel", () => {
     const first = render(
-      <SaleLocationRates
-        saleLocation={structure}
-        isLoading
-        pricedAtName="Jita"
-      />,
+      <SaleLocationRates saleLocation={structure} isLoading />,
     );
     const pending = labelsOf();
     const pendingDetails = detailLineCount(first.container);
     first.unmount();
 
     const settled = render(
-      <SaleLocationRates
-        saleLocation={structure}
-        rates={structureRates}
-        pricedAtName="Jita"
-      />,
+      <SaleLocationRates saleLocation={structure} rates={structureRates} />,
     );
 
     expect(pending).toEqual(labelsOf());

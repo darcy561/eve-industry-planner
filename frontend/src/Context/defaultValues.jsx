@@ -48,14 +48,14 @@ export const permanentExtrasCategories = new Set(["0", "5"]);
  * The order types a figure may be read on, named as ESI names them.
  *
  * Buy and sell orders report the best price available at a trade hub. The percentile variants
- * report the same order books with outlying quotes excluded: the 95th percentile of buy prices
+ * report the same orders with outlying quotes excluded: the 95th percentile of buy prices
  * and the 5th percentile of sell prices. Percentiles are computed over order prices without
- * volume weighting, and fall back to the best price when a book holds too few orders to be
+ * volume weighting, and fall back to the best price when a side holds too few orders to be
  * meaningful.
  *
  * @type {Array<Object>}
  * @property {string} id - `buy` and `sell` are ESI's own; the percentile forms
- *   are this server's, derived from the same books
+ *   are this server's, derived from the same orders
  * @property {string} name - Display name for the order type
  */
 export let ORDER_TYPES = [
@@ -78,7 +78,7 @@ export let ORDER_TYPES = [
     name: "Buy Orders (95th %ile)",
     caption: "outlier-trimmed bid",
     description:
-      "Ignores the top few bids, so a thin book stops flattering the estimate.",
+      "Ignores the top few bids, so a thin side stops flattering the estimate.",
   },
   {
     id: "sellP05",

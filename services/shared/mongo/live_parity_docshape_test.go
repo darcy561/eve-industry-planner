@@ -199,8 +199,7 @@ func TestLive_docShape_preservingMetaUserAndSettings(t *testing.T) {
 		"_id":                            settingsID,
 		"schemaVersion":                  models.ApplicationSettingsSchemaCurrent,
 		"displayHelpCards":               true,
-		"defaultMarketLocation":          "jita",
-		"defaultOrderType":               "sell",
+		"defaultPricing":                 bson.M{"buying": bson.M{"market": "jita"}},
 		"enableCompactLayoutView":        false,
 		"shareCitadelNames":              true,
 		"defaultCitadelBrokersFee":       1.0,
@@ -218,7 +217,7 @@ func TestLive_docShape_preservingMetaUserAndSettings(t *testing.T) {
 
 	inSettings := models.DefaultApplicationSettings(settingsID, time.Now().UTC())
 	inSettings.DisplayHelpCards = false
-	inSettings.DefaultMarketLocation = "amarr"
+	inSettings.DefaultPricing.Buying.Market = "amarr"
 	inSettings.MetaData.SessionID = "should-not-win"
 	inSettings.MetaData.ClientID = "settings-new-client"
 
@@ -328,8 +327,10 @@ func assertPreservingSettingsShape(
 	if got, _ := raw["displayHelpCards"].(bool); got != wantHelp {
 		t.Fatalf("displayHelpCards=%v want %v", got, wantHelp)
 	}
-	if got, _ := raw["defaultMarketLocation"].(string); got != wantMarket {
-		t.Fatalf("defaultMarketLocation=%q want %q", got, wantMarket)
+	pricing, _ := raw["defaultPricing"].(bson.M)
+	buying, _ := pricing["buying"].(bson.M)
+	if got, _ := buying["market"].(string); got != wantMarket {
+		t.Fatalf("defaultPricing.buying.market=%q want %q", got, wantMarket)
 	}
 	meta, ok := raw["_meta"].(bson.M)
 	if !ok {

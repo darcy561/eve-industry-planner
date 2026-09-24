@@ -113,7 +113,7 @@ describe("the Returns panel", () => {
       output: {
         typeID: 34,
         name: "Tritanium",
-        pricedAtID: "jita",
+        marketID: "jita",
         unitPrice: 120,
         quantityProduced: 10,
       },
@@ -296,7 +296,7 @@ describe("an item with no market orders where it is being sold", () => {
     expect(screen.getByText("Cost to build")).toBeInTheDocument();
   });
 
-  // Buy orders and sell orders are separate books: a capital often has bids and
+  // Buy orders and sell orders are priced apart: a capital often has bids and
   // no listings, and the route that can be priced still says what it is worth.
   it("still prices the side that does hold orders", () => {
     renderPanel({ returns: unpriced({ buyPrice: 100 }) });

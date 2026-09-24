@@ -12,34 +12,15 @@ describe("a job's pricing override", () => {
     expect(jobWith({}).localPricing).toBeNull();
   });
 
-  // A job stored before the sides were told apart names one market, which says
-  // nothing about which side of the job it meant — so it seeds both.
-  it("seeds both sides from a job's single market and order type", () => {
-    expect(
-      jobWith({ localMarketDisplay: "hek", localOrderDisplay: "buy" })
-        .localPricing,
-    ).toEqual({
-      buying: { market: "hek", orderType: "buy" },
-      selling: { market: "hek", orderType: "buy" },
-    });
-  });
-
-  it("seeds from the older marketLocation key too", () => {
-    expect(jobWith({ marketLocation: "amarr" }).localPricing).toEqual({
-      buying: { market: "amarr", orderType: null },
-      selling: { market: "amarr", orderType: null },
-    });
-  });
-
-  it("keeps a stored side and seeds only the other", () => {
+  // A job prices one side and leaves the other to the account's defaults, so the
+  // side it said nothing about must stay empty rather than copy the one it chose.
+  it("keeps the side it chose and leaves the other empty", () => {
     expect(
       jobWith({
-        localMarketDisplay: "hek",
-        localOrderDisplay: "buy",
         localPricing: { selling: { market: "dodixie", orderType: "sellP05" } },
       }).localPricing,
     ).toEqual({
-      buying: { market: "hek", orderType: "buy" },
+      buying: { market: null, orderType: null },
       selling: { market: "dodixie", orderType: "sellP05" },
     });
   });
@@ -71,17 +52,19 @@ describe("a job's pricing override", () => {
     expect(job.build.localPricing.buying.market).toBe("dodixie");
   });
 
-  it("takes a second pick on a job seeded from its legacy fields", () => {
+  it("takes a second pick on a job that already priced a side", () => {
     let job = new Job({
       jobID: "j1",
       itemID: 34,
-      layout: { localMarketDisplay: "amarr", localOrderDisplay: "buy" },
+      layout: {
+        localPricing: { buying: { market: "amarr", orderType: "buy" } },
+      },
     });
 
     job = pick(job, "dodixie");
     expect(job.build.localPricing.buying.market).toBe("dodixie");
-    // The other side keeps what the single legacy pair seeded it with.
-    expect(job.build.localPricing.selling.market).toBe("amarr");
+    // The side it never priced is still the account's to answer.
+    expect(job.build.localPricing.selling.market).toBeNull();
   });
 
   it("carries no override once the last choice is cleared", () => {
@@ -93,6 +76,7 @@ describe("a job's pricing override", () => {
 
   // A document saved before the fields moved still carries them under `layout`,
   // so a cleared override has to be read as a choice rather than as an absence.
+  // `build` wins wherever it says anything at all, including null.
   it("keeps a cleared override cleared against a stale layout", () => {
     const job = new Job({
       jobID: "j1",

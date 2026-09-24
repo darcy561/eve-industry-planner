@@ -12,8 +12,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// seedPricingDefaults writes each account's buying and selling defaults from the
-// single market and order type it held before the two sides were told apart.
+// seedPricingDefaults writes each account's buying and selling defaults down,
+// for an account whose document does not yet answer for a side.
 //
 // The same seed runs on every read of an account's settings and nothing persists
 // it: LoadApplicationSettings writes back only when the schema version moved, and
