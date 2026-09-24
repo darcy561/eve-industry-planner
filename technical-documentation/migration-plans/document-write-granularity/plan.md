@@ -760,7 +760,7 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
 | Phase 1 — project docs | Complete |
 | A — a write that checks the revision | **Landed, server side, and proved against a real database.** A job carrying a revision is written conditionally on it as its own `UpdateOne`, whose match is the answer; a job carrying none is batched and upserted as before, so the change is additive. The refusal is answered per document as a 409 `revision_conflict` carrying `saved` and `rejected[]`. The first build batched the conditional writes and inferred the outcome from a later read, which passed every unit test and reported every refused write as applied — see § Stage A. **Landed is not the same as operating: nothing sends a revision yet**, so every production write still takes the unconditional path and no write is refused for a stale base. A project depending on this needs the client half — Stage C here — not Stage A. See [overlay.md](./overlay.md) § Stage A |
 | B — a refused write is an outcome the UI handles | **Landed.** All three defects closed: the client recognises a `revision_conflict` beside the lock conflict it already handled, drops the refused write from the pending queue rather than replaying it forever, and warns the user; `persistJobDocumentsToApi` answers an outcome that `saveJobsViaApi` passes through, so `closeActiveJob` stops reporting a refused write as saved; and the client's own gate warns instead of discarding edits silently — in `closeGroup` as well as `closeActiveJob`, which carried the same defect for the group lock. Stage A's ordering constraint is discharged. See [overlay.md](./overlay.md) § Stage B |
-| C — field-scoped writes | **Actionable.** [job-document-drafts](../job-document-drafts/plan.md) Stage 3 has supplied the change set: an open job is a frozen base plus an ordered log naming paths into the document. Both decisions taken — a removal is said as a path the server checks against the job model, and every job a close writes besides the edited one stays whole and carries a revision, bar one the client holds no stored copy of — and the deploy waits on that project's Stage 2 reaching live. See § What arrived, and what it changes |
+| C — field-scoped writes | **Landed, and proved end to end. Not deployed.** A save sends one envelope per job — the id and group beside the document — and where the editor recorded what the reader changed, that document carries only those fields and names the rows that went. Where nothing recorded it, the whole document goes, checked against the revision its own `_meta` carries. The endpoint plans the stored update from the job model's own bson tags, refuses a body naming `_meta`, and writes the row whole where a ciphered id has no stored path. A write the server cannot read is dropped from the queue and said out loud rather than retried for as long as the tab stays open. The envelope is pinned for both sides by [job-write/body.json](../../../testing/fixtures/job-write/body.json), and driven through the real handler into real Mongo, where only the named field, the named row and the revision move. **The deploy still waits on [job-document-drafts](../job-document-drafts/plan.md) Stage 2 reaching live**, because a path-scoped write into an un-reshaped document writes a key that means nothing. See [overlay.md](./overlay.md) § Stage C |
 | D — the lock stops being broad | **Part landed: the batch refusal is per document.** A held job is dropped from the batch and the rest written, answered as a 409 carrying `saved` and every held document; the client keeps only the held ids queued. The other two removals are **not safe yet** — they rest on conditional writes, and no write is conditional until the SPA carries the revision, which is Stage C. Relaxing the lock now would remove the only protection operating. See [overlay.md](./overlay.md) § Stage D |
 | E — delta delivery and client apply | Not started, and behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped. Its shared-planners dependency is discharged. Applying a delta outside an open editor also wants [job-document-drafts](../job-document-drafts/plan.md) Stage 5, which makes `jobArray` plain |
 
@@ -771,14 +771,19 @@ document and answered with what the client must reconcile against; the client re
 refusal, drops it rather than retrying forever, and tells the user; and a job another session holds no
 longer costs the rest of the batch. What was silent write loss is a visible refusal end to end.
 
-**Stage C is what to pick up, and its design questions are answered.** The change set it waited on has
-arrived — see § What arrived, and what it changes — and both decisions it owed have been taken. How a removal is said is **taken** — the body names removed rows as
-paths the server checks against `models.Job` itself, § What arrived, and the client half is built.
-What a close writes is **taken** too — every job it writes besides the edited one stays
-whole and carries the revision of the copy it was built from, except one the client holds no stored copy
-of, which has none, § What arrived. What gates the *deploy* rather than the building is
+**Stage C is built, and what remains for it is a release window, not code.** A save sends what
+changed, checked against the revision it was read at, proved against a real database through the real
+handler. What gates the *deploy* rather than the building is
 [job-document-drafts](../job-document-drafts/plan.md) Stage 2 reaching live, because a path-scoped
-write into an un-reshaped document writes a key that means nothing.
+write into an un-reshaped document writes a key that means nothing — and that stage is itself landed
+and awaiting the same window. Both halves of this endpoint's wire change want the one window: see
+§ Wire compatibility.
+
+**Stage E is what to pick up next**, and its open editor half is unblocked —
+[job-document-drafts](../job-document-drafts/plan.md) Stage 3 has landed, so an open job is already a
+base plus a log a delta can be applied onto. Applying a delta to a job nobody is editing still wants
+that project's Stage 5, which has not started: `jobArray` holds `Job` instances, and a delta needs
+something plainer to land on.
 
 **Stage C does not need that project's slice 5.** Slice 5 converts the panels to read from the draft,
 which narrows re-rendering; the log is complete without it, because every change already goes through
