@@ -27,7 +27,7 @@ go test ./worker/...
 |------|----------------------|
 | `ratelimiter` | Token bucket / flood exhaustion & recovery; concurrent stress; cleanup goroutine; ESI client Do/429; group naming & token parsing; error typing |
 | `tasks/esi` — system indexes | Stream industry systems (304, gzip, JSON errors, retry, rate-limit); task paths (lock, ETag, not-modified) |
-| `tasks/esi` — region market orders | Payload validation; percentile maths (sample floor, nearest rank, outlier trimming, empty book sides) |
+| `tasks/esi` — region market orders | Payload validation; percentile maths (sample floor, nearest rank, outlier trimming, empty sides) |
 | `tasks/esi` — adjusted prices | Stream + task paths |
 | `tasks/esi` — session grants | JSON/token validation; ESI errors; corp dedupe; Redis storage through `shared/plannersession` |
 | `tasks/esi` — helpers | Retry / ESI verb helpers |

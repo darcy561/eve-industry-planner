@@ -312,9 +312,9 @@ changing. Stage D says why; this says how long it has been.
 | Stage | What it is |
 |-------|------------|
 | A — The stored shape | **Done.** The Go type, the lane on each owner's settings document, the release step that writes an empty one, and the SPA carrying the lane through a save untouched. Composition and de-duplication are specified here and built in B. No behaviour moved |
-| B — The move | The prerelease step, and every reader switched to the new lane in one change: the registry, `trackMarketSources`, `saleLocations`, `calcSellingCharges`, the settings screens |
-| C — The panel | A surface for managing saved markets, built from the app-shell components, listing what is true of each market now — **including when each was last read**. Ships with B: a market cannot leave the shared form until it has somewhere else to be managed |
-| D — Telling a reader a market cannot be read | The state the read already produces, shown where it can be acted on — handed here by [market-price-delivery](../market-price-delivery/plan.md) § Start here |
+| B — The move | **Done.** The prerelease step, and every reader switched to the new lane in one change: the registry, `trackMarketSources`, `saleLocations`, `calcSellingCharges`, the settings screens |
+| C — The panel | **Done.** A surface for managing saved markets, built from the app-shell components, listing what is true of each market now — **including when each was last read**. Shipped with B: a market cannot leave the shared form until it has somewhere else to be managed |
+| D — Telling a reader a market cannot be read | **Done.** The state the read already produces, shown where it can be acted on — handed here by [market-price-delivery](../market-price-delivery/plan.md) § Start here. The read keeps it, the row carries it, the row says it, and the sentence has somewhere to go |
 
 **Done when** a saved market is stored on its own lane, managed from its own panel, a reader can see
 why one is not answering, and nothing about how a market is priced has changed.
@@ -442,7 +442,7 @@ owns the edit.
 | ~~Whether a pushed document re-reads the union or is merged into it~~ | **Settled: re-read**, so the de-duplication rule is not written twice. Named here because it is the first thing Stage B builds against |
 | ~~Who may tick `sharedWithMembers`, and who may add or remove an organisation's market~~ | **Settled: ungated for now.** There is no roles model to gate it with, and inventing one here would be a second answer to a question the app has not asked yet. Every member who can see an organisation's markets may edit them. What this stage owes is that the gate is cheap to add later: the panel knows which owner every row belongs to, so the check has one place to go when there is something to check against |
 | ~~A region id has four widths across the server~~ | **Settled: `int64` everywhere, because that is what ESI declares `region_id` as.** It was `int64` on `CustomStructure` and `MarketLocation`, `int32` through the Redis market-orders store, the object store, the NATS task requests and the refresh scheduler, and plain `int` on a job's market-order row. Nothing was broken — every EVE region id sits three orders of magnitude below the `int32` ceiling, which is why it survived — but each boundary had to be got right by hand and nothing failed when one was not. Widening removed every cast and every int32-bounded parse, and collapsed the store's two key helpers into one. Two compatibility notes: the Redis keys are unchanged, because the same number renders to the same string; and a job's `region_id` now writes as a BSON int64 where it wrote an int32, which `TestAMarketOrderStoredWithANarrowRegionStillReads` holds to reading the older rows back. A type id is a separate question and stays `int32` |
-| What the panel shows about a market that cannot be read | The read already distinguishes "every character was refused" from "no character could be asked" from "the request failed". Which of those a reader should be shown, and what they are offered to fix it, is Stage D's to settle |
+| ~~What the panel shows about a market that cannot be read~~ | **Settled — see [overlay.md](./overlay.md) § Stage D.** The read distinguished "every character was refused" from "no character could be asked" from "the request failed"; the first two are shown, because a reader can act on them, and the third is not, because it is ESI's or the app's and the next turn may answer. What they are offered is one way out for the whole list, through the same `useLinkCharacter` the Accounts surfaces call |
 | ~~Whether `structureKinds` keeps a market value at all~~ | **Settled: it keeps it.** The table is a parity surface with the server, which still means the kind by a stored `jobType` — the upgrader finds market rows by it. What went is the SPA's ability to create one. `customStructureLocationMap` keeps its entry for the same reason and is still the one place the id prefix is spelled |
 | Whether the move renames the stored field `jobType` on the remaining build kinds | Out of scope as written; it is the other half of the same misfit and would ride a later migration |
 
@@ -469,12 +469,18 @@ first-login setup mounts the same component rather than a second copy. The accou
 citadel it has not saved moved to the same tab and is named for what it answers for, every saved
 market carrying its own rate. None of it is offered on Job Settings any more.
 
-What is left is Stage D — telling a reader *why* a market cannot be read, and what they can do about
-it.
+**Stage D has landed** — see [overlay.md](./overlay.md) § Stage D. D1 has the read keep what it
+settled on, beside the market's freshness and in the market's own vocabulary; D2 carries that onto
+the panel's row; D3 says it, in the "Last read" cell, for the two outcomes a reader can act on; D4
+gives the sentence somewhere to go, through the same `useLinkCharacter` the Accounts surfaces call.
+One offer for the list rather than one per row, because linking is an account-wide act.
+
+**Every stage has landed.** What is left is promotion: this project has no `promote/` folder yet, and
+per [`../documentation-rules.md`](../documentation-rules.md) it cannot close until its overlays are
+folded into live SoT.
 
 The project is on the critical path: custom-structure-model cannot promote until Stages A to C have
 landed and a saved market has left the shared form. The decision that gated Stage C is settled:
-editing an organisation's markets is ungated until there is a roles model to gate it with. One
-question in § Open decisions is still live — what the panel tells a reader about a market that
-cannot be read, which is Stage D's. The region id widths are settled: `int64` throughout, as ESI
+editing an organisation's markets is ungated until there is a roles model to gate it with. Every question in § Open decisions
+that this project owns is now settled; what remains is promotion. The region id widths are settled: `int64` throughout, as ESI
 declares it.

@@ -94,7 +94,7 @@ oldest. A hub is never walked inside its own max-age, which is what keeps a shor
 set.
 
 Nothing spaces the hubs out deliberately, but they separate on their own: the dispatcher walks one
-book at a time, so passes finish seconds apart and a hub whose hour elapses just after a tick waits
+region at a time, so passes finish seconds apart and a hub whose hour elapses just after a tick waits
 for the next. Within a few hours each owns a tick of its own.
 
 Affordability is measured, not estimated: a region pagination is costed from the page count the last

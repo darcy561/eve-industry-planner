@@ -95,7 +95,7 @@ three in `ItemRowExpanded.jsx` and one in `shoppingList.js` indexed that result 
 and raised a `TypeError`; they are guarded now. In `ItemRow` the item's own worth is derived once in
 `buildCosts` rather than re-indexed at ten render sites.
 
-`calculateMaterialCostFromChildJobs` took its hub and order type as arguments named for the account
+`estimatedMaterialCost` took its hub and order type as arguments named for the account
 defaults. Both callers already passed a resolved pair, so only the names moved — `marketSelect` and
 `listingSelect`, matching what is handed in.
 
@@ -188,7 +188,7 @@ holds the data for them, and are never returned from it.
 `useEffectiveMarketHubFromLayout` returns the rungs too. A caller with nothing to insert underneath
 reads the two values and ignores the rest, which is every caller except Materials & Sourcing.
 
-**Costing the four bases suspends the order type rung.** `materialCostByOrderType` asks what the job would cost
+**Costing the four order types suspends the order type rung.** `materialCostByOrderType` asks what the job would cost
 on each order type in turn, so a group default naming an order type would answer all four identically and flatten
 the comparison into one figure repeated four times. That axis is marked `SUPPRESSED` rather than being
 given the job's rung: the order type is not a rung question for that call at all, and borrowing the job's

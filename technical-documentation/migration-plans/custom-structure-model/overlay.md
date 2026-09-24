@@ -587,7 +587,7 @@ kind with no entry in the map carries none of them.
 
 `SALE_LOCATION_KIND` was `HUB` and `STRUCTURE`. Neither word survived a reader saving their own
 market: the four markets this server prices **are** NPC stations, so one a reader saved and one the
-server walks are the same kind of place and differ only in who fetched the book — yet a saved NPC
+server walks are the same kind of place and differ only in who fetched the orders — yet a saved NPC
 station resolved as `HUB`, which reads like a defect and is not.
 
 The kinds are `NPC_STATION` and `CITADEL`, which is what a player calls them and what the fee rule
@@ -599,8 +599,9 @@ reimplemented `getCustomStructureWithID` and `getDefaultCustomStructureWithJobTy
 second copy of the flagged-default-else-first rule. They call the store. `getSaleCitadels` remains
 because the picker lists them, and it is a filter rather than a second rule.
 
-`saleLocationFromCitadel` no longer looks a market up per citadel: nothing can read a citadel's book
-yet, so they all price against the same default market and a per-row lookup implied a choice that
+`saleLocationFromCitadel` no longer looks a market up per citadel: nothing can read a citadel's
+orders yet, so they all price against the same default market and a per-row lookup implied a choice
+that
 does not exist.
 
 **The test harness uses the real actions.** `usersStoreHarness` builds `structureActions` against the

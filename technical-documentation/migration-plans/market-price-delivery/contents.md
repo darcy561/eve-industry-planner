@@ -6,22 +6,22 @@ How a market price reaches the SPA and how it is kept current: what is asked for
 where it is held, and what decides that it has gone stale — for every kind of market the planner can
 price against, not only the four the server holds.
 
-- **The unit of a price.** One type at one source, carrying the four bases, replacing a per-type blob
+- **The unit of a price.** One type at one source, carrying the four order types, replacing a per-type blob
   that answers for every hub at once whether or not the caller wanted them.
 - **The source registry.** The server publishes the four default hubs and their clocks; the SPA holds
   one registry that admits reader-saved sources beside them, and stops keeping a second
   hand-maintained copy of the four.
 - **The query.** A request that names the sources and the types it wants, and a response carrying only
   those, with the per-type Redis loop in the handler replaced by a pipelined read.
-- **The freshness rule.** A book refreshes as a whole, so the source's own clock — not a per-type age
+- **The freshness rule.** A market refreshes as a whole, so the source's own clock — not a per-type age
   guess in the browser — decides what has to be asked for again.
 - **Custom market locations.** The stored list of markets a reader has added and the surface for
   adding one, and keeping each of them current on its own ESI expiry rather than on demand.
 - **Fetching and deriving a reader-saved source.** A custom NPC station is public, so the server
-  walks its region once for everybody and the browser fetches no book — measured against all 70
+  walks its region once for everybody and the browser fetches nothing — measured against all 70
   known-space regions. The pages that walk produces are held in object storage rather than Redis,
   because they are large, written hourly and read rarely. A custom citadel is how a private market is reached, with the reader's own
-  token, so its whole-book walk stays in the browser. **Public data centralises, private data does
+  token, so its whole-market walk stays in the browser. **Public data centralises, private data does
   not**, and that is the line between them.
 - **Where market data lives in the browser.** One price cache in two tiers: the four hubs' rows held
   for the session with nothing beneath them, and every reader-saved source — public station and
@@ -40,7 +40,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 
 ## Does not own
 
-- **How the server builds the books.** The hourly region walk, the ETag cache, the station filter and
+- **How the server builds a market's prices.** The hourly region walk, the ETag cache, the station filter and
   the percentile trim are current behaviour and are not being changed →
   [backend/](../../backend/contents.md). Where the walk's **pages** are held is this project's, and
   has moved to object storage; what the walk does with them has not changed.
@@ -48,7 +48,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   buying and selling defaults, and defaults keyed to an item's market group belong to
   [market-pricing-defaults/contents.md](../market-pricing-defaults/contents.md). That project decides
   what to ask for; this one decides how the asking works.
-- **What the four bases mean.** `buy`, `sell`, `buyP95` and `sellP05` and the figures behind them
+- **What the four order types mean.** `buy`, `sell`, `buyP95` and `sellP05` and the figures behind them
   stay as they are.
 - **The Market Data and Price History dialogues**, which read region order books and history from ESI
   in the browser. Left as they are by decision; the note on why this is still worth revisiting is in
@@ -85,14 +85,17 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know why callers used to pass a price table alongside the store, and what removed it | [plan.md](./plan.md) § It retires the alternative price table |
 | Know where a price comes from today, now the store is gone | [overlay.md](./overlay.md) § B2, § B4 |
 | Know what decides that a price has gone stale | [overlay.md](./overlay.md) § C1, § C3 |
-| Know how a moved book reaches a surface someone is already looking at | [overlay.md](./overlay.md) § C5 |
+| Know how a market that moved reaches a surface someone is already looking at | [overlay.md](./overlay.md) § C5 |
 | Know what paces the refresh cycle, and why no component owns it | [overlay.md](./overlay.md) § C2 |
 | Know how the browser turns an order book into the four prices, and what holds it to the server's answer | [overlay.md](./overlay.md) § E1 |
-| Know how a reader-saved station is fetched, and what tells the browser when its book expires | [overlay.md](./overlay.md) § E2 |
+| Know how a reader-saved station is fetched, and what tells the browser when its prices expire | [overlay.md](./overlay.md) § E2 |
 | Know how one tick's wants are split between this server and ESI, and why a failure on one does not reach the other | [overlay.md](./overlay.md) § E3 |
 | Know what is genuinely left in Stages D and E, and why they go together | [plan.md](./plan.md) § What Stage D and E actually need |
 | Know how prices survive a reload, and why it is not the query persister | [plan.md](./plan.md) § How the persistent tier is stored |
 | Know which markets are held on the reader's device, what expires a stored row, and what happens to rows a version bump abandons | [overlay.md](./overlay.md) § D1 |
+| Know where a citadel's orders are kept after the walk that priced it | [overlay.md](./overlay.md) § H1 |
+| Know how one type's orders are read back out of a citadel, and why nothing fetches on open | [overlay.md](./overlay.md) § H2 |
+| Know how a region's public orders and a reader's private markets are shown as one market | [overlay.md](./overlay.md) § H3 |
 | Know which live documents this project has already falsified, and owes a rewrite at promote | [overlay.md](./overlay.md) § Missing live SoT found on the way |
 | Know why this project stops short of saved citadels, and what it waits on | [plan.md](./plan.md) § Stage F |
 | Know why a saved NPC station is priced by the server rather than the browser | [plan.md](./plan.md) § Stage G |

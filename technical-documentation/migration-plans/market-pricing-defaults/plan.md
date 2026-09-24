@@ -4,10 +4,9 @@
 landed: a job's two sides are priced separately, a market group default resolves on both of them and
 can be set from Settings, and the SPA has one name for each pricing axis.
 
-**Nothing here is waiting on work — it is waiting on a deploy.** Stage A step 7 drops the retired
-`defaultMarketLocation` / `defaultOrderType`, and it cannot until the stored documents are backfilled.
-The step that backfills them is written and tested (§ Wire compatibility); what remains is the
-shared-planners release running it against live, which this project does not schedule.
+**Every stage has landed.** The retired `defaultMarketLocation` / `defaultOrderType` are gone from
+the stored shape, the SPA store and the job's layout, which is what Stage A step 7 was waiting on the
+shared-planners release to backfill. What is left is promotion.
 **Code in scope:** [`frontend/src/`](../../../frontend/src/) — `Hooks/Planner/`, `Functions/MarketData/`,
 `Styled Components/Select/`, `Zustand/applicationSettings/`, `Classes/shoppingList.js` and the panels
 and dialogues listed in § Stage A; [`services/shared/models/`](../../../services/shared/models/),
@@ -42,7 +41,7 @@ because they are on lines this project wrote.
 `applicationSettings.defaultMarketLocation` and `defaultOrderType` are one pair of fields answering
 two questions that have different answers: **where materials are priced when buying, and where output
 is priced when selling.** A player who buys in Jita and lists in Amarr cannot say so. The single field
-predates both the per-item price overrides and the four pricing bases, and it is the reason the two
+predates both the per-item price overrides and the four order types, and it is the reason the two
 sides were crossed on the Planning stage — a sale's tax was calculated against one location while its
 price came from another.
 
@@ -70,14 +69,22 @@ Name the axes apart and never let one field carry both. The job side is **buying
 is labelled **Materials** / **Output** wherever a reader sees it; the book side is the **order type**,
 named as ESI names it.
 
-## Where this project stops and market price delivery starts
+## Where this project stops and the other two market projects start
 
-This project decides **what to ask for**; [market-price-delivery](../market-price-delivery/contents.md)
-decides **how the asking works**. One picks the market and the order type, the other carries the request,
-shapes the row that comes back, holds it and decides when it has gone stale. Neither redefines the four
-bases.
+Three projects meet on one question and each owns a different part of it.
 
-The cut matters because both projects live in `frontend/src/Functions/MarketData/` and the split is not
+- **This one decides what to ask for.** The ladder, the account's two sides and the market group
+  defaults pick a market and an order type.
+- **[market-price-delivery](../market-price-delivery/contents.md) decides how the asking works.** It
+  carries the request, shapes the row that comes back, holds it and decides when it has gone stale.
+- **[market-locations](../market-locations/contents.md) decides which markets there are to ask
+  about.** A saved market's stored lane, the ones an organisation shares, and the panel they are
+  managed from — and, since a market a reader saved is read on their own characters, why one of them
+  cannot be.
+
+None of the three redefines the four order types.
+
+The cut matters because all three live in `frontend/src/Functions/MarketData/` and the split is not
 obvious from the file names:
 
 | Question | Owned by |
@@ -85,7 +92,7 @@ obvious from the file names:
 | Which market and order type a figure is priced against | here — the ladder, the two account sides, group defaults |
 | What a request names and what the response carries | market-price-delivery § Stage B |
 | Where a price row is held, and what makes it stale | market-price-delivery § Stage C, § Stage D |
-| Which markets may exist at all beyond the four hubs | market-price-delivery § Stage A, § Stage F |
+| Which markets may exist at all beyond the four hubs | [market-locations](../market-locations/contents.md) — a saved market's stored lane, what an organisation shares, and the panel it is managed from. market-price-delivery § Stage A and § Stage F decide how one is *priced* once it exists |
 
 **The dependency runs one way: that project consumes this one's resolver.** Its § Stage B, item 5 moves
 every call site onto naming the source it wants, and names this project's resolver as what answers that
@@ -260,10 +267,10 @@ again, and the old pair stops being written and ages out with the documents.
 4. ~~Point each surface in the table at a side, explicitly.~~ Done.
 5. ~~Guard the unguarded price reads in the three files above.~~ Done, with the rest of step 4.
 6. ~~Settings and first-login controls offer both pairs.~~ Done.
-7. Stop writing the old fields, once the shared-planners release has backfilled the stored ones. The
-   backfill step is written; **what remains is the release running against live.** Until then the SPA
-   keeps carrying and persisting the single pair, because a stored value has to survive a session on
-   older code.
+7. ~~Stop writing the old fields, once the shared-planners release has backfilled the stored ones.~~
+   Done. `defaultMarketLocation` / `defaultOrderType` are off `ApplicationSettings`, the SPA store no
+   longer carries or persists them, and the job's `localMarketDisplay` / `localOrderDisplay` are gone
+   from `JobLayout` and from `Classes/job.js` — see [overlay.md](./overlay.md) § A4.
 
 **Done when** every surface in the table names a side, no code reads `defaultMarketLocation` or
 `defaultOrderType`, and a player can buy against one market and sell against another without touching
@@ -418,7 +425,7 @@ A survey of the whole SPA was run first and is kept at
 [measurements/vocabulary-counts.md](./measurements/vocabulary-counts.md); it is what sized the work and
 found the layers this section did not know about. **It is not what chose the names.**
 
-`orderType` is chosen because **ESI chooses it**. The app already asks for a region's book with
+`orderType` is chosen because **ESI chooses it**. The app already asks for a region's orders with
 `order_type=all` in `getMarketData.js` and `regionMarketOrdersFetch.go`, and reads `is_buy_order` back
 off every order; naming the axis anything else means the app calls one thing by two names across a
 boundary it crosses constantly. `marketLocation` is already the name of the Select component that sets
@@ -479,8 +486,8 @@ row side and `orderRung` on the ladder side, and three call sites — `useJobSel
 to cross between them. Those three lines are deleted by the rename, not rewritten, which is the first
 evidence that this stage removes code.
 
-**`orderType` is already retired** — one occurrence left, the legacy stored field the `Job`
-constructor seeds from, which goes with Stage A step 7 and needs nothing from here.
+**`orderType` is already retired** — the last occurrence, the stored field the `Job` constructor
+seeded from, went with Stage A step 7.
 
 **`marketListing` is wider than it looks.** It was recorded as the Reprocessing reducer's own state;
 it is also a Select component's name and a prop threaded through Price Entry, the row pricing
@@ -633,36 +640,30 @@ until then a key naming something the other side never had throws only when firs
 | Stage | State |
 |-------|-------|
 | Phase 1 — project folder and docs | Done |
-| Stage A — retire the single account default | Steps 1-6 landed. Step 7 waits on the shared-planners release **running**, not on anything unwritten: its backfill step exists and its live test passes |
+| Stage A — retire the single account default | **Done.** Every surface names a side, and nothing reads `defaultMarketLocation` or `defaultOrderType` |
 | Stage B1 — publishing the market group data | Done |
 | Stage B2 — the stored shape and the walk | Done |
 | Stage B3 — the rung in the ladder | Done |
 | Stage B4 — the SPA reading the tree and each item's group | Done; the rung fires |
 | Stage B5 — the selling side names a route, and the controls for it | Done |
 | Stage B6 — a surface for setting a group default | Done |
-| Stage N — one vocabulary for a market and an order type | **Done.** Every in-memory name is `marketLocation` / `orderType`. What survives is `marketDisplay` / `orderDisplay` where they name a `MaterialPriceOverride` key — in `materialsAndSourcingPanel.jsx`, `useMaterialOverrides.js`, `materialPriceOverridesState.js` and `materialPricing.js` — plus one legacy read in `Classes/job.js` that goes with Stage A step 7 |
+| Stage N — one vocabulary for a market and an order type | **Done.** Every in-memory name is `marketLocation` / `orderType`. What survives is `marketDisplay` / `orderDisplay` where they name a `MaterialPriceOverride` key — in `materialsAndSourcingPanel.jsx`, `useMaterialOverrides.js`, `materialPriceOverridesState.js` and `materialPricing.js` |
 
 ## Start here
 
-**Stage A is as far as it can go until the shared-planners release runs.** Step 7 — dropping the
-single `defaultMarketLocation` / `defaultOrderType` and the job's `localMarketDisplay` /
-`localOrderDisplay` — is the only step left, and it waits on that release backfilling the stored
-documents (§ Wire compatibility).
-
-The backfill itself is no longer outstanding: `seed each account's buying and selling pricing
-defaults` is in `prepareRelease`, its live test passes against stack Mongo, and on a dev database it
-correctly finds nothing — see
+**Stage A is finished.** Step 7 — dropping the single `defaultMarketLocation` / `defaultOrderType`
+and the job's `localMarketDisplay` / `localOrderDisplay` — landed once the backfill had run, and
+`seed each account's buying and selling pricing defaults` in `prepareRelease` is what made it safe.
+Its live test passes against stack Mongo, and on a dev database it correctly finds nothing — see
 [shared-planners/measurements/pricing-defaults-backfill.md](../shared-planners/measurements/pricing-defaults-backfill.md)
 for why a zero there is the expected result rather than a doubt about the step.
 
-What is deliberately still there in the meantime: `Zustand/applicationSettings` carries and persists
-the single pair so a stored value survives, and the `Job` constructor reads the job's legacy pair to
-seed a job stored before the split. Nothing writes either, and nothing else reads them.
-
-**One rollout note for step 7.** Once a player changes a default, `defaultPricing` moves and the
-single pair does not, so the stored pair goes stale rather than wrong. A session still running older
-code would read the stale one. That is a deploy-window consideration, not a data question — the
-server never overwrites a filled side.
+**What the drop is, on the wire.** An uploaded job is decoded with unknown members refused, so the
+two layout keys leaving `JobLayout` means a client still sending them has its save refused rather
+than ignored. That makes the change **breaking for the deploy window** rather than additive: a tab
+left open on older SPA code cannot save a job against the new server until it reloads. The account
+settings half is not breaking in the same way — an old session reads a pair that has stopped moving,
+which is stale rather than wrong, and the server never overwrites a filled side.
 
 **Stage B is finished end to end.** An account's group table is walked per material on the Planning
 stage and on the shopping list, a group default outranks the account default while losing to a job's
@@ -674,11 +675,10 @@ stored documents say `orderType` too, so the only conversion left on either axis
 `marketLocation`. What survives is deliberate and listed in § The ladder layer is half a
 stored shape.
 
-**Only Stage A step 7 is left in this project**, and it now waits on nothing but the release itself:
-the `prepareRelease` step that backfills the stored documents is written and its live test passes
-against stack Mongo. Step 7 drops the old fields once that release has run against live, which is not
-this project's to schedule — see [shared-planners/plan.md](../shared-planners/plan.md) § Schema
-versioning.
+**Nothing is left in this project but promotion.** Step 7 dropped the old fields once the
+`prepareRelease` backfill had run against live — see
+[shared-planners/plan.md](../shared-planners/plan.md) § Schema versioning for the release that
+carried it.
 
 Read § Two axes, both called buy and sell before naming anything, and § Traps this work has already
 fallen into before changing a stored shape. Both cost a slice each the first time.

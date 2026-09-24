@@ -247,8 +247,8 @@ Those settings land *after* the rows have been summarised, so whether a row can 
 as the panel draws rather than carried on the row. One fixed when the summary was taken would say no
 for the life of the mount and only come right if the reader left the tab and came back.
 
-**What a change does to a lane is decided once.** `Functions/MarketData/marketLane` holds the four
-transforms — save, change, make default, forget — and both stores apply them. Each store exposes one
+**What a change does to a lane is decided once.** `marketWriter` holds the three transforms — save,
+change, forget — and both stores apply them. Each store exposes one
 action taking a transform rather than one action per edit, so a market behaves the same whoever saved
 it and the rule cannot drift between the two documents.
 
@@ -259,8 +259,9 @@ does not carry their copy of another member's categories back over it. The debou
 whatever is outstanding for an owner rather than one named field.
 
 **A saved market lane is checked before it is stored.** `models.MarketLocations.Validate` is the rule
-— an id, a name, a region, exactly one place, no duplicate ids, at most one default, and a broker fee
-only on a citadel, capped at a hundred per cent — and it sits on the type both settings documents
+— an id, a name within a length limit, a region, exactly one place, no duplicate ids, no more markets
+than the lane allows, and a broker fee only on a citadel, capped at a hundred per cent — and it sits
+on the type both settings documents
 embed rather than on either update, because a row saved through either reaches the same pricing
 machinery. Both the account's settings save and the planner's apply it. It does not ask whether the
 place exists: that is an ESI question, answered when the reader chose it, and asking it again would
@@ -281,9 +282,147 @@ because one kept internal to the planner reaches no member and would be a region
 
 ## Stage D — Telling a reader a market cannot be read
 
-*Empty.*
+### D1 — the read keeps what it settled on
+
+A market the reader reads for themselves can fail for reasons only they can fix, and until now the
+failure was thrown away: the rotation caught the error, read one flag off it to decide whether to put
+the market's turn back, and dropped the rest. Nothing downstream could tell a market nobody on the
+account can dock at from one the device has simply not got to yet, because both end the same way —
+no prices, and a panel that can only say nobody has read it.
+
+**The reason is kept beside the market's freshness**, in `priceStore`, because it is the same fact:
+how the last turn went. A read that lands prices stamps `read` over whatever was there, so a market
+the reader has just regained access to stops claiming they cannot see it; a deferral that names
+nothing leaves the last answer alone, because a caller putting a turn back for its own reasons has
+established nothing new.
+
+`marketReadOutcome.js` owns the vocabulary and the one function that decides it. Four outcomes:
+
+| Outcome | What it means | Whose problem |
+|---------|---------------|---------------|
+| `read` | Prices arrived | — |
+| `refused` | Every character the account has was told no | The reader's: no character can dock there |
+| `unaskable` | Nothing could be asked — no character holds the scope, or there are none | The reader's: authorise or link one |
+| `failed` | ESI was down, refused for rate, or a token could not be had | Not the reader's; the next turn may answer |
+
+**It is decided from the flags the error already carries**, never its message — `permanent` for a
+refusal, `needsReauthorisation` for a character that was never granted the scope — so the walk in
+`askEachCharacter` can reword itself without changing what a panel says. Anything unmarked reads as
+`failed`, which is the safe direction: a market called unreachable on a bad connection sends a reader
+off to fix something that is not broken.
+
+`readerCanAct` is what separates the two the panel will speak up about from the two it stays quiet
+on, and it is also what the rotation now uses to decide whose turn to put back — which widens the old
+behaviour by one case. Being refused already waited its turn out; having nobody to ask with now does
+too, because that is equally an answer about the account rather than a failure to reach ESI, and
+re-walking it on every probe costs a refusal per character at five times the charge of a hit.
+
+**Nothing is shown yet.** D1 stops at the record; D2 carries it onto the row through
+`summariseMarket`, and D3 is what the row says and what it offers.
+
+### D2 — the row carries it
+
+`lastReadMoment` already answered two questions wearing one name — when a market was last read, and
+whose clock that moment is on. It now answers a third from the same record, because how the read went
+is the same fact as when it happened, and a panel reading them from two places could show a moment
+that disagreed with the reason beside it.
+
+A market the server prices answers `undefined` and always will. Its failures belong to the server and
+are the same for every reader, so there is nothing here a reader could act on — the field is not
+"unknown" for those markets, it is "not a question this market has".
+
+`summariseMarket` puts it on the summary and `marketRow` carries it onto the row. **Neither puts it
+into words.** `marketRows.js` is the one place a market is worded, so that is where it will be said —
+but what a reader is told, and what they are offered to do about it, is the decision § Open decisions
+leaves to D3, and wording it here would settle that by accident.
+
+### D3 — the row says it
+
+**Two of the four outcomes are spoken, and the other two are not.** `readProblem` in `marketRows.js`
+words `refused` and `unaskable` and answers nothing for the rest. A read that failed is ESI's problem
+or the app's and the next turn may answer, so putting it on screen would send a reader off to fix
+something that is not broken; a market nothing has read yet is not a fault at all, and already had a
+sentence of its own.
+
+| Outcome | What the row says | What the tooltip adds |
+|---------|-------------------|-----------------------|
+| `refused` | No character can dock here | Every character was refused; link or authorise one that can dock there |
+| `unaskable` | No character can be asked | No character is authorised to read orders inside player structures |
+
+The explanation says **what to do**, never a restatement of the label: the label is already on screen,
+and a tooltip that repeats it is worth nothing. Both end on when the fix takes effect — the next
+refresh — because otherwise a reader who links a character has no idea whether to wait or to have
+expected the figures at once.
+
+**It goes in the "Last read" cell, because it is the answer to that column's question.** A market
+that was readable and is not any more keeps its moment *and* carries the chip: the figures on screen
+are still the ones from that moment, and dropping the date would hide how old the prices a job is
+being costed against have become. Where there is no moment at all the cell reads "No prices" rather
+than "Not read on this device", which would be true and useless — it is not that this device has not
+got to it, it is that it cannot.
+
+The chip is `StatusChip` at `WARN` and the sentence is an `ExplainerTooltip`, both of which the table
+already uses — the broker fee dash explains itself the same way.
+
+**The explanation had to be reachable without a mouse**, because it is the only place the fix is
+described. A `Chip` with no click handler renders a plain `div` and takes no focus, and the tooltip's
+wrapper was a bare `<span>`, so a reader tabbing through the table went straight past the warning and
+never saw what to do about it. `ExplainerTooltip` gained an opt-in `focusable`, which puts the
+wrapper in the tab order; MUI then labels it with the title, so the sentence reaches assistive
+technology whether or not the visual tooltip opens — which holds for a **string** title, the shape
+MUI labels unconditionally, and not for a `ReactNode` one, which is only announced once the tooltip
+has opened. `jsx-a11y/no-noninteractive-tabindex` is disabled on that one line with the reason on it:
+the span is not a control and does not pretend to be one. Opt-in rather than the default because a tab stop
+on every explained control in the app would be a long walk through a page — take it where the tooltip
+carries something the reader cannot get any other way. Two older sites have the same unreachable
+shape, the shortfall chip and the Planning stage's "Paid" chip; neither is this project's to change,
+and both can adopt the flag.
+
+`readProblem` asks `readerCanAct` which outcomes are worth wording rather than listing them a second
+time, so the set is decided once beside the outcomes themselves and this only supplies the words.
+
+### D4 — the row's sentence has somewhere to go
+
+Saying "link a character that can dock there" and leaving the reader to find where is half an answer.
+`useLinkCharacter` is the other half and already existed — the Accounts surfaces call it to add or
+re-authorise a character, and that same act is what fixes this — so `MarketsNotAnswering` calls it
+rather than growing a second way in.
+
+**One offer for the whole list, not one per row.** Linking is an act on the account rather than on a
+market: the character it adds may answer for every market in the list at once, so a button per row
+would be the same button drawn several times, each claiming to fix one thing. The rows still carry
+the diagnosis one at a time, because *that* is per-market — a reader with two unreadable markets may
+be refused at one and unable to ask about the other.
+
+It counts what is affected rather than naming them, since the names are in the table immediately
+above, and it is **absent entirely when nothing is wrong** rather than present and saying so: a panel
+that keeps a space for bad news makes a reader read it on every visit.
+
+**Stage D is complete.** The read keeps what it settled on, the row carries it, the row says it, and
+the sentence has somewhere to go.
 
 ## Missing live SoT found on the way
 
 *Empty.* Live documentation this project finds wrong or absent is written here first and folded in on
 promotion, per [`../documentation-rules.md`](../documentation-rules.md) § Hard rule.
+
+## A sale is priced at the place it happens
+
+`saleLocationFromCitadel` costed every citadel against the trading hub, from when nothing could read
+a structure's market. [market-price-delivery](../market-price-delivery/plan.md) § Start here named
+the change as a decision rather than a consequence, because it moves figures a reader has been
+looking at; the decision was taken, and a citadel is now priced on its own orders.
+
+**The `pricedAtID` / `pricedAtName` pair went with it.** A station always priced at itself and a
+citadel now does too, so the pair could only ever repeat `id` and `name` — a field that can only hold
+a copy of another is a second place for them to disagree. Callers read the sale location's own id and
+name, and `feeStationID` stays, because *that* is genuinely a different place: the NPC station whose
+owner's standings set the rate.
+
+The Returns block used to read "Prices from Jita; the fee is this citadel's own". There is no second
+market to name now, so it says what is true instead — priced on this citadel's own orders, at the
+rate its owner set.
+
+**A citadel whose market cannot be read carries no figures rather than somebody else's.** That is the
+point: zeroes are visibly wrong, where a hub's prices under a citadel's name were invisibly wrong.
+§ Stage D is what turns that silence into a sentence.

@@ -237,7 +237,7 @@ and the first kind added under the new model rather than the last added under th
 makes it a proof of the model as well as a feature.
 
 What it must produce for that project: a source whose kind says it is browser-fetched, carrying the
-structure id its book is walked by, reaching `allMarketSources()` through
+structure id its orders are walked by, reaching `allMarketSources()` through
 `Functions/MarketOrders/saleLocations.js` — the placeholder accessor it already reads. What it must
 **not** decide is how that market is fetched, priced or kept current; all three are
 [market-price-delivery](../market-price-delivery/plan.md) § Stage E.

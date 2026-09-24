@@ -33,7 +33,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   the freshness rule → [market-price-delivery/contents.md](../market-price-delivery/contents.md). This
   project decides what to ask for; that one decides how the asking works. Boundary and the one-way
   dependency: [plan.md](./plan.md) § Where this project stops and market price delivery starts.
-- **The four pricing bases themselves** (`buy`, `sell`, `buyP95`, `sellP05`) and the server-side
+- **The four order types themselves** (`buy`, `sell`, `buyP95`, `sellP05`) and the server-side
   figures behind them. This project decides which order type is reached for by default, not what an order type
   means.
 - **Where a job sells from.** `JobSale.Plan` and its sale location are a per-job choice already built

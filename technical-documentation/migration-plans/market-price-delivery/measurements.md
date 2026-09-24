@@ -42,7 +42,7 @@ fetch problems.
 | Route | Auth | `type_id` filter | Paged | Note |
 |-------|------|------------------|-------|------|
 | `/markets/{region_id}/orders` | None | **Yes** (`order_type` required) | Yes | What a custom NPC station uses; filter the result to the station's `location_id` |
-| `/markets/structures/{structure_id}` | **`esi-markets.structure_markets.v1`** | **No** | Yes | Whole book only. What a custom citadel forces |
+| `/markets/structures/{structure_id}` | **`esi-markets.structure_markets.v1`** | **No** | Yes | Whole market only. What a custom citadel forces |
 | `/markets/{region_id}/history` | None | Required | No | Expires daily at 11:05 per the schema description |
 | `/markets/{region_id}/types` | None | — | Yes | Type ids with active orders in a region; not used today |
 
@@ -85,7 +85,7 @@ last moment it could be. 500 type ids in one request, answered in 66 ms.
 | The same data in the new shape, if absent rows were sent as zeroes | 24,121 |
 | The new shape with the adjusted block asked for as well | 5,024 |
 
-**Dev's order books are nearly empty**, so these are not production sizes: 25 of the 500 types carried
+**Dev's markets are nearly empty**, so these are not production sizes: 25 of the 500 types carried
 a figure at any hub, and one carried a figure at Jita. That is exactly what makes the sample worth
 keeping. The shape being replaced spends **128 KB describing data it does not have** — its size is
 decided by the number of types asked about and the number of hubs, not by how much is known — while the
@@ -134,7 +134,7 @@ Measured against Tranquility while deciding whether a reader-saved NPC station s
 the browser or by the server. Page counts are `X-Pages` on page 1 of
 `/markets/{regionID}/orders/?order_type=all`, taken for **all 70 known-space regions**, not a sample.
 
-| Region | Pages | Raw book |
+| Region | Pages | Raw orders |
 |---|---|---|
 | The Forge (10000002) | **408** | 92 MB |
 | Domain (10000043) | 184 | ~43 MB |

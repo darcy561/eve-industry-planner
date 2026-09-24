@@ -179,7 +179,7 @@ it, `getPriceRefreshedAt` reads as `undefined` because a caller showing an age m
 none.
 
 **The alternative price table was already dead.** Both callers of
-`calculateMaterialCostFromChildJobs` passed `{}` for it, so the parameter is removed rather than
+`estimatedMaterialCost` passed `{}` for it, so the parameter is removed rather than
 carried forward — the arity change is followed through every caller, because the last one of these
 silently dropped an argument and cost a stage's figures.
 
@@ -224,7 +224,7 @@ there is nothing older to make stale — `record` reports a move only where a cl
 Without that distinction the first answer from every market would drop the rows it had just delivered.
 
 **An older clock is ignored rather than written.** Two chunks of one request settle in whichever order
-they land, and a market never walks its book backwards.
+they land, and a market never walks backwards.
 
 **A clock of zero is refused**, as is anything not finite. This is the same defect Stage B found in
 `findMarketData`'s zero-filled row: a market that answered with no clock must not be recorded as
@@ -264,13 +264,13 @@ invented alongside the fetching.
 ### C3 — The age guess is gone
 
 `PRICE_STALE_TIME` is `Infinity`. A held row never expires by age: it is what its market would answer
-with until that market's book is walked again, whether that is ten minutes or ten hours. The five
+with until that market is walked again, whether that is ten minutes or ten hours. The five
 minutes it replaced was the last of the four-hour rule Stage C exists to remove.
 
 ### C4 — Rows are removed, not invalidated
 
 When a clock moves, every entry for that market is **removed** from the query cache, the whole market
-at once because the whole book was walked at once.
+at once because the whole market was walked at once.
 
 Removal rather than invalidation is load-bearing and was found by a failing test, not by reasoning.
 Entries never go stale by age now, so an *invalidated* entry is still handed straight back by
@@ -354,7 +354,7 @@ reader fetched on their own token can never be had for free.
 maps to persistent and the tier waits for the citadel — the section below is the tier's design, not
 a list of what uses it today.
 
-**A stored row carried its book's expiry, and refusing an expired one was the whole eviction path.**
+**A stored row carried its market's expiry, and refusing an expired one was the whole eviction path.**
 Without it the tier would have made freshness *worse* than not having it: `PRICE_STALE_TIME` is
 `Infinity` and nothing paced a saved station yet (§ E3), so a row written to disk would have been
 served as current for ever, across every reload. **Superseded in § E6** — the rotation replaces a
@@ -397,41 +397,44 @@ running app reaches a saved source until Stage F stores one.
 
 ### E1 — The derivation, held to the server's by a fixture
 
-`Functions/MarketData/pricesFromOrders.js` turns an order book into the four
+`Functions/MarketData/pricesFromOrders.js` turns a market's orders into the four
 prices: the location filter, the buy and sell split, best bid and ask, and the
 nearest-rank percentiles with the under-five fallback.
-`testing/fixtures/market-derivation/books.json` is written from the server's own
+`testing/fixtures/market-derivation/orders.json` is written from the server's own
 `buildMarketPriceEntry` by `derivation_parity_test.go` and read by
 `pricesFromOrders.parity.test.js`, the same way the hub list is held together.
 
-**The fixture's cases were twice worthless and looked fine.** First every book was
+**The fixture's cases were twice worthless and looked fine.** First every case was
 small enough that `ceil(0.95 × n)` lands on the last index, so `buyP95` equalled
 `buy` in all eight cases and a port ignoring percentiles entirely would have
-passed. Then, with larger books, `floor(p × n)` still passed every case — the two
+passed. Then, with larger sets, `floor(p × n)` still passed every case — the two
 formulas agree except where `p × n` is whole. Twenty orders makes both `0.95n`
-and `0.05n` whole, so a book that size is what states which rule is in force. Both
+and `0.05n` whole, so a set that size is what states which rule is in force. Both
 holes were found by mutating the implementation, not by reading the cases.
 
 The SPA side also meets shapes the server never does, because it reads ESI
-directly: an empty or absent book, a location id given as a number against one
-held as a string, and an order carrying no usable price — which must not become a
-`NaN` that spreads through every figure derived from it.
+directly: a market with no orders at all, a location id given as a number
+against one held as a string, and an order carrying no usable price — which must
+not become a `NaN` that spreads through every figure derived from it.
 
 ### E2 — A station the reader saved
 
 `Functions/MarketData/fetchStationBook.js` walks a region's pages for one type,
 and `fetchStationPrices` puts the result through the derivation for one station.
+Both were renamed later in this project — see § "An order book belongs to a
+region, not to a station" — and the walk itself was deleted by § G4 once the
+server priced what the browser had fetched.
 
 **`Expires` is readable, so the plan's per-source expiry works as written.** It is
 a CORS-safelisted response header, so a browser reads it without ESI naming it in
 `Access-Control-Expose-Headers` — where the exposed list caused a first reading
 that the browser could not see it at all. ESI's `Cache-Control` on this route is
-`public` with no `max-age`, so `Expires` is the only statement of when the book
+`public` with no `max-age`, so `Expires` is the only statement of when the orders
 can have changed; the Go worker parses `max-age` instead because it reads a
 different header server-side.
 
 **The etag is offered on the first page only.** A region's pages are generated
-together and the etag identifies the whole book, so an unchanged book answers 304
+together and the etag identifies the whole set, so unchanged orders answer 304
 on page one and costs a single conditional request rather than every page again.
 A 304 still carries a **new expiry**, which is what moves the next refresh on.
 
@@ -451,11 +454,11 @@ from asks for.
 the whole request** when it names a source it does not price, so the two kinds
 were never merely inefficient together: one station want would have failed every
 hub price batched beside it. Each transport now settles only its own waiters, and
-the tests hold both directions of that — a station whose book cannot be read
+the tests hold both directions of that — a station whose orders cannot be read
 leaves the hub prices standing, and an unreachable server leaves the station's.
 
 **A region is read once per type, not once per station.** Wants are grouped by
-the book they need rather than by the station that asked, so a reader with two
+the read they need rather than by the station that asked, so a reader with two
 saved stations in one region pays for that region once and derives twice from it.
 
 **A source the registry cannot name is rejected rather than settled.** It is not
@@ -466,8 +469,8 @@ difference. It is also what keeps such a want away from the server, which would
 have refused the whole request over it.
 
 **Station rows are deliberately not recorded into `sourceClocks`.** A hub has one
-clock for its whole book, and § C4 drops every row a market holds when that clock
-moves — correct there, because the server walked the whole book at once. A saved
+clock for its whole set of rows, and § C4 drops every row a market holds when that clock
+moves — correct there, because the server walked the whole market at once. A saved
 station's clock is **one per source and type** (§ What a market source is): the
 browser reads one type's orders, so a moved clock says nothing about the other
 types held for that station, and feeding it to the per-source machinery would
@@ -540,7 +543,7 @@ whole on its turn, and `gcTime` is what retires a row nothing is reading.
 ### What a surface subscribes to, and the bug that proved it
 
 Retiring rows changed nothing a reader could see, and the end-to-end test is what
-said so: the book was re-read, the new row reached the cache, and the panel went
+said so: the market was re-read, the new row reached the cache, and the panel went
 on showing the old figure through zero re-renders.
 
 A priced surface subscribes to no row entry — it reads figures synchronously
@@ -574,7 +577,7 @@ this server (§ G2-G4); a player structure's orders are private, so no server ca
 needs a token and the character holding it needs docking access. Everything below follows from that.
 
 **There is no per-type form of it.** `GET /markets/structures/{id}/` answers with the structure's
-whole order book, paginated, and nothing narrower exists. So a want for one type costs what a want
+whole market, paginated, and nothing narrower exists. So a want for one type costs what a want
 for every type costs, which inverts the model the loader was built on. What follows from it: the
 read answers every type at once, what it answers with is kept, and a rotation rather than a request
 per want is what keeps it current.
@@ -583,7 +586,7 @@ per want is what keeps it current.
 character, every page, and keeps three outcomes apart — a refusal, a request that failed, and a token
 that was never granted `esi-markets.structure_markets.v1`. A market past `MAX_ORDER_PAGES` is refused
 whole rather than priced from the pages that fit: prices come from every order at the place, so a
-book cut short reports a best ask nobody is offering and nothing downstream could tell that from a
+read cut short reports a best ask nobody is offering and nothing downstream could tell that from a
 real figure. A page count that cannot be read fails the same way and for the same reason.
 
 **Which character reads it.** `Functions/EveESI/World/askEachCharacter.js` is the walk across an
@@ -699,7 +702,7 @@ comparison. The character record and the freshness record sit outside that prefi
 the freshness record is written last, so a write that gives out halfway leaves a market due again
 rather than one claiming rows it does not hold.
 
-**The freshness record is the only expiry left.** `market-read|v2|<market>` carries when the market
+**The freshness record is the only expiry left.** `market-read|v1|<market>` carries when the market
 is due again, the rotation reads it to decide due-ness, and a market with no record is due now.
 § E7 adds the second moment it carries and says why the two cannot be one. One moment per market rather than one per row, for a fact that was never per-row:
 every row in a market was read at the same instant and stops standing at the same instant.
@@ -745,12 +748,13 @@ on its own failures.
 is what paces the attempts — taking it would make the market due at once and have it walked on every
 probe, a refusal per character at five times the cost of a hit.
 
-**The store's version is bumped to 2, so a returning reader starts clean.** The record's shape
-changed, and a record written before it states no moment this device read the market. A market the
-reader has since *removed* is never read again, so nothing would ever give it one — and the sweep
-reads exactly that field, so the markets it exists to throw away would have been the markets it could
-never reach. `prunePastVersions` already abandons everything under an earlier prefix; the cost is
-that every reader rebuilds their markets once, on the rotation they would have had anyway.
+**The store's version stays where it is, because this build has not shipped.** The record's shape
+changed, and a record written before it states no moment this device read the market — which would
+matter to a reader holding the old shape, and no reader holds it. The version counts builds that
+have gone out rather than changes to the shape: everything under one unreleased build shares a
+number, and the bump happens once, when that build reaches readers who have the one before it.
+`prunePastVersions` abandons everything under an earlier prefix when that day comes, and the cost
+will be that every reader rebuilds their markets once, on the rotation they would have had anyway.
 
 **A market is re-read immediately before it is dropped, not decided about up front.** The tick, a
 sign-in and a panel asking for a price are three chains with nothing between them, and a scan is as
@@ -864,16 +868,16 @@ own than a day of stale memory. Nothing reads them in the meantime: the key is g
 not just unused.
 
 **A worker without object storage still works.** Both the write and the replay ask `Available()`
-first, so a deployment where the bucket is not reachable walks the book and prices it as before — it
+first, so a deployment where the bucket is not reachable walks the region and prices it as before — it
 just refetches every page instead of replaying. The one thing that must not happen is a 304 with
 nothing to replay reporting the region *unchanged*: the caller would skip the price write and the
-book would silently lapse. A test holds that, and it fails if the flag is left alone.
+walk would silently lapse. A test holds that, and it fails if the flag is left alone.
 
 **What the move gave up, and what replaces it.** Redis expired a page after 24 hours for free.
 Object storage has no expiry at all, so without something deliberate the bucket grows for ever —
 1,613 objects an hour, in a store nothing prunes. `DropRegionsOlderThan` is that something.
 
-It judges a region by its **newest** page, not its oldest. A walk rewrites a book page by page, so
+It judges a region by its **newest** page, not its oldest. A walk rewrites a region page by page, so
 partway through a 408-page region the early pages are hours old while the region is being refreshed
 right now. Judging by the oldest page would delete a region mid-walk, and the walk would then finish
 writing pages into a region that had just been dropped. A test holds this: a region with one old page
@@ -889,7 +893,7 @@ reachable only from inside the overlay network. Nothing had ever noticed, becaus
 green.
 
 That would have quietly destroyed real coverage. Four fetch tests assert what the walk leaves behind
-for the next pass to replay — the thing that stops a shrunk book replaying pages it no longer has —
+for the next pass to replay — the thing that stops a shrunk region replaying pages it no longer has —
 and they assert it by reading the page store directly. Moving pages onto a `Backend` with no
 in-process implementation turns all four into skips.
 
@@ -909,7 +913,7 @@ it too; that is not this project's to do.
 
 ### G2 — Walking a region and pricing a station are two tasks
 
-**A walk stores the book; a derive prices the stations wanted in it.** `RefreshRegionMarketOrders`
+**A walk stores the pages; a derive prices the stations wanted in them.** `RefreshRegionMarketOrders`
 no longer carries a station: it walks the region, writes the pages and the ETags, records the refresh
 time, and publishes `deriveRegionMarketPrices`. `DeriveRegionMarketPrices` reads the tracked stations
 and the stored pages, and writes a price per type per station. It asks ESI for nothing, so a station
@@ -929,7 +933,7 @@ which worked only while each swept region had exactly one station anybody asked 
 the old key are orphaned rather than migrated — they expire in two hours and the next pass rewrites
 them under the new one — and `/marketPricesQuery` reads a source's `StationID` to match.
 
-**A 304 pass stops decoding a book nothing reads.** The replay existed to feed orders through the
+**A 304 pass stops decoding pages nothing reads.** The replay existed to feed orders through the
 caller's filter, and the walk has no filter any more. `FetchRegionMarketOrders` takes a nil `onOrder`,
 and the replay then asks the page store whether the page is **held** rather than fetching and decoding
 it — the difference between reading The Forge's 92 MB and reading a key. What it must still do is
@@ -940,7 +944,7 @@ fails when the downgrade is removed.
 **A deployment with no page store still prices.** With nothing stored there is nothing to derive from,
 so the walk accumulates the tracked stations from the stream as it passes, exactly as it used to for
 one station. Without that, § G1's "a worker without object storage still works" would have become
-"walks every book and prices nothing".
+"walks every region and prices nothing".
 
 **Wire: the walk's payload loses `station_id`, and that is safe by decode.** Task payloads are
 decoded leniently, so a walk queued by the previous release still runs — the field is ignored and the
@@ -988,7 +992,7 @@ price path only after the account has said it holds one, and the endpoint keeps 
 contract it had before this stage.
 
 **Which is why the walk being a task is not felt.** Registration runs while a reader signs in, or as
-they save the market in settings, so the book is walked before a job asks for a figure rather than a
+they save the market in settings, so it is walked before a job asks for a figure rather than a
 reader waiting on their own first ask.
 
 **The sweep reads the registry.** `regionsDue` takes region ids rather than hubs, and the sweep walks
@@ -1000,7 +1004,7 @@ rather than when they are walked, so a quiet fortnight cannot retire them.
 asked about for **fourteen days** — long enough that a reader who prices a job weekly never re-pays
 their region's first walk, and that a holiday is covered; short enough that a market saved once and
 abandoned does not stay in the sweep. A region whose last station goes leaves the sweep, and its
-stored book is left to age out at **seven days** under `DropRegionsOlderThan`.
+stored pages are left to age out at **seven days** under `DropRegionsOlderThan`.
 
 **A partial write leaves a market under-registered, never over-registered.** `TrackStation` writes
 three keys and they are not one transaction, so the index a caller reads to decide nothing needs
@@ -1008,11 +1012,11 @@ doing is written **last**: a failure part way through leaves a market that looks
 asked for again on the next sign-in or settings save, rather than one that looks tracked while its
 region is never swept.
 
-**Retirement does not delete the book, and that is deliberate.** Two things follow from leaving it.
+**Retirement does not delete the pages, and that is deliberate.** Two things follow from leaving them.
 A market registered again inside the week is priced from pages already stored, with no ESI call —
 coming back costs nothing where a first registration costs a walk. And the ETags stay true: they are
 kept in Redis for 24 hours, and `esiclient` refuses a conditional request that throws away a validator
-it has already been given, so a walk that met deleted pages would answer 304 to a book it no longer
+it has already been given, so a walk that met deleted pages would answer 304 to a set it no longer
 holds and could not rebuild until ESI's own validator moved. Pages and their ETags are two halves of
 one cache, and age is what takes both.
 
@@ -1036,9 +1040,9 @@ they need rather than by "the book".
 
 The rule reaches names as well as prose, including the derivation itself: `deriveBookPrices` is
 `pricesFromOrders` in `pricesFromOrders.js`, and its `BookPrices` typedef is `DerivedPrices`. What it
-is given is an order book and what it returns is prices, so the name says the second. A fixture
-holding real ESI orders is still an order book — `testing/fixtures/market-derivation/books.json`
-keeps its path, because that is what it holds.
+is given is an order book and what it returns is prices, so the name says the second. The rule
+holds for a fixture too, whatever it holds: `testing/fixtures/market-derivation/orders.json` is
+named for the orders in it.
 
 **`regionOrders.js` itself is gone**, deleted by § G4 below once this server priced what the browser
 had been fetching. The vocabulary outlived the module and is what the rest of the pricing code now
@@ -1094,7 +1098,7 @@ real clock arrives, the rows it supersedes are dropped, and the surface asks aga
 **Saved markets left the persistent tier.** Rows are kept on a reader's device only where that reader
 paid to get them; a market this server walks is one request away after a reload, and a stored row
 would sit in front of a figure the server has already replaced. Nothing maps to persistent now, so
-the tier waits for the citadel it was built for — whose whole book is walked on the reader's own
+the tier waits for the citadel it was built for — whose whole market is walked on the reader's own
 token. `priceCache.savedSourceRefresh.test.jsx` went with the behaviour it described, and comes back
 with that walk; the store's own tests keep the machinery covered in the meantime.
 
@@ -1111,13 +1115,120 @@ under the probe, or a reader who asked too early sits on "nothing here" for the 
 
 ### Still to fill
 
-**A citadel cannot be priced by this server at all**, so it is not registered: its book needs
+**A citadel cannot be priced by this server at all**, so it is not registered: its orders need
 `/markets/structures/` and the docking character the row carries, which is
 [market-price-delivery](./plan.md) § Stage E item 3 and stays the reader's own fetch.
 
 **Refetching a saved source ahead of the reader** is § Stage E item 4's other half, and only a
 citadel needs it: a market this server prices states its clock on every answer, and the probe is
 what notices it moved.
+
+## Stage H — A citadel's orders reach the surfaces that browse them
+
+Pricing a citadel needed four figures per type, and the walk that produced them threw the orders
+away. Browsing one needs the orders themselves, and ESI has no way to ask a structure about a single
+type — so a surface wanting one type's orders at a citadel either walks the whole market for that
+one answer, or reads what the last walk already saw.
+
+### H1 — The orders the walk read are kept
+
+`priceStore.js` holds a market's orders whole, under a key of their own beside the derived rows:
+`replaceStoredOrders` writes them, `readStoredOrders` reads them back. Written from
+`priceLoader.js` as the prices are stored, from the same walk — a second walk to collect what the
+first already had in hand would double what a citadel costs.
+
+**The write cannot fail the pricing it sits beside.** It is fire-and-forget with its rejection
+swallowed, because orders are what a reader browses while prices are what a job is costed against:
+a reader over their storage quota loses the browsing and keeps the costing, rather than losing both.
+
+A market's orders are replaced whole rather than merged, for the reason the rest of the tier gives:
+a read is a statement about the whole market, and a market that stopped listing a type says so by
+that type's absence. They are pruned with the version and swept with everything else an unread
+market holds.
+
+### H2 — One type's orders, selected from what is held
+
+`Functions/MarketData/ordersAtCitadels.js` selects a type out of the stored orders;
+`Hooks/React Query/World/citadelOrders.js` puts a surface behind it, shaped like `useMarketData` is
+for a region so a surface drawing both is handed the same thing twice.
+
+**Keyed by region, and the citadels are found rather than passed.** A saved market carries the
+region it sits in, so a dialogue that has narrowed its location to a region already has what it
+takes to find the private markets inside it — `citadelsInRegion` in `marketSources.js` is the
+lookup. This is also the better answer on its own terms: a region may hold several saved citadels,
+and a region-wide view wants all of them rather than whichever one a picker is set to.
+
+**What makes it current is the walk, not a stale time.** A browsing surface waits on nobody — its
+orders come off the device rather than from a request it made — so the loader announces the write
+and the cache invalidates the query, the same way it already announces a moved clock and drops the
+rows. It is a second announcement rather than a second reading of the first, because a market walked
+for the **first** time moves no clock: the prices it read go straight to the callers waiting on
+them, while a surface browsing its orders would sit on an empty market for as long as it stayed
+open. An end-to-end test holds both halves — a market read while a surface watches, and that
+surface's first fill.
+
+**It reads and never fetches.** The rotation already walks every saved citadel on a schedule and
+keeps what it read, so opening a surface spends nothing. A surface that fetched instead would pay a
+thirty-page walk to answer about one type, and pay it again for the next type the reader looked at.
+A citadel nothing has read yet contributes nothing rather than an absence to report — the reader is
+looking at a region, and a market missing from it is not an error in what the rest of the region
+says.
+
+### H3 — A region and the private markets inside it, shown as one market
+
+`Functions/MarketData/regionOrderMerge.js` merges the two, and `useMarketData` is where they meet —
+in the hook rather than in the dialogue, so everything drawing a region's orders is handed the whole
+region rather than its public half. The Market Data dialogue, its only caller, changed not at all.
+
+**Deduplicated by place, not by order.** ESI publishes the structures whose owners made them public,
+so a citadel the reader saved may already be in the region's own answer. The region's copy wins:
+both sides hold the same market, and the privately-read one was walked on its own schedule, so
+merging them would show one market at two moments.
+
+**A structure's orders carry no `system_id`**, and the grid's System column — which is how a reader
+sees who undercuts whom, and the reason the dialogue is region-wide — draws from exactly that field.
+The system is on `/universe/structures/`, which the name cache already calls to name the place and
+whose whole answer it keeps. So the system arrives a round after the orders: the places are named,
+their `solar_system_id` is asked about in turn because the column shows a name rather than an id,
+and the orders are filled in from what came back.
+
+That second round is asked for **by a key built from the systems found, not by the list itself**.
+The name cache hands back a new object as each name lands, and a list of ids rebuilt from that would
+re-ask for every name on every one of them.
+
+The systems found are never taken back, so a region browsed earlier leaves its systems in the list
+for the life of the **page** rather than of one opening: the dialogue is mounted by each page and
+toggled by an event rather than mounted per open. That costs unused name entries and nothing else —
+nothing draws from an id the current round did not ask about, and system ids do not collide across
+regions.
+
+**The key follows what is held, not the render before** — so `useHasChanged`, which the frontend
+rules name as the shape for a value kept in step, is the wrong tool here and a test holds it that
+way. A name is kept for the session, so a structure named on an earlier surface is already in hand
+on this one's first render and never changes after it; a check against the previous render would see
+no change, and the system it sits in would never be asked about. The column would read as unknown
+with everything needed to fill it already known.
+
+### What the run consolidated on its way
+
+**One place knows what a citadel source is.** `savedCitadels` in `marketSources.js` answers for the
+reader's whole set and `citadelsInRegion` narrows it; `getSaleCitadels` in `saleLocations.js`, which
+had the same predicate written out again, now asks. A missing region answers nothing rather than
+everything — a caller reaching for a region it does not have yet is asking about nowhere, and the
+whole set would have a surface quietly showing markets from everywhere.
+
+**One place compares two ids.** `sameID` in `Functions/Helper/ids.js` reads both sides before
+comparing, and two ids that read as nothing are not the same id — `null === null` would make every
+unreadable value equal to every other. The idiom was written out by hand at several sites across the
+SPA with nowhere to read through instead; the two this project would have added — a type at a
+citadel and a market's region — are the first to use it, and the sites that predate it are a sweep
+of their own. `mergeCitadelOrders` asks the same module rather than the same function: deduplicating
+a list by place is a set membership question, so it builds an `asStringIDSet` and reads against it
+rather than comparing pairs.
+
+### Still to fill
+
+Nothing. The dialogue shows a reader's private markets beside the public ones.
 
 ## Stage F — Custom market locations
 
