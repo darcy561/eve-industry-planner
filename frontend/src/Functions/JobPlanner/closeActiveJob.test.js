@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { freeze } from "immer";
-import { create } from "zustand";
+import { standUpStore, storeHolder } from "../../tests/rawStoreHarness.js";
 import documentLockSlice from "../../Zustand/documentLockSlice.js";
 import editSessionSlice from "../../Zustand/editSessionSlice.js";
 import {
@@ -64,14 +64,10 @@ vi.mock("../../Events/snackbarEvents", async () => {
   return snackbarMock();
 });
 
-const storeHolder = { current: null };
-
-vi.mock("../../Zustand/usersStore.js", () => ({
-  default: {
-    getState: () => storeHolder.current.getState(),
-    setState: (...args) => storeHolder.current.setState(...args),
-  },
-}));
+vi.mock("../../Zustand/usersStore.js", async () => {
+  const { rawStoreMock } = await import("../../tests/rawStoreHarness.js");
+  return rawStoreMock();
+});
 
 import closeActiveJob from "./closeActiveJob.js";
 import { jobLens } from "../../Components/Edit Job/Edit Job Hooks/jobLens.js";
@@ -113,7 +109,7 @@ function makeJob(id = "j1", groupID = null) {
 /** The store the close reads: the job in the planner, and nothing watching. */
 function seedStore() {
   const job = makeJob();
-  storeHolder.current = create((set, get) => ({
+  standUpStore((set, get) => ({
     account: {
       isLoggedIn: true,
       sessionID: "sess-a",
