@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
   IconButton,
+  Stack,
   TableBody,
   TableCell,
   TableRow,
@@ -138,7 +139,8 @@ function BrokerFee({ fee }) {
 }
 
 /**
- * When these figures were current for this reader.
+ * When these figures were current for this reader, and why they have stopped
+ * arriving where that is something the reader can fix.
  *
  * An absent moment is two different sentences. A market the reader reads
  * themselves has not been read *on this device*, where another of their
@@ -146,18 +148,34 @@ function BrokerFee({ fee }) {
  * saving a market asks for it to be, and the first walk follows rather than
  * arriving with the save — so there are no figures at it, for anybody, until
  * that happens.
+ *
+ * A market that was readable and is not any more keeps its moment **and** says
+ * so: the figures on screen are still the ones from that moment, and dropping
+ * the date would hide how old the prices a job is being costed against have
+ * become.
  */
 function LastRead({ row }) {
-  if (row.lastReadAt) {
-    return <Typography variant="body2">{row.lastReadLabel}</Typography>;
-  }
-
   return (
-    <Typography variant="body2" color="text.secondary">
-      {row.readHere
-        ? "Not read on this device"
-        : "Waiting for its first prices"}
-    </Typography>
+    <Stack spacing={0.5} sx={{ alignItems: "flex-start" }}>
+      {row.lastReadAt ? (
+        <Typography variant="body2">{row.lastReadLabel}</Typography>
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          {row.readProblem
+            ? "No prices"
+            : row.readHere
+              ? "Not read on this device"
+              : "Waiting for its first prices"}
+        </Typography>
+      )}
+      {row.readProblem ? (
+        // Focusable because the chip takes no focus of its own and the tooltip
+        // is the only place the fix is described.
+        <ExplainerTooltip title={row.readProblem.explain} focusable>
+          <StatusChip tone={STATUS_TONE.WARN} label={row.readProblem.label} />
+        </ExplainerTooltip>
+      ) : null}
+    </Stack>
   );
 }
 

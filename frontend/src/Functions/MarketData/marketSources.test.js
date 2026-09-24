@@ -23,6 +23,8 @@ const {
   answersAPerTypeProbe,
   isReadByTheReader,
   persistsAcrossSessions,
+  citadelsInRegion,
+  savedCitadels,
   sourceIn,
   sourceNameIn,
 } = await import("./marketSources");
@@ -147,6 +149,91 @@ describe("reading one source out of a registry", () => {
   it("answers nothing rather than throwing on no registry", () => {
     expect(sourceIn(undefined, "jita")).toBeUndefined();
     expect(sourceIn(null, "jita")).toBeUndefined();
+  });
+});
+
+describe("the citadels saved in one region", () => {
+  const forge = 10000002;
+  const sources = [
+    { id: "jita", kind: "hub", regionID: forge },
+    { id: "npc", kind: "station", regionID: forge },
+    { id: "perimeter", kind: "citadel", regionID: forge },
+    { id: "tranquility-trading", kind: "citadel", regionID: forge },
+    { id: "elsewhere", kind: "citadel", regionID: 10000043 },
+  ];
+
+  // A region-wide view wants every private market in it, not the one a picker
+  // happens to be set to.
+  it("finds every citadel in the region", () => {
+    expect(citadelsInRegion(sources, forge).map((s) => s.id)).toEqual([
+      "perimeter",
+      "tranquility-trading",
+    ]);
+  });
+
+  // A hub and an NPC station are priced by the server from the region's own
+  // orders, which the caller already has.
+  it("leaves out the markets that are not read here", () => {
+    expect(
+      citadelsInRegion(sources, forge).every((s) => s.kind === "citadel"),
+    ).toBe(true);
+  });
+
+  it("leaves out a citadel in another region", () => {
+    expect(citadelsInRegion(sources, 10000043).map((s) => s.id)).toEqual([
+      "elsewhere",
+    ]);
+  });
+
+  // A region id survives a round trip through stored settings and a route
+  // param, and nothing guarantees which side is holding text.
+  it("matches a region id held as text against one asked for as a number", () => {
+    expect(
+      citadelsInRegion(
+        [{ id: "a", kind: "citadel", regionID: "10000002" }],
+        forge,
+      ),
+    ).toHaveLength(1);
+  });
+
+  // A caller reaching for a region it does not have yet is asking about nowhere,
+  // and the reader's whole set would have a surface quietly showing markets from
+  // everywhere.
+  it("answers nothing without a region rather than every citadel", () => {
+    expect(citadelsInRegion(sources, undefined)).toEqual([]);
+  });
+
+  it("answers nothing rather than throwing on no registry", () => {
+    expect(citadelsInRegion(undefined, forge)).toEqual([]);
+  });
+});
+
+describe("every citadel a reader has saved", () => {
+  const sources = [
+    { id: "jita", kind: "hub", regionID: 10000002 },
+    { id: "npc", kind: "station", regionID: 10000002 },
+    { id: "perimeter", kind: "citadel", regionID: 10000002 },
+    { id: "elsewhere", kind: "citadel", regionID: 10000043 },
+  ];
+
+  // The markets a job can sell from, wherever they are.
+  it("takes them from every region", () => {
+    expect(savedCitadels(sources).map((s) => s.id)).toEqual([
+      "perimeter",
+      "elsewhere",
+    ]);
+  });
+
+  // A hub and an NPC station are priced by the server from a region's own
+  // orders, and neither is read on the reader's token.
+  it("leaves out the markets that are not read here", () => {
+    expect(savedCitadels(sources).every((s) => s.kind === "citadel")).toBe(
+      true,
+    );
+  });
+
+  it("answers nothing rather than throwing on no registry", () => {
+    expect(savedCitadels(undefined)).toEqual([]);
   });
 });
 

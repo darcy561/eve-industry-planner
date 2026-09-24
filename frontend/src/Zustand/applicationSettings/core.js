@@ -69,20 +69,13 @@ function defaultPricingSides() {
 }
 
 /**
- * An account's pricing defaults, seeded from the single market and order type
- * wherever the server has not sent the pair.
- *
- * Both sides seed from the same value on purpose: an account that has only ever
- * said "Jita, sell orders" has said nothing about which side of a job it meant,
- * so neither side may claim it more than the other.
+ * An account's pricing defaults, as the server sent them over what is held.
  *
  * @param {object} incoming
  * @param {object} prev
- * @param {string} market - The single default, already merged
- * @param {string} orderType - The single order type, already merged
  * @returns {{buying: PricingSide, selling: PricingSide}}
  */
-function mergePricingDefaults(incoming, prev, market, orderType) {
+function mergePricingDefaults(incoming, prev) {
   const previous = prev.defaultPricing ?? defaultPricingSides();
 
   const side = (name) => {
@@ -95,7 +88,7 @@ function mergePricingDefaults(incoming, prev, market, orderType) {
           market: sent.market,
           orderType: sent.orderType || previous[name].orderType,
         }
-      : { market, orderType };
+      : { market: previous[name].market, orderType: previous[name].orderType };
 
     // The side's market group defaults and its route out travel with it.
     // Dropping either here would lose it on the next save, because what is
@@ -113,11 +106,7 @@ function mergePricingDefaults(incoming, prev, market, orderType) {
     // A route the server sent wins. Where it sent this side without one, its
     // order type answers — a document stored before routes existed is still the
     // server answering. Only where it sent nothing for this side does the route
-    // already held stand, which is a choice because the blank state names none;
-    // and behind that the legacy single default, for a legacy account's first
-    // load. The held route must outrank that last rung: the single default is
-    // still written on every save, so deriving from it again would reset a
-    // chosen route on the next merge that said nothing about pricing.
+    // already held stand, which is a choice because the blank state names none.
     const exit =
       sent?.exit ??
       (sent?.market || sent?.orderType
@@ -170,8 +159,6 @@ export const stateDefault = () => ({
   enableCompactLayoutView: false,
   esiJobTab: null,
   defaultMaterialEfficiencyValue: 0,
-  defaultMarketLocation: DEFAULT_MARKET_OPTION,
-  defaultOrderType: DEFAULT_ORDER_TYPE,
   defaultPricing: defaultPricingSides(),
   hideCompleteMaterials: false,
   defaultStationIDForAssets: DEFAULT_ASSET_LOCATION,
@@ -243,25 +230,7 @@ export function mergeApplicationSettingsState(
       null,
   };
 
-  // Same values as layout.localMarketDisplay/localOrderDisplay on legacy API; merged into defaults.
-  const defaultMarketLocation =
-    incoming.defaultMarketLocation !== undefined
-      ? incoming.defaultMarketLocation
-      : incoming.localMarketDisplay !== undefined
-        ? incoming.localMarketDisplay
-        : prev.defaultMarketLocation;
-  const defaultOrderType =
-    incoming.defaultOrderType !== undefined
-      ? incoming.defaultOrderType
-      : incoming.localOrderDisplay !== undefined
-        ? incoming.localOrderDisplay
-        : prev.defaultOrderType;
-  const defaultPricing = mergePricingDefaults(
-    incoming,
-    prev,
-    defaultMarketLocation,
-    defaultOrderType,
-  );
+  const defaultPricing = mergePricingDefaults(incoming, prev);
 
   return {
     ...prev,
@@ -277,8 +246,6 @@ export function mergeApplicationSettingsState(
     ...(incoming.defaultMaterialEfficiencyValue !== undefined && {
       defaultMaterialEfficiencyValue: incoming.defaultMaterialEfficiencyValue,
     }),
-    defaultMarketLocation,
-    defaultOrderType,
     defaultPricing,
     ...(incoming.hideCompleteMaterials !== undefined && {
       hideCompleteMaterials: incoming.hideCompleteMaterials,
@@ -365,8 +332,6 @@ export const coreActions = (set, get) => ({
 
     return {
       displayHelpCards: state.displayHelpCards,
-      defaultMarketLocation: state.defaultMarketLocation,
-      defaultOrderType: state.defaultOrderType,
       defaultPricing: state.defaultPricing,
       esiJobTab: state.esiJobTab,
       enableCompactLayoutView: state.enableCompactLayoutView,

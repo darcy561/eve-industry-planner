@@ -20,22 +20,14 @@ import (
 // saved market among its custom structures, so that what is on disk is the
 // market lane the model holds.
 //
-// Reading already moves them: every loader runs the schema upgrader, which lifts
-// a market row out of `customStructures`, so nothing is broken before this runs
-// and nothing breaks if it runs late. What it does not do is persist — a read
-// hands its caller the moved rows and leaves the document as it found it — so
-// without this every reader pays the move for ever and the stored documents keep
-// both shapes.
+// Reading already moves them and does not persist, so without this every reader
+// pays the move for ever. A step rather than a schema bump, because the settings
+// schema is not moving in this release and `completeSchemaMaintenance` selects
+// only documents below the current version.
 //
-// **A step rather than a schema bump.** The settings schema is not moving in
-// this release, so `completeSchemaMaintenance` selects none of these documents:
-// it takes what is below the current version, and they are all at it. A
-// transform that moves the version needs no step of its own; one that does not,
-// needs this.
-//
-// The conversion is a decode and a write back rather than an aggregation: the
-// upgrader is the one place that knows which rows are markets and what a market
-// row becomes, and a second implementation in a pipeline could disagree with it.
+// A decode and a write back rather than an aggregation: the upgrader is the one
+// place that knows what a market row becomes, and a pipeline reimplementing it
+// could disagree.
 func moveMarketsToTheirOwnLane(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
 	if clients == nil || clients.Mongo == nil {
 		return "", fmt.Errorf("mongo handle is required")

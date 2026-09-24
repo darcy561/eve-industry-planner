@@ -1,6 +1,10 @@
 import GLOBAL_CONFIG from "../../global-config-app";
 import useUsersStore from "../../Zustand/usersStore";
-import { SOURCE_KIND, sourceIn } from "../MarketData/marketSources";
+import {
+  SOURCE_KIND,
+  savedCitadels,
+  sourceIn,
+} from "../MarketData/marketSources";
 import { readMarketSources } from "../../Hooks/Static/useMarketSources";
 
 /**
@@ -38,10 +42,7 @@ export const SALE_LOCATION_KIND = {
  * @property {string} id - The market source id, or the saved citadel's id
  * @property {string} name - Display name
  * @property {number|null} feeStationID - The NPC station whose owner's standings
- *   set the broker fee. Null at a citadel, whose owner sets a rate instead —
- *   it is not the station the figures are priced against, which is pricedAtID
- * @property {string} pricedAtID - The market the figures are priced against
- * @property {string} pricedAtName - What that market is called
+ *   set the broker fee. Null at a citadel, whose owner sets a rate instead
  * @property {number|null} brokerFee - The owner's rate at a citadel; null at an
  *   NPC station, where the rate is derived from the seller instead
  */
@@ -52,24 +53,14 @@ export const SALE_LOCATION_KIND = {
  * @returns {SaleStructure[]}
  */
 export function getSaleCitadels() {
-  return readMarketSources().filter(
-    (market) => market.kind === SOURCE_KIND.CITADEL,
-  );
+  return savedCitadels(readMarketSources());
 }
 
 /**
  * The market a job sells from when it names none: the one the account chose.
  *
- * The account's own choice rather than a flag on one of the saved markets. A
- * reader buys in one place and lists in another as a matter of course, so the
- * question has two answers and they are kept where both are asked.
- *
- * A choice naming a market that is no longer saved — removed, or an
- * organisation stopped sharing it — resolves to the trading hub rather than to
- * nothing, which is the same answer as before anything was chosen.
- *
- * Read imperatively rather than through a hook because the callers here run in
- * a query function and a reducer as well as in render.
+ * A choice naming a market no longer saved resolves to the trading hub rather
+ * than to nothing.
  *
  * @returns {SaleStructure|null}
  */
@@ -87,8 +78,9 @@ export function getDefaultSaleStructure() {
 }
 
 /**
- * Normalises an NPC station or a saved citadel into the one shape a caller
- * pricing a sale reads, so neither kind is handled twice.
+ * An NPC station or a saved citadel in the one shape a caller pricing a sale
+ * reads. A sale is priced at the place it happens, so a citadel answers for
+ * itself and one that cannot be read carries no figures rather than a hub's.
  *
  * @param {string|null} [saleLocationID] - A saved citadel's id or a market
  *   source id, or null to fall back to the market named below
@@ -126,8 +118,6 @@ function saleLocationFromStation(station) {
     id: station.id,
     name: station.name,
     feeStationID: station.stationID,
-    pricedAtID: station.id,
-    pricedAtName: station.name,
     brokerFee: null,
   };
 }
@@ -137,22 +127,12 @@ function saleLocationFromStation(station) {
  * @returns {SaleLocation}
  */
 function saleLocationFromCitadel(citadel) {
-  // Every citadel prices against the default market rather than against its own
-  // orders, which are readable. Changing it moves the figures on this stage, so
-  // it is a decision of its own rather than a consequence of the read existing.
-  const pricedAt = sourceIn(
-    readMarketSources(),
-    GLOBAL_CONFIG.DEFAULT_MARKET_OPTION,
-  );
-
   return {
     kind: SALE_LOCATION_KIND.CITADEL,
     id: citadel.id,
     name: citadel.name,
     // No standings apply: the owner sets the rate.
     feeStationID: null,
-    pricedAtID: pricedAt?.id ?? null,
-    pricedAtName: pricedAt?.name ?? null,
     brokerFee: citadel.brokerFee,
   };
 }

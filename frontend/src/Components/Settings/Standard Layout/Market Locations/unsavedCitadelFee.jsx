@@ -7,15 +7,10 @@ import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/
 /**
  * The broker rate for a citadel the reader has not saved as a market.
  *
- * Every saved market carries its own rate, so this answers only for the
- * citadels that are not among them — a market order linked from somebody else's
- * structure, which the reader may never price a job against and has no reason to
- * save. Nothing can read that structure's rate from the game, and a linked order
- * still has to be charged something, so one account-wide figure stands in.
- *
- * An NPC station never reaches this: its rate is worked out from the seller's
- * Broker Relations and standings, and a stored number there would quote the
- * untrained rate without saying so.
+ * Every saved market carries its own rate, so this answers only for the rest.
+ * An NPC station never reaches it: its rate comes from the seller's skills and
+ * standings, and a stored number would quote the untrained rate without saying
+ * so.
  *
  * @param {object} [props]
  * @param {object} [props.fieldProps] - Styling the surrounding surface gives its

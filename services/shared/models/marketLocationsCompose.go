@@ -16,25 +16,12 @@ type SharedMarketLocations struct {
 // ComposeMarketLocations is what one reader may price against: their own
 // markets, plus the ones each owner they belong to has shared.
 //
-// **One place is one market, however many owners saved it.** Everything the
-// price tier holds is keyed by the saved row's id — the prices, the character
-// that read them, the market's next turn — so two rows naming one citadel are
-// two turns on the rotation and two walks of the same structure on the reader's
-// own token, an hour apart, for ever.
-//
-// So rows are collapsed by the place they name rather than by their id. The
-// reader's own row wins outright: an inherited row supplies a market they have
-// not saved, and never overrides one they have. Between two inherited rows the
-// nearer owner wins — a reader is in a corporation that is in an alliance — and
-// an equal pair is settled by the owner key, so the answer does not depend on
-// the order the documents were read in.
-//
-// Two of the reader's own rows naming one place take the first in stored order.
-// Nothing stops a reader saving one place twice today, so the answer is at least
-// the same one every time rather than whichever row was reached first.
-//
-// A row naming no place is left out. It cannot be asked about, and offering it
-// would put a market in front of a reader that no price could ever arrive for.
+// One place is one market however many owners saved it, because everything the
+// price tier holds is keyed by the saved row's id — two rows naming one citadel
+// would be two walks of the same structure for ever. Rows collapse by place: the
+// reader's own wins, then the nearer owner, then the lower owner key so the
+// answer does not depend on the order documents were read in. A row naming no
+// place is left out.
 func ComposeMarketLocations(own MarketLocations, shared []SharedMarketLocations) MarketLocations {
 	composed := MarketLocations{}
 	taken := map[string]bool{}

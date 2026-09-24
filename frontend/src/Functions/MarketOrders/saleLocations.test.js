@@ -116,12 +116,14 @@ describe("resolveSaleLocation", () => {
     expect(location.brokerFee).toBe(structure.brokerFee);
   });
 
-  // A citadel is a market, but nothing reads its book yet, so its figures come
-  // from a hub. What it does supply is its own fee.
-  test("a citadel prices against a hub rather than itself", () => {
-    const location = resolveSaleLocation(getDefaultSaleStructure().id);
+  // A citadel's orders are read on the reader's own characters, so a sale there
+  // is priced where it happens rather than at a hub nowhere near it.
+  test("a citadel is priced on its own market", () => {
+    const citadel = getDefaultSaleStructure();
+    const location = resolveSaleLocation(citadel.id);
 
-    expect(location.pricedAtID).toBe(resolveSaleLocation(null).pricedAtID);
+    expect(location.id).toBe(citadel.id);
+    expect(location.id).not.toBe(resolveSaleLocation(null).id);
   });
 
   test("choosing a citadel resolves that one, not the default", () => {

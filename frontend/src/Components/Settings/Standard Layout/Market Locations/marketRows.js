@@ -1,5 +1,9 @@
 import { formatTimeSince } from "../../../../Functions/Helper/numberParser";
 import { SOURCE_KIND } from "../../../../Functions/MarketData/marketSources";
+import {
+  MARKET_READ_OUTCOME,
+  readerCanAct,
+} from "../../../../Functions/MarketData/marketReadOutcome";
 
 /**
  * A summarised market as the table draws it.
@@ -47,6 +51,44 @@ export function placeLabel(kind) {
 }
 
 /**
+ * Why a market's prices are not arriving, where that is something the reader can
+ * do something about.
+ *
+ * Only the two outcomes a reader can act on are worded. A read that failed is
+ * ESI's problem or the app's and the next turn may answer, so saying it here
+ * would send a reader off to fix something that is not broken; a market nothing
+ * has read yet is not a fault at all.
+ *
+ * The explanation says what to do rather than restating the label, because the
+ * label is already on screen and a tooltip repeating it is worth nothing.
+ *
+ * @param {string} [readOutcome] - One of MARKET_READ_OUTCOME
+ * @returns {{label: string, explain: string}|undefined}
+ */
+export function readProblem(readOutcome) {
+  // Which outcomes a reader can act on is decided once, beside the outcomes
+  // themselves; this only supplies the words for the ones that are.
+  if (!readerCanAct(readOutcome)) return undefined;
+
+  switch (readOutcome) {
+    case MARKET_READ_OUTCOME.REFUSED:
+      return {
+        label: "No character can dock here",
+        explain:
+          "Every character on this account was refused when it asked this structure for its orders. Link or authorise one that can dock there and its prices arrive on the next refresh.",
+      };
+    case MARKET_READ_OUTCOME.UNASKABLE:
+      return {
+        label: "No character can be asked",
+        explain:
+          "No character on this account is authorised to read market orders inside player structures. Authorise one and its prices arrive on the next refresh.",
+      };
+    default:
+      return undefined;
+  }
+}
+
+/**
  * One market as a row of the table.
  *
  * Whether it can be changed is not among what it carries: that depends on
@@ -67,6 +109,8 @@ export function marketRow(summary, { now } = {}) {
     lastReadAt: summary.lastReadAt,
     lastReadLabel: formatTimeSince(summary.lastReadAt, { now }),
     readHere: summary.readHere,
+    readOutcome: summary.readOutcome,
+    readProblem: readProblem(summary.readOutcome),
     brokerFee: summary.brokerFee,
     sharedBy: summary.sharedBy,
     sharedByLabel: sharedByLabel(summary.sharedBy),

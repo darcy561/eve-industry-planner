@@ -1,4 +1,5 @@
 import GLOBAL_CONFIG from "../../global-config-app";
+import { sameID } from "../Helper/ids";
 import { marketsToOffer } from "./marketLocations";
 
 /**
@@ -170,6 +171,47 @@ export const wantKey = (sourceID, typeID) => `${sourceID}|${typeID}`;
  */
 export function sourceIn(sources, id) {
   return sources?.find((source) => source.id === id);
+}
+
+/**
+ * The citadels a reader has saved.
+ *
+ * What a citadel source looks like is decided here rather than at each caller,
+ * so every surface asking for the markets only the reader can read asks the
+ * same question.
+ *
+ * @param {MarketSource[]} sources
+ * @returns {MarketSource[]}
+ */
+export function savedCitadels(sources) {
+  return (sources ?? []).filter(
+    (source) => source.kind === SOURCE_KIND.CITADEL,
+  );
+}
+
+/**
+ * The citadels a reader has saved in one region.
+ *
+ * A saved market carries the region it sits in, so a surface that knows which
+ * region it is showing needs nothing else passed to it to find the private
+ * markets inside that region. Several may be saved in one region, and a
+ * region-wide view wants all of them rather than whichever one a picker
+ * happens to be set to.
+ *
+ * **No region is no answer, not every citadel.** A caller reaching for a region
+ * it does not have yet is asking about nowhere, and handing it the reader's
+ * whole set would have a surface quietly showing markets from everywhere.
+ *
+ * @param {MarketSource[]} sources
+ * @param {number|string} regionID
+ * @returns {MarketSource[]}
+ */
+export function citadelsInRegion(sources, regionID) {
+  if (!regionID) return [];
+
+  return savedCitadels(sources).filter((source) =>
+    sameID(source.regionID, regionID),
+  );
 }
 
 /**

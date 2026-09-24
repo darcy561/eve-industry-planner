@@ -10,6 +10,8 @@ const { recordSourceClock, resetSourceClocks } =
   await import("../../../../Functions/MarketData/sourceClocks.js");
 const { SOURCE_KIND } =
   await import("../../../../Functions/MarketData/marketSources.js");
+const { MARKET_READ_OUTCOME } =
+  await import("../../../../Functions/MarketData/marketReadOutcome.js");
 
 const citadel = {
   id: "saved-citadel",
@@ -33,6 +35,7 @@ describe("when a market was last read", () => {
     expect(await lastReadMoment(citadel)).toEqual({
       lastReadAt: 1700,
       readHere: true,
+      readOutcome: undefined,
     });
   });
 
@@ -42,6 +45,7 @@ describe("when a market was last read", () => {
     expect(await lastReadMoment(citadel)).toEqual({
       lastReadAt: undefined,
       readHere: true,
+      readOutcome: undefined,
     });
   });
 
@@ -51,6 +55,7 @@ describe("when a market was last read", () => {
     expect(await lastReadMoment(hub)).toEqual({
       lastReadAt: 4242,
       readHere: false,
+      readOutcome: undefined,
     });
     expect(readMarketFreshness).not.toHaveBeenCalled();
   });
@@ -96,6 +101,7 @@ describe("a market this server prices", () => {
     expect(await lastReadMoment(station)).toEqual({
       lastReadAt: undefined,
       readHere: false,
+      readOutcome: undefined,
     });
   });
 
@@ -105,6 +111,7 @@ describe("a market this server prices", () => {
     expect(await lastReadMoment({ ...station, pricedAt: 4000 })).toEqual({
       lastReadAt: 4000,
       readHere: false,
+      readOutcome: undefined,
     });
   });
 
@@ -114,6 +121,7 @@ describe("a market this server prices", () => {
     expect(await lastReadMoment(station)).toEqual({
       lastReadAt: 5150,
       readHere: false,
+      readOutcome: undefined,
     });
   });
 
@@ -125,6 +133,7 @@ describe("a market this server prices", () => {
     expect(await lastReadMoment({ ...station, pricedAt: 4000 })).toEqual({
       lastReadAt: 5150,
       readHere: false,
+      readOutcome: undefined,
     });
   });
 
@@ -136,6 +145,54 @@ describe("a market this server prices", () => {
     expect(await lastReadMoment({ ...station, pricedAt: 5150 })).toEqual({
       lastReadAt: 5150,
       readHere: false,
+      readOutcome: undefined,
     });
+  });
+});
+
+// A market whose figures never arrive looks exactly like one nothing has got to
+// yet, so how the last read went travels with when it happened — it is the same
+// record, and the panel has nothing else to go on.
+describe("how the last read of a market went", () => {
+  it("carries what the device recorded for a market the reader reads", async () => {
+    readMarketFreshness.mockResolvedValue({
+      readAt: 0,
+      expiresAt: 9999,
+      outcome: MARKET_READ_OUTCOME.REFUSED,
+    });
+
+    expect(await lastReadMoment(citadel)).toEqual({
+      lastReadAt: undefined,
+      readHere: true,
+      readOutcome: MARKET_READ_OUTCOME.REFUSED,
+    });
+  });
+
+  // The server's own failures are not this reader's to see, and nothing they
+  // could do would change one: a hub answers for everybody at once.
+  it("answers nothing for a market the server prices", async () => {
+    readMarketFreshness.mockResolvedValue({
+      readAt: 1700,
+      outcome: MARKET_READ_OUTCOME.REFUSED,
+    });
+
+    expect((await lastReadMoment(hub)).readOutcome).toBeUndefined();
+  });
+
+  it("reaches the summary the panel is built from", async () => {
+    readMarketFreshness.mockResolvedValue({
+      readAt: 0,
+      outcome: MARKET_READ_OUTCOME.UNASKABLE,
+    });
+
+    expect(await summariseMarket(citadel)).toMatchObject({
+      readOutcome: MARKET_READ_OUTCOME.UNASKABLE,
+    });
+  });
+
+  // A market saved on another machine has no record here at all, which is not
+  // the same as a read that went wrong.
+  it("is nothing where the device holds no record", async () => {
+    expect((await summariseMarket(citadel)).readOutcome).toBeUndefined();
   });
 });

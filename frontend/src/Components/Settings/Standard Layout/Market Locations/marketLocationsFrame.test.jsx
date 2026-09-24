@@ -26,6 +26,8 @@ const { default: useUsersStore } =
   await import("../../../../Zustand/usersStore.js");
 const { default: MarketLocationsFrame } =
   await import("./marketLocationsFrame.jsx");
+const { MARKET_READ_OUTCOME } =
+  await import("../../../../Functions/MarketData/marketReadOutcome.js");
 
 const jita = {
   id: "jita",
@@ -176,6 +178,40 @@ describe("managing the markets a reader prices against", () => {
       await screen.findByRole("button", {
         name: /settings for Perimeter Azbel/,
       }),
+    ).toBeTruthy();
+  });
+});
+
+// The frame builds the rows the offer is drawn from, so this is the one place
+// that proves it hands over rows carrying a problem rather than the markets it
+// started with.
+describe("the way out of a market that is not answering", () => {
+  it("offers nothing while every market is answering", async () => {
+    sources = [azbel];
+
+    show();
+
+    expect(await screen.findByText("Perimeter Azbel")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Link a character" }),
+    ).toBeNull();
+  });
+
+  it("offers the way out once a market stops answering", async () => {
+    sources = [azbel];
+    summariseMarket.mockResolvedValue({
+      id: "market-1",
+      name: "Perimeter Azbel",
+      lastReadAt: undefined,
+      readHere: true,
+      readOutcome: MARKET_READ_OUTCOME.REFUSED,
+      brokerFee: 2.5,
+    });
+
+    show();
+
+    expect(
+      await screen.findByRole("button", { name: "Link a character" }),
     ).toBeTruthy();
   });
 });

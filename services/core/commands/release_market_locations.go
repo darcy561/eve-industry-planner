@@ -12,21 +12,14 @@ import (
 )
 
 // seedMarketLocationLane gives every settings document an empty market lane, so
-// that an owner with no markets says so rather than saying nothing.
+// that an owner with no markets says so rather than saying nothing: a nil slice
+// reaches a client as `null`, which is reserved for what is genuinely absent.
 //
-// A document written before the lane existed has no `marketLocations` at all,
-// and decoding one yields a nil slice that reaches a client as `null`. `null` is
-// reserved for what is genuinely absent; an owner who has saved no markets has
-// an empty list of them.
-//
-// Nothing is broken before this runs — the lane is unread until the stage that
-// fills it — and this is deliberately a release step rather than a line in the
-// schema upgrader, so the shape is fixed on disk once instead of being repaired
-// in memory on every read for the life of the document.
+// A release step rather than a line in the upgrader, so the shape is fixed on
+// disk once instead of repaired in memory on every read.
 //
 // Idempotent, and safe in any order: it selects what is not already an array,
-// which catches both a document that never had the field and one left holding
-// `null` by something that wrote the field before this ran.
+// which catches a document that never had the field and one left holding `null`.
 func seedMarketLocationLane(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
 	if clients == nil || clients.Mongo == nil {
 		return "", fmt.Errorf("mongo handle is required")

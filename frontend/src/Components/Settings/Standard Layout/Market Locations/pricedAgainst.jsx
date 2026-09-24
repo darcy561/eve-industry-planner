@@ -14,19 +14,8 @@ import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/
  * Where the account buys and sells: the market each side prices at, and which
  * figure is read there.
  *
- * Two sides rather than one set of defaults: a reader buys materials in one
- * place and lists what they made in another as a matter of course, and a single
- * answer could only ever describe one of those.
- *
- * A side's market and its figure are one choice, so they are asked together and
- * kept beside the markets they pick from — a reader who saves a market and then
- * wants to buy at the bid should not have to find half the answer elsewhere.
- * First login asks the same question, through this same component, so the two
- * screens cannot drift apart.
- *
- * A market that is no longer saved falls back to the trading hub, which the
- * select shows: a market an organisation stopped sharing then reads as the hub
- * taking over rather than as a setting that has broken.
+ * A side's market and its figure are one choice, so they are asked together.
+ * First login mounts this same component rather than a second copy.
  *
  * @param {object} [props]
  * @param {object} [props.selectProps] - Styling the surrounding surface gives

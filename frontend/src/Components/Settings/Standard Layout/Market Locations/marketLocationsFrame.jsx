@@ -5,6 +5,7 @@ import { MenuItem, Stack, TextField, Typography } from "@mui/material";
 import AddMarketForm from "./addMarketForm";
 import PricedAgainst from "./pricedAgainst";
 import UnsavedCitadelFee from "./unsavedCitadelFee";
+import MarketsNotAnswering from "./marketsNotAnswering";
 import MarketEditor from "./marketEditor";
 import MarketsTable from "./marketsTable";
 import { marketRow } from "./marketRows";
@@ -92,6 +93,8 @@ export default function MarketLocationsFrame() {
             />
           )}
 
+          <MarketsNotAnswering rows={shown} />
+
           {/* Beneath the list because it is what answers for a citadel that is
               not on it. */}
           <UnsavedCitadelFee />
@@ -161,6 +164,7 @@ function unread(source) {
     ...source,
     lastReadAt: readHere ? undefined : source.pricedAt || undefined,
     readHere,
+    readOutcome: undefined,
     brokerFee: visibleBrokerFee(source),
   };
 }

@@ -32,14 +32,9 @@ const isCitadel = (locationID) =>
 /**
  * Saving a market a reader can sell at.
  *
- * Everything but the name and a citadel's rate is derived from the place rather
- * than asked for — the region its orders are read from, and what an NPC
- * station's broker fee is worked out from.
- *
- * Derived as the place is chosen rather than when something first tries to
- * price there: a market saved without a region is offered in every picker and
- * prices nothing, and the reader who could have picked a different one has long
- * since moved on.
+ * Everything but the name and a citadel's rate is derived from the place, as it
+ * is chosen: a market saved without a region is offered in every picker and
+ * prices nothing.
  *
  * @param {object} props
  * @param {string} [props.sharedBy] - The organisation to save it for, absent to
@@ -176,15 +171,10 @@ function usePlaceFacts(locationID) {
 /**
  * The system a chosen citadel sits in, and whether it can be reached at all.
  *
- * `/universe/structures/` answers with the whole structure, so the system is
- * already held beside the name the picker listed it under and asking again
- * would spend a call on what the cache has.
- *
- * A citadel every character was refused at has a name from the community store
- * but no system, and so no region: it is unreachable rather than pending, which
- * is what stops the form waiting for an answer that is not coming.
- *
- * A station names its own system, so nothing is asked for one.
+ * Read from the name cache, which already holds the whole structure. A citadel
+ * every character was refused at has a name from the community store and no
+ * system: unreachable rather than pending, which is what stops the form waiting
+ * for an answer that is not coming.
  *
  * @returns {{systemID: number|undefined, pending: boolean, unreachable: boolean}}
  */

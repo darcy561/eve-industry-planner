@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { marketRow, placeLabel, sharedByLabel } from "./marketRows";
+import {
+  marketRow,
+  placeLabel,
+  readProblem,
+  sharedByLabel,
+} from "./marketRows";
+import { MARKET_READ_OUTCOME } from "../../../../Functions/MarketData/marketReadOutcome";
 
 const summary = {
   id: "market-1",
@@ -66,5 +72,56 @@ describe("a market as the table draws it", () => {
 
     expect(inherited.sharedBy).toBe("corporation:abc");
     expect(inherited.editable).toBeUndefined();
+  });
+});
+
+// The row carries how the last read went but says nothing about it: what a
+// reader is told, and what they are offered to fix it, is the panel's to decide.
+describe("a row's record of how the market last read", () => {
+  it("carries what the summary settled on", () => {
+    const row = marketRow({ id: "m", name: "M", readOutcome: "refused" });
+
+    expect(row.readOutcome).toBe("refused");
+  });
+
+  it("carries nothing where the summary had nothing", () => {
+    expect(marketRow({ id: "m", name: "M" }).readOutcome).toBeUndefined();
+  });
+});
+
+// Only what a reader can act on is worded. A read that failed is ESI's problem
+// and may answer next turn; a market nothing has read yet is not a fault.
+describe("wording why a market's prices are not arriving", () => {
+  it("names being refused, and says what to do about it", () => {
+    const problem = readProblem(MARKET_READ_OUTCOME.REFUSED);
+
+    expect(problem.label).toBe("No character can dock here");
+    expect(problem.explain).toMatch(/dock there/i);
+  });
+
+  it("tells having nobody to ask apart from being told no", () => {
+    expect(readProblem(MARKET_READ_OUTCOME.UNASKABLE).label).toBe(
+      "No character can be asked",
+    );
+  });
+
+  // Saying this would send a reader off to fix something that is not broken.
+  it("says nothing about a read that merely failed", () => {
+    expect(readProblem(MARKET_READ_OUTCOME.FAILED)).toBeUndefined();
+  });
+
+  it("says nothing about a market that read, or has no record", () => {
+    expect(readProblem(MARKET_READ_OUTCOME.READ)).toBeUndefined();
+    expect(readProblem(undefined)).toBeUndefined();
+  });
+
+  it("puts it on the row it belongs to", () => {
+    const row = marketRow({
+      id: "m",
+      name: "M",
+      readOutcome: MARKET_READ_OUTCOME.REFUSED,
+    });
+
+    expect(row.readProblem.label).toBe("No character can dock here");
   });
 });

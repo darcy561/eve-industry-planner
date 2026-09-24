@@ -8,7 +8,7 @@ import {
 
 /**
  * @typedef {object} MarketLocationFacts
- * @property {number} regionID - The region whose order book carries it
+ * @property {number} regionID - The region whose orders carry it
  * @property {number} [raceID] - The race that built the station
  * @property {number} [ownerID] - The corporation that owns it
  */
@@ -16,18 +16,10 @@ import {
 /**
  * What a saved market needs to know about the place it is, asked once.
  *
- * A reader names a station or a citadel; everything else is derived. An order
- * book is read per region and then narrowed, so a market with no region can be
- * offered in a picker and price nothing — which is why this is asked for at the
- * point one is saved rather than left to whatever reads it later.
- *
- * A station also answers what its broker fee is worked out from. The race names
- * the faction a standing is held against and the owner is the corporation
- * holding the other, and neither changes for the life of the station, so they
- * are read here and stored rather than fetched per quote.
- *
- * A citadel is not asked: `/universe/structures/` needs the docking character,
- * and its region comes from the system the reader is told it sits in.
+ * Asked as a market is saved rather than per quote: a market with no region can
+ * be offered in a picker and price nothing, and a station's race and owner never
+ * change for its lifetime. A citadel is not asked — `/universe/structures/`
+ * needs the docking character — so its region comes from the system given.
  *
  * @param {number} locationID - The station or structure a reader chose
  * @param {number} [systemID] - The system a citadel sits in, when known

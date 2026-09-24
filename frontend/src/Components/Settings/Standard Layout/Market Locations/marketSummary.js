@@ -28,6 +28,10 @@ import { readSourceClock } from "../../../../Functions/MarketData/sourceClocks";
  * @property {string} [sharedBy] - The owner that shared it, where one did
  * @property {boolean} sharedWithMembers - Whether the organisation that saved it
  *   offers it to its members. Meaningless on a market the reader saved
+ * @property {string|undefined} readOutcome - One of MARKET_READ_OUTCOME: how the
+ *   last attempt to read this market went. Only a market read on this device has
+ *   one — a market the server prices answers for every reader at once, and the
+ *   server's own failures are not the reader's to see here
  */
 
 /**
@@ -46,35 +50,30 @@ export function visibleBrokerFee(source) {
 /**
  * When a market was last read, for this reader.
  *
- * **Not one question.** A market the reader reads themselves was read on this
- * device, at a moment only this device knows — another of their machines has
- * its own answer, and a market they have never opened here has none. A market
- * this server prices states one clock, the same for every reader.
- *
- * So the panel is saying "when these figures were current for you", which for a
- * market an organisation shares can differ between two of its members.
- *
- * A server-priced market answers from the clock the market arrived with rather
- * than from the one a price answer left behind this session. The second is a
- * side effect of having asked for a price: it is held in memory, so it is empty
- * on every fresh load and reads as though a market the server has been walking
- * for weeks had never been priced at all. Where both are held the newer wins —
- * the market's own clock is as old as the last time the set was read, and a
- * price answered since then has moved past it.
+ * A market the reader reads themselves was read on this device, so the answer
+ * is per device; one this server prices states one clock for every reader. The
+ * in-memory clock a price answer leaves behind is empty on a fresh load, so
+ * where both are held the newer wins.
  *
  * @param {import("../../../../Functions/MarketData/marketSources").MarketSource} source
- * @returns {Promise<{lastReadAt: number|undefined, readHere: boolean}>}
+ * @returns {Promise<{lastReadAt: number|undefined, readHere: boolean,
+ *   readOutcome: string|undefined}>}
  */
 export async function lastReadMoment(source) {
   if (!isReadByTheReader(source?.kind)) {
     return {
       lastReadAt: newerOf(source?.pricedAt, readSourceClock(source?.id)),
       readHere: false,
+      readOutcome: undefined,
     };
   }
 
   const held = await readMarketFreshness(source.id);
-  return { lastReadAt: held?.readAt || undefined, readHere: true };
+  return {
+    lastReadAt: held?.readAt || undefined,
+    readHere: true,
+    readOutcome: held?.outcome,
+  };
 }
 
 /** The later of two moments, or undefined where neither is one. */
@@ -95,7 +94,7 @@ function newerOf(a, b) {
  * @returns {Promise<MarketSummary>}
  */
 export async function summariseMarket(source) {
-  const { lastReadAt, readHere } = await lastReadMoment(source);
+  const { lastReadAt, readHere, readOutcome } = await lastReadMoment(source);
 
   return {
     id: source.id,
@@ -105,6 +104,7 @@ export async function summariseMarket(source) {
     sharedWithMembers: Boolean(source.sharedWithMembers),
     lastReadAt,
     readHere,
+    readOutcome,
     brokerFee: visibleBrokerFee(source),
   };
 }

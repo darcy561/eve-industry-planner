@@ -86,6 +86,56 @@ describe("when a market was last read", () => {
   });
 });
 
+// A market that stopped answering looks exactly like one nothing has got to,
+// and the reader is the only one who can fix the first.
+describe("a market whose prices are not arriving", () => {
+  const refused = {
+    ...azbel,
+    lastReadAt: undefined,
+    lastReadLabel: undefined,
+    readProblem: {
+      label: "No character can dock here",
+      explain: "Link or authorise one that can dock there.",
+    },
+  };
+
+  it("says what is wrong rather than that nobody has read it", () => {
+    show([refused]);
+
+    expect(screen.getByText("No character can dock here")).toBeTruthy();
+    expect(screen.getByText("No prices")).toBeTruthy();
+    expect(screen.queryByText("Not read on this device")).toBeNull();
+  });
+
+  // The explanation is the only place the fix is described, so a reader who does
+  // not use a mouse has to be able to reach it.
+  it("puts the explanation within reach of the keyboard", async () => {
+    show([refused]);
+
+    await userEvent.tab();
+
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      "Link or authorise one that can dock there.",
+    );
+  });
+
+  // The figures on screen are still the ones from that moment, so dropping the
+  // date would hide how old the prices a job is costed against have become.
+  it("keeps the moment on a market that was readable and is not now", () => {
+    show([{ ...refused, lastReadAt: 1700, lastReadLabel: "20 minutes ago" }]);
+
+    expect(screen.getByText("20 minutes ago")).toBeTruthy();
+    expect(screen.getByText("No character can dock here")).toBeTruthy();
+  });
+
+  it("says nothing on a market with no problem to report", () => {
+    show([azbel]);
+
+    expect(screen.queryByText("No character can dock here")).toBeNull();
+  });
+});
+
 describe("opening a market's settings", () => {
   it("asks for the row it belongs to", async () => {
     const onToggleRow = show([azbel]);

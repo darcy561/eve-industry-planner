@@ -13,17 +13,9 @@ import { marketEdits } from "./marketWriter";
 /**
  * Changing one market.
  *
- * What it does not offer is the place: a market somewhere else is a different
- * market, and the prices held for it, the character that reads it and its turn
- * on the refresh rotation all hang off this one's id.
- *
- * The same controls whoever saved the market. Which document an edit lands on is
- * `marketWriter`'s to decide, so a row an organisation shared is edited the way
- * the reader's own is — with one control more, for whether the organisation
- * offers it to its members.
- *
- * Where a job is priced is not among them: that is the account's own buying and
- * selling choice, made once at the top of this tab rather than per market.
+ * The place is not offered: a market somewhere else is a different market, and
+ * its prices, reading character and rotation turn all hang off this one's id.
+ * Which document an edit lands on is `marketWriter`'s to decide.
  *
  * @param {object} props
  * @param {object} props.row - The market as the table drew it

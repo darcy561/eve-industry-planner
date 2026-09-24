@@ -18,18 +18,8 @@ const composedNow = () => queryClient.getQueryData(MARKET_LOCATIONS_QUERY_KEY);
 /**
  * Every market a price may be asked for.
  *
- * A hook rather than a bare call so a surface offering markets redraws when the
- * set changes — a reader saving one, or an organisation sharing one, which
- * arrives over the socket without the reader doing anything.
- *
- * **It subscribes rather than fetches.** The composed set is put there by
- * signing in and read again when an owner's settings move; a surface asking for
- * it would ask before a reader is signed in, and would be a second thing
- * deciding when it is read.
- *
- * Subscribed to through the cache rather than `useQuery`, so a surface offering
- * a market does not need a query provider standing over it — several are
- * rendered in tests without one, and this hook is not the place to require it.
+ * It subscribes rather than fetches, through the cache rather than `useQuery`,
+ * so a surface offering a market needs no query provider standing over it.
  *
  * @returns {import("../../Functions/MarketData/marketSources").MarketSource[]}
  */

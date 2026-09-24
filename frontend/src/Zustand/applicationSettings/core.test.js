@@ -15,24 +15,8 @@ describe("pricing defaults", () => {
     });
   });
 
-  it("seeds both sides from an account that only has the single default", () => {
-    const merged = merge({
-      defaultMarketLocation: "amarr",
-      defaultOrderType: "buy",
-    });
-
-    expect(merged.defaultPricing).toEqual({
-      buying: { market: "amarr", orderType: "buy" },
-      // The order type it seeded from is read as a route and then dropped: an
-      // account priced from bids was reading a listing's fee against a bid.
-      selling: { market: "amarr", exit: "immediate" },
-    });
-  });
-
   it("keeps the sides apart once the server sends them", () => {
     const merged = merge({
-      defaultMarketLocation: "amarr",
-      defaultOrderType: "buy",
       defaultPricing: {
         buying: { market: "jita", orderType: "sell" },
         selling: { market: "hek", orderType: "buy" },
@@ -49,16 +33,16 @@ describe("pricing defaults", () => {
     });
   });
 
-  it("seeds only the side the server left out", () => {
+  // A side the server says nothing about keeps what is held rather than
+  // following the side it did send.
+  it("keeps the held side when the server sends only the other", () => {
     const merged = merge({
-      defaultMarketLocation: "dodixie",
-      defaultOrderType: "sellP05",
       defaultPricing: { selling: { market: "hek", orderType: "buy" } },
     });
 
     expect(merged.defaultPricing.buying).toEqual({
-      market: "dodixie",
-      orderType: "sellP05",
+      market: "jita",
+      orderType: "sell",
     });
     expect(merged.defaultPricing.selling).toEqual({
       market: "hek",
@@ -77,26 +61,26 @@ describe("pricing defaults", () => {
   it.each([
     ["omitted by Go", {}],
     ["written out in full", { market: "", orderType: "" }],
-  ])("seeds from the single default when a side arrives %s", (_name, side) => {
+  ])("keeps what is held when a side arrives %s", (_name, side) => {
     const merged = merge({
-      defaultMarketLocation: "amarr",
-      defaultOrderType: "buy",
       defaultPricing: { buying: { ...side }, selling: { ...side } },
     });
 
     expect(merged.defaultPricing).toEqual({
-      buying: { market: "amarr", orderType: "buy" },
-      selling: { market: "amarr", exit: "immediate" },
+      buying: { market: "jita", orderType: "sell" },
+      selling: { market: "jita", exit: "listed" },
     });
   });
 
-  it("falls back to the previous single default when neither is sent", () => {
-    const prev = { ...stateDefault(), defaultMarketLocation: "hek" };
+  // Nothing held and nothing sent still has to come out usable, because every
+  // priced surface reads these while rendering.
+  it("falls back to the blank state when neither is held nor sent", () => {
+    const prev = { ...stateDefault() };
     delete prev.defaultPricing;
 
     expect(merge({ displayHelpCards: true }, prev).defaultPricing).toEqual({
-      buying: { market: "hek", orderType: "sell" },
-      selling: { market: "hek", exit: "listed" },
+      buying: { market: "jita", orderType: "sell" },
+      selling: { market: "jita", exit: "listed" },
     });
   });
 
@@ -126,7 +110,7 @@ describe("pricing defaults", () => {
       },
     };
 
-    const merged = merge({ defaultMarketLocation: "amarr" }, prev);
+    const merged = merge({ displayHelpCards: true }, prev);
 
     expect(merged.defaultPricing.buying.groups).toEqual(groups);
   });
@@ -137,23 +121,20 @@ describe("pricing defaults", () => {
     const groups = { 1857: { market: "hek" } };
 
     const merged = merge({
-      defaultMarketLocation: "amarr",
-      defaultOrderType: "buy",
       defaultPricing: { buying: { groups }, selling: {} },
     });
 
     expect(merged.defaultPricing.buying).toEqual({
-      market: "amarr",
-      orderType: "buy",
+      market: "jita",
+      orderType: "sell",
       groups,
     });
   });
 });
 
-// The legacy single default is still written on every save, so it arrives with
-// merges that are not about pricing at all. A route derived from it each time
-// would quietly undo the player's choice — the setting would appear to save and
-// then revert.
+// A merge that says nothing about pricing arrives on every unrelated save, and a
+// route derived again each time would quietly undo the player's choice — the
+// setting would appear to save and then revert.
 describe("a chosen route out survives later merges", () => {
   const chosen = () => ({
     ...stateDefault(),
@@ -165,15 +146,6 @@ describe("a chosen route out survives later merges", () => {
 
   it("keeps the route when a merge says nothing about pricing", () => {
     const merged = merge({ displayHelpCards: true }, chosen());
-
-    expect(merged.defaultPricing.selling.exit).toBe("immediate");
-  });
-
-  it("keeps the route when the legacy single default disagrees with it", () => {
-    const merged = merge(
-      { defaultMarketLocation: "jita", defaultOrderType: "sell" },
-      chosen(),
-    );
 
     expect(merged.defaultPricing.selling.exit).toBe("immediate");
   });
