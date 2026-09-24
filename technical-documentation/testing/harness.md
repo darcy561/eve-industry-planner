@@ -37,7 +37,7 @@ Live SoT for cross-cutting **ops soak / harness packages** under [`testing/`](..
 | `testing/capacity_soak` | CLI | Thin `main.go` → parse profile/phase → `capsoak.Run` |
 | `testing/model_parity/lib` (`modelparity`) | **Tested** (unit) / **ops** (live stack) | Per-collection sweep (decode, round trip, orphan census), the job corpus the SPA test reads, and `JSONPaths` — the model's own JSON surface by reflection |
 | `testing/model_parity` | CLI | Thin `main.go` → parse phase → `modelparity.Run` |
-| `testing/fixtures/model-parity` | **Tested** (unit) | `instance-keys.json` — which map keys name an instance rather than a field, embedded for the Go sweep and read by the SPA parity test |
+| `testing/fixtures/model-parity` | **Tested** (unit) | `instance-keys.json` — which map keys name an instance rather than a field, embedded for the Go sweep and read by the SPA parity test — and `job-schema.json`, the committed census of the model's own JSON paths |
 
 ## Live Mongo
 
@@ -91,6 +91,21 @@ tool permanently red.
 An orphan still matters. The upsert builds `$set` from the struct, so a key no model writes stays on
 disk untouched while whatever replaced it moves on — the stored figure and the derived one disagree
 from then on, and nothing reads the stale one to notice.
+
+### The committed census
+
+[`testing/fixtures/model-parity/job-schema.json`](../../testing/fixtures/model-parity/job-schema.json)
+lists every JSON path `models.Job` can emit, and is committed rather than swept for the reason
+§ The SPA half gives. Being committed is how it goes stale, so a test fails when it no longer matches
+the model, and regenerating it needs no stack:
+
+```bash
+cd testing
+EIP_REGEN_JOB_SCHEMA=1 go test ./model_parity/lib -run TestRegenerateJobSchema
+```
+
+It writes through the same `WriteSchema` the `corpus` phase uses, so a census regenerated here and one
+swept from the stack cannot differ.
 
 Which map keys name an instance rather than a field is shared data, not a rule each side spells for
 itself: [`testing/fixtures/model-parity/instance-keys.json`](../../testing/fixtures/model-parity/instance-keys.json)
